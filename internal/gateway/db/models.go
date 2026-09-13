@@ -906,6 +906,20 @@ type CleanupJob struct {
 	CompletedAt    pgtype.Timestamptz   `json:"completed_at"`
 }
 
+type CodingOperation struct {
+	ID             string    `json:"id"`
+	WorkspaceID    string    `json:"workspace_id"`
+	OrganizationID string    `json:"organization_id"`
+	OwnerID        string    `json:"owner_id"`
+	ProjectID      string    `json:"project_id"`
+	WorktreeID     string    `json:"worktree_id"`
+	Request        []byte    `json:"request"`
+	Result         []byte    `json:"result"`
+	LeaseToken     string    `json:"lease_token"`
+	LeaseUntil     time.Time `json:"lease_until"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
 type CodingProject struct {
 	ID            string             `json:"id"`
 	WorkspaceID   string             `json:"workspace_id"`
@@ -915,6 +929,21 @@ type CodingProject struct {
 	Repository    string             `json:"repository"`
 	DefaultBranch string             `json:"default_branch"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
+type CodingSnapshot struct {
+	ProjectID        string    `json:"project_id"`
+	AgentName        string    `json:"agent_name"`
+	WorktreeID       string    `json:"worktree_id"`
+	Result           []byte    `json:"result"`
+	DemandUntil      time.Time `json:"demand_until"`
+	NextRefresh      time.Time `json:"next_refresh"`
+	GithubRetryAfter time.Time `json:"github_retry_after"`
+	NextRemote       time.Time `json:"next_remote"`
+	LeaseUntil       time.Time `json:"lease_until"`
+	Failures         int32     `json:"failures"`
+	Generation       int64     `json:"generation"`
+	RemoteRefs       string    `json:"remote_refs"`
 }
 
 type CodingThread struct {

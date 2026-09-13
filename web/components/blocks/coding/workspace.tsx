@@ -2,10 +2,8 @@
 
 import { useEffect, useState } from "react"
 import dynamic from "next/dynamic"
-import { queryOptions, useIsMutating, useMutation, useQuery } from "@tanstack/react-query"
+import { queryOptions, useQuery } from "@tanstack/react-query"
 import {
-  Check,
-  ChevronDown,
   FolderCode,
   Files,
   GitBranch,
@@ -18,15 +16,6 @@ import { toast } from "sonner"
 import { authClient } from "@/lib/auth-client"
 import { useFileWorkspace } from "@/components/blocks/chat/file-workspace-store"
 import { WorkspaceResizeHandle } from "@/components/blocks/chat/files-workspace"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command"
 import { Spinner } from "@/components/ui/spinner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
@@ -79,15 +68,13 @@ export function CodingWorkspace({
   const [width, setWidth] = useState(480)
   const [expanded, setExpanded] = useState(false)
   const [editorOpen, setEditorOpen] = useState(false)
-  const [branchOpen, setBranchOpen] = useState(false)
   const tree = thread.worktree
-  const mutationKey = ["coding", "git", workspaceId, tree.id]
-  const pending = useIsMutating({ mutationKey }) > 0
   const status = useQuery(
     queryOptions({
       queryKey: ["coding", "git", workspaceId, tree.id, actor?.user.id],
       queryFn: () => runWorkspaceGit(workspaceId, tree.id, { operation: "status" }),
       enabled: !!actor?.user.id,
+      refetchInterval: 30_000,
     })
   )
   const data = status.data
@@ -122,18 +109,6 @@ export function CodingWorkspace({
     window.addEventListener("keydown", onKeyDown, true)
     return () => window.removeEventListener("keydown", onKeyDown, true)
   }, [tab])
-
-  const checkout = useMutation({
-    mutationKey,
-    mutationFn: (ref: string) =>
-      runWorkspaceGit(workspaceId, tree.id, {
-        operation: "checkout",
-        ref,
-        expected_head: data?.head,
-      }),
-    onError: (error) => toast.error(error.message),
-    onSettled: () => status.refetch(),
-  })
 
   return (
     <>
@@ -230,57 +205,13 @@ export function CodingWorkspace({
         <footer className="bg-muted/20 text-muted-foreground flex h-9 shrink-0 items-center gap-2 border-t px-2 text-[11px]">
           {data ? (
             <div className="flex min-w-0 flex-1 items-center gap-2">
-              <Popover open={branchOpen} onOpenChange={setBranchOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    role="combobox"
-                    aria-label="Current branch"
-                    aria-expanded={branchOpen}
-                    variant="ghost"
-                    size="sm"
-                    disabled={pending}
-                    className="min-w-0 flex-1 justify-start px-1 text-xs"
-                  >
-                    <GitBranch className="text-muted-foreground" />
-                    <span className="truncate" title={data.branch}>
-                      {data.branch || "Detached HEAD"}
-                    </span>
-                    <ChevronDown className="text-muted-foreground ml-auto" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align="start" className="w-80 max-w-[calc(100vw-2rem)] p-0">
-                  <Command>
-                    <CommandInput placeholder="Find a branch..." />
-                    {data.files.length > 0 ? (
-                      <p className="text-muted-foreground border-b px-3 py-2 text-xs">
-                        Commit or clear your changes before switching branches.
-                      </p>
-                    ) : null}
-                    <CommandList>
-                      <CommandEmpty>No branches found.</CommandEmpty>
-                      <CommandGroup heading="Local branches">
-                        {data.branches.map((branch) => (
-                          <CommandItem
-                            key={branch}
-                            value={branch}
-                            disabled={data.files.length > 0 && branch !== data.branch}
-                            onSelect={() => {
-                              setBranchOpen(false)
-                              if (branch !== data.branch) checkout.mutate(branch)
-                            }}
-                          >
-                            <GitBranch />
-                            <span className="truncate" title={branch}>
-                              {branch}
-                            </span>
-                            {branch === data.branch ? <Check className="ml-auto" /> : null}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+              <span
+                className="flex min-w-0 flex-1 items-center gap-2"
+                title="Branch selection is fixed for this conversation"
+              >
+                <GitBranch className="size-3.5 shrink-0" />
+                <span className="truncate">{data.branch || "Detached HEAD"}</span>
+              </span>
               <button
                 className="text-muted-foreground hover:text-foreground font-mono text-xs"
                 aria-label="Copy commit hash"

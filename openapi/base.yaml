@@ -211,6 +211,152 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Error'}
+  /api/coding/repository:
+    parameters:
+    - {name: query, in: query, schema: {type: string, maxLength: 256, default: ''}}
+    - {name: page, in: query, schema: {type: integer, minimum: 1, default: 1}}
+    get:
+      operationId: listCodingRepositories
+      tags: [coding]
+      responses:
+        '200':
+          description: Coding result.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CodingRepositoryPage'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/coding/project/{projectId}/refs:
+    parameters:
+    - {name: projectId, in: path, required: true, schema: {type: string}}
+    - {name: agent_name, in: query, required: true, schema: {type: string}}
+    - {name: query, in: query, schema: {type: string, maxLength: 256}}
+    - {name: cursor, in: query, schema: {type: string}}
+    get:
+      operationId: listCodingRefs
+      tags: [coding]
+      responses:
+        '200':
+          description: Coding result.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CodingRepositorySnapshot'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/coding/project/{projectId}/refresh:
+    parameters:
+    - {name: projectId, in: path, required: true, schema: {type: string}}
+    - {name: agent_name, in: query, required: true, schema: {type: string}}
+    post:
+      operationId: refreshCodingRepository
+      tags: [coding]
+      responses:
+        '202':
+          description: Coding result.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CodingRepositorySnapshot'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/coding/project/{projectId}/worktree:
+    parameters:
+    - {name: projectId, in: path, required: true, schema: {type: string}}
+    post:
+      operationId: adoptCodingWorktree
+      tags: [coding]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdoptCodingWorktreeRequest'}
+      responses:
+        '201':
+          description: Coding result.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CodingWorktree'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/coding/operation:
+    post:
+      operationId: startCodingOperation
+      tags: [coding]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CodingOperationRequest'}
+      responses:
+        '202':
+          description: Coding result.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CodingOperation'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    get:
+      operationId: listCodingOperations
+      tags: [coding]
+      responses:
+        '200':
+          description: Active and recent operations owned by the actor.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/CodingOperation'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/coding/operation/{operationId}:
+    parameters:
+    - {name: operationId, in: path, required: true, schema: {type: string}}
+    get:
+      operationId: getCodingOperation
+      tags: [coding]
+      responses:
+        '200':
+          description: Coding result.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CodingOperation'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/coding/watch:
+    get:
+      operationId: watchCoding
+      tags: [coding]
+      responses:
+        '200':
+          description: Invalidation notifications; read current state on every connection.
+          content:
+            text/event-stream:
+              schema: {$ref: '#/components/schemas/WatchChatSessionsEvent'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
   /api/chat-session:
     get:
       operationId: listChatSessions
@@ -9542,9 +9688,7 @@ components:
       properties:
         name: {type: string, minLength: 1, maxLength: 80, pattern: '.*\S.*'}
         repository_id: {type: integer, format: int64, minimum: 1}
-        repository: {type: string, pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'}
-        default_branch: {type: string, minLength: 1, maxLength: 255}
-      required: [name, repository_id, repository, default_branch]
+      required: [name, repository_id]
     CodingWorktree:
       type: object
       additionalProperties: false
@@ -9588,8 +9732,7 @@ components:
         agent_name: {type: string, minLength: 1, maxLength: 32}
         worktree_id: {type: string, pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'}
         main_checkout: {type: boolean, default: false}
-        base_branch: {type: string, minLength: 1, maxLength: 255}
-        bundle: {type: string, format: byte, maxLength: 89478488}
+        base_ref: {type: string, minLength: 1, maxLength: 1024}
       required: [id, project_id, agent_name]
     CodingTextRequest:
       type: object
@@ -9629,8 +9772,8 @@ components:
       properties:
         operation:
           type: string
-          enum: [status, diff, stage, unstage, stashes, stash_create, stash_apply, stash_pop, stash_drop, export, import, apply_commit, checkout, create_branch, prepare_commit, rename, remove]
-          x-enum-varnames: [CodingGitStatus, CodingGitDiff, CodingGitStage, CodingGitUnstage, CodingGitStashes, CodingGitStashCreate, CodingGitStashApply, CodingGitStashPop, CodingGitStashDrop, CodingGitExport, CodingGitImport, CodingGitApplyCommit, CodingGitCheckout, CodingGitCreateBranch, CodingGitPrepareCommit, CodingGitRename, CodingGitRemove]
+          enum: [discover, status, diff, stage, unstage, stashes, stash_create, stash_apply, stash_pop, stash_drop, export, import, apply_commit, checkout, create_branch, prepare_commit, rename, remove]
+          x-enum-varnames: [CodingGitDiscover, CodingGitStatus, CodingGitDiff, CodingGitStage, CodingGitUnstage, CodingGitStashes, CodingGitStashCreate, CodingGitStashApply, CodingGitStashPop, CodingGitStashDrop, CodingGitExport, CodingGitImport, CodingGitApplyCommit, CodingGitCheckout, CodingGitCreateBranch, CodingGitPrepareCommit, CodingGitRename, CodingGitRemove]
         comparison:
           $ref: '#/components/schemas/CodingGitComparison'
         revision: {type: string, pattern: '^[a-f0-9]{64}$'}
@@ -9672,10 +9815,10 @@ components:
           items: {$ref: '#/components/schemas/CodingGitStash'}
         bundle: {type: string, format: byte}
         tree: {type: string}
-        branches:
-          type: array
-          items: {type: string}
-      required: [head, branch, files, revision, branches, default_branch, remote_head, ahead, behind, ahead_of_default]
+        repository: {$ref: '#/components/schemas/CodingRepositorySnapshot'}
+        pull_request: {$ref: '#/components/schemas/CodingPullRequest'}
+        remote_error: {type: string}
+      required: [head, branch, files, revision, default_branch, remote_head, ahead, behind, ahead_of_default]
     CodingGitFile:
       type: object
       additionalProperties: false
@@ -9709,3 +9852,130 @@ components:
         message: {type: string}
         created_at: {type: string, format: date-time}
       required: [oid, reference, message, created_at]
+    CodingRepositoryPage:
+      type: object
+      additionalProperties: false
+      properties:
+        repositories:
+          type: array
+          items: {$ref: '#/components/schemas/CodingRepositoryItem'}
+        next_page: {type: integer}
+        limited: {type: boolean}
+      required: [repositories, limited]
+    CodingRef:
+      type: object
+      additionalProperties: false
+      properties:
+        ref: {type: string}
+        name: {type: string}
+        head: {type: string}
+        remote: {type: boolean}
+        worktree: {type: string}
+        current: {type: boolean}
+        default: {type: boolean}
+        committed_at: {type: integer, format: int64}
+      required: [ref, name, head, remote, current, default, committed_at]
+    CodingDiscoveredWorktree:
+      type: object
+      additionalProperties: false
+      properties:
+        directory: {type: string}
+        branch: {type: string}
+        head: {type: string}
+        managed_id: {type: string}
+        available: {type: boolean}
+        reason: {type: string}
+        locked: {type: boolean}
+      required: [directory, branch, head, available, locked]
+    CodingRepositorySnapshot:
+      type: object
+      additionalProperties: false
+      properties:
+        refs:
+          type: array
+          items: {$ref: '#/components/schemas/CodingRef'}
+        worktrees:
+          type: array
+          items: {$ref: '#/components/schemas/CodingDiscoveredWorktree'}
+        revision: {type: string}
+        updated_at: {type: string, format: date-time}
+        refreshing: {type: boolean}
+        error: {type: string}
+        total_count: {type: integer}
+        next_cursor: {type: string}
+      required: [refs, worktrees, revision, refreshing, total_count]
+    AdoptCodingWorktreeRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        agent_name: {type: string, minLength: 1, maxLength: 32}
+        directory: {type: string, minLength: 1, maxLength: 4096}
+      required: [agent_name, directory]
+    CodingPullRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        number: {type: integer}
+        url: {type: string}
+      required: [number, url]
+    CodingAction:
+      type: string
+      enum: [commit, push, pull, fetch, create_pr, commit_push, commit_push_pr, name_branch]
+      x-enum-varnames: [CodingActionCommit, CodingActionPush, CodingActionPull, CodingActionFetch, CodingActionCreatePR, CodingActionCommitPush, CodingActionCommitPushPR, CodingActionNameBranch]
+    CodingOperationRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {type: string, pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'}
+        agent_name: {type: string, minLength: 1, maxLength: 32}
+        session_id: {type: string, minLength: 1}
+        action: {$ref: '#/components/schemas/CodingAction'}
+        branch: {type: string}
+        expected_head: {type: string, pattern: '^[a-f0-9]{40,64}$'}
+        revision: {type: string, pattern: '^[a-f0-9]{64}$'}
+        expected_tree: {type: string, pattern: '^[a-f0-9]{40,64}$'}
+        message: {type: string, maxLength: 20000}
+        feature_branch: {type: boolean, default: false}
+        text: {type: string, minLength: 1, maxLength: 16000}
+        model:
+          type: object
+          additionalProperties: false
+          properties:
+            modelID: {type: string, minLength: 1}
+            providerID: {type: string, minLength: 1}
+          required: [modelID, providerID]
+        paths:
+          type: array
+          maxItems: 1000
+          items: {type: string, minLength: 1, maxLength: 4096}
+      required: [id, agent_name, session_id, action, branch, expected_head, revision]
+    CodingOperation:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {type: string}
+        project_id: {type: string}
+        worktree_id: {type: string}
+        agent_name: {type: string}
+        session_id: {type: string}
+        action: {$ref: '#/components/schemas/CodingAction'}
+        state:
+          type: string
+          enum: [queued, running, succeeded, failed, interrupted]
+          x-enum-varnames: [CodingOperationQueued, CodingOperationRunning, CodingOperationSucceeded, CodingOperationFailed, CodingOperationInterrupted]
+        stage: {type: string}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        commit: {type: string}
+        pushed: {type: boolean}
+        pull_request: {$ref: '#/components/schemas/CodingPullRequest'}
+        error: {type: string}
+      required: [id, project_id, worktree_id, agent_name, session_id, action, state, stage, created_at, updated_at, pushed]
+    CodingRepositoryItem:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {type: integer, format: int64}
+        name: {type: string}
+        private: {type: boolean}
+      required: [id, name, private]

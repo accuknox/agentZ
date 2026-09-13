@@ -46,6 +46,48 @@ func (q *Queries) GatewayAddAgentShareGrant(ctx context.Context, arg GatewayAddA
 	return result.RowsAffected(), nil
 }
 
+const gatewayAdoptCodingWorktree = `-- name: GatewayAdoptCodingWorktree :one
+INSERT INTO coding_worktrees(id, workspace_id, project_id, agent_name, directory, branch, ready, shared)
+VALUES ($1, $2, $3, $4, $5, $6, true, true)
+ON CONFLICT (workspace_id, agent_name, directory) DO UPDATE SET branch = EXCLUDED.branch
+WHERE coding_worktrees.project_id = EXCLUDED.project_id AND NOT coding_worktrees.deleting
+RETURNING id, workspace_id, project_id, agent_name, directory, branch, ready, shared, created_at, deleting
+`
+
+type GatewayAdoptCodingWorktreeParams struct {
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspace_id"`
+	ProjectID   string `json:"project_id"`
+	AgentName   string `json:"agent_name"`
+	Directory   string `json:"directory"`
+	Branch      string `json:"branch"`
+}
+
+func (q *Queries) GatewayAdoptCodingWorktree(ctx context.Context, arg GatewayAdoptCodingWorktreeParams) (CodingWorktree, error) {
+	row := q.db.QueryRow(ctx, gatewayAdoptCodingWorktree,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.ProjectID,
+		arg.AgentName,
+		arg.Directory,
+		arg.Branch,
+	)
+	var i CodingWorktree
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.ProjectID,
+		&i.AgentName,
+		&i.Directory,
+		&i.Branch,
+		&i.Ready,
+		&i.Shared,
+		&i.CreatedAt,
+		&i.Deleting,
+	)
+	return i, err
+}
+
 const gatewayAgentExists = `-- name: GatewayAgentExists :one
 SELECT EXISTS(
   SELECT 1
@@ -188,6 +230,64 @@ func (q *Queries) GatewayClaimCleanupJob(ctx context.Context, arg GatewayClaimCl
 	return i, err
 }
 
+const gatewayClaimCodingOperation = `-- name: GatewayClaimCodingOperation :one
+UPDATE coding_operations SET lease_token = $1, lease_until = now() + interval '60 seconds',
+result = jsonb_set(result, '{state}', '"running"')
+WHERE id = (SELECT queued.id FROM coding_operations queued WHERE queued.result->>'state' = 'queued'
+AND NOT EXISTS (SELECT 1 FROM coding_operations running WHERE running.project_id = queued.project_id
+AND running.result->>'state' = 'running')
+ORDER BY queued.created_at FOR UPDATE OF queued SKIP LOCKED LIMIT 1)
+RETURNING id, workspace_id, organization_id, owner_id, project_id, worktree_id, request, result, lease_token, lease_until, created_at
+`
+
+func (q *Queries) GatewayClaimCodingOperation(ctx context.Context, leaseToken string) (CodingOperation, error) {
+	row := q.db.QueryRow(ctx, gatewayClaimCodingOperation, leaseToken)
+	var i CodingOperation
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.ProjectID,
+		&i.WorktreeID,
+		&i.Request,
+		&i.Result,
+		&i.LeaseToken,
+		&i.LeaseUntil,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const gatewayClaimCodingSnapshot = `-- name: GatewayClaimCodingSnapshot :one
+UPDATE coding_snapshots SET lease_until = now() + interval '150 seconds'
+WHERE (project_id, agent_name, worktree_id) = (
+SELECT project_id, agent_name, worktree_id FROM coding_snapshots
+WHERE next_refresh <= now() AND lease_until <= now()
+ORDER BY next_refresh FOR UPDATE SKIP LOCKED LIMIT 1)
+RETURNING project_id, agent_name, worktree_id, result, demand_until, next_refresh, github_retry_after, next_remote, lease_until, failures, generation, remote_refs
+`
+
+func (q *Queries) GatewayClaimCodingSnapshot(ctx context.Context) (CodingSnapshot, error) {
+	row := q.db.QueryRow(ctx, gatewayClaimCodingSnapshot)
+	var i CodingSnapshot
+	err := row.Scan(
+		&i.ProjectID,
+		&i.AgentName,
+		&i.WorktreeID,
+		&i.Result,
+		&i.DemandUntil,
+		&i.NextRefresh,
+		&i.GithubRetryAfter,
+		&i.NextRemote,
+		&i.LeaseUntil,
+		&i.Failures,
+		&i.Generation,
+		&i.RemoteRefs,
+	)
+	return i, err
+}
+
 const gatewayClearAgentChatPreferences = `-- name: GatewayClearAgentChatPreferences :exec
 UPDATE workspace_chat_preferences
 SET
@@ -217,6 +317,38 @@ func (q *Queries) GatewayClearAgentChatPreferences(ctx context.Context, arg Gate
 	return err
 }
 
+const gatewayCodingConnection = `-- name: GatewayCodingConnection :one
+SELECT user_id, github_user_id, login, access_token, refresh_token, expires_at, refresh_expires_at, created_at FROM github_connections WHERE user_id = $1
+`
+
+func (q *Queries) GatewayCodingConnection(ctx context.Context, userID string) (GithubConnection, error) {
+	row := q.db.QueryRow(ctx, gatewayCodingConnection, userID)
+	var i GithubConnection
+	err := row.Scan(
+		&i.UserID,
+		&i.GithubUserID,
+		&i.Login,
+		&i.AccessToken,
+		&i.RefreshToken,
+		&i.ExpiresAt,
+		&i.RefreshExpiresAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const gatewayCodingCooldown = `-- name: GatewayCodingCooldown :one
+SELECT COALESCE(max(github_retry_after), 'epoch'::timestamptz)::timestamptz AS retry_after
+FROM coding_snapshots s JOIN coding_projects p ON p.id = s.project_id WHERE p.owner_id = $1
+`
+
+func (q *Queries) GatewayCodingCooldown(ctx context.Context, ownerID string) (time.Time, error) {
+	row := q.db.QueryRow(ctx, gatewayCodingCooldown, ownerID)
+	var retry_after time.Time
+	err := row.Scan(&retry_after)
+	return retry_after, err
+}
+
 const gatewayCodingDirectory = `-- name: GatewayCodingDirectory :one
 SELECT id, workspace_id, project_id, agent_name, directory, branch, ready, shared, created_at, deleting FROM coding_worktrees WHERE workspace_id = $1 AND agent_name = $2 AND directory = $3
 `
@@ -243,6 +375,44 @@ func (q *Queries) GatewayCodingDirectory(ctx context.Context, arg GatewayCodingD
 		&i.Deleting,
 	)
 	return i, err
+}
+
+const gatewayCodingProjectIdentity = `-- name: GatewayCodingProjectIdentity :one
+SELECT coding_projects.id, coding_projects.workspace_id, coding_projects.owner_id, coding_projects.name, coding_projects.repository_id, coding_projects.repository, coding_projects.default_branch, coding_projects.created_at, workspaces.organization_id FROM coding_projects
+JOIN workspaces ON workspaces.id = coding_projects.workspace_id WHERE coding_projects.id = $1
+`
+
+type GatewayCodingProjectIdentityRow struct {
+	CodingProject  CodingProject `json:"coding_project"`
+	OrganizationID string        `json:"organization_id"`
+}
+
+func (q *Queries) GatewayCodingProjectIdentity(ctx context.Context, id string) (GatewayCodingProjectIdentityRow, error) {
+	row := q.db.QueryRow(ctx, gatewayCodingProjectIdentity, id)
+	var i GatewayCodingProjectIdentityRow
+	err := row.Scan(
+		&i.CodingProject.ID,
+		&i.CodingProject.WorkspaceID,
+		&i.CodingProject.OwnerID,
+		&i.CodingProject.Name,
+		&i.CodingProject.RepositoryID,
+		&i.CodingProject.Repository,
+		&i.CodingProject.DefaultBranch,
+		&i.CodingProject.CreatedAt,
+		&i.OrganizationID,
+	)
+	return i, err
+}
+
+const gatewayCodingWorktreeBound = `-- name: GatewayCodingWorktreeBound :one
+SELECT EXISTS(SELECT 1 FROM coding_threads WHERE worktree_id = $1)
+`
+
+func (q *Queries) GatewayCodingWorktreeBound(ctx context.Context, worktreeID string) (bool, error) {
+	row := q.db.QueryRow(ctx, gatewayCodingWorktreeBound, worktreeID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const gatewayCompleteCleanupJob = `-- name: GatewayCompleteCleanupJob :execrows
@@ -439,6 +609,53 @@ func (q *Queries) GatewayCreateAgentShare(ctx context.Context, arg GatewayCreate
 		&i.TargetUserID,
 		&i.TargetTeamID,
 		&i.CreatedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const gatewayCreateCodingOperation = `-- name: GatewayCreateCodingOperation :one
+INSERT INTO coding_operations(id, workspace_id, organization_id, owner_id, project_id, worktree_id, request, result)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+ON CONFLICT (id) DO UPDATE SET id = coding_operations.id
+WHERE coding_operations.owner_id = $4 AND coding_operations.workspace_id = $2
+RETURNING id, workspace_id, organization_id, owner_id, project_id, worktree_id, request, result, lease_token, lease_until, created_at
+`
+
+type GatewayCreateCodingOperationParams struct {
+	ID             string `json:"id"`
+	WorkspaceID    string `json:"workspace_id"`
+	OrganizationID string `json:"organization_id"`
+	OwnerID        string `json:"owner_id"`
+	ProjectID      string `json:"project_id"`
+	WorktreeID     string `json:"worktree_id"`
+	Request        []byte `json:"request"`
+	Result         []byte `json:"result"`
+}
+
+func (q *Queries) GatewayCreateCodingOperation(ctx context.Context, arg GatewayCreateCodingOperationParams) (CodingOperation, error) {
+	row := q.db.QueryRow(ctx, gatewayCreateCodingOperation,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.OrganizationID,
+		arg.OwnerID,
+		arg.ProjectID,
+		arg.WorktreeID,
+		arg.Request,
+		arg.Result,
+	)
+	var i CodingOperation
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.ProjectID,
+		&i.WorktreeID,
+		&i.Request,
+		&i.Result,
+		&i.LeaseToken,
+		&i.LeaseUntil,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -767,6 +984,21 @@ func (q *Queries) GatewayCreateWorkspaceAdminRole(ctx context.Context, arg Gatew
 	return i, err
 }
 
+const gatewayDelayCodingGitHub = `-- name: GatewayDelayCodingGitHub :exec
+UPDATE coding_snapshots s SET github_retry_after = greatest(s.github_retry_after, $1::timestamptz)
+FROM coding_projects p WHERE p.id = s.project_id AND p.owner_id = $2
+`
+
+type GatewayDelayCodingGitHubParams struct {
+	RetryAfter time.Time `json:"retry_after"`
+	OwnerID    string    `json:"owner_id"`
+}
+
+func (q *Queries) GatewayDelayCodingGitHub(ctx context.Context, arg GatewayDelayCodingGitHubParams) error {
+	_, err := q.db.Exec(ctx, gatewayDelayCodingGitHub, arg.RetryAfter, arg.OwnerID)
+	return err
+}
+
 const gatewayDeleteAgent = `-- name: GatewayDeleteAgent :execrows
 DELETE FROM agents
 WHERE tenant_namespace = $1
@@ -942,6 +1174,16 @@ func (q *Queries) GatewayDeleteExpiredEventTrailEvents(ctx context.Context, expi
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const gatewayDeleteOldCodingOperations = `-- name: GatewayDeleteOldCodingOperations :exec
+DELETE FROM coding_operations WHERE created_at < now() - interval '7 days'
+AND result->>'state' NOT IN ('queued', 'running')
+`
+
+func (q *Queries) GatewayDeleteOldCodingOperations(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, gatewayDeleteOldCodingOperations)
+	return err
 }
 
 const gatewayDeleteSessionTraces = `-- name: GatewayDeleteSessionTraces :execrows
@@ -1251,6 +1493,35 @@ func (q *Queries) GatewayGetChatSessionGroup(ctx context.Context, arg GatewayGet
 	row := q.db.QueryRow(ctx, gatewayGetChatSessionGroup, arg.WorkspaceID, arg.AgentName, arg.SessionID)
 	var i GatewayGetChatSessionGroupRow
 	err := row.Scan(&i.Status, &i.SourceUpdatedAt)
+	return i, err
+}
+
+const gatewayGetCodingOperation = `-- name: GatewayGetCodingOperation :one
+SELECT id, workspace_id, organization_id, owner_id, project_id, worktree_id, request, result, lease_token, lease_until, created_at FROM coding_operations WHERE id = $1 AND workspace_id = $2 AND owner_id = $3
+`
+
+type GatewayGetCodingOperationParams struct {
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspace_id"`
+	OwnerID     string `json:"owner_id"`
+}
+
+func (q *Queries) GatewayGetCodingOperation(ctx context.Context, arg GatewayGetCodingOperationParams) (CodingOperation, error) {
+	row := q.db.QueryRow(ctx, gatewayGetCodingOperation, arg.ID, arg.WorkspaceID, arg.OwnerID)
+	var i CodingOperation
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.ProjectID,
+		&i.WorktreeID,
+		&i.Request,
+		&i.Result,
+		&i.LeaseToken,
+		&i.LeaseUntil,
+		&i.CreatedAt,
+	)
 	return i, err
 }
 
@@ -1692,6 +1963,25 @@ func (q *Queries) GatewayGetWorkspaceChatPreference(ctx context.Context, arg Gat
 	return i, err
 }
 
+const gatewayHeartbeatCodingOperation = `-- name: GatewayHeartbeatCodingOperation :execrows
+UPDATE coding_operations SET lease_until = now() + interval '60 seconds'
+WHERE id = $1 AND lease_token = $2 AND result->>'state' = 'running'
+AND lease_until > now()
+`
+
+type GatewayHeartbeatCodingOperationParams struct {
+	ID         string `json:"id"`
+	LeaseToken string `json:"lease_token"`
+}
+
+func (q *Queries) GatewayHeartbeatCodingOperation(ctx context.Context, arg GatewayHeartbeatCodingOperationParams) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayHeartbeatCodingOperation, arg.ID, arg.LeaseToken)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const gatewayInsertWorkspaceInheritedResources = `-- name: GatewayInsertWorkspaceInheritedResources :execrows
 INSERT INTO workspace_inherited_resources(
   workspace_id,
@@ -1726,6 +2016,43 @@ func (q *Queries) GatewayInsertWorkspaceInheritedResources(ctx context.Context, 
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const gatewayInterruptCodingOperations = `-- name: GatewayInterruptCodingOperations :many
+UPDATE coding_operations SET result = result || jsonb_build_object('state', 'interrupted',
+'error', 'Execution was interrupted. Refresh the checkout before retrying; a remote write may have completed.', 'updated_at', now())
+WHERE result->>'state' = 'running' AND lease_until <= now()
+RETURNING workspace_id
+`
+
+func (q *Queries) GatewayInterruptCodingOperations(ctx context.Context) ([]string, error) {
+	rows, err := q.db.Query(ctx, gatewayInterruptCodingOperations)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var workspace_id string
+		if err := rows.Scan(&workspace_id); err != nil {
+			return nil, err
+		}
+		items = append(items, workspace_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayInvalidateCodingSnapshots = `-- name: GatewayInvalidateCodingSnapshots :exec
+UPDATE coding_snapshots SET next_refresh = now(), next_remote = now(), generation = generation + 1
+WHERE project_id = $1
+`
+
+func (q *Queries) GatewayInvalidateCodingSnapshots(ctx context.Context, projectID string) error {
+	_, err := q.db.Exec(ctx, gatewayInvalidateCodingSnapshots, projectID)
+	return err
 }
 
 const gatewayIsActiveOrganizationMember = `-- name: GatewayIsActiveOrganizationMember :one
@@ -2680,6 +3007,51 @@ func (q *Queries) GatewayListChatSessions(ctx context.Context, arg GatewayListCh
 			&i.SourceCreatedAt,
 			&i.SourceUpdatedAt,
 			&i.ParticipantsJson,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListCodingOperations = `-- name: GatewayListCodingOperations :many
+SELECT op.id, op.workspace_id, op.organization_id, op.owner_id, op.project_id, op.worktree_id, op.request, op.result, op.lease_token, op.lease_until, op.created_at FROM coding_operations op WHERE op.workspace_id = $1 AND op.owner_id = $2
+AND (op.result->>'state' IN ('queued', 'running') OR op.id IN (
+SELECT recent.id FROM coding_operations recent WHERE recent.workspace_id = $1 AND recent.owner_id = $2
+AND recent.result->>'state' NOT IN ('queued', 'running') ORDER BY recent.created_at DESC LIMIT 100))
+ORDER BY op.created_at DESC
+`
+
+type GatewayListCodingOperationsParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	OwnerID     string `json:"owner_id"`
+}
+
+func (q *Queries) GatewayListCodingOperations(ctx context.Context, arg GatewayListCodingOperationsParams) ([]CodingOperation, error) {
+	rows, err := q.db.Query(ctx, gatewayListCodingOperations, arg.WorkspaceID, arg.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CodingOperation{}
+	for rows.Next() {
+		var i CodingOperation
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.ProjectID,
+			&i.WorktreeID,
+			&i.Request,
+			&i.Result,
+			&i.LeaseToken,
+			&i.LeaseUntil,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -4399,6 +4771,15 @@ func (q *Queries) GatewayListenChatSessions(ctx context.Context) error {
 	return err
 }
 
+const gatewayListenCoding = `-- name: GatewayListenCoding :exec
+LISTEN agentz_coding
+`
+
+func (q *Queries) GatewayListenCoding(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, gatewayListenCoding)
+	return err
+}
+
 const gatewayLockActiveOrganizationMember = `-- name: GatewayLockActiveOrganizationMember :one
 SELECT id
 FROM members
@@ -4531,6 +4912,17 @@ func (q *Queries) GatewayLockAgentShares(ctx context.Context, arg GatewayLockAge
 	return items, nil
 }
 
+const gatewayLockCodingIdentity = `-- name: GatewayLockCodingIdentity :one
+SELECT id FROM users WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) GatewayLockCodingIdentity(ctx context.Context, id string) (string, error) {
+	row := q.db.QueryRow(ctx, gatewayLockCodingIdentity, id)
+	var id_2 string
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
 const gatewayLockCodingProject = `-- name: GatewayLockCodingProject :exec
 SELECT pg_advisory_lock(hashtextextended($1::text, 0))
 `
@@ -4580,6 +4972,15 @@ func (q *Queries) GatewayLockTeam(ctx context.Context, arg GatewayLockTeamParams
 	return id, err
 }
 
+const gatewayNotifyCoding = `-- name: GatewayNotifyCoding :exec
+SELECT pg_notify('agentz_coding', $1::text)
+`
+
+func (q *Queries) GatewayNotifyCoding(ctx context.Context, workspaceID string) error {
+	_, err := q.db.Exec(ctx, gatewayNotifyCoding, workspaceID)
+	return err
+}
+
 const gatewayProjectMemberRoleTransports = `-- name: GatewayProjectMemberRoleTransports :execrows
 UPDATE members
 SET role = COALESCE((
@@ -4609,6 +5010,20 @@ func (q *Queries) GatewayProjectMemberRoleTransports(ctx context.Context, arg Ga
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const gatewayPruneCodingSnapshots = `-- name: GatewayPruneCodingSnapshots :exec
+DELETE FROM coding_snapshots s WHERE
+(worktree_id <> '' AND NOT EXISTS (
+SELECT 1 FROM coding_worktrees w WHERE w.id = s.worktree_id AND w.ready AND NOT w.deleting))
+OR (worktree_id = '' AND demand_until < now() AND NOT EXISTS (
+SELECT 1 FROM coding_worktrees w WHERE w.project_id = s.project_id AND w.agent_name = s.agent_name
+AND w.ready AND NOT w.deleting))
+`
+
+func (q *Queries) GatewayPruneCodingSnapshots(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, gatewayPruneCodingSnapshots)
+	return err
 }
 
 const gatewayReadyCodingWorktree = `-- name: GatewayReadyCodingWorktree :exec
@@ -4648,6 +5063,30 @@ func (q *Queries) GatewayRecordCodingMainCheckout(ctx context.Context, arg Gatew
 		arg.AgentName,
 		arg.Directory,
 		arg.Branch,
+	)
+	return err
+}
+
+const gatewayRefreshCodingConnection = `-- name: GatewayRefreshCodingConnection :exec
+UPDATE github_connections SET access_token = $1, refresh_token = $2,
+expires_at = $3, refresh_expires_at = $4 WHERE user_id = $5
+`
+
+type GatewayRefreshCodingConnectionParams struct {
+	AccessToken      string             `json:"access_token"`
+	RefreshToken     string             `json:"refresh_token"`
+	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
+	RefreshExpiresAt pgtype.Timestamptz `json:"refresh_expires_at"`
+	UserID           string             `json:"user_id"`
+}
+
+func (q *Queries) GatewayRefreshCodingConnection(ctx context.Context, arg GatewayRefreshCodingConnectionParams) error {
+	_, err := q.db.Exec(ctx, gatewayRefreshCodingConnection,
+		arg.AccessToken,
+		arg.RefreshToken,
+		arg.ExpiresAt,
+		arg.RefreshExpiresAt,
+		arg.UserID,
 	)
 	return err
 }
@@ -5003,6 +5442,47 @@ func (q *Queries) GatewayRevokeScopedAPIKey(ctx context.Context, arg GatewayRevo
 	return result.RowsAffected(), nil
 }
 
+const gatewaySaveCodingSnapshot = `-- name: GatewaySaveCodingSnapshot :execrows
+UPDATE coding_snapshots SET result = CASE WHEN generation = $1 THEN $2::jsonb ELSE result END, lease_until = 'epoch',
+next_refresh = CASE WHEN generation = $1 THEN $3::timestamptz ELSE now() END,
+next_remote = CASE WHEN generation = $1 THEN $4::timestamptz ELSE now() END,
+failures = $5, remote_refs = $6
+WHERE project_id = $7 AND agent_name = $8 AND worktree_id = $9
+AND lease_until = $10
+`
+
+type GatewaySaveCodingSnapshotParams struct {
+	Generation  int64     `json:"generation"`
+	Result      []byte    `json:"result"`
+	NextRefresh time.Time `json:"next_refresh"`
+	NextRemote  time.Time `json:"next_remote"`
+	Failures    int32     `json:"failures"`
+	RemoteRefs  string    `json:"remote_refs"`
+	ProjectID   string    `json:"project_id"`
+	AgentName   string    `json:"agent_name"`
+	WorktreeID  string    `json:"worktree_id"`
+	LeaseUntil  time.Time `json:"lease_until"`
+}
+
+func (q *Queries) GatewaySaveCodingSnapshot(ctx context.Context, arg GatewaySaveCodingSnapshotParams) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewaySaveCodingSnapshot,
+		arg.Generation,
+		arg.Result,
+		arg.NextRefresh,
+		arg.NextRemote,
+		arg.Failures,
+		arg.RemoteRefs,
+		arg.ProjectID,
+		arg.AgentName,
+		arg.WorktreeID,
+		arg.LeaseUntil,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const gatewaySearchGroupedChatSessions = `-- name: GatewaySearchGroupedChatSessions :many
 WITH filtered_sessions AS (
   SELECT
@@ -5184,6 +5664,19 @@ func (q *Queries) GatewaySearchGroupedChatSessions(ctx context.Context, arg Gate
 	return items, nil
 }
 
+const gatewaySeedCodingSnapshots = `-- name: GatewaySeedCodingSnapshots :exec
+INSERT INTO coding_snapshots(project_id, agent_name, worktree_id)
+SELECT project_id, agent_name, '' FROM coding_worktrees WHERE ready AND NOT deleting
+UNION
+SELECT project_id, agent_name, id FROM coding_worktrees WHERE ready AND NOT deleting
+ON CONFLICT DO NOTHING
+`
+
+func (q *Queries) GatewaySeedCodingSnapshots(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, gatewaySeedCodingSnapshots)
+	return err
+}
+
 const gatewaySetCodingThreadSession = `-- name: GatewaySetCodingThreadSession :exec
 UPDATE coding_threads SET session_id = $1 WHERE id = $2
 `
@@ -5356,6 +5849,39 @@ func (q *Queries) GatewayTouchChatSessionParticipant(ctx context.Context, arg Ga
 	return err
 }
 
+const gatewayTouchCodingSnapshot = `-- name: GatewayTouchCodingSnapshot :one
+INSERT INTO coding_snapshots(project_id, agent_name, worktree_id, demand_until)
+VALUES ($1, $2, $3, now() + interval '45 seconds')
+ON CONFLICT (project_id, agent_name, worktree_id) DO UPDATE SET demand_until = EXCLUDED.demand_until
+RETURNING project_id, agent_name, worktree_id, result, demand_until, next_refresh, github_retry_after, next_remote, lease_until, failures, generation, remote_refs
+`
+
+type GatewayTouchCodingSnapshotParams struct {
+	ProjectID  string `json:"project_id"`
+	AgentName  string `json:"agent_name"`
+	WorktreeID string `json:"worktree_id"`
+}
+
+func (q *Queries) GatewayTouchCodingSnapshot(ctx context.Context, arg GatewayTouchCodingSnapshotParams) (CodingSnapshot, error) {
+	row := q.db.QueryRow(ctx, gatewayTouchCodingSnapshot, arg.ProjectID, arg.AgentName, arg.WorktreeID)
+	var i CodingSnapshot
+	err := row.Scan(
+		&i.ProjectID,
+		&i.AgentName,
+		&i.WorktreeID,
+		&i.Result,
+		&i.DemandUntil,
+		&i.NextRefresh,
+		&i.GithubRetryAfter,
+		&i.NextRemote,
+		&i.LeaseUntil,
+		&i.Failures,
+		&i.Generation,
+		&i.RemoteRefs,
+	)
+	return i, err
+}
+
 const gatewayTransferAgentOwner = `-- name: GatewayTransferAgentOwner :one
 UPDATE agent_owners
 SET
@@ -5481,6 +6007,40 @@ type GatewayUpdateCodingBranchParams struct {
 
 func (q *Queries) GatewayUpdateCodingBranch(ctx context.Context, arg GatewayUpdateCodingBranchParams) error {
 	_, err := q.db.Exec(ctx, gatewayUpdateCodingBranch, arg.Branch, arg.ID)
+	return err
+}
+
+const gatewayUpdateCodingOperation = `-- name: GatewayUpdateCodingOperation :execrows
+UPDATE coding_operations SET result = $1
+WHERE id = $2 AND lease_token = $3 AND lease_until > now()
+`
+
+type GatewayUpdateCodingOperationParams struct {
+	Result     []byte `json:"result"`
+	ID         string `json:"id"`
+	LeaseToken string `json:"lease_token"`
+}
+
+func (q *Queries) GatewayUpdateCodingOperation(ctx context.Context, arg GatewayUpdateCodingOperationParams) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayUpdateCodingOperation, arg.Result, arg.ID, arg.LeaseToken)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const gatewayUpdateCodingRepository = `-- name: GatewayUpdateCodingRepository :exec
+UPDATE coding_projects SET repository = $1, default_branch = $2 WHERE id = $3
+`
+
+type GatewayUpdateCodingRepositoryParams struct {
+	Repository    string `json:"repository"`
+	DefaultBranch string `json:"default_branch"`
+	ID            string `json:"id"`
+}
+
+func (q *Queries) GatewayUpdateCodingRepository(ctx context.Context, arg GatewayUpdateCodingRepositoryParams) error {
+	_, err := q.db.Exec(ctx, gatewayUpdateCodingRepository, arg.Repository, arg.DefaultBranch, arg.ID)
 	return err
 }
 

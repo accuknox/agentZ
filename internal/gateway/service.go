@@ -68,24 +68,27 @@ const cleanupMaxAttempts = 8
 
 // Config describes how to start the gateway.
 type Config struct {
-	Addr                     string
-	PostgresDSN              string
-	ExternalJWTJWKSURL       string
-	ExternalJWTIssuer        string
-	ExternalJWTAudience      string
-	InternalK8sTokenAudience string
-	TargetOverride           string
-	FilesystemTargetOverride string
-	AgentImage               string
-	AgentTraceEndpoint       string
-	OpenBaoAddr              string
-	OpenBaoSecretMountPath   string
-	OpenBaoK8sAuthRole       string
-	OpenBaoK8sAuthMountPath  string
-	OpenBaoK8sAuthTokenPath  string
-	MCPProbeStaleAfter       time.Duration
-	AllowedWebOrigins        []string
-	SkillStore               skill.Config
+	CodingGitHubClientID      string
+	CodingGitHubClientSecret  string
+	CodingGitHubEncryptionKey string
+	Addr                      string
+	PostgresDSN               string
+	ExternalJWTJWKSURL        string
+	ExternalJWTIssuer         string
+	ExternalJWTAudience       string
+	InternalK8sTokenAudience  string
+	TargetOverride            string
+	FilesystemTargetOverride  string
+	AgentImage                string
+	AgentTraceEndpoint        string
+	OpenBaoAddr               string
+	OpenBaoSecretMountPath    string
+	OpenBaoK8sAuthRole        string
+	OpenBaoK8sAuthMountPath   string
+	OpenBaoK8sAuthTokenPath   string
+	MCPProbeStaleAfter        time.Duration
+	AllowedWebOrigins         []string
+	SkillStore                skill.Config
 }
 
 // Service implements the agent gateway HTTP API.
@@ -107,6 +110,7 @@ type Service struct {
 	skillStore         *skill.Client
 	skillImports       chan struct{}
 	chatSessionEvents  chatSessionEvents
+	codingEvents       chatSessionEvents
 	catalog            *inference.Catalog
 	openAPI            *openapi3.T
 	outboundHTTP       *http.Client
@@ -327,6 +331,10 @@ func Serve(ctx context.Context, cfg Config) error {
 		defer close(dashboardRetentionDone)
 		svc.runDashboardRetention(runCtx)
 	}()
+	codingDone := make(chan struct{})
+	go func() { defer close(codingDone); svc.runCoding(runCtx) }()
+	codingEventsDone := make(chan struct{})
+	go func() { defer close(codingEventsDone); svc.listenCoding(runCtx) }()
 	cleanupDone := make(chan struct{})
 	go func() {
 		defer close(cleanupDone)
@@ -387,6 +395,8 @@ func Serve(ctx context.Context, cfg Config) error {
 	stopRun()
 	<-dashboardRetentionDone
 	<-chatSessionNotificationsDone
+	<-codingDone
+	<-codingEventsDone
 	<-cleanupDone
 	<-eventTrailRetentionDone
 

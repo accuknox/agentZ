@@ -472,6 +472,9 @@ gateway:
     timeoutSeconds: 300
 
   config:
+    # Must match the web account flow.
+    codingGithubClientID: ""
+    codingGithubSecretName: ""
     # Application log level passed to `agentz gateway serve`.
     logLevel: info
 

@@ -34,7 +34,7 @@ type GitRequest struct {
 }
 
 // git handles only local repository operations. Authenticated transport belongs
-// to the web worker, which has no access to this process or its filesystem.
+// to the trusted gateway. Only Git objects cross this boundary.
 func (s *service) git(w http.ResponseWriter, r *http.Request) {
 	var req GitRequest
 	r.Body = http.MaxBytesReader(w, r.Body, 90<<20)
@@ -43,7 +43,7 @@ func (s *service) git(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Reads do not wait behind repository mutations or unrelated file writes.
-	if req.Prepare || (req.Git.Operation != gatewayapi.CodingGitStatus && req.Git.Operation != gatewayapi.CodingGitDiff && req.Git.Operation != gatewayapi.CodingGitStashes) {
+	if req.Prepare || (req.Git.Operation != gatewayapi.CodingGitDiscover && req.Git.Operation != gatewayapi.CodingGitStatus && req.Git.Operation != gatewayapi.CodingGitDiff && req.Git.Operation != gatewayapi.CodingGitStashes) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 	}
@@ -58,13 +58,13 @@ func (s *service) git(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.CodingGitResult, error) {
-	result := gatewayapi.CodingGitResult{Branches: []string{}, Files: []gatewayapi.CodingGitFile{}}
+	result := gatewayapi.CodingGitResult{Files: []gatewayapi.CodingGitFile{}}
 	for _, name := range []string{req.Root, req.Directory} {
 		if !filepath.IsLocal(name) || !strings.HasPrefix(name, "Projects/") {
 			return result, errors.New("git directory must be a managed project path")
 		}
 	}
-	if req.Directory != req.Root+"/repo" && !strings.HasPrefix(req.Directory, req.Root+"/worktrees/") {
+	if !strings.HasPrefix(req.Directory, req.Root+"/") {
 		return result, errors.New("worktree does not belong to project")
 	}
 	if req.Git.Operation == gatewayapi.CodingGitRemove {
@@ -134,6 +134,101 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 		}
 		return string(out), nil
 	}
+	if req.Git.Operation == gatewayapi.CodingGitDiscover {
+		snapshot := gatewayapi.CodingRepositorySnapshot{
+			Refs: []gatewayapi.CodingRef{}, Worktrees: []gatewayapi.CodingDiscoveredWorktree{},
+		}
+		common, err := run(repo, "", "rev-parse", "--path-format=absolute", "--git-common-dir")
+		if err != nil {
+			return result, err
+		}
+		common, err = filepath.EvalSymlinks(strings.TrimSpace(common))
+		if err != nil {
+			return result, err
+		}
+		raw, err := run(repo, "", "worktree", "list", "--porcelain", "-z")
+		if err != nil {
+			return result, err
+		}
+		for _, record := range strings.Split(raw, "\x00\x00") {
+			if record == "" {
+				continue
+			}
+			tree := gatewayapi.CodingDiscoveredWorktree{Available: true}
+			var directory string
+			for _, field := range strings.Split(record, "\x00") {
+				key, value, _ := strings.Cut(field, " ")
+				switch key {
+				case "worktree":
+					directory = value
+				case "branch":
+					tree.Branch = strings.TrimPrefix(value, "refs/heads/")
+				case "HEAD":
+					tree.Head = value
+				case "locked":
+					tree.Locked = true
+				case "prunable", "bare":
+					tree.Available = false
+					tree.Reason = new("Checkout is unavailable")
+				}
+			}
+			rel, err := filepath.Rel(root, directory)
+			if err != nil || !filepath.IsLocal(rel) {
+				continue
+			}
+			tree.Directory = "/home/agentz/" + filepath.ToSlash(filepath.Join(req.Root, rel))
+			resolved, err := filepath.EvalSymlinks(directory)
+			if err != nil {
+				tree.Available = false
+				tree.Reason = new("Checkout directory is missing")
+			} else {
+				rel, err = filepath.Rel(root, resolved)
+				if err != nil || !filepath.IsLocal(rel) {
+					tree.Available = false
+					tree.Reason = new("Checkout leaves the project directory")
+				} else if tree.Available {
+					actual, err := run(resolved, "", "rev-parse", "--path-format=absolute", "--git-common-dir")
+					if err == nil {
+						actual, err = filepath.EvalSymlinks(strings.TrimSpace(actual))
+					}
+					if err != nil || actual != common {
+						tree.Available = false
+						tree.Reason = new("Checkout belongs to another repository")
+					}
+				}
+			}
+			snapshot.Worktrees = append(snapshot.Worktrees, tree)
+		}
+		raw, err = run(repo, "", "for-each-ref", "--format=%(refname)%00%(objectname)%00%(committerdate:unix)%00%(symref)", "refs/heads/", "refs/remotes/")
+		if err != nil {
+			return result, err
+		}
+		for _, line := range strings.Split(strings.TrimSuffix(raw, "\n"), "\n") {
+			fields := strings.Split(line, "\x00")
+			if len(fields) != 4 || fields[3] != "" {
+				continue
+			}
+			ref := gatewayapi.CodingRef{Ref: fields[0], Head: fields[1]}
+			ref.Remote = strings.HasPrefix(ref.Ref, "refs/remotes/")
+			ref.Name = strings.TrimPrefix(strings.TrimPrefix(ref.Ref, "refs/heads/"), "refs/remotes/")
+			ref.CommittedAt, err = strconv.ParseInt(fields[2], 10, 64)
+			if err != nil {
+				return result, err
+			}
+			ref.Default = ref.Name == req.BaseBranch || ref.Name == "origin/"+req.BaseBranch
+			for _, tree := range snapshot.Worktrees {
+				if !ref.Remote && tree.Branch == ref.Name && tree.Available {
+					ref.Worktree = &tree.Directory
+					ref.Current = tree.Directory == "/home/agentz/"+req.Directory
+					break
+				}
+			}
+			snapshot.Refs = append(snapshot.Refs, ref)
+		}
+		snapshot.TotalCount = len(snapshot.Refs)
+		result.Repository = &snapshot
+		return result, nil
+	}
 	importBundle := func(cwd string) error {
 		if req.Git.Bundle == nil || len(*req.Git.Bundle) == 0 {
 			return errors.New("repository bundle is required")
@@ -169,20 +264,52 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 				return result, err
 			}
 		}
-		if _, err := run(repo, "", "rev-parse", "HEAD"); err != nil {
+		_, headErr := run(repo, "", "rev-parse", "HEAD")
+		if headErr != nil {
 			if err := importBundle(repo); err != nil {
 				return result, err
 			}
+		}
+
+		base := "refs/remotes/origin/" + req.BaseBranch
+		if req.Git.Ref != nil {
+			base = *req.Git.Ref
+			if !strings.HasPrefix(base, "refs/heads/") && !strings.HasPrefix(base, "refs/remotes/") {
+				return result, errors.New("invalid base ref")
+			}
+		}
+		files, err := run(repo, "", "ls-tree", "-r", "-z", base)
+		if err != nil {
+			return result, err
+		}
+		for _, entry := range strings.Split(files, "\x00") {
+			if strings.HasPrefix(entry, "160000 ") {
+				return result, errors.New("submodules are not supported yet")
+			}
+			_, name, ok := strings.Cut(entry, "\t")
+			if ok && filepath.Base(name) == ".gitattributes" {
+				attributes, err := run(repo, "", "show", base+":"+name)
+				if err != nil {
+					return result, err
+				}
+				if slices.Contains(strings.Fields(attributes), "filter=lfs") {
+					return result, errors.New("git LFS repositories are not supported yet")
+				}
+			}
+		}
+		if headErr != nil {
 			if _, err := run(repo, "", "checkout", "-B", req.BaseBranch, "refs/remotes/origin/"+req.BaseBranch); err != nil {
 				return result, err
 			}
 		}
+
 		if directory != repo {
 			if _, err := os.Stat(directory); errors.Is(err, os.ErrNotExist) {
 				if _, err := run(repo, "", "check-ref-format", "--branch", req.Branch); err != nil {
 					return result, errors.New("invalid worktree branch")
 				}
-				if _, err := run(repo, "", "worktree", "add", "-b", req.Branch, directory, "refs/remotes/origin/"+req.BaseBranch); err != nil {
+
+				if _, err := run(repo, "", "worktree", "add", "-b", req.Branch, directory, base); err != nil {
 					return result, err
 				}
 			}
@@ -197,6 +324,18 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 		return result, errors.New("worktree escapes project")
 	}
 	directory = resolved
+	common, err := run(directory, "", "rev-parse", "--path-format=absolute", "--git-common-dir")
+	if err != nil {
+		return result, err
+	}
+	common, err = filepath.EvalSymlinks(strings.TrimSpace(common))
+	if err != nil {
+		return result, err
+	}
+	expected, err := filepath.EvalSymlinks(filepath.Join(repo, ".git"))
+	if err != nil || common != expected {
+		return result, errors.New("checkout belongs to another repository")
+	}
 	paths := []string{}
 	if req.Git.Paths != nil {
 		paths = *req.Git.Paths
@@ -365,7 +504,7 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 				defer os.RemoveAll(tmp)
 				index := filepath.Join(tmp, "index")
 				spec := filepath.Join(tmp, "paths")
-				if err := os.WriteFile(spec, []byte(strings.Join(untracked, "\x00")+"\x00"), 0600); err != nil {
+				if err := os.WriteFile(spec, []byte(strings.Join(untracked, "\x00")+"\x00"), 0o600); err != nil {
 					return nil, err
 				}
 				if _, err := run(directory, index, "--literal-pathspecs", "add", "--intent-to-add", "--pathspec-from-file="+spec, "--pathspec-file-nul"); err != nil {
@@ -619,7 +758,7 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 		if result.Branch != req.Branch {
 			return result, errors.New("branch changed; refresh before naming it")
 		}
-		if _, err := run(directory, "", "branch", "-m", *req.Git.Ref); err != nil {
+		if _, err := run(directory, "", "branch", "-m", req.Branch, *req.Git.Ref); err != nil {
 			return result, err
 		}
 	case gatewayapi.CodingGitCreateBranch:
@@ -698,11 +837,6 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			return result, err
 		}
 	}
-	branches, err := run(directory, "", "for-each-ref", "--format=%(refname:short)", "refs/heads/")
-	if err != nil {
-		return result, err
-	}
-	result.Branches = strings.Fields(branches)
 	result.DefaultBranch = req.BaseBranch
 	if result.Head != "" && req.BaseBranch != "" {
 		base := "refs/remotes/origin/" + req.BaseBranch

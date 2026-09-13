@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
-  queryOptions,
   useIsMutating,
   useMutation,
   useQuery,
@@ -76,11 +75,12 @@ import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from "@/
 import { Spinner } from "@/components/ui/spinner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useFileWorkspace } from "@/components/blocks/chat/file-workspace-store"
-import { codingRemoteHead, remoteCodingGit } from "@/lib/coding/actions"
 import {
   suggestCodingText,
   type CodingGitComparison,
   type CodingGitRequest,
+  type CodingOperationRequest,
+  refreshCodingRepository,
   type CodingGitResult,
   type CodingGitStash,
   type CodingThread,
@@ -88,7 +88,12 @@ import {
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
-import { gitQueries, runWorkspaceGit } from "@/lib/coding/review"
+import {
+  codingOperationOptions,
+  gitQueries,
+  runWorkspaceGit,
+  startWorkspaceOperation,
+} from "@/lib/coding/review"
 
 type GitChangesProps = {
   thread: CodingThread
@@ -133,7 +138,14 @@ export function GitChanges({
   const queryClient = useQueryClient()
   const { data: actor } = authClient.useSession()
   const mutationKey = ["coding", "git", workspaceId, thread.worktree.id]
-  const busy = useIsMutating({ mutationKey }) > 0
+  const operations = useQuery(codingOperationOptions(workspaceId, actor?.user.id))
+  const busy =
+    useIsMutating({ mutationKey }) > 0 ||
+    operations.data?.some(
+      (operation) =>
+        operation.project_id === thread.worktree.project_id &&
+        (operation.state === "queued" || operation.state === "running")
+    ) === true
   const mobile = useIsMobile()
   const [composerOpen, setComposerOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState<boolean>()
@@ -170,25 +182,6 @@ export function GitChanges({
   const pendingReveal = useRef<CodeViewScrollTarget>(undefined)
   const data = status.data
   const branch = data?.branch ?? ""
-  const remoteKey = [
-    "coding",
-    "remote",
-    workspaceId,
-    thread.worktree.id,
-    branch,
-    thread.worktree.agent_name,
-    thread.session_id,
-    actor?.user.id,
-  ]
-  const remote = useQuery(
-    queryOptions({
-      queryKey: remoteKey,
-      staleTime: 0,
-      queryFn: () =>
-        codingRemoteHead(workspaceId, thread.worktree.agent_name, thread.session_id, branch),
-      enabled: visible && !!branch && !!actor?.user.id && !status.isError && !busy,
-    })
-  )
 
   useEffect(() => {
     const manager = new WorkerPoolManager(
@@ -290,24 +283,34 @@ export function GitChanges({
   })
   const sync = useMutation({
     mutationKey,
-    mutationFn: (body: Parameters<typeof remoteCodingGit>[3]) =>
-      remoteCodingGit(workspaceId, thread.worktree.agent_name, thread.session_id, body),
-    onSuccess: (_, body) => {
-      if (body.operation === "commit") {
-        setMessage("")
-        setDescription("")
-        setComposerOpen(false)
-      }
-      toast.success(
-        { commit: "Staged changes committed", pull: "Pulled", push: "Pushed", fetch: "Fetched" }[
-          body.operation
-        ]
+    mutationFn: (body: Pick<CodingOperationRequest, "action" | "expected_tree" | "message">) => {
+      if (!data) throw new Error("Git status is unavailable")
+      return startWorkspaceOperation(workspaceId, {
+        id: crypto.randomUUID(),
+        agent_name: thread.worktree.agent_name,
+        session_id: thread.session_id,
+        branch: data.branch,
+        expected_head: data.head,
+        revision: data.revision,
+        ...body,
+      })
+    },
+    onSuccess: (operation) => {
+      queryClient.setQueryData(
+        codingOperationOptions(workspaceId, actor?.user.id).queryKey,
+        (current) => [operation, ...(current ?? []).filter((item) => item.id !== operation.id)]
       )
     },
     onError: (error) => toast.error(error.message),
-    onSettled: () =>
-      Promise.all([status.refetch(), queryClient.invalidateQueries({ queryKey: remoteKey })]),
   })
+  const committed = operations.data?.find((operation) => operation.id === sync.data?.id)?.commit
+  const [handledCommit, setHandledCommit] = useState<string>()
+  if (committed && committed !== handledCommit) {
+    setHandledCommit(committed)
+    setMessage("")
+    setDescription("")
+    setComposerOpen(false)
+  }
   const suggestion = useMutation({
     mutationFn: async () => {
       const response = await suggestCodingText({
@@ -407,13 +410,7 @@ export function GitChanges({
   }
 
   const syncDisabled =
-    busy ||
-    status.isError ||
-    remote.isFetching ||
-    !remote.isSuccess ||
-    !branch ||
-    !data?.head ||
-    remote.data === data.head
+    busy || status.isError || !branch || !data?.head || data.remote_head === data.head
 
   if (!data)
     return (
@@ -445,18 +442,9 @@ export function GitChanges({
           <AlertDescription>{status.error.message}</AlertDescription>
         </Alert>
       ) : null}
-      {remote.isError && branch ? (
-        <Alert variant="warning">
-          <AlertTitle>Could not check remote branch</AlertTitle>
-          <AlertDescription>{remote.error.message}</AlertDescription>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={busy || remote.isFetching}
-            onClick={() => void remote.refetch()}
-          >
-            <RefreshCw data-icon="inline-start" /> Retry
-          </Button>
+      {data.remote_error ? (
+        <Alert variant="destructive">
+          <AlertDescription>{data.remote_error}</AlertDescription>
         </Alert>
       ) : null}
       {conflicts.length ? (
@@ -616,18 +604,20 @@ export function GitChanges({
             variant="ghost"
             size="icon-sm"
             aria-label="Refresh changes"
-            disabled={busy || status.isFetching || remote.isFetching || review.isFetching}
-            onClick={() => {
-              void status.refetch()
-              if (branch && actor?.user.id) void remote.refetch()
-              if (expanded) void review.refetch()
+            disabled={busy || status.isFetching || review.isFetching}
+            onClick={async () => {
+              const response = await refreshCodingRepository({
+                baseUrl: await getGatewayBaseURL(),
+                headers: { "X-AgentZ-Workspace-ID": workspaceId },
+                path: { projectId: thread.worktree.project_id },
+                query: { agent_name: thread.worktree.agent_name },
+              })
+              if (response.error) toast.error(response.error.message)
+              await status.refetch()
+              if (expanded) await review.refetch()
             }}
           >
-            {status.isFetching || remote.isFetching || review.isFetching ? (
-              <Spinner />
-            ) : (
-              <RefreshCw />
-            )}
+            {status.isFetching || review.isFetching ? <Spinner /> : <RefreshCw />}
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -680,24 +670,23 @@ export function GitChanges({
               variant="outline"
               size="sm"
               aria-label="Pull"
-              disabled={syncDisabled || !remote.data || data.files.length > 0}
-              onClick={() => sync.mutate({ operation: "pull", head: data.head })}
+              disabled={syncDisabled || !data.remote_head || data.files.length > 0}
+              onClick={() => sync.mutate({ action: "pull" })}
             >
-              {sync.isPending && sync.variables.operation === "pull" ? <Spinner /> : <ArrowDown />}
+              {sync.isPending && sync.variables.action === "pull" ? <Spinner /> : <ArrowDown />}
               Pull
             </Button>
             <Button
               variant="outline"
               size="sm"
-              aria-label={remote.data === "" ? "Publish branch" : "Push"}
+              aria-label={data.remote_head === "" ? "Publish branch" : "Push"}
               disabled={syncDisabled}
               onClick={() => {
-                if (remote.data !== undefined)
-                  sync.mutate({ operation: "push", head: data.head, remoteHead: remote.data })
+                sync.mutate({ action: "push" })
               }}
             >
-              {sync.isPending && sync.variables.operation === "push" ? <Spinner /> : <ArrowUp />}
-              {remote.data === "" ? "Publish branch" : "Push"}
+              {sync.isPending && sync.variables.action === "push" ? <Spinner /> : <ArrowUp />}
+              {data.remote_head === "" ? "Publish branch" : "Push"}
             </Button>
             <Popover open={composerOpen} onOpenChange={setComposerOpen}>
               <PopoverTrigger asChild>
@@ -739,9 +728,8 @@ export function GitChanges({
                     event.preventDefault()
                     if (data.tree)
                       sync.mutate({
-                        operation: "commit",
-                        head: data.head,
-                        tree: data.tree,
+                        action: "commit",
+                        expected_tree: data.tree,
                         message: commitMessage,
                       })
                   }}
@@ -830,7 +818,7 @@ export function GitChanges({
                       ) : null}
                     </Field>
                   </FieldGroup>
-                  {sync.error && sync.variables?.operation === "commit" ? (
+                  {sync.error && sync.variables?.action === "commit" ? (
                     <Alert variant="destructive" className="mx-4 mb-4 w-auto">
                       <AlertDescription>{sync.error.message}</AlertDescription>
                     </Alert>
@@ -875,7 +863,7 @@ export function GitChanges({
                         !stagedFiles.length
                       }
                     >
-                      {sync.isPending && sync.variables.operation === "commit" ? (
+                      {sync.isPending && sync.variables.action === "commit" ? (
                         <Spinner />
                       ) : (
                         <GitCommitHorizontal />

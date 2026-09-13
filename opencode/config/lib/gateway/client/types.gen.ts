@@ -2178,8 +2178,6 @@ export type CodingProject = {
 export type CreateCodingProjectRequest = {
   name: string
   repository_id: number
-  repository: string
-  default_branch: string
 }
 
 export type CodingWorktree = {
@@ -2212,8 +2210,7 @@ export type CreateCodingThreadRequest = {
   agent_name: string
   worktree_id?: string
   main_checkout?: boolean
-  base_branch?: string
-  bundle?: string
+  base_ref?: string
 }
 
 export type CodingTextRequest = {
@@ -2238,6 +2235,7 @@ export type CodingTextSuggestion = {
 
 export type CodingGitRequest = {
   operation:
+    | "discover"
     | "status"
     | "diff"
     | "stage"
@@ -2282,7 +2280,9 @@ export type CodingGitResult = {
   stashes?: Array<CodingGitStash>
   bundle?: string
   tree?: string
-  branches: Array<string>
+  repository?: CodingRepositorySnapshot
+  pull_request?: CodingPullRequest
+  remote_error?: string
 }
 
 export type CodingGitFile = {
@@ -2308,6 +2308,106 @@ export type CodingGitStash = {
   reference: string
   message: string
   created_at: string
+}
+
+export type CodingRepositoryPage = {
+  repositories: Array<CodingRepositoryItem>
+  next_page?: number
+  limited: boolean
+}
+
+export type CodingRef = {
+  ref: string
+  name: string
+  head: string
+  remote: boolean
+  worktree?: string
+  current: boolean
+  default: boolean
+  committed_at: number
+}
+
+export type CodingDiscoveredWorktree = {
+  directory: string
+  branch: string
+  head: string
+  managed_id?: string
+  available: boolean
+  reason?: string
+  locked: boolean
+}
+
+export type CodingRepositorySnapshot = {
+  refs: Array<CodingRef>
+  worktrees: Array<CodingDiscoveredWorktree>
+  revision: string
+  updated_at?: string
+  refreshing: boolean
+  error?: string
+  total_count: number
+  next_cursor?: string
+}
+
+export type AdoptCodingWorktreeRequest = {
+  agent_name: string
+  directory: string
+}
+
+export type CodingPullRequest = {
+  number: number
+  url: string
+}
+
+export type CodingAction =
+  | "commit"
+  | "push"
+  | "pull"
+  | "fetch"
+  | "create_pr"
+  | "commit_push"
+  | "commit_push_pr"
+  | "name_branch"
+
+export type CodingOperationRequest = {
+  id: string
+  agent_name: string
+  session_id: string
+  action: CodingAction
+  branch: string
+  expected_head: string
+  revision: string
+  expected_tree?: string
+  message?: string
+  feature_branch?: boolean
+  text?: string
+  model?: {
+    modelID: string
+    providerID: string
+  }
+  paths?: Array<string>
+}
+
+export type CodingOperation = {
+  id: string
+  project_id: string
+  worktree_id: string
+  agent_name: string
+  session_id: string
+  action: CodingAction
+  state: "queued" | "running" | "succeeded" | "failed" | "interrupted"
+  stage: string
+  created_at: string
+  updated_at: string
+  commit?: string
+  pushed: boolean
+  pull_request?: CodingPullRequest
+  error?: string
+}
+
+export type CodingRepositoryItem = {
+  id: number
+  name: string
+  private: boolean
 }
 
 export type WorkflowRunInputsWritable = JsonValueWritable
@@ -2957,6 +3057,231 @@ export type RunCodingGitResponses = {
 }
 
 export type RunCodingGitResponse = RunCodingGitResponses[keyof RunCodingGitResponses]
+
+export type ListCodingRepositoriesData = {
+  body?: never
+  path?: never
+  query?: {
+    query?: string
+    page?: number
+  }
+  url: "/api/coding/repository"
+}
+
+export type ListCodingRepositoriesErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type ListCodingRepositoriesError =
+  ListCodingRepositoriesErrors[keyof ListCodingRepositoriesErrors]
+
+export type ListCodingRepositoriesResponses = {
+  /**
+   * Coding result.
+   */
+  200: CodingRepositoryPage
+}
+
+export type ListCodingRepositoriesResponse =
+  ListCodingRepositoriesResponses[keyof ListCodingRepositoriesResponses]
+
+export type ListCodingRefsData = {
+  body?: never
+  path: {
+    projectId: string
+  }
+  query: {
+    agent_name: string
+    query?: string
+    cursor?: string
+  }
+  url: "/api/coding/project/{projectId}/refs"
+}
+
+export type ListCodingRefsErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type ListCodingRefsError = ListCodingRefsErrors[keyof ListCodingRefsErrors]
+
+export type ListCodingRefsResponses = {
+  /**
+   * Coding result.
+   */
+  200: CodingRepositorySnapshot
+}
+
+export type ListCodingRefsResponse = ListCodingRefsResponses[keyof ListCodingRefsResponses]
+
+export type RefreshCodingRepositoryData = {
+  body?: never
+  path: {
+    projectId: string
+  }
+  query: {
+    agent_name: string
+  }
+  url: "/api/coding/project/{projectId}/refresh"
+}
+
+export type RefreshCodingRepositoryErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type RefreshCodingRepositoryError =
+  RefreshCodingRepositoryErrors[keyof RefreshCodingRepositoryErrors]
+
+export type RefreshCodingRepositoryResponses = {
+  /**
+   * Coding result.
+   */
+  202: CodingRepositorySnapshot
+}
+
+export type RefreshCodingRepositoryResponse =
+  RefreshCodingRepositoryResponses[keyof RefreshCodingRepositoryResponses]
+
+export type AdoptCodingWorktreeData = {
+  body: AdoptCodingWorktreeRequest
+  path: {
+    projectId: string
+  }
+  query?: never
+  url: "/api/coding/project/{projectId}/worktree"
+}
+
+export type AdoptCodingWorktreeErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type AdoptCodingWorktreeError = AdoptCodingWorktreeErrors[keyof AdoptCodingWorktreeErrors]
+
+export type AdoptCodingWorktreeResponses = {
+  /**
+   * Coding result.
+   */
+  201: CodingWorktree
+}
+
+export type AdoptCodingWorktreeResponse =
+  AdoptCodingWorktreeResponses[keyof AdoptCodingWorktreeResponses]
+
+export type ListCodingOperationsData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/coding/operation"
+}
+
+export type ListCodingOperationsErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type ListCodingOperationsError = ListCodingOperationsErrors[keyof ListCodingOperationsErrors]
+
+export type ListCodingOperationsResponses = {
+  /**
+   * Active and recent operations owned by the actor.
+   */
+  200: Array<CodingOperation>
+}
+
+export type ListCodingOperationsResponse =
+  ListCodingOperationsResponses[keyof ListCodingOperationsResponses]
+
+export type StartCodingOperationData = {
+  body: CodingOperationRequest
+  path?: never
+  query?: never
+  url: "/api/coding/operation"
+}
+
+export type StartCodingOperationErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type StartCodingOperationError = StartCodingOperationErrors[keyof StartCodingOperationErrors]
+
+export type StartCodingOperationResponses = {
+  /**
+   * Coding result.
+   */
+  202: CodingOperation
+}
+
+export type StartCodingOperationResponse =
+  StartCodingOperationResponses[keyof StartCodingOperationResponses]
+
+export type GetCodingOperationData = {
+  body?: never
+  path: {
+    operationId: string
+  }
+  query?: never
+  url: "/api/coding/operation/{operationId}"
+}
+
+export type GetCodingOperationErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type GetCodingOperationError = GetCodingOperationErrors[keyof GetCodingOperationErrors]
+
+export type GetCodingOperationResponses = {
+  /**
+   * Coding result.
+   */
+  200: CodingOperation
+}
+
+export type GetCodingOperationResponse =
+  GetCodingOperationResponses[keyof GetCodingOperationResponses]
+
+export type WatchCodingData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/coding/watch"
+}
+
+export type WatchCodingErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type WatchCodingError = WatchCodingErrors[keyof WatchCodingErrors]
+
+export type WatchCodingResponses = {
+  /**
+   * Invalidation notifications; read current state on every connection.
+   */
+  200: WatchChatSessionsEvent
+}
+
+export type WatchCodingResponse = WatchCodingResponses[keyof WatchCodingResponses]
 
 export type ListChatSessionsData = {
   body?: never

@@ -11,6 +11,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"path"
 	"regexp"
 	"strings"
@@ -123,7 +124,17 @@ func (s *Service) CreateCodingProject(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSONBody(w, r, &req, false) {
 		return
 	}
-	project, err := s.queries.GatewayCreateCodingProject(r.Context(), gatewaydb.GatewayCreateCodingProjectParams{ID: uuid.NewString(), WorkspaceID: access.workspaceID, OwnerID: access.claims.UserID, Name: req.Name, RepositoryID: req.RepositoryId, Repository: req.Repository, DefaultBranch: req.DefaultBranch})
+	identity, err := s.codingIdentity(r.Context(), access.claims.UserID)
+	if err != nil {
+		writeError(w, r, newAPIError(http.StatusBadGateway, "github_failed", err.Error(), err))
+		return
+	}
+	repo, _, err := identity.client.Repositories.GetByID(r.Context(), req.RepositoryId)
+	if err != nil {
+		writeError(w, r, newAPIError(http.StatusBadGateway, "github_failed", "Could not access the GitHub repository", err))
+		return
+	}
+	project, err := s.queries.GatewayCreateCodingProject(r.Context(), gatewaydb.GatewayCreateCodingProjectParams{ID: uuid.NewString(), WorkspaceID: access.workspaceID, OwnerID: access.claims.UserID, Name: req.Name, RepositoryID: req.RepositoryId, Repository: repo.GetFullName(), DefaultBranch: repo.GetDefaultBranch()})
 	if err != nil {
 		writeError(w, r, mapGatewayStoreError("create project", err))
 		return
@@ -339,12 +350,36 @@ func (s *Service) CreateCodingThread(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	base := project.DefaultBranch
-	if req.BaseBranch != nil {
-		base = *req.BaseBranch
-	}
+	var bundle []byte
 	if !tree.Ready {
-		result, err := s.codingFilesystem(r.Context(), access.namespace, tree, project, true, base, gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStatus, Bundle: req.Bundle})
+		trees, err := q.GatewayListCodingWorktrees(r.Context(), gatewaydb.GatewayListCodingWorktreesParams{ProjectID: project.ID, WorkspaceID: project.WorkspaceID})
+		if err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+		ready := false
+		for _, existing := range trees {
+			ready = ready || existing.AgentName == tree.AgentName && existing.Ready
+		}
+		if !ready {
+			identity, err := s.codingIdentity(r.Context(), access.claims.UserID)
+			if err != nil {
+				writeError(w, r, newAPIError(http.StatusBadGateway, "github_failed", err.Error(), err))
+				return
+			}
+			repo, err := newCodingRepository(r.Context(), project.Repository, identity.token)
+			if err != nil {
+				writeInternalError(w, r, err)
+				return
+			}
+			defer os.RemoveAll(repo.dir)
+			bundle, err = repo.fetchBundle(r.Context())
+			if err != nil {
+				writeError(w, r, newAPIError(http.StatusBadGateway, "fetch_failed", err.Error(), err))
+				return
+			}
+		}
+		result, err := s.codingFilesystem(r.Context(), access.namespace, tree, project, true, gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStatus, Bundle: &bundle, Ref: req.BaseRef})
 		if err != nil {
 			writeError(w, r, newAPIError(http.StatusConflict, "checkout_failed", err.Error(), err))
 			return
@@ -353,7 +388,7 @@ func (s *Service) CreateCodingThread(w http.ResponseWriter, r *http.Request) {
 	}
 	err = q.GatewayRecordCodingMainCheckout(r.Context(), gatewaydb.GatewayRecordCodingMainCheckoutParams{
 		ID: uuid.NewString(), WorkspaceID: access.workspaceID, ProjectID: project.ID, AgentName: tree.AgentName,
-		Directory: path.Join("Projects", base64.RawURLEncoding.EncodeToString([]byte(project.OwnerID)), "github", project.ID, "repo"), Branch: base,
+		Directory: path.Join("Projects", base64.RawURLEncoding.EncodeToString([]byte(project.OwnerID)), "github", project.ID, "repo"), Branch: project.DefaultBranch,
 	})
 	if err != nil {
 		writeInternalError(w, r, err)
@@ -461,6 +496,10 @@ func (s *Service) GetCodingThread(w http.ResponseWriter, r *http.Request, agentN
 		writeError(w, r, mapGatewayStoreError("get thread", err))
 		return
 	}
+	if thread.CodingProject.OwnerID != access.claims.UserID {
+		writeError(w, r, resourceForbidden(errors.New("only the project owner can use this conversation")))
+		return
+	}
 	writeJSON(w, http.StatusOK, gatewayapi.CodingThread{
 		Id:           thread.CodingThread.ID,
 		SessionId:    thread.CodingThread.SessionID.String,
@@ -486,34 +525,44 @@ func (s *Service) SuggestCodingText(w http.ResponseWriter, r *http.Request, agen
 		writeError(w, r, mapGatewayStoreError("get thread", err))
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
+	if row.CodingProject.OwnerID != access.claims.UserID {
+		writeError(w, r, resourceForbidden(errors.New("only the project owner can use GitHub")))
+		return
+	}
+	result, err := s.codingSuggestion(r.Context(), access, row, input)
+	if err != nil {
+		writeError(w, r, newAPIError(http.StatusBadGateway, "generation_failed", err.Error(), err))
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *Service) codingSuggestion(ctx context.Context, access resourceAccess, row gatewaydb.GatewayGetCodingThreadRow, input gatewayapi.CodingTextRequest) (gatewayapi.CodingTextSuggestion, error) {
+	agentName, sessionId := row.CodingWorktree.AgentName, row.CodingThread.SessionID.String
+	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
 	var name string
 	var data codingPromptData
 	switch input.Purpose {
 	case gatewayapi.CodingTextBranch:
 		if input.Text == nil || strings.TrimSpace(*input.Text) == "" {
-			writeError(w, r, newAPIError(http.StatusBadRequest, "missing_prompt", "A task is required to name the branch", nil))
-			return
+			return gatewayapi.CodingTextSuggestion{}, newAPIError(http.StatusBadRequest, "missing_prompt", "A task is required to name the branch", nil)
 		}
 		name = "branch.tmpl"
 		data.Text = *input.Text
 	case gatewayapi.CodingTextPR:
 		if input.Text == nil || strings.TrimSpace(*input.Text) == "" {
-			writeError(w, r, newAPIError(http.StatusBadRequest, "missing_diff", "A branch diff is required", nil))
-			return
+			return gatewayapi.CodingTextSuggestion{}, newAPIError(http.StatusBadRequest, "missing_diff", "A branch diff is required", nil)
 		}
 		name = "pr.tmpl"
 		data.Text = *input.Text
 	case gatewayapi.CodingTextCommit:
-		status, err := s.codingFilesystem(ctx, access.namespace, row.CodingWorktree, row.CodingProject, false, row.CodingProject.DefaultBranch, gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitDiff, Comparison: new(gatewayapi.CodingGitStaged)})
+		status, err := s.codingFilesystem(ctx, access.namespace, row.CodingWorktree, row.CodingProject, false, gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitDiff, Comparison: new(gatewayapi.CodingGitStaged)})
 		if err != nil {
-			writeError(w, r, newAPIError(http.StatusConflict, "git_conflict", err.Error(), err))
-			return
+			return gatewayapi.CodingTextSuggestion{}, newAPIError(http.StatusConflict, "git_conflict", err.Error(), err)
 		}
 		if input.ExpectedTree == nil || status.Tree == nil || *input.ExpectedTree != *status.Tree {
-			writeError(w, r, newAPIError(http.StatusConflict, "stale_diff", "Staged changes changed; refresh before generating a message", nil))
-			return
+			return gatewayapi.CodingTextSuggestion{}, newAPIError(http.StatusConflict, "stale_diff", "Staged changes changed; refresh before generating a message", nil)
 		}
 		var files strings.Builder
 		for _, file := range status.Files {
@@ -522,8 +571,7 @@ func (s *Service) SuggestCodingText(w http.ResponseWriter, r *http.Request, agen
 			}
 		}
 		if files.Len() == 0 {
-			writeError(w, r, newAPIError(http.StatusBadRequest, "nothing_staged", "Stage changes before generating a commit message", nil))
-			return
+			return gatewayapi.CodingTextSuggestion{}, newAPIError(http.StatusBadRequest, "nothing_staged", "Stage changes before generating a commit message", nil)
 		}
 		var patch strings.Builder
 		if status.Patches != nil {
@@ -539,13 +587,11 @@ func (s *Service) SuggestCodingText(w http.ResponseWriter, r *http.Request, agen
 		data.Files = files.String()[:min(files.Len(), 6000)]
 		data.Patch = patch.String()
 	default:
-		writeError(w, r, newAPIError(http.StatusBadRequest, "invalid_purpose", "Unknown suggestion purpose", nil))
-		return
+		return gatewayapi.CodingTextSuggestion{}, newAPIError(http.StatusBadRequest, "invalid_purpose", "Unknown suggestion purpose", nil)
 	}
 	var prompt strings.Builder
 	if err := codingPrompts.ExecuteTemplate(&prompt, name, data); err != nil {
-		writeInternalError(w, r, fmt.Errorf("render coding prompt: %w", err))
-		return
+		return gatewayapi.CodingTextSuggestion{}, fmt.Errorf("render coding prompt: %w", err)
 	}
 	// Model generation uses the request's deadline instead of the short
 	// timeout used for ordinary gateway lookups. Keep the shared transport.
@@ -553,8 +599,7 @@ func (s *Service) SuggestCodingText(w http.ResponseWriter, r *http.Request, agen
 	httpClient.Timeout = 0
 	client, err := s.codingClient(ctx, access.namespace, agentName, &httpClient)
 	if err != nil {
-		writeInternalError(w, r, err)
-		return
+		return gatewayapi.CodingTextSuggestion{}, err
 	}
 	directory := "/home/agentz/" + row.CodingWorktree.Directory
 	body := gatewayapi.SessionCreateJSONRequestBody{
@@ -564,15 +609,13 @@ func (s *Service) SuggestCodingText(w http.ResponseWriter, r *http.Request, agen
 	if input.Model == nil {
 		parent, err := client.SessionGetWithResponse(ctx, agentName, sessionId, &gatewayapi.SessionGetParams{Directory: &directory})
 		if err != nil || parent.JSON200 == nil {
-			writeError(w, r, newAPIError(http.StatusBadGateway, "generation_failed", "Could not load the thread's model", err))
-			return
+			return gatewayapi.CodingTextSuggestion{}, newAPIError(http.StatusBadGateway, "generation_failed", "Could not load the thread's model", err)
 		}
 		body.Model = parent.JSON200.Model
 	}
 	session, err := client.SessionCreateWithResponse(ctx, agentName, &gatewayapi.SessionCreateParams{Directory: &directory}, body)
 	if err != nil || session.JSON200 == nil {
-		writeError(w, r, newAPIError(http.StatusBadGateway, "generation_failed", "Could not start source-control generation", err))
-		return
+		return gatewayapi.CodingTextSuggestion{}, newAPIError(http.StatusBadGateway, "generation_failed", "Could not start source-control generation", err)
 	}
 	defer func() {
 		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
@@ -595,28 +638,24 @@ func (s *Service) SuggestCodingText(w http.ResponseWriter, r *http.Request, agen
 		Text: prompt.String(),
 	})
 	if err != nil {
-		writeInternalError(w, r, err)
-		return
+		return gatewayapi.CodingTextSuggestion{}, err
 	}
 	reply, err := client.SessionPromptWithResponse(ctx, agentName, session.JSON200.Id, &gatewayapi.SessionPromptParams{Directory: &directory}, gatewayapi.SessionPromptJSONRequestBody{Model: input.Model, Parts: []gatewayapi.OpencodePromptPartInput{part}})
 	if err != nil || reply.JSON200 == nil || reply.JSON200.Info.Error != nil {
-		writeError(w, r, newAPIError(http.StatusBadGateway, "generation_failed", "Could not generate source-control text", err))
-		return
+		return gatewayapi.CodingTextSuggestion{}, newAPIError(http.StatusBadGateway, "generation_failed", "Could not generate source-control text", err)
 	}
 	var text strings.Builder
 	for _, part := range reply.JSON200.Parts {
 		kind, err := part.Discriminator()
 		if err != nil {
-			writeInternalError(w, r, err)
-			return
+			return gatewayapi.CodingTextSuggestion{}, err
 		}
 		if kind != string(gatewayapi.OpencodeTextPartTypeText) {
 			continue
 		}
 		value, err := part.AsOpencodeTextPart()
 		if err != nil {
-			writeInternalError(w, r, err)
-			return
+			return gatewayapi.CodingTextSuggestion{}, err
 		}
 		text.WriteString(value.Text)
 	}
@@ -627,20 +666,18 @@ func (s *Service) SuggestCodingText(w http.ResponseWriter, r *http.Request, agen
 		valid = valid && len(suggestion) <= 60
 	}
 	if !valid {
-		writeError(w, r, newAPIError(http.StatusBadGateway, "invalid_suggestion", "The model returned an invalid suggestion; try again", nil))
-		return
+		return gatewayapi.CodingTextSuggestion{}, newAPIError(http.StatusBadGateway, "invalid_suggestion", "The model returned an invalid suggestion; try again", nil)
 	}
 	result := gatewayapi.CodingTextSuggestion{Text: suggestion}
 	if input.Purpose == gatewayapi.CodingTextPR {
 		var pr gatewayapi.CodingPullRequestText
 		err := json.Unmarshal([]byte(suggestion), &pr)
 		if err != nil || strings.TrimSpace(pr.Title) == "" || len(pr.Title) > 256 || strings.TrimSpace(pr.Body) == "" || len(pr.Body) > 20000 {
-			writeError(w, r, newAPIError(http.StatusBadGateway, "invalid_suggestion", "The model returned invalid PR content; try again", err))
-			return
+			return gatewayapi.CodingTextSuggestion{}, newAPIError(http.StatusBadGateway, "invalid_suggestion", "The model returned invalid PR content; try again", err)
 		}
 		result.PullRequest = &pr
 	}
-	writeJSON(w, http.StatusOK, result)
+	return result, nil
 }
 
 // RunCodingGit runs checkout operations under the project lock.
@@ -655,6 +692,10 @@ func (s *Service) RunCodingGit(w http.ResponseWriter, r *http.Request, worktreeI
 		writeError(w, r, mapGatewayStoreError("get worktree", err))
 		return
 	}
+	if row.CodingProject.OwnerID != claims.UserID {
+		writeError(w, r, resourceForbidden(errors.New("only the project owner can use this checkout")))
+		return
+	}
 	access, apiErr := s.codingAccess(r.Context(), row.CodingWorktree.AgentName)
 	if apiErr != nil {
 		writeError(w, r, apiErr)
@@ -664,16 +705,33 @@ func (s *Service) RunCodingGit(w http.ResponseWriter, r *http.Request, worktreeI
 	if !decodeJSONBody(w, r, &req, false) {
 		return
 	}
-	if req.Operation == gatewayapi.CodingGitRemove && row.CodingProject.OwnerID != claims.UserID {
-		writeError(w, r, resourceForbidden(errors.New("only the project creator can remove checkouts")))
-		return
-	}
+
 	if req.Operation == gatewayapi.CodingGitStatus || req.Operation == gatewayapi.CodingGitDiff || req.Operation == gatewayapi.CodingGitStashes {
 		if row.CodingWorktree.Deleting {
 			writeError(w, r, newAPIError(http.StatusConflict, "deleting", "Checkout removal is in progress", nil))
 			return
 		}
-		result, err := s.codingFilesystem(r.Context(), access.namespace, row.CodingWorktree, row.CodingProject, false, row.CodingProject.DefaultBranch, req)
+		if req.Operation == gatewayapi.CodingGitStatus && req.ExpectedHead == nil {
+			snapshot, err := s.queries.GatewayTouchCodingSnapshot(r.Context(), gatewaydb.GatewayTouchCodingSnapshotParams{ProjectID: row.CodingProject.ID, AgentName: row.CodingWorktree.AgentName, WorktreeID: worktreeId})
+			if err != nil {
+				writeInternalError(w, r, err)
+				return
+			}
+			if _, err := s.queries.GatewayTouchCodingSnapshot(r.Context(), gatewaydb.GatewayTouchCodingSnapshotParams{ProjectID: row.CodingProject.ID, AgentName: row.CodingWorktree.AgentName}); err != nil {
+				writeInternalError(w, r, err)
+				return
+			}
+			var cached gatewayapi.CodingGitResult
+			if err := json.Unmarshal(snapshot.Result, &cached); err != nil {
+				writeInternalError(w, r, err)
+				return
+			}
+			if cached.Revision != "" {
+				writeJSON(w, http.StatusOK, cached)
+				return
+			}
+		}
+		result, err := s.codingFilesystem(r.Context(), access.namespace, row.CodingWorktree, row.CodingProject, false, req)
 		if err != nil {
 			writeError(w, r, newAPIError(http.StatusConflict, "git_conflict", err.Error(), err))
 			return
@@ -692,12 +750,19 @@ func (s *Service) RunCodingGit(w http.ResponseWriter, r *http.Request, worktreeI
 		writeError(w, r, mapGatewayStoreError("get worktree", err))
 		return
 	}
+	if req.Operation == gatewayapi.CodingGitCheckout || req.Operation == gatewayapi.CodingGitRename || req.Operation == gatewayapi.CodingGitCreateBranch {
+		bound, err := q.GatewayCodingWorktreeBound(r.Context(), worktreeId)
+		if err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+		if bound {
+			writeError(w, r, newAPIError(http.StatusConflict, "conversation_started", "Branch selection is fixed once a conversation starts", nil))
+			return
+		}
+	}
 	if row.CodingWorktree.Deleting && req.Operation != gatewayapi.CodingGitRemove {
 		writeError(w, r, newAPIError(http.StatusConflict, "deleting", "Checkout removal is in progress", nil))
-		return
-	}
-	if req.Operation == gatewayapi.CodingGitRename && (row.CodingWorktree.Shared || row.CodingWorktree.Branch != "chore/"+row.CodingWorktree.ID || req.ExpectedHead == nil) {
-		writeError(w, r, newAPIError(http.StatusConflict, "branch_changed", "Only a new private worktree can be named automatically", nil))
 		return
 	}
 	if req.Operation == gatewayapi.CodingGitRemove {
@@ -711,7 +776,7 @@ func (s *Service) RunCodingGit(w http.ResponseWriter, r *http.Request, worktreeI
 			return
 		}
 	}
-	result, err := s.codingFilesystem(r.Context(), access.namespace, row.CodingWorktree, row.CodingProject, false, row.CodingProject.DefaultBranch, req)
+	result, err := s.codingFilesystem(r.Context(), access.namespace, row.CodingWorktree, row.CodingProject, false, req)
 	if err != nil {
 		if req.Operation == gatewayapi.CodingGitRemove {
 			ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
@@ -742,10 +807,14 @@ func (s *Service) RunCodingGit(w http.ResponseWriter, r *http.Request, worktreeI
 			return
 		}
 	}
+	if err := q.GatewayInvalidateCodingSnapshots(r.Context(), row.CodingProject.ID); err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, result)
 }
 
-func (s *Service) codingFilesystem(ctx context.Context, namespace string, tree gatewaydb.CodingWorktree, project gatewaydb.CodingProject, prepare bool, baseBranch string, git gatewayapi.CodingGitRequest) (gatewayapi.CodingGitResult, error) {
+func (s *Service) codingFilesystem(ctx context.Context, namespace string, tree gatewaydb.CodingWorktree, project gatewaydb.CodingProject, prepare bool, git gatewayapi.CodingGitRequest) (gatewayapi.CodingGitResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	result := gatewayapi.CodingGitResult{}
@@ -758,7 +827,7 @@ func (s *Service) codingFilesystem(ctx context.Context, namespace string, tree g
 		return result, err
 	}
 	root := path.Join("Projects", base64.RawURLEncoding.EncodeToString([]byte(project.OwnerID)), "github", project.ID)
-	body, err := json.Marshal(filesystem.GitRequest{Root: root, Directory: tree.Directory, Branch: tree.Branch, BaseBranch: baseBranch, Prepare: prepare, Git: git})
+	body, err := json.Marshal(filesystem.GitRequest{Root: root, Directory: tree.Directory, Branch: tree.Branch, BaseBranch: project.DefaultBranch, Prepare: prepare, Git: git})
 	if err != nil {
 		return result, err
 	}

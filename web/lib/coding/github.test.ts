@@ -7,7 +7,7 @@ import { getDB, schema } from "@/db"
 
 // Run against an explicit test database with the Coding migrations applied.
 test(
-  "GitHub credentials stay bound to the acting user across callbacks and rotation",
+  "GitHub credentials stay bound to the acting user across callbacks and disconnect",
   { skip: !process.env.CODING_TEST_DATABASE_URL },
   async () => {
     assert.ok(process.env.CODING_TEST_DATABASE_URL)
@@ -35,9 +35,7 @@ test(
     })
     const realFetch = globalThis.fetch
     let requests = 0
-    let refreshes = 0
-    let failUserLookup = false
-    let returnedUser = 1001
+    const returnedUser = 1001
     let failRevocation = false
     globalThis.fetch = async (input, init) => {
       requests++
@@ -51,16 +49,11 @@ test(
             refresh_token: z.string().optional(),
           })
           .parse(await request.json())
-        if (body.grant_type === "refresh_token") {
-          refreshes++
-          assert.ok(body.refresh_token?.startsWith("ghr_"))
-        } else {
-          assert.ok(body.code_verifier)
-        }
+        assert.ok(body.code_verifier)
         return Response.json(
           {
-            access_token: `ghu_test_${refreshes}`,
-            refresh_token: `ghr_test_${refreshes}`,
+            access_token: `ghu_test_0`,
+            refresh_token: `ghr_test_0`,
             expires_in: 28800,
             refresh_token_expires_in: 15897600,
             token_type: "bearer",
@@ -71,7 +64,6 @@ test(
       }
       assert.equal(url.hostname, "api.github.com")
       if (url.pathname === "/user") {
-        if (failUserLookup) return Response.json({ message: "Unavailable" }, { status: 503 })
         assert.match(request.headers.get("authorization") ?? "", /^token ghu_test_/)
         return Response.json({
           id: returnedUser,
@@ -125,50 +117,12 @@ test(
       assert.ok(connection)
       assert.ok(!connection.accessToken.includes("ghu_test"))
       assert.ok(!connection.refreshToken.includes("ghr_test"))
-      const identity = await github.withGitHub(async ({ email }) => email)
-      assert.equal(identity, "1001+user-1001@users.noreply.github.com")
       actor = other
-      await assert.rejects(
-        github.withGitHub(async () => true),
-        /Connect your GitHub account/
-      )
       await db.insert(schema.githubConnections).values({ ...connection, userId: other.user.id })
       const beforeSwap = requests
-      await assert.rejects(github.withGitHub(async () => true))
+      await assert.rejects(github.disconnectGitHub())
       assert.equal(requests, beforeSwap, "copied ciphertext reached GitHub")
       actor = owner
-      returnedUser = 2002
-      await assert.rejects(
-        github.withGitHub(async () => true),
-        /identity changed/
-      )
-      returnedUser = 1001
-      await db
-        .update(schema.githubConnections)
-        .set({ expiresAt: new Date(0) })
-        .where(eq(schema.githubConnections.userId, owner.user.id))
-      failUserLookup = true
-      await assert.rejects(github.withGitHub(async () => true))
-      assert.equal(refreshes, 1)
-      const [rotated] = await db
-        .select()
-        .from(schema.githubConnections)
-        .where(eq(schema.githubConnections.userId, owner.user.id))
-      assert.ok(rotated)
-      assert.notEqual(
-        rotated.refreshToken,
-        connection.refreshToken,
-        "failed API call rolled back refresh"
-      )
-      failUserLookup = false
-      await Promise.all(Array.from({ length: 6 }, () => github.withGitHub(async () => true)))
-      assert.equal(refreshes, 1, "concurrent calls rotated an already refreshed token")
-      await db
-        .update(schema.githubConnections)
-        .set({ expiresAt: new Date(0) })
-        .where(eq(schema.githubConnections.userId, owner.user.id))
-      await Promise.all(Array.from({ length: 6 }, () => github.withGitHub(async () => true)))
-      assert.equal(refreshes, 2, "concurrent expiry refreshed more than once")
       failRevocation = true
       await assert.rejects(github.disconnectGitHub())
       assert.equal(

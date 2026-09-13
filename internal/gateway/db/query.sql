@@ -2308,3 +2308,130 @@ UPDATE coding_worktrees SET deleting = @deleting WHERE id = @id;
 
 -- name: GatewayCodingDirectory :one
 SELECT * FROM coding_worktrees WHERE workspace_id = @workspace_id AND agent_name = @agent_name AND directory = @directory;
+
+-- name: GatewayCodingConnection :one
+SELECT * FROM github_connections WHERE user_id = @user_id;
+
+-- name: GatewayLockCodingIdentity :one
+SELECT id FROM users WHERE id = @id FOR UPDATE;
+
+-- name: GatewayRefreshCodingConnection :exec
+UPDATE github_connections SET access_token = @access_token, refresh_token = @refresh_token,
+expires_at = @expires_at, refresh_expires_at = @refresh_expires_at WHERE user_id = @user_id;
+
+-- name: GatewayCreateCodingOperation :one
+INSERT INTO coding_operations(id, workspace_id, organization_id, owner_id, project_id, worktree_id, request, result)
+VALUES (@id, @workspace_id, @organization_id, @owner_id, @project_id, @worktree_id, @request, @result)
+ON CONFLICT (id) DO UPDATE SET id = coding_operations.id
+WHERE coding_operations.owner_id = @owner_id AND coding_operations.workspace_id = @workspace_id
+RETURNING *;
+
+-- name: GatewayGetCodingOperation :one
+SELECT * FROM coding_operations WHERE id = @id AND workspace_id = @workspace_id AND owner_id = @owner_id;
+
+-- name: GatewayListCodingOperations :many
+SELECT op.* FROM coding_operations op WHERE op.workspace_id = @workspace_id AND op.owner_id = @owner_id
+AND (op.result->>'state' IN ('queued', 'running') OR op.id IN (
+SELECT recent.id FROM coding_operations recent WHERE recent.workspace_id = @workspace_id AND recent.owner_id = @owner_id
+AND recent.result->>'state' NOT IN ('queued', 'running') ORDER BY recent.created_at DESC LIMIT 100))
+ORDER BY op.created_at DESC;
+
+-- name: GatewayClaimCodingOperation :one
+UPDATE coding_operations SET lease_token = @lease_token, lease_until = now() + interval '60 seconds',
+result = jsonb_set(result, '{state}', '"running"')
+WHERE id = (SELECT queued.id FROM coding_operations queued WHERE queued.result->>'state' = 'queued'
+AND NOT EXISTS (SELECT 1 FROM coding_operations running WHERE running.project_id = queued.project_id
+AND running.result->>'state' = 'running')
+ORDER BY queued.created_at FOR UPDATE OF queued SKIP LOCKED LIMIT 1)
+RETURNING *;
+
+-- name: GatewayHeartbeatCodingOperation :execrows
+UPDATE coding_operations SET lease_until = now() + interval '60 seconds'
+WHERE id = @id AND lease_token = @lease_token AND result->>'state' = 'running'
+AND lease_until > now();
+
+-- name: GatewayUpdateCodingOperation :execrows
+UPDATE coding_operations SET result = @result
+WHERE id = @id AND lease_token = @lease_token AND lease_until > now();
+
+-- name: GatewayInterruptCodingOperations :many
+UPDATE coding_operations SET result = result || jsonb_build_object('state', 'interrupted',
+'error', 'Execution was interrupted. Refresh the checkout before retrying; a remote write may have completed.', 'updated_at', now())
+WHERE result->>'state' = 'running' AND lease_until <= now()
+RETURNING workspace_id;
+
+-- name: GatewayDeleteOldCodingOperations :exec
+DELETE FROM coding_operations WHERE created_at < now() - interval '7 days'
+AND result->>'state' NOT IN ('queued', 'running');
+
+-- name: GatewayTouchCodingSnapshot :one
+INSERT INTO coding_snapshots(project_id, agent_name, worktree_id, demand_until)
+VALUES (@project_id, @agent_name, @worktree_id, now() + interval '45 seconds')
+ON CONFLICT (project_id, agent_name, worktree_id) DO UPDATE SET demand_until = EXCLUDED.demand_until
+RETURNING *;
+
+-- name: GatewaySeedCodingSnapshots :exec
+INSERT INTO coding_snapshots(project_id, agent_name, worktree_id)
+SELECT project_id, agent_name, '' FROM coding_worktrees WHERE ready AND NOT deleting
+UNION
+SELECT project_id, agent_name, id FROM coding_worktrees WHERE ready AND NOT deleting
+ON CONFLICT DO NOTHING;
+
+-- name: GatewayClaimCodingSnapshot :one
+UPDATE coding_snapshots SET lease_until = now() + interval '150 seconds'
+WHERE (project_id, agent_name, worktree_id) = (
+SELECT project_id, agent_name, worktree_id FROM coding_snapshots
+WHERE next_refresh <= now() AND lease_until <= now()
+ORDER BY next_refresh FOR UPDATE SKIP LOCKED LIMIT 1)
+RETURNING *;
+
+-- name: GatewaySaveCodingSnapshot :execrows
+UPDATE coding_snapshots SET result = CASE WHEN generation = @generation THEN @result::jsonb ELSE result END, lease_until = 'epoch',
+next_refresh = CASE WHEN generation = @generation THEN @next_refresh::timestamptz ELSE now() END,
+next_remote = CASE WHEN generation = @generation THEN @next_remote::timestamptz ELSE now() END,
+failures = @failures, remote_refs = @remote_refs
+WHERE project_id = @project_id AND agent_name = @agent_name AND worktree_id = @worktree_id
+AND lease_until = @lease_until;
+
+-- name: GatewayInvalidateCodingSnapshots :exec
+UPDATE coding_snapshots SET next_refresh = now(), next_remote = now(), generation = generation + 1
+WHERE project_id = @project_id;
+
+-- name: GatewayCodingProjectIdentity :one
+SELECT sqlc.embed(coding_projects), workspaces.organization_id FROM coding_projects
+JOIN workspaces ON workspaces.id = coding_projects.workspace_id WHERE coding_projects.id = @id;
+
+-- name: GatewayAdoptCodingWorktree :one
+INSERT INTO coding_worktrees(id, workspace_id, project_id, agent_name, directory, branch, ready, shared)
+VALUES (@id, @workspace_id, @project_id, @agent_name, @directory, @branch, true, true)
+ON CONFLICT (workspace_id, agent_name, directory) DO UPDATE SET branch = EXCLUDED.branch
+WHERE coding_worktrees.project_id = EXCLUDED.project_id AND NOT coding_worktrees.deleting
+RETURNING *;
+
+-- name: GatewayCodingWorktreeBound :one
+SELECT EXISTS(SELECT 1 FROM coding_threads WHERE worktree_id = @worktree_id);
+
+-- name: GatewayNotifyCoding :exec
+SELECT pg_notify('agentz_coding', @workspace_id::text);
+
+-- name: GatewayListenCoding :exec
+LISTEN agentz_coding;
+
+-- name: GatewayPruneCodingSnapshots :exec
+DELETE FROM coding_snapshots s WHERE
+(worktree_id <> '' AND NOT EXISTS (
+SELECT 1 FROM coding_worktrees w WHERE w.id = s.worktree_id AND w.ready AND NOT w.deleting))
+OR (worktree_id = '' AND demand_until < now() AND NOT EXISTS (
+SELECT 1 FROM coding_worktrees w WHERE w.project_id = s.project_id AND w.agent_name = s.agent_name
+AND w.ready AND NOT w.deleting));
+
+-- name: GatewayUpdateCodingRepository :exec
+UPDATE coding_projects SET repository = @repository, default_branch = @default_branch WHERE id = @id;
+
+-- name: GatewayCodingCooldown :one
+SELECT COALESCE(max(github_retry_after), 'epoch'::timestamptz)::timestamptz AS retry_after
+FROM coding_snapshots s JOIN coding_projects p ON p.id = s.project_id WHERE p.owner_id = @owner_id;
+
+-- name: GatewayDelayCodingGitHub :exec
+UPDATE coding_snapshots s SET github_retry_after = greatest(s.github_retry_after, @retry_after::timestamptz)
+FROM coding_projects p WHERE p.id = s.project_id AND p.owner_id = @owner_id;

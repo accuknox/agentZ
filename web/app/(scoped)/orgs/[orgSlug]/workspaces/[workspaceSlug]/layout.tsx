@@ -1,3 +1,4 @@
+import { CodingActivity } from "@/components/blocks/coding/git-actions"
 import type { Route } from "next"
 import type { Metadata } from "next"
 import { headers } from "next/headers"
@@ -166,6 +167,9 @@ export default async function WorkspaceLayout({
           />
         }
       >
+        {result.workspace.type === "coding" && result.workspace.state === "ready" ? (
+          <CodingActivity workspaceId={result.workspace.id} />
+        ) : null}
         <AdministrationLayout>
           {result.workspace.state === "ready" ? (
             children

@@ -1,6 +1,9 @@
 import { queryOptions } from "@tanstack/react-query"
 import {
   runCodingGit,
+  listCodingOperations,
+  startCodingOperation,
+  type CodingOperationRequest,
   type CodingGitRequest,
   type CodingGitResult,
   type CodingGitComparison,
@@ -120,7 +123,7 @@ export function gitQuickAction(status: CodingGitResult | undefined, hasPR: boole
   if (!status.branch)
     return {
       label: "Commit",
-      hint: "Create and checkout a ref before pushing or opening a pull request.",
+      hint: "Create a branch before pushing or opening a pull request.",
     }
   const isDefault = status.branch === status.default_branch
   if (status.files.length)
@@ -150,4 +153,29 @@ export function gitQuickAction(status: CodingGitResult | undefined, hasPR: boole
   if (status.ahead_of_default && !isDefault)
     return { label: "Create PR", action: "create_pr" as const }
   return { label: "Commit", hint: "Branch is up to date. No action needed." }
+}
+
+export function codingOperationOptions(workspaceId: string, userId: string | undefined) {
+  return queryOptions({
+    queryKey: ["coding", "operations", workspaceId, userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const result = await listCodingOperations({
+        baseUrl: await getGatewayBaseURL(),
+        headers: { "X-AgentZ-Workspace-ID": workspaceId },
+      })
+      if (result.error) throw new Error(result.error.message)
+      return result.data
+    },
+  })
+}
+
+export async function startWorkspaceOperation(workspaceId: string, body: CodingOperationRequest) {
+  const result = await startCodingOperation({
+    baseUrl: await getGatewayBaseURL(),
+    headers: { "X-AgentZ-Workspace-ID": workspaceId },
+    body,
+  })
+  if (result.error) throw new Error(result.error.message)
+  return result.data
 }

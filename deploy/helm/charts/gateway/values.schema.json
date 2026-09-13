@@ -44,6 +44,8 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "codingGithubClientID": { "type": "string" },
+        "codingGithubSecretName": { "type": "string" },
         "logLevel": { "enum": ["debug", "info", "warn", "error"] },
         "logFormat": { "enum": ["text", "json", "pretty"] },
         "logWithSource": { "type": "boolean" },

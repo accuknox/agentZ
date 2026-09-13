@@ -2428,8 +2428,6 @@ export const zCreateCodingProjectRequest = z.object({
   repository_id: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),
-  repository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/),
-  default_branch: z.string().min(1).max(255),
 })
 
 export const zCodingWorktree = z.object({
@@ -2472,8 +2470,7 @@ export const zCreateCodingThreadRequest = z.object({
     .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
     .optional(),
   main_checkout: z.boolean().optional().default(false),
-  base_branch: z.string().min(1).max(255).optional(),
-  bundle: z.string().max(89478488).optional(),
+  base_ref: z.string().min(1).max(1024).optional(),
 })
 
 export const zCodingTextRequest = z.object({
@@ -2513,6 +2510,7 @@ export const zCodingGitComparison = z.enum(["all", "unstaged", "staged"])
 
 export const zCodingGitRequest = z.object({
   operation: z.enum([
+    "discover",
     "status",
     "diff",
     "stage",
@@ -2571,6 +2569,55 @@ export const zCodingGitStash = z.object({
   created_at: z.iso.datetime(),
 })
 
+export const zCodingRef = z.object({
+  ref: z.string(),
+  name: z.string(),
+  head: z.string(),
+  remote: z.boolean(),
+  worktree: z.string().optional(),
+  current: z.boolean(),
+  default: z.boolean(),
+  committed_at: z.coerce
+    .bigint()
+    .min(BigInt("-9223372036854775808"), {
+      error: "Invalid value: Expected int64 to be >= -9223372036854775808",
+    })
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+})
+
+export const zCodingDiscoveredWorktree = z.object({
+  directory: z.string(),
+  branch: z.string(),
+  head: z.string(),
+  managed_id: z.string().optional(),
+  available: z.boolean(),
+  reason: z.string().optional(),
+  locked: z.boolean(),
+})
+
+export const zCodingRepositorySnapshot = z.object({
+  refs: z.array(zCodingRef),
+  worktrees: z.array(zCodingDiscoveredWorktree),
+  revision: z.string(),
+  updated_at: z.iso.datetime().optional(),
+  refreshing: z.boolean(),
+  error: z.string().optional(),
+  total_count: z.int(),
+  next_cursor: z.string().optional(),
+})
+
+export const zAdoptCodingWorktreeRequest = z.object({
+  agent_name: z.string().min(1).max(32),
+  directory: z.string().min(1).max(4096),
+})
+
+export const zCodingPullRequest = z.object({
+  number: z.int(),
+  url: z.string(),
+})
+
 export const zCodingGitResult = z.object({
   head: z.string(),
   branch: z.string(),
@@ -2585,7 +2632,80 @@ export const zCodingGitResult = z.object({
   stashes: z.array(zCodingGitStash).optional(),
   bundle: z.string().optional(),
   tree: z.string().optional(),
-  branches: z.array(z.string()),
+  repository: zCodingRepositorySnapshot.optional(),
+  pull_request: zCodingPullRequest.optional(),
+  remote_error: z.string().optional(),
+})
+
+export const zCodingAction = z.enum([
+  "commit",
+  "push",
+  "pull",
+  "fetch",
+  "create_pr",
+  "commit_push",
+  "commit_push_pr",
+  "name_branch",
+])
+
+export const zCodingOperationRequest = z.object({
+  id: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
+  agent_name: z.string().min(1).max(32),
+  session_id: z.string().min(1),
+  action: zCodingAction,
+  branch: z.string(),
+  expected_head: z.string().regex(/^[a-f0-9]{40,64}$/),
+  revision: z.string().regex(/^[a-f0-9]{64}$/),
+  expected_tree: z
+    .string()
+    .regex(/^[a-f0-9]{40,64}$/)
+    .optional(),
+  message: z.string().max(20000).optional(),
+  feature_branch: z.boolean().optional().default(false),
+  text: z.string().min(1).max(16000).optional(),
+  model: z
+    .object({
+      modelID: z.string().min(1),
+      providerID: z.string().min(1),
+    })
+    .optional(),
+  paths: z.array(z.string().min(1).max(4096)).max(1000).optional(),
+})
+
+export const zCodingOperation = z.object({
+  id: z.string(),
+  project_id: z.string(),
+  worktree_id: z.string(),
+  agent_name: z.string(),
+  session_id: z.string(),
+  action: zCodingAction,
+  state: z.enum(["queued", "running", "succeeded", "failed", "interrupted"]),
+  stage: z.string(),
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime(),
+  commit: z.string().optional(),
+  pushed: z.boolean(),
+  pull_request: zCodingPullRequest.optional(),
+  error: z.string().optional(),
+})
+
+export const zCodingRepositoryItem = z.object({
+  id: z.coerce
+    .bigint()
+    .min(BigInt("-9223372036854775808"), {
+      error: "Invalid value: Expected int64 to be >= -9223372036854775808",
+    })
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+  name: z.string(),
+  private: z.boolean(),
+})
+
+export const zCodingRepositoryPage = z.object({
+  repositories: z.array(zCodingRepositoryItem),
+  next_page: z.int().optional(),
+  limited: z.boolean(),
 })
 
 export const zJsonValueWritable = z
@@ -3028,6 +3148,46 @@ export const zSuggestCodingTextResponse = zCodingTextSuggestion
  * Git result.
  */
 export const zRunCodingGitResponse = zCodingGitResult
+
+/**
+ * Coding result.
+ */
+export const zListCodingRepositoriesResponse = zCodingRepositoryPage
+
+/**
+ * Coding result.
+ */
+export const zListCodingRefsResponse = zCodingRepositorySnapshot
+
+/**
+ * Coding result.
+ */
+export const zRefreshCodingRepositoryResponse = zCodingRepositorySnapshot
+
+/**
+ * Coding result.
+ */
+export const zAdoptCodingWorktreeResponse = zCodingWorktree
+
+/**
+ * Active and recent operations owned by the actor.
+ */
+export const zListCodingOperationsResponse = z.array(zCodingOperation)
+
+/**
+ * Coding result.
+ */
+export const zStartCodingOperationResponse = zCodingOperation
+
+/**
+ * Coding result.
+ */
+export const zGetCodingOperationResponse = zCodingOperation
+
+/**
+ * Invalidation notifications; read current state on every connection.
+ */
+export const zWatchCodingResponse = zWatchChatSessionsEvent
 
 /**
  * Paginated chat sessions and available participant filters.

@@ -21,6 +21,7 @@ require (
 	github.com/go-chi/cors v1.2.2
 	github.com/go-logr/logr v1.4.4
 	github.com/golang-jwt/jwt/v5 v5.3.1
+	github.com/google/go-github/v91 v91.0.0
 	github.com/google/uuid v1.6.0
 	github.com/gosimple/slug v1.15.0
 	github.com/jackc/pgx/v5 v5.10.0
@@ -115,6 +116,7 @@ require (
 	github.com/google/cel-go v0.29.0 // indirect
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
+	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/gosimple/unidecode v1.0.1 // indirect

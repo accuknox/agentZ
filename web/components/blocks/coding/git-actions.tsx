@@ -25,8 +25,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
+  experimental_streamedQuery as streamedQuery,
   queryOptions,
   useIsMutating,
   useMutation,
@@ -38,13 +39,13 @@ import { GitHubDark } from "@ridemountainpig/svgl-react"
 import { toast } from "sonner"
 import { authClient } from "@/lib/auth-client"
 import {
-  codingGitHubStatus,
-  codingRemoteHead,
-  createCodingPullRequest,
-  remoteCodingGit,
-} from "@/lib/coding/actions"
-import { gitQueries, gitQuickAction, runWorkspaceGit } from "@/lib/coding/review"
-import { suggestCodingText, type CodingThread } from "@/lib/gateway/client"
+  codingOperationOptions,
+  gitQueries,
+  gitQuickAction,
+  runWorkspaceGit,
+  startWorkspaceOperation,
+} from "@/lib/coding/review"
+import { watchCoding, type CodingThread, type WatchChatSessionsEvent } from "@/lib/gateway/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import { useFileWorkspace } from "@/components/blocks/chat/file-workspace-store"
 import { Button } from "@/components/ui/button"
@@ -78,30 +79,19 @@ export function GitActions({ thread, workspaceId }: { thread: CodingThread; work
   const { previewFile } = useFileWorkspace()
   const tree = thread.worktree
   const mutationKey = ["coding", "git", workspaceId, tree.id]
-  const busy = useIsMutating({ mutationKey }) > 0
-  const statusOptions = queryOptions({
-    queryKey: ["coding", "git", workspaceId, tree.id, actor?.user.id],
-    queryFn: () => runWorkspaceGit(workspaceId, tree.id, { operation: "status" }),
-    enabled: !!actor?.user.id,
-    refetchInterval: busy ? false : 5000,
-  })
-  const status = useQuery(statusOptions)
-  const github = useQuery(
+  const operations = useQuery(codingOperationOptions(workspaceId, actor?.user.id))
+  const busy =
+    useIsMutating({ mutationKey }) > 0 ||
+    operations.data?.some(
+      (operation) =>
+        operation.project_id === tree.project_id &&
+        (operation.state === "queued" || operation.state === "running")
+    ) === true
+  const status = useQuery(
     queryOptions({
-      queryKey: [
-        "coding",
-        "github",
-        workspaceId,
-        tree.id,
-        actor?.user.id,
-        tree.agent_name,
-        thread.session_id,
-        status.data?.branch,
-      ],
-      queryFn: () => codingGitHubStatus(workspaceId, tree.agent_name, thread.session_id),
-      enabled: !busy && status.isSuccess,
-      staleTime: 30_000,
-      refetchInterval: busy ? false : 30_000,
+      queryKey: ["coding", "git", workspaceId, tree.id, actor?.user.id],
+      queryFn: () => runWorkspaceGit(workspaceId, tree.id, { operation: "status" }),
+      enabled: !!actor?.user.id,
     })
   )
   const [dialog, setDialog] = useState(false)
@@ -131,7 +121,7 @@ export function GitActions({ thread, workspaceId }: { thread: CodingThread; work
   const data = status.data
   const files = data?.files ?? []
   const selected = files.filter((file) => !excluded.has(file.path))
-  const quick = gitQuickAction(busy ? undefined : data, !!github.data)
+  const quick = gitQuickAction(busy ? undefined : data, !!data?.pull_request)
   const isDefault = data?.branch === data?.default_branch
   const confirmingPR = confirmation === "create_pr" || confirmation === "commit_push_pr"
   const confirmingCommit =
@@ -139,14 +129,12 @@ export function GitActions({ thread, workspaceId }: { thread: CodingThread; work
   const reason = busy
     ? "Git action in progress."
     : (status.error?.message ??
-      github.error?.message ??
-      (github.isPending
-        ? "Loading GitHub status."
-        : files.some((file) => file.conflict)
-          ? "Resolve conflicts before committing."
-          : data && !data.head
-            ? "This repository has no initial commit."
-            : undefined))
+      data?.remote_error ??
+      (files.some((file) => file.conflict)
+        ? "Resolve conflicts before committing."
+        : data && !data.head
+          ? "This repository has no initial commit."
+          : undefined))
   const disabledReason = reason ?? quick.hint
   const Icon =
     quick.action === "pull"
@@ -173,116 +161,26 @@ export function GitActions({ thread, workspaceId }: { thread: CodingThread; work
       paths?: string[]
     }) => {
       if (!data) throw new Error("Git status is unavailable.")
-      const id = toast.loading("Running Git action...", { duration: Infinity })
-      let completed = ""
-      try {
-        let current = await runWorkspaceGit(workspaceId, tree.id, {
-          operation: "status",
-          expected_head: data.head,
-        })
-        if (current.revision !== data.revision)
-          throw new Error("Checkout changed; refresh and retry.")
-        if (newBranch) {
-          toast.loading("Preparing feature branch...", { id })
-          const suggestion = await suggestCodingText({
-            baseUrl: await getGatewayBaseURL(),
-            headers: { "X-AgentZ-Workspace-ID": workspaceId },
-            path: { agentName: tree.agent_name, sessionId: thread.session_id },
-            body: {
-              purpose: "branch",
-              text: message || current.files.map((file) => file.path).join("\n") || current.branch,
-            },
-          })
-          if (suggestion.error) throw new Error(suggestion.error.message)
-          current = await runWorkspaceGit(workspaceId, tree.id, {
-            operation: "create_branch",
-            ref: suggestion.data.text,
-            expected_head: current.head,
-          })
-          completed = `Created ${current.branch}. `
-        }
-        if (action === "pull") {
-          toast.loading("Pulling...", { id })
-          await remoteCodingGit(workspaceId, tree.agent_name, thread.session_id, {
-            operation: "pull",
-            head: current.head,
-          })
-          toast.success("Pulled", { id })
-          return
-        }
-        if (
-          (action === "commit" || action === "commit_push" || action === "commit_push_pr") &&
-          current.files.length
-        ) {
-          current = await runWorkspaceGit(workspaceId, tree.id, {
-            operation: "prepare_commit",
-            expected_head: current.head,
-            revision: current.revision,
-            paths,
-          })
-          if (!current.tree) throw new Error("Resolve conflicts before committing.")
-          if (!message.trim()) {
-            toast.loading("Generating commit message...", { id })
-            const suggestion = await suggestCodingText({
-              baseUrl: await getGatewayBaseURL(),
-              headers: { "X-AgentZ-Workspace-ID": workspaceId },
-              path: { agentName: tree.agent_name, sessionId: thread.session_id },
-              body: { purpose: "commit", expected_tree: current.tree },
-            })
-            if (suggestion.error) throw new Error(suggestion.error.message)
-            message = suggestion.data.text
-          }
-          toast.loading("Committing...", { id })
-          current = await remoteCodingGit(workspaceId, tree.agent_name, thread.session_id, {
-            operation: "commit",
-            head: current.head,
-            tree: current.tree,
-            message,
-          })
-          completed += `Committed ${current.head.slice(0, 7)}. `
-        }
-        if (action !== "commit" && (current.ahead > 0 || !current.remote_head)) {
-          toast.loading("Pushing...", { id })
-          const remoteHead = await codingRemoteHead(
-            workspaceId,
-            tree.agent_name,
-            thread.session_id,
-            current.branch
-          )
-          current = await remoteCodingGit(workspaceId, tree.agent_name, thread.session_id, {
-            operation: "push",
-            head: current.head,
-            remoteHead,
-          })
-          completed += "Pushed. "
-        }
-        if (action === "create_pr" || action === "commit_push_pr") {
-          toast.loading("Generating PR content...", { id })
-          const pr = await createCodingPullRequest(
-            workspaceId,
-            tree.agent_name,
-            thread.session_id,
-            current.head
-          )
-          toast.success(`Created PR #${pr.number}`, {
-            id,
-            description: completed,
-            action: {
-              label: "View PR",
-              onClick: () => window.open(pr.url, "_blank", "noopener,noreferrer"),
-            },
-          })
-          return
-        }
-        toast.success(action === "commit" ? "Committed" : "Pushed", { id, description: completed })
-      } catch (error) {
-        toast.error("Git action failed", {
-          id,
-          description: completed + (error instanceof Error ? error.message : "Refresh and retry."),
-        })
-        throw error
-      }
+      return startWorkspaceOperation(workspaceId, {
+        id: crypto.randomUUID(),
+        agent_name: tree.agent_name,
+        session_id: thread.session_id,
+        action,
+        branch: data.branch,
+        expected_head: data.head,
+        revision: data.revision,
+        feature_branch: newBranch,
+        message,
+        paths,
+      })
     },
+    onSuccess: (operation) => {
+      queryClient.setQueryData(
+        codingOperationOptions(workspaceId, actor?.user.id).queryKey,
+        (current) => [operation, ...(current ?? []).filter((item) => item.id !== operation.id)]
+      )
+    },
+    onError: (error) => toast.error(error.message),
     onSettled: () =>
       queryClient.invalidateQueries({
         predicate: (query) =>
@@ -295,7 +193,7 @@ export function GitActions({ thread, workspaceId }: { thread: CodingThread; work
   function run(action: Action) {
     if (busy || reason) return
     if (action === "view_pr") {
-      if (github.data) window.open(github.data.url, "_blank", "noopener,noreferrer")
+      if (data?.pull_request) window.open(data?.pull_request.url, "_blank", "noopener,noreferrer")
       return
     }
     if (isDefault && action !== "commit" && action !== "pull") {
@@ -325,10 +223,10 @@ export function GitActions({ thread, workspaceId }: { thread: CodingThread; work
             : undefined,
     },
     {
-      action: github.data ? "view_pr" : "create_pr",
-      label: github.data ? "View PR" : "Create PR",
+      action: data?.pull_request ? "view_pr" : "create_pr",
+      label: data?.pull_request ? "View PR" : "Create PR",
       Icon: GitHubDark,
-      hint: github.data
+      hint: data?.pull_request
         ? undefined
         : !data?.branch
           ? "Select a branch before creating a PR."
@@ -369,7 +267,6 @@ export function GitActions({ thread, workspaceId }: { thread: CodingThread; work
           onOpenChange={(open) => {
             if (open) {
               void status.refetch()
-              void github.refetch()
             }
           }}
         >
@@ -430,9 +327,7 @@ export function GitActions({ thread, workspaceId }: { thread: CodingThread; work
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">Branch</span>
               <span className="font-medium">{data?.branch || "(detached HEAD)"}</span>
-              {isDefault ? (
-                <span className="text-warning ml-auto">Warning: default refName</span>
-              ) : null}
+              {isDefault ? <span className="text-warning ml-auto">Default branch</span> : null}
             </div>
             <div className="flex items-center gap-2">
               {editing && files.length ? (
@@ -557,7 +452,7 @@ export function GitActions({ thread, workspaceId }: { thread: CodingThread; work
                 })
               }}
             >
-              Commit on new refName
+              Commit on a new branch
             </Button>
             <Button
               size="sm"
@@ -636,4 +531,106 @@ export function GitActions({ thread, workspaceId }: { thread: CodingThread; work
       </Dialog>
     </>
   )
+}
+
+export function CodingActivity({ workspaceId }: { workspaceId: string }) {
+  const { data: actor } = authClient.useSession()
+  const queryClient = useQueryClient()
+  const operations = useQuery({
+    ...codingOperationOptions(workspaceId, actor?.user.id),
+    refetchInterval: 30_000,
+  })
+  const seen = useRef(new Map<string, string>())
+  useEffect(() => {
+    const displayed = seen.current
+    return () => {
+      for (const id of displayed.keys()) toast.dismiss(`coding:${id}`)
+      displayed.clear()
+    }
+  }, [workspaceId, actor?.user.id])
+  const watch = useQuery(
+    queryOptions({
+      queryKey: ["codingWatch", workspaceId, actor?.user.id],
+      enabled: !!actor?.user.id,
+      queryFn: streamedQuery<WatchChatSessionsEvent, string>({
+        initialValue: "",
+        reducer: (_, event) => event.revision,
+        streamFn: async function* ({ signal }) {
+          const response = await watchCoding({
+            baseUrl: await getGatewayBaseURL(),
+            headers: { "X-AgentZ-Workspace-ID": workspaceId },
+            signal,
+          })
+          yield* response.stream
+          if (!signal.aborted) throw new Error("Coding event stream disconnected")
+        },
+      }),
+      refetchOnMount: "always",
+      refetchOnReconnect: "always",
+      refetchOnWindowFocus: false,
+      staleTime: Infinity,
+      retry: true,
+      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
+    })
+  )
+  useEffect(() => {
+    if (!watch.data) return
+    void queryClient.invalidateQueries({
+      predicate: (query) =>
+        query.queryKey[0] === "coding" &&
+        query.queryKey[2] === workspaceId &&
+        (query.queryKey[1] === "git" ||
+          query.queryKey[1] === "refs" ||
+          query.queryKey[1] === "operations"),
+    })
+  }, [watch.data, watch.dataUpdatedAt, queryClient, workspaceId])
+  useEffect(() => {
+    for (const operation of operations.data ?? []) {
+      const signature = `${operation.state}:${operation.stage}`
+      if (seen.current.get(operation.id) === signature) continue
+      seen.current.set(operation.id, signature)
+      const id = `coding:${operation.id}`
+      const description = [
+        operation.commit ? `Committed ${operation.commit.slice(0, 7)}.` : "",
+        operation.pushed ? "Pushed." : "",
+        operation.error ?? "",
+      ]
+        .filter(Boolean)
+        .join(" ")
+      if (operation.state === "running" || operation.state === "queued") {
+        toast.loading(operation.stage, {
+          id,
+          duration: Infinity,
+          description: operation.agent_name,
+        })
+      } else if (!localStorage.getItem(`coding:${actor?.user.id}:${operation.id}`)) {
+        localStorage.setItem(`coding:${actor?.user.id}:${operation.id}`, operation.updated_at)
+        if (operation.state === "succeeded") {
+          toast.success(
+            operation.pull_request
+              ? `Created PR #${operation.pull_request.number}`
+              : "Git action completed",
+            {
+              id,
+              description,
+              action: operation.pull_request
+                ? {
+                    label: "View PR",
+                    onClick: () =>
+                      window.open(operation.pull_request?.url, "_blank", "noopener,noreferrer"),
+                  }
+                : undefined,
+            }
+          )
+        } else
+          toast.error(
+            operation.state === "interrupted" ? "Git action interrupted" : "Git action failed",
+            { id, description }
+          )
+      } else {
+        toast.dismiss(id)
+      }
+    }
+  }, [operations.data, actor?.user.id])
+  return null
 }

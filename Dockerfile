@@ -21,11 +21,12 @@ COPY . .
 # by leaving it empty we can ensure that the container and binary shipped on it will have the same platform.
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -a -o agentz ./cmd/agentz
 
-# Use distroless as minimal base image to package the agentz binary
-# Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM gcr.io/distroless/static:nonroot
+# The gateway uses native Git for authenticated repository operations.
+FROM debian:trixie-slim
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /
-COPY --from=builder /workspace/agentz .
+COPY --from=builder /workspace/agentz /agentz
 USER 65532:65532
-
 ENTRYPOINT ["/agentz"]

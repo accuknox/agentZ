@@ -1,15 +1,17 @@
 "use client"
 
-import { useCallback, useEffect, useState, useTransition } from "react"
+import { useCallback, useEffect, useRef, useState, useTransition } from "react"
 import { useRouter } from "@bprogress/next/app"
 import Link from "next/link"
+import { LegendList, type LegendListRef } from "@legendapp/list/react"
 import { useSearchParams } from "next/navigation"
-import { infiniteQueryOptions, useInfiniteQuery } from "@tanstack/react-query"
+import { infiniteQueryOptions, useInfiniteQuery, useQueryClient } from "@tanstack/react-query"
 import {
   CircleAlert,
   Ellipsis,
   Settings2,
   ChevronDown,
+  RefreshCw,
   FolderGit2,
   GitBranch,
   Lock,
@@ -28,14 +30,6 @@ import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/u
 import { Field, FieldGroup, FieldLabel, FieldDescription } from "@/components/ui/field"
 import { ChatShell } from "@/components/blocks/chat/chat-shell"
 import { opencodeErrorMessage } from "@/components/blocks/chat/errors"
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-} from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
 import {
   Command,
@@ -68,22 +62,28 @@ import {
   type AdministrationPageScope,
 } from "@/components/administration"
 import { ProjectTable } from "./project-table"
-import { addCodingProject, githubRepositories, startCodingThread } from "@/lib/coding/actions"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import type {
   ChatSessionPreference,
   CodingProject,
   CodingProjectDetail,
   CodingWorktree,
+  CodingRepositoryItem,
 } from "@/lib/gateway/client"
 import {
   deleteCodingProject,
   getCodingProject,
   renameCodingProject,
   runCodingGit,
-  suggestCodingText,
+  listCodingRepositories,
+  createCodingProject,
+  createCodingThread,
+  listCodingRefs,
+  adoptCodingWorktree,
+  refreshCodingRepository,
 } from "@/lib/gateway/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
+import { runWorkspaceGit, startWorkspaceOperation } from "@/lib/coding/review"
 
 export function Projects({
   projects,
@@ -120,12 +120,12 @@ export function Projects({
     { action: "rename" | "delete" } | { action: "remove"; tree: CodingWorktree }
   >()
   const [name, setName] = useState("")
-  const [repository, setRepository] =
-    useState<Awaited<ReturnType<typeof githubRepositories>>["repositories"][number]>()
+  const [repository, setRepository] = useState<CodingRepositoryItem>()
   const [repositoryOpen, setRepositoryOpen] = useState(false)
   const [repositorySearch, setRepositorySearch] = useState("")
   const [repositoryQuery, setRepositoryQuery] = useState("")
   const [checkout, setCheckout] = useState("new")
+  const [baseRef, setBaseRef] = useState<string>()
   const [pending, startTransition] = useTransition()
   const [draftId, setDraftId] = useState(() => crypto.randomUUID())
   useEffect(() => {
@@ -134,17 +134,25 @@ export function Projects({
   }, [repositorySearch])
   const repositories = useInfiniteQuery(
     infiniteQueryOptions({
-      queryKey: ["coding", "repositories", actor?.user.id, repositoryQuery],
-      queryFn: ({ pageParam }) => githubRepositories(repositoryQuery, pageParam),
+      queryKey: ["coding", "repositories", workspaceId, actor?.user.id, repositoryQuery],
+      queryFn: async ({ pageParam, signal }) => {
+        const result = await listCodingRepositories({
+          baseUrl: await getGatewayBaseURL(),
+          headers: { "X-AgentZ-Workspace-ID": workspaceId },
+          query: { query: repositoryQuery, page: pageParam },
+          signal,
+        })
+        if (result.error) throw new Error(result.error.message)
+        return result.data
+      },
       initialPageParam: 1,
-      getNextPageParam: (lastPage) => lastPage.nextPage,
+      getNextPageParam: (lastPage) => lastPage.next_page,
       enabled: adding && repositoryOpen && Boolean(actor),
       staleTime: 60_000,
       retry: false,
     })
   )
   const searching = repositorySearch.trim() !== repositoryQuery || repositories.isPending
-  const worktrees = detail?.worktrees.filter((tree) => tree.agent_name === agentName) ?? []
   const project = detail?.project
   const targetProject = project ?? managedProject
   const settings = project ? detail : projectSettings
@@ -153,6 +161,7 @@ export function Projects({
   if (previousTarget !== draftTarget) {
     setPreviousTarget(draftTarget)
     setCheckout("new")
+    setBaseRef(undefined)
     setDraftId(crypto.randomUUID())
   }
 
@@ -308,94 +317,59 @@ export function Projects({
             </DropdownMenu>
           }
           composerContext={(disabled) => (
-            <Select
-              value={checkout}
+            <CheckoutPicker
+              key={draftTarget}
+              project={project}
+              agentName={agentName}
+              workspaceId={workspaceId}
+              checkout={checkout}
+              baseRef={baseRef}
               disabled={disabled}
-              onValueChange={(value) => {
+              onChange={(value, ref) => {
                 setCheckout(value)
+                setBaseRef(ref)
                 setDraftId(crypto.randomUUID())
               }}
-            >
-              <SelectTrigger
-                size="sm"
-                aria-label="Worktree"
-                className="hover:bg-foreground/5 h-7 max-w-64 min-w-0 border-0 bg-transparent px-1.5 text-xs shadow-none"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent align="start" position="popper" side="top" sideOffset={6}>
-                <SelectGroup>
-                  <SelectItem value="new">
-                    <GitBranch aria-hidden="true" />
-                    New worktree
-                  </SelectItem>
-                  {!worktrees.some((tree) => tree.directory.endsWith("/repo")) ? (
-                    <SelectItem value="main">
-                      <GitBranch aria-hidden="true" />
-                      Main checkout
-                    </SelectItem>
-                  ) : null}
-                  {worktrees
-                    .filter((tree) => tree.ready)
-                    .map((tree) => (
-                      <SelectItem key={tree.id} value={tree.id}>
-                        <GitBranch aria-hidden="true" />
-                        {tree.branch} · existing checkout
-                      </SelectItem>
-                    ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+            />
           )}
           createSession={async ({ text, model }) => {
-            const thread = await startCodingThread(workspaceId, {
-              id: draftId,
-              project_id: project.id,
-              agent_name: agentName,
-              main_checkout: checkout === "main",
-              worktree_id: checkout !== "new" && checkout !== "main" ? checkout : undefined,
+            const result = await createCodingThread({
+              baseUrl: await getGatewayBaseURL(),
+              headers: { "X-AgentZ-Workspace-ID": workspaceId },
+              body: {
+                id: draftId,
+                project_id: project.id,
+                agent_name: agentName,
+                main_checkout: checkout === "main",
+                worktree_id: checkout !== "new" && checkout !== "main" ? checkout : undefined,
+                base_ref: checkout === "new" ? baseRef : undefined,
+              },
             })
+            if (result.error) throw new Error(result.error.message)
+            const thread = result.data
             if (
               checkout === "new" &&
               text &&
               thread.worktree.branch === `chore/${thread.worktree.id}`
             ) {
-              void (async () => {
-                try {
-                  const options = {
-                    baseUrl: await getGatewayBaseURL(),
-                    headers: { "X-AgentZ-Workspace-ID": workspaceId },
-                  }
-                  const suggestion = await suggestCodingText({
-                    ...options,
-                    path: { agentName, sessionId: thread.session_id },
-                    body: {
-                      purpose: "branch",
-                      text: text.slice(0, 16000),
-                      model: { modelID: model.modelID, providerID: model.providerID },
-                    },
-                  })
-                  if (suggestion.error) throw new Error(suggestion.error.message)
-                  const status = await runCodingGit({
-                    ...options,
-                    path: { worktreeId: thread.worktree.id },
-                    body: { operation: "status" },
-                  })
-                  if (status.error) throw new Error(status.error.message)
-                  const renamed = await runCodingGit({
-                    ...options,
-                    path: { worktreeId: thread.worktree.id },
-                    body: {
-                      operation: "rename",
-                      expected_head: status.data.head,
-                      ref: `${suggestion.data.text}-${thread.worktree.id.slice(0, 8)}`,
-                    },
-                  })
-                  if (renamed.error) throw new Error(renamed.error.message)
-                } catch {
-                  toast.warning("Could not name the branch. Using its temporary name.")
-                }
-              })()
+              try {
+                const status = await runWorkspaceGit(workspaceId, thread.worktree.id, {
+                  operation: "status",
+                })
+                await startWorkspaceOperation(workspaceId, {
+                  id: thread.id,
+                  agent_name: agentName,
+                  session_id: thread.session_id,
+                  action: "name_branch",
+                  branch: status.branch,
+                  expected_head: status.head,
+                  revision: status.revision,
+                  text: text.slice(0, 16000),
+                  model: { modelID: model.modelID, providerID: model.providerID },
+                })
+              } catch {
+                toast.warning("Could not name the branch. Using its temporary name.")
+              }
             }
             const client = await createAgentOpencodeClient(agentName, workspaceId)
             const session = await client.session.get({ sessionID: thread.session_id })
@@ -514,11 +488,16 @@ export function Projects({
               if (!repository) return
               startTransition(async () => {
                 try {
-                  const created = await addCodingProject(
-                    workspaceId,
-                    name.trim() || repository.name.slice(0, 80),
-                    repository.id
-                  )
+                  const result = await createCodingProject({
+                    baseUrl: await getGatewayBaseURL(),
+                    headers: { "X-AgentZ-Workspace-ID": workspaceId },
+                    body: {
+                      name: name.trim() || repository.name.slice(0, 80),
+                      repository_id: repository.id,
+                    },
+                  })
+                  if (result.error) throw new Error(result.error.message)
+                  const created = result.data
                   setAdding(false)
                   setName("")
                   setRepository(undefined)
@@ -568,7 +547,19 @@ export function Projects({
                         onValueChange={setRepositorySearch}
                         maxLength={256}
                       />
-                      <CommandList>
+                      <CommandList
+                        onScroll={(event) => {
+                          const list = event.currentTarget
+                          if (
+                            list.scrollHeight - list.scrollTop - list.clientHeight <
+                              list.clientHeight * 2 &&
+                            repositories.hasNextPage &&
+                            !repositories.isFetching
+                          ) {
+                            void repositories.fetchNextPage()
+                          }
+                        }}
+                      >
                         {searching ? (
                           <div
                             role="status"
@@ -627,22 +618,6 @@ export function Projects({
                         )}
                       </CommandList>
                     </Command>
-                    {!searching && repositories.hasNextPage ? (
-                      <div className="p-2">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          className="w-full"
-                          disabled={repositories.isFetchingNextPage}
-                          onClick={() => void repositories.fetchNextPage()}
-                        >
-                          {repositories.isFetchingNextPage ? (
-                            <Spinner data-icon="inline-start" />
-                          ) : null}
-                          {repositories.isFetchNextPageError ? "Retry loading more" : "Load more"}
-                        </Button>
-                      </div>
-                    ) : null}
                     {!searching && repositories.data?.pages.some((page) => page.limited) ? (
                       <p className="text-muted-foreground px-3 pb-3 text-xs">
                         More repositories may match. Narrow your search to find them.
@@ -791,5 +766,285 @@ export function Projects({
         </DialogContent>
       </Dialog>
     </main>
+  )
+}
+
+function CheckoutPicker({
+  project,
+  agentName,
+  workspaceId,
+  checkout,
+  baseRef,
+  disabled,
+  onChange,
+}: {
+  project: CodingProject
+  agentName: string
+  workspaceId: string
+  checkout: string
+  baseRef: string | undefined
+  disabled: boolean
+  onChange: (checkout: string, baseRef?: string) => void
+}) {
+  const { data: actor } = authClient.useSession()
+  const queryClient = useQueryClient()
+  const active = useRef(true)
+  useEffect(() => {
+    active.current = true
+    return () => {
+      active.current = false
+    }
+  }, [])
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState("")
+  const [highlight, setHighlight] = useState("")
+  const list = useRef<LegendListRef>(null)
+  const [pending, startTransition] = useTransition()
+  const queryKey = ["coding", "refs", workspaceId, project.id, agentName, actor?.user.id, search]
+  const refs = useInfiniteQuery(
+    infiniteQueryOptions({
+      queryKey,
+      initialPageParam: "",
+      queryFn: async ({ pageParam, signal, client, queryKey }) => {
+        const result = await listCodingRefs({
+          baseUrl: await getGatewayBaseURL(),
+          headers: { "X-AgentZ-Workspace-ID": workspaceId },
+          path: { projectId: project.id },
+          query: { agent_name: agentName, query: search, cursor: pageParam || undefined },
+          signal,
+        })
+        if (result.error?.code === "snapshot_changed") {
+          void client.resetQueries({ queryKey })
+        }
+        if (result.error) throw new Error(result.error.message)
+        return result.data
+      },
+      getNextPageParam: (page) => page.next_cursor,
+      enabled: !!actor?.user.id,
+      refetchInterval: 30_000,
+      retry: false,
+    })
+  )
+  const snapshot = refs.data?.pages[0]
+  const branches = refs.data?.pages.flatMap((page) => page.refs) ?? []
+  const worktrees = snapshot?.worktrees ?? []
+  const items = [
+    ...(snapshot?.updated_at &&
+    !snapshot.error &&
+    !worktrees.some((tree) => tree.directory.endsWith("/repo")) &&
+    `main checkout ${project.default_branch}`.toLowerCase().includes(search.toLowerCase())
+      ? [{ kind: "main" as const, key: "main" }]
+      : []),
+    ...worktrees
+      .filter((tree) =>
+        `${tree.branch} ${tree.directory}`.toLowerCase().includes(search.toLowerCase())
+      )
+      .map((tree) => ({ kind: "worktree" as const, key: tree.directory, tree })),
+    ...branches.map((branch) => ({ kind: "branch" as const, key: branch.ref, branch })),
+  ]
+  const selected = worktrees.find((tree) => tree.managed_id === checkout)
+  const label =
+    checkout === "new"
+      ? `New worktree · ${baseRef?.replace(/^refs\/(heads|remotes)\//, "") ?? project.default_branch}`
+      : checkout === "main"
+        ? "Main checkout"
+        : selected?.branch || "Detached worktree"
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          role="combobox"
+          aria-label="Branch and worktree"
+          aria-expanded={open}
+          disabled={disabled || pending}
+          className="h-7 max-w-80 min-w-0 justify-start px-1.5 text-xs"
+        >
+          {pending ? <Spinner /> : <GitBranch />}
+          <span className="truncate">{label}</span>
+          <ChevronDown className="ml-auto" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" side="top" className="w-96 max-w-[calc(100vw-2rem)] p-0">
+        <Command
+          shouldFilter={false}
+          value={highlight}
+          onValueChange={setHighlight}
+          onKeyDownCapture={(event) => {
+            if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return
+            if (!items.length) return
+            event.preventDefault()
+            event.stopPropagation()
+            const step = event.key === "ArrowDown" ? 1 : -1
+            let index = items.findIndex((item) => item.key === highlight)
+            for (let count = 0; count < items.length; count++) {
+              index = (index + step + items.length) % items.length
+              const item = items[index]
+              if (!item) return
+              if (item.kind === "worktree" && !item.tree.available) continue
+              setHighlight(item.key)
+              void list.current?.scrollIndexIntoView({ index, animated: false })
+              break
+            }
+          }}
+        >
+          <CommandInput
+            placeholder="Find a branch or worktree..."
+            value={search}
+            onValueChange={setSearch}
+          />
+          <CommandList className="max-h-none overflow-hidden">
+            <LegendList
+              ref={list}
+              data={items}
+              estimatedItemSize={32}
+              style={{ height: Math.min(items.length * 32 + 48, 280) }}
+              keyExtractor={(item) => item.key}
+              recycleItems={false}
+              onEndReached={() => {
+                if (refs.hasNextPage && !refs.isFetching) void refs.fetchNextPage()
+              }}
+              onEndReachedThreshold={2}
+              renderItem={({ item, index }) => (
+                <>
+                  {index === 0 ||
+                  (item.kind === "branch" && items[index - 1]?.kind !== "branch") ? (
+                    <div className="text-muted-foreground px-2 py-1.5 text-[11px]">
+                      {item.kind === "branch" ? "New worktree from" : "Worktrees"}
+                    </div>
+                  ) : null}
+                  {item.kind === "main" ? (
+                    <CommandItem
+                      value={item.key}
+                      className="h-8 text-xs"
+                      data-checked={checkout === "main"}
+                      onSelect={() => {
+                        onChange("main")
+                        setOpen(false)
+                      }}
+                    >
+                      <FolderGit2 className="text-muted-foreground size-3.5" />
+                      <span className="flex-1">Main checkout</span>
+                      <span className="text-muted-foreground/60 text-[10px]">
+                        {project.default_branch}
+                      </span>
+                    </CommandItem>
+                  ) : item.kind === "branch" ? (
+                    <CommandItem
+                      value={item.key}
+                      className="h-8 text-xs"
+                      data-checked={checkout === "new" && baseRef === item.branch.ref}
+                      title={item.branch.ref}
+                      onSelect={() => {
+                        onChange("new", item.branch.ref)
+                        setOpen(false)
+                      }}
+                    >
+                      <GitBranch className="text-muted-foreground size-3.5" />
+                      <span className="min-w-0 flex-1 truncate">{item.branch.name}</span>
+                      <span className="text-muted-foreground/60 text-[10px]">
+                        {item.branch.current
+                          ? "current"
+                          : item.branch.remote
+                            ? "remote"
+                            : item.branch.default
+                              ? "default"
+                              : ""}
+                      </span>
+                    </CommandItem>
+                  ) : (
+                    <CommandItem
+                      value={item.key}
+                      className="h-8 text-xs"
+                      disabled={!item.tree.available || pending}
+                      data-checked={checkout === item.tree.managed_id}
+                      title={item.tree.reason ?? item.tree.directory}
+                      onSelect={() => {
+                        if (item.tree.managed_id) {
+                          onChange(item.tree.managed_id)
+                          setOpen(false)
+                          return
+                        }
+                        startTransition(async () => {
+                          const result = await adoptCodingWorktree({
+                            baseUrl: await getGatewayBaseURL(),
+                            headers: { "X-AgentZ-Workspace-ID": workspaceId },
+                            path: { projectId: project.id },
+                            body: { agent_name: agentName, directory: item.tree.directory },
+                          })
+                          if (result.error) {
+                            toast.error(result.error.message)
+                            return
+                          }
+                          if (!active.current) return
+                          onChange(result.data.id)
+                          setOpen(false)
+                          await queryClient.invalidateQueries({ queryKey: queryKey.slice(0, 5) })
+                        })
+                      }}
+                    >
+                      <FolderGit2 className="text-muted-foreground size-3.5" />
+                      <span className="min-w-0 flex-1 truncate">
+                        {item.tree.branch || item.tree.directory.split("/").at(-1)}
+                      </span>
+                      {item.tree.locked ? <Lock className="text-muted-foreground size-3" /> : null}
+                      <span className="text-muted-foreground/60 text-[10px]">
+                        {!item.tree.available
+                          ? "unavailable"
+                          : !item.tree.branch
+                            ? "detached"
+                            : item.tree.directory.endsWith("/repo")
+                              ? "main"
+                              : "worktree"}
+                      </span>
+                    </CommandItem>
+                  )}
+                </>
+              )}
+              ListEmptyComponent={
+                <div className="text-muted-foreground py-6 text-center text-xs">
+                  {refs.isPending || snapshot?.refreshing
+                    ? "Loading branches..."
+                    : "No branches or worktrees found"}
+                </div>
+              }
+            />
+          </CommandList>
+          <div className="flex items-center gap-2 border-t p-2 text-xs">
+            <span className="text-muted-foreground min-w-0 flex-1">
+              {refs.error?.message ??
+                snapshot?.error ??
+                `${snapshot?.total_count ?? 0} ${snapshot?.total_count === 1 ? "branch" : "branches"}`}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Refresh branches and worktrees"
+              title="Refresh branches and worktrees"
+              disabled={pending}
+              onClick={() =>
+                startTransition(async () => {
+                  const result = await refreshCodingRepository({
+                    baseUrl: await getGatewayBaseURL(),
+                    headers: { "X-AgentZ-Workspace-ID": workspaceId },
+                    path: { projectId: project.id },
+                    query: { agent_name: agentName },
+                  })
+                  if (result.error) toast.error(result.error.message)
+                  await queryClient.resetQueries({ queryKey: queryKey.slice(0, 5) })
+                })
+              }
+            >
+              {snapshot?.refreshing || refs.isFetching ? (
+                <Spinner />
+              ) : (
+                <RefreshCw className="size-3" />
+              )}
+            </Button>
+          </div>
+        </Command>
+      </PopoverContent>
+    </Popover>
   )
 }

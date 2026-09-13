@@ -585,6 +585,21 @@ components:
       description: Better Auth API key identifier.
       minLength: 1
       type: string
+    AdoptCodingWorktreeRequest:
+      additionalProperties: false
+      properties:
+        agent_name:
+          maxLength: 32
+          minLength: 1
+          type: string
+        directory:
+          maxLength: 4096
+          minLength: 1
+          type: string
+      required:
+      - agent_name
+      - directory
+      type: object
     Agent:
       additionalProperties: false
       properties:
@@ -1251,6 +1266,50 @@ components:
       - ChatSessionStatusIdle
       - ChatSessionStatusBusy
       - ChatSessionStatusRetry
+    CodingAction:
+      enum:
+      - commit
+      - push
+      - pull
+      - fetch
+      - create_pr
+      - commit_push
+      - commit_push_pr
+      - name_branch
+      type: string
+      x-enum-varnames:
+      - CodingActionCommit
+      - CodingActionPush
+      - CodingActionPull
+      - CodingActionFetch
+      - CodingActionCreatePR
+      - CodingActionCommitPush
+      - CodingActionCommitPushPR
+      - CodingActionNameBranch
+    CodingDiscoveredWorktree:
+      additionalProperties: false
+      properties:
+        available:
+          type: boolean
+        branch:
+          type: string
+        directory:
+          type: string
+        head:
+          type: string
+        locked:
+          type: boolean
+        managed_id:
+          type: string
+        reason:
+          type: string
+      required:
+      - directory
+      - branch
+      - head
+      - available
+      - locked
+      type: object
     CodingGitComparison:
       enum:
       - all
@@ -1323,6 +1382,7 @@ components:
           type: string
         operation:
           enum:
+          - discover
           - status
           - diff
           - stage
@@ -1342,6 +1402,7 @@ components:
           - remove
           type: string
           x-enum-varnames:
+          - CodingGitDiscover
           - CodingGitStatus
           - CodingGitDiff
           - CodingGitStage
@@ -1391,10 +1452,6 @@ components:
           type: integer
         branch:
           type: string
-        branches:
-          items:
-            type: string
-          type: array
         bundle:
           format: byte
           type: string
@@ -1410,8 +1467,14 @@ components:
           items:
             $ref: '#/components/schemas/CodingGitPatch'
           type: array
+        pull_request:
+          $ref: '#/components/schemas/CodingPullRequest'
+        remote_error:
+          type: string
         remote_head:
           type: string
+        repository:
+          $ref: '#/components/schemas/CodingRepositorySnapshot'
         revision:
           type: string
         stashes:
@@ -1425,7 +1488,6 @@ components:
       - branch
       - files
       - revision
-      - branches
       - default_branch
       - remote_head
       - ahead
@@ -1449,6 +1511,129 @@ components:
       - reference
       - message
       - created_at
+      type: object
+    CodingOperation:
+      additionalProperties: false
+      properties:
+        action:
+          $ref: '#/components/schemas/CodingAction'
+        agent_name:
+          type: string
+        commit:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        error:
+          type: string
+        id:
+          type: string
+        project_id:
+          type: string
+        pull_request:
+          $ref: '#/components/schemas/CodingPullRequest'
+        pushed:
+          type: boolean
+        session_id:
+          type: string
+        stage:
+          type: string
+        state:
+          enum:
+          - queued
+          - running
+          - succeeded
+          - failed
+          - interrupted
+          type: string
+          x-enum-varnames:
+          - CodingOperationQueued
+          - CodingOperationRunning
+          - CodingOperationSucceeded
+          - CodingOperationFailed
+          - CodingOperationInterrupted
+        updated_at:
+          format: date-time
+          type: string
+        worktree_id:
+          type: string
+      required:
+      - id
+      - project_id
+      - worktree_id
+      - agent_name
+      - session_id
+      - action
+      - state
+      - stage
+      - created_at
+      - updated_at
+      - pushed
+      type: object
+    CodingOperationRequest:
+      additionalProperties: false
+      properties:
+        action:
+          $ref: '#/components/schemas/CodingAction'
+        agent_name:
+          maxLength: 32
+          minLength: 1
+          type: string
+        branch:
+          type: string
+        expected_head:
+          pattern: ^[a-f0-9]{40,64}$
+          type: string
+        expected_tree:
+          pattern: ^[a-f0-9]{40,64}$
+          type: string
+        feature_branch:
+          default: false
+          type: boolean
+        id:
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          type: string
+        message:
+          maxLength: 20000
+          type: string
+        model:
+          additionalProperties: false
+          properties:
+            modelID:
+              minLength: 1
+              type: string
+            providerID:
+              minLength: 1
+              type: string
+          required:
+          - modelID
+          - providerID
+          type: object
+        paths:
+          items:
+            maxLength: 4096
+            minLength: 1
+            type: string
+          maxItems: 1000
+          type: array
+        revision:
+          pattern: ^[a-f0-9]{64}$
+          type: string
+        session_id:
+          minLength: 1
+          type: string
+        text:
+          maxLength: 16000
+          minLength: 1
+          type: string
+      required:
+      - id
+      - agent_name
+      - session_id
+      - action
+      - branch
+      - expected_head
+      - revision
       type: object
     CodingProject:
       additionalProperties: false
@@ -1494,6 +1679,17 @@ components:
       - worktrees
       - threads
       type: object
+    CodingPullRequest:
+      additionalProperties: false
+      properties:
+        number:
+          type: integer
+        url:
+          type: string
+      required:
+      - number
+      - url
+      type: object
     CodingPullRequestText:
       additionalProperties: false
       properties:
@@ -1508,6 +1704,96 @@ components:
       required:
       - title
       - body
+      type: object
+    CodingRef:
+      additionalProperties: false
+      properties:
+        committed_at:
+          format: int64
+          type: integer
+        current:
+          type: boolean
+        default:
+          type: boolean
+        head:
+          type: string
+        name:
+          type: string
+        ref:
+          type: string
+        remote:
+          type: boolean
+        worktree:
+          type: string
+      required:
+      - ref
+      - name
+      - head
+      - remote
+      - current
+      - default
+      - committed_at
+      type: object
+    CodingRepositoryItem:
+      additionalProperties: false
+      properties:
+        id:
+          format: int64
+          type: integer
+        name:
+          type: string
+        private:
+          type: boolean
+      required:
+      - id
+      - name
+      - private
+      type: object
+    CodingRepositoryPage:
+      additionalProperties: false
+      properties:
+        limited:
+          type: boolean
+        next_page:
+          type: integer
+        repositories:
+          items:
+            $ref: '#/components/schemas/CodingRepositoryItem'
+          type: array
+      required:
+      - repositories
+      - limited
+      type: object
+    CodingRepositorySnapshot:
+      additionalProperties: false
+      properties:
+        error:
+          type: string
+        next_cursor:
+          type: string
+        refreshing:
+          type: boolean
+        refs:
+          items:
+            $ref: '#/components/schemas/CodingRef'
+          type: array
+        revision:
+          type: string
+        total_count:
+          type: integer
+        updated_at:
+          format: date-time
+          type: string
+        worktrees:
+          items:
+            $ref: '#/components/schemas/CodingDiscoveredWorktree'
+          type: array
+      required:
+      - refs
+      - worktrees
+      - revision
+      - refreshing
+      - total_count
       type: object
     CodingTextRequest:
       additionalProperties: false
@@ -1695,17 +1981,10 @@ components:
     CreateCodingProjectRequest:
       additionalProperties: false
       properties:
-        default_branch:
-          maxLength: 255
-          minLength: 1
-          type: string
         name:
           maxLength: 80
           minLength: 1
           pattern: .*\S.*
-          type: string
-        repository:
-          pattern: ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$
           type: string
         repository_id:
           format: int64
@@ -1714,8 +1993,6 @@ components:
       required:
       - name
       - repository_id
-      - repository
-      - default_branch
       type: object
     CreateCodingThreadRequest:
       additionalProperties: false
@@ -1724,13 +2001,9 @@ components:
           maxLength: 32
           minLength: 1
           type: string
-        base_branch:
-          maxLength: 255
+        base_ref:
+          maxLength: 1024
           minLength: 1
-          type: string
-        bundle:
-          format: byte
-          maxLength: 89478488
           type: string
         id:
           pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
@@ -26600,6 +26873,82 @@ paths:
         - agent.use_shared
       tags:
       - coding
+  /api/coding/operation:
+    get:
+      operationId: listCodingOperations
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/CodingOperation'
+                type: array
+          description: Active and recent operations owned by the actor.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request failed.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - coding
+    post:
+      operationId: startCodingOperation
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CodingOperationRequest'
+        required: true
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodingOperation'
+          description: Coding result.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request failed.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - coding
+  /api/coding/operation/{operationId}:
+    get:
+      operationId: getCodingOperation
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodingOperation'
+          description: Coding result.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request failed.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - coding
+    parameters:
+    - in: path
+      name: operationId
+      required: true
+      schema:
+        type: string
   /api/coding/project:
     get:
       operationId: listCodingProjects
@@ -26724,6 +27073,146 @@ paths:
         - agent.use_shared
       tags:
       - coding
+  /api/coding/project/{projectId}/refresh:
+    parameters:
+    - in: path
+      name: projectId
+      required: true
+      schema:
+        type: string
+    - in: query
+      name: agent_name
+      required: true
+      schema:
+        type: string
+    post:
+      operationId: refreshCodingRepository
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodingRepositorySnapshot'
+          description: Coding result.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request failed.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - coding
+  /api/coding/project/{projectId}/refs:
+    get:
+      operationId: listCodingRefs
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodingRepositorySnapshot'
+          description: Coding result.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request failed.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - coding
+    parameters:
+    - in: path
+      name: projectId
+      required: true
+      schema:
+        type: string
+    - in: query
+      name: agent_name
+      required: true
+      schema:
+        type: string
+    - in: query
+      name: query
+      schema:
+        maxLength: 256
+        type: string
+    - in: query
+      name: cursor
+      schema:
+        type: string
+  /api/coding/project/{projectId}/worktree:
+    parameters:
+    - in: path
+      name: projectId
+      required: true
+      schema:
+        type: string
+    post:
+      operationId: adoptCodingWorktree
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdoptCodingWorktreeRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodingWorktree'
+          description: Coding result.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request failed.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - coding
+  /api/coding/repository:
+    get:
+      operationId: listCodingRepositories
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodingRepositoryPage'
+          description: Coding result.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request failed.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - coding
+    parameters:
+    - in: query
+      name: query
+      schema:
+        default: ""
+        maxLength: 256
+        type: string
+    - in: query
+      name: page
+      schema:
+        default: 1
+        minimum: 1
+        type: integer
   /api/coding/thread:
     post:
       operationId: createCodingThread
@@ -26740,6 +27229,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/CodingThread'
           description: Prepared thread.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request failed.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - coding
+  /api/coding/watch:
+    get:
+      operationId: watchCoding
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/WatchChatSessionsEvent'
+          description: Invalidation notifications; read current state on every connection.
         default:
           content:
             application/json:

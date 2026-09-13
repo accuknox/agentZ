@@ -5,6 +5,9 @@ IMAGE ?= murtazau/agentz:latest
 AGENT_IMAGE ?= murtazau/agentz-agent:latest
 BETTER_AUTH_URL ?= http://localhost:3000
 GATEWAY_JWT_AUDIENCE ?= agentz-gateway
+CODING_GITHUB_CLIENT_ID ?=
+CODING_GITHUB_CLIENT_SECRET ?=
+CODING_GITHUB_ENCRYPTION_KEY ?=
 POSTGRES_DSN ?= postgresql://postgres:postgres@localhost:5432/postgres
 K8S_NAMESPACE ?= default
 OPENBAO_TOKEN_PATH ?= /tmp/sa-token
@@ -81,6 +84,9 @@ run-gateway:
 	@AGENTZ_SKILLS_S3_ACCESS_KEY_ID=$(SKILLS_S3_ACCESS_KEY_ID) \
 	AGENTZ_SKILLS_S3_SECRET_ACCESS_KEY=$(SKILLS_S3_SECRET_ACCESS_KEY) \
 		go run ./cmd/agentz gateway serve \
+		--coding-github-client-id=$(CODING_GITHUB_CLIENT_ID) \
+		--coding-github-client-secret=$(CODING_GITHUB_CLIENT_SECRET) \
+		--coding-github-encryption-key=$(CODING_GITHUB_ENCRYPTION_KEY) \
 		--log-level=info \
 		--addr=0.0.0.0:8090 \
 		--target-override=localhost:4096 \

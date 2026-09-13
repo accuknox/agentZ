@@ -8,6 +8,9 @@ import {
 } from "./client"
 import { client } from "./client.gen"
 import type {
+  AdoptCodingWorktreeData,
+  AdoptCodingWorktreeErrors,
+  AdoptCodingWorktreeResponses,
   CreateAgentData,
   CreateAgentDirectoryData,
   CreateAgentDirectoryErrors,
@@ -119,6 +122,9 @@ import type {
   GetChatSessionPreferenceData,
   GetChatSessionPreferenceErrors,
   GetChatSessionPreferenceResponses,
+  GetCodingOperationData,
+  GetCodingOperationErrors,
+  GetCodingOperationResponses,
   GetCodingProjectData,
   GetCodingProjectErrors,
   GetCodingProjectResponses,
@@ -197,9 +203,18 @@ import type {
   ListChatSessionsData,
   ListChatSessionsErrors,
   ListChatSessionsResponses,
+  ListCodingOperationsData,
+  ListCodingOperationsErrors,
+  ListCodingOperationsResponses,
   ListCodingProjectsData,
   ListCodingProjectsErrors,
   ListCodingProjectsResponses,
+  ListCodingRefsData,
+  ListCodingRefsErrors,
+  ListCodingRefsResponses,
+  ListCodingRepositoriesData,
+  ListCodingRepositoriesErrors,
+  ListCodingRepositoriesResponses,
   ListDashboardsData,
   ListDashboardsErrors,
   ListDashboardsResponses,
@@ -311,6 +326,9 @@ import type {
   ReadAgentFileRawErrors,
   ReadAgentFileRawResponses,
   ReadAgentFileResponses,
+  RefreshCodingRepositoryData,
+  RefreshCodingRepositoryErrors,
+  RefreshCodingRepositoryResponses,
   RefreshInferenceProviderModelsData,
   RefreshInferenceProviderModelsErrors,
   RefreshInferenceProviderModelsResponses,
@@ -332,6 +350,9 @@ import type {
   RunCodingGitData,
   RunCodingGitErrors,
   RunCodingGitResponses,
+  StartCodingOperationData,
+  StartCodingOperationErrors,
+  StartCodingOperationResponses,
   StatAgentFileData,
   StatAgentFileErrors,
   StatAgentFileResponses,
@@ -376,6 +397,10 @@ import type {
   WatchChatSessionsErrors,
   WatchChatSessionsResponse,
   WatchChatSessionsResponses,
+  WatchCodingData,
+  WatchCodingErrors,
+  WatchCodingResponse,
+  WatchCodingResponses,
   WatchInferencePoolsData,
   WatchInferencePoolsErrors,
   WatchInferencePoolsResponse,
@@ -545,6 +570,110 @@ export const runCodingGit = <ThrowOnError extends boolean = false>(
       "Content-Type": "application/json",
       ...options.headers,
     },
+  })
+
+export const listCodingRepositories = <ThrowOnError extends boolean = false>(
+  options?: Options<ListCodingRepositoriesData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    ListCodingRepositoriesResponses,
+    ListCodingRepositoriesErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/coding/repository",
+    ...options,
+  })
+
+export const listCodingRefs = <ThrowOnError extends boolean = false>(
+  options: Options<ListCodingRefsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ListCodingRefsResponses, ListCodingRefsErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/coding/project/{projectId}/refs",
+    ...options,
+  })
+
+export const refreshCodingRepository = <ThrowOnError extends boolean = false>(
+  options: Options<RefreshCodingRepositoryData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    RefreshCodingRepositoryResponses,
+    RefreshCodingRepositoryErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/coding/project/{projectId}/refresh",
+    ...options,
+  })
+
+export const adoptCodingWorktree = <ThrowOnError extends boolean = false>(
+  options: Options<AdoptCodingWorktreeData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    AdoptCodingWorktreeResponses,
+    AdoptCodingWorktreeErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/coding/project/{projectId}/worktree",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+export const listCodingOperations = <ThrowOnError extends boolean = false>(
+  options?: Options<ListCodingOperationsData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    ListCodingOperationsResponses,
+    ListCodingOperationsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/coding/operation",
+    ...options,
+  })
+
+export const startCodingOperation = <ThrowOnError extends boolean = false>(
+  options: Options<StartCodingOperationData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    StartCodingOperationResponses,
+    StartCodingOperationErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/coding/operation",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+export const getCodingOperation = <ThrowOnError extends boolean = false>(
+  options: Options<GetCodingOperationData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    GetCodingOperationResponses,
+    GetCodingOperationErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/coding/operation/{operationId}",
+    ...options,
+  })
+
+export const watchCoding = <ThrowOnError extends boolean = false>(
+  options?: Options<WatchCodingData, ThrowOnError, WatchCodingResponse>
+) =>
+  (options?.client ?? client).sse.get<WatchCodingResponses, WatchCodingErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/coding/watch",
+    ...options,
   })
 
 /**

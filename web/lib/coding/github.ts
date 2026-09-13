@@ -3,9 +3,8 @@ import "server-only"
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto"
 import { headers } from "next/headers"
 import { and, eq, gt } from "drizzle-orm"
-import { RequestError } from "@octokit/request-error"
 import { Octokit } from "@octokit/rest"
-import { deleteAuthorization, refreshToken } from "@octokit/oauth-methods"
+import { deleteAuthorization } from "@octokit/oauth-methods"
 import { z } from "zod"
 import { getAuth } from "@/lib/auth"
 import { getEnv } from "@/lib/env"
@@ -159,79 +158,6 @@ export async function finishGitHubConnection(code: string, state: string) {
       .values(identity)
       .onConflictDoUpdate({ target: schema.githubConnections.userId, set: identity })
   })
-}
-
-// Refresh and disconnect serialize on the actor row. The operation starts only
-// after refreshed credentials have committed, so failures cannot undo rotation.
-// Never return this context from a server action or place it in an agent request.
-export async function withGitHub<T>(
-  action: (context: { octokit: Octokit; token: string; name: string; email: string }) => Promise<T>
-): Promise<T> {
-  const actor = await githubActor()
-  return getDB()
-    .transaction(async (tx) => {
-      await tx
-        .select({ id: schema.users.id })
-        .from(schema.users)
-        .where(eq(schema.users.id, actor.user.id))
-        .for("update")
-      const [connection] = await tx
-        .select()
-        .from(schema.githubConnections)
-        .where(eq(schema.githubConnections.userId, actor.user.id))
-      if (!connection) throw new Error("Connect your GitHub account in account settings")
-      let token = openToken(connection.accessToken, actor.user.id, connection.githubUserId)
-      if (connection.expiresAt.getTime() < Date.now() + 60_000) {
-        if (connection.refreshExpiresAt.getTime() <= Date.now())
-          throw new Error("Reconnect your GitHub account")
-        let refreshed: Awaited<ReturnType<typeof refreshToken>>
-        try {
-          refreshed = await refreshToken({
-            ...githubApp(),
-            refreshToken: openToken(
-              connection.refreshToken,
-              actor.user.id,
-              connection.githubUserId
-            ),
-          })
-        } catch {
-          throw new Error("GitHub authorization expired. Reconnect your account.")
-        }
-        token = refreshed.authentication.token
-        await tx
-          .update(schema.githubConnections)
-          .set({
-            accessToken: sealToken(token, actor.user.id, connection.githubUserId),
-            refreshToken: sealToken(
-              refreshed.authentication.refreshToken,
-              actor.user.id,
-              connection.githubUserId
-            ),
-            expiresAt: new Date(refreshed.authentication.expiresAt),
-            refreshExpiresAt: new Date(refreshed.authentication.refreshTokenExpiresAt),
-          })
-          .where(eq(schema.githubConnections.userId, actor.user.id))
-      }
-      return { token, githubUserId: connection.githubUserId }
-    })
-    .then(async ({ token, githubUserId }) => {
-      // Persist rotated credentials before another network operation can fail.
-      const octokit = new Octokit({ auth: token, request: { timeout: 30_000 } })
-      const { data: user } = await octokit.users.getAuthenticated()
-      if (user.id !== githubUserId)
-        throw new Error("GitHub account identity changed; reconnect your account")
-      return action({
-        octokit,
-        token,
-        name: user.name || user.login,
-        email: `${user.id}+${user.login}@users.noreply.github.com`,
-      })
-    })
-    .catch((error: unknown) => {
-      if (error instanceof RequestError)
-        throw new Error("GitHub request failed. Check your connection and repository access.")
-      throw error
-    })
 }
 
 export async function disconnectGitHub() {

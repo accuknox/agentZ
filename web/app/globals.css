@@ -213,14 +213,8 @@
   }
 }
 
-/* xterm draws its own thumb and injects unlayered theme rules. */
-.xterm .xterm-scrollable-element > .scrollbar.vertical > .slider {
-  border-radius: 3px;
-  background: var(--app-scrollbar-thumb);
-}
-
-.xterm .xterm-scrollable-element > .scrollbar.vertical > .slider:is(:hover, .active) {
-  background: var(--app-scrollbar-thumb-hover);
+.xterm .xterm-scrollable-element > .scrollbar {
+  display: none;
 }
 
 @layer components {

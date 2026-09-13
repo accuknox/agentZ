@@ -431,8 +431,6 @@ function TerminalSession({
       fontFamily: style.fontFamily,
       theme: { background: style.backgroundColor, foreground: style.color, cursor: style.color },
       scrollback: 10_000,
-      // xterm's custom scrollbar and fit addon share the overview ruler width.
-      overviewRuler: { width: Number.parseFloat(style.getPropertyValue("--app-scrollbar-width")) },
     })
     terminalRef.current = terminal
     const fit = new FitAddon()

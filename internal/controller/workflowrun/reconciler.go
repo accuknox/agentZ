@@ -17,7 +17,6 @@ limitations under the License.
 package workflowrun
 
 import (
-	"bytes"
 	"context"
 	_ "embed"
 	"encoding/json"
@@ -26,6 +25,7 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"strings"
 	"text/template"
 	"time"
 
@@ -425,13 +425,12 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 		return err
 	}
 
-	promptResp, err := r.GatewayClient.SessionPromptAsyncWithBodyWithResponse(
+	promptResp, err := r.GatewayClient.SessionPromptAsyncWithResponse(
 		ctx,
 		run.Spec.AgentName,
 		sessionID,
 		nil,
-		"application/json",
-		bytes.NewReader(prompt),
+		prompt,
 		gwreq.RequestEditor(r.TokenPath, run.Namespace),
 	)
 	if err != nil {
@@ -661,13 +660,14 @@ func (r *Reconciler) setTerminalStatus(status *agentzv1alpha1.WorkflowRunStatus,
 	})
 }
 
-func buildPromptRequest(run *agentzv1alpha1.WorkflowRun) ([]byte, error) {
+func buildPromptRequest(run *agentzv1alpha1.WorkflowRun) (gatewayapi.SessionPromptAsyncJSONRequestBody, error) {
+	var body gatewayapi.SessionPromptAsyncJSONRequestBody
 	inputs := "null"
 	if len(run.Spec.Inputs.Raw) > 0 {
 		inputs = string(run.Spec.Inputs.Raw)
 	}
 
-	var prompt bytes.Buffer
+	var prompt strings.Builder
 	err := promptTemplate.Execute(
 		&prompt,
 		promptTemplateData{
@@ -678,25 +678,24 @@ func buildPromptRequest(run *agentzv1alpha1.WorkflowRun) ([]byte, error) {
 		},
 	)
 	if err != nil {
-		return nil, fmt.Errorf("render session prompt: %w", err)
+		return body, fmt.Errorf("render session prompt: %w", err)
 	}
 
-	body := map[string]any{
-		"parts": []map[string]any{{
-			"type": "text",
-			"text": prompt.String(),
-		}},
-		"tools": map[string]bool{
-			"get_workflow":           true,
-			"question":               false,
-			"set_workflowrun_status": true,
-		},
-	}
-	data, err := json.Marshal(body)
+	var part gatewayapi.OpencodePromptPartInput
+	err = part.FromOpencodeTextPartInput(gatewayapi.OpencodeTextPartInput{
+		Type: gatewayapi.OpencodeTextPartInputTypeText,
+		Text: prompt.String(),
+	})
 	if err != nil {
-		return nil, fmt.Errorf("marshal session prompt: %w", err)
+		return body, fmt.Errorf("encode workflow prompt part: %w", err)
 	}
-	return data, nil
+	body.Parts = []gatewayapi.OpencodePromptPartInput{part}
+	body.Tools = &map[string]bool{
+		"get_workflow":           true,
+		"question":               false,
+		"set_workflowrun_status": true,
+	}
+	return body, nil
 }
 
 func (r *Reconciler) sessionIdle(ctx context.Context, run *agentzv1alpha1.WorkflowRun) (bool, error) {

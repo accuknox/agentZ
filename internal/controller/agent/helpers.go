@@ -38,7 +38,6 @@ const (
 	immutableSkillsManifestKey     = "immutable-skills.json"
 	configVolume                   = "config"
 	opencodeConfigDir              = "/etc/agentz/opencode"
-	opencodeInstructionPreamble    = "These instructions are part of the agent context and should be followed."
 	opencodePhilosophyKey          = "philosophy.md"
 	opencodeUnslopKey              = "unslop.md"
 	opencodeInstructionKey         = "instruction.md"
@@ -481,13 +480,10 @@ func renderOpencodeInstructions(agt *agentzv1alpha1.Agent) ([]opencodeInstructio
 	}
 
 	if instruction := strings.TrimSpace(agt.Spec.Instruction); instruction != "" {
-		files = append(
-			files,
-			opencodeInstructionFile{
-				Path:    opencodeInstructionPath,
-				Content: opencodeInstructionPreamble + "\n\n" + instruction,
-			},
-		)
+		files = append(files, opencodeInstructionFile{
+			Path:    opencodeInstructionPath,
+			Content: instruction,
+		})
 	}
 
 	return files, nil

@@ -18,7 +18,10 @@ package sandbox
 
 import (
 	"context"
+	"encoding/json"
 
+	admissionv1 "k8s.io/api/admission/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	envcontroller "github.com/accuknox/agentz/internal/controller/sandbox"
@@ -41,7 +44,21 @@ func NewDefaulter() *Defaulter {
 }
 
 // Default applies defaults to an Sandbox resource.
-func (d *Defaulter) Default(_ context.Context, sandbox *agentzv1alpha1.Sandbox) error {
+func (d *Defaulter) Default(ctx context.Context, sandbox *agentzv1alpha1.Sandbox) error {
+	request, err := admission.RequestFromContext(ctx)
+	if err != nil {
+		return err
+	}
+	if request.Operation == admissionv1.Update {
+		var old agentzv1alpha1.Sandbox
+		if err := json.Unmarshal(request.OldObject.Raw, &old); err != nil {
+			return err
+		}
+		// Metadata updates must not rewrite specs stored with older defaults.
+		if apiequality.Semantic.DeepEqual(old.Spec, sandbox.Spec) {
+			return nil
+		}
+	}
 	sandbox.Spec.Packages = envcontroller.DefaultPackagesForWebhook(sandbox.Spec.Packages)
 	hosts := make([]string, 0, len(sandbox.Spec.AllowedHosts))
 	seen := make(map[string]struct{}, len(sandbox.Spec.AllowedHosts))

@@ -464,7 +464,7 @@ export function GitChanges({
             {conflicts.length} conflicted {conflicts.length === 1 ? "file" : "files"}
           </AlertTitle>
           <AlertDescription>
-            Open the file to resolve conflicts. Other changes remain reviewable.
+            Edit each conflicted file, then stage it to mark the conflict resolved.
           </AlertDescription>
         </Alert>
       ) : null}
@@ -940,7 +940,7 @@ export function GitChanges({
                 estimatedItemSize={32}
                 style={{ height: "100%" }}
                 renderItem={({ item: file }) => {
-                  const staged = file.index !== " " && file.index !== "?"
+                  const staged = !file.conflict && file.index !== " " && file.index !== "?"
                   return (
                     <div
                       className={cn(
@@ -950,7 +950,7 @@ export function GitChanges({
                     >
                       <Checkbox
                         aria-label={`${staged && (comparison === "staged" || file.worktree === " ") ? "Unstage" : "Stage"} ${file.path}`}
-                        disabled={busy || file.conflict}
+                        disabled={busy}
                         checked={staged ? (file.worktree !== " " ? "indeterminate" : true) : false}
                         onCheckedChange={() => {
                           const operation =

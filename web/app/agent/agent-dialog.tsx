@@ -1,6 +1,13 @@
 "use client"
 
-import { startTransition, useActionState, useEffect, useEffectEvent, useState } from "react"
+import {
+  Fragment,
+  startTransition,
+  useActionState,
+  useEffect,
+  useEffectEvent,
+  useState,
+} from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Box, Plus, Save, Wrench } from "lucide-react"
@@ -39,7 +46,7 @@ import {
 import { listSandboxesAction } from "@/data/sandbox.actions"
 import { createAgentSimpleFormSchema } from "@/data/schema"
 import type { CreateAgentFormState } from "@/data/types"
-import type { ResourceScope, Sandbox, Skill } from "@/lib/gateway/client"
+import type { Agent, ResourceScope, Sandbox, Skill } from "@/lib/gateway/client"
 import type * as z from "zod"
 import { toast } from "sonner"
 
@@ -55,15 +62,13 @@ type AgentDialogProps = {
   agentName?: string
   initialSandboxName?: string
   initialMemoryEnabled?: boolean
-  initialSkills?: string[] | null
+  initialSkills?: Agent["skills"]
   open?: boolean
   onOpenChangeAction?: (open: boolean) => void
   trigger?: React.ReactNode
 }
 
-const agentDialogFormSchema = createAgentSimpleFormSchema
-
-type AgentFormValues = z.infer<typeof agentDialogFormSchema>
+type AgentFormValues = z.infer<typeof createAgentSimpleFormSchema>
 
 function SandboxSelect({
   "aria-invalid": ariaInvalid,
@@ -210,14 +215,60 @@ export function AgentDialog({
   const [internalOpen, setInternalOpen] = useState(false)
   const router = useRouter()
   const dialogOpen = open ?? internalOpen
-  const skills = initialSkills ?? []
   const hasSandboxes = sandboxes.length > 0
-  const [state, action, isPending] = useActionState<CreateAgentFormState, FormData>(
+  const defaultValues: AgentFormValues = {
+    name: agentName ?? "",
+    sandboxScope: "Organisation",
+    sandboxName: initialSandboxName ?? (mode === "create" ? (sandboxes[0]?.name ?? "") : ""),
+    skills: initialSkills,
+    memoryEnabled: initialMemoryEnabled,
+  }
+  const form = useForm<AgentFormValues>({
+    resolver: zodResolver(createAgentSimpleFormSchema),
+    mode: "onSubmit",
+    reValidateMode: "onBlur",
+    defaultValues,
+  })
+  const [, action, isPending] = useActionState<CreateAgentFormState, FormData>(
     async (state, formData) => {
       const result =
         mode === "update" && agentName
           ? await updateAgentFormAction(actionScope, agentName, state, formData)
           : await createAgentFormAction(actionScope, state, formData)
+      if (result.error) {
+        const messages = new Map<keyof AgentFormValues | "root", string[]>()
+        const errors = result.error.errors?.length
+          ? result.error.errors
+          : [{ field: "", message: result.error.message }]
+        for (const error of errors) {
+          let field: keyof AgentFormValues | "root"
+          switch (error.field.split(/[.[]/, 1)[0]) {
+            case "name":
+              field = mode === "create" ? "name" : "root"
+              break
+            case "skills":
+              field = "skills"
+              break
+            case "sandbox":
+            case "sandboxScope":
+            case "sandboxName":
+              field = "sandboxName"
+              break
+            case "memory":
+            case "memoryEnabled":
+              field = "memoryEnabled"
+              break
+            default:
+              field = "root"
+          }
+          const message =
+            field === "root" && error.field ? `${error.field}: ${error.message}` : error.message
+          messages.set(field, [...(messages.get(field) ?? []), message])
+        }
+        for (const [field, errors] of messages) {
+          form.setError(field, { type: "server", types: { server: errors } })
+        }
+      }
       if (result.success) {
         toast.success(mode === "update" ? "Agent updated" : "Agent created")
         onOpenChangeAction?.(false)
@@ -228,24 +279,17 @@ export function AgentDialog({
     },
     {}
   )
-  const defaultValues: AgentFormValues = {
-    name: agentName ?? "",
-    sandboxScope: "Organisation",
-    sandboxName: initialSandboxName ?? (mode === "create" ? (sandboxes[0]?.name ?? "") : ""),
-    skills,
-    memoryEnabled: initialMemoryEnabled,
-  }
-  const form = useForm<AgentFormValues>({
-    resolver: zodResolver(agentDialogFormSchema),
-    mode: "onSubmit",
-    reValidateMode: "onBlur",
-    defaultValues,
-  })
   const selectedSkills = useWatch({
     control: form.control,
     name: "skills",
-    defaultValue: skills,
+    defaultValue: initialSkills,
   })
+  const skills = new Map(
+    [...immutableSkills, ...initialSkills].map(({ scope, name }) => [
+      JSON.stringify([scope, name]),
+      { scope, name },
+    ])
+  )
   const selectedSandboxName = useWatch({
     control: form.control,
     name: "sandboxName",
@@ -253,31 +297,6 @@ export function AgentDialog({
   })
   const selectedSandbox = sandboxes.find((sandbox) => sandbox.name === selectedSandboxName)
   const sandboxScope: ResourceScope = selectedSandbox?.scope ?? defaultValues.sandboxScope
-
-  useEffect(() => {
-    if (!state.error?.errors) {
-      return
-    }
-
-    for (const error of state.error.errors) {
-      let field: keyof AgentFormValues | undefined
-      switch (error.field) {
-        case "name":
-        case "sandboxName":
-        case "skills":
-          field = error.field
-          break
-      }
-      if (!field) {
-        continue
-      }
-
-      form.setError(field, {
-        type: "server",
-        message: error.message,
-      })
-    }
-  }, [form, state.error])
 
   const submit = async (formData: FormData) => {
     form.clearErrors()
@@ -301,17 +320,6 @@ export function AgentDialog({
     setInternalOpen(nextOpen)
     onOpenChangeAction?.(nextOpen)
   }
-
-  const fieldErrorCount =
-    state.error?.errors?.filter((error) => {
-      return error.field === "name" || error.field === "sandboxName" || error.field === "skills"
-    }).length ?? 0
-  const generalErrorMessage =
-    state.error && fieldErrorCount !== (state.error.errors?.length ?? 0)
-      ? state.error.message
-      : !state.error?.errors?.length
-        ? state.error?.message
-        : undefined
 
   return (
     <Dialog open={dialogOpen} onOpenChange={onOpenChange}>
@@ -337,7 +345,10 @@ export function AgentDialog({
         <form id="agent-form-simple" action={submit} className="space-y-5">
           <input type="hidden" name="sandboxScope" value={sandboxScope} />
           {selectedSkills.map((skill) => (
-            <input key={skill} type="hidden" name="skills" value={skill} />
+            <Fragment key={JSON.stringify([skill.scope, skill.name])}>
+              <input type="hidden" name="skillScopes" value={skill.scope} />
+              <input type="hidden" name="skillNames" value={skill.name} />
+            </Fragment>
           ))}
           <FieldGroup>
             {mode === "create" ? (
@@ -421,16 +432,23 @@ export function AgentDialog({
                   <MultiSelectDropdown
                     id="agent-form-skills"
                     invalid={fieldState.invalid}
-                    options={immutableSkills.map((skill) => ({
+                    options={Array.from(skills, ([value, skill]) => ({
                       icon: Wrench,
                       label: skill.name,
-                      value: skill.name,
+                      badge: skill.scope,
+                      value,
                     }))}
-                    value={field.value}
+                    value={field.value.map((skill) => JSON.stringify([skill.scope, skill.name]))}
                     placeholder="Select skills"
                     emptyMessage="No immutable skills"
                     onBlurAction={field.onBlur}
-                    onValueChangeAction={field.onChange}
+                    onValueChangeAction={(values) => {
+                      field.onChange(
+                        Array.from(skills)
+                          .filter(([key]) => values.includes(key))
+                          .map(([, skill]) => skill)
+                      )
+                    }}
                   />
                   {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
                 </Field>
@@ -439,13 +457,14 @@ export function AgentDialog({
             <Controller
               name="memoryEnabled"
               control={form.control}
-              render={({ field }) => (
-                <Field orientation="horizontal">
+              render={({ field, fieldState }) => (
+                <Field orientation="horizontal" data-invalid={fieldState.invalid}>
                   <div className="min-w-0 flex-1 space-y-0.5">
                     <FieldLabel htmlFor="agent-form-memory">Persistent memory</FieldLabel>
                     <FieldDescription>
                       Allow this Agent to save facts and journal entries across sessions.
                     </FieldDescription>
+                    <FieldError errors={[fieldState.error]} />
                   </div>
                   {field.value ? <input type="hidden" name={field.name} /> : null}
                   <Switch
@@ -455,15 +474,18 @@ export function AgentDialog({
                     onBlur={field.onBlur}
                     onCheckedChange={field.onChange}
                     aria-label="Enable persistent memory"
+                    aria-invalid={fieldState.invalid}
                   />
                 </Field>
               )}
             />
           </FieldGroup>
         </form>
-        {generalErrorMessage ? (
+        {form.formState.errors.root ? (
           <DialogAlert variant="destructive">
-            <AlertDescription>{generalErrorMessage}</AlertDescription>
+            <AlertDescription>
+              <FieldError errors={[form.formState.errors.root]} />
+            </AlertDescription>
           </DialogAlert>
         ) : null}
         <DialogFooter>

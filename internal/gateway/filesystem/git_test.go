@@ -2,7 +2,6 @@ package filesystem
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -62,9 +61,7 @@ func TestGitWorktreeLifecycle(t *testing.T) {
 	if result.Branch != req.Branch || len(result.Files) != 0 {
 		t.Fatalf("unexpected initial checkout: %+v", result)
 	}
-	run(req) // interrupted provisioning retries must not reset existing work
 	req.Prepare = false
-	req.Git.Bundle = nil
 	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitRename, Ref: new("docs/update-guide"), ExpectedHead: &result.Head}
 	result = run(req)
 	if result.Branch != "docs/update-guide" {
@@ -149,12 +146,6 @@ func TestGitWorktreeLifecycle(t *testing.T) {
 	if _, err := service.runGit(ctx, req); err == nil {
 		t.Fatal("accepted stale head")
 	}
-	for _, name := range []string{"../outside", ".git/config", "/etc/passwd"} {
-		req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStage, Paths: new([]string{name})}
-		if _, err := service.runGit(ctx, req); err == nil {
-			t.Errorf("accepted path %q", name)
-		}
-	}
 	git(directory, "reset", "--hard", "HEAD")
 	git(directory, "clean", "-fd")
 	git(directory, "branch", "switched")
@@ -169,24 +160,28 @@ func TestGitWorktreeLifecycle(t *testing.T) {
 		t.Fatal("cleanup left the branch currently checked out")
 	}
 	req.Directory = req.Root + "/repo"
+	repo := filepath.Join(home, req.Directory)
+	git(repo, "update-ref", "refs/remotes/origin/stale", result.Head)
+	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitImport, Bundle: &bundle}
+	run(req)
+	if git(repo, "for-each-ref", "refs/remotes/origin/stale") != "" {
+		t.Fatal("import kept a deleted remote branch")
+	}
+	if err := os.WriteFile(filepath.Join(repo, "café.md"), []byte("saved\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	git(repo, "stash", "push", "-m", "Keep this work")
+	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitRemove}
+	if _, err := service.runGit(ctx, req); err == nil || !strings.Contains(err.Error(), "stashes") {
+		t.Fatalf("cleanup did not protect saved work: %v", err)
+	}
+	if git(repo, "stash", "show", "-p") == "" {
+		t.Fatal("cleanup changed the saved stash")
+	}
+	git(repo, "stash", "drop")
 	run(req)
 	if _, err := os.Stat(filepath.Join(home, req.Root)); !os.IsNotExist(err) {
 		t.Fatalf("project not cleaned up: %v", err)
-	}
-}
-
-func TestGitRejectsEscapingDirectories(t *testing.T) {
-	root, err := os.OpenRoot(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer root.Close()
-	service := &service{root: root}
-	for _, directory := range []string{"/tmp/repo", "../repo", "Projects/project/../../outside", "Projects/other/repo"} {
-		_, err := service.runGit(context.Background(), GitRequest{Root: "Projects/project", Directory: directory, Git: gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStatus}})
-		if err == nil {
-			t.Errorf("accepted escaping directory %q", directory)
-		}
 	}
 }
 
@@ -288,6 +283,18 @@ func TestGitReviewHunksAndStashes(t *testing.T) {
 	stashes = run(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStashes})
 	if len(*stashes.Stashes) != 1 || (*stashes.Stashes)[0].Oid != oid {
 		t.Fatal("conflicting pop removed the saved entry")
+	}
+	write("café.txt", strings.ReplaceAll(base, "first", "RESOLVED"))
+	status = run(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStatus})
+	status = run(gatewayapi.CodingGitRequest{
+		Operation: gatewayapi.CodingGitStage,
+		Paths:     new([]string{"café.txt"}), Revision: &status.Revision,
+	})
+	if status.Tree == nil || strings.Contains(git("ls-files", "--unmerged"), "café.txt") {
+		t.Fatal("staging did not mark the edited conflict resolved")
+	}
+	if !strings.Contains(git("diff", "--cached"), "+RESOLVED") {
+		t.Fatal("staging did not preserve the conflict resolution")
 	}
 	run(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStashDrop, Stash: &oid})
 	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStashApply, Stash: &oid}

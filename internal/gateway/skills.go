@@ -147,6 +147,9 @@ func (s *Service) ListSkills(w http.ResponseWriter, r *http.Request, params gate
 	}
 	localScope := agentzv1alpha1.ResourceScope(resourceScope(access.workspaceID))
 	for _, item := range skillList.Items {
+		if !item.DeletionTimestamp.IsZero() {
+			continue
+		}
 		if params.AgentName != nil {
 			ref := agentzv1alpha1.ResourceReference{Scope: localScope, Name: item.Name}
 			if _, ok := effective[ref]; !ok {
@@ -235,7 +238,7 @@ func (s *Service) listInheritedSkills(ctx context.Context, access resourceAccess
 	organizationAccess.workspaceID = ""
 	userIDs := make([]string, 0, len(skills.Items)*2)
 	for _, item := range skills.Items {
-		if _, ok := selected[item.Name]; !ok {
+		if _, ok := selected[item.Name]; !ok || !item.DeletionTimestamp.IsZero() {
 			continue
 		}
 		userIDs = append(userIDs, item.Spec.CreatedByUserID, item.Spec.LastModifiedByUserID)
@@ -245,7 +248,7 @@ func (s *Service) listInheritedSkills(ctx context.Context, access resourceAccess
 		return nil, err
 	}
 	for _, item := range skills.Items {
-		if _, ok := selected[item.Name]; !ok {
+		if _, ok := selected[item.Name]; !ok || !item.DeletionTimestamp.IsZero() {
 			continue
 		}
 		ref := agentzv1alpha1.ResourceReference{
@@ -489,6 +492,27 @@ func (s *Service) UpdateSkill(w http.ResponseWriter, r *http.Request, skillName 
 	writeJSON(w, http.StatusOK, skillFromCRD(*updated, refs, access, actors))
 }
 
+func (s *Service) checkSkillDeletion(ctx context.Context, access resourceAccess, name string) (*apiError, error) {
+	conflict, err := s.selectedOrganizationResourceConflict(
+		ctx, access, agentzv1alpha1.OrganizationResourceKindSkill, name,
+	)
+	if err != nil || conflict != nil {
+		return conflict, err
+	}
+	refs, err := skill.ReferencingConsumers(ctx, s.k8sClient, ctrlclient.ObjectKey{
+		Namespace: access.namespace, Name: name,
+	})
+	if err != nil || len(refs) == 0 {
+		return nil, err
+	}
+	return newAPIError(
+		http.StatusConflict,
+		"skill_in_use",
+		fmt.Sprintf("skill %q is in use by %s; remove these references before deleting", name, strings.Join(refs, ", ")),
+		errBadRequest,
+	), nil
+}
+
 // DeleteSkill handles DELETE /api/skill/{skillName}.
 func (s *Service) DeleteSkill(w http.ResponseWriter, r *http.Request, skillName gatewayapi.SkillNamePath, params gatewayapi.DeleteSkillParams) {
 	var workspaceID string
@@ -522,12 +546,7 @@ func (s *Service) DeleteSkill(w http.ResponseWriter, r *http.Request, skillName 
 		)
 		return
 	}
-	conflict, err := s.selectedOrganizationResourceConflict(
-		r.Context(),
-		access,
-		agentzv1alpha1.OrganizationResourceKindSkill,
-		skillName,
-	)
+	conflict, err := s.checkSkillDeletion(r.Context(), access, skillName)
 	if err != nil || conflict != nil {
 		eventTrailErr := s.createSkillEventTrail(r.Context(), access, skillName, gatewaydb.EventTrailResultFailed)
 		if err != nil || eventTrailErr != nil {
@@ -599,12 +618,23 @@ func (s *Service) GetSkillReferences(w http.ResponseWriter, r *http.Request, ski
 		Scope: agentzv1alpha1.ResourceScope(resourceScope(access.workspaceID)),
 		Name:  skill.Name,
 	}
-	refs := skillReferencesOrEmpty(refsBySkill[ref])
+	refs := refsBySkill[ref]
+	if refs.Agents == nil {
+		refs.Agents = []gatewayapi.AgentName{}
+	}
+	if refs.Sandboxes == nil {
+		refs.Sandboxes = []gatewayapi.SandboxName{}
+	}
 	writeJSON(w, http.StatusOK, refs)
 }
 
 func skillFromCRD(skill agentzv1alpha1.Skill, refs gatewayapi.SkillReferences, access resourceAccess, actors map[string]gatewayapi.ResourceActor) gatewayapi.Skill {
-	refs = skillReferencesOrEmpty(refs)
+	if refs.Agents == nil {
+		refs.Agents = []gatewayapi.AgentName{}
+	}
+	if refs.Sandboxes == nil {
+		refs.Sandboxes = []gatewayapi.SandboxName{}
+	}
 	scope := authorization.Scope{
 		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
@@ -625,16 +655,6 @@ func skillFromCRD(skill agentzv1alpha1.Skill, refs gatewayapi.SkillReferences, a
 		Sandboxes:      refs.Sandboxes,
 		CreatedAt:      skill.CreationTimestamp.Time,
 	}
-}
-
-func skillReferencesOrEmpty(refs gatewayapi.SkillReferences) gatewayapi.SkillReferences {
-	if refs.Agents == nil {
-		refs.Agents = []gatewayapi.AgentName{}
-	}
-	if refs.Sandboxes == nil {
-		refs.Sandboxes = []gatewayapi.SandboxName{}
-	}
-	return refs
 }
 
 func (s *Service) listSkillReferences(ctx context.Context, namespace string) (map[agentzv1alpha1.ResourceReference]gatewayapi.SkillReferences, error) {
@@ -854,7 +874,7 @@ func (s *Service) validateSkillRefs(ctx context.Context, namespace string, refs 
 			fields = append(
 				fields,
 				gatewayapi.FieldError{
-					Field: field, Message: "skill is being deleted",
+					Field: field, Message: fmt.Sprintf("skill %q is being deleted", name),
 				},
 			)
 			continue
@@ -1869,12 +1889,7 @@ func (s *Service) DeleteImmutableSkills(w http.ResponseWriter, r *http.Request, 
 			writeError(w, r, apiErr)
 			return
 		}
-		conflict, err := s.selectedOrganizationResourceConflict(
-			r.Context(),
-			access,
-			agentzv1alpha1.OrganizationResourceKindSkill,
-			name,
-		)
+		conflict, err := s.checkSkillDeletion(r.Context(), access, name)
 		if err != nil || conflict != nil {
 			eventTrailErr := s.createSkillEventTrail(
 				r.Context(),
@@ -2048,7 +2063,13 @@ func (s *Service) ListImmutableSkillSummaries(w http.ResponseWriter, r *http.Req
 			writeInternalError(w, r, fmt.Errorf("summarize immutable skill: %w", err))
 			return
 		}
-		references := skillReferencesOrEmpty(refs[ref])
+		references := refs[ref]
+		if references.Agents == nil {
+			references.Agents = []gatewayapi.AgentName{}
+		}
+		if references.Sandboxes == nil {
+			references.Sandboxes = []gatewayapi.SandboxName{}
+		}
 		creator := item.Spec.CreatedByUserID == access.claims.UserID &&
 			access.effective.Allows(authorizationScope, authorization.OperationCreateSkill)
 		items = append(
@@ -2129,7 +2150,13 @@ func (s *Service) ListImmutableSkillSummaries(w http.ResponseWriter, r *http.Req
 				writeInternalError(w, r, fmt.Errorf("summarize inherited immutable skill: %w", err))
 				return
 			}
-			references := skillReferencesOrEmpty(refs[ref])
+			references := refs[ref]
+			if references.Agents == nil {
+				references.Agents = []gatewayapi.AgentName{}
+			}
+			if references.Sandboxes == nil {
+				references.Sandboxes = []gatewayapi.SandboxName{}
+			}
 			items = append(
 				items,
 				gatewayapi.ImmutableSkillSummary{

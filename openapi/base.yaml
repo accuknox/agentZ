@@ -1549,6 +1549,8 @@ paths:
           description: Skills deleted.
         '400':
           $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: "#/components/responses/Conflict"
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -1665,6 +1667,8 @@ paths:
           description: Skill deleted.
         '400':
           $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: "#/components/responses/Conflict"
         '404':
           $ref: '#/components/responses/NotFound'
         '500':

@@ -19,12 +19,12 @@ package skill
 import (
 	"context"
 	"fmt"
+	"time"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	"github.com/accuknox/agentz/internal/scope"
 	skillpkg "github.com/accuknox/agentz/internal/skill"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
@@ -34,6 +34,8 @@ const skillFinalizer = "agentz.accuknox.com/immutable-skill"
 // Reconciler reconciles immutable Skill objects.
 type Reconciler struct {
 	client.Client
+	// Reader bypasses the cache before removing stored versions.
+	Reader      client.Reader
 	StoreConfig skillpkg.Config
 }
 
@@ -53,12 +55,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if !ctrlutil.ContainsFinalizer(skill, skillFinalizer) {
 			return ctrl.Result{}, nil
 		}
-		consumer, err := r.referencingConsumer(ctx, skill)
+		consumers, err := skillpkg.ReferencingConsumers(ctx, r.Reader, client.ObjectKeyFromObject(skill))
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("check skill references: %w", err)
 		}
-		if consumer != "" {
-			return ctrl.Result{}, fmt.Errorf("skill is still referenced by %s", consumer)
+		if len(consumers) > 0 {
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 		}
 		store, err := skillpkg.New(ctx, r.StoreConfig)
 		if err != nil {
@@ -85,53 +87,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("add skill finalizer: %w", err)
 	}
 	return ctrl.Result{}, nil
-}
-
-func (r *Reconciler) referencingConsumer(ctx context.Context, skill *agentzv1alpha1.Skill) (string, error) {
-	agents := &agentzv1alpha1.AgentList{}
-	if err := r.List(ctx, agents); err != nil {
-		return "", fmt.Errorf("list agents: %w", err)
-	}
-	for i := range agents.Items {
-		for _, ref := range agents.Items[i].Spec.Skills {
-			ns, err := scope.SelectedNamespace(
-				ctx,
-				r.Client,
-				agents.Items[i].Namespace,
-				scope.Selection{
-					Scope: ref.Scope,
-					Kind:  agentzv1alpha1.OrganizationResourceKindSkill,
-					Name:  ref.Name,
-				},
-			)
-			if err == nil && ns == skill.Namespace && ref.Name == skill.Name {
-				return fmt.Sprintf("Agent %q", agents.Items[i].Name), nil
-			}
-		}
-	}
-
-	sandboxes := &agentzv1alpha1.SandboxList{}
-	if err := r.List(ctx, sandboxes); err != nil {
-		return "", fmt.Errorf("list sandboxes: %w", err)
-	}
-	for i := range sandboxes.Items {
-		for _, ref := range sandboxes.Items[i].Spec.Skills {
-			ns, err := scope.SelectedNamespace(
-				ctx,
-				r.Client,
-				sandboxes.Items[i].Namespace,
-				scope.Selection{
-					Scope: ref.Scope,
-					Kind:  agentzv1alpha1.OrganizationResourceKindSkill,
-					Name:  ref.Name,
-				},
-			)
-			if err == nil && ns == skill.Namespace && ref.Name == skill.Name {
-				return fmt.Sprintf("Sandbox %q", sandboxes.Items[i].Name), nil
-			}
-		}
-	}
-	return "", nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

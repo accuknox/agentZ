@@ -1,6 +1,5 @@
 import { z } from "zod"
 import type { SearchParamStringInput } from "@/lib/search-params"
-import type { Route } from "next"
 import { getEnv } from "@/lib/env"
 import { eq } from "drizzle-orm"
 import { redirect } from "next/navigation"
@@ -91,7 +90,7 @@ export async function GitHubConnection({
         <form
           action={async () => {
             "use server"
-            redirect((await beginGitHubConnection()) as Route)
+            redirect(await beginGitHubConnection())
           }}
         >
           <Button disabled={!getEnv().CODING_GITHUB_CLIENT_ID} variant="outline" type="submit">

@@ -203,7 +203,7 @@ function AgentActions({
           agentName={agent.name}
           initialSandboxName={agent.sandbox.name}
           initialMemoryEnabled={agent.memory.enabled}
-          initialSkills={agent.skills.map((skill) => skill.name)}
+          initialSkills={agent.skills}
           immutableSkills={immutableSkills}
           sandboxes={sandboxes}
           initialHasNextSandboxPage={initialHasNextSandboxPage}

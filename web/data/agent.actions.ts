@@ -1,8 +1,7 @@
 "use server"
 
 import * as z from "zod"
-import { revalidatePath } from "next/cache"
-import { updateTag } from "next/cache"
+import { revalidatePath, updateTag } from "next/cache"
 import {
   createAgent,
   deleteAgent,
@@ -12,10 +11,10 @@ import {
   upsertAgentShare,
 } from "@/lib/gateway/client"
 import type { CreateAgentFormState, DeleteAgentFormState, WorkspacePath } from "@/data/types"
-import { createAgentSimpleFormSchema, updateAgentSimpleFormSchema } from "@/data/schema"
+import { createAgentSimpleFormSchema } from "@/data/schema"
 import { agentsTag, skillsTag } from "@/data/cache"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
-import { zAgentShareCapability } from "@/lib/gateway/client/zod.gen"
+import { zAgentShareCapability, zResourceScope, zSkillName } from "@/lib/gateway/client/zod.gen"
 
 export type AgentActionScope = {
   workspaceId: string
@@ -46,14 +45,24 @@ const deleteAgentShareFormSchema = z.object({
   share_id: z.string().min(1, "Choose a share"),
 })
 
+const agentFormDataSchema = createAgentSimpleFormSchema.extend({
+  skills: z
+    .object({ names: z.array(zSkillName), scopes: z.array(zResourceScope) })
+    .refine(({ names, scopes }) => names.length === scopes.length, {
+      message: "Skill references are incomplete",
+    })
+    .transform(({ names, scopes }) => names.map((name, index) => ({ name, scope: scopes[index] })))
+    .pipe(createAgentSimpleFormSchema.shape.skills),
+})
+
 export async function createAgentFormAction(
   scope: AgentActionScope,
   _: CreateAgentFormState,
   formData: FormData
 ): Promise<CreateAgentFormState> {
-  const parsed = createAgentSimpleFormSchema.safeParse({
+  const parsed = agentFormDataSchema.safeParse({
     ...Object.fromEntries(formData),
-    skills: formData.getAll("skills"),
+    skills: { names: formData.getAll("skillNames"), scopes: formData.getAll("skillScopes") },
     memoryEnabled: formData.has("memoryEnabled"),
   })
   if (!parsed.success) {
@@ -64,7 +73,7 @@ export async function createAgentFormAction(
     body: {
       name: parsed.data.name,
       sandbox: { scope: parsed.data.sandboxScope, name: parsed.data.sandboxName },
-      skills: parsed.data.skills.map((name) => ({ scope: "Organisation", name })),
+      skills: parsed.data.skills,
       memory: { enabled: parsed.data.memoryEnabled },
     },
     client: getGatewayServerClient(scope.workspaceId),
@@ -84,9 +93,9 @@ export async function updateAgentFormAction(
   _: CreateAgentFormState,
   formData: FormData
 ): Promise<CreateAgentFormState> {
-  const parsed = updateAgentSimpleFormSchema.safeParse({
+  const parsed = agentFormDataSchema.omit({ name: true }).safeParse({
     ...Object.fromEntries(formData),
-    skills: formData.getAll("skills"),
+    skills: { names: formData.getAll("skillNames"), scopes: formData.getAll("skillScopes") },
     memoryEnabled: formData.has("memoryEnabled"),
   })
   if (!parsed.success) {
@@ -96,7 +105,7 @@ export async function updateAgentFormAction(
   const result = await updateAgent({
     body: {
       sandbox: { scope: parsed.data.sandboxScope, name: parsed.data.sandboxName },
-      skills: parsed.data.skills.map((name) => ({ scope: "Organisation", name })),
+      skills: parsed.data.skills,
       memory: { enabled: parsed.data.memoryEnabled },
     },
     client: getGatewayServerClient(scope.workspaceId),

@@ -211,6 +211,27 @@ function agentFilesQueryOptions(
   })
 }
 
+function agentFileSearchQueryOptions(
+  agentName: string,
+  workspaceId: string,
+  root: string,
+  query: string
+) {
+  return queryOptions({
+    queryKey: ["opencode-file-search", workspaceId, agentName, root, query],
+    queryFn: async ({ signal }) => {
+      const client = await createAgentOpencodeClient(agentName, workspaceId)
+      const { data } = await client.find.files(
+        { directory: root, query, type: "file", limit: 100 },
+        { signal, throwOnError: true }
+      )
+      return data
+    },
+    enabled: query.length > 0,
+    staleTime: 10_000,
+  })
+}
+
 export function FilesWorkspace({
   embedded = false,
   agentName,
@@ -429,31 +450,16 @@ function WorkspaceBody({
     const timer = window.setTimeout(() => setSearchQuery(search.trim()), 200)
     return () => window.clearTimeout(timer)
   }, [search])
-  const results = useQuery(
-    queryOptions({
-      queryKey: ["opencode-file-search", workspaceId, agentName, root, searchQuery],
-      queryFn: async ({ signal }) => {
-        const client = await createAgentOpencodeClient(agentName, workspaceId)
-        const { data } = await client.find.files(
-          { directory: root, query: searchQuery, type: "file", limit: 100 },
-          { signal, throwOnError: true }
-        )
-        return data
-      },
-      enabled: searchQuery.length > 0,
-      staleTime: 10_000,
-    })
-  )
+  const searchOptions = agentFileSearchQueryOptions(agentName, workspaceId, root, searchQuery)
+  const searchQueryKey = searchOptions.queryKey.slice(0, 3)
+  const results = useQuery(searchOptions)
   const filesQueryKey = agentFilesQueryOptions(
     agentName,
     workspaceId,
     root,
     rootPath
   ).queryKey.slice(0, 3)
-  const filesFetching =
-    useIsFetching({
-      queryKey: filesQueryKey,
-    }) > 0
+  const filesFetching = useIsFetching({ queryKey: filesQueryKey }) > 0 || results.isFetching
   const {
     closeRoot,
     closeTab,
@@ -533,6 +539,7 @@ function WorkspaceBody({
         queryClient.invalidateQueries({
           queryKey: agentFilesQueryOptions(agentName, workspaceId, root, targetDirectory).queryKey,
         }),
+        queryClient.invalidateQueries({ queryKey: searchQueryKey }),
       ])
       moveDrafts(path, target)
       moveEntry(workspaceKey, path, target)
@@ -1009,9 +1016,10 @@ function WorkspaceBody({
             aria-label={filesFetching ? "Refreshing files" : "Refresh files"}
             disabled={filesFetching}
             onClick={() =>
-              void queryClient.invalidateQueries({
-                queryKey: filesQueryKey,
-              })
+              void Promise.all([
+                queryClient.invalidateQueries({ queryKey: filesQueryKey }),
+                queryClient.invalidateQueries({ queryKey: searchQueryKey }),
+              ])
             }
             size="icon-sm"
             variant="ghost"
@@ -1955,6 +1963,12 @@ function EntryDialog({
 }) {
   const queryClient = useQueryClient()
   const [name, setName] = React.useState("entry" in action ? action.entry.name : "")
+  const searchQueryKey = agentFileSearchQueryOptions(
+    agentName,
+    workspaceId,
+    root,
+    ""
+  ).queryKey.slice(0, 3)
   const createFile = useMutation(createAgentFileMutation())
   const createDirectory = useMutation(createAgentDirectoryMutation())
   const rename = useMutation(renameAgentEntryMutation())
@@ -2032,6 +2046,9 @@ function EntryDialog({
                     onSuccess: () => {
                       toast.success(action.kind === "file" ? "File created" : "Folder created")
                       void queryClient.invalidateQueries({
+                        queryKey: searchQueryKey,
+                      })
+                      void queryClient.invalidateQueries({
                         queryKey: agentFilesQueryOptions(
                           agentName,
                           workspaceId,
@@ -2066,6 +2083,9 @@ function EntryDialog({
                         action.entry.type === "directory" ? "Folder renamed" : "File renamed"
                       )
                       void queryClient.invalidateQueries({
+                        queryKey: searchQueryKey,
+                      })
+                      void queryClient.invalidateQueries({
                         queryKey: agentFilesQueryOptions(
                           agentName,
                           workspaceId,
@@ -2094,6 +2114,9 @@ function EntryDialog({
                     toast.success(
                       action.entry.type === "directory" ? "Folder deleted" : "File deleted"
                     )
+                    void queryClient.invalidateQueries({
+                      queryKey: searchQueryKey,
+                    })
                     void queryClient.invalidateQueries({
                       queryKey: agentFilesQueryOptions(
                         agentName,

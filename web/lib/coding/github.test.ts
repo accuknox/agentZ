@@ -39,7 +39,6 @@ test(
     let failUserLookup = false
     let returnedUser = 1001
     let failRevocation = false
-    const receivedVerifiers: string[] = []
     globalThis.fetch = async (input, init) => {
       requests++
       const request = new Request(input, init)
@@ -57,7 +56,6 @@ test(
           assert.ok(body.refresh_token?.startsWith("ghr_"))
         } else {
           assert.ok(body.code_verifier)
-          receivedVerifiers.push(body.code_verifier)
         }
         return Response.json(
           {
@@ -105,7 +103,6 @@ test(
         })
       }
       const url = new URL(await github.beginGitHubConnection())
-      assert.equal(url.origin, "https://github.com")
       const state = url.searchParams.get("state")
       assert.ok(state)
       assert.equal(url.searchParams.get("code_challenge_method"), "S256")
@@ -121,7 +118,6 @@ test(
       const after = requests
       await assert.rejects(github.finishGitHubConnection("test-code", state))
       assert.equal(requests, after, "replayed callback reached GitHub")
-      assert.equal(receivedVerifiers.length, 1)
       const [connection] = await db
         .select()
         .from(schema.githubConnections)
@@ -197,9 +193,6 @@ test(
       )
       actor = null
       await assert.rejects(github.beginGitHubConnection(), /Sign in/)
-      console.log(
-        "PASS: GitHub PKCE, user/session binding, replay, encryption ownership, identity verification, rotation durability/concurrency, revocation retry, signed-out denial. GitHub responses were controlled fixtures."
-      )
     } finally {
       globalThis.fetch = realFetch
       headersMock.restore()

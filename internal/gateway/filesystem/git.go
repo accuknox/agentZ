@@ -123,7 +123,7 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 		}
 		if err != nil {
 			var exit *exec.ExitError
-			if !(slices.Contains(args, "--no-index") && errors.As(err, &exit) && exit.ExitCode() == 1) {
+			if !slices.Contains(args, "--no-index") || !errors.As(err, &exit) || exit.ExitCode() != 1 {
 				detail := strings.TrimSpace(stderr.String())
 				if detail == "" {
 					detail = strings.TrimSpace(string(out))
@@ -156,7 +156,7 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 		if req.Git.Operation == gatewayapi.CodingGitApplyCommit {
 			namespace = "refs/agentz/incoming/"
 		}
-		_, err = run(cwd, "", "fetch", "--no-tags", "--no-recurse-submodules", file.Name(), "+refs/heads/*:"+namespace+"*")
+		_, err = run(cwd, "", "fetch", "--prune", "--no-tags", "--no-recurse-submodules", file.Name(), "+refs/heads/*:"+namespace+"*")
 		return err
 	}
 	if req.Prepare {
@@ -488,11 +488,6 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 		if len(paths) == 0 {
 			return result, errors.New("select files first")
 		}
-		for _, file := range result.Files {
-			if file.Conflict && slices.Contains(paths, file.Path) {
-				return result, errors.New("resolve conflicts in the editor before staging this file")
-			}
-		}
 		if req.Git.Hunk != nil {
 			if len(paths) != 1 || req.Git.Revision == nil || *req.Git.Hunk < 0 {
 				return result, errors.New("a reviewed file and hunk are required")
@@ -597,11 +592,7 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 		if _, err := run(directory, "", "check-ref-format", "--branch", *req.Git.Ref); err != nil {
 			return result, errors.New("invalid branch")
 		}
-		branch, err := run(directory, "", "branch", "--show-current")
-		if err != nil {
-			return result, err
-		}
-		if strings.TrimSpace(branch) != req.Branch {
+		if result.Branch != req.Branch {
 			return result, errors.New("branch changed; refresh before naming it")
 		}
 		if _, err := run(directory, "", "branch", "-m", *req.Git.Ref); err != nil {
@@ -614,22 +605,14 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 		if _, err := run(directory, "", "check-ref-format", "--branch", *req.Git.Ref); err != nil {
 			return result, errors.New("invalid branch")
 		}
-		status, err := run(directory, "", "status", "--porcelain=v1")
-		if err != nil {
-			return result, err
-		}
-		if status != "" {
+		if len(result.Files) > 0 {
 			return result, errors.New("commit or discard changes before switching branches")
 		}
 		if _, err := run(directory, "", "checkout", *req.Git.Ref); err != nil {
 			return result, err
 		}
 	case gatewayapi.CodingGitRemove:
-		status, err := run(directory, "", "status", "--porcelain=v1", "--untracked-files=all")
-		if err != nil {
-			return result, err
-		}
-		if status != "" {
+		if len(result.Files) > 0 {
 			return result, errors.New("worktree has uncommitted changes")
 		}
 		unpushed, err := run(directory, "", "rev-list", "HEAD", "--not", "--remotes=origin")
@@ -640,6 +623,13 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			return result, errors.New("worktree has unpushed commits; push or explicitly resolve them first")
 		}
 		if directory == repo {
+			stashes, err := readStashes()
+			if err != nil {
+				return result, err
+			}
+			if len(stashes) > 0 {
+				return result, errors.New("repository has saved stashes; apply or drop them before removing it")
+			}
 			worktrees, err := run(repo, "", "worktree", "list", "--porcelain")
 			if err != nil {
 				return result, err
@@ -656,15 +646,11 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			}
 			return result, s.root.RemoveAll(req.Root)
 		}
-		branch, err := run(directory, "", "branch", "--show-current")
-		if err != nil {
-			return result, err
-		}
 		if _, err := run(repo, "", "worktree", "remove", directory); err != nil {
 			return result, err
 		}
-		if branch = strings.TrimSpace(branch); branch != "" {
-			if _, err := run(repo, "", "branch", "-D", branch); err != nil {
+		if result.Branch != "" {
+			if _, err := run(repo, "", "branch", "-D", result.Branch); err != nil {
 				return result, err
 			}
 		}
@@ -673,7 +659,7 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 	default:
 		return result, errors.New("unsupported local Git operation")
 	}
-	if req.Git.Operation != gatewayapi.CodingGitStatus {
+	if req.Git.Operation != gatewayapi.CodingGitStatus && req.Git.Operation != gatewayapi.CodingGitExport {
 		if err := readStatus(); err != nil {
 			return result, err
 		}
@@ -696,15 +682,12 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 		defer os.Remove(file.Name())
 		// Export the staged tree through an unsigned transport commit. The trusted
 		// worker constructs the actual user commit after reviewing this tree.
-		command := exec.CommandContext(ctx, "git", "-c", "user.name=AgentZ transport", "-c", "user.email=transport@invalid", "commit-tree", *result.Tree, "-p", result.Head, "-m", "Staged tree transport")
-		command.Dir = directory
-		command.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=/nonexistent", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null"}
-		commit, err := command.Output()
+		commit, err := run(directory, "", "-c", "commit.gpgSign=false", "commit-tree", *result.Tree, "-p", result.Head, "-m", "Staged tree transport")
 		if err != nil {
 			return result, errors.New("could not export staged tree")
 		}
 		transportRef := "refs/agentz/export"
-		if _, err := run(directory, "", "update-ref", transportRef, strings.TrimSpace(string(commit))); err != nil {
+		if _, err := run(directory, "", "update-ref", transportRef, strings.TrimSpace(commit)); err != nil {
 			return result, err
 		}
 		defer run(directory, "", "update-ref", "-d", transportRef)

@@ -333,15 +333,7 @@ function parseDomain(value: string) {
   return domain.toLowerCase()
 }
 
-const agentNameSchema = agentNameInputSchema
 export const sandboxNameSchema = sandboxNameInputSchema
-const skillNameSchema = z
-  .string({ error: "Skill name is required" })
-  .trim()
-  .min(1, "Skill name is required")
-  .max(32, "Skill name must be at most 32 characters")
-  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Skill name is invalid")
-  .pipe(zSkillName)
 export const sandboxAllowedHostSchema = z
   .string({ error: "Host is required" })
   .trim()
@@ -350,17 +342,10 @@ export const sandboxAllowedHostSchema = z
   .transform(parseSandboxHost)
 
 export const createAgentSimpleFormSchema = z.object({
-  name: agentNameSchema,
+  name: agentNameInputSchema,
   sandboxScope: zResourceScope,
   sandboxName: sandboxNameSchema,
-  skills: z.array(skillNameSchema, { error: "Skills must be a list" }),
-  memoryEnabled: z.boolean(),
-})
-
-export const updateAgentSimpleFormSchema = z.object({
-  sandboxScope: zResourceScope,
-  sandboxName: sandboxNameSchema,
-  skills: z.array(skillNameSchema, { error: "Skills must be a list" }),
+  skills: z.array(zResourceReference.extend({ name: zSkillName })),
   memoryEnabled: z.boolean(),
 })
 

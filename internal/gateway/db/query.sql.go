@@ -4612,11 +4612,16 @@ func (q *Queries) GatewayProjectMemberRoleTransports(ctx context.Context, arg Ga
 }
 
 const gatewayReadyCodingWorktree = `-- name: GatewayReadyCodingWorktree :exec
-UPDATE coding_worktrees SET ready = true WHERE id = $1
+UPDATE coding_worktrees SET ready = true, branch = $1 WHERE id = $2
 `
 
-func (q *Queries) GatewayReadyCodingWorktree(ctx context.Context, id string) error {
-	_, err := q.db.Exec(ctx, gatewayReadyCodingWorktree, id)
+type GatewayReadyCodingWorktreeParams struct {
+	Branch string `json:"branch"`
+	ID     string `json:"id"`
+}
+
+func (q *Queries) GatewayReadyCodingWorktree(ctx context.Context, arg GatewayReadyCodingWorktreeParams) error {
+	_, err := q.db.Exec(ctx, gatewayReadyCodingWorktree, arg.Branch, arg.ID)
 	return err
 }
 

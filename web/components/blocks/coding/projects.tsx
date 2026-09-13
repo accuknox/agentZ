@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState, useTransition } from "react"
 import { useRouter } from "@bprogress/next/app"
 import Link from "next/link"
-import type { Route } from "next"
 import { useSearchParams } from "next/navigation"
 import { infiniteQueryOptions, useInfiniteQuery } from "@tanstack/react-query"
 import {
@@ -200,7 +199,7 @@ export function Projects({
         <ProjectTable
           projects={projects}
           rowHref={(item) =>
-            `${workspacePath}/projects?${new URLSearchParams({ ...Object.fromEntries(draftQuery), project: item.id })}` as Route
+            `?${new URLSearchParams({ ...Object.fromEntries(draftQuery), project: item.id })}`
           }
           pending={pending}
           onProjectAction={onProjectAction}
@@ -517,7 +516,7 @@ export function Projects({
                 try {
                   const created = await addCodingProject(
                     workspaceId,
-                    name || repository.name,
+                    name.trim() || repository.name.slice(0, 80),
                     repository.id
                   )
                   setAdding(false)

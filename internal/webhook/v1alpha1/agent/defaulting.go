@@ -18,9 +18,11 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 
 	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -48,6 +50,20 @@ func NewDefaulter(reader client.Reader, cfg WebhookConfig) *Defaulter {
 
 // Default applies defaults to an Agent resource.
 func (d *Defaulter) Default(ctx context.Context, agt *agentzv1alpha1.Agent) error {
+	request, err := admission.RequestFromContext(ctx)
+	if err != nil {
+		return err
+	}
+	if request.Operation == admissionv1.Update {
+		var old agentzv1alpha1.Agent
+		if err := json.Unmarshal(request.OldObject.Raw, &old); err != nil {
+			return err
+		}
+		// Metadata updates must not rewrite specs stored with older defaults.
+		if apiequality.Semantic.DeepEqual(old.Spec, agt.Spec) {
+			return nil
+		}
+	}
 	if agt.Spec.Image == "" {
 		agt.Spec.Image = d.agentDefaultImage
 	}
@@ -58,10 +74,6 @@ func (d *Defaulter) Default(ctx context.Context, agt *agentzv1alpha1.Agent) erro
 		agt.Spec.NixStoreSize = resource.MustParse("5Gi")
 	}
 
-	request, err := admission.RequestFromContext(ctx)
-	if err != nil {
-		return err
-	}
 	resourcesSpecified := len(agt.Spec.Resources.Requests) > 0 ||
 		len(agt.Spec.Resources.Limits) > 0 ||
 		len(agt.Spec.Resources.Claims) > 0

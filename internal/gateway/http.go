@@ -85,6 +85,9 @@ func mapGatewayStoreError(action string, err error) *apiError {
 }
 
 func mapKubeHTTPError(action string, err error) *apiError {
+	if apierrors.IsConflict(err) {
+		return newAPIError(http.StatusConflict, "conflict", err.Error(), err)
+	}
 	if apierrors.IsAlreadyExists(err) {
 		if action == "create agent" {
 			return newAPIError(

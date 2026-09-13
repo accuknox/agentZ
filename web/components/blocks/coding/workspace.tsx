@@ -78,6 +78,7 @@ export function CodingWorkspace({
   const [visited, setVisited] = useState<Set<View>>(new Set())
   const [width, setWidth] = useState(480)
   const [expanded, setExpanded] = useState(false)
+  const [editorOpen, setEditorOpen] = useState(false)
   const [branchOpen, setBranchOpen] = useState(false)
   const tree = thread.worktree
   const mutationKey = ["coding", "git", workspaceId, tree.id]
@@ -95,6 +96,11 @@ export function CodingWorkspace({
   useEffect(() => {
     if (open && tab === "changes") void refreshStatus()
   }, [open, tab, refreshStatus])
+
+  useEffect(() => {
+    onPreviewerOpenChange(open && tab === "files" && editorOpen)
+    return () => onPreviewerOpenChange(false)
+  }, [open, tab, editorOpen, onPreviewerOpenChange])
 
   const [handledPreview, setHandledPreview] = useState<typeof pendingPreview>()
   if (pendingPreview?.agent === tree.agent_name && pendingPreview !== handledPreview) {
@@ -188,7 +194,7 @@ export function CodingWorkspace({
               agentName={tree.agent_name}
               sessionId={thread.session_id}
               workspaceId={workspaceId}
-              onPreviewerOpenChange={onPreviewerOpenChange}
+              onPreviewerOpenChange={setEditorOpen}
             />
           </div>
         ) : null}

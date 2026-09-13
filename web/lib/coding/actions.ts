@@ -14,7 +14,7 @@ import {
   type CodingGitRequest,
   type CreateCodingThreadRequest,
 } from "@/lib/gateway/client"
-import { zCodingGitRequest, zCreateCodingThreadRequest } from "@/lib/gateway/client/zod.gen"
+import { zCreateCodingProjectRequest, zCreateCodingThreadRequest } from "@/lib/gateway/client/zod.gen"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
 export async function githubRepositories(query: string, page = 1) {
@@ -56,8 +56,8 @@ export async function githubRepositories(query: string, page = 1) {
 }
 
 export async function addCodingProject(workspaceId: string, name: string, repositoryId: number) {
-  z.string().min(1).max(80).parse(name)
-  z.number().int().positive().parse(repositoryId)
+  zCreateCodingProjectRequest.shape.name.parse(name)
+  zCreateCodingProjectRequest.shape.repository_id.parse(repositoryId)
   return withGitHub(async ({ octokit }) => {
     const { data: repository } = await octokit.request("GET /repositories/{repository_id}", {
       repository_id: repositoryId,
@@ -121,11 +121,10 @@ export async function startCodingThread(
 }
 
 async function localCodingGit(workspaceId: string, worktreeId: string, input: CodingGitRequest) {
-  const body = zCodingGitRequest.parse(input)
   const result = await runCodingGit({
     client: getGatewayServerClient(workspaceId),
     path: { worktreeId },
-    body,
+    body: input,
   })
   if (result.error) throw new Error(result.error.message)
   return result.data
@@ -167,17 +166,19 @@ export async function remoteCodingGit(
     operation.message = suggestion.data.text
   }
   const exported = await localCodingGit(workspaceId, worktreeId, {
-    operation: "export",
+    operation: operation.operation === "pull" ? "status" : "export",
     expected_head: operation.head,
   })
-  if (!exported.bundle || !exported.branch) throw new Error("Select a branch before using GitHub")
-  const bundle = exported.bundle
+  if (!exported.branch) throw new Error("Select a branch before using GitHub")
   return withGitHub(async ({ octokit, token, name, email }) => {
     const { data: repository } = await octokit.request("GET /repositories/{repository_id}", {
       repository_id: thread.data.repository_id,
     })
     return withTrustedRepository(repository.full_name, token, async (git) => {
-      await git.importBundle(bundle)
+      if (operation.operation !== "pull") {
+        if (!exported.bundle) throw new Error("Could not export the checkout")
+        await git.importBundle(exported.bundle)
+      }
       await git.run("check-ref-format", "--branch", exported.branch)
       if (operation.operation === "commit") {
         if (operation.tree !== exported.tree)
@@ -214,17 +215,14 @@ export async function remoteCodingGit(
         // Only confirmed remote refs may become origin tracking refs on the agent.
         const heads = await git.run("for-each-ref", "--format=%(refname)", "refs/heads/")
         for (const ref of heads.split("\n").filter(Boolean)) await git.run("update-ref", "-d", ref)
-        await git.remote("fetch", "--no-tags", "+refs/heads/*:refs/heads/*")
-        return localCodingGit(workspaceId, worktreeId, {
-          operation: "import",
-          bundle: await git.exportBundle(),
-        })
       }
       await git.remote("fetch", "--no-tags", "+refs/heads/*:refs/heads/*")
+      if (operation.operation === "pull")
+        await git.run("rev-parse", "--verify", `refs/heads/${exported.branch}`)
       return localCodingGit(workspaceId, worktreeId, {
         operation: "import",
-        expected_head: operation.head,
-        ref: exported.branch,
+        expected_head: operation.operation === "pull" ? operation.head : undefined,
+        ref: operation.operation === "pull" ? exported.branch : undefined,
         bundle: await git.exportBundle(),
       })
     })

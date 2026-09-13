@@ -60,7 +60,7 @@ function openToken(token: string, userId: string, githubUserId: number) {
   return Buffer.concat([cipher.update(bytes.subarray(12, -16)), cipher.final()]).toString("utf8")
 }
 
-export async function beginGitHubConnection() {
+export async function beginGitHubConnection(): Promise<`https://github.com/login/oauth/authorize?${string}`> {
   const actor = await githubActor()
   const app = githubApp()
   const state = randomBytes(32).toString("base64url")
@@ -74,16 +74,15 @@ export async function beginGitHubConnection() {
       sessionId: actor.session.id,
       expiresAt: new Date(Date.now() + 600_000),
     })
-  const url = new URL("https://github.com/login/oauth/authorize")
-  url.search = new URLSearchParams({
+  const query = new URLSearchParams({
     client_id: app.clientId,
     state,
     redirect_uri: new URL("/api/github/callback", getEnv().BETTER_AUTH_URL).href,
     code_challenge: createHash("sha256").update(verifier).digest("base64url"),
     code_challenge_method: "S256",
     prompt: "select_account",
-  }).toString()
-  return url.href
+  })
+  return `https://github.com/login/oauth/authorize?${query}`
 }
 
 // The library's code exchange does not support PKCE yet. Validate GitHub's wire

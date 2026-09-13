@@ -2247,7 +2247,7 @@ ON CONFLICT (id) DO NOTHING
 RETURNING *;
 
 -- name: GatewayReadyCodingWorktree :exec
-UPDATE coding_worktrees SET ready = true WHERE id = sqlc.arg(id);
+UPDATE coding_worktrees SET ready = true, branch = sqlc.arg(branch) WHERE id = sqlc.arg(id);
 
 -- name: GatewayUpdateCodingBranch :exec
 UPDATE coding_worktrees SET branch = sqlc.arg(branch) WHERE id = sqlc.arg(id);

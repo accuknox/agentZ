@@ -226,6 +226,13 @@ rules:
   - update
   - watch
 - apiGroups:
+  - events.k8s.io
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
   - external-secrets.io
   resources:
   - externalsecrets

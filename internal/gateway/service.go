@@ -41,7 +41,6 @@ import (
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	"github.com/accuknox/agentz/internal/inference"
 	baoclient "github.com/accuknox/agentz/internal/openbao"
-	"github.com/accuknox/agentz/internal/sandboxutil"
 	"github.com/accuknox/agentz/internal/skill"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 	agentzclient "github.com/accuknox/agentz/pkg/controller/clientset/versioned"
@@ -229,7 +228,6 @@ func Serve(ctx context.Context, cfg Config) error {
 			Scheme:                      scheme,
 			ReaderFailOnMissingInformer: true,
 			ByObject: map[ctrlclient.Object]ctrlcache.ByObject{
-				&agentzv1alpha1.Agent{}:         {},
 				&agentzv1alpha1.Sandbox{}:       {},
 				&agentzv1alpha1.InferencePool{}: {},
 			},
@@ -243,9 +241,6 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 	if err := inference.IndexPools(ctx, usageCache); err != nil {
 		return fmt.Errorf("index inference pool references: %w", err)
-	}
-	if err := sandboxutil.IndexAgentsBySandbox(ctx, usageCache); err != nil {
-		return fmt.Errorf("index agents by sandbox: %w", err)
 	}
 	runCtx, stopRun := context.WithCancel(ctx)
 	defer stopRun()

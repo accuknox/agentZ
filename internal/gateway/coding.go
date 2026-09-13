@@ -10,7 +10,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"path"
 	"regexp"
 	"strings"
@@ -326,41 +325,49 @@ func (s *Service) CreateCodingThread(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	base := project.DefaultBranch
+	if req.BaseBranch != nil {
+		base = *req.BaseBranch
+	}
 	if !tree.Ready {
-		base := project.DefaultBranch
-		if req.BaseBranch != nil {
-			base = *req.BaseBranch
-		}
-		_, err := s.codingFilesystem(r.Context(), access.namespace, tree, project, true, base, gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStatus, Bundle: req.Bundle})
+		result, err := s.codingFilesystem(r.Context(), access.namespace, tree, project, true, base, gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStatus, Bundle: req.Bundle})
 		if err != nil {
 			writeError(w, r, newAPIError(http.StatusConflict, "checkout_failed", err.Error(), err))
 			return
 		}
-		if err := q.GatewayReadyCodingWorktree(r.Context(), tree.ID); err != nil {
-			writeInternalError(w, r, err)
-			return
-		}
-		tree.Ready = true
+		tree.Branch = result.Branch
 	}
 	err = q.GatewayRecordCodingMainCheckout(r.Context(), gatewaydb.GatewayRecordCodingMainCheckoutParams{
 		ID: uuid.NewString(), WorkspaceID: access.workspaceID, ProjectID: project.ID, AgentName: tree.AgentName,
-		Directory: path.Join("Projects", base64.RawURLEncoding.EncodeToString([]byte(project.OwnerID)), "github", project.ID, "repo"), Branch: project.DefaultBranch,
+		Directory: path.Join("Projects", base64.RawURLEncoding.EncodeToString([]byte(project.OwnerID)), "github", project.ID, "repo"), Branch: base,
 	})
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
+	}
+	if !tree.Ready {
+		// A ready checkout must have its actual branch and main checkout recorded
+		// so retries can skip preparation without losing either binding.
+		err = q.GatewayReadyCodingWorktree(r.Context(), gatewaydb.GatewayReadyCodingWorktreeParams{ID: tree.ID, Branch: tree.Branch})
+		if err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+		tree.Ready = true
 	}
 	session, err := s.createCodingSession(r.Context(), access.namespace, tree, thread.ID)
 	if err != nil {
 		writeError(w, r, newAPIError(http.StatusBadGateway, "session_failed", "Failed to prepare agent session; retry to resume", err))
 		return
 	}
-	err = q.GatewaySetCodingThreadSession(r.Context(), gatewaydb.GatewaySetCodingThreadSessionParams{ID: thread.ID, SessionID: pgtype.Text{String: session.Id, Valid: true}})
+	// Persist the catalog first so a retry can repair it before the binding makes
+	// thread creation return early. Both writes are idempotent.
+	err = s.storeOpenCodeSession(r.Context(), access.workspaceID, req.AgentName, gatewaydb.ChatSessionKindChat, session)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
 	}
-	err = s.storeOpenCodeSession(r.Context(), access.workspaceID, req.AgentName, gatewaydb.ChatSessionKindChat, session)
+	err = q.GatewaySetCodingThreadSession(r.Context(), gatewaydb.GatewaySetCodingThreadSessionParams{ID: thread.ID, SessionID: pgtype.Text{String: session.Id, Valid: true}})
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -375,59 +382,57 @@ func (s *Service) CreateCodingThread(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Service) createCodingSession(ctx context.Context, namespace string, tree gatewaydb.CodingWorktree, threadID string) (gatewayapi.OpencodeSession, error) {
-	resolved, err := s.resolver.resolveAgent(ctx, namespace, tree.AgentName)
+// codingClient routes the generated gateway client directly to the agent while
+// retaining the caller's transport and request timeout.
+func (s *Service) codingClient(ctx context.Context, namespace, agentName string, httpClient *http.Client) (*gatewayapi.ClientWithResponses, error) {
+	resolved, err := s.resolver.resolveAgent(ctx, namespace, agentName)
 	if err != nil {
-		return gatewayapi.OpencodeSession{}, err
+		return nil, err
 	}
 	target, err := openCodeTargetURL(resolved.Target)
 	if err != nil {
-		return gatewayapi.OpencodeSession{}, err
+		return nil, err
 	}
-	endpoint := target.JoinPath("session")
-	query := url.Values{"directory": {"/home/agentz/" + tree.Directory}}
-	endpoint.RawQuery = query.Encode()
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
+	return gatewayapi.NewClientWithResponses(target.String(),
+		gatewayapi.WithHTTPClient(httpClient),
+		gatewayapi.WithRequestEditorFn(func(_ context.Context, req *http.Request) error {
+			req.URL.Path = strings.TrimPrefix(req.URL.Path, "/api/opencode/"+agentName)
+			return nil
+		}),
+	)
+}
+
+func (s *Service) createCodingSession(ctx context.Context, namespace string, tree gatewaydb.CodingWorktree, threadID string) (gatewayapi.OpencodeSession, error) {
+	client, err := s.codingClient(ctx, namespace, tree.AgentName, s.outboundHTTP)
 	if err != nil {
 		return gatewayapi.OpencodeSession{}, err
 	}
-	response, err := s.outboundHTTP.Do(request)
+	directory := "/home/agentz/" + tree.Directory
+	sessions, err := client.SessionListWithResponse(ctx, tree.AgentName, &gatewayapi.SessionListParams{Directory: &directory})
 	if err != nil {
 		return gatewayapi.OpencodeSession{}, err
 	}
-	var sessions []gatewayapi.OpencodeSession
-	err = json.NewDecoder(io.LimitReader(response.Body, 16<<20)).Decode(&sessions)
-	response.Body.Close()
-	if err != nil || response.StatusCode != http.StatusOK {
+	if sessions.JSON200 == nil {
 		return gatewayapi.OpencodeSession{}, errors.New("could not inspect existing sessions")
 	}
-	for _, session := range sessions {
+	for _, session := range *sessions.JSON200 {
 		if session.Metadata != nil && (*session.Metadata)["agentz.codingThread"] == threadID {
 			return session, nil
 		}
 	}
 	metadata := map[string]any{"agentz.codingThread": threadID}
 	// OpenCode generates a title after the first prompt only for untitled sessions.
-	body, err := json.Marshal(gatewayapi.SessionCreateJSONBody{Metadata: &metadata})
+	session, err := client.SessionCreateWithResponse(ctx, tree.AgentName,
+		&gatewayapi.SessionCreateParams{Directory: &directory},
+		gatewayapi.SessionCreateJSONRequestBody{Metadata: &metadata},
+	)
 	if err != nil {
 		return gatewayapi.OpencodeSession{}, err
 	}
-	request, err = http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), bytes.NewReader(body))
-	if err != nil {
-		return gatewayapi.OpencodeSession{}, err
+	if session.JSON200 == nil {
+		return gatewayapi.OpencodeSession{}, fmt.Errorf("create session returned %d", session.StatusCode())
 	}
-	request.Header.Set("Content-Type", "application/json")
-	response, err = s.outboundHTTP.Do(request)
-	if err != nil {
-		return gatewayapi.OpencodeSession{}, err
-	}
-	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return gatewayapi.OpencodeSession{}, fmt.Errorf("create session returned %d", response.StatusCode)
-	}
-	var session gatewayapi.OpencodeSession
-	err = json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&session)
-	return session, err
+	return *session.JSON200, nil
 }
 
 // GetCodingThread returns a binding for a session on an accessible agent.
@@ -524,24 +529,11 @@ func (s *Service) SuggestCodingText(w http.ResponseWriter, r *http.Request, agen
 		writeError(w, r, newAPIError(http.StatusBadRequest, "invalid_purpose", "Unknown suggestion purpose", nil))
 		return
 	}
-	resolved, err := s.resolver.resolveAgent(ctx, access.namespace, agentName)
-	if err != nil {
-		writeInternalError(w, r, err)
-		return
-	}
-	target, err := openCodeTargetURL(resolved.Target)
-	if err != nil {
-		writeInternalError(w, r, err)
-		return
-	}
 	// Model generation uses the request's deadline instead of the short
 	// timeout used for ordinary gateway lookups. Keep the shared transport.
 	httpClient := *s.outboundHTTP
 	httpClient.Timeout = 0
-	client, err := gatewayapi.NewClientWithResponses(target.String(), gatewayapi.WithHTTPClient(&httpClient), gatewayapi.WithRequestEditorFn(func(_ context.Context, req *http.Request) error {
-		req.URL.Path = strings.TrimPrefix(req.URL.Path, "/api/opencode/"+agentName)
-		return nil
-	}))
+	client, err := s.codingClient(ctx, access.namespace, agentName, &httpClient)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -722,6 +714,8 @@ func (s *Service) RunCodingGit(w http.ResponseWriter, r *http.Request, worktreeI
 }
 
 func (s *Service) codingFilesystem(ctx context.Context, namespace string, tree gatewaydb.CodingWorktree, project gatewaydb.CodingProject, prepare bool, baseBranch string, git gatewayapi.CodingGitRequest) (gatewayapi.CodingGitResult, error) {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
 	result := gatewayapi.CodingGitResult{}
 	resolved, err := s.resolver.resolveAgent(ctx, namespace, tree.AgentName)
 	if err != nil {
@@ -741,7 +735,10 @@ func (s *Service) codingFilesystem(ctx context.Context, namespace string, tree g
 		return result, err
 	}
 	request.Header.Set("Content-Type", "application/json")
-	response, err := s.outboundHTTP.Do(request)
+	// Match the filesystem operation deadline, including bundle transfer time.
+	httpClient := *s.outboundHTTP
+	httpClient.Timeout = 0
+	response, err := httpClient.Do(request)
 	if err != nil {
 		return result, err
 	}
@@ -798,8 +795,20 @@ func (s *Service) enforceCodingSession(r *http.Request, access resourceAccess, r
 	} else {
 		return nil, nil
 	}
+	// A synchronous prompt holds the project lock until generation finishes.
+	// Its cancellation and input responses must be able to reach the agent.
+	response := false
+	switch route.Path {
+	case "/api/opencode/{agentName}/session/{sessionID}/abort",
+		"/api/opencode/{agentName}/session/{sessionID}/permissions/{permissionID}",
+		"/api/opencode/{agentName}/api/session/{sessionID}/interrupt",
+		"/api/opencode/{agentName}/api/session/{sessionID}/permission/{requestID}/reply",
+		"/api/opencode/{agentName}/api/session/{sessionID}/question/{requestID}/reply",
+		"/api/opencode/{agentName}/api/session/{sessionID}/question/{requestID}/reject":
+		response = true
+	}
 	var release func()
-	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead && !response {
 		q, unlock, err := s.lockCodingProject(r.Context(), tree.ProjectID)
 		if err != nil {
 			return nil, mapGatewayStoreError("lock coding project", err)
@@ -830,52 +839,32 @@ func (s *Service) enforceCodingSession(r *http.Request, access resourceAccess, r
 
 // checkCodingAgentIdle refuses cleanup when an agent cannot confirm it is idle.
 func (s *Service) checkCodingAgentIdle(ctx context.Context, access resourceAccess, tree gatewaydb.CodingWorktree) error {
-	resolved, err := s.resolver.resolveAgent(ctx, access.namespace, tree.AgentName)
+	client, err := s.codingClient(ctx, access.namespace, tree.AgentName, s.outboundHTTP)
 	if err != nil {
 		return err
 	}
-	target, err := openCodeTargetURL(resolved.Target)
-	if err != nil {
-		return err
-	}
-	request := func(method, endpoint string) (*http.Response, error) {
-		url := target.JoinPath(endpoint)
-		query := url.Query()
-		query.Set("directory", "/home/agentz/"+tree.Directory)
-		url.RawQuery = query.Encode()
-		req, err := http.NewRequestWithContext(ctx, method, url.String(), nil)
-		if err != nil {
-			return nil, err
-		}
-		return s.outboundHTTP.Do(req)
-	}
-	response, err := request(http.MethodGet, "session/status")
+	directory := "/home/agentz/" + tree.Directory
+	statuses, err := client.SessionStatusWithResponse(ctx, tree.AgentName, &gatewayapi.SessionStatusParams{Directory: &directory})
 	if err != nil {
 		return errors.New("agent is unavailable; retry cleanup when it is running")
 	}
-	var statuses map[string]gatewayapi.OpencodeSessionStatus
-	err = json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&statuses)
-	response.Body.Close()
-	if err != nil || response.StatusCode != http.StatusOK {
+	if statuses.JSON200 == nil {
 		return errors.New("could not confirm agent session status")
 	}
-	for _, status := range statuses {
+	for _, status := range *statuses.JSON200 {
 		idle, err := status.AsOpencodeSessionStatus0()
 		if err != nil || idle.Type != gatewayapi.Idle {
 			return errors.New("stop running agent tasks before removing a checkout")
 		}
 	}
-	response, err = request(http.MethodGet, "pty")
+	terminals, err := client.PtyListWithResponse(ctx, tree.AgentName, &gatewayapi.PtyListParams{Directory: &directory})
 	if err != nil {
 		return err
 	}
-	var terminals []gatewayapi.OpencodePty
-	err = json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&terminals)
-	response.Body.Close()
-	if err != nil || response.StatusCode != http.StatusOK {
+	if terminals.JSON200 == nil {
 		return errors.New("could not confirm terminal status")
 	}
-	for _, terminal := range terminals {
+	for _, terminal := range *terminals.JSON200 {
 		if terminal.Status == gatewayapi.OpencodePtyStatusRunning {
 			return errors.New("close running terminals before removing a checkout")
 		}
@@ -884,14 +873,11 @@ func (s *Service) checkCodingAgentIdle(ctx context.Context, access resourceAcces
 }
 
 func (s *Service) deleteCodingConversations(ctx context.Context, access resourceAccess, tree gatewaydb.CodingWorktree, project gatewaydb.CodingProject) error {
-	resolved, err := s.resolver.resolveAgent(ctx, access.namespace, tree.AgentName)
+	client, err := s.codingClient(ctx, access.namespace, tree.AgentName, s.outboundHTTP)
 	if err != nil {
 		return err
 	}
-	target, err := openCodeTargetURL(resolved.Target)
-	if err != nil {
-		return err
-	}
+	directory := "/home/agentz/" + tree.Directory
 	threads, err := s.queries.GatewayListCodingThreads(ctx, gatewaydb.GatewayListCodingThreadsParams{ProjectID: project.ID, WorkspaceID: access.workspaceID})
 	if err != nil {
 		return err
@@ -900,20 +886,11 @@ func (s *Service) deleteCodingConversations(ctx context.Context, access resource
 		if thread.CodingThread.WorktreeID != tree.ID || !thread.CodingThread.SessionID.Valid {
 			continue
 		}
-		endpoint := target.JoinPath("session", thread.CodingThread.SessionID.String)
-		query := endpoint.Query()
-		query.Set("directory", "/home/agentz/"+tree.Directory)
-		endpoint.RawQuery = query.Encode()
-		request, err := http.NewRequestWithContext(ctx, http.MethodDelete, endpoint.String(), nil)
+		response, err := client.SessionDeleteWithResponse(ctx, tree.AgentName, thread.CodingThread.SessionID.String, &gatewayapi.SessionDeleteParams{Directory: &directory})
 		if err != nil {
 			return err
 		}
-		response, err := s.outboundHTTP.Do(request)
-		if err != nil {
-			return err
-		}
-		response.Body.Close()
-		if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusNotFound {
+		if response.StatusCode() != http.StatusOK && response.StatusCode() != http.StatusNotFound {
 			return errors.New("could not delete agent conversation")
 		}
 		if _, err := s.queries.GatewayDeleteSessionTraces(ctx, gatewaydb.GatewayDeleteSessionTracesParams{TenantNamespace: access.namespace, AgentName: tree.AgentName, SessionID: thread.CodingThread.SessionID.String}); err != nil {

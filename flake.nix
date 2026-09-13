@@ -124,6 +124,29 @@
                   ln -s /bin/env "$out/usr/bin/env"
                   ln -s /bin/bash "$out/usr/bin/bash"
                 '')
+                (pkgs.writeTextDir "etc/profile" ''
+                  case $- in *i*) ;; *) return ;; esac
+                  [ -n "''${BASH_VERSION:-}" ] || return
+                  [ "''${OPENCODE_TERMINAL:-}" = 1 ] || return
+                  [ -z "''${NO_COLOR:-}" ] || return
+                  case ''${TERM:-} in
+                    xterm*|screen*|tmux*|rxvt*|linux) ;;
+                    *) return ;;
+                  esac
+
+                  # Preserve custom prompts. User login files can override this.
+                  # Readline must exclude escape sequences from prompt width.
+                  case ''${PS1:-} in
+                    ""|'\s-\v\$ ')
+                      . ${pkgs.git}/share/git/contrib/completion/git-prompt.sh
+                      PS1='\[\e[32m\]\u@\h\[\e[0m\]\[\e[34m\]$(__git_ps1 ":%s")\[\e[0m\]$ '
+                      ;;
+                  esac
+                  if [ -z "''${LS_COLORS+x}" ]; then
+                    eval "$(dircolors -b)"
+                  fi
+                  alias ls >/dev/null 2>&1 || alias ls='ls --color=auto'
+                '')
                 pkgs.cacert
                 pkgs.stdenv.cc.cc.lib
                 pkgs.bashInteractive

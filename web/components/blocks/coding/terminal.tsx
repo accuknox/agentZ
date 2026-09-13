@@ -5,7 +5,7 @@ import { queryOptions, skipToken, useQuery, useQueryClient } from "@tanstack/rea
 import type { Event, Pty } from "@opencode-ai/sdk/v2"
 import { Tabs as TabsPrimitive } from "radix-ui"
 import { useTheme } from "next-themes"
-import { Terminal } from "@xterm/xterm"
+import { Terminal, type ITheme } from "@xterm/xterm"
 import { FitAddon } from "@xterm/addon-fit"
 import { Plus, TerminalSquare, X } from "lucide-react"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
@@ -146,7 +146,12 @@ export function CodingTerminal({
       let number = running.length + 1
       while (running.some((pty) => pty.title === `${title} · Terminal ${number}`)) number++
       const { data: pty } = await client.pty.create(
-        { directory, cwd: directory, title: `${title} · Terminal ${number}` },
+        {
+          directory,
+          cwd: directory,
+          title: `${title} · Terminal ${number}`,
+          env: { COLORTERM: "truecolor" },
+        },
         { signal, throwOnError: true }
       )
       if (signal.aborted || closed.current.has(pty.id)) return
@@ -373,6 +378,37 @@ export function CodingTerminal({
   )
 }
 
+function terminalTheme(container: HTMLElement): ITheme {
+  const style = getComputedStyle(container)
+  const dark = container.closest(".dark") !== null
+  const palette = {
+    black: style.getPropertyValue("--muted").trim(),
+    red: style.getPropertyValue("--destructive").trim(),
+    green: style.getPropertyValue("--success").trim(),
+    yellow: style.getPropertyValue("--warning").trim(),
+    blue: style.getPropertyValue("--info").trim(),
+    magenta: style.getPropertyValue("--primary").trim(),
+    cyan: dark ? "#67e8f9" : "#0e7490",
+    white: style.color,
+  }
+  return {
+    ...palette,
+    background: style.backgroundColor,
+    foreground: style.color,
+    cursor: style.color,
+    cursorAccent: style.backgroundColor,
+    selectionBackground: dark ? "#ffffff30" : "#00000020",
+    brightBlack: style.getPropertyValue("--muted-foreground").trim(),
+    brightRed: palette.red,
+    brightGreen: palette.green,
+    brightYellow: palette.yellow,
+    brightBlue: palette.blue,
+    brightMagenta: palette.magenta,
+    brightCyan: palette.cyan,
+    brightWhite: palette.white,
+  }
+}
+
 function TerminalSession({
   agentName,
   directory,
@@ -397,13 +433,7 @@ function TerminalSession({
     const frame = requestAnimationFrame(() => {
       const container = element.current
       if (!container || !terminalRef.current) return
-      const style = getComputedStyle(container)
-      terminalRef.current.options.theme = {
-        background: style.backgroundColor,
-        foreground: style.color,
-        cursor: style.color,
-        selectionBackground: resolvedTheme === "dark" ? "#ffffff30" : "#00000020",
-      }
+      terminalRef.current.options.theme = terminalTheme(container)
     })
     return () => cancelAnimationFrame(frame)
   }, [resolvedTheme, attempt])
@@ -429,7 +459,8 @@ function TerminalSession({
       cursorBlink: true,
       fontSize: 13,
       fontFamily: style.fontFamily,
-      theme: { background: style.backgroundColor, foreground: style.color, cursor: style.color },
+      theme: terminalTheme(container),
+      minimumContrastRatio: 4.5,
       scrollback: 10_000,
     })
     terminalRef.current = terminal

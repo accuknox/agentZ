@@ -124,6 +124,25 @@ func TestGitWorktreeLifecycle(t *testing.T) {
 	}
 	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStage, Paths: new([]string{"café.md", "space and\nnewline.txt"}), ExpectedHead: &result.Head}
 	result = run(req)
+	// T3's selection replaces the index, including previously staged files.
+	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitPrepareCommit, Paths: new([]string{"space and\nnewline.txt"}), Revision: &result.Revision, ExpectedHead: &result.Head}
+	selected := run(req)
+	if got := git(directory, "diff", "--cached", "--name-only", "-z"); got != "space and\nnewline.txt\x00" {
+		t.Fatalf("quick commit included an excluded file: %q", got)
+	}
+	if _, err := service.runGit(ctx, req); err == nil {
+		t.Fatal("accepted stale selection revision")
+	}
+	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitCreateBranch, Ref: new("docs/quick-commit"), ExpectedHead: &selected.Head}
+	created := run(req)
+	if created.Head != selected.Head || created.Tree == nil || *created.Tree != *selected.Tree || len(created.Files) != 2 {
+		t.Fatal("creating a feature branch changed staged or working contents")
+	}
+	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitPrepareCommit, Revision: &created.Revision, ExpectedHead: &created.Head}
+	result = run(req)
+	if result.Ahead != 0 || result.AheadOfDefault != 0 || result.RemoteHead != "" || result.DefaultBranch != "main" {
+		t.Fatalf("incorrect unpublished branch status: %+v", result)
+	}
 	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitDiff, Comparison: new(gatewayapi.CodingGitStaged)}
 	result = run(req)
 	if result.Patches == nil || len(*result.Patches) != 2 || (*result.Patches)[0].Path != "café.md" || result.Tree == nil {

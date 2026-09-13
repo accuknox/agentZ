@@ -40,6 +40,11 @@ type ChatShellProps = Pick<ChatProps, "createSession" | "composerContext" | "dra
   workspacePath: string
 }
 
+const GitActions = dynamic(
+  () => import("@/components/blocks/coding/git-actions").then((module) => module.GitActions),
+  { ssr: false }
+)
+
 const CodingWorkspace = dynamic(
   () => import("@/components/blocks/coding/workspace").then((module) => module.CodingWorkspace),
   { ssr: false }
@@ -108,7 +113,7 @@ export function ChatShell({
   return (
     <div className="relative flex h-full min-h-0 min-w-0 overflow-hidden">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <header className="flex h-(--workspace-topbar-height) min-w-0 shrink-0 items-center gap-1.5 px-3">
+        <header className="@container/header-actions flex h-(--workspace-topbar-height) min-w-0 shrink-0 items-center gap-1.5 px-3">
           <SidebarTrigger className="shrink-0" />
           <div className="text-muted-foreground max-w-1/3 min-w-0 truncate text-sm font-medium">
             {headerContext ?? agentName}
@@ -119,6 +124,13 @@ export function ChatShell({
           <h1 className="min-w-0 truncate text-sm font-semibold">{sessionTitle.data ?? title}</h1>
           <div className="ml-auto flex shrink-0 items-center gap-1">
             {headerActions}
+            {codingThread ? (
+              <GitActions
+                key={codingThread.worktree.id}
+                thread={codingThread}
+                workspaceId={workspaceId}
+              />
+            ) : null}
             {!codingThread ? <SessionFileControl agentName={agentName} /> : null}
           </div>
         </header>

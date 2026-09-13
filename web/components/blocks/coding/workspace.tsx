@@ -87,7 +87,7 @@ export function CodingWorkspace({
     queryOptions({
       queryKey: ["coding", "git", workspaceId, tree.id, actor?.user.id],
       queryFn: () => runWorkspaceGit(workspaceId, tree.id, { operation: "status" }),
-      refetchInterval: open && tab === "changes" && !pending ? 5000 : false,
+      enabled: !!actor?.user.id,
     })
   )
   const data = status.data

@@ -299,7 +299,9 @@ export function GitChanges({
         setComposerOpen(false)
       }
       toast.success(
-        { commit: "Staged changes committed", pull: "Pulled", push: "Pushed" }[body.operation]
+        { commit: "Staged changes committed", pull: "Pulled", push: "Pushed", fetch: "Fetched" }[
+          body.operation
+        ]
       )
     },
     onError: (error) => toast.error(error.message),

@@ -2227,7 +2227,7 @@ export type CreateCodingThreadRequest = {
 }
 
 export type CodingTextRequest = {
-  purpose: "branch" | "commit"
+  purpose: "branch" | "commit" | "pr"
   text?: string
   expected_tree?: string
   model?: {
@@ -2236,8 +2236,14 @@ export type CodingTextRequest = {
   }
 }
 
+export type CodingPullRequestText = {
+  title: string
+  body: string
+}
+
 export type CodingTextSuggestion = {
   text: string
+  pull_request?: CodingPullRequestText
 }
 
 export type CodingGitRequest = {
@@ -2255,6 +2261,8 @@ export type CodingGitRequest = {
     | "import"
     | "apply_commit"
     | "checkout"
+    | "create_branch"
+    | "prepare_commit"
     | "rename"
     | "remove"
   comparison?: CodingGitComparison
@@ -2273,6 +2281,11 @@ export type CodingGitRequest = {
 export type CodingGitResult = {
   head: string
   branch: string
+  default_branch: string
+  remote_head: string
+  ahead: number
+  behind: number
+  ahead_of_default: number
   files: Array<CodingGitFile>
   revision: string
   patches?: Array<CodingGitPatch>
@@ -2925,7 +2938,7 @@ export type SuggestCodingTextError = SuggestCodingTextErrors[keyof SuggestCoding
 
 export type SuggestCodingTextResponses = {
   /**
-   * Generated branch name or commit message.
+   * Generated source-control text.
    */
   200: CodingTextSuggestion
 }

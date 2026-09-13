@@ -2,6 +2,7 @@ import { queryOptions } from "@tanstack/react-query"
 import {
   runCodingGit,
   type CodingGitRequest,
+  type CodingGitResult,
   type CodingGitComparison,
   type CodingGitStash,
   type CodingThread,
@@ -111,4 +112,42 @@ export function gitQueries(
       refetchInterval: visible && stashPicker ? 5000 : false,
     }),
   }
+}
+
+// T3's action priority, under the MIT notice in git-actions.tsx.
+export function gitQuickAction(status: CodingGitResult | undefined, hasPR: boolean) {
+  if (!status) return { label: "Commit", hint: "Git status is unavailable." }
+  if (!status.branch)
+    return {
+      label: "Commit",
+      hint: "Create and checkout a ref before pushing or opening a pull request.",
+    }
+  const isDefault = status.branch === status.default_branch
+  if (status.files.length)
+    return hasPR || isDefault
+      ? { label: "Commit & push", action: "commit_push" as const }
+      : { label: "Commit, push & PR", action: "commit_push_pr" as const }
+  if (!status.remote_head) {
+    if (!status.ahead)
+      return hasPR
+        ? { label: "View PR", action: "view_pr" as const }
+        : { label: "Push", hint: "No local commits to push." }
+    return hasPR || isDefault
+      ? { label: "Push", action: isDefault ? ("commit_push" as const) : ("push" as const) }
+      : { label: "Push & create PR", action: "create_pr" as const }
+  }
+  if (status.ahead && status.behind)
+    return {
+      label: "Sync ref",
+      hint: "Branch has diverged from upstream. Rebase/merge first.",
+    }
+  if (status.behind) return { label: "Pull", action: "pull" as const }
+  if (status.ahead)
+    return hasPR || isDefault
+      ? { label: "Push", action: isDefault ? ("commit_push" as const) : ("push" as const) }
+      : { label: "Push & create PR", action: "create_pr" as const }
+  if (hasPR) return { label: "View PR", action: "view_pr" as const }
+  if (status.ahead_of_default && !isDefault)
+    return { label: "Create PR", action: "create_pr" as const }
+  return { label: "Commit", hint: "Branch is up to date. No action needed." }
 }

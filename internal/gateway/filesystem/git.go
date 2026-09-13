@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -484,6 +485,26 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 		}
 		result.Patches = &patches
 		return result, nil
+	case gatewayapi.CodingGitPrepareCommit:
+		if req.Git.Revision == nil || *req.Git.Revision != result.Revision {
+			return result, errors.New("checkout changed; refresh before committing")
+		}
+		if result.Head == "" || result.Tree == nil {
+			return result, errors.New("resolve conflicts and create an initial commit first")
+		}
+		// An explicit selection replaces staging so excluded files stay out.
+		if req.Git.Paths != nil {
+			if len(paths) == 0 {
+				return result, errors.New("select files first")
+			}
+			if _, err := run(directory, "", "reset", "HEAD", "--"); err != nil {
+				return result, err
+			}
+		}
+		args := []string{"--literal-pathspecs", "add", "-A", "--"}
+		if _, err := run(directory, "", append(args, paths...)...); err != nil {
+			return result, err
+		}
 	case gatewayapi.CodingGitStage, gatewayapi.CodingGitUnstage:
 		if len(paths) == 0 {
 			return result, errors.New("select files first")
@@ -560,6 +581,9 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 				return result, errors.New("invalid branch")
 			}
 			if req.Git.Operation == gatewayapi.CodingGitApplyCommit {
+				if result.Branch != *req.Git.Ref {
+					return result, errors.New("branch changed; refresh before committing")
+				}
 				staged, err := run(directory, "", "write-tree")
 				if err != nil {
 					return result, err
@@ -596,6 +620,16 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			return result, errors.New("branch changed; refresh before naming it")
 		}
 		if _, err := run(directory, "", "branch", "-m", *req.Git.Ref); err != nil {
+			return result, err
+		}
+	case gatewayapi.CodingGitCreateBranch:
+		if req.Git.Ref == nil || req.Git.ExpectedHead == nil {
+			return result, errors.New("branch and expected HEAD are required")
+		}
+		if _, err := run(directory, "", "check-ref-format", "--branch", *req.Git.Ref); err != nil {
+			return result, errors.New("invalid branch")
+		}
+		if _, err := run(directory, "", "switch", "-c", *req.Git.Ref); err != nil {
 			return result, err
 		}
 	case gatewayapi.CodingGitCheckout:
@@ -669,6 +703,31 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 		return result, err
 	}
 	result.Branches = strings.Fields(branches)
+	result.DefaultBranch = req.BaseBranch
+	if result.Head != "" && req.BaseBranch != "" {
+		base := "refs/remotes/origin/" + req.BaseBranch
+		count, err := run(directory, "", "rev-list", "--count", base+"..HEAD")
+		if err != nil {
+			return result, err
+		}
+		result.AheadOfDefault, err = strconv.Atoi(strings.TrimSpace(count))
+		if err != nil {
+			return result, err
+		}
+		remote, err := run(directory, "", "rev-parse", "--verify", "refs/remotes/origin/"+result.Branch)
+		if err == nil && result.Branch != "" {
+			result.RemoteHead = strings.TrimSpace(remote)
+			counts, err := run(directory, "", "rev-list", "--left-right", "--count", "HEAD..."+result.RemoteHead)
+			if err != nil {
+				return result, err
+			}
+			if _, err := fmt.Sscan(counts, &result.Ahead, &result.Behind); err != nil {
+				return result, err
+			}
+		} else {
+			result.Ahead = result.AheadOfDefault
+		}
+	}
 	if req.Git.Operation == gatewayapi.CodingGitExport {
 		if result.Tree == nil || result.Head == "" {
 			return result, errors.New("resolve conflicts and create a commit before exporting")

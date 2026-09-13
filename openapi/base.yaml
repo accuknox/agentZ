@@ -180,7 +180,7 @@ paths:
             schema: {$ref: '#/components/schemas/CodingTextRequest'}
       responses:
         '200':
-          description: Generated branch name or commit message.
+          description: Generated source-control text.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/CodingTextSuggestion'}
@@ -9541,9 +9541,9 @@ components:
       properties:
         purpose:
           type: string
-          enum: [branch, commit]
-          x-enum-varnames: [CodingTextBranch, CodingTextCommit]
-        text: {type: string, maxLength: 16000}
+          enum: [branch, commit, pr]
+          x-enum-varnames: [CodingTextBranch, CodingTextCommit, CodingTextPR]
+        text: {type: string, maxLength: 48000}
         expected_tree: {type: string, pattern: '^[a-f0-9]{40,64}$'}
         model:
           type: object
@@ -9553,11 +9553,19 @@ components:
             providerID: {type: string, minLength: 1}
           required: [modelID, providerID]
       required: [purpose]
+    CodingPullRequestText:
+      type: object
+      additionalProperties: false
+      properties:
+        title: {type: string, minLength: 1, maxLength: 256}
+        body: {type: string, minLength: 1, maxLength: 20000}
+      required: [title, body]
     CodingTextSuggestion:
       type: object
       additionalProperties: false
       properties:
         text: {type: string, minLength: 1, maxLength: 20000}
+        pull_request: {$ref: '#/components/schemas/CodingPullRequestText'}
       required: [text]
     CodingGitRequest:
       type: object
@@ -9565,8 +9573,8 @@ components:
       properties:
         operation:
           type: string
-          enum: [status, diff, stage, unstage, stashes, stash_create, stash_apply, stash_pop, stash_drop, export, import, apply_commit, checkout, rename, remove]
-          x-enum-varnames: [CodingGitStatus, CodingGitDiff, CodingGitStage, CodingGitUnstage, CodingGitStashes, CodingGitStashCreate, CodingGitStashApply, CodingGitStashPop, CodingGitStashDrop, CodingGitExport, CodingGitImport, CodingGitApplyCommit, CodingGitCheckout, CodingGitRename, CodingGitRemove]
+          enum: [status, diff, stage, unstage, stashes, stash_create, stash_apply, stash_pop, stash_drop, export, import, apply_commit, checkout, create_branch, prepare_commit, rename, remove]
+          x-enum-varnames: [CodingGitStatus, CodingGitDiff, CodingGitStage, CodingGitUnstage, CodingGitStashes, CodingGitStashCreate, CodingGitStashApply, CodingGitStashPop, CodingGitStashDrop, CodingGitExport, CodingGitImport, CodingGitApplyCommit, CodingGitCheckout, CodingGitCreateBranch, CodingGitPrepareCommit, CodingGitRename, CodingGitRemove]
         comparison:
           $ref: '#/components/schemas/CodingGitComparison'
         revision: {type: string, pattern: '^[a-f0-9]{64}$'}
@@ -9591,6 +9599,11 @@ components:
       properties:
         head: {type: string}
         branch: {type: string}
+        default_branch: {type: string}
+        remote_head: {type: string}
+        ahead: {type: integer}
+        behind: {type: integer}
+        ahead_of_default: {type: integer}
         files:
           type: array
           items: {$ref: '#/components/schemas/CodingGitFile'}
@@ -9606,7 +9619,7 @@ components:
         branches:
           type: array
           items: {type: string}
-      required: [head, branch, files, revision, branches]
+      required: [head, branch, files, revision, branches, default_branch, remote_head, ahead, behind, ahead_of_default]
     CodingGitFile:
       type: object
       additionalProperties: false

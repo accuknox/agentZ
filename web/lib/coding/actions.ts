@@ -14,7 +14,10 @@ import {
   type CodingGitRequest,
   type CreateCodingThreadRequest,
 } from "@/lib/gateway/client"
-import { zCreateCodingProjectRequest, zCreateCodingThreadRequest } from "@/lib/gateway/client/zod.gen"
+import {
+  zCreateCodingProjectRequest,
+  zCreateCodingThreadRequest,
+} from "@/lib/gateway/client/zod.gen"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
 export async function githubRepositories(query: string, page = 1) {
@@ -142,6 +145,7 @@ const remoteOperation = z.discriminatedUnion("operation", [
     head: z.string().regex(/^[a-f0-9]{40,64}$/),
     remoteHead: z.string().regex(/^([a-f0-9]{40,64})?$/),
   }),
+  z.object({ operation: z.literal("fetch"), head: z.string().regex(/^[a-f0-9]{40,64}$/) }),
   z.object({ operation: z.literal("pull"), head: z.string().regex(/^[a-f0-9]{40,64}$/) }),
 ])
 
@@ -166,7 +170,8 @@ export async function remoteCodingGit(
     operation.message = suggestion.data.text
   }
   const exported = await localCodingGit(workspaceId, worktreeId, {
-    operation: operation.operation === "pull" ? "status" : "export",
+    operation:
+      operation.operation === "commit" || operation.operation === "push" ? "export" : "status",
     expected_head: operation.head,
   })
   if (!exported.branch) throw new Error("Select a branch before using GitHub")
@@ -175,7 +180,7 @@ export async function remoteCodingGit(
       repository_id: thread.data.repository_id,
     })
     return withTrustedRepository(repository.full_name, token, async (git) => {
-      if (operation.operation !== "pull") {
+      if (operation.operation === "commit" || operation.operation === "push") {
         if (!exported.bundle) throw new Error("Could not export the checkout")
         await git.importBundle(exported.bundle)
       }
@@ -254,6 +259,137 @@ export async function codingRemoteHead(
       return data.object.sha
     } catch (error) {
       if (error instanceof RequestError && error.status === 404) return ""
+      throw error
+    }
+  })
+}
+
+export async function codingGitHubStatus(
+  workspaceId: string,
+  agentName: string,
+  sessionId: string
+) {
+  const thread = await getCodingThread({
+    client: getGatewayServerClient(workspaceId),
+    path: { agentName, sessionId },
+  })
+  if (thread.error) throw new Error(thread.error.message)
+  const status = await localCodingGit(workspaceId, thread.data.worktree.id, { operation: "status" })
+  if (!status.branch) return null
+  return withGitHub(async ({ octokit }) => {
+    const { data: repository } = await octokit.request("GET /repositories/{repository_id}", {
+      repository_id: thread.data.repository_id,
+    })
+    const { data: pulls } = await octokit.pulls.list({
+      owner: repository.owner.login,
+      repo: repository.name,
+      head: `${repository.owner.login}:${status.branch}`,
+      state: "open",
+      per_page: 1,
+    })
+    let remoteHead = ""
+    try {
+      const { data } = await octokit.git.getRef({
+        owner: repository.owner.login,
+        repo: repository.name,
+        ref: `heads/${status.branch}`,
+      })
+      remoteHead = data.object.sha
+    } catch (error) {
+      if (!(error instanceof RequestError) || error.status !== 404) throw error
+    }
+    if (status.head && status.tree && remoteHead !== status.remote_head) {
+      await remoteCodingGit(workspaceId, agentName, sessionId, {
+        operation: "fetch",
+        head: status.head,
+      })
+    }
+    const pr = pulls[0]
+    return pr ? { number: pr.number, url: pr.html_url } : null
+  })
+}
+
+export async function createCodingPullRequest(
+  workspaceId: string,
+  agentName: string,
+  sessionId: string,
+  head: string
+) {
+  z.string()
+    .regex(/^[a-f0-9]{40,64}$/)
+    .parse(head)
+  const client = getGatewayServerClient(workspaceId)
+  const thread = await getCodingThread({ client, path: { agentName, sessionId } })
+  if (thread.error) throw new Error(thread.error.message)
+  const exported = await localCodingGit(workspaceId, thread.data.worktree.id, {
+    operation: "export",
+    expected_head: head,
+  })
+  if (exported.files.length) throw new Error("Commit local changes before creating a PR.")
+  if (!exported.bundle || !exported.branch) throw new Error("Select a branch before creating a PR.")
+  const bundle = exported.bundle
+  return withGitHub(async ({ octokit, token }) => {
+    const { data: repository } = await octokit.request("GET /repositories/{repository_id}", {
+      repository_id: thread.data.repository_id,
+    })
+    const repo = { owner: repository.owner.login, repo: repository.name }
+    if (exported.branch === repository.default_branch)
+      throw new Error("Create a feature branch before opening a PR.")
+    const filter = {
+      ...repo,
+      head: `${repo.owner}:${exported.branch}`,
+      state: "open",
+      per_page: 1,
+    } as const
+    const { data: existing } = await octokit.pulls.list(filter)
+    if (existing[0]) return { number: existing[0].number, url: existing[0].html_url }
+    const text = await withTrustedRepository(repository.full_name, token, async (git) => {
+      await git.importBundle(bundle)
+      await git.remote("fetch", "--no-tags", "+refs/heads/*:refs/remotes/origin/*")
+      const remote = await git.run("rev-parse", `refs/remotes/origin/${exported.branch}`)
+      if (remote !== head) throw new Error("Branch changed; push and refresh before creating a PR.")
+      const base = `refs/remotes/origin/${repository.default_branch}`
+      const patch = await git.run(
+        "diff",
+        "--no-ext-diff",
+        "--no-textconv",
+        `${base}...${head}`,
+        "--"
+      )
+      if (!patch) throw new Error("No changes against the default branch.")
+      const commits = await git.run("log", "--format=%s", `${base}..${head}`, "--")
+      return `Branch: ${exported.branch}\nBase: ${repository.default_branch}\nCommits:\n${commits.slice(0, 6000)}\nDiff:\n${patch.slice(0, 40000)}`
+    })
+    const suggestion = await suggestCodingText({
+      client,
+      path: { agentName, sessionId },
+      body: { purpose: "pr", text },
+    })
+    if (suggestion.error) throw new Error(suggestion.error.message)
+    const content = suggestion.data.pull_request
+    if (!content) throw new Error("PR content was not generated. Try again.")
+    const status = await localCodingGit(workspaceId, thread.data.worktree.id, {
+      operation: "status",
+      expected_head: head,
+    })
+    if (status.branch !== exported.branch || status.files.length)
+      throw new Error("Checkout changed while generating the PR. Refresh and retry.")
+    const { data: remote } = await octokit.git.getRef({ ...repo, ref: `heads/${exported.branch}` })
+    if (remote.object.sha !== head)
+      throw new Error("Remote branch changed while generating the PR.")
+    try {
+      const { data: pr } = await octokit.pulls.create({
+        ...repo,
+        ...content,
+        head: exported.branch,
+        base: repository.default_branch,
+        draft: false,
+      })
+      return { number: pr.number, url: pr.html_url }
+    } catch (error) {
+      // A competing request or a lost response may have already created it.
+      const { data: pulls } = await octokit.pulls.list(filter)
+      if (pulls[0]) return { number: pulls[0].number, url: pulls[0].html_url }
       throw error
     }
   })

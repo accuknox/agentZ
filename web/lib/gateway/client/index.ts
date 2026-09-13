@@ -197,6 +197,7 @@ export type {
   CodingGitStash,
   CodingProject,
   CodingProjectDetail,
+  CodingPullRequestText,
   CodingTextRequest,
   CodingTextSuggestion,
   CodingThread,

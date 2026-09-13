@@ -65,6 +65,9 @@ func ValidateInputs(ctx context.Context, c *gatewayapi.ClientWithResponses, tknP
 
 	if resp.JSON200 == nil {
 		message := "referenced workflow could not be loaded"
+		if resp.JSON403 != nil {
+			message = resp.JSON403.Message
+		}
 		if resp.JSON404 != nil {
 			message = "referenced workflow was not found"
 		}

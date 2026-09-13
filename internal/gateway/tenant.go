@@ -45,6 +45,7 @@ type requestAuth struct {
 	actorName       string
 	organizationID  string
 	workspaceID     string
+	workspaceType   agentzv1alpha1.WorkspaceType
 	tenantName      string
 	tenantNamespace string
 }
@@ -274,7 +275,7 @@ func requireTenantRequest(s *Service) func(http.Handler) http.Handler {
 	auth := requireGatewayAuth(s)
 	tenant := loadTenant(s)
 	return func(next http.Handler) http.Handler {
-		return auth(tenant(requireTenantReady(s, next)))
+		return auth(s.requireWorkspaceFeatures(tenant(requireTenantReady(s, next))))
 	}
 }
 

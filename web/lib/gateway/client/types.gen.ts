@@ -3798,6 +3798,10 @@ export type CreateAgentErrors = {
    */
   400: Error
   /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
    *
    */
@@ -3883,6 +3887,10 @@ export type UpdateAgentErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
@@ -7749,6 +7757,10 @@ export type DeleteWorkflowsErrors = {
    */
   400: Error
   /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
    */
@@ -7796,6 +7808,10 @@ export type ListWorkflowSummariesErrors = {
    */
   400: Error
   /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -7831,6 +7847,10 @@ export type CreateWorkflowErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
@@ -7888,6 +7908,10 @@ export type GetWorkflowErrors = {
    */
   400: Error
   /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
    */
@@ -7943,6 +7967,10 @@ export type ListAgentWorkflowSchedulesErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Unexpected server error.
    */
@@ -8001,6 +8029,10 @@ export type ListWorkflowSchedulesErrors = {
    */
   400: Error
   /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -8040,6 +8072,10 @@ export type CreateWorkflowScheduleErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
@@ -8103,6 +8139,10 @@ export type DeleteWorkflowScheduleErrors = {
    */
   400: Error
   /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
    */
@@ -8151,6 +8191,10 @@ export type UpdateWorkflowScheduleErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
@@ -8214,6 +8258,10 @@ export type CreateWorkflowRunErrors = {
    */
   400: Error
   /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
    */
@@ -8270,6 +8318,10 @@ export type InvokeWorkflowWebhookErrors = {
    * Request authentication failed.
    */
   401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
@@ -8333,6 +8385,10 @@ export type ListWorkflowWebhookTriggersErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Unexpected server error.
    */
@@ -8401,6 +8457,10 @@ export type ListWorkflowRunsErrors = {
    */
   400: Error
   /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
    */
@@ -8443,6 +8503,10 @@ export type WatchWorkflowRunsErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
@@ -8499,6 +8563,10 @@ export type DeleteWorkflowRunErrors = {
    */
   400: Error
   /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
    */
@@ -8546,6 +8614,10 @@ export type GetWorkflowRunErrors = {
    */
   400: Error
   /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
    */
@@ -8592,6 +8664,10 @@ export type PatchWorkflowRunStatusErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
@@ -8659,6 +8735,10 @@ export type PatchWorkflowRunNodeStatusErrors = {
    */
   400: Error
   /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
    */
@@ -8724,6 +8804,10 @@ export type ListDashboardsErrors = {
    */
   400: Error
   /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -8770,6 +8854,10 @@ export type ListAgentDashboardsErrors = {
    */
   400: Error
   /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
    */
@@ -8812,6 +8900,10 @@ export type CreateDashboardData = {
 }
 
 export type CreateDashboardErrors = {
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
    *
@@ -8867,6 +8959,10 @@ export type DeleteDashboardData = {
 
 export type DeleteDashboardErrors = {
   /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
    */
@@ -8912,6 +9008,10 @@ export type GetDashboardData = {
 }
 
 export type GetDashboardErrors = {
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
@@ -8966,6 +9066,10 @@ export type PublishDashboardDataData = {
 }
 
 export type PublishDashboardDataErrors = {
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
    *
@@ -9025,6 +9129,10 @@ export type QueryDashboardData = {
 }
 
 export type QueryDashboardErrors = {
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * The request body does not match the operation schema.
    */
@@ -9100,6 +9208,10 @@ export type ListDashboardTableRowsErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *

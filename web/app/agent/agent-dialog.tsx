@@ -221,7 +221,7 @@ export function AgentDialog({
     sandboxScope: "Organisation",
     sandboxName: initialSandboxName ?? (mode === "create" ? (sandboxes[0]?.name ?? "") : ""),
     skills: initialSkills,
-    memoryEnabled: initialMemoryEnabled,
+    memoryEnabled: actionScope.workspaceType !== "coding" && initialMemoryEnabled,
   }
   const form = useForm<AgentFormValues>({
     resolver: zodResolver(createAgentSimpleFormSchema),
@@ -454,31 +454,33 @@ export function AgentDialog({
                 </Field>
               )}
             />
-            <Controller
-              name="memoryEnabled"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field orientation="horizontal" data-invalid={fieldState.invalid}>
-                  <div className="min-w-0 flex-1 space-y-0.5">
-                    <FieldLabel htmlFor="agent-form-memory">Persistent memory</FieldLabel>
-                    <FieldDescription>
-                      Allow this Agent to save facts and journal entries across sessions.
-                    </FieldDescription>
-                    <FieldError errors={[fieldState.error]} />
-                  </div>
-                  {field.value ? <input type="hidden" name={field.name} /> : null}
-                  <Switch
-                    id="agent-form-memory"
-                    ref={field.ref}
-                    checked={field.value}
-                    onBlur={field.onBlur}
-                    onCheckedChange={field.onChange}
-                    aria-label="Enable persistent memory"
-                    aria-invalid={fieldState.invalid}
-                  />
-                </Field>
-              )}
-            />
+            {actionScope.workspaceType !== "coding" && (
+              <Controller
+                name="memoryEnabled"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field orientation="horizontal" data-invalid={fieldState.invalid}>
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <FieldLabel htmlFor="agent-form-memory">Persistent memory</FieldLabel>
+                      <FieldDescription>
+                        Allow this Agent to save facts and journal entries across sessions.
+                      </FieldDescription>
+                      <FieldError errors={[fieldState.error]} />
+                    </div>
+                    {field.value ? <input type="hidden" name={field.name} /> : null}
+                    <Switch
+                      id="agent-form-memory"
+                      ref={field.ref}
+                      checked={field.value}
+                      onBlur={field.onBlur}
+                      onCheckedChange={field.onChange}
+                      aria-label="Enable persistent memory"
+                      aria-invalid={fieldState.invalid}
+                    />
+                  </Field>
+                )}
+              />
+            )}
           </FieldGroup>
         </form>
         {form.formState.errors.root ? (

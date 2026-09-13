@@ -22,6 +22,7 @@ import (
 	"github.com/accuknox/agentz/internal/authorization"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 type chatSessionCursor struct {
@@ -267,7 +268,9 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 	if params.ParticipantUserId != nil {
 		participantIDs = *params.ParticipantUserId
 	}
-	includeWorkflowRuns := params.IncludeWorkflowRuns != nil && *params.IncludeWorkflowRuns
+	auth, _ := requestAuthState(r.Context())
+	includeWorkflowRuns := auth.workspaceType != agentzv1alpha1.WorkspaceTypeCoding &&
+		params.IncludeWorkflowRuns != nil && *params.IncludeWorkflowRuns
 	response := gatewayapi.ListChatSessionsResponse{
 		Groups:             []gatewayapi.ChatSessionGroup{},
 		HasNextPage:        false,
@@ -523,6 +526,10 @@ func (s *Service) GetChatSessionPreference(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	preference := workspaceChatPreference(row)
+	auth, _ := requestAuthState(r.Context())
+	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding {
+		preference.IncludeWorkflowRuns = false
+	}
 	capabilities, err := s.agentCapabilityProjections(r.Context(), access, "")
 	if err != nil {
 		writeInternalError(w, r, err)
@@ -552,6 +559,16 @@ func (s *Service) UpdateChatSessionPreference(w http.ResponseWriter, r *http.Req
 
 	var body gatewayapi.ChatSessionPreference
 	if !decodeJSONBody(w, r, &body, false) {
+		return
+	}
+	auth, _ := requestAuthState(r.Context())
+	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding && body.IncludeWorkflowRuns {
+		writeError(w, r, newAPIError(
+			http.StatusForbidden,
+			"feature_disabled",
+			"workflows are disabled in coding workspaces",
+			nil,
+		))
 		return
 	}
 	for _, name := range []*gatewayapi.AgentName{body.AgentName, body.LastAgentName} {

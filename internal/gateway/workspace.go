@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/gosimple/slug"
 	"github.com/jackc/pgx/v5"
@@ -1028,6 +1029,51 @@ func workspaceView(row gatewaydb.Workspace, workspaceAdminCount int64, canAdmini
 	return view
 }
 
+// requireWorkspaceFeatures applies Workspace restrictions to every caller,
+// including service accounts and webhook API keys.
+func (s *Service) requireWorkspaceFeatures(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth, ok := requestAuthState(r.Context())
+		if !ok {
+			next.ServeHTTP(w, r)
+			return
+		}
+		workspaceID := auth.workspaceID
+		if auth.claims != nil {
+			workspaceID = auth.claims.WorkspaceID
+		}
+		if workspaceID == "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		var workspace agentzv1alpha1.Workspace
+		key := ctrlclient.ObjectKey{Name: agentzv1alpha1.ScopeNamespace(
+			agentzv1alpha1.ResourceScopeWorkspace, workspaceID,
+		)}
+		err := s.k8sClient.Get(r.Context(), key, &workspace)
+		if err != nil {
+			writeError(w, r, mapKubeHTTPError("get Workspace", err))
+			return
+		}
+		auth.workspaceType = workspace.Spec.Type
+		path := chi.RouteContext(r.Context()).RoutePattern()
+		if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding &&
+			(strings.HasPrefix(path, "/api/workflow/") ||
+				path == "/api/dashboard" ||
+				strings.HasPrefix(path, "/api/agent/{agentName}/dashboard")) {
+			writeError(w, r, newAPIError(
+				http.StatusForbidden,
+				"feature_disabled",
+				"workflows and dashboards are disabled in coding workspaces",
+				nil,
+			))
+			return
+		}
+		ctx := context.WithValue(r.Context(), authContextKey{}, auth)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
 func (s *Service) ensureWorkspaceResource(ctx context.Context, row gatewaydb.Workspace) error {
 	tenant := &agentzv1alpha1.Tenant{}
 	tenantName := agentzv1alpha1.ScopeNamespace(
@@ -1066,6 +1112,7 @@ func (s *Service) ensureWorkspaceResource(ctx context.Context, row gatewaydb.Wor
 				)},
 			},
 			Spec: agentzv1alpha1.WorkspaceSpec{
+				Type:                          agentzv1alpha1.WorkspaceType(row.Type),
 				WorkspaceID:                   row.ID,
 				OrganizationID:                row.OrganizationID,
 				ProvisioningAttempt:           row.ProvisioningAttempt,
@@ -1079,7 +1126,8 @@ func (s *Service) ensureWorkspaceResource(ctx context.Context, row gatewaydb.Wor
 	}
 	workspaceMismatch := workspace.Spec.WorkspaceID != row.ID
 	organizationMismatch := workspace.Spec.OrganizationID != row.OrganizationID
-	if workspaceMismatch || organizationMismatch {
+	typeMismatch := workspace.Spec.Type != agentzv1alpha1.WorkspaceType(row.Type)
+	if workspaceMismatch || organizationMismatch || typeMismatch {
 		return fmt.Errorf("workspace resource identity conflicts with database state")
 	}
 	selected, err := s.workspaceResourceSelection(ctx, row.ID, row.OrganizationID)

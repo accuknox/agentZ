@@ -25413,6 +25413,8 @@ paths:
           description: Agent resource created.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "409":
           $ref: '#/components/responses/Conflict'
         "415":
@@ -25468,6 +25470,8 @@ paths:
           description: Agent resource updated.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "409":
@@ -25526,6 +25530,8 @@ paths:
           description: One page of dashboard summaries.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "500":
@@ -25554,6 +25560,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/Dashboard'
           description: Dashboard created.
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "409":
           $ref: '#/components/responses/Conflict'
         "413":
@@ -25574,6 +25582,8 @@ paths:
       responses:
         "204":
           description: Dashboard deleted.
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "500":
@@ -25593,6 +25603,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/Dashboard'
           description: Dashboard definition.
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "500":
@@ -25627,6 +25639,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/QueryDashboardResponse'
           description: Per-widget query results.
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "422":
           $ref: '#/components/responses/UnprocessableContent'
         "429":
@@ -25663,6 +25677,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/PublishDashboardDataResponse'
           description: Data accepted or an identical retry replayed.
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "409":
           $ref: '#/components/responses/Conflict'
         "413":
@@ -25709,6 +25725,8 @@ paths:
           description: One 25-row table page.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "422":
@@ -26783,6 +26801,8 @@ paths:
           description: One page of dashboard summaries.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "500":
           $ref: '#/components/responses/InternalError'
       security:
@@ -41390,6 +41410,8 @@ paths:
           description: Workflows deleted.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "415":
@@ -41421,6 +41443,8 @@ paths:
           description: Workflow summaries for an agent.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "500":
           $ref: '#/components/responses/InternalError'
       security:
@@ -41450,6 +41474,8 @@ paths:
           description: Workflow created.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "409":
@@ -41488,6 +41514,8 @@ paths:
           description: Workflow definition.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "500":
@@ -41548,6 +41576,8 @@ paths:
           description: Paginated workflow runs for a workflow.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "500":
@@ -41582,6 +41612,8 @@ paths:
           description: Workflow run deleted.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "500":
@@ -41619,6 +41651,8 @@ paths:
           description: Workflow run details.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "500":
@@ -41665,6 +41699,8 @@ paths:
           description: WorkflowRun node status updated.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "409":
@@ -41711,6 +41747,8 @@ paths:
           description: WorkflowRun status updated.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "409":
@@ -41755,6 +41793,8 @@ paths:
           description: Stream of workflow run updates.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "415":
@@ -41795,6 +41835,8 @@ paths:
           description: Paginated workflow schedules for a workflow.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "500":
           $ref: '#/components/responses/InternalError'
       security:
@@ -41830,6 +41872,8 @@ paths:
           description: Workflow schedule created.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "409":
@@ -41870,6 +41914,8 @@ paths:
           description: Workflow schedule deleted.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "500":
@@ -41913,6 +41959,8 @@ paths:
           description: Workflow schedule updated.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "409":
@@ -41957,6 +42005,8 @@ paths:
           description: Workflow run accepted.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "409":
@@ -42010,6 +42060,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "401":
           $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "409":
@@ -42046,6 +42098,8 @@ paths:
           description: Paginated workflow schedules for an agent.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "500":
           $ref: '#/components/responses/InternalError'
       security:
@@ -42072,6 +42126,8 @@ paths:
           description: Paginated webhook trigger rows for an agent.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "500":
           $ref: '#/components/responses/InternalError'
       security:

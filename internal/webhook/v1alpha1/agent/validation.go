@@ -106,6 +106,20 @@ func (v *Validator) validateAgent(ctx context.Context, agt *agentzv1alpha1.Agent
 	var allErrs field.ErrorList
 	specPath := field.NewPath("spec")
 
+	if agt.Spec.Memory.Enabled {
+		var workspace agentzv1alpha1.Workspace
+		err := v.reader.Get(ctx, client.ObjectKey{Name: agt.Namespace}, &workspace)
+		if err != nil {
+			return append(allErrs, field.InternalError(specPath.Child("memory"), err))
+		}
+		if workspace.Spec.Type == agentzv1alpha1.WorkspaceTypeCoding {
+			allErrs = append(allErrs, field.Forbidden(
+				specPath.Child("memory"),
+				"memory is disabled in coding workspaces",
+			))
+		}
+	}
+
 	if agt.Name == agentzv1alpha1.AgentNameMCPConnection {
 		allErrs = append(
 			allErrs,

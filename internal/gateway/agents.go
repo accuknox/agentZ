@@ -319,6 +319,17 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	auth, _ := requestAuthState(r.Context())
+	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding && req.Memory != nil && req.Memory.Enabled {
+		writeError(w, r, newAPIError(
+			http.StatusForbidden,
+			"feature_disabled",
+			"memory is disabled in coding workspaces",
+			nil,
+		))
+		return
+	}
+
 	name, fields := validateCreateAgentRequest(req)
 	envFields, serr := s.validateAgentSandbox(r.Context(), ns, req.Sandbox)
 	fields = append(fields, envFields...)
@@ -426,16 +437,12 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		}
 		exceeded := agentquota.Measure(agents).Add(agt.Spec.Resources).Exceeded(*tenant.Spec.AgentQuota)
 		if exceeded.Count || exceeded.CPU || exceeded.Memory {
-			writeError(
-				w,
-				r,
-				newAPIError(
-					http.StatusConflict,
-					"quota_exceeded",
-					"Tenant Agent quota exceeded",
-					errors.New("agent allocation exceeds tenant quota"),
-				),
-			)
+			writeError(w, r, newAPIError(
+				http.StatusConflict,
+				"quota_exceeded",
+				"Tenant Agent quota exceeded",
+				errors.New("agent allocation exceeds tenant quota"),
+			))
 			return
 		}
 	}
@@ -566,18 +573,25 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 	}
 	ns := access.namespace
 
+	auth, _ := requestAuthState(r.Context())
+	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding && req.Memory != nil && req.Memory.Enabled {
+		writeError(w, r, newAPIError(
+			http.StatusForbidden,
+			"feature_disabled",
+			"memory is disabled in coding workspaces",
+			nil,
+		))
+		return
+	}
+
 	if fields := validateUpdateAgentRequest(req); len(fields) > 0 {
-		writeError(
-			w,
-			r,
-			newAPIError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				fields...,
-			),
-		)
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
 		return
 	}
 	if req.Sandbox != nil {
@@ -587,17 +601,13 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 			return
 		}
 		if len(envFields) > 0 {
-			writeError(
-				w,
-				r,
-				newAPIError(
-					http.StatusBadRequest,
-					"invalid_request",
-					"request validation failed",
-					errBadRequest,
-					envFields...,
-				),
-			)
+			writeError(w, r, newAPIError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				envFields...,
+			))
 			return
 		}
 	}
@@ -609,35 +619,27 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 			return
 		}
 		if len(skillFields) > 0 {
-			writeError(
-				w,
-				r,
-				newAPIError(
-					http.StatusBadRequest,
-					"invalid_request",
-					"request validation failed",
-					errBadRequest,
-					skillFields...,
-				),
-			)
-			return
-		}
-	}
-	if !updateAgentRequestHasChanges(req) {
-		writeError(
-			w,
-			r,
-			newAPIError(
+			writeError(w, r, newAPIError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
 				errBadRequest,
-				gatewayapi.FieldError{
-					Field:   "body",
-					Message: "must include at least one mutable field",
-				},
-			),
-		)
+				skillFields...,
+			))
+			return
+		}
+	}
+	if !updateAgentRequestHasChanges(req) {
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field:   "body",
+				Message: "must include at least one mutable field",
+			},
+		))
 		return
 	}
 
@@ -973,17 +975,13 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 		return
 	}
 	if strings.TrimSpace(req.OwnerUserId) == "" {
-		writeError(
-			w,
-			r,
-			newAPIError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				gatewayapi.FieldError{Field: "owner_user_id", Message: "required"},
-			),
-		)
+		writeError(w, r, newAPIError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			gatewayapi.FieldError{Field: "owner_user_id", Message: "required"},
+		))
 		return
 	}
 

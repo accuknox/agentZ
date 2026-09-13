@@ -38,7 +38,7 @@ export default async function WorkflowsPage({
 }) {
   const [route, search] = await Promise.all([params, searchParams])
   const workspace = await getWorkspaceScope(route.orgSlug, route.workspaceSlug)
-  if (workspace.kind !== "ready") {
+  if (workspace.kind !== "ready" || workspace.workspace.type === "coding") {
     notFound()
   }
   const parsed = workflowsSearchParamsSchema.parse(search)

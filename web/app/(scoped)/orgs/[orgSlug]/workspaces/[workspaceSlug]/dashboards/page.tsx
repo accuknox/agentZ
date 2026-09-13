@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { notFound } from "next/navigation"
 import { Suspense, type ComponentProps } from "react"
 import * as z from "zod"
 import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
@@ -21,33 +22,27 @@ const searchSchema = z.object({
   to: z.iso.datetime().optional(),
 })
 
-export default async function DashboardsPage({
+export default function DashboardsPage({
   params,
   searchParams,
-}: {
-  params: Promise<{ orgSlug: string; workspaceSlug: string }>
-  searchParams: Promise<Record<string, string | string[] | undefined>>
-}) {
-  const route = await params
+}: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/dashboards">) {
   return (
     <main className="flex min-w-0 flex-1 flex-col">
       <AdministrationPageHeader title="Dashboards" />
       <Suspense fallback={<DashboardSkeleton />}>
-        <DashboardContent route={route} searchParams={searchParams} />
+        <DashboardContent params={params} searchParams={searchParams} />
       </Suspense>
     </main>
   )
 }
 
 async function DashboardContent({
-  route,
+  params,
   searchParams,
-}: {
-  route: { orgSlug: string; workspaceSlug: string }
-  searchParams: Promise<Record<string, string | string[] | undefined>>
-}) {
+}: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/dashboards">) {
+  const route = await params
   const scope = await getWorkspaceScope(route.orgSlug, route.workspaceSlug)
-  if (scope.kind !== "ready") return <AdministrationState kind="forbidden" />
+  if (scope.kind !== "ready" || scope.workspace.type === "coding") notFound()
   const parsed = searchSchema.safeParse(await searchParams)
   const search = parsed.success ? parsed.data : {}
   const listed = await listDashboardsCachedQuery(scope.workspace.id)

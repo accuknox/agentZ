@@ -101,6 +101,7 @@ import {
   type ChatSessionGroupBy,
   type ChatSessionPreference,
   type AgentStatus,
+  type Workspace,
   type ListChatSessionsResponse,
   type WatchChatSessionsEvent,
 } from "@/lib/gateway/client"
@@ -111,6 +112,7 @@ type PreferenceMutation = {
 }
 
 type NavSessionsProps = {
+  workspaceType: Workspace["type"]
   agents: ListAgentActionResponse
   initialPreferences: ChatSessionPreference
   initialSessions: ListChatSessionsResponse
@@ -223,6 +225,7 @@ export function NavSessions({
   initialPreferences,
   initialSessions,
   workspaceId,
+  workspaceType,
   workspacePath,
 }: NavSessionsProps) {
   const { isMobile, state } = useSidebar()
@@ -230,6 +233,7 @@ export function NavSessions({
 
   return (
     <NavSessionsContent
+      workspaceType={workspaceType}
       agents={agents}
       initialPreferences={initialPreferences}
       initialSessions={initialSessions}
@@ -269,6 +273,7 @@ function NavSessionsContent({
   initialPreferences,
   initialSessions,
   workspaceId,
+  workspaceType,
   workspacePath,
 }: NavSessionsProps) {
   const queryClient = useQueryClient()
@@ -607,22 +612,26 @@ function NavSessionsContent({
                         value={preferences.participant_user_ids}
                       />
                     </Field>
-                    <DropdownMenuSeparator className="-mx-3 w-[calc(100%+1.5rem)]" />
-                    <Field orientation="horizontal">
-                      <Checkbox
-                        checked={preferences.include_workflow_runs}
-                        id="chat-workflow-filter"
-                        onCheckedChange={(checked) =>
-                          updatePreferences((current) => ({
-                            ...current,
-                            include_workflow_runs: checked === true,
-                          }))
-                        }
-                      />
-                      <FieldLabel htmlFor="chat-workflow-filter">
-                        Show workflow run chats
-                      </FieldLabel>
-                    </Field>
+                    {workspaceType !== "coding" && (
+                      <>
+                        <DropdownMenuSeparator className="-mx-3 w-[calc(100%+1.5rem)]" />
+                        <Field orientation="horizontal">
+                          <Checkbox
+                            checked={preferences.include_workflow_runs}
+                            id="chat-workflow-filter"
+                            onCheckedChange={(checked) =>
+                              updatePreferences((current) => ({
+                                ...current,
+                                include_workflow_runs: checked === true,
+                              }))
+                            }
+                          />
+                          <FieldLabel htmlFor="chat-workflow-filter">
+                            Show workflow run chats
+                          </FieldLabel>
+                        </Field>
+                      </>
+                    )}
                   </FieldGroup>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>

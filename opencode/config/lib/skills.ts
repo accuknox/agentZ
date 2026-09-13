@@ -156,6 +156,11 @@ export async function listSkills(directory: string, worktree: string): Promise<S
       if (!skill) {
         continue
       }
+      if (
+        process.env.AGENTZ_WORKSPACE_TYPE === "coding" &&
+        (skill.name === "workflow-creator" || skill.name === "dashboard-creator")
+      )
+        continue
       skills.set(skill.name, skill)
     }
   }

@@ -37,6 +37,7 @@ export default async function AgentOwnershipPage({
   }
 
   const actionScope: AgentActionScope = {
+    workspaceType: scope.workspace.type,
     workspaceId: scope.workspace.id,
     workspacePath: `/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}`,
   }

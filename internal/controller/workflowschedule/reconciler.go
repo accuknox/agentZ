@@ -61,6 +61,16 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	var workspace agentzv1alpha1.Workspace
+	err = r.Get(ctx, client.ObjectKey{Name: schedule.Namespace}, &workspace)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("get workflow Workspace: %w", err)
+	}
+	if workspace.Spec.Type == agentzv1alpha1.WorkspaceTypeCoding {
+		// Admission rejects these resources; never execute them if it was bypassed.
+		return ctrl.Result{}, nil
+	}
+
 	if r.ControllerImage == "" {
 		return ctrl.Result{}, r.failSchedule(
 			ctx,

@@ -227,7 +227,9 @@ async function WorkspaceNavigation({
         agent.capabilities.delete_secrets
     )
   const showWorkflows =
-    agents.error === undefined && agents.agents.some((agent) => agent.capabilities.use)
+    workspace.type !== "coding" &&
+    agents.error === undefined &&
+    agents.agents.some((agent) => agent.capabilities.use)
   const showAgents = workspace.capabilities.agents.author || hasAgents
   const hasResources =
     lensCapabilities.read ||
@@ -258,6 +260,7 @@ async function WorkspaceNavigation({
             agents={agents}
             preferences={preference.data}
             workspaceId={workspace.id}
+            workspaceType={workspace.type}
             workspacePath={workspacePath}
           />
         </Suspense>
@@ -402,10 +405,12 @@ async function WorkspaceChatSessions({
   agents,
   preferences,
   workspaceId,
+  workspaceType,
   workspacePath,
 }: {
   agents: ListAgentActionResponse
   preferences: ChatSessionPreference
+  workspaceType: Workspace["type"]
   workspaceId: string
   workspacePath: WorkspacePath
 }) {
@@ -430,6 +435,7 @@ async function WorkspaceChatSessions({
       agents={agents}
       initialPreferences={preferences}
       initialSessions={sessions.data}
+      workspaceType={workspaceType}
       workspaceId={workspaceId}
       workspacePath={workspacePath}
     />

@@ -288,6 +288,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 type sandboxConfig struct {
+	WorkspaceType            agentzv1alpha1.WorkspaceType
 	Packages                 []string
 	AllowedHosts             []string
 	Model                    string
@@ -332,6 +333,12 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 		MCPRefs:                  []mcpRefConfig{},
 		Skills:                   []skillpkg.ManifestSkill{},
 	}
+	var workspace agentzv1alpha1.Workspace
+	err := r.Get(ctx, client.ObjectKey{Name: agt.Namespace}, &workspace)
+	if err != nil {
+		return cfg, fmt.Errorf("get Agent Workspace: %w", err)
+	}
+	cfg.WorkspaceType = workspace.Spec.Type
 	skillKeys := make([]types.NamespacedName, 0, len(agt.Spec.Skills))
 	seenSkills := make(map[types.NamespacedName]struct{}, len(agt.Spec.Skills))
 	for _, ref := range agt.Spec.Skills {

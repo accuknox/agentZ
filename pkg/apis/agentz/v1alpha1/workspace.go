@@ -83,8 +83,24 @@ const (
 	WorkspaceStateDeleting WorkspaceState = "Deleting"
 )
 
+// WorkspaceType determines which capabilities a Workspace provides.
+// +kubebuilder:validation:Enum=general;coding
+type WorkspaceType string
+
+const (
+	// WorkspaceTypeGeneral enables the full Agent feature set.
+	WorkspaceTypeGeneral WorkspaceType = "general"
+	// WorkspaceTypeCoding limits Agents to interactive coding.
+	WorkspaceTypeCoding WorkspaceType = "coding"
+)
+
 // WorkspaceSpec defines the identity and provisioning attempt of a Workspace.
 type WorkspaceSpec struct {
+	// Type is immutable because it controls Agent and workflow execution.
+	// +kubebuilder:default=general
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="type is immutable"
+	Type WorkspaceType `json:"type"`
+
 	// WorkspaceID is the immutable relational Workspace ID.
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=128

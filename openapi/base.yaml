@@ -690,6 +690,8 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateAgentRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
@@ -724,6 +726,8 @@ paths:
             schema:
               $ref: '#/components/schemas/UpdateAgentRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
@@ -2945,6 +2949,8 @@ paths:
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: Workflow summaries for an agent.
           content:
@@ -2974,6 +2980,8 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateWorkflowRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
@@ -3009,6 +3017,8 @@ paths:
             schema:
               $ref: '#/components/schemas/DeleteWorkflowsRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
@@ -3040,6 +3050,8 @@ paths:
         schema:
           $ref: '#/components/schemas/WorkflowName'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: Workflow definition.
           content:
@@ -3067,6 +3079,8 @@ paths:
       - $ref: '#/components/parameters/WorkflowScheduleSortByQuery'
       - $ref: '#/components/parameters/SortOrderQuery'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: Paginated workflow schedules for an agent.
           content:
@@ -3098,6 +3112,8 @@ paths:
       - $ref: '#/components/parameters/WorkflowScheduleSortByQuery'
       - $ref: '#/components/parameters/SortOrderQuery'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: Paginated workflow schedules for a workflow.
           content:
@@ -3130,6 +3146,8 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateWorkflowScheduleRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
@@ -3177,6 +3195,8 @@ paths:
             schema:
               $ref: '#/components/schemas/UpdateWorkflowScheduleRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
@@ -3217,6 +3237,8 @@ paths:
         schema:
           $ref: '#/components/schemas/WorkflowScheduleName'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '204':
           description: Workflow schedule deleted.
         '400':
@@ -3249,6 +3271,8 @@ paths:
         schema:
           $ref: '#/components/schemas/WorkflowScheduleName'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '202':
           description: Workflow run accepted.
           content:
@@ -3302,6 +3326,8 @@ paths:
               $ref: '#/components/schemas/WorkflowRunInputs'
           '*/*': {}
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
@@ -3336,6 +3362,8 @@ paths:
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: Paginated webhook trigger rows for an agent.
           content:
@@ -3394,6 +3422,8 @@ paths:
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: Paginated workflow runs for a workflow.
           content:
@@ -3431,6 +3461,8 @@ paths:
             schema:
               $ref: '#/components/schemas/WatchWorkflowRunsRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
@@ -3471,6 +3503,8 @@ paths:
         schema:
           $ref: '#/components/schemas/WorkflowRunName'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: Workflow run details.
           content:
@@ -3505,6 +3539,8 @@ paths:
         schema:
           $ref: '#/components/schemas/WorkflowRunName'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '204':
           description: Workflow run deleted.
         '400':
@@ -3544,6 +3580,8 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchWorkflowRunStatusRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
@@ -3595,6 +3633,8 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchWorkflowRunNodeStatusRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
@@ -3620,6 +3660,8 @@ paths:
       - $ref: '#/components/parameters/AgentNameQueryOptional'
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: One page of dashboard summaries.
           content:
@@ -3641,6 +3683,8 @@ paths:
       - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: One page of dashboard summaries.
           content:
@@ -3667,6 +3711,8 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateDashboardRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '201':
           description: Dashboard created.
           content:
@@ -3692,6 +3738,8 @@ paths:
       summary: Get an Agent dashboard definition.
       tags: [dashboards]
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: Dashboard definition.
           content:
@@ -3707,6 +3755,8 @@ paths:
       summary: Delete an Agent dashboard and its data.
       tags: [dashboards]
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '204':
           description: Dashboard deleted.
         '404':
@@ -3732,6 +3782,8 @@ paths:
             schema:
               $ref: '#/components/schemas/PublishDashboardDataRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: Data accepted or an identical retry replayed.
           content:
@@ -3765,6 +3817,8 @@ paths:
             schema:
               $ref: '#/components/schemas/QueryDashboardRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: Per-widget query results.
           content:
@@ -3804,6 +3858,8 @@ paths:
             minLength: 1
             maxLength: 80
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: One 25-row table page.
           content:

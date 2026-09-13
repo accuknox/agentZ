@@ -69,12 +69,11 @@ function createWorkflowContextPlugin(
 
   return Promise.resolve({
     async event(input) {
-      const sessionID = createdSessionID(input.event)
-      if (!agentName || !sessionID) {
+      if (!agentName || input.event.type !== "session.created") {
         return
       }
 
-      await loadSnapshot(sessionID)
+      await loadSnapshot(input.event.properties.info.id)
     },
     async "experimental.chat.system.transform"(input, output) {
       if (!agentName || !input.sessionID) {
@@ -126,8 +125,9 @@ function escapeXML(value: string) {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
 }
 
-export default (async (input) =>
-  createWorkflowContextPlugin(input, {
+export default (async (input) => {
+  if (process.env.AGENTZ_WORKSPACE_TYPE === "coding") return {}
+  return createWorkflowContextPlugin(input, {
     listSummaries: async ({ agentName }) => {
       const result = await listWorkflowSummaries({
         path: {
@@ -139,20 +139,5 @@ export default (async (input) =>
       return result.data
     },
     agentName: workflowAgentName(),
-  })) satisfies Plugin
-
-function createdSessionID(event: { type: string; properties: unknown }) {
-  if (event.type !== "session.created") {
-    return ""
-  }
-
-  if (typeof event.properties !== "object" || event.properties === null) {
-    return ""
-  }
-
-  if (!("sessionID" in event.properties)) {
-    return ""
-  }
-
-  return typeof event.properties.sessionID === "string" ? event.properties.sessionID : ""
-}
+  })
+}) satisfies Plugin

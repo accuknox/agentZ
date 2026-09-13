@@ -41,9 +41,11 @@ export default async function WorkspaceAgentPage({
                 <span className="text-muted-foreground">{detail.agent.sandbox.scope}</span>
                 <span>{detail.agent.sandbox.name}</span>
               </SummaryRow>
-              <SummaryRow label="Memory">
-                {detail.agent.memory.enabled ? "Enabled" : "Disabled"}
-              </SummaryRow>
+              {scope.workspace.type !== "coding" && (
+                <SummaryRow label="Memory">
+                  {detail.agent.memory.enabled ? "Enabled" : "Disabled"}
+                </SummaryRow>
+              )}
               <SummaryRow label="Created">
                 <RelativeDateTime value={detail.agent.created_at} />
               </SummaryRow>

@@ -46,13 +46,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion"
-import { Badge } from "@/components/ui/badge"
 import { useChatModelStorage } from "@/components/blocks/chat/use-chat-model-storage"
 import { useFileWorkspace } from "@/components/blocks/chat/file-workspace-store"
 import { NewSessionGreeting } from "@/components/blocks/chat/new-session-greeting"
@@ -1950,60 +1943,6 @@ function TimelineRowView({
             <span className="animate-pulse">Thinking...</span>
           </span>
         </div>
-      )
-    }
-
-    case "diff-summary": {
-      const visible = row.diffs.slice(0, 10)
-      return (
-        <Accordion className="w-full" type="multiple">
-          {visible.map((diff) => {
-            const value = diff.file ?? diff.patch ?? ""
-            const path = value.replace(/\\/g, "/")
-            const slash = path.lastIndexOf("/")
-            const stat =
-              diff.status === "added"
-                ? "Added"
-                : diff.status === "deleted"
-                  ? "Deleted"
-                  : `+${diff.additions} -${diff.deletions}`
-            return (
-              <AccordionItem key={`${value}:${diff.status ?? "modified"}`} value={value}>
-                <AccordionTrigger className="gap-3 py-1.5 hover:no-underline">
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium">
-                      {slash >= 0 ? path.slice(slash + 1) : path}
-                    </div>
-                    {value.includes("/") ? (
-                      <div className="text-muted-foreground truncate text-xs">
-                        {slash > 0 ? path.slice(0, slash) : "/"}
-                      </div>
-                    ) : null}
-                  </div>
-                  <Badge variant="outline">{stat}</Badge>
-                </AccordionTrigger>
-                <AccordionContent>
-                  {diff.patch ? (
-                    <pre className="max-w-full overflow-auto font-mono text-xs wrap-break-word whitespace-pre-wrap">
-                      {diff.patch}
-                    </pre>
-                  ) : (
-                    <div className="text-muted-foreground font-mono text-xs">
-                      +{diff.additions} -{diff.deletions}
-                    </div>
-                  )}
-                </AccordionContent>
-              </AccordionItem>
-            )
-          })}
-          {row.diffs.length > visible.length ? (
-            <div className="text-muted-foreground py-1 text-xs">
-              +{row.diffs.length - visible.length} more
-            </div>
-          ) : null}
-          {row.title ? <div className="text-foreground pb-1 text-sm">{row.title}</div> : null}
-          {row.body ? <MessageResponse>{row.body}</MessageResponse> : null}
-        </Accordion>
       )
     }
 

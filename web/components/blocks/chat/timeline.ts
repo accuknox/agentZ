@@ -1,11 +1,4 @@
-import type {
-  AssistantMessage,
-  Message,
-  Part,
-  SnapshotFileDiff,
-  ToolPart,
-  UserMessage,
-} from "@opencode-ai/sdk/v2"
+import type { AssistantMessage, Message, Part, ToolPart, UserMessage } from "@opencode-ai/sdk/v2"
 import { attachmentFromPart, type ChatAttachment } from "@/components/blocks/chat/attachments"
 import { type OptimisticUserMessage } from "@/components/blocks/chat/use-opencode-chat"
 import { describeMessageError } from "@/components/blocks/chat/errors"
@@ -41,7 +34,6 @@ export type TimelineRow =
   | { createdAt: number; entries: RenderEntry[]; key: string; type: "assistant" }
   // "Thinking..." placeholder rendered while the active turn has no content yet.
   | { key: string; type: "thinking" }
-  | { body?: string; diffs: SnapshotFileDiff[]; key: string; title?: string; type: "diff-summary" }
   | { key: string; type: "checkpoint"; variant: "compaction" | "interrupted" }
   | { body: string; key: string; label: string; type: "assistant-error" }
 
@@ -374,19 +366,6 @@ export function projectTimeline(input: ProjectInput): {
       turnKey: `assistant:${turn.user.id}`,
       userIsLast: index === lastIndex,
     })
-
-    // Only completed turns: on the active turn the snapshot lands mid-stream
-    // and would flicker.
-    const diffs = turn.user.summary?.diffs ?? []
-    if (diffs.length > 0 && (index !== lastIndex || !input.isBusy)) {
-      out.push({
-        body: turn.user.summary?.body,
-        diffs,
-        key: `diff:${turn.user.id}`,
-        title: turn.user.summary?.title,
-        type: "diff-summary",
-      })
-    }
   })
 
   return { reverted, rows: out }

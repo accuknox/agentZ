@@ -92,7 +92,12 @@ func (s *Service) ListCodingProjects(w http.ResponseWriter, r *http.Request) {
 	}
 	projects := make([]gatewayapi.CodingProject, 0, len(rows))
 	for _, row := range rows {
+		var agentName *string
+		if row.LastAgentName.Valid {
+			agentName = &row.LastAgentName.String
+		}
 		projects = append(projects, gatewayapi.CodingProject{
+			LastAgentName: agentName,
 			Id:            row.ID,
 			Name:          row.Name,
 			Repository:    row.Repository,
@@ -188,6 +193,9 @@ func (s *Service) GetCodingProject(w http.ResponseWriter, r *http.Request, proje
 		Worktrees: []gatewayapi.CodingWorktree{},
 		Threads:   []gatewayapi.CodingThread{},
 	}
+	if project.LastAgentName.Valid {
+		result.Project.LastAgentName = &project.LastAgentName.String
+	}
 	for _, tree := range trees {
 		if capabilities[tree.AgentName].Use {
 			result.Worktrees = append(result.Worktrees, codingWorktree(tree))
@@ -225,6 +233,29 @@ func (s *Service) RenameCodingProject(w http.ResponseWriter, r *http.Request, pr
 	}
 	if count == 0 {
 		writeError(w, r, newAPIError(http.StatusNotFound, "not_found", "project not found", nil))
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// UpdateCodingProjectPreference remembers the agent for this personal project.
+func (s *Service) UpdateCodingProjectPreference(w http.ResponseWriter, r *http.Request, projectId string) {
+	var body gatewayapi.UpdateCodingProjectPreferenceJSONBody
+	if !decodeJSONBody(w, r, &body, false) {
+		return
+	}
+	access, apiErr := s.codingAccess(r.Context(), body.AgentName)
+	if apiErr != nil {
+		writeError(w, r, apiErr)
+		return
+	}
+	count, err := s.queries.GatewayUpdateCodingProjectPreference(r.Context(), gatewaydb.GatewayUpdateCodingProjectPreferenceParams{ID: projectId, WorkspaceID: access.workspaceID, OwnerID: access.claims.UserID, AgentName: pgtype.Text{String: body.AgentName, Valid: true}})
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	if count == 0 {
+		writeError(w, r, mapGatewayStoreError("get project", pgx.ErrNoRows))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -491,13 +522,9 @@ func (s *Service) GetCodingThread(w http.ResponseWriter, r *http.Request, agentN
 		writeError(w, r, apiErr)
 		return
 	}
-	thread, err := s.queries.GatewayGetCodingThread(r.Context(), gatewaydb.GatewayGetCodingThreadParams{WorkspaceID: access.workspaceID, AgentName: agentName, SessionID: pgtype.Text{String: sessionId, Valid: true}})
+	thread, err := s.resolveCodingSession(r.Context(), access, agentName, sessionId)
 	if err != nil {
 		writeError(w, r, mapGatewayStoreError("get thread", err))
-		return
-	}
-	if thread.CodingProject.OwnerID != access.claims.UserID {
-		writeError(w, r, resourceForbidden(errors.New("only the project owner can use this conversation")))
 		return
 	}
 	writeJSON(w, http.StatusOK, gatewayapi.CodingThread{
@@ -520,16 +547,12 @@ func (s *Service) SuggestCodingText(w http.ResponseWriter, r *http.Request, agen
 		writeError(w, r, apiErr)
 		return
 	}
-	row, err := s.queries.GatewayGetCodingThread(r.Context(), gatewaydb.GatewayGetCodingThreadParams{WorkspaceID: access.workspaceID, AgentName: agentName, SessionID: pgtype.Text{String: sessionId, Valid: true}})
+	row, err := s.resolveCodingSession(r.Context(), access, agentName, sessionId)
 	if err != nil {
 		writeError(w, r, mapGatewayStoreError("get thread", err))
 		return
 	}
-	if row.CodingProject.OwnerID != access.claims.UserID {
-		writeError(w, r, resourceForbidden(errors.New("only the project owner can use GitHub")))
-		return
-	}
-	result, err := s.codingSuggestion(r.Context(), access, row, input)
+	result, err := s.codingSuggestion(r.Context(), access, row.CodingWorktree, row.CodingProject, sessionId, input)
 	if err != nil {
 		writeError(w, r, newAPIError(http.StatusBadGateway, "generation_failed", err.Error(), err))
 		return
@@ -537,8 +560,8 @@ func (s *Service) SuggestCodingText(w http.ResponseWriter, r *http.Request, agen
 	writeJSON(w, http.StatusOK, result)
 }
 
-func (s *Service) codingSuggestion(ctx context.Context, access resourceAccess, row gatewaydb.GatewayGetCodingThreadRow, input gatewayapi.CodingTextRequest) (gatewayapi.CodingTextSuggestion, error) {
-	agentName, sessionId := row.CodingWorktree.AgentName, row.CodingThread.SessionID.String
+func (s *Service) codingSuggestion(ctx context.Context, access resourceAccess, tree gatewaydb.CodingWorktree, project gatewaydb.CodingProject, sessionID string, input gatewayapi.CodingTextRequest) (gatewayapi.CodingTextSuggestion, error) {
+	agentName := tree.AgentName
 	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
 	var name string
@@ -557,7 +580,7 @@ func (s *Service) codingSuggestion(ctx context.Context, access resourceAccess, r
 		name = "pr.tmpl"
 		data.Text = *input.Text
 	case gatewayapi.CodingTextCommit:
-		status, err := s.codingFilesystem(ctx, access.namespace, row.CodingWorktree, row.CodingProject, false, gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitDiff, Comparison: new(gatewayapi.CodingGitStaged)})
+		status, err := s.codingFilesystem(ctx, access.namespace, tree, project, false, gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitDiff, Comparison: new(gatewayapi.CodingGitStaged)})
 		if err != nil {
 			return gatewayapi.CodingTextSuggestion{}, newAPIError(http.StatusConflict, "git_conflict", err.Error(), err)
 		}
@@ -601,13 +624,13 @@ func (s *Service) codingSuggestion(ctx context.Context, access resourceAccess, r
 	if err != nil {
 		return gatewayapi.CodingTextSuggestion{}, err
 	}
-	directory := "/home/agentz/" + row.CodingWorktree.Directory
+	directory := "/home/agentz/" + tree.Directory
 	body := gatewayapi.SessionCreateJSONRequestBody{
-		ParentID: &sessionId, Title: new("Source control suggestion"),
+		ParentID: &sessionID, Title: new("Source control suggestion"),
 		Permission: &gatewayapi.OpencodePermissionRuleset{{Permission: "*", Pattern: "*", Action: gatewayapi.Deny}},
 	}
 	if input.Model == nil {
-		parent, err := client.SessionGetWithResponse(ctx, agentName, sessionId, &gatewayapi.SessionGetParams{Directory: &directory})
+		parent, err := client.SessionGetWithResponse(ctx, agentName, sessionID, &gatewayapi.SessionGetParams{Directory: &directory})
 		if err != nil || parent.JSON200 == nil {
 			return gatewayapi.CodingTextSuggestion{}, newAPIError(http.StatusBadGateway, "generation_failed", "Could not load the thread's model", err)
 		}
@@ -693,7 +716,7 @@ func (s *Service) RunCodingGit(w http.ResponseWriter, r *http.Request, worktreeI
 		return
 	}
 	if row.CodingProject.OwnerID != claims.UserID {
-		writeError(w, r, resourceForbidden(errors.New("only the project owner can use this checkout")))
+		writeError(w, r, mapGatewayStoreError("get checkout", pgx.ErrNoRows))
 		return
 	}
 	access, apiErr := s.codingAccess(r.Context(), row.CodingWorktree.AgentName)
@@ -855,6 +878,56 @@ func (s *Service) codingFilesystem(ctx context.Context, namespace string, tree g
 	return result, err
 }
 
+// resolveCodingSession verifies ancestry before exposing or cataloging a child.
+// Tasks create sessions inside the engine, so their first direct link can arrive
+// before the gateway has seen any metadata for them.
+func (s *Service) resolveCodingSession(ctx context.Context, access resourceAccess, agentName, sessionID string) (gatewaydb.GatewayResolveCodingSessionRow, error) {
+	params := gatewaydb.GatewayResolveCodingSessionParams{WorkspaceID: access.workspaceID, AgentName: agentName, SessionID: sessionID, OwnerID: access.claims.UserID}
+	row, err := s.queries.GatewayResolveCodingSession(ctx, params)
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return row, err
+	}
+	client, err := s.codingClient(ctx, access.namespace, agentName, s.outboundHTTP)
+	if err != nil {
+		return row, err
+	}
+	var children []gatewayapi.OpencodeSession
+	seen := make(map[string]bool)
+	for {
+		if seen[params.SessionID] {
+			return row, pgx.ErrNoRows
+		}
+		seen[params.SessionID] = true
+		response, err := client.SessionGetWithResponse(ctx, agentName, params.SessionID, nil)
+		if err != nil {
+			return row, err
+		}
+		if response.JSON200 == nil || response.JSON200.ParentID == nil {
+			return row, pgx.ErrNoRows
+		}
+		children = append(children, *response.JSON200)
+		params.SessionID = *response.JSON200.ParentID
+		row, err = s.queries.GatewayResolveCodingSession(ctx, params)
+		if errors.Is(err, pgx.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return row, err
+		}
+		for _, child := range children {
+			if path.Clean(child.Directory) != "/home/agentz/"+row.CodingWorktree.Directory {
+				return row, pgx.ErrNoRows
+			}
+		}
+		for i := len(children) - 1; i >= 0; i-- {
+			if err := s.storeOpenCodeSession(ctx, access.workspaceID, agentName, gatewaydb.ChatSessionKindChat, children[i]); err != nil {
+				return row, err
+			}
+		}
+		return row, nil
+	}
+}
+
 // enforceCodingSession prevents the generic engine routes from bypassing
 // project-bound creation, directory routing, and shared-worktree revert rules.
 func (s *Service) enforceCodingSession(r *http.Request, access resourceAccess, route *opencodeRouteMatch, agentName string) (func(), *apiError) {
@@ -873,34 +946,98 @@ func (s *Service) enforceCodingSession(r *http.Request, access resourceAccess, r
 	if r.Method == http.MethodPost && (route.Path == opencodeSessionCreatePath || route.Path == "/api/opencode/{agentName}/api/session" || strings.HasSuffix(route.Path, "/fork")) {
 		return nil, newAPIError(http.StatusBadRequest, "project_required", "Start Coding threads from a project", nil)
 	}
+	if r.Method == http.MethodPost && strings.HasSuffix(route.Path, "/share") {
+		return nil, newAPIError(http.StatusForbidden, "private_project", "Coding conversations are private", nil)
+	}
 	if strings.Contains(route.Path, "/experimental/worktree") || strings.Contains(route.Path, "/experimental/workspace") || strings.HasSuffix(route.Path, "/move-session") {
 		return nil, newAPIError(http.StatusConflict, "managed_checkout", "Manage Coding checkouts from the project", nil)
+	}
+	claims, apiErr := externalWorkspaceClaims(r.Context())
+	if apiErr != nil {
+		return nil, apiErr
 	}
 	sessionID := route.Params["sessionID"]
 	var tree gatewaydb.CodingWorktree
 	if sessionID != "" {
-		thread, err := s.queries.GatewayGetCodingThread(r.Context(), gatewaydb.GatewayGetCodingThreadParams{WorkspaceID: access.workspaceID, AgentName: agentName, SessionID: pgtype.Text{String: sessionID, Valid: true}})
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil // Workflow sessions remain supported.
-		}
+		thread, err := s.resolveCodingSession(r.Context(), access, agentName, sessionID)
 		if err != nil {
-			return nil, mapGatewayStoreError("get coding thread", err)
+			return nil, mapGatewayStoreError("get conversation", err)
 		}
 		tree = thread.CodingWorktree
-	} else if strings.Contains(route.Path, "/pty") && r.Method == http.MethodPost {
-		directory := strings.TrimPrefix(r.URL.Query().Get("directory"), "/home/agentz/")
-		tree, err = s.queries.GatewayCodingDirectory(r.Context(), gatewaydb.GatewayCodingDirectoryParams{WorkspaceID: access.workspaceID, AgentName: agentName, Directory: directory})
-		if err != nil {
-			return nil, mapGatewayStoreError("get terminal checkout", err)
-		}
 	} else {
-		return nil, nil
+		endpoint := strings.TrimPrefix(route.Path, "/api/opencode/{agentName}")
+		catalog := false
+		// These catalogs are agent capabilities, available before a checkout exists.
+		if r.Method == http.MethodGet {
+			switch endpoint {
+			case "/agent", "/provider", "/provider/auth", "/config", "/config/providers", "/command", "/skill", "/experimental/tool", "/experimental/tool/ids", "/global/health", "/pty/shells":
+				catalog = true
+			}
+		}
+		switch {
+		case catalog:
+		case endpoint == "/event", endpoint == "/session", endpoint == "/session/status",
+			strings.HasPrefix(endpoint, "/permission"), strings.HasPrefix(endpoint, "/question"),
+			strings.HasPrefix(endpoint, "/pty"), strings.HasPrefix(endpoint, "/api/pty"),
+			strings.HasPrefix(endpoint, "/file"), strings.HasPrefix(endpoint, "/find"), endpoint == "/vcs":
+			// The engine scopes these services by directory. Its global event and
+			// cursor-based v2 session APIs do not, so they are deliberately excluded.
+		default:
+			return nil, mapGatewayStoreError("get resource", pgx.ErrNoRows)
+		}
+		directory := r.URL.Query().Get("directory")
+		if directory == "" {
+			directory = r.URL.Query().Get("location[directory]")
+		}
+		if directory == "" {
+			directory = r.Header.Get("X-Opencode-Directory")
+		}
+		if catalog && (directory == "" || path.Clean(directory) == "/home/agentz") {
+			// Pre-checkout catalogs must use the agent home, never a caller's
+			// workspace selector or a previously active project's configuration.
+			query := r.URL.Query()
+			query.Set("directory", "/home/agentz")
+			query.Set("location[directory]", "/home/agentz")
+			query.Del("workspace")
+			query.Del("location[workspace]")
+			r.URL.RawQuery = query.Encode()
+			r.Header.Del("X-Opencode-Directory")
+			r.Header.Del("X-Opencode-Workspace")
+			return nil, nil
+		}
+		directory = strings.TrimPrefix(path.Clean(directory), "/home/agentz/")
+		tree, err = s.queries.GatewayOwnedCodingDirectory(r.Context(), gatewaydb.GatewayOwnedCodingDirectoryParams{WorkspaceID: access.workspaceID, AgentName: agentName, OwnerID: claims.UserID, Directory: directory})
+		if err != nil {
+			return nil, mapGatewayStoreError("get checkout", err)
+		}
+		if strings.HasPrefix(endpoint, "/file") || strings.HasPrefix(endpoint, "/find") {
+			clean := path.Clean(r.URL.Query().Get("path"))
+			if path.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, "../") {
+				return nil, mapGatewayStoreError("get file", pgx.ErrNoRows)
+			}
+		}
+		if r.Method == http.MethodPost && (endpoint == "/pty" || endpoint == "/api/pty") {
+			var body gatewayapi.PtyCreateJSONBody
+			if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&body); err != nil {
+				return nil, newAPIError(http.StatusBadRequest, "invalid_request", "Invalid terminal request", err)
+			}
+			body.Cwd = new("/home/agentz/" + tree.Directory)
+			raw, err := json.Marshal(body)
+			if err != nil {
+				return nil, newAPIError(http.StatusInternalServerError, "internal_error", "Could not prepare terminal", err)
+			}
+			r.Body = io.NopCloser(bytes.NewReader(raw))
+			r.ContentLength = int64(len(raw))
+		}
 	}
 	// A synchronous prompt holds the project lock until generation finishes.
 	// Its cancellation and input responses must be able to reach the agent.
 	response := false
 	switch route.Path {
-	case "/api/opencode/{agentName}/session/{sessionID}/abort",
+	case "/api/opencode/{agentName}/permission/{requestID}/reply",
+		"/api/opencode/{agentName}/question/{requestID}/reply",
+		"/api/opencode/{agentName}/question/{requestID}/reject",
+		"/api/opencode/{agentName}/session/{sessionID}/abort",
 		"/api/opencode/{agentName}/session/{sessionID}/permissions/{permissionID}",
 		"/api/opencode/{agentName}/api/session/{sessionID}/interrupt",
 		"/api/opencode/{agentName}/api/session/{sessionID}/permission/{requestID}/reply",
@@ -928,8 +1065,12 @@ func (s *Service) enforceCodingSession(r *http.Request, access resourceAccess, r
 		return release, newAPIError(http.StatusConflict, "shared_worktree", "Filesystem revert is unavailable after multiple threads have used this worktree", nil)
 	}
 	query := r.URL.Query()
+	if strings.HasSuffix(route.Path, "/session") {
+		query.Del("path")
+	}
 	query.Set("directory", "/home/agentz/"+tree.Directory)
 	query.Set("location[directory]", "/home/agentz/"+tree.Directory)
+	query.Del("scope")
 	query.Del("workspace")
 	query.Del("location[workspace]")
 	r.URL.RawQuery = query.Encode()

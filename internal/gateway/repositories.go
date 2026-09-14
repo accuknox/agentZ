@@ -275,7 +275,7 @@ func (s *Service) refreshCodingSnapshot(ctx context.Context, snapshot gatewaydb.
 		return
 	}
 	if rows == 1 && !bytes.Equal(before, body) {
-		if err := s.queries.GatewayNotifyCoding(save, project.CodingProject.WorkspaceID); err != nil {
+		if err := s.queries.GatewayNotifyCoding(save, gatewaydb.GatewayNotifyCodingParams{WorkspaceID: project.CodingProject.WorkspaceID, OwnerID: project.CodingProject.OwnerID}); err != nil {
 			slog.ErrorContext(ctx, "notify coding refresh", "error", err)
 		}
 	}
@@ -440,7 +440,7 @@ func (s *Service) WatchCoding(w http.ResponseWriter, r *http.Request) {
 		writeInternalError(w, r, errors.New("streaming is unavailable"))
 		return
 	}
-	events, release := s.codingEvents.subscribe(access.workspaceID)
+	events, release := s.codingEvents.subscribe(access.workspaceID + "/" + access.claims.UserID)
 	defer release()
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")

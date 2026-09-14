@@ -6,7 +6,7 @@ export const zChatSessionKind = z.enum(["chat", "workflow_run"])
 
 export const zChatSessionStatus = z.enum(["idle", "busy", "retry"])
 
-export const zChatSessionGroupBy = z.enum(["none", "agent", "status", "date"])
+export const zChatSessionGroupBy = z.enum(["none", "agent", "status", "date", "project"])
 
 export const zChatSessionDateBucket = z.enum(["today", "yesterday", "previous_7_days", "older"])
 
@@ -309,6 +309,7 @@ export const zAgentName = z
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
 
 export const zChatSession = z.object({
+  project_id: z.string().optional(),
   agent_name: zAgentName,
   session_id: z.string(),
   title: z.string(),
@@ -317,27 +318,6 @@ export const zChatSession = z.object({
   created_at: z.iso.datetime({ offset: true }),
   updated_at: z.iso.datetime({ offset: true }),
   participants: z.array(zChatSessionParticipant),
-})
-
-export const zChatSessionGroup = z.object({
-  group_by: zChatSessionGroupBy,
-  key: z.string(),
-  label: z.string(),
-  agent_name: zAgentName.optional(),
-  status: zChatSessionStatus.optional(),
-  date_bucket: zChatSessionDateBucket.optional(),
-  contains_active: z.boolean(),
-  sessions: z.array(zChatSession),
-  has_next_page: z.boolean(),
-  next_page_token: z.string(),
-})
-
-export const zListChatSessionsResponse = z.object({
-  sessions: z.array(zChatSession),
-  groups: z.array(zChatSessionGroup),
-  participant_filters: z.array(zChatSessionParticipant),
-  has_next_page: z.boolean(),
-  next_page_token: z.string(),
 })
 
 export const zChatSessionPreference = z.object({
@@ -2404,6 +2384,7 @@ export const zDashboardTablePage = z.object({
 })
 
 export const zCodingProject = z.object({
+  last_agent_name: z.string().optional(),
   id: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
   name: z.string(),
   repository_id: z.coerce
@@ -2417,6 +2398,28 @@ export const zCodingProject = z.object({
   repository: z.string(),
   default_branch: z.string(),
   created_at: z.iso.datetime({ offset: true }),
+})
+
+export const zChatSessionGroup = z.object({
+  project: zCodingProject.optional(),
+  group_by: zChatSessionGroupBy,
+  key: z.string(),
+  label: z.string(),
+  agent_name: zAgentName.optional(),
+  status: zChatSessionStatus.optional(),
+  date_bucket: zChatSessionDateBucket.optional(),
+  contains_active: z.boolean(),
+  sessions: z.array(zChatSession),
+  has_next_page: z.boolean(),
+  next_page_token: z.string(),
+})
+
+export const zListChatSessionsResponse = z.object({
+  sessions: z.array(zChatSession),
+  groups: z.array(zChatSessionGroup),
+  participant_filters: z.array(zChatSessionParticipant),
+  has_next_page: z.boolean(),
+  next_page_token: z.string(),
 })
 
 export const zCreateCodingProjectRequest = z.object({
@@ -3151,6 +3154,19 @@ export const zRenameCodingProjectPath = z.object({
  */
 export const zRenameCodingProjectResponse = z.void()
 
+export const zUpdateCodingProjectPreferenceBody = z.object({
+  agent_name: zAgentName,
+})
+
+export const zUpdateCodingProjectPreferencePath = z.object({
+  projectId: z.string(),
+})
+
+/**
+ * Updated preference.
+ */
+export const zUpdateCodingProjectPreferenceResponse = z.void()
+
 export const zCreateCodingThreadBody = zCreateCodingThreadRequest
 
 /**
@@ -3267,6 +3283,7 @@ export const zGetCodingOperationResponse = zCodingOperation
 export const zWatchCodingResponse = zWatchChatSessionsEvent
 
 export const zListChatSessionsQuery = z.object({
+  project_id: z.string().optional(),
   limit: z.int().gte(1).lte(50).optional().default(10),
   page_token: z.string().min(1).optional(),
   agent_name: zAgentName.optional(),

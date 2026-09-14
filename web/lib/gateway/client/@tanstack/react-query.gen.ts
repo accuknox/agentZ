@@ -130,6 +130,7 @@ import {
   transferAgentOwner,
   updateAgent,
   updateChatSessionPreference,
+  updateCodingProjectPreference,
   updateInferencePool,
   updateInferenceProvider,
   updateSandbox,
@@ -501,6 +502,9 @@ import type {
   UpdateChatSessionPreferenceData,
   UpdateChatSessionPreferenceError,
   UpdateChatSessionPreferenceResponse,
+  UpdateCodingProjectPreferenceData,
+  UpdateCodingProjectPreferenceError,
+  UpdateCodingProjectPreferenceResponse,
   UpdateInferencePoolData,
   UpdateInferencePoolError,
   UpdateInferencePoolResponse,
@@ -675,6 +679,30 @@ export const renameCodingProjectMutation = (
   > = {
     mutationFn: async (fnOptions) => {
       const { data } = await renameCodingProject({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const updateCodingProjectPreferenceMutation = (
+  options?: Partial<Options<UpdateCodingProjectPreferenceData>>
+): UseMutationOptions<
+  UpdateCodingProjectPreferenceResponse,
+  UpdateCodingProjectPreferenceError,
+  Options<UpdateCodingProjectPreferenceData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UpdateCodingProjectPreferenceResponse,
+    UpdateCodingProjectPreferenceError,
+    Options<UpdateCodingProjectPreferenceData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await updateCodingProjectPreference({
         ...options,
         ...fnOptions,
         throwOnError: true,

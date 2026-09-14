@@ -17,14 +17,20 @@ limitations under the License.
 package gateway
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"path"
 	"strings"
 
+	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 const (
@@ -121,6 +127,64 @@ func (s *Service) proxyFilesystem(w http.ResponseWriter, r *http.Request, rawAge
 				),
 			)
 			return
+		}
+	}
+
+	auth, _ := requestAuthState(r.Context())
+	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding && !skillRequest {
+		access, apiErr := s.codingAccess(r.Context(), agentName)
+		if apiErr != nil {
+			writeError(w, r, apiErr)
+			return
+		}
+		paths := []string{r.URL.Query().Get("path")}
+		if upstreamPath != "/raw" && (r.Method == http.MethodPost || r.Method == http.MethodPut) {
+			raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, filesystemProxyBodyLimit))
+			if err != nil {
+				writeError(w, r, newAPIError(http.StatusBadRequest, "invalid_request", "Invalid file request", err))
+				return
+			}
+			switch {
+			case upstreamPath == "/directory":
+				var body gatewayapi.CreateAgentDirectoryRequest
+				err = json.Unmarshal(raw, &body)
+				paths = []string{body.Path}
+			case upstreamPath == "/rename":
+				var body gatewayapi.RenameAgentEntryRequest
+				err = json.Unmarshal(raw, &body)
+				paths = []string{body.Path, body.Target}
+			case r.Method == http.MethodPost:
+				var body gatewayapi.CreateAgentFileRequest
+				err = json.Unmarshal(raw, &body)
+				paths = []string{body.Path}
+			case r.Method == http.MethodPut:
+				var body gatewayapi.WriteAgentFileRequest
+				err = json.Unmarshal(raw, &body)
+				paths = []string{body.Path}
+			}
+			if err != nil {
+				writeError(w, r, newAPIError(http.StatusBadRequest, "invalid_request", "Invalid file request", err))
+				return
+			}
+			r.Body = io.NopCloser(bytes.NewReader(raw))
+		}
+		for _, name := range paths {
+			directory := strings.TrimPrefix(path.Clean(name), "/home/agentz/")
+			if attachment, ok := strings.CutPrefix(directory, ".agentz/attachments/"); ok {
+				// Attachments live outside Git checkouts and inherit session ownership.
+				sessionID, _, _ := strings.Cut(attachment, "/")
+				_, err := s.resolveCodingSession(r.Context(), access, agentName, sessionID)
+				if err != nil {
+					writeError(w, r, mapGatewayStoreError("get attachment", err))
+					return
+				}
+				continue
+			}
+			_, err := s.queries.GatewayOwnedCodingDirectory(r.Context(), gatewaydb.GatewayOwnedCodingDirectoryParams{WorkspaceID: access.workspaceID, AgentName: agentName, OwnerID: access.claims.UserID, Directory: directory})
+			if err != nil {
+				writeError(w, r, mapGatewayStoreError("get file", err))
+				return
+			}
 		}
 	}
 

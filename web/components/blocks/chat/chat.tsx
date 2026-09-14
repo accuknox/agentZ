@@ -80,7 +80,7 @@ import {
   promptFileFromPart,
 } from "@/components/blocks/chat/attachments"
 import type { ProviderModelItem } from "@/data/types"
-import type { ChatSessionPreference } from "@/lib/gateway/client"
+import type { ChatSessionPreference, CodingTextRequest } from "@/lib/gateway/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import { updateChatSessionPreference } from "@/lib/gateway/client"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
@@ -159,12 +159,16 @@ import {
 import type { LanguageModelUsage } from "ai"
 
 export type ChatProps = {
+  draftModel?: CodingTextRequest["model"]
+  onDraftModelChange?: (model: NonNullable<CodingTextRequest["model"]>) => void
   revertDisabled?: boolean
   createSession?: CreateSession
   composerContext?: (disabled: boolean) => ReactNode
   agentName: string
   agentNames: string[]
   chatPreferences?: ChatSessionPreference
+  initialMessage?: PromptInputMessage
+  onDraftChange?: (message: PromptInputMessage) => void
   draftId?: string
   firstName?: string
   greetingIndex?: number
@@ -510,6 +514,10 @@ function ChatInner({
   agentNames,
   chatPreferences,
   draftId,
+  initialMessage,
+  draftModel,
+  onDraftModelChange,
+  onDraftChange,
   firstName,
   greetingIndex,
   promptMobile = false,
@@ -520,10 +528,10 @@ function ChatInner({
   onSessionCreated,
 }: ChatProps) {
   const queryClient = useQueryClient()
-  const preferenceKey = ["chatSessionPreference", workspaceId] as const
   const agentReadiness = useAgentReadiness(agentName, workspaceId)
   const composerRef = useRef<PromptInputController | null>(null)
   const { data: authSession } = authClient.useSession()
+  const preferenceKey = ["chatSessionPreference", workspaceId, authSession?.user.id] as const
   const rememberAgent = useMutation({
     mutationFn: async ({
       next,
@@ -629,7 +637,9 @@ function ChatInner({
   }, [agentName, sessionId, sessionStatus])
 
   const directory = session?.directory
-  const [model, setModel] = useState<string>("")
+  const [model, setModel] = useState(
+    draftModel ? `${draftModel.providerID}:${draftModel.modelID}` : ""
+  )
   const [modelSelectorOpen, setModelSelectorOpen] = useState(false)
   const [reasoningLevel, setReasoningLevel] = useState<string>(DEFAULT_REASONING_LEVEL)
   const {
@@ -974,11 +984,14 @@ function ChatInner({
     ]
   )
 
-  const handleModelSelect = useCallback((modelId: string) => {
+  const handleModelSelect = (modelId: string) => {
+    const selected = models.find((item) => item.id === modelId)
+    if (!selected) return
     setModel(modelId)
+    onDraftModelChange?.({ modelID: selected.modelID, providerID: selected.providerID })
     setReasoningLevel(DEFAULT_REASONING_LEVEL)
     setModelSelectorOpen(false)
-  }, [])
+  }
 
   const handleReasoningLevelChange = useCallback(
     (value: string) => {
@@ -1212,6 +1225,8 @@ function ChatInner({
           ) : null}
           <div className="chat-composer-glass-shell relative w-full pb-9">
             <PromptInput
+              initialMessage={initialMessage}
+              onMessageChange={onDraftChange}
               className="agentz-chat-composer chat-composer-glass-host relative z-10 rounded-[22px]"
               controllerRef={composerRef}
               globalDrop
@@ -1234,6 +1249,7 @@ function ChatInner({
                   <PromptInputAttachmentButton disabled={inputDisabled} />
                 </motion.div>
                 <PromptInputTextarea
+                  defaultValue={initialMessage?.text}
                   className="placeholder:text-muted-foreground/80 col-span-full col-start-1 row-start-1 max-h-48 min-h-[5.5rem] self-stretch px-1 py-0 text-[15px] leading-6"
                   disabled={inputDisabled}
                 />

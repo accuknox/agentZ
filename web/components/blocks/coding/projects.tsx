@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react"
+import { useCallback, useEffect, useRef, useState, useTransition, type ReactNode } from "react"
 import { useRouter } from "@bprogress/next/app"
 import Link from "next/link"
 import { LegendList, type LegendListRef } from "@legendapp/list/react"
@@ -8,28 +8,22 @@ import { useSearchParams } from "next/navigation"
 import { infiniteQueryOptions, useInfiniteQuery, useQueryClient } from "@tanstack/react-query"
 import {
   CircleAlert,
-  Ellipsis,
-  Settings2,
   ChevronDown,
   RefreshCw,
   FolderGit2,
   GitBranch,
   Lock,
-  Pencil,
   Plus,
   Trash2,
 } from "lucide-react"
 import { authClient } from "@/lib/auth-client"
 import { toast } from "sonner"
-import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty"
 import { Field, FieldGroup, FieldLabel, FieldDescription } from "@/components/ui/field"
-import { ChatShell } from "@/components/blocks/chat/chat-shell"
-import { opencodeErrorMessage } from "@/components/blocks/chat/errors"
 import { Spinner } from "@/components/ui/spinner"
 import {
   Command,
@@ -49,22 +43,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+
 import {
   AdministrationPageHeader,
   AdministrationState,
   type AdministrationPageScope,
 } from "@/components/administration"
 import { ProjectTable } from "./project-table"
-import { createAgentOpencodeClient } from "@/lib/opencode/client"
+import { codingDrafts, useCodingDrafts } from "./drafts"
 import type {
-  ChatSessionPreference,
   CodingProject,
   CodingProjectDetail,
   CodingWorktree,
@@ -77,44 +64,105 @@ import {
   runCodingGit,
   listCodingRepositories,
   createCodingProject,
-  createCodingThread,
   listCodingRefs,
   adoptCodingWorktree,
   refreshCodingRepository,
 } from "@/lib/gateway/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
-import { runWorkspaceGit, startWorkspaceOperation } from "@/lib/coding/review"
+
+export function ProjectPicker({
+  projects,
+  workspacePath,
+  open = true,
+  onOpenChange,
+  onSelect,
+}: {
+  projects: CodingProject[]
+  workspacePath: `/orgs/${string}/workspaces/${string}`
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  onSelect?: (project: CodingProject) => void
+}) {
+  const router = useRouter()
+  const search = useSearchParams()
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (onOpenChange) {
+          onOpenChange(next)
+          return
+        }
+        if (!next) router.replace(`${workspacePath}/projects`)
+      }}
+    >
+      <DialogContent className="gap-0 p-0 sm:max-w-md">
+        <DialogHeader className="sr-only">
+          <DialogTitle>New chat in…</DialogTitle>
+          <DialogDescription>Choose a project for your new chat.</DialogDescription>
+        </DialogHeader>
+        <Command>
+          <CommandInput placeholder="New chat in…" />
+          <CommandList className="p-2">
+            <CommandEmpty>No projects found.</CommandEmpty>
+            {projects.map((project) => (
+              <CommandItem
+                key={project.id}
+                value={`${project.name} ${project.repository}`}
+                onSelect={() => {
+                  if (onSelect) {
+                    onSelect(project)
+                    return
+                  }
+                  const next = new URLSearchParams({ project: project.id })
+                  const agent = search.get("agent")
+                  if (agent) next.set("agent", agent)
+                  router.replace(`${workspacePath}/sessions/new?${next}`)
+                }}
+              >
+                <FolderGit2 />
+                <span className="flex-1 truncate">{project.name}</span>
+                <span className="text-muted-foreground truncate text-xs">{project.repository}</span>
+              </CommandItem>
+            ))}
+          </CommandList>
+        </Command>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+export type ProjectActions = {
+  add: () => void
+  manage: (project: CodingProject, action: "settings" | "rename" | "delete") => void
+}
 
 export function Projects({
   projects,
-  detail,
   agentNames,
-  agentName,
-  chatPreferences,
   workspaceId,
   workspacePath,
   pageScope,
+  children,
 }: {
   projects: CodingProject[]
-  detail?: CodingProjectDetail
   agentNames: string[]
-  agentName: string
-  chatPreferences: ChatSessionPreference
   workspaceId: string
   workspacePath: `/orgs/${string}/workspaces/${string}`
-  pageScope: AdministrationPageScope
+  pageScope?: AdministrationPageScope
+  children?: (actions: ProjectActions) => ReactNode
 }) {
   const { data: actor } = authClient.useSession()
+  const draftScope = actor ? `${actor.user.id}:${workspaceId}` : ""
+  const drafts = useCodingDrafts(draftScope)
   const router = useRouter()
+  const queryClient = useQueryClient()
   const search = useSearchParams()
-  const draftQuery = new URLSearchParams(search)
-  draftQuery.delete("new")
-  draftQuery.delete("project")
   const [creatingProject, setAdding] = useState(false)
-  const adding = creatingProject || search.get("new") === "true"
+  const adding = creatingProject || (!children && search.get("new") === "true")
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [managedProject, setManagedProject] = useState<CodingProject>()
-  const [projectSettings, setProjectSettings] = useState<CodingProjectDetail>()
+  const [targetProject, setTargetProject] = useState<CodingProject>()
+  const [settings, setSettings] = useState<CodingProjectDetail>()
   const [editingName, setEditingName] = useState("")
   const [dialog, setDialog] = useState<
     { action: "rename" | "delete" } | { action: "remove"; tree: CodingWorktree }
@@ -124,10 +172,7 @@ export function Projects({
   const [repositoryOpen, setRepositoryOpen] = useState(false)
   const [repositorySearch, setRepositorySearch] = useState("")
   const [repositoryQuery, setRepositoryQuery] = useState("")
-  const [checkout, setCheckout] = useState("new")
-  const [baseRef, setBaseRef] = useState<string>()
   const [pending, startTransition] = useTransition()
-  const [draftId, setDraftId] = useState(() => crypto.randomUUID())
   useEffect(() => {
     const timer = setTimeout(() => setRepositoryQuery(repositorySearch.trim()), 300)
     return () => clearTimeout(timer)
@@ -153,24 +198,16 @@ export function Projects({
     })
   )
   const searching = repositorySearch.trim() !== repositoryQuery || repositories.isPending
-  const project = detail?.project
-  const targetProject = project ?? managedProject
-  const settings = project ? detail : projectSettings
-  const draftTarget = `${project?.id}:${agentName}:${search.get("draft")}`
-  const [previousTarget, setPreviousTarget] = useState(draftTarget)
-  if (previousTarget !== draftTarget) {
-    setPreviousTarget(draftTarget)
-    setCheckout("new")
-    setBaseRef(undefined)
-    setDraftId(crypto.randomUUID())
-  }
-
   const onProjectAction = useCallback(
-    (item: CodingProject, action: "settings" | "rename") => {
-      setManagedProject(item)
+    (item: CodingProject, action: "settings" | "rename" | "delete") => {
+      setTargetProject(item)
       if (action === "rename") {
         setEditingName(item.name)
         setDialog({ action: "rename" })
+        return
+      }
+      if (action === "delete") {
+        setDialog({ action: "delete" })
         return
       }
       startTransition(async () => {
@@ -181,7 +218,7 @@ export function Projects({
             path: { projectId: item.id },
           })
           if (result.error) throw new Error(result.error.message)
-          setProjectSettings(result.data)
+          setSettings(result.data)
           setSettingsOpen(true)
         } catch {
           toast.error("Could not load project settings")
@@ -192,192 +229,48 @@ export function Projects({
   )
 
   return (
-    <main className={cn("flex min-w-0 flex-1 flex-col p-0", !project && "gap-6")}>
-      {!project ? (
-        <AdministrationPageHeader
-          title="Projects"
-          scope={pageScope}
-          actions={
-            <Button disabled={!agentNames.length} onClick={() => setAdding(true)}>
-              <Plus data-icon="inline-start" /> New project
-            </Button>
-          }
-        />
-      ) : null}
-      {!project ? (
-        <ProjectTable
-          projects={projects}
-          rowHref={(item) =>
-            `?${new URLSearchParams({ ...Object.fromEntries(draftQuery), project: item.id })}`
-          }
-          pending={pending}
-          onProjectAction={onProjectAction}
-          emptyState={
-            <AdministrationState
-              kind="welcome"
-              title="No projects yet"
-              description={
-                agentNames.length
-                  ? "Connect a GitHub repository to start working with an agent."
-                  : "Create an agent or ask someone to share one with you before adding a project."
-              }
-              actions={
-                agentNames.length ? (
-                  <Button onClick={() => setAdding(true)}>
-                    <Plus data-icon="inline-start" />
-                    Add your first project
-                  </Button>
-                ) : undefined
-              }
-            />
-          }
-        />
-      ) : !agentName ? (
-        <AdministrationState
-          kind="empty"
-          title="No agent is ready for chat"
-          description="Create an agent or ask a workspace administrator for access."
-          actions={
-            <Button variant="outline" onClick={() => setSettingsOpen(true)}>
-              Project settings
-            </Button>
-          }
-        />
+    <>
+      {children ? (
+        children({ add: () => setAdding(true), manage: onProjectAction })
       ) : (
-        <ChatShell
-          key={project.id}
-          draftId={project.id}
-          agentName={agentName}
-          agentNames={agentNames}
-          chatPreferences={chatPreferences}
-          title="New thread"
-          draftPath={`${workspacePath}/projects`}
-          workspaceId={workspaceId}
-          workspacePath={workspacePath}
-          headerContext={
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 max-w-full px-1.5 font-medium"
-                  aria-label="Change project"
-                >
-                  <span className="truncate">{project.name}</span>
-                  <ChevronDown className="size-3" />
+        <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
+          {pageScope ? (
+            <AdministrationPageHeader
+              title="Projects"
+              scope={pageScope}
+              actions={
+                <Button disabled={!agentNames.length} onClick={() => setAdding(true)}>
+                  <Plus data-icon="inline-start" /> New project
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="center" className="max-w-80">
-                {projects.map((item) => (
-                  <DropdownMenuItem
-                    key={item.id}
-                    onSelect={() =>
-                      router.push(
-                        `${workspacePath}/projects?${new URLSearchParams({ ...Object.fromEntries(draftQuery), project: item.id })}`
-                      )
-                    }
-                  >
-                    <FolderGit2 className="text-primary" />
-                    <span className="truncate">{item.name}</span>
-                  </DropdownMenuItem>
-                ))}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => setAdding(true)}>
-                  <Plus /> New project
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          }
-          headerActions={
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon-sm" aria-label="Project options">
-                  <Ellipsis />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
-                  <Settings2 /> Project settings
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() => {
-                    setEditingName(project.name)
-                    setDialog({ action: "rename" })
-                  }}
-                >
-                  <Pencil /> Rename project
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href={`${workspacePath}/projects`}>
-                    <FolderGit2 /> All projects
-                  </Link>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          }
-          composerContext={(disabled) => (
-            <CheckoutPicker
-              key={draftTarget}
-              project={project}
-              agentName={agentName}
-              workspaceId={workspaceId}
-              checkout={checkout}
-              baseRef={baseRef}
-              disabled={disabled}
-              onChange={(value, ref) => {
-                setCheckout(value)
-                setBaseRef(ref)
-                setDraftId(crypto.randomUUID())
-              }}
-            />
-          )}
-          createSession={async ({ text, model }) => {
-            const result = await createCodingThread({
-              baseUrl: await getGatewayBaseURL(),
-              headers: { "X-AgentZ-Workspace-ID": workspaceId },
-              body: {
-                id: draftId,
-                project_id: project.id,
-                agent_name: agentName,
-                main_checkout: checkout === "main",
-                worktree_id: checkout !== "new" && checkout !== "main" ? checkout : undefined,
-                base_ref: checkout === "new" ? baseRef : undefined,
-              },
-            })
-            if (result.error) throw new Error(result.error.message)
-            const thread = result.data
-            if (
-              checkout === "new" &&
-              text &&
-              thread.worktree.branch === `chore/${thread.worktree.id}`
-            ) {
-              try {
-                const status = await runWorkspaceGit(workspaceId, thread.worktree.id, {
-                  operation: "status",
-                })
-                await startWorkspaceOperation(workspaceId, {
-                  id: thread.id,
-                  agent_name: agentName,
-                  session_id: thread.session_id,
-                  action: "name_branch",
-                  branch: status.branch,
-                  expected_head: status.head,
-                  revision: status.revision,
-                  text: text.slice(0, 16000),
-                  model: { modelID: model.modelID, providerID: model.providerID },
-                })
-              } catch {
-                toast.warning("Could not name the branch. Using its temporary name.")
               }
+            />
+          ) : null}
+          <ProjectTable
+            projects={projects}
+            rowHref={(item) => `?project=${item.id}`}
+            pending={pending}
+            onProjectAction={onProjectAction}
+            emptyState={
+              <AdministrationState
+                kind="welcome"
+                title="No projects yet"
+                description={
+                  agentNames.length
+                    ? "Connect a GitHub repository to start working with an agent."
+                    : "Create an agent or ask someone to share one with you before adding a project."
+                }
+                actions={
+                  agentNames.length ? (
+                    <Button onClick={() => setAdding(true)}>
+                      <Plus data-icon="inline-start" />
+                      Add your first project
+                    </Button>
+                  ) : undefined
+                }
+              />
             }
-            const client = await createAgentOpencodeClient(agentName, workspaceId)
-            const session = await client.session.get({ sessionID: thread.session_id })
-            if (session.error)
-              throw new Error(opencodeErrorMessage(session.error, "Could not load the new thread"))
-            return session.data
-          }}
-        />
+          />
+        </main>
       )}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent className="flex flex-col sm:max-w-xl">
@@ -476,10 +369,7 @@ export function Projects({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add a GitHub project</DialogTitle>
-            <DialogDescription>
-              Only you can manage this project. Files and threads are accessible to everyone who can
-              use its agents.
-            </DialogDescription>
+            <DialogDescription>Projects and their chats are private to you.</DialogDescription>
           </DialogHeader>
           <form
             className="flex flex-col gap-4"
@@ -498,11 +388,15 @@ export function Projects({
                   })
                   if (result.error) throw new Error(result.error.message)
                   const created = result.data
+                  await queryClient.invalidateQueries({
+                    predicate: (query) =>
+                      query.queryKey[0] === "chatSessions" && query.queryKey[1] === workspaceId,
+                  })
                   setAdding(false)
                   setName("")
                   setRepository(undefined)
                   router.push(
-                    `${workspacePath}/projects?${new URLSearchParams({ ...Object.fromEntries(draftQuery), project: created.id })}`
+                    `${workspacePath}/sessions/new?${new URLSearchParams({ project: created.id })}`
                   )
                 } catch {
                   toast.error(
@@ -707,14 +601,22 @@ export function Projects({
                           })
                     if (result.error) throw new Error(result.error.message)
                   }
-                  if (dialog.action === "delete" && project) {
+                  await queryClient.invalidateQueries({
+                    predicate: (query) =>
+                      query.queryKey[0] === "chatSessions" &&
+                      query.queryKey[1] === workspaceId &&
+                      (dialog.action !== "delete" || query.queryKey[2] !== "group"),
+                  })
+                  if (dialog.action === "delete") {
+                    for (const draft of drafts) {
+                      if (draft.projectId === targetProject.id)
+                        codingDrafts.remove(draftScope, draft.id)
+                    }
+                  }
+                  if (dialog.action === "delete" && search.get("project") === targetProject.id) {
                     router.replace(`${workspacePath}/projects`)
                   } else {
                     router.refresh()
-                  }
-                  if (dialog.action === "remove" && dialog.tree.id === checkout) {
-                    setCheckout("new")
-                    setDraftId(crypto.randomUUID())
                   }
                   setDialog(undefined)
                 } catch (error) {
@@ -765,11 +667,11 @@ export function Projects({
           </form>
         </DialogContent>
       </Dialog>
-    </main>
+    </>
   )
 }
 
-function CheckoutPicker({
+export function CheckoutPicker({
   project,
   agentName,
   workspaceId,

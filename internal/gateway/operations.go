@@ -63,7 +63,7 @@ func (s *Service) StartCodingOperation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if row.CodingProject.OwnerID != access.claims.UserID || row.CodingWorktree.Deleting || !row.CodingWorktree.Ready {
-		writeError(w, r, resourceForbidden(errors.New("checkout is unavailable to this actor")))
+		writeError(w, r, mapGatewayStoreError("get checkout", pgx.ErrNoRows))
 		return
 	}
 	result := gatewayapi.CodingOperation{Id: input.Id, ProjectId: row.CodingProject.ID, WorktreeId: row.CodingWorktree.ID, AgentName: input.AgentName, SessionId: input.SessionId, Action: input.Action, State: gatewayapi.CodingOperationQueued, Stage: "Queued", CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
@@ -207,7 +207,8 @@ func (s *Service) runCoding(ctx context.Context) {
 				slog.ErrorContext(ctx, "interrupt abandoned coding operations", "error", err)
 			}
 			for _, workspace := range workspaces {
-				if err := s.queries.GatewayNotifyCoding(ctx, workspace); err != nil {
+				err := s.queries.GatewayNotifyCoding(ctx, gatewaydb.GatewayNotifyCodingParams(workspace))
+				if err != nil {
 					slog.ErrorContext(ctx, "notify interrupted coding operation", "error", err)
 				}
 			}
@@ -266,7 +267,7 @@ func (s *Service) runCodingOperation(ctx context.Context, job gatewaydb.CodingOp
 		if err != nil || rows != 1 {
 			return errors.New("operation lease lost")
 		}
-		return s.queries.GatewayNotifyCoding(ctx, job.WorkspaceID)
+		return s.queries.GatewayNotifyCoding(ctx, gatewaydb.GatewayNotifyCodingParams{WorkspaceID: job.WorkspaceID, OwnerID: job.OwnerID})
 	}
 	err := s.executeCodingOperation(ctx, job, input, &result, publish)
 	result.State = gatewayapi.CodingOperationSucceeded
@@ -359,7 +360,7 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 				text += "\n" + file.Path
 			}
 		}
-		suggestion, err := s.codingSuggestion(ctx, access, row, gatewayapi.CodingTextRequest{Purpose: gatewayapi.CodingTextBranch, Text: &text})
+		suggestion, err := s.codingSuggestion(ctx, access, row.CodingWorktree, row.CodingProject, row.CodingThread.SessionID.String, gatewayapi.CodingTextRequest{Purpose: gatewayapi.CodingTextBranch, Text: &text})
 		if err != nil {
 			return err
 		}
@@ -409,7 +410,7 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 			if err := publish("Generating commit message"); err != nil {
 				return err
 			}
-			suggestion, err := s.codingSuggestion(ctx, access, row, gatewayapi.CodingTextRequest{Purpose: gatewayapi.CodingTextCommit, ExpectedTree: current.Tree})
+			suggestion, err := s.codingSuggestion(ctx, access, row.CodingWorktree, row.CodingProject, row.CodingThread.SessionID.String, gatewayapi.CodingTextRequest{Purpose: gatewayapi.CodingTextCommit, ExpectedTree: current.Tree})
 			if err != nil {
 				return err
 			}
@@ -551,7 +552,7 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 		return err
 	}
 	text := fmt.Sprintf("Branch: %s\nBase: %s\nCommits:\n%s\nDiff:\n%s", current.Branch, repository.GetDefaultBranch(), commits[:min(len(commits), 6000)], patch[:min(len(patch), 40000)])
-	suggestion, err := s.codingSuggestion(ctx, access, row, gatewayapi.CodingTextRequest{Purpose: gatewayapi.CodingTextPR, Text: &text})
+	suggestion, err := s.codingSuggestion(ctx, access, row.CodingWorktree, row.CodingProject, row.CodingThread.SessionID.String, gatewayapi.CodingTextRequest{Purpose: gatewayapi.CodingTextPR, Text: &text})
 	if err != nil || suggestion.PullRequest == nil {
 		return errors.New("could not generate PR content")
 	}
@@ -605,7 +606,7 @@ func (s *Service) nameCodingBranch(ctx context.Context, job gatewaydb.CodingOper
 	if err := publish("Naming branch"); err != nil {
 		return err
 	}
-	suggestion, err := s.codingSuggestion(ctx, access, row, gatewayapi.CodingTextRequest{Purpose: gatewayapi.CodingTextBranch, Text: input.Text, Model: input.Model})
+	suggestion, err := s.codingSuggestion(ctx, access, row.CodingWorktree, row.CodingProject, row.CodingThread.SessionID.String, gatewayapi.CodingTextRequest{Purpose: gatewayapi.CodingTextBranch, Text: input.Text, Model: input.Model})
 	if err != nil {
 		return err
 	}

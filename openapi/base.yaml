@@ -128,6 +128,29 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Error'}
+  /api/coding/project/{projectId}/preference:
+    parameters:
+    - {name: projectId, in: path, required: true, schema: {type: string}}
+    put:
+      operationId: updateCodingProjectPreference
+      tags: [coding]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                agent_name: {$ref: '#/components/schemas/AgentName'}
+              required: [agent_name]
+      responses:
+        '204': {description: Updated preference.}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
   /api/coding/thread:
     post:
       operationId: createCodingThread
@@ -366,6 +389,7 @@ paths:
         use ALL semantics and are evaluated by the database before pagination.
       tags: [chat-sessions]
       parameters:
+      - {name: project_id, in: query, schema: {type: string}}
       - $ref: '#/components/parameters/ChatSessionLimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       - $ref: '#/components/parameters/AgentNameQueryOptional'
@@ -4666,12 +4690,13 @@ components:
 
     ChatSessionGroupBy:
       type: string
-      enum: [none, agent, status, date]
+      enum: [none, agent, status, date, project]
       x-enum-varnames:
       - ChatSessionGroupByNone
       - ChatSessionGroupByAgent
       - ChatSessionGroupByStatus
       - ChatSessionGroupByDate
+      - ChatSessionGroupByProject
 
     ChatSessionDateBucket:
       type: string
@@ -4702,6 +4727,7 @@ components:
       type: object
       additionalProperties: false
       properties:
+        project_id: {type: string}
         agent_name:
           $ref: '#/components/schemas/AgentName'
         session_id:
@@ -4758,6 +4784,7 @@ components:
       type: object
       additionalProperties: false
       properties:
+        project: {$ref: '#/components/schemas/CodingProject'}
         group_by:
           $ref: '#/components/schemas/ChatSessionGroupBy'
         key:
@@ -9675,6 +9702,7 @@ components:
       type: object
       additionalProperties: false
       properties:
+        last_agent_name: {type: string}
         id: {type: string, pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'}
         name: {type: string}
         repository_id: {type: integer, format: int64}

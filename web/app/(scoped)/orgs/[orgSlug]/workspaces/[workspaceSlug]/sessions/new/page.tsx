@@ -2,11 +2,17 @@ import { randomInt } from "node:crypto"
 import type { Metadata } from "next"
 import { headers } from "next/headers"
 import { notFound, redirect } from "next/navigation"
+import { Projects, ProjectPicker } from "@/components/blocks/coding/projects"
+import { CodingChat } from "@/components/blocks/coding/chat"
 import { ChatShell } from "@/components/blocks/chat/chat-shell"
 import { listAllAgentsCachedQuery } from "@/data/agent.queries"
 import { getWorkspaceScope } from "@/data/workspaces"
 import { getAuth } from "@/lib/auth"
-import { getChatSessionPreference } from "@/lib/gateway/client"
+import {
+  getCodingProject,
+  listCodingProjects,
+  getChatSessionPreference,
+} from "@/lib/gateway/client"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
 export const metadata: Metadata = {
@@ -18,7 +24,7 @@ export default async function NewChatPage({
   searchParams,
 }: {
   params: Promise<{ orgSlug: string; workspaceSlug: string }>
-  searchParams: Promise<{ agent?: string; draft?: string }>
+  searchParams: Promise<{ agent?: string; draft?: string; project?: string }>
 }) {
   const [{ orgSlug, workspaceSlug }, query, requestHeaders] = await Promise.all([
     params,
@@ -27,12 +33,6 @@ export default async function NewChatPage({
   ])
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
   if (scope.kind !== "ready") notFound()
-  if (scope.workspace.type === "coding") {
-    const search = new URLSearchParams()
-    if (query.agent) search.set("agent", query.agent)
-    if (query.draft) search.set("draft", query.draft)
-    redirect(`/orgs/${orgSlug}/workspaces/${workspaceSlug}/projects?${search}`)
-  }
 
   const [agentsResult, preference, authSession] = await Promise.all([
     listAllAgentsCachedQuery(scope.workspace.id),
@@ -66,6 +66,45 @@ export default async function NewChatPage({
   const workspacePath =
     `/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}` as const
 
+  if (scope.workspace.type === "coding") {
+    if (!query.project) {
+      const projects = await listCodingProjects({
+        client: getGatewayServerClient(scope.workspace.id),
+      })
+      if (projects.error) throw new Error("Could not load projects", { cause: projects.error })
+      if (projects.data.length === 1 && projects.data[0]) {
+        const next = new URLSearchParams({ project: projects.data[0].id })
+        if (query.agent) next.set("agent", query.agent)
+        redirect(`${workspacePath}/sessions/new?${next}`)
+      }
+      if (projects.data.length === 0)
+        return (
+          <Projects
+            projects={[]}
+            agentNames={agents.map((agent) => agent.name)}
+            workspaceId={scope.workspace.id}
+            workspacePath={workspacePath}
+          />
+        )
+      return <ProjectPicker projects={projects.data} workspacePath={workspacePath} />
+    }
+    const project = await getCodingProject({
+      client: getGatewayServerClient(scope.workspace.id),
+      path: { projectId: query.project },
+    })
+    if (project.response?.status === 404) notFound()
+    if (project.error) throw new Error("Could not load project", { cause: project.error })
+    return (
+      <CodingChat
+        key={project.data.project.id}
+        project={project.data.project}
+        agentNames={agents.map((agent) => agent.name)}
+        chatPreferences={preference.data}
+        workspaceId={scope.workspace.id}
+        workspacePath={workspacePath}
+      />
+    )
+  }
   return (
     <main className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden p-0">
       <ChatShell

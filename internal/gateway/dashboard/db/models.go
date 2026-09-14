@@ -872,6 +872,7 @@ type CodingProject struct {
 	Repository    string             `json:"repository"`
 	DefaultBranch string             `json:"default_branch"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	LastAgentName pgtype.Text        `json:"last_agent_name"`
 }
 
 type CodingThread struct {

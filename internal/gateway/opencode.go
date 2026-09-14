@@ -20,6 +20,7 @@ import (
 	"github.com/accuknox/agentz/internal/authorization"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 const (
@@ -404,8 +405,12 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 			}
 		}
 		if route.Method == http.MethodGet && route.Path == opencodeSessionStatusPath {
+			var directory pgtype.Text
+			if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding {
+				directory = pgtype.Text{String: strings.TrimPrefix(resp.Request.URL.Query().Get("directory"), "/home/agentz/"), Valid: true}
+			}
 			if err := s.storeOpenCodeSessionStatusResponse(
-				ctx, resp, workspaceID, agentName,
+				ctx, resp, workspaceID, agentName, directory,
 			); err != nil {
 				return err
 			}
@@ -468,7 +473,7 @@ func (s *Service) storeOpenCodeSessionResponse(ctx context.Context, resp *http.R
 	return s.storeOpenCodeSession(ctx, workspaceID, agentName, kind, session)
 }
 
-func (s *Service) storeOpenCodeSessionStatusResponse(ctx context.Context, resp *http.Response, workspaceID, agentName string) error {
+func (s *Service) storeOpenCodeSessionStatusResponse(ctx context.Context, resp *http.Response, workspaceID, agentName string, directory pgtype.Text) error {
 	statuses, err := decodeOpenCodeResponse[map[string]gatewayapi.OpencodeSessionStatus](resp)
 	if err != nil {
 		return fmt.Errorf("decode OpenCode session status response: %w", err)
@@ -494,6 +499,7 @@ func (s *Service) storeOpenCodeSessionStatusResponse(ctx context.Context, resp *
 	err = s.queries.GatewaySyncAgentChatSessionStatuses(
 		ctx,
 		gatewaydb.GatewaySyncAgentChatSessionStatusesParams{
+			CodingDirectory: directory,
 			WorkspaceID:     workspaceID,
 			AgentName:       agentName,
 			RetrySessionIds: retrySessionIDs,

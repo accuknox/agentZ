@@ -1123,6 +1123,8 @@ components:
           items:
             $ref: '#/components/schemas/ChatSessionParticipant'
           type: array
+        project_id:
+          type: string
         session_id:
           type: string
         status:
@@ -1173,6 +1175,8 @@ components:
           type: string
         next_page_token:
           type: string
+        project:
+          $ref: '#/components/schemas/CodingProject'
         sessions:
           items:
             $ref: '#/components/schemas/ChatSession'
@@ -1194,12 +1198,14 @@ components:
       - agent
       - status
       - date
+      - project
       type: string
       x-enum-varnames:
       - ChatSessionGroupByNone
       - ChatSessionGroupByAgent
       - ChatSessionGroupByStatus
       - ChatSessionGroupByDate
+      - ChatSessionGroupByProject
     ChatSessionKind:
       enum:
       - chat
@@ -1645,6 +1651,8 @@ components:
           type: string
         id:
           pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          type: string
+        last_agent_name:
           type: string
         name:
           type: string
@@ -26692,6 +26700,10 @@ paths:
         Returns root sessions in descending update order. Participant filters use ALL semantics and are evaluated by the database before pagination.
       operationId: listChatSessions
       parameters:
+      - in: query
+        name: project_id
+        schema:
+          type: string
       - $ref: '#/components/parameters/ChatSessionLimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       - $ref: '#/components/parameters/AgentNameQueryOptional'
@@ -27062,6 +27074,41 @@ paths:
       responses:
         "204":
           description: Renamed.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request failed.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - coding
+  /api/coding/project/{projectId}/preference:
+    parameters:
+    - in: path
+      name: projectId
+      required: true
+      schema:
+        type: string
+    put:
+      operationId: updateCodingProjectPreference
+      requestBody:
+        content:
+          application/json:
+            schema:
+              additionalProperties: false
+              properties:
+                agent_name:
+                  $ref: '#/components/schemas/AgentName'
+              required:
+              - agent_name
+              type: object
+        required: true
+      responses:
+        "204":
+          description: Updated preference.
         default:
           content:
             application/json:

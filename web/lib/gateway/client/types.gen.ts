@@ -8,7 +8,7 @@ export type ChatSessionKind = "chat" | "workflow_run"
 
 export type ChatSessionStatus = "idle" | "busy" | "retry"
 
-export type ChatSessionGroupBy = "none" | "agent" | "status" | "date"
+export type ChatSessionGroupBy = "none" | "agent" | "status" | "date" | "project"
 
 export type ChatSessionDateBucket = "today" | "yesterday" | "previous_7_days" | "older"
 
@@ -20,6 +20,7 @@ export type ChatSessionParticipant = {
 }
 
 export type ChatSession = {
+  project_id?: string
   agent_name: AgentName
   session_id: string
   title: string
@@ -39,6 +40,7 @@ export type ListChatSessionsResponse = {
 }
 
 export type ChatSessionGroup = {
+  project?: CodingProject
   group_by: ChatSessionGroupBy
   key: string
   label: string
@@ -2177,6 +2179,7 @@ export type DashboardTablePage = {
 }
 
 export type CodingProject = {
+  last_agent_name?: string
   id: string
   name: string
   repository_id: number
@@ -2963,6 +2966,37 @@ export type RenameCodingProjectResponses = {
 export type RenameCodingProjectResponse =
   RenameCodingProjectResponses[keyof RenameCodingProjectResponses]
 
+export type UpdateCodingProjectPreferenceData = {
+  body: {
+    agent_name: AgentName
+  }
+  path: {
+    projectId: string
+  }
+  query?: never
+  url: "/api/coding/project/{projectId}/preference"
+}
+
+export type UpdateCodingProjectPreferenceErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type UpdateCodingProjectPreferenceError =
+  UpdateCodingProjectPreferenceErrors[keyof UpdateCodingProjectPreferenceErrors]
+
+export type UpdateCodingProjectPreferenceResponses = {
+  /**
+   * Updated preference.
+   */
+  204: void
+}
+
+export type UpdateCodingProjectPreferenceResponse =
+  UpdateCodingProjectPreferenceResponses[keyof UpdateCodingProjectPreferenceResponses]
+
 export type CreateCodingThreadData = {
   body: CreateCodingThreadRequest
   path?: never
@@ -3301,6 +3335,7 @@ export type ListChatSessionsData = {
   body?: never
   path?: never
   query?: {
+    project_id?: string
     /**
      * Maximum number of sessions to return.
      */

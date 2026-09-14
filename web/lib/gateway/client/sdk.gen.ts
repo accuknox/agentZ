@@ -368,6 +368,9 @@ import type {
   UpdateChatSessionPreferenceData,
   UpdateChatSessionPreferenceErrors,
   UpdateChatSessionPreferenceResponses,
+  UpdateCodingProjectPreferenceData,
+  UpdateCodingProjectPreferenceErrors,
+  UpdateCodingProjectPreferenceResponses,
   UpdateInferencePoolData,
   UpdateInferencePoolErrors,
   UpdateInferencePoolResponses,
@@ -509,6 +512,23 @@ export const renameCodingProject = <ThrowOnError extends boolean = false>(
   >({
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/coding/project/{projectId}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+export const updateCodingProjectPreference = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateCodingProjectPreferenceData, ThrowOnError>
+) =>
+  (options.client ?? client).put<
+    UpdateCodingProjectPreferenceResponses,
+    UpdateCodingProjectPreferenceErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/coding/project/{projectId}/preference",
     ...options,
     headers: {
       "Content-Type": "application/json",

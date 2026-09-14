@@ -51,6 +51,7 @@ import type { ChatSessionPreference, ResourceCapabilities, Workspace } from "@/l
 import { resourceLabels } from "@/lib/resource-labels"
 import { getChatSessionPreference, listChatSessions } from "@/lib/gateway/client"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
+import { currentGatewayAuthContext } from "@/lib/gateway/auth"
 
 type WorkspaceNavigationScope = {
   canCreateWorkspace: boolean
@@ -414,24 +415,30 @@ async function WorkspaceChatSessions({
   workspaceId: string
   workspacePath: WorkspacePath
 }) {
-  const sessions = await listChatSessions({
-    client: getGatewayServerClient(workspaceId),
-    query: {
-      agent_name: preferences.agent_name ?? undefined,
-      group_by: preferences.group_by,
-      include_workflow_runs: preferences.include_workflow_runs,
-      limit: 10,
-      participant_user_id:
-        preferences.participant_user_ids.length > 0 ? preferences.participant_user_ids : undefined,
-      time_zone: preferences.group_by === "date" ? "UTC" : undefined,
-    },
-  })
+  const [sessions, actor] = await Promise.all([
+    listChatSessions({
+      client: getGatewayServerClient(workspaceId),
+      query: {
+        agent_name: preferences.agent_name ?? undefined,
+        group_by: preferences.group_by,
+        include_workflow_runs: preferences.include_workflow_runs,
+        limit: 10,
+        participant_user_id:
+          preferences.participant_user_ids.length > 0
+            ? preferences.participant_user_ids
+            : undefined,
+        time_zone: preferences.group_by === "date" ? "UTC" : undefined,
+      },
+    }),
+    currentGatewayAuthContext(),
+  ])
   if (sessions.error) {
     throw new Error("Failed to load chat sessions")
   }
 
   return (
     <NavSessions
+      userId={actor.userId}
       agents={agents}
       initialPreferences={preferences}
       initialSessions={sessions.data}

@@ -242,7 +242,7 @@ export function useOpencodeSend(
       }
     },
     onError: (error) => {
-      toast.error("Failed to send message", { description: error.message })
+      toast.error("Failed to send message", { description: error.message, position: "top-center" })
     },
     // No refetch here: promptAsync resolves at turn start, so a GET now can
     // resolve after the terminal events and clobber the live store with a

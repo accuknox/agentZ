@@ -483,7 +483,8 @@ export function upsertOptimisticUserMessage(
   queryClient.setQueryData<OptimisticUserMessage[]>(
     chatOverlayQueryKey(workspaceId, agentName, chatID),
     (current) => {
-      const messages = [...(current ?? [])]
+      // The composer restores failed input; a retry replaces that local attempt.
+      const messages = (current ?? []).filter((item) => item.status !== "failed")
       const index = messages.findIndex((item) => item.id === message.id)
       if (index === -1) messages.push(message)
       else messages[index] = message

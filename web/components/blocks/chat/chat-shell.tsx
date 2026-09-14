@@ -24,7 +24,18 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 
-type ChatShellProps = Pick<ChatProps, "createSession" | "composerContext" | "draftId"> & {
+type ChatShellProps = Pick<
+  ChatProps,
+  | "createSession"
+  | "composerContext"
+  | "draftId"
+  | "initialMessage"
+  | "onDraftChange"
+  | "draftModel"
+  | "onDraftModelChange"
+> & {
+  onDraftPromoted?: () => void
+  onDraftAgentChange?: (name: string) => void
   draftPath?: string
   headerContext?: ReactNode
   headerActions?: ReactNode
@@ -60,6 +71,12 @@ const FilesWorkspace = dynamic(
 
 export function ChatShell({
   createSession,
+  initialMessage,
+  draftModel,
+  onDraftModelChange,
+  onDraftChange,
+  onDraftPromoted,
+  onDraftAgentChange,
   composerContext,
   draftPath: initialDraftPath,
   draftId,
@@ -85,7 +102,7 @@ export function ChatShell({
   const pathname = usePathname()
   const search = useSearchParams()
   const draftKey = search.get("draft")
-  const activeDraftId = draftId ? `${draftId}:${draftKey ?? "default"}` : (draftKey ?? undefined)
+  const activeDraftId = draftId ?? draftKey ?? undefined
   const draftPath = initialDraftPath ?? `${workspacePath}/sessions/new`
   const routeSessionId = pathname === draftPath ? undefined : sessionId
   // Soft navigations preserve client trees in this app, so the chat subtree
@@ -131,13 +148,17 @@ export function ChatShell({
                 workspaceId={workspaceId}
               />
             ) : null}
-            {!codingThread ? <SessionFileControl agentName={agentName} /> : null}
+            {!codingThread && !createSession ? <SessionFileControl agentName={agentName} /> : null}
           </div>
         </header>
         <div className="@container/chat relative min-h-0 min-w-0 flex-1">
           <Chat
             key={chatKey}
             createSession={createSession}
+            initialMessage={initialMessage}
+            draftModel={draftModel}
+            onDraftModelChange={onDraftModelChange}
+            onDraftChange={activeSessionId ? undefined : onDraftChange}
             composerContext={composerContext}
             revertDisabled={codingThread?.worktree.shared}
             agentName={agentName}
@@ -148,6 +169,7 @@ export function ChatShell({
             greetingIndex={greetingIndex}
             onSessionCreated={(id) => {
               setPromotedSession({ chatKey: routeChatKey, sessionId: id })
+              onDraftPromoted?.()
 
               const url = new URL(window.location.href)
               if (url.pathname !== draftPath || url.searchParams.toString() !== search.toString()) {
@@ -165,6 +187,10 @@ export function ChatShell({
             workspaceId={workspaceId}
             workspacePath={workspacePath}
             onAgentChange={(name) => {
+              if (onDraftAgentChange) {
+                onDraftAgentChange(name)
+                return
+              }
               const url = new URL(window.location.href)
               url.searchParams.set("agent", name)
               router.replace(`${url.pathname}${url.search}` as Route, { showProgress: false })
@@ -180,7 +206,7 @@ export function ChatShell({
           onPreviewerOpenChange={setPreviewerOpen}
         />
       ) : null}
-      {!codingThread ? (
+      {!codingThread && !createSession ? (
         <FilesWorkspace
           agentName={agentName}
           onPreviewerOpenChange={setPreviewerOpen}

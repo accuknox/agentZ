@@ -22,7 +22,6 @@ type Querier interface {
 	GatewayClearAgentChatPreferences(ctx context.Context, arg GatewayClearAgentChatPreferencesParams) error
 	GatewayCodingConnection(ctx context.Context, userID string) (GithubConnection, error)
 	GatewayCodingCooldown(ctx context.Context, ownerID string) (time.Time, error)
-	GatewayCodingDirectory(ctx context.Context, arg GatewayCodingDirectoryParams) (CodingWorktree, error)
 	GatewayCodingProjectIdentity(ctx context.Context, id string) (GatewayCodingProjectIdentityRow, error)
 	GatewayCodingWorktreeBound(ctx context.Context, worktreeID string) (bool, error)
 	GatewayCompleteCleanupJob(ctx context.Context, arg GatewayCompleteCleanupJobParams) (int64, error)
@@ -68,7 +67,7 @@ type Querier interface {
 	GatewayGetWorkspaceChatPreference(ctx context.Context, arg GatewayGetWorkspaceChatPreferenceParams) (WorkspaceChatPreference, error)
 	GatewayHeartbeatCodingOperation(ctx context.Context, arg GatewayHeartbeatCodingOperationParams) (int64, error)
 	GatewayInsertWorkspaceInheritedResources(ctx context.Context, arg GatewayInsertWorkspaceInheritedResourcesParams) (int64, error)
-	GatewayInterruptCodingOperations(ctx context.Context) ([]string, error)
+	GatewayInterruptCodingOperations(ctx context.Context) ([]GatewayInterruptCodingOperationsRow, error)
 	GatewayInvalidateCodingSnapshots(ctx context.Context, projectID string) error
 	GatewayIsActiveOrganizationMember(ctx context.Context, arg GatewayIsActiveOrganizationMemberParams) (bool, error)
 	GatewayIsActiveSuperadmin(ctx context.Context, arg GatewayIsActiveSuperadminParams) (bool, error)
@@ -116,13 +115,15 @@ type Querier interface {
 	GatewayLockCodingProject(ctx context.Context, projectID string) error
 	GatewayLockOrganization(ctx context.Context, organizationID string) (GatewayLockOrganizationRow, error)
 	GatewayLockTeam(ctx context.Context, arg GatewayLockTeamParams) (string, error)
-	GatewayNotifyCoding(ctx context.Context, workspaceID string) error
+	GatewayNotifyCoding(ctx context.Context, arg GatewayNotifyCodingParams) error
+	GatewayOwnedCodingDirectory(ctx context.Context, arg GatewayOwnedCodingDirectoryParams) (CodingWorktree, error)
 	GatewayProjectMemberRoleTransports(ctx context.Context, arg GatewayProjectMemberRoleTransportsParams) (int64, error)
 	GatewayPruneCodingSnapshots(ctx context.Context) error
 	GatewayReadyCodingWorktree(ctx context.Context, arg GatewayReadyCodingWorktreeParams) error
 	GatewayRecordCodingMainCheckout(ctx context.Context, arg GatewayRecordCodingMainCheckoutParams) error
 	GatewayRefreshCodingConnection(ctx context.Context, arg GatewayRefreshCodingConnectionParams) error
 	GatewayRenameCodingProject(ctx context.Context, arg GatewayRenameCodingProjectParams) (int64, error)
+	GatewayResolveCodingSession(ctx context.Context, arg GatewayResolveCodingSessionParams) (GatewayResolveCodingSessionRow, error)
 	GatewayResolvePermissions(ctx context.Context, arg GatewayResolvePermissionsParams) ([]GatewayResolvePermissionsRow, error)
 	GatewayResolveWorkspaceSlug(ctx context.Context, arg GatewayResolveWorkspaceSlugParams) (GatewayResolveWorkspaceSlugRow, error)
 	GatewayRetryCleanupJob(ctx context.Context, arg GatewayRetryCleanupJobParams) (int64, error)
@@ -143,6 +144,7 @@ type Querier interface {
 	GatewayUnlockCodingProject(ctx context.Context, projectID string) error
 	GatewayUpdateCodingBranch(ctx context.Context, arg GatewayUpdateCodingBranchParams) error
 	GatewayUpdateCodingOperation(ctx context.Context, arg GatewayUpdateCodingOperationParams) (int64, error)
+	GatewayUpdateCodingProjectPreference(ctx context.Context, arg GatewayUpdateCodingProjectPreferenceParams) (int64, error)
 	GatewayUpdateCodingRepository(ctx context.Context, arg GatewayUpdateCodingRepositoryParams) error
 	GatewayUpsertChatSession(ctx context.Context, arg GatewayUpsertChatSessionParams) error
 	GatewayUpsertWorkspaceChatPreference(ctx context.Context, arg GatewayUpsertWorkspaceChatPreferenceParams) (WorkspaceChatPreference, error)

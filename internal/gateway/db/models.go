@@ -102,10 +102,11 @@ func (ns NullApiKeyTargetType) Value() (driver.Value, error) {
 type ChatSessionGroupBy string
 
 const (
-	ChatSessionGroupByNone   ChatSessionGroupBy = "none"
-	ChatSessionGroupByAgent  ChatSessionGroupBy = "agent"
-	ChatSessionGroupByStatus ChatSessionGroupBy = "status"
-	ChatSessionGroupByDate   ChatSessionGroupBy = "date"
+	ChatSessionGroupByNone    ChatSessionGroupBy = "none"
+	ChatSessionGroupByAgent   ChatSessionGroupBy = "agent"
+	ChatSessionGroupByStatus  ChatSessionGroupBy = "status"
+	ChatSessionGroupByDate    ChatSessionGroupBy = "date"
+	ChatSessionGroupByProject ChatSessionGroupBy = "project"
 )
 
 func (e *ChatSessionGroupBy) Scan(src interface{}) error {
@@ -929,6 +930,7 @@ type CodingProject struct {
 	Repository    string             `json:"repository"`
 	DefaultBranch string             `json:"default_branch"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	LastAgentName pgtype.Text        `json:"last_agent_name"`
 }
 
 type CodingSnapshot struct {

@@ -91,6 +91,8 @@ type PromptInputProps = Omit<HTMLAttributes<HTMLFormElement>, "onSubmit" | "onEr
   maxFiles?: number
   maxFileSize?: number
   mobile?: boolean
+  initialMessage?: PromptInputMessage
+  onMessageChange?: (message: PromptInputMessage) => void
   controllerRef?: RefObject<PromptInputController | null>
   onError?: (code: "max_files" | "max_file_size") => void
   onSubmit: (message: PromptInputMessage, event: FormEvent<HTMLFormElement>) => void | Promise<void>
@@ -104,6 +106,8 @@ export const PromptInput = ({
   maxFileSize,
   mobile = false,
   controllerRef,
+  initialMessage,
+  onMessageChange,
   onError,
   onSubmit,
   children,
@@ -111,10 +115,20 @@ export const PromptInput = ({
 }: PromptInputProps) => {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const formRef = useRef<HTMLFormElement | null>(null)
-  const [items, setItems] = useState<PromptInputItem[]>([])
+  const [items, setItems] = useState<PromptInputItem[]>(() =>
+    (initialMessage?.files ?? []).map((file) => ({
+      ...file,
+      id: nanoid(),
+      ...(file.source === "local" ? { url: URL.createObjectURL(file.file) } : {}),
+    }))
+  )
   const [isDraggingFiles, setIsDraggingFiles] = useState(false)
   const [isMultiline, setIsMultiline] = useState(false)
   const filesRef = useRef(items)
+  const messageChange = useRef(onMessageChange)
+  useEffect(() => {
+    messageChange.current = onMessageChange
+  }, [onMessageChange])
 
   const replaceItems = useCallback((next: PromptInputItem[]) => {
     filesRef.current = next
@@ -175,7 +189,11 @@ export const PromptInput = ({
 
   const setMessage = useCallback(
     (message: PromptInputMessage) => {
-      const next = message.files.map((file) => ({ ...file, id: nanoid() }))
+      const next = message.files.map((file) => ({
+        ...file,
+        id: nanoid(),
+        ...(file.source === "local" ? { url: URL.createObjectURL(file.file) } : {}),
+      }))
       const retainedURLs = new Set(
         next.filter((file) => file.source === "local").map((file) => file.url)
       )
@@ -184,8 +202,8 @@ export const PromptInput = ({
       )
       replaceItems(next)
 
-      const textarea = formRef.current?.elements.namedItem("message")
-      if (textarea instanceof HTMLTextAreaElement) {
+      const textarea = formRef.current?.querySelector("textarea")
+      if (textarea) {
         textarea.value = message.text
         // The textarea is uncontrolled; a native input event re-runs its
         // autosize and multiline detection after a programmatic value change.
@@ -197,6 +215,23 @@ export const PromptInput = ({
     },
     [replaceItems]
   )
+
+  useEffect(() => {
+    const form = formRef.current
+    if (!form) return
+    const changed = () => {
+      const text = form.querySelector("textarea")?.value ?? ""
+      messageChange.current?.({ text, files: filesRef.current })
+    }
+    form.addEventListener("input", changed)
+    return () => form.removeEventListener("input", changed)
+  }, [])
+
+  useEffect(() => {
+    if (!formRef.current) return
+    const text = formRef.current.querySelector("textarea")?.value ?? ""
+    messageChange.current?.({ text, files: items })
+  }, [items])
 
   useEffect(() => {
     if (!controllerRef) return
@@ -298,11 +333,13 @@ export const PromptInput = ({
       event.preventDefault()
 
       const form = event.currentTarget
-      const textarea = form.elements.namedItem("message")
-      const text = textarea instanceof HTMLTextAreaElement ? textarea.value : ""
+      const textarea = form.querySelector("textarea")
+      const text = textarea ? textarea.value : ""
 
       form.reset()
-      if (textarea instanceof HTMLTextAreaElement) {
+      if (textarea) {
+        // A restored draft is the default value, but sending must clear it.
+        textarea.value = ""
         textarea.style.removeProperty("height")
       }
       setIsMultiline(false)
@@ -321,7 +358,7 @@ export const PromptInput = ({
         replaceItems(current.filter((item) => !submittedIDs.has(item.id)))
       } catch {
         // Preserve newer edits while restoring a failed submission for retry.
-        if (textarea instanceof HTMLTextAreaElement && text && !textarea.value) {
+        if (textarea && text && !textarea.value) {
           textarea.value = text
           textarea.dispatchEvent(new Event("input", { bubbles: true }))
           textarea.focus()

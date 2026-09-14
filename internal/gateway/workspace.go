@@ -1046,16 +1046,18 @@ func (s *Service) requireWorkspaceFeatures(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		var workspace agentzv1alpha1.Workspace
-		key := ctrlclient.ObjectKey{Name: agentzv1alpha1.ScopeNamespace(
-			agentzv1alpha1.ResourceScopeWorkspace, workspaceID,
-		)}
-		err := s.k8sClient.Get(r.Context(), key, &workspace)
+		organizationID := auth.organizationID
+		if auth.claims != nil {
+			organizationID = auth.claims.OrganizationID
+		}
+		// SQL is authoritative while the controller reconciles the Workspace.
+		// A stale Kubernetes projection must not relax coding project privacy.
+		workspace, err := s.queries.GatewayGetWorkspace(r.Context(), gatewaydb.GatewayGetWorkspaceParams{ID: workspaceID, OrganizationID: organizationID})
 		if err != nil {
-			writeError(w, r, mapKubeHTTPError("get Workspace", err))
+			writeError(w, r, mapGatewayStoreError("get workspace", err))
 			return
 		}
-		auth.workspaceType = workspace.Spec.Type
+		auth.workspaceType = agentzv1alpha1.WorkspaceType(workspace.Type)
 		path := chi.RouteContext(r.Context()).RoutePattern()
 		if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding &&
 			(strings.HasPrefix(path, "/api/workflow/") ||

@@ -38,8 +38,7 @@ type chatSessionGroupKey struct {
 
 type chatSessionEvents struct {
 	mu       sync.Mutex
-	revision uint64
-	watchers map[string]map[chan uint64]struct{}
+	watchers map[string]map[chan uint64]uint64
 }
 
 // ListChatSessions handles GET /api/chat-session.
@@ -77,6 +76,11 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 			errBadRequest,
 		))
 		return
+	}
+	auth, _ := requestAuthState(r.Context())
+	var ownerID pgtype.Text
+	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding {
+		ownerID = pgtype.Text{String: access.claims.UserID, Valid: true}
 	}
 	groupBy := gatewayapi.ChatSessionGroupByNone
 	if params.GroupBy != nil {
@@ -138,13 +142,14 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		switch groupBy {
 		case gatewayapi.ChatSessionGroupByAgent:
 			activeGroup = *params.ActiveAgentName
-		case gatewayapi.ChatSessionGroupByStatus, gatewayapi.ChatSessionGroupByDate:
+		case gatewayapi.ChatSessionGroupByStatus, gatewayapi.ChatSessionGroupByDate, gatewayapi.ChatSessionGroupByProject:
 			row, getErr := s.queries.GatewayGetChatSessionGroup(
 				r.Context(),
 				gatewaydb.GatewayGetChatSessionGroupParams{
 					WorkspaceID: access.workspaceID,
 					AgentName:   *params.ActiveAgentName,
 					SessionID:   *params.ActiveSessionId,
+					OwnerID:     ownerID,
 				},
 			)
 			if errors.Is(getErr, pgx.ErrNoRows) {
@@ -155,6 +160,8 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 				return
 			}
 			switch groupBy {
+			case gatewayapi.ChatSessionGroupByProject:
+				activeGroup = row.ProjectID.String
 			case gatewayapi.ChatSessionGroupByStatus:
 				activeGroup = string(row.Status)
 			case gatewayapi.ChatSessionGroupByDate:
@@ -168,6 +175,10 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		}
 	}
 
+	var projectID pgtype.Text
+	if params.ProjectId != nil {
+		projectID = pgtype.Text{String: *params.ProjectId, Valid: true}
+	}
 	var groupAgent pgtype.Text
 	var groupStatus gatewaydb.NullChatSessionStatus
 	var groupSince, groupBefore pgtype.Timestamptz
@@ -197,6 +208,8 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		}
 		groupValue = key.Value
 		switch groupBy {
+		case gatewayapi.ChatSessionGroupByProject:
+			projectID = pgtype.Text{String: groupValue, Valid: true}
 		case gatewayapi.ChatSessionGroupByAgent:
 			if !slices.Contains(accessibleAgentNames, groupValue) {
 				writeError(w, r, newAPIError(
@@ -268,7 +281,6 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 	if params.ParticipantUserId != nil {
 		participantIDs = *params.ParticipantUserId
 	}
-	auth, _ := requestAuthState(r.Context())
 	includeWorkflowRuns := auth.workspaceType != agentzv1alpha1.WorkspaceTypeCoding &&
 		params.IncludeWorkflowRuns != nil && *params.IncludeWorkflowRuns
 	response := gatewayapi.ListChatSessionsResponse{
@@ -279,6 +291,68 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		Sessions:           []gatewayapi.ChatSession{},
 	}
 
+	includeFilterOptions := params.IncludeFilterOptions == nil || *params.IncludeFilterOptions
+	if includeFilterOptions && len(agentNames) > 0 {
+		filterRows, filterErr := s.queries.GatewayListChatSessionFilterUsers(
+			r.Context(),
+			gatewaydb.GatewayListChatSessionFilterUsersParams{
+				OwnerID:             ownerID,
+				AgentNames:          agentNames,
+				WorkspaceID:         access.workspaceID,
+				IncludeWorkflowRuns: includeWorkflowRuns,
+			},
+		)
+		if filterErr != nil {
+			writeInternalError(w, r, fmt.Errorf("list chat session participant filters: %w", filterErr))
+			return
+		}
+		response.ParticipantFilters = make([]gatewayapi.ChatSessionParticipant, 0, len(filterRows))
+		for _, row := range filterRows {
+			var image *string
+			if row.Image.Valid {
+				image = &row.Image.String
+			}
+			response.ParticipantFilters = append(response.ParticipantFilters, gatewayapi.ChatSessionParticipant{
+				Id: row.ID, Name: row.Name, Email: openapi_types.Email(row.Email), Image: image,
+			})
+		}
+	}
+
+	if groupBy == gatewayapi.ChatSessionGroupByProject {
+		if !ownerID.Valid {
+			writeError(w, r, newAPIError(http.StatusBadRequest, "invalid_request", "Project groups require a coding workspace", errBadRequest))
+			return
+		}
+		projects, err := s.queries.GatewayListCodingProjects(r.Context(), gatewaydb.GatewayListCodingProjectsParams{WorkspaceID: access.workspaceID, OwnerID: ownerID.String})
+		if err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+		for _, project := range projects {
+			if projectID.Valid && project.ID != projectID.String {
+				continue
+			}
+			group := chatSessionGroup(groupBy, project.ID, activeGroup)
+			group.Label = project.Name
+			group.Project = &gatewayapi.CodingProject{
+				Id: project.ID, Name: project.Name, Repository: project.Repository,
+				RepositoryId: project.RepositoryID, DefaultBranch: project.DefaultBranch,
+				CreatedAt: project.CreatedAt.Time,
+			}
+			if project.LastAgentName.Valid {
+				group.Project.LastAgentName = &project.LastAgentName.String
+			}
+			response.Groups = append(response.Groups, group)
+		}
+		if params.GroupKey == nil {
+			writeJSON(w, http.StatusOK, response)
+			return
+		}
+		if len(response.Groups) != 1 {
+			writeError(w, r, mapGatewayStoreError("get project", pgx.ErrNoRows))
+			return
+		}
+	}
 	hasAgents := len(agentNames) > 0
 	grouped := groupBy != gatewayapi.ChatSessionGroupByNone
 	groupSelected := params.GroupKey != nil
@@ -287,6 +361,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		rows, searchErr := s.queries.GatewaySearchGroupedChatSessions(
 			r.Context(),
 			gatewaydb.GatewaySearchGroupedChatSessionsParams{
+				OwnerID:             ownerID,
 				PageSize:            limit + 1,
 				GroupBy:             string(groupBy),
 				TodayStart:          today,
@@ -363,6 +438,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 			values, err = s.queries.GatewayListChatSessionDateGroups(
 				r.Context(),
 				gatewaydb.GatewayListChatSessionDateGroupsParams{
+					OwnerID:             ownerID,
 					TodayStart:          today,
 					YesterdayStart:      yesterday,
 					PreviousWeekStart:   previousWeek,
@@ -384,6 +460,8 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		rows, listErr := s.queries.GatewayListChatSessions(
 			r.Context(),
 			gatewaydb.GatewayListChatSessionsParams{
+				ProjectID:           projectID,
+				OwnerID:             ownerID,
 				AgentNames:          agentNames,
 				WorkspaceID:         access.workspaceID,
 				IncludeWorkflowRuns: includeWorkflowRuns,
@@ -420,7 +498,12 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 				writeInternalError(w, r, fmt.Errorf("decode chat session participants: %w", decodeErr))
 				return
 			}
+			var projectID *string
+			if row.ProjectID.Valid {
+				projectID = &row.ProjectID.String
+			}
 			sessions = append(sessions, gatewayapi.ChatSession{
+				ProjectId:    projectID,
 				AgentName:    row.AgentName,
 				SessionId:    row.SessionID,
 				Title:        row.Title,
@@ -435,6 +518,9 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		case gatewayapi.ChatSessionGroupByNone:
 			response.Sessions = sessions
 			response.HasNextPage = hasNextPage
+		case gatewayapi.ChatSessionGroupByProject:
+			response.Groups[0].Sessions = sessions
+			response.Groups[0].HasNextPage = hasNextPage
 		default:
 			group := chatSessionGroup(groupBy, groupValue, activeGroup)
 			group.Sessions = sessions
@@ -459,35 +545,10 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 				response.Groups[0].NextPageToken = nextPageToken
 			}
 		}
-	case groupSelected:
+	case groupSelected && groupBy != gatewayapi.ChatSessionGroupByProject:
 		response.Groups = append(response.Groups, chatSessionGroup(groupBy, groupValue, activeGroup))
 	}
 
-	includeFilterOptions := params.IncludeFilterOptions == nil || *params.IncludeFilterOptions
-	if includeFilterOptions && len(agentNames) > 0 {
-		filterRows, filterErr := s.queries.GatewayListChatSessionFilterUsers(
-			r.Context(),
-			gatewaydb.GatewayListChatSessionFilterUsersParams{
-				AgentNames:          agentNames,
-				WorkspaceID:         access.workspaceID,
-				IncludeWorkflowRuns: includeWorkflowRuns,
-			},
-		)
-		if filterErr != nil {
-			writeInternalError(w, r, fmt.Errorf("list chat session participant filters: %w", filterErr))
-			return
-		}
-		response.ParticipantFilters = make([]gatewayapi.ChatSessionParticipant, 0, len(filterRows))
-		for _, row := range filterRows {
-			var image *string
-			if row.Image.Valid {
-				image = &row.Image.String
-			}
-			response.ParticipantFilters = append(response.ParticipantFilters, gatewayapi.ChatSessionParticipant{
-				Id: row.ID, Name: row.Name, Email: openapi_types.Email(row.Email), Image: image,
-			})
-		}
-	}
 	writeJSON(w, http.StatusOK, response)
 }
 
@@ -593,6 +654,10 @@ func (s *Service) UpdateChatSessionPreference(w http.ResponseWriter, r *http.Req
 		lastAgentName = pgtype.Text{String: *body.LastAgentName, Valid: true}
 	}
 
+	if body.GroupBy == gatewayapi.ChatSessionGroupByProject && auth.workspaceType != agentzv1alpha1.WorkspaceTypeCoding {
+		writeError(w, r, newAPIError(http.StatusBadRequest, "invalid_request", "Project groups require a coding workspace", errBadRequest))
+		return
+	}
 	row, err := s.queries.GatewayUpsertWorkspaceChatPreference(
 		r.Context(),
 		gatewaydb.GatewayUpsertWorkspaceChatPreferenceParams{
@@ -630,7 +695,12 @@ func (s *Service) WatchChatSessions(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(http.StatusOK)
 
-	events, cancel := s.chatSessionEvents.subscribe(access.workspaceID)
+	key := access.workspaceID
+	auth, _ := requestAuthState(r.Context())
+	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding {
+		key += "/" + access.claims.UserID
+	}
+	events, cancel := s.chatSessionEvents.subscribe(key)
 	defer cancel()
 	heartbeat := time.NewTicker(15 * time.Second)
 	defer heartbeat.Stop()
@@ -776,15 +846,15 @@ func (e *chatSessionEvents) subscribe(workspaceID string) (<-chan uint64, func()
 	ch := make(chan uint64, 1)
 	e.mu.Lock()
 	if e.watchers == nil {
-		e.watchers = make(map[string]map[chan uint64]struct{})
+		e.watchers = make(map[string]map[chan uint64]uint64)
 	}
 	watchers := e.watchers[workspaceID]
 	if watchers == nil {
-		watchers = make(map[chan uint64]struct{})
+		watchers = make(map[chan uint64]uint64)
 		e.watchers[workspaceID] = watchers
 	}
-	watchers[ch] = struct{}{}
-	ch <- e.revision
+	watchers[ch] = 0
+	ch <- 0
 	e.mu.Unlock()
 
 	cancel := func() {
@@ -805,10 +875,11 @@ func (e *chatSessionEvents) subscribe(workspaceID string) (<-chan uint64, func()
 func (e *chatSessionEvents) publish(workspaceID string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.revision++
-	for ch := range e.watchers[workspaceID] {
+	for ch, revision := range e.watchers[workspaceID] {
+		revision++
+		e.watchers[workspaceID][ch] = revision
 		select {
-		case ch <- e.revision:
+		case ch <- revision:
 		default:
 		}
 	}

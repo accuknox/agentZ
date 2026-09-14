@@ -349,36 +349,8 @@ func (q *Queries) GatewayCodingCooldown(ctx context.Context, ownerID string) (ti
 	return retry_after, err
 }
 
-const gatewayCodingDirectory = `-- name: GatewayCodingDirectory :one
-SELECT id, workspace_id, project_id, agent_name, directory, branch, ready, shared, created_at, deleting FROM coding_worktrees WHERE workspace_id = $1 AND agent_name = $2 AND directory = $3
-`
-
-type GatewayCodingDirectoryParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	AgentName   string `json:"agent_name"`
-	Directory   string `json:"directory"`
-}
-
-func (q *Queries) GatewayCodingDirectory(ctx context.Context, arg GatewayCodingDirectoryParams) (CodingWorktree, error) {
-	row := q.db.QueryRow(ctx, gatewayCodingDirectory, arg.WorkspaceID, arg.AgentName, arg.Directory)
-	var i CodingWorktree
-	err := row.Scan(
-		&i.ID,
-		&i.WorkspaceID,
-		&i.ProjectID,
-		&i.AgentName,
-		&i.Directory,
-		&i.Branch,
-		&i.Ready,
-		&i.Shared,
-		&i.CreatedAt,
-		&i.Deleting,
-	)
-	return i, err
-}
-
 const gatewayCodingProjectIdentity = `-- name: GatewayCodingProjectIdentity :one
-SELECT coding_projects.id, coding_projects.workspace_id, coding_projects.owner_id, coding_projects.name, coding_projects.repository_id, coding_projects.repository, coding_projects.default_branch, coding_projects.created_at, workspaces.organization_id FROM coding_projects
+SELECT coding_projects.id, coding_projects.workspace_id, coding_projects.owner_id, coding_projects.name, coding_projects.repository_id, coding_projects.repository, coding_projects.default_branch, coding_projects.created_at, coding_projects.last_agent_name, workspaces.organization_id FROM coding_projects
 JOIN workspaces ON workspaces.id = coding_projects.workspace_id WHERE coding_projects.id = $1
 `
 
@@ -399,13 +371,14 @@ func (q *Queries) GatewayCodingProjectIdentity(ctx context.Context, id string) (
 		&i.CodingProject.Repository,
 		&i.CodingProject.DefaultBranch,
 		&i.CodingProject.CreatedAt,
+		&i.CodingProject.LastAgentName,
 		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const gatewayCodingWorktreeBound = `-- name: GatewayCodingWorktreeBound :one
-SELECT EXISTS(SELECT 1 FROM coding_threads WHERE worktree_id = $1)
+SELECT EXISTS(SELECT 1 FROM coding_threads WHERE coding_threads.worktree_id = $1)
 `
 
 func (q *Queries) GatewayCodingWorktreeBound(ctx context.Context, worktreeID string) (bool, error) {
@@ -664,7 +637,7 @@ func (q *Queries) GatewayCreateCodingOperation(ctx context.Context, arg GatewayC
 const gatewayCreateCodingProject = `-- name: GatewayCreateCodingProject :one
 INSERT INTO coding_projects(id, workspace_id, owner_id, name, repository_id, repository, default_branch)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, workspace_id, owner_id, name, repository_id, repository, default_branch, created_at
+RETURNING id, workspace_id, owner_id, name, repository_id, repository, default_branch, created_at, last_agent_name
 `
 
 type GatewayCreateCodingProjectParams struct {
@@ -697,6 +670,7 @@ func (q *Queries) GatewayCreateCodingProject(ctx context.Context, arg GatewayCre
 		&i.Repository,
 		&i.DefaultBranch,
 		&i.CreatedAt,
+		&i.LastAgentName,
 	)
 	return i, err
 }
@@ -1021,13 +995,17 @@ func (q *Queries) GatewayDeleteAgent(ctx context.Context, arg GatewayDeleteAgent
 const gatewayDeleteAgentChatSessions = `-- name: GatewayDeleteAgentChatSessions :exec
 WITH changed AS (
 DELETE FROM chat_sessions
-WHERE workspace_id = $1
-  AND agent_name = $2
-RETURNING workspace_id
+WHERE chat_sessions.workspace_id = $1
+  AND chat_sessions.agent_name = $2
+RETURNING chat_sessions.workspace_id, chat_sessions.agent_name, chat_sessions.session_id
 )
-SELECT pg_notify('agentz_chat_sessions', workspace_id)
+SELECT pg_notify('agentz_chat_sessions', changed.workspace_id || COALESCE('/' || project.owner_id, ''))
 FROM changed
-GROUP BY workspace_id
+LEFT JOIN coding_threads thread ON thread.workspace_id = changed.workspace_id
+  AND thread.agent_name = changed.agent_name AND thread.session_id = changed.session_id
+LEFT JOIN coding_worktrees tree ON tree.id = thread.worktree_id
+LEFT JOIN coding_projects project ON project.id = tree.project_id
+GROUP BY changed.workspace_id, project.owner_id
 `
 
 type GatewayDeleteAgentChatSessionsParams struct {
@@ -1093,10 +1071,14 @@ DELETE FROM chat_sessions
 WHERE chat_sessions.workspace_id = $1
   AND chat_sessions.agent_name = $2
   AND chat_sessions.session_id = $3
-RETURNING chat_sessions.workspace_id
+RETURNING chat_sessions.workspace_id, chat_sessions.agent_name, chat_sessions.session_id
 )
-SELECT pg_notify('agentz_chat_sessions', workspace_id)
+SELECT pg_notify('agentz_chat_sessions', changed.workspace_id || COALESCE('/' || project.owner_id, ''))
 FROM changed
+LEFT JOIN coding_threads thread ON thread.workspace_id = changed.workspace_id
+  AND thread.agent_name = changed.agent_name AND thread.session_id = changed.session_id
+LEFT JOIN coding_worktrees tree ON tree.id = thread.worktree_id
+LEFT JOIN coding_projects project ON project.id = tree.project_id
 `
 
 type GatewayDeleteChatSessionParams struct {
@@ -1114,12 +1096,16 @@ const gatewayDeleteCodingConversations = `-- name: GatewayDeleteCodingConversati
 WITH changed AS (
 DELETE FROM chat_sessions
 WHERE chat_sessions.workspace_id = $1 AND chat_sessions.agent_name = $2
-AND chat_sessions.session_id IN (SELECT session_id FROM coding_threads WHERE worktree_id = $3)
-RETURNING chat_sessions.workspace_id
+AND chat_sessions.session_id IN (SELECT session_id FROM coding_threads WHERE coding_threads.worktree_id = $3)
+RETURNING chat_sessions.workspace_id, chat_sessions.agent_name, chat_sessions.session_id
 )
-SELECT pg_notify('agentz_chat_sessions', workspace_id)
+SELECT pg_notify('agentz_chat_sessions', changed.workspace_id || COALESCE('/' || project.owner_id, ''))
 FROM changed
-GROUP BY workspace_id
+LEFT JOIN coding_threads thread ON thread.workspace_id = changed.workspace_id
+  AND thread.agent_name = changed.agent_name AND thread.session_id = changed.session_id
+LEFT JOIN coding_worktrees tree ON tree.id = thread.worktree_id
+LEFT JOIN coding_projects project ON project.id = tree.project_id
+GROUP BY changed.workspace_id, project.owner_id
 `
 
 type GatewayDeleteCodingConversationsParams struct {
@@ -1470,29 +1456,41 @@ func (q *Queries) GatewayGetAgentShare(ctx context.Context, arg GatewayGetAgentS
 }
 
 const gatewayGetChatSessionGroup = `-- name: GatewayGetChatSessionGroup :one
-SELECT status, source_updated_at
-FROM chat_sessions
-WHERE workspace_id = $1
-  AND agent_name = $2
-  AND session_id = $3
-  AND parent_session_id IS NULL
+SELECT sessions.status, sessions.source_updated_at, project.id AS project_id
+FROM chat_sessions AS sessions
+LEFT JOIN coding_threads AS coding ON coding.workspace_id = sessions.workspace_id
+  AND coding.agent_name = sessions.agent_name AND coding.session_id = sessions.session_id
+LEFT JOIN coding_worktrees AS tree ON tree.id = coding.worktree_id
+LEFT JOIN coding_projects AS project ON project.id = tree.project_id
+WHERE sessions.workspace_id = $1
+  AND sessions.agent_name = $2
+  AND sessions.session_id = $3
+  AND sessions.parent_session_id IS NULL
+  AND ($4::text IS NULL OR project.owner_id = $4)
 `
 
 type GatewayGetChatSessionGroupParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	AgentName   string `json:"agent_name"`
-	SessionID   string `json:"session_id"`
+	WorkspaceID string      `json:"workspace_id"`
+	AgentName   string      `json:"agent_name"`
+	SessionID   string      `json:"session_id"`
+	OwnerID     pgtype.Text `json:"owner_id"`
 }
 
 type GatewayGetChatSessionGroupRow struct {
 	Status          ChatSessionStatus  `json:"status"`
 	SourceUpdatedAt pgtype.Timestamptz `json:"source_updated_at"`
+	ProjectID       pgtype.Text        `json:"project_id"`
 }
 
 func (q *Queries) GatewayGetChatSessionGroup(ctx context.Context, arg GatewayGetChatSessionGroupParams) (GatewayGetChatSessionGroupRow, error) {
-	row := q.db.QueryRow(ctx, gatewayGetChatSessionGroup, arg.WorkspaceID, arg.AgentName, arg.SessionID)
+	row := q.db.QueryRow(ctx, gatewayGetChatSessionGroup,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.SessionID,
+		arg.OwnerID,
+	)
 	var i GatewayGetChatSessionGroupRow
-	err := row.Scan(&i.Status, &i.SourceUpdatedAt)
+	err := row.Scan(&i.Status, &i.SourceUpdatedAt, &i.ProjectID)
 	return i, err
 }
 
@@ -1526,7 +1524,7 @@ func (q *Queries) GatewayGetCodingOperation(ctx context.Context, arg GatewayGetC
 }
 
 const gatewayGetCodingProject = `-- name: GatewayGetCodingProject :one
-SELECT id, workspace_id, owner_id, name, repository_id, repository, default_branch, created_at FROM coding_projects
+SELECT id, workspace_id, owner_id, name, repository_id, repository, default_branch, created_at, last_agent_name FROM coding_projects
 WHERE id = $1 AND workspace_id = $2 AND owner_id = $3
 `
 
@@ -1548,12 +1546,13 @@ func (q *Queries) GatewayGetCodingProject(ctx context.Context, arg GatewayGetCod
 		&i.Repository,
 		&i.DefaultBranch,
 		&i.CreatedAt,
+		&i.LastAgentName,
 	)
 	return i, err
 }
 
 const gatewayGetCodingThread = `-- name: GatewayGetCodingThread :one
-SELECT coding_threads.id, coding_threads.workspace_id, coding_threads.agent_name, coding_threads.worktree_id, coding_threads.session_id, coding_threads.created_at, coding_worktrees.id, coding_worktrees.workspace_id, coding_worktrees.project_id, coding_worktrees.agent_name, coding_worktrees.directory, coding_worktrees.branch, coding_worktrees.ready, coding_worktrees.shared, coding_worktrees.created_at, coding_worktrees.deleting, coding_projects.id, coding_projects.workspace_id, coding_projects.owner_id, coding_projects.name, coding_projects.repository_id, coding_projects.repository, coding_projects.default_branch, coding_projects.created_at
+SELECT coding_threads.id, coding_threads.workspace_id, coding_threads.agent_name, coding_threads.worktree_id, coding_threads.session_id, coding_threads.created_at, coding_worktrees.id, coding_worktrees.workspace_id, coding_worktrees.project_id, coding_worktrees.agent_name, coding_worktrees.directory, coding_worktrees.branch, coding_worktrees.ready, coding_worktrees.shared, coding_worktrees.created_at, coding_worktrees.deleting, coding_projects.id, coding_projects.workspace_id, coding_projects.owner_id, coding_projects.name, coding_projects.repository_id, coding_projects.repository, coding_projects.default_branch, coding_projects.created_at, coding_projects.last_agent_name
 FROM coding_threads JOIN coding_worktrees ON coding_worktrees.id = coding_threads.worktree_id
 JOIN coding_projects ON coding_projects.id = coding_worktrees.project_id
 WHERE coding_threads.workspace_id = $1 AND coding_threads.agent_name = $2
@@ -1606,12 +1605,13 @@ func (q *Queries) GatewayGetCodingThread(ctx context.Context, arg GatewayGetCodi
 		&i.CodingProject.Repository,
 		&i.CodingProject.DefaultBranch,
 		&i.CodingProject.CreatedAt,
+		&i.CodingProject.LastAgentName,
 	)
 	return i, err
 }
 
 const gatewayGetCodingWorktree = `-- name: GatewayGetCodingWorktree :one
-SELECT coding_worktrees.id, coding_worktrees.workspace_id, coding_worktrees.project_id, coding_worktrees.agent_name, coding_worktrees.directory, coding_worktrees.branch, coding_worktrees.ready, coding_worktrees.shared, coding_worktrees.created_at, coding_worktrees.deleting, coding_projects.id, coding_projects.workspace_id, coding_projects.owner_id, coding_projects.name, coding_projects.repository_id, coding_projects.repository, coding_projects.default_branch, coding_projects.created_at
+SELECT coding_worktrees.id, coding_worktrees.workspace_id, coding_worktrees.project_id, coding_worktrees.agent_name, coding_worktrees.directory, coding_worktrees.branch, coding_worktrees.ready, coding_worktrees.shared, coding_worktrees.created_at, coding_worktrees.deleting, coding_projects.id, coding_projects.workspace_id, coding_projects.owner_id, coding_projects.name, coding_projects.repository_id, coding_projects.repository, coding_projects.default_branch, coding_projects.created_at, coding_projects.last_agent_name
 FROM coding_worktrees JOIN coding_projects ON coding_projects.id = coding_worktrees.project_id
 WHERE coding_worktrees.id = $1 AND coding_worktrees.workspace_id = $2
 `
@@ -1648,6 +1648,7 @@ func (q *Queries) GatewayGetCodingWorktree(ctx context.Context, arg GatewayGetCo
 		&i.CodingProject.Repository,
 		&i.CodingProject.DefaultBranch,
 		&i.CodingProject.CreatedAt,
+		&i.CodingProject.LastAgentName,
 	)
 	return i, err
 }
@@ -2022,22 +2023,27 @@ const gatewayInterruptCodingOperations = `-- name: GatewayInterruptCodingOperati
 UPDATE coding_operations SET result = result || jsonb_build_object('state', 'interrupted',
 'error', 'Execution was interrupted. Refresh the checkout before retrying; a remote write may have completed.', 'updated_at', now())
 WHERE result->>'state' = 'running' AND lease_until <= now()
-RETURNING workspace_id
+RETURNING workspace_id, owner_id
 `
 
-func (q *Queries) GatewayInterruptCodingOperations(ctx context.Context) ([]string, error) {
+type GatewayInterruptCodingOperationsRow struct {
+	WorkspaceID string `json:"workspace_id"`
+	OwnerID     string `json:"owner_id"`
+}
+
+func (q *Queries) GatewayInterruptCodingOperations(ctx context.Context) ([]GatewayInterruptCodingOperationsRow, error) {
 	rows, err := q.db.Query(ctx, gatewayInterruptCodingOperations)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []string{}
+	items := []GatewayInterruptCodingOperationsRow{}
 	for rows.Next() {
-		var workspace_id string
-		if err := rows.Scan(&workspace_id); err != nil {
+		var i GatewayInterruptCodingOperationsRow
+		if err := rows.Scan(&i.WorkspaceID, &i.OwnerID); err != nil {
 			return nil, err
 		}
-		items = append(items, workspace_id)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -2733,36 +2739,42 @@ SELECT CASE
   ELSE 'older'
 END::text AS group_value
 FROM chat_sessions AS sessions
+LEFT JOIN coding_threads AS coding ON coding.workspace_id = sessions.workspace_id
+  AND coding.agent_name = sessions.agent_name AND coding.session_id = sessions.session_id
+LEFT JOIN coding_worktrees AS tree ON tree.id = coding.worktree_id
+LEFT JOIN coding_projects AS project ON project.id = tree.project_id
 WHERE sessions.workspace_id = $4
   AND sessions.agent_name = ANY($5::text[])
   AND sessions.parent_session_id IS NULL
+  AND ($6::text IS NULL OR project.owner_id = $6)
   AND (
-    $6::boolean
+    $7::boolean
     OR sessions.kind <> 'workflow_run'
   )
   AND (
-    cardinality($7::text[]) = 0
+    cardinality($8::text[]) = 0
     OR (
       SELECT COUNT(DISTINCT participants.user_id)
       FROM chat_session_participants AS participants
       WHERE participants.workspace_id = sessions.workspace_id
         AND participants.agent_name = sessions.agent_name
         AND participants.session_id = sessions.session_id
-        AND participants.user_id = ANY($7::text[])
-    ) = cardinality($7::text[])
+        AND participants.user_id = ANY($8::text[])
+    ) = cardinality($8::text[])
   )
 GROUP BY group_value
 ORDER BY MAX(sessions.source_updated_at) DESC
 `
 
 type GatewayListChatSessionDateGroupsParams struct {
-	TodayStart          time.Time `json:"today_start"`
-	YesterdayStart      time.Time `json:"yesterday_start"`
-	PreviousWeekStart   time.Time `json:"previous_week_start"`
-	WorkspaceID         string    `json:"workspace_id"`
-	AgentNames          []string  `json:"agent_names"`
-	IncludeWorkflowRuns bool      `json:"include_workflow_runs"`
-	ParticipantUserIds  []string  `json:"participant_user_ids"`
+	TodayStart          time.Time   `json:"today_start"`
+	YesterdayStart      time.Time   `json:"yesterday_start"`
+	PreviousWeekStart   time.Time   `json:"previous_week_start"`
+	WorkspaceID         string      `json:"workspace_id"`
+	AgentNames          []string    `json:"agent_names"`
+	OwnerID             pgtype.Text `json:"owner_id"`
+	IncludeWorkflowRuns bool        `json:"include_workflow_runs"`
+	ParticipantUserIds  []string    `json:"participant_user_ids"`
 }
 
 func (q *Queries) GatewayListChatSessionDateGroups(ctx context.Context, arg GatewayListChatSessionDateGroupsParams) ([]string, error) {
@@ -2772,6 +2784,7 @@ func (q *Queries) GatewayListChatSessionDateGroups(ctx context.Context, arg Gate
 		arg.PreviousWeekStart,
 		arg.WorkspaceID,
 		arg.AgentNames,
+		arg.OwnerID,
 		arg.IncludeWorkflowRuns,
 		arg.ParticipantUserIds,
 	)
@@ -2800,21 +2813,27 @@ JOIN chat_sessions AS sessions
   ON sessions.workspace_id = participants.workspace_id
   AND sessions.agent_name = participants.agent_name
   AND sessions.session_id = participants.session_id
+LEFT JOIN coding_threads AS coding ON coding.workspace_id = sessions.workspace_id
+  AND coding.agent_name = sessions.agent_name AND coding.session_id = sessions.session_id
+LEFT JOIN coding_worktrees AS tree ON tree.id = coding.worktree_id
+LEFT JOIN coding_projects AS project ON project.id = tree.project_id
 JOIN users ON users.id = participants.user_id
 WHERE participants.workspace_id = $1
   AND sessions.agent_name = ANY($2::text[])
   AND sessions.parent_session_id IS NULL
+  AND ($3::text IS NULL OR project.owner_id = $3)
   AND (
-    $3::boolean
+    $4::boolean
     OR sessions.kind <> 'workflow_run'
   )
 ORDER BY users.name, users.email, users.id
 `
 
 type GatewayListChatSessionFilterUsersParams struct {
-	WorkspaceID         string   `json:"workspace_id"`
-	AgentNames          []string `json:"agent_names"`
-	IncludeWorkflowRuns bool     `json:"include_workflow_runs"`
+	WorkspaceID         string      `json:"workspace_id"`
+	AgentNames          []string    `json:"agent_names"`
+	OwnerID             pgtype.Text `json:"owner_id"`
+	IncludeWorkflowRuns bool        `json:"include_workflow_runs"`
 }
 
 type GatewayListChatSessionFilterUsersRow struct {
@@ -2825,7 +2844,12 @@ type GatewayListChatSessionFilterUsersRow struct {
 }
 
 func (q *Queries) GatewayListChatSessionFilterUsers(ctx context.Context, arg GatewayListChatSessionFilterUsersParams) ([]GatewayListChatSessionFilterUsersRow, error) {
-	rows, err := q.db.Query(ctx, gatewayListChatSessionFilterUsers, arg.WorkspaceID, arg.AgentNames, arg.IncludeWorkflowRuns)
+	rows, err := q.db.Query(ctx, gatewayListChatSessionFilterUsers,
+		arg.WorkspaceID,
+		arg.AgentNames,
+		arg.OwnerID,
+		arg.IncludeWorkflowRuns,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -2851,6 +2875,7 @@ func (q *Queries) GatewayListChatSessionFilterUsers(ctx context.Context, arg Gat
 
 const gatewayListChatSessions = `-- name: GatewayListChatSessions :many
 SELECT
+  project.id AS project_id,
   sessions.workspace_id,
   sessions.agent_name,
   sessions.session_id,
@@ -2876,73 +2901,81 @@ SELECT
       AND participants.session_id = sessions.session_id
   ), '[]'::jsonb)::text AS participants_json
 FROM chat_sessions AS sessions
-WHERE sessions.workspace_id = $1
-  AND sessions.agent_name = ANY($2::text[])
+LEFT JOIN coding_threads AS coding ON coding.workspace_id = sessions.workspace_id
+  AND coding.agent_name = sessions.agent_name AND coding.session_id = sessions.session_id
+LEFT JOIN coding_worktrees AS tree ON tree.id = coding.worktree_id
+LEFT JOIN coding_projects AS project ON project.id = tree.project_id
+WHERE ($1::text IS NULL OR project.id = $1)
+  AND sessions.workspace_id = $2
+  AND sessions.agent_name = ANY($3::text[])
   AND sessions.parent_session_id IS NULL
+  AND ($4::text IS NULL OR project.owner_id = $4)
   AND (
-    $3::boolean
+    $5::boolean
     OR sessions.kind <> 'workflow_run'
   )
   AND (
-    $4::text IS NULL
-    OR sessions.agent_name = $4::text
+    $6::text IS NULL
+    OR sessions.agent_name = $6::text
   )
   AND (
-    NOT $5::boolean
+    NOT $7::boolean
     OR sessions.title ILIKE
-      '%' || REPLACE(REPLACE(REPLACE($6::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'
+      '%' || REPLACE(REPLACE(REPLACE($8::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'
       ESCAPE '\'
   )
   AND (
-    $7::text IS NULL
-    OR sessions.agent_name = $7::text
+    $9::text IS NULL
+    OR sessions.agent_name = $9::text
   )
   AND (
-    $8::chat_session_status IS NULL
-    OR sessions.status = $8::chat_session_status
+    $10::chat_session_status IS NULL
+    OR sessions.status = $10::chat_session_status
   )
   AND (
-    $9::timestamptz IS NULL
-    OR sessions.source_updated_at >= $9::timestamptz
+    $11::timestamptz IS NULL
+    OR sessions.source_updated_at >= $11::timestamptz
   )
   AND (
-    $10::timestamptz IS NULL
-    OR sessions.source_updated_at < $10::timestamptz
+    $12::timestamptz IS NULL
+    OR sessions.source_updated_at < $12::timestamptz
   )
   AND (
-    cardinality($11::text[]) = 0
+    cardinality($13::text[]) = 0
     OR (
       SELECT COUNT(DISTINCT participants.user_id)
       FROM chat_session_participants AS participants
       WHERE participants.workspace_id = sessions.workspace_id
         AND participants.agent_name = sessions.agent_name
         AND participants.session_id = sessions.session_id
-        AND participants.user_id = ANY($11::text[])
-    ) = cardinality($11::text[])
+        AND participants.user_id = ANY($13::text[])
+    ) = cardinality($13::text[])
   )
   AND (
-    NOT $12::boolean
-    OR sessions.source_updated_at < $13
+    NOT $14::boolean
+    OR sessions.source_updated_at < $15
     OR (
-      sessions.source_updated_at = $13
-      AND sessions.agent_name > $14
+      sessions.source_updated_at = $15
+      AND sessions.agent_name > $16
     )
     OR (
-      sessions.source_updated_at = $13
-      AND sessions.agent_name = $14
-      AND sessions.session_id > $15
+      sessions.source_updated_at = $15
+      AND sessions.agent_name = $16
+      AND sessions.session_id > $17
     )
   )
 ORDER BY
   sessions.source_updated_at DESC NULLS LAST,
   sessions.agent_name ASC,
   sessions.session_id ASC
-LIMIT $16
+LIMIT $18
 `
 
 type GatewayListChatSessionsParams struct {
+	ProjectID           pgtype.Text           `json:"project_id"`
 	WorkspaceID         string                `json:"workspace_id"`
 	AgentNames          []string              `json:"agent_names"`
+	OwnerID             pgtype.Text           `json:"owner_id"`
 	IncludeWorkflowRuns bool                  `json:"include_workflow_runs"`
 	AgentName           pgtype.Text           `json:"agent_name"`
 	SearchSet           bool                  `json:"search_set"`
@@ -2960,6 +2993,7 @@ type GatewayListChatSessionsParams struct {
 }
 
 type GatewayListChatSessionsRow struct {
+	ProjectID        pgtype.Text        `json:"project_id"`
 	WorkspaceID      string             `json:"workspace_id"`
 	AgentName        string             `json:"agent_name"`
 	SessionID        string             `json:"session_id"`
@@ -2973,8 +3007,10 @@ type GatewayListChatSessionsRow struct {
 
 func (q *Queries) GatewayListChatSessions(ctx context.Context, arg GatewayListChatSessionsParams) ([]GatewayListChatSessionsRow, error) {
 	rows, err := q.db.Query(ctx, gatewayListChatSessions,
+		arg.ProjectID,
 		arg.WorkspaceID,
 		arg.AgentNames,
+		arg.OwnerID,
 		arg.IncludeWorkflowRuns,
 		arg.AgentName,
 		arg.SearchSet,
@@ -2998,6 +3034,7 @@ func (q *Queries) GatewayListChatSessions(ctx context.Context, arg GatewayListCh
 	for rows.Next() {
 		var i GatewayListChatSessionsRow
 		if err := rows.Scan(
+			&i.ProjectID,
 			&i.WorkspaceID,
 			&i.AgentName,
 			&i.SessionID,
@@ -3064,9 +3101,9 @@ func (q *Queries) GatewayListCodingOperations(ctx context.Context, arg GatewayLi
 }
 
 const gatewayListCodingProjects = `-- name: GatewayListCodingProjects :many
-SELECT id, workspace_id, owner_id, name, repository_id, repository, default_branch, created_at FROM coding_projects
+SELECT id, workspace_id, owner_id, name, repository_id, repository, default_branch, created_at, last_agent_name FROM coding_projects
 WHERE workspace_id = $1 AND owner_id = $2
-ORDER BY created_at DESC
+ORDER BY lower(name), id
 `
 
 type GatewayListCodingProjectsParams struct {
@@ -3092,6 +3129,7 @@ func (q *Queries) GatewayListCodingProjects(ctx context.Context, arg GatewayList
 			&i.Repository,
 			&i.DefaultBranch,
 			&i.CreatedAt,
+			&i.LastAgentName,
 		); err != nil {
 			return nil, err
 		}
@@ -3104,7 +3142,7 @@ func (q *Queries) GatewayListCodingProjects(ctx context.Context, arg GatewayList
 }
 
 const gatewayListCodingThreads = `-- name: GatewayListCodingThreads :many
-SELECT coding_threads.id, coding_threads.workspace_id, coding_threads.agent_name, coding_threads.worktree_id, coding_threads.session_id, coding_threads.created_at, coding_worktrees.id, coding_worktrees.workspace_id, coding_worktrees.project_id, coding_worktrees.agent_name, coding_worktrees.directory, coding_worktrees.branch, coding_worktrees.ready, coding_worktrees.shared, coding_worktrees.created_at, coding_worktrees.deleting, coding_projects.id, coding_projects.workspace_id, coding_projects.owner_id, coding_projects.name, coding_projects.repository_id, coding_projects.repository, coding_projects.default_branch, coding_projects.created_at
+SELECT coding_threads.id, coding_threads.workspace_id, coding_threads.agent_name, coding_threads.worktree_id, coding_threads.session_id, coding_threads.created_at, coding_worktrees.id, coding_worktrees.workspace_id, coding_worktrees.project_id, coding_worktrees.agent_name, coding_worktrees.directory, coding_worktrees.branch, coding_worktrees.ready, coding_worktrees.shared, coding_worktrees.created_at, coding_worktrees.deleting, coding_projects.id, coding_projects.workspace_id, coding_projects.owner_id, coding_projects.name, coding_projects.repository_id, coding_projects.repository, coding_projects.default_branch, coding_projects.created_at, coding_projects.last_agent_name
 FROM coding_threads JOIN coding_worktrees ON coding_worktrees.id = coding_threads.worktree_id
 JOIN coding_projects ON coding_projects.id = coding_worktrees.project_id
 WHERE coding_projects.id = $1 AND coding_projects.workspace_id = $2
@@ -3156,6 +3194,7 @@ func (q *Queries) GatewayListCodingThreads(ctx context.Context, arg GatewayListC
 			&i.CodingProject.Repository,
 			&i.CodingProject.DefaultBranch,
 			&i.CodingProject.CreatedAt,
+			&i.CodingProject.LastAgentName,
 		); err != nil {
 			return nil, err
 		}
@@ -4973,12 +5012,59 @@ func (q *Queries) GatewayLockTeam(ctx context.Context, arg GatewayLockTeamParams
 }
 
 const gatewayNotifyCoding = `-- name: GatewayNotifyCoding :exec
-SELECT pg_notify('agentz_coding', $1::text)
+SELECT pg_notify('agentz_coding', $1::text || '/' || $2::text)
 `
 
-func (q *Queries) GatewayNotifyCoding(ctx context.Context, workspaceID string) error {
-	_, err := q.db.Exec(ctx, gatewayNotifyCoding, workspaceID)
+type GatewayNotifyCodingParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	OwnerID     string `json:"owner_id"`
+}
+
+func (q *Queries) GatewayNotifyCoding(ctx context.Context, arg GatewayNotifyCodingParams) error {
+	_, err := q.db.Exec(ctx, gatewayNotifyCoding, arg.WorkspaceID, arg.OwnerID)
 	return err
+}
+
+const gatewayOwnedCodingDirectory = `-- name: GatewayOwnedCodingDirectory :one
+SELECT coding_worktrees.id, coding_worktrees.workspace_id, coding_worktrees.project_id, coding_worktrees.agent_name, coding_worktrees.directory, coding_worktrees.branch, coding_worktrees.ready, coding_worktrees.shared, coding_worktrees.created_at, coding_worktrees.deleting
+FROM coding_worktrees JOIN coding_projects ON coding_projects.id = coding_worktrees.project_id
+WHERE coding_worktrees.workspace_id = $1
+  AND coding_worktrees.agent_name = $2
+  AND coding_projects.owner_id = $3
+  AND ($4::text = coding_worktrees.directory
+    OR starts_with($4::text, coding_worktrees.directory || '/'))
+ORDER BY length(coding_worktrees.directory) DESC
+LIMIT 1
+`
+
+type GatewayOwnedCodingDirectoryParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	OwnerID     string `json:"owner_id"`
+	Directory   string `json:"directory"`
+}
+
+func (q *Queries) GatewayOwnedCodingDirectory(ctx context.Context, arg GatewayOwnedCodingDirectoryParams) (CodingWorktree, error) {
+	row := q.db.QueryRow(ctx, gatewayOwnedCodingDirectory,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.OwnerID,
+		arg.Directory,
+	)
+	var i CodingWorktree
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.ProjectID,
+		&i.AgentName,
+		&i.Directory,
+		&i.Branch,
+		&i.Ready,
+		&i.Shared,
+		&i.CreatedAt,
+		&i.Deleting,
+	)
+	return i, err
 }
 
 const gatewayProjectMemberRoleTransports = `-- name: GatewayProjectMemberRoleTransports :execrows
@@ -5114,6 +5200,76 @@ func (q *Queries) GatewayRenameCodingProject(ctx context.Context, arg GatewayRen
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const gatewayResolveCodingSession = `-- name: GatewayResolveCodingSession :one
+WITH RECURSIVE ancestors(session_id) AS (
+  SELECT $4::text
+  UNION
+  SELECT sessions.parent_session_id
+  FROM chat_sessions sessions JOIN ancestors ON ancestors.session_id = sessions.session_id
+  WHERE sessions.workspace_id = $1 AND sessions.agent_name = $2
+    AND sessions.parent_session_id IS NOT NULL
+)
+SELECT coding_threads.id, coding_threads.workspace_id, coding_threads.agent_name, coding_threads.worktree_id, coding_threads.session_id, coding_threads.created_at, coding_worktrees.id, coding_worktrees.workspace_id, coding_worktrees.project_id, coding_worktrees.agent_name, coding_worktrees.directory, coding_worktrees.branch, coding_worktrees.ready, coding_worktrees.shared, coding_worktrees.created_at, coding_worktrees.deleting, coding_projects.id, coding_projects.workspace_id, coding_projects.owner_id, coding_projects.name, coding_projects.repository_id, coding_projects.repository, coding_projects.default_branch, coding_projects.created_at, coding_projects.last_agent_name
+FROM ancestors
+JOIN coding_threads ON coding_threads.session_id = ancestors.session_id
+JOIN coding_worktrees ON coding_worktrees.id = coding_threads.worktree_id
+JOIN coding_projects ON coding_projects.id = coding_worktrees.project_id
+WHERE coding_threads.workspace_id = $1 AND coding_threads.agent_name = $2
+  AND coding_projects.owner_id = $3
+LIMIT 1
+`
+
+type GatewayResolveCodingSessionParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	OwnerID     string `json:"owner_id"`
+	SessionID   string `json:"session_id"`
+}
+
+type GatewayResolveCodingSessionRow struct {
+	CodingThread   CodingThread   `json:"coding_thread"`
+	CodingWorktree CodingWorktree `json:"coding_worktree"`
+	CodingProject  CodingProject  `json:"coding_project"`
+}
+
+func (q *Queries) GatewayResolveCodingSession(ctx context.Context, arg GatewayResolveCodingSessionParams) (GatewayResolveCodingSessionRow, error) {
+	row := q.db.QueryRow(ctx, gatewayResolveCodingSession,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.OwnerID,
+		arg.SessionID,
+	)
+	var i GatewayResolveCodingSessionRow
+	err := row.Scan(
+		&i.CodingThread.ID,
+		&i.CodingThread.WorkspaceID,
+		&i.CodingThread.AgentName,
+		&i.CodingThread.WorktreeID,
+		&i.CodingThread.SessionID,
+		&i.CodingThread.CreatedAt,
+		&i.CodingWorktree.ID,
+		&i.CodingWorktree.WorkspaceID,
+		&i.CodingWorktree.ProjectID,
+		&i.CodingWorktree.AgentName,
+		&i.CodingWorktree.Directory,
+		&i.CodingWorktree.Branch,
+		&i.CodingWorktree.Ready,
+		&i.CodingWorktree.Shared,
+		&i.CodingWorktree.CreatedAt,
+		&i.CodingWorktree.Deleting,
+		&i.CodingProject.ID,
+		&i.CodingProject.WorkspaceID,
+		&i.CodingProject.OwnerID,
+		&i.CodingProject.Name,
+		&i.CodingProject.RepositoryID,
+		&i.CodingProject.Repository,
+		&i.CodingProject.DefaultBranch,
+		&i.CodingProject.CreatedAt,
+		&i.CodingProject.LastAgentName,
+	)
+	return i, err
 }
 
 const gatewayResolvePermissions = `-- name: GatewayResolvePermissions :many
@@ -5507,30 +5663,35 @@ WITH filtered_sessions AS (
       END
     END)::text AS group_value
   FROM chat_sessions AS sessions
+LEFT JOIN coding_threads AS coding ON coding.workspace_id = sessions.workspace_id
+  AND coding.agent_name = sessions.agent_name AND coding.session_id = sessions.session_id
+LEFT JOIN coding_worktrees AS tree ON tree.id = coding.worktree_id
+LEFT JOIN coding_projects AS project ON project.id = tree.project_id
   WHERE sessions.workspace_id = $6
     AND sessions.agent_name = ANY($7::text[])
     AND sessions.parent_session_id IS NULL
+  AND ($8::text IS NULL OR project.owner_id = $8)
     AND (
-      $8::boolean
+      $9::boolean
       OR sessions.kind <> 'workflow_run'
     )
     AND (
-      $9::text IS NULL
-      OR sessions.agent_name = $9::text
+      $10::text IS NULL
+      OR sessions.agent_name = $10::text
     )
     AND sessions.title ILIKE
-      '%' || REPLACE(REPLACE(REPLACE($10::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'
+      '%' || REPLACE(REPLACE(REPLACE($11::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'
       ESCAPE '\'
     AND (
-      cardinality($11::text[]) = 0
+      cardinality($12::text[]) = 0
       OR (
         SELECT COUNT(DISTINCT participants.user_id)
         FROM chat_session_participants AS participants
         WHERE participants.workspace_id = sessions.workspace_id
           AND participants.agent_name = sessions.agent_name
           AND participants.session_id = sessions.session_id
-          AND participants.user_id = ANY($11::text[])
-      ) = cardinality($11::text[])
+          AND participants.user_id = ANY($12::text[])
+      ) = cardinality($12::text[])
     )
 ), group_values AS (
   SELECT DISTINCT group_value
@@ -5602,6 +5763,7 @@ type GatewaySearchGroupedChatSessionsParams struct {
 	PreviousWeekStart   time.Time   `json:"previous_week_start"`
 	WorkspaceID         string      `json:"workspace_id"`
 	AgentNames          []string    `json:"agent_names"`
+	OwnerID             pgtype.Text `json:"owner_id"`
 	IncludeWorkflowRuns bool        `json:"include_workflow_runs"`
 	AgentName           pgtype.Text `json:"agent_name"`
 	Search              string      `json:"search"`
@@ -5630,6 +5792,7 @@ func (q *Queries) GatewaySearchGroupedChatSessions(ctx context.Context, arg Gate
 		arg.PreviousWeekStart,
 		arg.WorkspaceID,
 		arg.AgentNames,
+		arg.OwnerID,
 		arg.IncludeWorkflowRuns,
 		arg.AgentName,
 		arg.Search,
@@ -5701,42 +5864,63 @@ func (q *Queries) GatewayShareCodingWorktree(ctx context.Context, id string) err
 }
 
 const gatewaySyncAgentChatSessionStatuses = `-- name: GatewaySyncAgentChatSessionStatuses :exec
-WITH changed AS (
+WITH RECURSIVE scoped(session_id) AS (
+  SELECT thread.session_id
+  FROM coding_threads thread
+  JOIN coding_worktrees tree ON tree.id = thread.worktree_id
+  WHERE thread.workspace_id = $1
+    AND thread.agent_name = $2
+    AND tree.directory = $3::text
+  UNION
+  SELECT child.session_id
+  FROM chat_sessions child
+  JOIN scoped parent ON parent.session_id = child.parent_session_id
+  WHERE child.workspace_id = $1
+    AND child.agent_name = $2
+), changed AS (
 UPDATE chat_sessions
 SET
   status = (CASE
-    WHEN session_id = ANY($1::text[]) THEN 'retry'
-    WHEN session_id = ANY($2::text[]) THEN 'busy'
+    WHEN session_id = ANY($4::text[]) THEN 'retry'
+    WHEN session_id = ANY($5::text[]) THEN 'busy'
     ELSE 'idle'
   END)::chat_session_status,
   updated_at = NOW()
-WHERE workspace_id = $3
-  AND agent_name = $4
+WHERE chat_sessions.workspace_id = $1
+  AND chat_sessions.agent_name = $2
+  AND ($3::text IS NULL
+    OR chat_sessions.session_id IN (SELECT scoped.session_id FROM scoped))
   AND status IS DISTINCT FROM (CASE
-    WHEN session_id = ANY($1::text[]) THEN 'retry'
-    WHEN session_id = ANY($2::text[]) THEN 'busy'
+    WHEN session_id = ANY($4::text[]) THEN 'retry'
+    WHEN session_id = ANY($5::text[]) THEN 'busy'
     ELSE 'idle'
   END)::chat_session_status
-RETURNING workspace_id
+RETURNING chat_sessions.workspace_id, chat_sessions.agent_name, chat_sessions.session_id
 )
-SELECT pg_notify('agentz_chat_sessions', workspace_id)
+SELECT pg_notify('agentz_chat_sessions', changed.workspace_id || COALESCE('/' || project.owner_id, ''))
 FROM changed
-GROUP BY workspace_id
+LEFT JOIN coding_threads thread ON thread.workspace_id = changed.workspace_id
+  AND thread.agent_name = changed.agent_name AND thread.session_id = changed.session_id
+LEFT JOIN coding_worktrees tree ON tree.id = thread.worktree_id
+LEFT JOIN coding_projects project ON project.id = tree.project_id
+GROUP BY changed.workspace_id, project.owner_id
 `
 
 type GatewaySyncAgentChatSessionStatusesParams struct {
-	RetrySessionIds []string `json:"retry_session_ids"`
-	BusySessionIds  []string `json:"busy_session_ids"`
-	WorkspaceID     string   `json:"workspace_id"`
-	AgentName       string   `json:"agent_name"`
+	WorkspaceID     string      `json:"workspace_id"`
+	AgentName       string      `json:"agent_name"`
+	CodingDirectory pgtype.Text `json:"coding_directory"`
+	RetrySessionIds []string    `json:"retry_session_ids"`
+	BusySessionIds  []string    `json:"busy_session_ids"`
 }
 
 func (q *Queries) GatewaySyncAgentChatSessionStatuses(ctx context.Context, arg GatewaySyncAgentChatSessionStatusesParams) error {
 	_, err := q.db.Exec(ctx, gatewaySyncAgentChatSessionStatuses,
-		arg.RetrySessionIds,
-		arg.BusySessionIds,
 		arg.WorkspaceID,
 		arg.AgentName,
+		arg.CodingDirectory,
+		arg.RetrySessionIds,
+		arg.BusySessionIds,
 	)
 	return err
 }
@@ -5822,10 +6006,14 @@ WHERE sessions.workspace_id = $1
   AND sessions.agent_name = $2
   AND sessions.session_id = $3
   AND EXISTS (SELECT 1 FROM participant)
-RETURNING sessions.workspace_id
+RETURNING sessions.workspace_id, sessions.agent_name, sessions.session_id
 )
-SELECT pg_notify('agentz_chat_sessions', workspace_id)
+SELECT pg_notify('agentz_chat_sessions', changed.workspace_id || COALESCE('/' || project.owner_id, ''))
 FROM changed
+LEFT JOIN coding_threads thread ON thread.workspace_id = changed.workspace_id
+  AND thread.agent_name = changed.agent_name AND thread.session_id = changed.session_id
+LEFT JOIN coding_worktrees tree ON tree.id = thread.worktree_id
+LEFT JOIN coding_projects project ON project.id = tree.project_id
 `
 
 type GatewayTouchChatSessionParticipantParams struct {
@@ -6029,6 +6217,31 @@ func (q *Queries) GatewayUpdateCodingOperation(ctx context.Context, arg GatewayU
 	return result.RowsAffected(), nil
 }
 
+const gatewayUpdateCodingProjectPreference = `-- name: GatewayUpdateCodingProjectPreference :execrows
+UPDATE coding_projects SET last_agent_name = $1
+WHERE id = $2 AND workspace_id = $3 AND owner_id = $4
+`
+
+type GatewayUpdateCodingProjectPreferenceParams struct {
+	AgentName   pgtype.Text `json:"agent_name"`
+	ID          string      `json:"id"`
+	WorkspaceID string      `json:"workspace_id"`
+	OwnerID     string      `json:"owner_id"`
+}
+
+func (q *Queries) GatewayUpdateCodingProjectPreference(ctx context.Context, arg GatewayUpdateCodingProjectPreferenceParams) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayUpdateCodingProjectPreference,
+		arg.AgentName,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.OwnerID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const gatewayUpdateCodingRepository = `-- name: GatewayUpdateCodingRepository :exec
 UPDATE coding_projects SET repository = $1, default_branch = $2 WHERE id = $3
 `
@@ -6092,10 +6305,14 @@ WHERE ROW(
   EXCLUDED.source_created_at,
   GREATEST(chat_sessions.source_updated_at, EXCLUDED.source_updated_at)
 )
-RETURNING workspace_id
+RETURNING workspace_id, agent_name, session_id
 )
-SELECT pg_notify('agentz_chat_sessions', workspace_id)
+SELECT pg_notify('agentz_chat_sessions', changed.workspace_id || COALESCE('/' || project.owner_id, ''))
 FROM changed
+LEFT JOIN coding_threads thread ON thread.workspace_id = changed.workspace_id
+  AND thread.agent_name = changed.agent_name AND thread.session_id = changed.session_id
+LEFT JOIN coding_worktrees tree ON tree.id = thread.worktree_id
+LEFT JOIN coding_projects project ON project.id = tree.project_id
 `
 
 type GatewayUpsertChatSessionParams struct {

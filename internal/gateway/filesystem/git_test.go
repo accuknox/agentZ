@@ -68,6 +68,56 @@ func TestGitWorktreeLifecycle(t *testing.T) {
 		t.Fatalf("branch did not rename: %s", result.Branch)
 	}
 	req.Branch = result.Branch
+	// Same-name requests must not allocate a numbered alternative.
+	result = run(req)
+	if result.Branch != req.Branch {
+		t.Fatalf("same-name rename changed branch: %s", result.Branch)
+	}
+	// Leave a gap before the final candidate to exercise selection and the
+	// bound using real refs shared by all worktrees in this repository.
+	repo := filepath.Join(home, req.Root, "repo")
+	for suffix := range 100 {
+		if suffix == 2 {
+			continue
+		}
+		branch := "docs/collision"
+		if suffix > 0 {
+			branch += fmt.Sprintf("-%d", suffix)
+		}
+		git(repo, "branch", branch)
+	}
+	req.Git.Ref = new("docs/collision")
+	for _, want := range []string{"docs/collision-2", "docs/collision-100"} {
+		result = run(req)
+		if result.Branch != want || result.Head != *req.Git.ExpectedHead {
+			t.Fatalf("rename changed HEAD or chose wrong branch: %+v", result)
+		}
+		req.Branch = result.Branch
+	}
+	git(repo, "branch", "docs/collision-2")
+	_, err = service.runGit(ctx, req)
+	if err == nil || !strings.Contains(err.Error(), "no available branch name") {
+		t.Fatalf("want exhausted branch names, got %v", err)
+	}
+	if got := git(filepath.Join(home, req.Directory), "branch", "--show-current"); got != req.Branch {
+		t.Fatalf("failed rename changed branch: %s", got)
+	}
+	if got := git(repo, "rev-parse", "refs/heads/docs/collision"); got != result.Head {
+		t.Fatalf("rename replaced an occupied branch: %s", got)
+	}
+	// A malformed loose ref must fail lookup, not become a rename target.
+	broken := filepath.Join(repo, ".git", "refs", "heads", "docs", "broken")
+	if err := os.WriteFile(broken, []byte("invalid-object\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	req.Git.Ref = new("docs/broken")
+	_, err = service.runGit(ctx, req)
+	if err == nil || !strings.Contains(err.Error(), "git show-ref:") {
+		t.Fatalf("want ref lookup failure, got %v", err)
+	}
+	if err := os.Remove(broken); err != nil {
+		t.Fatal(err)
+	}
 	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStatus}
 	directory := filepath.Join(home, req.Directory)
 	if err := os.WriteFile(filepath.Join(directory, "café.md"), []byte("changed\n"), 0600); err != nil {
@@ -179,7 +229,7 @@ func TestGitWorktreeLifecycle(t *testing.T) {
 		t.Fatal("cleanup left the branch currently checked out")
 	}
 	req.Directory = req.Root + "/repo"
-	repo := filepath.Join(home, req.Directory)
+	repo = filepath.Join(home, req.Directory)
 	git(repo, "update-ref", "refs/remotes/origin/stale", result.Head)
 	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitImport, Bundle: &bundle}
 	run(req)

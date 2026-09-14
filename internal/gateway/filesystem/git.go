@@ -758,7 +758,32 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 		if result.Branch != req.Branch {
 			return result, errors.New("branch changed; refresh before naming it")
 		}
-		if _, err := run(directory, "", "branch", "-m", req.Branch, *req.Git.Ref); err != nil {
+		if req.Branch == *req.Git.Ref {
+			break
+		}
+		// Resolve local collisions under the mutation lock. Git still rejects
+		// a target created by an external process before the rename.
+		// --exists distinguishes missing refs from malformed ones.
+		branch := *req.Git.Ref
+		for suffix := 0; ; suffix++ {
+			if suffix > 100 {
+				return result, fmt.Errorf("no available branch name for %q", *req.Git.Ref)
+			}
+			if suffix > 0 {
+				branch = *req.Git.Ref + "-" + strconv.Itoa(suffix)
+			}
+			_, err := run(directory, "", "show-ref", "--exists", "refs/heads/"+branch)
+			if err == nil {
+				continue
+			}
+			exit, ok := errors.AsType[*exec.ExitError](err)
+			if !ok || exit.ExitCode() != 2 {
+				return result, err
+			}
+			break
+		}
+		_, err = run(directory, "", "branch", "-m", "--", req.Branch, branch)
+		if err != nil {
 			return result, err
 		}
 	case gatewayapi.CodingGitCreateBranch:

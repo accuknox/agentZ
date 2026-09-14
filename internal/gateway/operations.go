@@ -625,8 +625,7 @@ func (s *Service) nameCodingBranch(ctx context.Context, job gatewaydb.CodingOper
 	if _, err := s.codingWorkerAccess(ctx, project, input.AgentName); err != nil {
 		return err
 	}
-	branch := suggestion.Text + "-" + job.WorktreeID[:8]
-	renamed, err := s.codingFilesystem(ctx, access.namespace, current.CodingWorktree, current.CodingProject, false, gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitRename, Ref: &branch})
+	renamed, err := s.codingFilesystem(ctx, access.namespace, current.CodingWorktree, current.CodingProject, false, gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitRename, Ref: &suggestion.Text})
 	if err != nil {
 		return err
 	}

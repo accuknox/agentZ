@@ -816,8 +816,10 @@ function ChatInner({
       if (!questionRequest) {
         throw new Error("No question request is active")
       }
+      if (!directory) throw new Error("Wait for the session to finish loading")
       const client = await createAgentOpencodeClient(agentName, workspaceId)
       const result = await client.question.reply({
+        directory,
         answers,
         requestID: questionRequest.id,
       })
@@ -837,8 +839,10 @@ function ChatInner({
       if (!questionRequest) {
         throw new Error("No question request is active")
       }
+      if (!directory) throw new Error("Wait for the session to finish loading")
       const client = await createAgentOpencodeClient(agentName, workspaceId)
       const result = await client.question.reject({
+        directory,
         requestID: questionRequest.id,
       })
       if (result.error || result.data !== true) {
@@ -857,8 +861,10 @@ function ChatInner({
       if (!permissionRequest) {
         throw new Error("No permission request is active")
       }
+      if (!directory) throw new Error("Wait for the session to finish loading")
       const client = await createAgentOpencodeClient(agentName, workspaceId)
       const result = await client.permission.reply({
+        directory,
         requestID: permissionRequest.id,
         reply,
       })

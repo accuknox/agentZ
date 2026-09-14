@@ -59,7 +59,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
@@ -195,16 +194,26 @@ function agentFilesQueryOptions(
   return queryOptions({
     queryFn: async ({ signal }) => {
       const client = await createAgentOpencodeClient(agentName, workspaceId)
+      // OpenCode scopes paths to the checkout; file operations use agent-home paths.
+      const rootPath = root === "/home/agentz" ? "." : root.slice("/home/agentz/".length)
       const { data } = await client.file.list(
-        { directory: "/home/agentz", path },
+        {
+          directory: root,
+          path: path === rootPath ? "." : path.slice(rootPath === "." ? 0 : rootPath.length + 1),
+        },
         { signal, throwOnError: true }
       )
-      return data.toSorted((a, b) => {
-        if (a.type !== b.type) {
-          return a.type === "directory" ? -1 : 1
-        }
-        return a.name.localeCompare(b.name)
-      })
+      return data
+        .map((entry) => ({
+          ...entry,
+          path: rootPath === "." ? entry.path : `${rootPath}/${entry.path}`,
+        }))
+        .sort((a, b) => {
+          if (a.type !== b.type) {
+            return a.type === "directory" ? -1 : 1
+          }
+          return a.name.localeCompare(b.name)
+        })
     },
     queryKey: ["opencode-files", workspaceId, agentName, root, path],
     staleTime: 60_000,
@@ -443,7 +452,8 @@ function WorkspaceBody({
   const queryClient = useQueryClient()
   const workspaceKey = `${workspaceId}:${agentName}:${root}`
   const rootPath = root === "/home/agentz" ? "." : root.slice("/home/agentz/".length)
-  const editorWidth = workspaceWidth - explorerWidth - 4
+  const editorRight = explorerWidth + (embedded ? 0 : 4)
+  const editorWidth = workspaceWidth - editorRight
   const [search, setSearch] = React.useState("")
   const [searchQuery, setSearchQuery] = React.useState("")
   React.useEffect(() => {
@@ -755,7 +765,7 @@ function WorkspaceBody({
             className="absolute inset-y-0 z-10 overflow-hidden"
             exit={{ width: 0 }}
             initial={{ width: 0 }}
-            style={{ right: explorerWidth + 4 }}
+            style={{ right: editorRight }}
             transition={{
               duration: reducedMotion ? 0 : 0.2,
               ease: "linear",
@@ -973,7 +983,11 @@ function WorkspaceBody({
       ) : null}
 
       <section
-        className={cn("ml-auto min-h-0 shrink-0 flex-col", explorerWidth === 0 ? "hidden" : "flex")}
+        className={cn(
+          "ml-auto min-h-0 shrink-0 flex-col",
+          explorerWidth === 0 ? "hidden" : "flex",
+          embedded && editorOpen && "border-l"
+        )}
         style={{ width: explorerWidth }}
       >
         <div
@@ -1043,8 +1057,8 @@ function WorkspaceBody({
             </span>
           </div>
         ) : null}
-        <div className="relative mx-2 mb-2">
-          <Search className="text-muted-foreground pointer-events-none absolute top-2.5 left-2.5 size-3.5" />
+        <div className="relative h-10 shrink-0 border-b px-2">
+          <Search className="text-muted-foreground pointer-events-none absolute top-2.5 left-4.5 size-3.5" />
           <Input
             aria-label="Find a file"
             placeholder="Find a file..."
@@ -1060,14 +1074,13 @@ function WorkspaceBody({
               aria-label="Clear file search"
               size="icon-xs"
               variant="ghost"
-              className="absolute top-1 right-1"
+              className="absolute top-1 right-3"
               onClick={() => setSearch("")}
             >
               <X />
             </Button>
           ) : null}
         </div>
-        <Separator />
         <div className="min-h-0 flex-1 overflow-auto px-1 py-1">
           {search.trim() ? (
             <div aria-label="File search results">

@@ -920,7 +920,9 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 		if err != nil {
 			return result, err
 		}
-		if strings.TrimSpace(commitTree) != *req.Git.ExpectedTree || strings.TrimSpace(parent) != *req.Git.ExpectedHead {
+		matchesTree := strings.TrimSpace(commitTree) == *req.Git.ExpectedTree
+		matchesHead := strings.TrimSpace(parent) == *req.Git.ExpectedHead
+		if !matchesTree || !matchesHead {
 			return result, errors.New("commit does not match the reviewed changes")
 		}
 		// External Git processes bypass our mutex. Compare the branch tip

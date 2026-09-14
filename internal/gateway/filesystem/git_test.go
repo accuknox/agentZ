@@ -689,13 +689,15 @@ func TestGitApplyCommit(t *testing.T) {
 			repo := filepath.Join(home, req.Directory)
 			git(repo, "branch", "other")
 			for _, cwd := range []string{repo, origin} {
-				if err := os.WriteFile(filepath.Join(cwd, "file"), []byte("staged\n"), 0600); err != nil {
+				err := os.WriteFile(filepath.Join(cwd, "file"), []byte("staged\n"), 0600)
+				if err != nil {
 					t.Fatal(err)
 				}
 				git(cwd, "add", "file")
 			}
 			tree := git(repo, "write-tree")
-			if err := os.WriteFile(filepath.Join(repo, "file"), []byte("unstaged\n"), 0600); err != nil {
+			err = os.WriteFile(filepath.Join(repo, "file"), []byte("unstaged\n"), 0600)
+			if err != nil {
 				t.Fatal(err)
 			}
 			git(origin, "commit", "-m", "incoming")
@@ -722,7 +724,8 @@ func TestGitApplyCommit(t *testing.T) {
 			script := "#!/bin/sh\ngit='" + strings.ReplaceAll(bin, "'", "'\\''") + "'\n" +
 				"case \" $* \" in *\" update-ref --no-deref \"*|*\" reset --soft \"*)\n" +
 				commands + "\n;; esac\nexec \"$git\" \"$@\"\n"
-			if err := os.WriteFile(filepath.Join(wrapper, "git"), []byte(script), 0700); err != nil {
+			err = os.WriteFile(filepath.Join(wrapper, "git"), []byte(script), 0700)
+			if err != nil {
 				t.Fatal(err)
 			}
 			t.Setenv("PATH", wrapper+string(os.PathListSeparator)+os.Getenv("PATH"))

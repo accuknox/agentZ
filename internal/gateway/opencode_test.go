@@ -96,8 +96,14 @@ func TestPTYProxyOrigins(t *testing.T) {
 		})
 	})
 	router.With(s.ptyWebsocketAuth).HandleFunc("/api/opencode/{agentName}/*", s.handleOpenCodeProxy)
+	origins := []string{
+		"https://app.example.com",
+		"",
+		"null",
+		"https://app.example.com.attacker.example",
+	}
 	for _, prefix := range []string{"/pty", "/api/pty"} {
-		for _, origin := range []string{"https://app.example.com", "", "null", "https://app.example.com.attacker.example"} {
+		for _, origin := range origins {
 			t.Run(prefix+"/"+origin, func(t *testing.T) {
 				req := httptest.NewRequest(http.MethodPost,
 					"/api/opencode/test"+prefix+"/pty_test/connect-token", nil)

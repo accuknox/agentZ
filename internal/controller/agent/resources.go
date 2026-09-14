@@ -614,6 +614,13 @@ func (r *Reconciler) agentEnv(agt *agentzv1alpha1.Agent, envCfg sandboxConfig, m
 	telemetryEndpoint = strings.TrimPrefix(telemetryEndpoint, "http://")
 
 	var forced []corev1.EnvVar
+	if envCfg.WorkspaceType == agentzv1alpha1.WorkspaceTypeCoding {
+		// OpenCode registers native plan approval only for the CLI client.
+		forced = append(forced,
+			corev1.EnvVar{Name: "OPENCODE_EXPERIMENTAL_PLAN_MODE", Value: "true"},
+			corev1.EnvVar{Name: "OPENCODE_CLIENT", Value: "cli"},
+		)
+	}
 	noProxy := r.agentNoProxyHosts(agt)
 	if mountConfig {
 		forced = append(

@@ -54,6 +54,7 @@ import { useOpencodeSend, type CreateSession } from "@/components/blocks/chat/us
 import {
   type PermissionDecision,
   PermissionDock,
+  PlanDock,
   QuestionDock,
   RevertDock,
   TodoDock,
@@ -90,7 +91,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import type { Message as OpencodeMessage, Part, QuestionAnswer } from "@opencode-ai/sdk/v2"
+import type { Message as OpencodeMessage, Part, QuestionAnswer, Session } from "@opencode-ai/sdk/v2"
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   BrainIcon,
@@ -101,6 +102,8 @@ import {
   CpuIcon,
   DownloadIcon,
   GaugeIcon,
+  HammerIcon,
+  PencilRulerIcon,
   PaperclipIcon,
   Settings2Icon,
   Undo2Icon,
@@ -152,6 +155,9 @@ import {
 import type { LanguageModelUsage } from "ai"
 
 export type ChatProps = {
+  coding?: boolean
+  draftMode?: Session["agent"]
+  onDraftModeChange?: (mode: string) => void
   draftModel?: CodingTextRequest["model"]
   onDraftModelChange?: (model: NonNullable<CodingTextRequest["model"]>) => void
   revertDisabled?: boolean
@@ -510,6 +516,9 @@ function ChatInner({
   draftId,
   initialMessage,
   draftModel,
+  coding = false,
+  draftMode,
+  onDraftModeChange,
   onDraftModelChange,
   onDraftChange,
   projectName,
@@ -576,6 +585,45 @@ function ChatInner({
     textByPart,
     todos,
   } = useOpencodeChat(agentName, workspaceId, sessionId, draftId)
+
+  const questionTool = questionRequest?.tool
+  const planApproval =
+    coding &&
+    questionRequest?.sessionID === session?.id &&
+    questionTool &&
+    partsByMessage[questionTool.messageID]?.some(
+      (part) =>
+        part.type === "tool" && part.callID === questionTool.callID && part.tool === "plan_exit"
+    )
+
+  // Approval creates a synthetic Build user message without updating
+  // session.agent. Raw user history owns the mode, including after reconnect.
+  const lastUser = messages.findLast(
+    (message) =>
+      message.role === "user" && (!session?.revert || message.id < session.revert.messageID)
+  )
+  // A revert can precede the loaded page. Fetch its preceding user turn
+  // before choosing a mode rather than falling back to stale session metadata.
+  const modeHistoryPending =
+    coding && session?.revert !== undefined && !lastUser && hasEarlierMessages
+  useEffect(() => {
+    if (modeHistoryPending && !isLoadingEarlier && !loadError) void loadEarlier()
+  }, [modeHistoryPending, isLoadingEarlier, loadError, loadEarlier])
+  const [modeSelection, setModeSelection] = useState<{
+    mode: string
+    messageID?: string
+    revertID?: string
+  }>()
+  const modeSelectionCurrent =
+    modeSelection?.messageID === lastUser?.id &&
+    modeSelection?.revertID === session?.revert?.messageID
+  if (modeSelection && !modeSelectionCurrent) setModeSelection(undefined)
+  const mode =
+    (modeSelectionCurrent ? modeSelection?.mode : undefined) ??
+    lastUser?.agent ??
+    (session?.revert ? undefined : session?.agent) ??
+    (!sessionId ? draftMode : undefined) ??
+    "build"
 
   useEffect(() => {
     const id = `chat:${agentName}:${sessionId ?? "new"}:history-error`
@@ -684,7 +732,7 @@ function ChatInner({
         }
 
         return {
-          agent: agentsResult.data.find((item) => item.name === agentName),
+          agents: agentsResult.data,
           chefs: [...new Set(models.map((item) => item.chef))],
           config: configResult.data,
           models,
@@ -695,11 +743,15 @@ function ChatInner({
     })
   )
   const catalog = modelCatalog.data
+  const catalogAgent = catalog?.agents.find((item) => item.name === agentName)
+  const modes = catalog?.agents.filter((agent) => agent.mode !== "subagent" && !agent.hidden)
+  const modeAvailable = modes?.some((agent) => agent.name === mode)
+  const nextMode = mode === "plan" ? "build" : "plan"
 
   const models = useMemo(() => catalog?.models ?? [], [catalog?.models])
   const chefs = useMemo(() => catalog?.chefs ?? [], [catalog?.chefs])
   const sessionModel = session?.model
-  const agentModel = catalog?.agent?.model
+  const agentModel = catalogAgent?.model
   const selectedModel = (() => {
     const explicitModel = model ? models.find((item) => item.id === model) : undefined
     if (explicitModel) return explicitModel
@@ -760,10 +812,10 @@ function ChatInner({
     } else if (
       agentModel?.providerID === selectedModel.providerID &&
       agentModel.modelID === selectedModel.modelID &&
-      catalog?.agent?.variant &&
-      variants.has(catalog.agent.variant)
+      catalogAgent?.variant &&
+      variants.has(catalogAgent.variant)
     ) {
-      fallbackReasoningLevel = catalog.agent.variant
+      fallbackReasoningLevel = catalogAgent.variant
     } else {
       const storedVariant = getVariant({
         modelID: selectedModel.modelID,
@@ -811,7 +863,7 @@ function ChatInner({
     })
   }, [clearInvalid, modelStorageReady, models])
 
-  const { isPending: isQuestionPending, mutateAsync: submitQuestionAnswer } = useMutation({
+  const { isPending: isQuestionPending, mutate: submitQuestionAnswer } = useMutation({
     mutationFn: async (answers: QuestionAnswer[]) => {
       if (!questionRequest) {
         throw new Error("No question request is active")
@@ -834,7 +886,7 @@ function ChatInner({
     },
   })
 
-  const { isPending: isQuestionRejectPending, mutateAsync: rejectQuestion } = useMutation({
+  const { isPending: isQuestionRejectPending, mutate: rejectQuestion } = useMutation({
     mutationFn: async () => {
       if (!questionRequest) {
         throw new Error("No question request is active")
@@ -955,35 +1007,35 @@ function ChatInner({
   // replacing the selected turn.
   const revertPending = isReverting || restoreMutation.isPending
 
-  const handleSubmit = useCallback(
-    async (message: PromptInputMessage) => {
-      if (agentReadiness.isGettingReady) return
-      if (message.text.trim().length === 0 && message.files.length === 0) {
-        toast.error("Message cannot be empty")
-        return
-      }
-      await sendMessage({
-        files: message.files,
-        model: selectedModel,
-        sessionID: sessionId,
-        text: message.text,
-        variant: selectedReasoningVariant,
-      })
-      if (!selectedModel) return
-      pushRecent({
-        modelID: selectedModel.modelID,
-        providerID: selectedModel.providerID,
-      })
-    },
-    [
-      agentReadiness.isGettingReady,
-      pushRecent,
-      selectedModel,
-      selectedReasoningVariant,
-      sendMessage,
-      sessionId,
-    ]
-  )
+  const handleSubmit = async (message: PromptInputMessage) => {
+    if (agentReadiness.isGettingReady) return
+    if (coding && (isPending || modeHistoryPending || !modeAvailable)) {
+      const error = new Error(
+        isPending || modeHistoryPending
+          ? "Chat is still loading"
+          : "The selected chat mode is unavailable"
+      )
+      toast.error(error.message)
+      throw error
+    }
+    if (message.text.trim().length === 0 && message.files.length === 0) {
+      toast.error("Message cannot be empty")
+      return
+    }
+    await sendMessage({
+      agent: coding ? mode : undefined,
+      files: message.files,
+      model: selectedModel,
+      sessionID: sessionId,
+      text: message.text,
+      variant: selectedReasoningVariant,
+    })
+    if (!selectedModel) return
+    pushRecent({
+      modelID: selectedModel.modelID,
+      providerID: selectedModel.providerID,
+    })
+  }
 
   const handleModelSelect = (modelId: string) => {
     const selected = models.find((item) => item.id === modelId)
@@ -1070,6 +1122,22 @@ function ChatInner({
     [actorProfiles, authSession?.user]
   )
   const inputDisabled = blocked || isBusy || isStopping || agentReadiness.isGettingReady
+  const modeDisabled =
+    inputDisabled ||
+    isPending ||
+    modeHistoryPending ||
+    revertPending ||
+    sendState === "submitted" ||
+    !modes?.some((agent) => agent.name === nextMode)
+  const toggleMode = () => {
+    if (!coding || modeDisabled) return
+    setModeSelection({
+      mode: nextMode,
+      messageID: lastUser?.id,
+      revertID: session?.revert?.messageID,
+    })
+    onDraftModeChange?.(nextMode)
+  }
   const showStarter = !sessionId && !isPending && rows.length === 0
   const showHistorySkeleton = isPending && rows.length === 0 && !showStarter
   const timelineRef = useRef<LegendListRef>(null)
@@ -1143,20 +1211,29 @@ function ChatInner({
                   />
                 ) : null}
                 {questionRequest ? (
-                  <QuestionDock
-                    onReject={() => void rejectQuestion()}
-                    onSubmit={(answers) => void submitQuestionAnswer(answers)}
-                    pending={isQuestionPending || isQuestionRejectPending}
-                    request={questionRequest}
-                  />
+                  planApproval && session ? (
+                    <PlanDock
+                      agentName={agentName}
+                      key={questionRequest.id}
+                      onSubmit={submitQuestionAnswer}
+                      pending={isQuestionPending}
+                      request={questionRequest}
+                      session={session}
+                      workspaceId={workspaceId}
+                    />
+                  ) : (
+                    <QuestionDock
+                      key={questionRequest.id}
+                      onReject={() => rejectQuestion()}
+                      onSubmit={submitQuestionAnswer}
+                      pending={isQuestionPending || isQuestionRejectPending}
+                      request={questionRequest}
+                    />
+                  )
                 ) : null}
               </div>
             }
-            maintainScrollAtEnd={
-              timelineAtEnd
-                ? { animated: false, on: { dataChange: true, itemLayout: true, layout: true } }
-                : false
-            }
+            maintainScrollAtEnd={timelineAtEnd ? { animated: false } : false}
             maintainVisibleContentPosition={{ data: true, size: true }}
             onScroll={(event) => {
               const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent
@@ -1247,16 +1324,55 @@ function ChatInner({
               <PromptInputAttachmentsDisplay agentName={agentName} />
               <PromptInputBody className="grid min-h-[10.25rem] grid-cols-[auto_minmax(0,1fr)_auto] grid-rows-[minmax(5.5rem,auto)_auto] items-end gap-x-2 gap-y-2 px-3 pt-3.5 pb-3 sm:px-4 sm:pt-4 sm:pb-4">
                 <motion.div
-                  className="col-start-1 row-start-2"
+                  className="col-start-1 row-start-2 flex items-center gap-1"
                   layout="position"
                   transition={promptShiftTransition}
                 >
                   <PromptInputAttachmentButton disabled={inputDisabled} />
+                  {coding ? (
+                    <PromptInputButton
+                      aria-label="Chat mode"
+                      aria-pressed={mode === "plan"}
+                      aria-keyshortcuts="Shift+Tab"
+                      className={cn(
+                        "h-8 w-18 justify-start gap-1.5 rounded-lg px-2.5 text-xs transition-colors",
+                        mode === "plan"
+                          ? "bg-accent text-accent-foreground hover:bg-accent/80"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                      disabled={modeDisabled}
+                      onClick={toggleMode}
+                      tooltip={{
+                        content: modes?.some((agent) => agent.name === nextMode)
+                          ? `Switch to ${nextMode === "plan" ? "Plan" : "Build"}`
+                          : "Chat mode unavailable",
+                        shortcut: "Shift+Tab",
+                      }}
+                    >
+                      {mode === "plan" ? <PencilRulerIcon /> : <HammerIcon />}
+                      {mode === "plan" ? "Plan" : mode === "build" ? "Build" : mode}
+                    </PromptInputButton>
+                  ) : null}
                 </motion.div>
                 <PromptInputTextarea
                   defaultValue={initialMessage?.text}
                   className="placeholder:text-muted-foreground/80 col-span-full col-start-1 row-start-1 max-h-48 min-h-[5.5rem] self-stretch px-1 py-0 text-[15px] leading-6"
                   disabled={inputDisabled}
+                  onKeyDown={(event) => {
+                    if (
+                      !coding ||
+                      modeDisabled ||
+                      event.key !== "Tab" ||
+                      !event.shiftKey ||
+                      event.altKey ||
+                      event.ctrlKey ||
+                      event.metaKey ||
+                      event.nativeEvent.isComposing
+                    )
+                      return
+                    event.preventDefault()
+                    if (!event.repeat) toggleMode()
+                  }}
                 />
                 <div className="contents">
                   <motion.div
@@ -1486,6 +1602,9 @@ function ChatInner({
                         agentReadiness.isGettingReady ||
                         revertPending ||
                         sendState === "submitted" ||
+                        (!isBusy &&
+                          coding &&
+                          (!modeAvailable || isPending || modeHistoryPending)) ||
                         (!isBusy && (!selectedModel || !canSubmit))
                       }
                       onStop={

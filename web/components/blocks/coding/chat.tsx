@@ -120,6 +120,8 @@ export function CodingChat({
       workspacePath={workspacePath}
       initialMessage={draft.message}
       draftModel={draft.model}
+      draftMode={draft.mode}
+      onDraftModeChange={(mode) => codingDrafts.save({ ...draft, mode })}
       onDraftModelChange={(model) => codingDrafts.save({ ...draft, model })}
       onDraftChange={promoted ? undefined : (message) => codingDrafts.save({ ...draft, message })}
       onDraftPromoted={() => {

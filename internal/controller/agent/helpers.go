@@ -232,6 +232,19 @@ func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]by
 			"*": "allow",
 		},
 	}
+	if !general {
+		// Agent rules follow the global allow rule. Restore Plan's native
+		// restrictions while allowing its document in the Git worktree.
+		plan := agent
+		plan.Permission.Edit = map[string]opencodePermissionRule{
+			"*":                    "deny",
+			".opencode/plans/*.md": "allow",
+		}
+		plan.Permission.Task = map[string]opencodePermissionRule{
+			"general": "deny",
+		}
+		cfg.Agent["plan"] = plan
+	}
 	cfg.Model = envCfg.Model
 	cfg.SmallModel = envCfg.SmallModel
 	instructionFiles, err := renderOpencodeInstructions(agt, envCfg.WorkspaceType)
@@ -331,6 +344,8 @@ type opencodeAgentFile struct {
 
 type opencodeAgentPermissionFile struct {
 	Skill map[string]opencodePermissionRule `json:"skill"`
+	Edit  map[string]opencodePermissionRule `json:"edit,omitempty"`
+	Task  map[string]opencodePermissionRule `json:"task,omitempty"`
 }
 
 type opencodeSkillsFile struct {

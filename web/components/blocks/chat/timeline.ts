@@ -334,16 +334,17 @@ export function projectTimeline(input: ProjectInput): {
       }
     }
 
+    const text = userText(turn.user.id)
     if (item.local) {
       out.push({ key: item.local.id, message: item.local, type: "local" })
-    } else {
+    } else if (text || attachments.length > 0) {
       out.push({
         actor,
         attachments,
         createdAt: turn.user.time.created,
         key: `user:${turn.user.id}`,
         messageID: turn.user.id,
-        text: userText(turn.user.id),
+        text,
         type: "user",
       })
     }

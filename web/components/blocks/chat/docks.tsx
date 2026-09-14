@@ -1,14 +1,30 @@
 "use client"
 
-import { ChevronDownIcon, ChevronRightIcon, Redo2Icon } from "lucide-react"
+import {
+  ChevronDownIcon,
+  ChevronRightIcon,
+  HammerIcon,
+  PencilRulerIcon,
+  Redo2Icon,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
+import { createAgentOpencodeClient } from "@/lib/opencode/client"
+import { MessageResponse } from "@/components/ai-elements/message"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { CopyButton } from "@/components/ui/copy-button"
 import { FieldGroup, FieldSet, FieldLegend } from "@/components/ui/field"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
-import type { PermissionRequest, QuestionAnswer, QuestionRequest, Todo } from "@opencode-ai/sdk/v2"
+import type {
+  PermissionRequest,
+  QuestionAnswer,
+  QuestionRequest,
+  Session,
+  Todo,
+} from "@opencode-ai/sdk/v2"
+import { queryOptions, useQuery } from "@tanstack/react-query"
 import { useCallback, useEffect, useRef, useState } from "react"
 
 const CUSTOM_ANSWER_KEY = "__custom__"
@@ -114,6 +130,94 @@ function AutoSizeTextarea({
       rows={1}
       value={value}
     />
+  )
+}
+
+export function PlanDock({
+  agentName,
+  workspaceId,
+  session,
+  request,
+  pending,
+  onSubmit,
+}: {
+  agentName: string
+  workspaceId: string
+  session: Session
+  request: QuestionRequest
+  pending: boolean
+  onSubmit: (answers: QuestionAnswer[]) => void
+}) {
+  // OpenCode's Session.plan names coding-worktree plans from session metadata.
+  // Each approval request gets a fresh read, including after plan revisions.
+  const path = `.opencode/plans/${session.time.created}-${session.slug}.md`
+  const plan = useQuery(
+    queryOptions({
+      queryKey: ["opencode-plan", workspaceId, agentName, session.directory, path, request.id],
+      queryFn: async ({ signal }) => {
+        const client = await createAgentOpencodeClient(agentName, workspaceId)
+        const { data } = await client.file.read(
+          { directory: session.directory, path },
+          { signal, throwOnError: true }
+        )
+        if (!data.content.trim()) throw new Error("The plan file is empty or missing.")
+        return data.content
+      },
+      refetchOnWindowFocus: false,
+      retry: false,
+    })
+  )
+
+  return (
+    <section aria-label="Plan review" className="bg-card overflow-hidden rounded-xl border">
+      <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+        <h3 className="flex items-center gap-2 text-sm font-medium">
+          <PencilRulerIcon className="text-muted-foreground size-4" />
+          Review plan
+        </h3>
+        {plan.data ? <CopyButton content={plan.data} label="Copy plan" /> : null}
+      </div>
+      <div
+        aria-label="Plan content"
+        className="max-h-[min(24rem,45svh)] overflow-auto overscroll-contain px-4 py-4 sm:px-5"
+        role="region"
+        tabIndex={0}
+      >
+        {plan.isPending ? (
+          <div className="text-muted-foreground flex items-center gap-2 text-sm" role="status">
+            <Spinner className="size-4" />
+            Loading plan...
+          </div>
+        ) : plan.isError ? (
+          <div className="flex items-center justify-between gap-3" role="alert">
+            <p className="text-muted-foreground text-sm">Could not load the plan.</p>
+            <Button
+              disabled={plan.isFetching}
+              onClick={() => void plan.refetch()}
+              size="sm"
+              variant="outline"
+            >
+              Retry
+            </Button>
+          </div>
+        ) : (
+          <MessageResponse mode="static">{plan.data}</MessageResponse>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center justify-end gap-2 border-t px-4 py-3">
+        <Button disabled={pending} onClick={() => onSubmit([["No"]])} size="sm" variant="ghost">
+          Keep planning
+        </Button>
+        <Button
+          disabled={pending || plan.isFetching || plan.isError || !plan.data}
+          onClick={() => onSubmit([["Yes"]])}
+          size="sm"
+        >
+          {pending ? <Spinner /> : <HammerIcon />}
+          Implement plan
+        </Button>
+      </div>
+    </section>
   )
 }
 

@@ -33,6 +33,8 @@ type ChatShellProps = Pick<
   | "onDraftChange"
   | "draftModel"
   | "onDraftModelChange"
+  | "draftMode"
+  | "onDraftModeChange"
 > & {
   onDraftPromoted?: () => void
   onDraftAgentChange?: (name: string) => void
@@ -75,6 +77,8 @@ export function ChatShell({
   initialMessage,
   draftModel,
   onDraftModelChange,
+  draftMode,
+  onDraftModeChange,
   onDraftChange,
   onDraftPromoted,
   onDraftAgentChange,
@@ -156,6 +160,9 @@ export function ChatShell({
         <div className="@container/chat relative min-h-0 min-w-0 flex-1">
           <Chat
             key={chatKey}
+            coding={codingThread !== undefined || createSession !== undefined}
+            draftMode={draftMode}
+            onDraftModeChange={activeSessionId ? undefined : onDraftModeChange}
             createSession={createSession}
             initialMessage={initialMessage}
             draftModel={draftModel}

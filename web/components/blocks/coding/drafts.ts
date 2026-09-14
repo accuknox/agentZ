@@ -4,6 +4,7 @@ import { useEffect, useSyncExternalStore } from "react"
 import { toast } from "sonner"
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input"
 import type { CodingProject, CodingTextRequest } from "@/lib/gateway/client"
+import type { Session } from "@opencode-ai/sdk/v2"
 
 export type CodingDraft = {
   id: string
@@ -12,6 +13,7 @@ export type CodingDraft = {
   agentName: string
   checkout: string
   model?: CodingTextRequest["model"]
+  mode?: Session["agent"]
   baseRef?: string
   message: PromptInputMessage
 }

@@ -24,6 +24,7 @@ import {
 export type CreateSession = (input: { text: string; model: ProviderModelItem }) => Promise<Session>
 
 type SendMessageInput = {
+  agent?: Session["agent"]
   files: PromptInputMessage["files"]
   model?: ProviderModelItem
   sessionID?: string
@@ -204,6 +205,7 @@ export function useOpencodeSend(
         })
 
         const promptResult = await client.session.promptAsync({
+          agent: input.agent,
           messageID: pendingID,
           model: {
             modelID: input.model.modelID,

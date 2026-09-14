@@ -560,5 +560,6 @@
   --diffs-bg: var(--background);
   --diffs-fg: var(--foreground);
   border-radius: var(--radius-lg);
+  overflow: clip;
   outline: 1px solid var(--border);
 }

@@ -2457,7 +2457,9 @@ WHERE project_id = @project_id AND agent_name = @agent_name AND worktree_id = @w
 AND lease_until = @lease_until;
 
 -- name: GatewayInvalidateCodingSnapshots :exec
-UPDATE coding_snapshots SET next_refresh = now(), next_remote = now(), generation = generation + 1
+-- Status reads must bypass pre-mutation worktree data until the worker refreshes it.
+UPDATE coding_snapshots SET result = CASE WHEN worktree_id <> '' THEN '{}'::jsonb ELSE result END,
+next_refresh = now(), next_remote = now(), generation = generation + 1
 WHERE project_id = @project_id;
 
 -- name: GatewayCodingProjectIdentity :one

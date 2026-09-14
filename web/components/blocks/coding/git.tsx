@@ -30,7 +30,6 @@ import {
   FileCode2,
   GitCommitHorizontal,
   GitMerge,
-  Maximize2,
   Minus,
   Plus,
   RefreshCw,
@@ -237,9 +236,10 @@ export function GitChanges({
   useEffect(() => {
     if (!data || stash) return
     if (lastRevision.current !== undefined && lastRevision.current !== data.revision) {
-      void queryClient.invalidateQueries({
-        queryKey: queries.review.queryKey.slice(0, 4),
-      })
+      void queryClient.invalidateQueries(
+        { queryKey: queries.review.queryKey.slice(0, 4) },
+        { cancelRefetch: false }
+      )
     }
     lastRevision.current = data.revision
   }, [data, stash, queryClient, queries.review.queryKey])
@@ -249,8 +249,25 @@ export function GitChanges({
     item.message.toLowerCase().includes(stashFilter.toLowerCase())
   )
 
+  async function refreshReview(result?: CodingGitResult) {
+    if (result) {
+      // A background status request must not overwrite the mutation's result.
+      await queryClient.cancelQueries({ queryKey: mutationKey })
+      queryClient.setQueriesData({ queryKey: mutationKey }, result)
+    } else await status.refetch()
+    // Replace pre-mutation diffs; otherwise join the status-triggered refresh.
+    await Promise.all([
+      queryClient.invalidateQueries(
+        { queryKey: queries.review.queryKey.slice(0, 4) },
+        { cancelRefetch: result !== undefined }
+      ),
+      queryClient.invalidateQueries({ queryKey: queries.stashes.queryKey.slice(0, 5) }),
+    ])
+  }
+
   const mutation = useMutation({
     mutationKey,
+    retry: false,
     mutationFn: (body: CodingGitRequest) => runWorkspaceGit(workspaceId, thread.worktree.id, body),
     onSuccess: (_, body) => {
       if (
@@ -272,14 +289,33 @@ export function GitChanges({
         )
       }
     },
-    onError: (error) => toast.error(error.message),
-    // A failed stash apply can still restore files and leave conflicts.
-    onSettled: async () => {
-      await Promise.all([
-        status.refetch(),
-        queryClient.invalidateQueries({ queryKey: queries.stashes.queryKey.slice(0, 5) }),
-      ])
+    onError: (error) => {
+      const stale =
+        error.message === "checkout changed since review; refresh before staging" ||
+        error.message === "file changed since review; refresh before staging" ||
+        error.message === "checkout changed; refresh before retrying"
+      toast.error(
+        stale
+          ? "Files changed since your last review. Refreshing; review them before trying again."
+          : error.message
+      )
     },
+    // A failed stash apply can still restore files and leave conflicts.
+    onSettled: (result) => refreshReview(result),
+  })
+  const refresh = useMutation({
+    mutationKey,
+    mutationFn: async () => {
+      const response = await refreshCodingRepository({
+        baseUrl: await getGatewayBaseURL(),
+        headers: { "X-AgentZ-Workspace-ID": workspaceId },
+        path: { projectId: thread.worktree.project_id },
+        query: { agent_name: thread.worktree.agent_name },
+      })
+      if (response.error) throw new Error(response.error.message)
+    },
+    onError: (error) => toast.error(error.message),
+    onSettled: () => refreshReview(),
   })
   const sync = useMutation({
     mutationKey,
@@ -398,19 +434,44 @@ export function GitChanges({
     pendingReveal.current = undefined
   }, [pool, items, expanded])
 
+  const stagingDisabled = mutation.isPending || busy || !data || status.isError
+  // Whole-file operations use the checkout revision; hunks also need a current diff.
+  const hunkStagingDisabled =
+    stagingDisabled ||
+    review.isPending ||
+    review.isFetching ||
+    review.isStale ||
+    review.isError ||
+    !pool ||
+    !!workerError
+  const staging =
+    mutation.isPending &&
+    (mutation.variables.operation === "stage" || mutation.variables.operation === "unstage")
+      ? mutation.variables
+      : undefined
+
   function stage(operation: "stage" | "unstage", paths: string[], hunkIndex?: number) {
+    if (!data || stagingDisabled || queryClient.isMutating({ mutationKey })) return
+    if (hunkIndex !== undefined && hunkStagingDisabled) return
+    const revision = hunkIndex === undefined ? data.revision : selectedDiff?.revision
+    if (!revision) return
     mutation.mutate({
       operation,
       paths,
       comparison,
       hunk: hunkIndex,
-      expected_head: data?.head || undefined,
-      revision: hunkIndex === undefined ? data?.revision : selectedDiff?.revision,
+      expected_head: data.head || undefined,
+      revision,
     })
   }
 
   const syncDisabled =
-    busy || status.isError || !branch || !data?.head || data.remote_head === data.head
+    busy ||
+    status.isFetching ||
+    status.isError ||
+    !branch ||
+    !data?.head ||
+    data.remote_head === data.head
 
   if (!data)
     return (
@@ -459,29 +520,45 @@ export function GitChanges({
         </Alert>
       ) : null}
       <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b p-2">
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={expanded ? "Toggle file sidebar" : "Review changes"}
-          aria-pressed={expanded ? showSidebar : undefined}
-          onClick={() => (expanded ? setSidebarOpen(!showSidebar) : onExpand())}
-        >
-          {expanded ? <PanelLeft /> : <Maximize2 />}
-        </Button>
+        {expanded ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Toggle file sidebar"
+                aria-pressed={showSidebar}
+                onClick={() => setSidebarOpen(!showSidebar)}
+              >
+                <PanelLeft />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" sideOffset={6}>
+              Toggle file sidebar
+            </TooltipContent>
+          </Tooltip>
+        ) : null}
         {stash ? (
           <div className="flex min-w-0 items-center gap-2">
             <Archive className="text-muted-foreground size-4 shrink-0" />
             <span className="max-w-48 truncate text-sm" title={stash.message}>
               {stash.message}
             </span>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Close stash review"
-              onClick={() => setStash(undefined)}
-            >
-              <X />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Close stash review"
+                  onClick={() => setStash(undefined)}
+                >
+                  <X />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" sideOffset={6}>
+                Close stash review
+              </TooltipContent>
+            </Tooltip>
           </div>
         ) : (
           <DropdownMenu>
@@ -517,47 +594,69 @@ export function GitChanges({
         <div className="flex items-center gap-1">
           {expanded ? (
             <>
-              <Button
-                size="icon-sm"
-                variant="ghost"
-                aria-label="Previous hunk"
-                disabled={!selectedDiff || (parsed.indexOf(selectedDiff) === 0 && hunk === 0)}
-                onClick={() => {
-                  if (!selectedDiff) return
-                  if (hunk > 0) reveal(selectedDiff.path, hunk - 1)
-                  else {
-                    const previous = parsed[parsed.indexOf(selectedDiff) - 1]
-                    if (previous) reveal(previous.path, Math.max(0, previous.diff.hunks.length - 1))
-                  }
-                }}
-              >
-                <ArrowUp />
-              </Button>
-              <Button
-                size="icon-sm"
-                variant="ghost"
-                aria-label="Next hunk"
-                disabled={
-                  !selectedDiff ||
-                  (parsed.indexOf(selectedDiff) === parsed.length - 1 &&
-                    hunk + 1 >= selectedDiff.diff.hunks.length)
-                }
-                onClick={() => {
-                  if (!selectedDiff) return
-                  if (hunk + 1 < selectedDiff.diff.hunks.length) reveal(selectedDiff.path, hunk + 1)
-                  else {
-                    const next = parsed[parsed.indexOf(selectedDiff) + 1]
-                    if (next) reveal(next.path)
-                  }
-                }}
-              >
-                <ArrowDown />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex">
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      aria-label="Previous hunk"
+                      disabled={!selectedDiff || (parsed.indexOf(selectedDiff) === 0 && hunk === 0)}
+                      onClick={() => {
+                        if (!selectedDiff) return
+                        if (hunk > 0) reveal(selectedDiff.path, hunk - 1)
+                        else {
+                          const previous = parsed[parsed.indexOf(selectedDiff) - 1]
+                          if (previous)
+                            reveal(previous.path, Math.max(0, previous.diff.hunks.length - 1))
+                        }
+                      }}
+                    >
+                      <ArrowUp />
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" sideOffset={6}>
+                  Previous hunk
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex">
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      aria-label="Next hunk"
+                      disabled={
+                        !selectedDiff ||
+                        (parsed.indexOf(selectedDiff) === parsed.length - 1 &&
+                          hunk + 1 >= selectedDiff.diff.hunks.length)
+                      }
+                      onClick={() => {
+                        if (!selectedDiff) return
+                        if (hunk + 1 < selectedDiff.diff.hunks.length)
+                          reveal(selectedDiff.path, hunk + 1)
+                        else {
+                          const next = parsed[parsed.indexOf(selectedDiff) + 1]
+                          if (next) reveal(next.path)
+                        }
+                      }}
+                    >
+                      <ArrowDown />
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" sideOffset={6}>
+                  Next hunk
+                </TooltipContent>
+              </Tooltip>
               {canStageHunk ? (
                 <Button
                   size="sm"
                   variant="ghost"
-                  disabled={busy || review.isFetching}
+                  disabled={hunkStagingDisabled}
+                  aria-label={comparison === "staged" ? "Unstage hunk" : "Stage hunk"}
+                  aria-busy={staging?.hunk !== undefined}
                   onClick={() => {
                     if (selectedDiff)
                       stage(
@@ -567,17 +666,30 @@ export function GitChanges({
                       )
                   }}
                 >
-                  {comparison === "staged" ? <Minus /> : <Plus />}
+                  {staging?.hunk !== undefined ? (
+                    <Spinner aria-hidden="true" />
+                  ) : comparison === "staged" ? (
+                    <Minus />
+                  ) : (
+                    <Plus />
+                  )}
                   {comparison === "staged" ? "Unstage" : "Stage"} hunk
                 </Button>
               ) : null}
 
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon-sm" aria-label="Diff settings">
-                    <Settings2 />
-                  </Button>
-                </DropdownMenuTrigger>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon-sm" aria-label="Diff settings">
+                        <Settings2 />
+                      </Button>
+                    </DropdownMenuTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" sideOffset={6}>
+                    Diff settings
+                  </TooltipContent>
+                </Tooltip>
                 <DropdownMenuContent align="end">
                   <DropdownMenuGroup>
                     <DropdownMenuLabel>Diff layout</DropdownMenuLabel>
@@ -600,38 +712,49 @@ export function GitChanges({
               </DropdownMenu>
             </>
           ) : null}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Refresh changes"
-            disabled={busy || status.isFetching || review.isFetching}
-            onClick={async () => {
-              const response = await refreshCodingRepository({
-                baseUrl: await getGatewayBaseURL(),
-                headers: { "X-AgentZ-Workspace-ID": workspaceId },
-                path: { projectId: thread.worktree.project_id },
-                query: { agent_name: thread.worktree.agent_name },
-              })
-              if (response.error) toast.error(response.error.message)
-              await status.refetch()
-              if (expanded) await review.refetch()
-            }}
-          >
-            {status.isFetching || review.isFetching ? <Spinner /> : <RefreshCw />}
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Refresh changes"
+                  disabled={busy || status.isFetching || review.isFetching}
+                  aria-busy={refresh.isPending || status.isFetching || review.isFetching}
+                  onClick={() => refresh.mutate()}
+                >
+                  {refresh.isPending || status.isFetching || review.isFetching ? (
+                    <Spinner />
+                  ) : (
+                    <RefreshCw />
+                  )}
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" sideOffset={6}>
+              Refresh changes
+            </TooltipContent>
+          </Tooltip>
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-sm" aria-label="Git actions">
-                <MoreHorizontal />
-              </Button>
-            </DropdownMenuTrigger>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon-sm" aria-label="Git actions">
+                    <MoreHorizontal />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" sideOffset={6}>
+                Git actions
+              </TooltipContent>
+            </Tooltip>
             <DropdownMenuContent align="end">
               <DropdownMenuGroup>
                 <DropdownMenuItem onSelect={() => setStashPicker(true)}>
                   <Archive /> Browse stashes
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  disabled={busy || changes.length === 0 || changes.length > 1000}
+                  disabled={stagingDisabled || changes.length === 0 || changes.length > 1000}
                   onSelect={() =>
                     stage(
                       "stage",
@@ -642,7 +765,7 @@ export function GitChanges({
                   <Plus /> Stage all changes
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  disabled={busy || stagedFiles.length === 0 || stagedFiles.length > 500}
+                  disabled={stagingDisabled || stagedFiles.length === 0 || stagedFiles.length > 500}
                   onSelect={() =>
                     stage(
                       "unstage",
@@ -666,31 +789,53 @@ export function GitChanges({
         </div>
         {!stash ? (
           <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
-            <Button
-              variant="outline"
-              size="sm"
-              aria-label="Pull"
-              disabled={syncDisabled || !data.remote_head || data.files.length > 0}
-              onClick={() => sync.mutate({ action: "pull" })}
-            >
-              {sync.isPending && sync.variables.action === "pull" ? <Spinner /> : <ArrowDown />}
-              Pull
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              aria-label={data.remote_head === "" ? "Publish branch" : "Push"}
-              disabled={syncDisabled}
-              onClick={() => {
-                sync.mutate({ action: "push" })
-              }}
-            >
-              {sync.isPending && sync.variables.action === "push" ? <Spinner /> : <ArrowUp />}
-              {data.remote_head === "" ? "Publish branch" : "Push"}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    aria-label="Pull"
+                    disabled={syncDisabled || !data.remote_head || data.files.length > 0}
+                    onClick={() => sync.mutate({ action: "pull" })}
+                  >
+                    {sync.isPending && sync.variables.action === "pull" ? (
+                      <Spinner />
+                    ) : (
+                      <ArrowDown />
+                    )}
+                    Pull
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" sideOffset={6}>
+                Pull remote changes
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    aria-label={data.remote_head === "" ? "Publish branch" : "Push"}
+                    disabled={syncDisabled}
+                    onClick={() => {
+                      sync.mutate({ action: "push" })
+                    }}
+                  >
+                    {sync.isPending && sync.variables.action === "push" ? <Spinner /> : <ArrowUp />}
+                    {data.remote_head === "" ? "Publish branch" : "Push"}
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" sideOffset={6}>
+                {data.remote_head === "" ? "Publish branch to remote" : "Push local commits"}
+              </TooltipContent>
+            </Tooltip>
             <Popover open={composerOpen} onOpenChange={setComposerOpen}>
               <PopoverTrigger asChild>
-                <Button size="sm" disabled={busy} aria-label="Commit changes">
+                <Button size="sm" disabled={stagingDisabled} aria-label="Commit changes">
                   <GitCommitHorizontal data-icon="inline-start" /> Commit
                   <span className="tabular-nums" aria-label={`${stagedFiles.length} staged`}>
                     {stagedFiles.length}
@@ -726,7 +871,7 @@ export function GitChanges({
                   className="flex min-h-0 flex-col"
                   onSubmit={(event) => {
                     event.preventDefault()
-                    if (data.tree)
+                    if (data.tree && !stagingDisabled)
                       sync.mutate({
                         action: "commit",
                         expected_tree: data.tree,
@@ -834,7 +979,7 @@ export function GitChanges({
                           variant="ghost"
                           size="icon-sm"
                           aria-label="Generate commit message"
-                          disabled={busy || suggestion.isPending || !stagedFiles.length}
+                          disabled={stagingDisabled || suggestion.isPending || !stagedFiles.length}
                           onClick={() => suggestion.mutate()}
                         >
                           {suggestion.isPending ? <Spinner /> : <Sparkles />}
@@ -854,7 +999,7 @@ export function GitChanges({
                       type="submit"
                       size="sm"
                       disabled={
-                        busy ||
+                        stagingDisabled ||
                         suggestion.isPending ||
                         !message.trim() ||
                         commitMessage.length > 20_000 ||
@@ -925,28 +1070,51 @@ export function GitChanges({
             ) : files.length ? (
               <LegendList
                 data={files}
-                extraData={{ selected: selectedDiff?.path, collapsed, expanded, busy, parsed }}
+                extraData={{
+                  selected: selectedDiff?.path,
+                  collapsed,
+                  expanded,
+                  // Cached rows must replace handlers when the checkout changes.
+                  head: data.head,
+                  revision: data.revision,
+                  comparison,
+                  stagingDisabled,
+                  staging,
+                  parsed,
+                }}
                 keyExtractor={(file) => file.path}
                 estimatedItemSize={32}
                 style={{ height: "100%" }}
                 renderItem={({ item: file }) => {
                   const staged = !file.conflict && file.index !== " " && file.index !== "?"
+                  const operation =
+                    staged && (comparison === "staged" || file.worktree === " ")
+                      ? "unstage"
+                      : "stage"
+                  const pending = staging?.paths?.includes(file.path) ? staging : undefined
                   return (
                     <div
+                      aria-busy={!!pending}
                       className={cn(
                         "group flex h-8 items-center gap-2 px-3",
                         selectedDiff?.path === file.path ? "bg-accent" : "hover:bg-muted/50"
                       )}
                     >
                       <Checkbox
-                        aria-label={`${staged && (comparison === "staged" || file.worktree === " ") ? "Unstage" : "Stage"} ${file.path}`}
-                        disabled={busy}
-                        checked={staged ? (file.worktree !== " " ? "indeterminate" : true) : false}
+                        className="after:-inset-x-1"
+                        aria-label={`${operation === "unstage" ? "Unstage" : "Stage"} ${file.path}`}
+                        aria-busy={!!pending}
+                        disabled={stagingDisabled}
+                        checked={
+                          pending && pending.hunk === undefined
+                            ? pending.operation === "stage"
+                            : staged && comparison !== "unstaged"
+                              ? comparison === "all" && file.worktree !== " "
+                                ? "indeterminate"
+                                : true
+                              : false
+                        }
                         onCheckedChange={() => {
-                          const operation =
-                            staged && (comparison === "staged" || file.worktree === " ")
-                              ? "unstage"
-                              : "stage"
                           stage(
                             operation,
                             operation === "unstage" && file.previous_path
@@ -972,7 +1140,12 @@ export function GitChanges({
                           }
                         }}
                       >
-                        {file.conflict ? (
+                        {pending ? (
+                          <Spinner
+                            className="size-3.5 shrink-0"
+                            aria-label={`${pending.operation === "stage" ? "Staging" : "Unstaging"} ${file.path}`}
+                          />
+                        ) : file.conflict ? (
                           <GitMerge className="text-warning size-3.5 shrink-0" />
                         ) : (
                           <FileCode2 className="text-muted-foreground size-3.5 shrink-0" />
@@ -1108,7 +1281,10 @@ export function GitChanges({
                     },
                   }}
                   renderCustomHeader={(item) => (
-                    <div className="bg-muted flex h-11 items-center gap-2 rounded-t-lg border px-3 text-sm">
+                    <div
+                      data-collapsed={collapsed.has(item.id)}
+                      className="border-border bg-muted/50 flex h-11 items-center gap-2 border-b px-3 text-sm data-[collapsed=true]:border-b-0"
+                    >
                       <Button
                         size="icon-xs"
                         variant="ghost"

@@ -2052,10 +2052,12 @@ func (q *Queries) GatewayInterruptCodingOperations(ctx context.Context) ([]Gatew
 }
 
 const gatewayInvalidateCodingSnapshots = `-- name: GatewayInvalidateCodingSnapshots :exec
-UPDATE coding_snapshots SET next_refresh = now(), next_remote = now(), generation = generation + 1
+UPDATE coding_snapshots SET result = CASE WHEN worktree_id <> '' THEN '{}'::jsonb ELSE result END,
+next_refresh = now(), next_remote = now(), generation = generation + 1
 WHERE project_id = $1
 `
 
+// Status reads must bypass pre-mutation worktree data until the worker refreshes it.
 func (q *Queries) GatewayInvalidateCodingSnapshots(ctx context.Context, projectID string) error {
 	_, err := q.db.Exec(ctx, gatewayInvalidateCodingSnapshots, projectID)
 	return err

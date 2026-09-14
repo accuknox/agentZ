@@ -68,6 +68,7 @@ type Querier interface {
 	GatewayHeartbeatCodingOperation(ctx context.Context, arg GatewayHeartbeatCodingOperationParams) (int64, error)
 	GatewayInsertWorkspaceInheritedResources(ctx context.Context, arg GatewayInsertWorkspaceInheritedResourcesParams) (int64, error)
 	GatewayInterruptCodingOperations(ctx context.Context) ([]GatewayInterruptCodingOperationsRow, error)
+	// Status reads must bypass pre-mutation worktree data until the worker refreshes it.
 	GatewayInvalidateCodingSnapshots(ctx context.Context, projectID string) error
 	GatewayIsActiveOrganizationMember(ctx context.Context, arg GatewayIsActiveOrganizationMemberParams) (bool, error)
 	GatewayIsActiveSuperadmin(ctx context.Context, arg GatewayIsActiveSuperadminParams) (bool, error)

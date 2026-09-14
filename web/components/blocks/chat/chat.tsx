@@ -170,6 +170,7 @@ export type ChatProps = {
   initialMessage?: PromptInputMessage
   onDraftChange?: (message: PromptInputMessage) => void
   draftId?: string
+  projectName?: string
   firstName?: string
   greetingIndex?: number
   promptMobile?: boolean
@@ -518,6 +519,7 @@ function ChatInner({
   draftModel,
   onDraftModelChange,
   onDraftChange,
+  projectName,
   firstName,
   greetingIndex,
   promptMobile = false,
@@ -1221,7 +1223,11 @@ function ChatInner({
           )}
         >
           {showStarter ? (
-            <NewSessionGreeting firstName={firstName} greetingIndex={greetingIndex} />
+            <NewSessionGreeting
+              projectName={projectName}
+              firstName={firstName}
+              greetingIndex={greetingIndex}
+            />
           ) : null}
           <div className="chat-composer-glass-shell relative w-full pb-9">
             <PromptInput

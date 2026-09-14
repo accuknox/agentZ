@@ -43,6 +43,7 @@ type ChatShellProps = Pick<
   agentNames?: string[]
   codingThread?: CodingThread
   chatPreferences?: ChatSessionPreference
+  projectName?: string
   firstName?: string
   greetingIndex?: number
   sessionId?: string
@@ -86,6 +87,7 @@ export function ChatShell({
   agentNames = [agentName],
   chatPreferences,
   codingThread,
+  projectName,
   firstName,
   greetingIndex,
   sessionId,
@@ -165,6 +167,7 @@ export function ChatShell({
             agentNames={agentNames}
             chatPreferences={chatPreferences}
             draftId={activeDraftId}
+            projectName={projectName}
             firstName={firstName}
             greetingIndex={greetingIndex}
             onSessionCreated={(id) => {

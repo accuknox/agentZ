@@ -23,12 +23,14 @@ import { codingDrafts, useCodingDrafts, type CodingDraft } from "./drafts"
 
 export function CodingChat({
   project,
+  greetingIndex,
   agentNames,
   chatPreferences,
   workspaceId,
   workspacePath,
 }: {
   project: CodingProject
+  greetingIndex: number
   agentNames: string[]
   chatPreferences: ChatSessionPreference
   workspaceId: string
@@ -111,6 +113,8 @@ export function CodingChat({
       agentNames={agentNames}
       chatPreferences={chatPreferences}
       title="New chat"
+      projectName={project.name}
+      greetingIndex={greetingIndex}
       draftPath={`${workspacePath}/sessions/new`}
       workspaceId={workspaceId}
       workspacePath={workspacePath}

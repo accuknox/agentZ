@@ -98,6 +98,7 @@ export default async function NewChatPage({
       <CodingChat
         key={project.data.project.id}
         project={project.data.project}
+        greetingIndex={randomInt(5)}
         agentNames={agents.map((agent) => agent.name)}
         chatPreferences={preference.data}
         workspaceId={scope.workspace.id}

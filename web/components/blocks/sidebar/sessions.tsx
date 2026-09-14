@@ -3,6 +3,7 @@
 import type { Route } from "next"
 import Link from "next/link"
 import { useRouter } from "@bprogress/next/app"
+import { GitHubDark, GitHubLight } from "@ridemountainpig/svgl-react"
 import {
   experimental_streamedQuery as streamedQuery,
   infiniteQueryOptions,
@@ -1097,7 +1098,12 @@ function SessionGroup({
             className="focus-visible:ring-sidebar-ring text-sidebar-muted-foreground hover:text-sidebar-accent-foreground flex h-full min-w-0 flex-1 items-center gap-2 rounded-md px-[var(--sidebar-row-content-inset)] text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset"
             type="button"
           >
-            {group.project ? <FolderGit2 aria-hidden="true" className="size-4 shrink-0" /> : null}
+            {group.project ? (
+              <>
+                <GitHubLight aria-hidden="true" className="size-4 shrink-0 dark:hidden" />
+                <GitHubDark aria-hidden="true" className="hidden size-4 shrink-0 dark:block" />
+              </>
+            ) : null}
             {group.group_by === "agent" ? <AgentBadge status={agentStatus} /> : null}
             {group.group_by === "date" ? (
               <CalendarDays aria-hidden="true" className="size-4 shrink-0" />

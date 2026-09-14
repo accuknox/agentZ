@@ -60,7 +60,7 @@ export async function GitHubConnection({
         </p>
       ) : null}
       {connection ? (
-        <div className="bg-card flex flex-wrap items-center gap-3 rounded-lg border p-4">
+        <div className="bg-card flex flex-wrap items-center gap-3 rounded-lg p-4">
           <div className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg">
             <GitHubLight className="size-5 dark:hidden" aria-hidden="true" />
             <GitHubDark className="hidden size-5 dark:block" aria-hidden="true" />

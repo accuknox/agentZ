@@ -218,6 +218,9 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 			preq.Out.Header.Del("Authorization")
 			preq.Out.Header.Del("Proxy-Authorization")
 			preq.Out.Header.Del("Cookie")
+			// Let the transport negotiate and decode compression before
+			// ModifyResponse reads session JSON for the sidebar catalog.
+			preq.Out.Header.Del("Accept-Encoding")
 			preq.SetXForwarded()
 			preq.Out.Header.Set("X-Request-ID", requestID(preq.In))
 		},

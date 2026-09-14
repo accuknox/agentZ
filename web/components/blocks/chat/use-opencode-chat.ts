@@ -9,6 +9,7 @@ import type {
   Session as SessionV2,
   SessionStatus,
   SessionStatusResponse,
+  SnapshotFileDiff,
   Todo,
 } from "@opencode-ai/sdk/v2"
 import {
@@ -550,6 +551,59 @@ export function sessionInfoQueryOptions(agentName: string, workspaceId: string, 
   })
 }
 
+// OpenCode's session totals are placeholders; only message summaries contain
+// real diffs. Read backward so long sessions need only their latest turn.
+export function sessionDiffQueryOptions(agentName: string, workspaceId: string, sessionID: string) {
+  return queryOptions({
+    queryKey: ["opencode", "sessionDiff", workspaceId, agentName, sessionID] as const,
+    queryFn: async ({
+      signal,
+    }): Promise<Pick<SnapshotFileDiff, "additions" | "deletions"> | null> => {
+      const client = await createAgentOpencodeClient(agentName, workspaceId)
+      const session = await client.session.get({ sessionID }, { signal })
+      if (session.error || !session.data) {
+        throw new Error(opencodeErrorMessage(session.error, "Failed to load session"))
+      }
+
+      const boundary = session.data.revert?.messageID
+      const completed = new Set<string>()
+      let before: string | undefined
+      for (;;) {
+        const result = await client.session.messages({ sessionID, before, limit: 20 }, { signal })
+        if (result.error || !result.data) {
+          throw new Error(opencodeErrorMessage(result.error, "Failed to load session changes"))
+        }
+
+        for (const { info } of result.data.toReversed()) {
+          if (boundary && info.id >= boundary) continue
+          if (info.role === "assistant") {
+            if (
+              info.time.completed &&
+              (info.error || (info.finish && !["tool-calls", "unknown"].includes(info.finish)))
+            ) {
+              completed.add(info.parentID)
+            }
+            continue
+          }
+          if (!completed.has(info.id) || !info.summary) continue
+          return info.summary.diffs.reduce(
+            (total, diff) => ({
+              additions: total.additions + diff.additions,
+              deletions: total.deletions + diff.deletions,
+            }),
+            { additions: 0, deletions: 0 }
+          )
+        }
+
+        before = result.response.headers.get("X-Next-Cursor") ?? undefined
+        if (!before) return null
+      }
+    },
+    retry: false,
+    staleTime: 60_000,
+  })
+}
+
 function sessionMessagesQueryOptions(
   agentName: string,
   workspaceId: string,
@@ -766,9 +820,28 @@ export function useOpencodeChat(
 
     let hasStoreUpdate = false
     let refreshSession = false
+    const changedDiffs = new Set<string>()
     const nextHitlEvents: StreamEvent[] = []
 
     for (const event of events) {
+      switch (event.type) {
+        case "message.updated":
+          if (
+            (event.properties.info.role === "user" && event.properties.info.summary) ||
+            (event.properties.info.role === "assistant" && event.properties.info.time.completed)
+          ) {
+            changedDiffs.add(event.properties.info.sessionID)
+          }
+          break
+        case "message.removed":
+        case "session.idle":
+          changedDiffs.add(event.properties.sessionID)
+          break
+        case "session.updated":
+          changedDiffs.add(event.properties.info.id)
+          break
+      }
+
       // A provider-global error has no sessionID; still surface it here.
       if (event.type === "session.error") {
         const errorSessionID = event.properties.sessionID
@@ -840,6 +913,15 @@ export function useOpencodeChat(
       }
     }
 
+    for (const id of changedDiffs) {
+      const { queryKey } = sessionDiffQueryOptions(agentName, workspaceId, id)
+      // Cancel initial reads too, so an older response cannot replace a diff
+      // published while that read was in flight.
+      void queryClient
+        .cancelQueries({ queryKey })
+        .then(() => queryClient.invalidateQueries({ queryKey }))
+    }
+
     if (hasStoreUpdate) {
       setLiveStore((current) => ({
         store: events.reduce(
@@ -870,6 +952,7 @@ export function useOpencodeChat(
     if (!sessionID || !session.data?.directory) return
 
     const directory = session.data.directory
+    const { queryKey } = sessionDiffQueryOptions(agentName, workspaceId, sessionID)
     const abortController = new AbortController()
     const queue: StreamEvent[] = []
     let flushTimer: ReturnType<typeof setTimeout> | undefined
@@ -919,6 +1002,9 @@ export function useOpencodeChat(
 
           if (event.type === "server.connected") {
             flushQueue()
+            void queryClient.invalidateQueries({
+              queryKey: queryKey.slice(0, -1),
+            })
             await Promise.all([refetchSession(), refetchHistory(), refetchHitl(), refetchStatus()])
             setStreamError(undefined)
             continue
@@ -954,6 +1040,7 @@ export function useOpencodeChat(
     }
   }, [
     agentName,
+    queryClient,
     refetchHistory,
     refetchHitl,
     refetchSession,

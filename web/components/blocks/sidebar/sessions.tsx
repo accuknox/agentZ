@@ -83,6 +83,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { UserAvatar } from "@/components/ui/avatar"
+import { sessionDiffQueryOptions } from "@/components/blocks/chat/use-opencode-chat"
 import { MultiSelectDropdown } from "@/components/ui/multi-select-dropdown"
 import {
   Select,
@@ -888,6 +889,7 @@ function NavSessionsContent({
                   key={`${session.agent_name}:${session.session_id}`}
                   path={path}
                   session={session}
+                  workspaceType={workspaceType}
                   workspaceId={workspaceId}
                   workspacePath={workspacePath}
                 />
@@ -950,6 +952,7 @@ function NavSessionsContent({
                 preferences={preferences}
                 search={querySearch}
                 timeZone={timeZone}
+                workspaceType={workspaceType}
                 workspaceId={workspaceId}
                 workspacePath={workspacePath}
               />
@@ -1007,6 +1010,7 @@ function SessionGroup({
   search,
   timeZone,
   workspaceId,
+  workspaceType,
   workspacePath,
 }: {
   onNewChat: (project: CodingProject) => Promise<void>
@@ -1023,6 +1027,7 @@ function SessionGroup({
   search: string
   timeZone: string
   workspaceId: string
+  workspaceType: Workspace["type"]
   workspacePath: WorkspacePath
 }) {
   const router = useRouter()
@@ -1213,6 +1218,7 @@ function SessionGroup({
               path={path}
               session={session}
               showAgent={group.group_by !== "agent"}
+              workspaceType={workspaceType}
               workspaceId={workspaceId}
               workspacePath={workspacePath}
             />
@@ -1358,17 +1364,42 @@ function AgentBadge({ status }: { status: AgentStatus | undefined }) {
   return <Bot aria-label="Unavailable" className="text-destructive size-4 shrink-0" role="status" />
 }
 
+function SessionDiff({ session, workspaceId }: { session: ChatSession; workspaceId: string }) {
+  const { data: diff, refetch } = useQuery(
+    sessionDiffQueryOptions(session.agent_name, workspaceId, session.session_id)
+  )
+
+  useEffect(() => {
+    void refetch()
+  }, [refetch, session.status, session.updated_at])
+
+  if (!diff) return null
+
+  return (
+    <span
+      aria-label={`Latest turn: ${diff.additions} lines added, ${diff.deletions} lines removed`}
+      className="shrink-0 font-mono text-xs"
+      role="img"
+    >
+      <span className="text-emerald-600 dark:text-emerald-400">+{diff.additions}</span>{" "}
+      <span className="text-red-600 dark:text-red-400">−{diff.deletions}</span>
+    </span>
+  )
+}
+
 function SessionCard({
   path,
   session,
   showAgent = true,
   workspaceId,
+  workspaceType,
   workspacePath,
 }: {
   path: string
   session: ChatSession
   showAgent?: boolean
   workspaceId: string
+  workspaceType: Workspace["type"]
   workspacePath: WorkspacePath
 }) {
   const href =
@@ -1486,7 +1517,9 @@ function SessionCard({
                   </span>
                 ) : null}
               </h3>
-              {session.participants.length > 0 ? (
+              {workspaceType === "coding" ? (
+                <SessionDiff session={session} workspaceId={workspaceId} />
+              ) : session.participants.length > 0 ? (
                 <div className="flex shrink-0 -space-x-[7px]">
                   {participants.map((participant) => (
                     <UserAvatar

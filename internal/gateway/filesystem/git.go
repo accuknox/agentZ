@@ -866,6 +866,14 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			return result, err
 		}
 	case gatewayapi.CodingGitImport, gatewayapi.CodingGitApplyCommit:
+		if req.Git.Operation == gatewayapi.CodingGitApplyCommit {
+			if req.Git.Ref == nil || req.Git.ExpectedHead == nil || req.Git.ExpectedTree == nil {
+				return result, errors.New("branch, expected HEAD and tree are required")
+			}
+			if *req.Git.ExpectedHead == "" {
+				return result, errors.New("create an initial commit first")
+			}
+		}
 		if err := importBundle(repo); err != nil {
 			return result, err
 		}
@@ -896,21 +904,32 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 		if err != nil {
 			return result, err
 		}
-		if req.Git.ExpectedTree == nil || strings.TrimSpace(staged) != *req.Git.ExpectedTree {
+		if strings.TrimSpace(staged) != *req.Git.ExpectedTree {
 			return result, errors.New("staged changes changed; review the diff again")
 		}
-		commitTree, err := run(directory, "", "rev-parse", "refs/agentz/incoming/"+*req.Git.Ref+"^{tree}")
+		commit, err := run(directory, "", "rev-parse", "--verify", "refs/agentz/incoming/"+*req.Git.Ref+"^{commit}")
 		if err != nil {
 			return result, err
 		}
-		parent, err := run(directory, "", "rev-parse", "refs/agentz/incoming/"+*req.Git.Ref+"^")
+		commit = strings.TrimSpace(commit)
+		commitTree, err := run(directory, "", "rev-parse", commit+"^{tree}")
 		if err != nil {
 			return result, err
 		}
-		if strings.TrimSpace(commitTree) != *req.Git.ExpectedTree || strings.TrimSpace(parent) != result.Head {
+		parent, err := run(directory, "", "rev-parse", commit+"^")
+		if err != nil {
+			return result, err
+		}
+		if strings.TrimSpace(commitTree) != *req.Git.ExpectedTree || strings.TrimSpace(parent) != *req.Git.ExpectedHead {
 			return result, errors.New("commit does not match the reviewed changes")
 		}
-		_, err = run(directory, "", "reset", "--soft", "refs/agentz/incoming/"+*req.Git.Ref)
+		// External Git processes bypass our mutex. Compare the branch tip
+		// under Git's ref lock without touching the index or current HEAD.
+		_, err = run(
+			directory, "", "update-ref", "--no-deref",
+			"-m", "commit: apply reviewed changes",
+			"refs/heads/"+*req.Git.Ref, commit, *req.Git.ExpectedHead,
+		)
 		if err != nil {
 			return result, err
 		}
@@ -979,7 +998,35 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 		if len(result.Files) > 0 {
 			return result, errors.New("worktree has uncommitted changes")
 		}
-		unpushed, err := run(directory, "", "rev-list", "HEAD", "--not", "--remotes=origin")
+		args := []string{"rev-list", "HEAD"}
+		if result.Head == "" && directory == repo {
+			// Preparation can fail after init and fetch but before checkout.
+			// Only an absent branch qualifies; broken refs must still fail.
+			ref, err := run(directory, "", "symbolic-ref", "HEAD")
+			if err != nil {
+				return result, err
+			}
+			_, err = run(directory, "", "show-ref", "--exists", strings.TrimSpace(ref))
+			exit, ok := errors.AsType[*exec.ExitError](err)
+			if !ok || exit.ExitCode() != 2 {
+				return result, errors.New("could not verify unborn checkout")
+			}
+			// Failed preparation must not discard ignored local files,
+			// which the ordinary status check leaves out.
+			files, err := run(directory, "", "ls-files", "--others")
+			if err != nil {
+				return result, err
+			}
+			if files != "" {
+				return result, errors.New("worktree has local files; remove them before cleanup")
+			}
+			args = []string{"rev-list"}
+		}
+		if directory == repo {
+			args = append(args, "--branches")
+		}
+		args = append(args, "--not", "--remotes=origin")
+		unpushed, err := run(directory, "", args...)
 		if err != nil {
 			return result, err
 		}
@@ -1000,13 +1047,6 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			}
 			if strings.Count(worktrees, "worktree ") > 1 {
 				return result, errors.New("remove linked worktrees before the main checkout")
-			}
-			unpushed, err := run(repo, "", "rev-list", "--branches", "--not", "--remotes=origin")
-			if err != nil {
-				return result, err
-			}
-			if unpushed != "" {
-				return result, errors.New("repository has unpushed branches")
 			}
 			return result, s.root.RemoveAll(req.Root)
 		}

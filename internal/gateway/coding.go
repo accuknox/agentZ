@@ -1600,12 +1600,16 @@ func (s *Service) deleteCodingConversations(ctx context.Context, access resource
 // lockCodingProject holds a session lock across intent commits and engine calls.
 // Closing a failed connection releases the lock even if a request was cancelled.
 func (s *Service) lockCodingProject(ctx context.Context, projectID string) (*gatewaydb.Queries, func(), error) {
-	conn, err := s.db.Acquire(ctx)
+	conn, err := s.lockDB.Acquire(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
 	q := gatewaydb.New(conn)
 	if err := q.GatewayLockCodingProject(ctx, projectID); err != nil {
+		// Cancellation can race with acquisition; discard the session.
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		conn.Conn().Close(ctx)
 		conn.Release()
 		return nil, nil, err
 	}
@@ -1613,7 +1617,8 @@ func (s *Service) lockCodingProject(ctx context.Context, projectID string) (*gat
 		defer conn.Release()
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
-		if err := q.GatewayUnlockCodingProject(ctx, projectID); err != nil {
+		unlocked, err := q.GatewayUnlockCodingProject(ctx, projectID)
+		if err != nil || !unlocked {
 			conn.Conn().Close(ctx)
 		}
 	}, nil

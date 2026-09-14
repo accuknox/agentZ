@@ -106,6 +106,7 @@ type Service struct {
 	queries            gatewaydb.Querier
 	dashboards         dashboarddb.Querier
 	db                 *pgxpool.Pool
+	lockDB             *pgxpool.Pool
 	cfg                Config
 	bao                *baoapi.Client
 	baoKV              *baoapi.KVv2
@@ -285,6 +286,19 @@ func Serve(ctx context.Context, cfg Config) error {
 	if err := db.Ping(ctx); err != nil {
 		return fmt.Errorf("ping postgres: %w", err)
 	}
+	// Lock waiters must leave query connections available to lock holders.
+	lockCfg := db.Config()
+	lockCfg.MaxConns = 4
+	lockCfg.MinConns = 0
+	lockCfg.MinIdleConns = 0
+	lockDB, err := pgxpool.NewWithConfig(ctx, lockCfg)
+	if err != nil {
+		return fmt.Errorf("create postgres lock pool: %w", err)
+	}
+	defer lockDB.Close()
+	if err := lockDB.Ping(ctx); err != nil {
+		return fmt.Errorf("ping postgres lock pool: %w", err)
+	}
 
 	baoClient, err := baoclient.NewClient(
 		ctx,
@@ -316,6 +330,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		queries:            gatewaydb.New(db),
 		dashboards:         dashboarddb.New(db),
 		db:                 db,
+		lockDB:             lockDB,
 		cfg:                cfg,
 		bao:                baoClient,
 		baoKV:              baoClient.KVv2(cfg.OpenBaoSecretMountPath),

@@ -2346,7 +2346,7 @@ DELETE FROM coding_worktrees WHERE coding_worktrees.id = sqlc.arg(id);
 -- name: GatewayLockCodingProject :exec
 SELECT pg_advisory_lock(hashtextextended(sqlc.arg(project_id)::text, 0));
 
--- name: GatewayUnlockCodingProject :exec
+-- name: GatewayUnlockCodingProject :one
 SELECT pg_advisory_unlock(hashtextextended(sqlc.arg(project_id)::text, 0));
 
 -- name: GatewayRecordCodingMainCheckout :exec

@@ -6177,13 +6177,15 @@ func (q *Queries) GatewayTransitionWorkspaceProvisioning(ctx context.Context, ar
 	return result.RowsAffected(), nil
 }
 
-const gatewayUnlockCodingProject = `-- name: GatewayUnlockCodingProject :exec
+const gatewayUnlockCodingProject = `-- name: GatewayUnlockCodingProject :one
 SELECT pg_advisory_unlock(hashtextextended($1::text, 0))
 `
 
-func (q *Queries) GatewayUnlockCodingProject(ctx context.Context, projectID string) error {
-	_, err := q.db.Exec(ctx, gatewayUnlockCodingProject, projectID)
-	return err
+func (q *Queries) GatewayUnlockCodingProject(ctx context.Context, projectID string) (bool, error) {
+	row := q.db.QueryRow(ctx, gatewayUnlockCodingProject, projectID)
+	var pg_advisory_unlock bool
+	err := row.Scan(&pg_advisory_unlock)
+	return pg_advisory_unlock, err
 }
 
 const gatewayUpdateCodingBranch = `-- name: GatewayUpdateCodingBranch :exec

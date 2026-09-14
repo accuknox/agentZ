@@ -125,6 +125,16 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
+	endpoint := strings.TrimPrefix(route.Path, opencodePrefix+"/{agentName}")
+	endpoint = strings.TrimPrefix(endpoint, "/api")
+	pty := endpoint == "/pty" || strings.HasPrefix(endpoint, "/pty/")
+	if pty {
+		origin := r.Header.Get("Origin")
+		if origin != "" && !slices.Contains(s.cfg.AllowedWebOrigins, origin) {
+			apiutil.WriteError(w, r, resourceForbidden(errors.New("terminal origin is not allowed")))
+			return
+		}
+	}
 	access, apiErr := s.resolveAgentAccess(r.Context(), agentName, route.Operation)
 	if apiErr != nil {
 		apiutil.WriteError(w, r, apiErr)
@@ -220,6 +230,11 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 			preq.Out.Header.Del("Authorization")
 			preq.Out.Header.Del("Proxy-Authorization")
 			preq.Out.Header.Del("Cookie")
+			// The gateway validates browser origins. OpenCode sees a server
+			// request because its allowlist does not include the public app.
+			if pty {
+				preq.Out.Header.Del("Origin")
+			}
 			// Let the transport negotiate and decode compression before
 			// ModifyResponse reads session JSON for the sidebar catalog.
 			preq.Out.Header.Del("Accept-Encoding")

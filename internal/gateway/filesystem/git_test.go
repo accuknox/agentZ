@@ -305,6 +305,56 @@ func TestGitWorktreeLifecycle(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(home, req.Root)); !os.IsNotExist(err) {
 		t.Fatalf("project not cleaned up: %v", err)
 	}
+	// Unsupported repositories still leave an intent that must be removable.
+	attributes := filepath.Join(origin, ".gitattributes")
+	if err := os.WriteFile(attributes, []byte("*.bin filter=lfs\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	git(origin, "add", ".gitattributes")
+	git(origin, "commit", "-m", "LFS repository")
+	git(origin, "bundle", "create", bundlePath, "--branches")
+	bundle, err = os.ReadFile(bundlePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Prepare = true
+	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStatus, Bundle: &bundle}
+	_, err = service.runGit(ctx, req)
+	if err == nil || !strings.Contains(err.Error(), "LFS") {
+		t.Fatalf("expected LFS rejection: %v", err)
+	}
+	req.Prepare = false
+	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitRemove}
+	local := filepath.Join(repo, "local.txt")
+	if err := os.WriteFile(local, []byte("keep me"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.runGit(ctx, req); err == nil {
+		t.Fatal("removed unborn checkout with local files")
+	}
+	exclude := filepath.Join(repo, ".git", "info", "exclude")
+	if err := os.WriteFile(exclude, []byte("local.txt\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.runGit(ctx, req); err == nil {
+		t.Fatal("removed unborn checkout with ignored files")
+	}
+	if err := os.Remove(local); err != nil {
+		t.Fatal(err)
+	}
+	git(repo, "branch", "saved", "refs/remotes/origin/main")
+	tree := git(repo, "rev-parse", "saved^{tree}")
+	commit := git(repo, "commit-tree", tree, "-p", "saved", "-m", "Local work")
+	git(repo, "update-ref", "refs/heads/saved", commit)
+	if _, err := service.runGit(ctx, req); err == nil {
+		t.Fatal("removed unborn checkout with an unpushed branch")
+	}
+	git(repo, "branch", "-D", "saved")
+	run(req)
+	run(req)
+	if _, err := os.Stat(filepath.Join(home, req.Root)); !os.IsNotExist(err) {
+		t.Fatalf("failed initialization was not cleaned up: %v", err)
+	}
 }
 
 // TestGitReviewHunksAndStashes checks index isolation and conflict-safe stash updates.
@@ -580,6 +630,134 @@ func BenchmarkGitReview(b *testing.B) {
 				if response.Code != http.StatusOK || response.Body.Len() != size {
 					b.Fatal("comparison changed or failed during benchmark")
 				}
+			}
+		})
+	}
+}
+
+// TestGitApplyCommit exercises publication against independent Git processes.
+func TestGitApplyCommit(t *testing.T) {
+	for _, action := range []string{"success", "commit", "switch", "delete", "incoming"} {
+		t.Run(action, func(t *testing.T) {
+			ctx := t.Context()
+			home, origin := t.TempDir(), t.TempDir()
+			bin, err := exec.LookPath("git")
+			if err != nil {
+				t.Fatal(err)
+			}
+			git := func(cwd string, args ...string) string {
+				t.Helper()
+				cmd := exec.CommandContext(ctx, bin, args...)
+				cmd.Dir = cwd
+				cmd.Env = append(os.Environ(),
+					"GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1",
+					"GIT_AUTHOR_NAME=Test", "GIT_AUTHOR_EMAIL=test@example.com",
+					"GIT_COMMITTER_NAME=Test", "GIT_COMMITTER_EMAIL=test@example.com",
+				)
+				out, err := cmd.CombinedOutput()
+				if err != nil {
+					t.Fatalf("git %v: %s: %v", args, out, err)
+				}
+				return strings.TrimSpace(string(out))
+			}
+			git(origin, "init", "-b", "main")
+			git(origin, "commit", "--allow-empty", "-m", "initial")
+			file := filepath.Join(t.TempDir(), "repo.bundle")
+			git(origin, "bundle", "create", file, "--branches")
+			bundle, err := os.ReadFile(file)
+			if err != nil {
+				t.Fatal(err)
+			}
+			root, err := os.OpenRoot(home)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer root.Close()
+			s := &service{root: root}
+			req := GitRequest{
+				Root:      "Projects/user/github/project",
+				Directory: "Projects/user/github/project/repo",
+				Branch:    "main", BaseBranch: "main", Prepare: true,
+				Git: gatewayapi.CodingGitRequest{
+					Operation: gatewayapi.CodingGitStatus, Bundle: &bundle,
+				},
+			}
+			state, err := s.runGit(ctx, req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			repo := filepath.Join(home, req.Directory)
+			git(repo, "branch", "other")
+			for _, cwd := range []string{repo, origin} {
+				if err := os.WriteFile(filepath.Join(cwd, "file"), []byte("staged\n"), 0600); err != nil {
+					t.Fatal(err)
+				}
+				git(cwd, "add", "file")
+			}
+			tree := git(repo, "write-tree")
+			if err := os.WriteFile(filepath.Join(repo, "file"), []byte("unstaged\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			git(origin, "commit", "-m", "incoming")
+			incoming := git(origin, "rev-parse", "HEAD")
+			git(origin, "bundle", "create", file, "--branches")
+			bundle, err = os.ReadFile(file)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Run the external command just before publication so it wins
+			// the race after validation without a production test hook.
+			commands := ""
+			switch action {
+			case "commit":
+				commands = `"$git" commit --allow-empty -m concurrent >/dev/null`
+			case "switch":
+				commands = `"$git" switch other >/dev/null`
+			case "delete":
+				commands = `"$git" update-ref -d refs/heads/main`
+			case "incoming":
+				commands = `"$git" update-ref refs/agentz/incoming/main HEAD`
+			}
+			wrapper := t.TempDir()
+			script := "#!/bin/sh\ngit='" + strings.ReplaceAll(bin, "'", "'\\''") + "'\n" +
+				"case \" $* \" in *\" update-ref --no-deref \"*|*\" reset --soft \"*)\n" +
+				commands + "\n;; esac\nexec \"$git\" \"$@\"\n"
+			if err := os.WriteFile(filepath.Join(wrapper, "git"), []byte(script), 0700); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("PATH", wrapper+string(os.PathListSeparator)+os.Getenv("PATH"))
+			req.Prepare = false
+			req.Git = gatewayapi.CodingGitRequest{
+				Operation: gatewayapi.CodingGitApplyCommit, Bundle: &bundle,
+				Ref: new("main"), ExpectedHead: &state.Head, ExpectedTree: &tree,
+			}
+			_, err = s.runGit(ctx, req)
+			switch action {
+			case "commit":
+				if err == nil || git(repo, "log", "-1", "--format=%s") != "concurrent" {
+					t.Fatalf("concurrent commit was overwritten: %v", err)
+				}
+			case "delete":
+				if err == nil || git(repo, "for-each-ref", "refs/heads/main") != "" {
+					t.Fatalf("deleted branch was recreated: %v", err)
+				}
+			default:
+				if err != nil || git(repo, "rev-parse", "main") != incoming {
+					t.Fatalf("commit was not applied to main: %v", err)
+				}
+			}
+			if git(repo, "rev-parse", "other") != state.Head {
+				t.Fatal("another branch was modified")
+			}
+			if action == "switch" && git(repo, "branch", "--show-current") != "other" {
+				t.Fatal("current branch was changed")
+			}
+			if git(repo, "write-tree") != tree {
+				t.Fatal("index was modified")
+			}
+			content, err := os.ReadFile(filepath.Join(repo, "file"))
+			if err != nil || string(content) != "unstaged\n" {
+				t.Fatalf("working file was modified: %q %v", content, err)
 			}
 		})
 	}

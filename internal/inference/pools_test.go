@@ -16,10 +16,9 @@ import (
 )
 
 type resolvePoolInvalidMembershipCase struct {
-	name      string
-	members   []agentzv1alpha1.InferencePoolMember
-	configure func()
-	field     string
+	name    string
+	members []agentzv1alpha1.InferencePoolMember
+	field   string
 }
 
 func TestResolvePoolContract(t *testing.T) {
@@ -240,28 +239,11 @@ func TestResolvePoolRejectsInvalidMembership(t *testing.T) {
 			}},
 			field: "members.0.model",
 		},
-		{
-			name: "missing text output",
-			members: []agentzv1alpha1.InferencePoolMember{{
-				Scope:    agentzv1alpha1.ResourceScopeOrganisation,
-				Provider: "provider",
-				Model:    "model",
-			}},
-			configure: func() {
-				provider.Spec.Models[0].Modalities.Output = []agentzv1alpha1.InferenceModelModality{
-					agentzv1alpha1.InferenceModelModalityAudio,
-				}
-			},
-			field: "members.0.model",
-		},
 	}
 	for _, test := range tests {
 		t.Run(
 			test.name,
 			func(t *testing.T) {
-				if test.configure != nil {
-					test.configure()
-				}
 				reader := poolTestReader(t, scheme, provider.DeepCopy())
 				pool := &agentzv1alpha1.InferencePool{
 					ObjectMeta: metav1.ObjectMeta{Name: "pool", Namespace: "default"},

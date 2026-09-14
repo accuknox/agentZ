@@ -234,7 +234,6 @@
               yamlfmt
               yamllint
               yaml-language-server
-              setup-envtest
               helm-ls
               opencode
             ];

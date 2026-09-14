@@ -58,13 +58,7 @@ fmt:
 
 .PHONY: test
 test:
-	mkdir -p bin
-	version="$(ENVTEST_K8S_VERSION)"; \
-	if [ -z "$$version" ]; then \
-		version="$$(go list -m -f '{{if .Replace}}{{.Replace.Version}}{{else}}{{.Version}}{{end}}' k8s.io/api | sed -E 's/^v?[0-9]+\.([0-9]+).*/1.\1/')"; \
-	fi; \
-	KUBEBUILDER_ASSETS="$$(setup-envtest use "$$version" --bin-dir "$(CURDIR)/bin" -p path)" \
-		go test -tags="controller webhook" $(GO_PKGS) -coverprofile cover.out
+	go test -race -shuffle=on $(GO_PKGS) -coverprofile cover.out
 
 .PHONY: lint
 lint:

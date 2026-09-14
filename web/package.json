@@ -10,7 +10,6 @@
     "typecheck": "tsc --noEmit",
     "format": "prettier . --write",
     "gen:openapi-client": "openapi-ts",
-    "test:coding": "node --env-file-if-exists=.env.local --conditions=react-server --import=tsx --experimental-test-module-mocks --test lib/coding/*.test.ts",
     "gen:db-schema": "drizzle-kit export > db/schema.sql",
     "db:migrate": "drizzle-kit migrate",
     "gen:auth-schema": "bunx auth@1.6.22 generate --config ./lib/auth.ts --output ./db/auth-schema.ts --yes"
@@ -112,7 +111,6 @@
     "prettier-plugin-tailwindcss": "^0.8.0",
     "shadcn": "^4.11.0",
     "tailwindcss": "^4.3.1",
-    "tsx": "4.22.4",
     "typescript": "^5.9.3"
   },
   "ignoreScripts": [

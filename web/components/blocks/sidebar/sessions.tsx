@@ -1371,13 +1371,25 @@ function AgentBadge({ status }: { status: AgentStatus | undefined }) {
 }
 
 function SessionDiff({ session, workspaceId }: { session: ChatSession; workspaceId: string }) {
-  const { data: diff, refetch } = useQuery(
-    sessionDiffQueryOptions(session.agent_name, workspaceId, session.session_id)
-  )
+  const {
+    data: diff,
+    isPending,
+    refetch,
+  } = useQuery(sessionDiffQueryOptions(session.agent_name, workspaceId, session.session_id))
 
   useEffect(() => {
     void refetch()
   }, [refetch, session.status, session.updated_at])
+
+  if (isPending) {
+    return (
+      <Skeleton
+        aria-label="Loading diff stats"
+        className="bg-sidebar-border h-4 w-[7ch] shrink-0 font-mono text-xs motion-reduce:animate-none"
+        role="status"
+      />
+    )
+  }
 
   if (!diff) return null
 

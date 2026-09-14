@@ -1,7 +1,12 @@
+import { Suspense } from "react"
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import * as z from "zod"
-import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
+import {
+  AdministrationLoadingState,
+  AdministrationPageHeader,
+  AdministrationState,
+} from "@/components/administration"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import {
   deleteSecretFormAction,
@@ -13,7 +18,7 @@ import { getWorkspaceScope } from "@/data/workspaces"
 import { SecretsFilters } from "./secrets-filters"
 import { NewSecretButton } from "./new-secret-button"
 import { SecretTable } from "./secret-table"
-import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
+import { searchParamStringSchema } from "@/lib/search-params"
 
 export const metadata: Metadata = {
   title: "Secrets",
@@ -26,20 +31,20 @@ const secretsSearchParamsSchema = z.object({
   sort_order: searchParamStringSchema.pipe(z.enum(["asc", "desc"]).default("asc")),
 })
 
-type SearchParams = {
-  page_token?: SearchParamStringInput
-  agent_name?: SearchParamStringInput
-  sort_by?: SearchParamStringInput
-  sort_order?: SearchParamStringInput
+export default function SecretsPage(
+  props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/secrets">
+) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <WorkspaceSecrets {...props} />
+    </Suspense>
+  )
 }
 
-export default async function SecretsPage({
+async function WorkspaceSecrets({
   params,
   searchParams,
-}: {
-  params: Promise<{ orgSlug: string; workspaceSlug: string }>
-  searchParams: Promise<SearchParams>
-}) {
+}: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/secrets">) {
   const [{ orgSlug, workspaceSlug }, search] = await Promise.all([params, searchParams])
   const workspace = await getWorkspaceScope(orgSlug, workspaceSlug)
   if (workspace.kind !== "ready") {

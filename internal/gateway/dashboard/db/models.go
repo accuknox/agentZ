@@ -100,6 +100,51 @@ func (ns NullApiKeyTargetType) Value() (driver.Value, error) {
 	return string(ns.ApiKeyTargetType), nil
 }
 
+type ChatSessionGroupBy string
+
+const (
+	ChatSessionGroupByNone    ChatSessionGroupBy = "none"
+	ChatSessionGroupByAgent   ChatSessionGroupBy = "agent"
+	ChatSessionGroupByStatus  ChatSessionGroupBy = "status"
+	ChatSessionGroupByDate    ChatSessionGroupBy = "date"
+	ChatSessionGroupByProject ChatSessionGroupBy = "project"
+)
+
+func (e *ChatSessionGroupBy) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatSessionGroupBy(s)
+	case string:
+		*e = ChatSessionGroupBy(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatSessionGroupBy: %T", src)
+	}
+	return nil
+}
+
+type NullChatSessionGroupBy struct {
+	ChatSessionGroupBy ChatSessionGroupBy `json:"chat_session_group_by"`
+	Valid              bool               `json:"valid"` // Valid is true if ChatSessionGroupBy is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatSessionGroupBy) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatSessionGroupBy, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatSessionGroupBy.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatSessionGroupBy) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatSessionGroupBy), nil
+}
+
 type ChatSessionKind string
 
 const (
@@ -863,6 +908,20 @@ type CleanupJob struct {
 	CompletedAt    pgtype.Timestamptz   `json:"completed_at"`
 }
 
+type CodingOperation struct {
+	ID             string    `json:"id"`
+	WorkspaceID    string    `json:"workspace_id"`
+	OrganizationID string    `json:"organization_id"`
+	OwnerID        string    `json:"owner_id"`
+	ProjectID      string    `json:"project_id"`
+	WorktreeID     string    `json:"worktree_id"`
+	Request        []byte    `json:"request"`
+	Result         []byte    `json:"result"`
+	LeaseToken     string    `json:"lease_token"`
+	LeaseUntil     time.Time `json:"lease_until"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
 type CodingProject struct {
 	ID            string             `json:"id"`
 	WorkspaceID   string             `json:"workspace_id"`
@@ -870,9 +929,24 @@ type CodingProject struct {
 	Name          string             `json:"name"`
 	RepositoryID  int64              `json:"repository_id"`
 	Repository    string             `json:"repository"`
+	LastAgentName pgtype.Text        `json:"last_agent_name"`
 	DefaultBranch string             `json:"default_branch"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
-	LastAgentName pgtype.Text        `json:"last_agent_name"`
+}
+
+type CodingSnapshot struct {
+	ProjectID        string    `json:"project_id"`
+	AgentName        string    `json:"agent_name"`
+	WorktreeID       string    `json:"worktree_id"`
+	Result           []byte    `json:"result"`
+	DemandUntil      time.Time `json:"demand_until"`
+	NextRefresh      time.Time `json:"next_refresh"`
+	GithubRetryAfter time.Time `json:"github_retry_after"`
+	NextRemote       time.Time `json:"next_remote"`
+	LeaseUntil       time.Time `json:"lease_until"`
+	Failures         int32     `json:"failures"`
+	Generation       int64     `json:"generation"`
+	RemoteRefs       string    `json:"remote_refs"`
 }
 
 type CodingThread struct {
@@ -893,8 +967,8 @@ type CodingWorktree struct {
 	Branch      string             `json:"branch"`
 	Ready       bool               `json:"ready"`
 	Shared      bool               `json:"shared"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	Deleting    bool               `json:"deleting"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
 type Dashboard struct {
@@ -1029,11 +1103,11 @@ type Invitation struct {
 	OrganizationID string           `json:"organization_id"`
 	Email          string           `json:"email"`
 	Role           pgtype.Text      `json:"role"`
+	TeamID         pgtype.Text      `json:"team_id"`
 	Status         string           `json:"status"`
 	ExpiresAt      pgtype.Timestamp `json:"expires_at"`
 	CreatedAt      pgtype.Timestamp `json:"created_at"`
 	InviterID      string           `json:"inviter_id"`
-	TeamID         pgtype.Text      `json:"team_id"`
 }
 
 type InvitationRole struct {
@@ -1237,11 +1311,11 @@ type User struct {
 
 type UserPreference struct {
 	UserID         string           `json:"user_id"`
+	Theme          ThemePreference  `json:"theme"`
 	UpdateSandbox  bool             `json:"update_sandbox"`
+	ShowTourButton bool             `json:"show_tour_button"`
 	CreatedAt      pgtype.Timestamp `json:"created_at"`
 	UpdatedAt      pgtype.Timestamp `json:"updated_at"`
-	Theme          ThemePreference  `json:"theme"`
-	ShowTourButton bool             `json:"show_tour_button"`
 }
 
 type Verification struct {
@@ -1259,13 +1333,13 @@ type Workspace struct {
 	Name                string             `json:"name"`
 	Slug                string             `json:"slug"`
 	Namespace           string             `json:"namespace"`
+	Type                WorkspaceType      `json:"type"`
 	State               WorkspaceState     `json:"state"`
 	ProvisioningAttempt int64              `json:"provisioning_attempt"`
 	FailureReason       pgtype.Text        `json:"failure_reason"`
 	DeletedAt           pgtype.Timestamptz `json:"deleted_at"`
 	CreatedAt           pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
-	Type                WorkspaceType      `json:"type"`
 }
 
 type WorkspaceChatPreference struct {
@@ -1277,6 +1351,7 @@ type WorkspaceChatPreference struct {
 	LastAgentName       pgtype.Text        `json:"last_agent_name"`
 	CreatedAt           pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	GroupBy             ChatSessionGroupBy `json:"group_by"`
 }
 
 type WorkspaceInheritedResource struct {

@@ -1,1 +1,0 @@
-ALTER TABLE "coding_projects" ADD COLUMN "last_agent_name" text;

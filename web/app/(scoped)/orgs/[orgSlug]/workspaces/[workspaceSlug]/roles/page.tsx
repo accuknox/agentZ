@@ -6,8 +6,6 @@ import { Button } from "@/components/ui/button"
 import { listWorkspaceRoles } from "@/data/roles"
 import { RoleTable } from "@/app/(scoped)/orgs/[orgSlug]/(organization)/roles/role-table"
 
-export const unstable_instant = false
-
 export const metadata = { title: "Roles" }
 
 export default async function WorkspaceRolesPage({

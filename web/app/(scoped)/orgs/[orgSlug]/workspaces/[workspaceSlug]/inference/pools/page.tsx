@@ -1,16 +1,25 @@
-import { AdministrationState } from "@/components/administration"
+import { Suspense } from "react"
+import { AdministrationLoadingState, AdministrationState } from "@/components/administration"
+import { searchParamStringSchema } from "@/lib/search-params"
 import { getWorkspaceScope } from "@/data/workspaces"
 import InferencePoolsPage from "@/app/(app)/inference/pools/pool-page"
 
 export const metadata = { title: "Pools" }
 
-export default async function WorkspaceInferencePoolsPage({
+export default function WorkspaceInferencePoolsPage(
+  props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/inference/pools">
+) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <WorkspaceInferencePools {...props} />
+    </Suspense>
+  )
+}
+
+async function WorkspaceInferencePools({
   params,
   searchParams,
-}: {
-  params: Promise<{ orgSlug: string; workspaceSlug: string }>
-  searchParams: Promise<{ page_token?: string }>
-}) {
+}: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/inference/pools">) {
   const { orgSlug, workspaceSlug } = await params
   const { page_token } = await searchParams
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
@@ -20,7 +29,7 @@ export default async function WorkspaceInferencePoolsPage({
   return (
     <InferencePoolsPage
       capabilities={scope.workspace.capabilities.inference_pools}
-      pageToken={page_token}
+      pageToken={searchParamStringSchema.parse(page_token)}
       scope={{ basePath, workspaceId: scope.workspace.id }}
     />
   )

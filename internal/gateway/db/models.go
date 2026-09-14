@@ -928,9 +928,9 @@ type CodingProject struct {
 	Name          string             `json:"name"`
 	RepositoryID  int64              `json:"repository_id"`
 	Repository    string             `json:"repository"`
+	LastAgentName pgtype.Text        `json:"last_agent_name"`
 	DefaultBranch string             `json:"default_branch"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
-	LastAgentName pgtype.Text        `json:"last_agent_name"`
 }
 
 type CodingSnapshot struct {
@@ -966,8 +966,8 @@ type CodingWorktree struct {
 	Branch      string             `json:"branch"`
 	Ready       bool               `json:"ready"`
 	Shared      bool               `json:"shared"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	Deleting    bool               `json:"deleting"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
 type EventTrailEvent struct {
@@ -1010,11 +1010,11 @@ type Invitation struct {
 	OrganizationID string           `json:"organization_id"`
 	Email          string           `json:"email"`
 	Role           pgtype.Text      `json:"role"`
+	TeamID         pgtype.Text      `json:"team_id"`
 	Status         string           `json:"status"`
 	ExpiresAt      pgtype.Timestamp `json:"expires_at"`
 	CreatedAt      pgtype.Timestamp `json:"created_at"`
 	InviterID      string           `json:"inviter_id"`
-	TeamID         pgtype.Text      `json:"team_id"`
 }
 
 type InvitationRole struct {
@@ -1430,11 +1430,11 @@ type User struct {
 
 type UserPreference struct {
 	UserID         string           `json:"user_id"`
+	Theme          ThemePreference  `json:"theme"`
 	UpdateSandbox  bool             `json:"update_sandbox"`
+	ShowTourButton bool             `json:"show_tour_button"`
 	CreatedAt      pgtype.Timestamp `json:"created_at"`
 	UpdatedAt      pgtype.Timestamp `json:"updated_at"`
-	Theme          ThemePreference  `json:"theme"`
-	ShowTourButton bool             `json:"show_tour_button"`
 }
 
 type Verification struct {
@@ -1452,13 +1452,13 @@ type Workspace struct {
 	Name                string             `json:"name"`
 	Slug                string             `json:"slug"`
 	Namespace           string             `json:"namespace"`
+	Type                WorkspaceType      `json:"type"`
 	State               WorkspaceState     `json:"state"`
 	ProvisioningAttempt int64              `json:"provisioning_attempt"`
 	FailureReason       pgtype.Text        `json:"failure_reason"`
 	DeletedAt           pgtype.Timestamptz `json:"deleted_at"`
 	CreatedAt           pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
-	Type                WorkspaceType      `json:"type"`
 }
 
 type WorkspaceChatPreference struct {

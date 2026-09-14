@@ -50,7 +50,11 @@ let
     dontFixup = true;
     outputHashMode = "recursive";
     outputHashAlgo = "sha256";
-    outputHash = "sha256-uSC1/bVCYkOdGADS8U/aKI2lZETErg8eh7E835qzlS4=";
+    # Bun installs platform-specific optional dependencies such as esbuild.
+    outputHash = {
+      x86_64-linux = "sha256-uSC1/bVCYkOdGADS8U/aKI2lZETErg8eh7E835qzlS4=";
+      aarch64-linux = "sha256-BKrnm9+pUwSgh5MrCN9KVretYHmZY8J807SfuSiUSnA=";
+    }.${pkgs.stdenv.hostPlatform.system};
   };
 in
 pkgs.stdenvNoCC.mkDerivation {

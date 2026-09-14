@@ -1,16 +1,16 @@
+import { Suspense } from "react"
 import type { Route } from "next"
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { RoleDelete } from "@/app/(scoped)/orgs/[orgSlug]/(organization)/roles/role-delete"
+import { AdministrationLoadingState } from "@/components/administration"
 import { RouteTabs, type RouteTab } from "@/components/route-tabs"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { getWorkspaceRoleEditorData } from "@/data/roles"
 
 export async function generateMetadata({
   params,
-}: {
-  params: Promise<{ orgSlug: string; roleId: string; workspaceSlug: string }>
-}): Promise<Metadata> {
+}: LayoutProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/roles/[roleId]">): Promise<Metadata> {
   const { orgSlug, roleId, workspaceSlug } = await params
   const data = await getWorkspaceRoleEditorData(orgSlug, workspaceSlug, decodeURIComponent(roleId))
   if (!data?.role) return { title: "Role" }
@@ -22,13 +22,20 @@ export async function generateMetadata({
   }
 }
 
-export default async function WorkspaceRoleLayout({
+export default function WorkspaceRoleLayout(
+  props: LayoutProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/roles/[roleId]">
+) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <WorkspaceRoleContent {...props} />
+    </Suspense>
+  )
+}
+
+async function WorkspaceRoleContent({
   children,
   params,
-}: {
-  children: React.ReactNode
-  params: Promise<{ orgSlug: string; roleId: string; workspaceSlug: string }>
-}) {
+}: LayoutProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/roles/[roleId]">) {
   const { orgSlug, roleId: encodedRoleId, workspaceSlug } = await params
   const roleId = decodeURIComponent(encodedRoleId)
   const data = await getWorkspaceRoleEditorData(orgSlug, workspaceSlug, roleId)

@@ -1,0 +1,16 @@
+version: 2
+project_name: agentz
+builds:
+- skip: true
+checksum:
+  disable: true
+changelog:
+  use: github-native
+release:
+  header: |-
+    Container images for linux/amd64 and linux/arm64:
+
+    - `public.ecr.aws/k9v9d5v2/agentz:{{ .Tag }}`
+    - `public.ecr.aws/k9v9d5v2/agentz/web:{{ .Tag }}`
+    - `public.ecr.aws/k9v9d5v2/agentz/init:{{ .Tag }}`
+    - `public.ecr.aws/k9v9d5v2/agentz/agent:{{ .Tag }}`

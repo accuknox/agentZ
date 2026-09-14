@@ -224,6 +224,7 @@ var cmd = &cli.Command{
 		subcommands.ExtAuthCmd,
 		subcommands.FilesystemCmd,
 		managerCmd,
+		subcommands.MigrateCmd,
 		subcommands.GatewayCmd,
 		subcommands.ObserverCmd,
 		subcommands.SkillCmd,

@@ -113,7 +113,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if err := r.Patch(ctx, &tenant, client.MergeFrom(base)); err != nil {
 			return ctrl.Result{}, fmt.Errorf("migrate Tenant quotas: %w", err)
 		}
-		return ctrl.Result{Requeue: true}, nil
+		return ctrl.Result{RequeueAfter: time.Millisecond}, nil
 	}
 	organizationLabel := agentzv1alpha1.ScopeNamespace(
 		agentzv1alpha1.ResourceScopeOrganisation,

@@ -1,5 +1,5 @@
 # Build the agentz binary
-FROM golang:1.26 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26 AS builder
 ARG TARGETOS
 ARG TARGETARCH
 
@@ -27,6 +27,10 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends git ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /
-COPY --from=builder /workspace/agentz /agentz
+COPY --from=builder /workspace/agentz .
+COPY --from=builder /workspace/internal/gateway/db/migrations /internal/gateway/db/migrations
+COPY --from=builder /workspace/internal/observer/db/migrations /internal/observer/db/migrations
+COPY --from=builder /workspace/internal/gateway/workflow/db/migrations /internal/gateway/workflow/db/migrations
+COPY --from=builder /workspace/internal/gateway/dashboard/db/migrations /internal/gateway/dashboard/db/migrations
 USER 65532:65532
 ENTRYPOINT ["/agentz"]

@@ -11,6 +11,37 @@ postgres:
   secretKey: DATABASE_URL
   databaseURL: ""
 
+migrations:
+  # Umbrella installs/upgrades prepare the complete shared database before
+  # updating workloads, even when individual services are disabled.
+  # Standalone subcharts do not run migrations.
+  enabled: true
+  # Optional existing migration Secret; defaults to postgres.secretName/key.
+  # It must target the same database as web, gateway, and observer. Use a
+  # direct PostgreSQL connection or session pooling, not transaction pooling.
+  # The role must own the schema objects and be able to install pg_trgm.
+  secretName: ""
+  secretKey: ""
+  # Go runner deadline. The Job allows twice this value plus 60s for both
+  # phases, including Drizzle Kit connection setup and image startup.
+  # Set Helm --timeout above the Job deadline plus its 20s termination grace.
+  # Old pods keep running: migrations must support the deployed application.
+  # Before retrying a failed/interrupted operation, inspect the Job, then run:
+  # kubectl delete job <release>-migrate --cascade=foreground --wait
+  # After interruption, confirm its PostgreSQL sessions have ended as well.
+  # Use the release namespace. Retrying resumes; rollback never reverses SQL.
+  timeoutSeconds: 90
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  # Uses web.image and gateway.image, including when those services are off.
+  # Supply immutable release tags or digests; latest is rejected. An enabled
+  # observer must use the same Go image. Pull Secrets must already exist.
+  # Failed Jobs remain for 24h or until explicitly deleted. Inspect both
+  # web-migrations and go-migrations container logs; hard timeouts may remove
+  # Pods. Exactly one Helm release should manage this database's migrations.
+
 manager:
   inference:
     externalSecrets:
@@ -22,7 +53,7 @@ manager:
         namespace: ""
         annotations: {}
         audiences:
-          - https://kubernetes.default.svc
+        - https://kubernetes.default.svc
       openBao:
         server: http://openbao.openbao.svc.cluster.local:8200
         kvMount: kv
@@ -56,7 +87,7 @@ manager:
 
   image:
     # Image repository for the `agentz` binary used by the manager pod.
-    repository: murtazau/agentz
+    repository: public.ecr.aws/k9v9d5v2/agentz
 
     # Image tag for the manager image.
     tag: latest
@@ -165,7 +196,7 @@ manager:
 
     # Image used for controller-managed workloads and agent filesystem
     # sidecars.
-    controllerImage: murtazau/agentz:latest
+    controllerImage: public.ecr.aws/k9v9d5v2/agentz:latest
 
     # Default image used for Agent resources created by the system.
     agentImage: ""
@@ -375,7 +406,7 @@ gateway:
 
   image:
     # Image repository for the gateway workload.
-    repository: murtazau/agentz
+    repository: public.ecr.aws/k9v9d5v2/agentz
 
     # Image tag for the gateway workload.
     tag: latest
@@ -571,7 +602,7 @@ observer:
 
   image:
     # Image repository for the observer workload.
-    repository: murtazau/agentz
+    repository: public.ecr.aws/k9v9d5v2/agentz
 
     # Image tag for the observer workload.
     tag: latest
@@ -695,7 +726,7 @@ web:
 
   image:
     # Image repository for the built Next.js web application.
-    repository: murtazau/agentz-web
+    repository: public.ecr.aws/k9v9d5v2/agentz/web
 
     # Image tag for the web workload.
     tag: latest

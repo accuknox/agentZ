@@ -192,7 +192,7 @@ func (s *Service) resolveAPIKeyTargets(ctx context.Context, key gatewaydb.Gatewa
 		return apiKeyScope{}, nil, fmt.Errorf("list api key targets: %w", err)
 	}
 	if len(targets) == 0 {
-		reason := "API key has no targets."
+		reason := "API key has no targets"
 		if err := s.revokeAPIKeyScope(ctx, scope, reason); err != nil {
 			return apiKeyScope{}, nil, err
 		}
@@ -202,7 +202,7 @@ func (s *Service) resolveAPIKeyTargets(ctx context.Context, key gatewaydb.Gatewa
 		if target.TargetType == targetType {
 			continue
 		}
-		reason := "API key target type does not match its credential type."
+		reason := "API key target type does not match its credential type"
 		if err := s.revokeAPIKeyScope(ctx, scope, reason); err != nil {
 			return apiKeyScope{}, nil, err
 		}

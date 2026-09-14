@@ -1,9 +1,14 @@
+import { Suspense } from "react"
 import type { Route } from "next"
 import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { ExternalLink } from "lucide-react"
-import { AdministrationState, StatusBadge } from "@/components/administration"
+import {
+  AdministrationLoadingState,
+  AdministrationState,
+  StatusBadge,
+} from "@/components/administration"
 import { RouteTabs, type RouteTab } from "@/components/route-tabs"
 import { Button } from "@/components/ui/button"
 import { SidebarTrigger } from "@/components/ui/sidebar"
@@ -11,9 +16,7 @@ import { getWorkspaceScope } from "@/data/workspaces"
 
 export async function generateMetadata({
   params,
-}: {
-  params: Promise<{ orgSlug: string; workspaceSlug: string }>
-}): Promise<Metadata> {
+}: LayoutProps<"/orgs/[orgSlug]/workspaces/manage/[workspaceSlug]">): Promise<Metadata> {
   const { orgSlug, workspaceSlug } = await params
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
   if (scope.kind !== "ready") return { title: "Workspace" }
@@ -25,13 +28,20 @@ export async function generateMetadata({
   }
 }
 
-export default async function ManageWorkspaceLayout({
+export default function ManageWorkspaceLayout(
+  props: LayoutProps<"/orgs/[orgSlug]/workspaces/manage/[workspaceSlug]">
+) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <ManageWorkspaceContent {...props} />
+    </Suspense>
+  )
+}
+
+async function ManageWorkspaceContent({
   children,
   params,
-}: {
-  children: React.ReactNode
-  params: Promise<{ orgSlug: string; workspaceSlug: string }>
-}) {
+}: LayoutProps<"/orgs/[orgSlug]/workspaces/manage/[workspaceSlug]">) {
   const { orgSlug, workspaceSlug } = await params
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
   if (scope.scope.kind !== "ready" || !scope.scope.organization.superadmin) {

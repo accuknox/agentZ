@@ -1,26 +1,6 @@
-import { connection } from "next/server"
 import type { ListEventTrailEventsData } from "@/lib/gateway/client"
 import { eventTrailQuerySchema, listOrganizationEventTrailEvents } from "@/data/event-trail"
 import { EventTrailEvents } from "./event-trail-events"
-
-export const unstable_instant = {
-  prefetch: "runtime",
-  // A build cannot carry a stable authenticated session; live requests retain
-  // development validation against the real organization boundary.
-  unstable_disableBuildValidation: true,
-  samples: [
-    {
-      cookies: [],
-      headers: [],
-      params: { orgSlug: "sample-organisation" },
-      searchParams: {
-        filters: null,
-        page_token: null,
-        token_stack: null,
-      },
-    },
-  ],
-}
 
 export const metadata = { title: "Event trail" }
 
@@ -32,7 +12,6 @@ export default async function EventTrailPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const [{ orgSlug }, raw] = await Promise.all([params, searchParams])
-  await connection()
   const search = eventTrailQuerySchema.parse(raw)
   const body = {
     filters: search.filters,

@@ -1,4 +1,6 @@
-import { AdministrationState } from "@/components/administration"
+import { searchParamStringSchema } from "@/lib/search-params"
+import { Suspense } from "react"
+import { AdministrationLoadingState, AdministrationState } from "@/components/administration"
 import { activateOrganization, resolveOrganizationSlug } from "@/data/organizations"
 import { ensureTenant } from "@/lib/gateway/client"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
@@ -6,13 +8,20 @@ import InferenceProvidersPage from "@/app/(app)/inference/providers/provider-pag
 
 export const metadata = { title: "Inference providers" }
 
-export default async function OrganizationInferenceProvidersPage({
+export default function OrganizationInferenceProvidersPage(
+  props: PageProps<"/orgs/[orgSlug]/inference/providers">
+) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <OrganizationInferenceProvidersContent {...props} />
+    </Suspense>
+  )
+}
+
+async function OrganizationInferenceProvidersContent({
   params,
   searchParams,
-}: {
-  params: Promise<{ orgSlug: string }>
-  searchParams: Promise<{ page_token?: string }>
-}) {
+}: PageProps<"/orgs/[orgSlug]/inference/providers">) {
   const { orgSlug } = await params
   const { page_token } = await searchParams
   const scope = await resolveOrganizationSlug(orgSlug)
@@ -24,7 +33,7 @@ export default async function OrganizationInferenceProvidersPage({
   return (
     <InferenceProvidersPage
       capabilities={tenant.data.inference_provider_capabilities}
-      pageToken={page_token}
+      pageToken={searchParamStringSchema.parse(page_token)}
       pageScope={{ kind: "organization", organizationName: scope.organization.name }}
       scope={{}}
     />

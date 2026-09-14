@@ -1,0 +1,268 @@
+name: CI
+
+"on":
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['**']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/main' }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  go-test:
+    name: Go unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v7.0.1
+    - uses: actions/setup-go@v7.0.0
+      with:
+        go-version-file: go.mod
+    - name: Test
+      run: go test -race -shuffle=on ./cmd/... ./hack/... ./internal/... ./pkg/...
+
+  go-lint:
+    name: Go lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v7.0.1
+    - uses: actions/setup-go@v7.0.0
+      with:
+        go-version-file: go.mod
+    - uses: golangci/golangci-lint-action@v9.3.0
+      with:
+        version: v2.13.2
+        args: --timeout=20m ./cmd/... ./hack/... ./internal/... ./pkg/...
+
+  frontend:
+    name: Lint and types (${{ matrix.directory }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        directory: [web, opencode/config]
+    defaults:
+      run:
+        working-directory: ${{ matrix.directory }}
+    steps:
+    - uses: actions/checkout@v7.0.1
+    - uses: oven-sh/setup-bun@v2.2.0
+      id: bun
+      with:
+        bun-version: latest
+    - uses: actions/cache@v6.1.0
+      with:
+        path: ~/.bun/install/cache
+        key: bun-${{ runner.os }}-${{ runner.arch }}-${{ steps.bun.outputs.bun-version }}-${{ matrix.directory }}-${{ hashFiles(format('{0}/bun.lock', matrix.directory)) }}
+        restore-keys: |
+          bun-${{ runner.os }}-${{ runner.arch }}-${{ steps.bun.outputs.bun-version }}-${{ matrix.directory }}-
+    - name: Install dependencies
+      run: bun install --frozen-lockfile
+    - name: Lint
+      run: bun run lint
+    - name: Generate route types
+      if: matrix.directory == 'web'
+      run: bun run next typegen
+    - name: Typecheck
+      run: bun run typecheck
+
+  yaml:
+    name: YAML lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+    - uses: actions/checkout@v7.0.1
+    - name: Lint
+      run: pipx run yamllint .
+
+  prepare:
+    name: Select image tag
+    if: github.event_name == 'push' && !github.event.deleted
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.meta.outputs.version }}
+    steps:
+    - uses: docker/metadata-action@v6.2.0
+      id: meta
+      with:
+        images: public.ecr.aws/k9v9d5v2/agentz
+        flavor: latest=false
+        tags: |
+          type=raw,value=main,enable=${{ github.ref == 'refs/heads/main' }}
+          type=match,pattern=^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$,group=0
+
+  images:
+    name: Build ${{ matrix.image.name }} (${{ matrix.platform.arch }})
+    needs: [go-test, go-lint, frontend, yaml, prepare]
+    if: needs.prepare.outputs.tag != ''
+    runs-on: ${{ matrix.platform.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+        - name: agentz
+          repository: public.ecr.aws/k9v9d5v2/agentz
+          context: .
+          file: Dockerfile
+        - name: web
+          repository: public.ecr.aws/k9v9d5v2/agentz/web
+          context: web
+          file: web/Dockerfile
+        - name: init
+          repository: public.ecr.aws/k9v9d5v2/agentz/init
+          context: .
+          file: Dockerfile.init
+        - name: agent
+          repository: public.ecr.aws/k9v9d5v2/agentz/agent
+        platform:
+        - arch: amd64
+          runner: ubuntu-24.04
+        - arch: arm64
+          runner: ubuntu-24.04-arm
+    steps:
+    - uses: actions/checkout@v7.0.1
+    - uses: aws-actions/configure-aws-credentials@v6.2.4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_DEV_ACCESS_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_DEV_SECRET_ID }}
+        aws-region: us-east-1
+    - uses: aws-actions/amazon-ecr-login@v2.1.7
+      with:
+        registry-type: public
+    - uses: docker/metadata-action@v6.2.0
+      id: meta
+      with:
+        images: ${{ matrix.image.repository }}
+        flavor: latest=false
+        tags: type=raw,value=${{ needs.prepare.outputs.tag }}
+    - uses: docker/setup-buildx-action@v4.3.0
+      if: matrix.image.name != 'agent'
+    - uses: docker/build-push-action@v7.3.0
+      if: matrix.image.name != 'agent'
+      id: docker
+      with:
+        context: ${{ matrix.image.context }}
+        file: ${{ matrix.image.file }}
+        platforms: linux/${{ matrix.platform.arch }}
+        labels: ${{ steps.meta.outputs.labels }}
+        outputs: type=image,name=${{ matrix.image.repository }},push-by-digest=true,name-canonical=true,push=true
+        cache-from: type=gha,scope=${{ matrix.image.name }}-${{ matrix.platform.arch }}
+        cache-to: type=gha,scope=${{ matrix.image.name }}-${{ matrix.platform.arch }},mode=max
+    - uses: cachix/install-nix-action@v31.11.1
+      if: matrix.image.name == 'agent'
+    - uses: nix-community/cache-nix-action@v7
+      if: matrix.image.name == 'agent'
+      with:
+        primary-key: nix-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock') }}-${{ github.sha }}
+        restore-prefixes-first-match: |
+          nix-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock') }}-
+          nix-${{ runner.os }}-${{ runner.arch }}-
+    - name: Build and push Nix image
+      if: matrix.image.name == 'agent'
+      id: nix
+      env:
+        IMAGE: ${{ matrix.image.repository }}
+      run: |
+        nix build .#agentImage --out-link "$RUNNER_TEMP/agent-image"
+        # Skopeo uploads the Nix archive without creating an intermediate tag.
+        # The local build has no source signature to verify.
+        nix shell --inputs-from . nixpkgs#skopeo --command \
+          skopeo --insecure-policy copy --digestfile "$RUNNER_TEMP/agent-digest" \
+          --dest-authfile "$HOME/.docker/config.json" \
+          "docker-archive:$RUNNER_TEMP/agent-image" \
+          "docker://$IMAGE@@unknown-digest@@"
+        echo "digest=$(cat "$RUNNER_TEMP/agent-digest")" >> "$GITHUB_OUTPUT"
+    - name: Export digest
+      env:
+        DIGEST: ${{ steps.docker.outputs.digest || steps.nix.outputs.digest }}
+      run: |
+        mkdir -p "$RUNNER_TEMP/digests"
+        touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+    - uses: actions/upload-artifact@v7.0.1
+      with:
+        name: digest-${{ matrix.image.name }}-${{ matrix.platform.arch }}
+        path: ${{ runner.temp }}/digests/*
+        if-no-files-found: error
+        retention-days: 1
+
+  manifests:
+    name: Publish ${{ matrix.image.name }} manifest
+    needs: [prepare, images]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+        - name: agentz
+          repository: public.ecr.aws/k9v9d5v2/agentz
+        - name: web
+          repository: public.ecr.aws/k9v9d5v2/agentz/web
+        - name: init
+          repository: public.ecr.aws/k9v9d5v2/agentz/init
+        - name: agent
+          repository: public.ecr.aws/k9v9d5v2/agentz/agent
+    steps:
+    - uses: actions/checkout@v7.0.1
+    - uses: aws-actions/configure-aws-credentials@v6.2.4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_DEV_ACCESS_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_DEV_SECRET_ID }}
+        aws-region: us-east-1
+    - uses: aws-actions/amazon-ecr-login@v2.1.7
+      with:
+        registry-type: public
+    - uses: docker/setup-buildx-action@v4.3.0
+    - uses: actions/download-artifact@v8.0.1
+      with:
+        pattern: digest-${{ matrix.image.name }}-*
+        path: ${{ runner.temp }}/digests
+        merge-multiple: true
+    - name: Publish manifest
+      working-directory: ${{ runner.temp }}/digests
+      env:
+        IMAGE: ${{ matrix.image.repository }}
+        TAG: ${{ needs.prepare.outputs.tag }}
+      run: |
+        digests=(*)
+        test "${#digests[@]}" -eq 2
+        docker buildx imagetools create --tag "$IMAGE:$TAG" \
+          "${digests[@]/#/$IMAGE@sha256:}"
+        docker buildx imagetools inspect "$IMAGE:$TAG"
+
+  release:
+    name: GitHub release
+    needs: [prepare, manifests]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@v7.0.1
+      with:
+        fetch-depth: 0
+    - uses: actions/setup-go@v7.0.0
+      with:
+        go-version-file: go.mod
+        cache: false
+    - uses: goreleaser/goreleaser-action@v7.2.3
+      with:
+        version: v2.18.1
+        args: release --clean
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GORELEASER_CURRENT_TAG: ${{ github.ref_name }}

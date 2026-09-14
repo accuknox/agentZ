@@ -6,6 +6,14 @@ COPY package.json bun.lock ./
 RUN --mount=type=cache,target=/root/.bun/install/cache \
     bun install --frozen-lockfile --ignore-scripts
 
+FROM deps AS migration-deps
+
+# Pack the CLI's installed dependency tree without resolving new versions.
+RUN --network=none bun pm pkg set --json 'files=["package.json"]' \
+    'bundledDependencies=["drizzle-kit","drizzle-orm","pg","dotenv"]' && \
+    bun pm pack --ignore-scripts --filename /migrations.tgz && \
+    mkdir /migrations && tar -xzf /migrations.tgz -C /migrations --strip-components=1
+
 FROM oven/bun:1 AS builder
 
 WORKDIR /app
@@ -33,6 +41,9 @@ RUN mkdir .next && chown bun:bun .next
 COPY --from=builder --chown=bun:bun /app/.next/standalone ./
 COPY --from=builder --chown=bun:bun /app/.next/static ./.next/static
 COPY --from=builder --chown=bun:bun /app/bootstrap.cjs ./bootstrap.cjs
+COPY --from=migration-deps --chown=bun:bun /migrations/node_modules ./node_modules
+COPY --from=builder --chown=bun:bun /app/drizzle.config.ts ./drizzle.config.ts
+COPY --from=builder --chown=bun:bun /app/db/migrations ./db/migrations
 
 EXPOSE 3000
 

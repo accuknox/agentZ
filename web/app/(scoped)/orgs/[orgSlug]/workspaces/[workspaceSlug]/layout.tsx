@@ -1,8 +1,10 @@
 import { CodingActivity } from "@/components/blocks/coding/git-actions"
+import { Suspense } from "react"
 import type { Route } from "next"
 import type { Metadata } from "next"
 import { headers } from "next/headers"
 import { notFound, permanentRedirect, redirect } from "next/navigation"
+import { AgentZTransition } from "@/components/scope-transition"
 import {
   AdministrationLayout,
   AdministrationPageHeader,
@@ -17,13 +19,9 @@ import { getWorkspaceScope } from "@/data/workspaces"
 import { signInURL } from "@/lib/sign-in-redirect"
 import { WorkspaceState } from "./workspace-state"
 
-export const unstable_instant = false
-
 export async function generateMetadata({
   params,
-}: {
-  params: Promise<{ orgSlug: string; workspaceSlug: string }>
-}): Promise<Metadata> {
+}: LayoutProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]">): Promise<Metadata> {
   const { orgSlug, workspaceSlug } = await params
   const result = await getWorkspaceScope(orgSlug, workspaceSlug)
   const name = result.kind === "ready" ? result.workspace.name : "Workspace"
@@ -35,13 +33,20 @@ export async function generateMetadata({
   }
 }
 
-export default async function WorkspaceLayout({
+export default function WorkspaceLayout(
+  props: LayoutProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]">
+) {
+  return (
+    <Suspense fallback={<AgentZTransition />}>
+      <WorkspaceContent {...props} />
+    </Suspense>
+  )
+}
+
+async function WorkspaceContent({
   children,
   params,
-}: {
-  children: React.ReactNode
-  params: Promise<{ orgSlug: string; workspaceSlug: string }>
-}) {
+}: LayoutProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]">) {
   const { orgSlug, workspaceSlug } = await params
   const result = await getWorkspaceScope(orgSlug, workspaceSlug)
   if (result.scope.kind === "unauthorized") {
@@ -149,13 +154,7 @@ export default async function WorkspaceLayout({
               canCreateWorkspace: result.directory.can_create,
               canEnterOrganization: result.directory.can_enter_organization,
               kind: "workspace",
-              mcpConnectionCapabilities: result.workspace.capabilities.mcp_connections,
-              inferencePoolCapabilities: result.workspace.capabilities.inference_pools,
-              inferenceProviderCapabilities: result.workspace.capabilities.inference_providers,
               organization: result.scope.organization,
-              lensCapabilities: result.workspace.capabilities.observability,
-              sandboxCapabilities: result.workspace.capabilities.sandboxes,
-              skillCapabilities: result.workspace.capabilities.skills,
               workspace: result.workspace,
               workspaces: result.directory.workspaces,
             }}

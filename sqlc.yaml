@@ -3,12 +3,13 @@ sql:
 - engine: postgresql
   queries: internal/observer/db/query.sql
   schema:
-  - internal/session/db/schema.sql
+  - internal/gateway/db/schema.sql
   - internal/observer/db/schema.sql
   gen:
     go:
       package: observerdb
       out: internal/observer/db
+      omit_unused_structs: true
       sql_package: pgx/v5
       emit_json_tags: true
       emit_interface: true
@@ -25,10 +26,9 @@ sql:
 - engine: postgresql
   queries: internal/gateway/db/query.sql
   schema:
-  - internal/session/db/schema.sql
+  - web/db/schema.sql
+  - internal/gateway/db/schema.sql
   - internal/observer/db/schema.sql
-  - web/drizzle
-  - internal/gateway/migrations
   gen:
     go:
       package: gatewaydb
@@ -53,12 +53,13 @@ sql:
 - engine: postgresql
   queries: internal/gateway/workflow/db/query.sql
   schema:
-  - internal/session/db/schema.sql
+  - internal/gateway/db/schema.sql
   - internal/gateway/workflow/db/schema.sql
   gen:
     go:
       package: workflowdb
       out: internal/gateway/workflow/db
+      omit_unused_structs: true
       sql_package: pgx/v5
       emit_json_tags: true
       emit_interface: true
@@ -75,8 +76,8 @@ sql:
 - engine: postgresql
   queries: internal/gateway/dashboard/db/query.sql
   schema:
-  - internal/session/db/schema.sql
-  - web/drizzle
+  - internal/gateway/db/schema.sql
+  - web/db/schema.sql
   - internal/gateway/dashboard/db/schema.sql
   gen:
     go:

@@ -4,9 +4,9 @@ import type { Route } from "next"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type { ReactNode } from "react"
-import { SidebarMenuButton } from "@/components/ui/sidebar"
+import { SidebarMenuButton, useSidebar } from "@/components/ui/sidebar"
 
-export function SidebarNavigationLink({
+export function SidebarNavigationLink<T extends string>({
   children,
   exact = false,
   href,
@@ -16,12 +16,13 @@ export function SidebarNavigationLink({
 }: {
   children: ReactNode
   exact?: boolean
-  href: Route
+  href: Route<T>
   label: string
   match?: string
   maxMatchDepth?: number
 }) {
   const pathname = usePathname()
+  const { setOpenMobile } = useSidebar()
   const prefix = match ?? href
   const matchDepth = pathname.slice(prefix.length).split("/").filter(Boolean).length
   const active = exact
@@ -31,7 +32,11 @@ export function SidebarNavigationLink({
 
   return (
     <SidebarMenuButton asChild isActive={active} tooltip={label}>
-      <Link aria-current={active ? "page" : undefined} href={href}>
+      <Link
+        aria-current={active ? "page" : undefined}
+        href={href}
+        onNavigate={() => setOpenMobile(false)}
+      >
         {children}
         <span>{label}</span>
       </Link>

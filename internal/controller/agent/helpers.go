@@ -56,7 +56,7 @@ const (
 	nixLinkVolume               = "nix-link"
 	nixLinkMount                = "/tmp/nix-link"
 	nixLinkStage                = "/tmp/nix-link"
-	nixInitImage                = "murtazau/agentz-init:latest"
+	nixInitImage                = "public.ecr.aws/k9v9d5v2/agentz/init:latest"
 	homeInitName                = "home-init"
 	agentRuntimeUID             = int64(1000)
 	agentRuntimeGID             = int64(1000)

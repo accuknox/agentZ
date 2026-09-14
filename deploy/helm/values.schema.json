@@ -24,6 +24,20 @@
         "databaseURL": { "type": "string" }
       }
     },
+    "migrations": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "secretName": { "type": "string" },
+        "secretKey": { "type": "string" },
+        "timeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 86400 },
+        "resources": { "type": "object" },
+        "nodeSelector": { "type": "object", "additionalProperties": { "type": "string" } },
+        "tolerations": { "type": "array", "items": { "type": "object" } },
+        "affinity": { "type": "object" }
+      }
+    },
     "manager": { "type": "object" },
     "gateway": { "type": "object" },
     "observer": { "type": "object" },

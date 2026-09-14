@@ -1,14 +1,23 @@
-import { AdministrationState } from "@/components/administration"
+import { Suspense } from "react"
+import { AdministrationLoadingState, AdministrationState } from "@/components/administration"
 import { getWorkspaceScope } from "@/data/workspaces"
 import UpdateSandboxPage, { generateMetadata } from "@/app/(app)/sandboxes/update-sandbox-page"
 
 export { generateMetadata }
 
-export default async function UpdateWorkspaceSandboxPage({
+export default function UpdateWorkspaceSandboxPage(
+  props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/sandboxes/update/[name]">
+) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <UpdateWorkspaceSandboxContent {...props} />
+    </Suspense>
+  )
+}
+
+async function UpdateWorkspaceSandboxContent({
   params,
-}: {
-  params: Promise<{ name: string; orgSlug: string; workspaceSlug: string }>
-}) {
+}: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/sandboxes/update/[name]">) {
   const values = await params
   const scope = await getWorkspaceScope(values.orgSlug, values.workspaceSlug)
   if (scope.kind !== "ready" || !scope.workspace.capabilities.sandboxes.read)

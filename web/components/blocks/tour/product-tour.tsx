@@ -34,12 +34,6 @@ const workspaceSteps = [
     "See what agents did",
     "Review agent actions, tool calls, and network or process activity.",
   ],
-  ...resourceSteps,
-  [
-    "secrets",
-    "Add credentials",
-    "Add API keys and passwords for your services. Agents use these credentials without seeing their values.",
-  ],
   [
     "workflows",
     "View workflows",
@@ -52,6 +46,20 @@ const workspaceSteps = [
     "Open dashboards your agents created to view data and reports.",
   ],
   ["agents", "Choose an agent", "Browse the agents in this workspace and see what each can do."],
+  [
+    "workspace-settings",
+    "Configure your workspace",
+    "Open Workspace settings for sandboxes, skills, MCP connections, inference, secrets, roles, and the event trail.",
+  ],
+] as const
+
+const workspaceSettingsSteps = [
+  ...resourceSteps,
+  [
+    "secrets",
+    "Add credentials",
+    "Add API keys and passwords for your services. Agents use these credentials without seeing their values.",
+  ],
   ["roles", "Manage access", "Control who can use and manage resources in this workspace."],
   ["event-trail", "Review changes", "See who made changes in this workspace and when."],
 ] as const
@@ -83,7 +91,11 @@ const organizationSteps = [
   ["general", "Organization details", "Update your organization's name and logo."],
 ] as const
 
-export function ProductTour({ scope }: { scope: "workspace" | "organization" }) {
+export function ProductTour({
+  scope,
+}: {
+  scope: "workspace" | "workspace-settings" | "organization"
+}) {
   const { isMobile, open, setOpen } = useSidebar()
   const pathname = usePathname()
   const stopRef = useRef<(() => void) | null>(null)
@@ -161,7 +173,12 @@ export function ProductTour({ scope }: { scope: "workspace" | "organization" }) 
       observer?.disconnect()
       if (signal.aborted) return
 
-      const steps = scope === "organization" ? organizationSteps : workspaceSteps
+      const steps =
+        scope === "organization"
+          ? organizationSteps
+          : scope === "workspace-settings"
+            ? workspaceSettingsSteps
+            : workspaceSteps
       const available = steps.flatMap<DriveStep>(([id, title, description]) => {
         const element = sidebar.querySelector(`[data-tour="${id}"]`)
         if (!element?.checkVisibility({ visibilityProperty: true })) return []

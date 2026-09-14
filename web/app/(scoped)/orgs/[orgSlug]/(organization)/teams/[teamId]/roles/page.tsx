@@ -1,6 +1,7 @@
+import { Suspense } from "react"
 import dynamic from "next/dynamic"
 import { notFound } from "next/navigation"
-import { AdministrationState } from "@/components/administration"
+import { AdministrationLoadingState, AdministrationState } from "@/components/administration"
 import { AssignmentForm } from "@/components/assignment-form"
 import { getTeamEffectiveAccessDetail } from "@/data/access"
 import { getTeamEditorData } from "@/data/teams"
@@ -11,11 +12,15 @@ const TeamAccessView = dynamic(() =>
 
 export const metadata = { title: "Roles & access" }
 
-export default async function TeamRolesPage({
-  params,
-}: {
-  params: Promise<{ orgSlug: string; teamId: string }>
-}) {
+export default function TeamRolesPage(props: PageProps<"/orgs/[orgSlug]/teams/[teamId]/roles">) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <TeamRolesContent {...props} />
+    </Suspense>
+  )
+}
+
+async function TeamRolesContent({ params }: PageProps<"/orgs/[orgSlug]/teams/[teamId]/roles">) {
   const { orgSlug, teamId } = await params
   const [detail, editor] = await Promise.all([
     getTeamEffectiveAccessDetail(orgSlug, teamId),

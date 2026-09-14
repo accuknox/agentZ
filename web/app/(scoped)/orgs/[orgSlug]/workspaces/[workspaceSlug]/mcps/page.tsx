@@ -1,18 +1,24 @@
-import { AdministrationState } from "@/components/administration"
+import { Suspense } from "react"
+import { AdministrationLoadingState, AdministrationState } from "@/components/administration"
 import { getWorkspaceScope } from "@/data/workspaces"
 import { McpPage } from "@/app/(app)/mcps/mcp-page"
 
-export const unstable_instant = false
-
 export const metadata = { title: "MCP connections" }
 
-export default async function WorkspaceMcpPage({
+export default function WorkspaceMcpPage(
+  props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/mcps">
+) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <WorkspaceMcp {...props} />
+    </Suspense>
+  )
+}
+
+async function WorkspaceMcp({
   params,
   searchParams,
-}: {
-  params: Promise<{ orgSlug: string; workspaceSlug: string }>
-  searchParams: Promise<{ page_token?: string | string[] }>
-}) {
+}: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/mcps">) {
   const { orgSlug, workspaceSlug } = await params
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
   if (scope.kind !== "ready" || !scope.workspace.capabilities.mcp_connections.read)

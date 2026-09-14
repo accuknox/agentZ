@@ -1,1 +1,0 @@
-ALTER TABLE "user_preferences" ADD COLUMN "show_tour_button" boolean DEFAULT true NOT NULL;

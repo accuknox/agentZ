@@ -5,7 +5,6 @@ import { ProcessTelemetryTable } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/
 import {
   RuntimeTelemetryPage as RuntimeTelemetryPageContent,
   type TelemetryPageConfig,
-  type TelemetrySearchParams,
 } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/runtime-telemetry-page"
 
 export const metadata: Metadata = {
@@ -15,10 +14,7 @@ export const metadata: Metadata = {
 export default function RuntimeTelemetryPage({
   params,
   searchParams,
-}: {
-  params: Promise<{ orgSlug: string; workspaceSlug: string }>
-  searchParams: Promise<TelemetrySearchParams>
-}) {
+}: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry">) {
   const config: TelemetryPageConfig<ProcessTelemetryActionData> = {
     value: "process",
     headers: ["Process", "Command", "Action", "Occurrences", "Last Seen"],

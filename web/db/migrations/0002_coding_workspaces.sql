@@ -6,8 +6,8 @@ CREATE TABLE "coding_projects" (
 	"name" text NOT NULL,
 	"repository_id" bigint NOT NULL,
 	"repository" text NOT NULL,
+	"last_agent_name" text,
 	"default_branch" text NOT NULL,
-	"deleting" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "coding_projects_workspace_id_uidx" UNIQUE("workspace_id","id")
 );
@@ -31,6 +31,7 @@ CREATE TABLE "coding_worktrees" (
 	"branch" text NOT NULL,
 	"ready" boolean DEFAULT false NOT NULL,
 	"shared" boolean DEFAULT false NOT NULL,
+	"deleting" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "coding_worktrees_workspace_agent_id_uidx" UNIQUE("workspace_id","agent_name","id"),
 	CONSTRAINT "coding_worktrees_directory_uidx" UNIQUE("workspace_id","agent_name","directory")
@@ -48,8 +49,6 @@ CREATE TABLE "github_connections" (
 	"user_id" text PRIMARY KEY NOT NULL,
 	"github_user_id" bigint NOT NULL,
 	"login" text NOT NULL,
-	"name" text NOT NULL,
-	"email" text NOT NULL,
 	"access_token" text NOT NULL,
 	"refresh_token" text NOT NULL,
 	"expires_at" timestamp with time zone NOT NULL,

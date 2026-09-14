@@ -51,7 +51,7 @@ INSERT INTO coding_worktrees(id, workspace_id, project_id, agent_name, directory
 VALUES ($1, $2, $3, $4, $5, $6, true, true)
 ON CONFLICT (workspace_id, agent_name, directory) DO UPDATE SET branch = EXCLUDED.branch
 WHERE coding_worktrees.project_id = EXCLUDED.project_id AND NOT coding_worktrees.deleting
-RETURNING id, workspace_id, project_id, agent_name, directory, branch, ready, shared, created_at, deleting
+RETURNING id, workspace_id, project_id, agent_name, directory, branch, ready, shared, deleting, created_at
 `
 
 type GatewayAdoptCodingWorktreeParams struct {
@@ -82,8 +82,8 @@ func (q *Queries) GatewayAdoptCodingWorktree(ctx context.Context, arg GatewayAdo
 		&i.Branch,
 		&i.Ready,
 		&i.Shared,
-		&i.CreatedAt,
 		&i.Deleting,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -350,7 +350,7 @@ func (q *Queries) GatewayCodingCooldown(ctx context.Context, ownerID string) (ti
 }
 
 const gatewayCodingProjectIdentity = `-- name: GatewayCodingProjectIdentity :one
-SELECT coding_projects.id, coding_projects.workspace_id, coding_projects.owner_id, coding_projects.name, coding_projects.repository_id, coding_projects.repository, coding_projects.default_branch, coding_projects.created_at, coding_projects.last_agent_name, workspaces.organization_id FROM coding_projects
+SELECT coding_projects.id, coding_projects.workspace_id, coding_projects.owner_id, coding_projects.name, coding_projects.repository_id, coding_projects.repository, coding_projects.last_agent_name, coding_projects.default_branch, coding_projects.created_at, workspaces.organization_id FROM coding_projects
 JOIN workspaces ON workspaces.id = coding_projects.workspace_id WHERE coding_projects.id = $1
 `
 
@@ -369,9 +369,9 @@ func (q *Queries) GatewayCodingProjectIdentity(ctx context.Context, id string) (
 		&i.CodingProject.Name,
 		&i.CodingProject.RepositoryID,
 		&i.CodingProject.Repository,
+		&i.CodingProject.LastAgentName,
 		&i.CodingProject.DefaultBranch,
 		&i.CodingProject.CreatedAt,
-		&i.CodingProject.LastAgentName,
 		&i.OrganizationID,
 	)
 	return i, err
@@ -637,7 +637,7 @@ func (q *Queries) GatewayCreateCodingOperation(ctx context.Context, arg GatewayC
 const gatewayCreateCodingProject = `-- name: GatewayCreateCodingProject :one
 INSERT INTO coding_projects(id, workspace_id, owner_id, name, repository_id, repository, default_branch)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, workspace_id, owner_id, name, repository_id, repository, default_branch, created_at, last_agent_name
+RETURNING id, workspace_id, owner_id, name, repository_id, repository, last_agent_name, default_branch, created_at
 `
 
 type GatewayCreateCodingProjectParams struct {
@@ -668,9 +668,9 @@ func (q *Queries) GatewayCreateCodingProject(ctx context.Context, arg GatewayCre
 		&i.Name,
 		&i.RepositoryID,
 		&i.Repository,
+		&i.LastAgentName,
 		&i.DefaultBranch,
 		&i.CreatedAt,
-		&i.LastAgentName,
 	)
 	return i, err
 }
@@ -711,7 +711,7 @@ const gatewayCreateCodingWorktree = `-- name: GatewayCreateCodingWorktree :one
 INSERT INTO coding_worktrees(id, workspace_id, project_id, agent_name, directory, branch)
 VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (id) DO NOTHING
-RETURNING id, workspace_id, project_id, agent_name, directory, branch, ready, shared, created_at, deleting
+RETURNING id, workspace_id, project_id, agent_name, directory, branch, ready, shared, deleting, created_at
 `
 
 type GatewayCreateCodingWorktreeParams struct {
@@ -742,8 +742,8 @@ func (q *Queries) GatewayCreateCodingWorktree(ctx context.Context, arg GatewayCr
 		&i.Branch,
 		&i.Ready,
 		&i.Shared,
-		&i.CreatedAt,
 		&i.Deleting,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -864,7 +864,7 @@ WITH created AS (
     'provisioning',
     1
   )
-  RETURNING id, organization_id, name, slug, namespace, state, provisioning_attempt, failure_reason, deleted_at, created_at, updated_at, type
+  RETURNING id, organization_id, name, slug, namespace, type, state, provisioning_attempt, failure_reason, deleted_at, created_at, updated_at
 )
 INSERT INTO workspace_slug_history(organization_id, workspace_id, slug)
 SELECT organization_id, id, slug
@@ -1524,7 +1524,7 @@ func (q *Queries) GatewayGetCodingOperation(ctx context.Context, arg GatewayGetC
 }
 
 const gatewayGetCodingProject = `-- name: GatewayGetCodingProject :one
-SELECT id, workspace_id, owner_id, name, repository_id, repository, default_branch, created_at, last_agent_name FROM coding_projects
+SELECT id, workspace_id, owner_id, name, repository_id, repository, last_agent_name, default_branch, created_at FROM coding_projects
 WHERE id = $1 AND workspace_id = $2 AND owner_id = $3
 `
 
@@ -1544,15 +1544,15 @@ func (q *Queries) GatewayGetCodingProject(ctx context.Context, arg GatewayGetCod
 		&i.Name,
 		&i.RepositoryID,
 		&i.Repository,
+		&i.LastAgentName,
 		&i.DefaultBranch,
 		&i.CreatedAt,
-		&i.LastAgentName,
 	)
 	return i, err
 }
 
 const gatewayGetCodingThread = `-- name: GatewayGetCodingThread :one
-SELECT coding_threads.id, coding_threads.workspace_id, coding_threads.agent_name, coding_threads.worktree_id, coding_threads.session_id, coding_threads.created_at, coding_worktrees.id, coding_worktrees.workspace_id, coding_worktrees.project_id, coding_worktrees.agent_name, coding_worktrees.directory, coding_worktrees.branch, coding_worktrees.ready, coding_worktrees.shared, coding_worktrees.created_at, coding_worktrees.deleting, coding_projects.id, coding_projects.workspace_id, coding_projects.owner_id, coding_projects.name, coding_projects.repository_id, coding_projects.repository, coding_projects.default_branch, coding_projects.created_at, coding_projects.last_agent_name
+SELECT coding_threads.id, coding_threads.workspace_id, coding_threads.agent_name, coding_threads.worktree_id, coding_threads.session_id, coding_threads.created_at, coding_worktrees.id, coding_worktrees.workspace_id, coding_worktrees.project_id, coding_worktrees.agent_name, coding_worktrees.directory, coding_worktrees.branch, coding_worktrees.ready, coding_worktrees.shared, coding_worktrees.deleting, coding_worktrees.created_at, coding_projects.id, coding_projects.workspace_id, coding_projects.owner_id, coding_projects.name, coding_projects.repository_id, coding_projects.repository, coding_projects.last_agent_name, coding_projects.default_branch, coding_projects.created_at
 FROM coding_threads JOIN coding_worktrees ON coding_worktrees.id = coding_threads.worktree_id
 JOIN coding_projects ON coding_projects.id = coding_worktrees.project_id
 WHERE coding_threads.workspace_id = $1 AND coding_threads.agent_name = $2
@@ -1595,23 +1595,23 @@ func (q *Queries) GatewayGetCodingThread(ctx context.Context, arg GatewayGetCodi
 		&i.CodingWorktree.Branch,
 		&i.CodingWorktree.Ready,
 		&i.CodingWorktree.Shared,
-		&i.CodingWorktree.CreatedAt,
 		&i.CodingWorktree.Deleting,
+		&i.CodingWorktree.CreatedAt,
 		&i.CodingProject.ID,
 		&i.CodingProject.WorkspaceID,
 		&i.CodingProject.OwnerID,
 		&i.CodingProject.Name,
 		&i.CodingProject.RepositoryID,
 		&i.CodingProject.Repository,
+		&i.CodingProject.LastAgentName,
 		&i.CodingProject.DefaultBranch,
 		&i.CodingProject.CreatedAt,
-		&i.CodingProject.LastAgentName,
 	)
 	return i, err
 }
 
 const gatewayGetCodingWorktree = `-- name: GatewayGetCodingWorktree :one
-SELECT coding_worktrees.id, coding_worktrees.workspace_id, coding_worktrees.project_id, coding_worktrees.agent_name, coding_worktrees.directory, coding_worktrees.branch, coding_worktrees.ready, coding_worktrees.shared, coding_worktrees.created_at, coding_worktrees.deleting, coding_projects.id, coding_projects.workspace_id, coding_projects.owner_id, coding_projects.name, coding_projects.repository_id, coding_projects.repository, coding_projects.default_branch, coding_projects.created_at, coding_projects.last_agent_name
+SELECT coding_worktrees.id, coding_worktrees.workspace_id, coding_worktrees.project_id, coding_worktrees.agent_name, coding_worktrees.directory, coding_worktrees.branch, coding_worktrees.ready, coding_worktrees.shared, coding_worktrees.deleting, coding_worktrees.created_at, coding_projects.id, coding_projects.workspace_id, coding_projects.owner_id, coding_projects.name, coding_projects.repository_id, coding_projects.repository, coding_projects.last_agent_name, coding_projects.default_branch, coding_projects.created_at
 FROM coding_worktrees JOIN coding_projects ON coding_projects.id = coding_worktrees.project_id
 WHERE coding_worktrees.id = $1 AND coding_worktrees.workspace_id = $2
 `
@@ -1638,17 +1638,17 @@ func (q *Queries) GatewayGetCodingWorktree(ctx context.Context, arg GatewayGetCo
 		&i.CodingWorktree.Branch,
 		&i.CodingWorktree.Ready,
 		&i.CodingWorktree.Shared,
-		&i.CodingWorktree.CreatedAt,
 		&i.CodingWorktree.Deleting,
+		&i.CodingWorktree.CreatedAt,
 		&i.CodingProject.ID,
 		&i.CodingProject.WorkspaceID,
 		&i.CodingProject.OwnerID,
 		&i.CodingProject.Name,
 		&i.CodingProject.RepositoryID,
 		&i.CodingProject.Repository,
+		&i.CodingProject.LastAgentName,
 		&i.CodingProject.DefaultBranch,
 		&i.CodingProject.CreatedAt,
-		&i.CodingProject.LastAgentName,
 	)
 	return i, err
 }
@@ -1904,7 +1904,7 @@ func (q *Queries) GatewayGetSpanDetail(ctx context.Context, arg GatewayGetSpanDe
 }
 
 const gatewayGetWorkspace = `-- name: GatewayGetWorkspace :one
-SELECT workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.provisioning_attempt, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at, workspaces.type
+SELECT workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.type, workspaces.state, workspaces.provisioning_attempt, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at
 FROM workspaces
 WHERE id = $1
   AND organization_id = $2
@@ -1924,13 +1924,13 @@ func (q *Queries) GatewayGetWorkspace(ctx context.Context, arg GatewayGetWorkspa
 		&i.Name,
 		&i.Slug,
 		&i.Namespace,
+		&i.Type,
 		&i.State,
 		&i.ProvisioningAttempt,
 		&i.FailureReason,
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.Type,
 	)
 	return i, err
 }
@@ -2161,7 +2161,7 @@ WITH actor_roles AS (
     AND members.disabled_at IS NULL
 )
 SELECT
-  workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.provisioning_attempt, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at, workspaces.type,
+  workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.type, workspaces.state, workspaces.provisioning_attempt, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at,
   (
     SELECT COUNT(DISTINCT workspace_admins.member_id)
     FROM role_scopes AS workspace_admin_role
@@ -2262,13 +2262,13 @@ func (q *Queries) GatewayListAccessibleWorkspaces(ctx context.Context, arg Gatew
 			&i.Workspace.Name,
 			&i.Workspace.Slug,
 			&i.Workspace.Namespace,
+			&i.Workspace.Type,
 			&i.Workspace.State,
 			&i.Workspace.ProvisioningAttempt,
 			&i.Workspace.FailureReason,
 			&i.Workspace.DeletedAt,
 			&i.Workspace.CreatedAt,
 			&i.Workspace.UpdatedAt,
-			&i.Workspace.Type,
 			&i.WorkspaceAdminCount,
 			&i.CanAdminister,
 		); err != nil {
@@ -3101,7 +3101,7 @@ func (q *Queries) GatewayListCodingOperations(ctx context.Context, arg GatewayLi
 }
 
 const gatewayListCodingProjects = `-- name: GatewayListCodingProjects :many
-SELECT id, workspace_id, owner_id, name, repository_id, repository, default_branch, created_at, last_agent_name FROM coding_projects
+SELECT id, workspace_id, owner_id, name, repository_id, repository, last_agent_name, default_branch, created_at FROM coding_projects
 WHERE workspace_id = $1 AND owner_id = $2
 ORDER BY lower(name), id
 `
@@ -3127,9 +3127,9 @@ func (q *Queries) GatewayListCodingProjects(ctx context.Context, arg GatewayList
 			&i.Name,
 			&i.RepositoryID,
 			&i.Repository,
+			&i.LastAgentName,
 			&i.DefaultBranch,
 			&i.CreatedAt,
-			&i.LastAgentName,
 		); err != nil {
 			return nil, err
 		}
@@ -3142,7 +3142,7 @@ func (q *Queries) GatewayListCodingProjects(ctx context.Context, arg GatewayList
 }
 
 const gatewayListCodingThreads = `-- name: GatewayListCodingThreads :many
-SELECT coding_threads.id, coding_threads.workspace_id, coding_threads.agent_name, coding_threads.worktree_id, coding_threads.session_id, coding_threads.created_at, coding_worktrees.id, coding_worktrees.workspace_id, coding_worktrees.project_id, coding_worktrees.agent_name, coding_worktrees.directory, coding_worktrees.branch, coding_worktrees.ready, coding_worktrees.shared, coding_worktrees.created_at, coding_worktrees.deleting, coding_projects.id, coding_projects.workspace_id, coding_projects.owner_id, coding_projects.name, coding_projects.repository_id, coding_projects.repository, coding_projects.default_branch, coding_projects.created_at, coding_projects.last_agent_name
+SELECT coding_threads.id, coding_threads.workspace_id, coding_threads.agent_name, coding_threads.worktree_id, coding_threads.session_id, coding_threads.created_at, coding_worktrees.id, coding_worktrees.workspace_id, coding_worktrees.project_id, coding_worktrees.agent_name, coding_worktrees.directory, coding_worktrees.branch, coding_worktrees.ready, coding_worktrees.shared, coding_worktrees.deleting, coding_worktrees.created_at, coding_projects.id, coding_projects.workspace_id, coding_projects.owner_id, coding_projects.name, coding_projects.repository_id, coding_projects.repository, coding_projects.last_agent_name, coding_projects.default_branch, coding_projects.created_at
 FROM coding_threads JOIN coding_worktrees ON coding_worktrees.id = coding_threads.worktree_id
 JOIN coding_projects ON coding_projects.id = coding_worktrees.project_id
 WHERE coding_projects.id = $1 AND coding_projects.workspace_id = $2
@@ -3184,17 +3184,17 @@ func (q *Queries) GatewayListCodingThreads(ctx context.Context, arg GatewayListC
 			&i.CodingWorktree.Branch,
 			&i.CodingWorktree.Ready,
 			&i.CodingWorktree.Shared,
-			&i.CodingWorktree.CreatedAt,
 			&i.CodingWorktree.Deleting,
+			&i.CodingWorktree.CreatedAt,
 			&i.CodingProject.ID,
 			&i.CodingProject.WorkspaceID,
 			&i.CodingProject.OwnerID,
 			&i.CodingProject.Name,
 			&i.CodingProject.RepositoryID,
 			&i.CodingProject.Repository,
+			&i.CodingProject.LastAgentName,
 			&i.CodingProject.DefaultBranch,
 			&i.CodingProject.CreatedAt,
-			&i.CodingProject.LastAgentName,
 		); err != nil {
 			return nil, err
 		}
@@ -3207,7 +3207,7 @@ func (q *Queries) GatewayListCodingThreads(ctx context.Context, arg GatewayListC
 }
 
 const gatewayListCodingWorktrees = `-- name: GatewayListCodingWorktrees :many
-SELECT id, workspace_id, project_id, agent_name, directory, branch, ready, shared, created_at, deleting FROM coding_worktrees WHERE project_id = $1 AND workspace_id = $2 ORDER BY created_at
+SELECT id, workspace_id, project_id, agent_name, directory, branch, ready, shared, deleting, created_at FROM coding_worktrees WHERE project_id = $1 AND workspace_id = $2 ORDER BY created_at
 `
 
 type GatewayListCodingWorktreesParams struct {
@@ -3233,8 +3233,8 @@ func (q *Queries) GatewayListCodingWorktrees(ctx context.Context, arg GatewayLis
 			&i.Branch,
 			&i.Ready,
 			&i.Shared,
-			&i.CreatedAt,
 			&i.Deleting,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -4231,7 +4231,7 @@ func (q *Queries) GatewayListProcessEventsAggregated(ctx context.Context, arg Ga
 }
 
 const gatewayListProvisioningWorkspaces = `-- name: GatewayListProvisioningWorkspaces :many
-SELECT workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.provisioning_attempt, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at, workspaces.type
+SELECT workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.type, workspaces.state, workspaces.provisioning_attempt, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at
 FROM workspaces
 WHERE state = 'provisioning'
   AND deleted_at IS NULL
@@ -4253,13 +4253,13 @@ func (q *Queries) GatewayListProvisioningWorkspaces(ctx context.Context) ([]Work
 			&i.Name,
 			&i.Slug,
 			&i.Namespace,
+			&i.Type,
 			&i.State,
 			&i.ProvisioningAttempt,
 			&i.FailureReason,
 			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.Type,
 		); err != nil {
 			return nil, err
 		}
@@ -4750,7 +4750,7 @@ func (q *Queries) GatewayListWorkspaceInheritedResources(ctx context.Context, ar
 }
 
 const gatewayListWorkspacesSelectingOrganizationResource = `-- name: GatewayListWorkspacesSelectingOrganizationResource :many
-SELECT workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.provisioning_attempt, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at, workspaces.type
+SELECT workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.type, workspaces.state, workspaces.provisioning_attempt, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at
 FROM workspace_inherited_resources
 JOIN workspaces
   ON workspaces.id = workspace_inherited_resources.workspace_id
@@ -4783,13 +4783,13 @@ func (q *Queries) GatewayListWorkspacesSelectingOrganizationResource(ctx context
 			&i.Name,
 			&i.Slug,
 			&i.Namespace,
+			&i.Type,
 			&i.State,
 			&i.ProvisioningAttempt,
 			&i.FailureReason,
 			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.Type,
 		); err != nil {
 			return nil, err
 		}
@@ -5026,7 +5026,7 @@ func (q *Queries) GatewayNotifyCoding(ctx context.Context, arg GatewayNotifyCodi
 }
 
 const gatewayOwnedCodingDirectory = `-- name: GatewayOwnedCodingDirectory :one
-SELECT coding_worktrees.id, coding_worktrees.workspace_id, coding_worktrees.project_id, coding_worktrees.agent_name, coding_worktrees.directory, coding_worktrees.branch, coding_worktrees.ready, coding_worktrees.shared, coding_worktrees.created_at, coding_worktrees.deleting
+SELECT coding_worktrees.id, coding_worktrees.workspace_id, coding_worktrees.project_id, coding_worktrees.agent_name, coding_worktrees.directory, coding_worktrees.branch, coding_worktrees.ready, coding_worktrees.shared, coding_worktrees.deleting, coding_worktrees.created_at
 FROM coding_worktrees JOIN coding_projects ON coding_projects.id = coding_worktrees.project_id
 WHERE coding_worktrees.workspace_id = $1
   AND coding_worktrees.agent_name = $2
@@ -5061,8 +5061,8 @@ func (q *Queries) GatewayOwnedCodingDirectory(ctx context.Context, arg GatewayOw
 		&i.Branch,
 		&i.Ready,
 		&i.Shared,
-		&i.CreatedAt,
 		&i.Deleting,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -5211,7 +5211,7 @@ WITH RECURSIVE ancestors(session_id) AS (
   WHERE sessions.workspace_id = $1 AND sessions.agent_name = $2
     AND sessions.parent_session_id IS NOT NULL
 )
-SELECT coding_threads.id, coding_threads.workspace_id, coding_threads.agent_name, coding_threads.worktree_id, coding_threads.session_id, coding_threads.created_at, coding_worktrees.id, coding_worktrees.workspace_id, coding_worktrees.project_id, coding_worktrees.agent_name, coding_worktrees.directory, coding_worktrees.branch, coding_worktrees.ready, coding_worktrees.shared, coding_worktrees.created_at, coding_worktrees.deleting, coding_projects.id, coding_projects.workspace_id, coding_projects.owner_id, coding_projects.name, coding_projects.repository_id, coding_projects.repository, coding_projects.default_branch, coding_projects.created_at, coding_projects.last_agent_name
+SELECT coding_threads.id, coding_threads.workspace_id, coding_threads.agent_name, coding_threads.worktree_id, coding_threads.session_id, coding_threads.created_at, coding_worktrees.id, coding_worktrees.workspace_id, coding_worktrees.project_id, coding_worktrees.agent_name, coding_worktrees.directory, coding_worktrees.branch, coding_worktrees.ready, coding_worktrees.shared, coding_worktrees.deleting, coding_worktrees.created_at, coding_projects.id, coding_projects.workspace_id, coding_projects.owner_id, coding_projects.name, coding_projects.repository_id, coding_projects.repository, coding_projects.last_agent_name, coding_projects.default_branch, coding_projects.created_at
 FROM ancestors
 JOIN coding_threads ON coding_threads.session_id = ancestors.session_id
 JOIN coding_worktrees ON coding_worktrees.id = coding_threads.worktree_id
@@ -5257,17 +5257,17 @@ func (q *Queries) GatewayResolveCodingSession(ctx context.Context, arg GatewayRe
 		&i.CodingWorktree.Branch,
 		&i.CodingWorktree.Ready,
 		&i.CodingWorktree.Shared,
-		&i.CodingWorktree.CreatedAt,
 		&i.CodingWorktree.Deleting,
+		&i.CodingWorktree.CreatedAt,
 		&i.CodingProject.ID,
 		&i.CodingProject.WorkspaceID,
 		&i.CodingProject.OwnerID,
 		&i.CodingProject.Name,
 		&i.CodingProject.RepositoryID,
 		&i.CodingProject.Repository,
+		&i.CodingProject.LastAgentName,
 		&i.CodingProject.DefaultBranch,
 		&i.CodingProject.CreatedAt,
-		&i.CodingProject.LastAgentName,
 	)
 	return i, err
 }
@@ -5399,7 +5399,7 @@ WITH actor_roles AS (
     AND members.disabled_at IS NULL
 )
 SELECT
-  workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.provisioning_attempt, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at, workspaces.type
+  workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.type, workspaces.state, workspaces.provisioning_attempt, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at
 FROM workspace_slug_history
 JOIN workspaces
   ON workspaces.id = workspace_slug_history.workspace_id
@@ -5449,13 +5449,13 @@ func (q *Queries) GatewayResolveWorkspaceSlug(ctx context.Context, arg GatewayRe
 		&i.Workspace.Name,
 		&i.Workspace.Slug,
 		&i.Workspace.Namespace,
+		&i.Workspace.Type,
 		&i.Workspace.State,
 		&i.Workspace.ProvisioningAttempt,
 		&i.Workspace.FailureReason,
 		&i.Workspace.DeletedAt,
 		&i.Workspace.CreatedAt,
 		&i.Workspace.UpdatedAt,
-		&i.Workspace.Type,
 	)
 	return i, err
 }

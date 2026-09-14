@@ -13,7 +13,7 @@ inference:
       namespace: ""
       annotations: {}
       audiences:
-        - https://kubernetes.default.svc
+      - https://kubernetes.default.svc
     openBao:
       server: http://openbao.openbao.svc.cluster.local:8200
       kvMount: kv
@@ -35,7 +35,7 @@ strategy:
     maxSurge: 1
 
 image:
-  repository: murtazau/agentz
+  repository: public.ecr.aws/k9v9d5v2/agentz
   tag: latest
   digest: ""
   pullPolicy: IfNotPresent
@@ -98,7 +98,7 @@ config:
   enableHTTP2: false
   workflowRunOrphanRetention: 168h
   # Image used for controller-managed workloads and agent filesystem sidecars.
-  controllerImage: murtazau/agentz:latest
+  controllerImage: public.ecr.aws/k9v9d5v2/agentz:latest
   agentImage: ""
   agentInitImage: ""
   gatewayURL: ""

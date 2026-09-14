@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { Suspense } from "react"
-import { AdministrationPageHeader } from "@/components/administration"
+import { AdministrationLoadingState, AdministrationPageHeader } from "@/components/administration"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import * as z from "zod"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -26,7 +26,7 @@ import { NewScheduleButton } from "./new-schedule-button"
 import { TriggersFilters } from "./triggers-filters"
 import { ScheduleTriggersTable } from "./triggers-table"
 import { WebhookTriggersTable, type WebhookTriggerRow } from "./webhook-triggers-table"
-import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
+import { searchParamStringSchema } from "@/lib/search-params"
 
 export const metadata: Metadata = {
   title: "Workflow Triggers",
@@ -42,23 +42,22 @@ const workflowTriggersSearchParamsSchema = z.object({
   sort_order: searchParamStringSchema.pipe(z.enum(["asc", "desc"]).default("desc")),
 })
 
-type SearchParams = {
-  agent_name?: SearchParamStringInput
-  type?: SearchParamStringInput
-  page_token?: SearchParamStringInput
-  sort_by?: SearchParamStringInput
-  sort_order?: SearchParamStringInput
-}
-
 type ResolvedSearchParams = z.output<typeof workflowTriggersSearchParamsSchema>
 
-export default async function TriggersPage({
+export default function TriggersPage(
+  props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/workflows/triggers">
+) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <WorkspaceTriggers {...props} />
+    </Suspense>
+  )
+}
+
+async function WorkspaceTriggers({
   params,
   searchParams,
-}: {
-  params: Promise<{ orgSlug: string; workspaceSlug: string }>
-  searchParams: Promise<SearchParams>
-}) {
+}: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/workflows/triggers">) {
   const [route, search] = await Promise.all([params, searchParams])
   const workspace = await getWorkspaceScope(route.orgSlug, route.workspaceSlug)
   if (workspace.kind !== "ready" || workspace.workspace.type === "coding") {

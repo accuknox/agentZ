@@ -1,5 +1,10 @@
+import { Suspense } from "react"
 import { notFound } from "next/navigation"
-import { AccessSourceChip, AdministrationState } from "@/components/administration"
+import {
+  AdministrationLoadingState,
+  AccessSourceChip,
+  AdministrationState,
+} from "@/components/administration"
 import {
   Table,
   TableBody,
@@ -17,11 +22,19 @@ import { AgentOwnerForm } from "../../agent-access-forms"
 
 export const metadata = { title: "Ownership" }
 
-export default async function AgentOwnershipPage({
+export default function AgentOwnershipPage(
+  props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/agents/[agentName]/ownership">
+) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <AgentOwnershipContent {...props} />
+    </Suspense>
+  )
+}
+
+async function AgentOwnershipContent({
   params,
-}: {
-  params: Promise<{ orgSlug: string; workspaceSlug: string; agentName: string }>
-}) {
+}: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/agents/[agentName]/ownership">) {
   const { orgSlug, workspaceSlug, agentName } = await params
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
   if (scope.kind !== "ready") {

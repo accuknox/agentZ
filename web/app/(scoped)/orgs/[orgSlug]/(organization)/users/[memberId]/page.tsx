@@ -1,10 +1,12 @@
+import { searchParamStringSchema } from "@/lib/search-params"
+import { Suspense } from "react"
 import dynamic from "next/dynamic"
 import type { Metadata } from "next"
 import Link from "next/link"
 import type { Route } from "next"
 import { notFound } from "next/navigation"
 import { removeMembershipAction } from "@/app/(scoped)/orgs/actions"
-import { AdministrationState } from "@/components/administration"
+import { AdministrationLoadingState, AdministrationState } from "@/components/administration"
 import { AssignmentForm } from "@/components/assignment-form"
 import { DestructiveConfirmationDialog } from "@/components/destructive-confirmation-dialog"
 import { Badge } from "@/components/ui/badge"
@@ -45,15 +47,20 @@ export async function generateMetadata({
   }
 }
 
-export default async function UserDetailPage({
+export default function UserDetailPage(props: PageProps<"/orgs/[orgSlug]/users/[memberId]">) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <UserDetailContent {...props} />
+    </Suspense>
+  )
+}
+
+async function UserDetailContent({
   params,
   searchParams,
-}: {
-  params: Promise<{ memberId: string; orgSlug: string }>
-  searchParams: Promise<{ tab?: string }>
-}) {
+}: PageProps<"/orgs/[orgSlug]/users/[memberId]">) {
   const { memberId, orgSlug } = await params
-  const { tab } = await searchParams
+  const tab = searchParamStringSchema.parse((await searchParams).tab)
   const data = await getMemberAdministration(orgSlug, memberId)
   if (data === undefined) return <AdministrationState kind="forbidden" />
   if (data === null) notFound()

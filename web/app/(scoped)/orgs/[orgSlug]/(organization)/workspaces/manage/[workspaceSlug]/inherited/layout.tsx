@@ -1,13 +1,22 @@
+import { Suspense } from "react"
 import type { Route } from "next"
+import { AdministrationLoadingState } from "@/components/administration"
 import { RouteTabs, type RouteTab } from "@/components/route-tabs"
 
-export default async function WorkspaceInheritanceLayout({
+export default function WorkspaceInheritanceLayout(
+  props: LayoutProps<"/orgs/[orgSlug]/workspaces/manage/[workspaceSlug]/inherited">
+) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <WorkspaceInheritanceContent {...props} />
+    </Suspense>
+  )
+}
+
+async function WorkspaceInheritanceContent({
   children,
   params,
-}: {
-  children: React.ReactNode
-  params: Promise<{ orgSlug: string; workspaceSlug: string }>
-}) {
+}: LayoutProps<"/orgs/[orgSlug]/workspaces/manage/[workspaceSlug]/inherited">) {
   const { orgSlug, workspaceSlug } = await params
   const root = `/orgs/${orgSlug}/workspaces/manage/${workspaceSlug}/inherited`
   const tabs = [

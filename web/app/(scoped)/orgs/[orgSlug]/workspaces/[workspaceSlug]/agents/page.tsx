@@ -1,15 +1,18 @@
+import { Suspense } from "react"
 import { AgentDialog } from "@/app/agent/agent-dialog"
 import { AgentTable } from "@/app/agent-table"
-import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
+import {
+  AdministrationLoadingState,
+  AdministrationPageHeader,
+  AdministrationState,
+} from "@/components/administration"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { deleteAgentFormAction, type AgentActionScope } from "@/data/agent.actions"
 import { listSandboxesCachedQuery } from "@/data/sandbox.queries"
 import { listImmutableSkillsCachedQuery } from "@/data/skill.queries"
 import { getWorkspaceScope } from "@/data/workspaces"
 import * as z from "zod"
-import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
-
-export const unstable_instant = false
+import { searchParamStringSchema } from "@/lib/search-params"
 
 export const metadata = { title: "Agents" }
 
@@ -19,19 +22,20 @@ const searchSchema = z.object({
   sort_order: searchParamStringSchema.pipe(z.enum(["asc", "desc"]).default("desc")),
 })
 
-type SearchParams = {
-  page_token?: SearchParamStringInput
-  sort_by?: SearchParamStringInput
-  sort_order?: SearchParamStringInput
+export default function WorkspaceAgentsPage(
+  props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/agents">
+) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <WorkspaceAgents {...props} />
+    </Suspense>
+  )
 }
 
-export default async function WorkspaceAgentsPage({
+async function WorkspaceAgents({
   params,
   searchParams,
-}: {
-  params: Promise<{ orgSlug: string; workspaceSlug: string }>
-  searchParams: Promise<SearchParams>
-}) {
+}: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/agents">) {
   const { orgSlug, workspaceSlug } = await params
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
   if (scope.kind !== "ready") {

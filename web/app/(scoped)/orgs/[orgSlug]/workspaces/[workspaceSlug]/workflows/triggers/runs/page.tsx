@@ -15,7 +15,7 @@ import { listWorkflowWebhookTriggersCachedQuery } from "@/data/workflow-trigger.
 import { getWorkspaceScope } from "@/data/workspaces"
 import { RunsFilters } from "./runs-filters"
 import { RunsTable } from "./runs-table"
-import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
+import { searchParamStringSchema } from "@/lib/search-params"
 
 export const metadata: Metadata = {
   title: "Workflow Runs",
@@ -30,24 +30,32 @@ const workflowRunsSearchParamsSchema = z.object({
   page_token: searchParamStringSchema,
 })
 
-type SearchParams = {
-  agent_name?: SearchParamStringInput
-  type?: SearchParamStringInput
-  workflow_name?: SearchParamStringInput
-  schedule_name?: SearchParamStringInput
-  webhook_api_key_id?: SearchParamStringInput
-  page_token?: SearchParamStringInput
-}
-
 type ResolvedSearchParams = z.output<typeof workflowRunsSearchParamsSchema>
 
-export default async function WorkflowRunsPage({
+export default function WorkflowRunsPage(
+  props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/workflows/triggers/runs">
+) {
+  return (
+    <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
+      <AdministrationPageHeader title="Workflow runs" />
+      <Suspense
+        fallback={
+          <>
+            <FiltersSkeleton />
+            <RunsTableSkeleton />
+          </>
+        }
+      >
+        <WorkflowRunsContent {...props} />
+      </Suspense>
+    </main>
+  )
+}
+
+async function WorkflowRunsContent({
   params,
   searchParams,
-}: {
-  params: Promise<{ orgSlug: string; workspaceSlug: string }>
-  searchParams: Promise<SearchParams>
-}) {
+}: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/workflows/triggers/runs">) {
   const [route, search] = await Promise.all([params, searchParams])
   const workspace = await getWorkspaceScope(route.orgSlug, route.workspaceSlug)
   if (workspace.kind !== "ready" || workspace.workspace.type === "coding") {
@@ -60,15 +68,14 @@ export default async function WorkflowRunsPage({
   }
 
   return (
-    <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
-      <AdministrationPageHeader title="Workflow runs" />
+    <>
       <Suspense fallback={<FiltersSkeleton />}>
         <Filters actionScope={actionScope} searchParams={parsed} />
       </Suspense>
       <Suspense fallback={<RunsTableSkeleton />}>
         <Runs actionScope={actionScope} searchParams={parsed} />
       </Suspense>
-    </main>
+    </>
   )
 }
 

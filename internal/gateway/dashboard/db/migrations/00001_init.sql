@@ -137,6 +137,7 @@ CREATE TABLE dashboard_publish_idempotency (
 CREATE INDEX dashboard_publish_idempotency_expiry_idx
 ON dashboard_publish_idempotency(created_at);
 
+-- +goose StatementBegin
 CREATE FUNCTION dashboard_account_deleted_data()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -179,6 +180,7 @@ BEGIN
   RETURN OLD;
 END;
 $$;
+-- +goose StatementEnd
 
 CREATE TRIGGER dashboard_account_deleted_data
 BEFORE DELETE ON dashboards

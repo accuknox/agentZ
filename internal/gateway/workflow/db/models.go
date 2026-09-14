@@ -8,13 +8,6 @@ import (
 	"time"
 )
 
-type Agent struct {
-	TenantNamespace string    `json:"tenant_namespace"`
-	AgentName       string    `json:"agent_name"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
-}
-
 type Workflow struct {
 	TenantNamespace string    `json:"tenant_namespace"`
 	AgentName       string    `json:"agent_name"`

@@ -10,7 +10,7 @@ RUN nix --extra-experimental-features 'nix-command flakes' \
         >/tmp/agentz-nixpkgs.path
 
 # Build the agentz binary
-FROM golang:1.26 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26 AS builder
 ARG TARGETOS
 ARG TARGETARCH
 

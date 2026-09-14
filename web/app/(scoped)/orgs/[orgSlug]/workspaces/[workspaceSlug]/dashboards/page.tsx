@@ -22,15 +22,14 @@ const searchSchema = z.object({
   to: z.iso.datetime().optional(),
 })
 
-export default function DashboardsPage({
-  params,
-  searchParams,
-}: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/dashboards">) {
+export default function DashboardsPage(
+  props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/dashboards">
+) {
   return (
     <main className="flex min-w-0 flex-1 flex-col">
       <AdministrationPageHeader title="Dashboards" />
       <Suspense fallback={<DashboardSkeleton />}>
-        <DashboardContent params={params} searchParams={searchParams} />
+        <DashboardContent {...props} />
       </Suspense>
     </main>
   )

@@ -1,4 +1,5 @@
 import { Suspense } from "react"
+import RuntimeTelemetryLoading from "./loading"
 import { AdministrationPageHeader } from "@/components/administration"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { EventsChart } from "@/components/events-chart"
@@ -20,7 +21,7 @@ import {
 import { TelemetryTableSkeleton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/telemetry-table-skeleton"
 import { TelemetryTabs } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/telemetry-tabs"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
-import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
+import { searchParamStringSchema } from "@/lib/search-params"
 import { getWorkspaceScope } from "@/data/workspaces"
 
 const telemetrySearchParamsSchema = z.object({
@@ -30,17 +31,8 @@ const telemetrySearchParamsSchema = z.object({
   telemetry_page_token: searchParamStringSchema,
 })
 
-export type TelemetrySearchParams = {
-  agent_name?: SearchParamStringInput
-  from?: SearchParamStringInput
-  to?: SearchParamStringInput
-  telemetry_page_token?: SearchParamStringInput
-}
-
-type TelemetryPageProps = {
-  params: Promise<{ orgSlug: string; workspaceSlug: string }>
-  searchParams: Promise<TelemetrySearchParams>
-}
+type TelemetryPageProps =
+  PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry">
 
 type TelemetryPageData =
   | NonNullable<ProcessTelemetryActionResponse["data"]>
@@ -64,7 +56,19 @@ export type TelemetryPageConfig<TData extends TelemetryPageData> = {
   value: "process" | "file" | "network"
 }
 
-export async function RuntimeTelemetryPage<TData extends TelemetryPageData>({
+export function RuntimeTelemetryPage<TData extends TelemetryPageData>(
+  props: TelemetryPageProps & {
+    config: TelemetryPageConfig<TData>
+  }
+) {
+  return (
+    <Suspense fallback={<RuntimeTelemetryLoading />}>
+      <WorkspaceTelemetry {...props} />
+    </Suspense>
+  )
+}
+
+async function WorkspaceTelemetry<TData extends TelemetryPageData>({
   config,
   params,
   searchParams,
@@ -80,7 +84,8 @@ export async function RuntimeTelemetryPage<TData extends TelemetryPageData>({
     return <ErrorPanel message="You do not have Lens access in this Workspace" />
   }
 
-  const resolved = resolveTelemetrySearchParams(searchParams)
+  const search = telemetrySearchParamsSchema.parse(await searchParams)
+  const resolved = { ...search, range: lensDateRange(search.from, search.to) }
   const basePath = `/orgs/${workspace.scope.organization.slug}/workspaces/${workspace.workspace.slug}/lens/runtime-telemetry`
   const workspaceId = workspace.workspace.id
 
@@ -121,14 +126,13 @@ export async function RuntimeTelemetryPage<TData extends TelemetryPageData>({
 
 async function TelemetryContent<TData extends TelemetryPageData>({
   config,
-  searchParams,
+  searchParams: params,
   workspaceId,
 }: {
   config: TelemetryPageConfig<TData>
-  searchParams: Promise<ResolvedTelemetrySearchParams>
+  searchParams: ResolvedTelemetrySearchParams
   workspaceId: string
 }) {
-  const params = await searchParams
   const { agentName, agents, error, pageToken, range } = await resolveTelemetryPageState(
     params,
     workspaceId
@@ -222,13 +226,12 @@ async function Table<TData extends TelemetryPageData>({
 }
 
 async function Filters({
-  searchParams,
+  searchParams: params,
   workspaceId,
 }: {
-  searchParams: Promise<ResolvedTelemetrySearchParams>
+  searchParams: ResolvedTelemetrySearchParams
   workspaceId: string
 }) {
-  const params = await searchParams
   const { agents, error, selectedAgentName, range } = await resolveTelemetryPageState(
     params,
     workspaceId
@@ -274,18 +277,6 @@ type TelemetryPageState = {
 
 type ResolvedTelemetrySearchParams = z.output<typeof telemetrySearchParamsSchema> & {
   range: LensDateRange
-}
-
-async function resolveTelemetrySearchParams(
-  searchParams: Promise<TelemetrySearchParams>
-): Promise<ResolvedTelemetrySearchParams> {
-  const search = telemetrySearchParamsSchema.parse(await searchParams)
-  const range = lensDateRange(search.from, search.to)
-
-  return {
-    ...search,
-    range,
-  }
 }
 
 async function resolveTelemetryPageState(

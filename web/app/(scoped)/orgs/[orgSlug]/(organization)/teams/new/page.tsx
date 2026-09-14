@@ -1,10 +1,19 @@
+import { Suspense } from "react"
 import { getTeamEditorData } from "@/data/teams"
-import { AdministrationState } from "@/components/administration"
+import { AdministrationLoadingState, AdministrationState } from "@/components/administration"
 import { TeamForm } from "../team-form"
 
 export const metadata = { title: "New team" }
 
-export default async function NewTeamPage({ params }: { params: Promise<{ orgSlug: string }> }) {
+export default function NewTeamPage(props: PageProps<"/orgs/[orgSlug]/teams/new">) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <NewTeamContent {...props} />
+    </Suspense>
+  )
+}
+
+async function NewTeamContent({ params }: PageProps<"/orgs/[orgSlug]/teams/new">) {
   const { orgSlug } = await params
   const data = await getTeamEditorData(orgSlug)
   if (!data) return <AdministrationState kind="forbidden" />

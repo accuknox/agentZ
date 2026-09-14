@@ -1,16 +1,19 @@
-import { AdministrationState } from "@/components/administration"
+import { Suspense } from "react"
+import { AdministrationLoadingState, AdministrationState } from "@/components/administration"
 import { getWorkspaceCreation } from "@/data/workspaces"
 import { WorkspaceForm } from "./workspace-form"
 
-export const unstable_instant = false
-
 export const metadata = { title: "New workspace" }
 
-export default async function NewWorkspacePage({
-  params,
-}: {
-  params: Promise<{ orgSlug: string }>
-}) {
+export default function NewWorkspacePage(props: PageProps<"/orgs/[orgSlug]/workspaces/new">) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <NewWorkspaceContent {...props} />
+    </Suspense>
+  )
+}
+
+async function NewWorkspaceContent({ params }: PageProps<"/orgs/[orgSlug]/workspaces/new">) {
   const { orgSlug } = await params
   const result = await getWorkspaceCreation(orgSlug)
   if (result.scope.kind !== "ready") {

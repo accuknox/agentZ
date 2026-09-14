@@ -11,14 +11,20 @@ export default async function WorkspacePage({
 }) {
   const { orgSlug, workspaceSlug } = await params
   const destination = await resolveWorkspaceDestination(orgSlug, workspaceSlug)
-  if (destination) {
+  if (destination && destination !== `/orgs/${orgSlug}/workspaces/${workspaceSlug}`) {
     redirect(destination)
   }
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <AdministrationPageHeader title="Overview" />
-      <AdministrationState kind="forbidden" />
+      <AdministrationState
+        kind={destination ? "empty" : "forbidden"}
+        title={destination ? "No agents available" : undefined}
+        description={
+          destination ? "Use the sidebar to open the workspace pages you can access." : undefined
+        }
+      />
     </div>
   )
 }

@@ -1,8 +1,8 @@
 SHELL := bash
 .SHELLFLAGS := -euo pipefail -c
 
-IMAGE ?= murtazau/agentz:latest
-AGENT_IMAGE ?= murtazau/agentz-agent:latest
+IMAGE ?= public.ecr.aws/k9v9d5v2/agentz:latest
+AGENT_IMAGE ?= public.ecr.aws/k9v9d5v2/agentz/agent:latest
 BETTER_AUTH_URL ?= http://localhost:3000
 GATEWAY_JWT_AUDIENCE ?= agentz-gateway
 CODING_GITHUB_CLIENT_ID ?=
@@ -31,6 +31,7 @@ all: generate lint build
 
 .PHONY: generate
 generate:
+	cd web && bun run gen:db-schema
 	sqlc generate
 	go run ./hack/inference/generate_providers.go
 	go run ./hack/openapi/generate_opencode_gateway.go

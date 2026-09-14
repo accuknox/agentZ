@@ -5,7 +5,6 @@ import { FileTelemetryTable } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[wo
 import {
   RuntimeTelemetryPage,
   type TelemetryPageConfig,
-  type TelemetrySearchParams,
 } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/runtime-telemetry-page"
 
 export const metadata: Metadata = {
@@ -15,10 +14,7 @@ export const metadata: Metadata = {
 export default function FilePage({
   params,
   searchParams,
-}: {
-  params: Promise<{ orgSlug: string; workspaceSlug: string }>
-  searchParams: Promise<TelemetrySearchParams>
-}) {
+}: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/file">) {
   const config: TelemetryPageConfig<FileTelemetryActionData> = {
     value: "file",
     headers: ["File Path Accessed", "Process", "Action", "Occurrences", "Last Seen"],

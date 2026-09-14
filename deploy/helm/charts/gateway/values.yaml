@@ -14,7 +14,7 @@ strategy:
     maxSurge: 1
 
 image:
-  repository: murtazau/agentz
+  repository: public.ecr.aws/k9v9d5v2/agentz
   tag: latest
   digest: ""
   pullPolicy: IfNotPresent

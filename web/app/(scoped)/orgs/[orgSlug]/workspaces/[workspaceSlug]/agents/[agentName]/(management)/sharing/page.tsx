@@ -1,6 +1,8 @@
+import { searchParamStringSchema } from "@/lib/search-params"
+import { Suspense } from "react"
 import { notFound } from "next/navigation"
 import { UsersRound } from "lucide-react"
-import { AdministrationState } from "@/components/administration"
+import { AdministrationLoadingState, AdministrationState } from "@/components/administration"
 import type { AgentActionScope } from "@/data/agent.actions"
 import { getWorkspaceAgentDetail } from "@/data/agent.queries"
 import { getWorkspaceScope } from "@/data/workspaces"
@@ -8,13 +10,20 @@ import { AgentShareDialog, AgentSharesTable } from "../../agent-access-forms"
 
 export const metadata = { title: "Sharing" }
 
-export default async function AgentSharingPage({
+export default function AgentSharingPage(
+  props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/agents/[agentName]/sharing">
+) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <AgentSharingContent {...props} />
+    </Suspense>
+  )
+}
+
+async function AgentSharingContent({
   params,
   searchParams,
-}: {
-  params: Promise<{ orgSlug: string; workspaceSlug: string; agentName: string }>
-  searchParams: Promise<{ page_token?: string }>
-}) {
+}: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/agents/[agentName]/sharing">) {
   const [{ orgSlug, workspaceSlug, agentName }, { page_token }] = await Promise.all([
     params,
     searchParams,
@@ -24,7 +33,11 @@ export default async function AgentSharingPage({
     notFound()
   }
 
-  const detail = await getWorkspaceAgentDetail(scope.workspace.id, agentName, page_token)
+  const detail = await getWorkspaceAgentDetail(
+    scope.workspace.id,
+    agentName,
+    searchParamStringSchema.parse(page_token)
+  )
   if (!detail) {
     notFound()
   }

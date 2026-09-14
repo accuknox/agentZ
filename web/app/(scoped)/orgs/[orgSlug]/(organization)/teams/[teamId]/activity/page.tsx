@@ -1,3 +1,5 @@
+import { AdministrationLoadingState } from "@/components/administration"
+import { Suspense } from "react"
 import { notFound } from "next/navigation"
 import {
   Table,
@@ -14,11 +16,19 @@ import { ResultBadge } from "../../../event-trail/event-trail-event"
 
 export const metadata = { title: "Activity" }
 
-export default async function TeamActivityPage({
+export default function TeamActivityPage(
+  props: PageProps<"/orgs/[orgSlug]/teams/[teamId]/activity">
+) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <TeamActivityContent {...props} />
+    </Suspense>
+  )
+}
+
+async function TeamActivityContent({
   params,
-}: {
-  params: Promise<{ orgSlug: string; teamId: string }>
-}) {
+}: PageProps<"/orgs/[orgSlug]/teams/[teamId]/activity">) {
   const { orgSlug, teamId } = await params
   const team = await getTeamDetail(orgSlug, teamId)
   if (!team) notFound()

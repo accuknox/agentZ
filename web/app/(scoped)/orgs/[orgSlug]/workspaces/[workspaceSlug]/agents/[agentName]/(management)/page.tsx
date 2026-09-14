@@ -1,3 +1,5 @@
+import { AdministrationLoadingState } from "@/components/administration"
+import { Suspense } from "react"
 import { notFound } from "next/navigation"
 import {
   Table,
@@ -14,11 +16,19 @@ import { getWorkspaceScope } from "@/data/workspaces"
 
 export const metadata = { title: "Summary" }
 
-export default async function WorkspaceAgentPage({
+export default function WorkspaceAgentPage(
+  props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/agents/[agentName]">
+) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <WorkspaceAgentContent {...props} />
+    </Suspense>
+  )
+}
+
+async function WorkspaceAgentContent({
   params,
-}: {
-  params: Promise<{ orgSlug: string; workspaceSlug: string; agentName: string }>
-}) {
+}: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/agents/[agentName]">) {
   const { orgSlug, workspaceSlug, agentName } = await params
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
   if (scope.kind !== "ready") {

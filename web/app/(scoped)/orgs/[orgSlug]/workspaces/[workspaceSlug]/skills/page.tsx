@@ -1,18 +1,24 @@
 import { Suspense } from "react"
-import { AdministrationState } from "@/components/administration"
+import { AdministrationLoadingState, AdministrationState } from "@/components/administration"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { getWorkspaceScope } from "@/data/workspaces"
 import { SkillsClient } from "@/app/(app)/skills/skills-client"
 
-export const unstable_instant = false
-
 export const metadata = { title: "Skills" }
 
-export default async function WorkspaceSkillsPage({
+export default function WorkspaceSkillsPage(
+  props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/skills">
+) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <WorkspaceSkills {...props} />
+    </Suspense>
+  )
+}
+
+async function WorkspaceSkills({
   params,
-}: {
-  params: Promise<{ orgSlug: string; workspaceSlug: string }>
-}) {
+}: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/skills">) {
   const { orgSlug, workspaceSlug } = await params
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
   if (scope.kind !== "ready") return <AdministrationState kind="forbidden" />
@@ -22,18 +28,16 @@ export default async function WorkspaceSkillsPage({
     return <AdministrationState kind="forbidden" />
   }
   return (
-    <Suspense fallback={null}>
-      <SkillsClient
-        agents={agents}
-        canCreateImmutable={scope.workspace.capabilities.skills.create}
-        canReadImmutable={scope.workspace.capabilities.skills.read}
-        pageScope={{
-          kind: "workspace",
-          organizationName: scope.scope.organization.name,
-          workspaceName: scope.workspace.name,
-        }}
-        workspaceId={scope.workspace.id}
-      />
-    </Suspense>
+    <SkillsClient
+      agents={agents}
+      canCreateImmutable={scope.workspace.capabilities.skills.create}
+      canReadImmutable={scope.workspace.capabilities.skills.read}
+      pageScope={{
+        kind: "workspace",
+        organizationName: scope.scope.organization.name,
+        workspaceName: scope.workspace.name,
+      }}
+      workspaceId={scope.workspace.id}
+    />
   )
 }

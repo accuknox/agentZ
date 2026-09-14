@@ -3,8 +3,6 @@ import { redirect } from "next/navigation"
 import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
 import { getWorkspaceDirectory } from "@/data/workspaces"
 
-export const unstable_instant = false
-
 export const metadata = { title: "Overview" }
 
 export default async function OrganizationPage({

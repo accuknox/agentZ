@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { Suspense } from "react"
-import { AdministrationPageHeader } from "@/components/administration"
+import { AdministrationLoadingState, AdministrationPageHeader } from "@/components/administration"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import * as z from "zod"
 import Workflow from "@/components/blocks/workflow/workflow"
@@ -11,7 +11,7 @@ import { selectWorkflowFiltersAction } from "@/data/workflow.actions"
 import { listWorkflowSummariesCachedQuery, getWorkflowCachedQuery } from "@/data/workflow.queries"
 import { getWorkspaceScope } from "@/data/workspaces"
 import { WorkflowsFilters } from "./workflows-filters"
-import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
+import { searchParamStringSchema } from "@/lib/search-params"
 
 export const metadata: Metadata = {
   title: "Workflow Graphs",
@@ -22,20 +22,22 @@ const workflowsSearchParamsSchema = z.object({
   workflow_name: searchParamStringSchema,
 })
 
-type SearchParams = {
-  agent_name?: SearchParamStringInput
-  workflow_name?: SearchParamStringInput
-}
-
 type ResolvedSearchParams = z.output<typeof workflowsSearchParamsSchema>
 
-export default async function WorkflowsPage({
+export default function WorkflowsPage(
+  props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/workflows/graphs">
+) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <WorkspaceWorkflows {...props} />
+    </Suspense>
+  )
+}
+
+async function WorkspaceWorkflows({
   params,
   searchParams,
-}: {
-  params: Promise<{ orgSlug: string; workspaceSlug: string }>
-  searchParams: Promise<SearchParams>
-}) {
+}: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/workflows/graphs">) {
   const [route, search] = await Promise.all([params, searchParams])
   const workspace = await getWorkspaceScope(route.orgSlug, route.workspaceSlug)
   if (workspace.kind !== "ready") {

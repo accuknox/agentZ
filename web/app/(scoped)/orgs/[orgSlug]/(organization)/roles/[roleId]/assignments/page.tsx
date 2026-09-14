@@ -1,14 +1,24 @@
+import { AdministrationLoadingState } from "@/components/administration"
+import { Suspense } from "react"
 import { notFound } from "next/navigation"
 import { getOrganizationRoleUsers } from "@/data/roles"
 import { RoleAssignments } from "../../role-assignments"
 
 export const metadata = { title: "Assignments" }
 
-export default async function RoleAssignmentsPage({
+export default function RoleAssignmentsPage(
+  props: PageProps<"/orgs/[orgSlug]/roles/[roleId]/assignments">
+) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <RoleAssignmentsContent {...props} />
+    </Suspense>
+  )
+}
+
+async function RoleAssignmentsContent({
   params,
-}: {
-  params: Promise<{ orgSlug: string; roleId: string }>
-}) {
+}: PageProps<"/orgs/[orgSlug]/roles/[roleId]/assignments">) {
   const { orgSlug, roleId: encodedRoleId } = await params
   const roleId = decodeURIComponent(encodedRoleId)
   const data = await getOrganizationRoleUsers(orgSlug, roleId)

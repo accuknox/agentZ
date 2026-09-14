@@ -21,31 +21,24 @@ const searchSchema = z.object({
   to: z.iso.datetime().optional(),
 })
 
-export default async function DashboardsPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ orgSlug: string; workspaceSlug: string }>
-  searchParams: Promise<Record<string, string | string[] | undefined>>
-}) {
-  const route = await params
+export default function DashboardsPage(
+  props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/dashboards">
+) {
   return (
     <main className="flex min-w-0 flex-1 flex-col">
       <AdministrationPageHeader title="Dashboards" />
       <Suspense fallback={<DashboardSkeleton />}>
-        <DashboardContent route={route} searchParams={searchParams} />
+        <DashboardContent {...props} />
       </Suspense>
     </main>
   )
 }
 
 async function DashboardContent({
-  route,
+  params,
   searchParams,
-}: {
-  route: { orgSlug: string; workspaceSlug: string }
-  searchParams: Promise<Record<string, string | string[] | undefined>>
-}) {
+}: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/dashboards">) {
+  const route = await params
   const scope = await getWorkspaceScope(route.orgSlug, route.workspaceSlug)
   if (scope.kind !== "ready") return <AdministrationState kind="forbidden" />
   const parsed = searchSchema.safeParse(await searchParams)

@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
-import { AdministrationPageHeader } from "@/components/administration"
+import { AdministrationLoadingState, AdministrationPageHeader } from "@/components/administration"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { createAPIKeyFormAction, deleteUserAPIKeyFormAction } from "@/data/api-key.actions"
@@ -14,11 +14,15 @@ import { APIKeyWorkspaceMenu } from "./api-key-menu"
 
 export const metadata: Metadata = { title: "API keys" }
 
-export default async function APIKeysPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ create?: string }>
-}) {
+export default function APIKeysPage(props: PageProps<"/settings/api-keys">) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <APIKeysContent {...props} />
+    </Suspense>
+  )
+}
+
+async function APIKeysContent({ searchParams }: PageProps<"/settings/api-keys">) {
   const { create } = await searchParams
   const context = await getAPIKeyContext()
   const selected = context.workspaces.find((workspace) => workspace.id === create)

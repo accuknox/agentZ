@@ -1,12 +1,13 @@
+import { Suspense } from "react"
 import { notFound } from "next/navigation"
 import { InheritedResourceForm } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/settings/inherited/inherited-resource-form"
-import { AdministrationState } from "@/components/administration"
+import { AdministrationLoadingState, AdministrationState } from "@/components/administration"
 import { listInferenceProvidersCachedQuery } from "@/data/inference-provider.queries"
 import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
 import { getWorkspaceInheritedResources } from "@/data/workspaces"
 import type { InheritedResourceType } from "@/lib/gateway/client"
 import * as z from "zod"
-import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
+import { searchParamStringSchema } from "@/lib/search-params"
 
 export const metadata = { title: "Inherited resources" }
 
@@ -15,18 +16,20 @@ const searchSchema = z.object({
   sort_order: searchParamStringSchema.pipe(z.enum(["asc", "desc"]).default("asc")),
 })
 
-type SearchParams = {
-  sort_by?: SearchParamStringInput
-  sort_order?: SearchParamStringInput
+export default function InheritedResourcePage(
+  props: PageProps<"/orgs/[orgSlug]/workspaces/manage/[workspaceSlug]/inherited/[resourceTab]">
+) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <InheritedResourceContent {...props} />
+    </Suspense>
+  )
 }
 
-export default async function InheritedResourcePage({
+async function InheritedResourceContent({
   params,
   searchParams,
-}: {
-  params: Promise<{ orgSlug: string; resourceTab: string; workspaceSlug: string }>
-  searchParams: Promise<SearchParams>
-}) {
+}: PageProps<"/orgs/[orgSlug]/workspaces/manage/[workspaceSlug]/inherited/[resourceTab]">) {
   const [{ orgSlug, resourceTab, workspaceSlug }, search] = await Promise.all([
     params,
     searchParams,

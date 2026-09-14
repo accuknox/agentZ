@@ -1,3 +1,5 @@
+import { AdministrationLoadingState } from "@/components/administration"
+import { Suspense } from "react"
 import { notFound } from "next/navigation"
 import { getDestructiveImpact } from "@/data/operations"
 import { getTeamEditorData } from "@/data/teams"
@@ -6,11 +8,15 @@ import { TeamForm } from "../team-form"
 
 export const metadata = { title: "Summary" }
 
-export default async function TeamSummaryPage({
-  params,
-}: {
-  params: Promise<{ orgSlug: string; teamId: string }>
-}) {
+export default function TeamSummaryPage(props: PageProps<"/orgs/[orgSlug]/teams/[teamId]">) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <TeamSummaryContent {...props} />
+    </Suspense>
+  )
+}
+
+async function TeamSummaryContent({ params }: PageProps<"/orgs/[orgSlug]/teams/[teamId]">) {
   const { orgSlug, teamId } = await params
   const [data, impact] = await Promise.all([
     getTeamEditorData(orgSlug, teamId),

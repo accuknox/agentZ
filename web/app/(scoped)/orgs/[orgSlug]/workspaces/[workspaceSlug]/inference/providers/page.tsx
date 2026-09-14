@@ -1,16 +1,25 @@
-import { AdministrationState } from "@/components/administration"
+import { Suspense } from "react"
+import { AdministrationLoadingState, AdministrationState } from "@/components/administration"
+import { searchParamStringSchema } from "@/lib/search-params"
 import { getWorkspaceScope } from "@/data/workspaces"
 import InferenceProvidersPage from "@/app/(app)/inference/providers/provider-page"
 
 export const metadata = { title: "Inference providers" }
 
-export default async function WorkspaceInferenceProvidersPage({
+export default function WorkspaceInferenceProvidersPage(
+  props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/inference/providers">
+) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <WorkspaceInferenceProviders {...props} />
+    </Suspense>
+  )
+}
+
+async function WorkspaceInferenceProviders({
   params,
   searchParams,
-}: {
-  params: Promise<{ orgSlug: string; workspaceSlug: string }>
-  searchParams: Promise<{ page_token?: string }>
-}) {
+}: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/inference/providers">) {
   const { orgSlug, workspaceSlug } = await params
   const { page_token } = await searchParams
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
@@ -19,7 +28,7 @@ export default async function WorkspaceInferenceProvidersPage({
   return (
     <InferenceProvidersPage
       capabilities={scope.workspace.capabilities.inference_providers}
-      pageToken={page_token}
+      pageToken={searchParamStringSchema.parse(page_token)}
       pageScope={{
         kind: "workspace",
         organizationName: scope.scope.organization.name,

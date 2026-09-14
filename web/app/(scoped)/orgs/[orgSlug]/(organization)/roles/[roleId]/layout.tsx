@@ -1,6 +1,8 @@
+import { Suspense } from "react"
 import type { Route } from "next"
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
+import { AdministrationLoadingState } from "@/components/administration"
 import { RouteTabs, type RouteTab } from "@/components/route-tabs"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { getRoleEditorData } from "@/data/roles"
@@ -8,9 +10,7 @@ import { RoleDelete } from "../role-delete"
 
 export async function generateMetadata({
   params,
-}: {
-  params: Promise<{ orgSlug: string; roleId: string }>
-}): Promise<Metadata> {
+}: LayoutProps<"/orgs/[orgSlug]/roles/[roleId]">): Promise<Metadata> {
   const { orgSlug, roleId } = await params
   const data = await getRoleEditorData(orgSlug, decodeURIComponent(roleId))
   if (!data?.role) return { title: "Role" }
@@ -22,13 +22,15 @@ export async function generateMetadata({
   }
 }
 
-export default async function RoleLayout({
-  children,
-  params,
-}: {
-  children: React.ReactNode
-  params: Promise<{ orgSlug: string; roleId: string }>
-}) {
+export default function RoleLayout(props: LayoutProps<"/orgs/[orgSlug]/roles/[roleId]">) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <RoleContent {...props} />
+    </Suspense>
+  )
+}
+
+async function RoleContent({ children, params }: LayoutProps<"/orgs/[orgSlug]/roles/[roleId]">) {
   const { orgSlug, roleId: encodedRoleId } = await params
   const roleId = decodeURIComponent(encodedRoleId)
   const data = await getRoleEditorData(orgSlug, roleId)

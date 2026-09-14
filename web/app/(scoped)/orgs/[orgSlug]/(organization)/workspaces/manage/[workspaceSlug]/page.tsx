@@ -1,6 +1,7 @@
+import { Suspense } from "react"
 import { notFound } from "next/navigation"
 import { deleteWorkspaceAction } from "@/app/(scoped)/orgs/actions"
-import { AdministrationState } from "@/components/administration"
+import { AdministrationLoadingState, AdministrationState } from "@/components/administration"
 import { DestructiveConfirmationDialog } from "@/components/destructive-confirmation-dialog"
 import { getDestructiveImpact } from "@/data/operations"
 import { getWorkspaceScope } from "@/data/workspaces"
@@ -8,11 +9,19 @@ import { WorkspaceGeneralForm } from "./workspace-general-form"
 
 export const metadata = { title: "Summary" }
 
-export default async function ManageWorkspacePage({
+export default function ManageWorkspacePage(
+  props: PageProps<"/orgs/[orgSlug]/workspaces/manage/[workspaceSlug]">
+) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <ManageWorkspaceContent {...props} />
+    </Suspense>
+  )
+}
+
+async function ManageWorkspaceContent({
   params,
-}: {
-  params: Promise<{ orgSlug: string; workspaceSlug: string }>
-}) {
+}: PageProps<"/orgs/[orgSlug]/workspaces/manage/[workspaceSlug]">) {
   const { orgSlug, workspaceSlug } = await params
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
   if (scope.scope.kind !== "ready" || !scope.scope.organization.superadmin) {

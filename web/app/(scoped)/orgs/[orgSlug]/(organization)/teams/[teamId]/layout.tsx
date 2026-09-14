@@ -1,15 +1,15 @@
+import { Suspense } from "react"
 import type { Route } from "next"
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
+import { AdministrationLoadingState } from "@/components/administration"
 import { RouteTabs, type RouteTab } from "@/components/route-tabs"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { getTeamDetail } from "@/data/teams"
 
 export async function generateMetadata({
   params,
-}: {
-  params: Promise<{ orgSlug: string; teamId: string }>
-}): Promise<Metadata> {
+}: LayoutProps<"/orgs/[orgSlug]/teams/[teamId]">): Promise<Metadata> {
   const { orgSlug, teamId } = await params
   const team = await getTeamDetail(orgSlug, teamId)
   if (!team) return { title: "Team" }
@@ -21,13 +21,15 @@ export async function generateMetadata({
   }
 }
 
-export default async function TeamLayout({
-  children,
-  params,
-}: {
-  children: React.ReactNode
-  params: Promise<{ orgSlug: string; teamId: string }>
-}) {
+export default function TeamLayout(props: LayoutProps<"/orgs/[orgSlug]/teams/[teamId]">) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <TeamContent {...props} />
+    </Suspense>
+  )
+}
+
+async function TeamContent({ children, params }: LayoutProps<"/orgs/[orgSlug]/teams/[teamId]">) {
   const { orgSlug, teamId } = await params
   const team = await getTeamDetail(orgSlug, teamId)
   if (!team) notFound()

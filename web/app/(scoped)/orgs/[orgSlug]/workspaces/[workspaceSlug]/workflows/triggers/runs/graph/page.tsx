@@ -13,7 +13,7 @@ import {
 import { getWorkflowCachedQuery, listWorkflowSummariesCachedQuery } from "@/data/workflow.queries"
 import { getWorkflowRunCachedQuery, listWorkflowRunsCachedQuery } from "@/data/workflow-run.queries"
 import { getWorkspaceScope } from "@/data/workspaces"
-import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
+import { searchParamStringSchema } from "@/lib/search-params"
 import { WorkflowRunGraphFilters } from "./workflow-run-graph-filters"
 import { WorkflowRunGraph } from "./workflow-run-graph"
 
@@ -27,21 +27,23 @@ const workflowRunGraphSearchParamsSchema = z.object({
   run_name: searchParamStringSchema,
 })
 
-type SearchParams = {
-  agent_name?: SearchParamStringInput
-  workflow_name?: SearchParamStringInput
-  run_name?: SearchParamStringInput
+export default function WorkflowRunGraphPage(
+  props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/workflows/triggers/runs/graph">
+) {
+  return (
+    <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
+      <AdministrationPageHeader title="Workflow run graph" />
+      <Suspense fallback={<GraphSkeleton />}>
+        <WorkflowRunGraphContent {...props} />
+      </Suspense>
+    </main>
+  )
 }
 
-type ResolvedSearchParams = z.output<typeof workflowRunGraphSearchParamsSchema>
-
-export default async function WorkflowRunGraphPage({
+async function WorkflowRunGraphContent({
   params,
   searchParams,
-}: {
-  params: Promise<{ orgSlug: string; workspaceSlug: string }>
-  searchParams: Promise<SearchParams>
-}) {
+}: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/workflows/triggers/runs/graph">) {
   const [route, search] = await Promise.all([params, searchParams])
   const workspace = await getWorkspaceScope(route.orgSlug, route.workspaceSlug)
   if (workspace.kind !== "ready") {
@@ -53,31 +55,13 @@ export default async function WorkflowRunGraphPage({
     workspaceId: workspace.workspace.id,
   }
 
-  return (
-    <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
-      <AdministrationPageHeader title="Workflow run graph" />
-      <Suspense fallback={<GraphSkeleton />}>
-        <WorkflowRunGraphContent actionScope={actionScope} searchParams={parsed} />
-      </Suspense>
-    </main>
-  )
-}
-
-async function WorkflowRunGraphContent({
-  actionScope,
-  searchParams,
-}: {
-  actionScope: WorkflowActionScope
-  searchParams: ResolvedSearchParams
-}) {
   const agentsResult = await listAgentsCachedQuery(undefined, actionScope.workspaceId)
   if (agentsResult.error) {
     return <ErrorPanel message={agentsResult.error.message} />
   }
 
   const selectedAgent =
-    agentsResult.agents.find((agent) => agent.name === searchParams.agent_name) ??
-    agentsResult.agents[0]
+    agentsResult.agents.find((agent) => agent.name === parsed.agent_name) ?? agentsResult.agents[0]
   if (!selectedAgent) {
     return (
       <>
@@ -101,9 +85,8 @@ async function WorkflowRunGraphContent({
   }
 
   const selectedWorkflow =
-    workflowsResult.summaries.find(
-      (workflow) => workflow.workflow_name === searchParams.workflow_name
-    ) ?? workflowsResult.summaries[0]
+    workflowsResult.summaries.find((workflow) => workflow.workflow_name === parsed.workflow_name) ??
+    workflowsResult.summaries[0]
   if (!selectedWorkflow) {
     return (
       <>
@@ -132,7 +115,7 @@ async function WorkflowRunGraphContent({
   }
 
   const selectedRun =
-    runsResult.workflowRuns.find((run) => run.name === searchParams.run_name) ??
+    runsResult.workflowRuns.find((run) => run.name === parsed.run_name) ??
     runsResult.workflowRuns[0]
   if (!selectedRun) {
     return (

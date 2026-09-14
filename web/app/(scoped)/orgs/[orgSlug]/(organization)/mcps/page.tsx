@@ -1,20 +1,21 @@
-import { AdministrationState } from "@/components/administration"
+import { Suspense } from "react"
+import { AdministrationLoadingState, AdministrationState } from "@/components/administration"
 import { activateOrganization, resolveOrganizationSlug } from "@/data/organizations"
 import { ensureTenant } from "@/lib/gateway/client"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { McpPage } from "@/app/(app)/mcps/mcp-page"
 
-export const unstable_instant = false
-
 export const metadata = { title: "MCP connections" }
 
-export default async function OrganizationMcpPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ orgSlug: string }>
-  searchParams: Promise<{ page_token?: string | string[] }>
-}) {
+export default function OrganizationMcpPage(props: PageProps<"/orgs/[orgSlug]/mcps">) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <OrganizationMcpContent {...props} />
+    </Suspense>
+  )
+}
+
+async function OrganizationMcpContent({ params, searchParams }: PageProps<"/orgs/[orgSlug]/mcps">) {
   const { orgSlug } = await params
   const scope = await resolveOrganizationSlug(orgSlug)
   if (scope.kind !== "ready") return <AdministrationState kind="forbidden" />

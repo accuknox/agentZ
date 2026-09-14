@@ -1,6 +1,12 @@
+import { searchParamStringSchema } from "@/lib/search-params"
+import { Suspense } from "react"
 import type { Route } from "next"
 import { notFound } from "next/navigation"
-import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
+import {
+  AdministrationLoadingState,
+  AdministrationPageHeader,
+  AdministrationState,
+} from "@/components/administration"
 import { RouteTabs, type RouteTab } from "@/components/route-tabs"
 import { getMemberDirectory, type MemberTab } from "@/data/members"
 import { CreateInvitationDialog } from "../../member-actions"
@@ -8,20 +14,28 @@ import { UserDirectoryTable } from "../../user-directory-table"
 
 export const metadata = { title: "Users" }
 
-export default async function UserStatePage({
+export default function UserStatePage(props: PageProps<"/orgs/[orgSlug]/users/status/[state]">) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <UserStateContent {...props} />
+    </Suspense>
+  )
+}
+
+async function UserStateContent({
   params,
   searchParams,
-}: {
-  params: Promise<{ orgSlug: string; state: string }>
-  searchParams: Promise<{ page_token?: string }>
-}) {
+}: PageProps<"/orgs/[orgSlug]/users/status/[state]">) {
   const [{ orgSlug, state }, { page_token }] = await Promise.all([params, searchParams])
   if (state !== "active" && state !== "invited" && state !== "disabled") {
     notFound()
   }
 
   const tab: MemberTab = state
-  const data = await getMemberDirectory(orgSlug, { pageToken: page_token, tab })
+  const data = await getMemberDirectory(orgSlug, {
+    pageToken: searchParamStringSchema.parse(page_token),
+    tab,
+  })
   if (!data) return <AdministrationState kind="forbidden" />
 
   const root = `/orgs/${orgSlug}/users`

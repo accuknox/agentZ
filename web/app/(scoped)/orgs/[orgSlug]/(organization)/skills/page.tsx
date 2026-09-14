@@ -1,19 +1,21 @@
 import { Suspense } from "react"
-import { AdministrationState } from "@/components/administration"
+import { AdministrationLoadingState, AdministrationState } from "@/components/administration"
 import { activateOrganization, resolveOrganizationSlug } from "@/data/organizations"
 import { ensureTenant } from "@/lib/gateway/client"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { SkillsClient } from "@/app/(app)/skills/skills-client"
 
-export const unstable_instant = false
-
 export const metadata = { title: "Skills" }
 
-export default async function OrganizationSkillsPage({
-  params,
-}: {
-  params: Promise<{ orgSlug: string }>
-}) {
+export default function OrganizationSkillsPage(props: PageProps<"/orgs/[orgSlug]/skills">) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <OrganizationSkillsContent {...props} />
+    </Suspense>
+  )
+}
+
+async function OrganizationSkillsContent({ params }: PageProps<"/orgs/[orgSlug]/skills">) {
   const { orgSlug } = await params
   const scope = await resolveOrganizationSlug(orgSlug)
   if (scope.kind !== "ready") return <AdministrationState kind="forbidden" />
@@ -23,13 +25,11 @@ export default async function OrganizationSkillsPage({
   if (!tenant.data.skill_capabilities.read) return <AdministrationState kind="forbidden" />
 
   return (
-    <Suspense fallback={null}>
-      <SkillsClient
-        agents={[]}
-        canCreateImmutable={tenant.data.skill_capabilities.create}
-        canReadImmutable={tenant.data.skill_capabilities.read}
-        pageScope={{ kind: "organization", organizationName: scope.organization.name }}
-      />
-    </Suspense>
+    <SkillsClient
+      agents={[]}
+      canCreateImmutable={tenant.data.skill_capabilities.create}
+      canReadImmutable={tenant.data.skill_capabilities.read}
+      pageScope={{ kind: "organization", organizationName: scope.organization.name }}
+    />
   )
 }

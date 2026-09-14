@@ -5,7 +5,6 @@ import { NetworkTelemetryTable } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/
 import {
   RuntimeTelemetryPage,
   type TelemetryPageConfig,
-  type TelemetrySearchParams,
 } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/runtime-telemetry-page"
 
 export const metadata: Metadata = {
@@ -15,10 +14,7 @@ export const metadata: Metadata = {
 export default function NetworkPage({
   params,
   searchParams,
-}: {
-  params: Promise<{ orgSlug: string; workspaceSlug: string }>
-  searchParams: Promise<TelemetrySearchParams>
-}) {
+}: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/network">) {
   const config: TelemetryPageConfig<NetworkTelemetryActionData> = {
     value: "network",
     headers: [

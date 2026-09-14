@@ -1,18 +1,14 @@
-import type { Route } from "next"
 import Link from "next/link"
 import { Suspense } from "react"
 import {
   Activity,
   ArrowLeft,
   Box,
-  Bot,
   Building2,
   Cable,
   CircleUserRound,
   CloudCog,
   KeyRound,
-  LayoutDashboard,
-  Lock,
   Monitor,
   ScrollText,
   Settings2,
@@ -21,13 +17,10 @@ import {
   User2,
   UserRoundCheck,
   UsersRound,
-  Workflow,
-  Zap,
 } from "lucide-react"
 import { ProductTour } from "@/components/blocks/tour/product-tour"
 import { NavSessions, NavSessionsSkeleton } from "./sessions"
-import { NavInference } from "./inference"
-import { NavLens } from "./lens"
+import { WorkspaceNavigation } from "./workspace-navigation"
 import { SidebarNavigationLink } from "./navigation-link"
 import { NavUser } from "./user"
 import { WorkspaceSwitcher } from "./workspace-switcher"
@@ -55,11 +48,6 @@ type WorkspaceNavigationScope = {
   canCreateWorkspace: boolean
   canEnterOrganization: boolean
   organization: OrganizationSummary
-  mcpConnectionCapabilities: ResourceCapabilities
-  inferencePoolCapabilities: ResourceCapabilities
-  inferenceProviderCapabilities: ResourceCapabilities
-  sandboxCapabilities: ResourceCapabilities
-  skillCapabilities: ResourceCapabilities
   workspaces: Workspace[]
 }
 
@@ -67,12 +55,14 @@ export type SidebarScope =
   | { kind: "account" }
   | { kind: "settings"; hasAppDestination: boolean }
   | { kind: "no-access"; organization: OrganizationSummary }
-  | ({ kind: "organization" } & WorkspaceNavigationScope)
   | ({
-      kind: "workspace"
-      workspace: Workspace
-      lensCapabilities: ResourceCapabilities
+      kind: "organization"
+      mcpConnectionCapabilities: ResourceCapabilities
+      inferenceProviderCapabilities: ResourceCapabilities
+      sandboxCapabilities: ResourceCapabilities
+      skillCapabilities: ResourceCapabilities
     } & WorkspaceNavigationScope)
+  | ({ kind: "workspace"; workspace: Workspace } & WorkspaceNavigationScope)
 
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   user?: {
@@ -94,6 +84,23 @@ export function AppSidebar({
   user,
   ...sidebarProps
 }: AppSidebarProps) {
+  const userMenu = user ? (
+    <NavUser
+      activeOrganizationId={activeOrganizationId}
+      organizations={organizations}
+      user={user}
+    />
+  ) : null
+
+  if (scope.kind === "workspace" && scope.workspace.state === "ready") {
+    return (
+      <Sidebar collapsible="icon" data-app-sidebar {...sidebarProps}>
+        <WorkspaceSidebar scope={scope} showTourButton={showTourButton} userMenu={userMenu} />
+        <SidebarRail />
+      </Sidebar>
+    )
+  }
+
   return (
     <Sidebar collapsible="icon" data-app-sidebar {...sidebarProps}>
       <SidebarHeader className="h-[var(--workspace-topbar-height)] justify-center p-2">
@@ -106,7 +113,7 @@ export function AppSidebar({
                 size="lg"
                 tooltip="Back to top"
               >
-                <Link href="/">
+                <Link aria-label="Back to top" href="/">
                   <ArrowLeft aria-hidden="true" />
                   <span className="group-data-[collapsible=icon]:hidden">Back to top</span>
                 </Link>
@@ -117,7 +124,7 @@ export function AppSidebar({
           <WorkspaceSwitcher scope={scope} />
         )}
       </SidebarHeader>
-      <SidebarContent className={scope.kind === "workspace" ? "gap-0 overflow-hidden" : "gap-0"}>
+      <SidebarContent className="gap-0">
         {scope.kind === "settings" ? <SettingsNavigation /> : null}
         {scope.kind === "organization" ? (
           <OrganizationNavigation
@@ -129,35 +136,17 @@ export function AppSidebar({
             sandboxCapabilities={scope.sandboxCapabilities}
           />
         ) : null}
-        {scope.kind === "workspace" && scope.workspace.state === "ready" ? (
-          <WorkspaceNavigation
-            mcpConnectionCapabilities={scope.mcpConnectionCapabilities}
-            inferencePoolCapabilities={scope.inferencePoolCapabilities}
-            inferenceProviderCapabilities={scope.inferenceProviderCapabilities}
-            organization={scope.organization}
-            lensCapabilities={scope.lensCapabilities}
-            skillCapabilities={scope.skillCapabilities}
-            sandboxCapabilities={scope.sandboxCapabilities}
-            workspace={scope.workspace}
-          />
-        ) : null}
       </SidebarContent>
       {user ? (
         <SidebarFooter className="border-t p-2">
-          {showTourButton &&
-          (scope.kind === "organization" ||
-            (scope.kind === "workspace" && scope.workspace.state === "ready")) ? (
+          {showTourButton && scope.kind === "organization" ? (
             <SidebarMenu className="hidden md:block">
               <SidebarMenuItem>
                 <ProductTour scope={scope.kind} />
               </SidebarMenuItem>
             </SidebarMenu>
           ) : null}
-          <NavUser
-            activeOrganizationId={activeOrganizationId}
-            organizations={organizations}
-            user={user}
-          />
+          {userMenu}
         </SidebarFooter>
       ) : null}
       <SidebarRail />
@@ -195,49 +184,27 @@ function SettingsNavigation() {
   )
 }
 
-async function WorkspaceNavigation({
-  mcpConnectionCapabilities,
-  inferencePoolCapabilities,
-  inferenceProviderCapabilities,
-  organization,
-  lensCapabilities,
-  skillCapabilities,
-  sandboxCapabilities,
-  workspace,
+async function WorkspaceSidebar({
+  scope,
+  showTourButton,
+  userMenu,
 }: {
-  mcpConnectionCapabilities: ResourceCapabilities
-  inferencePoolCapabilities: ResourceCapabilities
-  inferenceProviderCapabilities: ResourceCapabilities
-  organization: OrganizationSummary
-  lensCapabilities: ResourceCapabilities
-  skillCapabilities: ResourceCapabilities
-  sandboxCapabilities: ResourceCapabilities
-  workspace: Workspace
+  scope: Extract<SidebarScope, { kind: "workspace" }>
+  showTourButton: boolean
+  userMenu: React.ReactNode
 }) {
+  const { organization, workspace } = scope
   const workspacePath: WorkspacePath = `/orgs/${organization.slug}/workspaces/${workspace.slug}`
   const agents = await listAllAgentsCachedQuery(workspace.id)
-  const hasAgents = agents.error === undefined && agents.agents.length > 0
+  const showAgents = workspace.capabilities.agents.author || (agents.agents?.length ?? 0) > 0
   const showSecrets =
-    agents.error === undefined &&
-    agents.agents.some(
+    agents.agents?.some(
       (agent) =>
         agent.capabilities.read_secrets ||
         agent.capabilities.write_secrets ||
         agent.capabilities.delete_secrets
-    )
-  const showWorkflows =
-    agents.error === undefined && agents.agents.some((agent) => agent.capabilities.use)
-  const showAgents = workspace.capabilities.agents.author || hasAgents
-  const hasResources =
-    lensCapabilities.read ||
-    skillCapabilities.read ||
-    mcpConnectionCapabilities.read ||
-    sandboxCapabilities.read ||
-    inferenceProviderCapabilities.read ||
-    inferencePoolCapabilities.read ||
-    showSecrets ||
-    showWorkflows
-  const hasWorkspace = showAgents || organization.superadmin || workspace.capabilities.administer
+    ) ?? false
+  const showWorkflows = agents.agents?.some((agent) => agent.capabilities.use) ?? false
   let chatSessions: React.JSX.Element | null = null
   if (showAgents) {
     const preference = await getChatSessionPreference({
@@ -261,125 +228,16 @@ async function WorkspaceNavigation({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col" data-tour="navigation">
-      <div className="max-h-[min(50%,24rem)] min-h-0 shrink-0 overflow-x-hidden overflow-y-auto group-data-[collapsible=icon]:max-h-none group-data-[collapsible=icon]:flex-1 group-data-[collapsible=icon]:shrink">
-        {hasResources ? (
-          <SidebarGroup className="px-2 py-2">
-            <SidebarMenu>
-              {lensCapabilities.read ? <NavLens rootPath={workspacePath} /> : null}
-              {skillCapabilities.read ? (
-                <SidebarMenuItem data-tour="skills">
-                  <SidebarNavigationLink
-                    href={`${workspacePath}/skills` as Route}
-                    label={resourceLabels.skill.collection}
-                  >
-                    <ScrollText aria-hidden="true" />
-                  </SidebarNavigationLink>
-                </SidebarMenuItem>
-              ) : null}
-              {mcpConnectionCapabilities.read ? (
-                <SidebarMenuItem data-tour="mcps">
-                  <SidebarNavigationLink
-                    href={`${workspacePath}/mcps` as Route}
-                    label={resourceLabels.mcp.collection}
-                  >
-                    <Cable aria-hidden="true" />
-                  </SidebarNavigationLink>
-                </SidebarMenuItem>
-              ) : null}
-              {sandboxCapabilities.read ? (
-                <SidebarMenuItem data-tour="sandboxes">
-                  <SidebarNavigationLink
-                    href={`${workspacePath}/sandboxes` as Route}
-                    label="Sandboxes"
-                  >
-                    <Box aria-hidden="true" />
-                  </SidebarNavigationLink>
-                </SidebarMenuItem>
-              ) : null}
-              {inferenceProviderCapabilities.read || inferencePoolCapabilities.read ? (
-                <NavInference
-                  rootPath={workspacePath}
-                  showPools={inferencePoolCapabilities.read}
-                  showProviders={inferenceProviderCapabilities.read}
-                />
-              ) : null}
-              {showSecrets ? (
-                <SidebarMenuItem data-tour="secrets">
-                  <SidebarNavigationLink href={`${workspacePath}/secrets` as Route} label="Secrets">
-                    <Lock aria-hidden="true" />
-                  </SidebarNavigationLink>
-                </SidebarMenuItem>
-              ) : null}
-              {showWorkflows ? (
-                <>
-                  <SidebarMenuItem data-tour="workflows">
-                    <SidebarNavigationLink
-                      href={`${workspacePath}/workflows/graphs` as Route}
-                      label={resourceLabels.workflow.collection}
-                    >
-                      <Workflow aria-hidden="true" />
-                    </SidebarNavigationLink>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem data-tour="triggers">
-                    <SidebarNavigationLink
-                      href={`${workspacePath}/workflows/triggers` as Route}
-                      label="Triggers"
-                    >
-                      <Zap aria-hidden="true" />
-                    </SidebarNavigationLink>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem data-tour="dashboards">
-                    <SidebarNavigationLink
-                      href={`${workspacePath}/dashboards` as Route}
-                      label="Dashboards"
-                    >
-                      <LayoutDashboard aria-hidden="true" />
-                    </SidebarNavigationLink>
-                  </SidebarMenuItem>
-                </>
-              ) : null}
-            </SidebarMenu>
-          </SidebarGroup>
-        ) : null}
-        {hasWorkspace ? (
-          <SidebarGroup className="px-2 py-2">
-            <SidebarGroupLabel>Workspace</SidebarGroupLabel>
-            <SidebarMenu>
-              {showAgents ? (
-                <SidebarMenuItem data-tour="agents">
-                  <SidebarNavigationLink
-                    href={`${workspacePath}/agents` as Route}
-                    label="Agents"
-                    maxMatchDepth={2}
-                  >
-                    <Bot aria-hidden="true" />
-                  </SidebarNavigationLink>
-                </SidebarMenuItem>
-              ) : null}
-              {organization.superadmin || workspace.capabilities.administer ? (
-                <>
-                  <SidebarMenuItem data-tour="roles">
-                    <SidebarNavigationLink href={`${workspacePath}/roles` as Route} label="Roles">
-                      <ShieldCheck aria-hidden="true" />
-                    </SidebarNavigationLink>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem data-tour="event-trail">
-                    <SidebarNavigationLink
-                      href={`${workspacePath}/event-trail` as Route}
-                      label="Event Trail"
-                    >
-                      <Activity aria-hidden="true" />
-                    </SidebarNavigationLink>
-                  </SidebarMenuItem>
-                </>
-              ) : null}
-            </SidebarMenu>
-          </SidebarGroup>
-        ) : null}
-      </div>
+    <WorkspaceNavigation
+      scope={scope}
+      showAgents={showAgents}
+      showSecrets={showSecrets}
+      showTourButton={showTourButton}
+      showWorkflows={showWorkflows}
+      userMenu={userMenu}
+    >
       {chatSessions}
-    </div>
+    </WorkspaceNavigation>
   )
 }
 
@@ -436,7 +294,7 @@ function OrganizationNavigation({
   skillCapabilities: ResourceCapabilities
   sandboxCapabilities: ResourceCapabilities
 }) {
-  const root = `/orgs/${organization.slug}`
+  const root = `/orgs/${organization.slug}` as const
   const hasResources =
     skillCapabilities.read ||
     mcpConnectionCapabilities.read ||
@@ -451,7 +309,7 @@ function OrganizationNavigation({
           <SidebarMenu>
             {canEnterOrganization ? (
               <SidebarMenuItem data-tour="workspaces">
-                <SidebarNavigationLink href={`${root}/workspaces` as Route} label="Workspaces">
+                <SidebarNavigationLink href={`${root}/workspaces`} label="Workspaces">
                   <Building2 aria-hidden="true" />
                 </SidebarNavigationLink>
               </SidebarMenuItem>
@@ -460,7 +318,7 @@ function OrganizationNavigation({
               <>
                 <SidebarMenuItem data-tour="users">
                   <SidebarNavigationLink
-                    href={`${root}/users/status/active` as Route}
+                    href={`${root}/users/status/active`}
                     label="Users"
                     match={`${root}/users`}
                   >
@@ -468,12 +326,12 @@ function OrganizationNavigation({
                   </SidebarNavigationLink>
                 </SidebarMenuItem>
                 <SidebarMenuItem data-tour="teams">
-                  <SidebarNavigationLink href={`${root}/teams` as Route} label="Teams">
+                  <SidebarNavigationLink href={`${root}/teams`} label="Teams">
                     <UsersRound aria-hidden="true" />
                   </SidebarNavigationLink>
                 </SidebarMenuItem>
                 <SidebarMenuItem data-tour="roles">
-                  <SidebarNavigationLink href={`${root}/roles` as Route} label="Roles">
+                  <SidebarNavigationLink href={`${root}/roles`} label="Roles">
                     <ShieldCheck aria-hidden="true" />
                   </SidebarNavigationLink>
                 </SidebarMenuItem>
@@ -489,7 +347,7 @@ function OrganizationNavigation({
             {skillCapabilities.read ? (
               <SidebarMenuItem data-tour="skills">
                 <SidebarNavigationLink
-                  href={`${root}/skills` as Route}
+                  href={`${root}/skills`}
                   label={resourceLabels.skill.collection}
                 >
                   <ScrollText aria-hidden="true" />
@@ -498,17 +356,14 @@ function OrganizationNavigation({
             ) : null}
             {mcpConnectionCapabilities.read ? (
               <SidebarMenuItem data-tour="mcps">
-                <SidebarNavigationLink
-                  href={`${root}/mcps` as Route}
-                  label={resourceLabels.mcp.collection}
-                >
+                <SidebarNavigationLink href={`${root}/mcps`} label={resourceLabels.mcp.collection}>
                   <Cable aria-hidden="true" />
                 </SidebarNavigationLink>
               </SidebarMenuItem>
             ) : null}
             {sandboxCapabilities.read ? (
               <SidebarMenuItem data-tour="sandboxes">
-                <SidebarNavigationLink href={`${root}/sandboxes` as Route} label="Sandboxes">
+                <SidebarNavigationLink href={`${root}/sandboxes`} label="Sandboxes">
                   <Box aria-hidden="true" />
                 </SidebarNavigationLink>
               </SidebarMenuItem>
@@ -516,7 +371,7 @@ function OrganizationNavigation({
             {inferenceProviderCapabilities.read ? (
               <SidebarMenuItem data-tour="inference">
                 <SidebarNavigationLink
-                  href={`${root}/inference/providers` as Route}
+                  href={`${root}/inference/providers`}
                   label={resourceLabels.inference.collection}
                 >
                   <CloudCog aria-hidden="true" />
@@ -531,20 +386,17 @@ function OrganizationNavigation({
           <SidebarGroupLabel>Administration</SidebarGroupLabel>
           <SidebarMenu>
             <SidebarMenuItem data-tour="social-admission">
-              <SidebarNavigationLink
-                href={`${root}/social-admission` as Route}
-                label="Social admission"
-              >
+              <SidebarNavigationLink href={`${root}/social-admission`} label="Social admission">
                 <UserRoundCheck aria-hidden="true" />
               </SidebarNavigationLink>
             </SidebarMenuItem>
             <SidebarMenuItem data-tour="event-trail">
-              <SidebarNavigationLink href={`${root}/event-trail` as Route} label="Event trail">
+              <SidebarNavigationLink href={`${root}/event-trail`} label="Event trail">
                 <Activity aria-hidden="true" />
               </SidebarNavigationLink>
             </SidebarMenuItem>
             <SidebarMenuItem data-tour="general">
-              <SidebarNavigationLink href={`${root}/general` as Route} label="General">
+              <SidebarNavigationLink href={`${root}/general`} label="General">
                 <Settings2 aria-hidden="true" />
               </SidebarNavigationLink>
             </SidebarMenuItem>

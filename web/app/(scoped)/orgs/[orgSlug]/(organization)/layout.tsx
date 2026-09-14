@@ -1,7 +1,9 @@
+import { Suspense } from "react"
 import type { Route } from "next"
 import type { Metadata } from "next"
 import { headers } from "next/headers"
 import { notFound, redirect } from "next/navigation"
+import { AgentZTransition } from "@/components/scope-transition"
 import {
   AdministrationLayout,
   AdministrationPageHeader,
@@ -21,13 +23,9 @@ import { ensureTenant } from "@/lib/gateway/client/sdk.gen"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { signInURL } from "@/lib/sign-in-redirect"
 
-export const unstable_instant = false
-
 export async function generateMetadata({
   params,
-}: {
-  params: Promise<{ orgSlug: string }>
-}): Promise<Metadata> {
+}: LayoutProps<"/orgs/[orgSlug]">): Promise<Metadata> {
   const { orgSlug } = await params
   const result = await resolveOrganizationSlug(orgSlug)
   const name = result.kind === "ready" ? result.organization.name : "Organization"
@@ -39,13 +37,15 @@ export async function generateMetadata({
   }
 }
 
-export default async function OrganizationLayout({
-  children,
-  params,
-}: {
-  children: React.ReactNode
-  params: Promise<{ orgSlug: string }>
-}) {
+export default function OrganizationLayout(props: LayoutProps<"/orgs/[orgSlug]">) {
+  return (
+    <Suspense fallback={<AgentZTransition />}>
+      <OrganizationContent {...props} />
+    </Suspense>
+  )
+}
+
+async function OrganizationContent({ children, params }: LayoutProps<"/orgs/[orgSlug]">) {
   const { orgSlug } = await params
   const result = await resolveOrganizationSlug(orgSlug)
   if (result.kind === "unauthorized") {
@@ -171,7 +171,6 @@ export default async function OrganizationLayout({
               canEnterOrganization: workspaceResult.directory.can_enter_organization,
               kind: "organization",
               mcpConnectionCapabilities: tenant.data.mcp_connection_capabilities,
-              inferencePoolCapabilities: tenant.data.inference_pool_capabilities,
               inferenceProviderCapabilities: tenant.data.inference_provider_capabilities,
               organization: result.organization,
               sandboxCapabilities: tenant.data.sandbox_capabilities,

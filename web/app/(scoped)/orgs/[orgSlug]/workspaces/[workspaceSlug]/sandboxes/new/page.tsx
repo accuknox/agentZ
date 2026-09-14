@@ -1,14 +1,23 @@
-import { AdministrationState } from "@/components/administration"
+import { Suspense } from "react"
+import { AdministrationLoadingState, AdministrationState } from "@/components/administration"
 import { getWorkspaceScope } from "@/data/workspaces"
 import NewSandboxPage from "@/app/(app)/sandboxes/new-sandbox-page"
 
 export const metadata = { title: "New sandbox" }
 
-export default async function NewWorkspaceSandboxPage({
+export default function NewWorkspaceSandboxPage(
+  props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/sandboxes/new">
+) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <NewWorkspaceSandboxContent {...props} />
+    </Suspense>
+  )
+}
+
+async function NewWorkspaceSandboxContent({
   params,
-}: {
-  params: Promise<{ orgSlug: string; workspaceSlug: string }>
-}) {
+}: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/sandboxes/new">) {
   const { orgSlug, workspaceSlug } = await params
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
   if (scope.kind !== "ready" || !scope.workspace.capabilities.sandboxes.create)

@@ -1,4 +1,5 @@
-import { AdministrationState } from "@/components/administration"
+import { Suspense } from "react"
+import { AdministrationLoadingState, AdministrationState } from "@/components/administration"
 import { activateOrganization, resolveOrganizationSlug } from "@/data/organizations"
 import { ensureTenant } from "@/lib/gateway/client"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
@@ -6,11 +7,19 @@ import UpdateSandboxPage, { generateMetadata } from "@/app/(app)/sandboxes/updat
 
 export { generateMetadata }
 
-export default async function UpdateOrganizationSandboxPage({
+export default function UpdateOrganizationSandboxPage(
+  props: PageProps<"/orgs/[orgSlug]/sandboxes/update/[name]">
+) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <UpdateOrganizationSandboxContent {...props} />
+    </Suspense>
+  )
+}
+
+async function UpdateOrganizationSandboxContent({
   params,
-}: {
-  params: Promise<{ name: string; orgSlug: string }>
-}) {
+}: PageProps<"/orgs/[orgSlug]/sandboxes/update/[name]">) {
   const values = await params
   const scope = await resolveOrganizationSlug(values.orgSlug)
   if (scope.kind !== "ready") return <AdministrationState kind="forbidden" />

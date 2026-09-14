@@ -3,8 +3,6 @@ import { EventTrailEvents } from "@/app/(scoped)/orgs/[orgSlug]/(organization)/e
 import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
 import { eventTrailQuerySchema, listWorkspaceEventTrailEvents } from "@/data/event-trail"
 
-export const unstable_instant = false
-
 export const metadata = { title: "Event trail" }
 
 export default async function WorkspaceEventTrailPage({

@@ -1,24 +1,33 @@
+import { searchParamStringSchema } from "@/lib/search-params"
+import { Suspense } from "react"
 import type { Route } from "next"
 import Link from "next/link"
 import { Plus } from "lucide-react"
-import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
+import {
+  AdministrationLoadingState,
+  AdministrationPageHeader,
+  AdministrationState,
+} from "@/components/administration"
 import { Button } from "@/components/ui/button"
 import { getWorkspacePage } from "@/data/workspaces"
 import { WorkspaceTable } from "./workspace-table"
 
-export const unstable_instant = false
-
 export const metadata = { title: "Workspaces" }
 
-export default async function WorkspacesPage({
+export default function WorkspacesPage(props: PageProps<"/orgs/[orgSlug]/workspaces">) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <WorkspacesContent {...props} />
+    </Suspense>
+  )
+}
+
+async function WorkspacesContent({
   params,
   searchParams,
-}: {
-  params: Promise<{ orgSlug: string }>
-  searchParams: Promise<{ page_token?: string }>
-}) {
+}: PageProps<"/orgs/[orgSlug]/workspaces">) {
   const [{ orgSlug }, { page_token }] = await Promise.all([params, searchParams])
-  const result = await getWorkspacePage(orgSlug, page_token)
+  const result = await getWorkspacePage(orgSlug, searchParamStringSchema.parse(page_token))
   if (result.scope.kind !== "ready" || !result.directory) {
     return null
   }

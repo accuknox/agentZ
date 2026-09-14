@@ -1,3 +1,5 @@
+import { AdministrationLoadingState } from "@/components/administration"
+import { Suspense } from "react"
 import { notFound } from "next/navigation"
 import { UserIdentity } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -13,11 +15,17 @@ import { getTeamDetail } from "@/data/teams"
 
 export const metadata = { title: "Members" }
 
-export default async function TeamMembersPage({
-  params,
-}: {
-  params: Promise<{ orgSlug: string; teamId: string }>
-}) {
+export default function TeamMembersPage(
+  props: PageProps<"/orgs/[orgSlug]/teams/[teamId]/members">
+) {
+  return (
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <TeamMembersContent {...props} />
+    </Suspense>
+  )
+}
+
+async function TeamMembersContent({ params }: PageProps<"/orgs/[orgSlug]/teams/[teamId]/members">) {
   const { orgSlug, teamId } = await params
   const team = await getTeamDetail(orgSlug, teamId)
   if (!team) notFound()

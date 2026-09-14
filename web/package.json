@@ -34,7 +34,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@hookform/resolvers": "^5.4.0",
-    "@legendapp/list": "3.3.5",
+    "@legendapp/list": "3.3.11",
     "@modelcontextprotocol/client": "^2.0.0-alpha.3",
     "@octokit/oauth-methods": "^6.0.5",
     "@octokit/request-error": "^7.1.0",

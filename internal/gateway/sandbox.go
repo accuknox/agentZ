@@ -16,6 +16,7 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/accuknox/agentz/internal/authorization"
+	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	"github.com/accuknox/agentz/internal/sandboxutil"
@@ -29,10 +30,12 @@ type sandboxEventTrail struct {
 	result gatewaydb.EventTrailResult
 }
 
-func (s *Service) resolveSandboxAccess(ctx context.Context, workspaceID, sandboxName string, operation authorization.Operation) (resourceAccess, *apiError) {
+func (s *Service) resolveSandboxAccess(ctx context.Context, workspaceID, sandboxName string, operation authorization.Operation) (resourceAccess, *apiutil.APIError) {
 	creatorFallback := authorization.Operation("")
 	var isCreator func(context.Context, string, string) (bool, error)
-	if sandboxName != "" && (operation == authorization.OperationUpdateSandbox || operation == authorization.OperationDeleteSandbox) {
+	mutating := operation == authorization.OperationUpdateSandbox ||
+		operation == authorization.OperationDeleteSandbox
+	if sandboxName != "" && mutating {
 		creatorFallback = authorization.OperationCreateSandbox
 		isCreator = func(ctx context.Context, namespace, userID string) (bool, error) {
 			sandbox := &agentzv1alpha1.Sandbox{}
@@ -91,7 +94,7 @@ func (s *Service) ListSandboxes(w http.ResponseWriter, r *http.Request, params g
 		authorization.OperationListSandboxes,
 	)
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 
@@ -100,10 +103,10 @@ func (s *Service) ListSandboxes(w http.ResponseWriter, r *http.Request, params g
 		limit = int(*params.Limit)
 	}
 	if limit < 1 || limit > 200 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"limit must be between 1 and 200",
@@ -119,8 +122,9 @@ func (s *Service) ListSandboxes(w http.ResponseWriter, r *http.Request, params g
 	}
 
 	var sandboxList agentzv1alpha1.SandboxList
-	if err := s.k8sClient.List(r.Context(), &sandboxList, ctrlclient.InNamespace(access.namespace)); err != nil {
-		writeInternalError(w, r, fmt.Errorf("list sandboxes: %w", err))
+	err := s.k8sClient.List(r.Context(), &sandboxList, ctrlclient.InNamespace(access.namespace))
+	if err != nil {
+		apiutil.WriteInternalError(w, r, fmt.Errorf("list sandboxes: %w", err))
 		return
 	}
 	refs, err := sandboxutil.ReferencedNames(
@@ -129,7 +133,7 @@ func (s *Service) ListSandboxes(w http.ResponseWriter, r *http.Request, params g
 		access.namespace,
 	)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("list sandbox references: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("list sandbox references: %w", err))
 		return
 	}
 	userIDs := make([]string, 0, len(sandboxList.Items)*2)
@@ -138,7 +142,7 @@ func (s *Service) ListSandboxes(w http.ResponseWriter, r *http.Request, params g
 	}
 	actors, err := s.resourceActors(r.Context(), userIDs...)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
@@ -149,7 +153,7 @@ func (s *Service) ListSandboxes(w http.ResponseWriter, r *http.Request, params g
 	if workspaceID != "" {
 		inherited, err := s.listInheritedSandboxes(r.Context(), access, refs)
 		if err != nil {
-			writeInternalError(w, r, err)
+			apiutil.WriteInternalError(w, r, err)
 			return
 		}
 		items = append(items, inherited...)
@@ -182,7 +186,7 @@ func (s *Service) ListSandboxes(w http.ResponseWriter, r *http.Request, params g
 		next = encodeOffsetToken(end)
 	}
 
-	writeJSON(
+	apiutil.WriteJSON(
 		w,
 		http.StatusOK,
 		gatewayapi.ListSandboxesResponse{
@@ -210,7 +214,8 @@ func (s *Service) listInheritedSandboxes(ctx context.Context, access resourceAcc
 		access.claims.OrganizationID,
 	)
 	var sandboxes agentzv1alpha1.SandboxList
-	if err := s.k8sClient.List(ctx, &sandboxes, ctrlclient.InNamespace(organizationNamespace)); err != nil {
+	err = s.k8sClient.List(ctx, &sandboxes, ctrlclient.InNamespace(organizationNamespace))
+	if err != nil {
 		return nil, fmt.Errorf("list inherited Organisation Sandboxes: %w", err)
 	}
 	organizationAccess := access
@@ -268,11 +273,11 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 				},
 			)
 			if err != nil {
-				writeInternalError(w, r, err)
+				apiutil.WriteInternalError(w, r, err)
 				return
 			}
 		}
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	if len(fields) > 0 {
@@ -282,13 +287,13 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 			result: gatewaydb.EventTrailResultFailed,
 		}
 		if err := s.createSandboxEventTrail(r.Context(), event); err != nil {
-			writeInternalError(w, r, err)
+			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -315,10 +320,10 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 		)
 
 		if eventTrailErr != nil {
-			writeInternalError(w, r, errors.Join(err, eventTrailErr))
+			apiutil.WriteInternalError(w, r, errors.Join(err, eventTrailErr))
 			return
 		}
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if len(fields) > 0 {
@@ -328,13 +333,13 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 			result: gatewaydb.EventTrailResultFailed,
 		}
 		if err := s.createSandboxEventTrail(r.Context(), event); err != nil {
-			writeInternalError(w, r, err)
+			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -369,7 +374,7 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 			)
 
 			if eventTrailErr != nil {
-				writeInternalError(w, r, errors.Join(err, eventTrailErr))
+				apiutil.WriteInternalError(w, r, errors.Join(err, eventTrailErr))
 				return
 			}
 			writeAllowedHostsError(w, r, fmt.Errorf("allowedHosts[%d]: %w", i, err))
@@ -425,13 +430,13 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 			result: gatewaydb.EventTrailResultFailed,
 		}
 		if err := s.createSandboxEventTrail(r.Context(), event); err != nil {
-			writeInternalError(w, r, err)
+			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -457,10 +462,10 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 			},
 		)
 		if err != nil {
-			writeInternalError(w, r, err)
+			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 
@@ -498,10 +503,10 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 		)
 
 		if eventTrailErr != nil {
-			writeInternalError(w, r, errors.Join(err, eventTrailErr))
+			apiutil.WriteInternalError(w, r, errors.Join(err, eventTrailErr))
 			return
 		}
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if len(dependencyFields) > 0 {
@@ -511,13 +516,13 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 			result: gatewaydb.EventTrailResultFailed,
 		}
 		if err := s.createSandboxEventTrail(r.Context(), event); err != nil {
-			writeInternalError(w, r, err)
+			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -539,10 +544,10 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 		)
 
 		if eventTrailErr != nil {
-			writeInternalError(w, r, errors.Join(err, eventTrailErr))
+			apiutil.WriteInternalError(w, r, errors.Join(err, eventTrailErr))
 			return
 		}
-		writeError(w, r, mapKubeHTTPError("create sandbox", err))
+		apiutil.WriteError(w, r, mapKubeHTTPError("create sandbox", err))
 		return
 	}
 	event := sandboxEventTrail{
@@ -551,7 +556,7 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 		result: gatewaydb.EventTrailResultSucceeded,
 	}
 	if err := s.createSandboxEventTrail(r.Context(), event); err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
@@ -561,20 +566,20 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 		sandbox.Spec.LastModifiedByUserID,
 	)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, sandboxFromCRD(*sandbox, false, access, actors))
+	apiutil.WriteJSON(w, http.StatusCreated, sandboxFromCRD(*sandbox, false, access, actors))
 }
 
 // DeleteSandbox handles DELETE /api/sandbox/{sandboxName}.
 func (s *Service) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxName gatewayapi.SandboxName, params gatewayapi.DeleteSandboxParams) {
 	name := strings.TrimSpace(sandboxName)
 	if name == "" {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -605,11 +610,11 @@ func (s *Service) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 				},
 			)
 			if err != nil {
-				writeInternalError(w, r, err)
+				apiutil.WriteInternalError(w, r, err)
 				return
 			}
 		}
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	conflict, err := s.selectedOrganizationResourceConflict(
@@ -627,10 +632,10 @@ func (s *Service) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		)
 
 		if err != nil || eventTrailErr != nil {
-			writeInternalError(w, r, errors.Join(err, eventTrailErr))
+			apiutil.WriteInternalError(w, r, errors.Join(err, eventTrailErr))
 			return
 		}
-		writeError(w, r, conflict)
+		apiutil.WriteError(w, r, conflict)
 		return
 	}
 
@@ -655,10 +660,10 @@ func (s *Service) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		)
 
 		if eventTrailErr != nil {
-			writeInternalError(w, r, errors.Join(err, eventTrailErr))
+			apiutil.WriteInternalError(w, r, errors.Join(err, eventTrailErr))
 			return
 		}
-		writeInternalError(w, r, fmt.Errorf("check sandbox references: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("check sandbox references: %w", err))
 		return
 	}
 	if len(agentNames) > 0 {
@@ -668,13 +673,13 @@ func (s *Service) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 			result: gatewaydb.EventTrailResultFailed,
 		}
 		if err := s.createSandboxEventTrail(r.Context(), event); err != nil {
-			writeInternalError(w, r, err)
+			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusConflict,
 				"sandbox_referenced",
 				"sandbox is referenced by agent "+agentNames[0],
@@ -699,10 +704,10 @@ func (s *Service) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 			},
 		)
 		if err != nil {
-			writeInternalError(w, r, err)
+			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	sandbox.Namespace = access.namespace
@@ -718,10 +723,10 @@ func (s *Service) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		)
 
 		if eventTrailErr != nil {
-			writeInternalError(w, r, errors.Join(err, eventTrailErr))
+			apiutil.WriteInternalError(w, r, errors.Join(err, eventTrailErr))
 			return
 		}
-		writeError(w, r, mapKubeHTTPError("delete sandbox", err))
+		apiutil.WriteError(w, r, mapKubeHTTPError("delete sandbox", err))
 		return
 	}
 	event := sandboxEventTrail{
@@ -730,7 +735,7 @@ func (s *Service) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		result: gatewaydb.EventTrailResultSucceeded,
 	}
 	if err := s.createSandboxEventTrail(r.Context(), event); err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
@@ -766,11 +771,11 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 				},
 			)
 			if err != nil {
-				writeInternalError(w, r, err)
+				apiutil.WriteInternalError(w, r, err)
 				return
 			}
 		}
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	fields := validateUpdateSandboxRequest(req, workspaceID != "")
@@ -781,13 +786,13 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 			result: gatewaydb.EventTrailResultFailed,
 		}
 		if err := s.createSandboxEventTrail(r.Context(), event); err != nil {
-			writeInternalError(w, r, err)
+			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -812,7 +817,7 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 			)
 
 			if eventTrailErr != nil {
-				writeInternalError(w, r, errors.Join(err, eventTrailErr))
+				apiutil.WriteInternalError(w, r, errors.Join(err, eventTrailErr))
 				return
 			}
 			writeAllowedHostsError(w, r, fmt.Errorf("allowedHosts[%d]: %w", i, err))
@@ -868,10 +873,10 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		)
 
 		if eventTrailErr != nil {
-			writeInternalError(w, r, errors.Join(err, eventTrailErr))
+			apiutil.WriteInternalError(w, r, errors.Join(err, eventTrailErr))
 			return
 		}
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	fields = append(fields, skillFields...)
@@ -883,13 +888,13 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 			result: gatewaydb.EventTrailResultFailed,
 		}
 		if err := s.createSandboxEventTrail(r.Context(), event); err != nil {
-			writeInternalError(w, r, err)
+			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -915,10 +920,10 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 			},
 		)
 		if err != nil {
-			writeInternalError(w, r, err)
+			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	desiredInference := sandboxInferenceFromAPI(req.Inference)
@@ -942,10 +947,10 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		)
 
 		if eventTrailErr != nil {
-			writeInternalError(w, r, errors.Join(err, eventTrailErr))
+			apiutil.WriteInternalError(w, r, errors.Join(err, eventTrailErr))
 			return
 		}
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if len(dependencyFields) > 0 {
@@ -955,13 +960,13 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 			result: gatewaydb.EventTrailResultFailed,
 		}
 		if err := s.createSandboxEventTrail(r.Context(), event); err != nil {
-			writeInternalError(w, r, err)
+			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -1010,10 +1015,10 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		)
 
 		if eventTrailErr != nil {
-			writeInternalError(w, r, errors.Join(err, eventTrailErr))
+			apiutil.WriteInternalError(w, r, errors.Join(err, eventTrailErr))
 			return
 		}
-		writeError(w, r, mapKubeHTTPError("update sandbox", err))
+		apiutil.WriteError(w, r, mapKubeHTTPError("update sandbox", err))
 		return
 	}
 
@@ -1035,10 +1040,10 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		)
 
 		if eventTrailErr != nil {
-			writeInternalError(w, r, errors.Join(err, eventTrailErr))
+			apiutil.WriteInternalError(w, r, errors.Join(err, eventTrailErr))
 			return
 		}
-		writeInternalError(w, r, fmt.Errorf("check sandbox references: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("check sandbox references: %w", err))
 		return
 	}
 	event := sandboxEventTrail{
@@ -1047,7 +1052,7 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		result: gatewaydb.EventTrailResultSucceeded,
 	}
 	if err := s.createSandboxEventTrail(r.Context(), event); err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	actors, err := s.resourceActors(
@@ -1056,10 +1061,10 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		updated.Spec.LastModifiedByUserID,
 	)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, sandboxFromCRD(*updated, len(agentNames) > 0, access, actors))
+	apiutil.WriteJSON(w, http.StatusOK, sandboxFromCRD(*updated, len(agentNames) > 0, access, actors))
 }
 
 func sandboxFromCRD(sb agentzv1alpha1.Sandbox, referenced bool, access resourceAccess, actors map[string]gatewayapi.ResourceActor) gatewayapi.Sandbox {
@@ -1652,10 +1657,10 @@ func (s *Service) validateSandboxDependencies(ctx context.Context, access resour
 }
 
 func writeAllowedHostsError(w http.ResponseWriter, r *http.Request, err error) {
-	writeError(
+	apiutil.WriteError(
 		w,
 		r,
-		newAPIError(
+		apiutil.NewError(
 			http.StatusBadRequest,
 			"invalid_request",
 			"request validation failed",

@@ -191,7 +191,8 @@ func (c *Catalog) Entries(query string) (string, []CatalogEntry) {
 // reports whether they came from the live response, cache, or snapshot.
 func (c *Catalog) Suggestions(ctx context.Context, providerID string, providerKind agentzv1alpha1.InferenceProviderKind) ([]agentzv1alpha1.InferenceModel, CatalogProvenance, error) {
 	isCustom := providerID == "custom"
-	isCompatible := providerKind == agentzv1alpha1.InferenceProviderKindOpenAICompatible || providerKind == agentzv1alpha1.InferenceProviderKindAnthropicCompatible
+	isCompatible := providerKind == agentzv1alpha1.InferenceProviderKindOpenAICompatible ||
+		providerKind == agentzv1alpha1.InferenceProviderKindAnthropicCompatible
 	isSupported := isCustom && isCompatible
 	for _, entry := range catalogEntries {
 		if entry.ProviderID == providerID && entry.Kind == providerKind {
@@ -534,7 +535,11 @@ func modelsFromCatalog(provider catalogProvider, providerID string, providerKind
 		if id == "" {
 			id = key
 		}
-		if id == "" || strings.TrimSpace(model.Name) == "" || len(model.Modalities.Input) == 0 || len(model.Modalities.Output) == 0 || model.Limit.Context < 1 || model.Limit.Output < 1 {
+		missingIdentity := id == "" || strings.TrimSpace(model.Name) == ""
+		missingModalities := len(model.Modalities.Input) == 0 ||
+			len(model.Modalities.Output) == 0
+		invalidLimits := model.Limit.Context < 1 || model.Limit.Output < 1
+		if missingIdentity || missingModalities || invalidLimits {
 			continue
 		}
 		value := agentzv1alpha1.InferenceModel{

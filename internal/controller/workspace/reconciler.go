@@ -398,7 +398,8 @@ func (r *Reconciler) reconcileNamespace(ctx context.Context, workspace *agentzv1
 				workspaceOwned := ns.Labels[agentzv1alpha1.WorkspaceNameLabel] == workspace.Name
 				organizationOwned := ns.Labels[agentzv1alpha1.TenantOrganizationIDLabel] == tenant.Name
 				workspaceMatches := ns.Annotations[agentzv1alpha1.WorkspaceIDAnnotation] == workspace.Spec.WorkspaceID
-				organizationMatches := ns.Annotations[agentzv1alpha1.TenantOrganizationIDAnnotation] == workspace.Spec.OrganizationID
+				organizationID := ns.Annotations[agentzv1alpha1.TenantOrganizationIDAnnotation]
+				organizationMatches := organizationID == workspace.Spec.OrganizationID
 				if !managed || !workspaceOwned || !organizationOwned || !workspaceMatches || !organizationMatches {
 					return errNamespaceConflict
 				}

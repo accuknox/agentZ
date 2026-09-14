@@ -229,8 +229,10 @@ func ResolvePool(ctx context.Context, reader client.Reader, pool *agentzv1alpha1
 		warnings = append(
 			warnings,
 			agentzv1alpha1.InferencePoolWarning{
-				Code:    agentzv1alpha1.InferencePoolWarningMixedProtocols,
-				Message: "cross-family fallback may lose provider-specific fields, reasoning controls, structured-output details, and Anthropic cache annotations",
+				Code: agentzv1alpha1.InferencePoolWarningMixedProtocols,
+				Message: "cross-family fallback may lose provider-specific fields, " +
+					"reasoning controls, structured-output details, " +
+					"and Anthropic cache annotations",
 			},
 		)
 		break

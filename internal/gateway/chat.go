@@ -20,6 +20,7 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/accuknox/agentz/internal/authorization"
+	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
@@ -45,13 +46,13 @@ type chatSessionEvents struct {
 func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, params gatewayapi.ListChatSessionsParams) {
 	access, apiErr := s.resolveAgentAccess(r.Context(), "", authorization.OperationListAgents)
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 
 	capabilities, err := s.agentCapabilityProjections(r.Context(), access, "")
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	accessibleAgentNames := usableAgentNames(nil, capabilities)
@@ -69,7 +70,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		limit = *params.Limit
 	}
 	if limit < 1 || limit > 50 {
-		writeError(w, r, newAPIError(
+		apiutil.WriteError(w, r, apiutil.NewError(
 			http.StatusBadRequest,
 			"invalid_request",
 			"limit must be between 1 and 50",
@@ -91,7 +92,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		search = strings.TrimSpace(*params.Search)
 		length := utf8.RuneCountInString(search)
 		if search != "" && (length < 3 || length > 200) {
-			writeError(w, r, newAPIError(
+			apiutil.WriteError(w, r, apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"search must contain between 3 and 200 characters",
@@ -101,7 +102,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		}
 	}
 	if (params.ActiveAgentName == nil) != (params.ActiveSessionId == nil) {
-		writeError(w, r, newAPIError(
+		apiutil.WriteError(w, r, apiutil.NewError(
 			http.StatusBadRequest,
 			"invalid_request",
 			"active_agent_name and active_session_id must be provided together",
@@ -113,7 +114,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 	location := time.UTC
 	if groupBy == gatewayapi.ChatSessionGroupByDate {
 		if params.TimeZone == nil {
-			writeError(w, r, newAPIError(
+			apiutil.WriteError(w, r, apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"time_zone is required when grouping by date",
@@ -123,7 +124,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		}
 		location, err = time.LoadLocation(*params.TimeZone)
 		if err != nil {
-			writeError(w, r, newAPIError(
+			apiutil.WriteError(w, r, apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"time_zone is invalid",
@@ -142,7 +143,9 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		switch groupBy {
 		case gatewayapi.ChatSessionGroupByAgent:
 			activeGroup = *params.ActiveAgentName
-		case gatewayapi.ChatSessionGroupByStatus, gatewayapi.ChatSessionGroupByDate, gatewayapi.ChatSessionGroupByProject:
+		case gatewayapi.ChatSessionGroupByStatus,
+			gatewayapi.ChatSessionGroupByDate,
+			gatewayapi.ChatSessionGroupByProject:
 			row, getErr := s.queries.GatewayGetChatSessionGroup(
 				r.Context(),
 				gatewaydb.GatewayGetChatSessionGroupParams{
@@ -156,7 +159,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 				break
 			}
 			if getErr != nil {
-				writeInternalError(w, r, fmt.Errorf("get active chat session group: %w", getErr))
+				apiutil.WriteInternalError(w, r, fmt.Errorf("get active chat session group: %w", getErr))
 				return
 			}
 			switch groupBy {
@@ -185,7 +188,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 	groupValue := ""
 	if params.GroupKey != nil {
 		if groupBy == gatewayapi.ChatSessionGroupByNone {
-			writeError(w, r, newAPIError(
+			apiutil.WriteError(w, r, apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"group_key requires grouped results",
@@ -198,7 +201,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 			if decodeErr == nil {
 				decodeErr = errBadRequest
 			}
-			writeError(w, r, newAPIError(
+			apiutil.WriteError(w, r, apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"group_key is invalid",
@@ -212,7 +215,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 			projectID = pgtype.Text{String: groupValue, Valid: true}
 		case gatewayapi.ChatSessionGroupByAgent:
 			if !slices.Contains(accessibleAgentNames, groupValue) {
-				writeError(w, r, newAPIError(
+				apiutil.WriteError(w, r, apiutil.NewError(
 					http.StatusBadRequest,
 					"invalid_request",
 					"group_key is invalid",
@@ -226,7 +229,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 			if status != gatewaydb.ChatSessionStatusBusy &&
 				status != gatewaydb.ChatSessionStatusRetry &&
 				status != gatewaydb.ChatSessionStatusIdle {
-				writeError(w, r, newAPIError(
+				apiutil.WriteError(w, r, apiutil.NewError(
 					http.StatusBadRequest,
 					"invalid_request",
 					"group_key is invalid",
@@ -251,7 +254,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 			case gatewayapi.ChatSessionDateBucketOlder:
 				groupBefore = pgtype.Timestamptz{Time: previousWeek, Valid: true}
 			default:
-				writeError(w, r, newAPIError(
+				apiutil.WriteError(w, r, apiutil.NewError(
 					http.StatusBadRequest,
 					"invalid_request",
 					"group_key is invalid",
@@ -264,7 +267,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 
 	cursor, err := decodeChatSessionCursor(params.PageToken)
 	if err != nil {
-		writeError(w, r, newAPIError(
+		apiutil.WriteError(w, r, apiutil.NewError(
 			http.StatusBadRequest,
 			"invalid_request",
 			"page_token is invalid",
@@ -303,7 +306,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 			},
 		)
 		if filterErr != nil {
-			writeInternalError(w, r, fmt.Errorf("list chat session participant filters: %w", filterErr))
+			apiutil.WriteInternalError(w, r, fmt.Errorf("list chat session participant filters: %w", filterErr))
 			return
 		}
 		response.ParticipantFilters = make([]gatewayapi.ChatSessionParticipant, 0, len(filterRows))
@@ -320,12 +323,24 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 
 	if groupBy == gatewayapi.ChatSessionGroupByProject {
 		if !ownerID.Valid {
-			writeError(w, r, newAPIError(http.StatusBadRequest, "invalid_request", "Project groups require a coding workspace", errBadRequest))
+			apiutil.WriteError(
+				w,
+				r,
+				apiutil.NewError(
+					http.StatusBadRequest,
+					"invalid_request",
+					"Project groups require a coding workspace",
+					errBadRequest,
+				),
+			)
 			return
 		}
-		projects, err := s.queries.GatewayListCodingProjects(r.Context(), gatewaydb.GatewayListCodingProjectsParams{WorkspaceID: access.workspaceID, OwnerID: ownerID.String})
+		projects, err := s.queries.GatewayListCodingProjects(
+			r.Context(),
+			gatewaydb.GatewayListCodingProjectsParams{WorkspaceID: access.workspaceID, OwnerID: ownerID.String},
+		)
 		if err != nil {
-			writeInternalError(w, r, err)
+			apiutil.WriteInternalError(w, r, err)
 			return
 		}
 		for _, project := range projects {
@@ -345,11 +360,11 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 			response.Groups = append(response.Groups, group)
 		}
 		if params.GroupKey == nil {
-			writeJSON(w, http.StatusOK, response)
+			apiutil.WriteJSON(w, http.StatusOK, response)
 			return
 		}
 		if len(response.Groups) != 1 {
-			writeError(w, r, mapGatewayStoreError("get project", pgx.ErrNoRows))
+			apiutil.WriteError(w, r, mapGatewayStoreError("get project", pgx.ErrNoRows))
 			return
 		}
 	}
@@ -358,7 +373,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 	groupSelected := params.GroupKey != nil
 	switch {
 	case hasAgents && grouped && search != "" && !groupSelected:
-		rows, searchErr := s.queries.GatewaySearchGroupedChatSessions(
+		groups, searchErr := s.searchChatSessionGroups(
 			r.Context(),
 			gatewaydb.GatewaySearchGroupedChatSessionsParams{
 				OwnerID:             ownerID,
@@ -374,58 +389,13 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 				Search:              search,
 				ParticipantUserIds:  participantIDs,
 			},
+			activeGroup,
 		)
 		if searchErr != nil {
-			writeInternalError(w, r, fmt.Errorf("search grouped chat sessions: %w", searchErr))
+			apiutil.WriteInternalError(w, r, searchErr)
 			return
 		}
-		currentValue := ""
-		var group *gatewayapi.ChatSessionGroup
-		for _, row := range rows {
-			if row.GroupValue != currentValue {
-				value := chatSessionGroup(groupBy, row.GroupValue, activeGroup)
-				response.Groups = append(response.Groups, value)
-				group = &response.Groups[len(response.Groups)-1]
-				currentValue = row.GroupValue
-			}
-			if group == nil {
-				writeInternalError(w, r, errors.New("grouped chat query returned an empty group"))
-				return
-			}
-			if len(group.Sessions) == int(limit) {
-				group.HasNextPage = true
-				continue
-			}
-			var participants []gatewayapi.ChatSessionParticipant
-			decodeErr := json.Unmarshal([]byte(row.ParticipantsJson), &participants)
-			if decodeErr != nil {
-				writeInternalError(w, r, fmt.Errorf("decode chat session participants: %w", decodeErr))
-				return
-			}
-			group.Sessions = append(group.Sessions, gatewayapi.ChatSession{
-				AgentName: row.AgentName, SessionId: row.SessionID, Title: row.Title,
-				Kind:      gatewayapi.ChatSessionKind(row.Kind),
-				Status:    gatewayapi.ChatSessionStatus(row.Status),
-				CreatedAt: row.SourceCreatedAt.Time, UpdatedAt: row.SourceUpdatedAt.Time,
-				Participants: participants,
-			})
-		}
-		for i := range response.Groups {
-			group := &response.Groups[i]
-			if !group.HasNextPage {
-				continue
-			}
-			last := group.Sessions[len(group.Sessions)-1]
-			group.NextPageToken, err = encodeChatSessionCursor(chatSessionCursor{
-				UpdatedAt: last.UpdatedAt,
-				AgentName: last.AgentName,
-				SessionID: last.SessionId,
-			})
-			if err != nil {
-				writeInternalError(w, r, err)
-				return
-			}
-		}
+		response.Groups = groups
 	case grouped && !groupSelected && search == "":
 		values := agentNames
 		switch groupBy {
@@ -449,7 +419,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 				},
 			)
 			if err != nil {
-				writeInternalError(w, r, fmt.Errorf("list chat session date groups: %w", err))
+				apiutil.WriteInternalError(w, r, fmt.Errorf("list chat session date groups: %w", err))
 				return
 			}
 		}
@@ -457,7 +427,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 			response.Groups = append(response.Groups, chatSessionGroup(groupBy, value, activeGroup))
 		}
 	case hasAgents:
-		rows, listErr := s.queries.GatewayListChatSessions(
+		sessions, next, listErr := s.listChatSessionPage(
 			r.Context(),
 			gatewaydb.GatewayListChatSessionsParams{
 				ProjectID:           projectID,
@@ -483,37 +453,10 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 			},
 		)
 		if listErr != nil {
-			writeInternalError(w, r, fmt.Errorf("list chat sessions: %w", listErr))
+			apiutil.WriteInternalError(w, r, listErr)
 			return
 		}
-		hasNextPage := len(rows) > int(limit)
-		if hasNextPage {
-			rows = rows[:limit]
-		}
-		sessions := make([]gatewayapi.ChatSession, 0, len(rows))
-		for _, row := range rows {
-			var participants []gatewayapi.ChatSessionParticipant
-			decodeErr := json.Unmarshal([]byte(row.ParticipantsJson), &participants)
-			if decodeErr != nil {
-				writeInternalError(w, r, fmt.Errorf("decode chat session participants: %w", decodeErr))
-				return
-			}
-			var projectID *string
-			if row.ProjectID.Valid {
-				projectID = &row.ProjectID.String
-			}
-			sessions = append(sessions, gatewayapi.ChatSession{
-				ProjectId:    projectID,
-				AgentName:    row.AgentName,
-				SessionId:    row.SessionID,
-				Title:        row.Title,
-				Kind:         gatewayapi.ChatSessionKind(row.Kind),
-				Status:       gatewayapi.ChatSessionStatus(row.Status),
-				CreatedAt:    row.SourceCreatedAt.Time,
-				UpdatedAt:    row.SourceUpdatedAt.Time,
-				Participants: participants,
-			})
-		}
+		hasNextPage := next != ""
 		switch groupBy {
 		case gatewayapi.ChatSessionGroupByNone:
 			response.Sessions = sessions
@@ -527,41 +470,126 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 			group.HasNextPage = hasNextPage
 			response.Groups = append(response.Groups, group)
 		}
-		if hasNextPage {
-			last := rows[len(rows)-1]
-			nextPageToken, encodeErr := encodeChatSessionCursor(chatSessionCursor{
-				UpdatedAt: last.SourceUpdatedAt.Time,
-				AgentName: last.AgentName,
-				SessionID: last.SessionID,
-			})
-			if encodeErr != nil {
-				writeInternalError(w, r, encodeErr)
-				return
-			}
-			switch groupBy {
-			case gatewayapi.ChatSessionGroupByNone:
-				response.NextPageToken = nextPageToken
-			default:
-				response.Groups[0].NextPageToken = nextPageToken
-			}
+		if groupBy == gatewayapi.ChatSessionGroupByNone {
+			response.NextPageToken = next
+		} else {
+			response.Groups[0].NextPageToken = next
 		}
 	case groupSelected && groupBy != gatewayapi.ChatSessionGroupByProject:
 		response.Groups = append(response.Groups, chatSessionGroup(groupBy, groupValue, activeGroup))
 	}
 
-	writeJSON(w, http.StatusOK, response)
+	apiutil.WriteJSON(w, http.StatusOK, response)
+}
+
+func (s *Service) listChatSessionPage(ctx context.Context, q gatewaydb.GatewayListChatSessionsParams) ([]gatewayapi.ChatSession, string, error) {
+	rows, err := s.queries.GatewayListChatSessions(ctx, q)
+	if err != nil {
+		return nil, "", fmt.Errorf("list chat sessions: %w", err)
+	}
+	limit := int(q.PageSize) - 1
+	hasNextPage := len(rows) > limit
+	if hasNextPage {
+		rows = rows[:limit]
+	}
+	sessions := make([]gatewayapi.ChatSession, 0, len(rows))
+	for _, row := range rows {
+		var participants []gatewayapi.ChatSessionParticipant
+		decodeErr := json.Unmarshal([]byte(row.ParticipantsJson), &participants)
+		if decodeErr != nil {
+			return nil, "", fmt.Errorf("decode chat session participants: %w", decodeErr)
+		}
+		var projectID *string
+		if row.ProjectID.Valid {
+			projectID = &row.ProjectID.String
+		}
+		sessions = append(sessions, gatewayapi.ChatSession{
+			ProjectId:    projectID,
+			AgentName:    row.AgentName,
+			SessionId:    row.SessionID,
+			Title:        row.Title,
+			Kind:         gatewayapi.ChatSessionKind(row.Kind),
+			Status:       gatewayapi.ChatSessionStatus(row.Status),
+			CreatedAt:    row.SourceCreatedAt.Time,
+			UpdatedAt:    row.SourceUpdatedAt.Time,
+			Participants: participants,
+		})
+	}
+	if !hasNextPage {
+		return sessions, "", nil
+	}
+	last := rows[len(rows)-1]
+	next, err := encodeChatSessionCursor(chatSessionCursor{
+		UpdatedAt: last.SourceUpdatedAt.Time,
+		AgentName: last.AgentName,
+		SessionID: last.SessionID,
+	})
+	return sessions, next, err
+}
+
+func (s *Service) searchChatSessionGroups(ctx context.Context, q gatewaydb.GatewaySearchGroupedChatSessionsParams, activeGroup string) ([]gatewayapi.ChatSessionGroup, error) {
+	rows, err := s.queries.GatewaySearchGroupedChatSessions(ctx, q)
+	if err != nil {
+		return nil, fmt.Errorf("search grouped chat sessions: %w", err)
+	}
+	groups := []gatewayapi.ChatSessionGroup{}
+	currentValue := ""
+	var group *gatewayapi.ChatSessionGroup
+	for _, row := range rows {
+		if row.GroupValue != currentValue {
+			value := chatSessionGroup(gatewayapi.ChatSessionGroupBy(q.GroupBy), row.GroupValue, activeGroup)
+			groups = append(groups, value)
+			group = &groups[len(groups)-1]
+			currentValue = row.GroupValue
+		}
+		if group == nil {
+			return nil, errors.New("grouped chat query returned an empty group")
+		}
+		if len(group.Sessions) == int(q.PageSize-1) {
+			group.HasNextPage = true
+			continue
+		}
+		var participants []gatewayapi.ChatSessionParticipant
+		decodeErr := json.Unmarshal([]byte(row.ParticipantsJson), &participants)
+		if decodeErr != nil {
+			return nil, fmt.Errorf("decode chat session participants: %w", decodeErr)
+		}
+		group.Sessions = append(group.Sessions, gatewayapi.ChatSession{
+			AgentName: row.AgentName, SessionId: row.SessionID, Title: row.Title,
+			Kind:      gatewayapi.ChatSessionKind(row.Kind),
+			Status:    gatewayapi.ChatSessionStatus(row.Status),
+			CreatedAt: row.SourceCreatedAt.Time, UpdatedAt: row.SourceUpdatedAt.Time,
+			Participants: participants,
+		})
+	}
+	for i := range groups {
+		group := &groups[i]
+		if !group.HasNextPage {
+			continue
+		}
+		last := group.Sessions[len(group.Sessions)-1]
+		group.NextPageToken, err = encodeChatSessionCursor(chatSessionCursor{
+			UpdatedAt: last.UpdatedAt,
+			AgentName: last.AgentName,
+			SessionID: last.SessionId,
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+	return groups, nil
 }
 
 // GetChatSessionPreference handles GET /api/chat-session-preference.
 func (s *Service) GetChatSessionPreference(w http.ResponseWriter, r *http.Request) {
 	access, apiErr := s.resolveAgentAccess(r.Context(), "", authorization.OperationListAgents)
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	claims, apiErr := externalWorkspaceClaims(r.Context())
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 
@@ -573,7 +601,7 @@ func (s *Service) GetChatSessionPreference(w http.ResponseWriter, r *http.Reques
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		writeJSON(w, http.StatusOK, gatewayapi.ChatSessionPreference{
+		apiutil.WriteJSON(w, http.StatusOK, gatewayapi.ChatSessionPreference{
 			AgentName:           nil,
 			GroupBy:             gatewayapi.ChatSessionGroupByNone,
 			IncludeWorkflowRuns: false,
@@ -583,7 +611,7 @@ func (s *Service) GetChatSessionPreference(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("get chat session preference: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("get chat session preference: %w", err))
 		return
 	}
 	preference := workspaceChatPreference(row)
@@ -593,7 +621,7 @@ func (s *Service) GetChatSessionPreference(w http.ResponseWriter, r *http.Reques
 	}
 	capabilities, err := s.agentCapabilityProjections(r.Context(), access, "")
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if preference.AgentName != nil && !capabilities[*preference.AgentName].Use {
@@ -602,19 +630,19 @@ func (s *Service) GetChatSessionPreference(w http.ResponseWriter, r *http.Reques
 	if preference.LastAgentName != nil && !capabilities[*preference.LastAgentName].Use {
 		preference.LastAgentName = nil
 	}
-	writeJSON(w, http.StatusOK, preference)
+	apiutil.WriteJSON(w, http.StatusOK, preference)
 }
 
 // UpdateChatSessionPreference handles PUT /api/chat-session-preference.
 func (s *Service) UpdateChatSessionPreference(w http.ResponseWriter, r *http.Request) {
 	access, apiErr := s.resolveAgentAccess(r.Context(), "", authorization.OperationListAgents)
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	claims, apiErr := externalWorkspaceClaims(r.Context())
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 
@@ -624,7 +652,7 @@ func (s *Service) UpdateChatSessionPreference(w http.ResponseWriter, r *http.Req
 	}
 	auth, _ := requestAuthState(r.Context())
 	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding && body.IncludeWorkflowRuns {
-		writeError(w, r, newAPIError(
+		apiutil.WriteError(w, r, apiutil.NewError(
 			http.StatusForbidden,
 			"feature_disabled",
 			"workflows are disabled in coding workspaces",
@@ -642,7 +670,7 @@ func (s *Service) UpdateChatSessionPreference(w http.ResponseWriter, r *http.Req
 			authorization.OperationUseSharedAgent,
 		)
 		if apiErr != nil {
-			writeError(w, r, apiErr)
+			apiutil.WriteError(w, r, apiErr)
 			return
 		}
 	}
@@ -654,8 +682,18 @@ func (s *Service) UpdateChatSessionPreference(w http.ResponseWriter, r *http.Req
 		lastAgentName = pgtype.Text{String: *body.LastAgentName, Valid: true}
 	}
 
-	if body.GroupBy == gatewayapi.ChatSessionGroupByProject && auth.workspaceType != agentzv1alpha1.WorkspaceTypeCoding {
-		writeError(w, r, newAPIError(http.StatusBadRequest, "invalid_request", "Project groups require a coding workspace", errBadRequest))
+	if body.GroupBy == gatewayapi.ChatSessionGroupByProject &&
+		auth.workspaceType != agentzv1alpha1.WorkspaceTypeCoding {
+		apiutil.WriteError(
+			w,
+			r,
+			apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"Project groups require a coding workspace",
+				errBadRequest,
+			),
+		)
 		return
 	}
 	row, err := s.queries.GatewayUpsertWorkspaceChatPreference(
@@ -671,22 +709,22 @@ func (s *Service) UpdateChatSessionPreference(w http.ResponseWriter, r *http.Req
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("update chat session preference: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("update chat session preference: %w", err))
 		return
 	}
-	writeJSON(w, http.StatusOK, workspaceChatPreference(row))
+	apiutil.WriteJSON(w, http.StatusOK, workspaceChatPreference(row))
 }
 
 // WatchChatSessions handles GET /api/chat-session/watch.
 func (s *Service) WatchChatSessions(w http.ResponseWriter, r *http.Request) {
 	access, apiErr := s.resolveAgentAccess(r.Context(), "", authorization.OperationListAgents)
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		writeInternalError(w, r, errors.New("streaming is unavailable"))
+		apiutil.WriteInternalError(w, r, errors.New("streaming is unavailable"))
 		return
 	}
 
@@ -711,7 +749,7 @@ func (s *Service) WatchChatSessions(w http.ResponseWriter, r *http.Request) {
 				Revision: strconv.FormatUint(revision, 10),
 			})
 			if err != nil {
-				recordRequestError(w, "internal_error", err)
+				apiutil.RecordRequestError(w, "internal_error", err)
 				return
 			}
 			if _, err := fmt.Fprintf(w, "data: %s\n\n", raw); err != nil {

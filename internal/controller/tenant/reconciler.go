@@ -173,7 +173,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err := r.reconcileNamespace(ctx, &tenant, nsName); err != nil {
 		log.Error(err, "tenant namespace reconcile failed", "tenant", tenant.Name)
 		if errors.Is(err, errTenantIdentityConflict) {
-			return r.failTenant(ctx, &tenant, "Organisation namespace identity conflicts with an existing resource", err)
+			return r.failTenant(
+				ctx,
+				&tenant,
+				"Organisation namespace identity conflicts with an existing resource",
+				err,
+			)
 		}
 		return ctrl.Result{RequeueAfter: 2 * time.Second}, err
 	}
@@ -322,7 +327,8 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			&agentzv1alpha1.Agent{},
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
 				var namespace corev1.Namespace
-				if err := r.directClient().Get(ctx, client.ObjectKey{Name: obj.GetNamespace()}, &namespace); err != nil {
+				key := client.ObjectKey{Name: obj.GetNamespace()}
+				if err := r.directClient().Get(ctx, key, &namespace); err != nil {
 					return nil
 				}
 				tenantName := namespace.Labels[agentzv1alpha1.TenantOrganizationIDLabel]
@@ -358,7 +364,8 @@ func (r *Reconciler) reconcileNamespace(ctx context.Context, tenant *agentzv1alp
 				managed := ns.Labels[agentzv1alpha1.TenantManagedByLabel] == agentzv1alpha1.TenantManagedByValue
 				tenantOwned := ns.Labels[agentzv1alpha1.TenantNameLabel] == tenant.Name
 				organizationOwned := ns.Labels[agentzv1alpha1.TenantOrganizationIDLabel] == tenant.Name
-				identityMatches := ns.Annotations[agentzv1alpha1.TenantOrganizationIDAnnotation] == tenant.Spec.OrganizationID
+				organizationID := ns.Annotations[agentzv1alpha1.TenantOrganizationIDAnnotation]
+				identityMatches := organizationID == tenant.Spec.OrganizationID
 				if !managed || !tenantOwned || !organizationOwned || !identityMatches {
 					return errTenantIdentityConflict
 				}

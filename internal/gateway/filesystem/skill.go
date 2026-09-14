@@ -82,7 +82,7 @@ func (s *service) listSkills(w http.ResponseWriter, r *http.Request) {
 		err := fs.WalkDir(
 			s.root.FS(),
 			path.Join(mutableSkillsRoot, name),
-			func(filePath string, item fs.DirEntry, walkErr error) error {
+			func(_ string, item fs.DirEntry, walkErr error) error {
 				if walkErr != nil {
 					return walkErr
 				}
@@ -101,7 +101,6 @@ func (s *service) listSkills(w http.ResponseWriter, r *http.Request) {
 				if info.ModTime().After(modified) {
 					modified = info.ModTime()
 				}
-				_ = filePath
 				return nil
 			},
 		)

@@ -21,6 +21,7 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
+// ErrScheduleAgentMismatch reports a schedule outside the requested agent or workflow.
 var ErrScheduleAgentMismatch = errors.New("workflow schedule agent mismatch")
 
 const defaultRunsHistoryLimit int32 = 3
@@ -35,6 +36,7 @@ type scheduleSpecInput struct {
 	failedRunsHistoryLimit     *int32
 }
 
+// ValidateScheduleCreateRequest trims and validates a new schedule definition.
 func ValidateScheduleCreateRequest(agtName string, wfName string, req *gatewayapi.CreateWorkflowScheduleRequest) []gatewayapi.FieldError {
 	req.Name = strings.TrimSpace(req.Name)
 	agtName = strings.TrimSpace(agtName)
@@ -61,6 +63,7 @@ func ValidateScheduleCreateRequest(agtName string, wfName string, req *gatewayap
 	return validateScheduleRequest(agtName, wfName, req.Name, specInput)
 }
 
+// ValidateScheduleUpdateRequest trims and validates a replacement schedule.
 func ValidateScheduleUpdateRequest(agtName string, wfName string, name string, req *gatewayapi.UpdateWorkflowScheduleRequest) []gatewayapi.FieldError {
 	var timeZone *string
 	if req.TimeZone != nil {
@@ -89,6 +92,7 @@ func ValidateScheduleUpdateRequest(agtName string, wfName string, name string, r
 	)
 }
 
+// ValidateScheduleLookup checks the names identifying a schedule.
 func ValidateScheduleLookup(agtName string, wfName string, name string) []gatewayapi.FieldError {
 	fields := make([]gatewayapi.FieldError, 0, 3)
 	fields = append(fields, validateScheduleDNSLabel("agentName", strings.TrimSpace(agtName))...)
@@ -97,6 +101,7 @@ func ValidateScheduleLookup(agtName string, wfName string, name string) []gatewa
 	return fields
 }
 
+// ValidateScheduleList checks the agent and workflow names used to list schedules.
 func ValidateScheduleList(agtName string, wfName string) []gatewayapi.FieldError {
 	fields := make([]gatewayapi.FieldError, 0, 2)
 	fields = append(fields, validateScheduleDNSLabel("agentName", strings.TrimSpace(agtName))...)
@@ -104,10 +109,12 @@ func ValidateScheduleList(agtName string, wfName string) []gatewayapi.FieldError
 	return fields
 }
 
+// ValidateAgentScheduleList checks the agent name used to list its schedules.
 func ValidateAgentScheduleList(agtName string) []gatewayapi.FieldError {
 	return validateScheduleDNSLabel("agentName", strings.TrimSpace(agtName))
 }
 
+// ValidateScheduleInputs checks scheduled inputs against the stored workflow contract.
 func ValidateScheduleInputs(ctx context.Context, db *pgxpool.Pool, tenantNamespace string, agtName string, wfName string, inputs *gatewayapi.JSONValue) ([]gatewayapi.FieldError, error) {
 	raw, err := marshalInputsJSON(inputs)
 	if err != nil {
@@ -152,6 +159,7 @@ func ValidateRunInputs(ctx context.Context, db *pgxpool.Pool, tenantNamespace st
 	return fields, nil
 }
 
+// CreateSchedule stores a schedule owned by its agent and returns the stored object.
 func CreateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, req gatewayapi.CreateWorkflowScheduleRequest) (gatewayapi.WorkflowSchedule, error) {
 	specInput := scheduleSpecInput{
 		schedule:                   req.Schedule,
@@ -210,6 +218,7 @@ func CreateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 	return scheduleViewFromCRD(schedule)
 }
 
+// ListSchedules returns a sorted page of schedules for an agent and optional workflow.
 func ListSchedules(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, sortBy gatewayapi.WorkflowScheduleSortByQuery, sortOrder gatewayapi.SortOrderQuery, limit int, offset int) ([]gatewayapi.WorkflowSchedule, int, error) {
 	list := &agentzv1alpha1.WorkflowScheduleList{}
 	if err := k8sClient.List(ctx, list, ctrlclient.InNamespace(ns)); err != nil {
@@ -266,6 +275,7 @@ func ListSchedules(ctx context.Context, k8sClient ctrlclient.Client, ns string, 
 	return items[start:end], nextOffset, nil
 }
 
+// DeleteSchedule removes a schedule after checking its agent and workflow scope.
 func DeleteSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, name string) error {
 	schedule := &agentzv1alpha1.WorkflowSchedule{}
 	key := ctrlclient.ObjectKey{Name: name, Namespace: ns}
@@ -281,6 +291,7 @@ func DeleteSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 	return k8sClient.Delete(ctx, schedule)
 }
 
+// UpdateSchedule replaces a schedule specification, retrying concurrent updates.
 func UpdateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, name string, req gatewayapi.UpdateWorkflowScheduleRequest) (gatewayapi.WorkflowSchedule, error) {
 	current := &agentzv1alpha1.WorkflowSchedule{}
 	key := ctrlclient.ObjectKey{Name: name, Namespace: ns}
@@ -369,10 +380,6 @@ func scheduleViewFromCRD(schedule *agentzv1alpha1.WorkflowSchedule) (gatewayapi.
 }
 
 func marshalInputsJSON(value *gatewayapi.JSONValue) ([]byte, error) {
-	if value == nil {
-		return []byte("null"), nil
-	}
-
 	raw, err := json.Marshal(value)
 	if err != nil {
 		return nil, fmt.Errorf("marshal inputs: %w", err)

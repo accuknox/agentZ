@@ -8,6 +8,7 @@ import (
 	"github.com/accuknox/agentz/internal/observer"
 )
 
+// ObserverCmd collects workload telemetry into PostgreSQL.
 var ObserverCmd = &cli.Command{
 	Name:     "observer",
 	Usage:    "Telemetry observer service",

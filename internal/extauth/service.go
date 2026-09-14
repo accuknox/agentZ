@@ -301,7 +301,8 @@ func Serve(ctx context.Context, cfg Config) error {
 			srv.Stop()
 		}
 
-		if err := mcpServer.Shutdown(shutdownCtx); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		err := mcpServer.Shutdown(shutdownCtx)
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			return fmt.Errorf("shutdown ext auth mcp helper: %w", err)
 		}
 
@@ -351,6 +352,7 @@ type Service struct {
 
 var _ authv3.AuthorizationServer = (*Service)(nil)
 
+// Check authorizes one gateway request and supplies upstream credentials.
 func (s *Service) Check(ctx context.Context, req *authv3.CheckRequest) (*authv3.CheckResponse, error) {
 	decision, attrs := s.evaluate(ctx, req)
 
@@ -466,11 +468,7 @@ func (s *Service) evaluate(ctx context.Context, req *authv3.CheckRequest) (check
 		attrs.namespace = ns
 	}
 
-	request := checkAttrs.GetRequest()
-	var httpReq *authv3.AttributeContext_HttpRequest
-	if request != nil {
-		httpReq = request.GetHttp()
-	}
+	httpReq := checkAttrs.GetRequest().GetHttp()
 	if httpReq == nil {
 		return denyDecision(
 			codes.InvalidArgument,
@@ -596,7 +594,11 @@ func (s *Service) resolveInjectedRequest(ctx context.Context, conn *agentzv1alph
 	mcpconnwebhook.ApplyDefaults(&conn.Spec)
 
 	if conn.Spec.Auth == nil {
-		return injectedRequest{}, fmt.Errorf("mcp connection %q has no auth mode: %w", conn.Name, errCredentialUnavailable)
+		return injectedRequest{}, fmt.Errorf(
+			"mcp connection %q has no auth mode: %w",
+			conn.Name,
+			errCredentialUnavailable,
+		)
 	}
 
 	switch {
@@ -605,7 +607,11 @@ func (s *Service) resolveInjectedRequest(ctx context.Context, conn *agentzv1alph
 	case conn.Spec.Auth.OAuth != nil:
 		return s.resolveOAuthRequest(ctx, conn, attrs)
 	default:
-		return injectedRequest{}, fmt.Errorf("mcp connection %q has no supported auth mode: %w", conn.Name, errCredentialUnavailable)
+		return injectedRequest{}, fmt.Errorf(
+			"mcp connection %q has no supported auth mode: %w",
+			conn.Name,
+			errCredentialUnavailable,
+		)
 	}
 }
 
@@ -658,7 +664,10 @@ func headerLocation(location *agentzv1alpha1.MCPConnectionAuthLocation) (authHea
 		}, nil
 	}
 	if location.QueryParameter != nil || location.Cookie != nil {
-		return authHeaderLocation{}, fmt.Errorf("only header auth locations are supported: %w", errCredentialUnavailable)
+		return authHeaderLocation{}, fmt.Errorf(
+			"only header auth locations are supported: %w",
+			errCredentialUnavailable,
+		)
 	}
 	if location.Header == nil {
 		return authHeaderLocation{

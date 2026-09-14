@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/accuknox/agentz/internal/authorization"
+	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
@@ -98,10 +100,10 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 	route, methodAllowed := matchOpenCodeRoute(r.Method, r.URL.Path)
 	if route == nil {
 		if methodAllowed {
-			writeError(
+			apiutil.WriteError(
 				w,
 				r,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusMethodNotAllowed,
 					"method_not_allowed",
 					"method is not allowed for this route",
@@ -111,10 +113,10 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusNotFound,
 				"not_found",
 				"route not found",
@@ -125,7 +127,7 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 	}
 	access, apiErr := s.resolveAgentAccess(r.Context(), agentName, route.Operation)
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	if auth, ok := requestAuthState(r.Context()); ok && auth.actorType != requestActorSystem {
@@ -134,7 +136,7 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 			defer release()
 		}
 		if apiErr != nil {
-			writeError(w, r, apiErr)
+			apiutil.WriteError(w, r, apiErr)
 			return
 		}
 	}
@@ -142,10 +144,10 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 	ns := access.namespace
 	resolved, err := s.resolver.resolveAgent(r.Context(), ns, agentName)
 	if err != nil {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusNotFound,
 				"not_found",
 				"agent not found",
@@ -157,16 +159,16 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 
 	target, err := openCodeTargetURL(resolved.Target)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
 	path, rawPath, err := openCodeUpstreamPath(r.URL, agentName)
 	if err != nil {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusNotFound,
 				"not_found",
 				"route not found",
@@ -176,12 +178,12 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if opencodeProxyBodyLimitEnabled(r.Method) {
+	if _, limited := opencodeProxyBodyLimitedMethods[r.Method]; limited {
 		if r.ContentLength > opencodeProxyBodyLimitBytes {
-			writeError(
+			apiutil.WriteError(
 				w,
 				r,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusRequestEntityTooLarge,
 					"request_too_large",
 					"request body exceeds the maximum allowed size",
@@ -194,10 +196,10 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 	}
 	auth, _ := requestAuthState(r.Context())
 	if err := attributeOpenCodePrompt(r, route, auth); err != nil {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"bad_request",
 				"invalid OpenCode prompt",
@@ -230,10 +232,10 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		FlushInterval: -1,
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, proxyErr error) {
 			if _, ok := errors.AsType[*http.MaxBytesError](proxyErr); ok {
-				writeError(
+				apiutil.WriteError(
 					rw,
 					req,
-					newAPIError(
+					apiutil.NewError(
 						http.StatusRequestEntityTooLarge,
 						"request_too_large",
 						"request body exceeds the maximum allowed size",
@@ -243,15 +245,15 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			if apiErr, ok := errors.AsType[*apiError](proxyErr); ok {
-				writeError(rw, req, apiErr)
+			if apiErr, ok := errors.AsType[*apiutil.APIError](proxyErr); ok {
+				apiutil.WriteError(rw, req, apiErr)
 				return
 			}
 
-			writeError(
+			apiutil.WriteError(
 				rw,
 				req,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusBadGateway,
 					"proxy_error",
 					"request failed",
@@ -363,7 +365,8 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 	deleteTarget, hasSessionDelete := matchOpencodeSessionDelete(route, agentName)
 	return func(resp *http.Response) error {
 		stripOpenCodeCORSHeaders(resp)
-		if resp.StatusCode == http.StatusSwitchingProtocols && resp.Request.Header.Get("Sec-WebSocket-Protocol") == "agentz.pty" {
+		if resp.StatusCode == http.StatusSwitchingProtocols &&
+			resp.Request.Header.Get("Sec-WebSocket-Protocol") == "agentz.pty" {
 			resp.Header.Set("Sec-WebSocket-Protocol", "agentz.pty")
 			return nil
 		}
@@ -382,9 +385,10 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 			if route.Path == opencodeSessionCreatePath && auth.actorType == requestActorSystem {
 				kind = gatewaydb.ChatSessionKindWorkflowRun
 			}
-			if err := s.storeOpenCodeSessionResponse(
+			err := s.storeOpenCodeSessionResponse(
 				ctx, resp, workspaceID, agentName, kind,
-			); err != nil {
+			)
+			if err != nil {
 				return err
 			}
 		}
@@ -394,27 +398,34 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 			if route.Path == opencodeSessionPromptPath {
 				status = gatewaydb.ChatSessionStatusIdle
 			}
-			if err := s.recordOpenCodePrompt(
+			err := s.recordOpenCodePrompt(
 				ctx, route, auth, workspaceID, agentName, status,
-			); err != nil {
+			)
+			if err != nil {
 				return err
 			}
 		}
 		if route.Method == http.MethodPost && route.Path == opencodeSessionPromptPath {
-			if err := s.refreshOpenCodeSession(
+			err := s.refreshOpenCodeSession(
 				ctx, upstream, workspaceID, agentName, route.Params["sessionID"],
-			); err != nil {
+			)
+			if err != nil {
 				return err
 			}
 		}
 		if route.Method == http.MethodGet && route.Path == opencodeSessionStatusPath {
 			var directory pgtype.Text
 			if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding {
-				directory = pgtype.Text{String: strings.TrimPrefix(resp.Request.URL.Query().Get("directory"), "/home/agentz/"), Valid: true}
+				path := resp.Request.URL.Query().Get("directory")
+				directory = pgtype.Text{
+					String: strings.TrimPrefix(path, "/home/agentz/"),
+					Valid:  true,
+				}
 			}
-			if err := s.storeOpenCodeSessionStatusResponse(
+			err := s.storeOpenCodeSessionStatusResponse(
 				ctx, resp, workspaceID, agentName, directory,
-			); err != nil {
+			)
+			if err != nil {
 				return err
 			}
 		}
@@ -422,7 +433,7 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 			return nil
 		}
 		if err := deleteSessionTraces(ctx, s.queries, deleteTarget); err != nil {
-			return newAPIError(
+			return apiutil.NewError(
 				http.StatusInternalServerError,
 				"internal_error",
 				"request failed",
@@ -657,10 +668,12 @@ func matchOpenCodeRoute(method string, path string) (*opencodeRouteMatch, bool) 
 	rctx := chi.NewRouteContext()
 	if opencodeRouteMatcher.Match(rctx, method, path) {
 		return &opencodeRouteMatch{
-			Method:    method,
-			Path:      rctx.RoutePattern(),
-			Operation: opencodeRouteOperation(method, rctx.RoutePattern()),
-			Params:    routeParams(rctx.URLParams),
+			Method: method,
+			Path:   rctx.RoutePattern(),
+			Operation: opencodeRouteOperations[opencodeRouteKey{
+				method: method, path: rctx.RoutePattern(),
+			}],
+			Params: routeParams(rctx.URLParams),
 		}, false
 	}
 
@@ -675,10 +688,6 @@ func matchOpenCodeRoute(method string, path string) (*opencodeRouteMatch, bool) 
 	}
 
 	return nil, false
-}
-
-func opencodeRouteOperation(method string, path string) authorization.Operation {
-	return opencodeRouteOperations[opencodeRouteKey{method: method, path: path}]
 }
 
 func routeParams(params chi.RouteParams) map[string]string {
@@ -731,31 +740,19 @@ func openCodeUpstreamPath(u *url.URL, agentName string) (string, string, error) 
 	return out, rawPath, nil
 }
 
-// opencodeProxyBodyLimitEnabled reports whether the request method should be
-// subject to attachment-aware body limits before proxying upstream.
-func opencodeProxyBodyLimitEnabled(method string) bool {
-	_, ok := opencodeProxyBodyLimitedMethods[method]
-	return ok
-}
-
 // ptyWebsocketAuth carries a browser bearer in the WebSocket handshake rather
 // than the URL. It is removed before proxying and uses the normal live grants.
 func (s *Service) ptyWebsocketAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
-			allowed := false
-			for _, origin := range s.cfg.AllowedWebOrigins {
-				if origin == r.Header.Get("Origin") {
-					allowed = true
-					break
-				}
-			}
+			allowed := slices.Contains(s.cfg.AllowedWebOrigins, r.Header.Get("Origin"))
 			if !allowed {
-				writeError(w, r, resourceForbidden(errors.New("WebSocket origin is not allowed")))
+				apiutil.WriteError(w, r, resourceForbidden(errors.New("WebSocket origin is not allowed")))
 				return
 			}
 			for _, protocol := range strings.Split(r.Header.Get("Sec-WebSocket-Protocol"), ",") {
-				if token, ok := strings.CutPrefix(strings.TrimSpace(protocol), "agentz.bearer."); ok {
+				token, ok := strings.CutPrefix(strings.TrimSpace(protocol), "agentz.bearer.")
+				if ok {
 					r.Header.Set("Authorization", "Bearer "+token)
 				}
 			}

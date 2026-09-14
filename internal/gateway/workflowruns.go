@@ -10,6 +10,7 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
+	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	"github.com/accuknox/agentz/internal/gateway/workflow"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
@@ -21,7 +22,7 @@ const defaultWebhookTimeoutSeconds int32 = 3600
 func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, runName gatewayapi.WorkflowRunName) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
@@ -44,10 +45,10 @@ func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request,
 	fields = append(fields, workflow.ValidateRunTerminalPhase(req.Phase)...)
 	fields = append(fields, workflow.ValidateRunStatusMessage(message)...)
 	if len(fields) > 0 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -72,10 +73,10 @@ func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request,
 		var phaseErr *workflow.RunPhaseConflictError
 		switch {
 		case errors.Is(err, workflow.ErrWorkflowRunTerminal):
-			writeError(
+			apiutil.WriteError(
 				w,
 				r,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusConflict,
 					"conflict",
 					"workflow run already has a terminal status",
@@ -83,10 +84,10 @@ func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request,
 				),
 			)
 		case errors.As(err, &phaseErr):
-			writeError(
+			apiutil.WriteError(
 				w,
 				r,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusConflict,
 					"conflict",
 					err.Error(),
@@ -94,7 +95,7 @@ func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request,
 				),
 			)
 		default:
-			writeError(w, r, mapKubeHTTPError("patch workflow run status", err))
+			apiutil.WriteError(w, r, mapKubeHTTPError("patch workflow run status", err))
 		}
 		return
 	}
@@ -106,7 +107,7 @@ func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request,
 func (s *Service) PatchWorkflowRunNodeStatus(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, runName gatewayapi.WorkflowRunName, nodeName gatewayapi.WorkflowNodeName) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
@@ -131,10 +132,10 @@ func (s *Service) PatchWorkflowRunNodeStatus(w http.ResponseWriter, r *http.Requ
 	fields = append(fields, workflow.ValidateRunNodePatchPhase(req.Phase)...)
 	fields = append(fields, workflow.ValidateRunStatusMessage(message)...)
 	if len(fields) > 0 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -162,10 +163,10 @@ func (s *Service) PatchWorkflowRunNodeStatus(w http.ResponseWriter, r *http.Requ
 		var nodePhaseErr *workflow.NodePhaseConflictError
 		switch {
 		case errors.Is(err, workflow.ErrWorkflowNotFound):
-			writeError(
+			apiutil.WriteError(
 				w,
 				r,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusNotFound,
 					"not_found",
 					"workflow not found",
@@ -173,10 +174,10 @@ func (s *Service) PatchWorkflowRunNodeStatus(w http.ResponseWriter, r *http.Requ
 				),
 			)
 		case errors.Is(err, workflow.ErrWorkflowRunNodeNotFound):
-			writeError(
+			apiutil.WriteError(
 				w,
 				r,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusNotFound,
 					"not_found",
 					"workflow run node not found",
@@ -184,10 +185,10 @@ func (s *Service) PatchWorkflowRunNodeStatus(w http.ResponseWriter, r *http.Requ
 				),
 			)
 		case errors.Is(err, workflow.ErrWorkflowRunTerminal):
-			writeError(
+			apiutil.WriteError(
 				w,
 				r,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusConflict,
 					"conflict",
 					"workflow run already has a terminal status",
@@ -195,10 +196,10 @@ func (s *Service) PatchWorkflowRunNodeStatus(w http.ResponseWriter, r *http.Requ
 				),
 			)
 		case errors.As(err, &phaseErr):
-			writeError(
+			apiutil.WriteError(
 				w,
 				r,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusConflict,
 					"conflict",
 					err.Error(),
@@ -206,10 +207,10 @@ func (s *Service) PatchWorkflowRunNodeStatus(w http.ResponseWriter, r *http.Requ
 				),
 			)
 		case errors.As(err, &nodePhaseErr):
-			writeError(
+			apiutil.WriteError(
 				w,
 				r,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusConflict,
 					"conflict",
 					err.Error(),
@@ -217,7 +218,7 @@ func (s *Service) PatchWorkflowRunNodeStatus(w http.ResponseWriter, r *http.Requ
 				),
 			)
 		default:
-			writeError(w, r, mapKubeHTTPError("patch workflow run node status", err))
+			apiutil.WriteError(w, r, mapKubeHTTPError("patch workflow run node status", err))
 		}
 		return
 	}
@@ -229,7 +230,7 @@ func (s *Service) PatchWorkflowRunNodeStatus(w http.ResponseWriter, r *http.Requ
 func (s *Service) InvokeWorkflowWebhook(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, params gatewayapi.InvokeWorkflowWebhookParams) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
@@ -240,10 +241,10 @@ func (s *Service) InvokeWorkflowWebhook(w http.ResponseWriter, r *http.Request, 
 
 	auth, ok := requestAuthState(r.Context())
 	if !ok || strings.TrimSpace(auth.apiKeyID) == "" {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusUnauthorized,
 				"unauthorized",
 				"missing or invalid credentials",
@@ -270,10 +271,10 @@ func (s *Service) InvokeWorkflowWebhook(w http.ResponseWriter, r *http.Request, 
 		)
 	}
 	if len(fields) > 0 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -286,7 +287,7 @@ func (s *Service) InvokeWorkflowWebhook(w http.ResponseWriter, r *http.Request, 
 
 	rawInputs, err := json.Marshal(req)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("marshal webhook inputs: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("marshal webhook inputs: %w", err))
 		return
 	}
 
@@ -300,10 +301,10 @@ func (s *Service) InvokeWorkflowWebhook(w http.ResponseWriter, r *http.Request, 
 	)
 	if err != nil {
 		if errors.Is(err, workflow.ErrWorkflowNotFound) {
-			writeError(
+			apiutil.WriteError(
 				w,
 				r,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusNotFound,
 					"not_found",
 					"workflow not found",
@@ -312,14 +313,14 @@ func (s *Service) InvokeWorkflowWebhook(w http.ResponseWriter, r *http.Request, 
 			)
 			return
 		}
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if len(fields) > 0 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -341,28 +342,28 @@ func (s *Service) InvokeWorkflowWebhook(w http.ResponseWriter, r *http.Request, 
 		auth.apiKeyID,
 	)
 	if err != nil {
-		writeError(w, r, mapKubeHTTPError("invoke workflow webhook", err))
+		apiutil.WriteError(w, r, mapKubeHTTPError("invoke workflow webhook", err))
 		return
 	}
 
-	writeJSON(w, http.StatusAccepted, resp)
+	apiutil.WriteJSON(w, http.StatusAccepted, resp)
 }
 
 // ListWorkflowWebhookTriggers handles GET /api/workflow/{agentName}/webhook.
 func (s *Service) ListWorkflowWebhookTriggers(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, params gatewayapi.ListWorkflowWebhookTriggersParams) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
 	agentName := strings.TrimSpace(agtName)
 	fields := workflow.ValidateListRequest(agentName)
 	if len(fields) > 0 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -378,10 +379,10 @@ func (s *Service) ListWorkflowWebhookTriggers(w http.ResponseWriter, r *http.Req
 		limit = int(*params.Limit)
 	}
 	if limit < 1 || limit > 200 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"limit must be between 1 and 200",
@@ -405,7 +406,7 @@ func (s *Service) ListWorkflowWebhookTriggers(w http.ResponseWriter, r *http.Req
 		offset,
 	)
 	if err != nil {
-		writeError(w, r, mapKubeHTTPError("list workflow webhook triggers", err))
+		apiutil.WriteError(w, r, mapKubeHTTPError("list workflow webhook triggers", err))
 		return
 	}
 
@@ -415,14 +416,14 @@ func (s *Service) ListWorkflowWebhookTriggers(w http.ResponseWriter, r *http.Req
 	if nextOffset > 0 {
 		resp.NextPageToken = encodeOffsetToken(nextOffset)
 	}
-	writeJSON(w, http.StatusOK, resp)
+	apiutil.WriteJSON(w, http.StatusOK, resp)
 }
 
 // ListWorkflowRuns handles GET /api/workflow/{agentName}/{workflowName}/run.
 func (s *Service) ListWorkflowRuns(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, params gatewayapi.ListWorkflowRunsParams) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
@@ -431,10 +432,10 @@ func (s *Service) ListWorkflowRuns(w http.ResponseWriter, r *http.Request, agtNa
 	fields := workflow.ValidateLookupRequest(agentName, workflowName)
 	fields = append(fields, workflow.ValidateRunListFilters(params)...)
 	if len(fields) > 0 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -450,10 +451,10 @@ func (s *Service) ListWorkflowRuns(w http.ResponseWriter, r *http.Request, agtNa
 		limit = int(*params.Limit)
 	}
 	if limit < 1 || limit > 200 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"limit must be between 1 and 200",
@@ -479,7 +480,7 @@ func (s *Service) ListWorkflowRuns(w http.ResponseWriter, r *http.Request, agtNa
 		offset,
 	)
 	if err != nil {
-		writeError(w, r, mapKubeHTTPError("list workflow runs", err))
+		apiutil.WriteError(w, r, mapKubeHTTPError("list workflow runs", err))
 		return
 	}
 
@@ -487,7 +488,7 @@ func (s *Service) ListWorkflowRuns(w http.ResponseWriter, r *http.Request, agtNa
 	if nextOffset > 0 {
 		resp.NextPageToken = encodeOffsetToken(nextOffset)
 	}
-	writeJSON(w, http.StatusOK, resp)
+	apiutil.WriteJSON(w, http.StatusOK, resp)
 }
 
 // WatchWorkflowRuns handles POST /api/workflow/{agentName}/{workflowName}/run/watch.
@@ -496,7 +497,7 @@ func (s *Service) ListWorkflowRuns(w http.ResponseWriter, r *http.Request, agtNa
 func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
@@ -510,10 +511,10 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 	fields := workflow.ValidateLookupRequest(agentName, workflowName)
 	fields = append(fields, workflow.ValidateRunWatchNames(req.RunNames)...)
 	if len(fields) > 0 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -533,10 +534,10 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusInternalServerError,
 				"internal_error",
 				"streaming is unavailable",
@@ -562,7 +563,7 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 			WorkflowRuns: items,
 		})
 		if err != nil {
-			recordRequestError(w, "internal_error", err)
+			apiutil.RecordRequestError(w, "internal_error", err)
 			return false
 		}
 		if event != "" {
@@ -597,7 +598,7 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 				return false
 			}
 			if err != nil {
-				recordRequestError(w, "internal_error", err)
+				apiutil.RecordRequestError(w, "internal_error", err)
 				return false
 			}
 			for _, item := range listedItems {
@@ -616,7 +617,7 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 					return false
 				}
 				if err != nil {
-					recordRequestError(w, "internal_error", err)
+					apiutil.RecordRequestError(w, "internal_error", err)
 					return false
 				}
 				items = append(items, detail)
@@ -639,7 +640,7 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 				return false
 			}
 			if err != nil {
-				recordRequestError(w, "internal_error", err)
+				apiutil.RecordRequestError(w, "internal_error", err)
 				return false
 			}
 
@@ -650,7 +651,7 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 		for _, item := range items {
 			raw, err := json.Marshal(item)
 			if err != nil {
-				recordRequestError(w, "internal_error", err)
+				apiutil.RecordRequestError(w, "internal_error", err)
 				return false
 			}
 			if prevRaw[item.Name] == string(raw) {
@@ -714,7 +715,7 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 func (s *Service) GetWorkflowRun(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, runName gatewayapi.WorkflowRunName) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
@@ -725,10 +726,10 @@ func (s *Service) GetWorkflowRun(w http.ResponseWriter, r *http.Request, agtName
 	fields := workflow.ValidateLookupRequest(agentName, workflowName)
 	fields = append(fields, workflow.ValidateRunName(runName)...)
 	if len(fields) > 0 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -749,10 +750,10 @@ func (s *Service) GetWorkflowRun(w http.ResponseWriter, r *http.Request, agtName
 	)
 	if err != nil {
 		if errors.Is(err, workflow.ErrWorkflowRunScopeMismatch) {
-			writeError(
+			apiutil.WriteError(
 				w,
 				r,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusNotFound,
 					"not_found",
 					"workflow run not found",
@@ -764,18 +765,18 @@ func (s *Service) GetWorkflowRun(w http.ResponseWriter, r *http.Request, agtName
 			)
 			return
 		}
-		writeError(w, r, mapKubeHTTPError("get workflow run", err))
+		apiutil.WriteError(w, r, mapKubeHTTPError("get workflow run", err))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, detail)
+	apiutil.WriteJSON(w, http.StatusOK, detail)
 }
 
 // DeleteWorkflowRun handles DELETE /api/workflow/{agentName}/{workflowName}/run/{runName}.
 func (s *Service) DeleteWorkflowRun(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, runName gatewayapi.WorkflowRunName) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
@@ -786,10 +787,10 @@ func (s *Service) DeleteWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 	fields := workflow.ValidateLookupRequest(agentName, workflowName)
 	fields = append(fields, workflow.ValidateRunName(runName)...)
 	if len(fields) > 0 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -810,10 +811,10 @@ func (s *Service) DeleteWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 	)
 	if err != nil {
 		if errors.Is(err, workflow.ErrWorkflowRunScopeMismatch) {
-			writeError(
+			apiutil.WriteError(
 				w,
 				r,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusNotFound,
 					"not_found",
 					"workflow run not found",
@@ -825,7 +826,7 @@ func (s *Service) DeleteWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 			)
 			return
 		}
-		writeError(w, r, mapKubeHTTPError("delete workflow run", err))
+		apiutil.WriteError(w, r, mapKubeHTTPError("delete workflow run", err))
 		return
 	}
 

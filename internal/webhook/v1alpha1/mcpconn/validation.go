@@ -19,7 +19,6 @@ package mcpconn
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"net/textproto"
 	"net/url"
 	"strings"
@@ -422,7 +421,8 @@ func validateAuthLocation(location *agentzv1alpha1.MCPConnectionAuthLocation, pa
 				),
 			)
 		}
-		if _, ok := reservedAuthHeaders[headerName]; headerName != "" && ok && headerName != http.CanonicalHeaderKey("Authorization") {
+		_, reserved := reservedAuthHeaders[headerName]
+		if reserved && headerName != "Authorization" {
 			fields = append(
 				fields,
 				field.Invalid(

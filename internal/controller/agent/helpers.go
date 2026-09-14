@@ -191,10 +191,6 @@ func openBaoSinjectorName(agt *agentzv1alpha1.Agent) string {
 	return "sinjector-" + namespace + "-" + agent + "-" + suffix
 }
 
-func egressPolicyName(agt *agentzv1alpha1.Agent) string {
-	return agt.Name + egressPolicySuffix
-}
-
 func resourceLabels(agt *agentzv1alpha1.Agent) map[string]string {
 	labels := make(map[string]string, len(agt.Labels)+4)
 	maps.Copy(labels, agt.Labels)

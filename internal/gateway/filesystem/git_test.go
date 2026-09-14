@@ -15,6 +15,7 @@ import (
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 )
 
+// TestGitWorktreeLifecycle exercises branch ownership and safe checkout cleanup.
 func TestGitWorktreeLifecycle(t *testing.T) {
 	ctx := t.Context()
 	home := t.TempDir()
@@ -23,7 +24,15 @@ func TestGitWorktreeLifecycle(t *testing.T) {
 		t.Helper()
 		cmd := exec.CommandContext(ctx, "git", args...)
 		cmd.Dir = cwd
-		cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1", "GIT_AUTHOR_NAME=Test", "GIT_AUTHOR_EMAIL=test@example.com", "GIT_COMMITTER_NAME=Test", "GIT_COMMITTER_EMAIL=test@example.com")
+		cmd.Env = append(
+			os.Environ(),
+			"GIT_CONFIG_GLOBAL=/dev/null",
+			"GIT_CONFIG_NOSYSTEM=1",
+			"GIT_AUTHOR_NAME=Test",
+			"GIT_AUTHOR_EMAIL=test@example.com",
+			"GIT_COMMITTER_NAME=Test",
+			"GIT_COMMITTER_EMAIL=test@example.com",
+		)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("git %v: %v: %s", args, err, output)
@@ -31,7 +40,8 @@ func TestGitWorktreeLifecycle(t *testing.T) {
 		return strings.TrimSpace(string(output))
 	}
 	git(origin, "init", "-b", "main")
-	if err := os.WriteFile(filepath.Join(origin, "café.md"), []byte("original\n"), 0600); err != nil {
+	err := os.WriteFile(filepath.Join(origin, "café.md"), []byte("original\n"), 0600)
+	if err != nil {
 		t.Fatal(err)
 	}
 	git(origin, "add", ".")
@@ -48,7 +58,14 @@ func TestGitWorktreeLifecycle(t *testing.T) {
 	}
 	defer root.Close()
 	service := &service{root: root}
-	req := GitRequest{Root: "Projects/user/github/project", Directory: "Projects/user/github/project/worktrees/thread", Branch: "chore/thread", BaseBranch: "main", Prepare: true, Git: gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStatus, Bundle: &bundle}}
+	req := GitRequest{
+		Root:       "Projects/user/github/project",
+		Directory:  "Projects/user/github/project/worktrees/thread",
+		Branch:     "chore/thread",
+		BaseBranch: "main",
+		Prepare:    true,
+		Git:        gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStatus, Bundle: &bundle},
+	}
 	run := func(req GitRequest) gatewayapi.CodingGitResult {
 		t.Helper()
 		r, e := service.runGit(ctx, req)
@@ -62,7 +79,11 @@ func TestGitWorktreeLifecycle(t *testing.T) {
 		t.Fatalf("unexpected initial checkout: %+v", result)
 	}
 	req.Prepare = false
-	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitRename, Ref: new("docs/update-guide"), ExpectedHead: &result.Head}
+	req.Git = gatewayapi.CodingGitRequest{
+		Operation:    gatewayapi.CodingGitRename,
+		Ref:          new("docs/update-guide"),
+		ExpectedHead: &result.Head,
+	}
 	result = run(req)
 	if result.Branch != "docs/update-guide" {
 		t.Fatalf("branch did not rename: %s", result.Branch)
@@ -99,7 +120,8 @@ func TestGitWorktreeLifecycle(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "no available branch name") {
 		t.Fatalf("want exhausted branch names, got %v", err)
 	}
-	if got := git(filepath.Join(home, req.Directory), "branch", "--show-current"); got != req.Branch {
+	got := git(filepath.Join(home, req.Directory), "branch", "--show-current")
+	if got != req.Branch {
 		t.Fatalf("failed rename changed branch: %s", got)
 	}
 	if got := git(repo, "rev-parse", "refs/heads/docs/collision"); got != result.Head {
@@ -120,10 +142,12 @@ func TestGitWorktreeLifecycle(t *testing.T) {
 	}
 	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStatus}
 	directory := filepath.Join(home, req.Directory)
-	if err := os.WriteFile(filepath.Join(directory, "café.md"), []byte("changed\n"), 0600); err != nil {
+	err = os.WriteFile(filepath.Join(directory, "café.md"), []byte("changed\n"), 0600)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(directory, "space and\nnewline.txt"), []byte("new\n"), 0600); err != nil {
+	err = os.WriteFile(filepath.Join(directory, "space and\nnewline.txt"), []byte("new\n"), 0600)
+	if err != nil {
 		t.Fatal(err)
 	}
 	result = run(req)
@@ -172,30 +196,53 @@ func TestGitWorktreeLifecycle(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStage, Paths: new([]string{"café.md", "space and\nnewline.txt"}), ExpectedHead: &result.Head}
+	req.Git = gatewayapi.CodingGitRequest{
+		Operation:    gatewayapi.CodingGitStage,
+		Paths:        new([]string{"café.md", "space and\nnewline.txt"}),
+		ExpectedHead: &result.Head,
+	}
 	result = run(req)
 	// T3's selection replaces the index, including previously staged files.
-	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitPrepareCommit, Paths: new([]string{"space and\nnewline.txt"}), Revision: &result.Revision, ExpectedHead: &result.Head}
+	req.Git = gatewayapi.CodingGitRequest{
+		Operation:    gatewayapi.CodingGitPrepareCommit,
+		Paths:        new([]string{"space and\nnewline.txt"}),
+		Revision:     &result.Revision,
+		ExpectedHead: &result.Head,
+	}
 	selected := run(req)
-	if got := git(directory, "diff", "--cached", "--name-only", "-z"); got != "space and\nnewline.txt\x00" {
+	got = git(directory, "diff", "--cached", "--name-only", "-z")
+	if got != "space and\nnewline.txt\x00" {
 		t.Fatalf("quick commit included an excluded file: %q", got)
 	}
 	if _, err := service.runGit(ctx, req); err == nil {
 		t.Fatal("accepted stale selection revision")
 	}
-	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitCreateBranch, Ref: new("docs/quick-commit"), ExpectedHead: &selected.Head}
+	req.Git = gatewayapi.CodingGitRequest{
+		Operation:    gatewayapi.CodingGitCreateBranch,
+		Ref:          new("docs/quick-commit"),
+		ExpectedHead: &selected.Head,
+	}
 	created := run(req)
-	if created.Head != selected.Head || created.Tree == nil || *created.Tree != *selected.Tree || len(created.Files) != 2 {
+	if created.Head != selected.Head || created.Tree == nil ||
+		*created.Tree != *selected.Tree || len(created.Files) != 2 {
 		t.Fatal("creating a feature branch changed staged or working contents")
 	}
-	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitPrepareCommit, Revision: &created.Revision, ExpectedHead: &created.Head}
+	req.Git = gatewayapi.CodingGitRequest{
+		Operation:    gatewayapi.CodingGitPrepareCommit,
+		Revision:     &created.Revision,
+		ExpectedHead: &created.Head,
+	}
 	result = run(req)
 	if result.Ahead != 0 || result.AheadOfDefault != 0 || result.RemoteHead != "" || result.DefaultBranch != "main" {
 		t.Fatalf("incorrect unpublished branch status: %+v", result)
 	}
-	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitDiff, Comparison: new(gatewayapi.CodingGitStaged)}
+	req.Git = gatewayapi.CodingGitRequest{
+		Operation:  gatewayapi.CodingGitDiff,
+		Comparison: new(gatewayapi.CodingGitStaged),
+	}
 	result = run(req)
-	if result.Patches == nil || len(*result.Patches) != 2 || (*result.Patches)[0].Path != "café.md" || result.Tree == nil {
+	if result.Patches == nil || len(*result.Patches) != 2 ||
+		(*result.Patches)[0].Path != "café.md" || result.Tree == nil {
 		t.Fatal("staged review missing")
 	}
 	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitExport, ExpectedHead: &result.Head}
@@ -211,7 +258,10 @@ func TestGitWorktreeLifecycle(t *testing.T) {
 	if _, err := service.runGit(ctx, req); err == nil {
 		t.Fatal("switched dirty worktree")
 	}
-	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStatus, ExpectedHead: new(strings.Repeat("0", 40))}
+	req.Git = gatewayapi.CodingGitRequest{
+		Operation:    gatewayapi.CodingGitStatus,
+		ExpectedHead: new(strings.Repeat("0", 40)),
+	}
 	if _, err := service.runGit(ctx, req); err == nil {
 		t.Fatal("accepted stale head")
 	}
@@ -241,7 +291,8 @@ func TestGitWorktreeLifecycle(t *testing.T) {
 	}
 	git(repo, "stash", "push", "-m", "Keep this work")
 	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitRemove}
-	if _, err := service.runGit(ctx, req); err == nil || !strings.Contains(err.Error(), "stashes") {
+	_, err = service.runGit(ctx, req)
+	if err == nil || !strings.Contains(err.Error(), "stashes") {
 		t.Fatalf("cleanup did not protect saved work: %v", err)
 	}
 	if git(repo, "stash", "show", "-p") == "" {
@@ -254,6 +305,7 @@ func TestGitWorktreeLifecycle(t *testing.T) {
 	}
 }
 
+// TestGitReviewHunksAndStashes checks index isolation and conflict-safe stash updates.
 func TestGitReviewHunksAndStashes(t *testing.T) {
 	home := t.TempDir()
 	dir := filepath.Join(home, "Projects/review/repo")
@@ -264,7 +316,15 @@ func TestGitReviewHunksAndStashes(t *testing.T) {
 		t.Helper()
 		cmd := exec.CommandContext(t.Context(), "git", args...)
 		cmd.Dir = dir
-		cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1", "GIT_AUTHOR_NAME=Test", "GIT_AUTHOR_EMAIL=test@example.com", "GIT_COMMITTER_NAME=Test", "GIT_COMMITTER_EMAIL=test@example.com")
+		cmd.Env = append(
+			os.Environ(),
+			"GIT_CONFIG_GLOBAL=/dev/null",
+			"GIT_CONFIG_NOSYSTEM=1",
+			"GIT_AUTHOR_NAME=Test",
+			"GIT_AUTHOR_EMAIL=test@example.com",
+			"GIT_COMMITTER_NAME=Test",
+			"GIT_COMMITTER_EMAIL=test@example.com",
+		)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("git %v: %v: %s", args, err, out)
@@ -303,30 +363,54 @@ func TestGitReviewHunksAndStashes(t *testing.T) {
 	if status.Patches != nil {
 		t.Fatal("status loaded patch content")
 	}
-	review := run(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitDiff, Comparison: new(gatewayapi.CodingGitUnstaged)})
+	review := run(gatewayapi.CodingGitRequest{
+		Operation:  gatewayapi.CodingGitDiff,
+		Comparison: new(gatewayapi.CodingGitUnstaged),
+	})
 	patch := (*review.Patches)[0]
 	if !patch.CanStageHunks || patch.Path != "café.txt" {
 		t.Fatalf("ordinary modification cannot stage hunks: %+v", patch)
 	}
-	stage := gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStage, Comparison: new(gatewayapi.CodingGitUnstaged), Paths: new([]string{patch.Path}), Hunk: new(0), Revision: &patch.Revision}
+	stage := gatewayapi.CodingGitRequest{
+		Operation:  gatewayapi.CodingGitStage,
+		Comparison: new(gatewayapi.CodingGitUnstaged),
+		Paths:      new([]string{patch.Path}),
+		Hunk:       new(0),
+		Revision:   &patch.Revision,
+	}
 	run(stage)
-	if cached := git("diff", "--cached"); !strings.Contains(cached, "+FIRST") || strings.Contains(cached, "+LAST") {
+	cached := git("diff", "--cached")
+	if !strings.Contains(cached, "+FIRST") || strings.Contains(cached, "+LAST") {
 		t.Fatalf("staged unrelated hunk: %s", cached)
 	}
 	req.Git = stage
 	if _, err := s.runGit(t.Context(), req); err == nil {
 		t.Fatal("accepted stale patch")
 	}
-	review = run(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitDiff, Comparison: new(gatewayapi.CodingGitStaged)})
+	review = run(gatewayapi.CodingGitRequest{
+		Operation:  gatewayapi.CodingGitDiff,
+		Comparison: new(gatewayapi.CodingGitStaged),
+	})
 	patch = (*review.Patches)[0]
-	run(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitUnstage, Comparison: new(gatewayapi.CodingGitStaged), Paths: new([]string{patch.Path}), Hunk: new(0), Revision: &patch.Revision})
+	run(gatewayapi.CodingGitRequest{
+		Operation:  gatewayapi.CodingGitUnstage,
+		Comparison: new(gatewayapi.CodingGitStaged),
+		Paths:      new([]string{patch.Path}),
+		Hunk:       new(0),
+		Revision:   &patch.Revision,
+	})
 	if git("diff", "--cached") != "" || !strings.Contains(git("diff"), "+LAST") {
 		t.Fatal("unstage did not preserve the worktree")
 	}
 	name := "space and\n雪.txt"
 	write(name, "untracked\n")
 	status = run(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStatus})
-	run(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStashCreate, Comparison: new(gatewayapi.CodingGitAll), Revision: &status.Revision, Message: new("Saved review")})
+	run(gatewayapi.CodingGitRequest{
+		Operation:  gatewayapi.CodingGitStashCreate,
+		Comparison: new(gatewayapi.CodingGitAll),
+		Revision:   &status.Revision,
+		Message:    new("Saved review"),
+	})
 	stashes := run(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStashes})
 	if len(stashes.Files) != 0 || stashes.Stashes == nil || len(*stashes.Stashes) != 1 {
 		t.Fatalf("stash did not save all changes: %+v", stashes)
@@ -342,7 +426,8 @@ func TestGitReviewHunksAndStashes(t *testing.T) {
 	git("add", ".")
 	git("commit", "-m", "Competing edit")
 	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStashPop, Stash: &oid}
-	if _, err := s.runGit(t.Context(), req); err == nil || !strings.Contains(err.Error(), "CONFLICT") {
+	_, err = s.runGit(t.Context(), req)
+	if err == nil || !strings.Contains(err.Error(), "CONFLICT") {
 		t.Fatalf("missing stash conflict details: %v", err)
 	}
 	status = run(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStatus})
@@ -404,7 +489,15 @@ func BenchmarkGitReview(b *testing.B) {
 				b.Helper()
 				cmd := exec.CommandContext(b.Context(), "git", args...)
 				cmd.Dir = dir
-				cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1", "GIT_AUTHOR_NAME=Benchmark", "GIT_AUTHOR_EMAIL=benchmark@example.invalid", "GIT_COMMITTER_NAME=Benchmark", "GIT_COMMITTER_EMAIL=benchmark@example.invalid")
+				cmd.Env = append(
+					os.Environ(),
+					"GIT_CONFIG_GLOBAL=/dev/null",
+					"GIT_CONFIG_NOSYSTEM=1",
+					"GIT_AUTHOR_NAME=Benchmark",
+					"GIT_AUTHOR_EMAIL=benchmark@example.invalid",
+					"GIT_COMMITTER_NAME=Benchmark",
+					"GIT_COMMITTER_EMAIL=benchmark@example.invalid",
+				)
 				if out, err := cmd.CombinedOutput(); err != nil {
 					b.Fatalf("git %v: %v: %s", args, err, out)
 				}
@@ -445,7 +538,11 @@ func BenchmarkGitReview(b *testing.B) {
 			if fixture.status {
 				op = gatewayapi.CodingGitStatus
 			}
-			body, err := json.Marshal(GitRequest{Root: "Projects/benchmark", Directory: "Projects/benchmark/repo", Git: gatewayapi.CodingGitRequest{Operation: op, Comparison: new(gatewayapi.CodingGitAll)}})
+			body, err := json.Marshal(GitRequest{
+				Root:      "Projects/benchmark",
+				Directory: "Projects/benchmark/repo",
+				Git:       gatewayapi.CodingGitRequest{Operation: op, Comparison: new(gatewayapi.CodingGitAll)},
+			})
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -458,7 +555,12 @@ func BenchmarkGitReview(b *testing.B) {
 			if err := json.Unmarshal(warm.Body.Bytes(), &result); err != nil {
 				b.Fatal(err)
 			}
-			if len(result.Files) != fixture.files || (!fixture.status && (result.Patches == nil || len(*result.Patches) != fixture.files)) {
+			incomplete := len(result.Files) != fixture.files
+			if !fixture.status {
+				incomplete = incomplete || result.Patches == nil ||
+					len(*result.Patches) != fixture.files
+			}
+			if incomplete {
 				b.Fatal("incomplete fixture comparison")
 			}
 			if fixture.lines == 100000 && !fixture.sparse && !strings.Contains(warm.Body.String(), "line 100000") {
@@ -469,7 +571,10 @@ func BenchmarkGitReview(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
 				response := httptest.NewRecorder()
-				s.git(response, httptest.NewRequestWithContext(b.Context(), http.MethodPost, "/git", bytes.NewReader(body)))
+				s.git(
+					response,
+					httptest.NewRequestWithContext(b.Context(), http.MethodPost, "/git", bytes.NewReader(body)),
+				)
 				if response.Code != http.StatusOK || response.Body.Len() != size {
 					b.Fatal("comparison changed or failed during benchmark")
 				}

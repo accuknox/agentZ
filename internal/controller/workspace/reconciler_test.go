@@ -115,7 +115,8 @@ func TestReconcileCreatesDeterministicWorkspaceNamespace(t *testing.T) {
 	}
 
 	var ns corev1.Namespace
-	if err := testClient.Get(context.Background(), client.ObjectKey{Name: workspace.Name}, &ns); err != nil {
+	key := client.ObjectKey{Name: workspace.Name}
+	if err := testClient.Get(context.Background(), key, &ns); err != nil {
 		t.Fatalf("get workspace namespace: %v", err)
 	}
 	tenantName := agentzv1alpha1.ScopeNamespace(
@@ -241,7 +242,8 @@ func TestReconcileCreatesDeterministicWorkspaceNamespace(t *testing.T) {
 	if got := pvc.Labels[agentzv1alpha1.WorkspaceNameLabel]; got != workspace.Name {
 		t.Errorf("PVC workspace label = %q, want %q", got, workspace.Name)
 	}
-	if got := pvc.Spec.Resources.Requests[corev1.ResourceStorage]; got.Cmp(resource.MustParse("1Gi")) != 0 {
+	got := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
+	if got.Cmp(resource.MustParse("1Gi")) != 0 {
 		t.Errorf("PVC storage = %s, want 1Gi", got.String())
 	}
 
@@ -437,9 +439,12 @@ func TestReconcileRejectsConflictingNamespaceWithoutLeakingIdentity(t *testing.T
 		ObjectMeta: metav1.ObjectMeta{
 			Name: workspace.Name,
 			Labels: map[string]string{
-				agentzv1alpha1.TenantManagedByLabel:      agentzv1alpha1.TenantManagedByValue,
-				agentzv1alpha1.WorkspaceNameLabel:        workspace.Name,
-				agentzv1alpha1.TenantOrganizationIDLabel: agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeOrganisation, organizationID),
+				agentzv1alpha1.TenantManagedByLabel: agentzv1alpha1.TenantManagedByValue,
+				agentzv1alpha1.WorkspaceNameLabel:   workspace.Name,
+				agentzv1alpha1.TenantOrganizationIDLabel: agentzv1alpha1.ScopeNamespace(
+					agentzv1alpha1.ResourceScopeOrganisation,
+					organizationID,
+				),
 			},
 			Annotations: map[string]string{
 				agentzv1alpha1.WorkspaceIDAnnotation:          "foreign-workspace-secret",
@@ -560,13 +565,17 @@ func TestReconcileReplaysFailedLifecycleAfterCallbackFailure(t *testing.T) {
 	}
 
 	var stored corev1.Namespace
-	if err := testClient.Get(context.Background(), client.ObjectKey{Name: workspace.Name}, &stored); err != nil {
+	key := client.ObjectKey{Name: workspace.Name}
+	if err := testClient.Get(context.Background(), key, &stored); err != nil {
 		t.Fatalf("get unmarked namespace: %v", err)
 	}
 	stored.Labels = map[string]string{
-		agentzv1alpha1.TenantManagedByLabel:      agentzv1alpha1.TenantManagedByValue,
-		agentzv1alpha1.WorkspaceNameLabel:        workspace.Name,
-		agentzv1alpha1.TenantOrganizationIDLabel: agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeOrganisation, organizationID),
+		agentzv1alpha1.TenantManagedByLabel: agentzv1alpha1.TenantManagedByValue,
+		agentzv1alpha1.WorkspaceNameLabel:   workspace.Name,
+		agentzv1alpha1.TenantOrganizationIDLabel: agentzv1alpha1.ScopeNamespace(
+			agentzv1alpha1.ResourceScopeOrganisation,
+			organizationID,
+		),
 	}
 	stored.Annotations = map[string]string{
 		agentzv1alpha1.WorkspaceIDAnnotation:          workspaceID,
@@ -721,7 +730,8 @@ func createReadyTenant(t *testing.T, organizationID string) {
 func markTenantReady(t *testing.T, name string) {
 	t.Helper()
 	var tenant agentzv1alpha1.Tenant
-	if err := testClient.Get(context.Background(), client.ObjectKey{Name: name}, &tenant); err != nil {
+	key := client.ObjectKey{Name: name}
+	if err := testClient.Get(context.Background(), key, &tenant); err != nil {
 		t.Fatalf("get tenant: %v", err)
 	}
 	tenant.Status.Namespace = tenant.Name
@@ -746,6 +756,7 @@ func createWorkspace(t *testing.T, organizationID, workspaceID string, attempt i
 			workspaceID,
 		)},
 		Spec: agentzv1alpha1.WorkspaceSpec{
+			Type:                agentzv1alpha1.WorkspaceTypeGeneral,
 			OrganizationID:      organizationID,
 			ProvisioningAttempt: attempt,
 			WorkspaceID:         workspaceID,
@@ -760,7 +771,8 @@ func createWorkspace(t *testing.T, organizationID, workspaceID string, attempt i
 func getWorkspace(t *testing.T, name string) *agentzv1alpha1.Workspace {
 	t.Helper()
 	var workspace agentzv1alpha1.Workspace
-	if err := testClient.Get(context.Background(), client.ObjectKey{Name: name}, &workspace); err != nil {
+	key := client.ObjectKey{Name: name}
+	if err := testClient.Get(context.Background(), key, &workspace); err != nil {
 		t.Fatalf("get workspace: %v", err)
 	}
 	return &workspace

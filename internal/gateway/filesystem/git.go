@@ -43,7 +43,13 @@ func (s *service) git(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Reads do not wait behind repository mutations or unrelated file writes.
-	if req.Prepare || (req.Git.Operation != gatewayapi.CodingGitDiscover && req.Git.Operation != gatewayapi.CodingGitStatus && req.Git.Operation != gatewayapi.CodingGitDiff && req.Git.Operation != gatewayapi.CodingGitStashes) {
+	readOnly := false
+	switch req.Git.Operation {
+	case gatewayapi.CodingGitDiscover, gatewayapi.CodingGitStatus,
+		gatewayapi.CodingGitDiff, gatewayapi.CodingGitStashes:
+		readOnly = true
+	}
+	if req.Prepare || !readOnly {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 	}
@@ -51,7 +57,16 @@ func (s *service) git(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	result, err := s.runGit(ctx, req)
 	if err != nil {
-		writeFailure(w, r, &failure{status: http.StatusConflict, code: "git_conflict", message: err.Error(), cause: err})
+		writeFailure(
+			w,
+			r,
+			&failure{
+				status:  http.StatusConflict,
+				code:    "git_conflict",
+				message: err.Error(),
+				cause:   err,
+			},
+		)
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
@@ -98,7 +113,20 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			"-c", "core.quotePath=false",
 		}, args...)...)
 		command.Dir = cwd
-		command.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=/nonexistent", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_TERMINAL_PROMPT=0", "GIT_ATTR_NOSYSTEM=1", "LC_ALL=C", "GIT_OPTIONAL_LOCKS=0", "GIT_AUTHOR_NAME=AgentZ", "GIT_AUTHOR_EMAIL=stash@invalid", "GIT_COMMITTER_NAME=AgentZ", "GIT_COMMITTER_EMAIL=stash@invalid"}
+		command.Env = []string{
+			"PATH=" + os.Getenv("PATH"),
+			"HOME=/nonexistent",
+			"GIT_CONFIG_NOSYSTEM=1",
+			"GIT_CONFIG_GLOBAL=/dev/null",
+			"GIT_TERMINAL_PROMPT=0",
+			"GIT_ATTR_NOSYSTEM=1",
+			"LC_ALL=C",
+			"GIT_OPTIONAL_LOCKS=0",
+			"GIT_AUTHOR_NAME=AgentZ",
+			"GIT_AUTHOR_EMAIL=stash@invalid",
+			"GIT_COMMITTER_NAME=AgentZ",
+			"GIT_COMMITTER_EMAIL=stash@invalid",
+		}
 		if index != "" {
 			command.Env = append(command.Env, "GIT_INDEX_FILE="+index)
 		}
@@ -199,7 +227,14 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			}
 			snapshot.Worktrees = append(snapshot.Worktrees, tree)
 		}
-		raw, err = run(repo, "", "for-each-ref", "--format=%(refname)%00%(objectname)%00%(committerdate:unix)%00%(symref)", "refs/heads/", "refs/remotes/")
+		raw, err = run(
+			repo,
+			"",
+			"for-each-ref",
+			"--format=%(refname)%00%(objectname)%00%(committerdate:unix)%00%(symref)",
+			"refs/heads/",
+			"refs/remotes/",
+		)
 		if err != nil {
 			return result, err
 		}
@@ -252,7 +287,16 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 		if req.Git.Operation == gatewayapi.CodingGitApplyCommit {
 			namespace = "refs/agentz/incoming/"
 		}
-		_, err = run(cwd, "", "fetch", "--prune", "--no-tags", "--no-recurse-submodules", file.Name(), "+refs/heads/*:"+namespace+"*")
+		_, err = run(
+			cwd,
+			"",
+			"fetch",
+			"--prune",
+			"--no-tags",
+			"--no-recurse-submodules",
+			file.Name(),
+			"+refs/heads/*:"+namespace+"*",
+		)
 		return err
 	}
 	if req.Prepare {
@@ -260,7 +304,8 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			return result, errors.New("invalid base branch")
 		}
 		if _, err := os.Stat(filepath.Join(repo, ".git")); errors.Is(err, os.ErrNotExist) {
-			if _, err := run(root, "", "init", "--initial-branch="+req.BaseBranch, repo); err != nil {
+			_, err = run(root, "", "init", "--initial-branch="+req.BaseBranch, repo)
+			if err != nil {
 				return result, err
 			}
 		}
@@ -298,18 +343,28 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			}
 		}
 		if headErr != nil {
-			if _, err := run(repo, "", "checkout", "-B", req.BaseBranch, "refs/remotes/origin/"+req.BaseBranch); err != nil {
+			_, err = run(
+				repo,
+				"",
+				"checkout",
+				"-B",
+				req.BaseBranch,
+				"refs/remotes/origin/"+req.BaseBranch,
+			)
+			if err != nil {
 				return result, err
 			}
 		}
 
 		if directory != repo {
 			if _, err := os.Stat(directory); errors.Is(err, os.ErrNotExist) {
-				if _, err := run(repo, "", "check-ref-format", "--branch", req.Branch); err != nil {
+				_, err = run(repo, "", "check-ref-format", "--branch", req.Branch)
+				if err != nil {
 					return result, errors.New("invalid worktree branch")
 				}
 
-				if _, err := run(repo, "", "worktree", "add", "-b", req.Branch, directory, base); err != nil {
+				_, err = run(repo, "", "worktree", "add", "-b", req.Branch, directory, base)
+				if err != nil {
 					return result, err
 				}
 			}
@@ -363,7 +418,15 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			if err != nil {
 				return nil, fmt.Errorf("read stash date: %w", err)
 			}
-			stashes = append(stashes, gatewayapi.CodingGitStash{Reference: strings.TrimSpace(entries[i]), Oid: entries[i+1], CreatedAt: created, Message: entries[i+3]})
+			stashes = append(
+				stashes,
+				gatewayapi.CodingGitStash{
+					Reference: strings.TrimSpace(entries[i]),
+					Oid:       entries[i+1],
+					CreatedAt: created,
+					Message:   entries[i+3],
+				},
+			)
 		}
 		return stashes, nil
 	}
@@ -415,7 +478,14 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 				return err
 			}
 			if info != nil {
-				fmt.Fprintf(digest, "%s\x00%d:%d:%d\x00", file.Path, info.Size(), info.ModTime().UnixNano(), info.Mode())
+				fmt.Fprintf(
+					digest,
+					"%s\x00%d:%d:%d\x00",
+					file.Path,
+					info.Size(),
+					info.ModTime().UnixNano(),
+					info.Mode(),
+				)
 			}
 			result.Files = append(result.Files, file)
 		}
@@ -443,7 +513,18 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 	// Git owns patch bodies. Reads parse only file headers; full hunk parsing is
 	// reserved for mutations so reviewing large files does not build a second AST.
 	readPatches := func() ([]gatewayapi.CodingGitPatch, error) {
-		args := []string{"--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv", "--no-color", "--full-index", "--src-prefix=a/", "--dst-prefix=b/", "--unified=3", "--diff-filter=ACDMRT"}
+		args := []string{
+			"--literal-pathspecs",
+			"diff",
+			"--no-ext-diff",
+			"--no-textconv",
+			"--no-color",
+			"--full-index",
+			"--src-prefix=a/",
+			"--dst-prefix=b/",
+			"--unified=3",
+			"--diff-filter=ACDMRT",
+		}
 		if req.Git.Stash != nil {
 			args = append(args, *req.Git.Stash+"^1", *req.Git.Stash)
 		} else if comparison == gatewayapi.CodingGitStaged {
@@ -469,8 +550,22 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 		}
 		chunks := []string{patch}
 		if req.Git.Stash != nil {
-			if _, err := run(directory, "", "rev-parse", "--verify", *req.Git.Stash+"^3"); err == nil {
-				args := []string{"--literal-pathspecs", "diff-tree", "--root", "--no-commit-id", "-r", "-p", "--no-ext-diff", "--no-textconv", "--no-color", "--full-index", *req.Git.Stash + "^3", "--"}
+			_, err = run(directory, "", "rev-parse", "--verify", *req.Git.Stash+"^3")
+			if err == nil {
+				args := []string{
+					"--literal-pathspecs",
+					"diff-tree",
+					"--root",
+					"--no-commit-id",
+					"-r",
+					"-p",
+					"--no-ext-diff",
+					"--no-textconv",
+					"--no-color",
+					"--full-index",
+					*req.Git.Stash + "^3",
+					"--",
+				}
 				if req.Git.Paths != nil {
 					args = append(args, *req.Git.Paths...)
 				}
@@ -489,7 +584,21 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 				untracked = append(untracked, file.Path)
 			}
 			if len(untracked) == 1 {
-				patch, err := run(directory, "", "diff", "--no-index", "--no-ext-diff", "--no-textconv", "--no-color", "--full-index", "--src-prefix=a/", "--dst-prefix=b/", "--", "/dev/null", untracked[0])
+				patch, err := run(
+					directory,
+					"",
+					"diff",
+					"--no-index",
+					"--no-ext-diff",
+					"--no-textconv",
+					"--no-color",
+					"--full-index",
+					"--src-prefix=a/",
+					"--dst-prefix=b/",
+					"--",
+					"/dev/null",
+					untracked[0],
+				)
 				if err != nil {
 					return nil, err
 				}
@@ -504,13 +613,33 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 				defer os.RemoveAll(tmp)
 				index := filepath.Join(tmp, "index")
 				spec := filepath.Join(tmp, "paths")
-				if err := os.WriteFile(spec, []byte(strings.Join(untracked, "\x00")+"\x00"), 0o600); err != nil {
+				err = os.WriteFile(spec, []byte(strings.Join(untracked, "\x00")+"\x00"), 0o600)
+				if err != nil {
 					return nil, err
 				}
-				if _, err := run(directory, index, "--literal-pathspecs", "add", "--intent-to-add", "--pathspec-from-file="+spec, "--pathspec-file-nul"); err != nil {
+				_, err = run(
+					directory,
+					index,
+					"--literal-pathspecs",
+					"add",
+					"--intent-to-add",
+					"--pathspec-from-file="+spec,
+					"--pathspec-file-nul",
+				)
+				if err != nil {
 					return nil, err
 				}
-				patch, err := run(directory, index, "diff", "--no-ext-diff", "--no-textconv", "--no-color", "--full-index", "--src-prefix=a/", "--dst-prefix=b/")
+				patch, err := run(
+					directory,
+					index,
+					"diff",
+					"--no-ext-diff",
+					"--no-textconv",
+					"--no-color",
+					"--full-index",
+					"--src-prefix=a/",
+					"--dst-prefix=b/",
+				)
 				if err != nil {
 					return nil, err
 				}
@@ -549,7 +678,17 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 				if file.IsDelete {
 					name = file.OldName
 				}
-				patches = append(patches, gatewayapi.CodingGitPatch{Path: name, Patch: patch, Revision: fmt.Sprintf("%x", sha256.Sum256([]byte(patch))), Binary: file.IsBinary, CanStageHunks: !file.IsBinary && !file.IsRename && !file.IsCopy && file.NewMode == 0 && !file.IsDelete && text})
+				patches = append(
+					patches,
+					gatewayapi.CodingGitPatch{
+						Path:     name,
+						Patch:    patch,
+						Revision: fmt.Sprintf("%x", sha256.Sum256([]byte(patch))),
+						Binary:   file.IsBinary,
+						CanStageHunks: !file.IsBinary && !file.IsRename && !file.IsCopy &&
+							file.NewMode == 0 && !file.IsDelete && text,
+					},
+				)
 			}
 		}
 		return patches, nil
@@ -590,7 +729,10 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 		if err != nil {
 			return result, err
 		}
-		index := slices.IndexFunc(stashes, func(stash gatewayapi.CodingGitStash) bool { return stash.Oid == *req.Git.Stash })
+		index := slices.IndexFunc(
+			stashes,
+			func(stash gatewayapi.CodingGitStash) bool { return stash.Oid == *req.Git.Stash },
+		)
 		if index < 0 {
 			return result, errors.New("stash changed; refresh before retrying")
 		}
@@ -652,7 +794,11 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			if len(paths) != 1 || req.Git.Revision == nil || *req.Git.Hunk < 0 {
 				return result, errors.New("a reviewed file and hunk are required")
 			}
-			if (req.Git.Operation == gatewayapi.CodingGitStage && comparison != gatewayapi.CodingGitUnstaged) || (req.Git.Operation == gatewayapi.CodingGitUnstage && comparison != gatewayapi.CodingGitStaged) {
+			expected := gatewayapi.CodingGitUnstaged
+			if req.Git.Operation == gatewayapi.CodingGitUnstage {
+				expected = gatewayapi.CodingGitStaged
+			}
+			if comparison != expected {
 				return result, errors.New("select the staged or unstaged comparison first")
 			}
 			patches, err := readPatches()
@@ -716,7 +862,8 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			return result, err
 		}
 		if req.Git.Ref != nil {
-			if _, err := run(directory, "", "check-ref-format", "--branch", *req.Git.Ref); err != nil {
+			_, err = run(directory, "", "check-ref-format", "--branch", *req.Git.Ref)
+			if err != nil {
 				return result, errors.New("invalid branch")
 			}
 			if req.Git.Operation == gatewayapi.CodingGitApplyCommit {
@@ -741,11 +888,21 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 				if strings.TrimSpace(commitTree) != *req.Git.ExpectedTree || strings.TrimSpace(parent) != result.Head {
 					return result, errors.New("commit does not match the reviewed changes")
 				}
-				if _, err := run(directory, "", "reset", "--soft", "refs/agentz/incoming/"+*req.Git.Ref); err != nil {
+				_, err = run(directory, "", "reset", "--soft", "refs/agentz/incoming/"+*req.Git.Ref)
+				if err != nil {
 					return result, err
 				}
-			} else if _, err := run(directory, "", "merge", "--ff-only", "refs/remotes/origin/"+*req.Git.Ref); err != nil {
-				return result, err
+			} else {
+				_, err = run(
+					directory,
+					"",
+					"merge",
+					"--ff-only",
+					"refs/remotes/origin/"+*req.Git.Ref,
+				)
+				if err != nil {
+					return result, err
+				}
 			}
 		}
 	case gatewayapi.CodingGitRename:
@@ -900,16 +1057,29 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 		defer os.Remove(file.Name())
 		// Export the staged tree through an unsigned transport commit. The trusted
 		// worker constructs the actual user commit after reviewing this tree.
-		commit, err := run(directory, "", "-c", "commit.gpgSign=false", "commit-tree", *result.Tree, "-p", result.Head, "-m", "Staged tree transport")
+		commit, err := run(
+			directory,
+			"",
+			"-c",
+			"commit.gpgSign=false",
+			"commit-tree",
+			*result.Tree,
+			"-p",
+			result.Head,
+			"-m",
+			"Staged tree transport",
+		)
 		if err != nil {
 			return result, errors.New("could not export staged tree")
 		}
 		transportRef := "refs/agentz/export"
-		if _, err := run(directory, "", "update-ref", transportRef, strings.TrimSpace(commit)); err != nil {
+		_, err = run(directory, "", "update-ref", transportRef, strings.TrimSpace(commit))
+		if err != nil {
 			return result, err
 		}
 		defer run(directory, "", "update-ref", "-d", transportRef)
-		if _, err := run(directory, "", "bundle", "create", file.Name(), "--branches", transportRef); err != nil {
+		_, err = run(directory, "", "bundle", "create", file.Name(), "--branches", transportRef)
+		if err != nil {
 			return result, err
 		}
 		bundle, err := os.ReadFile(file.Name())

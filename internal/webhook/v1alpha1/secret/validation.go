@@ -123,7 +123,10 @@ func validateSpec(spec agentzv1alpha1.SecretSpec, path *field.Path) field.ErrorL
 	switch spec.Type {
 	case agentzv1alpha1.SecretTypeStatic:
 		if spec.OAuth != nil {
-			fields = append(fields, field.Forbidden(path.Child("oauth"), "oauth config is only valid for oauth secrets"))
+			fields = append(fields, field.Forbidden(
+				path.Child("oauth"),
+				"oauth config is only valid for oauth secrets",
+			))
 		}
 	case agentzv1alpha1.SecretTypeOAuth:
 		fields = append(fields, validateOAuthSpec(spec.OAuth, path.Child("oauth"))...)
@@ -152,7 +155,10 @@ func validateOAuthSpec(spec *agentzv1alpha1.SecretOAuthSpec, path *field.Path) f
 	}
 
 	fields = append(fields, validateOptionalHTTPSURL(spec.Issuer, path.Child("issuer"))...)
-	fields = append(fields, validateOptionalHTTPSURL(spec.AuthorizationEndpoint, path.Child("authorizationEndpoint"))...)
+	fields = append(fields, validateOptionalHTTPSURL(
+		spec.AuthorizationEndpoint,
+		path.Child("authorizationEndpoint"),
+	)...)
 	fields = append(fields, validateOptionalHTTPSURL(spec.TokenEndpoint, path.Child("tokenEndpoint"))...)
 	fields = append(fields, validateOptionalHTTPSURL(spec.RegistrationEndpoint, path.Child("registrationEndpoint"))...)
 	fields = append(fields, validateOptionalHTTPSURL(spec.Resource, path.Child("resource"))...)

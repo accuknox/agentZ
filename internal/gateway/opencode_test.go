@@ -6,14 +6,26 @@ import (
 	"testing"
 )
 
+type ptyWebSocketCase struct {
+	name, origin, protocol string
+	status                 int
+}
+
 func TestPTYWebSocketAuthentication(t *testing.T) {
 	service := &Service{cfg: Config{AllowedWebOrigins: []string{"https://app.example.com"}}}
-	for _, test := range []struct {
-		name, origin, protocol string
-		status                 int
-	}{
-		{"allowed origin", "https://app.example.com", "agentz.pty, agentz.bearer.test-token", http.StatusNoContent},
-		{"origin suffix", "https://app.example.com.attacker.example", "agentz.pty, agentz.bearer.test-token", http.StatusForbidden},
+	for _, test := range []ptyWebSocketCase{
+		{
+			"allowed origin",
+			"https://app.example.com",
+			"agentz.pty, agentz.bearer.test-token",
+			http.StatusNoContent,
+		},
+		{
+			"origin suffix",
+			"https://app.example.com.attacker.example",
+			"agentz.pty, agentz.bearer.test-token",
+			http.StatusForbidden,
+		},
 		{"missing origin", "", "agentz.pty, agentz.bearer.test-token", http.StatusForbidden},
 	} {
 		t.Run(test.name, func(t *testing.T) {

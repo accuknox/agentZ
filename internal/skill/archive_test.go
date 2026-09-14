@@ -9,13 +9,35 @@ import (
 	"testing"
 )
 
+type markdownCompatibilityCase struct {
+	name    string
+	content []byte
+}
+
+type markdownDiagnosticCase struct {
+	name    string
+	content []byte
+	kind    ImportIssueKind
+	message string
+}
+
+type zipTreeCase struct {
+	name  string
+	files []archiveFile
+	want  int
+	kind  ImportIssueKind
+}
+
+type zipEntryCase struct {
+	name  string
+	files []archiveFile
+	kind  ImportIssueKind
+}
+
 func TestParseMarkdownCompatibility(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name    string
-		content []byte
-	}{
+	tests := []markdownCompatibilityCase{
 		{name: "LF", content: skillMarkdown("skill-name", "\n", false, "# Skill\n")},
 		{name: "CRLF", content: skillMarkdown("skill-name", "\r\n", false, "# Skill\r\n")},
 		{name: "BOM and LF", content: skillMarkdown("skill-name", "\n", true, "# Skill\n")},
@@ -44,12 +66,7 @@ func TestParseMarkdownCompatibility(t *testing.T) {
 func TestParseMarkdownDiagnostics(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name    string
-		content []byte
-		kind    ImportIssueKind
-		message string
-	}{
+	tests := []markdownDiagnosticCase{
 		{
 			name:    "64-character name",
 			content: skillMarkdown(strings.Repeat("a", 64), "\n", false, ""),
@@ -102,12 +119,7 @@ func TestParseMarkdownDiagnostics(t *testing.T) {
 func TestParseZIPStrictTree(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name  string
-		files []archiveFile
-		want  int
-		kind  ImportIssueKind
-	}{
+	tests := []zipTreeCase{
 		{
 			name: "single skill",
 			files: []archiveFile{
@@ -203,11 +215,7 @@ func TestParseZIPRejectsInvalidEntries(t *testing.T) {
 	validSkill := archiveFile{
 		name: "skill/SKILL.md", content: skillMarkdown("skill", "\n", false, ""),
 	}
-	tests := []struct {
-		name  string
-		files []archiveFile
-		kind  ImportIssueKind
-	}{
+	tests := []zipEntryCase{
 		{
 			name:  "traversal",
 			files: []archiveFile{{name: "../SKILL.md", content: validSkill.content}},

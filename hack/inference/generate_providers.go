@@ -6,6 +6,7 @@ import (
 	"go/format"
 	"io"
 	"log"
+	"maps"
 	"net/http"
 	"os"
 	"slices"
@@ -15,8 +16,9 @@ import (
 
 const (
 	opencodeCommit = "012c2f57f976489d88bd4598a056b4bdcdd428ee"
-	catalogURL     = "https://raw.githubusercontent.com/anomalyco/opencode/" + opencodeCommit + "/packages/opencode/test/tool/fixtures/models-api.json"
-	catalogOutput  = "internal/inference/providers.go"
+	catalogURL     = "https://raw.githubusercontent.com/anomalyco/opencode/" +
+		opencodeCommit + "/packages/opencode/test/tool/fixtures/models-api.json"
+	catalogOutput = "internal/inference/providers.go"
 )
 
 type provider struct {
@@ -92,20 +94,21 @@ var providerKinds = map[string]string{
 }
 
 var baseURLs = map[string]string{
-	"aihubmix":              "https://aihubmix.com/v1",
-	"cerebras":              "https://api.cerebras.ai/v1",
-	"cloudflare-ai-gateway": "https://gateway.ai.cloudflare.com/v1/${CLOUDFLARE_ACCOUNT_ID}/${CLOUDFLARE_GATEWAY_ID}/compat",
-	"cohere":                "https://api.cohere.ai/compatibility/v1",
-	"deepinfra":             "https://api.deepinfra.com/v1/openai",
-	"groq":                  "https://api.groq.com/openai/v1",
-	"merge-gateway":         "https://api-gateway.merge.dev/v1/openai",
-	"mistral":               "https://api.mistral.ai/v1",
-	"perplexity":            "https://api.perplexity.ai",
-	"togetherai":            "https://api.together.xyz/v1",
-	"v0":                    "https://api.v0.dev/v1",
-	"venice":                "https://api.venice.ai/api/v1",
-	"vercel":                "https://ai-gateway.vercel.sh/v1",
-	"xai":                   "https://api.x.ai/v1",
+	"aihubmix": "https://aihubmix.com/v1",
+	"cerebras": "https://api.cerebras.ai/v1",
+	"cloudflare-ai-gateway": "https://gateway.ai.cloudflare.com/v1/" +
+		"${CLOUDFLARE_ACCOUNT_ID}/${CLOUDFLARE_GATEWAY_ID}/compat",
+	"cohere":        "https://api.cohere.ai/compatibility/v1",
+	"deepinfra":     "https://api.deepinfra.com/v1/openai",
+	"groq":          "https://api.groq.com/openai/v1",
+	"merge-gateway": "https://api-gateway.merge.dev/v1/openai",
+	"mistral":       "https://api.mistral.ai/v1",
+	"perplexity":    "https://api.perplexity.ai",
+	"togetherai":    "https://api.together.xyz/v1",
+	"v0":            "https://api.v0.dev/v1",
+	"venice":        "https://api.venice.ai/api/v1",
+	"vercel":        "https://ai-gateway.vercel.sh/v1",
+	"xai":           "https://api.x.ai/v1",
 }
 
 func main() {
@@ -220,7 +223,16 @@ func main() {
 	for _, entry := range entries {
 		fmt.Fprintf(
 			&output,
-			"\t{\n\t\tProviderID: %q,\n\t\tName: %q,\n\t\tKind: agentzv1alpha1.InferenceProviderKind%s,\n\t\tBaseURL: %q,\n\t\tBaseURLTemplate: %q,\n\t\tAuthHeader: %q,\n\t\tAuthPrefix: %q,\n\t\tDoc: %q,\n\t},\n",
+			"\t{\n"+
+				"\t\tProviderID: %q,\n"+
+				"\t\tName: %q,\n"+
+				"\t\tKind: agentzv1alpha1.InferenceProviderKind%s,\n"+
+				"\t\tBaseURL: %q,\n"+
+				"\t\tBaseURLTemplate: %q,\n"+
+				"\t\tAuthHeader: %q,\n"+
+				"\t\tAuthPrefix: %q,\n"+
+				"\t\tDoc: %q,\n"+
+				"\t},\n",
 			entry.ProviderID,
 			entry.Name,
 			entry.Kind,
@@ -232,20 +244,12 @@ func main() {
 		)
 	}
 	output.WriteString("}\n\nvar catalogNPMKinds = map[string]agentzv1alpha1.InferenceProviderKind{\n")
-	npms := make([]string, 0, len(npmKinds))
-	for npm := range npmKinds {
-		npms = append(npms, npm)
-	}
-	slices.Sort(npms)
+	npms := slices.Sorted(maps.Keys(npmKinds))
 	for _, npm := range npms {
 		fmt.Fprintf(&output, "\t%q: agentzv1alpha1.InferenceProviderKind%s,\n", npm, npmKinds[npm])
 	}
 	output.WriteString("}\n\nvar catalogProviderKinds = map[string]agentzv1alpha1.InferenceProviderKind{\n")
-	ids := make([]string, 0, len(providerKinds))
-	for id := range providerKinds {
-		ids = append(ids, id)
-	}
-	slices.Sort(ids)
+	ids := slices.Sorted(maps.Keys(providerKinds))
 	for _, id := range ids {
 		fmt.Fprintf(&output, "\t%q: agentzv1alpha1.InferenceProviderKind%s,\n", id, providerKinds[id])
 	}

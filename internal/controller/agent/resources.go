@@ -650,6 +650,7 @@ func (r *Reconciler) agentEnv(agt *agentzv1alpha1.Agent, envCfg sandboxConfig, m
 		telemetryURL = "http://" + telemetryEndpoint
 	}
 	resourceAttributes := "agentz.agent_name=" + agt.Name + ",agentz.tenant_namespace=" + agt.Namespace
+	memoryEnabled := agt.Spec.Memory.Enabled && envCfg.WorkspaceType != agentzv1alpha1.WorkspaceTypeCoding
 	forced = append(
 		forced,
 		corev1.EnvVar{
@@ -662,7 +663,7 @@ func (r *Reconciler) agentEnv(agt *agentzv1alpha1.Agent, envCfg sandboxConfig, m
 		corev1.EnvVar{Name: "AGENTZ_WORKSPACE_TYPE", Value: string(envCfg.WorkspaceType)},
 		corev1.EnvVar{
 			Name:  "AGENTZ_MEMORY_ENABLED",
-			Value: strconv.FormatBool(envCfg.WorkspaceType != agentzv1alpha1.WorkspaceTypeCoding && agt.Spec.Memory.Enabled),
+			Value: strconv.FormatBool(memoryEnabled),
 		},
 		corev1.EnvVar{
 			Name:  "OPENCODE_RESOURCE_ATTRIBUTES",

@@ -22,6 +22,7 @@ import (
 	"github.com/google/go-github/v91/github"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 )
@@ -103,14 +104,27 @@ func (s *Service) codingIdentity(ctx context.Context, userID string) (codingIden
 		if err != nil {
 			return identity, errors.New("cannot decrypt GitHub credentials; reconnect your account")
 		}
-		values := url.Values{"client_id": {s.cfg.CodingGitHubClientID}, "client_secret": {s.cfg.CodingGitHubClientSecret}, "grant_type": {"refresh_token"}, "refresh_token": {refresh}}
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://github.com/login/oauth/access_token", strings.NewReader(values.Encode()))
+		values := url.Values{
+			"client_id":     {s.cfg.CodingGitHubClientID},
+			"client_secret": {s.cfg.CodingGitHubClientSecret},
+			"grant_type":    {"refresh_token"},
+			"refresh_token": {refresh},
+		}
+		req, err := http.NewRequestWithContext(
+			ctx,
+			http.MethodPost,
+			"https://github.com/login/oauth/access_token",
+			strings.NewReader(values.Encode()),
+		)
 		if err != nil {
 			return identity, err
 		}
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.Header.Set("Accept", "application/json")
-		client := &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
+		client := &http.Client{
+			Timeout:       30 * time.Second,
+			CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
+		}
 		resp, err := client.Do(req)
 		if err != nil {
 			return identity, errors.New("could not refresh GitHub authorization")
@@ -118,7 +132,9 @@ func (s *Service) codingIdentity(ctx context.Context, userID string) (codingIden
 		defer resp.Body.Close()
 		var token codingTokenResponse
 		err = json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&token)
-		if err != nil || resp.StatusCode != http.StatusOK || token.AccessToken == "" || token.RefreshToken == "" || token.ExpiresIn <= 0 || token.RefreshIn <= 0 {
+		validToken := token.AccessToken != "" && token.RefreshToken != "" &&
+			token.ExpiresIn > 0 && token.RefreshIn > 0
+		if err != nil || resp.StatusCode != http.StatusOK || !validToken {
 			return identity, errors.New("GitHub authorization expired; reconnect your account")
 		}
 		seal := func(token string) string {
@@ -129,8 +145,14 @@ func (s *Service) codingIdentity(ctx context.Context, userID string) (codingIden
 		identity.token = token.AccessToken
 		err = q.GatewayRefreshCodingConnection(ctx, gatewaydb.GatewayRefreshCodingConnectionParams{
 			UserID: userID, AccessToken: seal(token.AccessToken), RefreshToken: seal(token.RefreshToken),
-			ExpiresAt:        pgtype.Timestamptz{Time: time.Now().Add(time.Duration(token.ExpiresIn) * time.Second), Valid: true},
-			RefreshExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(time.Duration(token.RefreshIn) * time.Second), Valid: true},
+			ExpiresAt: pgtype.Timestamptz{
+				Time:  time.Now().Add(time.Duration(token.ExpiresIn) * time.Second),
+				Valid: true,
+			},
+			RefreshExpiresAt: pgtype.Timestamptz{
+				Time:  time.Now().Add(time.Duration(token.RefreshIn) * time.Second),
+				Valid: true,
+			},
 		})
 		if err != nil {
 			return identity, err
@@ -139,7 +161,10 @@ func (s *Service) codingIdentity(ctx context.Context, userID string) (codingIden
 	if err := tx.Commit(ctx); err != nil {
 		return identity, err
 	}
-	identity.client, err = github.NewClient(github.WithAuthToken(identity.token), github.WithHTTPClient(&http.Client{Timeout: 30 * time.Second}))
+	identity.client, err = github.NewClient(
+		github.WithAuthToken(identity.token),
+		github.WithHTTPClient(&http.Client{Timeout: 30 * time.Second}),
+	)
 	if err != nil {
 		return identity, err
 	}
@@ -162,12 +187,12 @@ func (s *Service) codingIdentity(ctx context.Context, userID string) (codingIden
 func (s *Service) ListCodingRepositories(w http.ResponseWriter, r *http.Request, params gatewayapi.ListCodingRepositoriesParams) {
 	access, apiErr := s.codingAccess(r.Context(), "")
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	identity, err := s.codingIdentity(r.Context(), access.claims.UserID)
 	if err != nil {
-		writeError(w, r, newAPIError(http.StatusBadGateway, "github_failed", err.Error(), err))
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadGateway, "github_failed", err.Error(), err))
 		return
 	}
 	page := 1
@@ -179,36 +204,63 @@ func (s *Service) ListCodingRepositories(w http.ResponseWriter, r *http.Request,
 	result := gatewayapi.CodingRepositoryPage{Repositories: []gatewayapi.CodingRepositoryItem{}}
 	if params.Query != nil && *params.Query != "" {
 		if page > 20 {
-			writeError(w, r, newAPIError(http.StatusBadRequest, "search_limit", "Narrow your repository search", nil))
+			apiutil.WriteError(
+				w,
+				r,
+				apiutil.NewError(http.StatusBadRequest, "search_limit", "Narrow your repository search", nil),
+			)
 			return
 		}
 		var found *github.RepositoriesSearchResult
-		found, response, err = identity.client.Search.Repositories(r.Context(), *params.Query+" in:name fork:true", &github.SearchOptions{ListOptions: github.ListOptions{Page: page, PerPage: 50}})
+		found, response, err = identity.client.Search.Repositories(
+			r.Context(),
+			*params.Query+" in:name fork:true",
+			&github.SearchOptions{ListOptions: github.ListOptions{Page: page, PerPage: 50}},
+		)
 		if found != nil {
 			repos = found.Repositories
 			result.Limited = found.GetIncompleteResults() || found.GetTotal() > 1000
 		}
 	} else {
-		repos, response, err = identity.client.Repositories.ListByAuthenticatedUser(r.Context(), &github.RepositoryListByAuthenticatedUserOptions{Sort: "updated", ListOptions: github.ListOptions{Page: page, PerPage: 50}})
+		repos, response, err = identity.client.Repositories.ListByAuthenticatedUser(
+			r.Context(),
+			&github.RepositoryListByAuthenticatedUserOptions{
+				Sort:        "updated",
+				ListOptions: github.ListOptions{Page: page, PerPage: 50},
+			},
+		)
 	}
 	if err != nil {
-		writeError(w, r, newAPIError(http.StatusBadGateway, "github_failed", "Could not list GitHub repositories", err))
+		apiutil.WriteError(
+			w,
+			r,
+			apiutil.NewError(http.StatusBadGateway, "github_failed", "Could not list GitHub repositories", err),
+		)
 		return
 	}
 	for _, repo := range repos {
-		result.Repositories = append(result.Repositories, gatewayapi.CodingRepositoryItem{Id: repo.GetID(), Name: repo.GetFullName(), Private: repo.GetPrivate()})
+		result.Repositories = append(
+			result.Repositories,
+			gatewayapi.CodingRepositoryItem{
+				Id:      repo.GetID(),
+				Name:    repo.GetFullName(),
+				Private: repo.GetPrivate(),
+			},
+		)
 	}
 	if response.NextPage > 0 {
 		result.NextPage = &response.NextPage
 	}
-	writeJSON(w, http.StatusOK, result)
+	apiutil.WriteJSON(w, http.StatusOK, result)
 }
 
 // newCodingRepository creates a credential-free bare repository for one trusted
 // operation. Agent configuration and executables never enter this directory.
 func newCodingRepository(ctx context.Context, repository, token string) (*codingRepository, error) {
 	owner, name, ok := strings.Cut(repository, "/")
-	if !ok || owner == "" || name == "" || strings.ContainsAny(repository, "\\\n\r :@?#") || strings.Contains(name, "/") {
+	invalidName := strings.ContainsAny(repository, "\\\n\r :@?#") ||
+		strings.Contains(name, "/")
+	if !ok || owner == "" || name == "" || invalidName {
 		return nil, errors.New("invalid GitHub repository")
 	}
 	dir, err := os.MkdirTemp("", "agentz-git-")
@@ -226,11 +278,45 @@ func newCodingRepository(ctx context.Context, repository, token string) (*coding
 func (repo *codingRepository) run(ctx context.Context, remote bool, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	options := []string{"--no-pager", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-c", "credential.helper=", "-c", "protocol.allow=never", "-c", "protocol.file.allow=always", "-c", "submodule.recurse=false", "-c", "fetch.fsckObjects=true", "-c", "transfer.fsckObjects=true"}
-	env := []string{"PATH=" + os.Getenv("PATH"), "HOME=" + repo.dir, "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_TERMINAL_PROMPT=0", "GIT_ATTR_NOSYSTEM=1", "LC_ALL=C"}
+	options := []string{
+		"--no-pager",
+		"-c",
+		"core.hooksPath=/dev/null",
+		"-c",
+		"core.fsmonitor=false",
+		"-c",
+		"credential.helper=",
+		"-c",
+		"protocol.allow=never",
+		"-c",
+		"protocol.file.allow=always",
+		"-c",
+		"submodule.recurse=false",
+		"-c",
+		"fetch.fsckObjects=true",
+		"-c",
+		"transfer.fsckObjects=true",
+	}
+	env := []string{
+		"PATH=" + os.Getenv("PATH"),
+		"HOME=" + repo.dir,
+		"GIT_CONFIG_NOSYSTEM=1",
+		"GIT_CONFIG_GLOBAL=/dev/null",
+		"GIT_TERMINAL_PROMPT=0",
+		"GIT_ATTR_NOSYSTEM=1",
+		"LC_ALL=C",
+	}
 	if remote {
 		options = append(options, "-c", "protocol.https.allow=always", "-c", "http.followRedirects=false")
-		env = append(env, "GIT_CONFIG_COUNT=1", "GIT_CONFIG_KEY_0=http.https://github.com/.extraHeader", "GIT_CONFIG_VALUE_0=Authorization: Basic "+base64.StdEncoding.EncodeToString([]byte("x-access-token:"+repo.token)))
+		credentials := base64.StdEncoding.EncodeToString(
+			[]byte("x-access-token:" + repo.token),
+		)
+		env = append(
+			env,
+			"GIT_CONFIG_COUNT=1",
+			"GIT_CONFIG_KEY_0=http.https://github.com/.extraHeader",
+			"GIT_CONFIG_VALUE_0=Authorization: Basic "+credentials,
+		)
 	}
 	cmd := exec.CommandContext(ctx, "git", append(options, args...)...)
 	cmd.Dir, cmd.Env = repo.dir, env
@@ -264,10 +350,20 @@ func (repo *codingRepository) importBundle(ctx context.Context, bundle []byte) e
 	if _, err := repo.run(ctx, false, "bundle", "verify", file); err != nil {
 		return err
 	}
-	if _, err := repo.run(ctx, false, "fetch", "--no-tags", "--no-recurse-submodules", file, "+refs/heads/*:refs/heads/*", "+refs/agentz/export:refs/agentz/export"); err != nil {
+	_, err := repo.run(
+		ctx,
+		false,
+		"fetch",
+		"--no-tags",
+		"--no-recurse-submodules",
+		file,
+		"+refs/heads/*:refs/heads/*",
+		"+refs/agentz/export:refs/agentz/export",
+	)
+	if err != nil {
 		return err
 	}
-	_, err := repo.run(ctx, false, "fsck", "--strict", "--no-reflogs")
+	_, err = repo.run(ctx, false, "fsck", "--strict", "--no-reflogs")
 	return err
 }
 

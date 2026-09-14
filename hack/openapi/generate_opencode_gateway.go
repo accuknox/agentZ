@@ -19,9 +19,10 @@ const (
 	baseSpecPath      = "openapi/base.yaml"
 	outputSpecPath    = "openapi/gateway.yaml"
 	routeManifestPath = "internal/gateway/opencode.routes.gen.go"
-	upstreamSpecURL   = "https://raw.githubusercontent.com/anomalyco/opencode/a3647eb025c7615159d417dcc49fc39fdaeba65b/packages/sdk/openapi.json"
-	opencodePrefix    = "/api/opencode/{agentName}"
-	opencodeNS        = "Opencode"
+	upstreamSpecURL   = "https://raw.githubusercontent.com/anomalyco/opencode/" +
+		"a3647eb025c7615159d417dcc49fc39fdaeba65b/packages/sdk/openapi.json"
+	opencodePrefix = "/api/opencode/{agentName}"
+	opencodeNS     = "Opencode"
 )
 
 type routeManifest struct {
@@ -50,7 +51,24 @@ var baseOperationCapabilities = map[string][]string{
 		"listSecrets", "watchSecrets",
 	},
 	"agent.use_shared": {
-		"listCodingProjects", "createCodingProject", "getCodingProject", "renameCodingProject", "updateCodingProjectPreference", "deleteCodingProject", "createCodingThread", "getCodingThread", "runCodingGit", "suggestCodingText", "listCodingRepositories", "listCodingRefs", "refreshCodingRepository", "adoptCodingWorktree", "startCodingOperation", "listCodingOperations", "getCodingOperation", "watchCoding",
+		"listCodingProjects",
+		"createCodingProject",
+		"getCodingProject",
+		"renameCodingProject",
+		"updateCodingProjectPreference",
+		"deleteCodingProject",
+		"createCodingThread",
+		"getCodingThread",
+		"runCodingGit",
+		"suggestCodingText",
+		"listCodingRepositories",
+		"listCodingRefs",
+		"refreshCodingRepository",
+		"adoptCodingWorktree",
+		"startCodingOperation",
+		"listCodingOperations",
+		"getCodingOperation",
+		"watchCoding",
 		"createDashboard",
 		"createAgentDirectory",
 		"createAgentFile",
@@ -255,10 +273,7 @@ func run() error {
 	if err := writeYAML(outputSpecPath, base); err != nil {
 		return err
 	}
-	if err := writeRoutesGo(routeManifestPath, manifest); err != nil {
-		return err
-	}
-	return nil
+	return writeRoutesGo(routeManifestPath, manifest)
 }
 
 func readYAML(path string) (map[string]any, error) {
@@ -495,7 +510,9 @@ func rewriteRefs(value any, refs map[string]string) {
 
 func mergeSpec(base, extra map[string]any) {
 	appendTags(base, extra["tags"])
-	mergeMapBucket(base, extra, "paths")
+	basePaths := ensureMap(base, "paths")
+	extraPaths, _ := extra["paths"].(map[string]any)
+	maps.Copy(basePaths, extraPaths)
 
 	baseComponents := ensureMap(base, "components")
 	extraComponents, _ := extra["components"].(map[string]any)
@@ -552,8 +569,12 @@ func filterTags(tagsAny any, paths map[string]any) []any {
 		item, _ := itemAny.(map[string]any)
 		for _, method := range pathMethods(item) {
 			op, _ := item[method].(map[string]any)
-			for _, tag := range stringSlice(op["tags"]) {
-				used[tag] = struct{}{}
+			tags, _ := op["tags"].([]any)
+			for _, tag := range tags {
+				name, _ := tag.(string)
+				if name != "" {
+					used[name] = struct{}{}
+				}
 			}
 		}
 	}
@@ -599,12 +620,6 @@ func ensureMap(parent map[string]any, key string) map[string]any {
 	return out
 }
 
-func mergeMapBucket(base, extra map[string]any, key string) {
-	baseMap := ensureMap(base, key)
-	extraMap, _ := extra[key].(map[string]any)
-	maps.Copy(baseMap, extraMap)
-}
-
 func componentBucket(components map[string]any, key string) map[string]any {
 	bucket, _ := components[key].(map[string]any)
 	if bucket == nil {
@@ -637,19 +652,6 @@ func prependAgentParameter(value any) []any {
 		},
 	})
 	out = append(out, params...)
-	return out
-}
-
-func stringSlice(value any) []string {
-	items, _ := value.([]any)
-	out := make([]string, 0, len(items))
-	for _, item := range items {
-		text, _ := item.(string)
-		if text == "" {
-			continue
-		}
-		out = append(out, text)
-	}
 	return out
 }
 

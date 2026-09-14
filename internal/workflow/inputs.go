@@ -307,12 +307,7 @@ func schemaDocument(schema gatewayapi.WorkflowInputSchema) (map[string]any, erro
 		return nil, fmt.Errorf("decode schema: %w", err)
 	}
 
-	object, ok := doc.(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("schema must be a json object")
-	}
-
-	return object, nil
+	return doc.(map[string]any), nil
 }
 
 func valueSchemaDocument(doc map[string]any) map[string]any {
@@ -345,7 +340,9 @@ func validateSchemaRelationships(schema gatewayapi.WorkflowInputSchema, fieldPre
 		)
 	}
 
-	if schema.ExclusiveMinimum != nil && schema.ExclusiveMaximum != nil && *schema.ExclusiveMinimum >= *schema.ExclusiveMaximum {
+	if schema.ExclusiveMinimum != nil &&
+		schema.ExclusiveMaximum != nil &&
+		*schema.ExclusiveMinimum >= *schema.ExclusiveMaximum {
 		issues = append(
 			issues,
 			Issue{

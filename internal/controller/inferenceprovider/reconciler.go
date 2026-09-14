@@ -132,7 +132,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 	runtime.Backend = currentBackend
 	if runtime.AuthPolicy != nil {
-		if err := ctrlutil.SetControllerReference(provider, runtime.AuthPolicy, r.Scheme); err != nil {
+		err := ctrlutil.SetControllerReference(provider, runtime.AuthPolicy, r.Scheme)
+		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("own provider auth policy: %w", err)
 		}
 		currentPolicy := &agentgatewayv1alpha1.AgentgatewayPolicy{
@@ -246,7 +247,8 @@ func (r *Reconciler) reconcileDelete(ctx context.Context, provider *agentzv1alph
 			)
 			if resolveErr == nil && ns == provider.Namespace {
 				err := fmt.Errorf("provider is still referenced by sandbox %q", sandboxes.Items[i].Name)
-				return ctrl.Result{RequeueAfter: 5 * time.Second}, r.blockDeletion(ctx, provider, "DeletionBlocked", err)
+				err = r.blockDeletion(ctx, provider, "DeletionBlocked", err)
+				return ctrl.Result{RequeueAfter: 5 * time.Second}, err
 			}
 		}
 	}
@@ -280,7 +282,8 @@ func (r *Reconciler) reconcileDelete(ctx context.Context, provider *agentzv1alph
 			)
 			if resolveErr == nil && ns == provider.Namespace {
 				err := fmt.Errorf("provider is still referenced by pool %q", pools.Items[i].Name)
-				return ctrl.Result{RequeueAfter: 5 * time.Second}, r.blockDeletion(ctx, provider, "DeletionBlocked", err)
+				err = r.blockDeletion(ctx, provider, "DeletionBlocked", err)
+				return ctrl.Result{RequeueAfter: 5 * time.Second}, err
 			}
 		}
 	}
@@ -348,7 +351,8 @@ func (r *Reconciler) reconcileDelete(ctx context.Context, provider *agentzv1alph
 		provider.Name,
 		provider.Spec.Kind,
 	)
-	if err := kv.DeleteMetadata(ctx, path); err != nil && !errors.Is(err, baoapi.ErrSecretNotFound) {
+	err = kv.DeleteMetadata(ctx, path)
+	if err != nil && !errors.Is(err, baoapi.ErrSecretNotFound) {
 		err = fmt.Errorf("delete inference credential metadata: %w", err)
 		return ctrl.Result{}, errors.Join(
 			err,

@@ -391,7 +391,11 @@ func (c *Client) WriteVersionsZIP(ctx context.Context, w io.Writer, selections [
 				}
 				dst, err := zw.CreateHeader(h)
 				if err != nil {
-					return errors.Join(fmt.Errorf("create immutable skill export entry: %w", err), object.Body.Close(), zw.Close())
+					return errors.Join(
+						fmt.Errorf("create immutable skill export entry: %w", err),
+						object.Body.Close(),
+						zw.Close(),
+					)
 				}
 				_, copyErr := io.Copy(dst, object.Body)
 				closeErr := object.Body.Close()

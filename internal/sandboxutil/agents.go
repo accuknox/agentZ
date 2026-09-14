@@ -21,10 +21,7 @@ func IndexAgentsBySandbox(ctx context.Context, idx client.FieldIndexer) error {
 		&agentzv1alpha1.Agent{},
 		AgentBySandboxIndex,
 		func(obj client.Object) []string {
-			agt, ok := obj.(*agentzv1alpha1.Agent)
-			if !ok {
-				return nil
-			}
+			agt := obj.(*agentzv1alpha1.Agent)
 			ref := agt.Spec.SandboxRef
 			if ref.Name == "" {
 				return nil

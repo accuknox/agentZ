@@ -178,7 +178,8 @@ func insertTraceEventBatch(ctx context.Context, tx pgx.Tx, traces []traceSpanEve
 				},
 			)
 
-			lastCalledKey := ev.tenantNamespace + "\x00" + call.agentName + "\x00" + call.mcpConnectionName + "\x00" + call.toolName
+			lastCalledKey := ev.tenantNamespace + "\x00" + call.agentName +
+				"\x00" + call.mcpConnectionName + "\x00" + call.toolName
 			lastCalled := observerdb.UpsertMCPToolLastCalledParams{
 				TenantNamespace:   ev.tenantNamespace,
 				AgentName:         call.agentName,

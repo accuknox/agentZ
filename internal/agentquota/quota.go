@@ -104,11 +104,12 @@ func EffectiveRequests(resources corev1.ResourceRequirements) agentzv1alpha1.Com
 // Agents. Organisation and Workspace namespaces carry the Tenant identity.
 func Agents(ctx context.Context, reader client.Reader, tenantName string) ([]agentzv1alpha1.Agent, error) {
 	var namespaces corev1.NamespaceList
-	if err := reader.List(
+	err := reader.List(
 		ctx,
 		&namespaces,
 		client.MatchingLabels{agentzv1alpha1.TenantOrganizationIDLabel: tenantName},
-	); err != nil {
+	)
+	if err != nil {
 		return nil, fmt.Errorf("list Tenant namespaces: %w", err)
 	}
 

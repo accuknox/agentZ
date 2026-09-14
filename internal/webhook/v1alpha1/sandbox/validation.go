@@ -114,14 +114,15 @@ func (v *Validator) validateInference(ctx context.Context, sandbox *agentzv1alph
 	byProvider := make(map[agentzv1alpha1.ResourceReference][]string, len(sandbox.Spec.Inference.Models))
 	pools := map[string]struct{}{}
 	for i, model := range sandbox.Spec.Inference.Models {
+		modelPath := path.Child("models").Index(i)
 		if strings.TrimSpace(model.Provider) == "" {
-			fields = append(fields, field.Required(path.Child("models").Index(i).Child("provider"), "field is required"))
+			fields = append(fields, field.Required(modelPath.Child("provider"), "field is required"))
 		}
 		if strings.TrimSpace(model.Model) == "" {
-			fields = append(fields, field.Required(path.Child("models").Index(i).Child("model"), "field is required"))
+			fields = append(fields, field.Required(modelPath.Child("model"), "field is required"))
 		}
 		if _, exists := allowed[model]; exists {
-			fields = append(fields, field.Duplicate(path.Child("models").Index(i), model))
+			fields = append(fields, field.Duplicate(modelPath, model))
 			continue
 		}
 		allowed[model] = struct{}{}
@@ -130,7 +131,7 @@ func (v *Validator) validateInference(ctx context.Context, sandbox *agentzv1alph
 				fields = append(
 					fields,
 					field.NotSupported(
-						path.Child("models").Index(i).Child("scope"),
+						modelPath.Child("scope"),
 						model.Scope,
 						[]string{string(agentzv1alpha1.ResourceScopeWorkspace)},
 					),

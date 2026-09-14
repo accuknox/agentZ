@@ -55,14 +55,7 @@ func (s *Service) resolveOAuthAccessToken(ctx context.Context, conn *agentzv1alp
 		return "", nil, true, err
 	}
 
-	refreshed, ok := result.(*mcp.OAuthSecretRecord)
-	if !ok {
-		return "", nil, true, fmt.Errorf(
-			"unexpected oauth refresh result type %T: %w",
-			result,
-			errCredentialUnavailable,
-		)
-	}
+	refreshed := result.(*mcp.OAuthSecretRecord)
 	if refreshed.Token == nil || strings.TrimSpace(refreshed.Token.AccessToken) == "" {
 		return "", nil, true, fmt.Errorf(
 			"refreshed oauth token is missing access token: %w",
@@ -109,7 +102,8 @@ func (s *Service) refreshOAuthToken(ctx context.Context, conn *agentzv1alpha1.MC
 	}
 	record.UpdatedAt = now
 
-	if err := s.writeSecretRecord(ctx, auth.SecretRef.Path, auth.SecretRef.Key, record); err != nil {
+	err = s.writeSecretRecord(ctx, auth.SecretRef.Path, auth.SecretRef.Key, record)
+	if err != nil {
 		return nil, err
 	}
 	return &record, nil

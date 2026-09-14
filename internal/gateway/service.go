@@ -36,6 +36,7 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	dashboarddb "github.com/accuknox/agentz/internal/gateway/dashboard/db"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
@@ -45,6 +46,12 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 	agentzclient "github.com/accuknox/agentz/pkg/controller/clientset/versioned"
 )
+
+// DefaultListenAddr is the default gateway listen address.
+const DefaultListenAddr = "localhost:8090"
+
+// DefaultMCPProbeStaleAfter bounds how long an MCP probe remains fresh.
+const DefaultMCPProbeStaleAfter = 5 * time.Minute
 
 const labelManagedBy = "app.kubernetes.io/managed-by"
 
@@ -123,6 +130,7 @@ type statusRecorder struct {
 	cause   error
 }
 
+// WriteHeader records the status code for request logging before sending it.
 func (r *statusRecorder) WriteHeader(status int) {
 	r.status = status
 	r.ResponseWriter.WriteHeader(status)
@@ -134,6 +142,7 @@ func (r *statusRecorder) SetAPIError(code string, cause error) {
 	r.cause = cause
 }
 
+// Flush forwards streaming responses to writers that support flushing.
 func (r *statusRecorder) Flush() {
 	flusher, ok := r.ResponseWriter.(http.Flusher)
 	if ok {
@@ -141,6 +150,7 @@ func (r *statusRecorder) Flush() {
 	}
 }
 
+// Hijack hands the connection to callers when the underlying writer supports it.
 func (r *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	hijacker, ok := r.ResponseWriter.(http.Hijacker)
 	if !ok {
@@ -149,6 +159,7 @@ func (r *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return hijacker.Hijack()
 }
 
+// ReadFrom preserves the underlying writer's optimized copy path.
 func (r *statusRecorder) ReadFrom(src io.Reader) (int64, error) {
 	readerFrom, ok := r.ResponseWriter.(io.ReaderFrom)
 	if ok {
@@ -157,6 +168,7 @@ func (r *statusRecorder) ReadFrom(src io.Reader) (int64, error) {
 	return io.Copy(r.ResponseWriter, src)
 }
 
+// Unwrap exposes the original writer to http.ResponseController.
 func (r *statusRecorder) Unwrap() http.ResponseWriter {
 	return r.ResponseWriter
 }
@@ -609,7 +621,8 @@ func (s *Service) processCleanupJob(ctx context.Context, job gatewaydb.CleanupJo
 		if err != nil && !apierrors.IsNotFound(err) {
 			return fmt.Errorf("delete Agent %q: %w", agent.AgentName, err)
 		}
-		if err := s.deleteAgentSecretResources(ctx, workspace.Namespace, agent.AgentName); err != nil {
+		err = s.deleteAgentSecretResources(ctx, workspace.Namespace, agent.AgentName)
+		if err != nil {
 			return fmt.Errorf("delete Agent %q secrets: %w", agent.AgentName, err)
 		}
 
@@ -739,8 +752,14 @@ func (s *Service) routes() http.Handler {
 		AllowCredentials: false,
 		MaxAge:           300,
 	}))
-	r.With(s.ptyWebsocketAuth, requireTenantRequest(s)).HandleFunc(opencodePrefix+"/{agentName}", s.handleOpenCodeProxy)
-	r.With(s.ptyWebsocketAuth, requireTenantRequest(s)).HandleFunc(opencodePrefix+"/{agentName}/*", s.handleOpenCodeProxy)
+	r.With(s.ptyWebsocketAuth, requireTenantRequest(s)).HandleFunc(
+		opencodePrefix+"/{agentName}",
+		s.handleOpenCodeProxy,
+	)
+	r.With(s.ptyWebsocketAuth, requireTenantRequest(s)).HandleFunc(
+		opencodePrefix+"/{agentName}/*",
+		s.handleOpenCodeProxy,
+	)
 
 	apiRouter := chi.NewRouter()
 	apiRouter.Use(nethttpmiddleware.OapiRequestValidatorWithOptions(
@@ -756,10 +775,10 @@ func (s *Service) routes() http.Handler {
 					status = statusErr.StatusCode()
 				}
 				fields := openAPIRequestFields(err)
-				writeError(
+				apiutil.WriteError(
 					w,
 					r,
-					newAPIError(
+					apiutil.NewError(
 						status,
 						"invalid_request",
 						"request does not match the API contract; correct the listed fields and retry",

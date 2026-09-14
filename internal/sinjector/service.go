@@ -301,16 +301,28 @@ func (r *resolver) resolve(ctx context.Context, name string) (resolvedSecret, er
 	case agentzv1alpha1.SecretTypeStatic:
 		record, err := secretstore.DecodeRecord[secretstore.StaticRecord](rawSecret.Data)
 		if err != nil {
-			r.writeStatusForKey(ctx, name, degradedSecretStatus(agentzv1alpha1.SecretReasonReconcileFailed, err.Error()))
+			r.writeStatusForKey(
+				ctx,
+				name,
+				degradedSecretStatus(agentzv1alpha1.SecretReasonReconcileFailed, err.Error()),
+			)
 			return resolvedSecret{}, fmt.Errorf("%w: %s", errBadSecret, name)
 		}
 		hosts, err := ParseSecretHosts(record.Hosts)
 		if err != nil {
-			r.writeStatusForKey(ctx, name, degradedSecretStatus(agentzv1alpha1.SecretReasonReconcileFailed, err.Error()))
+			r.writeStatusForKey(
+				ctx,
+				name,
+				degradedSecretStatus(agentzv1alpha1.SecretReasonReconcileFailed, err.Error()),
+			)
 			return resolvedSecret{}, fmt.Errorf("%w: %s", errBadSecret, name)
 		}
 		if err := validateSecretValue(record.Value); err != nil {
-			r.writeStatusForKey(ctx, name, degradedSecretStatus(agentzv1alpha1.SecretReasonReconcileFailed, err.Error()))
+			r.writeStatusForKey(
+				ctx,
+				name,
+				degradedSecretStatus(agentzv1alpha1.SecretReasonReconcileFailed, err.Error()),
+			)
 			return resolvedSecret{}, fmt.Errorf("%w: %s", errBadSecret, name)
 		}
 		return resolvedSecret{value: record.Value, hosts: hosts}, nil
@@ -394,7 +406,9 @@ func (r *resolver) refreshOAuth(ctx context.Context, key string, record secretst
 	if err != nil {
 		return secretstore.OAuthRecord{}, err
 	}
-	if _, err := r.kv.Put(ctx, secretstore.SecretPath(r.namespace, r.agentName, key), data); err != nil {
+	path := secretstore.SecretPath(r.namespace, r.agentName, key)
+	_, err = r.kv.Put(ctx, path, data)
+	if err != nil {
 		return secretstore.OAuthRecord{}, err
 	}
 

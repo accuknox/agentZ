@@ -34,7 +34,7 @@ var (
 	SchemeBuilder = &schemeBuilder{GroupVersion: SchemeGroupVersion}
 
 	// AddToScheme adds the types in this group-version to the given scheme.
-	AddToScheme = SchemeBuilder.schemeBuilder().AddToScheme
+	AddToScheme = SchemeBuilder.AddToScheme
 )
 
 // schemeBuilder wraps runtime.SchemeBuilder for kind registration.
@@ -54,10 +54,6 @@ func (b *schemeBuilder) Register(objs ...runtime.Object) error {
 		},
 	)
 	return nil
-}
-
-func (b *schemeBuilder) schemeBuilder() *runtime.SchemeBuilder {
-	return &b.SchemeBuilder
 }
 
 // Resource returns a GroupResource for an unqualified resource.

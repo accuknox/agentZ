@@ -589,7 +589,8 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 				Request: &agentgatewayv1alpha1.Transform{Set: set},
 			}
 		}
-		if provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICompatible && provider.Spec.CatalogProvider == "sarvam" {
+		if provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICompatible &&
+			provider.Spec.CatalogProvider == "sarvam" {
 			if target.Policies.Transformation == nil {
 				target.Policies.Transformation = &agentgatewayv1alpha1.Transformation{
 					Request: &agentgatewayv1alpha1.Transform{},

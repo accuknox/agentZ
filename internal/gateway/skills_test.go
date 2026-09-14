@@ -22,6 +22,15 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
+type skillUploadCase struct {
+	name       string
+	filename   string
+	content    []byte
+	wantStatus int
+	wantCode   string
+	wantField  string
+}
+
 func TestReadSkillUploadReportsSpoolFailureAsInternal(t *testing.T) {
 	notDirectory := filepath.Join(t.TempDir(), "file")
 	if err := os.WriteFile(notDirectory, nil, 0o600); err != nil {
@@ -65,14 +74,7 @@ func TestReadSkillUploadReportsSpoolFailureAsInternal(t *testing.T) {
 func TestReadSkillUploadDiagnostics(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name       string
-		filename   string
-		content    []byte
-		wantStatus int
-		wantCode   string
-		wantField  string
-	}{
+	tests := []skillUploadCase{
 		{
 			name:       "standalone markdown metadata",
 			filename:   "SKILL.md",

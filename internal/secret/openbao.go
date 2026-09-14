@@ -9,17 +9,8 @@ import (
 	baoapi "github.com/openbao/openbao/api/v2"
 )
 
-type kvReaderWriter interface {
-	Get(context.Context, string) (*baoapi.KVSecret, error)
-	Put(context.Context, string, map[string]any, ...baoapi.KVOption) (*baoapi.KVSecret, error)
-}
-
 // ReadField loads one JSON-encoded field from an OpenBao KV record.
 func ReadField[T any](ctx context.Context, kv *baoapi.KVv2, path, key string) (T, error) {
-	return readField[T](ctx, kv, path, key)
-}
-
-func readField[T any](ctx context.Context, kv kvReaderWriter, path, key string) (T, error) {
 	var out T
 
 	secret, err := kv.Get(ctx, path)
@@ -57,10 +48,6 @@ func readField[T any](ctx context.Context, kv kvReaderWriter, path, key string) 
 
 // WriteField stores one JSON-encoded field in an OpenBao KV record.
 func WriteField(ctx context.Context, kv *baoapi.KVv2, path, key string, value any) error {
-	return writeField(ctx, kv, path, key, value)
-}
-
-func writeField(ctx context.Context, kv kvReaderWriter, path, key string, value any) error {
 	current, err := kv.Get(ctx, path)
 	if err != nil {
 		return fmt.Errorf("read openbao secret %q before write: %w", path, err)

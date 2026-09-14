@@ -23,6 +23,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 )
@@ -31,25 +32,39 @@ import (
 func (s *Service) ListCodingRefs(w http.ResponseWriter, r *http.Request, projectId string, params gatewayapi.ListCodingRefsParams) {
 	access, apiErr := s.codingAccess(r.Context(), params.AgentName)
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
-	project, err := s.queries.GatewayGetCodingProject(r.Context(), gatewaydb.GatewayGetCodingProjectParams{ID: projectId, WorkspaceID: access.workspaceID, OwnerID: access.claims.UserID})
+	project, err := s.queries.GatewayGetCodingProject(
+		r.Context(),
+		gatewaydb.GatewayGetCodingProjectParams{
+			ID:          projectId,
+			WorkspaceID: access.workspaceID,
+			OwnerID:     access.claims.UserID,
+		},
+	)
 	if err != nil {
-		writeError(w, r, mapGatewayStoreError("get project", err))
+		apiutil.WriteError(w, r, mapGatewayStoreError("get project", err))
 		return
 	}
-	row, err := s.queries.GatewayTouchCodingSnapshot(r.Context(), gatewaydb.GatewayTouchCodingSnapshotParams{ProjectID: project.ID, AgentName: params.AgentName})
+	row, err := s.queries.GatewayTouchCodingSnapshot(
+		r.Context(),
+		gatewaydb.GatewayTouchCodingSnapshotParams{ProjectID: project.ID, AgentName: params.AgentName},
+	)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	var status gatewayapi.CodingGitResult
 	if err := json.Unmarshal(row.Result, &status); err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	snapshot := gatewayapi.CodingRepositorySnapshot{Refs: []gatewayapi.CodingRef{}, Worktrees: []gatewayapi.CodingDiscoveredWorktree{}, Refreshing: true}
+	snapshot := gatewayapi.CodingRepositorySnapshot{
+		Refs:       []gatewayapi.CodingRef{},
+		Worktrees:  []gatewayapi.CodingDiscoveredWorktree{},
+		Refreshing: true,
+	}
 	if status.Repository != nil {
 		snapshot = *status.Repository
 		snapshot.Refreshing = time.Now().Before(row.LeaseUntil)
@@ -86,12 +101,25 @@ func (s *Service) ListCodingRefs(w http.ResponseWriter, r *http.Request, project
 	if params.Cursor != nil {
 		revision, value, ok := strings.Cut(*params.Cursor, ":")
 		if !ok || revision != snapshot.Revision {
-			writeError(w, r, newAPIError(http.StatusConflict, "snapshot_changed", "Branches changed; restart the search", nil))
+			apiutil.WriteError(
+				w,
+				r,
+				apiutil.NewError(
+					http.StatusConflict,
+					"snapshot_changed",
+					"Branches changed; restart the search",
+					nil,
+				),
+			)
 			return
 		}
 		offset, err = strconv.Atoi(value)
 		if err != nil || offset < 0 || offset > len(refs) {
-			writeError(w, r, newAPIError(http.StatusBadRequest, "invalid_cursor", "Invalid branch cursor", nil))
+			apiutil.WriteError(
+				w,
+				r,
+				apiutil.NewError(http.StatusBadRequest, "invalid_cursor", "Invalid branch cursor", nil),
+			)
 			return
 		}
 	}
@@ -102,29 +130,49 @@ func (s *Service) ListCodingRefs(w http.ResponseWriter, r *http.Request, project
 	if end < len(refs) {
 		snapshot.NextCursor = new(fmt.Sprintf("%s:%d", snapshot.Revision, end))
 	}
-	writeJSON(w, http.StatusOK, snapshot)
+	apiutil.WriteJSON(w, http.StatusOK, snapshot)
 }
 
 // RefreshCodingRepository schedules a refresh without extending the UI request.
 func (s *Service) RefreshCodingRepository(w http.ResponseWriter, r *http.Request, projectId string, params gatewayapi.RefreshCodingRepositoryParams) {
 	access, apiErr := s.codingAccess(r.Context(), params.AgentName)
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
-	if _, err := s.queries.GatewayGetCodingProject(r.Context(), gatewaydb.GatewayGetCodingProjectParams{ID: projectId, WorkspaceID: access.workspaceID, OwnerID: access.claims.UserID}); err != nil {
-		writeError(w, r, mapGatewayStoreError("get project", err))
+	_, err := s.queries.GatewayGetCodingProject(
+		r.Context(),
+		gatewaydb.GatewayGetCodingProjectParams{
+			ID:          projectId,
+			WorkspaceID: access.workspaceID,
+			OwnerID:     access.claims.UserID,
+		},
+	)
+	if err != nil {
+		apiutil.WriteError(w, r, mapGatewayStoreError("get project", err))
 		return
 	}
-	if _, err := s.queries.GatewayTouchCodingSnapshot(r.Context(), gatewaydb.GatewayTouchCodingSnapshotParams{ProjectID: projectId, AgentName: params.AgentName}); err != nil {
-		writeInternalError(w, r, err)
+	_, err = s.queries.GatewayTouchCodingSnapshot(
+		r.Context(),
+		gatewaydb.GatewayTouchCodingSnapshotParams{ProjectID: projectId, AgentName: params.AgentName},
+	)
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if err := s.queries.GatewayInvalidateCodingSnapshots(r.Context(), projectId); err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusAccepted, gatewayapi.CodingRepositorySnapshot{Refs: []gatewayapi.CodingRef{}, Worktrees: []gatewayapi.CodingDiscoveredWorktree{}, Refreshing: true})
+	apiutil.WriteJSON(
+		w,
+		http.StatusAccepted,
+		gatewayapi.CodingRepositorySnapshot{
+			Refs:       []gatewayapi.CodingRef{},
+			Worktrees:  []gatewayapi.CodingDiscoveredWorktree{},
+			Refreshing: true,
+		},
+	)
 }
 
 // AdoptCodingWorktree registers only a freshly verified project worktree.
@@ -135,25 +183,39 @@ func (s *Service) AdoptCodingWorktree(w http.ResponseWriter, r *http.Request, pr
 	}
 	access, apiErr := s.codingAccess(r.Context(), input.AgentName)
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	q, release, err := s.lockCodingProject(r.Context(), projectId)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	defer release()
-	project, err := q.GatewayGetCodingProject(r.Context(), gatewaydb.GatewayGetCodingProjectParams{ID: projectId, WorkspaceID: access.workspaceID, OwnerID: access.claims.UserID})
+	project, err := q.GatewayGetCodingProject(
+		r.Context(),
+		gatewaydb.GatewayGetCodingProjectParams{
+			ID:          projectId,
+			WorkspaceID: access.workspaceID,
+			OwnerID:     access.claims.UserID,
+		},
+	)
 	if err != nil {
-		writeError(w, r, mapGatewayStoreError("get project", err))
+		apiutil.WriteError(w, r, mapGatewayStoreError("get project", err))
 		return
 	}
 	root := path.Join("Projects", base64.RawURLEncoding.EncodeToString([]byte(project.OwnerID)), "github", project.ID)
 	tree := gatewaydb.CodingWorktree{AgentName: input.AgentName, Directory: root + "/repo"}
-	result, err := s.codingFilesystem(r.Context(), access.namespace, tree, project, false, gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitDiscover})
+	result, err := s.codingFilesystem(
+		r.Context(),
+		access.namespace,
+		tree,
+		project,
+		false,
+		gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitDiscover},
+	)
 	if err != nil {
-		writeError(w, r, newAPIError(http.StatusConflict, "discovery_failed", err.Error(), err))
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "discovery_failed", err.Error(), err))
 		return
 	}
 	if result.Repository != nil {
@@ -161,20 +223,39 @@ func (s *Service) AdoptCodingWorktree(w http.ResponseWriter, r *http.Request, pr
 			if discovered.Directory != input.Directory || !discovered.Available {
 				continue
 			}
-			tree, err := q.GatewayAdoptCodingWorktree(r.Context(), gatewaydb.GatewayAdoptCodingWorktreeParams{ID: uuid.NewString(), WorkspaceID: access.workspaceID, ProjectID: projectId, AgentName: input.AgentName, Directory: strings.TrimPrefix(discovered.Directory, "/home/agentz/"), Branch: discovered.Branch})
+			tree, err := q.GatewayAdoptCodingWorktree(
+				r.Context(),
+				gatewaydb.GatewayAdoptCodingWorktreeParams{
+					ID:          uuid.NewString(),
+					WorkspaceID: access.workspaceID,
+					ProjectID:   projectId,
+					AgentName:   input.AgentName,
+					Directory:   strings.TrimPrefix(discovered.Directory, "/home/agentz/"),
+					Branch:      discovered.Branch,
+				},
+			)
 			if err != nil {
-				writeError(w, r, mapGatewayStoreError("adopt worktree", err))
+				apiutil.WriteError(w, r, mapGatewayStoreError("adopt worktree", err))
 				return
 			}
 			if err := q.GatewayInvalidateCodingSnapshots(r.Context(), projectId); err != nil {
-				writeInternalError(w, r, err)
+				apiutil.WriteInternalError(w, r, err)
 				return
 			}
-			writeJSON(w, http.StatusCreated, codingWorktree(tree))
+			apiutil.WriteJSON(w, http.StatusCreated, codingWorktree(tree))
 			return
 		}
 	}
-	writeError(w, r, newAPIError(http.StatusConflict, "worktree_unavailable", "Worktree changed or is outside this project", nil))
+	apiutil.WriteError(
+		w,
+		r,
+		apiutil.NewError(
+			http.StatusConflict,
+			"worktree_unavailable",
+			"Worktree changed or is outside this project",
+			nil,
+		),
+	)
 }
 
 func (s *Service) refreshCodingSnapshot(ctx context.Context, snapshot gatewaydb.CodingSnapshot) {
@@ -229,14 +310,21 @@ func (s *Service) refreshCodingSnapshot(ctx context.Context, snapshot gatewaydb.
 		}
 		if rate != nil || abuse != nil {
 			retry := now.Add(interval)
-			if err := s.queries.GatewayDelayCodingGitHub(ctx, gatewaydb.GatewayDelayCodingGitHubParams{OwnerID: project.CodingProject.OwnerID, RetryAfter: retry}); err != nil {
+			err = s.queries.GatewayDelayCodingGitHub(
+				ctx,
+				gatewaydb.GatewayDelayCodingGitHubParams{OwnerID: project.CodingProject.OwnerID, RetryAfter: retry},
+			)
+			if err != nil {
 				slog.ErrorContext(ctx, "save GitHub cooldown", "error", err)
 			}
 		}
 		result.RemoteError = &message
 		if snapshot.WorktreeID == "" {
 			if result.Repository == nil {
-				result.Repository = &gatewayapi.CodingRepositorySnapshot{Refs: []gatewayapi.CodingRef{}, Worktrees: []gatewayapi.CodingDiscoveredWorktree{}}
+				result.Repository = &gatewayapi.CodingRepositorySnapshot{
+					Refs:      []gatewayapi.CodingRef{},
+					Worktrees: []gatewayapi.CodingDiscoveredWorktree{},
+				}
 			}
 			result.Repository.Error = &message
 			result.Repository.Refreshing = false
@@ -269,13 +357,34 @@ func (s *Service) refreshCodingSnapshot(ctx context.Context, snapshot gatewaydb.
 	// Release the refresh lease even when the remote deadline expired.
 	save, stop := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer stop()
-	rows, err := s.queries.GatewaySaveCodingSnapshot(save, gatewaydb.GatewaySaveCodingSnapshotParams{ProjectID: snapshot.ProjectID, AgentName: snapshot.AgentName, WorktreeID: snapshot.WorktreeID, Result: body, NextRefresh: now.Add(interval), NextRemote: snapshot.NextRemote, Failures: snapshot.Failures, RemoteRefs: snapshot.RemoteRefs, Generation: snapshot.Generation, LeaseUntil: snapshot.LeaseUntil})
+	rows, err := s.queries.GatewaySaveCodingSnapshot(
+		save,
+		gatewaydb.GatewaySaveCodingSnapshotParams{
+			ProjectID:   snapshot.ProjectID,
+			AgentName:   snapshot.AgentName,
+			WorktreeID:  snapshot.WorktreeID,
+			Result:      body,
+			NextRefresh: now.Add(interval),
+			NextRemote:  snapshot.NextRemote,
+			Failures:    snapshot.Failures,
+			RemoteRefs:  snapshot.RemoteRefs,
+			Generation:  snapshot.Generation,
+			LeaseUntil:  snapshot.LeaseUntil,
+		},
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, "save coding refresh", "error", err)
 		return
 	}
 	if rows == 1 && !bytes.Equal(before, body) {
-		if err := s.queries.GatewayNotifyCoding(save, gatewaydb.GatewayNotifyCodingParams{WorkspaceID: project.CodingProject.WorkspaceID, OwnerID: project.CodingProject.OwnerID}); err != nil {
+		err = s.queries.GatewayNotifyCoding(
+			save,
+			gatewaydb.GatewayNotifyCodingParams{
+				WorkspaceID: project.CodingProject.WorkspaceID,
+				OwnerID:     project.CodingProject.OwnerID,
+			},
+		)
+		if err != nil {
 			slog.ErrorContext(ctx, "notify coding refresh", "error", err)
 		}
 	}
@@ -285,12 +394,22 @@ func (s *Service) loadCodingSnapshot(ctx context.Context, access resourceAccess,
 	root := path.Join("Projects", base64.RawURLEncoding.EncodeToString([]byte(project.OwnerID)), "github", project.ID)
 	tree := gatewaydb.CodingWorktree{AgentName: snapshot.AgentName, Directory: root + "/repo"}
 	if snapshot.WorktreeID != "" {
-		row, err := s.queries.GatewayGetCodingWorktree(ctx, gatewaydb.GatewayGetCodingWorktreeParams{ID: snapshot.WorktreeID, WorkspaceID: project.WorkspaceID})
+		row, err := s.queries.GatewayGetCodingWorktree(
+			ctx,
+			gatewaydb.GatewayGetCodingWorktreeParams{ID: snapshot.WorktreeID, WorkspaceID: project.WorkspaceID},
+		)
 		if err != nil || row.CodingWorktree.Deleting || !row.CodingWorktree.Ready {
 			return errors.New("checkout is unavailable")
 		}
 		tree = row.CodingWorktree
-		current, err := s.codingFilesystem(ctx, access.namespace, tree, project, false, gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStatus})
+		current, err := s.codingFilesystem(
+			ctx,
+			access.namespace,
+			tree,
+			project,
+			false,
+			gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStatus},
+		)
 		if err != nil {
 			return err
 		}
@@ -315,11 +434,27 @@ func (s *Service) loadCodingSnapshot(ctx context.Context, access resourceAccess,
 			return err
 		}
 		owner, repo := repository.GetOwner().GetLogin(), repository.GetName()
-		pulls, _, err := identity.client.PullRequests.List(ctx, owner, repo, &github.PullRequestListOptions{Head: owner + ":" + current.Branch, State: "open", ListOptions: github.ListOptions{PerPage: 1}})
+		pulls, _, err := identity.client.PullRequests.List(
+			ctx,
+			owner,
+			repo,
+			&github.PullRequestListOptions{
+				Head:        owner + ":" + current.Branch,
+				State:       "open",
+				ListOptions: github.ListOptions{PerPage: 1},
+			},
+		)
 		if err != nil {
 			return err
 		}
-		checked, err := s.codingFilesystem(ctx, access.namespace, tree, project, false, gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStatus})
+		checked, err := s.codingFilesystem(
+			ctx,
+			access.namespace,
+			tree,
+			project,
+			false,
+			gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStatus},
+		)
 		if err != nil {
 			return err
 		}
@@ -331,7 +466,10 @@ func (s *Service) loadCodingSnapshot(ctx context.Context, access resourceAccess,
 		result.RemoteError = nil
 		result.PullRequest = nil
 		if len(pulls) > 0 {
-			result.PullRequest = &gatewayapi.CodingPullRequest{Number: pulls[0].GetNumber(), Url: pulls[0].GetHTMLURL()}
+			result.PullRequest = &gatewayapi.CodingPullRequest{
+				Number: pulls[0].GetNumber(),
+				Url:    pulls[0].GetHTMLURL(),
+			}
 		}
 		snapshot.NextRemote = time.Now().Add(time.Minute)
 		if time.Now().Before(snapshot.DemandUntil) {
@@ -339,7 +477,10 @@ func (s *Service) loadCodingSnapshot(ctx context.Context, access resourceAccess,
 		}
 		return nil
 	}
-	trees, err := s.queries.GatewayListCodingWorktrees(ctx, gatewaydb.GatewayListCodingWorktreesParams{ProjectID: project.ID, WorkspaceID: project.WorkspaceID})
+	trees, err := s.queries.GatewayListCodingWorktrees(
+		ctx,
+		gatewaydb.GatewayListCodingWorktreesParams{ProjectID: project.ID, WorkspaceID: project.WorkspaceID},
+	)
 	if err != nil {
 		return err
 	}
@@ -348,7 +489,14 @@ func (s *Service) loadCodingSnapshot(ctx context.Context, access resourceAccess,
 		ready = ready || existing.AgentName == tree.AgentName && existing.Ready && !existing.Deleting
 	}
 	if ready {
-		current, err := s.codingFilesystem(ctx, access.namespace, tree, project, false, gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitDiscover})
+		current, err := s.codingFilesystem(
+			ctx,
+			access.namespace,
+			tree,
+			project,
+			false,
+			gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitDiscover},
+		)
 		if err != nil {
 			return err
 		}
@@ -380,7 +528,15 @@ func (s *Service) loadCodingSnapshot(ctx context.Context, access resourceAccess,
 		}
 		if project.Repository != repository.GetFullName() || project.DefaultBranch != repository.GetDefaultBranch() {
 			project.Repository, project.DefaultBranch = repository.GetFullName(), repository.GetDefaultBranch()
-			if err := s.queries.GatewayUpdateCodingRepository(ctx, gatewaydb.GatewayUpdateCodingRepositoryParams{ID: project.ID, Repository: project.Repository, DefaultBranch: project.DefaultBranch}); err != nil {
+			err = s.queries.GatewayUpdateCodingRepository(
+				ctx,
+				gatewaydb.GatewayUpdateCodingRepositoryParams{
+					ID:            project.ID,
+					Repository:    project.Repository,
+					DefaultBranch: project.DefaultBranch,
+				},
+			)
+			if err != nil {
 				return err
 			}
 		}
@@ -394,14 +550,26 @@ func (s *Service) loadCodingSnapshot(ctx context.Context, access resourceAccess,
 			return err
 		}
 		if !ready {
-			result.Repository = &gatewayapi.CodingRepositorySnapshot{Refs: []gatewayapi.CodingRef{}, Worktrees: []gatewayapi.CodingDiscoveredWorktree{}}
+			result.Repository = &gatewayapi.CodingRepositorySnapshot{
+				Refs:      []gatewayapi.CodingRef{},
+				Worktrees: []gatewayapi.CodingDiscoveredWorktree{},
+			}
 			for _, line := range strings.Split(remote, "\n") {
 				head, ref, ok := strings.Cut(line, "\t")
 				if !ok {
 					continue
 				}
 				name := strings.TrimPrefix(ref, "refs/heads/")
-				result.Repository.Refs = append(result.Repository.Refs, gatewayapi.CodingRef{Ref: "refs/remotes/origin/" + name, Name: "origin/" + name, Head: head, Remote: true, Default: name == project.DefaultBranch})
+				result.Repository.Refs = append(
+					result.Repository.Refs,
+					gatewayapi.CodingRef{
+						Ref:     "refs/remotes/origin/" + name,
+						Name:    "origin/" + name,
+						Head:    head,
+						Remote:  true,
+						Default: name == project.DefaultBranch,
+					},
+				)
 			}
 		} else if remote != snapshot.RemoteRefs {
 			_, release, err := s.lockCodingProject(ctx, project.ID)
@@ -412,7 +580,14 @@ func (s *Service) loadCodingSnapshot(ctx context.Context, access resourceAccess,
 			var bundle []byte
 			bundle, remoteErr = repo.fetchBundle(ctx)
 			if remoteErr == nil {
-				_, remoteErr = s.codingFilesystem(ctx, access.namespace, tree, project, false, gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitImport, Bundle: &bundle})
+				_, remoteErr = s.codingFilesystem(
+					ctx,
+					access.namespace,
+					tree,
+					project,
+					false,
+					gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitImport, Bundle: &bundle},
+				)
 			}
 		}
 		if remoteErr == nil {
@@ -432,12 +607,12 @@ func (s *Service) loadCodingSnapshot(ctx context.Context, access resourceAccess,
 func (s *Service) WatchCoding(w http.ResponseWriter, r *http.Request) {
 	access, apiErr := s.codingAccess(r.Context(), "")
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		writeInternalError(w, r, errors.New("streaming is unavailable"))
+		apiutil.WriteInternalError(w, r, errors.New("streaming is unavailable"))
 		return
 	}
 	events, release := s.codingEvents.subscribe(access.workspaceID + "/" + access.claims.UserID)

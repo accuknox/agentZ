@@ -255,10 +255,16 @@ func (v *Validator) validateQuota(ctx context.Context, oldAgt, newAgt *agentzv1a
 		issues = append(issues, field.Forbidden(path, "Tenant Agent count quota exceeded"))
 	}
 	if exceeded.CPU {
-		issues = append(issues, field.Forbidden(path.Child("requests").Key(string(corev1.ResourceCPU)), "Tenant CPU quota exceeded"))
+		issues = append(issues, field.Forbidden(
+			path.Child("requests").Key(string(corev1.ResourceCPU)),
+			"Tenant CPU quota exceeded",
+		))
 	}
 	if exceeded.Memory {
-		issues = append(issues, field.Forbidden(path.Child("requests").Key(string(corev1.ResourceMemory)), "Tenant memory quota exceeded"))
+		issues = append(issues, field.Forbidden(
+			path.Child("requests").Key(string(corev1.ResourceMemory)),
+			"Tenant memory quota exceeded",
+		))
 	}
 	return issues
 }

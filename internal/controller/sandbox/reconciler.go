@@ -141,7 +141,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, errors.Join(err, r.updateStatus(ctx, sandbox, false))
 	}
 
-	packages := defaultPackages(sandbox.Spec.Packages)
+	packages := DefaultPackagesForWebhook(sandbox.Spec.Packages)
 	if !slices.Equal(sandbox.Spec.Packages, packages) {
 		patch := client.MergeFrom(sandbox.DeepCopy())
 		sandbox.Spec.Packages = packages
@@ -274,11 +274,17 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&agentzv1alpha1.Sandbox{}).
 		Watches(&agentzv1alpha1.Agent{}, handler.EnqueueRequestsFromMapFunc(r.sandboxForAgent)).
 		Watches(&agentzv1alpha1.MCPConnection{}, handler.EnqueueRequestsFromMapFunc(r.sandboxesForMCPConnection)).
-		Watches(&agentzv1alpha1.InferenceProvider{}, handler.EnqueueRequestsFromMapFunc(r.sandboxesForInferenceProvider)).
+		Watches(
+			&agentzv1alpha1.InferenceProvider{},
+			handler.EnqueueRequestsFromMapFunc(r.sandboxesForInferenceProvider),
+		).
 		Watches(&agentzv1alpha1.InferencePool{}, handler.EnqueueRequestsFromMapFunc(r.sandboxesForInferencePool)).
 		Watches(&gwv1.Gateway{}, handler.EnqueueRequestsFromMapFunc(r.sandboxesForInferenceGateway)).
 		Owns(&gwv1.HTTPRoute{}).
-		Watches(&agentgatewayv1alpha1.AgentgatewayPolicy{}, handler.EnqueueRequestsFromMapFunc(r.sandboxesForInferencePolicy)).
+		Watches(
+			&agentgatewayv1alpha1.AgentgatewayPolicy{},
+			handler.EnqueueRequestsFromMapFunc(r.sandboxesForInferencePolicy),
+		).
 		Named("sandbox").
 		Complete(r)
 }
@@ -521,7 +527,7 @@ func (r *Reconciler) reconcileGateway(ctx context.Context, namespace string) err
 		if err := r.deleteTracePolicy(ctx, namespace); err != nil {
 			return err
 		}
-		if err := r.deleteTraceBackend(ctx, namespace); err != nil {
+		if err := r.deleteNamedTraceBackend(ctx, namespace, traceBackendName); err != nil {
 			return err
 		}
 		if err := r.deleteTraceEndpointResources(ctx, namespace); err != nil {
@@ -722,7 +728,7 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, sandbox *agentzv1alph
 				RequestTimeout: timeout,
 			}
 		}
-		if policies.TLS == nil && policies.HTTP == nil && policies.Tunnel == nil && policies.Auth == nil && policies.TCP == nil {
+		if policies.TLS == nil && policies.HTTP == nil {
 			policies = nil
 		}
 
@@ -1085,10 +1091,6 @@ func (r *Reconciler) deleteTracePolicy(ctx context.Context, namespace string) er
 		return fmt.Errorf("delete trace policy: %w", err)
 	}
 	return nil
-}
-
-func (r *Reconciler) deleteTraceBackend(ctx context.Context, namespace string) error {
-	return r.deleteNamedTraceBackend(ctx, namespace, traceBackendName)
 }
 
 func (r *Reconciler) deleteNamedTraceBackend(ctx context.Context, namespace, name string) error {

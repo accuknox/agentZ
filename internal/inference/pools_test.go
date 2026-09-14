@@ -108,7 +108,9 @@ func TestResolvePoolContract(t *testing.T) {
 	if !reflect.DeepEqual(definition.Contract.Modalities.Input, wantInput) {
 		t.Fatalf("input modalities = %#v, want %#v", definition.Contract.Modalities.Input, wantInput)
 	}
-	if definition.Contract.Limits.Context != 100000 || definition.Contract.Limits.Input == nil || *definition.Contract.Limits.Input != 64000 || definition.Contract.Limits.Output != 4096 {
+	limits := definition.Contract.Limits
+	if limits.Context != 100000 || limits.Input == nil ||
+		*limits.Input != 64000 || limits.Output != 4096 {
 		t.Fatalf("limits = %#v, want context=100000 input=64000 output=4096", definition.Contract.Limits)
 	}
 }
@@ -170,7 +172,10 @@ func TestResolvePoolRejectsUnsupportedAPIConversion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolvePool() error = %v", err)
 	}
-	if len(issues) != 1 || issues[0].Field != "members.1.model" || issues[0].Message != "These models cannot be used together. Choose a different model combination." {
+	message := "These models cannot be used together. " +
+		"Choose a different model combination."
+	if len(issues) != 1 || issues[0].Field != "members.1.model" ||
+		issues[0].Message != message {
 		t.Fatalf("ResolvePool() issues = %#v, want unsupported members issue", issues)
 	}
 }
@@ -186,9 +191,13 @@ func TestResolvePoolRejectsInvalidMembership(t *testing.T) {
 	tests := []resolvePoolInvalidMembershipCase{
 		{name: "empty", field: "members"},
 		{
-			name:    "unavailable workspace scope",
-			members: []agentzv1alpha1.InferencePoolMember{{Scope: agentzv1alpha1.ResourceScopeWorkspace, Provider: "provider", Model: "model"}},
-			field:   "members.0.scope",
+			name: "unavailable workspace scope",
+			members: []agentzv1alpha1.InferencePoolMember{{
+				Scope:    agentzv1alpha1.ResourceScopeWorkspace,
+				Provider: "provider",
+				Model:    "model",
+			}},
+			field: "members.0.scope",
 		},
 		{
 			name: "too many",
@@ -214,18 +223,30 @@ func TestResolvePoolRejectsInvalidMembership(t *testing.T) {
 			field: "members.1",
 		},
 		{
-			name:    "missing provider",
-			members: []agentzv1alpha1.InferencePoolMember{{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "missing", Model: "model"}},
-			field:   "members.0.provider",
+			name: "missing provider",
+			members: []agentzv1alpha1.InferencePoolMember{{
+				Scope:    agentzv1alpha1.ResourceScopeOrganisation,
+				Provider: "missing",
+				Model:    "model",
+			}},
+			field: "members.0.provider",
 		},
 		{
-			name:    "missing model",
-			members: []agentzv1alpha1.InferencePoolMember{{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "missing"}},
-			field:   "members.0.model",
+			name: "missing model",
+			members: []agentzv1alpha1.InferencePoolMember{{
+				Scope:    agentzv1alpha1.ResourceScopeOrganisation,
+				Provider: "provider",
+				Model:    "missing",
+			}},
+			field: "members.0.model",
 		},
 		{
-			name:    "missing text output",
-			members: []agentzv1alpha1.InferencePoolMember{{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "model"}},
+			name: "missing text output",
+			members: []agentzv1alpha1.InferencePoolMember{{
+				Scope:    agentzv1alpha1.ResourceScopeOrganisation,
+				Provider: "provider",
+				Model:    "model",
+			}},
 			configure: func() {
 				provider.Spec.Models[0].Modalities.Output = []agentzv1alpha1.InferenceModelModality{
 					agentzv1alpha1.InferenceModelModalityAudio,
@@ -269,11 +290,19 @@ func TestRenderPoolBackend(t *testing.T) {
 	}
 	definition := PoolDefinition{Members: []ResolvedPoolMember{
 		{
-			Ref:      agentzv1alpha1.InferencePoolMember{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: primary.Name, Model: "gpt"},
+			Ref: agentzv1alpha1.InferencePoolMember{
+				Scope:    agentzv1alpha1.ResourceScopeOrganisation,
+				Provider: primary.Name,
+				Model:    "gpt",
+			},
 			Provider: primary,
 		},
 		{
-			Ref:      agentzv1alpha1.InferencePoolMember{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: secondary.Name, Model: "claude"},
+			Ref: agentzv1alpha1.InferencePoolMember{
+				Scope:    agentzv1alpha1.ResourceScopeOrganisation,
+				Provider: secondary.Name,
+				Model:    "claude",
+			},
 			Provider: secondary,
 		},
 	}}
@@ -311,7 +340,8 @@ func TestRenderPoolBackend(t *testing.T) {
 		if health == nil || health.UnhealthyCondition == nil || health.Eviction == nil {
 			t.Fatalf("group %d health = %#v", i, health)
 		}
-		wantCondition := "response == null || response.code == 401 || response.code == 403 || response.code == 429 || response.code >= 500"
+		wantCondition := "response == null || response.code == 401 || " +
+			"response.code == 403 || response.code == 429 || response.code >= 500"
 		if string(*health.UnhealthyCondition) != wantCondition {
 			t.Fatalf("group %d unhealthy condition = %q", i, *health.UnhealthyCondition)
 		}

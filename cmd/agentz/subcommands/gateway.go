@@ -11,6 +11,7 @@ import (
 	"github.com/accuknox/agentz/internal/skill"
 )
 
+// GatewayCmd runs the HTTP API gateway.
 var GatewayCmd = &cli.Command{
 	Name:     "gateway",
 	Usage:    "AgentZ gateway",

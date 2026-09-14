@@ -150,7 +150,8 @@ func (r *SecretReconciler) deleteRuntime(ctx context.Context, secret *agentzv1al
 	}
 
 	path := secretstore.SecretPath(secret.Namespace, secret.Spec.AgentRef.Name, secret.Spec.Key)
-	if err := kv.DeleteMetadata(ctx, path); err != nil && !errors.Is(err, baoapi.ErrSecretNotFound) {
+	err = kv.DeleteMetadata(ctx, path)
+	if err != nil && !errors.Is(err, baoapi.ErrSecretNotFound) {
 		return fmt.Errorf("delete secret runtime metadata %q: %w", path, err)
 	}
 	return nil

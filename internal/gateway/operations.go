@@ -19,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/accuknox/agentz/internal/authorization"
+	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 )
@@ -26,9 +27,20 @@ import (
 // codingWorkerAccess resolves current grants from the saved owner identity. A
 // worker is never a system actor and cannot bypass personal project ownership.
 func (s *Service) codingWorkerAccess(ctx context.Context, project gatewaydb.GatewayCodingProjectIdentityRow, agent string) (resourceAccess, error) {
-	claims := gatewayClaims{UserID: project.CodingProject.OwnerID, OrganizationID: project.OrganizationID, WorkspaceID: project.CodingProject.WorkspaceID}
-	access := resourceAccess{claims: claims, workspaceID: claims.WorkspaceID, operation: authorization.OperationUseSharedAgent}
-	effective, err := authorization.New(s.queries).Resolve(ctx, authorization.Subject{UserID: claims.UserID, OrganizationID: claims.OrganizationID})
+	claims := gatewayClaims{
+		UserID:         project.CodingProject.OwnerID,
+		OrganizationID: project.OrganizationID,
+		WorkspaceID:    project.CodingProject.WorkspaceID,
+	}
+	access := resourceAccess{
+		claims:      claims,
+		workspaceID: claims.WorkspaceID,
+		operation:   authorization.OperationUseSharedAgent,
+	}
+	effective, err := authorization.New(s.queries).Resolve(
+		ctx,
+		authorization.Subject{UserID: claims.UserID, OrganizationID: claims.OrganizationID},
+	)
 	if err != nil {
 		return access, err
 	}
@@ -54,65 +66,107 @@ func (s *Service) StartCodingOperation(w http.ResponseWriter, r *http.Request) {
 	}
 	access, apiErr := s.codingAccess(r.Context(), input.AgentName)
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
-	row, err := s.queries.GatewayGetCodingThread(r.Context(), gatewaydb.GatewayGetCodingThreadParams{WorkspaceID: access.workspaceID, AgentName: input.AgentName, SessionID: pgtype.Text{String: input.SessionId, Valid: true}})
+	row, err := s.queries.GatewayGetCodingThread(
+		r.Context(),
+		gatewaydb.GatewayGetCodingThreadParams{
+			WorkspaceID: access.workspaceID,
+			AgentName:   input.AgentName,
+			SessionID:   pgtype.Text{String: input.SessionId, Valid: true},
+		},
+	)
 	if err != nil {
-		writeError(w, r, mapGatewayStoreError("get coding thread", err))
+		apiutil.WriteError(w, r, mapGatewayStoreError("get coding thread", err))
 		return
 	}
 	if row.CodingProject.OwnerID != access.claims.UserID || row.CodingWorktree.Deleting || !row.CodingWorktree.Ready {
-		writeError(w, r, mapGatewayStoreError("get checkout", pgx.ErrNoRows))
+		apiutil.WriteError(w, r, mapGatewayStoreError("get checkout", pgx.ErrNoRows))
 		return
 	}
-	result := gatewayapi.CodingOperation{Id: input.Id, ProjectId: row.CodingProject.ID, WorktreeId: row.CodingWorktree.ID, AgentName: input.AgentName, SessionId: input.SessionId, Action: input.Action, State: gatewayapi.CodingOperationQueued, Stage: "Queued", CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+	result := gatewayapi.CodingOperation{
+		Id:         input.Id,
+		ProjectId:  row.CodingProject.ID,
+		WorktreeId: row.CodingWorktree.ID,
+		AgentName:  input.AgentName,
+		SessionId:  input.SessionId,
+		Action:     input.Action,
+		State:      gatewayapi.CodingOperationQueued,
+		Stage:      "Queued",
+		CreatedAt:  time.Now().UTC(),
+		UpdatedAt:  time.Now().UTC(),
+	}
 	request, err := json.Marshal(input)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	body, err := json.Marshal(result)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	job, err := s.queries.GatewayCreateCodingOperation(r.Context(), gatewaydb.GatewayCreateCodingOperationParams{ID: input.Id, WorkspaceID: access.workspaceID, OrganizationID: access.claims.OrganizationID, OwnerID: access.claims.UserID, ProjectID: row.CodingProject.ID, WorktreeID: row.CodingWorktree.ID, Request: request, Result: body})
+	job, err := s.queries.GatewayCreateCodingOperation(
+		r.Context(),
+		gatewaydb.GatewayCreateCodingOperationParams{
+			ID:             input.Id,
+			WorkspaceID:    access.workspaceID,
+			OrganizationID: access.claims.OrganizationID,
+			OwnerID:        access.claims.UserID,
+			ProjectID:      row.CodingProject.ID,
+			WorktreeID:     row.CodingWorktree.ID,
+			Request:        request,
+			Result:         body,
+		},
+	)
 	if err != nil {
-		writeError(w, r, mapGatewayStoreError("create coding operation", err))
+		apiutil.WriteError(w, r, mapGatewayStoreError("create coding operation", err))
 		return
 	}
 	var previous gatewayapi.CodingOperationRequest
 	if err := json.Unmarshal(job.Request, &previous); err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	canonical, err := json.Marshal(previous)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if !bytes.Equal(canonical, request) {
-		writeError(w, r, newAPIError(http.StatusConflict, "operation_conflict", "Operation ID already belongs to another request", nil))
+		apiutil.WriteError(
+			w,
+			r,
+			apiutil.NewError(
+				http.StatusConflict,
+				"operation_conflict",
+				"Operation ID already belongs to another request",
+				nil,
+			),
+		)
 		return
 	}
 	if err := json.Unmarshal(job.Result, &result); err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusAccepted, result)
+	apiutil.WriteJSON(w, http.StatusAccepted, result)
 }
 
 // ListCodingOperations restores running and recent results after navigation.
 func (s *Service) ListCodingOperations(w http.ResponseWriter, r *http.Request) {
 	access, apiErr := s.codingAccess(r.Context(), "")
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
-	rows, err := s.queries.GatewayListCodingOperations(r.Context(), gatewaydb.GatewayListCodingOperationsParams{WorkspaceID: access.workspaceID, OwnerID: access.claims.UserID})
+	rows, err := s.queries.GatewayListCodingOperations(
+		r.Context(),
+		gatewaydb.GatewayListCodingOperationsParams{WorkspaceID: access.workspaceID, OwnerID: access.claims.UserID},
+	)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	result := []gatewayapi.CodingOperation{}
@@ -120,7 +174,7 @@ func (s *Service) ListCodingOperations(w http.ResponseWriter, r *http.Request) {
 	for _, row := range rows {
 		var operation gatewayapi.CodingOperation
 		if err := json.Unmarshal(row.Result, &operation); err != nil {
-			writeInternalError(w, r, err)
+			apiutil.WriteInternalError(w, r, err)
 			return
 		}
 		allowed, ok := checked[operation.AgentName]
@@ -135,31 +189,38 @@ func (s *Service) ListCodingOperations(w http.ResponseWriter, r *http.Request) {
 
 		result = append(result, operation)
 	}
-	writeJSON(w, http.StatusOK, result)
+	apiutil.WriteJSON(w, http.StatusOK, result)
 }
 
 // GetCodingOperation reads a persisted result on any gateway replica.
 func (s *Service) GetCodingOperation(w http.ResponseWriter, r *http.Request, operationId string) {
 	access, apiErr := s.codingAccess(r.Context(), "")
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
-	job, err := s.queries.GatewayGetCodingOperation(r.Context(), gatewaydb.GatewayGetCodingOperationParams{ID: operationId, WorkspaceID: access.workspaceID, OwnerID: access.claims.UserID})
+	job, err := s.queries.GatewayGetCodingOperation(
+		r.Context(),
+		gatewaydb.GatewayGetCodingOperationParams{
+			ID:          operationId,
+			WorkspaceID: access.workspaceID,
+			OwnerID:     access.claims.UserID,
+		},
+	)
 	if err != nil {
-		writeError(w, r, mapGatewayStoreError("get coding operation", err))
+		apiutil.WriteError(w, r, mapGatewayStoreError("get coding operation", err))
 		return
 	}
 	var result gatewayapi.CodingOperation
 	if err := json.Unmarshal(job.Result, &result); err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if _, apiErr := s.codingAccess(r.Context(), result.AgentName); apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
-	writeJSON(w, http.StatusOK, result)
+	apiutil.WriteJSON(w, http.StatusOK, result)
 }
 
 func (s *Service) runCoding(ctx context.Context) {
@@ -248,7 +309,10 @@ func (s *Service) runCodingOperation(ctx context.Context, job gatewaydb.CodingOp
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				rows, err := s.queries.GatewayHeartbeatCodingOperation(ctx, gatewaydb.GatewayHeartbeatCodingOperationParams{ID: job.ID, LeaseToken: job.LeaseToken})
+				rows, err := s.queries.GatewayHeartbeatCodingOperation(
+					ctx,
+					gatewaydb.GatewayHeartbeatCodingOperationParams{ID: job.ID, LeaseToken: job.LeaseToken},
+				)
 				if err != nil || rows != 1 {
 					cancel()
 					return
@@ -256,18 +320,27 @@ func (s *Service) runCodingOperation(ctx context.Context, job gatewaydb.CodingOp
 			}
 		}
 	}()
-	defer func() { cancel(); <-done }()
+	defer func() {
+		cancel()
+		<-done
+	}()
 	publish := func(stage string) error {
 		result.Stage, result.UpdatedAt = stage, time.Now().UTC()
 		body, err := json.Marshal(result)
 		if err != nil {
 			return err
 		}
-		rows, err := s.queries.GatewayUpdateCodingOperation(ctx, gatewaydb.GatewayUpdateCodingOperationParams{ID: job.ID, LeaseToken: job.LeaseToken, Result: body})
+		rows, err := s.queries.GatewayUpdateCodingOperation(
+			ctx,
+			gatewaydb.GatewayUpdateCodingOperationParams{ID: job.ID, LeaseToken: job.LeaseToken, Result: body},
+		)
 		if err != nil || rows != 1 {
 			return errors.New("operation lease lost")
 		}
-		return s.queries.GatewayNotifyCoding(ctx, gatewaydb.GatewayNotifyCodingParams{WorkspaceID: job.WorkspaceID, OwnerID: job.OwnerID})
+		return s.queries.GatewayNotifyCoding(
+			ctx,
+			gatewaydb.GatewayNotifyCodingParams{WorkspaceID: job.WorkspaceID, OwnerID: job.OwnerID},
+		)
 	}
 	err := s.executeCodingOperation(ctx, job, input, &result, publish)
 	result.State = gatewayapi.CodingOperationSucceeded
@@ -305,18 +378,30 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 	if err != nil {
 		return err
 	}
-	if project.CodingProject.OwnerID != job.OwnerID || project.CodingProject.WorkspaceID != job.WorkspaceID || project.OrganizationID != job.OrganizationID {
+	ownerChanged := project.CodingProject.OwnerID != job.OwnerID ||
+		project.CodingProject.WorkspaceID != job.WorkspaceID ||
+		project.OrganizationID != job.OrganizationID
+	if ownerChanged {
 		return errors.New("project ownership changed")
 	}
 	access, err := s.codingWorkerAccess(ctx, project, input.AgentName)
 	if err != nil {
 		return err
 	}
-	row, err := s.queries.GatewayGetCodingThread(ctx, gatewaydb.GatewayGetCodingThreadParams{WorkspaceID: job.WorkspaceID, AgentName: input.AgentName, SessionID: pgtype.Text{String: input.SessionId, Valid: true}})
+	row, err := s.queries.GatewayGetCodingThread(
+		ctx,
+		gatewaydb.GatewayGetCodingThreadParams{
+			WorkspaceID: job.WorkspaceID,
+			AgentName:   input.AgentName,
+			SessionID:   pgtype.Text{String: input.SessionId, Valid: true},
+		},
+	)
 	if err != nil {
 		return err
 	}
-	if row.CodingWorktree.ID != job.WorktreeID || row.CodingProject.ID != job.ProjectID || row.CodingWorktree.Deleting || !row.CodingWorktree.Ready {
+	checkoutChanged := row.CodingWorktree.ID != job.WorktreeID ||
+		row.CodingProject.ID != job.ProjectID
+	if checkoutChanged || row.CodingWorktree.Deleting || !row.CodingWorktree.Ready {
 		return errors.New("conversation checkout changed or is unavailable")
 	}
 	local := func(request gatewayapi.CodingGitRequest) (gatewayapi.CodingGitResult, error) {
@@ -325,7 +410,10 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 		}
 		return s.codingFilesystem(ctx, access.namespace, row.CodingWorktree, row.CodingProject, false, request)
 	}
-	current, err := local(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStatus, ExpectedHead: &input.ExpectedHead})
+	current, err := local(gatewayapi.CodingGitRequest{
+		Operation:    gatewayapi.CodingGitStatus,
+		ExpectedHead: &input.ExpectedHead,
+	})
 	if err != nil {
 		return err
 	}
@@ -360,15 +448,30 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 				text += "\n" + file.Path
 			}
 		}
-		suggestion, err := s.codingSuggestion(ctx, access, row.CodingWorktree, row.CodingProject, row.CodingThread.SessionID.String, gatewayapi.CodingTextRequest{Purpose: gatewayapi.CodingTextBranch, Text: &text})
+		suggestion, err := s.codingSuggestion(
+			ctx,
+			access,
+			row.CodingWorktree,
+			row.CodingProject,
+			row.CodingThread.SessionID.String,
+			gatewayapi.CodingTextRequest{Purpose: gatewayapi.CodingTextBranch, Text: &text},
+		)
 		if err != nil {
 			return err
 		}
-		current, err = local(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitCreateBranch, Ref: &suggestion.Text, ExpectedHead: &current.Head})
+		current, err = local(gatewayapi.CodingGitRequest{
+			Operation:    gatewayapi.CodingGitCreateBranch,
+			Ref:          &suggestion.Text,
+			ExpectedHead: &current.Head,
+		})
 		if err != nil {
 			return err
 		}
-		if err := s.queries.GatewayUpdateCodingBranch(ctx, gatewaydb.GatewayUpdateCodingBranchParams{ID: job.WorktreeID, Branch: current.Branch}); err != nil {
+		err = s.queries.GatewayUpdateCodingBranch(
+			ctx,
+			gatewaydb.GatewayUpdateCodingBranchParams{ID: job.WorktreeID, Branch: current.Branch},
+		)
+		if err != nil {
 			return err
 		}
 	}
@@ -390,13 +493,20 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 		_, err = local(request)
 		return err
 	}
-	commit := input.Action == gatewayapi.CodingActionCommit || input.Action == gatewayapi.CodingActionCommitPush || input.Action == gatewayapi.CodingActionCommitPushPR
+	commit := input.Action == gatewayapi.CodingActionCommit ||
+		input.Action == gatewayapi.CodingActionCommitPush ||
+		input.Action == gatewayapi.CodingActionCommitPushPR
 	if commit && len(current.Files) > 0 {
 		if err := publish("Preparing commit"); err != nil {
 			return err
 		}
 		if input.ExpectedTree == nil {
-			current, err = local(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitPrepareCommit, ExpectedHead: &current.Head, Revision: &current.Revision, Paths: input.Paths})
+			current, err = local(gatewayapi.CodingGitRequest{
+				Operation:    gatewayapi.CodingGitPrepareCommit,
+				ExpectedHead: &current.Head,
+				Revision:     &current.Revision,
+				Paths:        input.Paths,
+			})
 			if err != nil {
 				return err
 			}
@@ -410,7 +520,17 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 			if err := publish("Generating commit message"); err != nil {
 				return err
 			}
-			suggestion, err := s.codingSuggestion(ctx, access, row.CodingWorktree, row.CodingProject, row.CodingThread.SessionID.String, gatewayapi.CodingTextRequest{Purpose: gatewayapi.CodingTextCommit, ExpectedTree: current.Tree})
+			suggestion, err := s.codingSuggestion(
+				ctx,
+				access,
+				row.CodingWorktree,
+				row.CodingProject,
+				row.CodingThread.SessionID.String,
+				gatewayapi.CodingTextRequest{
+					Purpose:      gatewayapi.CodingTextCommit,
+					ExpectedTree: current.Tree,
+				},
+			)
 			if err != nil {
 				return err
 			}
@@ -419,11 +539,15 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 		if err := publish("Committing"); err != nil {
 			return err
 		}
-		exported, err := local(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitExport, ExpectedHead: &current.Head})
+		exported, err := local(gatewayapi.CodingGitRequest{
+			Operation:    gatewayapi.CodingGitExport,
+			ExpectedHead: &current.Head,
+		})
 		if err != nil {
 			return err
 		}
-		if exported.Bundle == nil || exported.Tree == nil || *exported.Tree != *current.Tree || exported.Branch != current.Branch {
+		sameTree := exported.Tree != nil && *exported.Tree == *current.Tree
+		if exported.Bundle == nil || !sameTree || exported.Branch != current.Branch {
 			return errors.New("checkout changed while preparing the commit")
 		}
 		if err := repo.importBundle(ctx, *exported.Bundle); err != nil {
@@ -444,18 +568,40 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 		if tree == committed {
 			return errors.New("no staged changes to commit")
 		}
-		sha, err := repo.run(ctx, false, "-c", "user.name="+identity.name, "-c", "user.email="+identity.email, "-c", "commit.gpgSign=false", "commit-tree", tree, "-p", current.Head, "-m", message)
+		sha, err := repo.run(
+			ctx,
+			false,
+			"-c",
+			"user.name="+identity.name,
+			"-c",
+			"user.email="+identity.email,
+			"-c",
+			"commit.gpgSign=false",
+			"commit-tree",
+			tree,
+			"-p",
+			current.Head,
+			"-m",
+			message,
+		)
 		if err != nil {
 			return err
 		}
-		if _, err := repo.run(ctx, false, "update-ref", "refs/heads/"+current.Branch, sha, current.Head); err != nil {
+		_, err = repo.run(ctx, false, "update-ref", "refs/heads/"+current.Branch, sha, current.Head)
+		if err != nil {
 			return err
 		}
 		bundle, err := repo.exportBundle(ctx)
 		if err != nil {
 			return err
 		}
-		current, err = local(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitApplyCommit, Bundle: &bundle, ExpectedHead: &current.Head, ExpectedTree: current.Tree, Ref: &current.Branch})
+		current, err = local(gatewayapi.CodingGitRequest{
+			Operation:    gatewayapi.CodingGitApplyCommit,
+			Bundle:       &bundle,
+			ExpectedHead: &current.Head,
+			ExpectedTree: current.Tree,
+			Ref:          &current.Branch,
+		})
 		if err != nil {
 			return err
 		}
@@ -477,7 +623,15 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 	if err := publish("Checking remote branch"); err != nil {
 		return err
 	}
-	if _, err := repo.run(ctx, true, "fetch", "--no-tags", repo.url, "+refs/heads/*:refs/remotes/origin/*"); err != nil {
+	_, err = repo.run(
+		ctx,
+		true,
+		"fetch",
+		"--no-tags",
+		repo.url,
+		"+refs/heads/*:refs/remotes/origin/*",
+	)
+	if err != nil {
 		return err
 	}
 	remote, err := repo.run(ctx, false, "rev-parse", "--verify", "refs/remotes/origin/"+current.Branch)
@@ -491,7 +645,10 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 		if err := publish("Pushing"); err != nil {
 			return err
 		}
-		exported, err := local(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitExport, ExpectedHead: &current.Head})
+		exported, err := local(gatewayapi.CodingGitRequest{
+			Operation:    gatewayapi.CodingGitExport,
+			ExpectedHead: &current.Head,
+		})
 		if err != nil || exported.Bundle == nil || exported.Branch != current.Branch {
 			return errors.New("checkout changed before pushing")
 		}
@@ -499,7 +656,8 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 			return err
 		}
 		if remote != "" {
-			if _, err := repo.run(ctx, false, "merge-base", "--is-ancestor", remote, current.Head); err != nil {
+			_, err = repo.run(ctx, false, "merge-base", "--is-ancestor", remote, current.Head)
+			if err != nil {
 				return errors.New("remote branch diverged; reconcile before pushing")
 			}
 		}
@@ -509,7 +667,14 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 		if _, err := s.queries.GatewayCodingConnection(ctx, job.OwnerID); err != nil {
 			return errors.New("GitHub account disconnected")
 		}
-		_, err = repo.run(ctx, true, "push", repo.url, "--force-with-lease=refs/heads/"+current.Branch+":"+remote, current.Head+":refs/heads/"+current.Branch)
+		_, err = repo.run(
+			ctx,
+			true,
+			"push",
+			repo.url,
+			"--force-with-lease=refs/heads/"+current.Branch+":"+remote,
+			current.Head+":refs/heads/"+current.Branch,
+		)
 		if err != nil {
 			return errors.New("could not confirm push; refresh remote state before retrying")
 		}
@@ -523,7 +688,11 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 	}
 
 	owner, name := repository.GetOwner().GetLogin(), repository.GetName()
-	filter := &github.PullRequestListOptions{Head: owner + ":" + current.Branch, State: "open", ListOptions: github.ListOptions{PerPage: 1}}
+	filter := &github.PullRequestListOptions{
+		Head:        owner + ":" + current.Branch,
+		State:       "open",
+		ListOptions: github.ListOptions{PerPage: 1},
+	}
 	pulls, _, err := identity.client.PullRequests.List(ctx, owner, name, filter)
 	if err != nil {
 		return errors.New("could not look up the existing pull request")
@@ -535,7 +704,10 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 	if err := publish("Generating PR content"); err != nil {
 		return err
 	}
-	exported, err := local(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitExport, ExpectedHead: &current.Head})
+	exported, err := local(gatewayapi.CodingGitRequest{
+		Operation:    gatewayapi.CodingGitExport,
+		ExpectedHead: &current.Head,
+	})
 	if err != nil || exported.Bundle == nil || len(exported.Files) > 0 || exported.Branch != current.Branch {
 		return errors.New("commit changes before creating a PR")
 	}
@@ -551,12 +723,28 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 	if err != nil {
 		return err
 	}
-	text := fmt.Sprintf("Branch: %s\nBase: %s\nCommits:\n%s\nDiff:\n%s", current.Branch, repository.GetDefaultBranch(), commits[:min(len(commits), 6000)], patch[:min(len(patch), 40000)])
-	suggestion, err := s.codingSuggestion(ctx, access, row.CodingWorktree, row.CodingProject, row.CodingThread.SessionID.String, gatewayapi.CodingTextRequest{Purpose: gatewayapi.CodingTextPR, Text: &text})
+	text := fmt.Sprintf(
+		"Branch: %s\nBase: %s\nCommits:\n%s\nDiff:\n%s",
+		current.Branch,
+		repository.GetDefaultBranch(),
+		commits[:min(len(commits), 6000)],
+		patch[:min(len(patch), 40000)],
+	)
+	suggestion, err := s.codingSuggestion(
+		ctx,
+		access,
+		row.CodingWorktree,
+		row.CodingProject,
+		row.CodingThread.SessionID.String,
+		gatewayapi.CodingTextRequest{Purpose: gatewayapi.CodingTextPR, Text: &text},
+	)
 	if err != nil || suggestion.PullRequest == nil {
 		return errors.New("could not generate PR content")
 	}
-	checked, err := local(gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitStatus, ExpectedHead: &current.Head})
+	checked, err := local(gatewayapi.CodingGitRequest{
+		Operation:    gatewayapi.CodingGitStatus,
+		ExpectedHead: &current.Head,
+	})
 	if err != nil || checked.Branch != current.Branch || len(checked.Files) > 0 {
 		return errors.New("checkout changed while generating PR content")
 	}
@@ -570,7 +758,17 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 	if err := publish("Creating pull request"); err != nil {
 		return err
 	}
-	pr, _, err := identity.client.PullRequests.Create(ctx, owner, name, github.CreatePullRequest{Title: &suggestion.PullRequest.Title, Body: &suggestion.PullRequest.Body, Head: current.Branch, Base: repository.GetDefaultBranch()})
+	pr, _, err := identity.client.PullRequests.Create(
+		ctx,
+		owner,
+		name,
+		github.CreatePullRequest{
+			Title: &suggestion.PullRequest.Title,
+			Body:  &suggestion.PullRequest.Body,
+			Head:  current.Branch,
+			Base:  repository.GetDefaultBranch(),
+		},
+	)
 	if err != nil {
 		pulls, _, lookupErr := identity.client.PullRequests.List(ctx, owner, name, filter)
 		if lookupErr != nil || len(pulls) == 0 {
@@ -593,11 +791,21 @@ func (s *Service) nameCodingBranch(ctx context.Context, job gatewaydb.CodingOper
 	if err != nil {
 		return err
 	}
-	row, err := s.queries.GatewayGetCodingThread(ctx, gatewaydb.GatewayGetCodingThreadParams{WorkspaceID: job.WorkspaceID, AgentName: input.AgentName, SessionID: pgtype.Text{String: input.SessionId, Valid: true}})
+	row, err := s.queries.GatewayGetCodingThread(
+		ctx,
+		gatewaydb.GatewayGetCodingThreadParams{
+			WorkspaceID: job.WorkspaceID,
+			AgentName:   input.AgentName,
+			SessionID:   pgtype.Text{String: input.SessionId, Valid: true},
+		},
+	)
 	if err != nil {
 		return err
 	}
-	if row.CodingProject.OwnerID != job.OwnerID || row.CodingProject.ID != job.ProjectID || row.CodingWorktree.ID != job.WorktreeID {
+	checkoutChanged := row.CodingProject.OwnerID != job.OwnerID ||
+		row.CodingProject.ID != job.ProjectID ||
+		row.CodingWorktree.ID != job.WorktreeID
+	if checkoutChanged {
 		return errors.New("conversation checkout changed")
 	}
 	if row.CodingWorktree.Shared || row.CodingWorktree.Branch != "chore/"+job.WorktreeID {
@@ -606,7 +814,18 @@ func (s *Service) nameCodingBranch(ctx context.Context, job gatewaydb.CodingOper
 	if err := publish("Naming branch"); err != nil {
 		return err
 	}
-	suggestion, err := s.codingSuggestion(ctx, access, row.CodingWorktree, row.CodingProject, row.CodingThread.SessionID.String, gatewayapi.CodingTextRequest{Purpose: gatewayapi.CodingTextBranch, Text: input.Text, Model: input.Model})
+	suggestion, err := s.codingSuggestion(
+		ctx,
+		access,
+		row.CodingWorktree,
+		row.CodingProject,
+		row.CodingThread.SessionID.String,
+		gatewayapi.CodingTextRequest{
+			Purpose: gatewayapi.CodingTextBranch,
+			Text:    input.Text,
+			Model:   input.Model,
+		},
+	)
 	if err != nil {
 		return err
 	}
@@ -615,19 +834,34 @@ func (s *Service) nameCodingBranch(ctx context.Context, job gatewaydb.CodingOper
 		return err
 	}
 	defer release()
-	current, err := q.GatewayGetCodingWorktree(ctx, gatewaydb.GatewayGetCodingWorktreeParams{ID: job.WorktreeID, WorkspaceID: job.WorkspaceID})
+	current, err := q.GatewayGetCodingWorktree(
+		ctx,
+		gatewaydb.GatewayGetCodingWorktreeParams{ID: job.WorktreeID, WorkspaceID: job.WorkspaceID},
+	)
 	if err != nil {
 		return err
 	}
-	if current.CodingWorktree.Shared || current.CodingWorktree.Deleting || !current.CodingWorktree.Ready || current.CodingWorktree.Branch != row.CodingWorktree.Branch {
+	tree := current.CodingWorktree
+	if tree.Shared || tree.Deleting || !tree.Ready ||
+		tree.Branch != row.CodingWorktree.Branch {
 		return errors.New("checkout changed while naming its branch")
 	}
 	if _, err := s.codingWorkerAccess(ctx, project, input.AgentName); err != nil {
 		return err
 	}
-	renamed, err := s.codingFilesystem(ctx, access.namespace, current.CodingWorktree, current.CodingProject, false, gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitRename, Ref: &suggestion.Text})
+	renamed, err := s.codingFilesystem(
+		ctx,
+		access.namespace,
+		current.CodingWorktree,
+		current.CodingProject,
+		false,
+		gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitRename, Ref: &suggestion.Text},
+	)
 	if err != nil {
 		return err
 	}
-	return q.GatewayUpdateCodingBranch(ctx, gatewaydb.GatewayUpdateCodingBranchParams{ID: job.WorktreeID, Branch: renamed.Branch})
+	return q.GatewayUpdateCodingBranch(
+		ctx,
+		gatewaydb.GatewayUpdateCodingBranchParams{ID: job.WorktreeID, Branch: renamed.Branch},
+	)
 }

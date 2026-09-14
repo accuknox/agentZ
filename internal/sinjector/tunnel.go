@@ -25,6 +25,7 @@ type readBufferedConn struct {
 	r io.Reader
 }
 
+// Read consumes buffered bytes before reading the connection.
 func (c *readBufferedConn) Read(p []byte) (int, error) {
 	return c.r.Read(p)
 }
@@ -154,11 +155,8 @@ func (p *proxy) handleHTTP(ctx context.Context, client net.Conn, target, scheme 
 		}
 
 		if resp.StatusCode == http.StatusSwitchingProtocols {
-			writeErr := writeResponse(client, resp, true)
+			_ = writeResponse(client, resp, true)
 			_ = resp.Body.Close()
-			if writeErr != nil {
-				return
-			}
 			return
 		}
 
@@ -184,8 +182,7 @@ func writeResponse(dst net.Conn, resp *http.Response, closeConn bool) error {
 	if resp.Body == nil || !bodyAllowed(resp.StatusCode) {
 		return nil
 	}
-	chunked := resp.ContentLength < 0 && resp.Body != nil && bodyAllowed(resp.StatusCode)
-	if chunked {
+	if resp.ContentLength < 0 {
 		return writeChunkedBody(dst, resp.Body)
 	}
 	_, err := io.Copy(dst, resp.Body)
@@ -317,10 +314,6 @@ func upstreamRequest(req *http.Request, target, scheme string) *http.Request {
 	out := req.Clone(req.Context())
 	if out.URL == nil {
 		out.URL = &url.URL{}
-	}
-	if out.URL != nil {
-		clonedURL := *out.URL
-		out.URL = &clonedURL
 	}
 	out.URL.Scheme = scheme
 	out.URL.Host = target

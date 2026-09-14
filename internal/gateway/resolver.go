@@ -204,6 +204,7 @@ func newResolver(ctx context.Context, targetOverride string) (*resolver, error) 
 	return r, nil
 }
 
+// Close closes subscriber channels and signals the informers to stop.
 func (r *resolver) Close() {
 	if r == nil || r.stopCh == nil {
 		return

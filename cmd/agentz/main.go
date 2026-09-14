@@ -71,17 +71,23 @@ import (
 	"github.com/accuknox/agentz/internal/networkpolicy"
 	"github.com/accuknox/agentz/internal/sandboxutil"
 	skillpkg "github.com/accuknox/agentz/internal/skill"
-	webhookv1alpha1 "github.com/accuknox/agentz/internal/webhook/v1alpha1"
+	agentwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/agent"
 	inferencepoolwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/inferencepool"
 	inferenceproviderwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/inferenceprovider"
+	mcpconnwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/mcpconn"
+	sandboxwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/sandbox"
+	secretwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/secret"
 	skillwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/skill"
+	tenantwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/tenant"
+	workflowrunwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/workflowrun"
+	workflowschedulewebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/workflowschedule"
+	workspacewebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/workspace"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 
 var (
 	scheme                                           = runtime.NewScheme()
-	setupLog                                         = ctrl.Log.WithName("setup")
 	metricsAddr                                      string
 	metricsCertPath, metricsCertName, metricsCertKey string
 	webhookCertPath, webhookCertName, webhookCertKey string
@@ -794,7 +800,9 @@ var managerCmd = &cli.Command{
 			Destination: &enableWebhooks,
 		},
 	},
-	Action: func(ctx context.Context, c *cli.Command) error {
+	Action: func(ctx context.Context, _ *cli.Command) error {
+		setupLog := slog.Default().With("logger", "setup")
+
 		// if the enable-http2 flag is false (the default), http/2 should be
 		// disabled due to its vulnerabilities. More specifically, disabling
 		// http/2 will prevent from being vulnerable to the HTTP/2 Stream
@@ -804,7 +812,7 @@ var managerCmd = &cli.Command{
 		// - https://github.com/advisories/GHSA-qppj-fm5r-hxr3
 		// - https://github.com/advisories/GHSA-4374-p667-p6c8
 		disableHTTP2 := func(c *tls.Config) {
-			setupLog.Info("Disabling HTTP/2")
+			setupLog.InfoContext(ctx, "Disabling HTTP/2")
 			c.NextProtos = []string{"http/1.1"}
 		}
 
@@ -819,7 +827,8 @@ var managerCmd = &cli.Command{
 		}
 
 		if len(webhookCertPath) > 0 {
-			setupLog.Info(
+			setupLog.InfoContext(
+				ctx,
 				"initializing webhook certificate watcher using provided certificates",
 				"webhook-cert-path",
 				webhookCertPath,
@@ -864,7 +873,8 @@ var managerCmd = &cli.Command{
 		// not recommended for production.
 		//
 		if len(metricsCertPath) > 0 {
-			setupLog.Info(
+			setupLog.InfoContext(
+				ctx,
 				"initializing metrics certificate watcher using provided certificates",
 				"metrics-cert-path",
 				metricsCertPath,
@@ -905,18 +915,18 @@ var managerCmd = &cli.Command{
 				defaultNamespaces[strings.TrimSpace(ns)] = cache.Config{}
 			}
 			mgrOptions.Cache = cache.Options{DefaultNamespaces: defaultNamespaces}
-			setupLog.Info("watching namespace(s)", "namespaces", watchNamespace)
+			setupLog.InfoContext(ctx, "watching namespace(s)", "namespaces", watchNamespace)
 		}
 
 		restCfg, err := ctrl.GetConfig()
 		if err != nil {
-			setupLog.Error(err, "failed to load Kubernetes config")
+			setupLog.ErrorContext(ctx, "failed to load Kubernetes config", "error", err)
 			os.Exit(1)
 		}
 
 		mgr, err := ctrl.NewManager(restCfg, mgrOptions)
 		if err != nil {
-			setupLog.Error(err, "failed to start manager")
+			setupLog.ErrorContext(ctx, "failed to start manager", "error", err)
 			os.Exit(1)
 		}
 		err = mcp.IndexSandboxMCPConnections(
@@ -924,9 +934,7 @@ var managerCmd = &cli.Command{
 			mgr.GetFieldIndexer(),
 		)
 		if err != nil {
-			setupLog.Error(
-				err,
-				"failed to register shared field index",
+			setupLog.ErrorContext(ctx, "failed to register shared field index", "error", err,
 				"index",
 				mcp.SandboxByMCPConnectionIndex,
 			)
@@ -937,9 +945,7 @@ var managerCmd = &cli.Command{
 			mgr.GetFieldIndexer(),
 		)
 		if err != nil {
-			setupLog.Error(
-				err,
-				"failed to register shared field index",
+			setupLog.ErrorContext(ctx, "failed to register shared field index", "error", err,
 				"index",
 				sandboxutil.AgentBySandboxIndex,
 			)
@@ -947,12 +953,18 @@ var managerCmd = &cli.Command{
 		}
 		err = inference.IndexSandboxes(context.Background(), mgr.GetFieldIndexer())
 		if err != nil {
-			setupLog.Error(err, "failed to register inference provider field indexes")
+			setupLog.ErrorContext(ctx,
+				"failed to register inference provider field indexes",
+				"error", err,
+			)
 			os.Exit(1)
 		}
 		err = inference.IndexPools(context.Background(), mgr.GetFieldIndexer())
 		if err != nil {
-			setupLog.Error(err, "failed to register inference pool field indexes")
+			setupLog.ErrorContext(ctx,
+				"failed to register inference pool field indexes",
+				"error", err,
+			)
 			os.Exit(1)
 		}
 		err = workflowschedulecontroller.IndexWorkflowRunsBySchedule(
@@ -960,9 +972,7 @@ var managerCmd = &cli.Command{
 			mgr.GetFieldIndexer(),
 		)
 		if err != nil {
-			setupLog.Error(
-				err,
-				"failed to register shared field index",
+			setupLog.ErrorContext(ctx, "failed to register shared field index", "error", err,
 				"index",
 				workflowschedulecontroller.WorkflowRunByScheduleIndex,
 			)
@@ -971,9 +981,7 @@ var managerCmd = &cli.Command{
 
 		gwClient, err := gatewayapi.NewClientWithResponses(gatewayURL, gatewayapi.WithHTTPClient(&http.Client{}))
 		if err != nil {
-			setupLog.Error(
-				err,
-				"failed to create gateway client",
+			setupLog.ErrorContext(ctx, "failed to create gateway client", "error", err,
 				"gatewayURL",
 				gatewayURL,
 			)
@@ -981,12 +989,12 @@ var managerCmd = &cli.Command{
 		}
 		agClient, err := agentgatewayclientset.NewForConfig(restCfg)
 		if err != nil {
-			setupLog.Error(err, "failed to create agentgateway clientset")
+			setupLog.ErrorContext(ctx, "failed to create agentgateway clientset", "error", err)
 			os.Exit(1)
 		}
 		cmClient, err := cmclientset.NewForConfig(restCfg)
 		if err != nil {
-			setupLog.Error(err, "failed to create cert-manager clientset")
+			setupLog.ErrorContext(ctx, "failed to create cert-manager clientset", "error", err)
 			os.Exit(1)
 		}
 		if openBaoAddr == "" {
@@ -1126,7 +1134,9 @@ var managerCmd = &cli.Command{
 		if defQuota.Defaults.Resources.CPU.Sign() <= 0 || defQuota.Defaults.Resources.Memory.Sign() <= 0 {
 			return fmt.Errorf("tenant Agent default CPU and memory must be positive")
 		}
-		if defQuota.Defaults.Resources.CPU.Cmp(defQuota.Resources.CPU) > 0 || defQuota.Defaults.Resources.Memory.Cmp(defQuota.Resources.Memory) > 0 {
+		defaults := defQuota.Defaults.Resources
+		quota := defQuota.Resources
+		if defaults.CPU.Cmp(quota.CPU) > 0 || defaults.Memory.Cmp(quota.Memory) > 0 {
 			return fmt.Errorf("tenant Agent defaults must not exceed aggregate quota")
 		}
 		if defDashboardQuota.DashboardsPerAgent < 1 || defDashboardQuota.WidgetsPerDashboard < 1 ||
@@ -1189,7 +1199,7 @@ var managerCmd = &cli.Command{
 
 		bao, err := agent.NewOpenBaoProvisioner(ctx, runtimeConfig)
 		if err != nil {
-			setupLog.Error(err, "failed to create OpenBao provisioner")
+			setupLog.ErrorContext(ctx, "failed to create OpenBao provisioner", "error", err)
 			os.Exit(1)
 		}
 
@@ -1200,7 +1210,11 @@ var managerCmd = &cli.Command{
 			Bao:    bao,
 		}
 		if err := reconciler.SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "failed to create controller", "controller", "Agent")
+			setupLog.ErrorContext(ctx,
+				"failed to create controller",
+				"error", err,
+				"controller", "Agent",
+			)
 			os.Exit(1)
 		}
 
@@ -1220,7 +1234,11 @@ var managerCmd = &cli.Command{
 			},
 		}
 		if err := inferenceProviderReconciler.SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "failed to create controller", "controller", "InferenceProvider")
+			setupLog.ErrorContext(ctx,
+				"failed to create controller",
+				"error", err,
+				"controller", "InferenceProvider",
+			)
 			os.Exit(1)
 		}
 
@@ -1229,7 +1247,11 @@ var managerCmd = &cli.Command{
 			Scheme: mgr.GetScheme(),
 		}
 		if err := inferencePoolReconciler.SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "failed to create controller", "controller", "InferencePool")
+			setupLog.ErrorContext(ctx,
+				"failed to create controller",
+				"error", err,
+				"controller", "InferencePool",
+			)
 			os.Exit(1)
 		}
 
@@ -1240,66 +1262,124 @@ var managerCmd = &cli.Command{
 			TraceBackend: traceBackend,
 		}
 		if err := sandboxReconciler.SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "failed to create controller", "controller", "Sandbox")
+			setupLog.ErrorContext(ctx,
+				"failed to create controller",
+				"error", err,
+				"controller", "Sandbox",
+			)
 			os.Exit(1)
 		}
 
 		if enableWebhooks {
-			err = webhookv1alpha1.SetupAgentWebhookWithManager(
+			err = agentwebhook.RegisterWithManager(
 				mgr,
-				webhookv1alpha1.AgentWebhookConfig{
+				agentwebhook.WebhookConfig{
 					AgentDefaultImage: agentImage,
 				},
 			)
 			if err != nil {
-				setupLog.Error(err, "failed to create webhook", "webhook", "Agent")
+				setupLog.ErrorContext(ctx,
+					"failed to create webhook",
+					"error", err,
+					"webhook", "Agent",
+				)
 				os.Exit(1)
 			}
-			if err := webhookv1alpha1.SetupSandboxWebhookWithManager(mgr); err != nil {
-				setupLog.Error(err, "failed to create webhook", "webhook", "Sandbox")
+			if err := sandboxwebhook.RegisterWithManager(mgr); err != nil {
+				setupLog.ErrorContext(ctx,
+					"failed to create webhook",
+					"error", err,
+					"webhook", "Sandbox",
+				)
 				os.Exit(1)
 			}
 			if err := skillwebhook.RegisterWithManager(mgr); err != nil {
-				setupLog.Error(err, "failed to create webhook", "webhook", "Skill")
+				setupLog.ErrorContext(ctx,
+					"failed to create webhook",
+					"error", err,
+					"webhook", "Skill",
+				)
 				os.Exit(1)
 			}
 			if err := inferenceproviderwebhook.RegisterWithManager(mgr); err != nil {
-				setupLog.Error(err, "failed to create webhook", "webhook", "InferenceProvider")
+				setupLog.ErrorContext(ctx,
+					"failed to create webhook",
+					"error", err,
+					"webhook", "InferenceProvider",
+				)
 				os.Exit(1)
 			}
 			if err := inferencepoolwebhook.RegisterWithManager(mgr); err != nil {
-				setupLog.Error(err, "failed to create webhook", "webhook", "InferencePool")
+				setupLog.ErrorContext(ctx,
+					"failed to create webhook",
+					"error", err,
+					"webhook", "InferencePool",
+				)
 				os.Exit(1)
 			}
-			if err := webhookv1alpha1.SetupWorkflowScheduleWebhookWithManager(mgr, gwClient, managerGatewayTokenPath); err != nil {
-				setupLog.Error(err, "failed to create webhook", "webhook", "WorkflowSchedule")
-				os.Exit(1)
-			}
-			if err := webhookv1alpha1.SetupWorkflowRunWebhookWithManager(mgr, gwClient, managerGatewayTokenPath); err != nil {
-				setupLog.Error(err, "failed to create webhook", "webhook", "WorkflowRun")
-				os.Exit(1)
-			}
-			if err := webhookv1alpha1.SetupMCPConnectionWebhookWithManager(mgr, mgr.GetClient()); err != nil {
-				setupLog.Error(err, "failed to create webhook", "webhook", "MCPConnection")
-				os.Exit(1)
-			}
-			err := webhookv1alpha1.SetupTenantWebhookWithManager(
+			err = workflowschedulewebhook.RegisterWithManager(
 				mgr,
-				webhookv1alpha1.TenantWebhookConfig{
+				gwClient,
+				managerGatewayTokenPath,
+			)
+			if err != nil {
+				setupLog.ErrorContext(ctx,
+					"failed to create webhook",
+					"error", err,
+					"webhook", "WorkflowSchedule",
+				)
+				os.Exit(1)
+			}
+			err = workflowrunwebhook.RegisterWithManager(
+				mgr,
+				gwClient,
+				managerGatewayTokenPath,
+			)
+			if err != nil {
+				setupLog.ErrorContext(ctx,
+					"failed to create webhook",
+					"error", err,
+					"webhook", "WorkflowRun",
+				)
+				os.Exit(1)
+			}
+			if err := mcpconnwebhook.RegisterWithManager(mgr, mgr.GetClient()); err != nil {
+				setupLog.ErrorContext(ctx,
+					"failed to create webhook",
+					"error", err,
+					"webhook", "MCPConnection",
+				)
+				os.Exit(1)
+			}
+			err := tenantwebhook.RegisterWithManager(
+				mgr,
+				tenantwebhook.WebhookConfig{
 					AgentQuota:     defQuota,
 					DashboardQuota: defDashboardQuota,
 				},
 			)
 			if err != nil {
-				setupLog.Error(err, "failed to create webhook", "webhook", "Tenant")
+				setupLog.ErrorContext(ctx,
+					"failed to create webhook",
+					"error", err,
+					"webhook", "Tenant",
+				)
 				os.Exit(1)
 			}
-			if err := webhookv1alpha1.SetupWorkspaceWebhookWithManager(mgr); err != nil {
-				setupLog.Error(err, "failed to create webhook", "webhook", "Workspace")
+			if err := workspacewebhook.RegisterWithManager(mgr); err != nil {
+				setupLog.ErrorContext(ctx,
+					"failed to create webhook",
+					"error", err,
+					"webhook", "Workspace",
+				)
 				os.Exit(1)
 			}
-			if err := webhookv1alpha1.SetupSecretWebhookWithManager(mgr); err != nil {
-				setupLog.Error(err, "failed to create webhook", "webhook", "Secret")
+			if err := secretwebhook.RegisterWithManager(mgr); err != nil {
+				setupLog.ErrorContext(ctx,
+					"failed to create webhook",
+					"error", err,
+					"webhook", "Secret",
+				)
 				os.Exit(1)
 			}
 		}
@@ -1310,7 +1390,11 @@ var managerCmd = &cli.Command{
 			ControllerImage: controllerImage,
 		}
 		if err := workflowScheduleReconciler.SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "failed to create controller", "controller", "WorkflowSchedule")
+			setupLog.ErrorContext(ctx,
+				"failed to create controller",
+				"error", err,
+				"controller", "WorkflowSchedule",
+			)
 			os.Exit(1)
 		}
 
@@ -1321,7 +1405,11 @@ var managerCmd = &cli.Command{
 			TokenPath:       managerGatewayTokenPath,
 		}
 		if err := workflowRunReconciler.SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "failed to create controller", "controller", "WorkflowRun")
+			setupLog.ErrorContext(ctx,
+				"failed to create controller",
+				"error", err,
+				"controller", "WorkflowRun",
+			)
 			os.Exit(1)
 		}
 
@@ -1337,7 +1425,11 @@ var managerCmd = &cli.Command{
 			OpenBaoK8sAuthTokenPath: managerOpenBaoK8sAuthTokenPath,
 		}
 		if err := mcpConnReconciler.SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "failed to create controller", "controller", "MCPConnection")
+			setupLog.ErrorContext(ctx,
+				"failed to create controller",
+				"error", err,
+				"controller", "MCPConnection",
+			)
 			os.Exit(1)
 		}
 		extAuthRuntimeReconciler := &mcpconn.ExtAuthRuntimeReconciler{
@@ -1352,13 +1444,20 @@ var managerCmd = &cli.Command{
 			OpenBaoK8sAuthTokenPath: managerOpenBaoK8sAuthTokenPath,
 		}
 		if err := extAuthRuntimeReconciler.SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "failed to create controller", "controller", "ExtAuthRuntime")
+			setupLog.ErrorContext(ctx,
+				"failed to create controller",
+				"error", err,
+				"controller", "ExtAuthRuntime",
+			)
 			os.Exit(1)
 		}
 
 		directClient, err := client.New(restCfg, client.Options{Scheme: mgr.GetScheme()})
 		if err != nil {
-			setupLog.Error(err, "failed to create direct controller client")
+			setupLog.ErrorContext(ctx,
+				"failed to create direct controller client",
+				"error", err,
+			)
 			os.Exit(1)
 		}
 		tenantReconciler := &tenant.Reconciler{
@@ -1380,7 +1479,11 @@ var managerCmd = &cli.Command{
 			DefaultDashboardQuota:          defDashboardQuota,
 		}
 		if err := tenantReconciler.SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "failed to create controller", "controller", "Tenant")
+			setupLog.ErrorContext(ctx,
+				"failed to create controller",
+				"error", err,
+				"controller", "Tenant",
+			)
 			os.Exit(1)
 		}
 
@@ -1403,7 +1506,11 @@ var managerCmd = &cli.Command{
 			SkillsS3Target:                 skillsS3Target,
 		}
 		if err := workspaceReconciler.SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "failed to create controller", "controller", "Workspace")
+			setupLog.ErrorContext(ctx,
+				"failed to create controller",
+				"error", err,
+				"controller", "Workspace",
+			)
 			os.Exit(1)
 		}
 
@@ -1418,7 +1525,11 @@ var managerCmd = &cli.Command{
 			OpenBaoK8sAuthTokenPath: managerOpenBaoK8sAuthTokenPath,
 		}
 		if err := secretReconciler.SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "failed to create controller", "controller", "Secret")
+			setupLog.ErrorContext(ctx,
+				"failed to create controller",
+				"error", err,
+				"controller", "Secret",
+			)
 			os.Exit(1)
 		}
 
@@ -1428,24 +1539,28 @@ var managerCmd = &cli.Command{
 			StoreConfig: skillStoreConfig,
 		}
 		if err := skillReconciler.SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "failed to create controller", "controller", "Skill")
+			setupLog.ErrorContext(ctx,
+				"failed to create controller",
+				"error", err,
+				"controller", "Skill",
+			)
 			os.Exit(1)
 		}
 
 		// +kubebuilder:scaffold:builder
 
 		if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-			setupLog.Error(err, "failed to set up health check")
+			setupLog.ErrorContext(ctx, "failed to set up health check", "error", err)
 			os.Exit(1)
 		}
 		if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-			setupLog.Error(err, "failed to set up ready check")
+			setupLog.ErrorContext(ctx, "failed to set up ready check", "error", err)
 			os.Exit(1)
 		}
 
-		setupLog.Info("Starting manager")
+		setupLog.InfoContext(ctx, "Starting manager")
 		if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-			setupLog.Error(err, "failed to run manager")
+			setupLog.ErrorContext(ctx, "failed to run manager", "error", err)
 			os.Exit(1)
 		}
 

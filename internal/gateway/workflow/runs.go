@@ -32,8 +32,11 @@ const (
 )
 
 var (
-	ErrWorkflowRunTerminal      = errors.New("workflow run already has a terminal status")
-	ErrWorkflowRunNodeNotFound  = errors.New("workflow run node not found")
+	// ErrWorkflowRunTerminal reports an attempted update to a finished run.
+	ErrWorkflowRunTerminal = errors.New("workflow run already has a terminal status")
+	// ErrWorkflowRunNodeNotFound reports a node absent from the workflow graph.
+	ErrWorkflowRunNodeNotFound = errors.New("workflow run node not found")
+	// ErrWorkflowRunScopeMismatch reports a run outside the requested route scope.
 	ErrWorkflowRunScopeMismatch = errors.New("workflow run does not match route scope")
 )
 
@@ -43,6 +46,7 @@ type RunPhaseConflictError struct {
 	Target  agentzv1alpha1.WorkflowRunPhase
 }
 
+// Error describes the rejected workflow run transition.
 func (e *RunPhaseConflictError) Error() string {
 	return fmt.Sprintf(
 		"workflow run phase %q cannot transition to %q",
@@ -58,6 +62,7 @@ type NodePhaseConflictError struct {
 	Target  agentzv1alpha1.WorkflowRunNodePhase
 }
 
+// Error identifies the node and its rejected phase transition.
 func (e *NodePhaseConflictError) Error() string {
 	return fmt.Sprintf(
 		"workflow run node %q phase %q cannot transition to %q",
@@ -945,14 +950,6 @@ func getSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, ag
 }
 
 func workflowRunName(prefix string) (string, error) {
-	suffix, err := workflowRunSuffix()
-	if err != nil {
-		return "", err
-	}
-	return prefix + "-" + suffix, nil
-}
-
-func workflowRunSuffix() (string, error) {
 	const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
 
 	buf := make([]byte, workflowRunNameSuffixLen)
@@ -964,5 +961,5 @@ func workflowRunSuffix() (string, error) {
 		}
 		buf[i] = alphabet[n.Int64()]
 	}
-	return string(buf), nil
+	return prefix + "-" + string(buf), nil
 }

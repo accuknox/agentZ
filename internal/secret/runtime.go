@@ -74,8 +74,14 @@ func RecordType(raw map[string]any) (agentzv1alpha1.SecretType, error) {
 // DecodeRecord decodes a controlled OpenBao runtime record into a generated type.
 func DecodeRecord[T Record](raw map[string]any) (T, error) {
 	var out T
-	if err := decode(raw, &out); err != nil {
-		return out, err
+	payload, err := json.Marshal(raw)
+	if err != nil {
+		return out, fmt.Errorf("marshal runtime record: %w", err)
+	}
+	dec := json.NewDecoder(bytes.NewReader(payload))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&out); err != nil {
+		return out, fmt.Errorf("decode runtime record: %w", err)
 	}
 	return out, nil
 }
@@ -91,17 +97,4 @@ func RecordData(record Record) (map[string]any, error) {
 		return nil, fmt.Errorf("decode secret runtime: %w", err)
 	}
 	return out, nil
-}
-
-func decode(raw map[string]any, out any) error {
-	payload, err := json.Marshal(raw)
-	if err != nil {
-		return fmt.Errorf("marshal runtime record: %w", err)
-	}
-	dec := json.NewDecoder(bytes.NewReader(payload))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(out); err != nil {
-		return fmt.Errorf("decode runtime record: %w", err)
-	}
-	return nil
 }

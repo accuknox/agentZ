@@ -28,9 +28,7 @@ import {
   Presentation,
   RefreshCw,
   Save,
-  Scan,
   Search,
-  Shrink,
   Trash2,
   X,
 } from "lucide-react"
@@ -103,7 +101,6 @@ const SpreadsheetPreview = dynamic(
 )
 
 type FilesWorkspaceProps = {
-  embedded?: boolean
   agentName: string
   onPreviewerOpenChange: (open: boolean) => void
   sessionId?: string
@@ -242,89 +239,31 @@ function agentFileSearchQueryOptions(
 }
 
 export function FilesWorkspace({
-  embedded = false,
   agentName,
   onPreviewerOpenChange,
   sessionId,
   workspaceId,
 }: FilesWorkspaceProps): React.JSX.Element {
-  const { openAgent } = useFileWorkspace()
-  const filesOpen = openAgent === agentName
-
-  return (
-    <AnimatePresence initial={false}>
-      {filesOpen || embedded ? (
-        <OpenFilesWorkspace
-          embedded={embedded}
-          agentName={agentName}
-          key={agentName}
-          onPreviewerOpenChange={onPreviewerOpenChange}
-          sessionId={sessionId}
-          workspaceId={workspaceId}
-        />
-      ) : null}
-    </AnimatePresence>
-  )
-}
-
-function OpenFilesWorkspace({
-  embedded = false,
-  agentName,
-  onPreviewerOpenChange,
-  sessionId,
-  workspaceId,
-}: FilesWorkspaceProps) {
-  const [explorerWidth, setExplorerWidth] = React.useState(290)
-  const [workspaceWidth, setWorkspaceWidth] = React.useState(760)
-  const [expandedWidth, setExpandedWidth] = React.useState(760)
-  const reducedMotion = useReducedMotion()
+  const [width, setWidth] = React.useState(480)
   const [editorOpen, setEditorOpen] = React.useState(false)
-  const [expanded, setExpanded] = React.useState(false)
-  const [layoutChanging, setLayoutChanging] = React.useState(false)
-  const [resizing, setResizing] = React.useState(false)
-  const workspace = React.useRef<HTMLElement>(null)
-  const width = editorOpen ? workspaceWidth : explorerWidth
-  const renderedWidth = expanded || embedded ? expandedWidth : width
-  const treeWidth = embedded
-    ? editorOpen
-      ? renderedWidth >= 700
-        ? 240
-        : 0
-      : renderedWidth
-    : explorerWidth
+  const reducedMotion = useReducedMotion() ?? false
+  const workspace = React.useRef<HTMLDivElement>(null)
+  const explorerWidth = editorOpen ? (width >= 700 ? 240 : 0) : width
 
   React.useEffect(() => {
     const element = workspace.current
     if (!element) return
-
     const observer = new ResizeObserver(([entry]) => {
-      if (!entry || (!expanded && !embedded) || entry.contentRect.width === 0) return
-      setExpandedWidth(entry.contentRect.width)
+      if (entry && entry.contentRect.width > 0) setWidth(entry.contentRect.width)
     })
     observer.observe(element)
     return () => observer.disconnect()
-  }, [expanded, embedded])
+  }, [])
 
-  React.useEffect(() => () => onPreviewerOpenChange(false), [onPreviewerOpenChange])
-
-  const handleEditorOpenChange = React.useCallback(
-    (open: boolean) => {
-      setEditorOpen(open)
-      onPreviewerOpenChange(open)
-      if (!open) setExpanded(false)
-    },
-    [onPreviewerOpenChange]
-  )
-
-  const toggleExpanded = React.useCallback(() => {
-    if (!expanded) {
-      const availableWidth = workspace.current?.parentElement?.clientWidth
-      if (availableWidth) setExpandedWidth(availableWidth)
-    }
-    setLayoutChanging(true)
-    setExpanded((current) => !current)
-    window.requestAnimationFrame(() => setLayoutChanging(false))
-  }, [expanded])
+  React.useEffect(() => {
+    onPreviewerOpenChange(editorOpen)
+    return () => onPreviewerOpenChange(false)
+  }, [editorOpen, onPreviewerOpenChange])
 
   const rootQuery = useQuery(
     queryOptions({
@@ -348,112 +287,66 @@ function OpenFilesWorkspace({
   )
 
   return (
-    <motion.aside
-      ref={workspace}
-      animate={{ width: expanded || embedded ? "100%" : width, x: 0 }}
-      className={cn(
-        "bg-background h-full min-h-0 shrink-0 overflow-hidden",
-        embedded
-          ? "relative w-full"
-          : expanded
-            ? "absolute inset-0 z-40 hidden lg:block"
-            : "relative hidden border-l lg:block"
-      )}
-      exit={{ width: 0, x: "100%" }}
-      initial={embedded ? false : { width: 0, x: "100%" }}
-      transition={{
-        duration: reducedMotion || resizing || layoutChanging ? 0 : 0.2,
-        ease: "linear",
-      }}
-    >
-      {!expanded && !embedded ? (
-        <WorkspaceResizeHandle
-          label="Resize files workspace"
-          width={width}
-          min={editorOpen ? explorerWidth + 240 : 220}
-          max={editorOpen ? 1200 : 520}
-          onResize={editorOpen ? setWorkspaceWidth : setExplorerWidth}
-          onResizingChange={setResizing}
+    <div ref={workspace} className="bg-background relative h-full min-h-0 w-full overflow-hidden">
+      {rootQuery.isPending ? (
+        <div
+          aria-live="polite"
+          className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm"
+          role="status"
+        >
+          <Spinner /> Loading workspace...
+        </div>
+      ) : rootQuery.isError ? (
+        <div className="flex h-full items-center justify-center">
+          <Alert className="px-6" variant="destructive">
+            <AlertTitle>Files unavailable</AlertTitle>
+            <AlertDescription className="mt-1">
+              The agent workspace could not be reached.
+            </AlertDescription>
+            <Button className="mt-3" onClick={() => void rootQuery.refetch()} size="sm">
+              <RefreshCw /> Retry
+            </Button>
+          </Alert>
+        </div>
+      ) : (
+        <WorkspaceBody
+          agentName={agentName}
+          editorOpen={editorOpen}
+          explorerWidth={explorerWidth}
+          onEditorOpenChange={setEditorOpen}
+          reducedMotion={reducedMotion}
+          root={rootQuery.data}
+          workspaceWidth={width}
+          workspaceId={workspaceId}
         />
-      ) : null}
-      <div
-        className="bg-background absolute inset-y-0 right-0 min-h-0"
-        style={{ width: renderedWidth }}
-      >
-        {rootQuery.isPending ? (
-          <div
-            aria-live="polite"
-            className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm"
-            role="status"
-            style={{ width: explorerWidth }}
-          >
-            <Spinner /> Loading workspace...
-          </div>
-        ) : rootQuery.isError ? (
-          <div className="flex h-full items-center justify-center" style={{ width: explorerWidth }}>
-            <Alert className="px-6" variant="destructive">
-              <AlertTitle>Files unavailable</AlertTitle>
-              <AlertDescription className="mt-1">
-                The agent workspace could not be reached.
-              </AlertDescription>
-              <Button className="mt-3" onClick={() => void rootQuery.refetch()} size="sm">
-                <RefreshCw /> Retry
-              </Button>
-            </Alert>
-          </div>
-        ) : (
-          <WorkspaceBody
-            agentName={agentName}
-            editorOpen={editorOpen}
-            explorerWidth={treeWidth}
-            embedded={embedded}
-            expanded={expanded}
-            onEditorOpenChange={handleEditorOpenChange}
-            onExpandedChange={toggleExpanded}
-            reducedMotion={reducedMotion || resizing}
-            root={rootQuery.data}
-            setExplorerWidth={setExplorerWidth}
-            workspaceWidth={renderedWidth}
-            workspaceId={workspaceId}
-          />
-        )}
-      </div>
-    </motion.aside>
+      )}
+    </div>
   )
 }
 
 function WorkspaceBody({
-  embedded,
   agentName,
   editorOpen,
   explorerWidth,
-  expanded,
   onEditorOpenChange,
-  onExpandedChange,
   reducedMotion,
   root,
-  setExplorerWidth,
   workspaceWidth,
   workspaceId,
 }: {
-  embedded: boolean
   agentName: string
   editorOpen: boolean
   explorerWidth: number
-  expanded: boolean
   onEditorOpenChange: (open: boolean) => void
-  onExpandedChange: () => void
   reducedMotion: boolean
   root: string
-  setExplorerWidth: React.Dispatch<React.SetStateAction<number>>
   workspaceWidth: number
   workspaceId: string
 }) {
   const queryClient = useQueryClient()
   const workspaceKey = `${workspaceId}:${agentName}:${root}`
   const rootPath = root === "/home/agentz" ? "." : root.slice("/home/agentz/".length)
-  const editorRight = explorerWidth + (embedded ? 0 : 4)
-  const editorWidth = workspaceWidth - editorRight
+  const editorWidth = workspaceWidth - explorerWidth
   const [search, setSearch] = React.useState("")
   const [searchQuery, setSearchQuery] = React.useState("")
   React.useEffect(() => {
@@ -479,7 +372,6 @@ function WorkspaceBody({
     pendingPreview,
     resolvePreview,
     roots,
-    setAgentDirty,
     setSelected,
   } = useFileWorkspace()
   const rootState = roots[workspaceKey]
@@ -490,7 +382,6 @@ function WorkspaceBody({
   const tabScrollFrame = React.useRef<number | null>(null)
   const tabScrollTarget = React.useRef(0)
   const [tabOverflow, setTabOverflow] = React.useState({ left: false, right: false })
-  const resize = React.useRef<{ startWidth: number; startX: number }>(null)
   const dirty = Object.values(drafts).some((draft) => draft.dirty)
   const selected = rootState?.selected ?? null
   const tabs = rootState?.tabs ?? []
@@ -598,10 +489,6 @@ function WorkspaceBody({
     [selected]
   )
 
-  React.useEffect(() => {
-    setAgentDirty(agentName, dirty)
-  }, [agentName, dirty, setAgentDirty])
-
   const updateTabOverflow = React.useCallback(() => {
     const element = tabsRef.current
     if (!element) return
@@ -699,10 +586,9 @@ function WorkspaceBody({
 
   React.useEffect(
     () => () => {
-      setAgentDirty(agentName, false)
       closeRoot(workspaceKey)
     },
-    [agentName, closeRoot, setAgentDirty, workspaceKey]
+    [closeRoot, workspaceKey]
   )
 
   React.useEffect(() => {
@@ -765,7 +651,7 @@ function WorkspaceBody({
             className="absolute inset-y-0 z-10 overflow-hidden"
             exit={{ width: 0 }}
             initial={{ width: 0 }}
-            style={{ right: editorRight }}
+            style={{ right: explorerWidth }}
             transition={{
               duration: reducedMotion ? 0 : 0.2,
               ease: "linear",
@@ -775,12 +661,7 @@ function WorkspaceBody({
               className="bg-background flex h-full min-w-0 flex-col"
               style={{ width: editorWidth }}
             >
-              <div
-                className={cn(
-                  "flex shrink-0 items-stretch overflow-hidden border-b border-transparent",
-                  embedded ? "h-9" : "h-(--workspace-topbar-height)"
-                )}
-              >
+              <div className="flex h-9 shrink-0 items-stretch overflow-hidden border-b border-transparent">
                 <div className="relative flex min-w-0 flex-1 overflow-hidden">
                   {tabOverflow.left ? (
                     <div className="from-background pointer-events-none absolute inset-y-0 left-0 z-20 w-6 bg-linear-to-r to-transparent" />
@@ -880,24 +761,6 @@ function WorkspaceBody({
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1 px-1.5">
-                  {!embedded ? (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          aria-label={expanded ? "Collapse editor" : "Expand editor"}
-                          className="shrink-0"
-                          onClick={onExpandedChange}
-                          size="icon-sm"
-                          variant="ghost"
-                        >
-                          {expanded ? <Shrink /> : <Scan />}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {expanded ? "Collapse editor" : "Expand editor"}
-                      </TooltipContent>
-                    </Tooltip>
-                  ) : null}
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
@@ -937,65 +800,15 @@ function WorkspaceBody({
         ) : null}
       </AnimatePresence>
 
-      {editorOpen && explorerWidth > 0 && !embedded ? (
-        <div
-          aria-label="Resize file explorer"
-          aria-orientation="vertical"
-          aria-valuemax={Math.min(520, workspaceWidth - 240)}
-          aria-valuemin={220}
-          aria-valuenow={explorerWidth}
-          className="hover:bg-border focus-visible:bg-ring absolute inset-y-0 z-20 w-1 cursor-col-resize touch-none border-l transition-colors"
-          onKeyDown={(event) => {
-            if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
-            event.preventDefault()
-            const nextWidth = explorerWidth + (event.key === "ArrowLeft" ? 16 : -16)
-            setExplorerWidth(
-              Math.min(520, Math.max(220, Math.min(workspaceWidth - 240, nextWidth)))
-            )
-          }}
-          onPointerDown={(event) => {
-            event.currentTarget.setPointerCapture(event.pointerId)
-            resize.current = {
-              startWidth: explorerWidth,
-              startX: event.clientX,
-            }
-          }}
-          onPointerMove={(event) => {
-            if (!resize.current) return
-            const nextWidth = resize.current.startWidth + resize.current.startX - event.clientX
-            setExplorerWidth(
-              Math.min(520, Math.max(220, Math.min(workspaceWidth - 240, nextWidth)))
-            )
-          }}
-          onPointerUp={(event) => {
-            resize.current = null
-            if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-              event.currentTarget.releasePointerCapture(event.pointerId)
-            }
-          }}
-          onPointerCancel={() => {
-            resize.current = null
-          }}
-          role="separator"
-          style={{ right: explorerWidth }}
-          tabIndex={0}
-        />
-      ) : null}
-
       <section
         className={cn(
           "ml-auto min-h-0 shrink-0 flex-col",
           explorerWidth === 0 ? "hidden" : "flex",
-          embedded && editorOpen && "border-l"
+          editorOpen && "border-l"
         )}
         style={{ width: explorerWidth }}
       >
-        <div
-          className={cn(
-            "flex shrink-0 items-center gap-1 pl-2",
-            embedded ? "h-9 pr-2" : "h-(--workspace-topbar-height) pr-12"
-          )}
-        >
+        <div className="flex h-9 shrink-0 items-center gap-1 px-2">
           <span className="min-w-0 flex-1 truncate text-sm font-medium">Explorer</span>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -2156,53 +1969,5 @@ function EntryDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
-}
-
-export function WorkspaceResizeHandle({
-  label,
-  width,
-  min,
-  max,
-  onResize,
-  onResizingChange,
-}: {
-  label: string
-  width: number
-  min: number
-  max: number
-  onResize: (width: number) => void
-  onResizingChange?: (resizing: boolean) => void
-}) {
-  const drag = React.useRef<{ width: number; x: number }>(null)
-  return (
-    <div
-      role="separator"
-      tabIndex={0}
-      aria-label={label}
-      aria-orientation="vertical"
-      aria-valuemin={min}
-      aria-valuemax={max}
-      aria-valuenow={width}
-      className="hover:bg-border focus-visible:bg-ring absolute inset-y-0 left-0 z-30 hidden w-1 cursor-col-resize touch-none transition-colors lg:block"
-      onKeyDown={(event) => {
-        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
-        event.preventDefault()
-        onResize(Math.min(max, Math.max(min, width + (event.key === "ArrowLeft" ? 16 : -16))))
-      }}
-      onPointerDown={(event) => {
-        event.currentTarget.setPointerCapture(event.pointerId)
-        drag.current = { width, x: event.clientX }
-        onResizingChange?.(true)
-      }}
-      onPointerMove={(event) => {
-        if (!drag.current) return
-        onResize(Math.min(max, Math.max(min, drag.current.width + drag.current.x - event.clientX)))
-      }}
-      onLostPointerCapture={() => {
-        drag.current = null
-        onResizingChange?.(false)
-      }}
-    />
   )
 }

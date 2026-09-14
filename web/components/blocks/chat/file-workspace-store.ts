@@ -13,8 +13,6 @@ type RootState = {
 }
 
 type WorkspaceState = {
-  dirtyAgent?: string
-  openAgent?: string
   pendingPreview?: { agent: string; tab: FileTab }
   roots: Record<string, RootState>
 }
@@ -27,9 +25,7 @@ type FileWorkspace = WorkspaceState & {
   openTab: (root: string, tab: FileTab) => void
   previewFile: (agent: string, tab: FileTab) => void
   resolvePreview: (agent: string) => void
-  setAgentDirty: (agent: string, dirty: boolean) => void
   setSelected: (root: string, path: string) => void
-  toggleAgent: (agent: string) => void
 }
 
 const emptyRoot: RootState = {
@@ -155,18 +151,12 @@ export function FileWorkspaceProvider({
       previewFile: (agent, tab) =>
         setState((state) => ({
           ...state,
-          openAgent: agent,
           pendingPreview: { agent, tab },
         })),
       resolvePreview: (agent) =>
         setState((state) =>
           state.pendingPreview?.agent === agent ? { ...state, pendingPreview: undefined } : state
         ),
-      setAgentDirty: (agent, dirty) =>
-        setState((state) => {
-          if (dirty) return state.dirtyAgent === agent ? state : { ...state, dirtyAgent: agent }
-          return state.dirtyAgent === agent ? { ...state, dirtyAgent: undefined } : state
-        }),
       setSelected: (root, selected) =>
         setState((state) => {
           const current = state.roots[root] ?? emptyRoot
@@ -178,15 +168,6 @@ export function FileWorkspaceProvider({
               ...state.roots,
               [root]: { ...current, selected },
             },
-          }
-        }),
-      toggleAgent: (agent) =>
-        setState((state) => {
-          const closing = state.openAgent === agent
-          return {
-            ...state,
-            openAgent: closing ? undefined : agent,
-            pendingPreview: undefined,
           }
         }),
     }),

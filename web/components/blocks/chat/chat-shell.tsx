@@ -3,25 +3,12 @@
 import dynamic from "next/dynamic"
 import type { ChatProps } from "./chat"
 import type { ChatSessionPreference, CodingThread } from "@/lib/gateway/client"
-import { PanelRightClose, PanelRightOpen } from "lucide-react"
 import type { Route } from "next"
 import { useRouter } from "@bprogress/next/app"
 import { useState, type ReactNode } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { sessionInfoQueryOptions } from "./use-opencode-chat"
-import { useFileWorkspace } from "@/components/blocks/chat/file-workspace-store"
-import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { cn } from "@/lib/utils"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 
 type ChatShellProps = Pick<
@@ -67,8 +54,8 @@ const CodingWorkspace = dynamic(
 const Chat = dynamic(() => import("@/components/blocks/chat/chat"), {
   ssr: false,
 })
-const FilesWorkspace = dynamic(
-  () => import("@/components/blocks/chat/files-workspace").then((module) => module.FilesWorkspace),
+const Workspace = dynamic(
+  () => import("@/components/blocks/chat/workspace").then((module) => module.Workspace),
   { ssr: false }
 )
 
@@ -154,7 +141,6 @@ export function ChatShell({
                 workspaceId={workspaceId}
               />
             ) : null}
-            {!codingThread && !createSession ? <SessionFileControl agentName={agentName} /> : null}
           </div>
         </header>
         <div className="@container/chat relative min-h-0 min-w-0 flex-1">
@@ -217,7 +203,8 @@ export function ChatShell({
         />
       ) : null}
       {!codingThread && !createSession ? (
-        <FilesWorkspace
+        <Workspace
+          key={`${workspaceId}:${agentName}`}
           agentName={agentName}
           onPreviewerOpenChange={setPreviewerOpen}
           sessionId={activeSessionId}
@@ -225,65 +212,5 @@ export function ChatShell({
         />
       ) : null}
     </div>
-  )
-}
-
-function SessionFileControl({ agentName }: { agentName: string }) {
-  const { dirtyAgent, openAgent, toggleAgent } = useFileWorkspace()
-  const filesOpen = openAgent === agentName
-  const filesDirty = dirtyAgent === agentName
-  const [confirmingDiscard, setConfirmingDiscard] = useState(false)
-
-  return (
-    <>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            aria-label={filesOpen ? "Close files" : "Open files"}
-            aria-pressed={filesOpen}
-            className={cn("hidden lg:inline-flex", filesOpen && "absolute top-3 right-3 z-50")}
-            onClick={() => {
-              if (filesOpen && filesDirty) {
-                setConfirmingDiscard(true)
-                return
-              }
-              toggleAgent(agentName)
-            }}
-            size="icon-sm"
-            variant={filesOpen ? "secondary" : "ghost"}
-          >
-            {filesOpen ? (
-              <PanelRightClose aria-hidden="true" />
-            ) : (
-              <PanelRightOpen aria-hidden="true" />
-            )}
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>{filesOpen ? "Close files" : "Open files"}</TooltipContent>
-      </Tooltip>
-      <Dialog open={confirmingDiscard} onOpenChange={setConfirmingDiscard}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Close files?</DialogTitle>
-            <DialogDescription>Your unsaved file changes will be discarded.</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button onClick={() => setConfirmingDiscard(false)} variant="outline">
-              Cancel
-            </Button>
-            <Button
-              data-dialog-submit
-              onClick={() => {
-                toggleAgent(agentName)
-                setConfirmingDiscard(false)
-              }}
-              variant="destructive"
-            >
-              Discard changes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
   )
 }

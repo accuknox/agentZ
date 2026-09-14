@@ -1,28 +1,17 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import dynamic from "next/dynamic"
 import { queryOptions, useQuery } from "@tanstack/react-query"
-import {
-  FolderCode,
-  Files,
-  GitBranch,
-  Maximize2,
-  Minimize2,
-  PanelRightClose,
-  TerminalSquare,
-} from "lucide-react"
+import { FolderCode, GitBranch, TerminalSquare } from "lucide-react"
 import { toast } from "sonner"
 import { authClient } from "@/lib/auth-client"
-import { useFileWorkspace } from "@/components/blocks/chat/file-workspace-store"
-import { WorkspaceResizeHandle } from "@/components/blocks/chat/files-workspace"
+import { Workspace } from "@/components/blocks/chat/workspace"
 import { Spinner } from "@/components/ui/spinner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { type CodingThread } from "@/lib/gateway/client"
 import { runWorkspaceGit } from "@/lib/coding/review"
-import { cn } from "@/lib/utils"
 
 const GitChanges = dynamic(() => import("./git").then((module) => module.GitChanges), {
   ssr: false,
@@ -37,17 +26,6 @@ const CodingTerminal = dynamic(() => import("./terminal").then((module) => modul
     </div>
   ),
 })
-const FilesWorkspace = dynamic(
-  () => import("../chat/files-workspace").then((module) => module.FilesWorkspace),
-  { ssr: false }
-)
-const views = [
-  { id: "files", label: "Files", icon: Files },
-  { id: "changes", label: "Changes", icon: GitBranch },
-  { id: "terminal", label: "Terminal", icon: TerminalSquare },
-] as const
-
-type View = (typeof views)[number]["id"]
 
 export function CodingWorkspace({
   thread,
@@ -59,15 +37,6 @@ export function CodingWorkspace({
   onPreviewerOpenChange: (open: boolean) => void
 }) {
   const { data: actor } = authClient.useSession()
-  const { pendingPreview } = useFileWorkspace()
-  const [{ tab, open }, setPanel] = useState<{ tab: View; open: boolean }>({
-    tab: "changes",
-    open: false,
-  })
-  const [visited, setVisited] = useState<Set<View>>(new Set())
-  const [width, setWidth] = useState(480)
-  const [expanded, setExpanded] = useState(false)
-  const [editorOpen, setEditorOpen] = useState(false)
   const tree = thread.worktree
   const status = useQuery(
     queryOptions({
@@ -78,130 +47,49 @@ export function CodingWorkspace({
     })
   )
   const data = status.data
-  const { refetch: refreshStatus } = status
-
-  useEffect(() => {
-    if (open && tab === "changes") void refreshStatus()
-  }, [open, tab, refreshStatus])
-
-  useEffect(() => {
-    onPreviewerOpenChange(open && tab === "files" && editorOpen)
-    return () => onPreviewerOpenChange(false)
-  }, [open, tab, editorOpen, onPreviewerOpenChange])
-
-  const [handledPreview, setHandledPreview] = useState<typeof pendingPreview>()
-  if (pendingPreview?.agent === tree.agent_name && pendingPreview !== handledPreview) {
-    setHandledPreview(pendingPreview)
-    setPanel({ tab: "files", open: true })
-    setVisited((current) => new Set(current).add("files"))
-  }
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey)) return
-      if (event.code === "KeyB" && event.shiftKey) {
-        event.preventDefault()
-        event.stopPropagation()
-        setVisited((current) => new Set(current).add(tab))
-        setPanel((current) => ({ ...current, open: !current.open }))
-      }
-    }
-    window.addEventListener("keydown", onKeyDown, true)
-    return () => window.removeEventListener("keydown", onKeyDown, true)
-  }, [tab])
 
   return (
-    <>
-      <aside
-        aria-label="Coding workspace"
-        className={cn(
-          "bg-background min-h-0 min-w-0 shrink-0 flex-col border-l",
-          open
-            ? "absolute inset-y-0 right-12 left-0 z-30 flex lg:relative lg:inset-auto lg:z-auto lg:w-auto lg:max-w-[calc(100%-22rem)]"
-            : "hidden",
-          expanded &&
-            "lg:absolute lg:inset-y-0 lg:right-12 lg:left-0 lg:z-30 lg:w-auto lg:max-w-none"
-        )}
-        style={{ flexBasis: width }}
-      >
-        {!expanded ? (
-          <WorkspaceResizeHandle
-            label="Resize coding workspace"
-            width={width}
-            min={360}
-            max={1000}
-            onResize={setWidth}
-          />
-        ) : null}
-        <header className="flex h-(--workspace-topbar-height) shrink-0 items-center gap-2 border-b px-3">
-          <span className="flex-1 text-sm font-semibold">
-            {views.find((view) => view.id === tab)?.label}
-          </span>
-          {tab === "changes" && data ? (
-            <span className="text-muted-foreground text-xs tabular-nums">
-              {data.files.length} {data.files.length === 1 ? "file" : "files"}
-            </span>
-          ) : null}
-          <Button
-            className="hidden lg:inline-flex"
-            aria-label={expanded ? "Restore panel size" : "Expand panel"}
-            title={expanded ? "Restore panel size" : "Expand panel"}
-            size="icon-sm"
-            variant="ghost"
-            onClick={() => setExpanded(!expanded)}
-          >
-            {expanded ? <Minimize2 /> : <Maximize2 />}
-          </Button>
-          <Button
-            aria-label="Close workspace panel"
-            title="Close workspace panel"
-            size="icon-sm"
-            variant="ghost"
-            onClick={() => setPanel((current) => ({ ...current, open: false }))}
-          >
-            <PanelRightClose />
-          </Button>
-        </header>
-        {visited.has("files") ? (
-          <div className={cn("min-h-0 flex-1", tab !== "files" && "hidden")}>
-            <FilesWorkspace
-              embedded
-              agentName={tree.agent_name}
-              sessionId={thread.session_id}
+    <Workspace
+      agentName={tree.agent_name}
+      sessionId={thread.session_id}
+      workspaceId={workspaceId}
+      onPreviewerOpenChange={onPreviewerOpenChange}
+      initialTool="changes"
+      tools={[
+        {
+          id: "changes",
+          label: "Changes",
+          icon: GitBranch,
+          count: data?.files.length,
+          render: ({ visible, expanded, onExpand }) => (
+            <GitChanges
+              thread={thread}
               workspaceId={workspaceId}
-              onPreviewerOpenChange={setEditorOpen}
+              status={status}
+              visible={visible}
+              expanded={expanded}
+              onExpand={onExpand}
             />
-          </div>
-        ) : null}
-        {visited.has("terminal") ? (
-          <div className={cn("min-h-0 flex-1", tab !== "terminal" && "hidden")}>
+          ),
+        },
+        {
+          id: "terminal",
+          label: "Terminal",
+          icon: TerminalSquare,
+          render: ({ visible, onClose }) => (
             <CodingTerminal
               key={`${workspaceId}:${tree.agent_name}:${thread.session_id}:${tree.directory}`}
               agentName={tree.agent_name}
               sessionId={thread.session_id}
               directory={tree.directory}
               workspaceId={workspaceId}
-              visible={open && tab === "terminal"}
-              onLastTerminalClosed={() => {
-                setPanel((current) =>
-                  current.tab === "terminal" ? { ...current, open: false } : current
-                )
-              }}
+              visible={visible}
+              onLastTerminalClosed={onClose}
             />
-          </div>
-        ) : null}
-        {visited.has("changes") ? (
-          <div className={cn("flex min-h-0 flex-1", tab !== "changes" && "hidden")}>
-            <GitChanges
-              thread={thread}
-              workspaceId={workspaceId}
-              status={status}
-              visible={open && tab === "changes"}
-              expanded={expanded}
-              onExpand={() => setExpanded(true)}
-            />
-          </div>
-        ) : null}
+          ),
+        },
+      ]}
+      footer={
         <footer className="bg-muted/20 text-muted-foreground flex h-9 shrink-0 items-center gap-2 border-t px-2 text-[11px]">
           {data ? (
             <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -250,40 +138,7 @@ export function CodingWorkspace({
             <TooltipContent side="top">Copy worktree path</TooltipContent>
           </Tooltip>
         </footer>
-      </aside>
-      <nav
-        aria-label="Workspace tools"
-        className="bg-sidebar flex w-12 shrink-0 flex-col items-center gap-1 border-l py-2"
-      >
-        {views.map(({ id, label, icon: Icon }) => (
-          <Tooltip key={id}>
-            <TooltipTrigger asChild>
-              <Button
-                aria-label={label}
-                aria-pressed={open && tab === id}
-                variant={open && tab === id ? "secondary" : "ghost"}
-                size="icon"
-                className={cn("relative", open && tab === id && "text-primary")}
-                onClick={() => {
-                  setPanel((current) => ({
-                    tab: id,
-                    open: current.tab === id ? !current.open : true,
-                  }))
-                  setVisited((current) => new Set(current).add(id))
-                }}
-              >
-                <Icon />
-                {id === "changes" && data && data.files.length > 0 ? (
-                  <span className="bg-primary text-primary-foreground absolute top-0 right-0 min-w-3.5 rounded-full px-0.5 text-[9px] leading-3.5 tabular-nums">
-                    {data.files.length}
-                  </span>
-                ) : null}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="left">{label}</TooltipContent>
-          </Tooltip>
-        ))}
-      </nav>
-    </>
+      }
+    />
   )
 }

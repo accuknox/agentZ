@@ -134,6 +134,11 @@ export function GitChanges({
   expanded,
   onExpand,
 }: GitChangesProps) {
+  const { refetch: refreshStatus } = status
+  useEffect(() => {
+    if (visible) void refreshStatus()
+  }, [visible, refreshStatus])
+
   const queryClient = useQueryClient()
   const { data: actor } = authClient.useSession()
   const mutationKey = ["coding", "git", workspaceId, thread.worktree.id]

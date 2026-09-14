@@ -20,7 +20,7 @@ const (
 	modelsDevURL       = "https://models.dev/api.json"
 	modelsDevMaxBytes  = 8 << 20
 	catalogLifetime    = 24 * time.Hour
-	openAICodexVersion = "0.145.0"
+	openAICodexVersion = "0.154.0"
 )
 
 // CatalogProvenance identifies the source of model suggestions.

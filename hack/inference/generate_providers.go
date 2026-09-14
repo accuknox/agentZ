@@ -16,9 +16,8 @@ import (
 
 const (
 	opencodeCommit = "012c2f57f976489d88bd4598a056b4bdcdd428ee"
-	catalogURL     = "https://raw.githubusercontent.com/anomalyco/opencode/" +
-		opencodeCommit + "/packages/opencode/test/tool/fixtures/models-api.json"
-	catalogOutput = "internal/inference/providers.go"
+	catalogURL     = "https://raw.githubusercontent.com/anomalyco/opencode/" + opencodeCommit + "/packages/opencode/test/tool/fixtures/models-api.json"
+	catalogOutput  = "internal/inference/providers.go"
 )
 
 type provider struct {
@@ -94,21 +93,20 @@ var providerKinds = map[string]string{
 }
 
 var baseURLs = map[string]string{
-	"aihubmix": "https://aihubmix.com/v1",
-	"cerebras": "https://api.cerebras.ai/v1",
-	"cloudflare-ai-gateway": "https://gateway.ai.cloudflare.com/v1/" +
-		"${CLOUDFLARE_ACCOUNT_ID}/${CLOUDFLARE_GATEWAY_ID}/compat",
-	"cohere":        "https://api.cohere.ai/compatibility/v1",
-	"deepinfra":     "https://api.deepinfra.com/v1/openai",
-	"groq":          "https://api.groq.com/openai/v1",
-	"merge-gateway": "https://api-gateway.merge.dev/v1/openai",
-	"mistral":       "https://api.mistral.ai/v1",
-	"perplexity":    "https://api.perplexity.ai",
-	"togetherai":    "https://api.together.xyz/v1",
-	"v0":            "https://api.v0.dev/v1",
-	"venice":        "https://api.venice.ai/api/v1",
-	"vercel":        "https://ai-gateway.vercel.sh/v1",
-	"xai":           "https://api.x.ai/v1",
+	"aihubmix":              "https://aihubmix.com/v1",
+	"cerebras":              "https://api.cerebras.ai/v1",
+	"cloudflare-ai-gateway": "https://gateway.ai.cloudflare.com/v1/${CLOUDFLARE_ACCOUNT_ID}/${CLOUDFLARE_GATEWAY_ID}/compat",
+	"cohere":                "https://api.cohere.ai/compatibility/v1",
+	"deepinfra":             "https://api.deepinfra.com/v1/openai",
+	"groq":                  "https://api.groq.com/openai/v1",
+	"merge-gateway":         "https://api-gateway.merge.dev/v1/openai",
+	"mistral":               "https://api.mistral.ai/v1",
+	"perplexity":            "https://api.perplexity.ai",
+	"togetherai":            "https://api.together.xyz/v1",
+	"v0":                    "https://api.v0.dev/v1",
+	"venice":                "https://api.venice.ai/api/v1",
+	"vercel":                "https://ai-gateway.vercel.sh/v1",
+	"xai":                   "https://api.x.ai/v1",
 }
 
 func main() {

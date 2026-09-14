@@ -136,16 +136,18 @@ func (s *Service) ListMCPConnections(w http.ResponseWriter, r *http.Request, par
 		}
 		items = append(items, inherited...)
 	}
+	byCreatedAt := params.SortBy != nil &&
+		*params.SortBy == gatewayapi.ListMCPConnectionsParamsSortByResourceSortCreatedAt
+	descending := params.SortOrder != nil &&
+		*params.SortOrder == gatewayapi.ListMCPConnectionsParamsSortOrderDesc
 	slices.SortFunc(
 		items,
 		func(a, b gatewayapi.MCPConnectionSummary) int {
 			order := cmp.Compare(a.Name, b.Name)
-			if params.SortBy != nil &&
-				*params.SortBy == gatewayapi.ListMCPConnectionsParamsSortByResourceSortCreatedAt {
+			if byCreatedAt {
 				order = a.CreatedAt.Compare(b.CreatedAt)
 			}
-			if params.SortOrder != nil &&
-				*params.SortOrder == gatewayapi.ListMCPConnectionsParamsSortOrderDesc {
+			if descending {
 				order = -order
 			}
 			if order != 0 {

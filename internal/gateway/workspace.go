@@ -1063,10 +1063,10 @@ func (s *Service) requireWorkspaceFeatures(next http.Handler) http.Handler {
 		}
 		auth.workspaceType = agentzv1alpha1.WorkspaceType(workspace.Type)
 		path := chi.RouteContext(r.Context()).RoutePattern()
-		if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding &&
-			(strings.HasPrefix(path, "/api/workflow/") ||
-				path == "/api/dashboard" ||
-				strings.HasPrefix(path, "/api/agent/{agentName}/dashboard")) {
+		disabledInCoding := strings.HasPrefix(path, "/api/workflow/") ||
+			path == "/api/dashboard" ||
+			strings.HasPrefix(path, "/api/agent/{agentName}/dashboard")
+		if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding && disabledInCoding {
 			apiutil.WriteError(w, r, apiutil.NewError(
 				http.StatusForbidden,
 				"feature_disabled",

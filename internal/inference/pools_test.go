@@ -109,8 +109,8 @@ func TestResolvePoolContract(t *testing.T) {
 		t.Fatalf("input modalities = %#v, want %#v", definition.Contract.Modalities.Input, wantInput)
 	}
 	limits := definition.Contract.Limits
-	if limits.Context != 100000 || limits.Input == nil ||
-		*limits.Input != 64000 || limits.Output != 4096 {
+	wrongInput := limits.Input == nil || *limits.Input != 64000
+	if limits.Context != 100000 || wrongInput || limits.Output != 4096 {
 		t.Fatalf("limits = %#v, want context=100000 input=64000 output=4096", definition.Contract.Limits)
 	}
 }
@@ -174,8 +174,8 @@ func TestResolvePoolRejectsUnsupportedAPIConversion(t *testing.T) {
 	}
 	message := "These models cannot be used together. " +
 		"Choose a different model combination."
-	if len(issues) != 1 || issues[0].Field != "members.1.model" ||
-		issues[0].Message != message {
+	validIssue := len(issues) == 1 && issues[0].Field == "members.1.model"
+	if !validIssue || issues[0].Message != message {
 		t.Fatalf("ResolvePool() issues = %#v, want unsupported members issue", issues)
 	}
 }

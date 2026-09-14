@@ -264,10 +264,12 @@ func TestRenderProviderTargetVertexModelNames(t *testing.T) {
 	if direct.LLM.VertexAI.ProjectId != "project" || direct.LLM.VertexAI.Region != "us-central1" {
 		t.Fatalf("RenderProviderTarget() Vertex settings = %#v", direct.LLM.VertexAI)
 	}
-	if direct.Policies.Auth == nil || direct.Policies.Auth.GCP == nil ||
-		direct.Policies.Auth.GCP.SecretRef == nil ||
-		direct.Policies.Auth.GCP.SecretRef.Name != "vertex" ||
-		direct.Policies.Auth.GCP.SecretRef.Key != nil {
+	auth := direct.Policies.Auth
+	if auth == nil || auth.GCP == nil || auth.GCP.SecretRef == nil {
+		t.Fatalf("RenderProviderTarget() auth = %#v", direct.Policies.Auth)
+	}
+	ref := auth.GCP.SecretRef
+	if ref.Name != "vertex" || ref.Key != nil {
 		t.Fatalf("RenderProviderTarget() auth = %#v", direct.Policies.Auth)
 	}
 	got := direct.Policies.AI.ModelAliases["gemini-2.5-flash"]
@@ -334,9 +336,12 @@ func TestRenderProviderTargetUsesConcreteDefaultEndpoint(t *testing.T) {
 	if target.Policies.TLS == nil {
 		t.Fatal("RenderProviderTarget() did not enable TLS for the default endpoint")
 	}
-	if target.Policies.Auth == nil || target.Policies.Auth.SecretRef == nil ||
-		target.Policies.Auth.SecretRef.Name != "openai" ||
-		target.Policies.Auth.SecretRef.Key != nil {
+	auth := target.Policies.Auth
+	if auth == nil || auth.SecretRef == nil {
+		t.Fatalf("RenderProviderTarget() auth = %#v", target.Policies.Auth)
+	}
+	ref := auth.SecretRef
+	if ref.Name != "openai" || ref.Key != nil {
 		t.Fatalf("RenderProviderTarget() auth = %#v", target.Policies.Auth)
 	}
 }
@@ -358,9 +363,12 @@ func TestRenderProviderTargetUsesWholeSecretCredentials(t *testing.T) {
 		if target.LLM.Bedrock.Region != "us-east-1" {
 			t.Fatalf("RenderProviderTarget() Bedrock settings = %#v", target.LLM.Bedrock)
 		}
-		if target.Policies.Auth == nil || target.Policies.Auth.AWS == nil ||
-			target.Policies.Auth.AWS.SecretRef == nil ||
-			target.Policies.Auth.AWS.SecretRef.Name != "bedrock" {
+		auth := target.Policies.Auth
+		if auth == nil || auth.AWS == nil || auth.AWS.SecretRef == nil {
+			t.Fatalf("RenderProviderTarget() auth = %#v", target.Policies.Auth)
+		}
+		ref := auth.AWS.SecretRef
+		if ref.Name != "bedrock" {
 			t.Fatalf("RenderProviderTarget() auth = %#v", target.Policies.Auth)
 		}
 	})
@@ -378,13 +386,17 @@ func TestRenderProviderTargetUsesWholeSecretCredentials(t *testing.T) {
 		if err != nil {
 			t.Fatalf("RenderProviderTarget() error = %v", err)
 		}
-		if target.LLM.Azure.ResourceName != "resource" ||
-			target.LLM.Azure.ResourceType != agentgatewayv1alpha1.AzureResourceTypeOpenAI {
+		azure := target.LLM.Azure
+		openAI := azure.ResourceType == agentgatewayv1alpha1.AzureResourceTypeOpenAI
+		if azure.ResourceName != "resource" || !openAI {
 			t.Fatalf("RenderProviderTarget() Azure settings = %#v", target.LLM.Azure)
 		}
-		if target.Policies.Auth == nil || target.Policies.Auth.Azure == nil ||
-			target.Policies.Auth.Azure.SecretRef == nil ||
-			target.Policies.Auth.Azure.SecretRef.Name != "azure" {
+		auth := target.Policies.Auth
+		if auth == nil || auth.Azure == nil || auth.Azure.SecretRef == nil {
+			t.Fatalf("RenderProviderTarget() auth = %#v", target.Policies.Auth)
+		}
+		ref := auth.Azure.SecretRef
+		if ref.Name != "azure" {
 			t.Fatalf("RenderProviderTarget() auth = %#v", target.Policies.Auth)
 		}
 	})

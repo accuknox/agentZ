@@ -203,8 +203,8 @@ func TestBundleExportRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("re-import ZIP: %v", err)
 	}
-	if reimported.Skills[0].Name != original.Skills[0].Name ||
-		!bytes.Equal(reimported.Skills[0].Files[0].Content, original.Skills[0].Files[0].Content) {
+	got, want := reimported.Skills[0], original.Skills[0]
+	if got.Name != want.Name || !bytes.Equal(got.Files[0].Content, want.Files[0].Content) {
 		t.Fatal("export and re-import changed the skill")
 	}
 }

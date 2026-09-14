@@ -223,8 +223,9 @@ func TestGitWorktreeLifecycle(t *testing.T) {
 		ExpectedHead: &selected.Head,
 	}
 	created := run(req)
-	if created.Head != selected.Head || created.Tree == nil ||
-		*created.Tree != *selected.Tree || len(created.Files) != 2 {
+	changed := created.Head != selected.Head || created.Tree == nil ||
+		*created.Tree != *selected.Tree || len(created.Files) != 2
+	if changed {
 		t.Fatal("creating a feature branch changed staged or working contents")
 	}
 	req.Git = gatewayapi.CodingGitRequest{
@@ -241,8 +242,9 @@ func TestGitWorktreeLifecycle(t *testing.T) {
 		Comparison: new(gatewayapi.CodingGitStaged),
 	}
 	result = run(req)
-	if result.Patches == nil || len(*result.Patches) != 2 ||
-		(*result.Patches)[0].Path != "café.md" || result.Tree == nil {
+	missing := result.Patches == nil || len(*result.Patches) != 2 ||
+		(*result.Patches)[0].Path != "café.md" || result.Tree == nil
+	if missing {
 		t.Fatal("staged review missing")
 	}
 	req.Git = gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitExport, ExpectedHead: &result.Head}

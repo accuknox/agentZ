@@ -247,7 +247,9 @@ func (s *Service) runCoding(ctx context.Context) {
 				snapshot, err := s.queries.GatewayClaimCodingSnapshot(ctx)
 				if err == nil {
 					s.refreshCodingSnapshot(ctx, snapshot)
-				} else if !errors.Is(err, pgx.ErrNoRows) {
+					continue
+				}
+				if !errors.Is(err, pgx.ErrNoRows) {
 					slog.ErrorContext(ctx, "claim coding refresh", "error", err)
 				}
 			}
@@ -500,7 +502,8 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 		if err := publish("Preparing commit"); err != nil {
 			return err
 		}
-		if input.ExpectedTree == nil {
+		switch {
+		case input.ExpectedTree == nil:
 			current, err = local(gatewayapi.CodingGitRequest{
 				Operation:    gatewayapi.CodingGitPrepareCommit,
 				ExpectedHead: &current.Head,
@@ -510,7 +513,7 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 			if err != nil {
 				return err
 			}
-		} else if current.Tree == nil || *current.Tree != *input.ExpectedTree {
+		case current.Tree == nil || *current.Tree != *input.ExpectedTree:
 			return errors.New("staged changes changed; review before committing")
 		}
 		if current.Tree == nil {
@@ -842,8 +845,8 @@ func (s *Service) nameCodingBranch(ctx context.Context, job gatewaydb.CodingOper
 		return err
 	}
 	tree := current.CodingWorktree
-	if tree.Shared || tree.Deleting || !tree.Ready ||
-		tree.Branch != row.CodingWorktree.Branch {
+	unavailable := tree.Shared || tree.Deleting || !tree.Ready
+	if unavailable || tree.Branch != row.CodingWorktree.Branch {
 		return errors.New("checkout changed while naming its branch")
 	}
 	if _, err := s.codingWorkerAccess(ctx, project, input.AgentName); err != nil {

@@ -293,16 +293,18 @@ func (s *Service) refreshCodingSnapshot(ctx context.Context, snapshot gatewaydb.
 	if now.Before(snapshot.DemandUntil) {
 		interval = 5 * time.Second
 	}
+	var failures int32
 	if err != nil {
-		snapshot.Failures++
-		interval = min(30*time.Second*time.Duration(1<<min(snapshot.Failures-1, 5)), 15*time.Minute)
+		failures = snapshot.Failures + 1
+		interval = min(30*time.Second*time.Duration(1<<min(failures-1, 5)), 15*time.Minute)
 		message := err.Error()
 		var rate *github.RateLimitError
 		var abuse *github.AbuseRateLimitError
-		if errors.As(err, &rate) {
+		switch {
+		case errors.As(err, &rate):
 			interval = max(interval, time.Until(rate.Rate.Reset.Time))
 			message = "GitHub rate limit reached; refresh will retry automatically"
-		} else if errors.As(err, &abuse) {
+		case errors.As(err, &abuse):
 			if abuse.RetryAfter != nil {
 				interval = max(interval, *abuse.RetryAfter)
 			}
@@ -329,9 +331,8 @@ func (s *Service) refreshCodingSnapshot(ctx context.Context, snapshot gatewaydb.
 			result.Repository.Error = &message
 			result.Repository.Refreshing = false
 		}
-	} else {
-		snapshot.Failures = 0
 	}
+	snapshot.Failures = failures
 	if result.Repository != nil {
 		repository := result.Repository
 		repository.Refreshing = false
@@ -549,7 +550,8 @@ func (s *Service) loadCodingSnapshot(ctx context.Context, access resourceAccess,
 		if err != nil {
 			return err
 		}
-		if !ready {
+		switch {
+		case !ready:
 			result.Repository = &gatewayapi.CodingRepositorySnapshot{
 				Refs:      []gatewayapi.CodingRef{},
 				Worktrees: []gatewayapi.CodingDiscoveredWorktree{},
@@ -571,7 +573,7 @@ func (s *Service) loadCodingSnapshot(ctx context.Context, access resourceAccess,
 					},
 				)
 			}
-		} else if remote != snapshot.RemoteRefs {
+		case remote != snapshot.RemoteRefs:
 			_, release, err := s.lockCodingProject(ctx, project.ID)
 			if err != nil {
 				return err

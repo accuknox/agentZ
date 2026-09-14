@@ -175,16 +175,18 @@ func (s *Service) ListSkills(w http.ResponseWriter, r *http.Request, params gate
 		}
 		items = append(items, organizationItems...)
 	}
+	byVersion := params.SortBy != nil &&
+		*params.SortBy == gatewayapi.ListSkillsParamsSortByImmutableSkillSortVersion
+	descending := params.SortOrder != nil &&
+		*params.SortOrder == gatewayapi.ListSkillsParamsSortOrderDesc
 	slices.SortFunc(
 		items,
 		func(a, b gatewayapi.Skill) int {
 			order := cmp.Compare(a.Name, b.Name)
-			if params.SortBy != nil &&
-				*params.SortBy == gatewayapi.ListSkillsParamsSortByImmutableSkillSortVersion {
+			if byVersion {
 				order = cmp.Compare(a.Version, b.Version)
 			}
-			if params.SortOrder != nil &&
-				*params.SortOrder == gatewayapi.ListSkillsParamsSortOrderDesc {
+			if descending {
 				order = -order
 			}
 			if order != 0 {
@@ -1610,8 +1612,9 @@ func readSkillUpload(w http.ResponseWriter, r *http.Request) (skill.Bundle, bool
 			)
 			return skill.Bundle{}, false
 		}
-		if errors.Is(err, errMultipleSkillUploadFiles) ||
-			errors.Is(err, errSkillImportFieldTooLarge) {
+		invalidForm := errors.Is(err, errMultipleSkillUploadFiles) ||
+			errors.Is(err, errSkillImportFieldTooLarge)
+		if invalidForm {
 			apiutil.WriteError(
 				w,
 				r,
@@ -2209,6 +2212,8 @@ func (s *Service) ListImmutableSkillSummaries(w http.ResponseWriter, r *http.Req
 			)
 		}
 	}
+	descending := params.SortOrder != nil &&
+		*params.SortOrder == gatewayapi.ListImmutableSkillSummariesParamsSortOrderDesc
 	slices.SortFunc(
 		items,
 		func(a, b gatewayapi.ImmutableSkillSummary) int {
@@ -2236,8 +2241,7 @@ func (s *Service) ListImmutableSkillSummaries(w http.ResponseWriter, r *http.Req
 			default:
 				order = cmp.Compare(a.Name, b.Name)
 			}
-			if params.SortOrder != nil &&
-				*params.SortOrder == gatewayapi.ListImmutableSkillSummariesParamsSortOrderDesc {
+			if descending {
 				order = -order
 			}
 			if order != 0 {

@@ -410,6 +410,8 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 
+	descending := params.SortOrder != nil &&
+		*params.SortOrder == gatewayapi.ListSecretsParamsSortOrderDesc
 	slices.SortFunc(
 		items,
 		func(a, b agentzv1alpha1.Secret) int {
@@ -417,8 +419,7 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 			if params.SortBy != nil && *params.SortBy == gatewayapi.ListSecretsParamsSortBySecretSortCreatedAt {
 				order = a.CreationTimestamp.Compare(b.CreationTimestamp.Time)
 			}
-			if params.SortOrder != nil &&
-				*params.SortOrder == gatewayapi.ListSecretsParamsSortOrderDesc {
+			if descending {
 				order = -order
 			}
 			if order != 0 {

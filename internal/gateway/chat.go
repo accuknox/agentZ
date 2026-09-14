@@ -226,9 +226,9 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 			groupAgent = pgtype.Text{String: groupValue, Valid: true}
 		case gatewayapi.ChatSessionGroupByStatus:
 			status := gatewaydb.ChatSessionStatus(groupValue)
-			if status != gatewaydb.ChatSessionStatusBusy &&
-				status != gatewaydb.ChatSessionStatusRetry &&
-				status != gatewaydb.ChatSessionStatusIdle {
+			switch status {
+			case gatewaydb.ChatSessionStatusBusy, gatewaydb.ChatSessionStatusRetry, gatewaydb.ChatSessionStatusIdle:
+			default:
 				apiutil.WriteError(w, r, apiutil.NewError(
 					http.StatusBadRequest,
 					"invalid_request",
@@ -461,19 +461,17 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		case gatewayapi.ChatSessionGroupByNone:
 			response.Sessions = sessions
 			response.HasNextPage = hasNextPage
+			response.NextPageToken = next
 		case gatewayapi.ChatSessionGroupByProject:
 			response.Groups[0].Sessions = sessions
 			response.Groups[0].HasNextPage = hasNextPage
+			response.Groups[0].NextPageToken = next
 		default:
 			group := chatSessionGroup(groupBy, groupValue, activeGroup)
 			group.Sessions = sessions
 			group.HasNextPage = hasNextPage
+			group.NextPageToken = next
 			response.Groups = append(response.Groups, group)
-		}
-		if groupBy == gatewayapi.ChatSessionGroupByNone {
-			response.NextPageToken = next
-		} else {
-			response.Groups[0].NextPageToken = next
 		}
 	case groupSelected && groupBy != gatewayapi.ChatSessionGroupByProject:
 		response.Groups = append(response.Groups, chatSessionGroup(groupBy, groupValue, activeGroup))
@@ -682,8 +680,8 @@ func (s *Service) UpdateChatSessionPreference(w http.ResponseWriter, r *http.Req
 		lastAgentName = pgtype.Text{String: *body.LastAgentName, Valid: true}
 	}
 
-	if body.GroupBy == gatewayapi.ChatSessionGroupByProject &&
-		auth.workspaceType != agentzv1alpha1.WorkspaceTypeCoding {
+	projectGroup := body.GroupBy == gatewayapi.ChatSessionGroupByProject
+	if projectGroup && auth.workspaceType != agentzv1alpha1.WorkspaceTypeCoding {
 		apiutil.WriteError(
 			w,
 			r,

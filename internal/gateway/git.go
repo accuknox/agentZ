@@ -202,7 +202,8 @@ func (s *Service) ListCodingRepositories(w http.ResponseWriter, r *http.Request,
 	var repos []*github.Repository
 	var response *github.Response
 	result := gatewayapi.CodingRepositoryPage{Repositories: []gatewayapi.CodingRepositoryItem{}}
-	if params.Query != nil && *params.Query != "" {
+	switch {
+	case params.Query != nil && *params.Query != "":
 		if page > 20 {
 			apiutil.WriteError(
 				w,
@@ -221,7 +222,7 @@ func (s *Service) ListCodingRepositories(w http.ResponseWriter, r *http.Request,
 			repos = found.Repositories
 			result.Limited = found.GetIncompleteResults() || found.GetTotal() > 1000
 		}
-	} else {
+	default:
 		repos, response, err = identity.client.Repositories.ListByAuthenticatedUser(
 			r.Context(),
 			&github.RepositoryListByAuthenticatedUserOptions{

@@ -73,8 +73,8 @@ func requestID(r *http.Request) string {
 
 func validAgentName(w http.ResponseWriter, r *http.Request, name string, fields ...string) (string, bool) {
 	reserved := name == agentzv1alpha1.AgentNameMCPConnection
-	if name != "" && !reserved && len(name) <= 32 &&
-		len(validation.IsDNS1123Label(name)) == 0 {
+	allowed := name != "" && !reserved && len(name) <= 32
+	if allowed && len(validation.IsDNS1123Label(name)) == 0 {
 		return name, true
 	}
 

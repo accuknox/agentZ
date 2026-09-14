@@ -365,8 +365,9 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 	deleteTarget, hasSessionDelete := matchOpencodeSessionDelete(route, agentName)
 	return func(resp *http.Response) error {
 		stripOpenCodeCORSHeaders(resp)
-		if resp.StatusCode == http.StatusSwitchingProtocols &&
-			resp.Request.Header.Get("Sec-WebSocket-Protocol") == "agentz.pty" {
+		pty := resp.StatusCode == http.StatusSwitchingProtocols &&
+			resp.Request.Header.Get("Sec-WebSocket-Protocol") == "agentz.pty"
+		if pty {
 			resp.Header.Set("Sec-WebSocket-Protocol", "agentz.pty")
 			return nil
 		}
@@ -392,8 +393,8 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 				return err
 			}
 		}
-		if route.Method == http.MethodPost &&
-			(route.Path == opencodeSessionPromptPath || route.Path == opencodeSessionAsyncPath) {
+		prompt := route.Path == opencodeSessionPromptPath || route.Path == opencodeSessionAsyncPath
+		if route.Method == http.MethodPost && prompt {
 			status := gatewaydb.ChatSessionStatusBusy
 			if route.Path == opencodeSessionPromptPath {
 				status = gatewaydb.ChatSessionStatusIdle

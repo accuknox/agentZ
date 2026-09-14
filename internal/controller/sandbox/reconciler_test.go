@@ -227,9 +227,10 @@ func TestGatewayNetworkPolicySpecTraceEgress(t *testing.T) {
 				)
 			}
 			for _, want := range tt.want {
-				if !slices.ContainsFunc(policy.Egress, func(got ciliumapi.EgressRule) bool {
+				found := slices.ContainsFunc(policy.Egress, func(got ciliumapi.EgressRule) bool {
 					return reflect.DeepEqual(got, want)
-				}) {
+				})
+				if !found {
 					t.Fatalf("gateway policy does not contain trace egress %#v", want)
 				}
 			}

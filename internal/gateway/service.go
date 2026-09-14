@@ -850,8 +850,9 @@ func validateWebOrigins(origins []string) ([]string, error) {
 		}
 		validScheme := parsed.Scheme == "http" || parsed.Scheme == "https"
 		rootPath := parsed.Path == "" || parsed.Path == "/"
-		if !validScheme || parsed.Host == "" || parsed.User != nil || !rootPath ||
-			parsed.RawQuery != "" || parsed.Fragment != "" {
+		validHost := parsed.Host != "" && parsed.User == nil
+		originOnly := rootPath && parsed.RawQuery == "" && parsed.Fragment == ""
+		if !validScheme || !validHost || !originOnly {
 			return nil, fmt.Errorf("allowed web origin %q must be an absolute HTTP(S) origin", origin)
 		}
 

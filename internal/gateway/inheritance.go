@@ -43,14 +43,16 @@ func (s *Service) ListWorkspaceInheritedResources(w http.ResponseWriter, r *http
 		apiutil.WriteInternalError(w, r, err)
 		return
 	}
+	byStatus := params.SortBy != nil &&
+		*params.SortBy == gatewayapi.ListWorkspaceInheritedResourcesParamsSortByInheritedResourceSortByStatus
+	descending := params.SortOrder != nil &&
+		*params.SortOrder == gatewayapi.ListWorkspaceInheritedResourcesParamsSortOrderInheritedResourceSortOrderDesc
 	slices.SortFunc(resources, func(a, b gatewayapi.WorkspaceInheritedResource) int {
 		order := cmp.Compare(a.Name, b.Name)
-		if params.SortBy != nil &&
-			*params.SortBy == gatewayapi.ListWorkspaceInheritedResourcesParamsSortByInheritedResourceSortByStatus {
+		if byStatus {
 			order = cmp.Compare(string(a.Status), string(b.Status))
 		}
-		if params.SortOrder != nil &&
-			*params.SortOrder == gatewayapi.ListWorkspaceInheritedResourcesParamsSortOrderInheritedResourceSortOrderDesc {
+		if descending {
 			order = -order
 		}
 		if order != 0 {

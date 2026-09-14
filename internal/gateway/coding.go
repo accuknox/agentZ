@@ -423,20 +423,22 @@ func (s *Service) CreateCodingThread(w http.ResponseWriter, r *http.Request) {
 			ID:          req.Id,
 		},
 	)
-	var thread gatewaydb.CodingThread
-	var tree gatewaydb.CodingWorktree
-	if err == nil {
-		if existing.CodingProject.ID != project.ID {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(http.StatusConflict, "conflict", "Thread belongs to another project", nil),
-			)
-			return
-		}
-		thread, tree = existing.CodingThread, existing.CodingWorktree
-	} else if errors.Is(err, pgx.ErrNoRows) {
-		if req.WorktreeId != nil {
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+	if err == nil && existing.CodingProject.ID != project.ID {
+		apiutil.WriteError(
+			w,
+			r,
+			apiutil.NewError(http.StatusConflict, "conflict", "Thread belongs to another project", nil),
+		)
+		return
+	}
+	thread, tree := existing.CodingThread, existing.CodingWorktree
+	if errors.Is(err, pgx.ErrNoRows) {
+		switch {
+		case req.WorktreeId != nil:
 			existingTree, err := q.GatewayGetCodingWorktree(
 				r.Context(),
 				gatewaydb.GatewayGetCodingWorktreeParams{ID: *req.WorktreeId, WorkspaceID: access.workspaceID},
@@ -464,7 +466,7 @@ func (s *Service) CreateCodingThread(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			tree.Shared = true
-		} else {
+		default:
 			id := req.Id
 			root := path.Join(
 				"Projects",
@@ -505,9 +507,6 @@ func (s *Service) CreateCodingThread(w http.ResponseWriter, r *http.Request) {
 			apiutil.WriteError(w, r, mapGatewayStoreError("create thread", err))
 			return
 		}
-	} else {
-		apiutil.WriteInternalError(w, r, err)
-		return
 	}
 	if tree.Deleting {
 		apiutil.WriteError(
@@ -1358,13 +1357,14 @@ func (s *Service) enforceCodingSession(r *http.Request, access resourceAccess, r
 	}
 	sessionID := route.Params["sessionID"]
 	var tree gatewaydb.CodingWorktree
-	if sessionID != "" {
+	switch {
+	case sessionID != "":
 		thread, err := s.resolveCodingSession(r.Context(), access, agentName, sessionID)
 		if err != nil {
 			return nil, mapGatewayStoreError("get conversation", err)
 		}
 		tree = thread.CodingWorktree
-	} else {
+	default:
 		endpoint := strings.TrimPrefix(route.Path, "/api/opencode/{agentName}")
 		catalog := false
 		// These catalogs are agent capabilities, available before a checkout exists.

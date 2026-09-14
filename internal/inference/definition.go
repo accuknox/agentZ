@@ -325,8 +325,8 @@ func ValidateProvider(spec agentzv1alpha1.InferenceProviderSpec) []Issue {
 				},
 			)
 		}
-		if spec.Azure.ResourceType == agentzv1alpha1.AzureResourceTypeFoundry &&
-			strings.TrimSpace(spec.Azure.Project) == "" {
+		foundry := spec.Azure.ResourceType == agentzv1alpha1.AzureResourceTypeFoundry
+		if foundry && strings.TrimSpace(spec.Azure.Project) == "" {
 			issues = append(
 				issues,
 				Issue{

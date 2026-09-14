@@ -205,27 +205,31 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 				continue
 			}
 			tree.Directory = "/home/agentz/" + filepath.ToSlash(filepath.Join(req.Root, rel))
+			snapshot.Worktrees = append(snapshot.Worktrees, tree)
+			entry := &snapshot.Worktrees[len(snapshot.Worktrees)-1]
 			resolved, err := filepath.EvalSymlinks(directory)
 			if err != nil {
-				tree.Available = false
-				tree.Reason = new("Checkout directory is missing")
-			} else {
-				rel, err = filepath.Rel(root, resolved)
-				if err != nil || !filepath.IsLocal(rel) {
-					tree.Available = false
-					tree.Reason = new("Checkout leaves the project directory")
-				} else if tree.Available {
-					actual, err := run(resolved, "", "rev-parse", "--path-format=absolute", "--git-common-dir")
-					if err == nil {
-						actual, err = filepath.EvalSymlinks(strings.TrimSpace(actual))
-					}
-					if err != nil || actual != common {
-						tree.Available = false
-						tree.Reason = new("Checkout belongs to another repository")
-					}
-				}
+				entry.Available = false
+				entry.Reason = new("Checkout directory is missing")
+				continue
 			}
-			snapshot.Worktrees = append(snapshot.Worktrees, tree)
+			rel, err = filepath.Rel(root, resolved)
+			if err != nil || !filepath.IsLocal(rel) {
+				entry.Available = false
+				entry.Reason = new("Checkout leaves the project directory")
+				continue
+			}
+			if !entry.Available {
+				continue
+			}
+			actual, err := run(resolved, "", "rev-parse", "--path-format=absolute", "--git-common-dir")
+			if err == nil {
+				actual, err = filepath.EvalSymlinks(strings.TrimSpace(actual))
+			}
+			if err != nil || actual != common {
+				entry.Available = false
+				entry.Reason = new("Checkout belongs to another repository")
+			}
 		}
 		raw, err = run(
 			repo,
@@ -525,11 +529,12 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			"--unified=3",
 			"--diff-filter=ACDMRT",
 		}
-		if req.Git.Stash != nil {
+		switch {
+		case req.Git.Stash != nil:
 			args = append(args, *req.Git.Stash+"^1", *req.Git.Stash)
-		} else if comparison == gatewayapi.CodingGitStaged {
+		case comparison == gatewayapi.CodingGitStaged:
 			args = append(args, "--cached")
-		} else if comparison == gatewayapi.CodingGitAll {
+		case comparison == gatewayapi.CodingGitAll:
 			base := result.Head
 			if base == "" {
 				empty, err := run(directory, "", "hash-object", "-t", "tree", "/dev/null")
@@ -549,7 +554,8 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			return nil, err
 		}
 		chunks := []string{patch}
-		if req.Git.Stash != nil {
+		switch {
+		case req.Git.Stash != nil:
 			_, err = run(directory, "", "rev-parse", "--verify", *req.Git.Stash+"^3")
 			if err == nil {
 				args := []string{
@@ -575,7 +581,7 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 				}
 				chunks = append(chunks, patch)
 			}
-		} else if comparison != gatewayapi.CodingGitStaged {
+		case comparison != gatewayapi.CodingGitStaged:
 			var untracked []string
 			for _, file := range result.Files {
 				if file.Index != "?" || (req.Git.Paths != nil && !slices.Contains(*req.Git.Paths, file.Path)) {
@@ -583,7 +589,9 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 				}
 				untracked = append(untracked, file.Path)
 			}
-			if len(untracked) == 1 {
+			switch len(untracked) {
+			case 0:
+			case 1:
 				patch, err := run(
 					directory,
 					"",
@@ -603,7 +611,7 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 					return nil, err
 				}
 				chunks = append(chunks, patch)
-			} else if len(untracked) > 1 {
+			default:
 				// Batch intent-to-add entries in an isolated index. The real index is
 				// never changed, and Git still owns binary, symlink and path handling.
 				tmp, err := os.MkdirTemp("", "agentz-review-*")
@@ -790,59 +798,7 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 		if len(paths) == 0 {
 			return result, errors.New("select files first")
 		}
-		if req.Git.Hunk != nil {
-			if len(paths) != 1 || req.Git.Revision == nil || *req.Git.Hunk < 0 {
-				return result, errors.New("a reviewed file and hunk are required")
-			}
-			expected := gatewayapi.CodingGitUnstaged
-			if req.Git.Operation == gatewayapi.CodingGitUnstage {
-				expected = gatewayapi.CodingGitStaged
-			}
-			if comparison != expected {
-				return result, errors.New("select the staged or unstaged comparison first")
-			}
-			patches, err := readPatches()
-			if err != nil {
-				return result, err
-			}
-			if len(patches) != 1 || patches[0].Revision != *req.Git.Revision {
-				return result, errors.New("file changed since review; refresh before staging")
-			}
-			if !patches[0].CanStageHunks {
-				return result, errors.New("this change must be staged as a whole file")
-			}
-			files, _, err := gitdiff.Parse(strings.NewReader(patches[0].Patch))
-			if err != nil {
-				return result, err
-			}
-			if len(files) != 1 || *req.Git.Hunk >= len(files[0].TextFragments) {
-				return result, errors.New("invalid Git hunk")
-			}
-			file := files[0]
-			file.TextFragments = []*gitdiff.TextFragment{file.TextFragments[*req.Git.Hunk]}
-			patch, err := os.CreateTemp("", "agentz-hunk-*.patch")
-			if err != nil {
-				return result, err
-			}
-			defer os.Remove(patch.Name())
-			_, err = patch.WriteString(file.String())
-			closeErr := patch.Close()
-			if err != nil {
-				return result, err
-			}
-			if closeErr != nil {
-				return result, closeErr
-			}
-			args := []string{"apply", "--cached", "--whitespace=nowarn"}
-			if req.Git.Operation == gatewayapi.CodingGitUnstage {
-				args = append(args, "--reverse")
-			}
-			// Git applies the exact reviewed patch under its index lock. Failure leaves
-			// the index unchanged; never use --reject or stage regenerated contents.
-			if _, err := run(directory, "", append(args, "--", patch.Name())...); err != nil {
-				return result, err
-			}
-		} else {
+		if req.Git.Hunk == nil {
 			if req.Git.Revision != nil && *req.Git.Revision != result.Revision {
 				return result, errors.New("checkout changed since review; refresh before staging")
 			}
@@ -856,54 +812,107 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			if _, err := run(directory, "", append(args, paths...)...); err != nil {
 				return result, err
 			}
+			break
+		}
+		if len(paths) != 1 || req.Git.Revision == nil || *req.Git.Hunk < 0 {
+			return result, errors.New("a reviewed file and hunk are required")
+		}
+		expected := gatewayapi.CodingGitUnstaged
+		if req.Git.Operation == gatewayapi.CodingGitUnstage {
+			expected = gatewayapi.CodingGitStaged
+		}
+		if comparison != expected {
+			return result, errors.New("select the staged or unstaged comparison first")
+		}
+		patches, err := readPatches()
+		if err != nil {
+			return result, err
+		}
+		if len(patches) != 1 || patches[0].Revision != *req.Git.Revision {
+			return result, errors.New("file changed since review; refresh before staging")
+		}
+		if !patches[0].CanStageHunks {
+			return result, errors.New("this change must be staged as a whole file")
+		}
+		files, _, err := gitdiff.Parse(strings.NewReader(patches[0].Patch))
+		if err != nil {
+			return result, err
+		}
+		if len(files) != 1 || *req.Git.Hunk >= len(files[0].TextFragments) {
+			return result, errors.New("invalid Git hunk")
+		}
+		file := files[0]
+		file.TextFragments = []*gitdiff.TextFragment{file.TextFragments[*req.Git.Hunk]}
+		patch, err := os.CreateTemp("", "agentz-hunk-*.patch")
+		if err != nil {
+			return result, err
+		}
+		defer os.Remove(patch.Name())
+		_, err = patch.WriteString(file.String())
+		closeErr := patch.Close()
+		if err != nil {
+			return result, err
+		}
+		if closeErr != nil {
+			return result, closeErr
+		}
+		args := []string{"apply", "--cached", "--whitespace=nowarn"}
+		if req.Git.Operation == gatewayapi.CodingGitUnstage {
+			args = append(args, "--reverse")
+		}
+		// Git applies the exact reviewed patch under its index lock. Failure leaves
+		// the index unchanged; never use --reject or stage regenerated contents.
+		if _, err := run(directory, "", append(args, "--", patch.Name())...); err != nil {
+			return result, err
 		}
 	case gatewayapi.CodingGitImport, gatewayapi.CodingGitApplyCommit:
 		if err := importBundle(repo); err != nil {
 			return result, err
 		}
-		if req.Git.Ref != nil {
-			_, err = run(directory, "", "check-ref-format", "--branch", *req.Git.Ref)
+		if req.Git.Ref == nil {
+			break
+		}
+		_, err = run(directory, "", "check-ref-format", "--branch", *req.Git.Ref)
+		if err != nil {
+			return result, errors.New("invalid branch")
+		}
+		if req.Git.Operation == gatewayapi.CodingGitImport {
+			_, err = run(
+				directory,
+				"",
+				"merge",
+				"--ff-only",
+				"refs/remotes/origin/"+*req.Git.Ref,
+			)
 			if err != nil {
-				return result, errors.New("invalid branch")
+				return result, err
 			}
-			if req.Git.Operation == gatewayapi.CodingGitApplyCommit {
-				if result.Branch != *req.Git.Ref {
-					return result, errors.New("branch changed; refresh before committing")
-				}
-				staged, err := run(directory, "", "write-tree")
-				if err != nil {
-					return result, err
-				}
-				if req.Git.ExpectedTree == nil || strings.TrimSpace(staged) != *req.Git.ExpectedTree {
-					return result, errors.New("staged changes changed; review the diff again")
-				}
-				commitTree, err := run(directory, "", "rev-parse", "refs/agentz/incoming/"+*req.Git.Ref+"^{tree}")
-				if err != nil {
-					return result, err
-				}
-				parent, err := run(directory, "", "rev-parse", "refs/agentz/incoming/"+*req.Git.Ref+"^")
-				if err != nil {
-					return result, err
-				}
-				if strings.TrimSpace(commitTree) != *req.Git.ExpectedTree || strings.TrimSpace(parent) != result.Head {
-					return result, errors.New("commit does not match the reviewed changes")
-				}
-				_, err = run(directory, "", "reset", "--soft", "refs/agentz/incoming/"+*req.Git.Ref)
-				if err != nil {
-					return result, err
-				}
-			} else {
-				_, err = run(
-					directory,
-					"",
-					"merge",
-					"--ff-only",
-					"refs/remotes/origin/"+*req.Git.Ref,
-				)
-				if err != nil {
-					return result, err
-				}
-			}
+			break
+		}
+		if result.Branch != *req.Git.Ref {
+			return result, errors.New("branch changed; refresh before committing")
+		}
+		staged, err := run(directory, "", "write-tree")
+		if err != nil {
+			return result, err
+		}
+		if req.Git.ExpectedTree == nil || strings.TrimSpace(staged) != *req.Git.ExpectedTree {
+			return result, errors.New("staged changes changed; review the diff again")
+		}
+		commitTree, err := run(directory, "", "rev-parse", "refs/agentz/incoming/"+*req.Git.Ref+"^{tree}")
+		if err != nil {
+			return result, err
+		}
+		parent, err := run(directory, "", "rev-parse", "refs/agentz/incoming/"+*req.Git.Ref+"^")
+		if err != nil {
+			return result, err
+		}
+		if strings.TrimSpace(commitTree) != *req.Git.ExpectedTree || strings.TrimSpace(parent) != result.Head {
+			return result, errors.New("commit does not match the reviewed changes")
+		}
+		_, err = run(directory, "", "reset", "--soft", "refs/agentz/incoming/"+*req.Git.Ref)
+		if err != nil {
+			return result, err
 		}
 	case gatewayapi.CodingGitRename:
 		if req.Git.Ref == nil {
@@ -1031,7 +1040,11 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			return result, err
 		}
 		remote, err := run(directory, "", "rev-parse", "--verify", "refs/remotes/origin/"+result.Branch)
-		if err == nil && result.Branch != "" {
+		hasRemote := err == nil && result.Branch != ""
+		if !hasRemote {
+			result.Ahead = result.AheadOfDefault
+		}
+		if hasRemote {
 			result.RemoteHead = strings.TrimSpace(remote)
 			counts, err := run(directory, "", "rev-list", "--left-right", "--count", "HEAD..."+result.RemoteHead)
 			if err != nil {
@@ -1040,8 +1053,6 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			if _, err := fmt.Sscan(counts, &result.Ahead, &result.Behind); err != nil {
 				return result, err
 			}
-		} else {
-			result.Ahead = result.AheadOfDefault
 		}
 	}
 	if req.Git.Operation == gatewayapi.CodingGitExport {

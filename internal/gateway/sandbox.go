@@ -158,16 +158,18 @@ func (s *Service) ListSandboxes(w http.ResponseWriter, r *http.Request, params g
 		}
 		items = append(items, inherited...)
 	}
+	byCreatedAt := params.SortBy != nil &&
+		*params.SortBy == gatewayapi.ListSandboxesParamsSortByResourceSortCreatedAt
+	descending := params.SortOrder != nil &&
+		*params.SortOrder == gatewayapi.ListSandboxesParamsSortOrderDesc
 	slices.SortFunc(
 		items,
 		func(a, b gatewayapi.Sandbox) int {
 			order := cmp.Compare(a.Name, b.Name)
-			if params.SortBy != nil &&
-				*params.SortBy == gatewayapi.ListSandboxesParamsSortByResourceSortCreatedAt {
+			if byCreatedAt {
 				order = a.CreatedAt.Compare(b.CreatedAt)
 			}
-			if params.SortOrder != nil &&
-				*params.SortOrder == gatewayapi.ListSandboxesParamsSortOrderDesc {
+			if descending {
 				order = -order
 			}
 			if order != 0 {

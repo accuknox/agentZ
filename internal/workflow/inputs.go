@@ -340,9 +340,8 @@ func validateSchemaRelationships(schema gatewayapi.WorkflowInputSchema, fieldPre
 		)
 	}
 
-	if schema.ExclusiveMinimum != nil &&
-		schema.ExclusiveMaximum != nil &&
-		*schema.ExclusiveMinimum >= *schema.ExclusiveMaximum {
+	min, max := schema.ExclusiveMinimum, schema.ExclusiveMaximum
+	if min != nil && max != nil && *min >= *max {
 		issues = append(
 			issues,
 			Issue{

@@ -19,10 +19,9 @@ const (
 	baseSpecPath      = "openapi/base.yaml"
 	outputSpecPath    = "openapi/gateway.yaml"
 	routeManifestPath = "internal/gateway/opencode.routes.gen.go"
-	upstreamSpecURL   = "https://raw.githubusercontent.com/anomalyco/opencode/" +
-		"a3647eb025c7615159d417dcc49fc39fdaeba65b/packages/sdk/openapi.json"
-	opencodePrefix = "/api/opencode/{agentName}"
-	opencodeNS     = "Opencode"
+	upstreamSpecURL   = "https://raw.githubusercontent.com/anomalyco/opencode/a3647eb025c7615159d417dcc49fc39fdaeba65b/packages/sdk/openapi.json"
+	opencodePrefix    = "/api/opencode/{agentName}"
+	opencodeNS        = "Opencode"
 )
 
 type routeManifest struct {

@@ -53,6 +53,55 @@ export type ChatSessionGroup = {
   next_page_token: string
 }
 
+export type ChatAttachment = {
+  id: string
+  filename: string
+  mediaType: string
+  path: string
+  size: number
+}
+
+export type ChatInputContent = {
+  text: string
+  attachments: Array<ChatAttachment>
+  model: {
+    modelID: string
+    providerID: string
+  }
+  agent?: string
+  variant?: string
+}
+
+export type ChatInputRequest = {
+  id: string
+  delivery: "steer" | "queue"
+  content: ChatInputContent
+}
+
+export type ChatInputState = "queued" | "sending" | "delivered" | "failed" | "recovered" | "removed"
+
+export type ChatInput = {
+  id: string
+  author: ResourceActor
+  delivery: "steer" | "queue"
+  content: ChatInputContent
+  state: ChatInputState
+  revision: number
+  created_at: string
+  message_id?: string
+  error: string
+}
+
+export type ChatInputs = {
+  items: Array<ChatInput>
+  stopping: boolean
+}
+
+export type ChatInputUpdate = {
+  revision: number
+  action: "remove" | "retry"
+}
+
 export type ChatSessionPreference = {
   agent_name: AgentName | null
   participant_user_ids: Array<string>
@@ -3436,6 +3485,167 @@ export type WatchChatSessionsResponses = {
 }
 
 export type WatchChatSessionsResponse = WatchChatSessionsResponses[keyof WatchChatSessionsResponses]
+
+export type ListChatInputsData = {
+  body?: never
+  path: {
+    agentName: AgentName
+    sessionId: string
+  }
+  query?: never
+  url: "/api/chat-session/{agentName}/{sessionId}/input"
+}
+
+export type ListChatInputsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListChatInputsError = ListChatInputsErrors[keyof ListChatInputsErrors]
+
+export type ListChatInputsResponses = {
+  /**
+   * Read queued messages and your recovered drafts.
+   */
+  200: ChatInputs
+}
+
+export type ListChatInputsResponse = ListChatInputsResponses[keyof ListChatInputsResponses]
+
+export type SubmitChatInputData = {
+  body: ChatInputRequest
+  path: {
+    agentName: AgentName
+    sessionId: string
+  }
+  query?: never
+  url: "/api/chat-session/{agentName}/{sessionId}/input"
+}
+
+export type SubmitChatInputErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type SubmitChatInputError = SubmitChatInputErrors[keyof SubmitChatInputErrors]
+
+export type SubmitChatInputResponses = {
+  /**
+   * Persist a message for steering or queued delivery.
+   */
+  202: ChatInput
+}
+
+export type SubmitChatInputResponse = SubmitChatInputResponses[keyof SubmitChatInputResponses]
+
+export type UpdateChatInputData = {
+  body: ChatInputUpdate
+  path: {
+    agentName: AgentName
+    sessionId: string
+    inputId: string
+  }
+  query?: never
+  url: "/api/chat-session/{agentName}/{sessionId}/input/{inputId}"
+}
+
+export type UpdateChatInputErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type UpdateChatInputError = UpdateChatInputErrors[keyof UpdateChatInputErrors]
+
+export type UpdateChatInputResponses = {
+  /**
+   * Remove or retry your queued message.
+   */
+  200: ChatInput
+}
+
+export type UpdateChatInputResponse = UpdateChatInputResponses[keyof UpdateChatInputResponses]
+
+export type StopChatInputsData = {
+  body?: never
+  path: {
+    agentName: AgentName
+    sessionId: string
+  }
+  query?: never
+  url: "/api/chat-session/{agentName}/{sessionId}/input/stop"
+}
+
+export type StopChatInputsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type StopChatInputsError = StopChatInputsErrors[keyof StopChatInputsErrors]
+
+export type StopChatInputsResponses = {
+  /**
+   * Stop execution and recover unsent messages.
+   */
+  200: ChatInputs
+}
+
+export type StopChatInputsResponse = StopChatInputsResponses[keyof StopChatInputsResponses]
 
 export type GetChatSessionPreferenceData = {
   body?: never

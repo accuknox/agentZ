@@ -2533,3 +2533,76 @@ JOIN coding_projects ON coding_projects.id = coding_worktrees.project_id
 WHERE coding_threads.workspace_id = @workspace_id AND coding_threads.agent_name = @agent_name
   AND coding_projects.owner_id = @owner_id
 LIMIT 1;
+
+-- name: GatewayCreateChatInput :one
+INSERT INTO chat_inputs (id, workspace_id, agent_name, session_id,
+  organization_id, author_id, author_name, directory, content, delivery)
+VALUES (@id, @workspace_id, @agent_name, @session_id,
+  @organization_id, @author_id, @author_name, @directory, @content, @delivery)
+ON CONFLICT (id) DO UPDATE SET id = chat_inputs.id
+WHERE chat_inputs.workspace_id = EXCLUDED.workspace_id
+  AND chat_inputs.agent_name = EXCLUDED.agent_name
+  AND chat_inputs.session_id = EXCLUDED.session_id
+  AND chat_inputs.author_id = EXCLUDED.author_id
+  AND chat_inputs.content = EXCLUDED.content
+  AND chat_inputs.delivery = EXCLUDED.delivery
+RETURNING *;
+
+-- name: GatewayListChatInputs :many
+SELECT * FROM chat_inputs
+WHERE workspace_id = @workspace_id AND agent_name = @agent_name AND session_id = @session_id
+  AND state NOT IN ('delivered', 'removed')
+  AND (author_id = @author_id OR state <> 'recovered')
+ORDER BY sequence;
+
+-- name: GatewayGetChatInput :one
+SELECT * FROM chat_inputs WHERE id = @id AND workspace_id = @workspace_id
+  AND agent_name = @agent_name AND session_id = @session_id;
+
+-- name: GatewayUpdateChatInput :one
+UPDATE chat_inputs SET state = @state, error = @error,
+  message_id = @message_id, resume = @resume, revision = revision + 1, updated_at = now()
+WHERE id = @id AND revision = @revision RETURNING *;
+
+-- name: GatewayPendingChatInputs :many
+SELECT DISTINCT ON (workspace_id, agent_name, session_id) * FROM chat_inputs
+WHERE state IN ('queued', 'sending', 'failed')
+ORDER BY workspace_id, agent_name, session_id,
+  CASE WHEN state = 'sending' OR message_id <> '' AND state = 'failed' THEN 0 WHEN delivery = 'steer' AND state = 'queued' THEN 1 ELSE 2 END,
+  sequence;
+
+-- name: GatewayChatInputsStopping :one
+SELECT EXISTS (SELECT 1 FROM chat_input_sessions WHERE workspace_id = @workspace_id
+  AND agent_name = @agent_name AND session_id = @session_id AND stopping)::boolean;
+
+-- name: GatewayStopChatInputs :exec
+INSERT INTO chat_input_sessions (workspace_id, agent_name, session_id, stopping)
+VALUES (@workspace_id, @agent_name, @session_id, @stopping)
+ON CONFLICT (workspace_id, agent_name, session_id) DO UPDATE SET stopping = EXCLUDED.stopping;
+
+-- name: GatewayRecoverChatInputs :exec
+UPDATE chat_inputs SET state = 'recovered', error = '',
+  revision = revision + 1, updated_at = now()
+WHERE workspace_id = @workspace_id AND agent_name = @agent_name AND session_id = @session_id
+  AND state IN ('queued', 'failed') AND message_id = '';
+
+-- name: GatewayTryLockChatInputs :one
+SELECT pg_try_advisory_lock(hashtextextended(@identity::text, 173))::boolean;
+
+-- name: GatewayUnlockChatInputs :one
+SELECT pg_advisory_unlock(hashtextextended(@identity::text, 173))::boolean;
+
+-- name: GatewayNotifyChatInputs :exec
+SELECT pg_notify('agentz_chat_sessions', @workspace_id::text ||
+  COALESCE((SELECT '/' || p.owner_id FROM coding_threads t
+    JOIN coding_worktrees tree ON tree.id = t.worktree_id
+    JOIN coding_projects p ON p.id = tree.project_id
+    WHERE t.workspace_id = @workspace_id AND t.agent_name = @agent_name AND t.session_id = @session_id), ''));
+
+-- name: GatewayHeadChatInput :one
+SELECT * FROM chat_inputs
+WHERE workspace_id = @workspace_id AND agent_name = @agent_name AND session_id = @session_id
+  AND state IN ('queued', 'sending', 'failed')
+ORDER BY CASE WHEN state = 'sending' OR message_id <> '' AND state = 'failed' THEN 0
+  WHEN delivery = 'steer' AND state = 'queued' THEN 1 ELSE 2 END, sequence
+LIMIT 1;

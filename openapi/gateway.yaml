@@ -1109,6 +1109,157 @@ components:
       - region
       - auth_mode
       type: object
+    ChatAttachment:
+      additionalProperties: false
+      properties:
+        filename:
+          minLength: 1
+          type: string
+        id:
+          minLength: 1
+          type: string
+        mediaType:
+          minLength: 1
+          type: string
+        path:
+          minLength: 1
+          type: string
+        size:
+          format: int32
+          maximum: 8388608
+          minimum: 0
+          type: integer
+      required:
+      - id
+      - filename
+      - mediaType
+      - path
+      - size
+      type: object
+    ChatInput:
+      properties:
+        author:
+          $ref: '#/components/schemas/ResourceActor'
+        content:
+          $ref: '#/components/schemas/ChatInputContent'
+        created_at:
+          format: date-time
+          type: string
+        delivery:
+          enum:
+          - steer
+          - queue
+          type: string
+        error:
+          type: string
+        id:
+          format: uuid
+          type: string
+        message_id:
+          type: string
+        revision:
+          format: int64
+          type: integer
+        state:
+          $ref: '#/components/schemas/ChatInputState'
+      required:
+      - id
+      - author
+      - delivery
+      - content
+      - state
+      - revision
+      - created_at
+      - error
+      type: object
+    ChatInputContent:
+      additionalProperties: false
+      properties:
+        agent:
+          type: string
+        attachments:
+          items:
+            $ref: '#/components/schemas/ChatAttachment'
+          maxItems: 3
+          type: array
+        model:
+          additionalProperties: false
+          properties:
+            modelID:
+              minLength: 1
+              type: string
+            providerID:
+              minLength: 1
+              type: string
+          required:
+          - modelID
+          - providerID
+          type: object
+        text:
+          maxLength: 1000000
+          type: string
+        variant:
+          type: string
+      required:
+      - text
+      - attachments
+      - model
+      type: object
+    ChatInputRequest:
+      additionalProperties: false
+      properties:
+        content:
+          $ref: '#/components/schemas/ChatInputContent'
+        delivery:
+          enum:
+          - steer
+          - queue
+          type: string
+        id:
+          format: uuid
+          type: string
+      required:
+      - id
+      - delivery
+      - content
+      type: object
+    ChatInputState:
+      enum:
+      - queued
+      - sending
+      - delivered
+      - failed
+      - recovered
+      - removed
+      type: string
+    ChatInputUpdate:
+      additionalProperties: false
+      properties:
+        action:
+          enum:
+          - remove
+          - retry
+          type: string
+        revision:
+          format: int64
+          minimum: 1
+          type: integer
+      required:
+      - revision
+      - action
+      type: object
+    ChatInputs:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/ChatInput'
+          type: array
+        stopping:
+          type: boolean
+      required:
+      - items
+      - stopping
+      type: object
     ChatSession:
       additionalProperties: false
       properties:
@@ -26790,6 +26941,154 @@ paths:
       - GatewayBearer:
         - agent.use_shared
       summary: Replace the caller's Workspace chat preferences.
+      tags:
+      - chat-sessions
+  /api/chat-session/{agentName}/{sessionId}/input:
+    get:
+      operationId: listChatInputs
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatInputs'
+          description: Read queued messages and your recovered drafts.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Read queued messages and your recovered drafts.
+      tags:
+      - chat-sessions
+    parameters:
+    - in: path
+      name: agentName
+      required: true
+      schema:
+        $ref: '#/components/schemas/AgentName'
+    - in: path
+      name: sessionId
+      required: true
+      schema:
+        minLength: 1
+        type: string
+    post:
+      operationId: submitChatInput
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatInputRequest'
+        required: true
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatInput'
+          description: Persist a message for steering or queued delivery.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Persist a message for steering or queued delivery.
+      tags:
+      - chat-sessions
+  /api/chat-session/{agentName}/{sessionId}/input/{inputId}:
+    parameters:
+    - in: path
+      name: agentName
+      required: true
+      schema:
+        $ref: '#/components/schemas/AgentName'
+    - in: path
+      name: sessionId
+      required: true
+      schema:
+        minLength: 1
+        type: string
+    - in: path
+      name: inputId
+      required: true
+      schema:
+        type: string
+    patch:
+      operationId: updateChatInput
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatInputUpdate'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatInput'
+          description: Remove or retry your queued message.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Remove or retry your queued message.
+      tags:
+      - chat-sessions
+  /api/chat-session/{agentName}/{sessionId}/input/stop:
+    parameters:
+    - in: path
+      name: agentName
+      required: true
+      schema:
+        $ref: '#/components/schemas/AgentName'
+    - in: path
+      name: sessionId
+      required: true
+      schema:
+        minLength: 1
+        type: string
+    post:
+      operationId: stopChatInputs
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatInputs'
+          description: Stop execution and recover unsent messages.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Stop execution and recover unsent messages.
       tags:
       - chat-sessions
   /api/chat-session/watch:

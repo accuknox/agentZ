@@ -140,6 +140,10 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		apiutil.WriteError(w, r, apiErr)
 		return
 	}
+	if auth, ok := requestAuthState(r.Context()); ok && auth.claims != nil && r.Method == http.MethodPost && strings.HasSuffix(route.Path, "/abort") {
+		s.StopChatInputs(w, r, agentName, route.Params["sessionID"])
+		return
+	}
 	if auth, ok := requestAuthState(r.Context()); ok && auth.actorType != requestActorSystem {
 		release, apiErr := s.enforceCodingSession(r, access, route, agentName)
 		if release != nil {
@@ -149,6 +153,21 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 			apiutil.WriteError(w, r, apiErr)
 			return
 		}
+	}
+
+	// Queue workers and direct API clients share admission. Coding already
+	// holds the project lock above; never acquire it twice on this path.
+	changesInput := route.Path == opencodeSessionAsyncPath ||
+		strings.HasSuffix(route.Path, "/abort") ||
+		strings.HasSuffix(route.Path, "/revert") ||
+		r.Method == http.MethodDelete
+	if route.Params["sessionID"] != "" && changesInput && r.Method != http.MethodGet {
+		release, err := s.lockChatInputs(r.Context(), access.workspaceID, agentName, route.Params["sessionID"], "")
+		if err != nil {
+			apiutil.WriteError(w, r, mapGatewayStoreError("submit input", err))
+			return
+		}
+		defer release()
 	}
 
 	ns := access.namespace
@@ -516,7 +535,7 @@ func (s *Service) storeOpenCodeSessionStatusResponse(ctx context.Context, resp *
 			continue
 		}
 		retry, retryErr := status.AsOpencodeSessionStatus1()
-		if retryErr == nil && retry.Type == gatewayapi.OpencodeSessionStatus1TypeRetry {
+		if retryErr == nil && retry.Type == gatewayapi.Retry {
 			retrySessionIDs = append(retrySessionIDs, sessionID)
 			continue
 		}

@@ -866,6 +866,34 @@ type Apikey struct {
 	Metadata            pgtype.Text      `json:"metadata"`
 }
 
+type ChatInput struct {
+	ID             uuid.UUID   `json:"id"`
+	Sequence       pgtype.Int8 `json:"sequence"`
+	WorkspaceID    string      `json:"workspace_id"`
+	AgentName      string      `json:"agent_name"`
+	SessionID      string      `json:"session_id"`
+	OrganizationID string      `json:"organization_id"`
+	AuthorID       string      `json:"author_id"`
+	AuthorName     string      `json:"author_name"`
+	Directory      string      `json:"directory"`
+	Resume         bool        `json:"resume"`
+	Content        []byte      `json:"content"`
+	Delivery       string      `json:"delivery"`
+	State          string      `json:"state"`
+	Revision       int64       `json:"revision"`
+	MessageID      string      `json:"message_id"`
+	Error          string      `json:"error"`
+	CreatedAt      time.Time   `json:"created_at"`
+	UpdatedAt      time.Time   `json:"updated_at"`
+}
+
+type ChatInputSession struct {
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	SessionID   string `json:"session_id"`
+	Stopping    bool   `json:"stopping"`
+}
+
 type ChatSession struct {
 	WorkspaceID     string             `json:"workspace_id"`
 	AgentName       string             `json:"agent_name"`

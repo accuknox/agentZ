@@ -1,12 +1,9 @@
 "use client"
 
 import { InputGroupButton, InputGroupTextarea } from "@/components/ui/input-group"
-import { Spinner } from "@/components/ui/spinner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
-import type { ChatStatus } from "ai"
-import { ArrowUpIcon, SquareIcon, XIcon } from "lucide-react"
 import { nanoid } from "nanoid"
 import type {
   ChangeEventHandler,
@@ -75,6 +72,7 @@ export const usePromptInputAttachments = () => {
 }
 
 export interface PromptInputMessage {
+  requestID?: string
   text: string
   files: PromptInputFile[]
 }
@@ -83,9 +81,12 @@ export interface PromptInputMessage {
 // refilling a reverted turn's text and attachments to edit and resend.
 export type PromptInputController = {
   setMessage: (message: PromptInputMessage) => void
+  submit: (queue?: boolean) => void
+  getMessage: () => PromptInputMessage
 }
 
 type PromptInputProps = Omit<HTMLAttributes<HTMLFormElement>, "onSubmit" | "onError"> & {
+  disabled?: boolean
   multiple?: boolean
   globalDrop?: boolean
   maxFiles?: number
@@ -96,10 +97,12 @@ type PromptInputProps = Omit<HTMLAttributes<HTMLFormElement>, "onSubmit" | "onEr
   controllerRef?: RefObject<PromptInputController | null>
   onError?: (code: "max_files" | "max_file_size") => void
   onSubmit: (message: PromptInputMessage, event: FormEvent<HTMLFormElement>) => void | Promise<void>
+  onQueue?: (message: PromptInputMessage) => void | Promise<void>
 }
 
 export const PromptInput = ({
   className,
+  disabled = false,
   multiple,
   globalDrop,
   maxFiles,
@@ -110,11 +113,14 @@ export const PromptInput = ({
   onMessageChange,
   onError,
   onSubmit,
+  onQueue,
   children,
   ...props
 }: PromptInputProps) => {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const formRef = useRef<HTMLFormElement | null>(null)
+  const queueSubmit = useRef(false)
+  const requestID = useRef(crypto.randomUUID())
   const [items, setItems] = useState<PromptInputItem[]>(() =>
     (initialMessage?.files ?? []).map((file) => ({
       ...file,
@@ -141,6 +147,8 @@ export const PromptInput = ({
 
   const add = useCallback(
     (fileList: File[] | FileList) => {
+      if (disabled) return
+      requestID.current = crypto.randomUUID()
       const incoming = [...fileList]
       const sized =
         typeof maxFileSize === "number"
@@ -173,11 +181,12 @@ export const PromptInput = ({
       }))
       if (next.length > 0) replaceItems([...current, ...next])
     },
-    [maxFiles, maxFileSize, onError, replaceItems]
+    [disabled, maxFiles, maxFileSize, onError, replaceItems]
   )
 
   const remove = useCallback(
     (id: string) => {
+      requestID.current = crypto.randomUUID()
       const current = filesRef.current
       const found = current.find((file) => file.id === id)
       if (!found) return
@@ -235,7 +244,17 @@ export const PromptInput = ({
 
   useEffect(() => {
     if (!controllerRef) return
-    controllerRef.current = { setMessage }
+    controllerRef.current = {
+      setMessage,
+      getMessage: () => ({
+        text: formRef.current?.querySelector("textarea")?.value ?? "",
+        files: filesRef.current,
+      }),
+      submit: (queue = false) => {
+        queueSubmit.current = queue
+        formRef.current?.requestSubmit()
+      },
+    }
     return () => {
       controllerRef.current = null
     }
@@ -244,11 +263,11 @@ export const PromptInput = ({
   useEffect(() => {
     const onDragOver = (e: DragEvent) => {
       if (!e.dataTransfer?.types.includes("Files")) return
-      setIsDraggingFiles(true)
+      setIsDraggingFiles(!disabled)
       e.preventDefault()
     }
     const onDragEnter = (e: DragEvent) => {
-      if (e.dataTransfer?.types.includes("Files")) {
+      if (!disabled && e.dataTransfer?.types.includes("Files")) {
         setIsDraggingFiles(true)
       }
     }
@@ -291,7 +310,7 @@ export const PromptInput = ({
       form.removeEventListener("dragleave", onDragLeave)
       form.removeEventListener("drop", onDrop)
     }
-  }, [add, globalDrop])
+  }, [add, disabled, globalDrop])
 
   useEffect(
     () => () => {
@@ -336,37 +355,41 @@ export const PromptInput = ({
       const textarea = form.querySelector("textarea")
       const text = textarea ? textarea.value : ""
 
-      form.reset()
+      const queued = queueSubmit.current
+      queueSubmit.current = false
+      if (disabled) return
+      const submitted = filesRef.current
+      if (!text.trim() && !submitted.length) return
+      const submittedID = requestID.current
+      requestID.current = crypto.randomUUID()
+      const message = {
+        requestID: submittedID,
+        text,
+        files: submitted.map(({ id: _id, ...file }) => file),
+      }
       if (textarea) {
-        // A restored draft is the default value, but sending must clear it.
         textarea.value = ""
         textarea.style.removeProperty("height")
       }
       setIsMultiline(false)
-
+      replaceItems([])
       try {
-        const submittedIDs = new Set(items.map((item) => item.id))
-        await onSubmit(
-          {
-            files: items.map(({ id: _id, ...item }) => item),
-            text,
-          },
-          event
-        )
-        const current = filesRef.current
-        revokeLocalFiles(current.filter((item) => submittedIDs.has(item.id)))
-        replaceItems(current.filter((item) => !submittedIDs.has(item.id)))
+        if (queued && onQueue) await onQueue(message)
+        else await onSubmit(message, event)
+        revokeLocalFiles(submitted)
       } catch {
-        // Preserve newer edits while restoring a failed submission for retry.
-        if (textarea && text && !textarea.value) {
-          textarea.value = text
+        const untouched = !textarea?.value && !filesRef.current.length
+        // Keep both the failed submission and edits made during the request.
+        replaceItems([...submitted, ...filesRef.current])
+        if (textarea && text) {
+          textarea.value = [text, textarea.value].filter(Boolean).join("\n\n")
           textarea.dispatchEvent(new Event("input", { bubbles: true }))
           textarea.focus()
-          textarea.setSelectionRange(text.length, text.length)
         }
+        if (untouched) requestID.current = submittedID
       }
     },
-    [items, onSubmit, replaceItems]
+    [disabled, onSubmit, onQueue, replaceItems]
   )
 
   return (
@@ -375,13 +398,23 @@ export const PromptInput = ({
         <input
           aria-label="Upload files"
           className="hidden"
+          disabled={disabled}
           multiple={multiple}
           onChange={handleChange}
           ref={inputRef}
           title="Upload files"
           type="file"
         />
-        <form className={cn("w-full", className)} onSubmit={handleSubmit} ref={formRef} {...props}>
+        <form
+          onInputCapture={() => {
+            requestID.current = crypto.randomUUID()
+          }}
+          className={cn("w-full", className)}
+          inert={disabled}
+          onSubmit={handleSubmit}
+          ref={formRef}
+          {...props}
+        >
           <div
             className={cn(
               "relative h-auto w-full min-w-0 overflow-hidden rounded-[22px]",
@@ -512,7 +545,7 @@ export const PromptInputTextarea = ({
       }
 
       if (e.key === "Enter") {
-        if (isComposing || e.nativeEvent.isComposing) {
+        if (isComposing || e.nativeEvent.isComposing || e.repeat) {
           return
         }
         if (e.shiftKey) {
@@ -673,59 +706,5 @@ export const PromptInputButton = ({
         {shortcut && <span className="text-muted-foreground ml-2">{shortcut}</span>}
       </TooltipContent>
     </Tooltip>
-  )
-}
-
-type PromptInputSubmitProps = ComponentProps<typeof InputGroupButton> & {
-  status?: ChatStatus
-  onStop?: () => void
-}
-
-export const PromptInputSubmit = ({
-  className,
-  variant = "default",
-  size = "icon-sm",
-  status,
-  onStop,
-  onClick,
-  children,
-  ...props
-}: PromptInputSubmitProps) => {
-  const isGenerating = status === "submitted" || status === "streaming"
-
-  let Icon = <ArrowUpIcon />
-
-  if (status === "submitted") {
-    Icon = <Spinner />
-  } else if (status === "streaming") {
-    Icon = <SquareIcon />
-  } else if (status === "error") {
-    Icon = <XIcon />
-  }
-
-  const handleClick = useCallback(
-    (e: React.MouseEvent<HTMLButtonElement>) => {
-      if (isGenerating && onStop) {
-        e.preventDefault()
-        onStop()
-        return
-      }
-      onClick?.(e)
-    },
-    [isGenerating, onStop, onClick]
-  )
-
-  return (
-    <InputGroupButton
-      aria-label={isGenerating ? "Stop" : "Submit"}
-      className={cn("rounded-full", className)}
-      onClick={handleClick}
-      size={size}
-      type={isGenerating && onStop ? "button" : "submit"}
-      variant={isGenerating ? "destructive" : variant}
-      {...props}
-    >
-      {children ?? Icon}
-    </InputGroupButton>
   )
 }

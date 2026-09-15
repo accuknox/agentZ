@@ -438,6 +438,102 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /api/chat-session/{agentName}/{sessionId}/input:
+    parameters:
+    - {name: agentName, in: path, required: true, schema: {$ref: '#/components/schemas/AgentName'}}
+    - {name: sessionId, in: path, required: true, schema: {type: string, minLength: 1}}
+    get:
+      operationId: listChatInputs
+      summary: Read queued messages and your recovered drafts.
+      tags: [chat-sessions]
+      responses:
+        '200':
+          description: Read queued messages and your recovered drafts.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ChatInputs'}
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      operationId: submitChatInput
+      summary: Persist a message for steering or queued delivery.
+      tags: [chat-sessions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ChatInputRequest'}
+      responses:
+        '202':
+          description: Persist a message for steering or queued delivery.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ChatInput'}
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/chat-session/{agentName}/{sessionId}/input/{inputId}:
+    parameters:
+    - {name: agentName, in: path, required: true, schema: {$ref: '#/components/schemas/AgentName'}}
+    - {name: sessionId, in: path, required: true, schema: {type: string, minLength: 1}}
+    - {name: inputId, in: path, required: true, schema: {type: string}}
+    patch:
+      operationId: updateChatInput
+      summary: Remove or retry your queued message.
+      tags: [chat-sessions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ChatInputUpdate'}
+      responses:
+        '200':
+          description: Remove or retry your queued message.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ChatInput'}
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/chat-session/{agentName}/{sessionId}/input/stop:
+    parameters:
+    - {name: agentName, in: path, required: true, schema: {$ref: '#/components/schemas/AgentName'}}
+    - {name: sessionId, in: path, required: true, schema: {type: string, minLength: 1}}
+    post:
+      operationId: stopChatInputs
+      summary: Stop execution and recover unsent messages.
+      tags: [chat-sessions]
+      responses:
+        '200':
+          description: Stop execution and recover unsent messages.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ChatInputs'}
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /api/chat-session-preference:
     get:
       operationId: getChatSessionPreference
@@ -4815,6 +4911,75 @@ components:
       - sessions
       - has_next_page
       - next_page_token
+
+    ChatAttachment:
+      type: object
+      additionalProperties: false
+      required: [id, filename, mediaType, path, size]
+      properties:
+        id: {type: string, minLength: 1}
+        filename: {type: string, minLength: 1}
+        mediaType: {type: string, minLength: 1}
+        path: {type: string, minLength: 1}
+        size: {type: integer, format: int32, minimum: 0, maximum: 8388608}
+    ChatInputContent:
+      type: object
+      additionalProperties: false
+      required: [text, attachments, model]
+      properties:
+        text: {type: string, maxLength: 1000000}
+        attachments:
+          type: array
+          maxItems: 3
+          items: {$ref: '#/components/schemas/ChatAttachment'}
+        model:
+          type: object
+          additionalProperties: false
+          required: [modelID, providerID]
+          properties:
+            modelID: {type: string, minLength: 1}
+            providerID: {type: string, minLength: 1}
+        agent: {type: string}
+        variant: {type: string}
+    ChatInputRequest:
+      type: object
+      additionalProperties: false
+      required: [id, delivery, content]
+      properties:
+        id: {type: string, format: uuid}
+        delivery: {type: string, enum: [steer, queue]}
+        content: {$ref: '#/components/schemas/ChatInputContent'}
+    ChatInputState:
+      type: string
+      enum: [queued, sending, delivered, failed, recovered, removed]
+    ChatInput:
+      type: object
+      required: [id, author, delivery, content, state, revision, created_at, error]
+      properties:
+        id: {type: string, format: uuid}
+        author: {$ref: '#/components/schemas/ResourceActor'}
+        delivery: {type: string, enum: [steer, queue]}
+        content: {$ref: '#/components/schemas/ChatInputContent'}
+        state: {$ref: '#/components/schemas/ChatInputState'}
+        revision: {type: integer, format: int64}
+        created_at: {type: string, format: date-time}
+        message_id: {type: string}
+        error: {type: string}
+    ChatInputs:
+      type: object
+      required: [items, stopping]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/ChatInput'}
+        stopping: {type: boolean}
+    ChatInputUpdate:
+      type: object
+      additionalProperties: false
+      required: [revision, action]
+      properties:
+        revision: {type: integer, format: int64, minimum: 1}
+        action: {type: string, enum: [remove, retry]}
 
     ChatSessionPreference:
       type: object

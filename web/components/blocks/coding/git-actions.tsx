@@ -541,11 +541,13 @@ export function CodingActivity({ workspaceId }: { workspaceId: string }) {
     refetchInterval: 30_000,
   })
   const seen = useRef(new Map<string, string>())
+  const historyLoaded = useRef(false)
   useEffect(() => {
     const displayed = seen.current
     return () => {
       for (const id of displayed.keys()) toast.dismiss(`coding:${id}`)
       displayed.clear()
+      historyLoaded.current = false
     }
   }, [workspaceId, actor?.user.id])
   const watch = useQuery(
@@ -585,11 +587,23 @@ export function CodingActivity({ workspaceId }: { workspaceId: string }) {
     })
   }, [watch.data, watch.dataUpdatedAt, queryClient, workspaceId])
   useEffect(() => {
-    for (const operation of operations.data ?? []) {
+    if (!operations.data) return
+    const initial = !historyLoaded.current
+    historyLoaded.current = true
+    for (const operation of operations.data) {
       const signature = `${operation.state}:${operation.stage}`
       if (seen.current.get(operation.id) === signature) continue
       seen.current.set(operation.id, signature)
       const id = `coding:${operation.id}`
+      if (operation.action === "name_branch") {
+        if (!initial && (operation.state === "failed" || operation.state === "interrupted")) {
+          toast.warning("Couldn't name your branch", {
+            id,
+            description: "You can keep chatting with the current branch name.",
+          })
+        }
+        continue
+      }
       const description = [
         operation.commit ? `Committed ${operation.commit.slice(0, 7)}.` : "",
         operation.pushed ? "Pushed." : "",
@@ -603,8 +617,7 @@ export function CodingActivity({ workspaceId }: { workspaceId: string }) {
           duration: Infinity,
           description: operation.agent_name,
         })
-      } else if (!localStorage.getItem(`coding:${actor?.user.id}:${operation.id}`)) {
-        localStorage.setItem(`coding:${actor?.user.id}:${operation.id}`, operation.updated_at)
+      } else if (!initial) {
         if (operation.state === "succeeded") {
           toast.success(
             operation.pull_request

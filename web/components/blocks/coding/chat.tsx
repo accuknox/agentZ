@@ -101,7 +101,7 @@ export function CodingChat({
         role="status"
         className="text-muted-foreground m-auto flex items-center gap-2 p-6 text-sm"
       >
-        <Spinner /> Preparing chat…
+        <Spinner /> Preparing chat...
       </div>
     )
   const agentName = agentNames.includes(draft.agentName) ? draft.agentName : selected
@@ -147,8 +147,9 @@ export function CodingChat({
           }}
         />
       )}
-      createSession={async ({ text, model }) => {
-        await rememberAgent(agentName)
+      createSession={async ({ text, model, onProgress }) => {
+        void rememberAgent(agentName)
+        onProgress(draft.checkout === "new" ? "Preparing worktree..." : "Opening checkout...")
         const result = await createCodingThread({
           baseUrl: await getGatewayBaseURL(),
           headers: { "X-AgentZ-Workspace-ID": workspaceId },
@@ -164,6 +165,7 @@ export function CodingChat({
         })
         if (result.error) throw new Error(result.error.message)
         const thread = result.data
+        onProgress("Starting chat...")
         if (
           draft.checkout === "new" &&
           text &&
@@ -185,7 +187,10 @@ export function CodingChat({
               model: { modelID: model.modelID, providerID: model.providerID },
             })
           } catch {
-            toast.warning("Could not name the branch. Using its temporary name.")
+            toast.warning("Couldn't name your branch", {
+              id: `coding:${thread.id}`,
+              description: "You can keep chatting with the current branch name.",
+            })
           }
         }
         const client = await createAgentOpencodeClient(agentName, workspaceId)

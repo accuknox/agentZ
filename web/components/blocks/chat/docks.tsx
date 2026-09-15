@@ -1,7 +1,10 @@
 "use client"
 
 import {
+  CheckIcon,
   ChevronDownIcon,
+  MessageCircleQuestionIcon,
+  PencilIcon,
   ChevronRightIcon,
   HammerIcon,
   PencilRulerIcon,
@@ -11,10 +14,9 @@ import { cn } from "@/lib/utils"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { MessageResponse } from "@/components/ai-elements/message"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { CopyButton } from "@/components/ui/copy-button"
-import { FieldGroup, FieldSet, FieldLegend } from "@/components/ui/field"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { FieldSet, FieldLegend } from "@/components/ui/field"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import type {
@@ -25,7 +27,7 @@ import type {
   Todo,
 } from "@opencode-ai/sdk/v2"
 import { queryOptions, useQuery } from "@tanstack/react-query"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useId, useRef, useState } from "react"
 
 const CUSTOM_ANSWER_KEY = "__custom__"
 const QUESTION_CACHE_MAX = 8
@@ -36,102 +38,9 @@ const QUESTION_CACHE_MAX = 8
 type QuestionCacheEntry = {
   answers: Record<number, string[]>
   custom: Record<number, string>
-  customEnabled: Record<number, boolean>
   tab: number
 }
 const questionCache = new Map<string, QuestionCacheEntry>()
-function rememberAnswer(requestID: string, entry: QuestionCacheEntry) {
-  questionCache.delete(requestID)
-  questionCache.set(requestID, entry)
-  if (questionCache.size > QUESTION_CACHE_MAX) {
-    const oldest = questionCache.keys().next().value
-    if (oldest) questionCache.delete(oldest)
-  }
-}
-
-function emptyAnswers(count: number): QuestionCacheEntry {
-  return {
-    answers: Object.fromEntries(Array.from({ length: count }, (_, i) => [i, []])),
-    custom: Object.fromEntries(Array.from({ length: count }, (_, i) => [i, ""])),
-    customEnabled: Object.fromEntries(Array.from({ length: count }, (_, i) => [i, false])),
-    tab: 0,
-  }
-}
-
-function buildAnswers(entry: QuestionCacheEntry, request: QuestionRequest): QuestionAnswer[] {
-  return request.questions.map((question, index) => {
-    const selected = entry.answers[index] ?? []
-    const custom = entry.custom[index]?.trim()
-
-    if (question.multiple !== true) {
-      return selected[0] === CUSTOM_ANSWER_KEY ? (custom ? [custom] : []) : selected.slice(0, 1)
-    }
-
-    const answers = selected.filter((item) => item !== CUSTOM_ANSWER_KEY)
-    if ((entry.customEnabled[index] ?? false) && custom) answers.push(custom)
-    return answers
-  })
-}
-
-function AutoSizeTextarea({
-  defaultValue,
-  disabled,
-  onCommit,
-}: {
-  defaultValue: string
-  disabled: boolean
-  onCommit: (value: string) => void
-}) {
-  const [value, setValue] = useState(defaultValue)
-  const ref = useRef<HTMLTextAreaElement | null>(null)
-
-  const resize = useCallback(() => {
-    const el = ref.current
-    if (!el) return
-    el.style.height = "0px"
-    el.style.height = `${el.scrollHeight}px`
-  }, [])
-
-  useEffect(() => {
-    resize()
-  }, [resize])
-
-  // Escape abandons the edit without committing, mirroring opencode's behaviour
-  // so the Escape key stays usable inside the custom-answer field.
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Escape") {
-      event.preventDefault()
-      event.currentTarget.parentElement
-        ?.querySelector<HTMLElement>("button[data-question-dismiss]")
-        ?.focus()
-      return
-    }
-    if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key === "Enter") {
-      event.preventDefault()
-      onCommit(value)
-      return
-    }
-  }
-
-  return (
-    <Textarea
-      autoFocus
-      ref={ref}
-      aria-label="Custom answer"
-      className="max-h-40 min-h-8 rounded-md px-2.5 py-1.5 text-base md:text-sm"
-      disabled={disabled}
-      onBlur={(event) => onCommit(event.target.value)}
-      onChange={(event) => {
-        setValue(event.target.value)
-        resize()
-      }}
-      onKeyDown={handleKeyDown}
-      placeholder="Type your own answer"
-      rows={1}
-      value={value}
-    />
-  )
-}
 
 export function PlanDock({
   agentName,
@@ -227,320 +136,303 @@ export function QuestionDock({
   pending,
   request,
 }: {
-  onReject: () => void
-  onSubmit: (answers: QuestionAnswer[]) => void
+  onReject: () => Promise<void>
+  onSubmit: (answers: QuestionAnswer[]) => Promise<void>
   pending: boolean
   request: QuestionRequest
 }) {
-  const [entry, setEntry] = useState<QuestionCacheEntry>(() => {
-    const cached = questionCache.get(request.id)
-    return cached ?? emptyAnswers(request.questions.length)
-  })
-  const repliedRef = useRef(false)
-
-  const questions = request.questions
-  const total = questions.length
-  const tab = Math.min(entry.tab, total - 1)
+  const [entry, setEntry] = useState<QuestionCacheEntry>(
+    () => questionCache.get(request.id) ?? { answers: {}, custom: {}, tab: 0 }
+  )
+  const [open, setOpen] = useState(true)
+  const replied = useRef(false)
+  const customOption = useRef<HTMLInputElement>(null)
+  const customText = useRef<HTMLTextAreaElement>(null)
+  const id = useId()
+  const { questions } = request
+  const tab = Math.min(entry.tab, questions.length - 1)
   const question = questions[tab]
-  const selected = entry.answers[tab]
-  const isLast = tab === total - 1
-  const answers = buildAnswers(entry, request)
-  const currentAnswered = (answers[tab]?.length ?? 0) > 0 || (entry.customEnabled[tab] ?? false)
-
-  const patch = useCallback(
-    (next: Partial<QuestionCacheEntry>) => setEntry((prev) => ({ ...prev, ...next })),
-    []
-  )
-  const patchAt = useCallback(
-    (next: Partial<Pick<QuestionCacheEntry, "answers" | "custom" | "customEnabled">>) =>
-      setEntry((prev) => ({
-        ...prev,
-        answers: next.answers ? { ...prev.answers, ...next.answers } : prev.answers,
-        custom: next.custom ? { ...prev.custom, ...next.custom } : prev.custom,
-        customEnabled: next.customEnabled
-          ? { ...prev.customEnabled, ...next.customEnabled }
-          : prev.customEnabled,
-      })),
-    []
-  )
-
-  const selectSingle = useCallback(
-    (value: string) => {
-      patchAt({
-        answers: { [tab]: value ? [value] : [] },
-        customEnabled: { [tab]: value === CUSTOM_ANSWER_KEY },
-      })
-    },
-    [patchAt, tab]
-  )
-  const selectMulti = useCallback(
-    (value: string) => {
-      const current = selected ?? []
-      const next = current.includes(value)
-        ? current.filter((item) => item !== value)
-        : [...current, value]
-      patchAt({
-        answers: { [tab]: next },
-        customEnabled: { [tab]: next.includes(CUSTOM_ANSWER_KEY) },
-      })
-    },
-    [patchAt, selected, tab]
-  )
-  const commitCustom = useCallback(
-    (value: string) => {
-      patchAt({ custom: { [tab]: value } })
-    },
-    [patchAt, tab]
-  )
-
-  const next = useCallback(() => {
-    if (pending) return
-    if (isLast) {
-      repliedRef.current = true
-      questionCache.delete(request.id)
-      onSubmit(answers)
-      return
-    }
-    patch({ tab: tab + 1 })
-  }, [answers, isLast, onSubmit, patch, pending, request.id, tab])
-
-  const back = useCallback(() => {
-    if (pending || tab === 0) return
-    patch({ tab: tab - 1 })
-  }, [patch, pending, tab])
-
-  const reject = useCallback(() => {
-    if (pending) return
-    repliedRef.current = true
-    questionCache.delete(request.id)
-    onReject()
-  }, [onReject, pending, request.id])
-
-  // Cache in-progress answers on unmount unless we replied or rejected. The
-  // LRU keeps the most recent 8 requests in flight so navigating back and forth
-  // within a session doesn't wipe half-answered dialogs.
-  useEffect(() => {
-    return () => {
-      if (repliedRef.current) return
-      rememberAnswer(request.id, entry)
-    }
-  }, [entry, request.id])
-
-  // Row-level keys: Escape rejects, Cmd/Ctrl+Enter advances, Arrows/Home/End
-  // move between options when focus is on a list row.
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.defaultPrevented) return
-    if (event.key === "Escape") {
-      event.preventDefault()
-      reject()
-      return
-    }
-    const mod = (event.metaKey || event.ctrlKey) && !event.altKey
-    if (mod && event.key === "Enter") {
-      if (event.repeat) return
-      event.preventDefault()
-      next()
-      return
-    }
-    const target = event.target instanceof HTMLElement ? event.target : null
-    const onOption = target?.closest("[data-question-option]") != null
-    if (!onOption) return
-    if (event.altKey || event.ctrlKey || event.metaKey) return
-
-    const options = Array.from(
-      event.currentTarget.querySelectorAll<HTMLElement>("[data-question-option]")
+  const selected = entry.answers[tab] ?? []
+  const answers = questions.map((_, index) => {
+    const selected = entry.answers[index] ?? []
+    const answers = selected.filter((value) => value !== CUSTOM_ANSWER_KEY)
+    const custom = entry.custom[index]?.trim()
+    if (selected.includes(CUSTOM_ANSWER_KEY) && custom) answers.push(custom)
+    return answers
+  })
+  const complete = questions.map((_, index) => {
+    const selected = entry.answers[index] ?? []
+    return (
+      selected.length > 0 &&
+      (!selected.includes(CUSTOM_ANSWER_KEY) || Boolean(entry.custom[index]?.trim()))
     )
-    const currentIndex = options.indexOf(target!)
-    if (event.key === "ArrowDown" || event.key === "ArrowRight") {
-      event.preventDefault()
-      options[Math.min(options.length - 1, currentIndex + 1)]?.focus()
+  })
+  const allAnswered = complete.every(Boolean)
+  const isLast = tab === questions.length - 1
+
+  // Keep drafts through navigation and failed requests. Only an accepted reply
+  // or dismissal clears them; the cache holds at most eight active requests.
+  useEffect(
+    () => () => {
+      if (replied.current) return
+      questionCache.delete(request.id)
+      questionCache.set(request.id, entry)
+      if (questionCache.size > QUESTION_CACHE_MAX) {
+        const oldest = questionCache.keys().next().value
+        if (oldest) questionCache.delete(oldest)
+      }
+    },
+    [entry, request.id]
+  )
+
+  const advance = async () => {
+    if (pending || !complete[tab]) return
+    if (!isLast || !allAnswered) {
+      setEntry((current) => ({ ...current, tab: isLast ? complete.indexOf(false) : tab + 1 }))
       return
     }
-    if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
-      event.preventDefault()
-      options[Math.max(0, currentIndex - 1)]?.focus()
-      return
-    }
-    if (event.key === "Home") {
-      event.preventDefault()
-      options[0]?.focus()
-      return
-    }
-    if (event.key === "End") {
-      event.preventDefault()
-      options[options.length - 1]?.focus()
+    try {
+      await onSubmit(answers)
+      replied.current = true
+      questionCache.delete(request.id)
+    } catch {
+      // The mutation reports the error; keep the selected answers for retry.
     }
   }
-
+  const reject = async () => {
+    if (pending) return
+    try {
+      await onReject()
+      replied.current = true
+      questionCache.delete(request.id)
+    } catch {
+      // Dismissal failures retain the same draft as submission failures.
+    }
+  }
   if (!question) return null
-
-  const customAllowed = question.custom !== false
+  const options =
+    question.custom !== false
+      ? [...question.options, { label: CUSTOM_ANSWER_KEY, description: "" }]
+      : question.options
+  const select = (value: string) => {
+    if (pending) return
+    setEntry((current) => {
+      const selected = current.answers[tab] ?? []
+      return {
+        ...current,
+        answers: {
+          ...current.answers,
+          [tab]: question.multiple
+            ? selected.includes(value)
+              ? selected.filter((item) => item !== value)
+              : [...selected, value]
+            : [value],
+        },
+      }
+    })
+  }
 
   return (
-    <div className="mx-auto w-full px-4 @xl/chat:w-4/5 @xl/chat:px-0">
-      <div className="border-primary border-l-2">
-        <div className="flex flex-col gap-4 px-4 py-3" onKeyDown={handleKeyDown}>
-          <div className="flex flex-col gap-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="text-foreground min-w-0 text-sm font-medium wrap-break-word">
-                {question.header}
-              </div>
-              <div className="text-muted-foreground font-mono text-[11px]">
-                {tab + 1}/{total}
-              </div>
-            </div>
-            <div className="flex gap-1.5">
-              {questions.map((item, index) => {
-                const answered =
-                  (answers[index]?.length ?? 0) > 0 || (entry.customEnabled[index] ?? false)
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      className="bg-card mx-auto mb-2 w-full max-w-3xl overflow-clip rounded-xl border shadow-xs"
+    >
+      <section
+        aria-label="Agent questions"
+        aria-busy={pending}
+        onKeyDown={(event) => {
+          if (event.defaultPrevented || event.nativeEvent.isComposing || event.repeat || pending)
+            return
+          if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key === "Enter") {
+            event.preventDefault()
+            if (open) void advance()
+            return
+          }
+          if (event.target === customText.current) return
+          if (event.key === "Escape") {
+            event.preventDefault()
+            void reject()
+            return
+          }
+          if (!open || event.metaKey || event.ctrlKey || event.altKey) return
+          const option = options.find((_, index) => index < 9 && event.key === `${index + 1}`)
+          if (option) {
+            event.preventDefault()
+            select(option.label)
+          }
+        }}
+      >
+        <CollapsibleTrigger className="text-muted-foreground hover:bg-muted/40 focus-visible:ring-ring/50 flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-xs outline-none focus-visible:ring-2 focus-visible:ring-inset">
+          <MessageCircleQuestionIcon aria-hidden="true" className="size-3.5 shrink-0" />
+          <span className="mr-auto min-w-0 truncate font-medium">{question.header}</span>
+          {!open ? <span className="min-w-0 flex-1 truncate">{question.question}</span> : null}
+          {questions.length > 1 ? (
+            <span className="shrink-0 tabular-nums">
+              {tab + 1} of {questions.length}
+            </span>
+          ) : null}
+          <ChevronDownIcon
+            aria-hidden="true"
+            className={cn("size-3.5 shrink-0 transition-transform", open && "rotate-180")}
+          />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          {questions.length > 1 ? (
+            <nav aria-label="Questions" className="flex gap-1 overflow-x-auto border-t px-3 py-2">
+              {questions.map((item, index) => (
+                <button
+                  aria-current={index === tab ? "step" : undefined}
+                  className={cn(
+                    "focus-visible:ring-ring/50 flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs outline-none focus-visible:ring-2 disabled:opacity-50",
+                    index === tab
+                      ? "bg-muted text-foreground font-medium"
+                      : "text-muted-foreground hover:bg-muted/50"
+                  )}
+                  disabled={pending}
+                  key={index}
+                  type="button"
+                  onClick={() => setEntry((current) => ({ ...current, tab: index }))}
+                >
+                  {complete[index] ? (
+                    <CheckIcon aria-hidden="true" className="size-3" />
+                  ) : (
+                    <span className="tabular-nums">{index + 1}</span>
+                  )}
+                  <span>{item.header}</span>
+                </button>
+              ))}
+            </nav>
+          ) : null}
+          <div className="max-h-[min(26rem,40svh)] overflow-y-auto overscroll-contain px-3 pb-3">
+            <p id={`${id}-question`} className="px-0.5 pb-2 text-sm leading-relaxed break-words">
+              {question.question}
+            </p>
+            {question.multiple ? (
+              <p className="text-muted-foreground px-0.5 pb-2 text-xs">Select all that apply.</p>
+            ) : null}
+            <fieldset
+              aria-labelledby={`${id}-question`}
+              disabled={pending}
+              className="min-w-0 space-y-1"
+            >
+              {options.map((option, index) => {
+                const custom = option.label === CUSTOM_ANSWER_KEY
+                const checked = selected.includes(option.label)
                 return (
-                  <button
-                    aria-label={`Go to question ${index + 1}`}
+                  <div
+                    key={`${tab}:${option.label}`}
                     className={cn(
-                      "h-1.5 flex-1 rounded-full transition-colors",
-                      index === tab ? "bg-foreground" : answered ? "bg-primary/60" : "bg-muted"
+                      "has-[:focus-visible]:ring-primary/30 rounded-lg transition-colors has-[:focus-visible]:ring-1 has-[:focus-visible]:ring-inset",
+                      checked ? "bg-primary/5" : "hover:bg-muted/50",
+                      pending && "opacity-50"
                     )}
-                    disabled={pending}
-                    key={`${item.header}-${index}`}
-                    onClick={() => !pending && patch({ tab: index })}
-                    type="button"
-                  />
+                  >
+                    <label
+                      className={cn(
+                        "relative flex min-h-10 cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2",
+                        pending && "cursor-default"
+                      )}
+                    >
+                      <input
+                        className="sr-only"
+                        name={`${id}-${tab}`}
+                        type={question.multiple ? "checkbox" : "radio"}
+                        checked={checked}
+                        onChange={() => select(option.label)}
+                        ref={custom ? customOption : undefined}
+                        value={option.label}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className={cn("block text-sm", checked && "font-medium")}>
+                          {custom ? "Write your own answer" : option.label}
+                        </span>
+                        {!custom && option.description && option.description !== option.label ? (
+                          <span className="text-muted-foreground mt-0.5 block text-xs leading-relaxed break-words">
+                            {option.description}
+                          </span>
+                        ) : null}
+                      </span>
+                      {checked ? (
+                        <CheckIcon aria-hidden="true" className="text-primary size-4 shrink-0" />
+                      ) : custom ? (
+                        <PencilIcon
+                          aria-hidden="true"
+                          className="text-muted-foreground size-3.5 shrink-0"
+                        />
+                      ) : index < 9 ? (
+                        <kbd
+                          aria-hidden="true"
+                          className="text-muted-foreground w-4 shrink-0 text-center font-sans text-[11px] tabular-nums"
+                        >
+                          {index + 1}
+                        </kbd>
+                      ) : null}
+                    </label>
+                    {custom && checked ? (
+                      <Textarea
+                        autoFocus
+                        ref={customText}
+                        aria-label="Custom answer"
+                        className="field-sizing-content max-h-32 min-h-9 resize-none scroll-mb-3 rounded-none border-0 pt-0 pb-2.5 focus-visible:ring-0 dark:bg-transparent"
+                        disabled={pending}
+                        rows={1}
+                        placeholder="Your answer..."
+                        value={entry.custom[tab] ?? ""}
+                        onFocus={(event) =>
+                          event.currentTarget.scrollIntoView({ block: "nearest" })
+                        }
+                        onChange={(event) =>
+                          setEntry((current) => ({
+                            ...current,
+                            custom: { ...current.custom, [tab]: event.target.value },
+                          }))
+                        }
+                        onKeyDown={(event) => {
+                          if (event.nativeEvent.isComposing) return
+                          if (event.key === "Escape") {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            customOption.current?.focus()
+                          }
+                        }}
+                      />
+                    ) : null}
+                  </div>
                 )
               })}
-            </div>
+            </fieldset>
           </div>
-
-          <div className="text-foreground text-sm wrap-break-word">
-            {question.question}
-            {question.multiple === true ? " Select all that apply." : ""}
-          </div>
-
-          <FieldGroup>
-            {question.multiple === true ? (
-              <div className="flex flex-col gap-3">
-                {question.options.map((option, index) => (
-                  <label
-                    className="flex items-start gap-3"
-                    data-question-option
-                    key={`${option.label}-${index}`}
-                    tabIndex={0}
-                  >
-                    <Checkbox
-                      checked={(selected ?? []).includes(option.label)}
-                      disabled={pending}
-                      onCheckedChange={() => selectMulti(option.label)}
-                    />
-                    <span className="flex min-w-0 flex-col gap-0.5">
-                      <span className="text-foreground text-sm wrap-break-word">
-                        {option.label}
-                      </span>
-                      <span className="text-muted-foreground text-sm wrap-break-word">
-                        {option.description}
-                      </span>
-                    </span>
-                  </label>
-                ))}
-                {customAllowed ? (
-                  <label
-                    className="flex items-start gap-3"
-                    data-question-option
-                    key={`${CUSTOM_ANSWER_KEY}-${question.options.length}`}
-                    tabIndex={0}
-                  >
-                    <Checkbox
-                      checked={(selected ?? []).includes(CUSTOM_ANSWER_KEY)}
-                      disabled={pending}
-                      onCheckedChange={() => selectMulti(CUSTOM_ANSWER_KEY)}
-                    />
-                    <span className="text-foreground flex flex-1 flex-col gap-2 text-sm">
-                      Type your own answer
-                      {(selected ?? []).includes(CUSTOM_ANSWER_KEY) ? (
-                        <AutoSizeTextarea
-                          defaultValue={entry.custom[tab] ?? ""}
-                          disabled={pending}
-                          key={`${request.id}:${tab}`}
-                          onCommit={commitCustom}
-                        />
-                      ) : null}
-                    </span>
-                  </label>
-                ) : null}
-              </div>
-            ) : (
-              <RadioGroup
-                className="flex flex-col gap-3"
-                disabled={pending}
-                onValueChange={selectSingle}
-                value={selected?.[0] ?? ""}
-              >
-                {question.options.map((option, index) => (
-                  <label
-                    className="flex items-start gap-3"
-                    data-question-option
-                    key={`${option.label}-${index}`}
-                    tabIndex={0}
-                  >
-                    <RadioGroupItem value={option.label} />
-                    <span className="flex min-w-0 flex-col gap-0.5">
-                      <span className="text-foreground text-sm wrap-break-word">
-                        {option.label}
-                      </span>
-                      <span className="text-muted-foreground text-sm wrap-break-word">
-                        {option.description}
-                      </span>
-                    </span>
-                  </label>
-                ))}
-                {customAllowed ? (
-                  <label
-                    className="flex items-start gap-3"
-                    data-question-option
-                    key={`${CUSTOM_ANSWER_KEY}-${question.options.length}`}
-                    tabIndex={0}
-                  >
-                    <RadioGroupItem value={CUSTOM_ANSWER_KEY} />
-                    <span className="text-foreground flex flex-1 flex-col gap-2 text-sm">
-                      Type your own answer
-                      {selected?.[0] === CUSTOM_ANSWER_KEY ? (
-                        <AutoSizeTextarea
-                          defaultValue={entry.custom[tab] ?? ""}
-                          disabled={pending}
-                          key={`${request.id}:${tab}`}
-                          onCommit={commitCustom}
-                        />
-                      ) : null}
-                    </span>
-                  </label>
-                ) : null}
-              </RadioGroup>
-            )}
-          </FieldGroup>
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <Button
-              data-question-dismiss
-              disabled={pending}
-              onClick={reject}
-              type="button"
-              variant="destructive"
-            >
+          <div className="flex items-center justify-between gap-2 border-t px-3 py-2">
+            <Button disabled={pending} onClick={() => void reject()} size="sm" variant="ghost">
               Dismiss
             </Button>
-            <div className="flex items-center gap-2 self-end">
+            <div className="flex items-center gap-1.5">
               {tab > 0 ? (
-                <Button disabled={pending} onClick={back} type="button" variant="secondary">
+                <Button
+                  disabled={pending}
+                  onClick={() => setEntry((current) => ({ ...current, tab: tab - 1 }))}
+                  size="sm"
+                  variant="ghost"
+                >
                   Back
                 </Button>
               ) : null}
-              <Button disabled={pending || !currentAnswered} onClick={next} type="button">
-                {pending ? <Spinner /> : null}
-                {isLast ? "Submit" : "Next"}
+              <Button disabled={pending || !complete[tab]} onClick={() => void advance()} size="sm">
+                {pending ? <Spinner aria-hidden="true" /> : null}
+                {questions.length === 1
+                  ? "Submit answer"
+                  : isLast
+                    ? allAnswered
+                      ? "Submit answers"
+                      : "Next unanswered"
+                    : "Continue"}
               </Button>
             </div>
           </div>
-        </div>
-      </div>
-    </div>
+        </CollapsibleContent>
+      </section>
+    </Collapsible>
   )
 }
 

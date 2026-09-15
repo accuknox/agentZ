@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -155,6 +156,24 @@ func (q *Queries) GatewayAssignWorkspaceAdmins(ctx context.Context, arg GatewayA
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const gatewayChatInputsStopping = `-- name: GatewayChatInputsStopping :one
+SELECT EXISTS (SELECT 1 FROM chat_input_sessions WHERE workspace_id = $1
+  AND agent_name = $2 AND session_id = $3 AND stopping)::boolean
+`
+
+type GatewayChatInputsStoppingParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	SessionID   string `json:"session_id"`
+}
+
+func (q *Queries) GatewayChatInputsStopping(ctx context.Context, arg GatewayChatInputsStoppingParams) (bool, error) {
+	row := q.db.QueryRow(ctx, gatewayChatInputsStopping, arg.WorkspaceID, arg.AgentName, arg.SessionID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const gatewayClaimCleanupJob = `-- name: GatewayClaimCleanupJob :one
@@ -583,6 +602,71 @@ func (q *Queries) GatewayCreateAgentShare(ctx context.Context, arg GatewayCreate
 		&i.TargetTeamID,
 		&i.CreatedBy,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const gatewayCreateChatInput = `-- name: GatewayCreateChatInput :one
+INSERT INTO chat_inputs (id, workspace_id, agent_name, session_id,
+  organization_id, author_id, author_name, directory, content, delivery)
+VALUES ($1, $2, $3, $4,
+  $5, $6, $7, $8, $9, $10)
+ON CONFLICT (id) DO UPDATE SET id = chat_inputs.id
+WHERE chat_inputs.workspace_id = EXCLUDED.workspace_id
+  AND chat_inputs.agent_name = EXCLUDED.agent_name
+  AND chat_inputs.session_id = EXCLUDED.session_id
+  AND chat_inputs.author_id = EXCLUDED.author_id
+  AND chat_inputs.content = EXCLUDED.content
+  AND chat_inputs.delivery = EXCLUDED.delivery
+RETURNING id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, message_id, error, created_at, updated_at
+`
+
+type GatewayCreateChatInputParams struct {
+	ID             uuid.UUID `json:"id"`
+	WorkspaceID    string    `json:"workspace_id"`
+	AgentName      string    `json:"agent_name"`
+	SessionID      string    `json:"session_id"`
+	OrganizationID string    `json:"organization_id"`
+	AuthorID       string    `json:"author_id"`
+	AuthorName     string    `json:"author_name"`
+	Directory      string    `json:"directory"`
+	Content        []byte    `json:"content"`
+	Delivery       string    `json:"delivery"`
+}
+
+func (q *Queries) GatewayCreateChatInput(ctx context.Context, arg GatewayCreateChatInputParams) (ChatInput, error) {
+	row := q.db.QueryRow(ctx, gatewayCreateChatInput,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.SessionID,
+		arg.OrganizationID,
+		arg.AuthorID,
+		arg.AuthorName,
+		arg.Directory,
+		arg.Content,
+		arg.Delivery,
+	)
+	var i ChatInput
+	err := row.Scan(
+		&i.ID,
+		&i.Sequence,
+		&i.WorkspaceID,
+		&i.AgentName,
+		&i.SessionID,
+		&i.OrganizationID,
+		&i.AuthorID,
+		&i.AuthorName,
+		&i.Directory,
+		&i.Resume,
+		&i.Content,
+		&i.Delivery,
+		&i.State,
+		&i.Revision,
+		&i.MessageID,
+		&i.Error,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -1455,6 +1539,49 @@ func (q *Queries) GatewayGetAgentShare(ctx context.Context, arg GatewayGetAgentS
 	return i, err
 }
 
+const gatewayGetChatInput = `-- name: GatewayGetChatInput :one
+SELECT id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, message_id, error, created_at, updated_at FROM chat_inputs WHERE id = $1 AND workspace_id = $2
+  AND agent_name = $3 AND session_id = $4
+`
+
+type GatewayGetChatInputParams struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID string    `json:"workspace_id"`
+	AgentName   string    `json:"agent_name"`
+	SessionID   string    `json:"session_id"`
+}
+
+func (q *Queries) GatewayGetChatInput(ctx context.Context, arg GatewayGetChatInputParams) (ChatInput, error) {
+	row := q.db.QueryRow(ctx, gatewayGetChatInput,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.SessionID,
+	)
+	var i ChatInput
+	err := row.Scan(
+		&i.ID,
+		&i.Sequence,
+		&i.WorkspaceID,
+		&i.AgentName,
+		&i.SessionID,
+		&i.OrganizationID,
+		&i.AuthorID,
+		&i.AuthorName,
+		&i.Directory,
+		&i.Resume,
+		&i.Content,
+		&i.Delivery,
+		&i.State,
+		&i.Revision,
+		&i.MessageID,
+		&i.Error,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const gatewayGetChatSessionGroup = `-- name: GatewayGetChatSessionGroup :one
 SELECT sessions.status, sessions.source_updated_at, project.id AS project_id
 FROM chat_sessions AS sessions
@@ -1960,6 +2087,47 @@ func (q *Queries) GatewayGetWorkspaceChatPreference(ctx context.Context, arg Gat
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.GroupBy,
+	)
+	return i, err
+}
+
+const gatewayHeadChatInput = `-- name: GatewayHeadChatInput :one
+SELECT id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, message_id, error, created_at, updated_at FROM chat_inputs
+WHERE workspace_id = $1 AND agent_name = $2 AND session_id = $3
+  AND state IN ('queued', 'sending', 'failed')
+ORDER BY CASE WHEN state = 'sending' OR message_id <> '' AND state = 'failed' THEN 0
+  WHEN delivery = 'steer' AND state = 'queued' THEN 1 ELSE 2 END, sequence
+LIMIT 1
+`
+
+type GatewayHeadChatInputParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	SessionID   string `json:"session_id"`
+}
+
+func (q *Queries) GatewayHeadChatInput(ctx context.Context, arg GatewayHeadChatInputParams) (ChatInput, error) {
+	row := q.db.QueryRow(ctx, gatewayHeadChatInput, arg.WorkspaceID, arg.AgentName, arg.SessionID)
+	var i ChatInput
+	err := row.Scan(
+		&i.ID,
+		&i.Sequence,
+		&i.WorkspaceID,
+		&i.AgentName,
+		&i.SessionID,
+		&i.OrganizationID,
+		&i.AuthorID,
+		&i.AuthorName,
+		&i.Directory,
+		&i.Resume,
+		&i.Content,
+		&i.Delivery,
+		&i.State,
+		&i.Revision,
+		&i.MessageID,
+		&i.Error,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -2719,6 +2887,65 @@ func (q *Queries) GatewayListAgentsByName(ctx context.Context, arg GatewayListAg
 		if err := rows.Scan(
 			&i.TenantNamespace,
 			&i.AgentName,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListChatInputs = `-- name: GatewayListChatInputs :many
+SELECT id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, message_id, error, created_at, updated_at FROM chat_inputs
+WHERE workspace_id = $1 AND agent_name = $2 AND session_id = $3
+  AND state NOT IN ('delivered', 'removed')
+  AND (author_id = $4 OR state <> 'recovered')
+ORDER BY sequence
+`
+
+type GatewayListChatInputsParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	SessionID   string `json:"session_id"`
+	AuthorID    string `json:"author_id"`
+}
+
+func (q *Queries) GatewayListChatInputs(ctx context.Context, arg GatewayListChatInputsParams) ([]ChatInput, error) {
+	rows, err := q.db.Query(ctx, gatewayListChatInputs,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.SessionID,
+		arg.AuthorID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ChatInput{}
+	for rows.Next() {
+		var i ChatInput
+		if err := rows.Scan(
+			&i.ID,
+			&i.Sequence,
+			&i.WorkspaceID,
+			&i.AgentName,
+			&i.SessionID,
+			&i.OrganizationID,
+			&i.AuthorID,
+			&i.AuthorName,
+			&i.Directory,
+			&i.Resume,
+			&i.Content,
+			&i.Delivery,
+			&i.State,
+			&i.Revision,
+			&i.MessageID,
+			&i.Error,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -5013,6 +5240,25 @@ func (q *Queries) GatewayLockTeam(ctx context.Context, arg GatewayLockTeamParams
 	return id, err
 }
 
+const gatewayNotifyChatInputs = `-- name: GatewayNotifyChatInputs :exec
+SELECT pg_notify('agentz_chat_sessions', $1::text ||
+  COALESCE((SELECT '/' || p.owner_id FROM coding_threads t
+    JOIN coding_worktrees tree ON tree.id = t.worktree_id
+    JOIN coding_projects p ON p.id = tree.project_id
+    WHERE t.workspace_id = $1 AND t.agent_name = $2 AND t.session_id = $3), ''))
+`
+
+type GatewayNotifyChatInputsParams struct {
+	WorkspaceID string      `json:"workspace_id"`
+	AgentName   string      `json:"agent_name"`
+	SessionID   pgtype.Text `json:"session_id"`
+}
+
+func (q *Queries) GatewayNotifyChatInputs(ctx context.Context, arg GatewayNotifyChatInputsParams) error {
+	_, err := q.db.Exec(ctx, gatewayNotifyChatInputs, arg.WorkspaceID, arg.AgentName, arg.SessionID)
+	return err
+}
+
 const gatewayNotifyCoding = `-- name: GatewayNotifyCoding :exec
 SELECT pg_notify('agentz_coding', $1::text || '/' || $2::text)
 `
@@ -5067,6 +5313,53 @@ func (q *Queries) GatewayOwnedCodingDirectory(ctx context.Context, arg GatewayOw
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const gatewayPendingChatInputs = `-- name: GatewayPendingChatInputs :many
+SELECT DISTINCT ON (workspace_id, agent_name, session_id) id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, message_id, error, created_at, updated_at FROM chat_inputs
+WHERE state IN ('queued', 'sending', 'failed')
+ORDER BY workspace_id, agent_name, session_id,
+  CASE WHEN state = 'sending' OR message_id <> '' AND state = 'failed' THEN 0 WHEN delivery = 'steer' AND state = 'queued' THEN 1 ELSE 2 END,
+  sequence
+`
+
+func (q *Queries) GatewayPendingChatInputs(ctx context.Context) ([]ChatInput, error) {
+	rows, err := q.db.Query(ctx, gatewayPendingChatInputs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ChatInput{}
+	for rows.Next() {
+		var i ChatInput
+		if err := rows.Scan(
+			&i.ID,
+			&i.Sequence,
+			&i.WorkspaceID,
+			&i.AgentName,
+			&i.SessionID,
+			&i.OrganizationID,
+			&i.AuthorID,
+			&i.AuthorName,
+			&i.Directory,
+			&i.Resume,
+			&i.Content,
+			&i.Delivery,
+			&i.State,
+			&i.Revision,
+			&i.MessageID,
+			&i.Error,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const gatewayProjectMemberRoleTransports = `-- name: GatewayProjectMemberRoleTransports :execrows
@@ -5152,6 +5445,24 @@ func (q *Queries) GatewayRecordCodingMainCheckout(ctx context.Context, arg Gatew
 		arg.Directory,
 		arg.Branch,
 	)
+	return err
+}
+
+const gatewayRecoverChatInputs = `-- name: GatewayRecoverChatInputs :exec
+UPDATE chat_inputs SET state = 'recovered', error = '',
+  revision = revision + 1, updated_at = now()
+WHERE workspace_id = $1 AND agent_name = $2 AND session_id = $3
+  AND state IN ('queued', 'failed') AND message_id = ''
+`
+
+type GatewayRecoverChatInputsParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	SessionID   string `json:"session_id"`
+}
+
+func (q *Queries) GatewayRecoverChatInputs(ctx context.Context, arg GatewayRecoverChatInputsParams) error {
+	_, err := q.db.Exec(ctx, gatewayRecoverChatInputs, arg.WorkspaceID, arg.AgentName, arg.SessionID)
 	return err
 }
 
@@ -5865,6 +6176,29 @@ func (q *Queries) GatewayShareCodingWorktree(ctx context.Context, id string) err
 	return err
 }
 
+const gatewayStopChatInputs = `-- name: GatewayStopChatInputs :exec
+INSERT INTO chat_input_sessions (workspace_id, agent_name, session_id, stopping)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (workspace_id, agent_name, session_id) DO UPDATE SET stopping = EXCLUDED.stopping
+`
+
+type GatewayStopChatInputsParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	SessionID   string `json:"session_id"`
+	Stopping    bool   `json:"stopping"`
+}
+
+func (q *Queries) GatewayStopChatInputs(ctx context.Context, arg GatewayStopChatInputsParams) error {
+	_, err := q.db.Exec(ctx, gatewayStopChatInputs,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.SessionID,
+		arg.Stopping,
+	)
+	return err
+}
+
 const gatewaySyncAgentChatSessionStatuses = `-- name: GatewaySyncAgentChatSessionStatuses :exec
 WITH RECURSIVE scoped(session_id) AS (
   SELECT thread.session_id
@@ -6177,6 +6511,28 @@ func (q *Queries) GatewayTransitionWorkspaceProvisioning(ctx context.Context, ar
 	return result.RowsAffected(), nil
 }
 
+const gatewayTryLockChatInputs = `-- name: GatewayTryLockChatInputs :one
+SELECT pg_try_advisory_lock(hashtextextended($1::text, 173))::boolean
+`
+
+func (q *Queries) GatewayTryLockChatInputs(ctx context.Context, identity string) (bool, error) {
+	row := q.db.QueryRow(ctx, gatewayTryLockChatInputs, identity)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const gatewayUnlockChatInputs = `-- name: GatewayUnlockChatInputs :one
+SELECT pg_advisory_unlock(hashtextextended($1::text, 173))::boolean
+`
+
+func (q *Queries) GatewayUnlockChatInputs(ctx context.Context, identity string) (bool, error) {
+	row := q.db.QueryRow(ctx, gatewayUnlockChatInputs, identity)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const gatewayUnlockCodingProject = `-- name: GatewayUnlockCodingProject :one
 SELECT pg_advisory_unlock(hashtextextended($1::text, 0))
 `
@@ -6186,6 +6542,54 @@ func (q *Queries) GatewayUnlockCodingProject(ctx context.Context, projectID stri
 	var pg_advisory_unlock bool
 	err := row.Scan(&pg_advisory_unlock)
 	return pg_advisory_unlock, err
+}
+
+const gatewayUpdateChatInput = `-- name: GatewayUpdateChatInput :one
+UPDATE chat_inputs SET state = $1, error = $2,
+  message_id = $3, resume = $4, revision = revision + 1, updated_at = now()
+WHERE id = $5 AND revision = $6 RETURNING id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, message_id, error, created_at, updated_at
+`
+
+type GatewayUpdateChatInputParams struct {
+	State     string    `json:"state"`
+	Error     string    `json:"error"`
+	MessageID string    `json:"message_id"`
+	Resume    bool      `json:"resume"`
+	ID        uuid.UUID `json:"id"`
+	Revision  int64     `json:"revision"`
+}
+
+func (q *Queries) GatewayUpdateChatInput(ctx context.Context, arg GatewayUpdateChatInputParams) (ChatInput, error) {
+	row := q.db.QueryRow(ctx, gatewayUpdateChatInput,
+		arg.State,
+		arg.Error,
+		arg.MessageID,
+		arg.Resume,
+		arg.ID,
+		arg.Revision,
+	)
+	var i ChatInput
+	err := row.Scan(
+		&i.ID,
+		&i.Sequence,
+		&i.WorkspaceID,
+		&i.AgentName,
+		&i.SessionID,
+		&i.OrganizationID,
+		&i.AuthorID,
+		&i.AuthorName,
+		&i.Directory,
+		&i.Resume,
+		&i.Content,
+		&i.Delivery,
+		&i.State,
+		&i.Revision,
+		&i.MessageID,
+		&i.Error,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const gatewayUpdateCodingBranch = `-- name: GatewayUpdateCodingBranch :exec

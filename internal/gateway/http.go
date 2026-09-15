@@ -41,6 +41,10 @@ func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst any, allowEmpty 
 }
 
 func mapGatewayStoreError(action string, err error) *apiutil.APIError {
+	var apiErr *apiutil.APIError
+	if errors.As(err, &apiErr) {
+		return apiErr
+	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		return apiutil.NewError(http.StatusNotFound, "not_found", "session not found", err)
 	}

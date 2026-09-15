@@ -17,6 +17,47 @@ export const zChatSessionParticipant = z.object({
   image: z.string().nullable(),
 })
 
+export const zChatAttachment = z.object({
+  id: z.string().min(1),
+  filename: z.string().min(1),
+  mediaType: z.string().min(1),
+  path: z.string().min(1),
+  size: z.int().gte(0).lte(8388608),
+})
+
+export const zChatInputContent = z.object({
+  text: z.string().max(1000000),
+  attachments: z.array(zChatAttachment).max(3),
+  model: z.object({
+    modelID: z.string().min(1),
+    providerID: z.string().min(1),
+  }),
+  agent: z.string().optional(),
+  variant: z.string().optional(),
+})
+
+export const zChatInputRequest = z.object({
+  id: z.uuid(),
+  delivery: z.enum(["steer", "queue"]),
+  content: zChatInputContent,
+})
+
+export const zChatInputState = z.enum([
+  "queued",
+  "sending",
+  "delivered",
+  "failed",
+  "recovered",
+  "removed",
+])
+
+export const zChatInputUpdate = z.object({
+  revision: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
+    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+  }),
+  action: z.enum(["remove", "retry"]),
+})
+
 export const zWatchChatSessionsEvent = z.object({
   revision: z.string(),
 })
@@ -169,6 +210,30 @@ export const zResourceActor = z.object({
   name: z.string().nullable(),
   email: z.email().nullable(),
   image: z.string().nullable(),
+})
+
+export const zChatInput = z.object({
+  id: z.uuid(),
+  author: zResourceActor,
+  delivery: z.enum(["steer", "queue"]),
+  content: zChatInputContent,
+  state: zChatInputState,
+  revision: z.coerce
+    .bigint()
+    .min(BigInt("-9223372036854775808"), {
+      error: "Invalid value: Expected int64 to be >= -9223372036854775808",
+    })
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+  created_at: z.iso.datetime(),
+  message_id: z.string().optional(),
+  error: z.string(),
+})
+
+export const zChatInputs = z.object({
+  items: z.array(zChatInput),
+  stopping: z.boolean(),
 })
 
 export const zTenant = z.object({
@@ -3206,6 +3271,26 @@ export const zListChatSessionsResponse2 = zListChatSessionsResponse
  * Stream of chat inbox invalidations.
  */
 export const zWatchChatSessionsResponse = zWatchChatSessionsEvent
+
+/**
+ * Read queued messages and your recovered drafts.
+ */
+export const zListChatInputsResponse = zChatInputs
+
+/**
+ * Persist a message for steering or queued delivery.
+ */
+export const zSubmitChatInputResponse = zChatInput
+
+/**
+ * Remove or retry your queued message.
+ */
+export const zUpdateChatInputResponse = zChatInput
+
+/**
+ * Stop execution and recover unsent messages.
+ */
+export const zStopChatInputsResponse = zChatInputs
 
 /**
  * Workspace-scoped preferences for the current user.

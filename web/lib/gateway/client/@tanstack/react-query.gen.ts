@@ -73,6 +73,7 @@ import {
   listAgents,
   listAgentShares,
   listAgentWorkflowSchedules,
+  listChatInputs,
   listChatSessions,
   listCodingOperations,
   listCodingProjects,
@@ -126,9 +127,12 @@ import {
   runCodingGit,
   startCodingOperation,
   statAgentFile,
+  stopChatInputs,
+  submitChatInput,
   suggestCodingText,
   transferAgentOwner,
   updateAgent,
+  updateChatInput,
   updateChatSessionPreference,
   updateCodingProjectPreference,
   updateInferencePool,
@@ -334,6 +338,9 @@ import type {
   ListAgentWorkflowSchedulesData,
   ListAgentWorkflowSchedulesError,
   ListAgentWorkflowSchedulesResponse,
+  ListChatInputsData,
+  ListChatInputsError,
+  ListChatInputsResponse,
   ListChatSessionsData,
   ListChatSessionsError,
   ListChatSessionsResponse2,
@@ -490,6 +497,12 @@ import type {
   StatAgentFileData,
   StatAgentFileError,
   StatAgentFileResponse,
+  StopChatInputsData,
+  StopChatInputsError,
+  StopChatInputsResponse,
+  SubmitChatInputData,
+  SubmitChatInputError,
+  SubmitChatInputResponse,
   SuggestCodingTextData,
   SuggestCodingTextError,
   SuggestCodingTextResponse,
@@ -499,6 +512,9 @@ import type {
   UpdateAgentData,
   UpdateAgentError,
   UpdateAgentResponse,
+  UpdateChatInputData,
+  UpdateChatInputError,
+  UpdateChatInputResponse,
   UpdateChatSessionPreferenceData,
   UpdateChatSessionPreferenceError,
   UpdateChatSessionPreferenceResponse,
@@ -1108,6 +1124,108 @@ export const listChatSessionsOptions = (options?: Options<ListChatSessionsData>)
     },
     queryKey: listChatSessionsQueryKey(options),
   })
+
+export const listChatInputsQueryKey = (options: Options<ListChatInputsData>) =>
+  createQueryKey("listChatInputs", options)
+
+/**
+ * Read queued messages and your recovered drafts.
+ */
+export const listChatInputsOptions = (options: Options<ListChatInputsData>) =>
+  queryOptions<
+    ListChatInputsResponse,
+    ListChatInputsError,
+    ListChatInputsResponse,
+    ReturnType<typeof listChatInputsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listChatInputs({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listChatInputsQueryKey(options),
+  })
+
+/**
+ * Persist a message for steering or queued delivery.
+ */
+export const submitChatInputMutation = (
+  options?: Partial<Options<SubmitChatInputData>>
+): UseMutationOptions<
+  SubmitChatInputResponse,
+  SubmitChatInputError,
+  Options<SubmitChatInputData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    SubmitChatInputResponse,
+    SubmitChatInputError,
+    Options<SubmitChatInputData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await submitChatInput({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Remove or retry your queued message.
+ */
+export const updateChatInputMutation = (
+  options?: Partial<Options<UpdateChatInputData>>
+): UseMutationOptions<
+  UpdateChatInputResponse,
+  UpdateChatInputError,
+  Options<UpdateChatInputData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UpdateChatInputResponse,
+    UpdateChatInputError,
+    Options<UpdateChatInputData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await updateChatInput({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Stop execution and recover unsent messages.
+ */
+export const stopChatInputsMutation = (
+  options?: Partial<Options<StopChatInputsData>>
+): UseMutationOptions<StopChatInputsResponse, StopChatInputsError, Options<StopChatInputsData>> => {
+  const mutationOptions: UseMutationOptions<
+    StopChatInputsResponse,
+    StopChatInputsError,
+    Options<StopChatInputsData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await stopChatInputs({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
 
 export const getChatSessionPreferenceQueryKey = (options?: Options<GetChatSessionPreferenceData>) =>
   createQueryKey("getChatSessionPreference", options)

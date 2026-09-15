@@ -933,7 +933,7 @@ export function GitChanges({
                       </FieldLabel>
                       <Textarea
                         id={`commit-description-${thread.worktree.id}`}
-                        placeholder="Add an optional extended description…"
+                        placeholder="Add an optional extended description..."
                         value={description}
                         onChange={(event) => {
                           const input = event.currentTarget

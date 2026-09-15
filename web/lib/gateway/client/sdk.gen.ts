@@ -200,6 +200,9 @@ import type {
   ListAgentWorkflowSchedulesData,
   ListAgentWorkflowSchedulesErrors,
   ListAgentWorkflowSchedulesResponses,
+  ListChatInputsData,
+  ListChatInputsErrors,
+  ListChatInputsResponses,
   ListChatSessionsData,
   ListChatSessionsErrors,
   ListChatSessionsResponses,
@@ -356,6 +359,12 @@ import type {
   StatAgentFileData,
   StatAgentFileErrors,
   StatAgentFileResponses,
+  StopChatInputsData,
+  StopChatInputsErrors,
+  StopChatInputsResponses,
+  SubmitChatInputData,
+  SubmitChatInputErrors,
+  SubmitChatInputResponses,
   SuggestCodingTextData,
   SuggestCodingTextErrors,
   SuggestCodingTextResponses,
@@ -365,6 +374,9 @@ import type {
   UpdateAgentData,
   UpdateAgentErrors,
   UpdateAgentResponses,
+  UpdateChatInputData,
+  UpdateChatInputErrors,
+  UpdateChatInputResponses,
   UpdateChatSessionPreferenceData,
   UpdateChatSessionPreferenceErrors,
   UpdateChatSessionPreferenceResponses,
@@ -726,6 +738,62 @@ export const watchChatSessions = <ThrowOnError extends boolean = false>(
   >({
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/chat-session/watch",
+    ...options,
+  })
+
+/**
+ * Read queued messages and your recovered drafts.
+ */
+export const listChatInputs = <ThrowOnError extends boolean = false>(
+  options: Options<ListChatInputsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ListChatInputsResponses, ListChatInputsErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/chat-session/{agentName}/{sessionId}/input",
+    ...options,
+  })
+
+/**
+ * Persist a message for steering or queued delivery.
+ */
+export const submitChatInput = <ThrowOnError extends boolean = false>(
+  options: Options<SubmitChatInputData, ThrowOnError>
+) =>
+  (options.client ?? client).post<SubmitChatInputResponses, SubmitChatInputErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/chat-session/{agentName}/{sessionId}/input",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Remove or retry your queued message.
+ */
+export const updateChatInput = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateChatInputData, ThrowOnError>
+) =>
+  (options.client ?? client).patch<UpdateChatInputResponses, UpdateChatInputErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/chat-session/{agentName}/{sessionId}/input/{inputId}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Stop execution and recover unsent messages.
+ */
+export const stopChatInputs = <ThrowOnError extends boolean = false>(
+  options: Options<StopChatInputsData, ThrowOnError>
+) =>
+  (options.client ?? client).post<StopChatInputsResponses, StopChatInputsErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/chat-session/{agentName}/{sessionId}/input/stop",
     ...options,
   })
 

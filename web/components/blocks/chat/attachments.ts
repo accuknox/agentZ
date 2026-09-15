@@ -1,30 +1,22 @@
 "use client"
 
 import type { PromptInputFile } from "@/components/ai-elements/prompt-input"
-import { writeAgentFileRaw } from "@/lib/gateway/client"
+import { writeAgentFileRaw, type ChatAttachment } from "@/lib/gateway/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import { formatByteSize } from "@/lib/format"
-import type { Part, TextPartInput } from "@opencode-ai/sdk/v2"
+import type { Part } from "@opencode-ai/sdk/v2"
 import { nanoid } from "nanoid"
 import * as z from "zod"
+import { zChatAttachment } from "@/lib/gateway/client/zod.gen"
+export type { ChatAttachment } from "@/lib/gateway/client"
 
 export const chatAttachmentConfig = {
   maxFileCount: 3,
   maxFileSizeBytes: 8 * 1024 * 1024,
 } as const
 
-const chatAttachmentSchema = z.object({
-  filename: z.string().min(1),
-  id: z.string().min(1),
-  mediaType: z.string().min(1),
-  path: z.string().min(1),
-  size: z.number().int().nonnegative(),
-})
-
-export type ChatAttachment = z.infer<typeof chatAttachmentSchema>
-
 const attachmentPartSchema = z.object({
-  agentz_attachment: chatAttachmentSchema,
+  agentz_attachment: zChatAttachment,
 })
 
 export function chatAttachmentErrorMessage(code: "max_file_size" | "max_files") {
@@ -98,36 +90,6 @@ export async function uploadChatAttachments(
       }
     })
   )
-}
-
-export function opencodePartsFromMessage(
-  text: string,
-  attachments: ChatAttachment[]
-): TextPartInput[] {
-  const parts: TextPartInput[] = attachments.map(
-    (attachment) =>
-      ({
-        metadata: { agentz_attachment: attachment },
-        synthetic: true,
-        text: [
-          "<attached_file>",
-          `path: ${JSON.stringify(`/home/agentz/${attachment.path}`)}`,
-          `name: ${JSON.stringify(attachment.filename)}`,
-          `media_type: ${JSON.stringify(attachment.mediaType)}`,
-          `size: ${attachment.size} bytes`,
-          "The path is exact. Copy it verbatim; do not shorten or remove directories.",
-          "Use analyze_file when you need the contents of this file.",
-          "</attached_file>",
-        ].join("\n"),
-        type: "text",
-      }) satisfies TextPartInput
-  )
-
-  if (text.length > 0) {
-    parts.push({ text, type: "text" })
-  }
-
-  return parts
 }
 
 export function attachmentFromPart(

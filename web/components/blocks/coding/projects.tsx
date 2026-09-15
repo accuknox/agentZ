@@ -98,11 +98,11 @@ export function ProjectPicker({
     >
       <DialogContent className="gap-0 p-0 sm:max-w-md">
         <DialogHeader className="sr-only">
-          <DialogTitle>New chat in…</DialogTitle>
+          <DialogTitle>New chat in...</DialogTitle>
           <DialogDescription>Choose a project for your new chat.</DialogDescription>
         </DialogHeader>
         <Command>
-          <CommandInput placeholder="New chat in…" />
+          <CommandInput placeholder="New chat in..." />
           <CommandList className="p-2">
             <CommandEmpty>No projects found.</CommandEmpty>
             {projects.map((project) => (
@@ -656,7 +656,7 @@ export function Projects({
                 variant={dialog?.action === "rename" ? "default" : "destructive"}
               >
                 {pending
-                  ? "Working…"
+                  ? "Working..."
                   : dialog?.action === "rename"
                     ? "Save name"
                     : dialog?.action === "remove"
@@ -819,7 +819,7 @@ export function CheckoutPicker({
                   {item.kind === "main" ? (
                     <CommandItem
                       value={item.key}
-                      className="h-8 text-xs"
+                      className="data-[checked=true]:bg-muted h-8 text-xs"
                       data-checked={checkout === "main"}
                       onSelect={() => {
                         onChange("main")
@@ -835,8 +835,11 @@ export function CheckoutPicker({
                   ) : item.kind === "branch" ? (
                     <CommandItem
                       value={item.key}
-                      className="h-8 text-xs"
-                      data-checked={checkout === "new" && baseRef === item.branch.ref}
+                      className="data-[checked=true]:bg-muted h-8 text-xs"
+                      data-checked={
+                        checkout === "new" &&
+                        (baseRef ?? `refs/heads/${project.default_branch}`) === item.branch.ref
+                      }
                       title={item.branch.ref}
                       onSelect={() => {
                         onChange("new", item.branch.ref)
@@ -858,7 +861,7 @@ export function CheckoutPicker({
                   ) : (
                     <CommandItem
                       value={item.key}
-                      className="h-8 text-xs"
+                      className="data-[checked=true]:bg-muted h-8 text-xs"
                       disabled={!item.tree.available || pending}
                       data-checked={checkout === item.tree.managed_id}
                       title={item.tree.reason ?? item.tree.directory}

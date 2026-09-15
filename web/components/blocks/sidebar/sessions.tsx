@@ -12,6 +12,8 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
+  type InfiniteData,
+  type QueryClient,
 } from "@tanstack/react-query"
 import {
   Activity,
@@ -239,6 +241,50 @@ function chatSessionsOptions(
   })
 }
 
+async function removeChatSessionFromCache(
+  queryClient: QueryClient,
+  workspaceId: string,
+  session: Pick<ChatSession, "agent_name" | "session_id">
+) {
+  const queryKey = chatSessionKeys.workspace(workspaceId)
+  await queryClient.cancelQueries({ queryKey })
+  queryClient.setQueriesData<InfiniteData<ListChatSessionsResponse>>(
+    { queryKey, predicate: (query) => query.queryKey[2] === "list" },
+    (current) =>
+      current && {
+        ...current,
+        pages: current.pages.map((page) => ({
+          ...page,
+          sessions: page.sessions.filter(
+            (entry) =>
+              entry.agent_name !== session.agent_name || entry.session_id !== session.session_id
+          ),
+          groups: page.groups.map((group) => ({
+            ...group,
+            sessions: group.sessions.filter(
+              (entry) =>
+                entry.agent_name !== session.agent_name || entry.session_id !== session.session_id
+            ),
+          })),
+        })),
+      }
+  )
+  queryClient.setQueriesData<InfiniteData<ChatSessionGroup>>(
+    { queryKey, predicate: (query) => query.queryKey[2] === "group" },
+    (current) =>
+      current && {
+        ...current,
+        pages: current.pages.map((page) => ({
+          ...page,
+          sessions: page.sessions.filter(
+            (entry) =>
+              entry.agent_name !== session.agent_name || entry.session_id !== session.session_id
+          ),
+        })),
+      }
+  )
+}
+
 export function NavSessions({
   userId,
   agents,
@@ -333,6 +379,7 @@ function NavSessionsContent({
   const queryClient = useQueryClient()
   const router = useRouter()
   const path = usePathname()
+  const [initialPath] = useState(path)
   const query = useSearchParams()
   const { isMobile, setOpenMobile } = useSidebar()
   const draftScope = `${userId}:${workspaceId}`
@@ -460,6 +507,7 @@ function NavSessionsContent({
       (searchLength === 0 || (searchLength >= 3 && searchLength <= 200)) &&
       (preferences.group_by !== "date" || timeZone !== ""),
     initialData:
+      path === initialPath &&
       matchesInitialPreferences &&
       querySearch === "" &&
       preferences.group_by !== "date" &&
@@ -489,10 +537,21 @@ function NavSessionsContent({
       queryClient.setQueryData(preferenceKey, saved)
     },
   })
+  useEffect(() => {
+    const channel = new BroadcastChannel(`chatSessionDeletion:${workspaceId}`)
+    channel.onmessage = (event: MessageEvent<Pick<ChatSession, "agent_name" | "session_id">>) => {
+      void removeChatSessionFromCache(queryClient, workspaceId, event.data)
+    }
+    return () => channel.close()
+  }, [queryClient, workspaceId])
+
   const watch = useQuery(chatSessionWatchOptions(workspaceId, userId))
 
   useEffect(() => {
     if (!watch.data) return
+    void queryClient.invalidateQueries({
+      predicate: (query) => query.queryKey[0] === "chatInputs" && query.queryKey[1] === workspaceId,
+    })
     void queryClient.invalidateQueries({ queryKey: chatSessionKeys.workspace(workspaceId) })
   }, [queryClient, watch.data, workspaceId])
 
@@ -1505,6 +1564,13 @@ function SessionCard({
       )
       if (!result.success) return result
 
+      await removeChatSessionFromCache(queryClient, workspaceId, session)
+      const channel = new BroadcastChannel(`chatSessionDeletion:${workspaceId}`)
+      channel.postMessage({
+        agent_name: session.agent_name,
+        session_id: session.session_id,
+      } satisfies Pick<ChatSession, "agent_name" | "session_id">)
+      channel.close()
       toast.success("Chat deleted")
       setConfirmingDelete(false)
 

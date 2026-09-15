@@ -118,6 +118,7 @@ type Service struct {
 	skillStore         *skill.Client
 	skillImports       chan struct{}
 	chatSessionEvents  chatSessionEvents
+	chatInputWake      chan struct{}
 	codingEvents       chatSessionEvents
 	catalog            *inference.Catalog
 	openAPI            *openapi3.T
@@ -341,6 +342,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		externalJWTKeyfunc: externalJWTKeyfunc,
 		skillStore:         skillStore,
 		skillImports:       make(chan struct{}, 4),
+		chatInputWake:      make(chan struct{}, 1),
 		catalog:            inference.NewCatalog(nil),
 		openAPI:            openAPISpec,
 		outboundHTTP:       &http.Client{Timeout: 10 * time.Second},
@@ -358,6 +360,8 @@ func Serve(ctx context.Context, cfg Config) error {
 		defer close(dashboardRetentionDone)
 		svc.runDashboardRetention(runCtx)
 	}()
+	chatInputsDone := make(chan struct{})
+	go func() { defer close(chatInputsDone); svc.runChatInputs(runCtx) }()
 	codingDone := make(chan struct{})
 	go func() { defer close(codingDone); svc.runCoding(runCtx) }()
 	codingEventsDone := make(chan struct{})
@@ -422,6 +426,7 @@ func Serve(ctx context.Context, cfg Config) error {
 	stopRun()
 	<-dashboardRetentionDone
 	<-chatSessionNotificationsDone
+	<-chatInputsDone
 	<-codingDone
 	<-codingEventsDone
 	<-cleanupDone

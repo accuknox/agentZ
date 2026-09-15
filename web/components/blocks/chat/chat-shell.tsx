@@ -7,15 +7,17 @@ import type { Route } from "next"
 import { useRouter } from "@bprogress/next/app"
 import { useState, type ReactNode } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
-import { useQuery } from "@tanstack/react-query"
+import { queryOptions, skipToken, useQuery } from "@tanstack/react-query"
 import { sessionInfoQueryOptions } from "./use-opencode-chat"
 import { SidebarTrigger } from "@/components/ui/sidebar"
+import { GitBranchIcon } from "lucide-react"
+import { authClient } from "@/lib/auth-client"
+import { runWorkspaceGit } from "@/lib/coding/review"
 
 type ChatShellProps = Pick<
   ChatProps,
   | "createSession"
   | "composerContext"
-  | "draftId"
   | "initialMessage"
   | "onDraftChange"
   | "draftModel"
@@ -23,6 +25,7 @@ type ChatShellProps = Pick<
   | "draftMode"
   | "onDraftModeChange"
 > & {
+  draftId?: string
   onDraftPromoted?: () => void
   onDraftAgentChange?: (name: string) => void
   draftPath?: string
@@ -87,6 +90,18 @@ export function ChatShell({
   workspacePath,
 }: ChatShellProps): React.JSX.Element {
   const [previewerOpen, setPreviewerOpen] = useState(false)
+  const { data: actor } = authClient.useSession()
+  // GitActions owns status fetching and refreshes after Git events.
+  const gitStatus = useQuery(
+    queryOptions({
+      queryKey: ["coding", "git", workspaceId, codingThread?.worktree.id, actor?.user.id],
+      queryFn: codingThread
+        ? () => runWorkspaceGit(workspaceId, codingThread.worktree.id, { operation: "status" })
+        : skipToken,
+      enabled: false,
+    })
+  )
+  const branch = gitStatus.data?.branch ?? codingThread?.worktree.branch
   const [promotedSession, setPromotedSession] = useState<{
     chatKey: string
     sessionId: string
@@ -154,12 +169,25 @@ export function ChatShell({
             draftModel={draftModel}
             onDraftModelChange={onDraftModelChange}
             onDraftChange={activeSessionId ? undefined : onDraftChange}
-            composerContext={composerContext}
+            composerContext={
+              codingThread
+                ? () => (
+                    <span
+                      className="text-muted-foreground flex h-7 max-w-60 min-w-0 items-center gap-1.5 text-xs"
+                      title={`${branch || "Detached HEAD"}\n${codingThread.worktree.directory}`}
+                    >
+                      <GitBranchIcon aria-hidden="true" className="size-3.5 shrink-0" />
+                      <span className="truncate">
+                        {branch || codingThread.worktree.directory.split("/").at(-1)}
+                      </span>
+                    </span>
+                  )
+                : composerContext
+            }
             revertDisabled={codingThread?.worktree.shared}
             agentName={agentName}
             agentNames={agentNames}
             chatPreferences={chatPreferences}
-            draftId={activeDraftId}
             projectName={projectName}
             firstName={firstName}
             greetingIndex={greetingIndex}
@@ -179,6 +207,9 @@ export function ChatShell({
               router.refresh({ showProgress: false })
             }}
             promptMobile={previewerOpen}
+            navigationPending={
+              activePromotion !== undefined && routeSessionId !== activePromotion.sessionId
+            }
             sessionId={activeSessionId}
             workspaceId={workspaceId}
             workspacePath={workspacePath}

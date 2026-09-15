@@ -358,17 +358,17 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 
 	permission := gatewayapi.OpencodePermissionRuleset{
 		{
-			Action:     gatewayapi.Deny,
+			Action:     gatewayapi.OpencodePermissionActionDeny,
 			Permission: "question",
 			Pattern:    "*",
 		},
 		{
-			Action:     gatewayapi.Deny,
+			Action:     gatewayapi.OpencodePermissionActionDeny,
 			Permission: "plan_enter",
 			Pattern:    "*",
 		},
 		{
-			Action:     gatewayapi.Deny,
+			Action:     gatewayapi.OpencodePermissionActionDeny,
 			Permission: "plan_exit",
 			Pattern:    "*",
 		},
@@ -403,7 +403,7 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 			permission = append(
 				permission,
 				gatewayapi.OpencodePermissionRule{
-					Action:     gatewayapi.Allow,
+					Action:     gatewayapi.OpencodePermissionActionAllow,
 					Permission: ref.Name + "_" + tool.Name,
 					Pattern:    "*",
 				},

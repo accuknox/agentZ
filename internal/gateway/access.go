@@ -38,13 +38,15 @@ import (
 )
 
 type resourceAccess struct {
-	claims      gatewayClaims
-	effective   authorization.Effective
-	namespace   string
-	workspaceID string
-	owner       metav1.OwnerReference
-	operation   authorization.Operation
-	authorized  bool
+	userID         string
+	organizationID string
+	claims         gatewayClaims
+	effective      authorization.Effective
+	namespace      string
+	workspaceID    string
+	owner          metav1.OwnerReference
+	operation      authorization.Operation
+	authorized     bool
 }
 
 type resourceAccessRequest struct {

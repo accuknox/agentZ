@@ -2,14 +2,19 @@ package gateway
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/tmaxmax/go-sse"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 	listersv1alpha1 "github.com/accuknox/agentz/pkg/controller/listers/agentz/v1alpha1"
 )
@@ -122,5 +127,154 @@ func TestPTYProxyOrigins(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// TestOpenCodeSchemaReferences catches incomplete OpenAPI conversion before startup.
+func TestOpenCodeSchemaReferences(t *testing.T) {
+	if _, err := gatewayapi.GetSwagger(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+type openCodeStreamCase struct {
+	name     string
+	coding   bool
+	global   bool
+	upstream string
+}
+
+// TestOpenCodeEventTransport exercises native envelopes and large multiline frames.
+func TestOpenCodeEventTransport(t *testing.T) {
+	for _, test := range []openCodeStreamCase{
+		{name: "coding global", coding: true, global: true, upstream: "/event"},
+		{name: "coding scoped", coding: true, upstream: "/event"},
+		{name: "general global", global: true, upstream: "/global/event"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			delta := gatewayapi.OpencodeEventMessagePartDelta{
+				Id: "evt_test", Type: gatewayapi.OpencodeEventMessagePartDeltaTypeMessagePartDelta,
+			}
+			delta.Properties.SessionID = "ses_test"
+			delta.Properties.MessageID = "msg_test"
+			delta.Properties.PartID = "prt_test"
+			delta.Properties.Field = "text"
+			delta.Properties.Delta = strings.Repeat("message\n", 12000)
+			raw, err := json.MarshalIndent(delta, "", "  ")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if test.global && !test.coding {
+				envelope := gatewayapi.OpencodeGlobalEvent{Directory: "/upstream/checkout"}
+				if err := envelope.Payload.UnmarshalJSON(raw); err != nil {
+					t.Fatal(err)
+				}
+				raw, err = json.MarshalIndent(envelope, "", "  ")
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != test.upstream || r.URL.Query().Get("directory") != "/requested/checkout" {
+					t.Errorf("unexpected upstream request %s", r.URL)
+				}
+				if r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" {
+					t.Error("caller credentials reached the engine")
+				}
+				w.Header().Set("Content-Type", "text/event-stream")
+				var message sse.Message
+				message.AppendData(string(raw))
+				if _, err := message.WriteTo(w); err != nil {
+					t.Error(err)
+				}
+			}))
+			defer upstream.Close()
+			target, err := url.Parse(upstream.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			auth := requestAuth{}
+			if test.coding {
+				auth.workspaceType = agentzv1alpha1.WorkspaceTypeCoding
+			}
+			req := httptest.NewRequest(http.MethodGet, "/event?directory=/requested/checkout", nil)
+			req.Header.Set("Authorization", "Basic secret")
+			req.Header.Set("Cookie", "session=secret")
+			req = req.WithContext(context.WithValue(req.Context(), authContextKey{}, auth))
+			route := &opencodeRouteMatch{ID: "event.subscribe"}
+			if test.global {
+				route.ID = "global.event"
+			}
+			response := httptest.NewRecorder()
+			service := Service{outboundHTTP: upstream.Client()}
+			service.streamOpenCodeEvents(response, req, route, target, resourceAccess{}, "agent")
+			count := 0
+			for event, err := range sse.Read(response.Body, &sse.ReadConfig{MaxEventSize: 1 << 20}) {
+				if err != nil {
+					t.Fatal(err)
+				}
+				count++
+				data := []byte(event.Data)
+				if test.global {
+					var envelope gatewayapi.OpencodeGlobalEvent
+					if err := json.Unmarshal(data, &envelope); err != nil {
+						t.Fatal(err)
+					}
+					want := "/upstream/checkout"
+					if test.coding {
+						want = "/requested/checkout"
+					}
+					if envelope.Directory != want {
+						t.Fatalf("directory %q, want %q", envelope.Directory, want)
+					}
+					data, err = envelope.Payload.MarshalJSON()
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+				var received gatewayapi.OpencodeEventMessagePartDelta
+				if err := json.Unmarshal(data, &received); err != nil {
+					t.Fatal(err)
+				}
+				if received != delta {
+					t.Fatal("event payload changed in transit")
+				}
+			}
+			if count != 1 {
+				t.Fatalf("received %d events, want 1", count)
+			}
+		})
+	}
+}
+
+// TestAPIKeyPromptIdentity prevents key IDs from replacing their owner's identity.
+func TestAPIKeyPromptIdentity(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/session/ses_test/message", strings.NewReader(`{"parts":[{"type":"text","text":"hello"}]}`))
+	auth := requestAuth{
+		actorType: requestActorAPIKey, actorID: "key_test", actorName: "Terminal key",
+		userID: "user_test", userName: "Terminal user",
+	}
+	route := &opencodeRouteMatch{ID: "session.prompt"}
+	if err := attributeOpenCodePrompt(req, route, auth); err != nil {
+		t.Fatal(err)
+	}
+	var body gatewayapi.SessionPromptJSONBody
+	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	part, err := body.Parts[0].AsOpencodeTextPartInput()
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal((*part.Metadata)[opencodeActorMetadataKey])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var actor opencodeMessageActor
+	if err := json.Unmarshal(raw, &actor); err != nil {
+		t.Fatal(err)
+	}
+	if actor.ID != auth.userID || actor.Name != auth.userName || actor.Type != requestActorUser {
+		t.Fatalf("prompt actor = %+v", actor)
 	}
 }

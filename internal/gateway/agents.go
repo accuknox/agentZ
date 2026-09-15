@@ -38,6 +38,8 @@ func (s *Service) resolveAgentAccess(ctx context.Context, name string, operation
 	}
 	auth, ok := requestAuthState(ctx)
 	if ok && auth.actorType == requestActorSystem {
+		access.userID = auth.userID
+		access.organizationID = auth.organizationID
 		access.workspaceID = auth.workspaceID
 		access.namespace = auth.tenantNamespace
 		access.authorized = true
@@ -49,6 +51,8 @@ func (s *Service) resolveAgentAccess(ctx context.Context, name string, operation
 				fmt.Errorf("agent API key does not permit operation %q", operation),
 			)
 		}
+		access.userID = auth.userID
+		access.organizationID = auth.organizationID
 		access.workspaceID = auth.workspaceID
 		access.namespace = auth.tenantNamespace
 		access.authorized = true
@@ -62,6 +66,8 @@ func (s *Service) resolveAgentAccess(ctx context.Context, name string, operation
 		return access, resourceForbidden(errors.New("agent operations require a Workspace scope"))
 	}
 	access.claims = claims
+	access.userID = claims.UserID
+	access.organizationID = claims.OrganizationID
 	access.workspaceID = claims.WorkspaceID
 
 	effective, err := authorization.New(s.queries).Resolve(

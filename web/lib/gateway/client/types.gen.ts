@@ -2266,7 +2266,7 @@ export type CodingProjectDetail = {
   threads: Array<CodingThread>
 }
 
-export type CreateCodingThreadRequest = {
+export type PrepareCodingCheckoutRequest = {
   id: string
   project_id: string
   agent_name: string
@@ -3046,31 +3046,32 @@ export type UpdateCodingProjectPreferenceResponses = {
 export type UpdateCodingProjectPreferenceResponse =
   UpdateCodingProjectPreferenceResponses[keyof UpdateCodingProjectPreferenceResponses]
 
-export type CreateCodingThreadData = {
-  body: CreateCodingThreadRequest
+export type PrepareCodingCheckoutData = {
+  body: PrepareCodingCheckoutRequest
   path?: never
   query?: never
-  url: "/api/coding/thread"
+  url: "/api/coding/checkout"
 }
 
-export type CreateCodingThreadErrors = {
+export type PrepareCodingCheckoutErrors = {
   /**
    * Request failed.
    */
   default: Error
 }
 
-export type CreateCodingThreadError = CreateCodingThreadErrors[keyof CreateCodingThreadErrors]
+export type PrepareCodingCheckoutError =
+  PrepareCodingCheckoutErrors[keyof PrepareCodingCheckoutErrors]
 
-export type CreateCodingThreadResponses = {
+export type PrepareCodingCheckoutResponses = {
   /**
-   * Prepared thread.
+   * Prepared checkout.
    */
-  201: CodingThread
+  201: CodingWorktree
 }
 
-export type CreateCodingThreadResponse =
-  CreateCodingThreadResponses[keyof CreateCodingThreadResponses]
+export type PrepareCodingCheckoutResponse =
+  PrepareCodingCheckoutResponses[keyof PrepareCodingCheckoutResponses]
 
 export type GetCodingThreadData = {
   body?: never
@@ -3620,46 +3621,6 @@ export type UpdateChatInputResponses = {
 }
 
 export type UpdateChatInputResponse = UpdateChatInputResponses[keyof UpdateChatInputResponses]
-
-export type StopChatInputsData = {
-  body?: never
-  path: {
-    agentName: AgentName
-    sessionId: string
-  }
-  query?: never
-  url: "/api/chat-session/{agentName}/{sessionId}/input/stop"
-}
-
-export type StopChatInputsErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * Request authentication failed.
-   */
-  401: Error
-  /**
-   * The authenticated principal lacks authority for this operation.
-   */
-  403: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type StopChatInputsError = StopChatInputsErrors[keyof StopChatInputsErrors]
-
-export type StopChatInputsResponses = {
-  /**
-   * Stop execution and recover unsent messages.
-   */
-  200: ChatInputs
-}
-
-export type StopChatInputsResponse = StopChatInputsResponses[keyof StopChatInputsResponses]
 
 export type GetChatSessionPreferenceData = {
   body?: never

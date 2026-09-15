@@ -151,21 +151,21 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Error'}
-  /api/coding/thread:
+  /api/coding/checkout:
     post:
-      operationId: createCodingThread
+      operationId: prepareCodingCheckout
       tags: [coding]
       requestBody:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/CreateCodingThreadRequest'}
+            schema: {$ref: '#/components/schemas/PrepareCodingCheckoutRequest'}
       responses:
         '201':
-          description: Prepared thread.
+          description: Prepared checkout.
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/CodingThread'}
+              schema: {$ref: '#/components/schemas/CodingWorktree'}
         default:
           description: Request failed.
           content:
@@ -503,28 +503,6 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ChatInput'}
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '500':
-          $ref: '#/components/responses/InternalError'
-  /api/chat-session/{agentName}/{sessionId}/input/stop:
-    parameters:
-    - {name: agentName, in: path, required: true, schema: {$ref: '#/components/schemas/AgentName'}}
-    - {name: sessionId, in: path, required: true, schema: {type: string, minLength: 1}}
-    post:
-      operationId: stopChatInputs
-      summary: Stop execution and recover unsent messages.
-      tags: [chat-sessions]
-      responses:
-        '200':
-          description: Stop execution and recover unsent messages.
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/ChatInputs'}
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -5870,6 +5848,7 @@ components:
       - Failed
 
     WorkflowRunStatus:
+      x-enum-varnames: [WorkflowRunStatusPending, WorkflowRunStatusRunning, WorkflowRunStatusSucceeded, WorkflowRunStatusFailed, WorkflowRunStatusUnacked]
       type: string
       enum:
       - Pending
@@ -9916,7 +9895,7 @@ components:
           type: array
           items: {$ref: '#/components/schemas/CodingThread'}
       required: [project, worktrees, threads]
-    CreateCodingThreadRequest:
+    PrepareCodingCheckoutRequest:
       type: object
       additionalProperties: false
       properties:

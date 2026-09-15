@@ -14,7 +14,6 @@ import {
   createAgentDirectory,
   createAgentFile,
   createCodingProject,
-  createCodingThread,
   createDashboard,
   createInferencePool,
   createInferenceProvider,
@@ -110,6 +109,7 @@ import {
   type Options,
   patchWorkflowRunNodeStatus,
   patchWorkflowRunStatus,
+  prepareCodingCheckout,
   previewImmutableSkillImport,
   previewMutableSkillImport,
   publishDashboardData,
@@ -127,7 +127,6 @@ import {
   runCodingGit,
   startCodingOperation,
   statAgentFile,
-  stopChatInputs,
   submitChatInput,
   suggestCodingText,
   transferAgentOwner,
@@ -161,9 +160,6 @@ import type {
   CreateCodingProjectData,
   CreateCodingProjectError,
   CreateCodingProjectResponse,
-  CreateCodingThreadData,
-  CreateCodingThreadError,
-  CreateCodingThreadResponse,
   CreateDashboardData,
   CreateDashboardError,
   CreateDashboardResponse,
@@ -446,6 +442,9 @@ import type {
   PatchWorkflowRunStatusData,
   PatchWorkflowRunStatusError,
   PatchWorkflowRunStatusResponse,
+  PrepareCodingCheckoutData,
+  PrepareCodingCheckoutError,
+  PrepareCodingCheckoutResponse,
   PreviewImmutableSkillImportData,
   PreviewImmutableSkillImportError,
   PreviewImmutableSkillImportResponse,
@@ -497,9 +496,6 @@ import type {
   StatAgentFileData,
   StatAgentFileError,
   StatAgentFileResponse,
-  StopChatInputsData,
-  StopChatInputsError,
-  StopChatInputsResponse,
   SubmitChatInputData,
   SubmitChatInputError,
   SubmitChatInputResponse,
@@ -729,20 +725,20 @@ export const updateCodingProjectPreferenceMutation = (
   return mutationOptions
 }
 
-export const createCodingThreadMutation = (
-  options?: Partial<Options<CreateCodingThreadData>>
+export const prepareCodingCheckoutMutation = (
+  options?: Partial<Options<PrepareCodingCheckoutData>>
 ): UseMutationOptions<
-  CreateCodingThreadResponse,
-  CreateCodingThreadError,
-  Options<CreateCodingThreadData>
+  PrepareCodingCheckoutResponse,
+  PrepareCodingCheckoutError,
+  Options<PrepareCodingCheckoutData>
 > => {
   const mutationOptions: UseMutationOptions<
-    CreateCodingThreadResponse,
-    CreateCodingThreadError,
-    Options<CreateCodingThreadData>
+    PrepareCodingCheckoutResponse,
+    PrepareCodingCheckoutError,
+    Options<PrepareCodingCheckoutData>
   > = {
     mutationFn: async (fnOptions) => {
-      const { data } = await createCodingThread({
+      const { data } = await prepareCodingCheckout({
         ...options,
         ...fnOptions,
         throwOnError: true,
@@ -1194,29 +1190,6 @@ export const updateChatInputMutation = (
   > = {
     mutationFn: async (fnOptions) => {
       const { data } = await updateChatInput({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      })
-      return data
-    },
-  }
-  return mutationOptions
-}
-
-/**
- * Stop execution and recover unsent messages.
- */
-export const stopChatInputsMutation = (
-  options?: Partial<Options<StopChatInputsData>>
-): UseMutationOptions<StopChatInputsResponse, StopChatInputsError, Options<StopChatInputsData>> => {
-  const mutationOptions: UseMutationOptions<
-    StopChatInputsResponse,
-    StopChatInputsError,
-    Options<StopChatInputsData>
-  > = {
-    mutationFn: async (fnOptions) => {
-      const { data } = await stopChatInputs({
         ...options,
         ...fnOptions,
         throwOnError: true,

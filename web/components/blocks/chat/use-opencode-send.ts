@@ -10,7 +10,6 @@ import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import {
   listChatInputs,
-  stopChatInputs,
   submitChatInput,
   updateChatInput,
   type ChatInput,
@@ -20,7 +19,7 @@ import {
 } from "@/lib/gateway/client"
 import { uploadChatAttachments } from "./attachments"
 import { opencodeErrorMessage } from "./errors"
-import { sessionInfoQueryKey } from "./use-opencode-chat"
+import { updateSessionInfo } from "./use-opencode-chat"
 
 export type CreateSession = (input: {
   text: string
@@ -80,14 +79,12 @@ export function useOpencodeSend(
     mutationKey: ["chatStop", workspaceId, agentName, resolvedSessionID],
     mutationFn: async () => {
       if (!resolvedSessionID) throw new Error("Chat has not been created")
-      const result = await stopChatInputs({
-        baseUrl: await getGatewayBaseURL(),
-        headers: { "X-AgentZ-Workspace-ID": workspaceId },
-        path: { agentName, sessionId: resolvedSessionID },
-      })
-      if (result.error) throw new Error(result.error.message)
-      queryClient.setQueryData(queueKey, result.data)
-      return result.data
+      const client = await createAgentOpencodeClient(agentName, workspaceId)
+      const result = await client.session.abort({ sessionID: resolvedSessionID })
+      if (result.error)
+        throw new Error(opencodeErrorMessage(result.error, "Could not stop the run"))
+      await queryClient.invalidateQueries({ queryKey: queueKey, refetchType: "none" })
+      return queryClient.fetchQuery(options)
     },
     onError: (error) => toast.error("Could not stop the run", { description: error.message }),
   })
@@ -160,7 +157,7 @@ export function useOpencodeSend(
           id = session.id
           createdSession.current = id
           setPendingSessionID(id)
-          queryClient.setQueryData(sessionInfoQueryKey(workspaceId, agentName, id), session)
+          await updateSessionInfo(queryClient, agentName, workspaceId, session)
         }
         setPending((current) =>
           current.map((item) =>

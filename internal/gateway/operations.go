@@ -345,22 +345,25 @@ func (s *Service) runCodingOperation(ctx context.Context, job gatewaydb.CodingOp
 		)
 	}
 	err := s.executeCodingOperation(ctx, job, input, &result, publish)
+	if ctx.Err() != nil {
+		// Expiry recovery marks this operation interrupted. A cancelled worker
+		// must never publish a success or replay an unconfirmed remote write.
+		return
+	}
+	// Completion wakes readers, so discard pre-mutation snapshots first.
+	cacheErr := s.queries.GatewayInvalidateCodingSnapshots(ctx, job.ProjectID)
+	if cacheErr != nil {
+		slog.ErrorContext(ctx, "invalidate coding snapshots", "error", cacheErr)
+		err = errors.Join(err, fmt.Errorf("invalidate coding snapshots: %w", cacheErr))
+	}
 	result.State = gatewayapi.CodingOperationSucceeded
 	stage := "Completed"
 	if err != nil {
 		result.State, result.Error = gatewayapi.CodingOperationFailed, new(err.Error())
 		stage = "Failed"
 	}
-	if ctx.Err() != nil {
-		// Expiry recovery marks this operation interrupted. A cancelled worker
-		// must never publish a success or replay an unconfirmed remote write.
-		return
-	}
 	if err := publish(stage); err != nil {
 		slog.ErrorContext(ctx, "save coding result", "operation", job.ID, "error", err)
-	}
-	if err := s.queries.GatewayInvalidateCodingSnapshots(ctx, job.ProjectID); err != nil {
-		slog.ErrorContext(ctx, "invalidate coding snapshots", "error", err)
 	}
 }
 
@@ -371,7 +374,7 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 	if err := publish("Preparing checkout"); err != nil {
 		return err
 	}
-	_, release, err := s.lockCodingProject(ctx, job.ProjectID)
+	_, release, err := lockGatewayResource(ctx, s.lockDB, job.ProjectID, false)
 	if err != nil {
 		return err
 	}
@@ -832,7 +835,7 @@ func (s *Service) nameCodingBranch(ctx context.Context, job gatewaydb.CodingOper
 	if err != nil {
 		return err
 	}
-	q, release, err := s.lockCodingProject(ctx, job.ProjectID)
+	q, release, err := lockGatewayResource(ctx, s.lockDB, job.ProjectID, false)
 	if err != nil {
 		return err
 	}

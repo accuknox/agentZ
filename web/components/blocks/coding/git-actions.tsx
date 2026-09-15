@@ -25,7 +25,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useEffectEvent, useRef, useState } from "react"
 import {
   experimental_streamedQuery as streamedQuery,
   queryOptions,
@@ -33,6 +33,7 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
+  type QueryFilters,
 } from "@tanstack/react-query"
 import { ChevronDown, CloudDownload, CloudUpload, GitCommitHorizontal, Info } from "lucide-react"
 import { GitHubDark } from "@ridemountainpig/svgl-react"
@@ -40,9 +41,9 @@ import { toast } from "sonner"
 import { authClient } from "@/lib/auth-client"
 import {
   codingOperationOptions,
+  codingGitOptions,
   gitQueries,
   gitQuickAction,
-  runWorkspaceGit,
   startWorkspaceOperation,
 } from "@/lib/coding/review"
 import { watchCoding, type CodingThread, type WatchChatSessionsEvent } from "@/lib/gateway/client"
@@ -87,13 +88,7 @@ export function GitActions({ thread, workspaceId }: { thread: CodingThread; work
         operation.project_id === tree.project_id &&
         (operation.state === "queued" || operation.state === "running")
     ) === true
-  const status = useQuery(
-    queryOptions({
-      queryKey: ["coding", "git", workspaceId, tree.id, actor?.user.id],
-      queryFn: () => runWorkspaceGit(workspaceId, tree.id, { operation: "status" }),
-      enabled: !!actor?.user.id,
-    })
-  )
+  const status = useQuery(codingGitOptions(workspaceId, tree.id, actor?.user.id))
   const [dialog, setDialog] = useState(false)
   const [message, setMessage] = useState("")
   const [excluded, setExcluded] = useState<Set<string>>(new Set())
@@ -575,25 +570,32 @@ export function CodingActivity({ workspaceId }: { workspaceId: string }) {
       retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
     })
   )
-  useEffect(() => {
-    if (!watch.data) return
-    void queryClient.invalidateQueries({
+  const refreshCheckouts = useEffectEvent(() => {
+    const filters: QueryFilters = {
       predicate: (query) =>
         query.queryKey[0] === "coding" &&
         query.queryKey[2] === workspaceId &&
         (query.queryKey[1] === "git" ||
           query.queryKey[1] === "refs" ||
-          query.queryKey[1] === "operations"),
-    })
-  }, [watch.data, watch.dataUpdatedAt, queryClient, workspaceId])
+          query.queryKey[1] === "thread"),
+    }
+    void queryClient.cancelQueries(filters).then(() => queryClient.invalidateQueries(filters))
+  })
+  useEffect(() => {
+    if (!watch.data) return
+    refreshCheckouts()
+    void queryClient.invalidateQueries(codingOperationOptions(workspaceId, actor?.user.id))
+  }, [watch.data, watch.dataUpdatedAt, queryClient, workspaceId, actor?.user.id])
   useEffect(() => {
     if (!operations.data) return
     const initial = !historyLoaded.current
+    let completed = false
     historyLoaded.current = true
     for (const operation of operations.data) {
       const signature = `${operation.state}:${operation.stage}`
       if (seen.current.get(operation.id) === signature) continue
       seen.current.set(operation.id, signature)
+      if (operation.state !== "queued" && operation.state !== "running") completed = true
       const id = `coding:${operation.id}`
       if (operation.action === "name_branch") {
         if (!initial && (operation.state === "failed" || operation.state === "interrupted")) {
@@ -644,6 +646,8 @@ export function CodingActivity({ workspaceId }: { workspaceId: string }) {
         toast.dismiss(id)
       }
     }
+    // Polling recovers a terminal transition even if its notification was lost.
+    if (completed) refreshCheckouts()
   }, [operations.data, actor?.user.id])
   return null
 }

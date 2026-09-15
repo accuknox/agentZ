@@ -564,7 +564,7 @@ function ChatInner({
     scope: { id: `chat-preferences:${workspaceId}` },
   })
   const {
-    applyOptimisticSession,
+    updateSession,
     blocked,
     hasEarlierMessages,
     isLoadingEarlier,
@@ -977,8 +977,7 @@ function ChatInner({
     },
   })
 
-  // Fold the echoed session into the live store for an instant update; the
-  // matching session.updated stream event reconciles it (see applyOptimisticSession).
+  // Publish the response immediately; the matching stream event may arrive later.
   const applyRevert = useCallback(
     async (messageID?: string) => {
       if (!sessionId || isStopping) return
@@ -989,9 +988,9 @@ function ChatInner({
       if (result.error || !result.data) {
         throw new Error(opencodeErrorMessage(result.error, "Failed to update session"))
       }
-      applyOptimisticSession(result.data)
+      await updateSession(result.data)
     },
-    [agentName, applyOptimisticSession, directory, isStopping, sessionId, workspaceId]
+    [agentName, updateSession, directory, isStopping, sessionId, workspaceId]
   )
 
   // A resendable composer draft (non-synthetic text + file attachments) for a

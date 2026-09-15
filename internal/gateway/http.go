@@ -27,7 +27,7 @@ func (s *Service) handleRouteError(w http.ResponseWriter, r *http.Request, err e
 }
 
 func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst any, allowEmpty bool) bool {
-	err := apiutil.DecodeJSONBody(w, r, dst, allowEmpty)
+	err := apiutil.DecodeJSONBody(r, dst, allowEmpty)
 	if err == nil {
 		return true
 	}

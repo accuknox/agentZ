@@ -12,7 +12,7 @@ import { opencodeErrorMessage } from "@/components/blocks/chat/errors"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import {
-  createCodingThread,
+  prepareCodingCheckout,
   updateCodingProjectPreference,
   type CodingProject,
   type ChatSessionPreference,
@@ -150,7 +150,7 @@ export function CodingChat({
       createSession={async ({ text, model, onProgress }) => {
         void rememberAgent(agentName)
         onProgress(draft.checkout === "new" ? "Preparing worktree..." : "Opening checkout...")
-        const result = await createCodingThread({
+        const result = await prepareCodingCheckout({
           baseUrl: await getGatewayBaseURL(),
           headers: { "X-AgentZ-Workspace-ID": workspaceId },
           body: {
@@ -164,21 +164,24 @@ export function CodingChat({
           },
         })
         if (result.error) throw new Error(result.error.message)
-        const thread = result.data
+        const worktree = result.data
         onProgress("Starting chat...")
-        if (
-          draft.checkout === "new" &&
-          text &&
-          thread.worktree.branch === `chore/${thread.worktree.id}`
-        ) {
+        const client = await createAgentOpencodeClient(agentName, workspaceId)
+        const session = draft.sessionID
+          ? await client.session.get({ sessionID: draft.sessionID })
+          : await client.session.create({ directory: worktree.directory })
+        if (session.error)
+          throw new Error(opencodeErrorMessage(session.error, "Could not start the conversation"))
+        codingDrafts.save({ ...draft, sessionID: session.data.id })
+        if (draft.checkout === "new" && text && worktree.branch === `chore/${worktree.id}`) {
           try {
-            const status = await runWorkspaceGit(workspaceId, thread.worktree.id, {
+            const status = await runWorkspaceGit(workspaceId, worktree.id, {
               operation: "status",
             })
             await startWorkspaceOperation(workspaceId, {
-              id: thread.id,
+              id: draft.id,
               agent_name: agentName,
-              session_id: thread.session_id,
+              session_id: session.data.id,
               action: "name_branch",
               branch: status.branch,
               expected_head: status.head,
@@ -188,15 +191,11 @@ export function CodingChat({
             })
           } catch {
             toast.warning("Couldn't name your branch", {
-              id: `coding:${thread.id}`,
+              id: `coding:${draft.id}`,
               description: "You can keep chatting with the current branch name.",
             })
           }
         }
-        const client = await createAgentOpencodeClient(agentName, workspaceId)
-        const session = await client.session.get({ sessionID: thread.session_id })
-        if (session.error)
-          throw new Error(opencodeErrorMessage(session.error, "Could not load the new thread"))
         return session.data
       }}
     />

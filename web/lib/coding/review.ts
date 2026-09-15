@@ -1,6 +1,7 @@
-import { queryOptions } from "@tanstack/react-query"
+import { queryOptions, skipToken } from "@tanstack/react-query"
 import {
   runCodingGit,
+  getCodingThread,
   listCodingOperations,
   startCodingOperation,
   type CodingOperationRequest,
@@ -28,6 +29,38 @@ export async function runWorkspaceGit(
   })
   if (result.error) throw new Error(result.error.message)
   return result.data
+}
+
+export function codingThreadOptions(workspaceId: string, agentName: string, sessionId: string) {
+  return queryOptions({
+    queryKey: ["coding", "thread", workspaceId, agentName, sessionId] as const,
+    queryFn: async ({ signal }) => {
+      const { data } = await getCodingThread({
+        baseUrl: await getGatewayBaseURL(),
+        headers: { "X-AgentZ-Workspace-ID": workspaceId },
+        path: { agentName, sessionId },
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    staleTime: 60_000,
+    retry: false,
+  })
+}
+
+export function codingGitOptions(
+  workspaceId: string,
+  worktreeId: string | undefined,
+  userId: string | undefined
+) {
+  return queryOptions({
+    queryKey: ["coding", "git", workspaceId, worktreeId, userId] as const,
+    queryFn: worktreeId
+      ? ({ signal }) => runWorkspaceGit(workspaceId, worktreeId, { operation: "status" }, signal)
+      : skipToken,
+    enabled: !!worktreeId && !!userId,
+  })
 }
 
 export function gitQueries(

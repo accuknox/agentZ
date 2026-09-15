@@ -186,7 +186,7 @@ func (s *Service) AdoptCodingWorktree(w http.ResponseWriter, r *http.Request, pr
 		apiutil.WriteError(w, r, apiErr)
 		return
 	}
-	q, release, err := s.lockCodingProject(r.Context(), projectId)
+	q, release, err := lockGatewayResource(r.Context(), s.lockDB, projectId, false)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
@@ -574,7 +574,7 @@ func (s *Service) loadCodingSnapshot(ctx context.Context, access resourceAccess,
 				)
 			}
 		case remote != snapshot.RemoteRefs:
-			_, release, err := s.lockCodingProject(ctx, project.ID)
+			_, release, err := lockGatewayResource(ctx, s.lockDB, project.ID, false)
 			if err != nil {
 				return err
 			}

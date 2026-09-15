@@ -92,7 +92,7 @@ func WriteJSON(w http.ResponseWriter, status int, body any) {
 }
 
 // DecodeJSONBody decodes a single JSON object from the request body.
-func DecodeJSONBody(_ http.ResponseWriter, r *http.Request, dst any, allowEmpty bool) error {
+func DecodeJSONBody(r *http.Request, dst any, allowEmpty bool) error {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 

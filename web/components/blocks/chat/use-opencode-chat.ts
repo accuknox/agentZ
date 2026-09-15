@@ -1,12 +1,12 @@
 "use client"
 
 import type {
-  Event as OpencodeEventV2,
+  Event as StreamEvent,
   Message,
   Part,
   PermissionRequest,
   QuestionRequest,
-  Session as SessionV2,
+  Session,
   SessionStatus,
   SessionStatusResponse,
   SnapshotFileDiff,
@@ -18,6 +18,7 @@ import {
   useInfiniteQuery,
   useQuery,
   useQueryClient,
+  type QueryClient,
 } from "@tanstack/react-query"
 import { useCallback, useEffectEvent, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
@@ -46,7 +47,6 @@ type OpencodeChatStore = {
   part: Record<string, Part[]>
   partTextAccumDelta: Record<string, string>
   message: Record<string, Message[]>
-  session?: SessionV2
   // Todos are keyed by sessionID and cleared whenever the turn that produced
   // them completes. Empty arrays collapse to "no todos" so the dock hides.
   todos: Record<string, Todo[]>
@@ -55,15 +55,13 @@ type OpencodeChatStore = {
 type HitlStore = {
   permissions: Record<string, PermissionRequest[]>
   questions: Record<string, QuestionRequest[]>
-  sessions: SessionV2[]
+  sessions: Session[]
 }
 
 const emptyHitlStore: HitlStore = { permissions: {}, questions: {}, sessions: [] }
 
-type StreamEvent = OpencodeEventV2
-
 type UseOpencodeChatResult = {
-  applyOptimisticSession: (info: SessionV2) => void
+  updateSession: (info: Session) => Promise<void>
   blocked: boolean
   loadError?: string
   isBusy: boolean
@@ -77,7 +75,7 @@ type UseOpencodeChatResult = {
   permissions: PermissionRequest[]
   questions: QuestionRequest[]
   questionRequest?: QuestionRequest
-  session?: SessionV2
+  session?: Session
   sessionCost: number
   sessionStatus?: SessionStatus
   reload: () => void
@@ -91,7 +89,7 @@ const idleSessionStatus: SessionStatus = { type: "idle" }
 function deriveSessionIsBusy(
   messages: Message[],
   sessionStatus: SessionStatus | undefined,
-  session: SessionV2 | undefined
+  session: Session | undefined
 ): boolean {
   // OpenCode owns the lifecycle. Message state only bridges bootstrap before
   // the first status snapshot arrives.
@@ -126,16 +124,11 @@ function upsertPart(parts: Part[], next: Part) {
   return at < 0 ? [...parts, next] : [...parts.slice(0, at), next, ...parts.slice(at)]
 }
 
-function buildStore(
-  sessionID: string,
-  session: SessionV2 | undefined,
-  records: SessionMessageRecord[]
-) {
+function buildStore(sessionID: string, records: SessionMessageRecord[]) {
   const store: OpencodeChatStore = {
     part: {},
     partTextAccumDelta: {},
     message: {},
-    session,
     todos: {},
   }
   store.message[sessionID] = records
@@ -212,7 +205,7 @@ function buildRequestMap<T extends { sessionID: string }>(items: T[]) {
   return result
 }
 
-function visibleSessionIDs(sessions: SessionV2[], sessionID: string) {
+function visibleSessionIDs(sessions: Session[], sessionID: string) {
   const childMap = sessions.reduce((acc, item) => {
     if (!item.parentID) return acc
     const list = acc.get(item.parentID) ?? []
@@ -238,7 +231,7 @@ function visibleSessionIDs(sessions: SessionV2[], sessionID: string) {
 
 function firstVisibleRequest<T extends { sessionID: string }>(
   requests: Record<string, T[]>,
-  sessions: SessionV2[],
+  sessions: Session[],
   sessionID?: string
 ) {
   if (!sessionID) return undefined
@@ -341,17 +334,6 @@ function applyEvent(store: OpencodeChatStore, event: StreamEvent): OpencodeChatS
       return { ...store, todos: nextTodos }
     }
 
-    case "session.created":
-    case "session.updated":
-      return store.session?.id === event.properties.info.id
-        ? { ...store, session: event.properties.info }
-        : store
-
-    case "session.deleted":
-      return store.session?.id === event.properties.info.id
-        ? { ...store, session: undefined }
-        : store
-
     default:
       return store
   }
@@ -449,17 +431,13 @@ function applyHitlEvent(store: HitlStore, event: StreamEvent): HitlStore {
   }
 }
 
-export function sessionInfoQueryKey(workspaceId: string, agentName: string, sessionID: string) {
-  return ["opencode", "sessionInfo", workspaceId, agentName, sessionID] as const
-}
-
 function sessionMessagesBaseQueryKey(workspaceId: string, agentName: string, sessionID: string) {
   return ["opencode", "sessionMessages", workspaceId, agentName, sessionID] as const
 }
 
 export function sessionInfoQueryOptions(agentName: string, workspaceId: string, sessionID: string) {
   return queryOptions({
-    queryFn: async ({ signal }) => {
+    queryFn: async ({ signal, client: queryClient, queryKey }): Promise<Session | null> => {
       const client = await createAgentOpencodeClient(agentName, workspaceId)
       const result = await client.session.get({ sessionID }, { signal })
 
@@ -467,11 +445,31 @@ export function sessionInfoQueryOptions(agentName: string, workspaceId: string, 
         throw new Error(opencodeErrorMessage(result.error, "Failed to load session"))
       }
 
+      // An event may have advanced metadata while this snapshot was in flight.
+      const current = queryClient.getQueryData<Session | null>(queryKey)
+      if (current === null || (current && current.time.updated > result.data.time.updated)) {
+        return current
+      }
       return result.data
     },
-    queryKey: sessionInfoQueryKey(workspaceId, agentName, sessionID),
+    queryKey: ["opencode", "sessionInfo", workspaceId, agentName, sessionID] as const,
     retry: false,
     staleTime: 60_000,
+  })
+}
+
+// Creation, stream events and revert responses all publish the same metadata.
+export async function updateSessionInfo(
+  queryClient: QueryClient,
+  agentName: string,
+  workspaceId: string,
+  info: Session
+) {
+  const { queryKey } = sessionInfoQueryOptions(agentName, workspaceId, info.id)
+  await queryClient.cancelQueries({ queryKey, exact: true })
+  queryClient.setQueryData(queryKey, (current) => {
+    if (current === null || (current && current.time.updated > info.time.updated)) return current
+    return info
   })
 }
 
@@ -701,7 +699,6 @@ export function useOpencodeChat(
         part: {},
         partTextAccumDelta: {},
         message: {},
-        session: undefined,
         todos: {},
       }
     }
@@ -710,8 +707,8 @@ export function useOpencodeChat(
     for (const page of history.data?.pages ?? []) {
       for (const record of page.records) records.set(record.info.id, record)
     }
-    return buildStore(sessionID, session.data, [...records.values()])
-  }, [history.data, session.data, sessionID])
+    return buildStore(sessionID, [...records.values()])
+  }, [history.data, sessionID])
   // Loading another history page retains the first page object, while an
   // authoritative refetch replaces it. Session metadata refetches must not
   // discard messages received from the live stream.
@@ -780,19 +777,7 @@ export function useOpencodeChat(
           ...current,
           [event.properties.sessionID]: idleSessionStatus,
         }))
-        // The gateway persists the status response for the shared session
-        // sidebar. Reconcile on the terminal event so its activity state does
-        // not remain busy after the local event stream has settled.
-        void refetchStatus()
         if (event.properties.sessionID === sessionID) refreshSession = true
-      }
-
-      if (
-        event.type === "session.updated" &&
-        event.properties.info.id === sessionID &&
-        event.properties.info.title !== store.session?.title
-      ) {
-        refreshSession = true
       }
 
       switch (event.type) {
@@ -801,14 +786,26 @@ export function useOpencodeChat(
         case "message.part.updated":
         case "message.part.delta":
         case "message.part.removed":
-        case "session.created":
-        case "session.updated":
-        case "session.deleted":
         case "todo.updated":
           hasStoreUpdate = true
           break
         default:
           break
+      }
+
+      if (event.type === "session.created" || event.type === "session.updated") {
+        void updateSessionInfo(queryClient, agentName, workspaceId, event.properties.info)
+      }
+      if (event.type === "session.deleted") {
+        const { queryKey } = sessionInfoQueryOptions(
+          agentName,
+          workspaceId,
+          event.properties.info.id
+        )
+        // A tombstone prevents a delayed response from resurrecting this session.
+        void queryClient.cancelQueries({ queryKey, exact: true }).then(() => {
+          queryClient.setQueryData(queryKey, null)
+        })
       }
 
       switch (event.type) {
@@ -856,9 +853,7 @@ export function useOpencodeChat(
       }))
     }
 
-    // Session GET responses update the gateway catalog. Title changes and the
-    // terminal event both reconcile so a transient first fetch cannot leave
-    // workspace sidebars stale.
+    // Idle reconciles metadata even when the upstream omitted an update event.
     if (refreshSession) void refetchSession()
   })
 
@@ -1016,18 +1011,12 @@ export function useOpencodeChat(
     sessionID,
   ])
 
-  // Fold an authoritative Session (e.g. a revert response) into the live store
-  // instead of the query cache; seeding the cache flips back to baseStore, which
-  // rebuilds messages from stale history.data and drops streamed turns.
-  const applyOptimisticSession = useCallback(
-    (info: SessionV2) => {
-      setLiveStore((current) => {
-        const currentStore = current?.version === baseStoreVersion ? current.store : baseStore
-        if (currentStore.session?.id !== info.id) return current
-        return { store: { ...currentStore, session: info }, version: baseStoreVersion }
-      })
+  const updateSession = useCallback(
+    async (info: Session) => {
+      if (info.id !== sessionID) return
+      await updateSessionInfo(queryClient, agentName, workspaceId, info)
     },
-    [baseStore, baseStoreVersion]
+    [queryClient, agentName, workspaceId, sessionID]
   )
 
   const reconnectStream = useCallback(() => {
@@ -1052,14 +1041,14 @@ export function useOpencodeChat(
   }, [baseStore, baseStoreVersion, fetchNextHistoryPage, sessionID])
 
   return {
-    applyOptimisticSession,
+    updateSession,
     blocked: permissionRequest !== undefined || questionRequest !== undefined,
     loadError:
       session.error?.message ??
       history.error?.message ??
       hitl.error?.message ??
       status.error?.message,
-    isBusy: deriveSessionIsBusy(messages, sessionStatus, store.session),
+    isBusy: deriveSessionIsBusy(messages, sessionStatus, session.data ?? undefined),
     hasEarlierMessages: history.hasNextPage,
     isLoadingEarlier: history.isFetchingNextPage,
     isPending: Boolean(sessionID) && (session.isPending || history.isPending),
@@ -1072,7 +1061,7 @@ export function useOpencodeChat(
     questionRequest,
     reconnectStream,
     reload,
-    session: store.session,
+    session: session.data ?? undefined,
     sessionCost: messages.reduce(
       (total, m) => (m.role === "assistant" ? total + m.cost : total),
       0

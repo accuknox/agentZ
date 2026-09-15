@@ -7,12 +7,12 @@ import type { Route } from "next"
 import { useRouter } from "@bprogress/next/app"
 import { useState, type ReactNode } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
-import { queryOptions, skipToken, useQuery } from "@tanstack/react-query"
+import { useQuery } from "@tanstack/react-query"
 import { sessionInfoQueryOptions } from "./use-opencode-chat"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { GitBranchIcon } from "lucide-react"
 import { authClient } from "@/lib/auth-client"
-import { runWorkspaceGit } from "@/lib/coding/review"
+import { codingGitOptions, codingThreadOptions } from "@/lib/coding/review"
 
 type ChatShellProps = Pick<
   ChatProps,
@@ -80,7 +80,7 @@ export function ChatShell({
   agentName,
   agentNames = [agentName],
   chatPreferences,
-  codingThread,
+  codingThread: initialThread,
   projectName,
   firstName,
   greetingIndex,
@@ -91,17 +91,6 @@ export function ChatShell({
 }: ChatShellProps): React.JSX.Element {
   const [previewerOpen, setPreviewerOpen] = useState(false)
   const { data: actor } = authClient.useSession()
-  // GitActions owns status fetching and refreshes after Git events.
-  const gitStatus = useQuery(
-    queryOptions({
-      queryKey: ["coding", "git", workspaceId, codingThread?.worktree.id, actor?.user.id],
-      queryFn: codingThread
-        ? () => runWorkspaceGit(workspaceId, codingThread.worktree.id, { operation: "status" })
-        : skipToken,
-      enabled: false,
-    })
-  )
-  const branch = gitStatus.data?.branch ?? codingThread?.worktree.branch
   const [promotedSession, setPromotedSession] = useState<{
     chatKey: string
     sessionId: string
@@ -132,8 +121,21 @@ export function ChatShell({
   const sessionTitle = useQuery({
     ...sessionInfoQueryOptions(agentName, workspaceId, activeSessionId ?? ""),
     enabled: false,
-    select: (session) => session.title,
+    select: (session) => session?.title,
   })
+
+  const { data: codingThread } = useQuery({
+    ...codingThreadOptions(workspaceId, agentName, activeSessionId ?? ""),
+    enabled: !!activeSessionId && (!!initialThread || !!createSession),
+    initialData: initialThread?.session_id === activeSessionId ? initialThread : undefined,
+    initialDataUpdatedAt: 0,
+  })
+  // GitActions owns fetching; both branch labels observe the same status.
+  const gitStatus = useQuery({
+    ...codingGitOptions(workspaceId, codingThread?.worktree.id, actor?.user.id),
+    enabled: false,
+  })
+  const branch = gitStatus.data?.branch ?? codingThread?.worktree.branch
 
   return (
     <div className="relative flex h-full min-h-0 min-w-0 overflow-hidden">

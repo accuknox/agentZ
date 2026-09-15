@@ -16,6 +16,7 @@ type Querier interface {
 	GatewayAdoptCodingWorktree(ctx context.Context, arg GatewayAdoptCodingWorktreeParams) (CodingWorktree, error)
 	GatewayAgentExists(ctx context.Context, arg GatewayAgentExistsParams) (bool, error)
 	GatewayAssignWorkspaceAdmins(ctx context.Context, arg GatewayAssignWorkspaceAdminsParams) (int64, error)
+	GatewayBindCodingSession(ctx context.Context, arg GatewayBindCodingSessionParams) error
 	GatewayChatInputsStopping(ctx context.Context, arg GatewayChatInputsStoppingParams) (bool, error)
 	GatewayClaimCleanupJob(ctx context.Context, arg GatewayClaimCleanupJobParams) (CleanupJob, error)
 	GatewayClaimCodingOperation(ctx context.Context, leaseToken string) (CodingOperation, error)
@@ -32,7 +33,6 @@ type Querier interface {
 	GatewayCreateChatInput(ctx context.Context, arg GatewayCreateChatInputParams) (ChatInput, error)
 	GatewayCreateCodingOperation(ctx context.Context, arg GatewayCreateCodingOperationParams) (CodingOperation, error)
 	GatewayCreateCodingProject(ctx context.Context, arg GatewayCreateCodingProjectParams) (CodingProject, error)
-	GatewayCreateCodingThread(ctx context.Context, arg GatewayCreateCodingThreadParams) (CodingThread, error)
 	GatewayCreateCodingWorktree(ctx context.Context, arg GatewayCreateCodingWorktreeParams) (CodingWorktree, error)
 	GatewayCreateEventTrailEvent(ctx context.Context, arg GatewayCreateEventTrailEventParams) (EventTrailEvent, error)
 	GatewayCreateWorkspace(ctx context.Context, arg GatewayCreateWorkspaceParams) error
@@ -54,7 +54,7 @@ type Querier interface {
 	GatewayDeletingCodingWorktree(ctx context.Context, arg GatewayDeletingCodingWorktreeParams) error
 	GatewayFailCleanupJob(ctx context.Context, arg GatewayFailCleanupJobParams) (int64, error)
 	GatewayGetAPIKeyByHash(ctx context.Context, arg GatewayGetAPIKeyByHashParams) (GatewayGetAPIKeyByHashRow, error)
-	GatewayGetAPIKeyScopeByKey(ctx context.Context, arg GatewayGetAPIKeyScopeByKeyParams) (ApiKeyScope, error)
+	GatewayGetAPIKeyScopeByKey(ctx context.Context, arg GatewayGetAPIKeyScopeByKeyParams) (GatewayGetAPIKeyScopeByKeyRow, error)
 	GatewayGetAgent(ctx context.Context, arg GatewayGetAgentParams) (Agent, error)
 	GatewayGetAgentOwner(ctx context.Context, arg GatewayGetAgentOwnerParams) (AgentOwner, error)
 	GatewayGetAgentShare(ctx context.Context, arg GatewayGetAgentShareParams) (AgentShare, error)
@@ -118,8 +118,9 @@ type Querier interface {
 	GatewayLockAgentOwner(ctx context.Context, arg GatewayLockAgentOwnerParams) (AgentOwner, error)
 	GatewayLockAgentShares(ctx context.Context, arg GatewayLockAgentSharesParams) ([]AgentShare, error)
 	GatewayLockCodingIdentity(ctx context.Context, id string) (string, error)
-	GatewayLockCodingProject(ctx context.Context, projectID string) error
+	GatewayLockCodingWorktree(ctx context.Context, id string) error
 	GatewayLockOrganization(ctx context.Context, organizationID string) (GatewayLockOrganizationRow, error)
+	GatewayLockResource(ctx context.Context, arg GatewayLockResourceParams) error
 	GatewayLockTeam(ctx context.Context, arg GatewayLockTeamParams) (string, error)
 	GatewayNotifyChatInputs(ctx context.Context, arg GatewayNotifyChatInputsParams) error
 	GatewayNotifyCoding(ctx context.Context, arg GatewayNotifyCodingParams) error
@@ -135,14 +136,13 @@ type Querier interface {
 	GatewayResolveCodingSession(ctx context.Context, arg GatewayResolveCodingSessionParams) (GatewayResolveCodingSessionRow, error)
 	GatewayResolvePermissions(ctx context.Context, arg GatewayResolvePermissionsParams) ([]GatewayResolvePermissionsRow, error)
 	GatewayResolveWorkspaceSlug(ctx context.Context, arg GatewayResolveWorkspaceSlugParams) (GatewayResolveWorkspaceSlugRow, error)
+	GatewayResourceBusy(ctx context.Context, identity string) (bool, error)
 	GatewayRetryCleanupJob(ctx context.Context, arg GatewayRetryCleanupJobParams) (int64, error)
 	GatewayRetryWorkspaceProvisioning(ctx context.Context, arg GatewayRetryWorkspaceProvisioningParams) (int64, error)
 	GatewayRevokeScopedAPIKey(ctx context.Context, arg GatewayRevokeScopedAPIKeyParams) (int64, error)
 	GatewaySaveCodingSnapshot(ctx context.Context, arg GatewaySaveCodingSnapshotParams) (int64, error)
 	GatewaySearchGroupedChatSessions(ctx context.Context, arg GatewaySearchGroupedChatSessionsParams) ([]GatewaySearchGroupedChatSessionsRow, error)
 	GatewaySeedCodingSnapshots(ctx context.Context) error
-	GatewaySetCodingThreadSession(ctx context.Context, arg GatewaySetCodingThreadSessionParams) error
-	GatewayShareCodingWorktree(ctx context.Context, id string) error
 	GatewayStopChatInputs(ctx context.Context, arg GatewayStopChatInputsParams) error
 	GatewaySyncAgentChatSessionStatuses(ctx context.Context, arg GatewaySyncAgentChatSessionStatusesParams) error
 	GatewayTeamExists(ctx context.Context, arg GatewayTeamExistsParams) (bool, error)
@@ -151,9 +151,8 @@ type Querier interface {
 	GatewayTouchCodingSnapshot(ctx context.Context, arg GatewayTouchCodingSnapshotParams) (CodingSnapshot, error)
 	GatewayTransferAgentOwner(ctx context.Context, arg GatewayTransferAgentOwnerParams) (AgentOwner, error)
 	GatewayTransitionWorkspaceProvisioning(ctx context.Context, arg GatewayTransitionWorkspaceProvisioningParams) (int64, error)
-	GatewayTryLockChatInputs(ctx context.Context, identity string) (bool, error)
-	GatewayUnlockChatInputs(ctx context.Context, identity string) (bool, error)
-	GatewayUnlockCodingProject(ctx context.Context, projectID string) (bool, error)
+	GatewayUnlockResource(ctx context.Context, arg GatewayUnlockResourceParams) (bool, error)
+	GatewayUnlockResources(ctx context.Context) error
 	GatewayUpdateChatInput(ctx context.Context, arg GatewayUpdateChatInputParams) (ChatInput, error)
 	GatewayUpdateCodingBranch(ctx context.Context, arg GatewayUpdateCodingBranchParams) error
 	GatewayUpdateCodingOperation(ctx context.Context, arg GatewayUpdateCodingOperationParams) (int64, error)

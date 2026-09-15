@@ -23,9 +23,6 @@ import type {
   CreateCodingProjectData,
   CreateCodingProjectErrors,
   CreateCodingProjectResponses,
-  CreateCodingThreadData,
-  CreateCodingThreadErrors,
-  CreateCodingThreadResponses,
   CreateDashboardData,
   CreateDashboardErrors,
   CreateDashboardResponses,
@@ -308,6 +305,9 @@ import type {
   PatchWorkflowRunStatusData,
   PatchWorkflowRunStatusErrors,
   PatchWorkflowRunStatusResponses,
+  PrepareCodingCheckoutData,
+  PrepareCodingCheckoutErrors,
+  PrepareCodingCheckoutResponses,
   PreviewImmutableSkillImportData,
   PreviewImmutableSkillImportErrors,
   PreviewImmutableSkillImportResponses,
@@ -359,9 +359,6 @@ import type {
   StatAgentFileData,
   StatAgentFileErrors,
   StatAgentFileResponses,
-  StopChatInputsData,
-  StopChatInputsErrors,
-  StopChatInputsResponses,
   SubmitChatInputData,
   SubmitChatInputErrors,
   SubmitChatInputResponses,
@@ -548,16 +545,16 @@ export const updateCodingProjectPreference = <ThrowOnError extends boolean = fal
     },
   })
 
-export const createCodingThread = <ThrowOnError extends boolean = false>(
-  options: Options<CreateCodingThreadData, ThrowOnError>
+export const prepareCodingCheckout = <ThrowOnError extends boolean = false>(
+  options: Options<PrepareCodingCheckoutData, ThrowOnError>
 ) =>
   (options.client ?? client).post<
-    CreateCodingThreadResponses,
-    CreateCodingThreadErrors,
+    PrepareCodingCheckoutResponses,
+    PrepareCodingCheckoutErrors,
     ThrowOnError
   >({
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/coding/thread",
+    url: "/api/coding/checkout",
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -783,18 +780,6 @@ export const updateChatInput = <ThrowOnError extends boolean = false>(
       "Content-Type": "application/json",
       ...options.headers,
     },
-  })
-
-/**
- * Stop execution and recover unsent messages.
- */
-export const stopChatInputs = <ThrowOnError extends boolean = false>(
-  options: Options<StopChatInputsData, ThrowOnError>
-) =>
-  (options.client ?? client).post<StopChatInputsResponses, StopChatInputsErrors, ThrowOnError>({
-    security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/chat-session/{agentName}/{sessionId}/input/stop",
-    ...options,
   })
 
 /**

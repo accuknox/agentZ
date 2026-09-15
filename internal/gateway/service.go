@@ -107,6 +107,7 @@ type Service struct {
 	dashboards         dashboarddb.Querier
 	db                 *pgxpool.Pool
 	lockDB             *pgxpool.Pool
+	controlDB          *pgxpool.Pool
 	cfg                Config
 	bao                *baoapi.Client
 	baoKV              *baoapi.KVv2
@@ -301,6 +302,14 @@ func Serve(ctx context.Context, cfg Config) error {
 		return fmt.Errorf("ping postgres lock pool: %w", err)
 	}
 
+	// Cancellation and event persistence must remain available when long
+	// executions occupy every project-lock connection.
+	controlDB, err := pgxpool.NewWithConfig(ctx, lockCfg.Copy())
+	if err != nil {
+		return fmt.Errorf("create postgres control pool: %w", err)
+	}
+	defer controlDB.Close()
+
 	baoClient, err := baoclient.NewClient(
 		ctx,
 		cfg.OpenBaoAddr,
@@ -332,6 +341,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		dashboards:         dashboarddb.New(db),
 		db:                 db,
 		lockDB:             lockDB,
+		controlDB:          controlDB,
 		cfg:                cfg,
 		bao:                baoClient,
 		baoKV:              baoClient.KVv2(cfg.OpenBaoSecretMountPath),

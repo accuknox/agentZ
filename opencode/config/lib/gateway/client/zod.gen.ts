@@ -2529,7 +2529,7 @@ export const zCodingProjectDetail = z.object({
   threads: z.array(zCodingThread),
 })
 
-export const zCreateCodingThreadRequest = z.object({
+export const zPrepareCodingCheckoutRequest = z.object({
   id: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
   project_id: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
   agent_name: z.string().min(1).max(32),
@@ -3232,12 +3232,12 @@ export const zUpdateCodingProjectPreferencePath = z.object({
  */
 export const zUpdateCodingProjectPreferenceResponse = z.void()
 
-export const zCreateCodingThreadBody = zCreateCodingThreadRequest
+export const zPrepareCodingCheckoutBody = zPrepareCodingCheckoutRequest
 
 /**
- * Prepared thread.
+ * Prepared checkout.
  */
-export const zCreateCodingThreadResponse = zCodingThread
+export const zPrepareCodingCheckoutResponse = zCodingWorktree
 
 export const zGetCodingThreadPath = z.object({
   agentName: z.string(),
@@ -3407,16 +3407,6 @@ export const zUpdateChatInputPath = z.object({
  * Remove or retry your queued message.
  */
 export const zUpdateChatInputResponse = zChatInput
-
-export const zStopChatInputsPath = z.object({
-  agentName: zAgentName,
-  sessionId: z.string().min(1),
-})
-
-/**
- * Stop execution and recover unsent messages.
- */
-export const zStopChatInputsResponse = zChatInputs
 
 /**
  * Workspace-scoped preferences for the current user.

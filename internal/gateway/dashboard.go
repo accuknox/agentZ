@@ -1872,7 +1872,7 @@ func validateDashboardWidget(widget gatewayapi.DashboardWidgetDefinition) error 
 			}
 			previous = threshold.Value
 			switch threshold.Tone {
-			case gatewayapi.Neutral, gatewayapi.Warning, gatewayapi.Critical:
+			case gatewayapi.DashboardGaugeThresholdToneNeutral, gatewayapi.DashboardGaugeThresholdToneWarning, gatewayapi.DashboardGaugeThresholdToneCritical:
 			default:
 				return fmt.Errorf("thresholds[%d] has unsupported tone %q", i, threshold.Tone)
 			}

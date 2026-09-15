@@ -158,6 +158,37 @@ func (q *Queries) GatewayAssignWorkspaceAdmins(ctx context.Context, arg GatewayA
 	return result.RowsAffected(), nil
 }
 
+const gatewayBindCodingSession = `-- name: GatewayBindCodingSession :exec
+WITH binding AS (
+  INSERT INTO coding_threads(id, workspace_id, agent_name, worktree_id, session_id)
+  VALUES ($2, $3, $4, $1, $5)
+  ON CONFLICT (workspace_id, agent_name, session_id) DO NOTHING
+  RETURNING worktree_id
+)
+UPDATE coding_worktrees SET shared = true
+WHERE id IN (SELECT worktree_id FROM binding)
+  AND EXISTS (SELECT 1 FROM coding_threads thread WHERE thread.worktree_id = $1)
+`
+
+type GatewayBindCodingSessionParams struct {
+	WorktreeID  string      `json:"worktree_id"`
+	ID          string      `json:"id"`
+	WorkspaceID string      `json:"workspace_id"`
+	AgentName   string      `json:"agent_name"`
+	SessionID   pgtype.Text `json:"session_id"`
+}
+
+func (q *Queries) GatewayBindCodingSession(ctx context.Context, arg GatewayBindCodingSessionParams) error {
+	_, err := q.db.Exec(ctx, gatewayBindCodingSession,
+		arg.WorktreeID,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.SessionID,
+	)
+	return err
+}
+
 const gatewayChatInputsStopping = `-- name: GatewayChatInputsStopping :one
 SELECT EXISTS (SELECT 1 FROM chat_input_sessions WHERE workspace_id = $1
   AND agent_name = $2 AND session_id = $3 AND stopping)::boolean
@@ -759,38 +790,6 @@ func (q *Queries) GatewayCreateCodingProject(ctx context.Context, arg GatewayCre
 	return i, err
 }
 
-const gatewayCreateCodingThread = `-- name: GatewayCreateCodingThread :one
-INSERT INTO coding_threads(id, workspace_id, agent_name, worktree_id)
-VALUES ($1, $2, $3, $4)
-ON CONFLICT (id) DO NOTHING RETURNING id, workspace_id, agent_name, worktree_id, session_id, created_at
-`
-
-type GatewayCreateCodingThreadParams struct {
-	ID          string `json:"id"`
-	WorkspaceID string `json:"workspace_id"`
-	AgentName   string `json:"agent_name"`
-	WorktreeID  string `json:"worktree_id"`
-}
-
-func (q *Queries) GatewayCreateCodingThread(ctx context.Context, arg GatewayCreateCodingThreadParams) (CodingThread, error) {
-	row := q.db.QueryRow(ctx, gatewayCreateCodingThread,
-		arg.ID,
-		arg.WorkspaceID,
-		arg.AgentName,
-		arg.WorktreeID,
-	)
-	var i CodingThread
-	err := row.Scan(
-		&i.ID,
-		&i.WorkspaceID,
-		&i.AgentName,
-		&i.WorktreeID,
-		&i.SessionID,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const gatewayCreateCodingWorktree = `-- name: GatewayCreateCodingWorktree :one
 INSERT INTO coding_worktrees(id, workspace_id, project_id, agent_name, directory, branch)
 VALUES ($1, $2, $3, $4, $5, $6)
@@ -1145,17 +1144,29 @@ func (q *Queries) GatewayDeleteAgentShare(ctx context.Context, arg GatewayDelete
 }
 
 const gatewayDeleteChatSession = `-- name: GatewayDeleteChatSession :exec
-WITH deleted_threads AS (
-DELETE FROM coding_threads
-WHERE coding_threads.workspace_id = $1
-  AND coding_threads.agent_name = $2
-  AND coding_threads.session_id = $3
+WITH RECURSIVE descendants(session_id) AS (
+  SELECT $1::text
+  UNION
+  SELECT child.session_id FROM chat_sessions child
+  JOIN descendants parent ON child.parent_session_id = parent.session_id
+  WHERE child.workspace_id = $2 AND child.agent_name = $3
+), deleted_threads AS (
+  DELETE FROM coding_threads
+  WHERE workspace_id = $2 AND agent_name = $3
+    AND session_id IN (SELECT session_id FROM descendants)
+), deleted_traces AS (
+  DELETE FROM observer_traces ot
+  WHERE ot.tenant_namespace = $4
+    AND ot.agent_name = $3 AND ot.trace_id IN (
+      SELECT trace_id FROM observer_trace_sessions
+      WHERE tenant_namespace = $4 AND agent_name = $3
+        AND session_id IN (SELECT session_id FROM descendants)
+    )
 ), changed AS (
-DELETE FROM chat_sessions
-WHERE chat_sessions.workspace_id = $1
-  AND chat_sessions.agent_name = $2
-  AND chat_sessions.session_id = $3
-RETURNING chat_sessions.workspace_id, chat_sessions.agent_name, chat_sessions.session_id
+  DELETE FROM chat_sessions
+  WHERE workspace_id = $2 AND agent_name = $3
+    AND session_id IN (SELECT session_id FROM descendants)
+  RETURNING workspace_id, agent_name, session_id
 )
 SELECT pg_notify('agentz_chat_sessions', changed.workspace_id || COALESCE('/' || project.owner_id, ''))
 FROM changed
@@ -1166,13 +1177,19 @@ LEFT JOIN coding_projects project ON project.id = tree.project_id
 `
 
 type GatewayDeleteChatSessionParams struct {
-	WorkspaceID string      `json:"workspace_id"`
-	AgentName   string      `json:"agent_name"`
-	SessionID   pgtype.Text `json:"session_id"`
+	SessionID       pgtype.Text `json:"session_id"`
+	WorkspaceID     string      `json:"workspace_id"`
+	AgentName       string      `json:"agent_name"`
+	TenantNamespace string      `json:"tenant_namespace"`
 }
 
 func (q *Queries) GatewayDeleteChatSession(ctx context.Context, arg GatewayDeleteChatSessionParams) error {
-	_, err := q.db.Exec(ctx, gatewayDeleteChatSession, arg.WorkspaceID, arg.AgentName, arg.SessionID)
+	_, err := q.db.Exec(ctx, gatewayDeleteChatSession,
+		arg.SessionID,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.TenantNamespace,
+	)
 	return err
 }
 
@@ -1401,10 +1418,12 @@ SELECT
   api_key_scopes.organization_id,
   api_key_scopes.workspace_id,
   api_key_scopes.creator_user_id,
+  users.name AS creator_user_name,
   api_key_scopes.revoked_at,
   api_key_scopes.revoked_reason,
   api_key_scopes.created_at
 FROM api_key_scopes
+JOIN users ON users.id = api_key_scopes.creator_user_id
 JOIN apikeys ON apikeys.id = api_key_scopes.api_key_id
   AND apikeys.reference_id = api_key_scopes.organization_id
 JOIN workspaces ON workspaces.id = api_key_scopes.workspace_id
@@ -1419,14 +1438,26 @@ type GatewayGetAPIKeyScopeByKeyParams struct {
 	OrganizationID string `json:"organization_id"`
 }
 
-func (q *Queries) GatewayGetAPIKeyScopeByKey(ctx context.Context, arg GatewayGetAPIKeyScopeByKeyParams) (ApiKeyScope, error) {
+type GatewayGetAPIKeyScopeByKeyRow struct {
+	ApiKeyID        string             `json:"api_key_id"`
+	OrganizationID  string             `json:"organization_id"`
+	WorkspaceID     string             `json:"workspace_id"`
+	CreatorUserID   string             `json:"creator_user_id"`
+	CreatorUserName string             `json:"creator_user_name"`
+	RevokedAt       pgtype.Timestamptz `json:"revoked_at"`
+	RevokedReason   pgtype.Text        `json:"revoked_reason"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
+func (q *Queries) GatewayGetAPIKeyScopeByKey(ctx context.Context, arg GatewayGetAPIKeyScopeByKeyParams) (GatewayGetAPIKeyScopeByKeyRow, error) {
 	row := q.db.QueryRow(ctx, gatewayGetAPIKeyScopeByKey, arg.ApiKeyID, arg.OrganizationID)
-	var i ApiKeyScope
+	var i GatewayGetAPIKeyScopeByKeyRow
 	err := row.Scan(
 		&i.ApiKeyID,
 		&i.OrganizationID,
 		&i.WorkspaceID,
 		&i.CreatorUserID,
+		&i.CreatorUserName,
 		&i.RevokedAt,
 		&i.RevokedReason,
 		&i.CreatedAt,
@@ -5191,12 +5222,12 @@ func (q *Queries) GatewayLockCodingIdentity(ctx context.Context, id string) (str
 	return id_2, err
 }
 
-const gatewayLockCodingProject = `-- name: GatewayLockCodingProject :exec
-SELECT pg_advisory_lock(hashtextextended($1::text, 0))
+const gatewayLockCodingWorktree = `-- name: GatewayLockCodingWorktree :exec
+SELECT id FROM coding_worktrees WHERE id = $1 FOR UPDATE
 `
 
-func (q *Queries) GatewayLockCodingProject(ctx context.Context, projectID string) error {
-	_, err := q.db.Exec(ctx, gatewayLockCodingProject, projectID)
+func (q *Queries) GatewayLockCodingWorktree(ctx context.Context, id string) error {
+	_, err := q.db.Exec(ctx, gatewayLockCodingWorktree, id)
 	return err
 }
 
@@ -5218,6 +5249,22 @@ func (q *Queries) GatewayLockOrganization(ctx context.Context, organizationID st
 	var i GatewayLockOrganizationRow
 	err := row.Scan(&i.ID, &i.Name, &i.Slug)
 	return i, err
+}
+
+const gatewayLockResource = `-- name: GatewayLockResource :exec
+SELECT CASE WHEN $1::boolean
+  THEN pg_advisory_lock_shared(hashtextextended($2::text, 0))
+  ELSE pg_advisory_lock(hashtextextended($2::text, 0)) END
+`
+
+type GatewayLockResourceParams struct {
+	Shared   bool   `json:"shared"`
+	Identity string `json:"identity"`
+}
+
+func (q *Queries) GatewayLockResource(ctx context.Context, arg GatewayLockResourceParams) error {
+	_, err := q.db.Exec(ctx, gatewayLockResource, arg.Shared, arg.Identity)
+	return err
 }
 
 const gatewayLockTeam = `-- name: GatewayLockTeam :one
@@ -5773,6 +5820,17 @@ func (q *Queries) GatewayResolveWorkspaceSlug(ctx context.Context, arg GatewayRe
 	return i, err
 }
 
+const gatewayResourceBusy = `-- name: GatewayResourceBusy :one
+SELECT (NOT pg_try_advisory_xact_lock(hashtextextended($1::text, 0)))::boolean AS busy
+`
+
+func (q *Queries) GatewayResourceBusy(ctx context.Context, identity string) (bool, error) {
+	row := q.db.QueryRow(ctx, gatewayResourceBusy, identity)
+	var busy bool
+	err := row.Scan(&busy)
+	return busy, err
+}
+
 const gatewayRetryCleanupJob = `-- name: GatewayRetryCleanupJob :execrows
 UPDATE cleanup_jobs
 SET
@@ -6153,29 +6211,6 @@ func (q *Queries) GatewaySeedCodingSnapshots(ctx context.Context) error {
 	return err
 }
 
-const gatewaySetCodingThreadSession = `-- name: GatewaySetCodingThreadSession :exec
-UPDATE coding_threads SET session_id = $1 WHERE id = $2
-`
-
-type GatewaySetCodingThreadSessionParams struct {
-	SessionID pgtype.Text `json:"session_id"`
-	ID        string      `json:"id"`
-}
-
-func (q *Queries) GatewaySetCodingThreadSession(ctx context.Context, arg GatewaySetCodingThreadSessionParams) error {
-	_, err := q.db.Exec(ctx, gatewaySetCodingThreadSession, arg.SessionID, arg.ID)
-	return err
-}
-
-const gatewayShareCodingWorktree = `-- name: GatewayShareCodingWorktree :exec
-UPDATE coding_worktrees SET shared = true WHERE id = $1
-`
-
-func (q *Queries) GatewayShareCodingWorktree(ctx context.Context, id string) error {
-	_, err := q.db.Exec(ctx, gatewayShareCodingWorktree, id)
-	return err
-}
-
 const gatewayStopChatInputs = `-- name: GatewayStopChatInputs :exec
 INSERT INTO chat_input_sessions (workspace_id, agent_name, session_id, stopping)
 VALUES ($1, $2, $3, $4)
@@ -6335,7 +6370,6 @@ RETURNING 1
 ), changed AS (
 UPDATE chat_sessions AS sessions
 SET
-  status = $6,
   source_updated_at = GREATEST(sessions.source_updated_at, $5),
   updated_at = NOW()
 WHERE sessions.workspace_id = $1
@@ -6358,7 +6392,6 @@ type GatewayTouchChatSessionParticipantParams struct {
 	SessionID   string             `json:"session_id"`
 	UserID      string             `json:"user_id"`
 	MessagedAt  pgtype.Timestamptz `json:"messaged_at"`
-	Status      ChatSessionStatus  `json:"status"`
 }
 
 func (q *Queries) GatewayTouchChatSessionParticipant(ctx context.Context, arg GatewayTouchChatSessionParticipantParams) error {
@@ -6368,7 +6401,6 @@ func (q *Queries) GatewayTouchChatSessionParticipant(ctx context.Context, arg Ga
 		arg.SessionID,
 		arg.UserID,
 		arg.MessagedAt,
-		arg.Status,
 	)
 	return err
 }
@@ -6511,37 +6543,31 @@ func (q *Queries) GatewayTransitionWorkspaceProvisioning(ctx context.Context, ar
 	return result.RowsAffected(), nil
 }
 
-const gatewayTryLockChatInputs = `-- name: GatewayTryLockChatInputs :one
-SELECT pg_try_advisory_lock(hashtextextended($1::text, 173))::boolean
+const gatewayUnlockResource = `-- name: GatewayUnlockResource :one
+SELECT (CASE WHEN $1::boolean
+  THEN pg_advisory_unlock_shared(hashtextextended($2::text, 0))
+  ELSE pg_advisory_unlock(hashtextextended($2::text, 0)) END)::boolean
 `
 
-func (q *Queries) GatewayTryLockChatInputs(ctx context.Context, identity string) (bool, error) {
-	row := q.db.QueryRow(ctx, gatewayTryLockChatInputs, identity)
+type GatewayUnlockResourceParams struct {
+	Shared   bool   `json:"shared"`
+	Identity string `json:"identity"`
+}
+
+func (q *Queries) GatewayUnlockResource(ctx context.Context, arg GatewayUnlockResourceParams) (bool, error) {
+	row := q.db.QueryRow(ctx, gatewayUnlockResource, arg.Shared, arg.Identity)
 	var column_1 bool
 	err := row.Scan(&column_1)
 	return column_1, err
 }
 
-const gatewayUnlockChatInputs = `-- name: GatewayUnlockChatInputs :one
-SELECT pg_advisory_unlock(hashtextextended($1::text, 173))::boolean
+const gatewayUnlockResources = `-- name: GatewayUnlockResources :exec
+SELECT pg_advisory_unlock_all()
 `
 
-func (q *Queries) GatewayUnlockChatInputs(ctx context.Context, identity string) (bool, error) {
-	row := q.db.QueryRow(ctx, gatewayUnlockChatInputs, identity)
-	var column_1 bool
-	err := row.Scan(&column_1)
-	return column_1, err
-}
-
-const gatewayUnlockCodingProject = `-- name: GatewayUnlockCodingProject :one
-SELECT pg_advisory_unlock(hashtextextended($1::text, 0))
-`
-
-func (q *Queries) GatewayUnlockCodingProject(ctx context.Context, projectID string) (bool, error) {
-	row := q.db.QueryRow(ctx, gatewayUnlockCodingProject, projectID)
-	var pg_advisory_unlock bool
-	err := row.Scan(&pg_advisory_unlock)
-	return pg_advisory_unlock, err
+func (q *Queries) GatewayUnlockResources(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, gatewayUnlockResources)
+	return err
 }
 
 const gatewayUpdateChatInput = `-- name: GatewayUpdateChatInput :one

@@ -27,15 +27,12 @@ import (
 // chatInputAccess resolves the target on every admission, including worker
 // admissions after the author's browser and bearer token have gone away.
 func (s *Service) chatInputAccess(ctx context.Context, agent, session string) (resourceAccess, string, string, error) {
-	if _, apiErr := externalWorkspaceClaims(ctx); apiErr != nil {
-		return resourceAccess{}, "", "", apiErr
-	}
 	access, apiErr := s.resolveAgentAccess(ctx, agent, authorization.OperationUseSharedAgent)
 	if apiErr != nil {
 		return access, "", "", apiErr
 	}
 	workspace, err := s.queries.GatewayGetWorkspace(ctx, gatewaydb.GatewayGetWorkspaceParams{
-		ID: access.workspaceID, OrganizationID: access.claims.OrganizationID,
+		ID: access.workspaceID, OrganizationID: access.organizationID,
 	})
 	if err != nil {
 		return access, "", "", err
@@ -67,48 +64,28 @@ func (s *Service) chatInputAccess(ctx context.Context, agent, session string) (r
 // lockChatInputs serializes provider admission across replicas. Coding takes
 // its project lock first, matching checkout mutations. No transaction spans IO.
 func (s *Service) lockChatInputs(ctx context.Context, workspace, agent, session, project string) (func(), error) {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
 	var releaseProject func()
 	if project != "" {
-		_, release, err := s.lockCodingProject(ctx, project)
+		q, release, err := lockGatewayResource(ctx, s.lockDB, project, true)
 		if err != nil {
 			return nil, err
 		}
 		releaseProject = release
+		ctx = context.WithValue(ctx, gatewayLockKey{}, q)
 	}
-	conn, err := s.lockDB.Acquire(ctx)
+	_, release, err := lockGatewayResource(ctx, s.controlDB, "session-admission/"+workspace+"/"+agent+"/"+session, false)
 	if err != nil {
 		if releaseProject != nil {
 			releaseProject()
 		}
 		return nil, err
 	}
-	identity := workspace + "/" + agent + "/" + session
-	q := gatewaydb.New(conn)
-	locked, err := q.GatewayTryLockChatInputs(ctx, identity)
-	if err != nil || !locked {
-		// An interrupted acquisition may have succeeded at PostgreSQL.
-		if err != nil {
-			conn.Conn().Close(context.WithoutCancel(ctx))
-		}
-		conn.Release()
+	return func() {
+		release()
 		if releaseProject != nil {
 			releaseProject()
-		}
-		if err != nil {
-			return nil, err
-		}
-		return nil, apiutil.NewError(http.StatusConflict, "input_busy", "A message is being submitted. Try again.", nil)
-	}
-	return func() {
-		defer conn.Release()
-		if releaseProject != nil {
-			defer releaseProject()
-		}
-		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		defer cancel()
-		ok, err := q.GatewayUnlockChatInputs(ctx, identity)
-		if err != nil || !ok {
-			conn.Conn().Close(ctx)
 		}
 	}, nil
 }
@@ -134,7 +111,7 @@ func (s *Service) ListChatInputs(w http.ResponseWriter, r *http.Request, agent s
 		return
 	}
 	rows, err := s.queries.GatewayListChatInputs(r.Context(), gatewaydb.GatewayListChatInputsParams{
-		WorkspaceID: access.workspaceID, AgentName: agent, SessionID: session, AuthorID: access.claims.UserID,
+		WorkspaceID: access.workspaceID, AgentName: agent, SessionID: session, AuthorID: access.userID,
 	})
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
@@ -201,7 +178,7 @@ func (s *Service) SubmitChatInput(w http.ResponseWriter, r *http.Request, agent 
 	auth, _ := requestAuthState(r.Context())
 	row, err := s.queries.GatewayCreateChatInput(r.Context(), gatewaydb.GatewayCreateChatInputParams{
 		ID: input.Id, WorkspaceID: access.workspaceID, AgentName: agent, SessionID: session,
-		OrganizationID: access.claims.OrganizationID, AuthorID: access.claims.UserID,
+		OrganizationID: access.organizationID, AuthorID: access.userID,
 		AuthorName: auth.actorName, Directory: directory, Content: raw, Delivery: string(input.Delivery),
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -246,7 +223,7 @@ func (s *Service) UpdateChatInput(w http.ResponseWriter, r *http.Request, agent 
 	row, err := s.queries.GatewayGetChatInput(r.Context(), gatewaydb.GatewayGetChatInputParams{
 		ID: inputID, WorkspaceID: access.workspaceID, AgentName: agent, SessionID: session,
 	})
-	if err != nil || row.AuthorID != access.claims.UserID {
+	if err != nil || row.AuthorID != access.userID {
 		apiutil.WriteError(w, r, mapGatewayStoreError("get message", pgx.ErrNoRows))
 		return
 	}
@@ -275,14 +252,25 @@ func (s *Service) UpdateChatInput(w http.ResponseWriter, r *http.Request, agent 
 	apiutil.WriteJSON(w, http.StatusOK, result)
 }
 
-// StopChatInputs bars further dispatch before asking the provider to stop.
-func (s *Service) StopChatInputs(w http.ResponseWriter, r *http.Request, agent string, session string) {
-	access, directory, project, err := s.chatInputAccess(r.Context(), agent, session)
+// stopOpenCodeSession bars dispatch while cancelling through the native API.
+func (s *Service) stopOpenCodeSession(w http.ResponseWriter, r *http.Request, route *opencodeRouteMatch, agent string) {
+	session := route.Params["sessionID"]
+	interrupt := route.ID == "v2.session.interrupt"
+	access, directory, _, err := s.chatInputAccess(r.Context(), agent, session)
 	if err != nil {
 		apiutil.WriteError(w, r, mapGatewayStoreError("get chat", err))
 		return
 	}
-	release, err := s.lockChatInputs(r.Context(), access.workspaceID, agent, session, project)
+	ctx, closeLocks, err := gatewayLocks(r.Context(), s.controlDB)
+	if err != nil {
+		apiutil.WriteError(w, r, mapGatewayStoreError("stop chat", err))
+		return
+	}
+	if closeLocks != nil {
+		defer closeLocks()
+	}
+	r = r.WithContext(ctx)
+	release, err := s.lockChatInputs(r.Context(), access.workspaceID, agent, session, "")
 	if err != nil {
 		apiutil.WriteError(w, r, mapGatewayStoreError("stop chat", err))
 		return
@@ -300,7 +288,7 @@ func (s *Service) StopChatInputs(w http.ResponseWriter, r *http.Request, agent s
 		return
 	}
 	rows, err := s.queries.GatewayListChatInputs(r.Context(), gatewaydb.GatewayListChatInputsParams{
-		WorkspaceID: access.workspaceID, AgentName: agent, SessionID: session, AuthorID: access.claims.UserID,
+		WorkspaceID: access.workspaceID, AgentName: agent, SessionID: session, AuthorID: access.userID,
 	})
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
@@ -321,9 +309,16 @@ func (s *Service) StopChatInputs(w http.ResponseWriter, r *http.Request, agent s
 				break
 			}
 		}
-		response, err := client.SessionAbortWithResponse(r.Context(), agent, session, &gatewayapi.SessionAbortParams{Directory: &directory})
-		if err != nil || response.JSON200 == nil || !*response.JSON200 {
-			break
+		if interrupt {
+			response, err := client.V2SessionInterruptWithResponse(r.Context(), agent, session)
+			if err != nil || response.StatusCode() != http.StatusNoContent {
+				break
+			}
+		} else {
+			response, err := client.SessionAbortWithResponse(r.Context(), agent, session, &gatewayapi.SessionAbortParams{Directory: &directory})
+			if err != nil || response.JSON200 == nil || !*response.JSON200 {
+				break
+			}
 		}
 		status, err := client.SessionStatusWithResponse(r.Context(), agent, &gatewayapi.SessionStatusParams{Directory: &directory})
 		if err != nil || status.JSON200 == nil {
@@ -331,9 +326,14 @@ func (s *Service) StopChatInputs(w http.ResponseWriter, r *http.Request, agent s
 		}
 		idle := true
 		if value, ok := (*status.JSON200)[session]; ok {
-			state, err := value.AsOpencodeSessionStatus0()
-			idle = err == nil && state.Type == gatewayapi.Idle
+			state, err := value.Discriminator()
+			idle = err == nil && state == string(gatewayapi.Idle)
 		}
+		active, err := s.queries.GatewayResourceBusy(r.Context(), "session-execution/"+access.workspaceID+"/"+agent+"/"+session)
+		if err != nil {
+			break
+		}
+		admitted = admitted && !active
 		// Repeat the abort after observing admission. A prompt_async receipt
 		// can precede persistence, and aborting before that would miss the run.
 		if admitted && idle && settled {
@@ -374,8 +374,29 @@ func (s *Service) StopChatInputs(w http.ResponseWriter, r *http.Request, agent s
 		apiutil.WriteInternalError(w, r, err)
 		return
 	}
+	resolved, err := s.resolver.resolveAgent(r.Context(), access.namespace, agent)
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+	target, err := openCodeTargetURL(resolved.Target)
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+	query := target.Query()
+	query.Set("directory", directory)
+	target.RawQuery = query.Encode()
+	if err := s.refreshOpenCodeStatus(r.Context(), target, access.workspaceID, agent); err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
 	s.notifyChatInput(r.Context(), gatewaydb.ChatInput{WorkspaceID: access.workspaceID, AgentName: agent, SessionID: session})
-	s.ListChatInputs(w, r, agent, session)
+	if interrupt {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	apiutil.WriteJSON(w, http.StatusOK, true)
 }
 
 func (s *Service) notifyChatInput(ctx context.Context, row gatewaydb.ChatInput) {
@@ -444,7 +465,7 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 	defer cancel()
 	claims := gatewayClaims{UserID: row.AuthorID, OrganizationID: row.OrganizationID, WorkspaceID: row.WorkspaceID}
 	ctx = context.WithValue(ctx, authContextKey{}, requestAuth{
-		claims: &claims, actorID: row.AuthorID, actorName: row.AuthorName, actorType: requestActorUser,
+		claims: &claims, userID: row.AuthorID, userName: row.AuthorName, actorID: row.AuthorID, actorName: row.AuthorName, actorType: requestActorUser,
 		workspaceID: row.WorkspaceID, organizationID: row.OrganizationID,
 	})
 	access, directory, project, err := s.chatInputAccess(ctx, row.AgentName, row.SessionID)
@@ -526,11 +547,11 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 	}
 	busy := false
 	if value, ok := (*status.JSON200)[row.SessionID]; ok {
-		idle, err := value.AsOpencodeSessionStatus0()
+		state, err := value.Discriminator()
 		if err != nil {
 			return err
 		}
-		busy = idle.Type != gatewayapi.Idle
+		busy = state != string(gatewayapi.Idle)
 	}
 	permissions, err := client.PermissionListWithResponse(ctx, row.AgentName, &gatewayapi.PermissionListParams{Directory: &directory})
 	if err != nil {
@@ -594,7 +615,7 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 				_, err = s.saveChatInput(ctx, row)
 				return err
 			}
-			if assistant.Error == nil && (assistant.Finish == nil || *assistant.Finish == "tool-calls" || *assistant.Finish == "unknown") {
+			if !row.Resume && assistant.Error == nil && (assistant.Finish == nil || *assistant.Finish == "tool-calls" || *assistant.Finish == "unknown") {
 				return nil
 			}
 		}
@@ -642,7 +663,7 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 		return err
 	}
 	auth, _ := requestAuthState(ctx)
-	route := &opencodeRouteMatch{Method: http.MethodPost, Path: opencodeSessionAsyncPath, Params: map[string]string{"sessionID": row.SessionID}}
+	route := &opencodeRouteMatch{Method: http.MethodPost, ID: "session.prompt_async", Params: map[string]string{"sessionID": row.SessionID}}
 	if err := attributeOpenCodePrompt(req, route, auth); err != nil {
 		return err
 	}
@@ -664,5 +685,5 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 		_, err = s.saveChatInput(ctx, row)
 		return err
 	}
-	return s.recordOpenCodePrompt(ctx, route, auth, row.WorkspaceID, row.AgentName, gatewaydb.ChatSessionStatusBusy)
+	return s.recordOpenCodePrompt(ctx, route, auth, row.WorkspaceID, row.AgentName)
 }

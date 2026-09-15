@@ -43,6 +43,8 @@ import { useActionState, useEffect, useMemo, useRef, useState, useSyncExternalSt
 import { usePathname, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { Projects, ProjectPicker, type ProjectActions } from "@/components/blocks/coding/projects"
+import { authClient } from "@/lib/auth-client"
+import { codingGitOptions, codingThreadOptions } from "@/lib/coding/review"
 import { codingDrafts } from "@/components/blocks/coding/drafts"
 
 import { deleteAgentSessionAction } from "@/data/opencode.actions"
@@ -1463,27 +1465,14 @@ function AgentBadge({ status }: { status: AgentStatus | undefined }) {
 }
 
 function SessionCheckout({ session, workspaceId }: { session: ChatSession; workspaceId: string }) {
-  const {
-    data: thread,
-    isPending: threadPending,
-    refetch: refetchThread,
-  } = useQuery(
-    queryOptions({
-      queryKey: ["codingThread", workspaceId, session.agent_name, session.session_id],
-      queryFn: async ({ signal }) => {
-        const result = await getCodingThread({
-          baseUrl: await getGatewayBaseURL(),
-          headers: { "X-AgentZ-Workspace-ID": workspaceId },
-          path: { agentName: session.agent_name, sessionId: session.session_id },
-          signal,
-        })
-        if (result.error) throw result.error
-        return result.data
-      },
-      retry: false,
-      staleTime: 60_000,
-    })
+  const { data: actor } = authClient.useSession()
+  const { data: thread, isPending: threadPending } = useQuery(
+    codingThreadOptions(workspaceId, session.agent_name, session.session_id)
   )
+  const gitStatus = useQuery({
+    ...codingGitOptions(workspaceId, thread?.worktree.id, actor?.user.id),
+    enabled: false,
+  })
   const {
     data: diff,
     isPending: diffPending,
@@ -1491,12 +1480,11 @@ function SessionCheckout({ session, workspaceId }: { session: ChatSession; works
   } = useQuery(sessionDiffQueryOptions(session.agent_name, workspaceId, session.session_id))
 
   useEffect(() => {
-    void refetchThread()
     void refetchDiff()
-  }, [refetchThread, refetchDiff, session.status, session.updated_at])
+  }, [refetchDiff, session.status, session.updated_at])
 
   const worktree = thread?.worktree
-  const branch = worktree?.branch || worktree?.directory.split("/").filter(Boolean).at(-1)
+  const branch = gitStatus.data?.branch ?? worktree?.branch
 
   return (
     <div className="flex h-5 min-w-0 items-center gap-2 text-xs">
@@ -1508,7 +1496,7 @@ function SessionCheckout({ session, workspaceId }: { session: ChatSession; works
             role="status"
           />
         ) : (
-          branch
+          branch || worktree?.directory.split("/").at(-1)
         )}
       </div>
       {diffPending ? (

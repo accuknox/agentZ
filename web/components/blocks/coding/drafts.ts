@@ -11,6 +11,7 @@ export type CodingDraft = {
   scope: string
   projectId: CodingProject["id"]
   agentName: string
+  sessionID?: Session["id"]
   checkout: string
   model?: CodingTextRequest["model"]
   mode?: Session["agent"]

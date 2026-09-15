@@ -61,7 +61,7 @@ func (s *Service) CreateWorkflow(w http.ResponseWriter, r *http.Request, agtName
 	}
 
 	var req gatewayapi.CreateWorkflowRequest
-	if err := apiutil.DecodeJSONBody(w, r, &req, false); err != nil {
+	if err := apiutil.DecodeJSONBody(r, &req, false); err != nil {
 		if apiErr, ok := errors.AsType[*apiutil.APIError](err); ok {
 			apiutil.WriteError(w, r, apiErr)
 			return
@@ -172,7 +172,7 @@ func (s *Service) DeleteWorkflows(w http.ResponseWriter, r *http.Request, agtNam
 	}
 
 	var req gatewayapi.DeleteWorkflowsRequest
-	if err := apiutil.DecodeJSONBody(w, r, &req, false); err != nil {
+	if err := apiutil.DecodeJSONBody(r, &req, false); err != nil {
 		if apiErr, ok := errors.AsType[*apiutil.APIError](err); ok {
 			apiutil.WriteError(w, r, apiErr)
 			return

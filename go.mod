@@ -34,6 +34,7 @@ require (
 	github.com/pressly/goose/v3 v3.27.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
+	github.com/tmaxmax/go-sse v0.11.0
 	github.com/urfave/cli/v3 v3.10.0
 	go.opentelemetry.io/proto/otlp v1.10.0
 	go.yaml.in/yaml/v3 v3.0.4
@@ -81,7 +82,6 @@ require (
 	github.com/cilium/proxy v0.0.0-20250623105955-2136f59a4ea1 // indirect
 	github.com/cilium/statedb v0.5.8 // indirect
 	github.com/cilium/stream v0.0.1 // indirect
-	github.com/cloudflare/cfssl v1.6.5 // indirect
 	github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
@@ -202,7 +202,6 @@ require (
 	k8s.io/streaming v0.36.3 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.36.0 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
-	sigs.k8s.io/mcs-api v0.4.1 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.0 // indirect
 )

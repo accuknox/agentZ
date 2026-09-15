@@ -41,6 +41,8 @@ const (
 type requestAuth struct {
 	claims          *gatewayClaims
 	apiKeyID        string
+	userID          string
+	userName        string
 	actorType       requestActorType
 	actorID         string
 	actorName       string
@@ -508,6 +510,8 @@ func (s *Service) resolveRequestAuth(r *http.Request) (requestAuth, error) {
 		}
 		return requestAuth{
 			claims:    &claims,
+			userID:    claims.UserID,
+			userName:  claims.UserName,
 			actorType: requestActorUser,
 			actorID:   claims.UserID,
 			actorName: claims.UserName,

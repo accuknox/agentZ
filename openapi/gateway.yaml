@@ -2153,34 +2153,6 @@ components:
       - name
       - repository_id
       type: object
-    CreateCodingThreadRequest:
-      additionalProperties: false
-      properties:
-        agent_name:
-          maxLength: 32
-          minLength: 1
-          type: string
-        base_ref:
-          maxLength: 1024
-          minLength: 1
-          type: string
-        id:
-          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
-          type: string
-        main_checkout:
-          default: false
-          type: boolean
-        project_id:
-          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
-          type: string
-        worktree_id:
-          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
-          type: string
-      required:
-      - id
-      - project_id
-      - agent_name
-      type: object
     CreateDashboardRequest:
       additionalProperties: false
       properties:
@@ -6307,7 +6279,99 @@ components:
       - $ref: '#/components/schemas/OpencodeCredentialOAuth'
       - $ref: '#/components/schemas/OpencodeCredentialKey'
     OpencodeEvent:
-      anyOf:
+      discriminator:
+        mapping:
+          catalog.updated: '#/components/schemas/OpencodeEventCatalogUpdated'
+          command.executed: '#/components/schemas/OpencodeEventCommandExecuted'
+          file.edited: '#/components/schemas/OpencodeEventFileEdited'
+          file.watcher.updated: '#/components/schemas/OpencodeEventFileWatcherUpdated'
+          global.disposed: '#/components/schemas/OpencodeEventGlobalDisposed'
+          installation.update-available: '#/components/schemas/OpencodeEventInstallationUpdate-available'
+          installation.updated: '#/components/schemas/OpencodeEventInstallationUpdated'
+          integration.connection.updated: '#/components/schemas/OpencodeEventIntegrationConnectionUpdated'
+          integration.updated: '#/components/schemas/OpencodeEventIntegrationUpdated'
+          lsp.updated: '#/components/schemas/OpencodeEventLspUpdated'
+          mcp.browser.open.failed: '#/components/schemas/OpencodeEventMcpBrowserOpenFailed'
+          mcp.tools.changed: '#/components/schemas/OpencodeEventMcpToolsChanged'
+          message.part.delta: '#/components/schemas/OpencodeEventMessagePartDelta'
+          message.part.removed: '#/components/schemas/OpencodeEventMessagePartRemoved'
+          message.part.updated: '#/components/schemas/OpencodeEventMessagePartUpdated'
+          message.removed: '#/components/schemas/OpencodeEventMessageRemoved'
+          message.updated: '#/components/schemas/OpencodeEventMessageUpdated'
+          models-dev.refreshed: '#/components/schemas/OpencodeEventModels-devRefreshed'
+          permission.asked: '#/components/schemas/OpencodeEventPermissionAsked'
+          permission.replied: '#/components/schemas/OpencodeEventPermissionReplied'
+          permission.v2.asked: '#/components/schemas/OpencodeEventPermissionV2Asked'
+          permission.v2.replied: '#/components/schemas/OpencodeEventPermissionV2Replied'
+          plugin.added: '#/components/schemas/OpencodeEventPluginAdded'
+          project.directories.updated: '#/components/schemas/OpencodeEventProjectDirectoriesUpdated'
+          project.updated: '#/components/schemas/OpencodeEventProjectUpdated'
+          pty.created: '#/components/schemas/OpencodeEventPtyCreated'
+          pty.deleted: '#/components/schemas/OpencodeEventPtyDeleted'
+          pty.exited: '#/components/schemas/OpencodeEventPtyExited'
+          pty.updated: '#/components/schemas/OpencodeEventPtyUpdated'
+          question.asked: '#/components/schemas/OpencodeEventQuestionAsked'
+          question.rejected: '#/components/schemas/OpencodeEventQuestionRejected'
+          question.replied: '#/components/schemas/OpencodeEventQuestionReplied'
+          question.v2.asked: '#/components/schemas/OpencodeEventQuestionV2Asked'
+          question.v2.rejected: '#/components/schemas/OpencodeEventQuestionV2Rejected'
+          question.v2.replied: '#/components/schemas/OpencodeEventQuestionV2Replied'
+          reference.updated: '#/components/schemas/OpencodeEventReferenceUpdated'
+          server.connected: '#/components/schemas/OpencodeEventServerConnected'
+          server.instance.disposed: '#/components/schemas/OpencodeEventServerInstanceDisposed'
+          session.compacted: '#/components/schemas/OpencodeEventSessionCompacted'
+          session.created: '#/components/schemas/OpencodeEventSessionCreated'
+          session.deleted: '#/components/schemas/OpencodeEventSessionDeleted'
+          session.diff: '#/components/schemas/OpencodeEventSessionDiff'
+          session.error: '#/components/schemas/OpencodeEventSessionError'
+          session.idle: '#/components/schemas/OpencodeEventSessionIdle'
+          session.next.agent.switched: '#/components/schemas/OpencodeEventSessionNextAgentSwitched'
+          session.next.compaction.delta: '#/components/schemas/OpencodeEventSessionNextCompactionDelta'
+          session.next.compaction.ended: '#/components/schemas/OpencodeEventSessionNextCompactionEnded'
+          session.next.compaction.started: '#/components/schemas/OpencodeEventSessionNextCompactionStarted'
+          session.next.context.updated: '#/components/schemas/OpencodeEventSessionNextContextUpdated'
+          session.next.model.switched: '#/components/schemas/OpencodeEventSessionNextModelSwitched'
+          session.next.moved: '#/components/schemas/OpencodeEventSessionNextMoved'
+          session.next.prompt.admitted: '#/components/schemas/OpencodeEventSessionNextPromptAdmitted'
+          session.next.prompted: '#/components/schemas/OpencodeEventSessionNextPrompted'
+          session.next.reasoning.delta: '#/components/schemas/OpencodeEventSessionNextReasoningDelta'
+          session.next.reasoning.ended: '#/components/schemas/OpencodeEventSessionNextReasoningEnded'
+          session.next.reasoning.started: '#/components/schemas/OpencodeEventSessionNextReasoningStarted'
+          session.next.retried: '#/components/schemas/OpencodeEventSessionNextRetried'
+          session.next.revert.cleared: '#/components/schemas/OpencodeEventSessionNextRevertCleared'
+          session.next.revert.committed: '#/components/schemas/OpencodeEventSessionNextRevertCommitted'
+          session.next.revert.staged: '#/components/schemas/OpencodeEventSessionNextRevertStaged'
+          session.next.shell.ended: '#/components/schemas/OpencodeEventSessionNextShellEnded'
+          session.next.shell.started: '#/components/schemas/OpencodeEventSessionNextShellStarted'
+          session.next.step.ended: '#/components/schemas/OpencodeEventSessionNextStepEnded'
+          session.next.step.failed: '#/components/schemas/OpencodeEventSessionNextStepFailed'
+          session.next.step.started: '#/components/schemas/OpencodeEventSessionNextStepStarted'
+          session.next.synthetic: '#/components/schemas/OpencodeEventSessionNextSynthetic'
+          session.next.text.delta: '#/components/schemas/OpencodeEventSessionNextTextDelta'
+          session.next.text.ended: '#/components/schemas/OpencodeEventSessionNextTextEnded'
+          session.next.text.started: '#/components/schemas/OpencodeEventSessionNextTextStarted'
+          session.next.tool.called: '#/components/schemas/OpencodeEventSessionNextToolCalled'
+          session.next.tool.failed: '#/components/schemas/OpencodeEventSessionNextToolFailed'
+          session.next.tool.input.delta: '#/components/schemas/OpencodeEventSessionNextToolInputDelta'
+          session.next.tool.input.ended: '#/components/schemas/OpencodeEventSessionNextToolInputEnded'
+          session.next.tool.input.started: '#/components/schemas/OpencodeEventSessionNextToolInputStarted'
+          session.next.tool.progress: '#/components/schemas/OpencodeEventSessionNextToolProgress'
+          session.next.tool.success: '#/components/schemas/OpencodeEventSessionNextToolSuccess'
+          session.status: '#/components/schemas/OpencodeEventSessionStatus'
+          session.updated: '#/components/schemas/OpencodeEventSessionUpdated'
+          todo.updated: '#/components/schemas/OpencodeEventTodoUpdated'
+          tui.command.execute: '#/components/schemas/OpencodeEvent.tui.command.execute'
+          tui.prompt.append: '#/components/schemas/OpencodeEvent.tui.prompt.append'
+          tui.session.select: '#/components/schemas/OpencodeEvent.tui.session.select'
+          tui.toast.show: '#/components/schemas/OpencodeEvent.tui.toast.show'
+          vcs.branch.updated: '#/components/schemas/OpencodeEventVcsBranchUpdated'
+          workspace.failed: '#/components/schemas/OpencodeEventWorkspaceFailed'
+          workspace.ready: '#/components/schemas/OpencodeEventWorkspaceReady'
+          workspace.status: '#/components/schemas/OpencodeEventWorkspaceStatus'
+          worktree.failed: '#/components/schemas/OpencodeEventWorktreeFailed'
+          worktree.ready: '#/components/schemas/OpencodeEventWorktreeReady'
+        propertyName: type
+      oneOf:
       - $ref: '#/components/schemas/OpencodeEventModels-devRefreshed'
       - $ref: '#/components/schemas/OpencodeEventIntegrationUpdated'
       - $ref: '#/components/schemas/OpencodeEventIntegrationConnectionUpdated'
@@ -19719,67 +19783,79 @@ components:
       - message
       type: object
     OpencodeSessionStatus:
-      anyOf:
-      - additionalProperties: false
-        properties:
-          type:
-            enum:
-            - idle
-            type: string
-        required:
-        - type
-        type: object
-      - additionalProperties: false
-        properties:
-          action:
-            additionalProperties: false
-            properties:
-              label:
-                type: string
-              link:
-                type: string
-              message:
-                type: string
-              provider:
-                type: string
-              reason:
-                type: string
-              title:
-                type: string
-            required:
-            - reason
-            - provider
-            - title
-            - message
-            - label
-            type: object
-          attempt:
-            minimum: 0
-            type: integer
-          message:
-            type: string
-          next:
-            minimum: 0
-            type: integer
-          type:
-            enum:
-            - retry
-            type: string
-        required:
-        - type
-        - attempt
-        - message
-        - next
-        type: object
-      - additionalProperties: false
-        properties:
-          type:
-            enum:
-            - busy
-            type: string
-        required:
-        - type
-        type: object
+      discriminator:
+        mapping:
+          busy: '#/components/schemas/OpencodeSessionStatus2'
+          idle: '#/components/schemas/OpencodeSessionStatus0'
+          retry: '#/components/schemas/OpencodeSessionStatus1'
+        propertyName: type
+      oneOf:
+      - $ref: '#/components/schemas/OpencodeSessionStatus0'
+      - $ref: '#/components/schemas/OpencodeSessionStatus1'
+      - $ref: '#/components/schemas/OpencodeSessionStatus2'
+    OpencodeSessionStatus0:
+      additionalProperties: false
+      properties:
+        type:
+          enum:
+          - idle
+          type: string
+      required:
+      - type
+      type: object
+    OpencodeSessionStatus1:
+      additionalProperties: false
+      properties:
+        action:
+          additionalProperties: false
+          properties:
+            label:
+              type: string
+            link:
+              type: string
+            message:
+              type: string
+            provider:
+              type: string
+            reason:
+              type: string
+            title:
+              type: string
+          required:
+          - reason
+          - provider
+          - title
+          - message
+          - label
+          type: object
+        attempt:
+          minimum: 0
+          type: integer
+        message:
+          type: string
+        next:
+          minimum: 0
+          type: integer
+        type:
+          enum:
+          - retry
+          type: string
+      required:
+      - type
+      - attempt
+      - message
+      - next
+      type: object
+    OpencodeSessionStatus2:
+      additionalProperties: false
+      properties:
+        type:
+          enum:
+          - busy
+          type: string
+      required:
+      - type
+      type: object
     OpencodeSessionUpdated:
       additionalProperties: false
       properties:
@@ -23739,6 +23815,34 @@ components:
       required:
       - phase
       type: object
+    PrepareCodingCheckoutRequest:
+      additionalProperties: false
+      properties:
+        agent_name:
+          maxLength: 32
+          minLength: 1
+          type: string
+        base_ref:
+          maxLength: 1024
+          minLength: 1
+          type: string
+        id:
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          type: string
+        main_checkout:
+          default: false
+          type: boolean
+        project_id:
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          type: string
+        worktree_id:
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          type: string
+      required:
+      - id
+      - project_id
+      - agent_name
+      type: object
     ProcessObservabilityEvent:
       additionalProperties: false
       properties:
@@ -25480,6 +25584,12 @@ components:
       - Failed
       - Unacked
       type: string
+      x-enum-varnames:
+      - WorkflowRunStatusPending
+      - WorkflowRunStatusRunning
+      - WorkflowRunStatusSucceeded
+      - WorkflowRunStatusFailed
+      - WorkflowRunStatusUnacked
     WorkflowRunSummary:
       additionalProperties: false
       properties:
@@ -27055,42 +27165,6 @@ paths:
       summary: Remove or retry your queued message.
       tags:
       - chat-sessions
-  /api/chat-session/{agentName}/{sessionId}/input/stop:
-    parameters:
-    - in: path
-      name: agentName
-      required: true
-      schema:
-        $ref: '#/components/schemas/AgentName'
-    - in: path
-      name: sessionId
-      required: true
-      schema:
-        minLength: 1
-        type: string
-    post:
-      operationId: stopChatInputs
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ChatInputs'
-          description: Stop execution and recover unsent messages.
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "401":
-          $ref: '#/components/responses/Unauthorized'
-        "403":
-          $ref: '#/components/responses/Forbidden'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      security:
-      - GatewayBearer:
-        - agent.use_shared
-      summary: Stop execution and recover unsent messages.
-      tags:
-      - chat-sessions
   /api/chat-session/watch:
     get:
       description: Emits a compact invalidation event when the Workspace inbox changes.
@@ -27173,6 +27247,33 @@ paths:
               schema:
                 $ref: '#/components/schemas/CodingTextSuggestion'
           description: Generated source-control text.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request failed.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - coding
+  /api/coding/checkout:
+    post:
+      operationId: prepareCodingCheckout
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrepareCodingCheckoutRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodingWorktree'
+          description: Prepared checkout.
         default:
           content:
             application/json:
@@ -27559,33 +27660,6 @@ paths:
         default: 1
         minimum: 1
         type: integer
-  /api/coding/thread:
-    post:
-      operationId: createCodingThread
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateCodingThreadRequest'
-        required: true
-      responses:
-        "201":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CodingThread'
-          description: Prepared thread.
-        default:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Request failed.
-      security:
-      - GatewayBearer:
-        - agent.use_shared
-      tags:
-      - coding
   /api/coding/watch:
     get:
       operationId: watchCoding
@@ -29437,7 +29511,7 @@ paths:
           description: UnauthorizedError
       security:
       - GatewayBearer:
-        - agent.read_shared_secret
+        - agent.use_shared
       summary: List integrations
       tags:
       - integrations
@@ -29512,7 +29586,7 @@ paths:
           description: UnauthorizedError
       security:
       - GatewayBearer:
-        - agent.read_shared_secret
+        - agent.use_shared
       summary: Get integration
       tags:
       - integrations
@@ -32936,9 +33010,8 @@ paths:
                 additionalProperties: false
                 properties:
                   data:
-                    patternProperties:
-                      ^ses:
-                        $ref: '#/components/schemas/OpencodeSessionActive'
+                    additionalProperties:
+                      $ref: '#/components/schemas/OpencodeSessionActive'
                     type: object
                 required:
                 - data
@@ -37199,7 +37272,7 @@ paths:
           description: Bad request
       security:
       - GatewayBearer:
-        - agent.read_shared_secret
+        - agent.use_shared
       summary: Get provider auth methods
       tags:
       - provider

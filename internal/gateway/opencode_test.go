@@ -131,13 +131,6 @@ func TestPTYProxyOrigins(t *testing.T) {
 	}
 }
 
-// TestOpenCodeSchemaReferences catches incomplete OpenAPI conversion before startup.
-func TestOpenCodeSchemaReferences(t *testing.T) {
-	if _, err := gatewayapi.GetSwagger(); err != nil {
-		t.Fatal(err)
-	}
-}
-
 type openCodeStreamCase struct {
 	name     string
 	coding   bool

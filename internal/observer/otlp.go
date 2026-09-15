@@ -83,7 +83,6 @@ const (
 type traceReceiver struct {
 	tracev1.UnimplementedTraceServiceServer
 
-	res   *resolver
 	out   chan<- event
 	stats *stats
 }
@@ -92,7 +91,7 @@ type mcpToolResult struct {
 	IsError bool `json:"isError"`
 }
 
-func runOTLPTraceReceiver(ctx context.Context, cfg Config, res *resolver, out chan<- event, s *stats) error {
+func runOTLPTraceReceiver(ctx context.Context, cfg Config, out chan<- event, s *stats) error {
 	lis, err := net.Listen("tcp", cfg.OTLPTraceGRPCAddr)
 	if err != nil {
 		return fmt.Errorf("listen otlp trace grpc %s: %w", cfg.OTLPTraceGRPCAddr, err)
@@ -102,7 +101,6 @@ func runOTLPTraceReceiver(ctx context.Context, cfg Config, res *resolver, out ch
 	tracev1.RegisterTraceServiceServer(
 		srv,
 		&traceReceiver{
-			res:   res,
 			out:   out,
 			stats: s,
 		},
@@ -130,8 +128,9 @@ func runOTLPTraceReceiver(ctx context.Context, cfg Config, res *resolver, out ch
 	}
 }
 
+// Export queues valid spans and accounts for rejected telemetry.
 func (r *traceReceiver) Export(ctx context.Context, req *tracev1.ExportTraceServiceRequest) (*tracev1.ExportTraceServiceResponse, error) {
-	events, rejected := traceEventsFromOTLPRequest(ctx, r.res, req)
+	events, rejected := traceEventsFromOTLPRequest(req)
 	for _, ev := range events {
 		if err := sendEvent(ctx, r.out, event{trace: &ev}); err != nil {
 			return nil, err
@@ -144,7 +143,7 @@ func (r *traceReceiver) Export(ctx context.Context, req *tracev1.ExportTraceServ
 	return &tracev1.ExportTraceServiceResponse{}, nil
 }
 
-func traceEventsFromOTLPRequest(ctx context.Context, res *resolver, req *tracev1.ExportTraceServiceRequest) ([]traceSpanEvent, int) {
+func traceEventsFromOTLPRequest(req *tracev1.ExportTraceServiceRequest) ([]traceSpanEvent, int) {
 	if req == nil {
 		return nil, 0
 	}
@@ -155,7 +154,7 @@ func traceEventsFromOTLPRequest(ctx context.Context, res *resolver, req *tracev1
 		resourceAttrs := attrsMap(rs.GetResource().GetAttributes())
 		for _, ss := range rs.GetScopeSpans() {
 			for _, sp := range ss.GetSpans() {
-				ev, err := traceEventFromOTLPSpan(ctx, res, sp, resourceAttrs)
+				ev, err := traceEventFromOTLPSpan(sp, resourceAttrs)
 				if err != nil {
 					rejected++
 					continue
@@ -167,16 +166,18 @@ func traceEventsFromOTLPRequest(ctx context.Context, res *resolver, req *tracev1
 	return events, rejected
 }
 
-func traceEventFromOTLPSpan(_ context.Context, _ *resolver, sp *tracepb.Span, resourceAttrs map[string]*commonpb.AnyValue) (traceSpanEvent, error) {
+func traceEventFromOTLPSpan(sp *tracepb.Span, resourceAttrs map[string]*commonpb.AnyValue) (traceSpanEvent, error) {
 	if sp == nil || len(sp.GetTraceId()) != 16 || len(sp.GetSpanId()) != 8 {
 		return traceSpanEvent{}, errTraceAgentNameMissing
 	}
 
 	spanAttrs := attrsMap(sp.GetAttributes())
 
-	agentName, err := requiredStringAttr(spanAttrs, resourceAttrs, attrAgentZAgentName, errTraceAgentNameMissing)
-	if err != nil {
-		return traceSpanEvent{}, err
+	agentName := strings.TrimSpace(
+		firstStringAttr(spanAttrs, resourceAttrs, attrAgentZAgentName),
+	)
+	if agentName == "" {
+		return traceSpanEvent{}, errTraceAgentNameMissing
 	}
 
 	sessionID := cmp.Or(
@@ -213,28 +214,31 @@ func traceEventFromOTLPSpan(_ context.Context, _ *resolver, sp *tracepb.Span, re
 	)
 
 	model := cmp.Or(
-		attrString(spanAttrs, attrLLMModelName),
-		attrString(spanAttrs, attrGenAIResponseModel),
-		attrString(spanAttrs, attrGenAIRequestModel),
+		spanAttrs[attrLLMModelName].GetStringValue(),
+		spanAttrs[attrGenAIResponseModel].GetStringValue(),
+		spanAttrs[attrGenAIRequestModel].GetStringValue(),
 	)
 	toolName := cmp.Or(
-		attrString(spanAttrs, attrToolName),
-		attrString(spanAttrs, attrGenAIToolName),
-		attrString(spanAttrs, attrMCPToolName),
+		spanAttrs[attrToolName].GetStringValue(),
+		spanAttrs[attrGenAIToolName].GetStringValue(),
+		spanAttrs[attrMCPToolName].GetStringValue(),
 	)
 
 	payload, strippedAttrs := extractSpanPayload(spanClass, spanAttrs)
-	resourceJSON := jsonObject(resourceAttrsForStorage(resourceAttrs))
+	storedResourceAttrs := attrsForStorage(resourceAttrs)
+	delete(storedResourceAttrs, "os.type")
+	delete(storedResourceAttrs, "host.arch")
+	resourceJSON := jsonObject(storedResourceAttrs)
 	spanJSON := jsonObject(strippedAttrs)
 	var mcpToolCall *mcpToolCallEvent
 	if spanClass == spanClassTool && toolName != "" {
 		connectionName := cmp.Or(
-			attrString(spanAttrs, attrMCPConnectionName),
-			attrString(spanAttrs, attrMCPDefaultTarget),
+			spanAttrs[attrMCPConnectionName].GetStringValue(),
+			spanAttrs[attrMCPDefaultTarget].GetStringValue(),
 		)
 		mcpToolName := cmp.Or(
-			attrString(spanAttrs, attrMCPToolName),
-			attrString(spanAttrs, attrGenAIToolName),
+			spanAttrs[attrMCPToolName].GetStringValue(),
+			spanAttrs[attrGenAIToolName].GetStringValue(),
 		)
 		if connectionName != "" && mcpToolName != "" {
 			failed := status == statusError || hasPayloadValue(payload.toolError)
@@ -244,8 +248,8 @@ func traceEventFromOTLPSpan(_ context.Context, _ *resolver, sp *tracepb.Span, re
 			}
 			mcpToolCall = &mcpToolCallEvent{
 				agentName:         agentName,
-				traceID:           cloneBytes(sp.GetTraceId()),
-				spanID:            cloneBytes(sp.GetSpanId()),
+				traceID:           append([]byte{}, sp.GetTraceId()...),
+				spanID:            append([]byte{}, sp.GetSpanId()...),
 				startTime:         start,
 				endTime:           end,
 				durationNS:        durationNS,
@@ -261,9 +265,9 @@ func traceEventFromOTLPSpan(_ context.Context, _ *resolver, sp *tracepb.Span, re
 		tenantNamespace: tenantNamespace,
 		agentName:       agentName,
 		sessionID:       sessionID,
-		traceID:         cloneBytes(sp.GetTraceId()),
-		spanID:          cloneBytes(sp.GetSpanId()),
-		parentSpanID:    cloneBytes(sp.GetParentSpanId()),
+		traceID:         append([]byte{}, sp.GetTraceId()...),
+		spanID:          append([]byte{}, sp.GetSpanId()...),
+		parentSpanID:    append([]byte{}, sp.GetParentSpanId()...),
 		startTime:       start,
 		endTime:         end,
 		durationNS:      durationNS,
@@ -277,35 +281,28 @@ func traceEventFromOTLPSpan(_ context.Context, _ *resolver, sp *tracepb.Span, re
 		model:           model,
 		toolName:        toolName,
 		inputTokens: cmp.Or(
-			attrInt64(spanAttrs, attrLLMTokenPrompt),
-			attrInt64(spanAttrs, attrGenAIInputTokens),
+			spanAttrs[attrLLMTokenPrompt].GetIntValue(),
+			spanAttrs[attrGenAIInputTokens].GetIntValue(),
 		),
 		outputTokens: cmp.Or(
-			attrInt64(spanAttrs, attrLLMTokenCompletion),
-			attrInt64(spanAttrs, attrGenAIOutputTokens),
+			spanAttrs[attrLLMTokenCompletion].GetIntValue(),
+			spanAttrs[attrGenAIOutputTokens].GetIntValue(),
 		),
 		cachedInputTokens: cmp.Or(
-			attrInt64(spanAttrs, attrLLMTokenCacheRead),
-			attrInt64(spanAttrs, attrGenAICacheRead),
+			spanAttrs[attrLLMTokenCacheRead].GetIntValue(),
+			spanAttrs[attrGenAICacheRead].GetIntValue(),
 		),
 		cachedWriteTokens: cmp.Or(
-			attrInt64(spanAttrs, attrLLMTokenCacheWrite),
-			attrInt64(spanAttrs, attrGenAICacheWrite),
+			spanAttrs[attrLLMTokenCacheWrite].GetIntValue(),
+			spanAttrs[attrGenAICacheWrite].GetIntValue(),
 		),
 		costUSD:            attrFloat64(spanAttrs, attrLLMCostTotal),
-		llmFinishReason:    attrString(spanAttrs, attrLLMFinishReason),
+		llmFinishReason:    spanAttrs[attrLLMFinishReason].GetStringValue(),
 		resourceAttributes: resourceJSON,
 		spanAttributes:     spanJSON,
 		payload:            payload,
 		mcpToolCall:        mcpToolCall,
 	}, nil
-}
-
-func resourceAttrsForStorage(attrs map[string]*commonpb.AnyValue) map[string]any {
-	out := attrsForStorage(attrs)
-	delete(out, "os.type")
-	delete(out, "host.arch")
-	return out
 }
 
 func extractSpanPayload(spanClass string, attrs map[string]*commonpb.AnyValue) (traceSpanPayload, map[string]any) {
@@ -349,7 +346,7 @@ func extractJSONPayload(attrs map[string]any, key string) []byte {
 }
 
 func classifySpan(name string, attrs map[string]*commonpb.AnyValue) (string, string) {
-	switch strings.ToUpper(attrString(attrs, attrSpanKind)) {
+	switch strings.ToUpper(attrs[attrSpanKind].GetStringValue()) {
 	case "AGENT":
 		return spanClassSession, operationSession
 	case "LLM":
@@ -365,23 +362,15 @@ func classifySpan(name string, attrs map[string]*commonpb.AnyValue) (string, str
 		return spanClassLLM, operationChat
 	case strings.HasPrefix(name, "opencode.tool."):
 		return spanClassTool, operationExecuteTool
-	case attrString(attrs, attrMCPMethodName) == "tools/call":
+	case attrs[attrMCPMethodName].GetStringValue() == "tools/call":
 		return spanClassTool, operationExecuteTool
-	case attrString(attrs, attrMCPToolName) != "":
+	case attrs[attrMCPToolName].GetStringValue() != "":
 		return spanClassTool, operationExecuteTool
-	case attrString(attrs, attrGenAIToolName) != "":
+	case attrs[attrGenAIToolName].GetStringValue() != "":
 		return spanClassTool, operationExecuteTool
 	default:
 		return "", ""
 	}
-}
-
-func requiredStringAttr(first, second map[string]*commonpb.AnyValue, key string, err error) (string, error) {
-	v := strings.TrimSpace(firstStringAttr(first, second, key))
-	if v == "" {
-		return "", err
-	}
-	return v, nil
 }
 
 func attrsMap(attrs []*commonpb.KeyValue) map[string]*commonpb.AnyValue {
@@ -460,34 +449,10 @@ func mustJSON(v any) []byte {
 }
 
 func firstStringAttr(first, second map[string]*commonpb.AnyValue, key string) string {
-	if v := attrString(first, key); v != "" {
+	if v := first[key].GetStringValue(); v != "" {
 		return v
 	}
-	return attrString(second, key)
-}
-
-func attrString(attrs map[string]*commonpb.AnyValue, key string) string {
-	v, ok := attrs[key]
-	if !ok || v == nil {
-		return ""
-	}
-	x, ok := v.Value.(*commonpb.AnyValue_StringValue)
-	if !ok {
-		return ""
-	}
-	return x.StringValue
-}
-
-func attrInt64(attrs map[string]*commonpb.AnyValue, key string) int64 {
-	v, ok := attrs[key]
-	if !ok || v == nil {
-		return 0
-	}
-	x, ok := v.Value.(*commonpb.AnyValue_IntValue)
-	if !ok {
-		return 0
-	}
-	return x.IntValue
+	return second[key].GetStringValue()
 }
 
 func attrFloat64(attrs map[string]*commonpb.AnyValue, key string) float64 {
@@ -550,15 +515,6 @@ func statusCode(status *tracepb.Status) string {
 	default:
 		return ""
 	}
-}
-
-func cloneBytes(in []byte) []byte {
-	if len(in) == 0 {
-		return []byte{}
-	}
-	out := make([]byte, len(in))
-	copy(out, in)
-	return out
 }
 
 func hasPayloadValue(raw []byte) bool {

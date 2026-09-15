@@ -116,7 +116,8 @@ func ValidateProvider(spec agentzv1alpha1.InferenceProviderSpec) []Issue {
 	if strings.TrimSpace(spec.CatalogProvider) == "" {
 		issues = append(issues, Issue{Field: "catalog_provider", Message: "field is required"})
 	}
-	isCompatible := spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICompatible || spec.Kind == agentzv1alpha1.InferenceProviderKindAnthropicCompatible
+	isCompatible := spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICompatible ||
+		spec.Kind == agentzv1alpha1.InferenceProviderKindAnthropicCompatible
 	isCatalogEntry := spec.CatalogProvider == "custom" && isCompatible
 	for _, entry := range catalogEntries {
 		if entry.ProviderID == spec.CatalogProvider && entry.Kind == spec.Kind {
@@ -324,7 +325,8 @@ func ValidateProvider(spec agentzv1alpha1.InferenceProviderSpec) []Issue {
 				},
 			)
 		}
-		if spec.Azure.ResourceType == agentzv1alpha1.AzureResourceTypeFoundry && strings.TrimSpace(spec.Azure.Project) == "" {
+		foundry := spec.Azure.ResourceType == agentzv1alpha1.AzureResourceTypeFoundry
+		if foundry && strings.TrimSpace(spec.Azure.Project) == "" {
 			issues = append(
 				issues,
 				Issue{
@@ -360,7 +362,10 @@ func ValidateProvider(spec agentzv1alpha1.InferenceProviderSpec) []Issue {
 			)
 			break
 		}
-		issues = append(issues, validateEndpoint(field+".base_url", cfg.BaseURL, cfg.AllowPrivateEndpoint, cfg.SkipTLSVerify)...)
+		issues = append(
+			issues,
+			validateEndpoint(field+".base_url", cfg.BaseURL, cfg.AllowPrivateEndpoint, cfg.SkipTLSVerify)...,
+		)
 		if cfg.Path != "" && cfg.PathPrefix != "" {
 			issues = append(
 				issues,
@@ -408,7 +413,9 @@ func ValidateProvider(spec agentzv1alpha1.InferenceProviderSpec) []Issue {
 				},
 			)
 		}
-		invalidAuthPrefix := strings.IndexFunc(cfg.AuthPrefix, func(r rune) bool { return r == 0x7f || (r < 0x20 && r != '\t') }) >= 0
+		invalidAuthPrefix := strings.ContainsFunc(cfg.AuthPrefix, func(r rune) bool {
+			return r == 0x7f || (r < 0x20 && r != '\t')
+		})
 		if invalidAuthPrefix {
 			issues = append(
 				issues,
@@ -468,7 +475,9 @@ func ValidateProvider(spec agentzv1alpha1.InferenceProviderSpec) []Issue {
 					},
 				)
 			}
-			invalidValue := strings.IndexFunc(header.Value, func(r rune) bool { return r == 0x7f || (r < 0x20 && r != '\t') }) >= 0
+			invalidValue := strings.ContainsFunc(header.Value, func(r rune) bool {
+				return r == 0x7f || (r < 0x20 && r != '\t')
+			})
 			if invalidValue {
 				issues = append(
 					issues,
@@ -949,7 +958,9 @@ func CredentialsForUpdate(spec agentzv1alpha1.InferenceProviderSpec, values Cred
 		if !hasAzure {
 			return nil, false, nil
 		}
-		isComplete := strings.TrimSpace(values.ClientID) != "" && strings.TrimSpace(values.TenantID) != "" && strings.TrimSpace(values.ClientSecret) != ""
+		isComplete := strings.TrimSpace(values.ClientID) != "" &&
+			strings.TrimSpace(values.TenantID) != "" &&
+			strings.TrimSpace(values.ClientSecret) != ""
 		if !isComplete {
 			return nil, false, &InputError{
 				Field:   "credentials",

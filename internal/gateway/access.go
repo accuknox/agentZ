@@ -31,19 +31,22 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/accuknox/agentz/internal/authorization"
+	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 type resourceAccess struct {
-	claims      gatewayClaims
-	effective   authorization.Effective
-	namespace   string
-	workspaceID string
-	owner       metav1.OwnerReference
-	operation   authorization.Operation
-	authorized  bool
+	userID         string
+	organizationID string
+	claims         gatewayClaims
+	effective      authorization.Effective
+	namespace      string
+	workspaceID    string
+	owner          metav1.OwnerReference
+	operation      authorization.Operation
+	authorized     bool
 }
 
 type resourceAccessRequest struct {
@@ -90,7 +93,7 @@ func (a resourceAccess) failureResult() gatewaydb.EventTrailResult {
 	return gatewaydb.EventTrailResultDenied
 }
 
-func (s *Service) resolveResourceAccess(ctx context.Context, req resourceAccessRequest) (resourceAccess, *apiError) {
+func (s *Service) resolveResourceAccess(ctx context.Context, req resourceAccessRequest) (resourceAccess, *apiutil.APIError) {
 	access := resourceAccess{workspaceID: req.workspaceID, operation: req.operation}
 	claims, apiErr := externalWorkspaceClaims(ctx)
 	if apiErr != nil {
@@ -107,7 +110,10 @@ func (s *Service) resolveResourceAccess(ctx context.Context, req resourceAccessR
 	}
 	scopes, ok := ctx.Value(gatewayapi.GatewayBearerScopes).([]string)
 	if !ok || len(scopes) != 1 || scopes[0] != expectedScope {
-		return access, resourceForbidden(fmt.Errorf("%s operation mapping is missing, ambiguous, or unknown", req.resource))
+		return access, resourceForbidden(fmt.Errorf(
+			"%s operation mapping is missing, ambiguous, or unknown",
+			req.resource,
+		))
 	}
 
 	effective, err := authorization.New(s.queries).Resolve(
@@ -117,7 +123,7 @@ func (s *Service) resolveResourceAccess(ctx context.Context, req resourceAccessR
 		},
 	)
 	if err != nil {
-		return access, newAPIError(
+		return access, apiutil.NewError(
 			http.StatusInternalServerError,
 			"internal_error",
 			"unexpected server error",
@@ -157,11 +163,11 @@ func (s *Service) resolveResourceAccess(ctx context.Context, req resourceAccessR
 	return access, nil
 }
 
-func (s *Service) resolveResourceScope(ctx context.Context, claims gatewayClaims, workspaceID string, resource string) (string, metav1.OwnerReference, *apiError) {
+func (s *Service) resolveResourceScope(ctx context.Context, claims gatewayClaims, workspaceID string, resource string) (string, metav1.OwnerReference, *apiutil.APIError) {
 	if workspaceID == "" {
 		tenant, err := tenantObject(ctx)
 		if err != nil {
-			return "", metav1.OwnerReference{}, newAPIError(
+			return "", metav1.OwnerReference{}, apiutil.NewError(
 				http.StatusInternalServerError,
 				"internal_error",
 				"unexpected server error",
@@ -169,7 +175,8 @@ func (s *Service) resolveResourceScope(ctx context.Context, claims gatewayClaims
 			)
 		}
 		if tenant.Spec.OrganizationID != claims.OrganizationID {
-			return "", metav1.OwnerReference{}, resourceForbidden(errors.New("organisation identity does not match bearer claims"))
+			err := errors.New("organisation identity does not match bearer claims")
+			return "", metav1.OwnerReference{}, resourceForbidden(err)
 		}
 		return tenant.Status.Namespace, *metav1.NewControllerRef(
 			tenant,
@@ -187,7 +194,7 @@ func (s *Service) resolveResourceScope(ctx context.Context, claims gatewayClaims
 		return "", metav1.OwnerReference{}, workspaceNotFound(workspaceID)
 	}
 	if err != nil {
-		return "", metav1.OwnerReference{}, newAPIError(
+		return "", metav1.OwnerReference{}, apiutil.NewError(
 			http.StatusInternalServerError,
 			"internal_error",
 			"unexpected server error",
@@ -195,7 +202,7 @@ func (s *Service) resolveResourceScope(ctx context.Context, claims gatewayClaims
 		)
 	}
 	if row.DeletedAt.Valid || row.State != gatewaydb.WorkspaceStateReady {
-		return "", metav1.OwnerReference{}, newAPIError(
+		return "", metav1.OwnerReference{}, apiutil.NewError(
 			http.StatusConflict,
 			"workspace_not_ready",
 			"Workspace is not ready",
@@ -205,7 +212,7 @@ func (s *Service) resolveResourceScope(ctx context.Context, claims gatewayClaims
 	workspace := &agentzv1alpha1.Workspace{}
 	err = s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Name: row.Namespace}, workspace)
 	if err != nil {
-		return "", metav1.OwnerReference{}, newAPIError(
+		return "", metav1.OwnerReference{}, apiutil.NewError(
 			http.StatusConflict,
 			"workspace_not_ready",
 			"Workspace is not ready",
@@ -216,7 +223,7 @@ func (s *Service) resolveResourceScope(ctx context.Context, claims gatewayClaims
 		workspace.Spec.OrganizationID == row.OrganizationID &&
 		workspace.Status.Namespace == row.Namespace
 	if !valid {
-		return "", metav1.OwnerReference{}, newAPIError(
+		return "", metav1.OwnerReference{}, apiutil.NewError(
 			http.StatusConflict,
 			"workspace_not_ready",
 			"Workspace is not ready",
@@ -309,8 +316,8 @@ func resourceCapabilities(effective authorization.Effective, organizationID, wor
 	return capabilities
 }
 
-func resourceForbidden(cause error) *apiError {
-	return newAPIError(
+func resourceForbidden(cause error) *apiutil.APIError {
+	return apiutil.NewError(
 		http.StatusForbidden,
 		"forbidden",
 		"request is not authorized for the selected scope",

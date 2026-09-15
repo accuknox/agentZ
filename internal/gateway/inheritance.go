@@ -15,6 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
@@ -39,17 +40,19 @@ func (s *Service) ListWorkspaceInheritedResources(w http.ResponseWriter, r *http
 	}
 	resources, err := s.workspaceInheritedResources(r.Context(), workspace, resourceType)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
+	byStatus := params.SortBy != nil &&
+		*params.SortBy == gatewayapi.ListWorkspaceInheritedResourcesParamsSortByInheritedResourceSortByStatus
+	descending := params.SortOrder != nil &&
+		*params.SortOrder == gatewayapi.ListWorkspaceInheritedResourcesParamsSortOrderInheritedResourceSortOrderDesc
 	slices.SortFunc(resources, func(a, b gatewayapi.WorkspaceInheritedResource) int {
 		order := cmp.Compare(a.Name, b.Name)
-		if params.SortBy != nil &&
-			*params.SortBy == gatewayapi.ListWorkspaceInheritedResourcesParamsSortByInheritedResourceSortByStatus {
+		if byStatus {
 			order = cmp.Compare(string(a.Status), string(b.Status))
 		}
-		if params.SortOrder != nil &&
-			*params.SortOrder == gatewayapi.ListWorkspaceInheritedResourcesParamsSortOrderInheritedResourceSortOrderDesc {
+		if descending {
 			order = -order
 		}
 		if order != 0 {
@@ -57,7 +60,7 @@ func (s *Service) ListWorkspaceInheritedResources(w http.ResponseWriter, r *http
 		}
 		return cmp.Compare(a.Name, b.Name)
 	})
-	writeJSON(
+	apiutil.WriteJSON(
 		w,
 		http.StatusOK,
 		gatewayapi.ListWorkspaceInheritedResourcesResponse{
@@ -89,10 +92,10 @@ func (s *Service) ReplaceWorkspaceInheritedResources(w http.ResponseWriter, r *h
 	}
 	if invalid {
 		s.recordWorkspaceInheritanceFailure(r, claims, workspaceID, resourceType)
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"resource names must be non-empty and unique",
@@ -105,7 +108,7 @@ func (s *Service) ReplaceWorkspaceInheritedResources(w http.ResponseWriter, r *h
 	resources, err := s.workspaceInheritedResources(r.Context(), workspace, resourceType)
 	if err != nil {
 		s.recordWorkspaceInheritanceFailure(r, claims, workspaceID, resourceType)
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	available := make(map[string]gatewayapi.WorkspaceInheritedResource, len(resources))
@@ -117,10 +120,10 @@ func (s *Service) ReplaceWorkspaceInheritedResources(w http.ResponseWriter, r *h
 			continue
 		}
 		s.recordWorkspaceInheritanceFailure(r, claims, workspaceID, resourceType)
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"selected Organisation resource was not found",
@@ -139,10 +142,10 @@ func (s *Service) ReplaceWorkspaceInheritedResources(w http.ResponseWriter, r *h
 			consumerNames = append(consumerNames, consumer.Kind+" "+consumer.Name)
 		}
 		s.recordWorkspaceInheritanceFailure(r, claims, workspaceID, resourceType)
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusConflict,
 				"resource_consumed",
 				"an inherited resource is still consumed",
@@ -158,16 +161,16 @@ func (s *Service) ReplaceWorkspaceInheritedResources(w http.ResponseWriter, r *h
 
 	previous, err := s.workspaceResourceSelection(r.Context(), workspaceID, claims.OrganizationID)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	next := previous
 	kind, _, mapped := inheritedResourceKind(resourceType)
 	if !mapped {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"unknown inherited resource type",
@@ -179,20 +182,21 @@ func (s *Service) ReplaceWorkspaceInheritedResources(w http.ResponseWriter, r *h
 	next.Set(kind, names)
 	if err := s.updateWorkspaceResourceSelection(r.Context(), workspace, next); err != nil {
 		s.recordWorkspaceInheritanceFailure(r, claims, workspaceID, resourceType)
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	if err := s.persistWorkspaceResourceSelection(r.Context(), claims, workspaceID, resourceType, names); err != nil {
+	err = s.persistWorkspaceResourceSelection(r.Context(), claims, workspaceID, resourceType, names)
+	if err != nil {
 		compensationErr := s.updateWorkspaceResourceSelection(r.Context(), workspace, previous)
-		writeInternalError(w, r, errors.Join(err, compensationErr))
+		apiutil.WriteInternalError(w, r, errors.Join(err, compensationErr))
 		return
 	}
 	resources, err = s.workspaceInheritedResources(r.Context(), workspace, resourceType)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	writeJSON(
+	apiutil.WriteJSON(
 		w,
 		http.StatusOK,
 		gatewayapi.ListWorkspaceInheritedResourcesResponse{
@@ -205,7 +209,7 @@ func (s *Service) ReplaceWorkspaceInheritedResources(w http.ResponseWriter, r *h
 func (s *Service) authorizeWorkspaceInheritance(w http.ResponseWriter, r *http.Request, workspaceID, action string) (gatewayClaims, gatewaydb.Workspace, bool) {
 	claims, apiErr := externalWorkspaceClaims(r.Context())
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return gatewayClaims{}, gatewaydb.Workspace{}, false
 	}
 	allowed, err := s.queries.GatewayIsActiveSuperadmin(
@@ -215,7 +219,7 @@ func (s *Service) authorizeWorkspaceInheritance(w http.ResponseWriter, r *http.R
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("authorize Workspace inheritance: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("authorize Workspace inheritance: %w", err))
 		return gatewayClaims{}, gatewaydb.Workspace{}, false
 	}
 	workspace, getErr := s.queries.GatewayGetWorkspace(
@@ -237,10 +241,10 @@ func (s *Service) authorizeWorkspaceInheritance(w http.ResponseWriter, r *http.R
 			)
 		}
 		if !allowed {
-			writeError(
+			apiutil.WriteError(
 				w,
 				r,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusForbidden,
 					"forbidden",
 					"Superadmin authority is required",
@@ -250,10 +254,10 @@ func (s *Service) authorizeWorkspaceInheritance(w http.ResponseWriter, r *http.R
 			return gatewayClaims{}, gatewaydb.Workspace{}, false
 		}
 		if errors.Is(getErr, pgx.ErrNoRows) {
-			writeError(w, r, workspaceNotFound(workspaceID))
+			apiutil.WriteError(w, r, workspaceNotFound(workspaceID))
 			return gatewayClaims{}, gatewaydb.Workspace{}, false
 		}
-		writeInternalError(w, r, fmt.Errorf("get Workspace inheritance: %w", getErr))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("get Workspace inheritance: %w", getErr))
 		return gatewayClaims{}, gatewaydb.Workspace{}, false
 	}
 	return claims, workspace, true
@@ -323,7 +327,8 @@ func databaseOrganizationResourceKind(resource gatewaydb.PermissionResource) (ag
 
 func (s *Service) updateWorkspaceResourceSelection(ctx context.Context, row gatewaydb.Workspace, selected agentzv1alpha1.SelectedOrganizationResources) error {
 	workspace := &agentzv1alpha1.Workspace{}
-	if err := s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Name: row.Namespace}, workspace); err != nil {
+	err := s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Name: row.Namespace}, workspace)
+	if err != nil {
 		return fmt.Errorf("get Workspace resource selection: %w", err)
 	}
 	workspace.Spec.SelectedOrganizationResources = selected
@@ -416,8 +421,14 @@ func (s *Service) validateOrganizationResourceSelection(ctx context.Context, org
 	kinds := []organizationResourceSelectionKind{
 		{agentzv1alpha1.OrganizationResourceKindSkill, "selected_organization_resources.skills"},
 		{agentzv1alpha1.OrganizationResourceKindSandbox, "selected_organization_resources.sandboxes"},
-		{agentzv1alpha1.OrganizationResourceKindMCPConnection, "selected_organization_resources.mcp_connections"},
-		{agentzv1alpha1.OrganizationResourceKindInferenceProvider, "selected_organization_resources.inference_providers"},
+		{
+			agentzv1alpha1.OrganizationResourceKindMCPConnection,
+			"selected_organization_resources.mcp_connections",
+		},
+		{
+			agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+			"selected_organization_resources.inference_providers",
+		},
 	}
 	for _, item := range kinds {
 		seen := map[string]struct{}{}
@@ -474,7 +485,10 @@ func insertWorkspaceResourceSelection(ctx context.Context, q gatewaydb.Querier, 
 		{agentzv1alpha1.OrganizationResourceKindSkill, gatewaydb.PermissionResourceSkill},
 		{agentzv1alpha1.OrganizationResourceKindSandbox, gatewaydb.PermissionResourceSandbox},
 		{agentzv1alpha1.OrganizationResourceKindMCPConnection, gatewaydb.PermissionResourceMcpConnection},
-		{agentzv1alpha1.OrganizationResourceKindInferenceProvider, gatewaydb.PermissionResourceInferenceProvider},
+		{
+			agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+			gatewaydb.PermissionResourceInferenceProvider,
+		},
 	}
 	for _, item := range kinds {
 		names := selected.Names(item.kind)
@@ -495,7 +509,7 @@ func insertWorkspaceResourceSelection(ctx context.Context, q gatewaydb.Querier, 
 	return nil
 }
 
-func (s *Service) selectedOrganizationResourceConflict(ctx context.Context, access resourceAccess, kind agentzv1alpha1.OrganizationResourceKind, name string) (*apiError, error) {
+func (s *Service) selectedOrganizationResourceConflict(ctx context.Context, access resourceAccess, kind agentzv1alpha1.OrganizationResourceKind, name string) (*apiutil.APIError, error) {
 	if access.workspaceID != "" {
 		return nil, nil
 	}
@@ -529,7 +543,7 @@ func (s *Service) selectedOrganizationResourceConflict(ctx context.Context, acce
 	for _, row := range rows {
 		workspaces = append(workspaces, row.Name+" ("+row.ID+")")
 	}
-	return newAPIError(
+	return apiutil.NewError(
 		http.StatusConflict,
 		"resource_inherited",
 		"Organisation resource is selected by one or more Workspaces",
@@ -569,7 +583,8 @@ func (s *Service) workspaceInheritedResources(ctx context.Context, workspace gat
 	switch resourceType {
 	case gatewayapi.InheritedResourceTypeSkill:
 		var list agentzv1alpha1.SkillList
-		if err := s.k8sClient.List(ctx, &list, ctrlclient.InNamespace(organizationNamespace)); err != nil {
+		err := s.k8sClient.List(ctx, &list, ctrlclient.InNamespace(organizationNamespace))
+		if err != nil {
 			return nil, fmt.Errorf("list Organisation Skills: %w", err)
 		}
 		for _, item := range list.Items {
@@ -577,7 +592,8 @@ func (s *Service) workspaceInheritedResources(ctx context.Context, workspace gat
 		}
 	case gatewayapi.InheritedResourceTypeSandbox:
 		var list agentzv1alpha1.SandboxList
-		if err := s.k8sClient.List(ctx, &list, ctrlclient.InNamespace(organizationNamespace)); err != nil {
+		err := s.k8sClient.List(ctx, &list, ctrlclient.InNamespace(organizationNamespace))
+		if err != nil {
 			return nil, fmt.Errorf("list Organisation Sandboxes: %w", err)
 		}
 		for _, item := range list.Items {
@@ -589,7 +605,8 @@ func (s *Service) workspaceInheritedResources(ctx context.Context, workspace gat
 		}
 	case gatewayapi.InheritedResourceTypeMCPConnection:
 		var list agentzv1alpha1.MCPConnectionList
-		if err := s.k8sClient.List(ctx, &list, ctrlclient.InNamespace(organizationNamespace)); err != nil {
+		err := s.k8sClient.List(ctx, &list, ctrlclient.InNamespace(organizationNamespace))
+		if err != nil {
 			return nil, fmt.Errorf("list Organisation MCP Connections: %w", err)
 		}
 		for _, item := range list.Items {
@@ -609,7 +626,8 @@ func (s *Service) workspaceInheritedResources(ctx context.Context, workspace gat
 		}
 	case gatewayapi.InheritedResourceTypeInferenceProvider:
 		var list agentzv1alpha1.InferenceProviderList
-		if err := s.k8sClient.List(ctx, &list, ctrlclient.InNamespace(organizationNamespace)); err != nil {
+		err := s.k8sClient.List(ctx, &list, ctrlclient.InNamespace(organizationNamespace))
+		if err != nil {
 			return nil, fmt.Errorf("list Organisation Inference Providers: %w", err)
 		}
 		for _, item := range list.Items {
@@ -668,11 +686,13 @@ func (s *Service) inheritedResourceConsumers(ctx context.Context, workspace gate
 		}
 	}
 	var agents agentzv1alpha1.AgentList
-	if err := s.k8sClient.List(ctx, &agents, ctrlclient.InNamespace(workspace.Namespace)); err != nil {
+	err := s.k8sClient.List(ctx, &agents, ctrlclient.InNamespace(workspace.Namespace))
+	if err != nil {
 		return nil, fmt.Errorf("list inherited resource Agent consumers: %w", err)
 	}
 	var sandboxes agentzv1alpha1.SandboxList
-	if err := s.k8sClient.List(ctx, &sandboxes, ctrlclient.InNamespace(workspace.Namespace)); err != nil {
+	err = s.k8sClient.List(ctx, &sandboxes, ctrlclient.InNamespace(workspace.Namespace))
+	if err != nil {
 		return nil, fmt.Errorf("list inherited resource Sandbox consumers: %w", err)
 	}
 	for _, agent := range agents.Items {
@@ -713,7 +733,8 @@ func (s *Service) inheritedResourceConsumers(ctx context.Context, workspace gate
 	}
 	if resourceType == gatewayapi.InheritedResourceTypeInferenceProvider {
 		var pools agentzv1alpha1.InferencePoolList
-		if err := s.k8sClient.List(ctx, &pools, ctrlclient.InNamespace(workspace.Namespace)); err != nil {
+		err := s.k8sClient.List(ctx, &pools, ctrlclient.InNamespace(workspace.Namespace))
+		if err != nil {
 			return nil, fmt.Errorf("list inherited resource Pool consumers: %w", err)
 		}
 		for _, pool := range pools.Items {

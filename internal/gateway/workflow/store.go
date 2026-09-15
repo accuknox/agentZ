@@ -17,6 +17,7 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
+// ErrWorkflowNotFound reports a missing workflow in the requested agent scope.
 var ErrWorkflowNotFound = errors.New("workflow not found")
 
 type storedNode struct {

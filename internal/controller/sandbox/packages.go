@@ -33,7 +33,10 @@ var DefaultPackages = []string{
 	"mcporter",
 }
 
-func defaultPackages(names []string) []string {
+// DefaultPackagesForWebhook adds required packages and removes duplicate names.
+// Admission and reconciliation share this list so existing Sandboxes receive
+// newly required packages even before their specs are updated.
+func DefaultPackagesForWebhook(names []string) []string {
 	pkgs := make([]string, 0, len(names)+len(DefaultPackages))
 	for _, name := range names {
 		name = strings.TrimSpace(name)
@@ -45,9 +48,4 @@ func defaultPackages(names []string) []string {
 	pkgs = append(pkgs, DefaultPackages...)
 	slices.Sort(pkgs)
 	return slices.Compact(pkgs)
-}
-
-// DefaultPackagesForWebhook applies the controller package defaults during admission.
-func DefaultPackagesForWebhook(names []string) []string {
-	return defaultPackages(names)
 }

@@ -32,6 +32,7 @@ type routeSpec struct {
 	Method    string `json:"method"`
 	Path      string `json:"path"`
 	Operation string `json:"operation"`
+	ID        string `json:"id"`
 }
 
 type operationCapability struct {
@@ -50,6 +51,27 @@ var baseOperationCapabilities = map[string][]string{
 		"listSecrets", "watchSecrets",
 	},
 	"agent.use_shared": {
+		"listChatInputs",
+		"submitChatInput",
+		"updateChatInput",
+		"listCodingProjects",
+		"createCodingProject",
+		"getCodingProject",
+		"renameCodingProject",
+		"updateCodingProjectPreference",
+		"deleteCodingProject",
+		"prepareCodingCheckout",
+		"getCodingThread",
+		"runCodingGit",
+		"suggestCodingText",
+		"listCodingRepositories",
+		"listCodingRefs",
+		"refreshCodingRepository",
+		"adoptCodingWorktree",
+		"startCodingOperation",
+		"listCodingOperations",
+		"getCodingOperation",
+		"watchCoding",
 		"createDashboard",
 		"createAgentDirectory",
 		"createAgentFile",
@@ -254,10 +276,7 @@ func run() error {
 	if err := writeYAML(outputSpecPath, base); err != nil {
 		return err
 	}
-	if err := writeRoutesGo(routeManifestPath, manifest); err != nil {
-		return err
-	}
-	return nil
+	return writeRoutesGo(routeManifestPath, manifest)
 }
 
 func readYAML(path string) (map[string]any, error) {
@@ -339,6 +358,7 @@ func rewriteOpenCode(doc map[string]any) (map[string]any, routeManifest, error) 
 				Method:    strings.ToUpper(method),
 				Path:      gatewayPath,
 				Operation: operation,
+				ID:        operationID,
 			})
 		}
 	}
@@ -422,10 +442,7 @@ func applyBaseCapabilities(doc map[string]any) error {
 
 func opencodeOperation(operationID string) (string, string, error) {
 	switch operationID {
-	case "provider.auth",
-		"v2.integration.list",
-		"v2.integration.get",
-		"v2.integration.attempt.status":
+	case "v2.integration.attempt.status":
 		return "readSharedSecret", "agent.read_shared_secret", nil
 	case "auth.set",
 		"mcp.add",
@@ -494,7 +511,9 @@ func rewriteRefs(value any, refs map[string]string) {
 
 func mergeSpec(base, extra map[string]any) {
 	appendTags(base, extra["tags"])
-	mergeMapBucket(base, extra, "paths")
+	basePaths := ensureMap(base, "paths")
+	extraPaths, _ := extra["paths"].(map[string]any)
+	maps.Copy(basePaths, extraPaths)
 
 	baseComponents := ensureMap(base, "components")
 	extraComponents, _ := extra["components"].(map[string]any)
@@ -551,8 +570,12 @@ func filterTags(tagsAny any, paths map[string]any) []any {
 		item, _ := itemAny.(map[string]any)
 		for _, method := range pathMethods(item) {
 			op, _ := item[method].(map[string]any)
-			for _, tag := range stringSlice(op["tags"]) {
-				used[tag] = struct{}{}
+			tags, _ := op["tags"].([]any)
+			for _, tag := range tags {
+				name, _ := tag.(string)
+				if name != "" {
+					used[name] = struct{}{}
+				}
 			}
 		}
 	}
@@ -598,12 +621,6 @@ func ensureMap(parent map[string]any, key string) map[string]any {
 	return out
 }
 
-func mergeMapBucket(base, extra map[string]any, key string) {
-	baseMap := ensureMap(base, key)
-	extraMap, _ := extra[key].(map[string]any)
-	maps.Copy(baseMap, extraMap)
-}
-
 func componentBucket(components map[string]any, key string) map[string]any {
 	bucket, _ := components[key].(map[string]any)
 	if bucket == nil {
@@ -639,19 +656,6 @@ func prependAgentParameter(value any) []any {
 	return out
 }
 
-func stringSlice(value any) []string {
-	items, _ := value.([]any)
-	out := make([]string, 0, len(items))
-	for _, item := range items {
-		text, _ := item.(string)
-		if text == "" {
-			continue
-		}
-		out = append(out, text)
-	}
-	return out
-}
-
 func rewriteOpenAPI31Keywords(value any) {
 	switch node := value.(type) {
 	case map[string]any:
@@ -668,6 +672,20 @@ func rewriteOpenAPI31Keywords(value any) {
 				node["items"] = map[string]any{}
 			}
 			delete(node, "prefixItems")
+		}
+		// OpenAPI 3.0 represents homogeneous keyed records with
+		// additionalProperties. Keeping patternProperties leaves dangling refs
+		// after oapi-codegen prunes schemas it cannot see.
+		if patterns, ok := node["patternProperties"].(map[string]any); ok {
+			values := make([]any, 0, len(patterns))
+			for _, key := range slices.Sorted(maps.Keys(patterns)) {
+				values = append(values, patterns[key])
+			}
+			node["additionalProperties"] = map[string]any{"anyOf": values}
+			if len(values) == 1 {
+				node["additionalProperties"] = values[0]
+			}
+			delete(node, "patternProperties")
 		}
 		rewriteNullableSchema(node)
 		rewritePrimitiveUnion(node)
@@ -832,6 +850,60 @@ func applyOAPICodegenFixups(doc map[string]any) error {
 			map[string]any{"$ref": "#/components/schemas/SubtaskPartInput"},
 		},
 	}
+	// Parts have mutually exclusive type tags; expose them to generated clients.
+	part, ok := schemas["Part"].(map[string]any)
+	if !ok {
+		return fmt.Errorf("upstream spec has no Part schema")
+	}
+	part["oneOf"] = part["anyOf"]
+	delete(part, "anyOf")
+	part["discriminator"] = map[string]any{
+		"propertyName": "type",
+		"mapping": map[string]any{
+			"text":        "#/components/schemas/TextPart",
+			"subtask":     "#/components/schemas/SubtaskPart",
+			"reasoning":   "#/components/schemas/ReasoningPart",
+			"file":        "#/components/schemas/FilePart",
+			"tool":        "#/components/schemas/ToolPart",
+			"step-start":  "#/components/schemas/StepStartPart",
+			"step-finish": "#/components/schemas/StepFinishPart",
+			"snapshot":    "#/components/schemas/SnapshotPart",
+			"patch":       "#/components/schemas/PatchPart",
+			"agent":       "#/components/schemas/AgentPart",
+			"retry":       "#/components/schemas/RetryPart",
+			"compaction":  "#/components/schemas/CompactionPart",
+		},
+	}
+	// Event variants already carry a unique type. Generate discriminator access
+	// instead of making proxy consumers probe each possible JSON shape.
+	event := schemas["Event"].(map[string]any)
+	mapping := make(map[string]any)
+	for _, variant := range event["anyOf"].([]any) {
+		ref := variant.(map[string]any)["$ref"].(string)
+		schema := schemas[strings.TrimPrefix(ref, "#/components/schemas/")].(map[string]any)
+		properties := schema["properties"].(map[string]any)
+		tag := properties["type"].(map[string]any)
+		mapping[tag["enum"].([]any)[0].(string)] = ref
+	}
+	event["oneOf"] = event["anyOf"]
+	delete(event, "anyOf")
+	event["discriminator"] = map[string]any{"propertyName": "type", "mapping": mapping}
+	status := schemas["SessionStatus"].(map[string]any)
+	variants := status["anyOf"].([]any)
+	statuses := make(map[string]any)
+	for i, variant := range variants {
+		schema := variant.(map[string]any)
+		properties := schema["properties"].(map[string]any)
+		tag := properties["type"].(map[string]any)["enum"].([]any)[0].(string)
+		name := fmt.Sprintf("SessionStatus%d", i)
+		schemas[name] = schema
+		ref := "#/components/schemas/" + name
+		variants[i] = map[string]any{"$ref": ref}
+		statuses[tag] = ref
+	}
+	status["oneOf"] = variants
+	delete(status, "anyOf")
+	status["discriminator"] = map[string]any{"propertyName": "type", "mapping": statuses}
 	textPartInput, ok := schemas["TextPartInput"].(map[string]any)
 	if !ok {
 		return fmt.Errorf("upstream spec has no TextPartInput schema")
@@ -925,8 +997,8 @@ func writeRoutesGo(path string, manifest routeManifest) error {
 	buf.WriteString("// Code generated by hack/openapi. DO NOT EDIT.\n")
 	buf.WriteString("var opencodeRoutes = []opencodeRoute{\n")
 	for _, route := range manifest.Routes {
-		fmt.Fprintf(&buf, "\t{Method: %q, Path: %q, Operation: %q},\n",
-			route.Method, route.Path, route.Operation)
+		fmt.Fprintf(&buf, "\t{Method: %q, Path: %q, Operation: %q, ID: %q},\n",
+			route.Method, route.Path, route.Operation, route.ID)
 	}
 	buf.WriteString("}\n")
 

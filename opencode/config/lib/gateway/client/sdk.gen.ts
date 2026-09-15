@@ -8,6 +8,9 @@ import {
 } from "./client"
 import { client } from "./client.gen"
 import type {
+  AdoptCodingWorktreeData,
+  AdoptCodingWorktreeErrors,
+  AdoptCodingWorktreeResponses,
   CreateAgentData,
   CreateAgentDirectoryData,
   CreateAgentDirectoryErrors,
@@ -17,6 +20,9 @@ import type {
   CreateAgentFileErrors,
   CreateAgentFileResponses,
   CreateAgentResponses,
+  CreateCodingProjectData,
+  CreateCodingProjectErrors,
+  CreateCodingProjectResponses,
   CreateDashboardData,
   CreateDashboardErrors,
   CreateDashboardResponses,
@@ -62,6 +68,9 @@ import type {
   DeleteAgentShareData,
   DeleteAgentShareErrors,
   DeleteAgentShareResponses,
+  DeleteCodingProjectData,
+  DeleteCodingProjectErrors,
+  DeleteCodingProjectResponses,
   DeleteDashboardData,
   DeleteDashboardErrors,
   DeleteDashboardResponses,
@@ -110,6 +119,15 @@ import type {
   GetChatSessionPreferenceData,
   GetChatSessionPreferenceErrors,
   GetChatSessionPreferenceResponses,
+  GetCodingOperationData,
+  GetCodingOperationErrors,
+  GetCodingOperationResponses,
+  GetCodingProjectData,
+  GetCodingProjectErrors,
+  GetCodingProjectResponses,
+  GetCodingThreadData,
+  GetCodingThreadErrors,
+  GetCodingThreadResponses,
   GetDashboardData,
   GetDashboardErrors,
   GetDashboardResponses,
@@ -179,9 +197,24 @@ import type {
   ListAgentWorkflowSchedulesData,
   ListAgentWorkflowSchedulesErrors,
   ListAgentWorkflowSchedulesResponses,
+  ListChatInputsData,
+  ListChatInputsErrors,
+  ListChatInputsResponses,
   ListChatSessionsData,
   ListChatSessionsErrors,
   ListChatSessionsResponses,
+  ListCodingOperationsData,
+  ListCodingOperationsErrors,
+  ListCodingOperationsResponses,
+  ListCodingProjectsData,
+  ListCodingProjectsErrors,
+  ListCodingProjectsResponses,
+  ListCodingRefsData,
+  ListCodingRefsErrors,
+  ListCodingRefsResponses,
+  ListCodingRepositoriesData,
+  ListCodingRepositoriesErrors,
+  ListCodingRepositoriesResponses,
   ListDashboardsData,
   ListDashboardsErrors,
   ListDashboardsResponses,
@@ -272,6 +305,9 @@ import type {
   PatchWorkflowRunStatusData,
   PatchWorkflowRunStatusErrors,
   PatchWorkflowRunStatusResponses,
+  PrepareCodingCheckoutData,
+  PrepareCodingCheckoutErrors,
+  PrepareCodingCheckoutResponses,
   PreviewImmutableSkillImportData,
   PreviewImmutableSkillImportErrors,
   PreviewImmutableSkillImportResponses,
@@ -293,12 +329,18 @@ import type {
   ReadAgentFileRawErrors,
   ReadAgentFileRawResponses,
   ReadAgentFileResponses,
+  RefreshCodingRepositoryData,
+  RefreshCodingRepositoryErrors,
+  RefreshCodingRepositoryResponses,
   RefreshInferenceProviderModelsData,
   RefreshInferenceProviderModelsErrors,
   RefreshInferenceProviderModelsResponses,
   RenameAgentEntryData,
   RenameAgentEntryErrors,
   RenameAgentEntryResponses,
+  RenameCodingProjectData,
+  RenameCodingProjectErrors,
+  RenameCodingProjectResponses,
   ReplaceWorkspaceInheritedResourcesData,
   ReplaceWorkspaceInheritedResourcesErrors,
   ReplaceWorkspaceInheritedResourcesResponses,
@@ -308,18 +350,36 @@ import type {
   RetryWorkspaceData,
   RetryWorkspaceErrors,
   RetryWorkspaceResponses,
+  RunCodingGitData,
+  RunCodingGitErrors,
+  RunCodingGitResponses,
+  StartCodingOperationData,
+  StartCodingOperationErrors,
+  StartCodingOperationResponses,
   StatAgentFileData,
   StatAgentFileErrors,
   StatAgentFileResponses,
+  SubmitChatInputData,
+  SubmitChatInputErrors,
+  SubmitChatInputResponses,
+  SuggestCodingTextData,
+  SuggestCodingTextErrors,
+  SuggestCodingTextResponses,
   TransferAgentOwnerData,
   TransferAgentOwnerErrors,
   TransferAgentOwnerResponses,
   UpdateAgentData,
   UpdateAgentErrors,
   UpdateAgentResponses,
+  UpdateChatInputData,
+  UpdateChatInputErrors,
+  UpdateChatInputResponses,
   UpdateChatSessionPreferenceData,
   UpdateChatSessionPreferenceErrors,
   UpdateChatSessionPreferenceResponses,
+  UpdateCodingProjectPreferenceData,
+  UpdateCodingProjectPreferenceErrors,
+  UpdateCodingProjectPreferenceResponses,
   UpdateInferencePoolData,
   UpdateInferencePoolErrors,
   UpdateInferencePoolResponses,
@@ -349,6 +409,10 @@ import type {
   WatchChatSessionsErrors,
   WatchChatSessionsResponse,
   WatchChatSessionsResponses,
+  WatchCodingData,
+  WatchCodingErrors,
+  WatchCodingResponse,
+  WatchCodingResponses,
   WatchInferencePoolsData,
   WatchInferencePoolsErrors,
   WatchInferencePoolsResponse,
@@ -395,6 +459,252 @@ export type Options<
   meta?: Record<string, unknown>
 }
 
+export const listCodingProjects = <ThrowOnError extends boolean = false>(
+  options?: Options<ListCodingProjectsData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    ListCodingProjectsResponses,
+    ListCodingProjectsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/coding/project",
+    ...options,
+  })
+
+export const createCodingProject = <ThrowOnError extends boolean = false>(
+  options: Options<CreateCodingProjectData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    CreateCodingProjectResponses,
+    CreateCodingProjectErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/coding/project",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+export const deleteCodingProject = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteCodingProjectData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<
+    DeleteCodingProjectResponses,
+    DeleteCodingProjectErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/coding/project/{projectId}",
+    ...options,
+  })
+
+export const getCodingProject = <ThrowOnError extends boolean = false>(
+  options: Options<GetCodingProjectData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetCodingProjectResponses, GetCodingProjectErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/coding/project/{projectId}",
+    ...options,
+  })
+
+export const renameCodingProject = <ThrowOnError extends boolean = false>(
+  options: Options<RenameCodingProjectData, ThrowOnError>
+) =>
+  (options.client ?? client).patch<
+    RenameCodingProjectResponses,
+    RenameCodingProjectErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/coding/project/{projectId}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+export const updateCodingProjectPreference = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateCodingProjectPreferenceData, ThrowOnError>
+) =>
+  (options.client ?? client).put<
+    UpdateCodingProjectPreferenceResponses,
+    UpdateCodingProjectPreferenceErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/coding/project/{projectId}/preference",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+export const prepareCodingCheckout = <ThrowOnError extends boolean = false>(
+  options: Options<PrepareCodingCheckoutData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    PrepareCodingCheckoutResponses,
+    PrepareCodingCheckoutErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/coding/checkout",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+export const getCodingThread = <ThrowOnError extends boolean = false>(
+  options: Options<GetCodingThreadData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetCodingThreadResponses, GetCodingThreadErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/coding/agent/{agentName}/session/{sessionId}",
+    ...options,
+  })
+
+export const suggestCodingText = <ThrowOnError extends boolean = false>(
+  options: Options<SuggestCodingTextData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    SuggestCodingTextResponses,
+    SuggestCodingTextErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/coding/agent/{agentName}/session/{sessionId}/suggestion",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+export const runCodingGit = <ThrowOnError extends boolean = false>(
+  options: Options<RunCodingGitData, ThrowOnError>
+) =>
+  (options.client ?? client).post<RunCodingGitResponses, RunCodingGitErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/coding/worktree/{worktreeId}/git",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+export const listCodingRepositories = <ThrowOnError extends boolean = false>(
+  options?: Options<ListCodingRepositoriesData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    ListCodingRepositoriesResponses,
+    ListCodingRepositoriesErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/coding/repository",
+    ...options,
+  })
+
+export const listCodingRefs = <ThrowOnError extends boolean = false>(
+  options: Options<ListCodingRefsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ListCodingRefsResponses, ListCodingRefsErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/coding/project/{projectId}/refs",
+    ...options,
+  })
+
+export const refreshCodingRepository = <ThrowOnError extends boolean = false>(
+  options: Options<RefreshCodingRepositoryData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    RefreshCodingRepositoryResponses,
+    RefreshCodingRepositoryErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/coding/project/{projectId}/refresh",
+    ...options,
+  })
+
+export const adoptCodingWorktree = <ThrowOnError extends boolean = false>(
+  options: Options<AdoptCodingWorktreeData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    AdoptCodingWorktreeResponses,
+    AdoptCodingWorktreeErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/coding/project/{projectId}/worktree",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+export const listCodingOperations = <ThrowOnError extends boolean = false>(
+  options?: Options<ListCodingOperationsData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    ListCodingOperationsResponses,
+    ListCodingOperationsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/coding/operation",
+    ...options,
+  })
+
+export const startCodingOperation = <ThrowOnError extends boolean = false>(
+  options: Options<StartCodingOperationData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    StartCodingOperationResponses,
+    StartCodingOperationErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/coding/operation",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+export const getCodingOperation = <ThrowOnError extends boolean = false>(
+  options: Options<GetCodingOperationData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    GetCodingOperationResponses,
+    GetCodingOperationErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/coding/operation/{operationId}",
+    ...options,
+  })
+
+export const watchCoding = <ThrowOnError extends boolean = false>(
+  options?: Options<WatchCodingData, ThrowOnError, WatchCodingResponse>
+) =>
+  (options?.client ?? client).sse.get<WatchCodingResponses, WatchCodingErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/coding/watch",
+    ...options,
+  })
+
 /**
  * List the current Workspace chat inbox.
  *
@@ -426,6 +736,50 @@ export const watchChatSessions = <ThrowOnError extends boolean = false>(
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/chat-session/watch",
     ...options,
+  })
+
+/**
+ * Read queued messages and your recovered drafts.
+ */
+export const listChatInputs = <ThrowOnError extends boolean = false>(
+  options: Options<ListChatInputsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ListChatInputsResponses, ListChatInputsErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/chat-session/{agentName}/{sessionId}/input",
+    ...options,
+  })
+
+/**
+ * Persist a message for steering or queued delivery.
+ */
+export const submitChatInput = <ThrowOnError extends boolean = false>(
+  options: Options<SubmitChatInputData, ThrowOnError>
+) =>
+  (options.client ?? client).post<SubmitChatInputResponses, SubmitChatInputErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/chat-session/{agentName}/{sessionId}/input",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Remove or retry your queued message.
+ */
+export const updateChatInput = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateChatInputData, ThrowOnError>
+) =>
+  (options.client ?? client).patch<UpdateChatInputResponses, UpdateChatInputErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/chat-session/{agentName}/{sessionId}/input/{inputId}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
   })
 
 /**

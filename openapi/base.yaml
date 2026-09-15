@@ -9,6 +9,8 @@ servers:
 security:
 - GatewayBearer: []
 tags:
+- name: coding
+  description: Personal projects and agent-local coding checkouts.
 - name: dashboards
   description: Agent-owned dashboard definitions and bounded data APIs.
 - name: agents
@@ -43,6 +45,341 @@ tags:
   description: Workspace chat inbox and preference APIs.
 
 paths:
+  /api/coding/project:
+    get:
+      operationId: listCodingProjects
+      tags: [coding]
+      responses:
+        '200':
+          description: The actor's projects.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/CodingProject'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    post:
+      operationId: createCodingProject
+      tags: [coding]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateCodingProjectRequest'}
+      responses:
+        '201':
+          description: Created project.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CodingProject'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/coding/project/{projectId}:
+    parameters:
+    - {name: projectId, in: path, required: true, schema: {type: string, pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'}}
+    get:
+      operationId: getCodingProject
+      tags: [coding]
+      responses:
+        '200':
+          description: Project and checkouts.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CodingProjectDetail'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    patch:
+      operationId: renameCodingProject
+      tags: [coding]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                name: {type: string, minLength: 1, maxLength: 80, pattern: '.*\S.*'}
+              required: [name]
+      responses:
+        '204': {description: Renamed.}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    delete:
+      operationId: deleteCodingProject
+      tags: [coding]
+      responses:
+        '204': {description: Project and associated conversations deleted.}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/coding/project/{projectId}/preference:
+    parameters:
+    - {name: projectId, in: path, required: true, schema: {type: string}}
+    put:
+      operationId: updateCodingProjectPreference
+      tags: [coding]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                agent_name: {$ref: '#/components/schemas/AgentName'}
+              required: [agent_name]
+      responses:
+        '204': {description: Updated preference.}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/coding/checkout:
+    post:
+      operationId: prepareCodingCheckout
+      tags: [coding]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PrepareCodingCheckoutRequest'}
+      responses:
+        '201':
+          description: Prepared checkout.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CodingWorktree'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/coding/agent/{agentName}/session/{sessionId}:
+    parameters:
+    - {name: agentName, in: path, required: true, schema: {type: string}}
+    - {name: sessionId, in: path, required: true, schema: {type: string}}
+    get:
+      operationId: getCodingThread
+      tags: [coding]
+      responses:
+        '200':
+          description: Thread checkout.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CodingThread'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/coding/agent/{agentName}/session/{sessionId}/suggestion:
+    parameters:
+    - {name: agentName, in: path, required: true, schema: {type: string}}
+    - {name: sessionId, in: path, required: true, schema: {type: string}}
+    post:
+      operationId: suggestCodingText
+      tags: [coding]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CodingTextRequest'}
+      responses:
+        '200':
+          description: Generated source-control text.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CodingTextSuggestion'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/coding/worktree/{worktreeId}/git:
+    parameters:
+    - {name: worktreeId, in: path, required: true, schema: {type: string, pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'}}
+    post:
+      operationId: runCodingGit
+      tags: [coding]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CodingGitRequest'}
+      responses:
+        '200':
+          description: Git result.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CodingGitResult'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/coding/repository:
+    parameters:
+    - {name: query, in: query, schema: {type: string, maxLength: 256, default: ''}}
+    - {name: page, in: query, schema: {type: integer, minimum: 1, default: 1}}
+    get:
+      operationId: listCodingRepositories
+      tags: [coding]
+      responses:
+        '200':
+          description: Coding result.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CodingRepositoryPage'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/coding/project/{projectId}/refs:
+    parameters:
+    - {name: projectId, in: path, required: true, schema: {type: string}}
+    - {name: agent_name, in: query, required: true, schema: {type: string}}
+    - {name: query, in: query, schema: {type: string, maxLength: 256}}
+    - {name: cursor, in: query, schema: {type: string}}
+    get:
+      operationId: listCodingRefs
+      tags: [coding]
+      responses:
+        '200':
+          description: Coding result.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CodingRepositorySnapshot'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/coding/project/{projectId}/refresh:
+    parameters:
+    - {name: projectId, in: path, required: true, schema: {type: string}}
+    - {name: agent_name, in: query, required: true, schema: {type: string}}
+    post:
+      operationId: refreshCodingRepository
+      tags: [coding]
+      responses:
+        '202':
+          description: Coding result.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CodingRepositorySnapshot'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/coding/project/{projectId}/worktree:
+    parameters:
+    - {name: projectId, in: path, required: true, schema: {type: string}}
+    post:
+      operationId: adoptCodingWorktree
+      tags: [coding]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdoptCodingWorktreeRequest'}
+      responses:
+        '201':
+          description: Coding result.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CodingWorktree'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/coding/operation:
+    post:
+      operationId: startCodingOperation
+      tags: [coding]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CodingOperationRequest'}
+      responses:
+        '202':
+          description: Coding result.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CodingOperation'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+    get:
+      operationId: listCodingOperations
+      tags: [coding]
+      responses:
+        '200':
+          description: Active and recent operations owned by the actor.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/CodingOperation'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/coding/operation/{operationId}:
+    parameters:
+    - {name: operationId, in: path, required: true, schema: {type: string}}
+    get:
+      operationId: getCodingOperation
+      tags: [coding]
+      responses:
+        '200':
+          description: Coding result.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CodingOperation'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/coding/watch:
+    get:
+      operationId: watchCoding
+      tags: [coding]
+      responses:
+        '200':
+          description: Invalidation notifications; read current state on every connection.
+          content:
+            text/event-stream:
+              schema: {$ref: '#/components/schemas/WatchChatSessionsEvent'}
+        default:
+          description: Request failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
   /api/chat-session:
     get:
       operationId: listChatSessions
@@ -52,6 +389,7 @@ paths:
         use ALL semantics and are evaluated by the database before pagination.
       tags: [chat-sessions]
       parameters:
+      - {name: project_id, in: query, schema: {type: string}}
       - $ref: '#/components/parameters/ChatSessionLimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       - $ref: '#/components/parameters/AgentNameQueryOptional'
@@ -93,6 +431,80 @@ paths:
             text/event-stream:
               schema:
                 $ref: '#/components/schemas/WatchChatSessionsEvent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/chat-session/{agentName}/{sessionId}/input:
+    parameters:
+    - {name: agentName, in: path, required: true, schema: {$ref: '#/components/schemas/AgentName'}}
+    - {name: sessionId, in: path, required: true, schema: {type: string, minLength: 1}}
+    get:
+      operationId: listChatInputs
+      summary: Read queued messages and your recovered drafts.
+      tags: [chat-sessions]
+      responses:
+        '200':
+          description: Read queued messages and your recovered drafts.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ChatInputs'}
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      operationId: submitChatInput
+      summary: Persist a message for steering or queued delivery.
+      tags: [chat-sessions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ChatInputRequest'}
+      responses:
+        '202':
+          description: Persist a message for steering or queued delivery.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ChatInput'}
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/chat-session/{agentName}/{sessionId}/input/{inputId}:
+    parameters:
+    - {name: agentName, in: path, required: true, schema: {$ref: '#/components/schemas/AgentName'}}
+    - {name: sessionId, in: path, required: true, schema: {type: string, minLength: 1}}
+    - {name: inputId, in: path, required: true, schema: {type: string}}
+    patch:
+      operationId: updateChatInput
+      summary: Remove or retry your queued message.
+      tags: [chat-sessions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ChatInputUpdate'}
+      responses:
+        '200':
+          description: Remove or retry your queued message.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ChatInput'}
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -522,6 +934,8 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateAgentRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
@@ -556,6 +970,8 @@ paths:
             schema:
               $ref: '#/components/schemas/UpdateAgentRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
@@ -2777,6 +3193,8 @@ paths:
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: Workflow summaries for an agent.
           content:
@@ -2806,6 +3224,8 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateWorkflowRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
@@ -2841,6 +3261,8 @@ paths:
             schema:
               $ref: '#/components/schemas/DeleteWorkflowsRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
@@ -2872,6 +3294,8 @@ paths:
         schema:
           $ref: '#/components/schemas/WorkflowName'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: Workflow definition.
           content:
@@ -2899,6 +3323,8 @@ paths:
       - $ref: '#/components/parameters/WorkflowScheduleSortByQuery'
       - $ref: '#/components/parameters/SortOrderQuery'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: Paginated workflow schedules for an agent.
           content:
@@ -2930,6 +3356,8 @@ paths:
       - $ref: '#/components/parameters/WorkflowScheduleSortByQuery'
       - $ref: '#/components/parameters/SortOrderQuery'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: Paginated workflow schedules for a workflow.
           content:
@@ -2962,6 +3390,8 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateWorkflowScheduleRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
@@ -3009,6 +3439,8 @@ paths:
             schema:
               $ref: '#/components/schemas/UpdateWorkflowScheduleRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
@@ -3049,6 +3481,8 @@ paths:
         schema:
           $ref: '#/components/schemas/WorkflowScheduleName'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '204':
           description: Workflow schedule deleted.
         '400':
@@ -3081,6 +3515,8 @@ paths:
         schema:
           $ref: '#/components/schemas/WorkflowScheduleName'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '202':
           description: Workflow run accepted.
           content:
@@ -3134,6 +3570,8 @@ paths:
               $ref: '#/components/schemas/WorkflowRunInputs'
           '*/*': {}
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
@@ -3168,6 +3606,8 @@ paths:
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: Paginated webhook trigger rows for an agent.
           content:
@@ -3226,6 +3666,8 @@ paths:
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: Paginated workflow runs for a workflow.
           content:
@@ -3263,6 +3705,8 @@ paths:
             schema:
               $ref: '#/components/schemas/WatchWorkflowRunsRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
@@ -3303,6 +3747,8 @@ paths:
         schema:
           $ref: '#/components/schemas/WorkflowRunName'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: Workflow run details.
           content:
@@ -3337,6 +3783,8 @@ paths:
         schema:
           $ref: '#/components/schemas/WorkflowRunName'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '204':
           description: Workflow run deleted.
         '400':
@@ -3376,6 +3824,8 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchWorkflowRunStatusRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
@@ -3427,6 +3877,8 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchWorkflowRunNodeStatusRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
@@ -3452,6 +3904,8 @@ paths:
       - $ref: '#/components/parameters/AgentNameQueryOptional'
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: One page of dashboard summaries.
           content:
@@ -3473,6 +3927,8 @@ paths:
       - $ref: '#/components/parameters/WorkspaceIDHeader'
       - $ref: '#/components/parameters/PageTokenQuery'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: One page of dashboard summaries.
           content:
@@ -3499,6 +3955,8 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateDashboardRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '201':
           description: Dashboard created.
           content:
@@ -3524,6 +3982,8 @@ paths:
       summary: Get an Agent dashboard definition.
       tags: [dashboards]
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: Dashboard definition.
           content:
@@ -3539,6 +3999,8 @@ paths:
       summary: Delete an Agent dashboard and its data.
       tags: [dashboards]
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '204':
           description: Dashboard deleted.
         '404':
@@ -3564,6 +4026,8 @@ paths:
             schema:
               $ref: '#/components/schemas/PublishDashboardDataRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: Data accepted or an identical retry replayed.
           content:
@@ -3597,6 +4061,8 @@ paths:
             schema:
               $ref: '#/components/schemas/QueryDashboardRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: Per-widget query results.
           content:
@@ -3636,6 +4102,8 @@ paths:
             minLength: 1
             maxLength: 80
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           description: One 25-row table page.
           content:
@@ -4296,12 +4764,13 @@ components:
 
     ChatSessionGroupBy:
       type: string
-      enum: [none, agent, status, date]
+      enum: [none, agent, status, date, project]
       x-enum-varnames:
       - ChatSessionGroupByNone
       - ChatSessionGroupByAgent
       - ChatSessionGroupByStatus
       - ChatSessionGroupByDate
+      - ChatSessionGroupByProject
 
     ChatSessionDateBucket:
       type: string
@@ -4332,6 +4801,7 @@ components:
       type: object
       additionalProperties: false
       properties:
+        project_id: {type: string}
         agent_name:
           $ref: '#/components/schemas/AgentName'
         session_id:
@@ -4388,6 +4858,7 @@ components:
       type: object
       additionalProperties: false
       properties:
+        project: {$ref: '#/components/schemas/CodingProject'}
         group_by:
           $ref: '#/components/schemas/ChatSessionGroupBy'
         key:
@@ -4418,6 +4889,75 @@ components:
       - sessions
       - has_next_page
       - next_page_token
+
+    ChatAttachment:
+      type: object
+      additionalProperties: false
+      required: [id, filename, mediaType, path, size]
+      properties:
+        id: {type: string, minLength: 1}
+        filename: {type: string, minLength: 1}
+        mediaType: {type: string, minLength: 1}
+        path: {type: string, minLength: 1}
+        size: {type: integer, format: int32, minimum: 0, maximum: 8388608}
+    ChatInputContent:
+      type: object
+      additionalProperties: false
+      required: [text, attachments, model]
+      properties:
+        text: {type: string, maxLength: 1000000}
+        attachments:
+          type: array
+          maxItems: 3
+          items: {$ref: '#/components/schemas/ChatAttachment'}
+        model:
+          type: object
+          additionalProperties: false
+          required: [modelID, providerID]
+          properties:
+            modelID: {type: string, minLength: 1}
+            providerID: {type: string, minLength: 1}
+        agent: {type: string}
+        variant: {type: string}
+    ChatInputRequest:
+      type: object
+      additionalProperties: false
+      required: [id, delivery, content]
+      properties:
+        id: {type: string, format: uuid}
+        delivery: {type: string, enum: [steer, queue]}
+        content: {$ref: '#/components/schemas/ChatInputContent'}
+    ChatInputState:
+      type: string
+      enum: [queued, sending, delivered, failed, recovered, removed]
+    ChatInput:
+      type: object
+      required: [id, author, delivery, content, state, revision, created_at, error]
+      properties:
+        id: {type: string, format: uuid}
+        author: {$ref: '#/components/schemas/ResourceActor'}
+        delivery: {type: string, enum: [steer, queue]}
+        content: {$ref: '#/components/schemas/ChatInputContent'}
+        state: {$ref: '#/components/schemas/ChatInputState'}
+        revision: {type: integer, format: int64}
+        created_at: {type: string, format: date-time}
+        message_id: {type: string}
+        error: {type: string}
+    ChatInputs:
+      type: object
+      required: [items, stopping]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/ChatInput'}
+        stopping: {type: boolean}
+    ChatInputUpdate:
+      type: object
+      additionalProperties: false
+      required: [revision, action]
+      properties:
+        revision: {type: integer, format: int64, minimum: 1}
+        action: {type: string, enum: [remove, retry]}
 
     ChatSessionPreference:
       type: object
@@ -4785,10 +5325,17 @@ components:
       - WorkspaceStateFailed
       - WorkspaceStateDeleting
 
+    WorkspaceType:
+      type: string
+      enum: [general, coding]
+      x-enum-varnames: [WorkspaceTypeGeneral, WorkspaceTypeCoding]
+
     Workspace:
       type: object
       additionalProperties: false
       properties:
+        type:
+          $ref: '#/components/schemas/WorkspaceType'
         id:
           type: string
         name:
@@ -4818,6 +5365,7 @@ components:
           type: string
           format: date-time
       required:
+      - type
       - id
       - name
       - slug
@@ -4890,6 +5438,8 @@ components:
       type: object
       additionalProperties: false
       properties:
+        type:
+          $ref: '#/components/schemas/WorkspaceType'
         name:
           type: string
           minLength: 1
@@ -5276,6 +5826,7 @@ components:
 
     WorkflowRunTerminalPhase:
       type: string
+      x-enum-varnames: [WorkflowRunTerminalPhaseSucceeded, WorkflowRunTerminalPhaseFailed]
       enum:
       - Succeeded
       - Failed
@@ -5297,6 +5848,7 @@ components:
       - Failed
 
     WorkflowRunStatus:
+      x-enum-varnames: [WorkflowRunStatusPending, WorkflowRunStatusRunning, WorkflowRunStatusSucceeded, WorkflowRunStatusFailed, WorkflowRunStatusUnacked]
       type: string
       enum:
       - Pending
@@ -9289,3 +9841,313 @@ components:
         error:
           $ref: '#/components/schemas/DashboardWidgetError'
       required: [status, rows, next_page_token]
+
+    CodingProject:
+      type: object
+      additionalProperties: false
+      properties:
+        last_agent_name: {type: string}
+        id: {type: string, pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'}
+        name: {type: string}
+        repository_id: {type: integer, format: int64}
+        repository: {type: string}
+        default_branch: {type: string}
+        created_at: {type: string, format: date-time}
+      required: [id, name, repository_id, repository, default_branch, created_at]
+    CreateCodingProjectRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name: {type: string, minLength: 1, maxLength: 80, pattern: '.*\S.*'}
+        repository_id: {type: integer, format: int64, minimum: 1}
+      required: [name, repository_id]
+    CodingWorktree:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {type: string, pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'}
+        project_id: {type: string, pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'}
+        agent_name: {type: string}
+        directory: {type: string}
+        branch: {type: string}
+        ready: {type: boolean}
+        shared: {type: boolean}
+      required: [id, project_id, agent_name, directory, branch, ready, shared]
+    CodingThread:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {type: string, pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'}
+        session_id: {type: string}
+        repository_id: {type: integer, format: int64}
+        repository: {type: string}
+        worktree: {$ref: '#/components/schemas/CodingWorktree'}
+      required: [id, session_id, repository_id, repository, worktree]
+    CodingProjectDetail:
+      type: object
+      additionalProperties: false
+      properties:
+        project: {$ref: '#/components/schemas/CodingProject'}
+        worktrees:
+          type: array
+          items: {$ref: '#/components/schemas/CodingWorktree'}
+        threads:
+          type: array
+          items: {$ref: '#/components/schemas/CodingThread'}
+      required: [project, worktrees, threads]
+    PrepareCodingCheckoutRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {type: string, pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'}
+        project_id: {type: string, pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'}
+        agent_name: {type: string, minLength: 1, maxLength: 32}
+        worktree_id: {type: string, pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'}
+        main_checkout: {type: boolean, default: false}
+        base_ref: {type: string, minLength: 1, maxLength: 1024}
+      required: [id, project_id, agent_name]
+    CodingTextRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        purpose:
+          type: string
+          enum: [branch, commit, pr]
+          x-enum-varnames: [CodingTextBranch, CodingTextCommit, CodingTextPR]
+        text: {type: string, maxLength: 48000}
+        expected_tree: {type: string, pattern: '^[a-f0-9]{40,64}$'}
+        model:
+          type: object
+          additionalProperties: false
+          properties:
+            modelID: {type: string, minLength: 1}
+            providerID: {type: string, minLength: 1}
+          required: [modelID, providerID]
+      required: [purpose]
+    CodingPullRequestText:
+      type: object
+      additionalProperties: false
+      properties:
+        title: {type: string, minLength: 1, maxLength: 256}
+        body: {type: string, minLength: 1, maxLength: 20000}
+      required: [title, body]
+    CodingTextSuggestion:
+      type: object
+      additionalProperties: false
+      properties:
+        text: {type: string, minLength: 1, maxLength: 20000}
+        pull_request: {$ref: '#/components/schemas/CodingPullRequestText'}
+      required: [text]
+    CodingGitRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        operation:
+          type: string
+          enum: [discover, status, diff, stage, unstage, stashes, stash_create, stash_apply, stash_pop, stash_drop, export, import, apply_commit, checkout, create_branch, prepare_commit, rename, remove]
+          x-enum-varnames: [CodingGitDiscover, CodingGitStatus, CodingGitDiff, CodingGitStage, CodingGitUnstage, CodingGitStashes, CodingGitStashCreate, CodingGitStashApply, CodingGitStashPop, CodingGitStashDrop, CodingGitExport, CodingGitImport, CodingGitApplyCommit, CodingGitCheckout, CodingGitCreateBranch, CodingGitPrepareCommit, CodingGitRename, CodingGitRemove]
+        comparison:
+          $ref: '#/components/schemas/CodingGitComparison'
+        revision: {type: string, pattern: '^[a-f0-9]{64}$'}
+        hunk: {type: integer, minimum: 0}
+        stash: {type: string, pattern: '^[a-f0-9]{40,64}$'}
+        message: {type: string, maxLength: 1000}
+        restore_index: {type: boolean}
+        paths:
+          type: array
+          maxItems: 1000
+          items: {type: string, minLength: 1, maxLength: 4096}
+        expected_tree:
+          type: string
+          pattern: '^[a-f0-9]{40,64}$'
+        expected_head: {type: string, pattern: '^[a-f0-9]{40,64}$'}
+        ref: {type: string, maxLength: 255}
+        bundle: {type: string, format: byte, maxLength: 89478488}
+      required: [operation]
+    CodingGitResult:
+      type: object
+      additionalProperties: false
+      properties:
+        head: {type: string}
+        branch: {type: string}
+        default_branch: {type: string}
+        remote_head: {type: string}
+        ahead: {type: integer}
+        behind: {type: integer}
+        ahead_of_default: {type: integer}
+        files:
+          type: array
+          items: {$ref: '#/components/schemas/CodingGitFile'}
+        revision: {type: string}
+        patches:
+          type: array
+          items: {$ref: '#/components/schemas/CodingGitPatch'}
+        stashes:
+          type: array
+          items: {$ref: '#/components/schemas/CodingGitStash'}
+        bundle: {type: string, format: byte}
+        tree: {type: string}
+        repository: {$ref: '#/components/schemas/CodingRepositorySnapshot'}
+        pull_request: {$ref: '#/components/schemas/CodingPullRequest'}
+        remote_error: {type: string}
+      required: [head, branch, files, revision, default_branch, remote_head, ahead, behind, ahead_of_default]
+    CodingGitFile:
+      type: object
+      additionalProperties: false
+      properties:
+        path: {type: string}
+        index: {type: string}
+        worktree: {type: string}
+        previous_path: {type: string}
+        conflict: {type: boolean}
+      required: [path, index, worktree, conflict]
+    CodingGitComparison:
+      type: string
+      enum: [all, unstaged, staged]
+      x-enum-varnames: [CodingGitAll, CodingGitUnstaged, CodingGitStaged]
+    CodingGitPatch:
+      type: object
+      additionalProperties: false
+      properties:
+        path: {type: string}
+        patch: {type: string}
+        revision: {type: string}
+        can_stage_hunks: {type: boolean}
+        binary: {type: boolean}
+      required: [path, patch, revision, can_stage_hunks, binary]
+    CodingGitStash:
+      type: object
+      additionalProperties: false
+      properties:
+        oid: {type: string}
+        reference: {type: string}
+        message: {type: string}
+        created_at: {type: string, format: date-time}
+      required: [oid, reference, message, created_at]
+    CodingRepositoryPage:
+      type: object
+      additionalProperties: false
+      properties:
+        repositories:
+          type: array
+          items: {$ref: '#/components/schemas/CodingRepositoryItem'}
+        next_page: {type: integer}
+        limited: {type: boolean}
+      required: [repositories, limited]
+    CodingRef:
+      type: object
+      additionalProperties: false
+      properties:
+        ref: {type: string}
+        name: {type: string}
+        head: {type: string}
+        remote: {type: boolean}
+        worktree: {type: string}
+        current: {type: boolean}
+        default: {type: boolean}
+        committed_at: {type: integer, format: int64}
+      required: [ref, name, head, remote, current, default, committed_at]
+    CodingDiscoveredWorktree:
+      type: object
+      additionalProperties: false
+      properties:
+        directory: {type: string}
+        branch: {type: string}
+        head: {type: string}
+        managed_id: {type: string}
+        available: {type: boolean}
+        reason: {type: string}
+        locked: {type: boolean}
+      required: [directory, branch, head, available, locked]
+    CodingRepositorySnapshot:
+      type: object
+      additionalProperties: false
+      properties:
+        refs:
+          type: array
+          items: {$ref: '#/components/schemas/CodingRef'}
+        worktrees:
+          type: array
+          items: {$ref: '#/components/schemas/CodingDiscoveredWorktree'}
+        revision: {type: string}
+        updated_at: {type: string, format: date-time}
+        refreshing: {type: boolean}
+        error: {type: string}
+        total_count: {type: integer}
+        next_cursor: {type: string}
+      required: [refs, worktrees, revision, refreshing, total_count]
+    AdoptCodingWorktreeRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        agent_name: {type: string, minLength: 1, maxLength: 32}
+        directory: {type: string, minLength: 1, maxLength: 4096}
+      required: [agent_name, directory]
+    CodingPullRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        number: {type: integer}
+        url: {type: string}
+      required: [number, url]
+    CodingAction:
+      type: string
+      enum: [commit, push, pull, fetch, create_pr, commit_push, commit_push_pr, name_branch]
+      x-enum-varnames: [CodingActionCommit, CodingActionPush, CodingActionPull, CodingActionFetch, CodingActionCreatePR, CodingActionCommitPush, CodingActionCommitPushPR, CodingActionNameBranch]
+    CodingOperationRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {type: string, pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'}
+        agent_name: {type: string, minLength: 1, maxLength: 32}
+        session_id: {type: string, minLength: 1}
+        action: {$ref: '#/components/schemas/CodingAction'}
+        branch: {type: string}
+        expected_head: {type: string, pattern: '^[a-f0-9]{40,64}$'}
+        revision: {type: string, pattern: '^[a-f0-9]{64}$'}
+        expected_tree: {type: string, pattern: '^[a-f0-9]{40,64}$'}
+        message: {type: string, maxLength: 20000}
+        feature_branch: {type: boolean, default: false}
+        text: {type: string, minLength: 1, maxLength: 16000}
+        model:
+          type: object
+          additionalProperties: false
+          properties:
+            modelID: {type: string, minLength: 1}
+            providerID: {type: string, minLength: 1}
+          required: [modelID, providerID]
+        paths:
+          type: array
+          maxItems: 1000
+          items: {type: string, minLength: 1, maxLength: 4096}
+      required: [id, agent_name, session_id, action, branch, expected_head, revision]
+    CodingOperation:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {type: string}
+        project_id: {type: string}
+        worktree_id: {type: string}
+        agent_name: {type: string}
+        session_id: {type: string}
+        action: {$ref: '#/components/schemas/CodingAction'}
+        state:
+          type: string
+          enum: [queued, running, succeeded, failed, interrupted]
+          x-enum-varnames: [CodingOperationQueued, CodingOperationRunning, CodingOperationSucceeded, CodingOperationFailed, CodingOperationInterrupted]
+        stage: {type: string}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        commit: {type: string}
+        pushed: {type: boolean}
+        pull_request: {$ref: '#/components/schemas/CodingPullRequest'}
+        error: {type: string}
+      required: [id, project_id, worktree_id, agent_name, session_id, action, state, stage, created_at, updated_at, pushed]
+    CodingRepositoryItem:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {type: integer, format: int64}
+        name: {type: string}
+        private: {type: boolean}
+      required: [id, name, private]

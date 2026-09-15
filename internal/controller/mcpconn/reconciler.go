@@ -362,11 +362,12 @@ func (r *MCPConnectionReconciler) reconcileConnectionPolicies(ctx context.Contex
 			slices.Sort(names)
 			setHeaders := make([]agentgatewayv1alpha1.HeaderTransformation, 0, len(names))
 			for _, headerName := range names {
+				value := fmt.Sprintf("%q", conn.Spec.Endpoint.Headers[headerName])
 				setHeaders = append(
 					setHeaders,
 					agentgatewayv1alpha1.HeaderTransformation{
 						Name:  agentgatewayv1alpha1.HeaderName(headerName),
-						Value: agentgatewayv1alpha1.CELExpression(fmt.Sprintf("%q", conn.Spec.Endpoint.Headers[headerName])),
+						Value: agentgatewayv1alpha1.CELExpression(value),
 					},
 				)
 			}

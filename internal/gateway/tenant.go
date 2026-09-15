@@ -18,6 +18,7 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/accuknox/agentz/internal/authorization"
+	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
@@ -40,11 +41,14 @@ const (
 type requestAuth struct {
 	claims          *gatewayClaims
 	apiKeyID        string
+	userID          string
+	userName        string
 	actorType       requestActorType
 	actorID         string
 	actorName       string
 	organizationID  string
 	workspaceID     string
+	workspaceType   agentzv1alpha1.WorkspaceType
 	tenantName      string
 	tenantNamespace string
 }
@@ -57,10 +61,10 @@ type tenantRequest struct {
 func (s *Service) GetTenant(w http.ResponseWriter, r *http.Request) {
 	auth, ok := requestAuthState(r.Context())
 	if !ok || auth.claims == nil {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusUnauthorized,
 				"unauthorized",
 				"missing bearer claims",
@@ -72,26 +76,26 @@ func (s *Service) GetTenant(w http.ResponseWriter, r *http.Request) {
 
 	tenant, err := s.findTenant(r.Context(), auth)
 	if err != nil {
-		writeError(w, r, mapKubeHTTPError("get tenant", err))
+		apiutil.WriteError(w, r, mapKubeHTTPError("get tenant", err))
 		return
 	}
 
 	view, err := s.tenantView(r.Context(), *auth.claims, tenant)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, view)
+	apiutil.WriteJSON(w, http.StatusOK, view)
 }
 
 // EnsureTenant handles PUT /api/tenant.
 func (s *Service) EnsureTenant(w http.ResponseWriter, r *http.Request) {
 	auth, ok := requestAuthState(r.Context())
 	if !ok || auth.claims == nil {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusUnauthorized,
 				"unauthorized",
 				"missing bearer claims",
@@ -105,14 +109,14 @@ func (s *Service) EnsureTenant(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		view, err := s.tenantView(r.Context(), *auth.claims, tenant)
 		if err != nil {
-			writeInternalError(w, r, err)
+			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, view)
+		apiutil.WriteJSON(w, http.StatusOK, view)
 		return
 	}
 	if !apierrors.IsNotFound(err) {
-		writeError(w, r, mapKubeHTTPError("get tenant", err))
+		apiutil.WriteError(w, r, mapKubeHTTPError("get tenant", err))
 		return
 	}
 
@@ -133,7 +137,7 @@ func (s *Service) EnsureTenant(w http.ResponseWriter, r *http.Request) {
 	}
 	err = s.k8sClient.Create(r.Context(), &created)
 	if err != nil && !apierrors.IsAlreadyExists(err) {
-		writeError(w, r, mapKubeHTTPError("create tenant", err))
+		apiutil.WriteError(w, r, mapKubeHTTPError("create tenant", err))
 		return
 	}
 	if apierrors.IsAlreadyExists(err) {
@@ -143,16 +147,16 @@ func (s *Service) EnsureTenant(w http.ResponseWriter, r *http.Request) {
 			&created,
 		)
 		if err != nil {
-			writeError(w, r, mapKubeHTTPError("get tenant", err))
+			apiutil.WriteError(w, r, mapKubeHTTPError("get tenant", err))
 			return
 		}
 	}
 
 	if created.Spec.OrganizationID != auth.claims.OrganizationID {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusConflict,
 				"conflict",
 				"tenant identity conflicts with current state",
@@ -164,10 +168,10 @@ func (s *Service) EnsureTenant(w http.ResponseWriter, r *http.Request) {
 
 	view, err := s.tenantView(r.Context(), *auth.claims, &created)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, view)
+	apiutil.WriteJSON(w, http.StatusOK, view)
 }
 
 func (s *Service) tenantView(ctx context.Context, claims gatewayClaims, tenant *agentzv1alpha1.Tenant) (gatewayapi.Tenant, error) {
@@ -227,16 +231,16 @@ func requireGatewayAuth(s *Service) func(http.Handler) http.Handler {
 
 			auth, err := s.resolveRequestAuth(r)
 			if err != nil {
-				apiErr, ok := err.(*apiError)
+				apiErr, ok := err.(*apiutil.APIError)
 				if !ok {
-					apiErr = newAPIError(
+					apiErr = apiutil.NewError(
 						http.StatusUnauthorized,
 						"unauthorized",
 						"missing or invalid bearer token",
 						err,
 					)
 				}
-				writeError(w, r, apiErr)
+				apiutil.WriteError(w, r, apiErr)
 				return
 			}
 
@@ -257,10 +261,10 @@ func requireExplicitCapability(next http.Handler) http.Handler {
 			return
 		}
 
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusForbidden,
 				"forbidden",
 				"operation has no unambiguous capability mapping",
@@ -274,7 +278,7 @@ func requireTenantRequest(s *Service) func(http.Handler) http.Handler {
 	auth := requireGatewayAuth(s)
 	tenant := loadTenant(s)
 	return func(next http.Handler) http.Handler {
-		return auth(tenant(requireTenantReady(s, next)))
+		return auth(s.requireWorkspaceFeatures(tenant(requireTenantReady(s, next))))
 	}
 }
 
@@ -283,10 +287,10 @@ func loadTenant(s *Service) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			auth, ok := requestAuthState(r.Context())
 			if !ok {
-				writeError(
+				apiutil.WriteError(
 					w,
 					r,
-					newAPIError(
+					apiutil.NewError(
 						http.StatusUnauthorized,
 						"unauthorized",
 						"missing request auth",
@@ -319,7 +323,7 @@ func loadTenant(s *Service) func(http.Handler) http.Handler {
 						cleanupNamespace,
 					)
 					if cleanupErr != nil {
-						writeInternalError(w, r, cleanupErr)
+						apiutil.WriteInternalError(w, r, cleanupErr)
 						return
 					}
 				}
@@ -327,10 +331,10 @@ func loadTenant(s *Service) func(http.Handler) http.Handler {
 					next.ServeHTTP(w, r)
 					return
 				}
-				writeError(
+				apiutil.WriteError(
 					w,
 					r,
-					newAPIError(
+					apiutil.NewError(
 						http.StatusNotFound,
 						"tenant_not_found",
 						"tenant is not initialized",
@@ -338,11 +342,11 @@ func loadTenant(s *Service) func(http.Handler) http.Handler {
 					),
 				)
 			default:
-				if apiErr, ok := errors.AsType[*apiError](err); ok {
-					writeError(w, r, apiErr)
+				if apiErr, ok := errors.AsType[*apiutil.APIError](err); ok {
+					apiutil.WriteError(w, r, apiErr)
 					return
 				}
-				writeInternalError(w, r, err)
+				apiutil.WriteInternalError(w, r, err)
 			}
 		})
 	}
@@ -357,10 +361,10 @@ func requireTenantReady(s *Service, next http.Handler) http.Handler {
 
 		req, ok := tenantState(r.Context())
 		if !ok || req.tenant == nil {
-			writeError(
+			apiutil.WriteError(
 				w,
 				r,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusNotFound,
 					"tenant_not_found",
 					"tenant is not initialized",
@@ -373,22 +377,22 @@ func requireTenantReady(s *Service, next http.Handler) http.Handler {
 		if tenantReady(req.tenant) {
 			ns, err := tenantNamespace(r.Context())
 			if err != nil {
-				writeInternalError(w, r, err)
+				apiutil.WriteInternalError(w, r, err)
 				return
 			}
 			err = s.syncTenantAgentRows(r.Context(), ns)
 			if err != nil {
-				writeInternalError(w, r, err)
+				apiutil.WriteInternalError(w, r, err)
 				return
 			}
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusConflict,
 				"tenant_not_ready",
 				"tenant is not ready",
@@ -467,7 +471,7 @@ func (s *Service) resolveRequestAuth(r *http.Request) (requestAuth, error) {
 
 	token, err := jwtrequest.BearerExtractor{}.ExtractToken(r)
 	if err != nil {
-		return requestAuth{}, newAPIError(
+		return requestAuth{}, apiutil.NewError(
 			http.StatusUnauthorized,
 			"unauthorized",
 			"missing or invalid bearer token",
@@ -489,7 +493,7 @@ func (s *Service) resolveRequestAuth(r *http.Request) (requestAuth, error) {
 			},
 		)
 		if resolveErr != nil {
-			return requestAuth{}, newAPIError(
+			return requestAuth{}, apiutil.NewError(
 				http.StatusInternalServerError,
 				"internal_error",
 				"unexpected server error",
@@ -497,7 +501,7 @@ func (s *Service) resolveRequestAuth(r *http.Request) (requestAuth, error) {
 			)
 		}
 		if !effective.Active() {
-			return requestAuth{}, newAPIError(
+			return requestAuth{}, apiutil.NewError(
 				http.StatusForbidden,
 				"forbidden",
 				"Organisation Membership is not active",
@@ -506,6 +510,8 @@ func (s *Service) resolveRequestAuth(r *http.Request) (requestAuth, error) {
 		}
 		return requestAuth{
 			claims:    &claims,
+			userID:    claims.UserID,
+			userName:  claims.UserName,
 			actorType: requestActorUser,
 			actorID:   claims.UserID,
 			actorName: claims.UserName,
@@ -516,11 +522,11 @@ func (s *Service) resolveRequestAuth(r *http.Request) (requestAuth, error) {
 	if reviewErr == nil {
 		return auth, nil
 	}
-	if apiErr, ok := reviewErr.(*apiError); ok {
+	if apiErr, ok := reviewErr.(*apiutil.APIError); ok {
 		return requestAuth{}, apiErr
 	}
 
-	return requestAuth{}, newAPIError(
+	return requestAuth{}, apiutil.NewError(
 		http.StatusUnauthorized,
 		"unauthorized",
 		"missing or invalid bearer token",
@@ -586,7 +592,7 @@ func (s *Service) resolveTenantRequestAuth(ctx context.Context, token, namespace
 	tenant, workspaceID, err := s.tenantScopeForNamespace(ctx, namespace)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			return requestAuth{}, newAPIError(
+			return requestAuth{}, apiutil.NewError(
 				http.StatusNotFound,
 				"tenant_not_found",
 				"tenant is not initialized",
@@ -628,7 +634,7 @@ func (s *Service) resolveAgentRequestAuth(r *http.Request, token string) (reques
 
 	agentName, verb, ok := agentRequestAccess(r)
 	if !ok {
-		return requestAuth{}, newAPIError(
+		return requestAuth{}, apiutil.NewError(
 			http.StatusForbidden,
 			"forbidden",
 			"internal caller is not authorized for route",
@@ -638,7 +644,7 @@ func (s *Service) resolveAgentRequestAuth(r *http.Request, token string) (reques
 
 	user, err := serviceAccountUser(review.Status.User.Username)
 	if err != nil {
-		return requestAuth{}, newAPIError(
+		return requestAuth{}, apiutil.NewError(
 			http.StatusUnauthorized,
 			"unauthorized",
 			"missing or invalid bearer token",
@@ -646,7 +652,7 @@ func (s *Service) resolveAgentRequestAuth(r *http.Request, token string) (reques
 		)
 	}
 	if user.name != agentName {
-		return requestAuth{}, newAPIError(
+		return requestAuth{}, apiutil.NewError(
 			http.StatusForbidden,
 			"forbidden",
 			"internal caller is not authorized for agent",
@@ -664,7 +670,7 @@ func (s *Service) resolveAgentRequestAuth(r *http.Request, token string) (reques
 		agt,
 	)
 	if err != nil {
-		return requestAuth{}, newAPIError(
+		return requestAuth{}, apiutil.NewError(
 			http.StatusForbidden,
 			"forbidden",
 			"internal caller is not authorized for agent",
@@ -690,7 +696,7 @@ func (s *Service) resolveAgentRequestAuth(r *http.Request, token string) (reques
 
 	tenant, workspaceID, err := s.tenantScopeForNamespace(r.Context(), agt.Namespace)
 	if err != nil {
-		return requestAuth{}, newAPIError(
+		return requestAuth{}, apiutil.NewError(
 			http.StatusForbidden,
 			"forbidden",
 			"internal caller is not authorized for agent",
@@ -724,7 +730,7 @@ func (s *Service) reviewServiceAccountToken(ctx context.Context, token string) (
 		return nil, fmt.Errorf("review internal bearer token: %w", err)
 	}
 	if !review.Status.Authenticated {
-		return nil, newAPIError(
+		return nil, apiutil.NewError(
 			http.StatusUnauthorized,
 			"unauthorized",
 			"missing or invalid bearer token",
@@ -732,7 +738,7 @@ func (s *Service) reviewServiceAccountToken(ctx context.Context, token string) (
 		)
 	}
 	if !slices.Contains(review.Status.Audiences, s.cfg.InternalK8sTokenAudience) {
-		return nil, newAPIError(
+		return nil, apiutil.NewError(
 			http.StatusUnauthorized,
 			"unauthorized",
 			"missing or invalid bearer token",
@@ -741,7 +747,7 @@ func (s *Service) reviewServiceAccountToken(ctx context.Context, token string) (
 	}
 	_, err = serviceAccountUser(review.Status.User.Username)
 	if err != nil {
-		return nil, newAPIError(
+		return nil, apiutil.NewError(
 			http.StatusUnauthorized,
 			"unauthorized",
 			"missing or invalid bearer token",
@@ -768,7 +774,7 @@ func (s *Service) authorizeServiceAccount(ctx context.Context, user authenticati
 		return fmt.Errorf("authorize internal bearer: %w", err)
 	}
 	if !sar.Status.Allowed {
-		return newAPIError(
+		return apiutil.NewError(
 			http.StatusForbidden,
 			"forbidden",
 			"internal caller is not authorized",
@@ -969,7 +975,7 @@ func (s *Service) findTenant(ctx context.Context, auth requestAuth) (*agentzv1al
 				continue
 			}
 			if match != nil {
-				return nil, newAPIError(
+				return nil, apiutil.NewError(
 					http.StatusConflict,
 					"conflict",
 					"multiple tenants represent the current Organisation",

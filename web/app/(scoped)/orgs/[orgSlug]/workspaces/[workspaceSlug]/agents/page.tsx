@@ -96,7 +96,11 @@ async function WorkspaceAgents({
   }
 
   const workspacePath: AgentActionScope["workspacePath"] = `/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}`
-  const actionScope: AgentActionScope = { workspaceId, workspacePath }
+  const actionScope: AgentActionScope = {
+    workspaceId,
+    workspacePath,
+    workspaceType: scope.workspace.type,
+  }
 
   return (
     <div className="flex min-w-0 flex-col gap-6">

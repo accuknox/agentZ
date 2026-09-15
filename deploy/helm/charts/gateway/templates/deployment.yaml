@@ -121,6 +121,17 @@ spec:
               containerPort: {{ .Values.service.port }}
               protocol: TCP
           env:
+            {{- if .Values.config.codingGithubClientID }}
+            - name: CODING_GITHUB_CLIENT_ID
+              value: {{ .Values.config.codingGithubClientID | quote }}
+            {{- range $key := list "CODING_GITHUB_CLIENT_SECRET" "CODING_GITHUB_ENCRYPTION_KEY" }}
+            - name: {{ $key }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: {{ $key }}
+            {{- end }}
+            {{- end }}
             - name: AGENTZ_POSTGRES_DSN
               valueFrom:
                 secretKeyRef:

@@ -34,71 +34,57 @@ import (
 )
 
 const (
-	opencodeConfigKey              = "opencode.json"
-	immutableSkillsManifestKey     = "immutable-skills.json"
-	configVolume                   = "config"
-	opencodeConfigDir              = "/etc/agentz/opencode"
-	opencodeInstructionPreamble    = "These instructions are part of the agent context and should be followed."
-	opencodePhilosophyKey          = "philosophy.md"
-	opencodeUnslopKey              = "unslop.md"
-	opencodeInstructionKey         = "instruction.md"
-	opencodePhilosophyPath         = opencodeConfigDir + "/" + opencodePhilosophyKey
-	opencodeUnslopPath             = opencodeConfigDir + "/" + opencodeUnslopKey
-	opencodeInstructionPath        = opencodeConfigDir + "/" + opencodeInstructionKey
-	createWorkflowToolName         = "create_workflow"
-	createWorkflowScheduleToolName = "create_workflow_schedule"
-	listWorkflowSchedulesToolName  = "list_workflow_schedules"
-	getWorkflowToolName            = "get_workflow"
-	listWorkflowsToolName          = "list_workflows"
-	skillToolName                  = "skill"
-	listSkillsToolName             = "list_skills"
-	memoryToolName                 = "memory"
-	journalToolName                = "journal"
-	deleteWorkflowsToolName        = "delete_workflows"
-	deleteWorkflowScheduleToolName = "delete_workflow_schedule"
-	setWorkflowRunStatusToolName   = "set_workflowrun_status"
-	updateWorkflowScheduleToolName = "update_workflow_schedule"
-	nixAgentVolume                 = "nix-agent"
-	nixRuntimeStoreVolume          = "nix-runtime-store"
-	nixAgentMount                  = "/mnt/nix"
-	nixRuntimeStoreMount           = "/nix/store"
-	nixRuntimeStageMount           = "/runtime-nix-store"
-	nixStoreSubPath                = "nix"
-	homeStoreSubPath               = "home"
-	immutableSkillsSubPath         = "immutable-skills"
-	nixVolumeRootMount             = "/pvc"
-	nixLinkVolume                  = "nix-link"
-	nixLinkMount                   = "/tmp/nix-link"
-	nixLinkStage                   = "/tmp/nix-link"
-	nixInitImage                   = "public.ecr.aws/k9v9d5v2/agentz/init:latest"
-	homeInitName                   = "home-init"
-	agentRuntimeUID                = int64(1000)
-	agentRuntimeGID                = int64(1000)
-	nixPkgEnv                      = "NIX_PACKAGES"
-	packageJobNameSuffix           = "-packages"
-	packageJobHashAnnotation       = "agentz.accuknox.com/package-job-hash"
-	packageJobRootVolume           = "nix-agent-root"
-	packageJobSharedVolume         = "nix-shared"
-	sinjectorNameSuffix            = "-sinjector"
-	sinjectorCAVolume              = "sinjector-ca"
-	sinjectorCAMountPath           = "/etc/agentz/sinjector-ca"
-	sinjectorFinalizer             = "agentz.accuknox.com/sinjector"
-	gatewayRoleNameSuffix          = "-gateway"
-	gatewayTokenVolume             = "gateway-token"
-	gatewayTokenMountPath          = "/var/run/secrets/agentz/gateway"
-	gatewayTokenPath               = gatewayTokenMountPath + "/token"
-	egressPolicySuffix             = "-egress"
-	opencodeConfigSchema           = "https://opencode.ai/config.json"
-	agentHomeDir                   = "/home/agentz"
-	opencodeImmutableSkillsPath    = "/var/lib/agentz/skills/immutable"
-	opencodeWritableSkillsPath     = agentHomeDir + "/.agents/skills"
-	opencodeBundledSkillsPath      = "/etc/opencode/skills/core"
-	immutableSkillsBucketVolume    = "immutable-skills-bucket"
-	immutableSkillsSecretMount     = "/var/run/secrets/agentz/immutable-skills-bucket"
-	immutableSkillsInitName        = "immutable-skills-init"
-	filesystemContainerName        = "filesystem"
-	filesystemTempVolume           = "filesystem-tmp"
-	filesystemPort                 = int32(4097)
+	opencodeConfigKey           = "opencode.json"
+	immutableSkillsManifestKey  = "immutable-skills.json"
+	configVolume                = "config"
+	opencodeConfigDir           = "/etc/agentz/opencode"
+	opencodePhilosophyKey       = "philosophy.md"
+	opencodeUnslopKey           = "unslop.md"
+	opencodeInstructionKey      = "instruction.md"
+	opencodePhilosophyPath      = opencodeConfigDir + "/" + opencodePhilosophyKey
+	opencodeUnslopPath          = opencodeConfigDir + "/" + opencodeUnslopKey
+	opencodeInstructionPath     = opencodeConfigDir + "/" + opencodeInstructionKey
+	nixAgentVolume              = "nix-agent"
+	nixRuntimeStoreVolume       = "nix-runtime-store"
+	nixAgentMount               = "/mnt/nix"
+	nixRuntimeStoreMount        = "/nix/store"
+	nixRuntimeStageMount        = "/runtime-nix-store"
+	nixStoreSubPath             = "nix"
+	homeStoreSubPath            = "home"
+	immutableSkillsSubPath      = "immutable-skills"
+	nixVolumeRootMount          = "/pvc"
+	nixLinkVolume               = "nix-link"
+	nixLinkMount                = "/tmp/nix-link"
+	nixLinkStage                = "/tmp/nix-link"
+	nixInitImage                = "public.ecr.aws/k9v9d5v2/agentz/init:latest"
+	homeInitName                = "home-init"
+	agentRuntimeUID             = int64(1000)
+	agentRuntimeGID             = int64(1000)
+	nixPkgEnv                   = "NIX_PACKAGES"
+	packageJobNameSuffix        = "-packages"
+	packageJobHashAnnotation    = "agentz.accuknox.com/package-job-hash"
+	packageJobRootVolume        = "nix-agent-root"
+	packageJobSharedVolume      = "nix-shared"
+	sinjectorNameSuffix         = "-sinjector"
+	sinjectorCAVolume           = "sinjector-ca"
+	sinjectorCAMountPath        = "/etc/agentz/sinjector-ca"
+	sinjectorFinalizer          = "agentz.accuknox.com/sinjector"
+	gatewayRoleNameSuffix       = "-gateway"
+	gatewayTokenVolume          = "gateway-token"
+	gatewayTokenMountPath       = "/var/run/secrets/agentz/gateway"
+	gatewayTokenPath            = gatewayTokenMountPath + "/token"
+	egressPolicySuffix          = "-egress"
+	opencodeConfigSchema        = "https://opencode.ai/config.json"
+	agentHomeDir                = "/home/agentz"
+	opencodeImmutableSkillsPath = "/var/lib/agentz/skills/immutable"
+	opencodeWritableSkillsPath  = agentHomeDir + "/.agents/skills"
+	opencodeBundledSkillsPath   = "/etc/opencode/skills/core"
+	immutableSkillsBucketVolume = "immutable-skills-bucket"
+	immutableSkillsSecretMount  = "/var/run/secrets/agentz/immutable-skills-bucket"
+	immutableSkillsInitName     = "immutable-skills-init"
+	filesystemContainerName     = "filesystem"
+	filesystemTempVolume        = "filesystem-tmp"
+	filesystemPort              = int32(4097)
 )
 
 var (
@@ -205,10 +191,6 @@ func openBaoSinjectorName(agt *agentzv1alpha1.Agent) string {
 	return "sinjector-" + namespace + "-" + agent + "-" + suffix
 }
 
-func egressPolicyName(agt *agentzv1alpha1.Agent) string {
-	return agt.Name + egressPolicySuffix
-}
-
 func resourceLabels(agt *agentzv1alpha1.Agent) map[string]string {
 	labels := make(map[string]string, len(agt.Labels)+4)
 	maps.Copy(labels, agt.Labels)
@@ -222,6 +204,7 @@ type opencodeInstructionFile struct {
 }
 
 func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]byte, []opencodeInstructionFile, error) {
+	general := envCfg.WorkspaceType != agentzv1alpha1.WorkspaceTypeCoding
 	agent := opencodeAgentFile{
 		Prompt: "{file:" + opencodePhilosophyPath + "}\n\n{file:" + opencodeUnslopPath + "}",
 		Permission: opencodeAgentPermissionFile{
@@ -229,6 +212,10 @@ func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]by
 				"customize-opencode": "deny",
 			},
 		},
+	}
+	if !general {
+		agent.Permission.Skill["workflow-creator"] = "deny"
+		agent.Permission.Skill["dashboard-creator"] = "deny"
 	}
 	cfg := opencodeConfigFile{
 		Schema: opencodeConfigSchema,
@@ -241,9 +228,22 @@ func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]by
 			"*": "allow",
 		},
 	}
+	if !general {
+		// Agent rules follow the global allow rule. Restore Plan's native
+		// restrictions while allowing its document in the Git worktree.
+		plan := agent
+		plan.Permission.Edit = map[string]opencodePermissionRule{
+			"*":                    "deny",
+			".opencode/plans/*.md": "allow",
+		}
+		plan.Permission.Task = map[string]opencodePermissionRule{
+			"general": "deny",
+		}
+		cfg.Agent["plan"] = plan
+	}
 	cfg.Model = envCfg.Model
 	cfg.SmallModel = envCfg.SmallModel
-	instructionFiles, err := renderOpencodeInstructions(agt)
+	instructionFiles, err := renderOpencodeInstructions(agt, envCfg.WorkspaceType)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -264,20 +264,26 @@ func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]by
 	}
 	slices.Sort(cfg.EnabledProviders)
 	cfg.Tools = map[string]bool{
-		createWorkflowToolName:         true,
-		createWorkflowScheduleToolName: true,
-		listWorkflowSchedulesToolName:  true,
-		getWorkflowToolName:            true,
-		listWorkflowsToolName:          true,
-		skillToolName:                  true,
-		listSkillsToolName:             true,
-		memoryToolName:                 agt.Spec.Memory.Enabled,
-		journalToolName:                agt.Spec.Memory.Enabled,
-		deleteWorkflowsToolName:        true,
-		deleteWorkflowScheduleToolName: true,
-		setWorkflowRunStatusToolName:   false,
-		updateWorkflowScheduleToolName: true,
+		"create_workflow":          general,
+		"create_workflow_schedule": general,
+		"list_workflow_schedules":  general,
+		"get_workflow":             general,
+		"list_workflows":           general,
+		"delete_workflows":         general,
+		"delete_workflow_schedule": general,
+		"set_workflowrun_status":   false,
+		"update_workflow_schedule": general,
+		"create_dashboard":         general,
+		"get_dashboard":            general,
+		"list_dashboards":          general,
+		"delete_dashboard":         general,
+		"publish_dashboard_data":   general,
+		"skill":                    true,
+		"list_skills":              true,
+		"memory":                   general && agt.Spec.Memory.Enabled,
+		"journal":                  general && agt.Spec.Memory.Enabled,
 	}
+
 	if envCfg.MCPURL != "" {
 		cfg.MCP = map[string]opencodeMCPRemoteFile{
 			mcp.OpenCodeGatewayToolsetName: {
@@ -334,6 +340,8 @@ type opencodeAgentFile struct {
 
 type opencodeAgentPermissionFile struct {
 	Skill map[string]opencodePermissionRule `json:"skill"`
+	Edit  map[string]opencodePermissionRule `json:"edit,omitempty"`
+	Task  map[string]opencodePermissionRule `json:"task,omitempty"`
 }
 
 type opencodeSkillsFile struct {
@@ -457,12 +465,13 @@ func packageJobHash(image, nixCacheEndpoint string, store skill.Config, envCfg s
 	return fmt.Sprintf("%x", sum), nil
 }
 
-func renderOpencodeInstructions(agt *agentzv1alpha1.Agent) ([]opencodeInstructionFile, error) {
+func renderOpencodeInstructions(agt *agentzv1alpha1.Agent, workspaceType agentzv1alpha1.WorkspaceType) ([]opencodeInstructionFile, error) {
 	var philosophy strings.Builder
 	err := philosophyTemplate.Execute(
 		&philosophy,
 		philosophyData{
 			AgentName: agt.Name,
+			Coding:    workspaceType == agentzv1alpha1.WorkspaceTypeCoding,
 		},
 	)
 	if err != nil {
@@ -481,13 +490,10 @@ func renderOpencodeInstructions(agt *agentzv1alpha1.Agent) ([]opencodeInstructio
 	}
 
 	if instruction := strings.TrimSpace(agt.Spec.Instruction); instruction != "" {
-		files = append(
-			files,
-			opencodeInstructionFile{
-				Path:    opencodeInstructionPath,
-				Content: opencodeInstructionPreamble + "\n\n" + instruction,
-			},
-		)
+		files = append(files, opencodeInstructionFile{
+			Path:    opencodeInstructionPath,
+			Content: instruction,
+		})
 	}
 
 	return files, nil

@@ -38,7 +38,7 @@ import (
 )
 
 func (r *Reconciler) reconcileEgressPolicy(ctx context.Context, agt *agentzv1alpha1.Agent, envCfg sandboxConfig) error {
-	name := egressPolicyName(agt)
+	name := agt.Name + egressPolicySuffix
 	spec, err := r.buildEgressPolicySpec(agt, envCfg)
 	if err != nil {
 		return err

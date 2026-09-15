@@ -17,7 +17,8 @@ const (
 	maxSkillBytes = 64 * 1024
 	compatibility = "opencode"
 
-	kubernetesNameLimitError = "skill names are limited to 63 characters because immutable skills are Kubernetes resources"
+	kubernetesNameLimitError = "skill names are limited to 63 characters " +
+		"because immutable skills are Kubernetes resources"
 )
 
 // KubernetesDNSLabelMax is the storage limit for immutable skill names.
@@ -132,21 +133,17 @@ func Validate(skillDir string) error {
 	return nil
 }
 
-// MaxSkillNameLength returns the available Kubernetes DNS-label name length.
-func MaxSkillNameLength(prefix, suffix string) int {
-	return KubernetesDNSLabelMax - len(prefix) - len(suffix)
-}
-
 // ValidateName checks the Kubernetes DNS-label skill name contract.
 func ValidateName(name string) error {
 	if len(name) == 0 {
 		return errors.New("skill name is required")
 	}
-	if len(name) > MaxSkillNameLength("", "") {
+	if len(name) > KubernetesDNSLabelMax {
 		return errors.New(kubernetesNameLimitError)
 	}
 	if !namePattern.MatchString(name) {
-		return errors.New("skill names may contain lowercase ASCII letters, digits, and single hyphens, and cannot start or end with a hyphen")
+		return errors.New("skill names may contain lowercase ASCII letters, " +
+			"digits, and single hyphens, and cannot start or end with a hyphen")
 	}
 	return nil
 }

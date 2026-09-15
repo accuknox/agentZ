@@ -80,7 +80,11 @@ func replaceSecretRefs(ctx context.Context, src string, res secretResolver, targ
 			continue
 		}
 		if nameEnd < len(src) && !isPlaceholderDelimiter(src[nameEnd]) {
-			slog.WarnContext(ctx, "invalid secret placeholder delimiter"+opts.context, slog.String("name", src[nameStart:nameEnd]))
+			slog.WarnContext(
+				ctx,
+				"invalid secret placeholder delimiter"+opts.context,
+				slog.String("name", src[nameStart:nameEnd]),
+			)
 			out.WriteString(src[idx : idx+len(PlaceholderPrefix)])
 			src = src[idx+len(PlaceholderPrefix):]
 			continue
@@ -89,19 +93,34 @@ func replaceSecretRefs(ctx context.Context, src string, res secretResolver, targ
 		name := src[nameStart:nameEnd]
 		secret, err := res.resolve(ctx, name)
 		if err != nil {
-			slog.WarnContext(ctx, "failed to resolve secret"+opts.context, slog.String("name", name), slog.Any("err", err))
+			slog.WarnContext(
+				ctx,
+				"failed to resolve secret"+opts.context,
+				slog.String("name", name),
+				slog.Any("err", err),
+			)
 			out.WriteString(src[idx:nameEnd])
 			src = src[nameEnd:]
 			continue
 		}
 		if !SecretHostMatches(target, secret.hosts) {
-			slog.WarnContext(ctx, "secret host mismatch"+opts.context, slog.String("name", name), slog.String("host", target))
+			slog.WarnContext(
+				ctx,
+				"secret host mismatch"+opts.context,
+				slog.String("name", name),
+				slog.String("host", target),
+			)
 			out.WriteString(src[idx:nameEnd])
 			src = src[nameEnd:]
 			continue
 		}
 		if err := validateSecretValue(secret.value); err != nil {
-			slog.WarnContext(ctx, "secret value is invalid"+opts.context, slog.String("name", name), slog.Any("err", err))
+			slog.WarnContext(
+				ctx,
+				"secret value is invalid"+opts.context,
+				slog.String("name", name),
+				slog.Any("err", err),
+			)
 			out.WriteString(src[idx:nameEnd])
 			src = src[nameEnd:]
 			continue
@@ -110,7 +129,12 @@ func replaceSecretRefs(ctx context.Context, src string, res secretResolver, targ
 			err = validatePathSecret(secret.value)
 		}
 		if err != nil {
-			slog.WarnContext(ctx, "secret value is unsafe for url path", slog.String("name", name), slog.Any("err", err))
+			slog.WarnContext(
+				ctx,
+				"secret value is unsafe for url path",
+				slog.String("name", name),
+				slog.Any("err", err),
+			)
 			out.WriteString(src[idx:nameEnd])
 			src = src[nameEnd:]
 			continue

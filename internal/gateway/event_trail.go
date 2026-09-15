@@ -14,6 +14,7 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/accuknox/agentz/internal/authorization"
+	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 )
@@ -51,10 +52,10 @@ func (s *Service) ListEventTrailEvents(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 	if req.Limit < 1 || req.Limit > 100 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"limit must be between 1 and 100",
@@ -65,10 +66,10 @@ func (s *Service) ListEventTrailEvents(w http.ResponseWriter, r *http.Request, p
 	}
 	clause, err := compileEventTrailFilters(req.Filters)
 	if err != nil {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				err.Error(),
@@ -84,14 +85,14 @@ func (s *Service) ListEventTrailEvents(w http.ResponseWriter, r *http.Request, p
 	}
 	access, authErr := s.authorizeEventTrailRead(r.Context(), workspaceID)
 	if authErr != nil {
-		writeError(w, r, authErr)
+		apiutil.WriteError(w, r, authErr)
 		return
 	}
 	if access.workspaceID.Valid && len(clause.workspaceIDs) > 0 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"workspace_id cannot filter a Workspace-scoped request",
@@ -133,7 +134,7 @@ func (s *Service) ListEventTrailEvents(w http.ResponseWriter, r *http.Request, p
 	}
 	rows, err := s.queries.GatewayListEventTrailEvents(r.Context(), query)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("list event trail events: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("list event trail events: %w", err))
 		return
 	}
 
@@ -151,7 +152,7 @@ func (s *Service) ListEventTrailEvents(w http.ResponseWriter, r *http.Request, p
 	for _, row := range rows {
 		event, viewErr := eventTrailEventView(row)
 		if viewErr != nil {
-			writeInternalError(w, r, viewErr)
+			apiutil.WriteInternalError(w, r, viewErr)
 			return
 		}
 		events = append(events, event)
@@ -164,11 +165,11 @@ func (s *Service) ListEventTrailEvents(w http.ResponseWriter, r *http.Request, p
 		retainedAfter,
 	)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
-	writeJSON(
+	apiutil.WriteJSON(
 		w,
 		http.StatusOK,
 		gatewayapi.ListEventTrailEventsResponse{
@@ -187,7 +188,7 @@ func (s *Service) GetEventTrailEvent(w http.ResponseWriter, r *http.Request, eve
 	}
 	access, authErr := s.authorizeEventTrailRead(r.Context(), workspaceID)
 	if authErr != nil {
-		writeError(w, r, authErr)
+		apiutil.WriteError(w, r, authErr)
 		return
 	}
 
@@ -205,14 +206,14 @@ func (s *Service) GetEventTrailEvent(w http.ResponseWriter, r *http.Request, eve
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("get event trail event: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("get event trail event: %w", err))
 		return
 	}
 	if len(rows) == 0 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusNotFound,
 				"event_trail_event_not_found",
 				"event trail event was not found",
@@ -224,10 +225,10 @@ func (s *Service) GetEventTrailEvent(w http.ResponseWriter, r *http.Request, eve
 
 	event, err := eventTrailEventView(rows[0])
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, event)
+	apiutil.WriteJSON(w, http.StatusOK, event)
 }
 
 func compileEventTrailFilters(filters []gatewayapi.EventTrailFilter) (eventTrailClause, error) {
@@ -335,10 +336,10 @@ func compileEventTrailFilters(filters []gatewayapi.EventTrailFilter) (eventTrail
 	return clause, nil
 }
 
-func (s *Service) authorizeEventTrailRead(ctx context.Context, workspaceID string) (eventTrailAccess, *apiError) {
+func (s *Service) authorizeEventTrailRead(ctx context.Context, workspaceID string) (eventTrailAccess, *apiutil.APIError) {
 	auth, ok := requestAuthState(ctx)
 	if !ok || auth.claims == nil {
-		return eventTrailAccess{}, newAPIError(
+		return eventTrailAccess{}, apiutil.NewError(
 			http.StatusUnauthorized,
 			"unauthorized",
 			"missing bearer claims",
@@ -346,7 +347,7 @@ func (s *Service) authorizeEventTrailRead(ctx context.Context, workspaceID strin
 		)
 	}
 	if auth.claims.WorkspaceID != workspaceID {
-		return eventTrailAccess{}, newAPIError(
+		return eventTrailAccess{}, apiutil.NewError(
 			http.StatusForbidden,
 			"forbidden",
 			"request is not authorized for the selected scope",
@@ -362,7 +363,7 @@ func (s *Service) authorizeEventTrailRead(ctx context.Context, workspaceID strin
 		},
 	)
 	if err != nil {
-		return eventTrailAccess{}, newAPIError(
+		return eventTrailAccess{}, apiutil.NewError(
 			http.StatusInternalServerError,
 			"internal_error",
 			"unexpected server error",
@@ -374,7 +375,7 @@ func (s *Service) authorizeEventTrailRead(ctx context.Context, workspaceID strin
 		WorkspaceID:    workspaceID,
 	})
 	if !allowed {
-		return eventTrailAccess{}, newAPIError(
+		return eventTrailAccess{}, apiutil.NewError(
 			http.StatusForbidden,
 			"forbidden",
 			"administrative authority is required for the selected scope",
@@ -390,7 +391,7 @@ func (s *Service) authorizeEventTrailRead(ctx context.Context, workspaceID strin
 			},
 		)
 		if errors.Is(err, pgx.ErrNoRows) || (err == nil && workspace.DeletedAt.Valid) {
-			return eventTrailAccess{}, newAPIError(
+			return eventTrailAccess{}, apiutil.NewError(
 				http.StatusForbidden,
 				"forbidden",
 				"request is not authorized for the selected scope",
@@ -398,7 +399,7 @@ func (s *Service) authorizeEventTrailRead(ctx context.Context, workspaceID strin
 			)
 		}
 		if err != nil {
-			return eventTrailAccess{}, newAPIError(
+			return eventTrailAccess{}, apiutil.NewError(
 				http.StatusInternalServerError,
 				"internal_error",
 				"unexpected server error",
@@ -513,13 +514,21 @@ func eventTrailEventView(row gatewaydb.GatewayListEventTrailEventsRow) (gatewaya
 	before := []gatewayapi.EventTrailField{}
 	if len(row.Before) > 0 {
 		if err := json.Unmarshal(row.Before, &before); err != nil {
-			return gatewayapi.EventTrailEvent{}, fmt.Errorf("decode event trail event %q before summary: %w", row.ID, err)
+			return gatewayapi.EventTrailEvent{}, fmt.Errorf(
+				"decode event trail event %q before summary: %w",
+				row.ID,
+				err,
+			)
 		}
 	}
 	after := []gatewayapi.EventTrailField{}
 	if len(row.After) > 0 {
 		if err := json.Unmarshal(row.After, &after); err != nil {
-			return gatewayapi.EventTrailEvent{}, fmt.Errorf("decode event trail event %q after summary: %w", row.ID, err)
+			return gatewayapi.EventTrailEvent{}, fmt.Errorf(
+				"decode event trail event %q after summary: %w",
+				row.ID,
+				err,
+			)
 		}
 	}
 

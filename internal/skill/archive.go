@@ -30,14 +30,22 @@ const (
 type ImportIssueKind string
 
 const (
-	ImportIssueUnsupportedFileType  ImportIssueKind = "unsupported_file_type"
-	ImportIssueInvalidArchive       ImportIssueKind = "invalid_archive"
-	ImportIssueInvalidTree          ImportIssueKind = "invalid_tree"
+	// ImportIssueUnsupportedFileType rejects unsupported upload formats.
+	ImportIssueUnsupportedFileType ImportIssueKind = "unsupported_file_type"
+	// ImportIssueInvalidArchive reports an unreadable ZIP archive.
+	ImportIssueInvalidArchive ImportIssueKind = "invalid_archive"
+	// ImportIssueInvalidTree reports invalid paths or skill directory structure.
+	ImportIssueInvalidTree ImportIssueKind = "invalid_tree"
+	// ImportIssueMalformedFrontmatter reports invalid SKILL.md YAML metadata.
 	ImportIssueMalformedFrontmatter ImportIssueKind = "malformed_frontmatter"
-	ImportIssueInvalidName          ImportIssueKind = "invalid_name"
-	ImportIssueInvalidDescription   ImportIssueKind = "invalid_description"
-	ImportIssueInvalidUTF8          ImportIssueKind = "invalid_utf8"
-	ImportIssueLimitExceeded        ImportIssueKind = "limit_exceeded"
+	// ImportIssueInvalidName reports a name outside the skill naming contract.
+	ImportIssueInvalidName ImportIssueKind = "invalid_name"
+	// ImportIssueInvalidDescription reports missing or invalid trigger text.
+	ImportIssueInvalidDescription ImportIssueKind = "invalid_description"
+	// ImportIssueInvalidUTF8 reports skill content that is not valid UTF-8.
+	ImportIssueInvalidUTF8 ImportIssueKind = "invalid_utf8"
+	// ImportIssueLimitExceeded reports an upload that exceeds storage limits.
+	ImportIssueLimitExceeded ImportIssueKind = "limit_exceeded"
 )
 
 // ImportIssue describes one safe, path-specific import failure.
@@ -47,6 +55,7 @@ type ImportIssue struct {
 	Message string
 }
 
+// Error returns the import diagnostic, including its archive path.
 func (i *ImportIssue) Error() string {
 	if i.Path == "" {
 		return i.Message
@@ -118,7 +127,9 @@ func parse(name string, r io.Reader, maxBytes int64) (_ Bundle, retErr error) {
 	}
 	if size > maxBytes {
 		return Bundle{}, &ImportIssue{
-			Kind: ImportIssueLimitExceeded, Path: name, Message: "Upload exceeds the 10 MiB limit.",
+			Kind:    ImportIssueLimitExceeded,
+			Path:    name,
+			Message: "Upload exceeds the 10 MiB limit.",
 		}
 	}
 	if _, err := spool.Seek(0, io.SeekStart); err != nil {
@@ -133,7 +144,9 @@ func parse(name string, r io.Reader, maxBytes int64) (_ Bundle, retErr error) {
 		}
 		if len(content) > maxSkillBytes {
 			return Bundle{}, &ImportIssue{
-				Kind: ImportIssueLimitExceeded, Path: name, Message: "SKILL.md exceeds the 64 KiB limit.",
+				Kind:    ImportIssueLimitExceeded,
+				Path:    name,
+				Message: "SKILL.md exceeds the 64 KiB limit.",
 			}
 		}
 		return parseMarkdown(name, content)
@@ -141,7 +154,9 @@ func parse(name string, r io.Reader, maxBytes int64) (_ Bundle, retErr error) {
 		return parseZIP(name, spool, size)
 	default:
 		return Bundle{}, &ImportIssue{
-			Kind: ImportIssueUnsupportedFileType, Path: name, Message: "Import a .md or .zip file.",
+			Kind:    ImportIssueUnsupportedFileType,
+			Path:    name,
+			Message: "Import a .md or .zip file.",
 		}
 	}
 }
@@ -271,12 +286,16 @@ func parseZIP(archiveName string, content io.ReaderAt, size int64) (Bundle, erro
 	zr, err := zip.NewReader(content, size)
 	if err != nil {
 		return Bundle{}, &ImportIssue{
-			Kind: ImportIssueInvalidArchive, Path: archiveName, Message: "The ZIP archive is invalid.",
+			Kind:    ImportIssueInvalidArchive,
+			Path:    archiveName,
+			Message: "The ZIP archive is invalid.",
 		}
 	}
 	if len(zr.File) > maxEntries {
 		return Bundle{}, &ImportIssue{
-			Kind: ImportIssueLimitExceeded, Path: archiveName, Message: "Archive contains more than 400 entries.",
+			Kind:    ImportIssueLimitExceeded,
+			Path:    archiveName,
+			Message: "Archive contains more than 400 entries.",
 		}
 	}
 
@@ -287,17 +306,23 @@ func parseZIP(archiveName string, content io.ReaderAt, size int64) (Bundle, erro
 		name := strings.TrimSuffix(entry.Name, "/")
 		if entry.Flags&1 != 0 {
 			return Bundle{}, &ImportIssue{
-				Kind: ImportIssueInvalidArchive, Path: entry.Name, Message: "Encrypted files are not supported.",
+				Kind:    ImportIssueInvalidArchive,
+				Path:    entry.Name,
+				Message: "Encrypted files are not supported.",
 			}
 		}
 		if entry.NonUTF8 || !utf8.ValidString(entry.Name) || len(entry.Name) > maxPathBytes {
 			return Bundle{}, &ImportIssue{
-				Kind: ImportIssueInvalidTree, Path: archiveName, Message: "An archive path is not valid UTF-8 or exceeds 1,024 bytes.",
+				Kind:    ImportIssueInvalidTree,
+				Path:    archiveName,
+				Message: "An archive path is not valid UTF-8 or exceeds 1,024 bytes.",
 			}
 		}
 		if !fs.ValidPath(name) || strings.ContainsRune(name, '\\') {
 			return Bundle{}, &ImportIssue{
-				Kind: ImportIssueInvalidTree, Path: entry.Name, Message: "Archive paths must be relative slash-separated paths without traversal or backslashes.",
+				Kind:    ImportIssueInvalidTree,
+				Path:    entry.Name,
+				Message: "Archive paths must be relative slash-separated paths without traversal or backslashes.",
 			}
 		}
 		mode := entry.Mode()
@@ -306,17 +331,23 @@ func parseZIP(archiveName string, content io.ReaderAt, size int64) (Bundle, erro
 		}
 		if mode.Type() != 0 {
 			return Bundle{}, &ImportIssue{
-				Kind: ImportIssueInvalidTree, Path: entry.Name, Message: "Links and special files are not supported.",
+				Kind:    ImportIssueInvalidTree,
+				Path:    entry.Name,
+				Message: "Links and special files are not supported.",
 			}
 		}
 		if len(files) == maxFiles {
 			return Bundle{}, &ImportIssue{
-				Kind: ImportIssueLimitExceeded, Path: archiveName, Message: "Archive contains more than 200 files.",
+				Kind:    ImportIssueLimitExceeded,
+				Path:    archiveName,
+				Message: "Archive contains more than 200 files.",
 			}
 		}
 		if _, ok := files[name]; ok {
 			return Bundle{}, &ImportIssue{
-				Kind: ImportIssueInvalidTree, Path: name, Message: "Archive contains this path more than once.",
+				Kind:    ImportIssueInvalidTree,
+				Path:    name,
+				Message: "Archive contains this path more than once.",
 			}
 		}
 
@@ -327,7 +358,9 @@ func parseZIP(archiveName string, content io.ReaderAt, size int64) (Bundle, erro
 		}
 		if entry.UncompressedSize64 > limit || extracted+entry.UncompressedSize64 > maxExtractedBytes {
 			return Bundle{}, &ImportIssue{
-				Kind: ImportIssueLimitExceeded, Path: name, Message: "Archive exceeds its per-file or 20 MiB expanded-size limit.",
+				Kind:    ImportIssueLimitExceeded,
+				Path:    name,
+				Message: "Archive exceeds its per-file or 20 MiB expanded-size limit.",
 			}
 		}
 		f, err := entry.Open()
@@ -341,7 +374,9 @@ func parseZIP(archiveName string, content io.ReaderAt, size int64) (Bundle, erro
 		}
 		if len(data) > int(limit) {
 			return Bundle{}, &ImportIssue{
-				Kind: ImportIssueLimitExceeded, Path: name, Message: "File exceeds its allowed size.",
+				Kind:    ImportIssueLimitExceeded,
+				Path:    name,
+				Message: "File exceeds its allowed size.",
 			}
 		}
 		extracted += uint64(len(data))
@@ -349,7 +384,9 @@ func parseZIP(archiveName string, content io.ReaderAt, size int64) (Bundle, erro
 	}
 	if len(roots) == 0 {
 		return Bundle{}, &ImportIssue{
-			Kind: ImportIssueInvalidTree, Path: archiveName, Message: "Archive does not contain a SKILL.md file.",
+			Kind:    ImportIssueInvalidTree,
+			Path:    archiveName,
+			Message: "Archive does not contain a SKILL.md file.",
 		}
 	}
 
@@ -357,13 +394,17 @@ func parseZIP(archiveName string, content io.ReaderAt, size int64) (Bundle, erro
 	for i, root := range roots {
 		if i > 0 && root == roots[i-1] {
 			return Bundle{}, &ImportIssue{
-				Kind: ImportIssueInvalidTree, Path: root + skillFileName, Message: "Archive contains a duplicate skill root.",
+				Kind:    ImportIssueInvalidTree,
+				Path:    root + skillFileName,
+				Message: "Archive contains a duplicate skill root.",
 			}
 		}
 		for _, other := range roots[i+1:] {
 			if root == "" || strings.HasPrefix(other, root) {
 				return Bundle{}, &ImportIssue{
-					Kind: ImportIssueInvalidTree, Path: other + skillFileName, Message: "Skill roots cannot be nested.",
+					Kind:    ImportIssueInvalidTree,
+					Path:    other + skillFileName,
+					Message: "Skill roots cannot be nested.",
 				}
 			}
 		}
@@ -394,7 +435,9 @@ func parseZIP(archiveName string, content io.ReaderAt, size int64) (Bundle, erro
 		skillFile, ok := files[root+skillFileName]
 		if !ok {
 			return Bundle{}, &ImportIssue{
-				Kind: ImportIssueInvalidTree, Path: root, Message: "Skill root does not contain SKILL.md.",
+				Kind:    ImportIssueInvalidTree,
+				Path:    root,
+				Message: "Skill root does not contain SKILL.md.",
 			}
 		}
 		metadata, canonical, err := parseSkillFile(root+skillFileName, skillFile)
@@ -411,7 +454,9 @@ func parseZIP(archiveName string, content io.ReaderAt, size int64) (Bundle, erro
 		}
 		if _, ok := seenNames[tree.Name]; ok {
 			return Bundle{}, &ImportIssue{
-				Kind: ImportIssueInvalidTree, Path: root + skillFileName, Message: "Archive contains more than one skill with this name.",
+				Kind:    ImportIssueInvalidTree,
+				Path:    root + skillFileName,
+				Message: "Archive contains more than one skill with this name.",
 			}
 		}
 		seenNames[tree.Name] = struct{}{}
@@ -421,7 +466,9 @@ func parseZIP(archiveName string, content io.ReaderAt, size int64) (Bundle, erro
 		for name := range files {
 			if _, ok := claimed[name]; !ok {
 				return Bundle{}, &ImportIssue{
-					Kind: ImportIssueInvalidTree, Path: name, Message: "Every file must belong to exactly one skill root.",
+					Kind:    ImportIssueInvalidTree,
+					Path:    name,
+					Message: "Every file must belong to exactly one skill root.",
 				}
 			}
 		}
@@ -438,12 +485,16 @@ func parseZIP(archiveName string, content io.ReaderAt, size int64) (Bundle, erro
 func parseSkillFile(name string, content []byte) (skillFrontmatter, []byte, error) {
 	if len(content) > maxSkillBytes {
 		return skillFrontmatter{}, nil, &ImportIssue{
-			Kind: ImportIssueLimitExceeded, Path: name, Message: "SKILL.md exceeds the 64 KiB limit.",
+			Kind:    ImportIssueLimitExceeded,
+			Path:    name,
+			Message: "SKILL.md exceeds the 64 KiB limit.",
 		}
 	}
 	if !utf8.Valid(content) {
 		return skillFrontmatter{}, nil, &ImportIssue{
-			Kind: ImportIssueInvalidUTF8, Path: name, Message: "SKILL.md must be valid UTF-8.",
+			Kind:    ImportIssueInvalidUTF8,
+			Path:    name,
+			Message: "SKILL.md must be valid UTF-8.",
 		}
 	}
 	content = bytes.TrimPrefix(content, []byte{0xef, 0xbb, 0xbf})
@@ -452,24 +503,32 @@ func parseSkillFile(name string, content []byte) (skillFrontmatter, []byte, erro
 	front, _, err := splitSkillFile(content)
 	if err != nil {
 		return skillFrontmatter{}, nil, &ImportIssue{
-			Kind: ImportIssueMalformedFrontmatter, Path: name, Message: err.Error(),
+			Kind:    ImportIssueMalformedFrontmatter,
+			Path:    name,
+			Message: err.Error(),
 		}
 	}
 	var metadata skillFrontmatter
 	if err := yaml.Unmarshal(front, &metadata); err != nil {
 		return skillFrontmatter{}, nil, &ImportIssue{
-			Kind: ImportIssueMalformedFrontmatter, Path: name, Message: "Frontmatter must be valid YAML.",
+			Kind:    ImportIssueMalformedFrontmatter,
+			Path:    name,
+			Message: "Frontmatter must be valid YAML.",
 		}
 	}
 	if err := ValidateName(metadata.Name); err != nil {
 		return skillFrontmatter{}, nil, &ImportIssue{
-			Kind: ImportIssueInvalidName, Path: name, Message: err.Error(),
+			Kind:    ImportIssueInvalidName,
+			Path:    name,
+			Message: err.Error(),
 		}
 	}
 	description := strings.TrimSpace(metadata.Description)
 	if description == "" || len(description) > 1024 {
 		return skillFrontmatter{}, nil, &ImportIssue{
-			Kind: ImportIssueInvalidDescription, Path: name, Message: "Skill description must be 1-1,024 characters.",
+			Kind:    ImportIssueInvalidDescription,
+			Path:    name,
+			Message: "Skill description must be 1-1,024 characters.",
 		}
 	}
 	metadata.Description = description

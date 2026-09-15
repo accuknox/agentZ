@@ -15,6 +15,13 @@
       "when": 1789284423931,
       "tag": "0001_organization_slug_immutable",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789382311594,
+      "tag": "0002_coding_workspaces",
+      "breakpoints": true
     }
   ]
 }

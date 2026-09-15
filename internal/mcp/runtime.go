@@ -22,21 +22,34 @@ import (
 )
 
 const (
+	// SandboxByMCPConnectionIndex indexes Sandboxes by MCP connection name.
 	SandboxByMCPConnectionIndex = "spec.mcpConnectionRefs.name"
-	MCPConnectionFinalizer      = "agentz.accuknox.com/mcpconnection"
-	SandboxFinalizer            = "agentz.accuknox.com/sandbox-protection"
-	OpenCodeGatewayToolsetName  = "gateway"
+	// MCPConnectionFinalizer retains connections until runtime cleanup completes.
+	MCPConnectionFinalizer = "agentz.accuknox.com/mcpconnection"
+	// SandboxFinalizer retains Sandboxes while their MCP resources exist.
+	SandboxFinalizer = "agentz.accuknox.com/sandbox-protection"
+	// OpenCodeGatewayToolsetName names the gateway toolset in OpenCode config.
+	OpenCodeGatewayToolsetName = "gateway"
 	// SecretPathDir is the OpenBao directory for MCP credential records.
-	SecretPathDir             = "mcp-connections"
-	GatewayClassName          = "agentgateway"
-	GatewayName               = "mcp"
-	ExtAuthServiceName        = "extauth"
-	ExtAuthRolePrefix         = "extauth-"
-	ExtAuthPort         int32 = 18081
-	ExtAuthMCPPort      int32 = 18082
-	ExtAuthMCPPath            = "/mcp"
-	MCPHelperTargetName       = "agentz-internal"
-	AppProtocolMCP            = "agentgateway.dev/mcp"
+	SecretPathDir = "mcp-connections"
+	// GatewayClassName selects the AgentGateway controller.
+	GatewayClassName = "agentgateway"
+	// GatewayName names the namespace-local MCP Gateway.
+	GatewayName = "mcp"
+	// ExtAuthServiceName names the credential injection Service.
+	ExtAuthServiceName = "extauth"
+	// ExtAuthRolePrefix prefixes namespace-specific OpenBao roles.
+	ExtAuthRolePrefix = "extauth-"
+	// ExtAuthPort is the ext_authz gRPC port.
+	ExtAuthPort int32 = 18081
+	// ExtAuthMCPPort is the internal MCP helper HTTP port.
+	ExtAuthMCPPort int32 = 18082
+	// ExtAuthMCPPath is the internal MCP helper route.
+	ExtAuthMCPPath = "/mcp"
+	// MCPHelperTargetName identifies the internal helper in MCP targets.
+	MCPHelperTargetName = "agentz-internal"
+	// AppProtocolMCP marks Services that expose the MCP protocol.
+	AppProtocolMCP = "agentgateway.dev/mcp"
 	// AgentgatewayParametersName is the name of the AgentgatewayParameters
 	// resource that configures the Gateway proxy Service type.
 	AgentgatewayParametersName = "mcp-clusterip"
@@ -160,10 +173,7 @@ func IndexSandboxMCPConnections(ctx context.Context, idx client.FieldIndexer) er
 		&agentzv1alpha1.Sandbox{},
 		SandboxByMCPConnectionIndex,
 		func(obj client.Object) []string {
-			env, ok := obj.(*agentzv1alpha1.Sandbox)
-			if !ok {
-				return nil
-			}
+			env := obj.(*agentzv1alpha1.Sandbox)
 			return MCPConnectionRefNames(env)
 		},
 	)
@@ -261,7 +271,7 @@ func dnsLabel(prefix string) string {
 	if value == "" {
 		return "mcp"
 	}
-	if len(value) <= 63 && isDNSLabel(value) {
+	if len(value) <= 63 && len(validation.IsDNS1123Label(value)) == 0 {
 		return value
 	}
 
@@ -273,8 +283,4 @@ func dnsLabel(prefix string) string {
 		value = "mcp"
 	}
 	return value + "-" + suffix
-}
-
-func isDNSLabel(value string) bool {
-	return len(validation.IsDNS1123Label(value)) == 0
 }

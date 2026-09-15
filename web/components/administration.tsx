@@ -23,7 +23,7 @@ type AdministrationStatus = "ready" | "provisioning" | "deleting" | "failed"
 export function AdministrationLayout({ children }: { children: ReactNode }) {
   return (
     <div
-      className="@container flex min-w-0 flex-1 flex-col [&_[data-slot=table-head]]:h-8 [&_[data-slot=table-head]]:px-4 [&_[data-slot=table-head]]:align-middle [&_[data-slot=table]]:w-full"
+      className="@container flex min-h-0 min-w-0 flex-1 flex-col [&_[data-slot=table-head]]:h-8 [&_[data-slot=table-head]]:px-4 [&_[data-slot=table-head]]:align-middle [&_[data-slot=table]]:w-full"
       data-administration
     >
       {children}

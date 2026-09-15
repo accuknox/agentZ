@@ -5,6 +5,9 @@ IMAGE ?= public.ecr.aws/k9v9d5v2/agentz:latest
 AGENT_IMAGE ?= public.ecr.aws/k9v9d5v2/agentz/agent:latest
 BETTER_AUTH_URL ?= http://localhost:3000
 GATEWAY_JWT_AUDIENCE ?= agentz-gateway
+CODING_GITHUB_CLIENT_ID ?=
+CODING_GITHUB_CLIENT_SECRET ?=
+CODING_GITHUB_ENCRYPTION_KEY ?=
 POSTGRES_DSN ?= postgresql://postgres:postgres@localhost:5432/postgres
 K8S_NAMESPACE ?= default
 OPENBAO_TOKEN_PATH ?= /tmp/sa-token
@@ -33,7 +36,7 @@ generate:
 	go run ./hack/inference/generate_providers.go
 	go run ./hack/openapi/generate_opencode_gateway.go
 	oapi-codegen \
-		--include-tags agents,tenants,workspaces,event-trail,lens,secrets,sandboxes,inference,skills,mcp-connections,workflows,workflow-schedules,workflow-runs,workflow-webhooks,chat-sessions,session,dashboards \
+		--include-tags coding,agents,tenants,workspaces,event-trail,lens,secrets,sandboxes,inference,skills,mcp-connections,workflows,workflow-schedules,workflow-runs,workflow-webhooks,chat-sessions,session,sessions,event,global,project,permission,question,pty,dashboards \
 		-config oapi-codegen.gateway.yaml openapi/gateway.yaml
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./pkg/apis/..."
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd:allowDangerousTypes=false webhook \
@@ -55,13 +58,7 @@ fmt:
 
 .PHONY: test
 test:
-	mkdir -p bin
-	version="$(ENVTEST_K8S_VERSION)"; \
-	if [ -z "$$version" ]; then \
-		version="$$(go list -m -f '{{if .Replace}}{{.Replace.Version}}{{else}}{{.Version}}{{end}}' k8s.io/api | sed -E 's/^v?[0-9]+\.([0-9]+).*/1.\1/')"; \
-	fi; \
-	KUBEBUILDER_ASSETS="$$(setup-envtest use "$$version" --bin-dir "$(CURDIR)/bin" -p path)" \
-		go test -tags="controller webhook" $(GO_PKGS) -coverprofile cover.out
+	go test -race -shuffle=on $(GO_PKGS) -coverprofile cover.out
 
 .PHONY: lint
 lint:
@@ -82,6 +79,9 @@ run-gateway:
 	@AGENTZ_SKILLS_S3_ACCESS_KEY_ID=$(SKILLS_S3_ACCESS_KEY_ID) \
 	AGENTZ_SKILLS_S3_SECRET_ACCESS_KEY=$(SKILLS_S3_SECRET_ACCESS_KEY) \
 		go run ./cmd/agentz gateway serve \
+		--coding-github-client-id=$(CODING_GITHUB_CLIENT_ID) \
+		--coding-github-client-secret=$(CODING_GITHUB_CLIENT_SECRET) \
+		--coding-github-encryption-key=$(CODING_GITHUB_ENCRYPTION_KEY) \
 		--log-level=info \
 		--addr=0.0.0.0:8090 \
 		--target-override=localhost:4096 \

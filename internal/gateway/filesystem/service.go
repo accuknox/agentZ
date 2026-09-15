@@ -116,6 +116,7 @@ func Serve(ctx context.Context, cfg Config) error {
 
 func (s *service) routes() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("POST /git", s.git)
 	mux.HandleFunc("GET /file", s.readFile)
 	mux.HandleFunc("POST /file", s.createFile)
 	mux.HandleFunc("PUT /file", s.writeFile)
@@ -625,11 +626,11 @@ func requestPath(r *http.Request) (string, *failure) {
 
 func checkPath(name string) *failure {
 	if name == "" || len(name) > 4096 || path.IsAbs(name) || strings.ContainsRune(name, 0) {
-		return invalidPath()
+		return invalidPath(nil)
 	}
 	for part := range strings.SplitSeq(name, "/") {
 		if part == "" || part == "." || part == ".." {
-			return invalidPath()
+			return invalidPath(nil)
 		}
 	}
 	return nil
@@ -668,17 +669,18 @@ func pathFailure(err error) *failure {
 	case errors.Is(err, os.ErrExist):
 		return entryExists()
 	case errors.Is(err, os.ErrPermission):
-		return &failure{status: http.StatusForbidden, code: "permission_denied", message: "permission denied", cause: err}
+		return &failure{
+			status:  http.StatusForbidden,
+			code:    "permission_denied",
+			message: "permission denied",
+			cause:   err,
+		}
 	default:
-		return invalidPathWithCause(err)
+		return invalidPath(err)
 	}
 }
 
-func invalidPath() *failure {
-	return invalidPathWithCause(nil)
-}
-
-func invalidPathWithCause(err error) *failure {
+func invalidPath(err error) *failure {
 	return &failure{
 		status:  http.StatusBadRequest,
 		code:    "invalid_path",

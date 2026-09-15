@@ -8,6 +8,7 @@ import {
   Bot,
   Box,
   Cable,
+  FolderGit2,
   LayoutDashboard,
   Lock,
   ScrollText,
@@ -115,11 +116,14 @@ export function WorkspaceNavigation({
   const destination = workspace.capabilities.sandboxes.read
     ? (`${root}/sandboxes` as const)
     : destinations.find((item) => item.visible)?.href
-  const back = showAgents
-    ? (`${root}/agents` as const)
-    : workspace.capabilities.observability.read
-      ? (`${root}/lens/traces` as const)
-      : root
+  const back =
+    workspace.type === "coding"
+      ? (`${root}/projects` as const)
+      : showAgents
+        ? (`${root}/agents` as const)
+        : workspace.capabilities.observability.read
+          ? (`${root}/lens/traces` as const)
+          : root
 
   return (
     <>
@@ -206,6 +210,13 @@ export function WorkspaceNavigation({
             >
               <SidebarGroup className="px-2 py-2">
                 <SidebarMenu>
+                  {workspace.type === "coding" ? (
+                    <SidebarMenuItem>
+                      <SidebarNavigationLink href={`${root}/projects`} label="Projects">
+                        <FolderGit2 aria-hidden="true" />
+                      </SidebarNavigationLink>
+                    </SidebarMenuItem>
+                  ) : null}
                   {showAgents ? (
                     <SidebarMenuItem data-tour="agents">
                       <SidebarNavigationLink

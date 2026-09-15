@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/accuknox/agentz/internal/authorization"
+	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	workflowdb "github.com/accuknox/agentz/internal/gateway/workflow/db"
 )
@@ -70,6 +71,8 @@ func (s *Service) resolveOpenCodeAPIKeyAuth(r *http.Request) (requestAuth, error
 	}
 	return requestAuth{
 		apiKeyID:        key.ID,
+		userID:          scope.CreatorUserID,
+		userName:        scope.CreatorUserName,
 		actorType:       requestActorAPIKey,
 		actorID:         key.ID,
 		actorName:       actorName,
@@ -123,6 +126,8 @@ func (s *Service) resolveWebhookAPIKeyAuth(r *http.Request) (requestAuth, error)
 	}
 	return requestAuth{
 		apiKeyID:        key.ID,
+		userID:          scope.CreatorUserID,
+		userName:        scope.CreatorUserName,
 		organizationID:  key.ReferenceID,
 		workspaceID:     scope.WorkspaceID,
 		tenantNamespace: scope.TenantNamespace,
@@ -144,7 +149,7 @@ func (s *Service) getAPIKeyByHash(ctx context.Context, rawKey string, configID s
 }
 
 type apiKeyScope struct {
-	gatewaydb.ApiKeyScope
+	gatewaydb.GatewayGetAPIKeyScopeByKeyRow
 	TenantNamespace string
 }
 
@@ -177,8 +182,8 @@ func (s *Service) apiKeyScope(ctx context.Context, key gatewaydb.GatewayGetAPIKe
 		return apiKeyScope{}, fmt.Errorf("api key scope revoked: %s", reason)
 	}
 	return apiKeyScope{
-		ApiKeyScope:     scope,
-		TenantNamespace: workspace.Namespace,
+		GatewayGetAPIKeyScopeByKeyRow: scope,
+		TenantNamespace:               workspace.Namespace,
 	}, nil
 }
 
@@ -324,8 +329,8 @@ func (s *Service) revokeAPIKeyScope(ctx context.Context, scope apiKeyScope, reas
 	return nil
 }
 
-func invalidAPIKeyAuthError(err error) *apiError {
-	return newAPIError(
+func invalidAPIKeyAuthError(err error) *apiutil.APIError {
+	return apiutil.NewError(
 		http.StatusUnauthorized,
 		"unauthorized",
 		"missing or invalid credentials",

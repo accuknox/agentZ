@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -102,10 +103,11 @@ func (ns NullApiKeyTargetType) Value() (driver.Value, error) {
 type ChatSessionGroupBy string
 
 const (
-	ChatSessionGroupByNone   ChatSessionGroupBy = "none"
-	ChatSessionGroupByAgent  ChatSessionGroupBy = "agent"
-	ChatSessionGroupByStatus ChatSessionGroupBy = "status"
-	ChatSessionGroupByDate   ChatSessionGroupBy = "date"
+	ChatSessionGroupByNone    ChatSessionGroupBy = "none"
+	ChatSessionGroupByAgent   ChatSessionGroupBy = "agent"
+	ChatSessionGroupByStatus  ChatSessionGroupBy = "status"
+	ChatSessionGroupByDate    ChatSessionGroupBy = "date"
+	ChatSessionGroupByProject ChatSessionGroupBy = "project"
 )
 
 func (e *ChatSessionGroupBy) Scan(src interface{}) error {
@@ -731,6 +733,48 @@ func (ns NullWorkspaceState) Value() (driver.Value, error) {
 	return string(ns.WorkspaceState), nil
 }
 
+type WorkspaceType string
+
+const (
+	WorkspaceTypeGeneral WorkspaceType = "general"
+	WorkspaceTypeCoding  WorkspaceType = "coding"
+)
+
+func (e *WorkspaceType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceType(s)
+	case string:
+		*e = WorkspaceType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceType: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceType struct {
+	WorkspaceType WorkspaceType `json:"workspace_type"`
+	Valid         bool          `json:"valid"` // Valid is true if WorkspaceType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceType) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceType), nil
+}
+
 type Account struct {
 	ID                    string           `json:"id"`
 	AccountID             string           `json:"account_id"`
@@ -822,6 +866,34 @@ type Apikey struct {
 	Metadata            pgtype.Text      `json:"metadata"`
 }
 
+type ChatInput struct {
+	ID             uuid.UUID   `json:"id"`
+	Sequence       pgtype.Int8 `json:"sequence"`
+	WorkspaceID    string      `json:"workspace_id"`
+	AgentName      string      `json:"agent_name"`
+	SessionID      string      `json:"session_id"`
+	OrganizationID string      `json:"organization_id"`
+	AuthorID       string      `json:"author_id"`
+	AuthorName     string      `json:"author_name"`
+	Directory      string      `json:"directory"`
+	Resume         bool        `json:"resume"`
+	Content        []byte      `json:"content"`
+	Delivery       string      `json:"delivery"`
+	State          string      `json:"state"`
+	Revision       int64       `json:"revision"`
+	MessageID      string      `json:"message_id"`
+	Error          string      `json:"error"`
+	CreatedAt      time.Time   `json:"created_at"`
+	UpdatedAt      time.Time   `json:"updated_at"`
+}
+
+type ChatInputSession struct {
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	SessionID   string `json:"session_id"`
+	Stopping    bool   `json:"stopping"`
+}
+
 type ChatSession struct {
 	WorkspaceID     string             `json:"workspace_id"`
 	AgentName       string             `json:"agent_name"`
@@ -864,6 +936,69 @@ type CleanupJob struct {
 	CompletedAt    pgtype.Timestamptz   `json:"completed_at"`
 }
 
+type CodingOperation struct {
+	ID             string    `json:"id"`
+	WorkspaceID    string    `json:"workspace_id"`
+	OrganizationID string    `json:"organization_id"`
+	OwnerID        string    `json:"owner_id"`
+	ProjectID      string    `json:"project_id"`
+	WorktreeID     string    `json:"worktree_id"`
+	Request        []byte    `json:"request"`
+	Result         []byte    `json:"result"`
+	LeaseToken     string    `json:"lease_token"`
+	LeaseUntil     time.Time `json:"lease_until"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+type CodingProject struct {
+	ID            string             `json:"id"`
+	WorkspaceID   string             `json:"workspace_id"`
+	OwnerID       string             `json:"owner_id"`
+	Name          string             `json:"name"`
+	RepositoryID  int64              `json:"repository_id"`
+	Repository    string             `json:"repository"`
+	LastAgentName pgtype.Text        `json:"last_agent_name"`
+	DefaultBranch string             `json:"default_branch"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
+type CodingSnapshot struct {
+	ProjectID        string    `json:"project_id"`
+	AgentName        string    `json:"agent_name"`
+	WorktreeID       string    `json:"worktree_id"`
+	Result           []byte    `json:"result"`
+	DemandUntil      time.Time `json:"demand_until"`
+	NextRefresh      time.Time `json:"next_refresh"`
+	GithubRetryAfter time.Time `json:"github_retry_after"`
+	NextRemote       time.Time `json:"next_remote"`
+	LeaseUntil       time.Time `json:"lease_until"`
+	Failures         int32     `json:"failures"`
+	Generation       int64     `json:"generation"`
+	RemoteRefs       string    `json:"remote_refs"`
+}
+
+type CodingThread struct {
+	ID          string             `json:"id"`
+	WorkspaceID string             `json:"workspace_id"`
+	AgentName   string             `json:"agent_name"`
+	WorktreeID  string             `json:"worktree_id"`
+	SessionID   pgtype.Text        `json:"session_id"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type CodingWorktree struct {
+	ID          string             `json:"id"`
+	WorkspaceID string             `json:"workspace_id"`
+	ProjectID   string             `json:"project_id"`
+	AgentName   string             `json:"agent_name"`
+	Directory   string             `json:"directory"`
+	Branch      string             `json:"branch"`
+	Ready       bool               `json:"ready"`
+	Shared      bool               `json:"shared"`
+	Deleting    bool               `json:"deleting"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 type EventTrailEvent struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`
@@ -878,6 +1013,25 @@ type EventTrailEvent struct {
 	Before         []byte             `json:"before"`
 	After          []byte             `json:"after"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type GithubAuthorization struct {
+	State     string             `json:"state"`
+	UserID    string             `json:"user_id"`
+	SessionID string             `json:"session_id"`
+	Verifier  string             `json:"verifier"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+}
+
+type GithubConnection struct {
+	UserID           string             `json:"user_id"`
+	GithubUserID     int64              `json:"github_user_id"`
+	Login            string             `json:"login"`
+	AccessToken      string             `json:"access_token"`
+	RefreshToken     string             `json:"refresh_token"`
+	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
+	RefreshExpiresAt pgtype.Timestamptz `json:"refresh_expires_at"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 }
 
 type Invitation struct {
@@ -1327,6 +1481,7 @@ type Workspace struct {
 	Name                string             `json:"name"`
 	Slug                string             `json:"slug"`
 	Namespace           string             `json:"namespace"`
+	Type                WorkspaceType      `json:"type"`
 	State               WorkspaceState     `json:"state"`
 	ProvisioningAttempt int64              `json:"provisioning_attempt"`
 	FailureReason       pgtype.Text        `json:"failure_reason"`

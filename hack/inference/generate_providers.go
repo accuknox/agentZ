@@ -6,6 +6,7 @@ import (
 	"go/format"
 	"io"
 	"log"
+	"maps"
 	"net/http"
 	"os"
 	"slices"
@@ -220,7 +221,16 @@ func main() {
 	for _, entry := range entries {
 		fmt.Fprintf(
 			&output,
-			"\t{\n\t\tProviderID: %q,\n\t\tName: %q,\n\t\tKind: agentzv1alpha1.InferenceProviderKind%s,\n\t\tBaseURL: %q,\n\t\tBaseURLTemplate: %q,\n\t\tAuthHeader: %q,\n\t\tAuthPrefix: %q,\n\t\tDoc: %q,\n\t},\n",
+			"\t{\n"+
+				"\t\tProviderID: %q,\n"+
+				"\t\tName: %q,\n"+
+				"\t\tKind: agentzv1alpha1.InferenceProviderKind%s,\n"+
+				"\t\tBaseURL: %q,\n"+
+				"\t\tBaseURLTemplate: %q,\n"+
+				"\t\tAuthHeader: %q,\n"+
+				"\t\tAuthPrefix: %q,\n"+
+				"\t\tDoc: %q,\n"+
+				"\t},\n",
 			entry.ProviderID,
 			entry.Name,
 			entry.Kind,
@@ -232,20 +242,12 @@ func main() {
 		)
 	}
 	output.WriteString("}\n\nvar catalogNPMKinds = map[string]agentzv1alpha1.InferenceProviderKind{\n")
-	npms := make([]string, 0, len(npmKinds))
-	for npm := range npmKinds {
-		npms = append(npms, npm)
-	}
-	slices.Sort(npms)
+	npms := slices.Sorted(maps.Keys(npmKinds))
 	for _, npm := range npms {
 		fmt.Fprintf(&output, "\t%q: agentzv1alpha1.InferenceProviderKind%s,\n", npm, npmKinds[npm])
 	}
 	output.WriteString("}\n\nvar catalogProviderKinds = map[string]agentzv1alpha1.InferenceProviderKind{\n")
-	ids := make([]string, 0, len(providerKinds))
-	for id := range providerKinds {
-		ids = append(ids, id)
-	}
-	slices.Sort(ids)
+	ids := slices.Sorted(maps.Keys(providerKinds))
 	for _, id := range ids {
 		fmt.Fprintf(&output, "\t%q: agentzv1alpha1.InferenceProviderKind%s,\n", id, providerKinds[id])
 	}

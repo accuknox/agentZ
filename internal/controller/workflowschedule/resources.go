@@ -37,10 +37,9 @@ import (
 )
 
 const (
-	workflowScheduleLabel      = "agentz.accuknox.com/workflow-schedule"
-	scheduleRunnerLabel        = "agentz.accuknox.com/workflow-schedule-runner"
-	scheduleRunnerRoleSuffix   = "-schedule-runner"
-	scheduleRunnerPolicySuffix = "-schedule-runner"
+	workflowScheduleLabel    = "agentz.accuknox.com/workflow-schedule"
+	scheduleRunnerLabel      = "agentz.accuknox.com/workflow-schedule-runner"
+	scheduleRunnerRoleSuffix = "-schedule-runner"
 )
 
 func scheduleRunnerName(schedule *agentzv1alpha1.WorkflowSchedule) string {
@@ -59,10 +58,6 @@ func scheduleRunnerPodLabels(schedule *agentzv1alpha1.WorkflowSchedule) map[stri
 	labels := scheduleLabels(schedule)
 	labels[scheduleRunnerLabel] = schedule.Name
 	return labels
-}
-
-func scheduleRunnerPolicyName(schedule *agentzv1alpha1.WorkflowSchedule) string {
-	return schedule.Name + scheduleRunnerPolicySuffix
 }
 
 func (r *Reconciler) reconcileServiceAccount(ctx context.Context, schedule *agentzv1alpha1.WorkflowSchedule) error {
@@ -159,7 +154,7 @@ func (r *Reconciler) reconcileRoleBinding(ctx context.Context, schedule *agentzv
 func (r *Reconciler) reconcileRunnerPolicy(ctx context.Context, schedule *agentzv1alpha1.WorkflowSchedule) error {
 	policy := &ciliumv2.CiliumNetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      scheduleRunnerPolicyName(schedule),
+			Name:      scheduleRunnerName(schedule),
 			Namespace: schedule.Namespace,
 		},
 	}

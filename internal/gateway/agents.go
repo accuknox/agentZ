@@ -24,19 +24,22 @@ import (
 
 	"github.com/accuknox/agentz/internal/agentquota"
 	"github.com/accuknox/agentz/internal/authorization"
+	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	"github.com/accuknox/agentz/internal/scope"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
-func (s *Service) resolveAgentAccess(ctx context.Context, name string, operation authorization.Operation) (resourceAccess, *apiError) {
+func (s *Service) resolveAgentAccess(ctx context.Context, name string, operation authorization.Operation) (resourceAccess, *apiutil.APIError) {
 	access := resourceAccess{operation: operation}
 	if _, ok := operation.BearerScope(); !ok {
 		return access, resourceForbidden(fmt.Errorf("agent operation %q is unknown", operation))
 	}
 	auth, ok := requestAuthState(ctx)
 	if ok && auth.actorType == requestActorSystem {
+		access.userID = auth.userID
+		access.organizationID = auth.organizationID
 		access.workspaceID = auth.workspaceID
 		access.namespace = auth.tenantNamespace
 		access.authorized = true
@@ -48,6 +51,8 @@ func (s *Service) resolveAgentAccess(ctx context.Context, name string, operation
 				fmt.Errorf("agent API key does not permit operation %q", operation),
 			)
 		}
+		access.userID = auth.userID
+		access.organizationID = auth.organizationID
 		access.workspaceID = auth.workspaceID
 		access.namespace = auth.tenantNamespace
 		access.authorized = true
@@ -61,6 +66,8 @@ func (s *Service) resolveAgentAccess(ctx context.Context, name string, operation
 		return access, resourceForbidden(errors.New("agent operations require a Workspace scope"))
 	}
 	access.claims = claims
+	access.userID = claims.UserID
+	access.organizationID = claims.OrganizationID
 	access.workspaceID = claims.WorkspaceID
 
 	effective, err := authorization.New(s.queries).Resolve(
@@ -70,7 +77,7 @@ func (s *Service) resolveAgentAccess(ctx context.Context, name string, operation
 		},
 	)
 	if err != nil {
-		return access, newAPIError(
+		return access, apiutil.NewError(
 			http.StatusInternalServerError,
 			"internal_error",
 			"unexpected server error",
@@ -81,7 +88,7 @@ func (s *Service) resolveAgentAccess(ctx context.Context, name string, operation
 
 	allowed, err := s.agentOperationAllowed(ctx, access, name, operation)
 	if err != nil {
-		return access, newAPIError(
+		return access, apiutil.NewError(
 			http.StatusInternalServerError,
 			"internal_error",
 			"unexpected server error",
@@ -130,13 +137,13 @@ func requireAgentBoundAccess(s *Service) func(http.Handler) http.Handler {
 
 			access, apiErr := s.resolveAgentAccess(r.Context(), agentName, operation)
 			if apiErr != nil {
-				writeError(w, r, apiErr)
+				apiutil.WriteError(w, r, apiErr)
 				return
 			}
 
 			auth, ok := requestAuthState(r.Context())
 			if !ok {
-				writeInternalError(w, r, errors.New("missing request authentication"))
+				apiutil.WriteInternalError(w, r, errors.New("missing request authentication"))
 				return
 			}
 			auth.workspaceID = access.workspaceID
@@ -212,7 +219,7 @@ func (s *Service) isAgentOwner(ctx context.Context, claims gatewayClaims, name s
 func (s *Service) ListAgents(w http.ResponseWriter, r *http.Request, params gatewayapi.ListAgentsParams) {
 	access, apiErr := s.resolveAgentAccess(r.Context(), "", authorization.OperationListAgents)
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	ns := access.namespace
@@ -222,10 +229,10 @@ func (s *Service) ListAgents(w http.ResponseWriter, r *http.Request, params gate
 		limit = int(*params.Limit)
 	}
 	if limit < 1 || limit > 200 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"limit must be between 1 and 200",
@@ -254,12 +261,12 @@ func (s *Service) ListAgents(w http.ResponseWriter, r *http.Request, params gate
 
 	capabilities, err := s.agentCapabilityProjections(r.Context(), access, "")
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	agentNames = usableAgentNames(agentNames, capabilities)
 	if len(agentNames) == 0 {
-		writeJSON(
+		apiutil.WriteJSON(
 			w,
 			http.StatusOK,
 			gatewayapi.ListAgentsResponse{
@@ -280,20 +287,23 @@ func (s *Service) ListAgents(w http.ResponseWriter, r *http.Request, params gate
 
 	items, next, err := s.listAgentItems(
 		r.Context(),
-		ns,
-		agentNames,
+		gatewaydb.GatewayListAgentsByNameParams{
+			TenantNamespace: ns,
+			Column2:         agentNames,
+			SortBy:          string(sortBy),
+			SortDesc:        sortOrder == gatewayapi.ListAgentsParamsSortOrderDesc,
+			PageSize:        int32(limit + 1),
+			PageOffset:      int32(offset),
+		},
 		capabilities,
-		sortBy,
-		sortOrder,
-		limit,
 		offset,
 	)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
-	writeJSON(
+	apiutil.WriteJSON(
 		w,
 		http.StatusOK,
 		gatewayapi.ListAgentsResponse{
@@ -309,7 +319,7 @@ func (s *Service) ListAgents(w http.ResponseWriter, r *http.Request, params gate
 func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	access, apiErr := s.resolveAgentAccess(r.Context(), "", authorization.OperationCreateAgent)
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	ns := access.namespace
@@ -319,11 +329,22 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	auth, _ := requestAuthState(r.Context())
+	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding && req.Memory != nil && req.Memory.Enabled {
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusForbidden,
+			"feature_disabled",
+			"memory is disabled in coding workspaces",
+			nil,
+		))
+		return
+	}
+
 	name, fields := validateCreateAgentRequest(req)
 	envFields, serr := s.validateAgentSandbox(r.Context(), ns, req.Sandbox)
 	fields = append(fields, envFields...)
 	if serr != nil {
-		writeInternalError(w, r, serr)
+		apiutil.WriteInternalError(w, r, serr)
 		return
 	}
 	var rawSkills []gatewayapi.ResourceReference
@@ -333,14 +354,14 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	skills, skillFields, err := s.validateSkillRefs(r.Context(), ns, rawSkills)
 	fields = append(fields, skillFields...)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if len(fields) > 0 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -353,7 +374,7 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 
 	tx, err := s.db.Begin(r.Context())
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("begin Agent creation: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("begin Agent creation: %w", err))
 		return
 	}
 	defer tx.Rollback(r.Context())
@@ -361,7 +382,7 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	q := gatewaydb.New(tx)
 	_, err = q.GatewayLockOrganization(r.Context(), access.claims.OrganizationID)
 	if err != nil {
-		writeError(w, r, mapGatewayStoreError("lock Agent quota", err))
+		apiutil.WriteError(w, r, mapGatewayStoreError("lock Agent quota", err))
 		return
 	}
 	_, err = q.GatewayLockActiveWorkspace(
@@ -371,11 +392,11 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		writeError(w, r, resourceForbidden(errors.New("agent creation requires an active Workspace")))
+		apiutil.WriteError(w, r, resourceForbidden(errors.New("agent creation requires an active Workspace")))
 		return
 	}
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("lock Agent Workspace: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("lock Agent Workspace: %w", err))
 		return
 	}
 	_, err = q.GatewayLockActiveOrganizationMember(
@@ -385,11 +406,11 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		writeError(w, r, resourceForbidden(errors.New("agent creation requires active membership")))
+		apiutil.WriteError(w, r, resourceForbidden(errors.New("agent creation requires active membership")))
 		return
 	}
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("lock Agent creator membership: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("lock Agent creator membership: %w", err))
 		return
 	}
 	effective, err := authorization.New(q).Resolve(
@@ -399,7 +420,7 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("recheck Agent creation authority: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("recheck Agent creation authority: %w", err))
 		return
 	}
 	scope := authorization.Scope{
@@ -407,35 +428,31 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		WorkspaceID:    access.workspaceID,
 	}
 	if !effective.Allows(scope, authorization.OperationCreateAgent) {
-		writeError(w, r, resourceForbidden(errors.New("agent creation authority was revoked")))
+		apiutil.WriteError(w, r, resourceForbidden(errors.New("agent creation authority was revoked")))
 		return
 	}
 
 	agt := s.agentFromCreateRequest(req, ns, access.owner, name)
 	tenant, err := tenantObject(r.Context())
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if tenant.Spec.AgentQuota != nil {
 		agt.Spec.Resources = agentquota.Resources(tenant.Spec.AgentQuota.Defaults)
 		agents, err := agentquota.Agents(r.Context(), s.k8sClient, tenant.Name)
 		if err != nil {
-			writeInternalError(w, r, fmt.Errorf("measure Agent quota: %w", err))
+			apiutil.WriteInternalError(w, r, fmt.Errorf("measure Agent quota: %w", err))
 			return
 		}
 		exceeded := agentquota.Measure(agents).Add(agt.Spec.Resources).Exceeded(*tenant.Spec.AgentQuota)
 		if exceeded.Count || exceeded.CPU || exceeded.Memory {
-			writeError(
-				w,
-				r,
-				newAPIError(
-					http.StatusConflict,
-					"quota_exceeded",
-					"Tenant Agent quota exceeded",
-					errors.New("agent allocation exceeds tenant quota"),
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusConflict,
+				"quota_exceeded",
+				"Tenant Agent quota exceeded",
+				errors.New("agent allocation exceeds tenant quota"),
+			))
 			return
 		}
 	}
@@ -448,7 +465,7 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if err != nil {
-		writeError(w, r, mapGatewayStoreError("create agent", err))
+		apiutil.WriteError(w, r, mapGatewayStoreError("create agent", err))
 		return
 	}
 
@@ -463,7 +480,7 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if err != nil {
-		writeError(w, r, mapGatewayStoreError("create agent owner", err))
+		apiutil.WriteError(w, r, mapGatewayStoreError("create agent owner", err))
 		return
 	}
 
@@ -477,7 +494,7 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		metav1.CreateOptions{},
 	)
 	if err != nil {
-		writeError(w, r, mapKubeHTTPError("create agent", err))
+		apiutil.WriteError(w, r, mapKubeHTTPError("create agent", err))
 		return
 	}
 	err = createAgentEventTrail(
@@ -502,7 +519,7 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		if deleteErr != nil && !apierrors.IsNotFound(deleteErr) {
 			err = fmt.Errorf("%w; rollback Kubernetes Agent: %v", err, deleteErr)
 		}
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if commitErr := tx.Commit(r.Context()); commitErr != nil {
@@ -515,7 +532,7 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		if deleteErr != nil && !apierrors.IsNotFound(deleteErr) {
 			err = fmt.Errorf("commit Agent creation: %w; rollback Kubernetes Agent: %v", commitErr, deleteErr)
 		}
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
@@ -525,10 +542,10 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		agt.Spec.LastModifiedByUserID,
 	)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	writeJSON(
+	apiutil.WriteJSON(
 		w,
 		http.StatusCreated,
 		gatewayapi.Agent{
@@ -561,43 +578,46 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 	}
 	access, apiErr := s.resolveAgentAccess(r.Context(), name, authorization.OperationUpdateAgent)
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	ns := access.namespace
 
-	if fields := validateUpdateAgentRequest(req); len(fields) > 0 {
-		writeError(
-			w,
-			r,
-			newAPIError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				fields...,
-			),
-		)
+	auth, _ := requestAuthState(r.Context())
+	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding && req.Memory != nil && req.Memory.Enabled {
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusForbidden,
+			"feature_disabled",
+			"memory is disabled in coding workspaces",
+			nil,
+		))
+		return
+	}
+
+	if fields := validateOpenCodeRequest(req.Opencode); len(fields) > 0 {
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
 		return
 	}
 	if req.Sandbox != nil {
 		envFields, err := s.validateAgentSandbox(r.Context(), ns, *req.Sandbox)
 		if err != nil {
-			writeInternalError(w, r, err)
+			apiutil.WriteInternalError(w, r, err)
 			return
 		}
 		if len(envFields) > 0 {
-			writeError(
-				w,
-				r,
-				newAPIError(
-					http.StatusBadRequest,
-					"invalid_request",
-					"request validation failed",
-					errBadRequest,
-					envFields...,
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				envFields...,
+			))
 			return
 		}
 	}
@@ -605,39 +625,31 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		var skillFields []gatewayapi.FieldError
 		_, skillFields, err := s.validateSkillRefs(r.Context(), ns, *req.Skills)
 		if err != nil {
-			writeInternalError(w, r, err)
+			apiutil.WriteInternalError(w, r, err)
 			return
 		}
 		if len(skillFields) > 0 {
-			writeError(
-				w,
-				r,
-				newAPIError(
-					http.StatusBadRequest,
-					"invalid_request",
-					"request validation failed",
-					errBadRequest,
-					skillFields...,
-				),
-			)
-			return
-		}
-	}
-	if !updateAgentRequestHasChanges(req) {
-		writeError(
-			w,
-			r,
-			newAPIError(
+			apiutil.WriteError(w, r, apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
 				errBadRequest,
-				gatewayapi.FieldError{
-					Field:   "body",
-					Message: "must include at least one mutable field",
-				},
-			),
-		)
+				skillFields...,
+			))
+			return
+		}
+	}
+	if !updateAgentRequestHasChanges(req) {
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field:   "body",
+				Message: "must include at least one mutable field",
+			},
+		))
 		return
 	}
 
@@ -649,7 +661,7 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		},
 	)
 	if err != nil {
-		writeError(w, r, mapGatewayStoreError("get agent", err))
+		apiutil.WriteError(w, r, mapGatewayStoreError("get agent", err))
 		return
 	}
 
@@ -677,14 +689,14 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		},
 	)
 	if err != nil {
-		writeError(w, r, mapKubeHTTPError("update agent", err))
+		apiutil.WriteError(w, r, mapKubeHTTPError("update agent", err))
 		return
 	}
 
 	tx, err := s.db.Begin(r.Context())
 	if err != nil {
 		s.rollbackAgentUpdate(r.Context(), ns, before)
-		writeInternalError(w, r, fmt.Errorf("begin Agent update: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("begin Agent update: %w", err))
 		return
 	}
 	defer tx.Rollback(r.Context())
@@ -700,7 +712,7 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 	)
 	if err != nil {
 		s.rollbackAgentUpdate(r.Context(), ns, before)
-		writeError(w, r, mapGatewayStoreError("update agent", err))
+		apiutil.WriteError(w, r, mapGatewayStoreError("update agent", err))
 		return
 	}
 	err = createAgentEventTrail(
@@ -716,12 +728,12 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 	)
 	if err != nil {
 		s.rollbackAgentUpdate(r.Context(), ns, before)
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if err := tx.Commit(r.Context()); err != nil {
 		s.rollbackAgentUpdate(r.Context(), ns, before)
-		writeInternalError(w, r, fmt.Errorf("commit Agent update: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("commit Agent update: %w", err))
 		return
 	}
 
@@ -735,10 +747,10 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		updated.Spec.LastModifiedByUserID,
 	)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	writeJSON(
+	apiutil.WriteJSON(
 		w,
 		http.StatusOK,
 		gatewayapi.Agent{
@@ -790,14 +802,14 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 	}
 	access, apiErr := s.resolveAgentAccess(r.Context(), agentName, authorization.OperationDeleteAgent)
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	ns := access.namespace
 
 	tx, err := s.db.Begin(r.Context())
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("begin Agent deletion: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("begin Agent deletion: %w", err))
 		return
 	}
 	defer tx.Rollback(r.Context())
@@ -811,7 +823,7 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 		},
 	)
 	if err != nil {
-		writeError(w, r, mapGatewayStoreError("get agent", err))
+		apiutil.WriteError(w, r, mapGatewayStoreError("get agent", err))
 		return
 	}
 	owner, err := q.GatewayLockAgentOwner(
@@ -823,11 +835,11 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		writeError(w, r, agentNotFound(agentName))
+		apiutil.WriteError(w, r, agentNotFound(agentName))
 		return
 	}
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("lock Agent owner: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("lock Agent owner: %w", err))
 		return
 	}
 	err = s.resolver.client.AgentzV1alpha1().Agents(ns).Delete(
@@ -838,12 +850,12 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 		},
 	)
 	if err != nil && !apierrors.IsNotFound(err) {
-		writeError(w, r, mapKubeHTTPError("delete agent", err))
+		apiutil.WriteError(w, r, mapKubeHTTPError("delete agent", err))
 		return
 	}
 
 	if err := s.deleteAgentSecretResources(r.Context(), ns, agentName); err != nil {
-		writeError(w, r, mapKubeHTTPError("delete agent secrets", err))
+		apiutil.WriteError(w, r, mapKubeHTTPError("delete agent secrets", err))
 		return
 	}
 
@@ -856,11 +868,11 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 		},
 	)
 	if err != nil {
-		writeError(w, r, mapGatewayStoreError("delete agent owner", err))
+		apiutil.WriteError(w, r, mapGatewayStoreError("delete agent owner", err))
 		return
 	}
 	if ownerRows != 1 {
-		writeError(w, r, agentNotFound(agentName))
+		apiutil.WriteError(w, r, agentNotFound(agentName))
 		return
 	}
 
@@ -872,14 +884,14 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 		},
 	)
 	if err != nil {
-		writeError(w, r, mapGatewayStoreError("delete agent", err))
+		apiutil.WriteError(w, r, mapGatewayStoreError("delete agent", err))
 		return
 	}
 	if rows == 0 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusNotFound,
 				"not_found",
 				"agent not found",
@@ -896,7 +908,7 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("delete Agent chat sessions: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("delete Agent chat sessions: %w", err))
 		return
 	}
 	err = q.GatewayClearAgentChatPreferences(
@@ -907,7 +919,7 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("clear Agent chat preferences: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("clear Agent chat preferences: %w", err))
 		return
 	}
 	err = createAgentEventTrail(
@@ -924,11 +936,11 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if err := tx.Commit(r.Context()); err != nil {
-		writeInternalError(w, r, fmt.Errorf("commit Agent deletion: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("commit Agent deletion: %w", err))
 		return
 	}
 
@@ -951,14 +963,14 @@ func (s *Service) GetAgentOwner(w http.ResponseWriter, r *http.Request, agentNam
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		writeError(w, r, agentNotFound(agentName))
+		apiutil.WriteError(w, r, agentNotFound(agentName))
 		return
 	}
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("get Agent owner: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("get Agent owner: %w", err))
 		return
 	}
-	writeJSON(w, http.StatusOK, agentOwnerResponse(row))
+	apiutil.WriteJSON(w, http.StatusOK, agentOwnerResponse(row))
 }
 
 // TransferAgentOwner handles PUT /api/agent/{agentName}/owner.
@@ -973,17 +985,13 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 		return
 	}
 	if strings.TrimSpace(req.OwnerUserId) == "" {
-		writeError(
-			w,
-			r,
-			newAPIError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				gatewayapi.FieldError{Field: "owner_user_id", Message: "required"},
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			gatewayapi.FieldError{Field: "owner_user_id", Message: "required"},
+		))
 		return
 	}
 
@@ -993,16 +1001,20 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 	}
 	owner, err := s.isAgentOwner(r.Context(), access.claims, agentName)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("resolve Agent owner: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("resolve Agent owner: %w", err))
 		return
 	}
 	if !owner && !access.effective.CanAdminister(scope) {
-		writeError(w, r, resourceForbidden(errors.New("agent ownership transfer requires owner or administrator authority")))
+		apiutil.WriteError(
+			w,
+			r,
+			resourceForbidden(errors.New("agent ownership transfer requires owner or administrator authority")),
+		)
 		return
 	}
 	tx, err := s.db.Begin(r.Context())
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("begin Agent owner transfer: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("begin Agent owner transfer: %w", err))
 		return
 	}
 	defer tx.Rollback(r.Context())
@@ -1015,11 +1027,15 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		writeError(w, r, resourceForbidden(errors.New("agent ownership transfer requires an active Workspace")))
+		apiutil.WriteError(
+			w,
+			r,
+			resourceForbidden(errors.New("agent ownership transfer requires an active Workspace")),
+		)
 		return
 	}
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("lock Agent Workspace: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("lock Agent Workspace: %w", err))
 		return
 	}
 	_, err = q.GatewayLockActiveOrganizationMember(
@@ -1029,11 +1045,11 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		writeError(w, r, resourceForbidden(errors.New("new owner requires active membership")))
+		apiutil.WriteError(w, r, resourceForbidden(errors.New("new owner requires active membership")))
 		return
 	}
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("lock new Agent owner membership: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("lock new Agent owner membership: %w", err))
 		return
 	}
 
@@ -1044,13 +1060,17 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("resolve new Agent owner permissions: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("resolve new Agent owner permissions: %w", err))
 		return
 	}
 	hasWorkspace := effective.HasAccess(scope)
 	canCreate := effective.Allows(scope, authorization.OperationCreateAgent)
 	if !hasWorkspace || !canCreate {
-		writeError(w, r, resourceForbidden(errors.New("new owner requires independent Workspace access and Agent Author")))
+		apiutil.WriteError(
+			w,
+			r,
+			resourceForbidden(errors.New("new owner requires independent Workspace access and Agent Author")),
+		)
 		return
 	}
 
@@ -1063,15 +1083,15 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		writeError(w, r, agentNotFound(agentName))
+		apiutil.WriteError(w, r, agentNotFound(agentName))
 		return
 	}
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("get Agent owner before transfer: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("get Agent owner before transfer: %w", err))
 		return
 	}
 	if previous.OwnerUserID != access.claims.UserID && !access.effective.CanAdminister(scope) {
-		writeError(w, r, resourceForbidden(errors.New("agent ownership changed before transfer")))
+		apiutil.WriteError(w, r, resourceForbidden(errors.New("agent ownership changed before transfer")))
 		return
 	}
 
@@ -1084,11 +1104,11 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		writeError(w, r, agentNotFound(agentName))
+		apiutil.WriteError(w, r, agentNotFound(agentName))
 		return
 	}
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("transfer Agent owner: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("transfer Agent owner: %w", err))
 		return
 	}
 	err = createAgentEventTrail(
@@ -1109,14 +1129,14 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if err := tx.Commit(r.Context()); err != nil {
-		writeInternalError(w, r, fmt.Errorf("commit Agent owner transfer: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("commit Agent owner transfer: %w", err))
 		return
 	}
-	writeJSON(w, http.StatusOK, agentOwnerResponse(row))
+	apiutil.WriteJSON(w, http.StatusOK, agentOwnerResponse(row))
 }
 
 // ListAgentShares handles GET /api/agent/{agentName}/share.
@@ -1128,6 +1148,7 @@ const (
 	agentShareAll
 )
 
+// ListAgentShares lists grants and their capabilities for an agent.
 func (s *Service) ListAgentShares(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, params gatewayapi.ListAgentSharesParams) {
 	agentName, access, ok := s.resolveNamedAgent(w, r, agentName)
 	if !ok {
@@ -1136,11 +1157,11 @@ func (s *Service) ListAgentShares(w http.ResponseWriter, r *http.Request, agentN
 
 	authority, err := s.resolveAgentShareAuthority(r.Context(), access, agentName)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if authority == agentShareDenied {
-		writeError(w, r, resourceForbidden(errors.New("agent Share authority is missing")))
+		apiutil.WriteError(w, r, resourceForbidden(errors.New("agent Share authority is missing")))
 		return
 	}
 	limit, ok := validLimit(w, r, params.Limit)
@@ -1163,10 +1184,10 @@ func (s *Service) ListAgentShares(w http.ResponseWriter, r *http.Request, agentN
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	writeJSON(
+	apiutil.WriteJSON(
 		w,
 		http.StatusOK,
 		gatewayapi.ListAgentSharesResponse{
@@ -1184,12 +1205,12 @@ func (s *Service) ListAgentAccessTargets(w http.ResponseWriter, r *http.Request,
 	}
 	projections, err := s.agentCapabilityProjections(r.Context(), access, agentName)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	capabilities, ok := projections[agentName]
 	if !ok || (!capabilities.Share && !capabilities.ManageOwnership) {
-		writeError(w, r, resourceForbidden(errors.New("agent access management authority is missing")))
+		apiutil.WriteError(w, r, resourceForbidden(errors.New("agent access management authority is missing")))
 		return
 	}
 	owner, err := s.queries.GatewayGetAgentOwner(
@@ -1201,7 +1222,7 @@ func (s *Service) ListAgentAccessTargets(w http.ResponseWriter, r *http.Request,
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("resolve Agent Share exclusions: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("resolve Agent Share exclusions: %w", err))
 		return
 	}
 
@@ -1214,7 +1235,7 @@ func (s *Service) ListAgentAccessTargets(w http.ResponseWriter, r *http.Request,
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("list Agent Share targets: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("list Agent Share targets: %w", err))
 		return
 	}
 
@@ -1246,7 +1267,7 @@ func (s *Service) ListAgentAccessTargets(w http.ResponseWriter, r *http.Request,
 		case "team":
 			kind = gatewayapi.AgentAccessTargetKindTeam
 		default:
-			writeInternalError(w, r, fmt.Errorf("unknown Agent Share target kind %q", row.Kind))
+			apiutil.WriteInternalError(w, r, fmt.Errorf("unknown Agent Share target kind %q", row.Kind))
 			return
 		}
 		capabilities := make([]gatewayapi.AgentShareCapability, 0, len(shareCapabilities))
@@ -1263,13 +1284,13 @@ func (s *Service) ListAgentAccessTargets(w http.ResponseWriter, r *http.Request,
 				[]gatewaydb.AgentShareCapability{capability},
 			)
 			if err != nil {
-				writeInternalError(w, r, fmt.Errorf("resolve Agent Share target capabilities: %w", err))
+				apiutil.WriteInternalError(w, r, fmt.Errorf("resolve Agent Share target capabilities: %w", err))
 				return
 			}
 			if eligible {
 				apiCapability, known := agentShareAPICapability(capability)
 				if !known {
-					writeInternalError(w, r, fmt.Errorf("unknown Agent Share capability %q", capability))
+					apiutil.WriteInternalError(w, r, fmt.Errorf("unknown Agent Share capability %q", capability))
 					return
 				}
 				capabilities = append(capabilities, apiCapability)
@@ -1307,7 +1328,7 @@ func (s *Service) ListAgentAccessTargets(w http.ResponseWriter, r *http.Request,
 			return strings.Compare(a.Id, b.Id)
 		},
 	)
-	writeJSON(w, http.StatusOK, gatewayapi.ListAgentAccessTargetsResponse{Targets: targets})
+	apiutil.WriteJSON(w, http.StatusOK, gatewayapi.ListAgentAccessTargetsResponse{Targets: targets})
 }
 
 // UpsertAgentShare handles POST /api/agent/{agentName}/share.
@@ -1325,10 +1346,10 @@ func (s *Service) UpsertAgentShare(w http.ResponseWriter, r *http.Request, agent
 	caps, capFields := agentShareCapabilities(req.Capabilities)
 	fields = append(fields, capFields...)
 	if len(fields) > 0 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -1341,11 +1362,11 @@ func (s *Service) UpsertAgentShare(w http.ResponseWriter, r *http.Request, agent
 
 	authority, err := s.resolveAgentShareAuthority(r.Context(), access, agentName)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if authority == agentShareDenied {
-		writeError(w, r, resourceForbidden(errors.New("agent Share authority is missing")))
+		apiutil.WriteError(w, r, resourceForbidden(errors.New("agent Share authority is missing")))
 		return
 	}
 	if targetTeam.Valid {
@@ -1356,11 +1377,15 @@ func (s *Service) UpsertAgentShare(w http.ResponseWriter, r *http.Request, agent
 			},
 		)
 		if err != nil {
-			writeInternalError(w, r, fmt.Errorf("resolve Agent Share Team: %w", err))
+			apiutil.WriteInternalError(w, r, fmt.Errorf("resolve Agent Share Team: %w", err))
 			return
 		}
 		if !exists {
-			writeError(w, r, resourceForbidden(errors.New("agent Share Team does not exist in this Organisation")))
+			apiutil.WriteError(
+				w,
+				r,
+				resourceForbidden(errors.New("agent Share Team does not exist in this Organisation")),
+			)
 			return
 		}
 	}
@@ -1375,7 +1400,7 @@ func (s *Service) UpsertAgentShare(w http.ResponseWriter, r *http.Request, agent
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if !eligible {
@@ -1384,7 +1409,7 @@ func (s *Service) UpsertAgentShare(w http.ResponseWriter, r *http.Request, agent
 			message = "team is not eligible for requested Agent Share capabilities"
 		}
 		cause := errors.New(message)
-		writeError(w, r, resourceForbidden(cause))
+		apiutil.WriteError(w, r, resourceForbidden(cause))
 		return
 	}
 
@@ -1400,10 +1425,10 @@ func (s *Service) UpsertAgentShare(w http.ResponseWriter, r *http.Request, agent
 	)
 	if err != nil {
 		if errors.Is(err, errAgentShareOwnerTarget) {
-			writeError(
+			apiutil.WriteError(
 				w,
 				r,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusBadRequest,
 					"invalid_request",
 					err.Error(),
@@ -1416,13 +1441,13 @@ func (s *Service) UpsertAgentShare(w http.ResponseWriter, r *http.Request, agent
 		issuedByOther := errors.Is(err, errAgentShareIssuedByOther)
 		authorityRevoked := errors.Is(err, errAgentShareAuthorityRevoked)
 		if issuedByOther || authorityRevoked {
-			writeError(w, r, resourceForbidden(err))
+			apiutil.WriteError(w, r, resourceForbidden(err))
 			return
 		}
-		writeError(w, r, mapGatewayStoreError("create Agent Share", err))
+		apiutil.WriteError(w, r, mapGatewayStoreError("create Agent Share", err))
 		return
 	}
-	writeJSON(w, http.StatusOK, row)
+	apiutil.WriteJSON(w, http.StatusOK, row)
 }
 
 // DeleteAgentShare handles DELETE /api/agent/{agentName}/share/{shareId}.
@@ -1433,34 +1458,38 @@ func (s *Service) DeleteAgentShare(w http.ResponseWriter, r *http.Request, agent
 	}
 	shareID = strings.TrimSpace(shareID)
 	if shareID == "" {
-		writeError(w, r, newAPIError(http.StatusBadRequest, "invalid_request", "shareId is required", errBadRequest))
+		apiutil.WriteError(
+			w,
+			r,
+			apiutil.NewError(http.StatusBadRequest, "invalid_request", "shareId is required", errBadRequest),
+		)
 		return
 	}
 
 	share, err := s.agentShareByID(r.Context(), access, agentName, shareID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		writeError(w, r, agentShareNotFound(shareID))
+		apiutil.WriteError(w, r, agentShareNotFound(shareID))
 		return
 	}
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	authority, err := s.resolveAgentShareAuthority(r.Context(), access, agentName)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	denied := authority == agentShareDenied
 	wrongOwner := authority == agentShareOwn && share.CreatedBy != access.claims.UserID
 	if denied || wrongOwner {
-		writeError(w, r, resourceForbidden(errors.New("agent Share delete authority is missing")))
+		apiutil.WriteError(w, r, resourceForbidden(errors.New("agent Share delete authority is missing")))
 		return
 	}
 
 	tx, err := s.db.Begin(r.Context())
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("begin Agent Share delete: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("begin Agent Share delete: %w", err))
 		return
 	}
 	defer tx.Rollback(r.Context())
@@ -1473,11 +1502,11 @@ func (s *Service) DeleteAgentShare(w http.ResponseWriter, r *http.Request, agent
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("delete Agent Share: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("delete Agent Share: %w", err))
 		return
 	}
 	if rows == 0 {
-		writeError(w, r, agentShareNotFound(shareID))
+		apiutil.WriteError(w, r, agentShareNotFound(shareID))
 		return
 	}
 	err = createAgentEventTrail(
@@ -1492,11 +1521,11 @@ func (s *Service) DeleteAgentShare(w http.ResponseWriter, r *http.Request, agent
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if err := tx.Commit(r.Context()); err != nil {
-		writeInternalError(w, r, fmt.Errorf("commit Agent Share delete: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("commit Agent Share delete: %w", err))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -1508,7 +1537,7 @@ func (s *Service) DeleteAgentShare(w http.ResponseWriter, r *http.Request, agent
 func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 	access, apiErr := s.resolveAgentAccess(r.Context(), "", authorization.OperationWatchAgents)
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	ns := access.namespace
@@ -1534,10 +1563,10 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusInternalServerError,
 				"internal_error",
 				"streaming is unavailable",
@@ -1559,7 +1588,7 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 		}
 		raw, err := json.Marshal(gatewayapi.WatchAgentsEvent{Agents: items})
 		if err != nil {
-			recordRequestError(w, "internal_error", err)
+			apiutil.RecordRequestError(w, "internal_error", err)
 			return false
 		}
 		if event != "" {
@@ -1580,7 +1609,7 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 	writeChanges := func() bool {
 		capabilities, err := s.agentCapabilityProjections(r.Context(), access, "")
 		if err != nil {
-			recordRequestError(w, "internal_error", err)
+			apiutil.RecordRequestError(w, "internal_error", err)
 			return false
 		}
 		names := append([]string(nil), agentNames...)
@@ -1590,19 +1619,21 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 		}
 		items, _, err := s.listAgentItems(
 			r.Context(),
-			ns,
-			names,
+			gatewaydb.GatewayListAgentsByNameParams{
+				TenantNamespace: ns,
+				Column2:         names,
+				SortBy:          string(gatewayapi.ListAgentsParamsSortByResourceSortCreatedAt),
+				SortDesc:        true,
+				PageSize:        201,
+			},
 			capabilities,
-			gatewayapi.ListAgentsParamsSortByResourceSortCreatedAt,
-			gatewayapi.ListAgentsParamsSortOrderDesc,
-			200,
 			0,
 		)
 		if err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				return false
 			}
-			recordRequestError(w, "internal_error", err)
+			apiutil.RecordRequestError(w, "internal_error", err)
 			return false
 		}
 
@@ -1752,7 +1783,7 @@ func (s *Service) resolveNamedAgent(w http.ResponseWriter, r *http.Request, raw 
 		authorization.OperationUseSharedAgent,
 	)
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return "", resourceAccess{}, false
 	}
 	return name, access, true
@@ -2319,8 +2350,8 @@ func agentOwnerResponse(row gatewaydb.AgentOwner) gatewayapi.AgentOwner {
 	}
 }
 
-func agentNotFound(name string) *apiError {
-	return newAPIError(
+func agentNotFound(name string) *apiutil.APIError {
+	return apiutil.NewError(
 		http.StatusNotFound,
 		"not_found",
 		"agent not found",
@@ -2328,8 +2359,8 @@ func agentNotFound(name string) *apiError {
 	)
 }
 
-func agentShareNotFound(id string) *apiError {
-	return newAPIError(
+func agentShareNotFound(id string) *apiutil.APIError {
+	return apiutil.NewError(
 		http.StatusNotFound,
 		"not_found",
 		"Agent Share not found",
@@ -2337,38 +2368,13 @@ func agentShareNotFound(id string) *apiError {
 	)
 }
 
-func (s *Service) listAgentItems(ctx context.Context, ns string, agentNames []string, capabilities map[string]gatewayapi.AgentCapabilities, sortBy gatewayapi.ListAgentsParamsSortBy, sortOrder gatewayapi.ListAgentsParamsSortOrder, limit int, offset int) ([]gatewayapi.Agent, string, error) {
-	var rows []gatewaydb.Agent
-	var err error
-	if len(agentNames) > 0 {
-		rows, err = s.queries.GatewayListAgentsByName(
-			ctx,
-			gatewaydb.GatewayListAgentsByNameParams{
-				TenantNamespace: ns,
-				Column2:         agentNames,
-				SortBy:          string(sortBy),
-				SortDesc:        sortOrder == gatewayapi.ListAgentsParamsSortOrderDesc,
-				PageSize:        int32(limit + 1),
-				PageOffset:      int32(offset),
-			},
-		)
-	}
-	if len(agentNames) == 0 {
-		rows, err = s.queries.GatewayListAgents(
-			ctx,
-			gatewaydb.GatewayListAgentsParams{
-				TenantNamespace: ns,
-				SortBy:          string(sortBy),
-				SortDesc:        sortOrder == gatewayapi.ListAgentsParamsSortOrderDesc,
-				PageSize:        int32(limit + 1),
-				PageOffset:      int32(offset),
-			},
-		)
-	}
+func (s *Service) listAgentItems(ctx context.Context, q gatewaydb.GatewayListAgentsByNameParams, caps map[string]gatewayapi.AgentCapabilities, offset int) ([]gatewayapi.Agent, string, error) {
+	rows, err := s.queries.GatewayListAgentsByName(ctx, q)
 	if err != nil {
 		return nil, "", err
 	}
 
+	limit := int(q.PageSize) - 1
 	var next string
 	if len(rows) > limit {
 		next = encodeOffsetToken(offset + limit)
@@ -2378,7 +2384,7 @@ func (s *Service) listAgentItems(ctx context.Context, ns string, agentNames []st
 	agents := make(map[string]*agentzv1alpha1.Agent, len(rows))
 	userIDs := make([]string, 0, len(rows)*2)
 	for _, row := range rows {
-		resolved, resolveErr := s.resolver.resolveAgent(ctx, ns, row.AgentName)
+		resolved, resolveErr := s.resolver.resolveAgent(ctx, q.TenantNamespace, row.AgentName)
 		if resolveErr != nil && !errors.Is(resolveErr, errAgentNotFound) {
 			return nil, "", resolveErr
 		}
@@ -2405,7 +2411,7 @@ func (s *Service) listAgentItems(ctx context.Context, ns string, agentNames []st
 			gatewayapi.Agent{
 				Name:         row.AgentName,
 				Sandbox:      resourceReferenceFromCRD(agt.Spec.SandboxRef),
-				Capabilities: capabilities[row.AgentName],
+				Capabilities: caps[row.AgentName],
 				Memory: gatewayapi.AgentMemoryConfig{
 					Enabled: agt.Spec.Memory.Enabled,
 				},
@@ -2587,10 +2593,6 @@ func updateAgentRequestHasChanges(req gatewayapi.UpdateAgentRequest) bool {
 		return true
 	}
 	return false
-}
-
-func validateUpdateAgentRequest(req gatewayapi.UpdateAgentRequest) []gatewayapi.FieldError {
-	return validateOpenCodeRequest(req.Opencode)
 }
 
 func applyUpdateAgentRequest(agt *agentzv1alpha1.Agent, req gatewayapi.UpdateAgentRequest) {

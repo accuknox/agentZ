@@ -104,13 +104,30 @@ WHERE ROW(
   EXCLUDED.source_created_at,
   GREATEST(chat_sessions.source_updated_at, EXCLUDED.source_updated_at)
 )
-RETURNING workspace_id
+RETURNING workspace_id, agent_name, session_id
 )
-SELECT pg_notify('agentz_chat_sessions', workspace_id)
-FROM changed;
+SELECT pg_notify('agentz_chat_sessions', changed.workspace_id || COALESCE('/' || project.owner_id, ''))
+FROM changed
+LEFT JOIN coding_threads thread ON thread.workspace_id = changed.workspace_id
+  AND thread.agent_name = changed.agent_name AND thread.session_id = changed.session_id
+LEFT JOIN coding_worktrees tree ON tree.id = thread.worktree_id
+LEFT JOIN coding_projects project ON project.id = tree.project_id;
 
 -- name: GatewaySyncAgentChatSessionStatuses :exec
-WITH changed AS (
+WITH RECURSIVE scoped(session_id) AS (
+  SELECT thread.session_id
+  FROM coding_threads thread
+  JOIN coding_worktrees tree ON tree.id = thread.worktree_id
+  WHERE thread.workspace_id = sqlc.arg(workspace_id)
+    AND thread.agent_name = sqlc.arg(agent_name)
+    AND tree.directory = sqlc.narg(coding_directory)::text
+  UNION
+  SELECT child.session_id
+  FROM chat_sessions child
+  JOIN scoped parent ON parent.session_id = child.parent_session_id
+  WHERE child.workspace_id = sqlc.arg(workspace_id)
+    AND child.agent_name = sqlc.arg(agent_name)
+), changed AS (
 UPDATE chat_sessions
 SET
   status = (CASE
@@ -119,18 +136,24 @@ SET
     ELSE 'idle'
   END)::chat_session_status,
   updated_at = NOW()
-WHERE workspace_id = sqlc.arg(workspace_id)
-  AND agent_name = sqlc.arg(agent_name)
+WHERE chat_sessions.workspace_id = sqlc.arg(workspace_id)
+  AND chat_sessions.agent_name = sqlc.arg(agent_name)
+  AND (sqlc.narg(coding_directory)::text IS NULL
+    OR chat_sessions.session_id IN (SELECT scoped.session_id FROM scoped))
   AND status IS DISTINCT FROM (CASE
     WHEN session_id = ANY(sqlc.arg(retry_session_ids)::text[]) THEN 'retry'
     WHEN session_id = ANY(sqlc.arg(busy_session_ids)::text[]) THEN 'busy'
     ELSE 'idle'
   END)::chat_session_status
-RETURNING workspace_id
+RETURNING chat_sessions.workspace_id, chat_sessions.agent_name, chat_sessions.session_id
 )
-SELECT pg_notify('agentz_chat_sessions', workspace_id)
+SELECT pg_notify('agentz_chat_sessions', changed.workspace_id || COALESCE('/' || project.owner_id, ''))
 FROM changed
-GROUP BY workspace_id;
+LEFT JOIN coding_threads thread ON thread.workspace_id = changed.workspace_id
+  AND thread.agent_name = changed.agent_name AND thread.session_id = changed.session_id
+LEFT JOIN coding_worktrees tree ON tree.id = thread.worktree_id
+LEFT JOIN coding_projects project ON project.id = tree.project_id
+GROUP BY changed.workspace_id, project.owner_id;
 
 -- name: GatewayTouchChatSessionParticipant :exec
 WITH participant AS (
@@ -159,39 +182,67 @@ RETURNING 1
 ), changed AS (
 UPDATE chat_sessions AS sessions
 SET
-  status = sqlc.arg(status),
   source_updated_at = GREATEST(sessions.source_updated_at, sqlc.arg(messaged_at)),
   updated_at = NOW()
 WHERE sessions.workspace_id = sqlc.arg(workspace_id)
   AND sessions.agent_name = sqlc.arg(agent_name)
   AND sessions.session_id = sqlc.arg(session_id)
   AND EXISTS (SELECT 1 FROM participant)
-RETURNING sessions.workspace_id
+RETURNING sessions.workspace_id, sessions.agent_name, sessions.session_id
 )
-SELECT pg_notify('agentz_chat_sessions', workspace_id)
-FROM changed;
+SELECT pg_notify('agentz_chat_sessions', changed.workspace_id || COALESCE('/' || project.owner_id, ''))
+FROM changed
+LEFT JOIN coding_threads thread ON thread.workspace_id = changed.workspace_id
+  AND thread.agent_name = changed.agent_name AND thread.session_id = changed.session_id
+LEFT JOIN coding_worktrees tree ON tree.id = thread.worktree_id
+LEFT JOIN coding_projects project ON project.id = tree.project_id;
 
 -- name: GatewayDeleteChatSession :exec
-WITH changed AS (
-DELETE FROM chat_sessions
-WHERE workspace_id = sqlc.arg(workspace_id)
-  AND agent_name = sqlc.arg(agent_name)
-  AND session_id = sqlc.arg(session_id)
-RETURNING workspace_id
+WITH RECURSIVE descendants(session_id) AS (
+  SELECT sqlc.narg(session_id)::text
+  UNION
+  SELECT child.session_id FROM chat_sessions child
+  JOIN descendants parent ON child.parent_session_id = parent.session_id
+  WHERE child.workspace_id = @workspace_id AND child.agent_name = @agent_name
+), deleted_threads AS (
+  DELETE FROM coding_threads
+  WHERE workspace_id = @workspace_id AND agent_name = @agent_name
+    AND session_id IN (SELECT session_id FROM descendants)
+), deleted_traces AS (
+  DELETE FROM observer_traces ot
+  WHERE ot.tenant_namespace = @tenant_namespace
+    AND ot.agent_name = @agent_name AND ot.trace_id IN (
+      SELECT trace_id FROM observer_trace_sessions
+      WHERE tenant_namespace = @tenant_namespace AND agent_name = @agent_name
+        AND session_id IN (SELECT session_id FROM descendants)
+    )
+), changed AS (
+  DELETE FROM chat_sessions
+  WHERE workspace_id = @workspace_id AND agent_name = @agent_name
+    AND session_id IN (SELECT session_id FROM descendants)
+  RETURNING workspace_id, agent_name, session_id
 )
-SELECT pg_notify('agentz_chat_sessions', workspace_id)
-FROM changed;
+SELECT pg_notify('agentz_chat_sessions', changed.workspace_id || COALESCE('/' || project.owner_id, ''))
+FROM changed
+LEFT JOIN coding_threads thread ON thread.workspace_id = changed.workspace_id
+  AND thread.agent_name = changed.agent_name AND thread.session_id = changed.session_id
+LEFT JOIN coding_worktrees tree ON tree.id = thread.worktree_id
+LEFT JOIN coding_projects project ON project.id = tree.project_id;
 
 -- name: GatewayDeleteAgentChatSessions :exec
 WITH changed AS (
 DELETE FROM chat_sessions
-WHERE workspace_id = sqlc.arg(workspace_id)
-  AND agent_name = sqlc.arg(agent_name)
-RETURNING workspace_id
+WHERE chat_sessions.workspace_id = sqlc.arg(workspace_id)
+  AND chat_sessions.agent_name = sqlc.arg(agent_name)
+RETURNING chat_sessions.workspace_id, chat_sessions.agent_name, chat_sessions.session_id
 )
-SELECT pg_notify('agentz_chat_sessions', workspace_id)
+SELECT pg_notify('agentz_chat_sessions', changed.workspace_id || COALESCE('/' || project.owner_id, ''))
 FROM changed
-GROUP BY workspace_id;
+LEFT JOIN coding_threads thread ON thread.workspace_id = changed.workspace_id
+  AND thread.agent_name = changed.agent_name AND thread.session_id = changed.session_id
+LEFT JOIN coding_worktrees tree ON tree.id = thread.worktree_id
+LEFT JOIN coding_projects project ON project.id = tree.project_id
+GROUP BY changed.workspace_id, project.owner_id;
 
 -- name: GatewayClearAgentChatPreferences :exec
 UPDATE workspace_chat_preferences
@@ -213,6 +264,7 @@ WHERE workspace_id = sqlc.arg(workspace_id)
 
 -- name: GatewayListChatSessions :many
 SELECT
+  project.id AS project_id,
   sessions.workspace_id,
   sessions.agent_name,
   sessions.session_id,
@@ -238,9 +290,15 @@ SELECT
       AND participants.session_id = sessions.session_id
   ), '[]'::jsonb)::text AS participants_json
 FROM chat_sessions AS sessions
-WHERE sessions.workspace_id = sqlc.arg(workspace_id)
+LEFT JOIN coding_threads AS coding ON coding.workspace_id = sessions.workspace_id
+  AND coding.agent_name = sessions.agent_name AND coding.session_id = sessions.session_id
+LEFT JOIN coding_worktrees AS tree ON tree.id = coding.worktree_id
+LEFT JOIN coding_projects AS project ON project.id = tree.project_id
+WHERE (sqlc.narg(project_id)::text IS NULL OR project.id = sqlc.narg(project_id))
+  AND sessions.workspace_id = sqlc.arg(workspace_id)
   AND sessions.agent_name = ANY(sqlc.arg(agent_names)::text[])
   AND sessions.parent_session_id IS NULL
+  AND (sqlc.narg(owner_id)::text IS NULL OR project.owner_id = sqlc.narg(owner_id))
   AND (
     sqlc.arg(include_workflow_runs)::boolean
     OR sessions.kind <> 'workflow_run'
@@ -310,9 +368,14 @@ SELECT CASE
   ELSE 'older'
 END::text AS group_value
 FROM chat_sessions AS sessions
+LEFT JOIN coding_threads AS coding ON coding.workspace_id = sessions.workspace_id
+  AND coding.agent_name = sessions.agent_name AND coding.session_id = sessions.session_id
+LEFT JOIN coding_worktrees AS tree ON tree.id = coding.worktree_id
+LEFT JOIN coding_projects AS project ON project.id = tree.project_id
 WHERE sessions.workspace_id = sqlc.arg(workspace_id)
   AND sessions.agent_name = ANY(sqlc.arg(agent_names)::text[])
   AND sessions.parent_session_id IS NULL
+  AND (sqlc.narg(owner_id)::text IS NULL OR project.owner_id = sqlc.narg(owner_id))
   AND (
     sqlc.arg(include_workflow_runs)::boolean
     OR sessions.kind <> 'workflow_run'
@@ -355,9 +418,14 @@ WITH filtered_sessions AS (
       END
     END)::text AS group_value
   FROM chat_sessions AS sessions
+LEFT JOIN coding_threads AS coding ON coding.workspace_id = sessions.workspace_id
+  AND coding.agent_name = sessions.agent_name AND coding.session_id = sessions.session_id
+LEFT JOIN coding_worktrees AS tree ON tree.id = coding.worktree_id
+LEFT JOIN coding_projects AS project ON project.id = tree.project_id
   WHERE sessions.workspace_id = sqlc.arg(workspace_id)
     AND sessions.agent_name = ANY(sqlc.arg(agent_names)::text[])
     AND sessions.parent_session_id IS NULL
+  AND (sqlc.narg(owner_id)::text IS NULL OR project.owner_id = sqlc.narg(owner_id))
     AND (
       sqlc.arg(include_workflow_runs)::boolean
       OR sessions.kind <> 'workflow_run'
@@ -442,12 +510,17 @@ ORDER BY
   sessions.session_id ASC;
 
 -- name: GatewayGetChatSessionGroup :one
-SELECT status, source_updated_at
-FROM chat_sessions
-WHERE workspace_id = sqlc.arg(workspace_id)
-  AND agent_name = sqlc.arg(agent_name)
-  AND session_id = sqlc.arg(session_id)
-  AND parent_session_id IS NULL;
+SELECT sessions.status, sessions.source_updated_at, project.id AS project_id
+FROM chat_sessions AS sessions
+LEFT JOIN coding_threads AS coding ON coding.workspace_id = sessions.workspace_id
+  AND coding.agent_name = sessions.agent_name AND coding.session_id = sessions.session_id
+LEFT JOIN coding_worktrees AS tree ON tree.id = coding.worktree_id
+LEFT JOIN coding_projects AS project ON project.id = tree.project_id
+WHERE sessions.workspace_id = sqlc.arg(workspace_id)
+  AND sessions.agent_name = sqlc.arg(agent_name)
+  AND sessions.session_id = sqlc.arg(session_id)
+  AND sessions.parent_session_id IS NULL
+  AND (sqlc.narg(owner_id)::text IS NULL OR project.owner_id = sqlc.narg(owner_id));
 
 -- name: GatewayListChatSessionFilterUsers :many
 SELECT DISTINCT users.id, users.name, users.email, users.image
@@ -456,10 +529,15 @@ JOIN chat_sessions AS sessions
   ON sessions.workspace_id = participants.workspace_id
   AND sessions.agent_name = participants.agent_name
   AND sessions.session_id = participants.session_id
+LEFT JOIN coding_threads AS coding ON coding.workspace_id = sessions.workspace_id
+  AND coding.agent_name = sessions.agent_name AND coding.session_id = sessions.session_id
+LEFT JOIN coding_worktrees AS tree ON tree.id = coding.worktree_id
+LEFT JOIN coding_projects AS project ON project.id = tree.project_id
 JOIN users ON users.id = participants.user_id
 WHERE participants.workspace_id = sqlc.arg(workspace_id)
   AND sessions.agent_name = ANY(sqlc.arg(agent_names)::text[])
   AND sessions.parent_session_id IS NULL
+  AND (sqlc.narg(owner_id)::text IS NULL OR project.owner_id = sqlc.narg(owner_id))
   AND (
     sqlc.arg(include_workflow_runs)::boolean
     OR sessions.kind <> 'workflow_run'
@@ -845,6 +923,7 @@ WITH created AS (
     name,
     slug,
     namespace,
+    type,
     state,
     provisioning_attempt
   )
@@ -854,6 +933,7 @@ WITH created AS (
     sqlc.arg(name),
     sqlc.arg(slug),
     sqlc.arg(namespace),
+    sqlc.arg(type),
     'provisioning',
     1
   )
@@ -1225,10 +1305,12 @@ SELECT
   api_key_scopes.organization_id,
   api_key_scopes.workspace_id,
   api_key_scopes.creator_user_id,
+  users.name AS creator_user_name,
   api_key_scopes.revoked_at,
   api_key_scopes.revoked_reason,
   api_key_scopes.created_at
 FROM api_key_scopes
+JOIN users ON users.id = api_key_scopes.creator_user_id
 JOIN apikeys ON apikeys.id = api_key_scopes.api_key_id
   AND apikeys.reference_id = api_key_scopes.organization_id
 JOIN workspaces ON workspaces.id = api_key_scopes.workspace_id
@@ -2201,3 +2283,346 @@ HAVING (
 )
 ORDER BY MAX(event_time) DESC
 LIMIT sqlc.arg(page_size);
+
+-- name: GatewayListCodingProjects :many
+SELECT * FROM coding_projects
+WHERE workspace_id = sqlc.arg(workspace_id) AND owner_id = sqlc.arg(owner_id)
+ORDER BY lower(name), id;
+
+-- name: GatewayCreateCodingProject :one
+INSERT INTO coding_projects(id, workspace_id, owner_id, name, repository_id, repository, default_branch)
+VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(owner_id), sqlc.arg(name), sqlc.arg(repository_id), sqlc.arg(repository), sqlc.arg(default_branch))
+RETURNING *;
+
+-- name: GatewayGetCodingProject :one
+SELECT * FROM coding_projects
+WHERE id = sqlc.arg(id) AND workspace_id = sqlc.arg(workspace_id) AND owner_id = sqlc.arg(owner_id);
+
+-- name: GatewayRenameCodingProject :execrows
+UPDATE coding_projects SET name = sqlc.arg(name)
+WHERE id = sqlc.arg(id) AND workspace_id = sqlc.arg(workspace_id) AND owner_id = sqlc.arg(owner_id);
+
+-- name: GatewayDeleteCodingProject :execrows
+DELETE FROM coding_projects
+WHERE coding_projects.id = sqlc.arg(id) AND coding_projects.workspace_id = sqlc.arg(workspace_id) AND coding_projects.owner_id = sqlc.arg(owner_id)
+AND NOT EXISTS (SELECT 1 FROM coding_worktrees WHERE project_id = coding_projects.id);
+
+-- name: GatewayListCodingWorktrees :many
+SELECT * FROM coding_worktrees WHERE project_id = sqlc.arg(project_id) AND workspace_id = sqlc.arg(workspace_id) ORDER BY created_at;
+
+-- name: GatewayGetCodingWorktree :one
+SELECT sqlc.embed(coding_worktrees), sqlc.embed(coding_projects)
+FROM coding_worktrees JOIN coding_projects ON coding_projects.id = coding_worktrees.project_id
+WHERE coding_worktrees.id = sqlc.arg(id) AND coding_worktrees.workspace_id = sqlc.arg(workspace_id);
+
+-- name: GatewayCreateCodingWorktree :one
+INSERT INTO coding_worktrees(id, workspace_id, project_id, agent_name, directory, branch)
+VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(project_id), sqlc.arg(agent_name), sqlc.arg(directory), sqlc.arg(branch))
+ON CONFLICT (id) DO NOTHING
+RETURNING *;
+
+-- name: GatewayReadyCodingWorktree :exec
+UPDATE coding_worktrees SET ready = true, branch = sqlc.arg(branch) WHERE id = sqlc.arg(id);
+
+-- name: GatewayUpdateCodingBranch :exec
+UPDATE coding_worktrees SET branch = sqlc.arg(branch) WHERE id = sqlc.arg(id);
+
+-- name: GatewayLockCodingWorktree :exec
+SELECT id FROM coding_worktrees WHERE id = @id FOR UPDATE;
+
+-- name: GatewayBindCodingSession :exec
+WITH binding AS (
+  INSERT INTO coding_threads(id, workspace_id, agent_name, worktree_id, session_id)
+  VALUES (@id, @workspace_id, @agent_name, @worktree_id, @session_id)
+  ON CONFLICT (workspace_id, agent_name, session_id) DO NOTHING
+  RETURNING worktree_id
+)
+UPDATE coding_worktrees SET shared = true
+WHERE id IN (SELECT worktree_id FROM binding)
+  AND EXISTS (SELECT 1 FROM coding_threads thread WHERE thread.worktree_id = @worktree_id);
+
+-- name: GatewayGetCodingThread :one
+SELECT sqlc.embed(coding_threads), sqlc.embed(coding_worktrees), sqlc.embed(coding_projects)
+FROM coding_threads JOIN coding_worktrees ON coding_worktrees.id = coding_threads.worktree_id
+JOIN coding_projects ON coding_projects.id = coding_worktrees.project_id
+WHERE coding_threads.workspace_id = sqlc.arg(workspace_id) AND coding_threads.agent_name = sqlc.arg(agent_name)
+AND (coding_threads.id = sqlc.arg(id) OR coding_threads.session_id = sqlc.arg(session_id));
+
+-- name: GatewayListCodingThreads :many
+SELECT sqlc.embed(coding_threads), sqlc.embed(coding_worktrees), sqlc.embed(coding_projects)
+FROM coding_threads JOIN coding_worktrees ON coding_worktrees.id = coding_threads.worktree_id
+JOIN coding_projects ON coding_projects.id = coding_worktrees.project_id
+WHERE coding_projects.id = sqlc.arg(project_id) AND coding_projects.workspace_id = sqlc.arg(workspace_id)
+ORDER BY coding_threads.created_at DESC;
+
+-- name: GatewayDeleteCodingWorktree :exec
+WITH deleted AS (DELETE FROM coding_threads WHERE worktree_id = sqlc.arg(id))
+DELETE FROM coding_worktrees WHERE coding_worktrees.id = sqlc.arg(id);
+
+-- name: GatewayLockResource :exec
+SELECT CASE WHEN @shared::boolean
+  THEN pg_advisory_lock_shared(hashtextextended(@identity::text, 0))
+  ELSE pg_advisory_lock(hashtextextended(@identity::text, 0)) END;
+
+-- name: GatewayResourceBusy :one
+SELECT (NOT pg_try_advisory_xact_lock(hashtextextended(@identity::text, 0)))::boolean AS busy;
+
+-- name: GatewayUnlockResources :exec
+SELECT pg_advisory_unlock_all();
+
+-- name: GatewayUnlockResource :one
+SELECT (CASE WHEN @shared::boolean
+  THEN pg_advisory_unlock_shared(hashtextextended(@identity::text, 0))
+  ELSE pg_advisory_unlock(hashtextextended(@identity::text, 0)) END)::boolean;
+
+-- name: GatewayRecordCodingMainCheckout :exec
+INSERT INTO coding_worktrees (id, workspace_id, project_id, agent_name, directory, branch, ready)
+VALUES (@id, @workspace_id, @project_id, @agent_name, @directory, @branch, true)
+ON CONFLICT (workspace_id, agent_name, directory) DO NOTHING;
+
+-- name: GatewayDeleteCodingConversations :exec
+WITH changed AS (
+DELETE FROM chat_sessions
+WHERE chat_sessions.workspace_id = @workspace_id AND chat_sessions.agent_name = @agent_name
+AND chat_sessions.session_id IN (SELECT session_id FROM coding_threads WHERE coding_threads.worktree_id = @worktree_id)
+RETURNING chat_sessions.workspace_id, chat_sessions.agent_name, chat_sessions.session_id
+)
+SELECT pg_notify('agentz_chat_sessions', changed.workspace_id || COALESCE('/' || project.owner_id, ''))
+FROM changed
+LEFT JOIN coding_threads thread ON thread.workspace_id = changed.workspace_id
+  AND thread.agent_name = changed.agent_name AND thread.session_id = changed.session_id
+LEFT JOIN coding_worktrees tree ON tree.id = thread.worktree_id
+LEFT JOIN coding_projects project ON project.id = tree.project_id
+GROUP BY changed.workspace_id, project.owner_id;
+
+-- name: GatewayDeletingCodingWorktree :exec
+UPDATE coding_worktrees SET deleting = @deleting WHERE id = @id;
+
+-- name: GatewayCodingConnection :one
+SELECT * FROM github_connections WHERE user_id = @user_id;
+
+-- name: GatewayLockCodingIdentity :one
+SELECT id FROM users WHERE id = @id FOR UPDATE;
+
+-- name: GatewayRefreshCodingConnection :exec
+UPDATE github_connections SET access_token = @access_token, refresh_token = @refresh_token,
+expires_at = @expires_at, refresh_expires_at = @refresh_expires_at WHERE user_id = @user_id;
+
+-- name: GatewayCreateCodingOperation :one
+INSERT INTO coding_operations(id, workspace_id, organization_id, owner_id, project_id, worktree_id, request, result)
+VALUES (@id, @workspace_id, @organization_id, @owner_id, @project_id, @worktree_id, @request, @result)
+ON CONFLICT (id) DO UPDATE SET id = coding_operations.id
+WHERE coding_operations.owner_id = @owner_id AND coding_operations.workspace_id = @workspace_id
+RETURNING *;
+
+-- name: GatewayGetCodingOperation :one
+SELECT * FROM coding_operations WHERE id = @id AND workspace_id = @workspace_id AND owner_id = @owner_id;
+
+-- name: GatewayListCodingOperations :many
+SELECT op.* FROM coding_operations op WHERE op.workspace_id = @workspace_id AND op.owner_id = @owner_id
+AND (op.result->>'state' IN ('queued', 'running') OR op.id IN (
+SELECT recent.id FROM coding_operations recent WHERE recent.workspace_id = @workspace_id AND recent.owner_id = @owner_id
+AND recent.result->>'state' NOT IN ('queued', 'running') ORDER BY recent.created_at DESC LIMIT 100))
+ORDER BY op.created_at DESC;
+
+-- name: GatewayClaimCodingOperation :one
+UPDATE coding_operations SET lease_token = @lease_token, lease_until = now() + interval '60 seconds',
+result = jsonb_set(result, '{state}', '"running"')
+WHERE id = (SELECT queued.id FROM coding_operations queued WHERE queued.result->>'state' = 'queued'
+AND NOT EXISTS (SELECT 1 FROM coding_operations running WHERE running.project_id = queued.project_id
+AND running.result->>'state' = 'running')
+ORDER BY queued.created_at FOR UPDATE OF queued SKIP LOCKED LIMIT 1)
+RETURNING *;
+
+-- name: GatewayHeartbeatCodingOperation :execrows
+UPDATE coding_operations SET lease_until = now() + interval '60 seconds'
+WHERE id = @id AND lease_token = @lease_token AND result->>'state' = 'running'
+AND lease_until > now();
+
+-- name: GatewayUpdateCodingOperation :execrows
+UPDATE coding_operations SET result = @result
+WHERE id = @id AND lease_token = @lease_token AND lease_until > now();
+
+-- name: GatewayInterruptCodingOperations :many
+UPDATE coding_operations SET result = result || jsonb_build_object('state', 'interrupted',
+'error', 'Execution was interrupted. Refresh the checkout before retrying; a remote write may have completed.', 'updated_at', now())
+WHERE result->>'state' = 'running' AND lease_until <= now()
+RETURNING workspace_id, owner_id;
+
+-- name: GatewayDeleteOldCodingOperations :exec
+DELETE FROM coding_operations WHERE created_at < now() - interval '7 days'
+AND result->>'state' NOT IN ('queued', 'running');
+
+-- name: GatewayTouchCodingSnapshot :one
+INSERT INTO coding_snapshots(project_id, agent_name, worktree_id, demand_until)
+VALUES (@project_id, @agent_name, @worktree_id, now() + interval '45 seconds')
+ON CONFLICT (project_id, agent_name, worktree_id) DO UPDATE SET demand_until = EXCLUDED.demand_until
+RETURNING *;
+
+-- name: GatewaySeedCodingSnapshots :exec
+INSERT INTO coding_snapshots(project_id, agent_name, worktree_id)
+SELECT project_id, agent_name, '' FROM coding_worktrees WHERE ready AND NOT deleting
+UNION
+SELECT project_id, agent_name, id FROM coding_worktrees WHERE ready AND NOT deleting
+ON CONFLICT DO NOTHING;
+
+-- name: GatewayClaimCodingSnapshot :one
+UPDATE coding_snapshots SET lease_until = now() + interval '150 seconds'
+WHERE (project_id, agent_name, worktree_id) = (
+SELECT project_id, agent_name, worktree_id FROM coding_snapshots
+WHERE next_refresh <= now() AND lease_until <= now()
+ORDER BY next_refresh FOR UPDATE SKIP LOCKED LIMIT 1)
+RETURNING *;
+
+-- name: GatewaySaveCodingSnapshot :execrows
+UPDATE coding_snapshots SET result = CASE WHEN generation = @generation THEN @result::jsonb ELSE result END, lease_until = 'epoch',
+next_refresh = CASE WHEN generation = @generation THEN @next_refresh::timestamptz ELSE now() END,
+next_remote = CASE WHEN generation = @generation THEN @next_remote::timestamptz ELSE now() END,
+failures = @failures, remote_refs = @remote_refs
+WHERE project_id = @project_id AND agent_name = @agent_name AND worktree_id = @worktree_id
+AND lease_until = @lease_until;
+
+-- name: GatewayInvalidateCodingSnapshots :exec
+-- Status reads must bypass pre-mutation worktree data until the worker refreshes it.
+UPDATE coding_snapshots SET result = CASE WHEN worktree_id <> '' THEN '{}'::jsonb ELSE result END,
+next_refresh = now(), next_remote = now(), generation = generation + 1
+WHERE project_id = @project_id;
+
+-- name: GatewayCodingProjectIdentity :one
+SELECT sqlc.embed(coding_projects), workspaces.organization_id FROM coding_projects
+JOIN workspaces ON workspaces.id = coding_projects.workspace_id WHERE coding_projects.id = @id;
+
+-- name: GatewayAdoptCodingWorktree :one
+INSERT INTO coding_worktrees(id, workspace_id, project_id, agent_name, directory, branch, ready, shared)
+VALUES (@id, @workspace_id, @project_id, @agent_name, @directory, @branch, true, true)
+ON CONFLICT (workspace_id, agent_name, directory) DO UPDATE SET branch = EXCLUDED.branch
+WHERE coding_worktrees.project_id = EXCLUDED.project_id AND NOT coding_worktrees.deleting
+RETURNING *;
+
+-- name: GatewayCodingWorktreeBound :one
+SELECT EXISTS(SELECT 1 FROM coding_threads WHERE coding_threads.worktree_id = @worktree_id);
+
+-- name: GatewayNotifyCoding :exec
+SELECT pg_notify('agentz_coding', @workspace_id::text || '/' || @owner_id::text);
+
+-- name: GatewayListenCoding :exec
+LISTEN agentz_coding;
+
+-- name: GatewayPruneCodingSnapshots :exec
+DELETE FROM coding_snapshots s WHERE
+(worktree_id <> '' AND NOT EXISTS (
+SELECT 1 FROM coding_worktrees w WHERE w.id = s.worktree_id AND w.ready AND NOT w.deleting))
+OR (worktree_id = '' AND demand_until < now() AND NOT EXISTS (
+SELECT 1 FROM coding_worktrees w WHERE w.project_id = s.project_id AND w.agent_name = s.agent_name
+AND w.ready AND NOT w.deleting));
+
+-- name: GatewayUpdateCodingRepository :exec
+UPDATE coding_projects SET repository = @repository, default_branch = @default_branch WHERE id = @id;
+
+-- name: GatewayCodingCooldown :one
+SELECT COALESCE(max(github_retry_after), 'epoch'::timestamptz)::timestamptz AS retry_after
+FROM coding_snapshots s JOIN coding_projects p ON p.id = s.project_id WHERE p.owner_id = @owner_id;
+
+-- name: GatewayDelayCodingGitHub :exec
+UPDATE coding_snapshots s SET github_retry_after = greatest(s.github_retry_after, @retry_after::timestamptz)
+FROM coding_projects p WHERE p.id = s.project_id AND p.owner_id = @owner_id;
+
+-- name: GatewayUpdateCodingProjectPreference :execrows
+UPDATE coding_projects SET last_agent_name = @agent_name
+WHERE id = @id AND workspace_id = @workspace_id AND owner_id = @owner_id;
+
+-- name: GatewayOwnedCodingDirectory :one
+SELECT coding_worktrees.*
+FROM coding_worktrees JOIN coding_projects ON coding_projects.id = coding_worktrees.project_id
+WHERE coding_worktrees.workspace_id = @workspace_id
+  AND coding_worktrees.agent_name = @agent_name
+  AND coding_projects.owner_id = @owner_id
+  AND (@directory::text = coding_worktrees.directory
+    OR starts_with(@directory::text, coding_worktrees.directory || '/'))
+ORDER BY length(coding_worktrees.directory) DESC
+LIMIT 1;
+
+-- name: GatewayResolveCodingSession :one
+WITH RECURSIVE ancestors(session_id) AS (
+  SELECT @session_id::text
+  UNION
+  SELECT sessions.parent_session_id
+  FROM chat_sessions sessions JOIN ancestors ON ancestors.session_id = sessions.session_id
+  WHERE sessions.workspace_id = @workspace_id AND sessions.agent_name = @agent_name
+    AND sessions.parent_session_id IS NOT NULL
+)
+SELECT sqlc.embed(coding_threads), sqlc.embed(coding_worktrees), sqlc.embed(coding_projects)
+FROM ancestors
+JOIN coding_threads ON coding_threads.session_id = ancestors.session_id
+JOIN coding_worktrees ON coding_worktrees.id = coding_threads.worktree_id
+JOIN coding_projects ON coding_projects.id = coding_worktrees.project_id
+WHERE coding_threads.workspace_id = @workspace_id AND coding_threads.agent_name = @agent_name
+  AND coding_projects.owner_id = @owner_id
+LIMIT 1;
+
+-- name: GatewayCreateChatInput :one
+INSERT INTO chat_inputs (id, workspace_id, agent_name, session_id,
+  organization_id, author_id, author_name, directory, content, delivery)
+VALUES (@id, @workspace_id, @agent_name, @session_id,
+  @organization_id, @author_id, @author_name, @directory, @content, @delivery)
+ON CONFLICT (id) DO UPDATE SET id = chat_inputs.id
+WHERE chat_inputs.workspace_id = EXCLUDED.workspace_id
+  AND chat_inputs.agent_name = EXCLUDED.agent_name
+  AND chat_inputs.session_id = EXCLUDED.session_id
+  AND chat_inputs.author_id = EXCLUDED.author_id
+  AND chat_inputs.content = EXCLUDED.content
+  AND chat_inputs.delivery = EXCLUDED.delivery
+RETURNING *;
+
+-- name: GatewayListChatInputs :many
+SELECT * FROM chat_inputs
+WHERE workspace_id = @workspace_id AND agent_name = @agent_name AND session_id = @session_id
+  AND state NOT IN ('delivered', 'removed')
+  AND (author_id = @author_id OR state <> 'recovered')
+ORDER BY sequence;
+
+-- name: GatewayGetChatInput :one
+SELECT * FROM chat_inputs WHERE id = @id AND workspace_id = @workspace_id
+  AND agent_name = @agent_name AND session_id = @session_id;
+
+-- name: GatewayUpdateChatInput :one
+UPDATE chat_inputs SET state = @state, error = @error,
+  message_id = @message_id, resume = @resume, revision = revision + 1, updated_at = now()
+WHERE id = @id AND revision = @revision RETURNING *;
+
+-- name: GatewayPendingChatInputs :many
+SELECT DISTINCT ON (workspace_id, agent_name, session_id) * FROM chat_inputs
+WHERE state IN ('queued', 'sending', 'failed')
+ORDER BY workspace_id, agent_name, session_id,
+  CASE WHEN state = 'sending' OR message_id <> '' AND state = 'failed' THEN 0 WHEN delivery = 'steer' AND state = 'queued' THEN 1 ELSE 2 END,
+  sequence;
+
+-- name: GatewayChatInputsStopping :one
+SELECT EXISTS (SELECT 1 FROM chat_input_sessions WHERE workspace_id = @workspace_id
+  AND agent_name = @agent_name AND session_id = @session_id AND stopping)::boolean;
+
+-- name: GatewayStopChatInputs :exec
+INSERT INTO chat_input_sessions (workspace_id, agent_name, session_id, stopping)
+VALUES (@workspace_id, @agent_name, @session_id, @stopping)
+ON CONFLICT (workspace_id, agent_name, session_id) DO UPDATE SET stopping = EXCLUDED.stopping;
+
+-- name: GatewayRecoverChatInputs :exec
+UPDATE chat_inputs SET state = 'recovered', error = '',
+  revision = revision + 1, updated_at = now()
+WHERE workspace_id = @workspace_id AND agent_name = @agent_name AND session_id = @session_id
+  AND state IN ('queued', 'failed') AND message_id = '';
+
+-- name: GatewayNotifyChatInputs :exec
+SELECT pg_notify('agentz_chat_sessions', @workspace_id::text ||
+  COALESCE((SELECT '/' || p.owner_id FROM coding_threads t
+    JOIN coding_worktrees tree ON tree.id = t.worktree_id
+    JOIN coding_projects p ON p.id = tree.project_id
+    WHERE t.workspace_id = @workspace_id AND t.agent_name = @agent_name AND t.session_id = @session_id), ''));
+
+-- name: GatewayHeadChatInput :one
+SELECT * FROM chat_inputs
+WHERE workspace_id = @workspace_id AND agent_name = @agent_name AND session_id = @session_id
+  AND state IN ('queued', 'sending', 'failed')
+ORDER BY CASE WHEN state = 'sending' OR message_id <> '' AND state = 'failed' THEN 0
+  WHEN delivery = 'steer' AND state = 'queued' THEN 1 ELSE 2 END, sequence
+LIMIT 1;

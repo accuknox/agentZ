@@ -559,7 +559,8 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, env
 						},
 						{
 							Name:            filesystemContainerName,
-							Image:           r.Config.ControllerImage,
+							Image:           image,
+							Command:         []string{"/bin/agentz"},
 							ImagePullPolicy: corev1.PullIfNotPresent,
 							WorkingDir:      agentHomeDir,
 							Args: []string{
@@ -613,6 +614,13 @@ func (r *Reconciler) agentEnv(agt *agentzv1alpha1.Agent, envCfg sandboxConfig, m
 	telemetryEndpoint = strings.TrimPrefix(telemetryEndpoint, "http://")
 
 	var forced []corev1.EnvVar
+	if envCfg.WorkspaceType == agentzv1alpha1.WorkspaceTypeCoding {
+		// OpenCode registers native plan approval only for the CLI client.
+		forced = append(forced,
+			corev1.EnvVar{Name: "OPENCODE_EXPERIMENTAL_PLAN_MODE", Value: "true"},
+			corev1.EnvVar{Name: "OPENCODE_CLIENT", Value: "cli"},
+		)
+	}
 	noProxy := r.agentNoProxyHosts(agt)
 	if mountConfig {
 		forced = append(
@@ -642,6 +650,7 @@ func (r *Reconciler) agentEnv(agt *agentzv1alpha1.Agent, envCfg sandboxConfig, m
 		telemetryURL = "http://" + telemetryEndpoint
 	}
 	resourceAttributes := "agentz.agent_name=" + agt.Name + ",agentz.tenant_namespace=" + agt.Namespace
+	memoryEnabled := agt.Spec.Memory.Enabled && envCfg.WorkspaceType != agentzv1alpha1.WorkspaceTypeCoding
 	forced = append(
 		forced,
 		corev1.EnvVar{
@@ -651,9 +660,10 @@ func (r *Reconciler) agentEnv(agt *agentzv1alpha1.Agent, envCfg sandboxConfig, m
 		corev1.EnvVar{Name: "OPENCODE_OTLP_PROTOCOL", Value: "grpc"},
 		corev1.EnvVar{Name: "OPENCODE_OTLP_ENDPOINT", Value: telemetryURL},
 		corev1.EnvVar{Name: "AGENTZ_AGENT_NAME", Value: agt.Name},
+		corev1.EnvVar{Name: "AGENTZ_WORKSPACE_TYPE", Value: string(envCfg.WorkspaceType)},
 		corev1.EnvVar{
 			Name:  "AGENTZ_MEMORY_ENABLED",
-			Value: strconv.FormatBool(agt.Spec.Memory.Enabled),
+			Value: strconv.FormatBool(memoryEnabled),
 		},
 		corev1.EnvVar{
 			Name:  "OPENCODE_RESOURCE_ATTRIBUTES",

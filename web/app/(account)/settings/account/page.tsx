@@ -1,3 +1,4 @@
+import { GitHubConnection } from "./github-connection"
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import * as z from "zod"
@@ -25,6 +26,7 @@ const accountSearchParamsSchema = z.object({
 })
 
 type AccountSearchParams = {
+  github?: SearchParamStringInput
   error?: SearchParamStringInput
   manage2fa?: SearchParamStringInput
   provider?: SearchParamStringInput
@@ -40,6 +42,9 @@ export default function AccountPage({
       <AdministrationPageHeader title="Account" />
       <Suspense fallback={<ProviderSkeleton />}>
         <IdentityProviders />
+      </Suspense>
+      <Suspense fallback={null}>
+        <GitHubConnection searchParams={searchParams} />
       </Suspense>
       <Suspense fallback={null}>
         <PasswordGate />

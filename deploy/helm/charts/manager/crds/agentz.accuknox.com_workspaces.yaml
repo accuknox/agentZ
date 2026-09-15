@@ -106,6 +106,17 @@ spec:
                     type: array
                     x-kubernetes-list-type: set
                 type: object
+              type:
+                default: general
+                description: Type is immutable because it controls Agent and workflow
+                  execution.
+                enum:
+                - general
+                - coding
+                type: string
+                x-kubernetes-validations:
+                - message: type is immutable
+                  rule: self == oldSelf
               workspaceID:
                 description: WorkspaceID is the immutable relational Workspace ID.
                 maxLength: 128
@@ -117,6 +128,7 @@ spec:
             required:
             - organizationID
             - provisioningAttempt
+            - type
             - workspaceID
             type: object
           status:

@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { cache, Suspense } from "react"
+import { Suspense } from "react"
 import * as z from "zod"
 import { AdministrationPageHeader } from "@/components/administration"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -22,6 +22,7 @@ import { TracesSkeleton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[worksp
 import { TracesTable } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/traces/traces-table"
 import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 import { getWorkspaceScope } from "@/data/workspaces"
+import type { WorkspaceType } from "@/lib/gateway/client"
 
 export const metadata: Metadata = {
   title: "Traces",
@@ -95,6 +96,16 @@ export default async function TracesPage({
 
   const resolved = resolveTracesSearchParams(searchParams)
   const workspaceId = workspace.workspace.id
+  const agents = listAgentsCachedQuery(undefined, workspaceId)
+  const scope = resolved.then((params) =>
+    getTraceScope({
+      agents,
+      agentName: params.agentName,
+      sessionID: params.sessionID,
+      workspaceId,
+      workspaceType: workspace.workspace.type,
+    })
+  )
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
@@ -109,13 +120,13 @@ export default async function TracesPage({
             </div>
           }
         >
-          <Filters searchParams={resolved} workspaceId={workspaceId} />
+          <Filters searchParams={resolved} scope={scope} />
         </Suspense>
         <Suspense fallback={<EventsChartSkeleton />}>
-          <Chart searchParams={resolved} workspaceId={workspaceId} />
+          <Chart searchParams={resolved} workspaceId={workspaceId} scope={scope} />
         </Suspense>
         <Suspense fallback={<TracesSkeleton />}>
-          <Traces searchParams={resolved} workspaceId={workspaceId} />
+          <Traces searchParams={resolved} workspaceId={workspaceId} scope={scope} />
         </Suspense>
       </div>
     </main>
@@ -124,13 +135,13 @@ export default async function TracesPage({
 
 async function Filters({
   searchParams,
-  workspaceId,
+  scope: scopePromise,
 }: {
   searchParams: Promise<ResolvedTracesSearchParams>
-  workspaceId: string
+  scope: Promise<TraceScope>
 }) {
   const params = await searchParams
-  const scope = await getTraceScopeForParams(params, workspaceId)
+  const scope = await scopePromise
   if (scope.error) {
     return <ErrorPanel message={scope.error.message} />
   }
@@ -150,12 +161,14 @@ async function Filters({
 async function Chart({
   searchParams,
   workspaceId,
+  scope: scopePromise,
 }: {
   searchParams: Promise<ResolvedTracesSearchParams>
   workspaceId: string
+  scope: Promise<TraceScope>
 }) {
   const params = await searchParams
-  const scope = await getTraceScopeForParams(params, workspaceId)
+  const scope = await scopePromise
   if (scope.error) {
     return null
   }
@@ -189,12 +202,14 @@ async function Chart({
 async function Traces({
   searchParams,
   workspaceId,
+  scope: scopePromise,
 }: {
   searchParams: Promise<ResolvedTracesSearchParams>
   workspaceId: string
+  scope: Promise<TraceScope>
 }) {
   const params = await searchParams
-  const scope = await getTraceScopeForParams(params, workspaceId)
+  const scope = await scopePromise
   if (scope.error) {
     return <ErrorPanel message={scope.error.message} />
   }
@@ -234,18 +249,6 @@ type ResolvedTracesSearchParams = {
   sessionID?: string
 }
 
-const getTraceScopeForParams = cache(function getTraceScopeForParams(
-  params: ResolvedTracesSearchParams,
-  workspaceId: string
-) {
-  return getTraceScope({
-    agents: listAgentsCachedQuery(undefined, workspaceId),
-    agentName: params.agentName,
-    sessionID: params.sessionID,
-    workspaceId,
-  })
-})
-
 async function resolveTracesSearchParams(searchParams: Promise<TracesSearchParams>) {
   const params = tracesSearchParamsSchema.parse(await searchParams)
 
@@ -284,11 +287,13 @@ async function getTraceScope({
   agentName,
   sessionID,
   workspaceId,
+  workspaceType,
 }: {
   agents: Promise<ListAgentActionResponse>
   agentName?: string
   sessionID?: string
   workspaceId: string
+  workspaceType: WorkspaceType
 }): Promise<TraceScope> {
   const agentResult = await agents
   if (agentResult.error) {
@@ -308,7 +313,11 @@ async function getTraceScope({
     }
   }
 
-  const sessionResult = await listTraceSessionFilterAction(selectedAgentName, workspaceId)
+  const sessionResult = await listTraceSessionFilterAction(
+    selectedAgentName,
+    workspaceId,
+    workspaceType
+  )
   if (sessionResult.error) {
     return traceScopeFailure(sessionResult.error)
   }

@@ -585,6 +585,21 @@ components:
       description: Better Auth API key identifier.
       minLength: 1
       type: string
+    AdoptCodingWorktreeRequest:
+      additionalProperties: false
+      properties:
+        agent_name:
+          maxLength: 32
+          minLength: 1
+          type: string
+        directory:
+          maxLength: 4096
+          minLength: 1
+          type: string
+      required:
+      - agent_name
+      - directory
+      type: object
     Agent:
       additionalProperties: false
       properties:
@@ -1094,6 +1109,157 @@ components:
       - region
       - auth_mode
       type: object
+    ChatAttachment:
+      additionalProperties: false
+      properties:
+        filename:
+          minLength: 1
+          type: string
+        id:
+          minLength: 1
+          type: string
+        mediaType:
+          minLength: 1
+          type: string
+        path:
+          minLength: 1
+          type: string
+        size:
+          format: int32
+          maximum: 8388608
+          minimum: 0
+          type: integer
+      required:
+      - id
+      - filename
+      - mediaType
+      - path
+      - size
+      type: object
+    ChatInput:
+      properties:
+        author:
+          $ref: '#/components/schemas/ResourceActor'
+        content:
+          $ref: '#/components/schemas/ChatInputContent'
+        created_at:
+          format: date-time
+          type: string
+        delivery:
+          enum:
+          - steer
+          - queue
+          type: string
+        error:
+          type: string
+        id:
+          format: uuid
+          type: string
+        message_id:
+          type: string
+        revision:
+          format: int64
+          type: integer
+        state:
+          $ref: '#/components/schemas/ChatInputState'
+      required:
+      - id
+      - author
+      - delivery
+      - content
+      - state
+      - revision
+      - created_at
+      - error
+      type: object
+    ChatInputContent:
+      additionalProperties: false
+      properties:
+        agent:
+          type: string
+        attachments:
+          items:
+            $ref: '#/components/schemas/ChatAttachment'
+          maxItems: 3
+          type: array
+        model:
+          additionalProperties: false
+          properties:
+            modelID:
+              minLength: 1
+              type: string
+            providerID:
+              minLength: 1
+              type: string
+          required:
+          - modelID
+          - providerID
+          type: object
+        text:
+          maxLength: 1000000
+          type: string
+        variant:
+          type: string
+      required:
+      - text
+      - attachments
+      - model
+      type: object
+    ChatInputRequest:
+      additionalProperties: false
+      properties:
+        content:
+          $ref: '#/components/schemas/ChatInputContent'
+        delivery:
+          enum:
+          - steer
+          - queue
+          type: string
+        id:
+          format: uuid
+          type: string
+      required:
+      - id
+      - delivery
+      - content
+      type: object
+    ChatInputState:
+      enum:
+      - queued
+      - sending
+      - delivered
+      - failed
+      - recovered
+      - removed
+      type: string
+    ChatInputUpdate:
+      additionalProperties: false
+      properties:
+        action:
+          enum:
+          - remove
+          - retry
+          type: string
+        revision:
+          format: int64
+          minimum: 1
+          type: integer
+      required:
+      - revision
+      - action
+      type: object
+    ChatInputs:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/ChatInput'
+          type: array
+        stopping:
+          type: boolean
+      required:
+      - items
+      - stopping
+      type: object
     ChatSession:
       additionalProperties: false
       properties:
@@ -1108,6 +1274,8 @@ components:
           items:
             $ref: '#/components/schemas/ChatSessionParticipant'
           type: array
+        project_id:
+          type: string
         session_id:
           type: string
         status:
@@ -1158,6 +1326,8 @@ components:
           type: string
         next_page_token:
           type: string
+        project:
+          $ref: '#/components/schemas/CodingProject'
         sessions:
           items:
             $ref: '#/components/schemas/ChatSession'
@@ -1179,12 +1349,14 @@ components:
       - agent
       - status
       - date
+      - project
       type: string
       x-enum-varnames:
       - ChatSessionGroupByNone
       - ChatSessionGroupByAgent
       - ChatSessionGroupByStatus
       - ChatSessionGroupByDate
+      - ChatSessionGroupByProject
     ChatSessionKind:
       enum:
       - chat
@@ -1251,6 +1423,634 @@ components:
       - ChatSessionStatusIdle
       - ChatSessionStatusBusy
       - ChatSessionStatusRetry
+    CodingAction:
+      enum:
+      - commit
+      - push
+      - pull
+      - fetch
+      - create_pr
+      - commit_push
+      - commit_push_pr
+      - name_branch
+      type: string
+      x-enum-varnames:
+      - CodingActionCommit
+      - CodingActionPush
+      - CodingActionPull
+      - CodingActionFetch
+      - CodingActionCreatePR
+      - CodingActionCommitPush
+      - CodingActionCommitPushPR
+      - CodingActionNameBranch
+    CodingDiscoveredWorktree:
+      additionalProperties: false
+      properties:
+        available:
+          type: boolean
+        branch:
+          type: string
+        directory:
+          type: string
+        head:
+          type: string
+        locked:
+          type: boolean
+        managed_id:
+          type: string
+        reason:
+          type: string
+      required:
+      - directory
+      - branch
+      - head
+      - available
+      - locked
+      type: object
+    CodingGitComparison:
+      enum:
+      - all
+      - unstaged
+      - staged
+      type: string
+      x-enum-varnames:
+      - CodingGitAll
+      - CodingGitUnstaged
+      - CodingGitStaged
+    CodingGitFile:
+      additionalProperties: false
+      properties:
+        conflict:
+          type: boolean
+        index:
+          type: string
+        path:
+          type: string
+        previous_path:
+          type: string
+        worktree:
+          type: string
+      required:
+      - path
+      - index
+      - worktree
+      - conflict
+      type: object
+    CodingGitPatch:
+      additionalProperties: false
+      properties:
+        binary:
+          type: boolean
+        can_stage_hunks:
+          type: boolean
+        patch:
+          type: string
+        path:
+          type: string
+        revision:
+          type: string
+      required:
+      - path
+      - patch
+      - revision
+      - can_stage_hunks
+      - binary
+      type: object
+    CodingGitRequest:
+      additionalProperties: false
+      properties:
+        bundle:
+          format: byte
+          maxLength: 89478488
+          type: string
+        comparison:
+          $ref: '#/components/schemas/CodingGitComparison'
+        expected_head:
+          pattern: ^[a-f0-9]{40,64}$
+          type: string
+        expected_tree:
+          pattern: ^[a-f0-9]{40,64}$
+          type: string
+        hunk:
+          minimum: 0
+          type: integer
+        message:
+          maxLength: 1000
+          type: string
+        operation:
+          enum:
+          - discover
+          - status
+          - diff
+          - stage
+          - unstage
+          - stashes
+          - stash_create
+          - stash_apply
+          - stash_pop
+          - stash_drop
+          - export
+          - import
+          - apply_commit
+          - checkout
+          - create_branch
+          - prepare_commit
+          - rename
+          - remove
+          type: string
+          x-enum-varnames:
+          - CodingGitDiscover
+          - CodingGitStatus
+          - CodingGitDiff
+          - CodingGitStage
+          - CodingGitUnstage
+          - CodingGitStashes
+          - CodingGitStashCreate
+          - CodingGitStashApply
+          - CodingGitStashPop
+          - CodingGitStashDrop
+          - CodingGitExport
+          - CodingGitImport
+          - CodingGitApplyCommit
+          - CodingGitCheckout
+          - CodingGitCreateBranch
+          - CodingGitPrepareCommit
+          - CodingGitRename
+          - CodingGitRemove
+        paths:
+          items:
+            maxLength: 4096
+            minLength: 1
+            type: string
+          maxItems: 1000
+          type: array
+        ref:
+          maxLength: 255
+          type: string
+        restore_index:
+          type: boolean
+        revision:
+          pattern: ^[a-f0-9]{64}$
+          type: string
+        stash:
+          pattern: ^[a-f0-9]{40,64}$
+          type: string
+      required:
+      - operation
+      type: object
+    CodingGitResult:
+      additionalProperties: false
+      properties:
+        ahead:
+          type: integer
+        ahead_of_default:
+          type: integer
+        behind:
+          type: integer
+        branch:
+          type: string
+        bundle:
+          format: byte
+          type: string
+        default_branch:
+          type: string
+        files:
+          items:
+            $ref: '#/components/schemas/CodingGitFile'
+          type: array
+        head:
+          type: string
+        patches:
+          items:
+            $ref: '#/components/schemas/CodingGitPatch'
+          type: array
+        pull_request:
+          $ref: '#/components/schemas/CodingPullRequest'
+        remote_error:
+          type: string
+        remote_head:
+          type: string
+        repository:
+          $ref: '#/components/schemas/CodingRepositorySnapshot'
+        revision:
+          type: string
+        stashes:
+          items:
+            $ref: '#/components/schemas/CodingGitStash'
+          type: array
+        tree:
+          type: string
+      required:
+      - head
+      - branch
+      - files
+      - revision
+      - default_branch
+      - remote_head
+      - ahead
+      - behind
+      - ahead_of_default
+      type: object
+    CodingGitStash:
+      additionalProperties: false
+      properties:
+        created_at:
+          format: date-time
+          type: string
+        message:
+          type: string
+        oid:
+          type: string
+        reference:
+          type: string
+      required:
+      - oid
+      - reference
+      - message
+      - created_at
+      type: object
+    CodingOperation:
+      additionalProperties: false
+      properties:
+        action:
+          $ref: '#/components/schemas/CodingAction'
+        agent_name:
+          type: string
+        commit:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        error:
+          type: string
+        id:
+          type: string
+        project_id:
+          type: string
+        pull_request:
+          $ref: '#/components/schemas/CodingPullRequest'
+        pushed:
+          type: boolean
+        session_id:
+          type: string
+        stage:
+          type: string
+        state:
+          enum:
+          - queued
+          - running
+          - succeeded
+          - failed
+          - interrupted
+          type: string
+          x-enum-varnames:
+          - CodingOperationQueued
+          - CodingOperationRunning
+          - CodingOperationSucceeded
+          - CodingOperationFailed
+          - CodingOperationInterrupted
+        updated_at:
+          format: date-time
+          type: string
+        worktree_id:
+          type: string
+      required:
+      - id
+      - project_id
+      - worktree_id
+      - agent_name
+      - session_id
+      - action
+      - state
+      - stage
+      - created_at
+      - updated_at
+      - pushed
+      type: object
+    CodingOperationRequest:
+      additionalProperties: false
+      properties:
+        action:
+          $ref: '#/components/schemas/CodingAction'
+        agent_name:
+          maxLength: 32
+          minLength: 1
+          type: string
+        branch:
+          type: string
+        expected_head:
+          pattern: ^[a-f0-9]{40,64}$
+          type: string
+        expected_tree:
+          pattern: ^[a-f0-9]{40,64}$
+          type: string
+        feature_branch:
+          default: false
+          type: boolean
+        id:
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          type: string
+        message:
+          maxLength: 20000
+          type: string
+        model:
+          additionalProperties: false
+          properties:
+            modelID:
+              minLength: 1
+              type: string
+            providerID:
+              minLength: 1
+              type: string
+          required:
+          - modelID
+          - providerID
+          type: object
+        paths:
+          items:
+            maxLength: 4096
+            minLength: 1
+            type: string
+          maxItems: 1000
+          type: array
+        revision:
+          pattern: ^[a-f0-9]{64}$
+          type: string
+        session_id:
+          minLength: 1
+          type: string
+        text:
+          maxLength: 16000
+          minLength: 1
+          type: string
+      required:
+      - id
+      - agent_name
+      - session_id
+      - action
+      - branch
+      - expected_head
+      - revision
+      type: object
+    CodingProject:
+      additionalProperties: false
+      properties:
+        created_at:
+          format: date-time
+          type: string
+        default_branch:
+          type: string
+        id:
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          type: string
+        last_agent_name:
+          type: string
+        name:
+          type: string
+        repository:
+          type: string
+        repository_id:
+          format: int64
+          type: integer
+      required:
+      - id
+      - name
+      - repository_id
+      - repository
+      - default_branch
+      - created_at
+      type: object
+    CodingProjectDetail:
+      additionalProperties: false
+      properties:
+        project:
+          $ref: '#/components/schemas/CodingProject'
+        threads:
+          items:
+            $ref: '#/components/schemas/CodingThread'
+          type: array
+        worktrees:
+          items:
+            $ref: '#/components/schemas/CodingWorktree'
+          type: array
+      required:
+      - project
+      - worktrees
+      - threads
+      type: object
+    CodingPullRequest:
+      additionalProperties: false
+      properties:
+        number:
+          type: integer
+        url:
+          type: string
+      required:
+      - number
+      - url
+      type: object
+    CodingPullRequestText:
+      additionalProperties: false
+      properties:
+        body:
+          maxLength: 20000
+          minLength: 1
+          type: string
+        title:
+          maxLength: 256
+          minLength: 1
+          type: string
+      required:
+      - title
+      - body
+      type: object
+    CodingRef:
+      additionalProperties: false
+      properties:
+        committed_at:
+          format: int64
+          type: integer
+        current:
+          type: boolean
+        default:
+          type: boolean
+        head:
+          type: string
+        name:
+          type: string
+        ref:
+          type: string
+        remote:
+          type: boolean
+        worktree:
+          type: string
+      required:
+      - ref
+      - name
+      - head
+      - remote
+      - current
+      - default
+      - committed_at
+      type: object
+    CodingRepositoryItem:
+      additionalProperties: false
+      properties:
+        id:
+          format: int64
+          type: integer
+        name:
+          type: string
+        private:
+          type: boolean
+      required:
+      - id
+      - name
+      - private
+      type: object
+    CodingRepositoryPage:
+      additionalProperties: false
+      properties:
+        limited:
+          type: boolean
+        next_page:
+          type: integer
+        repositories:
+          items:
+            $ref: '#/components/schemas/CodingRepositoryItem'
+          type: array
+      required:
+      - repositories
+      - limited
+      type: object
+    CodingRepositorySnapshot:
+      additionalProperties: false
+      properties:
+        error:
+          type: string
+        next_cursor:
+          type: string
+        refreshing:
+          type: boolean
+        refs:
+          items:
+            $ref: '#/components/schemas/CodingRef'
+          type: array
+        revision:
+          type: string
+        total_count:
+          type: integer
+        updated_at:
+          format: date-time
+          type: string
+        worktrees:
+          items:
+            $ref: '#/components/schemas/CodingDiscoveredWorktree'
+          type: array
+      required:
+      - refs
+      - worktrees
+      - revision
+      - refreshing
+      - total_count
+      type: object
+    CodingTextRequest:
+      additionalProperties: false
+      properties:
+        expected_tree:
+          pattern: ^[a-f0-9]{40,64}$
+          type: string
+        model:
+          additionalProperties: false
+          properties:
+            modelID:
+              minLength: 1
+              type: string
+            providerID:
+              minLength: 1
+              type: string
+          required:
+          - modelID
+          - providerID
+          type: object
+        purpose:
+          enum:
+          - branch
+          - commit
+          - pr
+          type: string
+          x-enum-varnames:
+          - CodingTextBranch
+          - CodingTextCommit
+          - CodingTextPR
+        text:
+          maxLength: 48000
+          type: string
+      required:
+      - purpose
+      type: object
+    CodingTextSuggestion:
+      additionalProperties: false
+      properties:
+        pull_request:
+          $ref: '#/components/schemas/CodingPullRequestText'
+        text:
+          maxLength: 20000
+          minLength: 1
+          type: string
+      required:
+      - text
+      type: object
+    CodingThread:
+      additionalProperties: false
+      properties:
+        id:
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          type: string
+        repository:
+          type: string
+        repository_id:
+          format: int64
+          type: integer
+        session_id:
+          type: string
+        worktree:
+          $ref: '#/components/schemas/CodingWorktree'
+      required:
+      - id
+      - session_id
+      - repository_id
+      - repository
+      - worktree
+      type: object
+    CodingWorktree:
+      additionalProperties: false
+      properties:
+        agent_name:
+          type: string
+        branch:
+          type: string
+        directory:
+          type: string
+        id:
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          type: string
+        project_id:
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          type: string
+        ready:
+          type: boolean
+        shared:
+          type: boolean
+      required:
+      - id
+      - project_id
+      - agent_name
+      - directory
+      - branch
+      - ready
+      - shared
+      type: object
     CompatibleProviderConfig:
       additionalProperties: false
       properties:
@@ -1336,6 +2136,22 @@ components:
       required:
       - name
       - sandbox
+      type: object
+    CreateCodingProjectRequest:
+      additionalProperties: false
+      properties:
+        name:
+          maxLength: 80
+          minLength: 1
+          pattern: .*\S.*
+          type: string
+        repository_id:
+          format: int64
+          minimum: 1
+          type: integer
+      required:
+      - name
+      - repository_id
       type: object
     CreateDashboardRequest:
       additionalProperties: false
@@ -1604,6 +2420,8 @@ components:
           type: string
         selected_organization_resources:
           $ref: '#/components/schemas/SelectedOrganizationResources'
+        type:
+          $ref: '#/components/schemas/WorkspaceType'
       required:
       - name
       - admin_member_ids
@@ -5461,7 +6279,99 @@ components:
       - $ref: '#/components/schemas/OpencodeCredentialOAuth'
       - $ref: '#/components/schemas/OpencodeCredentialKey'
     OpencodeEvent:
-      anyOf:
+      discriminator:
+        mapping:
+          catalog.updated: '#/components/schemas/OpencodeEventCatalogUpdated'
+          command.executed: '#/components/schemas/OpencodeEventCommandExecuted'
+          file.edited: '#/components/schemas/OpencodeEventFileEdited'
+          file.watcher.updated: '#/components/schemas/OpencodeEventFileWatcherUpdated'
+          global.disposed: '#/components/schemas/OpencodeEventGlobalDisposed'
+          installation.update-available: '#/components/schemas/OpencodeEventInstallationUpdate-available'
+          installation.updated: '#/components/schemas/OpencodeEventInstallationUpdated'
+          integration.connection.updated: '#/components/schemas/OpencodeEventIntegrationConnectionUpdated'
+          integration.updated: '#/components/schemas/OpencodeEventIntegrationUpdated'
+          lsp.updated: '#/components/schemas/OpencodeEventLspUpdated'
+          mcp.browser.open.failed: '#/components/schemas/OpencodeEventMcpBrowserOpenFailed'
+          mcp.tools.changed: '#/components/schemas/OpencodeEventMcpToolsChanged'
+          message.part.delta: '#/components/schemas/OpencodeEventMessagePartDelta'
+          message.part.removed: '#/components/schemas/OpencodeEventMessagePartRemoved'
+          message.part.updated: '#/components/schemas/OpencodeEventMessagePartUpdated'
+          message.removed: '#/components/schemas/OpencodeEventMessageRemoved'
+          message.updated: '#/components/schemas/OpencodeEventMessageUpdated'
+          models-dev.refreshed: '#/components/schemas/OpencodeEventModels-devRefreshed'
+          permission.asked: '#/components/schemas/OpencodeEventPermissionAsked'
+          permission.replied: '#/components/schemas/OpencodeEventPermissionReplied'
+          permission.v2.asked: '#/components/schemas/OpencodeEventPermissionV2Asked'
+          permission.v2.replied: '#/components/schemas/OpencodeEventPermissionV2Replied'
+          plugin.added: '#/components/schemas/OpencodeEventPluginAdded'
+          project.directories.updated: '#/components/schemas/OpencodeEventProjectDirectoriesUpdated'
+          project.updated: '#/components/schemas/OpencodeEventProjectUpdated'
+          pty.created: '#/components/schemas/OpencodeEventPtyCreated'
+          pty.deleted: '#/components/schemas/OpencodeEventPtyDeleted'
+          pty.exited: '#/components/schemas/OpencodeEventPtyExited'
+          pty.updated: '#/components/schemas/OpencodeEventPtyUpdated'
+          question.asked: '#/components/schemas/OpencodeEventQuestionAsked'
+          question.rejected: '#/components/schemas/OpencodeEventQuestionRejected'
+          question.replied: '#/components/schemas/OpencodeEventQuestionReplied'
+          question.v2.asked: '#/components/schemas/OpencodeEventQuestionV2Asked'
+          question.v2.rejected: '#/components/schemas/OpencodeEventQuestionV2Rejected'
+          question.v2.replied: '#/components/schemas/OpencodeEventQuestionV2Replied'
+          reference.updated: '#/components/schemas/OpencodeEventReferenceUpdated'
+          server.connected: '#/components/schemas/OpencodeEventServerConnected'
+          server.instance.disposed: '#/components/schemas/OpencodeEventServerInstanceDisposed'
+          session.compacted: '#/components/schemas/OpencodeEventSessionCompacted'
+          session.created: '#/components/schemas/OpencodeEventSessionCreated'
+          session.deleted: '#/components/schemas/OpencodeEventSessionDeleted'
+          session.diff: '#/components/schemas/OpencodeEventSessionDiff'
+          session.error: '#/components/schemas/OpencodeEventSessionError'
+          session.idle: '#/components/schemas/OpencodeEventSessionIdle'
+          session.next.agent.switched: '#/components/schemas/OpencodeEventSessionNextAgentSwitched'
+          session.next.compaction.delta: '#/components/schemas/OpencodeEventSessionNextCompactionDelta'
+          session.next.compaction.ended: '#/components/schemas/OpencodeEventSessionNextCompactionEnded'
+          session.next.compaction.started: '#/components/schemas/OpencodeEventSessionNextCompactionStarted'
+          session.next.context.updated: '#/components/schemas/OpencodeEventSessionNextContextUpdated'
+          session.next.model.switched: '#/components/schemas/OpencodeEventSessionNextModelSwitched'
+          session.next.moved: '#/components/schemas/OpencodeEventSessionNextMoved'
+          session.next.prompt.admitted: '#/components/schemas/OpencodeEventSessionNextPromptAdmitted'
+          session.next.prompted: '#/components/schemas/OpencodeEventSessionNextPrompted'
+          session.next.reasoning.delta: '#/components/schemas/OpencodeEventSessionNextReasoningDelta'
+          session.next.reasoning.ended: '#/components/schemas/OpencodeEventSessionNextReasoningEnded'
+          session.next.reasoning.started: '#/components/schemas/OpencodeEventSessionNextReasoningStarted'
+          session.next.retried: '#/components/schemas/OpencodeEventSessionNextRetried'
+          session.next.revert.cleared: '#/components/schemas/OpencodeEventSessionNextRevertCleared'
+          session.next.revert.committed: '#/components/schemas/OpencodeEventSessionNextRevertCommitted'
+          session.next.revert.staged: '#/components/schemas/OpencodeEventSessionNextRevertStaged'
+          session.next.shell.ended: '#/components/schemas/OpencodeEventSessionNextShellEnded'
+          session.next.shell.started: '#/components/schemas/OpencodeEventSessionNextShellStarted'
+          session.next.step.ended: '#/components/schemas/OpencodeEventSessionNextStepEnded'
+          session.next.step.failed: '#/components/schemas/OpencodeEventSessionNextStepFailed'
+          session.next.step.started: '#/components/schemas/OpencodeEventSessionNextStepStarted'
+          session.next.synthetic: '#/components/schemas/OpencodeEventSessionNextSynthetic'
+          session.next.text.delta: '#/components/schemas/OpencodeEventSessionNextTextDelta'
+          session.next.text.ended: '#/components/schemas/OpencodeEventSessionNextTextEnded'
+          session.next.text.started: '#/components/schemas/OpencodeEventSessionNextTextStarted'
+          session.next.tool.called: '#/components/schemas/OpencodeEventSessionNextToolCalled'
+          session.next.tool.failed: '#/components/schemas/OpencodeEventSessionNextToolFailed'
+          session.next.tool.input.delta: '#/components/schemas/OpencodeEventSessionNextToolInputDelta'
+          session.next.tool.input.ended: '#/components/schemas/OpencodeEventSessionNextToolInputEnded'
+          session.next.tool.input.started: '#/components/schemas/OpencodeEventSessionNextToolInputStarted'
+          session.next.tool.progress: '#/components/schemas/OpencodeEventSessionNextToolProgress'
+          session.next.tool.success: '#/components/schemas/OpencodeEventSessionNextToolSuccess'
+          session.status: '#/components/schemas/OpencodeEventSessionStatus'
+          session.updated: '#/components/schemas/OpencodeEventSessionUpdated'
+          todo.updated: '#/components/schemas/OpencodeEventTodoUpdated'
+          tui.command.execute: '#/components/schemas/OpencodeEvent.tui.command.execute'
+          tui.prompt.append: '#/components/schemas/OpencodeEvent.tui.prompt.append'
+          tui.session.select: '#/components/schemas/OpencodeEvent.tui.session.select'
+          tui.toast.show: '#/components/schemas/OpencodeEvent.tui.toast.show'
+          vcs.branch.updated: '#/components/schemas/OpencodeEventVcsBranchUpdated'
+          workspace.failed: '#/components/schemas/OpencodeEventWorkspaceFailed'
+          workspace.ready: '#/components/schemas/OpencodeEventWorkspaceReady'
+          workspace.status: '#/components/schemas/OpencodeEventWorkspaceStatus'
+          worktree.failed: '#/components/schemas/OpencodeEventWorktreeFailed'
+          worktree.ready: '#/components/schemas/OpencodeEventWorktreeReady'
+        propertyName: type
+      oneOf:
       - $ref: '#/components/schemas/OpencodeEventModels-devRefreshed'
       - $ref: '#/components/schemas/OpencodeEventIntegrationUpdated'
       - $ref: '#/components/schemas/OpencodeEventIntegrationConnectionUpdated'
@@ -13608,7 +14518,22 @@ components:
       - type
       type: object
     OpencodePart:
-      anyOf:
+      discriminator:
+        mapping:
+          agent: '#/components/schemas/OpencodeAgentPart'
+          compaction: '#/components/schemas/OpencodeCompactionPart'
+          file: '#/components/schemas/OpencodeFilePart'
+          patch: '#/components/schemas/OpencodePatchPart'
+          reasoning: '#/components/schemas/OpencodeReasoningPart'
+          retry: '#/components/schemas/OpencodeRetryPart'
+          snapshot: '#/components/schemas/OpencodeSnapshotPart'
+          step-finish: '#/components/schemas/OpencodeStepFinishPart'
+          step-start: '#/components/schemas/OpencodeStepStartPart'
+          subtask: '#/components/schemas/OpencodeSubtaskPart'
+          text: '#/components/schemas/OpencodeTextPart'
+          tool: '#/components/schemas/OpencodeToolPart'
+        propertyName: type
+      oneOf:
       - $ref: '#/components/schemas/OpencodeTextPart'
       - $ref: '#/components/schemas/OpencodeSubtaskPart'
       - $ref: '#/components/schemas/OpencodeReasoningPart'
@@ -18858,67 +19783,79 @@ components:
       - message
       type: object
     OpencodeSessionStatus:
-      anyOf:
-      - additionalProperties: false
-        properties:
-          type:
-            enum:
-            - idle
-            type: string
-        required:
-        - type
-        type: object
-      - additionalProperties: false
-        properties:
-          action:
-            additionalProperties: false
-            properties:
-              label:
-                type: string
-              link:
-                type: string
-              message:
-                type: string
-              provider:
-                type: string
-              reason:
-                type: string
-              title:
-                type: string
-            required:
-            - reason
-            - provider
-            - title
-            - message
-            - label
-            type: object
-          attempt:
-            minimum: 0
-            type: integer
-          message:
-            type: string
-          next:
-            minimum: 0
-            type: integer
-          type:
-            enum:
-            - retry
-            type: string
-        required:
-        - type
-        - attempt
-        - message
-        - next
-        type: object
-      - additionalProperties: false
-        properties:
-          type:
-            enum:
-            - busy
-            type: string
-        required:
-        - type
-        type: object
+      discriminator:
+        mapping:
+          busy: '#/components/schemas/OpencodeSessionStatus2'
+          idle: '#/components/schemas/OpencodeSessionStatus0'
+          retry: '#/components/schemas/OpencodeSessionStatus1'
+        propertyName: type
+      oneOf:
+      - $ref: '#/components/schemas/OpencodeSessionStatus0'
+      - $ref: '#/components/schemas/OpencodeSessionStatus1'
+      - $ref: '#/components/schemas/OpencodeSessionStatus2'
+    OpencodeSessionStatus0:
+      additionalProperties: false
+      properties:
+        type:
+          enum:
+          - idle
+          type: string
+      required:
+      - type
+      type: object
+    OpencodeSessionStatus1:
+      additionalProperties: false
+      properties:
+        action:
+          additionalProperties: false
+          properties:
+            label:
+              type: string
+            link:
+              type: string
+            message:
+              type: string
+            provider:
+              type: string
+            reason:
+              type: string
+            title:
+              type: string
+          required:
+          - reason
+          - provider
+          - title
+          - message
+          - label
+          type: object
+        attempt:
+          minimum: 0
+          type: integer
+        message:
+          type: string
+        next:
+          minimum: 0
+          type: integer
+        type:
+          enum:
+          - retry
+          type: string
+      required:
+      - type
+      - attempt
+      - message
+      - next
+      type: object
+    OpencodeSessionStatus2:
+      additionalProperties: false
+      properties:
+        type:
+          enum:
+          - busy
+          type: string
+      required:
+      - type
+      type: object
     OpencodeSessionUpdated:
       additionalProperties: false
       properties:
@@ -22878,6 +23815,34 @@ components:
       required:
       - phase
       type: object
+    PrepareCodingCheckoutRequest:
+      additionalProperties: false
+      properties:
+        agent_name:
+          maxLength: 32
+          minLength: 1
+          type: string
+        base_ref:
+          maxLength: 1024
+          minLength: 1
+          type: string
+        id:
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          type: string
+        main_checkout:
+          default: false
+          type: boolean
+        project_id:
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          type: string
+        worktree_id:
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          type: string
+      required:
+      - id
+      - project_id
+      - agent_name
+      type: object
     ProcessObservabilityEvent:
       additionalProperties: false
       properties:
@@ -24619,6 +25584,12 @@ components:
       - Failed
       - Unacked
       type: string
+      x-enum-varnames:
+      - WorkflowRunStatusPending
+      - WorkflowRunStatusRunning
+      - WorkflowRunStatusSucceeded
+      - WorkflowRunStatusFailed
+      - WorkflowRunStatusUnacked
     WorkflowRunSummary:
       additionalProperties: false
       properties:
@@ -24666,6 +25637,9 @@ components:
       - Succeeded
       - Failed
       type: string
+      x-enum-varnames:
+      - WorkflowRunTerminalPhaseSucceeded
+      - WorkflowRunTerminalPhaseFailed
     WorkflowRunTriggerType:
       enum:
       - Schedule
@@ -24782,6 +25756,8 @@ components:
           type: string
         state:
           $ref: '#/components/schemas/WorkspaceState'
+        type:
+          $ref: '#/components/schemas/WorkspaceType'
         updated_at:
           format: date-time
           type: string
@@ -24790,6 +25766,7 @@ components:
           minimum: 0
           type: integer
       required:
+      - type
       - id
       - name
       - slug
@@ -24890,6 +25867,14 @@ components:
       - WorkspaceStateReady
       - WorkspaceStateFailed
       - WorkspaceStateDeleting
+    WorkspaceType:
+      enum:
+      - general
+      - coding
+      type: string
+      x-enum-varnames:
+      - WorkspaceTypeGeneral
+      - WorkspaceTypeCoding
     WriteAgentFileRequest:
       additionalProperties: false
       properties:
@@ -24970,6 +25955,8 @@ paths:
           description: Agent resource created.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "409":
           $ref: '#/components/responses/Conflict'
         "415":
@@ -25025,6 +26012,8 @@ paths:
           description: Agent resource updated.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "409":
@@ -25083,6 +26072,8 @@ paths:
           description: One page of dashboard summaries.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "500":
@@ -25111,6 +26102,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/Dashboard'
           description: Dashboard created.
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "409":
           $ref: '#/components/responses/Conflict'
         "413":
@@ -25131,6 +26124,8 @@ paths:
       responses:
         "204":
           description: Dashboard deleted.
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "500":
@@ -25150,6 +26145,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/Dashboard'
           description: Dashboard definition.
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "500":
@@ -25184,6 +26181,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/QueryDashboardResponse'
           description: Per-widget query results.
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "422":
           $ref: '#/components/responses/UnprocessableContent'
         "429":
@@ -25220,6 +26219,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/PublishDashboardDataResponse'
           description: Data accepted or an identical retry replayed.
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "409":
           $ref: '#/components/responses/Conflict'
         "413":
@@ -25266,6 +26267,8 @@ paths:
           description: One 25-row table page.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "422":
@@ -25958,6 +26961,10 @@ paths:
         Returns root sessions in descending update order. Participant filters use ALL semantics and are evaluated by the database before pagination.
       operationId: listChatSessions
       parameters:
+      - in: query
+        name: project_id
+        schema:
+          type: string
       - $ref: '#/components/parameters/ChatSessionLimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
       - $ref: '#/components/parameters/AgentNameQueryOptional'
@@ -26046,6 +27053,118 @@ paths:
       summary: Replace the caller's Workspace chat preferences.
       tags:
       - chat-sessions
+  /api/chat-session/{agentName}/{sessionId}/input:
+    get:
+      operationId: listChatInputs
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatInputs'
+          description: Read queued messages and your recovered drafts.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Read queued messages and your recovered drafts.
+      tags:
+      - chat-sessions
+    parameters:
+    - in: path
+      name: agentName
+      required: true
+      schema:
+        $ref: '#/components/schemas/AgentName'
+    - in: path
+      name: sessionId
+      required: true
+      schema:
+        minLength: 1
+        type: string
+    post:
+      operationId: submitChatInput
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatInputRequest'
+        required: true
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatInput'
+          description: Persist a message for steering or queued delivery.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Persist a message for steering or queued delivery.
+      tags:
+      - chat-sessions
+  /api/chat-session/{agentName}/{sessionId}/input/{inputId}:
+    parameters:
+    - in: path
+      name: agentName
+      required: true
+      schema:
+        $ref: '#/components/schemas/AgentName'
+    - in: path
+      name: sessionId
+      required: true
+      schema:
+        minLength: 1
+        type: string
+    - in: path
+      name: inputId
+      required: true
+      schema:
+        type: string
+    patch:
+      operationId: updateChatInput
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatInputUpdate'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatInput'
+          description: Remove or retry your queued message.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Remove or retry your queued message.
+      tags:
+      - chat-sessions
   /api/chat-session/watch:
     get:
       description: Emits a compact invalidation event when the Workspace inbox changes.
@@ -26069,6 +27188,533 @@ paths:
       summary: Watch the current Workspace chat inbox.
       tags:
       - chat-sessions
+  /api/coding/agent/{agentName}/session/{sessionId}:
+    get:
+      operationId: getCodingThread
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodingThread'
+          description: Thread checkout.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request failed.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - coding
+    parameters:
+    - in: path
+      name: agentName
+      required: true
+      schema:
+        type: string
+    - in: path
+      name: sessionId
+      required: true
+      schema:
+        type: string
+  /api/coding/agent/{agentName}/session/{sessionId}/suggestion:
+    parameters:
+    - in: path
+      name: agentName
+      required: true
+      schema:
+        type: string
+    - in: path
+      name: sessionId
+      required: true
+      schema:
+        type: string
+    post:
+      operationId: suggestCodingText
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CodingTextRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodingTextSuggestion'
+          description: Generated source-control text.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request failed.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - coding
+  /api/coding/checkout:
+    post:
+      operationId: prepareCodingCheckout
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrepareCodingCheckoutRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodingWorktree'
+          description: Prepared checkout.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request failed.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - coding
+  /api/coding/operation:
+    get:
+      operationId: listCodingOperations
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/CodingOperation'
+                type: array
+          description: Active and recent operations owned by the actor.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request failed.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - coding
+    post:
+      operationId: startCodingOperation
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CodingOperationRequest'
+        required: true
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodingOperation'
+          description: Coding result.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request failed.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - coding
+  /api/coding/operation/{operationId}:
+    get:
+      operationId: getCodingOperation
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodingOperation'
+          description: Coding result.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request failed.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - coding
+    parameters:
+    - in: path
+      name: operationId
+      required: true
+      schema:
+        type: string
+  /api/coding/project:
+    get:
+      operationId: listCodingProjects
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/CodingProject'
+                type: array
+          description: The actor's projects.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request failed.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - coding
+    post:
+      operationId: createCodingProject
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCodingProjectRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodingProject'
+          description: Created project.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request failed.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - coding
+  /api/coding/project/{projectId}:
+    delete:
+      operationId: deleteCodingProject
+      responses:
+        "204":
+          description: Project and associated conversations deleted.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request failed.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - coding
+    get:
+      operationId: getCodingProject
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodingProjectDetail'
+          description: Project and checkouts.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request failed.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - coding
+    parameters:
+    - in: path
+      name: projectId
+      required: true
+      schema:
+        pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        type: string
+    patch:
+      operationId: renameCodingProject
+      requestBody:
+        content:
+          application/json:
+            schema:
+              additionalProperties: false
+              properties:
+                name:
+                  maxLength: 80
+                  minLength: 1
+                  pattern: .*\S.*
+                  type: string
+              required:
+              - name
+              type: object
+        required: true
+      responses:
+        "204":
+          description: Renamed.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request failed.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - coding
+  /api/coding/project/{projectId}/preference:
+    parameters:
+    - in: path
+      name: projectId
+      required: true
+      schema:
+        type: string
+    put:
+      operationId: updateCodingProjectPreference
+      requestBody:
+        content:
+          application/json:
+            schema:
+              additionalProperties: false
+              properties:
+                agent_name:
+                  $ref: '#/components/schemas/AgentName'
+              required:
+              - agent_name
+              type: object
+        required: true
+      responses:
+        "204":
+          description: Updated preference.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request failed.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - coding
+  /api/coding/project/{projectId}/refresh:
+    parameters:
+    - in: path
+      name: projectId
+      required: true
+      schema:
+        type: string
+    - in: query
+      name: agent_name
+      required: true
+      schema:
+        type: string
+    post:
+      operationId: refreshCodingRepository
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodingRepositorySnapshot'
+          description: Coding result.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request failed.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - coding
+  /api/coding/project/{projectId}/refs:
+    get:
+      operationId: listCodingRefs
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodingRepositorySnapshot'
+          description: Coding result.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request failed.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - coding
+    parameters:
+    - in: path
+      name: projectId
+      required: true
+      schema:
+        type: string
+    - in: query
+      name: agent_name
+      required: true
+      schema:
+        type: string
+    - in: query
+      name: query
+      schema:
+        maxLength: 256
+        type: string
+    - in: query
+      name: cursor
+      schema:
+        type: string
+  /api/coding/project/{projectId}/worktree:
+    parameters:
+    - in: path
+      name: projectId
+      required: true
+      schema:
+        type: string
+    post:
+      operationId: adoptCodingWorktree
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdoptCodingWorktreeRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodingWorktree'
+          description: Coding result.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request failed.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - coding
+  /api/coding/repository:
+    get:
+      operationId: listCodingRepositories
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodingRepositoryPage'
+          description: Coding result.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request failed.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - coding
+    parameters:
+    - in: query
+      name: query
+      schema:
+        default: ""
+        maxLength: 256
+        type: string
+    - in: query
+      name: page
+      schema:
+        default: 1
+        minimum: 1
+        type: integer
+  /api/coding/watch:
+    get:
+      operationId: watchCoding
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/WatchChatSessionsEvent'
+          description: Invalidation notifications; read current state on every connection.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request failed.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - coding
+  /api/coding/worktree/{worktreeId}/git:
+    parameters:
+    - in: path
+      name: worktreeId
+      required: true
+      schema:
+        pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        type: string
+    post:
+      operationId: runCodingGit
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CodingGitRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CodingGitResult'
+          description: Git result.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request failed.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - coding
   /api/dashboard:
     get:
       operationId: listDashboards
@@ -26085,6 +27731,8 @@ paths:
           description: One page of dashboard summaries.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "500":
           $ref: '#/components/responses/InternalError'
       security:
@@ -27863,7 +29511,7 @@ paths:
           description: UnauthorizedError
       security:
       - GatewayBearer:
-        - agent.read_shared_secret
+        - agent.use_shared
       summary: List integrations
       tags:
       - integrations
@@ -27938,7 +29586,7 @@ paths:
           description: UnauthorizedError
       security:
       - GatewayBearer:
-        - agent.read_shared_secret
+        - agent.use_shared
       summary: Get integration
       tags:
       - integrations
@@ -31362,9 +33010,8 @@ paths:
                 additionalProperties: false
                 properties:
                   data:
-                    patternProperties:
-                      ^ses:
-                        $ref: '#/components/schemas/OpencodeSessionActive'
+                    additionalProperties:
+                      $ref: '#/components/schemas/OpencodeSessionActive'
                     type: object
                 required:
                 - data
@@ -35625,7 +37272,7 @@ paths:
           description: Bad request
       security:
       - GatewayBearer:
-        - agent.read_shared_secret
+        - agent.use_shared
       summary: Get provider auth methods
       tags:
       - provider
@@ -40692,6 +42339,8 @@ paths:
           description: Workflows deleted.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "415":
@@ -40723,6 +42372,8 @@ paths:
           description: Workflow summaries for an agent.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "500":
           $ref: '#/components/responses/InternalError'
       security:
@@ -40752,6 +42403,8 @@ paths:
           description: Workflow created.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "409":
@@ -40790,6 +42443,8 @@ paths:
           description: Workflow definition.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "500":
@@ -40850,6 +42505,8 @@ paths:
           description: Paginated workflow runs for a workflow.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "500":
@@ -40884,6 +42541,8 @@ paths:
           description: Workflow run deleted.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "500":
@@ -40921,6 +42580,8 @@ paths:
           description: Workflow run details.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "500":
@@ -40967,6 +42628,8 @@ paths:
           description: WorkflowRun node status updated.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "409":
@@ -41013,6 +42676,8 @@ paths:
           description: WorkflowRun status updated.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "409":
@@ -41057,6 +42722,8 @@ paths:
           description: Stream of workflow run updates.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "415":
@@ -41097,6 +42764,8 @@ paths:
           description: Paginated workflow schedules for a workflow.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "500":
           $ref: '#/components/responses/InternalError'
       security:
@@ -41132,6 +42801,8 @@ paths:
           description: Workflow schedule created.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "409":
@@ -41172,6 +42843,8 @@ paths:
           description: Workflow schedule deleted.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "500":
@@ -41215,6 +42888,8 @@ paths:
           description: Workflow schedule updated.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "409":
@@ -41259,6 +42934,8 @@ paths:
           description: Workflow run accepted.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "409":
@@ -41312,6 +42989,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "401":
           $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
         "409":
@@ -41348,6 +43027,8 @@ paths:
           description: Paginated workflow schedules for an agent.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "500":
           $ref: '#/components/responses/InternalError'
       security:
@@ -41374,6 +43055,8 @@ paths:
           description: Paginated webhook trigger rows for an agent.
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
         "500":
           $ref: '#/components/responses/InternalError'
       security:
@@ -41650,6 +43333,8 @@ servers:
 - description: Current origin
   url: /
 tags:
+- description: Personal projects and agent-local coding checkouts.
+  name: coding
 - description: Agent-owned dashboard definitions and bounded data APIs.
   name: dashboards
 - description: Agent lifecycle and status APIs.

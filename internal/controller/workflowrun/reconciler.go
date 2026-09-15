@@ -17,7 +17,6 @@ limitations under the License.
 package workflowrun
 
 import (
-	"bytes"
 	"context"
 	_ "embed"
 	"encoding/json"
@@ -26,6 +25,7 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"strings"
 	"text/template"
 	"time"
 
@@ -91,6 +91,16 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("finalize workflow run: %w", err)
 		}
+		return ctrl.Result{}, nil
+	}
+
+	var workspace agentzv1alpha1.Workspace
+	err = r.Get(ctx, client.ObjectKey{Name: run.Namespace}, &workspace)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("get workflow Workspace: %w", err)
+	}
+	if workspace.Spec.Type == agentzv1alpha1.WorkspaceTypeCoding {
+		// Admission rejects these resources; never execute them if it was bypassed.
 		return ctrl.Result{}, nil
 	}
 
@@ -348,17 +358,17 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 
 	permission := gatewayapi.OpencodePermissionRuleset{
 		{
-			Action:     gatewayapi.Deny,
+			Action:     gatewayapi.OpencodePermissionActionDeny,
 			Permission: "question",
 			Pattern:    "*",
 		},
 		{
-			Action:     gatewayapi.Deny,
+			Action:     gatewayapi.OpencodePermissionActionDeny,
 			Permission: "plan_enter",
 			Pattern:    "*",
 		},
 		{
-			Action:     gatewayapi.Deny,
+			Action:     gatewayapi.OpencodePermissionActionDeny,
 			Permission: "plan_exit",
 			Pattern:    "*",
 		},
@@ -393,7 +403,7 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 			permission = append(
 				permission,
 				gatewayapi.OpencodePermissionRule{
-					Action:     gatewayapi.Allow,
+					Action:     gatewayapi.OpencodePermissionActionAllow,
 					Permission: ref.Name + "_" + tool.Name,
 					Pattern:    "*",
 				},
@@ -425,13 +435,12 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 		return err
 	}
 
-	promptResp, err := r.GatewayClient.SessionPromptAsyncWithBodyWithResponse(
+	promptResp, err := r.GatewayClient.SessionPromptAsyncWithResponse(
 		ctx,
 		run.Spec.AgentName,
 		sessionID,
 		nil,
-		"application/json",
-		bytes.NewReader(prompt),
+		prompt,
 		gwreq.RequestEditor(r.TokenPath, run.Namespace),
 	)
 	if err != nil {
@@ -661,13 +670,14 @@ func (r *Reconciler) setTerminalStatus(status *agentzv1alpha1.WorkflowRunStatus,
 	})
 }
 
-func buildPromptRequest(run *agentzv1alpha1.WorkflowRun) ([]byte, error) {
+func buildPromptRequest(run *agentzv1alpha1.WorkflowRun) (gatewayapi.SessionPromptAsyncJSONRequestBody, error) {
+	var body gatewayapi.SessionPromptAsyncJSONRequestBody
 	inputs := "null"
 	if len(run.Spec.Inputs.Raw) > 0 {
 		inputs = string(run.Spec.Inputs.Raw)
 	}
 
-	var prompt bytes.Buffer
+	var prompt strings.Builder
 	err := promptTemplate.Execute(
 		&prompt,
 		promptTemplateData{
@@ -678,25 +688,24 @@ func buildPromptRequest(run *agentzv1alpha1.WorkflowRun) ([]byte, error) {
 		},
 	)
 	if err != nil {
-		return nil, fmt.Errorf("render session prompt: %w", err)
+		return body, fmt.Errorf("render session prompt: %w", err)
 	}
 
-	body := map[string]any{
-		"parts": []map[string]any{{
-			"type": "text",
-			"text": prompt.String(),
-		}},
-		"tools": map[string]bool{
-			"get_workflow":           true,
-			"question":               false,
-			"set_workflowrun_status": true,
-		},
-	}
-	data, err := json.Marshal(body)
+	var part gatewayapi.OpencodePromptPartInput
+	err = part.FromOpencodeTextPartInput(gatewayapi.OpencodeTextPartInput{
+		Type: gatewayapi.OpencodeTextPartInputTypeText,
+		Text: prompt.String(),
+	})
 	if err != nil {
-		return nil, fmt.Errorf("marshal session prompt: %w", err)
+		return body, fmt.Errorf("encode workflow prompt part: %w", err)
 	}
-	return data, nil
+	body.Parts = []gatewayapi.OpencodePromptPartInput{part}
+	body.Tools = &map[string]bool{
+		"get_workflow":           true,
+		"question":               false,
+		"set_workflowrun_status": true,
+	}
+	return body, nil
 }
 
 func (r *Reconciler) sessionIdle(ctx context.Context, run *agentzv1alpha1.WorkflowRun) (bool, error) {
@@ -728,12 +737,6 @@ func (r *Reconciler) sessionIdle(ctx context.Context, run *agentzv1alpha1.Workfl
 	}
 	if idle, err := status.AsOpencodeSessionStatus0(); err == nil && idle.Type == gatewayapi.Idle {
 		return true, nil
-	}
-	if retry, err := status.AsOpencodeSessionStatus1(); err == nil && retry.Type == gatewayapi.OpencodeSessionStatus1TypeRetry {
-		return false, nil
-	}
-	if busy, err := status.AsOpencodeSessionStatus2(); err == nil && busy.Type == gatewayapi.Busy {
-		return false, nil
 	}
 	return false, nil
 }

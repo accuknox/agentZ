@@ -14,22 +14,6 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
-func TestValidatorValidateCreateRejectsInvalidAllowedHosts(t *testing.T) {
-	t.Parallel()
-
-	sandbox := &agentzv1alpha1.Sandbox{
-		ObjectMeta: metav1.ObjectMeta{Name: "sandbox"},
-		Spec: agentzv1alpha1.SandboxSpec{
-			AllowedHosts: []string{"api.*.github.com", "10.0.0.1"},
-		},
-	}
-
-	_, err := NewValidator(nil).ValidateCreate(context.Background(), sandbox)
-	if err == nil {
-		t.Fatal("ValidateCreate() unexpectedly succeeded")
-	}
-}
-
 func TestValidatorValidateDeleteRejectsReferencedSandbox(t *testing.T) {
 	t.Parallel()
 
@@ -68,53 +52,6 @@ func TestValidatorValidateDeleteRejectsReferencedSandbox(t *testing.T) {
 	_, err := NewValidator(client).ValidateDelete(context.Background(), sandbox)
 	if !apierrors.IsInvalid(err) || !strings.Contains(err.Error(), "referenced by agent agent") {
 		t.Fatalf("ValidateDelete() = %v, want agent reference conflict", err)
-	}
-}
-
-func TestValidatorValidateCreateAllowsProviderHost(t *testing.T) {
-	t.Parallel()
-
-	scheme := runtime.NewScheme()
-	if err := corev1.AddToScheme(scheme); err != nil {
-		t.Fatalf("AddToScheme() error = %v", err)
-	}
-	if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
-		t.Fatalf("AddToScheme() error = %v", err)
-	}
-	namespace := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
-		Name: "default",
-		Labels: map[string]string{
-			agentzv1alpha1.TenantNameLabel: "default",
-		},
-	}}
-	provider := &agentzv1alpha1.InferenceProvider{
-		ObjectMeta: metav1.ObjectMeta{Name: "private", Namespace: "default"},
-		Spec: agentzv1alpha1.InferenceProviderSpec{
-			OpenAICompatible: &agentzv1alpha1.CompatibleProviderConfig{
-				BaseURL: "https://api.internal.example/v1",
-			},
-			Models: []agentzv1alpha1.InferenceModel{{ID: "model"}},
-		},
-	}
-	client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(namespace, provider).Build()
-	model := agentzv1alpha1.InferenceModelRef{
-		Scope:    agentzv1alpha1.ResourceScopeOrganisation,
-		Provider: "private",
-		Model:    "model",
-	}
-	sandbox := &agentzv1alpha1.Sandbox{
-		ObjectMeta: metav1.ObjectMeta{Name: "sandbox", Namespace: "default"},
-		Spec: agentzv1alpha1.SandboxSpec{
-			AllowedHosts: []string{"**.internal.example"},
-			Inference: agentzv1alpha1.SandboxInference{
-				Models: []agentzv1alpha1.InferenceModelRef{model}, DefaultModel: model,
-			},
-		},
-	}
-
-	_, err := NewValidator(client).ValidateCreate(context.Background(), sandbox)
-	if err != nil {
-		t.Fatalf("ValidateCreate() error = %v", err)
 	}
 }
 

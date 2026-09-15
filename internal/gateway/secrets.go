@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/util/retry"
 
+	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	"github.com/accuknox/agentz/internal/oauth"
@@ -38,17 +39,17 @@ var secretKeyPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, params gatewayapi.PutSecretParams) {
 	claims, apiErr := externalWorkspaceClaims(r.Context())
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	tenant, err := tenantObject(r.Context())
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
@@ -65,14 +66,14 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agtName gate
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if !exists {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusNotFound,
 				"not_found",
 				"agent not found",
@@ -89,7 +90,7 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agtName gate
 
 	secret, record, apiErr := s.secretFromRequest(ns, tenant, name, req)
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	secret.Spec.ResourceAudit = agentzv1alpha1.ResourceAudit{
@@ -107,26 +108,27 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agtName gate
 			secret.Spec.Hosts,
 		)
 		if apiErr != nil {
-			writeError(w, r, apiErr)
+			apiutil.WriteError(w, r, apiErr)
 			return
 		}
 	}
 
 	if err := s.putAgentSecretRuntime(r.Context(), ns, name, secret.Spec.Key, record); err != nil {
-		writeError(w, r, mapOpenBaoError(err))
+		apiutil.WriteError(w, r, mapOpenBaoError(err))
 		return
 	}
 
 	if err := s.k8sClient.Create(r.Context(), secret); err != nil {
 		_ = s.deleteAgentSecretRuntime(r.Context(), ns, name, secret.Spec.Key)
-		writeError(w, r, mapKubeHTTPError("create secret", err))
+		apiutil.WriteError(w, r, mapKubeHTTPError("create secret", err))
 		return
 	}
 
-	if err := s.syncAgentEnv(r.Context(), name, claims.UserID, []string{secret.Spec.Key}, nil); err != nil {
+	err = s.syncAgentEnv(r.Context(), name, claims.UserID, []string{secret.Spec.Key}, nil)
+	if err != nil {
 		_ = s.k8sClient.Delete(r.Context(), secret)
 		_ = s.deleteAgentSecretRuntime(r.Context(), ns, name, secret.Spec.Key)
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
@@ -136,10 +138,10 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agtName gate
 		secret.Spec.LastModifiedByUserID,
 	)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	writeJSON(
+	apiutil.WriteJSON(
 		w,
 		http.StatusCreated,
 		gatewayapi.PutSecretsResponse{
@@ -149,7 +151,7 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agtName gate
 	)
 }
 
-func (s *Service) updateSecretSandboxHosts(ctx context.Context, ns, agtName, userID string, secretHosts []string) (*gatewayapi.SecretWarning, *apiError) {
+func (s *Service) updateSecretSandboxHosts(ctx context.Context, ns, agtName, userID string, secretHosts []string) (*gatewayapi.SecretWarning, *apiutil.APIError) {
 	agt, err := s.resolver.client.AgentzV1alpha1().Agents(ns).Get(
 		ctx,
 		agtName,
@@ -169,7 +171,7 @@ func (s *Service) updateSecretSandboxHosts(ctx context.Context, ns, agtName, use
 
 		parsed, err := sandboxutil.ParseHost(host)
 		if err != nil {
-			return nil, newAPIError(
+			return nil, apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -250,12 +252,12 @@ func (s *Service) updateSecretSandboxHosts(ctx context.Context, ns, agtName, use
 func (s *Service) DeleteSecret(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath) {
 	claims, apiErr := externalWorkspaceClaims(r.Context())
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
@@ -272,14 +274,14 @@ func (s *Service) DeleteSecret(w http.ResponseWriter, r *http.Request, agentName
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if !exists {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusNotFound,
 				"not_found",
 				"agent not found",
@@ -294,10 +296,10 @@ func (s *Service) DeleteSecret(w http.ResponseWriter, r *http.Request, agentName
 		return
 	}
 	if len(req.Keys) == 0 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -310,7 +312,7 @@ func (s *Service) DeleteSecret(w http.ResponseWriter, r *http.Request, agentName
 
 	items, err := s.listAgentSecrets(ns, name)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
@@ -323,10 +325,10 @@ func (s *Service) DeleteSecret(w http.ResponseWriter, r *http.Request, agentName
 	for i, rawKey := range req.Keys {
 		key := strings.TrimSpace(rawKey)
 		if key == "" {
-			writeError(
+			apiutil.WriteError(
 				w,
 				r,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusBadRequest,
 					"invalid_request",
 					"request validation failed",
@@ -344,15 +346,16 @@ func (s *Service) DeleteSecret(w http.ResponseWriter, r *http.Request, agentName
 		if secret == nil {
 			continue
 		}
-		if err := s.k8sClient.Delete(r.Context(), secret); err != nil && !apierrors.IsNotFound(err) {
-			writeError(w, r, mapKubeHTTPError("delete secret", err))
+		err := s.k8sClient.Delete(r.Context(), secret)
+		if err != nil && !apierrors.IsNotFound(err) {
+			apiutil.WriteError(w, r, mapKubeHTTPError("delete secret", err))
 			return
 		}
 		removeKeys = append(removeKeys, secret.Spec.Key)
 	}
 
 	if err := s.syncAgentEnv(r.Context(), name, claims.UserID, nil, removeKeys); err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
@@ -363,7 +366,7 @@ func (s *Service) DeleteSecret(w http.ResponseWriter, r *http.Request, agentName
 func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, params gatewayapi.ListSecretsParams) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
@@ -384,14 +387,14 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if !exists {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusNotFound,
 				"not_found",
 				"agent not found",
@@ -403,10 +406,12 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 
 	items, err := s.listAgentSecrets(ns, name)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
+	descending := params.SortOrder != nil &&
+		*params.SortOrder == gatewayapi.ListSecretsParamsSortOrderDesc
 	slices.SortFunc(
 		items,
 		func(a, b agentzv1alpha1.Secret) int {
@@ -414,8 +419,7 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 			if params.SortBy != nil && *params.SortBy == gatewayapi.ListSecretsParamsSortBySecretSortCreatedAt {
 				order = a.CreationTimestamp.Compare(b.CreationTimestamp.Time)
 			}
-			if params.SortOrder != nil &&
-				*params.SortOrder == gatewayapi.ListSecretsParamsSortOrderDesc {
+			if descending {
 				order = -order
 			}
 			if order != 0 {
@@ -446,7 +450,7 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 	}
 	actors, err := s.resourceActors(r.Context(), userIDs...)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	for _, item := range items[start:end] {
@@ -455,7 +459,7 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 	if end < len(items) {
 		resp.NextPageToken = encodeOffsetToken(end)
 	}
-	writeJSON(w, http.StatusOK, resp)
+	apiutil.WriteJSON(w, http.StatusOK, resp)
 }
 
 // WatchSecrets handles POST /api/secret/{agentName}/watch.
@@ -464,7 +468,7 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 func (s *Service) WatchSecrets(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
@@ -481,14 +485,14 @@ func (s *Service) WatchSecrets(w http.ResponseWriter, r *http.Request, agentName
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if !exists {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusNotFound,
 				"not_found",
 				"agent not found",
@@ -508,10 +512,10 @@ func (s *Service) WatchSecrets(w http.ResponseWriter, r *http.Request, agentName
 		for i, rawKey := range *req.Keys {
 			key := strings.TrimSpace(rawKey)
 			if key == "" {
-				writeError(
+				apiutil.WriteError(
 					w,
 					r,
-					newAPIError(
+					apiutil.NewError(
 						http.StatusBadRequest,
 						"invalid_request",
 						"request validation failed",
@@ -525,10 +529,10 @@ func (s *Service) WatchSecrets(w http.ResponseWriter, r *http.Request, agentName
 				return
 			}
 			if !secretKeyPattern.MatchString(key) {
-				writeError(
+				apiutil.WriteError(
 					w,
 					r,
-					newAPIError(
+					apiutil.NewError(
 						http.StatusBadRequest,
 						"invalid_request",
 						"request validation failed",
@@ -547,7 +551,7 @@ func (s *Service) WatchSecrets(w http.ResponseWriter, r *http.Request, agentName
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		writeInternalError(w, r, errors.New("streaming is unavailable"))
+		apiutil.WriteInternalError(w, r, errors.New("streaming is unavailable"))
 		return
 	}
 
@@ -564,7 +568,7 @@ func (s *Service) WatchSecrets(w http.ResponseWriter, r *http.Request, agentName
 
 		raw, err := json.Marshal(gatewayapi.WatchSecretsEvent{Items: items})
 		if err != nil {
-			recordRequestError(w, "internal_error", err)
+			apiutil.RecordRequestError(w, "internal_error", err)
 			return false
 		}
 		if event != "" {
@@ -588,7 +592,7 @@ func (s *Service) WatchSecrets(w http.ResponseWriter, r *http.Request, agentName
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				return false
 			}
-			recordRequestError(w, "internal_error", err)
+			apiutil.RecordRequestError(w, "internal_error", err)
 			return false
 		}
 
@@ -616,7 +620,7 @@ func (s *Service) WatchSecrets(w http.ResponseWriter, r *http.Request, agentName
 		}
 		actors, err := s.resourceActors(r.Context(), userIDs...)
 		if err != nil {
-			recordRequestError(w, "internal_error", err)
+			apiutil.RecordRequestError(w, "internal_error", err)
 			return false
 		}
 
@@ -701,15 +705,15 @@ func (s *Service) WatchSecrets(w http.ResponseWriter, r *http.Request, agentName
 	}
 }
 
-func (s *Service) secretFromRequest(ns string, tenant *agentzv1alpha1.Tenant, agtName string, req gatewayapi.CreateSecretRequest) (*agentzv1alpha1.Secret, secretstore.Record, *apiError) {
+func (s *Service) secretFromRequest(ns string, tenant *agentzv1alpha1.Tenant, agtName string, req gatewayapi.CreateSecretRequest) (*agentzv1alpha1.Secret, secretstore.Record, *apiutil.APIError) {
 	key := strings.TrimSpace(req.Key)
 	items, err := s.listAgentSecrets(ns, agtName)
 	if err != nil {
-		return nil, nil, newAPIError(http.StatusInternalServerError, "internal_error", "request failed", err)
+		return nil, nil, apiutil.NewError(http.StatusInternalServerError, "internal_error", "request failed", err)
 	}
 	for _, item := range items {
 		if strings.EqualFold(item.Spec.Key, key) {
-			return nil, nil, newAPIError(
+			return nil, nil, apiutil.NewError(
 				http.StatusConflict,
 				"conflict",
 				"secret already exists",
@@ -733,7 +737,7 @@ func (s *Service) secretFromRequest(ns string, tenant *agentzv1alpha1.Tenant, ag
 	switch req.Type {
 	case gatewayapi.SecretType("static"):
 		if req.Value == nil || strings.TrimSpace(*req.Value) == "" {
-			return nil, nil, newAPIError(
+			return nil, nil, apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -752,7 +756,7 @@ func (s *Service) secretFromRequest(ns string, tenant *agentzv1alpha1.Tenant, ag
 		}
 	case gatewayapi.SecretType("oauth"):
 		if req.Oauth == nil {
-			return nil, nil, newAPIError(
+			return nil, nil, apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -837,7 +841,7 @@ func (s *Service) secretFromRequest(ns string, tenant *agentzv1alpha1.Tenant, ag
 		}
 		record = runtimeRecord
 	default:
-		return nil, nil, newAPIError(
+		return nil, nil, apiutil.NewError(
 			http.StatusBadRequest,
 			"invalid_request",
 			"request validation failed",
@@ -1045,11 +1049,16 @@ func (s *Service) syncAgentEnv(ctx context.Context, agentName, userID string, ad
 	)
 }
 
-func mapOpenBaoError(err error) *apiError {
+func mapOpenBaoError(err error) *apiutil.APIError {
 	if errors.Is(err, baoapi.ErrSecretNotFound) {
-		return newAPIError(http.StatusNotFound, "not_found", "secret not found", errors.New("openbao secret not found"))
+		return apiutil.NewError(
+			http.StatusNotFound,
+			"not_found",
+			"secret not found",
+			errors.New("openbao secret not found"),
+		)
 	}
-	return newAPIError(
+	return apiutil.NewError(
 		http.StatusInternalServerError,
 		"internal_error",
 		"request failed",

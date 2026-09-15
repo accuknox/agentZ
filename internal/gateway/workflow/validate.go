@@ -15,6 +15,7 @@ import (
 	"github.com/accuknox/agentz/internal/workflow"
 )
 
+// ValidateLookupRequest checks agent and workflow names used in route lookup.
 func ValidateLookupRequest(agtName string, wfName string) []gatewayapi.FieldError {
 	fields := make([]gatewayapi.FieldError, 0, 2)
 
@@ -52,6 +53,7 @@ func ValidateNodeName(name string) []gatewayapi.FieldError {
 	}}
 }
 
+// ValidateListRequest checks the agent name used to list workflows.
 func ValidateListRequest(agtName string) []gatewayapi.FieldError {
 	if isDNSLabel(agtName, 32) {
 		return nil
@@ -105,6 +107,8 @@ func ValidateDeleteRequest(agtName string, wfNames []string) []gatewayapi.FieldE
 	return fields
 }
 
+// ValidateCreateRequest checks the input contract and connected, acyclic graph.
+//
 //nolint:gocyclo
 func ValidateCreateRequest(agtName string, req gatewayapi.CreateWorkflowRequest) ([]gatewayapi.FieldError, error) {
 	fields := make([]gatewayapi.FieldError, 0)
@@ -169,15 +173,15 @@ func ValidateCreateRequest(agtName string, req gatewayapi.CreateWorkflowRequest)
 		return fields, nil
 	}
 
-	nodeIndex := make(map[string]int, len(req.Nodes))
+	nodeNames := make(map[string]struct{}, len(req.Nodes))
 	inDegree := make(map[string]int, len(req.Nodes))
 	outDegree := make(map[string]int, len(req.Nodes))
 	undirected := make(map[string][]string, len(req.Nodes))
 	adjacency := make(map[string][]string, len(req.Nodes))
 
-	for nodeIndexValue, node := range req.Nodes {
+	for i, node := range req.Nodes {
 		name := node.Name
-		fieldPrefix := "nodes." + strconv.Itoa(nodeIndexValue)
+		fieldPrefix := "nodes." + strconv.Itoa(i)
 		if !isDNSLabel(name, 64) {
 			fields = append(
 				fields,
@@ -188,7 +192,7 @@ func ValidateCreateRequest(agtName string, req gatewayapi.CreateWorkflowRequest)
 			)
 			continue
 		}
-		if _, exists := nodeIndex[name]; exists {
+		if _, exists := nodeNames[name]; exists {
 			fields = append(
 				fields,
 				gatewayapi.FieldError{
@@ -199,7 +203,7 @@ func ValidateCreateRequest(agtName string, req gatewayapi.CreateWorkflowRequest)
 			continue
 		}
 
-		nodeIndex[name] = nodeIndexValue
+		nodeNames[name] = struct{}{}
 		inDegree[name] = 0
 		outDegree[name] = 0
 		adjacency[name] = []string{}
@@ -305,7 +309,7 @@ func ValidateCreateRequest(agtName string, req gatewayapi.CreateWorkflowRequest)
 		source := edge.Source
 		target := edge.Target
 
-		if _, exists := nodeIndex[source]; !exists {
+		if _, exists := nodeNames[source]; !exists {
 			fields = append(
 				fields,
 				gatewayapi.FieldError{
@@ -314,7 +318,7 @@ func ValidateCreateRequest(agtName string, req gatewayapi.CreateWorkflowRequest)
 				},
 			)
 		}
-		if _, exists := nodeIndex[target]; !exists {
+		if _, exists := nodeNames[target]; !exists {
 			fields = append(
 				fields,
 				gatewayapi.FieldError{
@@ -333,15 +337,15 @@ func ValidateCreateRequest(agtName string, req gatewayapi.CreateWorkflowRequest)
 			)
 		}
 
-		if _, sourceExists := nodeIndex[source]; sourceExists {
+		if _, sourceExists := nodeNames[source]; sourceExists {
 			adjacency[source] = append(adjacency[source], target)
 			outDegree[source]++
 		}
-		if _, targetExists := nodeIndex[target]; targetExists {
+		if _, targetExists := nodeNames[target]; targetExists {
 			inDegree[target]++
 		}
-		if _, sourceExists := nodeIndex[source]; sourceExists {
-			if _, targetExists := nodeIndex[target]; !targetExists {
+		if _, sourceExists := nodeNames[source]; sourceExists {
+			if _, targetExists := nodeNames[target]; !targetExists {
 				continue
 			}
 			undirected[source] = append(undirected[source], target)

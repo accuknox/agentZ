@@ -13,17 +13,11 @@ import (
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 )
 
-type apiError = apiutil.APIError
-
-func newAPIError(status int, code string, message string, cause error, fields ...gatewayapi.FieldError) *apiError {
-	return apiutil.NewError(status, code, message, cause, fields...)
-}
-
 func (s *Service) handleRouteError(w http.ResponseWriter, r *http.Request, err error) {
-	writeError(
+	apiutil.WriteError(
 		w,
 		r,
-		newAPIError(
+		apiutil.NewError(
 			http.StatusBadRequest,
 			"invalid_request",
 			"request is invalid",
@@ -32,45 +26,33 @@ func (s *Service) handleRouteError(w http.ResponseWriter, r *http.Request, err e
 	)
 }
 
-func recordRequestError(w http.ResponseWriter, code string, cause error) {
-	apiutil.RecordRequestError(w, code, cause)
-}
-
-func writeInternalError(w http.ResponseWriter, r *http.Request, err error) {
-	apiutil.WriteInternalError(w, r, err)
-}
-
-func writeError(w http.ResponseWriter, r *http.Request, e *apiError) {
-	apiutil.WriteError(w, r, e)
-}
-
-func writeJSON(w http.ResponseWriter, status int, body any) {
-	apiutil.WriteJSON(w, status, body)
-}
-
 func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst any, allowEmpty bool) bool {
-	err := apiutil.DecodeJSONBody(w, r, dst, allowEmpty)
+	err := apiutil.DecodeJSONBody(r, dst, allowEmpty)
 	if err == nil {
 		return true
 	}
-	apiErr, ok := err.(*apiError)
+	apiErr, ok := err.(*apiutil.APIError)
 	if !ok {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return false
 	}
-	writeError(w, r, apiErr)
+	apiutil.WriteError(w, r, apiErr)
 	return false
 }
 
-func mapGatewayStoreError(action string, err error) *apiError {
+func mapGatewayStoreError(action string, err error) *apiutil.APIError {
+	var apiErr *apiutil.APIError
+	if errors.As(err, &apiErr) {
+		return apiErr
+	}
 	if errors.Is(err, pgx.ErrNoRows) {
-		return newAPIError(http.StatusNotFound, "not_found", "session not found", err)
+		return apiutil.NewError(http.StatusNotFound, "not_found", "session not found", err)
 	}
 
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 		if strings.Contains(pgErr.ConstraintName, "agent_name") {
-			return newAPIError(
+			return apiutil.NewError(
 				http.StatusConflict,
 				"conflict",
 				"request conflicts with current state",
@@ -78,19 +60,19 @@ func mapGatewayStoreError(action string, err error) *apiError {
 				gatewayapi.FieldError{Field: "name", Message: "already in-use"},
 			)
 		}
-		return newAPIError(http.StatusConflict, "conflict", action+" conflicts with existing data", err)
+		return apiutil.NewError(http.StatusConflict, "conflict", action+" conflicts with existing data", err)
 	}
 
-	return newAPIError(http.StatusInternalServerError, "internal_error", "request failed", err)
+	return apiutil.NewError(http.StatusInternalServerError, "internal_error", "request failed", err)
 }
 
-func mapKubeHTTPError(action string, err error) *apiError {
+func mapKubeHTTPError(action string, err error) *apiutil.APIError {
 	if apierrors.IsConflict(err) {
-		return newAPIError(http.StatusConflict, "conflict", err.Error(), err)
+		return apiutil.NewError(http.StatusConflict, "conflict", err.Error(), err)
 	}
 	if apierrors.IsAlreadyExists(err) {
 		if action == "create agent" {
-			return newAPIError(
+			return apiutil.NewError(
 				http.StatusConflict,
 				"conflict",
 				"request conflicts with current state",
@@ -98,15 +80,15 @@ func mapKubeHTTPError(action string, err error) *apiError {
 				gatewayapi.FieldError{Field: "name", Message: "already in-use"},
 			)
 		}
-		return newAPIError(http.StatusConflict, "conflict", action+" already exists", err)
+		return apiutil.NewError(http.StatusConflict, "conflict", action+" already exists", err)
 	}
 	if apierrors.IsNotFound(err) {
-		return newAPIError(http.StatusNotFound, "not_found", action+" not found", err)
+		return apiutil.NewError(http.StatusNotFound, "not_found", action+" not found", err)
 	}
 	if apierrors.IsInvalid(err) || apierrors.IsBadRequest(err) {
 		statusErr, ok := err.(apierrors.APIStatus)
 		if !ok || statusErr.Status().Details == nil {
-			return newAPIError(http.StatusBadRequest, "invalid_request", action+" is invalid", err)
+			return apiutil.NewError(http.StatusBadRequest, "invalid_request", action+" is invalid", err)
 		}
 
 		fields := make([]gatewayapi.FieldError, 0, len(statusErr.Status().Details.Causes))
@@ -123,10 +105,10 @@ func mapKubeHTTPError(action string, err error) *apiError {
 			)
 		}
 		if len(fields) == 0 {
-			return newAPIError(http.StatusBadRequest, "invalid_request", action+" is invalid", err)
+			return apiutil.NewError(http.StatusBadRequest, "invalid_request", action+" is invalid", err)
 		}
 
-		return newAPIError(
+		return apiutil.NewError(
 			http.StatusBadRequest,
 			"invalid_request",
 			"request validation failed",
@@ -135,5 +117,5 @@ func mapKubeHTTPError(action string, err error) *apiError {
 		)
 	}
 
-	return newAPIError(http.StatusInternalServerError, "internal_error", "request failed", err)
+	return apiutil.NewError(http.StatusInternalServerError, "internal_error", "request failed", err)
 }

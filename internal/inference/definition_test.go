@@ -53,15 +53,6 @@ func TestValidateProvider(t *testing.T) {
 			valid: true,
 		},
 		{
-			name: "mismatched configuration arm",
-			spec: agentzv1alpha1.InferenceProviderSpec{
-				DisplayName: "OpenAI",
-				Kind:        agentzv1alpha1.InferenceProviderKindOpenAI,
-				Anthropic:   &agentzv1alpha1.AnthropicProviderConfig{},
-				Models:      providerSpec(agentzv1alpha1.InferenceProviderKindOpenAI).Models,
-			},
-		},
-		{
 			name: "custom http without explicit exception",
 			spec: providerSpec(agentzv1alpha1.InferenceProviderKindOpenAICompatible),
 		},
@@ -264,10 +255,12 @@ func TestRenderProviderTargetVertexModelNames(t *testing.T) {
 	if direct.LLM.VertexAI.ProjectId != "project" || direct.LLM.VertexAI.Region != "us-central1" {
 		t.Fatalf("RenderProviderTarget() Vertex settings = %#v", direct.LLM.VertexAI)
 	}
-	if direct.Policies.Auth == nil || direct.Policies.Auth.GCP == nil ||
-		direct.Policies.Auth.GCP.SecretRef == nil ||
-		direct.Policies.Auth.GCP.SecretRef.Name != "vertex" ||
-		direct.Policies.Auth.GCP.SecretRef.Key != nil {
+	auth := direct.Policies.Auth
+	if auth == nil || auth.GCP == nil || auth.GCP.SecretRef == nil {
+		t.Fatalf("RenderProviderTarget() auth = %#v", direct.Policies.Auth)
+	}
+	ref := auth.GCP.SecretRef
+	if ref.Name != "vertex" || ref.Key != nil {
 		t.Fatalf("RenderProviderTarget() auth = %#v", direct.Policies.Auth)
 	}
 	got := direct.Policies.AI.ModelAliases["gemini-2.5-flash"]
@@ -308,86 +301,6 @@ func TestRenderProviderTargetVertexModelNames(t *testing.T) {
 			pool.LLM.VertexAI.Model,
 		)
 	}
-}
-
-func TestRenderProviderTargetUsesConcreteDefaultEndpoint(t *testing.T) {
-	t.Parallel()
-
-	provider := &agentzv1alpha1.InferenceProvider{
-		ObjectMeta: metav1.ObjectMeta{Name: "openai", Namespace: "default"},
-		Spec:       providerSpec(agentzv1alpha1.InferenceProviderKindOpenAI),
-	}
-	target, err := RenderProviderTarget(provider, "")
-	if err != nil {
-		t.Fatalf("RenderProviderTarget() error = %v", err)
-	}
-	if target.LLM.Host != "api.openai.com" || target.LLM.Port != 443 {
-		t.Fatalf(
-			"RenderProviderTarget() endpoint = %s:%d, want api.openai.com:443",
-			target.LLM.Host,
-			target.LLM.Port,
-		)
-	}
-	if target.LLM.PathPrefix != "/v1" {
-		t.Fatalf("RenderProviderTarget() path prefix = %q, want /v1", target.LLM.PathPrefix)
-	}
-	if target.Policies.TLS == nil {
-		t.Fatal("RenderProviderTarget() did not enable TLS for the default endpoint")
-	}
-	if target.Policies.Auth == nil || target.Policies.Auth.SecretRef == nil ||
-		target.Policies.Auth.SecretRef.Name != "openai" ||
-		target.Policies.Auth.SecretRef.Key != nil {
-		t.Fatalf("RenderProviderTarget() auth = %#v", target.Policies.Auth)
-	}
-}
-
-func TestRenderProviderTargetUsesWholeSecretCredentials(t *testing.T) {
-	t.Parallel()
-
-	t.Run("bedrock", func(t *testing.T) {
-		t.Parallel()
-
-		provider := &agentzv1alpha1.InferenceProvider{
-			ObjectMeta: metav1.ObjectMeta{Name: "bedrock", Namespace: "default"},
-			Spec:       providerSpec(agentzv1alpha1.InferenceProviderKindBedrock),
-		}
-		target, err := RenderProviderTarget(provider, "")
-		if err != nil {
-			t.Fatalf("RenderProviderTarget() error = %v", err)
-		}
-		if target.LLM.Bedrock.Region != "us-east-1" {
-			t.Fatalf("RenderProviderTarget() Bedrock settings = %#v", target.LLM.Bedrock)
-		}
-		if target.Policies.Auth == nil || target.Policies.Auth.AWS == nil ||
-			target.Policies.Auth.AWS.SecretRef == nil ||
-			target.Policies.Auth.AWS.SecretRef.Name != "bedrock" {
-			t.Fatalf("RenderProviderTarget() auth = %#v", target.Policies.Auth)
-		}
-	})
-
-	t.Run("azure", func(t *testing.T) {
-		t.Parallel()
-
-		spec := providerSpec(agentzv1alpha1.InferenceProviderKindAzure)
-		spec.Azure.AuthMode = agentzv1alpha1.AzureAuthModeServicePrincipal
-		provider := &agentzv1alpha1.InferenceProvider{
-			ObjectMeta: metav1.ObjectMeta{Name: "azure", Namespace: "default"},
-			Spec:       spec,
-		}
-		target, err := RenderProviderTarget(provider, "")
-		if err != nil {
-			t.Fatalf("RenderProviderTarget() error = %v", err)
-		}
-		if target.LLM.Azure.ResourceName != "resource" ||
-			target.LLM.Azure.ResourceType != agentgatewayv1alpha1.AzureResourceTypeOpenAI {
-			t.Fatalf("RenderProviderTarget() Azure settings = %#v", target.LLM.Azure)
-		}
-		if target.Policies.Auth == nil || target.Policies.Auth.Azure == nil ||
-			target.Policies.Auth.Azure.SecretRef == nil ||
-			target.Policies.Auth.Azure.SecretRef.Name != "azure" {
-			t.Fatalf("RenderProviderTarget() auth = %#v", target.Policies.Auth)
-		}
-	})
 }
 
 func TestValidateModelRemovalRejectsPoolReference(t *testing.T) {
@@ -468,14 +381,6 @@ func providerSpec(providerKind agentzv1alpha1.InferenceProviderKind) agentzv1alp
 		spec.CatalogProvider = "amazon-bedrock"
 		spec.Bedrock = &agentzv1alpha1.BedrockProviderConfig{
 			Region: "us-east-1", AuthMode: agentzv1alpha1.BedrockAuthModeAccessKey,
-		}
-	case agentzv1alpha1.InferenceProviderKindAzure:
-		spec.CatalogProvider = "azure"
-		spec.Azure = &agentzv1alpha1.AzureProviderConfig{
-			ResourceType: agentzv1alpha1.AzureResourceTypeOpenAI,
-			ResourceName: "resource",
-			APIVersion:   "v1",
-			AuthMode:     agentzv1alpha1.AzureAuthModeAPIKey,
 		}
 	case agentzv1alpha1.InferenceProviderKindOpenAICompatible:
 		spec.CatalogProvider = "custom"

@@ -1,4 +1,7 @@
+import { getCodingThread } from "@/lib/gateway/client"
+import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import type { Metadata } from "next"
+import Link from "next/link"
 import { notFound } from "next/navigation"
 import { Suspense } from "react"
 import { ChatShell } from "@/components/blocks/chat/chat-shell"
@@ -22,6 +25,13 @@ export async function generateMetadata({ params }: ChatPageProps): Promise<Metad
   let sessionTitle = sessionId
 
   if (scope.kind === "ready") {
+    if (scope.workspace.type === "coding") {
+      const coding = await getCodingThread({
+        client: getGatewayServerClient(scope.workspace.id),
+        path: { agentName, sessionId },
+      })
+      if (coding.error) notFound()
+    }
     const client = await createAgentOpencodeClient(agentName, {
       workspaceId: scope.workspace.id,
     })
@@ -50,6 +60,15 @@ async function ChatPageContent({ params }: ChatPageProps) {
   if (scope.kind !== "ready") {
     notFound()
   }
+  const coding =
+    scope.workspace.type === "coding"
+      ? await getCodingThread({
+          client: getGatewayServerClient(scope.workspace.id),
+          path: { agentName, sessionId },
+        })
+      : undefined
+
+  if (coding?.error) notFound()
   const client = await createAgentOpencodeClient(agentName, { workspaceId: scope.workspace.id })
   const session = await client.session.get({ path: { id: sessionId } })
   const title = session.data?.title?.trim() || sessionId
@@ -57,6 +76,18 @@ async function ChatPageContent({ params }: ChatPageProps) {
   return (
     <main className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden p-0">
       <ChatShell
+        codingThread={coding?.data}
+        headerContext={
+          coding?.data ? (
+            <Link
+              href={`/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}/sessions/new?${new URLSearchParams({ project: coding.data.worktree.project_id, agent: agentName })}`}
+              className="hover:text-foreground transition-colors"
+              title={coding.data.repository}
+            >
+              {coding.data.repository}
+            </Link>
+          ) : undefined
+        }
         agentName={agentName}
         sessionId={sessionId}
         title={title}

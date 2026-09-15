@@ -17,4 +17,5 @@ var philosophyTemplate = template.Must(template.New("philosophy").Parse(agentPhi
 
 type philosophyData struct {
 	AgentName string
+	Coding    bool
 }

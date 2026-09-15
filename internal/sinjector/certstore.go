@@ -26,6 +26,7 @@ func newCertStore(limit int) *certStore {
 	}
 }
 
+// Get returns the cached leaf certificate or generates and caches one.
 func (s *certStore) Get(hostname string, gen func() (*tls.Certificate, error)) (*tls.Certificate, error) {
 	s.mu.Lock()
 	if elem, ok := s.items[hostname]; ok {

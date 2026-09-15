@@ -9,15 +9,24 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
+type effectiveRequestsCase struct {
+	name      string
+	resources corev1.ResourceRequirements
+	cpu       string
+	memory    string
+}
+
+type resourcesCase struct {
+	name         string
+	qos          corev1.PodQOSClass
+	wantRequests bool
+	wantLimits   bool
+}
+
 func TestEffectiveRequests(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name      string
-		resources corev1.ResourceRequirements
-		cpu       string
-		memory    string
-	}{
+	tests := []effectiveRequestsCase{
 		{
 			name: "requests",
 			resources: corev1.ResourceRequirements{Requests: corev1.ResourceList{
@@ -84,12 +93,7 @@ func TestResources(t *testing.T) {
 		CPU:    resource.MustParse("500m"),
 		Memory: resource.MustParse("800Mi"),
 	}
-	tests := []struct {
-		name         string
-		qos          corev1.PodQOSClass
-		wantRequests bool
-		wantLimits   bool
-	}{
+	tests := []resourcesCase{
 		{name: "guaranteed", qos: corev1.PodQOSGuaranteed, wantRequests: true, wantLimits: true},
 		{name: "burstable", qos: corev1.PodQOSBurstable, wantRequests: true},
 		{name: "best effort", qos: corev1.PodQOSBestEffort},

@@ -94,10 +94,12 @@ func (s *Service) runProbeQueue(ctx context.Context) {
 				s.probeTimesMu.Lock()
 				s.probeTimes[name] = outcome.lastProbeTime.Time
 				s.probeTimesMu.Unlock()
-				if writeErr := s.writeMCPProbeStatus(ctx, conn.Namespace, conn.Name, outcome); writeErr != nil {
-					return nil, writeErr
-				}
-				return nil, nil
+				return nil, s.writeMCPProbeStatus(
+					ctx,
+					conn.Namespace,
+					conn.Name,
+					outcome,
+				)
 			},
 		)
 		s.probeQueue.Done(name)
@@ -463,9 +465,9 @@ func setProbeErrorCondition(conn *agentzv1alpha1.MCPConnection, typ string, acti
 	})
 }
 
+// RoundTrip adds connection credentials and records the probe response.
 func (rt *probeRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	clone := req.Clone(req.Context())
-	clone.Header = clone.Header.Clone()
 
 	var reqBody []byte
 	if req.Body != nil {

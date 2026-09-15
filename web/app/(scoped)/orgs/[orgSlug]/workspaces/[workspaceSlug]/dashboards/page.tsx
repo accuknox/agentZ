@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { notFound } from "next/navigation"
 import { Suspense, type ComponentProps } from "react"
 import * as z from "zod"
 import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
@@ -40,7 +41,7 @@ async function DashboardContent({
 }: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/dashboards">) {
   const route = await params
   const scope = await getWorkspaceScope(route.orgSlug, route.workspaceSlug)
-  if (scope.kind !== "ready") return <AdministrationState kind="forbidden" />
+  if (scope.kind !== "ready" || scope.workspace.type === "coding") notFound()
   const parsed = searchSchema.safeParse(await searchParams)
   const search = parsed.success ? parsed.data : {}
   const listed = await listDashboardsCachedQuery(scope.workspace.id)

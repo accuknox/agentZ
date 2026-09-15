@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -44,6 +45,48 @@ func (q *Queries) GatewayAddAgentShareGrant(ctx context.Context, arg GatewayAddA
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const gatewayAdoptCodingWorktree = `-- name: GatewayAdoptCodingWorktree :one
+INSERT INTO coding_worktrees(id, workspace_id, project_id, agent_name, directory, branch, ready, shared)
+VALUES ($1, $2, $3, $4, $5, $6, true, true)
+ON CONFLICT (workspace_id, agent_name, directory) DO UPDATE SET branch = EXCLUDED.branch
+WHERE coding_worktrees.project_id = EXCLUDED.project_id AND NOT coding_worktrees.deleting
+RETURNING id, workspace_id, project_id, agent_name, directory, branch, ready, shared, deleting, created_at
+`
+
+type GatewayAdoptCodingWorktreeParams struct {
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspace_id"`
+	ProjectID   string `json:"project_id"`
+	AgentName   string `json:"agent_name"`
+	Directory   string `json:"directory"`
+	Branch      string `json:"branch"`
+}
+
+func (q *Queries) GatewayAdoptCodingWorktree(ctx context.Context, arg GatewayAdoptCodingWorktreeParams) (CodingWorktree, error) {
+	row := q.db.QueryRow(ctx, gatewayAdoptCodingWorktree,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.ProjectID,
+		arg.AgentName,
+		arg.Directory,
+		arg.Branch,
+	)
+	var i CodingWorktree
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.ProjectID,
+		&i.AgentName,
+		&i.Directory,
+		&i.Branch,
+		&i.Ready,
+		&i.Shared,
+		&i.Deleting,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const gatewayAgentExists = `-- name: GatewayAgentExists :one
@@ -113,6 +156,55 @@ func (q *Queries) GatewayAssignWorkspaceAdmins(ctx context.Context, arg GatewayA
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const gatewayBindCodingSession = `-- name: GatewayBindCodingSession :exec
+WITH binding AS (
+  INSERT INTO coding_threads(id, workspace_id, agent_name, worktree_id, session_id)
+  VALUES ($2, $3, $4, $1, $5)
+  ON CONFLICT (workspace_id, agent_name, session_id) DO NOTHING
+  RETURNING worktree_id
+)
+UPDATE coding_worktrees SET shared = true
+WHERE id IN (SELECT worktree_id FROM binding)
+  AND EXISTS (SELECT 1 FROM coding_threads thread WHERE thread.worktree_id = $1)
+`
+
+type GatewayBindCodingSessionParams struct {
+	WorktreeID  string      `json:"worktree_id"`
+	ID          string      `json:"id"`
+	WorkspaceID string      `json:"workspace_id"`
+	AgentName   string      `json:"agent_name"`
+	SessionID   pgtype.Text `json:"session_id"`
+}
+
+func (q *Queries) GatewayBindCodingSession(ctx context.Context, arg GatewayBindCodingSessionParams) error {
+	_, err := q.db.Exec(ctx, gatewayBindCodingSession,
+		arg.WorktreeID,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.SessionID,
+	)
+	return err
+}
+
+const gatewayChatInputsStopping = `-- name: GatewayChatInputsStopping :one
+SELECT EXISTS (SELECT 1 FROM chat_input_sessions WHERE workspace_id = $1
+  AND agent_name = $2 AND session_id = $3 AND stopping)::boolean
+`
+
+type GatewayChatInputsStoppingParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	SessionID   string `json:"session_id"`
+}
+
+func (q *Queries) GatewayChatInputsStopping(ctx context.Context, arg GatewayChatInputsStoppingParams) (bool, error) {
+	row := q.db.QueryRow(ctx, gatewayChatInputsStopping, arg.WorkspaceID, arg.AgentName, arg.SessionID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const gatewayClaimCleanupJob = `-- name: GatewayClaimCleanupJob :one
@@ -188,6 +280,64 @@ func (q *Queries) GatewayClaimCleanupJob(ctx context.Context, arg GatewayClaimCl
 	return i, err
 }
 
+const gatewayClaimCodingOperation = `-- name: GatewayClaimCodingOperation :one
+UPDATE coding_operations SET lease_token = $1, lease_until = now() + interval '60 seconds',
+result = jsonb_set(result, '{state}', '"running"')
+WHERE id = (SELECT queued.id FROM coding_operations queued WHERE queued.result->>'state' = 'queued'
+AND NOT EXISTS (SELECT 1 FROM coding_operations running WHERE running.project_id = queued.project_id
+AND running.result->>'state' = 'running')
+ORDER BY queued.created_at FOR UPDATE OF queued SKIP LOCKED LIMIT 1)
+RETURNING id, workspace_id, organization_id, owner_id, project_id, worktree_id, request, result, lease_token, lease_until, created_at
+`
+
+func (q *Queries) GatewayClaimCodingOperation(ctx context.Context, leaseToken string) (CodingOperation, error) {
+	row := q.db.QueryRow(ctx, gatewayClaimCodingOperation, leaseToken)
+	var i CodingOperation
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.ProjectID,
+		&i.WorktreeID,
+		&i.Request,
+		&i.Result,
+		&i.LeaseToken,
+		&i.LeaseUntil,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const gatewayClaimCodingSnapshot = `-- name: GatewayClaimCodingSnapshot :one
+UPDATE coding_snapshots SET lease_until = now() + interval '150 seconds'
+WHERE (project_id, agent_name, worktree_id) = (
+SELECT project_id, agent_name, worktree_id FROM coding_snapshots
+WHERE next_refresh <= now() AND lease_until <= now()
+ORDER BY next_refresh FOR UPDATE SKIP LOCKED LIMIT 1)
+RETURNING project_id, agent_name, worktree_id, result, demand_until, next_refresh, github_retry_after, next_remote, lease_until, failures, generation, remote_refs
+`
+
+func (q *Queries) GatewayClaimCodingSnapshot(ctx context.Context) (CodingSnapshot, error) {
+	row := q.db.QueryRow(ctx, gatewayClaimCodingSnapshot)
+	var i CodingSnapshot
+	err := row.Scan(
+		&i.ProjectID,
+		&i.AgentName,
+		&i.WorktreeID,
+		&i.Result,
+		&i.DemandUntil,
+		&i.NextRefresh,
+		&i.GithubRetryAfter,
+		&i.NextRemote,
+		&i.LeaseUntil,
+		&i.Failures,
+		&i.Generation,
+		&i.RemoteRefs,
+	)
+	return i, err
+}
+
 const gatewayClearAgentChatPreferences = `-- name: GatewayClearAgentChatPreferences :exec
 UPDATE workspace_chat_preferences
 SET
@@ -215,6 +365,77 @@ type GatewayClearAgentChatPreferencesParams struct {
 func (q *Queries) GatewayClearAgentChatPreferences(ctx context.Context, arg GatewayClearAgentChatPreferencesParams) error {
 	_, err := q.db.Exec(ctx, gatewayClearAgentChatPreferences, arg.AgentName, arg.WorkspaceID)
 	return err
+}
+
+const gatewayCodingConnection = `-- name: GatewayCodingConnection :one
+SELECT user_id, github_user_id, login, access_token, refresh_token, expires_at, refresh_expires_at, created_at FROM github_connections WHERE user_id = $1
+`
+
+func (q *Queries) GatewayCodingConnection(ctx context.Context, userID string) (GithubConnection, error) {
+	row := q.db.QueryRow(ctx, gatewayCodingConnection, userID)
+	var i GithubConnection
+	err := row.Scan(
+		&i.UserID,
+		&i.GithubUserID,
+		&i.Login,
+		&i.AccessToken,
+		&i.RefreshToken,
+		&i.ExpiresAt,
+		&i.RefreshExpiresAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const gatewayCodingCooldown = `-- name: GatewayCodingCooldown :one
+SELECT COALESCE(max(github_retry_after), 'epoch'::timestamptz)::timestamptz AS retry_after
+FROM coding_snapshots s JOIN coding_projects p ON p.id = s.project_id WHERE p.owner_id = $1
+`
+
+func (q *Queries) GatewayCodingCooldown(ctx context.Context, ownerID string) (time.Time, error) {
+	row := q.db.QueryRow(ctx, gatewayCodingCooldown, ownerID)
+	var retry_after time.Time
+	err := row.Scan(&retry_after)
+	return retry_after, err
+}
+
+const gatewayCodingProjectIdentity = `-- name: GatewayCodingProjectIdentity :one
+SELECT coding_projects.id, coding_projects.workspace_id, coding_projects.owner_id, coding_projects.name, coding_projects.repository_id, coding_projects.repository, coding_projects.last_agent_name, coding_projects.default_branch, coding_projects.created_at, workspaces.organization_id FROM coding_projects
+JOIN workspaces ON workspaces.id = coding_projects.workspace_id WHERE coding_projects.id = $1
+`
+
+type GatewayCodingProjectIdentityRow struct {
+	CodingProject  CodingProject `json:"coding_project"`
+	OrganizationID string        `json:"organization_id"`
+}
+
+func (q *Queries) GatewayCodingProjectIdentity(ctx context.Context, id string) (GatewayCodingProjectIdentityRow, error) {
+	row := q.db.QueryRow(ctx, gatewayCodingProjectIdentity, id)
+	var i GatewayCodingProjectIdentityRow
+	err := row.Scan(
+		&i.CodingProject.ID,
+		&i.CodingProject.WorkspaceID,
+		&i.CodingProject.OwnerID,
+		&i.CodingProject.Name,
+		&i.CodingProject.RepositoryID,
+		&i.CodingProject.Repository,
+		&i.CodingProject.LastAgentName,
+		&i.CodingProject.DefaultBranch,
+		&i.CodingProject.CreatedAt,
+		&i.OrganizationID,
+	)
+	return i, err
+}
+
+const gatewayCodingWorktreeBound = `-- name: GatewayCodingWorktreeBound :one
+SELECT EXISTS(SELECT 1 FROM coding_threads WHERE coding_threads.worktree_id = $1)
+`
+
+func (q *Queries) GatewayCodingWorktreeBound(ctx context.Context, worktreeID string) (bool, error) {
+	row := q.db.QueryRow(ctx, gatewayCodingWorktreeBound, worktreeID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const gatewayCompleteCleanupJob = `-- name: GatewayCompleteCleanupJob :execrows
@@ -416,6 +637,200 @@ func (q *Queries) GatewayCreateAgentShare(ctx context.Context, arg GatewayCreate
 	return i, err
 }
 
+const gatewayCreateChatInput = `-- name: GatewayCreateChatInput :one
+INSERT INTO chat_inputs (id, workspace_id, agent_name, session_id,
+  organization_id, author_id, author_name, directory, content, delivery)
+VALUES ($1, $2, $3, $4,
+  $5, $6, $7, $8, $9, $10)
+ON CONFLICT (id) DO UPDATE SET id = chat_inputs.id
+WHERE chat_inputs.workspace_id = EXCLUDED.workspace_id
+  AND chat_inputs.agent_name = EXCLUDED.agent_name
+  AND chat_inputs.session_id = EXCLUDED.session_id
+  AND chat_inputs.author_id = EXCLUDED.author_id
+  AND chat_inputs.content = EXCLUDED.content
+  AND chat_inputs.delivery = EXCLUDED.delivery
+RETURNING id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, message_id, error, created_at, updated_at
+`
+
+type GatewayCreateChatInputParams struct {
+	ID             uuid.UUID `json:"id"`
+	WorkspaceID    string    `json:"workspace_id"`
+	AgentName      string    `json:"agent_name"`
+	SessionID      string    `json:"session_id"`
+	OrganizationID string    `json:"organization_id"`
+	AuthorID       string    `json:"author_id"`
+	AuthorName     string    `json:"author_name"`
+	Directory      string    `json:"directory"`
+	Content        []byte    `json:"content"`
+	Delivery       string    `json:"delivery"`
+}
+
+func (q *Queries) GatewayCreateChatInput(ctx context.Context, arg GatewayCreateChatInputParams) (ChatInput, error) {
+	row := q.db.QueryRow(ctx, gatewayCreateChatInput,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.SessionID,
+		arg.OrganizationID,
+		arg.AuthorID,
+		arg.AuthorName,
+		arg.Directory,
+		arg.Content,
+		arg.Delivery,
+	)
+	var i ChatInput
+	err := row.Scan(
+		&i.ID,
+		&i.Sequence,
+		&i.WorkspaceID,
+		&i.AgentName,
+		&i.SessionID,
+		&i.OrganizationID,
+		&i.AuthorID,
+		&i.AuthorName,
+		&i.Directory,
+		&i.Resume,
+		&i.Content,
+		&i.Delivery,
+		&i.State,
+		&i.Revision,
+		&i.MessageID,
+		&i.Error,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const gatewayCreateCodingOperation = `-- name: GatewayCreateCodingOperation :one
+INSERT INTO coding_operations(id, workspace_id, organization_id, owner_id, project_id, worktree_id, request, result)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+ON CONFLICT (id) DO UPDATE SET id = coding_operations.id
+WHERE coding_operations.owner_id = $4 AND coding_operations.workspace_id = $2
+RETURNING id, workspace_id, organization_id, owner_id, project_id, worktree_id, request, result, lease_token, lease_until, created_at
+`
+
+type GatewayCreateCodingOperationParams struct {
+	ID             string `json:"id"`
+	WorkspaceID    string `json:"workspace_id"`
+	OrganizationID string `json:"organization_id"`
+	OwnerID        string `json:"owner_id"`
+	ProjectID      string `json:"project_id"`
+	WorktreeID     string `json:"worktree_id"`
+	Request        []byte `json:"request"`
+	Result         []byte `json:"result"`
+}
+
+func (q *Queries) GatewayCreateCodingOperation(ctx context.Context, arg GatewayCreateCodingOperationParams) (CodingOperation, error) {
+	row := q.db.QueryRow(ctx, gatewayCreateCodingOperation,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.OrganizationID,
+		arg.OwnerID,
+		arg.ProjectID,
+		arg.WorktreeID,
+		arg.Request,
+		arg.Result,
+	)
+	var i CodingOperation
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.ProjectID,
+		&i.WorktreeID,
+		&i.Request,
+		&i.Result,
+		&i.LeaseToken,
+		&i.LeaseUntil,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const gatewayCreateCodingProject = `-- name: GatewayCreateCodingProject :one
+INSERT INTO coding_projects(id, workspace_id, owner_id, name, repository_id, repository, default_branch)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, workspace_id, owner_id, name, repository_id, repository, last_agent_name, default_branch, created_at
+`
+
+type GatewayCreateCodingProjectParams struct {
+	ID            string `json:"id"`
+	WorkspaceID   string `json:"workspace_id"`
+	OwnerID       string `json:"owner_id"`
+	Name          string `json:"name"`
+	RepositoryID  int64  `json:"repository_id"`
+	Repository    string `json:"repository"`
+	DefaultBranch string `json:"default_branch"`
+}
+
+func (q *Queries) GatewayCreateCodingProject(ctx context.Context, arg GatewayCreateCodingProjectParams) (CodingProject, error) {
+	row := q.db.QueryRow(ctx, gatewayCreateCodingProject,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.OwnerID,
+		arg.Name,
+		arg.RepositoryID,
+		arg.Repository,
+		arg.DefaultBranch,
+	)
+	var i CodingProject
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.OwnerID,
+		&i.Name,
+		&i.RepositoryID,
+		&i.Repository,
+		&i.LastAgentName,
+		&i.DefaultBranch,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const gatewayCreateCodingWorktree = `-- name: GatewayCreateCodingWorktree :one
+INSERT INTO coding_worktrees(id, workspace_id, project_id, agent_name, directory, branch)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (id) DO NOTHING
+RETURNING id, workspace_id, project_id, agent_name, directory, branch, ready, shared, deleting, created_at
+`
+
+type GatewayCreateCodingWorktreeParams struct {
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspace_id"`
+	ProjectID   string `json:"project_id"`
+	AgentName   string `json:"agent_name"`
+	Directory   string `json:"directory"`
+	Branch      string `json:"branch"`
+}
+
+func (q *Queries) GatewayCreateCodingWorktree(ctx context.Context, arg GatewayCreateCodingWorktreeParams) (CodingWorktree, error) {
+	row := q.db.QueryRow(ctx, gatewayCreateCodingWorktree,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.ProjectID,
+		arg.AgentName,
+		arg.Directory,
+		arg.Branch,
+	)
+	var i CodingWorktree
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.ProjectID,
+		&i.AgentName,
+		&i.Directory,
+		&i.Branch,
+		&i.Ready,
+		&i.Shared,
+		&i.Deleting,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const gatewayCreateEventTrailEvent = `-- name: GatewayCreateEventTrailEvent :one
 INSERT INTO event_trail_events(
   id,
@@ -518,6 +933,7 @@ WITH created AS (
     name,
     slug,
     namespace,
+    type,
     state,
     provisioning_attempt
   )
@@ -527,10 +943,11 @@ WITH created AS (
     $3,
     $4,
     $5,
+    $6,
     'provisioning',
     1
   )
-  RETURNING id, organization_id, name, slug, namespace, state, provisioning_attempt, failure_reason, deleted_at, created_at, updated_at
+  RETURNING id, organization_id, name, slug, namespace, type, state, provisioning_attempt, failure_reason, deleted_at, created_at, updated_at
 )
 INSERT INTO workspace_slug_history(organization_id, workspace_id, slug)
 SELECT organization_id, id, slug
@@ -538,11 +955,12 @@ FROM created
 `
 
 type GatewayCreateWorkspaceParams struct {
-	ID             string `json:"id"`
-	OrganizationID string `json:"organization_id"`
-	Name           string `json:"name"`
-	Slug           string `json:"slug"`
-	Namespace      string `json:"namespace"`
+	ID             string        `json:"id"`
+	OrganizationID string        `json:"organization_id"`
+	Name           string        `json:"name"`
+	Slug           string        `json:"slug"`
+	Namespace      string        `json:"namespace"`
+	Type           WorkspaceType `json:"type"`
 }
 
 func (q *Queries) GatewayCreateWorkspace(ctx context.Context, arg GatewayCreateWorkspaceParams) error {
@@ -552,6 +970,7 @@ func (q *Queries) GatewayCreateWorkspace(ctx context.Context, arg GatewayCreateW
 		arg.Name,
 		arg.Slug,
 		arg.Namespace,
+		arg.Type,
 	)
 	return err
 }
@@ -622,6 +1041,21 @@ func (q *Queries) GatewayCreateWorkspaceAdminRole(ctx context.Context, arg Gatew
 	return i, err
 }
 
+const gatewayDelayCodingGitHub = `-- name: GatewayDelayCodingGitHub :exec
+UPDATE coding_snapshots s SET github_retry_after = greatest(s.github_retry_after, $1::timestamptz)
+FROM coding_projects p WHERE p.id = s.project_id AND p.owner_id = $2
+`
+
+type GatewayDelayCodingGitHubParams struct {
+	RetryAfter time.Time `json:"retry_after"`
+	OwnerID    string    `json:"owner_id"`
+}
+
+func (q *Queries) GatewayDelayCodingGitHub(ctx context.Context, arg GatewayDelayCodingGitHubParams) error {
+	_, err := q.db.Exec(ctx, gatewayDelayCodingGitHub, arg.RetryAfter, arg.OwnerID)
+	return err
+}
+
 const gatewayDeleteAgent = `-- name: GatewayDeleteAgent :execrows
 DELETE FROM agents
 WHERE tenant_namespace = $1
@@ -644,13 +1078,17 @@ func (q *Queries) GatewayDeleteAgent(ctx context.Context, arg GatewayDeleteAgent
 const gatewayDeleteAgentChatSessions = `-- name: GatewayDeleteAgentChatSessions :exec
 WITH changed AS (
 DELETE FROM chat_sessions
-WHERE workspace_id = $1
-  AND agent_name = $2
-RETURNING workspace_id
+WHERE chat_sessions.workspace_id = $1
+  AND chat_sessions.agent_name = $2
+RETURNING chat_sessions.workspace_id, chat_sessions.agent_name, chat_sessions.session_id
 )
-SELECT pg_notify('agentz_chat_sessions', workspace_id)
+SELECT pg_notify('agentz_chat_sessions', changed.workspace_id || COALESCE('/' || project.owner_id, ''))
 FROM changed
-GROUP BY workspace_id
+LEFT JOIN coding_threads thread ON thread.workspace_id = changed.workspace_id
+  AND thread.agent_name = changed.agent_name AND thread.session_id = changed.session_id
+LEFT JOIN coding_worktrees tree ON tree.id = thread.worktree_id
+LEFT JOIN coding_projects project ON project.id = tree.project_id
+GROUP BY changed.workspace_id, project.owner_id
 `
 
 type GatewayDeleteAgentChatSessionsParams struct {
@@ -706,25 +1144,109 @@ func (q *Queries) GatewayDeleteAgentShare(ctx context.Context, arg GatewayDelete
 }
 
 const gatewayDeleteChatSession = `-- name: GatewayDeleteChatSession :exec
-WITH changed AS (
-DELETE FROM chat_sessions
-WHERE workspace_id = $1
-  AND agent_name = $2
-  AND session_id = $3
-RETURNING workspace_id
+WITH RECURSIVE descendants(session_id) AS (
+  SELECT $1::text
+  UNION
+  SELECT child.session_id FROM chat_sessions child
+  JOIN descendants parent ON child.parent_session_id = parent.session_id
+  WHERE child.workspace_id = $2 AND child.agent_name = $3
+), deleted_threads AS (
+  DELETE FROM coding_threads
+  WHERE workspace_id = $2 AND agent_name = $3
+    AND session_id IN (SELECT session_id FROM descendants)
+), deleted_traces AS (
+  DELETE FROM observer_traces ot
+  WHERE ot.tenant_namespace = $4
+    AND ot.agent_name = $3 AND ot.trace_id IN (
+      SELECT trace_id FROM observer_trace_sessions
+      WHERE tenant_namespace = $4 AND agent_name = $3
+        AND session_id IN (SELECT session_id FROM descendants)
+    )
+), changed AS (
+  DELETE FROM chat_sessions
+  WHERE workspace_id = $2 AND agent_name = $3
+    AND session_id IN (SELECT session_id FROM descendants)
+  RETURNING workspace_id, agent_name, session_id
 )
-SELECT pg_notify('agentz_chat_sessions', workspace_id)
+SELECT pg_notify('agentz_chat_sessions', changed.workspace_id || COALESCE('/' || project.owner_id, ''))
 FROM changed
+LEFT JOIN coding_threads thread ON thread.workspace_id = changed.workspace_id
+  AND thread.agent_name = changed.agent_name AND thread.session_id = changed.session_id
+LEFT JOIN coding_worktrees tree ON tree.id = thread.worktree_id
+LEFT JOIN coding_projects project ON project.id = tree.project_id
 `
 
 type GatewayDeleteChatSessionParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	AgentName   string `json:"agent_name"`
-	SessionID   string `json:"session_id"`
+	SessionID       pgtype.Text `json:"session_id"`
+	WorkspaceID     string      `json:"workspace_id"`
+	AgentName       string      `json:"agent_name"`
+	TenantNamespace string      `json:"tenant_namespace"`
 }
 
 func (q *Queries) GatewayDeleteChatSession(ctx context.Context, arg GatewayDeleteChatSessionParams) error {
-	_, err := q.db.Exec(ctx, gatewayDeleteChatSession, arg.WorkspaceID, arg.AgentName, arg.SessionID)
+	_, err := q.db.Exec(ctx, gatewayDeleteChatSession,
+		arg.SessionID,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.TenantNamespace,
+	)
+	return err
+}
+
+const gatewayDeleteCodingConversations = `-- name: GatewayDeleteCodingConversations :exec
+WITH changed AS (
+DELETE FROM chat_sessions
+WHERE chat_sessions.workspace_id = $1 AND chat_sessions.agent_name = $2
+AND chat_sessions.session_id IN (SELECT session_id FROM coding_threads WHERE coding_threads.worktree_id = $3)
+RETURNING chat_sessions.workspace_id, chat_sessions.agent_name, chat_sessions.session_id
+)
+SELECT pg_notify('agentz_chat_sessions', changed.workspace_id || COALESCE('/' || project.owner_id, ''))
+FROM changed
+LEFT JOIN coding_threads thread ON thread.workspace_id = changed.workspace_id
+  AND thread.agent_name = changed.agent_name AND thread.session_id = changed.session_id
+LEFT JOIN coding_worktrees tree ON tree.id = thread.worktree_id
+LEFT JOIN coding_projects project ON project.id = tree.project_id
+GROUP BY changed.workspace_id, project.owner_id
+`
+
+type GatewayDeleteCodingConversationsParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	WorktreeID  string `json:"worktree_id"`
+}
+
+func (q *Queries) GatewayDeleteCodingConversations(ctx context.Context, arg GatewayDeleteCodingConversationsParams) error {
+	_, err := q.db.Exec(ctx, gatewayDeleteCodingConversations, arg.WorkspaceID, arg.AgentName, arg.WorktreeID)
+	return err
+}
+
+const gatewayDeleteCodingProject = `-- name: GatewayDeleteCodingProject :execrows
+DELETE FROM coding_projects
+WHERE coding_projects.id = $1 AND coding_projects.workspace_id = $2 AND coding_projects.owner_id = $3
+AND NOT EXISTS (SELECT 1 FROM coding_worktrees WHERE project_id = coding_projects.id)
+`
+
+type GatewayDeleteCodingProjectParams struct {
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspace_id"`
+	OwnerID     string `json:"owner_id"`
+}
+
+func (q *Queries) GatewayDeleteCodingProject(ctx context.Context, arg GatewayDeleteCodingProjectParams) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayDeleteCodingProject, arg.ID, arg.WorkspaceID, arg.OwnerID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const gatewayDeleteCodingWorktree = `-- name: GatewayDeleteCodingWorktree :exec
+WITH deleted AS (DELETE FROM coding_threads WHERE worktree_id = $1)
+DELETE FROM coding_worktrees WHERE coding_worktrees.id = $1
+`
+
+func (q *Queries) GatewayDeleteCodingWorktree(ctx context.Context, id string) error {
+	_, err := q.db.Exec(ctx, gatewayDeleteCodingWorktree, id)
 	return err
 }
 
@@ -739,6 +1261,16 @@ func (q *Queries) GatewayDeleteExpiredEventTrailEvents(ctx context.Context, expi
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const gatewayDeleteOldCodingOperations = `-- name: GatewayDeleteOldCodingOperations :exec
+DELETE FROM coding_operations WHERE created_at < now() - interval '7 days'
+AND result->>'state' NOT IN ('queued', 'running')
+`
+
+func (q *Queries) GatewayDeleteOldCodingOperations(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, gatewayDeleteOldCodingOperations)
+	return err
 }
 
 const gatewayDeleteSessionTraces = `-- name: GatewayDeleteSessionTraces :execrows
@@ -800,6 +1332,20 @@ func (q *Queries) GatewayDeleteWorkspaceInheritedResources(ctx context.Context, 
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const gatewayDeletingCodingWorktree = `-- name: GatewayDeletingCodingWorktree :exec
+UPDATE coding_worktrees SET deleting = $1 WHERE id = $2
+`
+
+type GatewayDeletingCodingWorktreeParams struct {
+	Deleting bool   `json:"deleting"`
+	ID       string `json:"id"`
+}
+
+func (q *Queries) GatewayDeletingCodingWorktree(ctx context.Context, arg GatewayDeletingCodingWorktreeParams) error {
+	_, err := q.db.Exec(ctx, gatewayDeletingCodingWorktree, arg.Deleting, arg.ID)
+	return err
 }
 
 const gatewayFailCleanupJob = `-- name: GatewayFailCleanupJob :execrows
@@ -872,10 +1418,12 @@ SELECT
   api_key_scopes.organization_id,
   api_key_scopes.workspace_id,
   api_key_scopes.creator_user_id,
+  users.name AS creator_user_name,
   api_key_scopes.revoked_at,
   api_key_scopes.revoked_reason,
   api_key_scopes.created_at
 FROM api_key_scopes
+JOIN users ON users.id = api_key_scopes.creator_user_id
 JOIN apikeys ON apikeys.id = api_key_scopes.api_key_id
   AND apikeys.reference_id = api_key_scopes.organization_id
 JOIN workspaces ON workspaces.id = api_key_scopes.workspace_id
@@ -890,14 +1438,26 @@ type GatewayGetAPIKeyScopeByKeyParams struct {
 	OrganizationID string `json:"organization_id"`
 }
 
-func (q *Queries) GatewayGetAPIKeyScopeByKey(ctx context.Context, arg GatewayGetAPIKeyScopeByKeyParams) (ApiKeyScope, error) {
+type GatewayGetAPIKeyScopeByKeyRow struct {
+	ApiKeyID        string             `json:"api_key_id"`
+	OrganizationID  string             `json:"organization_id"`
+	WorkspaceID     string             `json:"workspace_id"`
+	CreatorUserID   string             `json:"creator_user_id"`
+	CreatorUserName string             `json:"creator_user_name"`
+	RevokedAt       pgtype.Timestamptz `json:"revoked_at"`
+	RevokedReason   pgtype.Text        `json:"revoked_reason"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
+func (q *Queries) GatewayGetAPIKeyScopeByKey(ctx context.Context, arg GatewayGetAPIKeyScopeByKeyParams) (GatewayGetAPIKeyScopeByKeyRow, error) {
 	row := q.db.QueryRow(ctx, gatewayGetAPIKeyScopeByKey, arg.ApiKeyID, arg.OrganizationID)
-	var i ApiKeyScope
+	var i GatewayGetAPIKeyScopeByKeyRow
 	err := row.Scan(
 		&i.ApiKeyID,
 		&i.OrganizationID,
 		&i.WorkspaceID,
 		&i.CreatorUserID,
+		&i.CreatorUserName,
 		&i.RevokedAt,
 		&i.RevokedReason,
 		&i.CreatedAt,
@@ -1010,30 +1570,244 @@ func (q *Queries) GatewayGetAgentShare(ctx context.Context, arg GatewayGetAgentS
 	return i, err
 }
 
+const gatewayGetChatInput = `-- name: GatewayGetChatInput :one
+SELECT id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, message_id, error, created_at, updated_at FROM chat_inputs WHERE id = $1 AND workspace_id = $2
+  AND agent_name = $3 AND session_id = $4
+`
+
+type GatewayGetChatInputParams struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID string    `json:"workspace_id"`
+	AgentName   string    `json:"agent_name"`
+	SessionID   string    `json:"session_id"`
+}
+
+func (q *Queries) GatewayGetChatInput(ctx context.Context, arg GatewayGetChatInputParams) (ChatInput, error) {
+	row := q.db.QueryRow(ctx, gatewayGetChatInput,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.SessionID,
+	)
+	var i ChatInput
+	err := row.Scan(
+		&i.ID,
+		&i.Sequence,
+		&i.WorkspaceID,
+		&i.AgentName,
+		&i.SessionID,
+		&i.OrganizationID,
+		&i.AuthorID,
+		&i.AuthorName,
+		&i.Directory,
+		&i.Resume,
+		&i.Content,
+		&i.Delivery,
+		&i.State,
+		&i.Revision,
+		&i.MessageID,
+		&i.Error,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const gatewayGetChatSessionGroup = `-- name: GatewayGetChatSessionGroup :one
-SELECT status, source_updated_at
-FROM chat_sessions
-WHERE workspace_id = $1
-  AND agent_name = $2
-  AND session_id = $3
-  AND parent_session_id IS NULL
+SELECT sessions.status, sessions.source_updated_at, project.id AS project_id
+FROM chat_sessions AS sessions
+LEFT JOIN coding_threads AS coding ON coding.workspace_id = sessions.workspace_id
+  AND coding.agent_name = sessions.agent_name AND coding.session_id = sessions.session_id
+LEFT JOIN coding_worktrees AS tree ON tree.id = coding.worktree_id
+LEFT JOIN coding_projects AS project ON project.id = tree.project_id
+WHERE sessions.workspace_id = $1
+  AND sessions.agent_name = $2
+  AND sessions.session_id = $3
+  AND sessions.parent_session_id IS NULL
+  AND ($4::text IS NULL OR project.owner_id = $4)
 `
 
 type GatewayGetChatSessionGroupParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	AgentName   string `json:"agent_name"`
-	SessionID   string `json:"session_id"`
+	WorkspaceID string      `json:"workspace_id"`
+	AgentName   string      `json:"agent_name"`
+	SessionID   string      `json:"session_id"`
+	OwnerID     pgtype.Text `json:"owner_id"`
 }
 
 type GatewayGetChatSessionGroupRow struct {
 	Status          ChatSessionStatus  `json:"status"`
 	SourceUpdatedAt pgtype.Timestamptz `json:"source_updated_at"`
+	ProjectID       pgtype.Text        `json:"project_id"`
 }
 
 func (q *Queries) GatewayGetChatSessionGroup(ctx context.Context, arg GatewayGetChatSessionGroupParams) (GatewayGetChatSessionGroupRow, error) {
-	row := q.db.QueryRow(ctx, gatewayGetChatSessionGroup, arg.WorkspaceID, arg.AgentName, arg.SessionID)
+	row := q.db.QueryRow(ctx, gatewayGetChatSessionGroup,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.SessionID,
+		arg.OwnerID,
+	)
 	var i GatewayGetChatSessionGroupRow
-	err := row.Scan(&i.Status, &i.SourceUpdatedAt)
+	err := row.Scan(&i.Status, &i.SourceUpdatedAt, &i.ProjectID)
+	return i, err
+}
+
+const gatewayGetCodingOperation = `-- name: GatewayGetCodingOperation :one
+SELECT id, workspace_id, organization_id, owner_id, project_id, worktree_id, request, result, lease_token, lease_until, created_at FROM coding_operations WHERE id = $1 AND workspace_id = $2 AND owner_id = $3
+`
+
+type GatewayGetCodingOperationParams struct {
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspace_id"`
+	OwnerID     string `json:"owner_id"`
+}
+
+func (q *Queries) GatewayGetCodingOperation(ctx context.Context, arg GatewayGetCodingOperationParams) (CodingOperation, error) {
+	row := q.db.QueryRow(ctx, gatewayGetCodingOperation, arg.ID, arg.WorkspaceID, arg.OwnerID)
+	var i CodingOperation
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.ProjectID,
+		&i.WorktreeID,
+		&i.Request,
+		&i.Result,
+		&i.LeaseToken,
+		&i.LeaseUntil,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const gatewayGetCodingProject = `-- name: GatewayGetCodingProject :one
+SELECT id, workspace_id, owner_id, name, repository_id, repository, last_agent_name, default_branch, created_at FROM coding_projects
+WHERE id = $1 AND workspace_id = $2 AND owner_id = $3
+`
+
+type GatewayGetCodingProjectParams struct {
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspace_id"`
+	OwnerID     string `json:"owner_id"`
+}
+
+func (q *Queries) GatewayGetCodingProject(ctx context.Context, arg GatewayGetCodingProjectParams) (CodingProject, error) {
+	row := q.db.QueryRow(ctx, gatewayGetCodingProject, arg.ID, arg.WorkspaceID, arg.OwnerID)
+	var i CodingProject
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.OwnerID,
+		&i.Name,
+		&i.RepositoryID,
+		&i.Repository,
+		&i.LastAgentName,
+		&i.DefaultBranch,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const gatewayGetCodingThread = `-- name: GatewayGetCodingThread :one
+SELECT coding_threads.id, coding_threads.workspace_id, coding_threads.agent_name, coding_threads.worktree_id, coding_threads.session_id, coding_threads.created_at, coding_worktrees.id, coding_worktrees.workspace_id, coding_worktrees.project_id, coding_worktrees.agent_name, coding_worktrees.directory, coding_worktrees.branch, coding_worktrees.ready, coding_worktrees.shared, coding_worktrees.deleting, coding_worktrees.created_at, coding_projects.id, coding_projects.workspace_id, coding_projects.owner_id, coding_projects.name, coding_projects.repository_id, coding_projects.repository, coding_projects.last_agent_name, coding_projects.default_branch, coding_projects.created_at
+FROM coding_threads JOIN coding_worktrees ON coding_worktrees.id = coding_threads.worktree_id
+JOIN coding_projects ON coding_projects.id = coding_worktrees.project_id
+WHERE coding_threads.workspace_id = $1 AND coding_threads.agent_name = $2
+AND (coding_threads.id = $3 OR coding_threads.session_id = $4)
+`
+
+type GatewayGetCodingThreadParams struct {
+	WorkspaceID string      `json:"workspace_id"`
+	AgentName   string      `json:"agent_name"`
+	ID          string      `json:"id"`
+	SessionID   pgtype.Text `json:"session_id"`
+}
+
+type GatewayGetCodingThreadRow struct {
+	CodingThread   CodingThread   `json:"coding_thread"`
+	CodingWorktree CodingWorktree `json:"coding_worktree"`
+	CodingProject  CodingProject  `json:"coding_project"`
+}
+
+func (q *Queries) GatewayGetCodingThread(ctx context.Context, arg GatewayGetCodingThreadParams) (GatewayGetCodingThreadRow, error) {
+	row := q.db.QueryRow(ctx, gatewayGetCodingThread,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.ID,
+		arg.SessionID,
+	)
+	var i GatewayGetCodingThreadRow
+	err := row.Scan(
+		&i.CodingThread.ID,
+		&i.CodingThread.WorkspaceID,
+		&i.CodingThread.AgentName,
+		&i.CodingThread.WorktreeID,
+		&i.CodingThread.SessionID,
+		&i.CodingThread.CreatedAt,
+		&i.CodingWorktree.ID,
+		&i.CodingWorktree.WorkspaceID,
+		&i.CodingWorktree.ProjectID,
+		&i.CodingWorktree.AgentName,
+		&i.CodingWorktree.Directory,
+		&i.CodingWorktree.Branch,
+		&i.CodingWorktree.Ready,
+		&i.CodingWorktree.Shared,
+		&i.CodingWorktree.Deleting,
+		&i.CodingWorktree.CreatedAt,
+		&i.CodingProject.ID,
+		&i.CodingProject.WorkspaceID,
+		&i.CodingProject.OwnerID,
+		&i.CodingProject.Name,
+		&i.CodingProject.RepositoryID,
+		&i.CodingProject.Repository,
+		&i.CodingProject.LastAgentName,
+		&i.CodingProject.DefaultBranch,
+		&i.CodingProject.CreatedAt,
+	)
+	return i, err
+}
+
+const gatewayGetCodingWorktree = `-- name: GatewayGetCodingWorktree :one
+SELECT coding_worktrees.id, coding_worktrees.workspace_id, coding_worktrees.project_id, coding_worktrees.agent_name, coding_worktrees.directory, coding_worktrees.branch, coding_worktrees.ready, coding_worktrees.shared, coding_worktrees.deleting, coding_worktrees.created_at, coding_projects.id, coding_projects.workspace_id, coding_projects.owner_id, coding_projects.name, coding_projects.repository_id, coding_projects.repository, coding_projects.last_agent_name, coding_projects.default_branch, coding_projects.created_at
+FROM coding_worktrees JOIN coding_projects ON coding_projects.id = coding_worktrees.project_id
+WHERE coding_worktrees.id = $1 AND coding_worktrees.workspace_id = $2
+`
+
+type GatewayGetCodingWorktreeParams struct {
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+type GatewayGetCodingWorktreeRow struct {
+	CodingWorktree CodingWorktree `json:"coding_worktree"`
+	CodingProject  CodingProject  `json:"coding_project"`
+}
+
+func (q *Queries) GatewayGetCodingWorktree(ctx context.Context, arg GatewayGetCodingWorktreeParams) (GatewayGetCodingWorktreeRow, error) {
+	row := q.db.QueryRow(ctx, gatewayGetCodingWorktree, arg.ID, arg.WorkspaceID)
+	var i GatewayGetCodingWorktreeRow
+	err := row.Scan(
+		&i.CodingWorktree.ID,
+		&i.CodingWorktree.WorkspaceID,
+		&i.CodingWorktree.ProjectID,
+		&i.CodingWorktree.AgentName,
+		&i.CodingWorktree.Directory,
+		&i.CodingWorktree.Branch,
+		&i.CodingWorktree.Ready,
+		&i.CodingWorktree.Shared,
+		&i.CodingWorktree.Deleting,
+		&i.CodingWorktree.CreatedAt,
+		&i.CodingProject.ID,
+		&i.CodingProject.WorkspaceID,
+		&i.CodingProject.OwnerID,
+		&i.CodingProject.Name,
+		&i.CodingProject.RepositoryID,
+		&i.CodingProject.Repository,
+		&i.CodingProject.LastAgentName,
+		&i.CodingProject.DefaultBranch,
+		&i.CodingProject.CreatedAt,
+	)
 	return i, err
 }
 
@@ -1288,7 +2062,7 @@ func (q *Queries) GatewayGetSpanDetail(ctx context.Context, arg GatewayGetSpanDe
 }
 
 const gatewayGetWorkspace = `-- name: GatewayGetWorkspace :one
-SELECT workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.provisioning_attempt, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at
+SELECT workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.type, workspaces.state, workspaces.provisioning_attempt, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at
 FROM workspaces
 WHERE id = $1
   AND organization_id = $2
@@ -1308,6 +2082,7 @@ func (q *Queries) GatewayGetWorkspace(ctx context.Context, arg GatewayGetWorkspa
 		&i.Name,
 		&i.Slug,
 		&i.Namespace,
+		&i.Type,
 		&i.State,
 		&i.ProvisioningAttempt,
 		&i.FailureReason,
@@ -1347,6 +2122,66 @@ func (q *Queries) GatewayGetWorkspaceChatPreference(ctx context.Context, arg Gat
 	return i, err
 }
 
+const gatewayHeadChatInput = `-- name: GatewayHeadChatInput :one
+SELECT id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, message_id, error, created_at, updated_at FROM chat_inputs
+WHERE workspace_id = $1 AND agent_name = $2 AND session_id = $3
+  AND state IN ('queued', 'sending', 'failed')
+ORDER BY CASE WHEN state = 'sending' OR message_id <> '' AND state = 'failed' THEN 0
+  WHEN delivery = 'steer' AND state = 'queued' THEN 1 ELSE 2 END, sequence
+LIMIT 1
+`
+
+type GatewayHeadChatInputParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	SessionID   string `json:"session_id"`
+}
+
+func (q *Queries) GatewayHeadChatInput(ctx context.Context, arg GatewayHeadChatInputParams) (ChatInput, error) {
+	row := q.db.QueryRow(ctx, gatewayHeadChatInput, arg.WorkspaceID, arg.AgentName, arg.SessionID)
+	var i ChatInput
+	err := row.Scan(
+		&i.ID,
+		&i.Sequence,
+		&i.WorkspaceID,
+		&i.AgentName,
+		&i.SessionID,
+		&i.OrganizationID,
+		&i.AuthorID,
+		&i.AuthorName,
+		&i.Directory,
+		&i.Resume,
+		&i.Content,
+		&i.Delivery,
+		&i.State,
+		&i.Revision,
+		&i.MessageID,
+		&i.Error,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const gatewayHeartbeatCodingOperation = `-- name: GatewayHeartbeatCodingOperation :execrows
+UPDATE coding_operations SET lease_until = now() + interval '60 seconds'
+WHERE id = $1 AND lease_token = $2 AND result->>'state' = 'running'
+AND lease_until > now()
+`
+
+type GatewayHeartbeatCodingOperationParams struct {
+	ID         string `json:"id"`
+	LeaseToken string `json:"lease_token"`
+}
+
+func (q *Queries) GatewayHeartbeatCodingOperation(ctx context.Context, arg GatewayHeartbeatCodingOperationParams) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayHeartbeatCodingOperation, arg.ID, arg.LeaseToken)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const gatewayInsertWorkspaceInheritedResources = `-- name: GatewayInsertWorkspaceInheritedResources :execrows
 INSERT INTO workspace_inherited_resources(
   workspace_id,
@@ -1381,6 +2216,50 @@ func (q *Queries) GatewayInsertWorkspaceInheritedResources(ctx context.Context, 
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const gatewayInterruptCodingOperations = `-- name: GatewayInterruptCodingOperations :many
+UPDATE coding_operations SET result = result || jsonb_build_object('state', 'interrupted',
+'error', 'Execution was interrupted. Refresh the checkout before retrying; a remote write may have completed.', 'updated_at', now())
+WHERE result->>'state' = 'running' AND lease_until <= now()
+RETURNING workspace_id, owner_id
+`
+
+type GatewayInterruptCodingOperationsRow struct {
+	WorkspaceID string `json:"workspace_id"`
+	OwnerID     string `json:"owner_id"`
+}
+
+func (q *Queries) GatewayInterruptCodingOperations(ctx context.Context) ([]GatewayInterruptCodingOperationsRow, error) {
+	rows, err := q.db.Query(ctx, gatewayInterruptCodingOperations)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayInterruptCodingOperationsRow{}
+	for rows.Next() {
+		var i GatewayInterruptCodingOperationsRow
+		if err := rows.Scan(&i.WorkspaceID, &i.OwnerID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayInvalidateCodingSnapshots = `-- name: GatewayInvalidateCodingSnapshots :exec
+UPDATE coding_snapshots SET result = CASE WHEN worktree_id <> '' THEN '{}'::jsonb ELSE result END,
+next_refresh = now(), next_remote = now(), generation = generation + 1
+WHERE project_id = $1
+`
+
+// Status reads must bypass pre-mutation worktree data until the worker refreshes it.
+func (q *Queries) GatewayInvalidateCodingSnapshots(ctx context.Context, projectID string) error {
+	_, err := q.db.Exec(ctx, gatewayInvalidateCodingSnapshots, projectID)
+	return err
 }
 
 const gatewayIsActiveOrganizationMember = `-- name: GatewayIsActiveOrganizationMember :one
@@ -1483,7 +2362,7 @@ WITH actor_roles AS (
     AND members.disabled_at IS NULL
 )
 SELECT
-  workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.provisioning_attempt, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at,
+  workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.type, workspaces.state, workspaces.provisioning_attempt, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at,
   (
     SELECT COUNT(DISTINCT workspace_admins.member_id)
     FROM role_scopes AS workspace_admin_role
@@ -1584,6 +2463,7 @@ func (q *Queries) GatewayListAccessibleWorkspaces(ctx context.Context, arg Gatew
 			&i.Workspace.Name,
 			&i.Workspace.Slug,
 			&i.Workspace.Namespace,
+			&i.Workspace.Type,
 			&i.Workspace.State,
 			&i.Workspace.ProvisioningAttempt,
 			&i.Workspace.FailureReason,
@@ -2051,6 +2931,65 @@ func (q *Queries) GatewayListAgentsByName(ctx context.Context, arg GatewayListAg
 	return items, nil
 }
 
+const gatewayListChatInputs = `-- name: GatewayListChatInputs :many
+SELECT id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, message_id, error, created_at, updated_at FROM chat_inputs
+WHERE workspace_id = $1 AND agent_name = $2 AND session_id = $3
+  AND state NOT IN ('delivered', 'removed')
+  AND (author_id = $4 OR state <> 'recovered')
+ORDER BY sequence
+`
+
+type GatewayListChatInputsParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	SessionID   string `json:"session_id"`
+	AuthorID    string `json:"author_id"`
+}
+
+func (q *Queries) GatewayListChatInputs(ctx context.Context, arg GatewayListChatInputsParams) ([]ChatInput, error) {
+	rows, err := q.db.Query(ctx, gatewayListChatInputs,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.SessionID,
+		arg.AuthorID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ChatInput{}
+	for rows.Next() {
+		var i ChatInput
+		if err := rows.Scan(
+			&i.ID,
+			&i.Sequence,
+			&i.WorkspaceID,
+			&i.AgentName,
+			&i.SessionID,
+			&i.OrganizationID,
+			&i.AuthorID,
+			&i.AuthorName,
+			&i.Directory,
+			&i.Resume,
+			&i.Content,
+			&i.Delivery,
+			&i.State,
+			&i.Revision,
+			&i.MessageID,
+			&i.Error,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const gatewayListChatSessionDateGroups = `-- name: GatewayListChatSessionDateGroups :many
 SELECT CASE
   WHEN sessions.source_updated_at >= $1::timestamptz THEN 'today'
@@ -2060,36 +2999,42 @@ SELECT CASE
   ELSE 'older'
 END::text AS group_value
 FROM chat_sessions AS sessions
+LEFT JOIN coding_threads AS coding ON coding.workspace_id = sessions.workspace_id
+  AND coding.agent_name = sessions.agent_name AND coding.session_id = sessions.session_id
+LEFT JOIN coding_worktrees AS tree ON tree.id = coding.worktree_id
+LEFT JOIN coding_projects AS project ON project.id = tree.project_id
 WHERE sessions.workspace_id = $4
   AND sessions.agent_name = ANY($5::text[])
   AND sessions.parent_session_id IS NULL
+  AND ($6::text IS NULL OR project.owner_id = $6)
   AND (
-    $6::boolean
+    $7::boolean
     OR sessions.kind <> 'workflow_run'
   )
   AND (
-    cardinality($7::text[]) = 0
+    cardinality($8::text[]) = 0
     OR (
       SELECT COUNT(DISTINCT participants.user_id)
       FROM chat_session_participants AS participants
       WHERE participants.workspace_id = sessions.workspace_id
         AND participants.agent_name = sessions.agent_name
         AND participants.session_id = sessions.session_id
-        AND participants.user_id = ANY($7::text[])
-    ) = cardinality($7::text[])
+        AND participants.user_id = ANY($8::text[])
+    ) = cardinality($8::text[])
   )
 GROUP BY group_value
 ORDER BY MAX(sessions.source_updated_at) DESC
 `
 
 type GatewayListChatSessionDateGroupsParams struct {
-	TodayStart          time.Time `json:"today_start"`
-	YesterdayStart      time.Time `json:"yesterday_start"`
-	PreviousWeekStart   time.Time `json:"previous_week_start"`
-	WorkspaceID         string    `json:"workspace_id"`
-	AgentNames          []string  `json:"agent_names"`
-	IncludeWorkflowRuns bool      `json:"include_workflow_runs"`
-	ParticipantUserIds  []string  `json:"participant_user_ids"`
+	TodayStart          time.Time   `json:"today_start"`
+	YesterdayStart      time.Time   `json:"yesterday_start"`
+	PreviousWeekStart   time.Time   `json:"previous_week_start"`
+	WorkspaceID         string      `json:"workspace_id"`
+	AgentNames          []string    `json:"agent_names"`
+	OwnerID             pgtype.Text `json:"owner_id"`
+	IncludeWorkflowRuns bool        `json:"include_workflow_runs"`
+	ParticipantUserIds  []string    `json:"participant_user_ids"`
 }
 
 func (q *Queries) GatewayListChatSessionDateGroups(ctx context.Context, arg GatewayListChatSessionDateGroupsParams) ([]string, error) {
@@ -2099,6 +3044,7 @@ func (q *Queries) GatewayListChatSessionDateGroups(ctx context.Context, arg Gate
 		arg.PreviousWeekStart,
 		arg.WorkspaceID,
 		arg.AgentNames,
+		arg.OwnerID,
 		arg.IncludeWorkflowRuns,
 		arg.ParticipantUserIds,
 	)
@@ -2127,21 +3073,27 @@ JOIN chat_sessions AS sessions
   ON sessions.workspace_id = participants.workspace_id
   AND sessions.agent_name = participants.agent_name
   AND sessions.session_id = participants.session_id
+LEFT JOIN coding_threads AS coding ON coding.workspace_id = sessions.workspace_id
+  AND coding.agent_name = sessions.agent_name AND coding.session_id = sessions.session_id
+LEFT JOIN coding_worktrees AS tree ON tree.id = coding.worktree_id
+LEFT JOIN coding_projects AS project ON project.id = tree.project_id
 JOIN users ON users.id = participants.user_id
 WHERE participants.workspace_id = $1
   AND sessions.agent_name = ANY($2::text[])
   AND sessions.parent_session_id IS NULL
+  AND ($3::text IS NULL OR project.owner_id = $3)
   AND (
-    $3::boolean
+    $4::boolean
     OR sessions.kind <> 'workflow_run'
   )
 ORDER BY users.name, users.email, users.id
 `
 
 type GatewayListChatSessionFilterUsersParams struct {
-	WorkspaceID         string   `json:"workspace_id"`
-	AgentNames          []string `json:"agent_names"`
-	IncludeWorkflowRuns bool     `json:"include_workflow_runs"`
+	WorkspaceID         string      `json:"workspace_id"`
+	AgentNames          []string    `json:"agent_names"`
+	OwnerID             pgtype.Text `json:"owner_id"`
+	IncludeWorkflowRuns bool        `json:"include_workflow_runs"`
 }
 
 type GatewayListChatSessionFilterUsersRow struct {
@@ -2152,7 +3104,12 @@ type GatewayListChatSessionFilterUsersRow struct {
 }
 
 func (q *Queries) GatewayListChatSessionFilterUsers(ctx context.Context, arg GatewayListChatSessionFilterUsersParams) ([]GatewayListChatSessionFilterUsersRow, error) {
-	rows, err := q.db.Query(ctx, gatewayListChatSessionFilterUsers, arg.WorkspaceID, arg.AgentNames, arg.IncludeWorkflowRuns)
+	rows, err := q.db.Query(ctx, gatewayListChatSessionFilterUsers,
+		arg.WorkspaceID,
+		arg.AgentNames,
+		arg.OwnerID,
+		arg.IncludeWorkflowRuns,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -2178,6 +3135,7 @@ func (q *Queries) GatewayListChatSessionFilterUsers(ctx context.Context, arg Gat
 
 const gatewayListChatSessions = `-- name: GatewayListChatSessions :many
 SELECT
+  project.id AS project_id,
   sessions.workspace_id,
   sessions.agent_name,
   sessions.session_id,
@@ -2203,73 +3161,81 @@ SELECT
       AND participants.session_id = sessions.session_id
   ), '[]'::jsonb)::text AS participants_json
 FROM chat_sessions AS sessions
-WHERE sessions.workspace_id = $1
-  AND sessions.agent_name = ANY($2::text[])
+LEFT JOIN coding_threads AS coding ON coding.workspace_id = sessions.workspace_id
+  AND coding.agent_name = sessions.agent_name AND coding.session_id = sessions.session_id
+LEFT JOIN coding_worktrees AS tree ON tree.id = coding.worktree_id
+LEFT JOIN coding_projects AS project ON project.id = tree.project_id
+WHERE ($1::text IS NULL OR project.id = $1)
+  AND sessions.workspace_id = $2
+  AND sessions.agent_name = ANY($3::text[])
   AND sessions.parent_session_id IS NULL
+  AND ($4::text IS NULL OR project.owner_id = $4)
   AND (
-    $3::boolean
+    $5::boolean
     OR sessions.kind <> 'workflow_run'
   )
   AND (
-    $4::text IS NULL
-    OR sessions.agent_name = $4::text
+    $6::text IS NULL
+    OR sessions.agent_name = $6::text
   )
   AND (
-    NOT $5::boolean
+    NOT $7::boolean
     OR sessions.title ILIKE
-      '%' || REPLACE(REPLACE(REPLACE($6::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'
+      '%' || REPLACE(REPLACE(REPLACE($8::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'
       ESCAPE '\'
   )
   AND (
-    $7::text IS NULL
-    OR sessions.agent_name = $7::text
+    $9::text IS NULL
+    OR sessions.agent_name = $9::text
   )
   AND (
-    $8::chat_session_status IS NULL
-    OR sessions.status = $8::chat_session_status
+    $10::chat_session_status IS NULL
+    OR sessions.status = $10::chat_session_status
   )
   AND (
-    $9::timestamptz IS NULL
-    OR sessions.source_updated_at >= $9::timestamptz
+    $11::timestamptz IS NULL
+    OR sessions.source_updated_at >= $11::timestamptz
   )
   AND (
-    $10::timestamptz IS NULL
-    OR sessions.source_updated_at < $10::timestamptz
+    $12::timestamptz IS NULL
+    OR sessions.source_updated_at < $12::timestamptz
   )
   AND (
-    cardinality($11::text[]) = 0
+    cardinality($13::text[]) = 0
     OR (
       SELECT COUNT(DISTINCT participants.user_id)
       FROM chat_session_participants AS participants
       WHERE participants.workspace_id = sessions.workspace_id
         AND participants.agent_name = sessions.agent_name
         AND participants.session_id = sessions.session_id
-        AND participants.user_id = ANY($11::text[])
-    ) = cardinality($11::text[])
+        AND participants.user_id = ANY($13::text[])
+    ) = cardinality($13::text[])
   )
   AND (
-    NOT $12::boolean
-    OR sessions.source_updated_at < $13
+    NOT $14::boolean
+    OR sessions.source_updated_at < $15
     OR (
-      sessions.source_updated_at = $13
-      AND sessions.agent_name > $14
+      sessions.source_updated_at = $15
+      AND sessions.agent_name > $16
     )
     OR (
-      sessions.source_updated_at = $13
-      AND sessions.agent_name = $14
-      AND sessions.session_id > $15
+      sessions.source_updated_at = $15
+      AND sessions.agent_name = $16
+      AND sessions.session_id > $17
     )
   )
 ORDER BY
   sessions.source_updated_at DESC NULLS LAST,
   sessions.agent_name ASC,
   sessions.session_id ASC
-LIMIT $16
+LIMIT $18
 `
 
 type GatewayListChatSessionsParams struct {
+	ProjectID           pgtype.Text           `json:"project_id"`
 	WorkspaceID         string                `json:"workspace_id"`
 	AgentNames          []string              `json:"agent_names"`
+	OwnerID             pgtype.Text           `json:"owner_id"`
 	IncludeWorkflowRuns bool                  `json:"include_workflow_runs"`
 	AgentName           pgtype.Text           `json:"agent_name"`
 	SearchSet           bool                  `json:"search_set"`
@@ -2287,6 +3253,7 @@ type GatewayListChatSessionsParams struct {
 }
 
 type GatewayListChatSessionsRow struct {
+	ProjectID        pgtype.Text        `json:"project_id"`
 	WorkspaceID      string             `json:"workspace_id"`
 	AgentName        string             `json:"agent_name"`
 	SessionID        string             `json:"session_id"`
@@ -2300,8 +3267,10 @@ type GatewayListChatSessionsRow struct {
 
 func (q *Queries) GatewayListChatSessions(ctx context.Context, arg GatewayListChatSessionsParams) ([]GatewayListChatSessionsRow, error) {
 	rows, err := q.db.Query(ctx, gatewayListChatSessions,
+		arg.ProjectID,
 		arg.WorkspaceID,
 		arg.AgentNames,
+		arg.OwnerID,
 		arg.IncludeWorkflowRuns,
 		arg.AgentName,
 		arg.SearchSet,
@@ -2325,6 +3294,7 @@ func (q *Queries) GatewayListChatSessions(ctx context.Context, arg GatewayListCh
 	for rows.Next() {
 		var i GatewayListChatSessionsRow
 		if err := rows.Scan(
+			&i.ProjectID,
 			&i.WorkspaceID,
 			&i.AgentName,
 			&i.SessionID,
@@ -2334,6 +3304,197 @@ func (q *Queries) GatewayListChatSessions(ctx context.Context, arg GatewayListCh
 			&i.SourceCreatedAt,
 			&i.SourceUpdatedAt,
 			&i.ParticipantsJson,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListCodingOperations = `-- name: GatewayListCodingOperations :many
+SELECT op.id, op.workspace_id, op.organization_id, op.owner_id, op.project_id, op.worktree_id, op.request, op.result, op.lease_token, op.lease_until, op.created_at FROM coding_operations op WHERE op.workspace_id = $1 AND op.owner_id = $2
+AND (op.result->>'state' IN ('queued', 'running') OR op.id IN (
+SELECT recent.id FROM coding_operations recent WHERE recent.workspace_id = $1 AND recent.owner_id = $2
+AND recent.result->>'state' NOT IN ('queued', 'running') ORDER BY recent.created_at DESC LIMIT 100))
+ORDER BY op.created_at DESC
+`
+
+type GatewayListCodingOperationsParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	OwnerID     string `json:"owner_id"`
+}
+
+func (q *Queries) GatewayListCodingOperations(ctx context.Context, arg GatewayListCodingOperationsParams) ([]CodingOperation, error) {
+	rows, err := q.db.Query(ctx, gatewayListCodingOperations, arg.WorkspaceID, arg.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CodingOperation{}
+	for rows.Next() {
+		var i CodingOperation
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.ProjectID,
+			&i.WorktreeID,
+			&i.Request,
+			&i.Result,
+			&i.LeaseToken,
+			&i.LeaseUntil,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListCodingProjects = `-- name: GatewayListCodingProjects :many
+SELECT id, workspace_id, owner_id, name, repository_id, repository, last_agent_name, default_branch, created_at FROM coding_projects
+WHERE workspace_id = $1 AND owner_id = $2
+ORDER BY lower(name), id
+`
+
+type GatewayListCodingProjectsParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	OwnerID     string `json:"owner_id"`
+}
+
+func (q *Queries) GatewayListCodingProjects(ctx context.Context, arg GatewayListCodingProjectsParams) ([]CodingProject, error) {
+	rows, err := q.db.Query(ctx, gatewayListCodingProjects, arg.WorkspaceID, arg.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CodingProject{}
+	for rows.Next() {
+		var i CodingProject
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.OwnerID,
+			&i.Name,
+			&i.RepositoryID,
+			&i.Repository,
+			&i.LastAgentName,
+			&i.DefaultBranch,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListCodingThreads = `-- name: GatewayListCodingThreads :many
+SELECT coding_threads.id, coding_threads.workspace_id, coding_threads.agent_name, coding_threads.worktree_id, coding_threads.session_id, coding_threads.created_at, coding_worktrees.id, coding_worktrees.workspace_id, coding_worktrees.project_id, coding_worktrees.agent_name, coding_worktrees.directory, coding_worktrees.branch, coding_worktrees.ready, coding_worktrees.shared, coding_worktrees.deleting, coding_worktrees.created_at, coding_projects.id, coding_projects.workspace_id, coding_projects.owner_id, coding_projects.name, coding_projects.repository_id, coding_projects.repository, coding_projects.last_agent_name, coding_projects.default_branch, coding_projects.created_at
+FROM coding_threads JOIN coding_worktrees ON coding_worktrees.id = coding_threads.worktree_id
+JOIN coding_projects ON coding_projects.id = coding_worktrees.project_id
+WHERE coding_projects.id = $1 AND coding_projects.workspace_id = $2
+ORDER BY coding_threads.created_at DESC
+`
+
+type GatewayListCodingThreadsParams struct {
+	ProjectID   string `json:"project_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+type GatewayListCodingThreadsRow struct {
+	CodingThread   CodingThread   `json:"coding_thread"`
+	CodingWorktree CodingWorktree `json:"coding_worktree"`
+	CodingProject  CodingProject  `json:"coding_project"`
+}
+
+func (q *Queries) GatewayListCodingThreads(ctx context.Context, arg GatewayListCodingThreadsParams) ([]GatewayListCodingThreadsRow, error) {
+	rows, err := q.db.Query(ctx, gatewayListCodingThreads, arg.ProjectID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayListCodingThreadsRow{}
+	for rows.Next() {
+		var i GatewayListCodingThreadsRow
+		if err := rows.Scan(
+			&i.CodingThread.ID,
+			&i.CodingThread.WorkspaceID,
+			&i.CodingThread.AgentName,
+			&i.CodingThread.WorktreeID,
+			&i.CodingThread.SessionID,
+			&i.CodingThread.CreatedAt,
+			&i.CodingWorktree.ID,
+			&i.CodingWorktree.WorkspaceID,
+			&i.CodingWorktree.ProjectID,
+			&i.CodingWorktree.AgentName,
+			&i.CodingWorktree.Directory,
+			&i.CodingWorktree.Branch,
+			&i.CodingWorktree.Ready,
+			&i.CodingWorktree.Shared,
+			&i.CodingWorktree.Deleting,
+			&i.CodingWorktree.CreatedAt,
+			&i.CodingProject.ID,
+			&i.CodingProject.WorkspaceID,
+			&i.CodingProject.OwnerID,
+			&i.CodingProject.Name,
+			&i.CodingProject.RepositoryID,
+			&i.CodingProject.Repository,
+			&i.CodingProject.LastAgentName,
+			&i.CodingProject.DefaultBranch,
+			&i.CodingProject.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListCodingWorktrees = `-- name: GatewayListCodingWorktrees :many
+SELECT id, workspace_id, project_id, agent_name, directory, branch, ready, shared, deleting, created_at FROM coding_worktrees WHERE project_id = $1 AND workspace_id = $2 ORDER BY created_at
+`
+
+type GatewayListCodingWorktreesParams struct {
+	ProjectID   string `json:"project_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+func (q *Queries) GatewayListCodingWorktrees(ctx context.Context, arg GatewayListCodingWorktreesParams) ([]CodingWorktree, error) {
+	rows, err := q.db.Query(ctx, gatewayListCodingWorktrees, arg.ProjectID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CodingWorktree{}
+	for rows.Next() {
+		var i CodingWorktree
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ProjectID,
+			&i.AgentName,
+			&i.Directory,
+			&i.Branch,
+			&i.Ready,
+			&i.Shared,
+			&i.Deleting,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -3330,7 +4491,7 @@ func (q *Queries) GatewayListProcessEventsAggregated(ctx context.Context, arg Ga
 }
 
 const gatewayListProvisioningWorkspaces = `-- name: GatewayListProvisioningWorkspaces :many
-SELECT workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.provisioning_attempt, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at
+SELECT workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.type, workspaces.state, workspaces.provisioning_attempt, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at
 FROM workspaces
 WHERE state = 'provisioning'
   AND deleted_at IS NULL
@@ -3352,6 +4513,7 @@ func (q *Queries) GatewayListProvisioningWorkspaces(ctx context.Context) ([]Work
 			&i.Name,
 			&i.Slug,
 			&i.Namespace,
+			&i.Type,
 			&i.State,
 			&i.ProvisioningAttempt,
 			&i.FailureReason,
@@ -3848,7 +5010,7 @@ func (q *Queries) GatewayListWorkspaceInheritedResources(ctx context.Context, ar
 }
 
 const gatewayListWorkspacesSelectingOrganizationResource = `-- name: GatewayListWorkspacesSelectingOrganizationResource :many
-SELECT workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.provisioning_attempt, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at
+SELECT workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.type, workspaces.state, workspaces.provisioning_attempt, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at
 FROM workspace_inherited_resources
 JOIN workspaces
   ON workspaces.id = workspace_inherited_resources.workspace_id
@@ -3881,6 +5043,7 @@ func (q *Queries) GatewayListWorkspacesSelectingOrganizationResource(ctx context
 			&i.Name,
 			&i.Slug,
 			&i.Namespace,
+			&i.Type,
 			&i.State,
 			&i.ProvisioningAttempt,
 			&i.FailureReason,
@@ -3904,6 +5067,15 @@ LISTEN agentz_chat_sessions
 
 func (q *Queries) GatewayListenChatSessions(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, gatewayListenChatSessions)
+	return err
+}
+
+const gatewayListenCoding = `-- name: GatewayListenCoding :exec
+LISTEN agentz_coding
+`
+
+func (q *Queries) GatewayListenCoding(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, gatewayListenCoding)
 	return err
 }
 
@@ -4039,6 +5211,26 @@ func (q *Queries) GatewayLockAgentShares(ctx context.Context, arg GatewayLockAge
 	return items, nil
 }
 
+const gatewayLockCodingIdentity = `-- name: GatewayLockCodingIdentity :one
+SELECT id FROM users WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) GatewayLockCodingIdentity(ctx context.Context, id string) (string, error) {
+	row := q.db.QueryRow(ctx, gatewayLockCodingIdentity, id)
+	var id_2 string
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
+const gatewayLockCodingWorktree = `-- name: GatewayLockCodingWorktree :exec
+SELECT id FROM coding_worktrees WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) GatewayLockCodingWorktree(ctx context.Context, id string) error {
+	_, err := q.db.Exec(ctx, gatewayLockCodingWorktree, id)
+	return err
+}
+
 const gatewayLockOrganization = `-- name: GatewayLockOrganization :one
 SELECT id, name, slug
 FROM organizations
@@ -4059,6 +5251,22 @@ func (q *Queries) GatewayLockOrganization(ctx context.Context, organizationID st
 	return i, err
 }
 
+const gatewayLockResource = `-- name: GatewayLockResource :exec
+SELECT CASE WHEN $1::boolean
+  THEN pg_advisory_lock_shared(hashtextextended($2::text, 0))
+  ELSE pg_advisory_lock(hashtextextended($2::text, 0)) END
+`
+
+type GatewayLockResourceParams struct {
+	Shared   bool   `json:"shared"`
+	Identity string `json:"identity"`
+}
+
+func (q *Queries) GatewayLockResource(ctx context.Context, arg GatewayLockResourceParams) error {
+	_, err := q.db.Exec(ctx, gatewayLockResource, arg.Shared, arg.Identity)
+	return err
+}
+
 const gatewayLockTeam = `-- name: GatewayLockTeam :one
 SELECT id
 FROM teams
@@ -4077,6 +5285,128 @@ func (q *Queries) GatewayLockTeam(ctx context.Context, arg GatewayLockTeamParams
 	var id string
 	err := row.Scan(&id)
 	return id, err
+}
+
+const gatewayNotifyChatInputs = `-- name: GatewayNotifyChatInputs :exec
+SELECT pg_notify('agentz_chat_sessions', $1::text ||
+  COALESCE((SELECT '/' || p.owner_id FROM coding_threads t
+    JOIN coding_worktrees tree ON tree.id = t.worktree_id
+    JOIN coding_projects p ON p.id = tree.project_id
+    WHERE t.workspace_id = $1 AND t.agent_name = $2 AND t.session_id = $3), ''))
+`
+
+type GatewayNotifyChatInputsParams struct {
+	WorkspaceID string      `json:"workspace_id"`
+	AgentName   string      `json:"agent_name"`
+	SessionID   pgtype.Text `json:"session_id"`
+}
+
+func (q *Queries) GatewayNotifyChatInputs(ctx context.Context, arg GatewayNotifyChatInputsParams) error {
+	_, err := q.db.Exec(ctx, gatewayNotifyChatInputs, arg.WorkspaceID, arg.AgentName, arg.SessionID)
+	return err
+}
+
+const gatewayNotifyCoding = `-- name: GatewayNotifyCoding :exec
+SELECT pg_notify('agentz_coding', $1::text || '/' || $2::text)
+`
+
+type GatewayNotifyCodingParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	OwnerID     string `json:"owner_id"`
+}
+
+func (q *Queries) GatewayNotifyCoding(ctx context.Context, arg GatewayNotifyCodingParams) error {
+	_, err := q.db.Exec(ctx, gatewayNotifyCoding, arg.WorkspaceID, arg.OwnerID)
+	return err
+}
+
+const gatewayOwnedCodingDirectory = `-- name: GatewayOwnedCodingDirectory :one
+SELECT coding_worktrees.id, coding_worktrees.workspace_id, coding_worktrees.project_id, coding_worktrees.agent_name, coding_worktrees.directory, coding_worktrees.branch, coding_worktrees.ready, coding_worktrees.shared, coding_worktrees.deleting, coding_worktrees.created_at
+FROM coding_worktrees JOIN coding_projects ON coding_projects.id = coding_worktrees.project_id
+WHERE coding_worktrees.workspace_id = $1
+  AND coding_worktrees.agent_name = $2
+  AND coding_projects.owner_id = $3
+  AND ($4::text = coding_worktrees.directory
+    OR starts_with($4::text, coding_worktrees.directory || '/'))
+ORDER BY length(coding_worktrees.directory) DESC
+LIMIT 1
+`
+
+type GatewayOwnedCodingDirectoryParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	OwnerID     string `json:"owner_id"`
+	Directory   string `json:"directory"`
+}
+
+func (q *Queries) GatewayOwnedCodingDirectory(ctx context.Context, arg GatewayOwnedCodingDirectoryParams) (CodingWorktree, error) {
+	row := q.db.QueryRow(ctx, gatewayOwnedCodingDirectory,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.OwnerID,
+		arg.Directory,
+	)
+	var i CodingWorktree
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.ProjectID,
+		&i.AgentName,
+		&i.Directory,
+		&i.Branch,
+		&i.Ready,
+		&i.Shared,
+		&i.Deleting,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const gatewayPendingChatInputs = `-- name: GatewayPendingChatInputs :many
+SELECT DISTINCT ON (workspace_id, agent_name, session_id) id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, message_id, error, created_at, updated_at FROM chat_inputs
+WHERE state IN ('queued', 'sending', 'failed')
+ORDER BY workspace_id, agent_name, session_id,
+  CASE WHEN state = 'sending' OR message_id <> '' AND state = 'failed' THEN 0 WHEN delivery = 'steer' AND state = 'queued' THEN 1 ELSE 2 END,
+  sequence
+`
+
+func (q *Queries) GatewayPendingChatInputs(ctx context.Context) ([]ChatInput, error) {
+	rows, err := q.db.Query(ctx, gatewayPendingChatInputs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ChatInput{}
+	for rows.Next() {
+		var i ChatInput
+		if err := rows.Scan(
+			&i.ID,
+			&i.Sequence,
+			&i.WorkspaceID,
+			&i.AgentName,
+			&i.SessionID,
+			&i.OrganizationID,
+			&i.AuthorID,
+			&i.AuthorName,
+			&i.Directory,
+			&i.Resume,
+			&i.Content,
+			&i.Delivery,
+			&i.State,
+			&i.Revision,
+			&i.MessageID,
+			&i.Error,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const gatewayProjectMemberRoleTransports = `-- name: GatewayProjectMemberRoleTransports :execrows
@@ -4108,6 +5438,198 @@ func (q *Queries) GatewayProjectMemberRoleTransports(ctx context.Context, arg Ga
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const gatewayPruneCodingSnapshots = `-- name: GatewayPruneCodingSnapshots :exec
+DELETE FROM coding_snapshots s WHERE
+(worktree_id <> '' AND NOT EXISTS (
+SELECT 1 FROM coding_worktrees w WHERE w.id = s.worktree_id AND w.ready AND NOT w.deleting))
+OR (worktree_id = '' AND demand_until < now() AND NOT EXISTS (
+SELECT 1 FROM coding_worktrees w WHERE w.project_id = s.project_id AND w.agent_name = s.agent_name
+AND w.ready AND NOT w.deleting))
+`
+
+func (q *Queries) GatewayPruneCodingSnapshots(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, gatewayPruneCodingSnapshots)
+	return err
+}
+
+const gatewayReadyCodingWorktree = `-- name: GatewayReadyCodingWorktree :exec
+UPDATE coding_worktrees SET ready = true, branch = $1 WHERE id = $2
+`
+
+type GatewayReadyCodingWorktreeParams struct {
+	Branch string `json:"branch"`
+	ID     string `json:"id"`
+}
+
+func (q *Queries) GatewayReadyCodingWorktree(ctx context.Context, arg GatewayReadyCodingWorktreeParams) error {
+	_, err := q.db.Exec(ctx, gatewayReadyCodingWorktree, arg.Branch, arg.ID)
+	return err
+}
+
+const gatewayRecordCodingMainCheckout = `-- name: GatewayRecordCodingMainCheckout :exec
+INSERT INTO coding_worktrees (id, workspace_id, project_id, agent_name, directory, branch, ready)
+VALUES ($1, $2, $3, $4, $5, $6, true)
+ON CONFLICT (workspace_id, agent_name, directory) DO NOTHING
+`
+
+type GatewayRecordCodingMainCheckoutParams struct {
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspace_id"`
+	ProjectID   string `json:"project_id"`
+	AgentName   string `json:"agent_name"`
+	Directory   string `json:"directory"`
+	Branch      string `json:"branch"`
+}
+
+func (q *Queries) GatewayRecordCodingMainCheckout(ctx context.Context, arg GatewayRecordCodingMainCheckoutParams) error {
+	_, err := q.db.Exec(ctx, gatewayRecordCodingMainCheckout,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.ProjectID,
+		arg.AgentName,
+		arg.Directory,
+		arg.Branch,
+	)
+	return err
+}
+
+const gatewayRecoverChatInputs = `-- name: GatewayRecoverChatInputs :exec
+UPDATE chat_inputs SET state = 'recovered', error = '',
+  revision = revision + 1, updated_at = now()
+WHERE workspace_id = $1 AND agent_name = $2 AND session_id = $3
+  AND state IN ('queued', 'failed') AND message_id = ''
+`
+
+type GatewayRecoverChatInputsParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	SessionID   string `json:"session_id"`
+}
+
+func (q *Queries) GatewayRecoverChatInputs(ctx context.Context, arg GatewayRecoverChatInputsParams) error {
+	_, err := q.db.Exec(ctx, gatewayRecoverChatInputs, arg.WorkspaceID, arg.AgentName, arg.SessionID)
+	return err
+}
+
+const gatewayRefreshCodingConnection = `-- name: GatewayRefreshCodingConnection :exec
+UPDATE github_connections SET access_token = $1, refresh_token = $2,
+expires_at = $3, refresh_expires_at = $4 WHERE user_id = $5
+`
+
+type GatewayRefreshCodingConnectionParams struct {
+	AccessToken      string             `json:"access_token"`
+	RefreshToken     string             `json:"refresh_token"`
+	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
+	RefreshExpiresAt pgtype.Timestamptz `json:"refresh_expires_at"`
+	UserID           string             `json:"user_id"`
+}
+
+func (q *Queries) GatewayRefreshCodingConnection(ctx context.Context, arg GatewayRefreshCodingConnectionParams) error {
+	_, err := q.db.Exec(ctx, gatewayRefreshCodingConnection,
+		arg.AccessToken,
+		arg.RefreshToken,
+		arg.ExpiresAt,
+		arg.RefreshExpiresAt,
+		arg.UserID,
+	)
+	return err
+}
+
+const gatewayRenameCodingProject = `-- name: GatewayRenameCodingProject :execrows
+UPDATE coding_projects SET name = $1
+WHERE id = $2 AND workspace_id = $3 AND owner_id = $4
+`
+
+type GatewayRenameCodingProjectParams struct {
+	Name        string `json:"name"`
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspace_id"`
+	OwnerID     string `json:"owner_id"`
+}
+
+func (q *Queries) GatewayRenameCodingProject(ctx context.Context, arg GatewayRenameCodingProjectParams) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayRenameCodingProject,
+		arg.Name,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.OwnerID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const gatewayResolveCodingSession = `-- name: GatewayResolveCodingSession :one
+WITH RECURSIVE ancestors(session_id) AS (
+  SELECT $4::text
+  UNION
+  SELECT sessions.parent_session_id
+  FROM chat_sessions sessions JOIN ancestors ON ancestors.session_id = sessions.session_id
+  WHERE sessions.workspace_id = $1 AND sessions.agent_name = $2
+    AND sessions.parent_session_id IS NOT NULL
+)
+SELECT coding_threads.id, coding_threads.workspace_id, coding_threads.agent_name, coding_threads.worktree_id, coding_threads.session_id, coding_threads.created_at, coding_worktrees.id, coding_worktrees.workspace_id, coding_worktrees.project_id, coding_worktrees.agent_name, coding_worktrees.directory, coding_worktrees.branch, coding_worktrees.ready, coding_worktrees.shared, coding_worktrees.deleting, coding_worktrees.created_at, coding_projects.id, coding_projects.workspace_id, coding_projects.owner_id, coding_projects.name, coding_projects.repository_id, coding_projects.repository, coding_projects.last_agent_name, coding_projects.default_branch, coding_projects.created_at
+FROM ancestors
+JOIN coding_threads ON coding_threads.session_id = ancestors.session_id
+JOIN coding_worktrees ON coding_worktrees.id = coding_threads.worktree_id
+JOIN coding_projects ON coding_projects.id = coding_worktrees.project_id
+WHERE coding_threads.workspace_id = $1 AND coding_threads.agent_name = $2
+  AND coding_projects.owner_id = $3
+LIMIT 1
+`
+
+type GatewayResolveCodingSessionParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	OwnerID     string `json:"owner_id"`
+	SessionID   string `json:"session_id"`
+}
+
+type GatewayResolveCodingSessionRow struct {
+	CodingThread   CodingThread   `json:"coding_thread"`
+	CodingWorktree CodingWorktree `json:"coding_worktree"`
+	CodingProject  CodingProject  `json:"coding_project"`
+}
+
+func (q *Queries) GatewayResolveCodingSession(ctx context.Context, arg GatewayResolveCodingSessionParams) (GatewayResolveCodingSessionRow, error) {
+	row := q.db.QueryRow(ctx, gatewayResolveCodingSession,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.OwnerID,
+		arg.SessionID,
+	)
+	var i GatewayResolveCodingSessionRow
+	err := row.Scan(
+		&i.CodingThread.ID,
+		&i.CodingThread.WorkspaceID,
+		&i.CodingThread.AgentName,
+		&i.CodingThread.WorktreeID,
+		&i.CodingThread.SessionID,
+		&i.CodingThread.CreatedAt,
+		&i.CodingWorktree.ID,
+		&i.CodingWorktree.WorkspaceID,
+		&i.CodingWorktree.ProjectID,
+		&i.CodingWorktree.AgentName,
+		&i.CodingWorktree.Directory,
+		&i.CodingWorktree.Branch,
+		&i.CodingWorktree.Ready,
+		&i.CodingWorktree.Shared,
+		&i.CodingWorktree.Deleting,
+		&i.CodingWorktree.CreatedAt,
+		&i.CodingProject.ID,
+		&i.CodingProject.WorkspaceID,
+		&i.CodingProject.OwnerID,
+		&i.CodingProject.Name,
+		&i.CodingProject.RepositoryID,
+		&i.CodingProject.Repository,
+		&i.CodingProject.LastAgentName,
+		&i.CodingProject.DefaultBranch,
+		&i.CodingProject.CreatedAt,
+	)
+	return i, err
 }
 
 const gatewayResolvePermissions = `-- name: GatewayResolvePermissions :many
@@ -4237,7 +5759,7 @@ WITH actor_roles AS (
     AND members.disabled_at IS NULL
 )
 SELECT
-  workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.state, workspaces.provisioning_attempt, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at
+  workspaces.id, workspaces.organization_id, workspaces.name, workspaces.slug, workspaces.namespace, workspaces.type, workspaces.state, workspaces.provisioning_attempt, workspaces.failure_reason, workspaces.deleted_at, workspaces.created_at, workspaces.updated_at
 FROM workspace_slug_history
 JOIN workspaces
   ON workspaces.id = workspace_slug_history.workspace_id
@@ -4287,6 +5809,7 @@ func (q *Queries) GatewayResolveWorkspaceSlug(ctx context.Context, arg GatewayRe
 		&i.Workspace.Name,
 		&i.Workspace.Slug,
 		&i.Workspace.Namespace,
+		&i.Workspace.Type,
 		&i.Workspace.State,
 		&i.Workspace.ProvisioningAttempt,
 		&i.Workspace.FailureReason,
@@ -4295,6 +5818,17 @@ func (q *Queries) GatewayResolveWorkspaceSlug(ctx context.Context, arg GatewayRe
 		&i.Workspace.UpdatedAt,
 	)
 	return i, err
+}
+
+const gatewayResourceBusy = `-- name: GatewayResourceBusy :one
+SELECT (NOT pg_try_advisory_xact_lock(hashtextextended($1::text, 0)))::boolean AS busy
+`
+
+func (q *Queries) GatewayResourceBusy(ctx context.Context, identity string) (bool, error) {
+	row := q.db.QueryRow(ctx, gatewayResourceBusy, identity)
+	var busy bool
+	err := row.Scan(&busy)
+	return busy, err
 }
 
 const gatewayRetryCleanupJob = `-- name: GatewayRetryCleanupJob :execrows
@@ -4435,6 +5969,47 @@ func (q *Queries) GatewayRevokeScopedAPIKey(ctx context.Context, arg GatewayRevo
 	return result.RowsAffected(), nil
 }
 
+const gatewaySaveCodingSnapshot = `-- name: GatewaySaveCodingSnapshot :execrows
+UPDATE coding_snapshots SET result = CASE WHEN generation = $1 THEN $2::jsonb ELSE result END, lease_until = 'epoch',
+next_refresh = CASE WHEN generation = $1 THEN $3::timestamptz ELSE now() END,
+next_remote = CASE WHEN generation = $1 THEN $4::timestamptz ELSE now() END,
+failures = $5, remote_refs = $6
+WHERE project_id = $7 AND agent_name = $8 AND worktree_id = $9
+AND lease_until = $10
+`
+
+type GatewaySaveCodingSnapshotParams struct {
+	Generation  int64     `json:"generation"`
+	Result      []byte    `json:"result"`
+	NextRefresh time.Time `json:"next_refresh"`
+	NextRemote  time.Time `json:"next_remote"`
+	Failures    int32     `json:"failures"`
+	RemoteRefs  string    `json:"remote_refs"`
+	ProjectID   string    `json:"project_id"`
+	AgentName   string    `json:"agent_name"`
+	WorktreeID  string    `json:"worktree_id"`
+	LeaseUntil  time.Time `json:"lease_until"`
+}
+
+func (q *Queries) GatewaySaveCodingSnapshot(ctx context.Context, arg GatewaySaveCodingSnapshotParams) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewaySaveCodingSnapshot,
+		arg.Generation,
+		arg.Result,
+		arg.NextRefresh,
+		arg.NextRemote,
+		arg.Failures,
+		arg.RemoteRefs,
+		arg.ProjectID,
+		arg.AgentName,
+		arg.WorktreeID,
+		arg.LeaseUntil,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const gatewaySearchGroupedChatSessions = `-- name: GatewaySearchGroupedChatSessions :many
 WITH filtered_sessions AS (
   SELECT
@@ -4459,30 +6034,35 @@ WITH filtered_sessions AS (
       END
     END)::text AS group_value
   FROM chat_sessions AS sessions
+LEFT JOIN coding_threads AS coding ON coding.workspace_id = sessions.workspace_id
+  AND coding.agent_name = sessions.agent_name AND coding.session_id = sessions.session_id
+LEFT JOIN coding_worktrees AS tree ON tree.id = coding.worktree_id
+LEFT JOIN coding_projects AS project ON project.id = tree.project_id
   WHERE sessions.workspace_id = $6
     AND sessions.agent_name = ANY($7::text[])
     AND sessions.parent_session_id IS NULL
+  AND ($8::text IS NULL OR project.owner_id = $8)
     AND (
-      $8::boolean
+      $9::boolean
       OR sessions.kind <> 'workflow_run'
     )
     AND (
-      $9::text IS NULL
-      OR sessions.agent_name = $9::text
+      $10::text IS NULL
+      OR sessions.agent_name = $10::text
     )
     AND sessions.title ILIKE
-      '%' || REPLACE(REPLACE(REPLACE($10::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'
+      '%' || REPLACE(REPLACE(REPLACE($11::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'
       ESCAPE '\'
     AND (
-      cardinality($11::text[]) = 0
+      cardinality($12::text[]) = 0
       OR (
         SELECT COUNT(DISTINCT participants.user_id)
         FROM chat_session_participants AS participants
         WHERE participants.workspace_id = sessions.workspace_id
           AND participants.agent_name = sessions.agent_name
           AND participants.session_id = sessions.session_id
-          AND participants.user_id = ANY($11::text[])
-      ) = cardinality($11::text[])
+          AND participants.user_id = ANY($12::text[])
+      ) = cardinality($12::text[])
     )
 ), group_values AS (
   SELECT DISTINCT group_value
@@ -4554,6 +6134,7 @@ type GatewaySearchGroupedChatSessionsParams struct {
 	PreviousWeekStart   time.Time   `json:"previous_week_start"`
 	WorkspaceID         string      `json:"workspace_id"`
 	AgentNames          []string    `json:"agent_names"`
+	OwnerID             pgtype.Text `json:"owner_id"`
 	IncludeWorkflowRuns bool        `json:"include_workflow_runs"`
 	AgentName           pgtype.Text `json:"agent_name"`
 	Search              string      `json:"search"`
@@ -4582,6 +6163,7 @@ func (q *Queries) GatewaySearchGroupedChatSessions(ctx context.Context, arg Gate
 		arg.PreviousWeekStart,
 		arg.WorkspaceID,
 		arg.AgentNames,
+		arg.OwnerID,
 		arg.IncludeWorkflowRuns,
 		arg.AgentName,
 		arg.Search,
@@ -4616,43 +6198,100 @@ func (q *Queries) GatewaySearchGroupedChatSessions(ctx context.Context, arg Gate
 	return items, nil
 }
 
+const gatewaySeedCodingSnapshots = `-- name: GatewaySeedCodingSnapshots :exec
+INSERT INTO coding_snapshots(project_id, agent_name, worktree_id)
+SELECT project_id, agent_name, '' FROM coding_worktrees WHERE ready AND NOT deleting
+UNION
+SELECT project_id, agent_name, id FROM coding_worktrees WHERE ready AND NOT deleting
+ON CONFLICT DO NOTHING
+`
+
+func (q *Queries) GatewaySeedCodingSnapshots(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, gatewaySeedCodingSnapshots)
+	return err
+}
+
+const gatewayStopChatInputs = `-- name: GatewayStopChatInputs :exec
+INSERT INTO chat_input_sessions (workspace_id, agent_name, session_id, stopping)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (workspace_id, agent_name, session_id) DO UPDATE SET stopping = EXCLUDED.stopping
+`
+
+type GatewayStopChatInputsParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	SessionID   string `json:"session_id"`
+	Stopping    bool   `json:"stopping"`
+}
+
+func (q *Queries) GatewayStopChatInputs(ctx context.Context, arg GatewayStopChatInputsParams) error {
+	_, err := q.db.Exec(ctx, gatewayStopChatInputs,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.SessionID,
+		arg.Stopping,
+	)
+	return err
+}
+
 const gatewaySyncAgentChatSessionStatuses = `-- name: GatewaySyncAgentChatSessionStatuses :exec
-WITH changed AS (
+WITH RECURSIVE scoped(session_id) AS (
+  SELECT thread.session_id
+  FROM coding_threads thread
+  JOIN coding_worktrees tree ON tree.id = thread.worktree_id
+  WHERE thread.workspace_id = $1
+    AND thread.agent_name = $2
+    AND tree.directory = $3::text
+  UNION
+  SELECT child.session_id
+  FROM chat_sessions child
+  JOIN scoped parent ON parent.session_id = child.parent_session_id
+  WHERE child.workspace_id = $1
+    AND child.agent_name = $2
+), changed AS (
 UPDATE chat_sessions
 SET
   status = (CASE
-    WHEN session_id = ANY($1::text[]) THEN 'retry'
-    WHEN session_id = ANY($2::text[]) THEN 'busy'
+    WHEN session_id = ANY($4::text[]) THEN 'retry'
+    WHEN session_id = ANY($5::text[]) THEN 'busy'
     ELSE 'idle'
   END)::chat_session_status,
   updated_at = NOW()
-WHERE workspace_id = $3
-  AND agent_name = $4
+WHERE chat_sessions.workspace_id = $1
+  AND chat_sessions.agent_name = $2
+  AND ($3::text IS NULL
+    OR chat_sessions.session_id IN (SELECT scoped.session_id FROM scoped))
   AND status IS DISTINCT FROM (CASE
-    WHEN session_id = ANY($1::text[]) THEN 'retry'
-    WHEN session_id = ANY($2::text[]) THEN 'busy'
+    WHEN session_id = ANY($4::text[]) THEN 'retry'
+    WHEN session_id = ANY($5::text[]) THEN 'busy'
     ELSE 'idle'
   END)::chat_session_status
-RETURNING workspace_id
+RETURNING chat_sessions.workspace_id, chat_sessions.agent_name, chat_sessions.session_id
 )
-SELECT pg_notify('agentz_chat_sessions', workspace_id)
+SELECT pg_notify('agentz_chat_sessions', changed.workspace_id || COALESCE('/' || project.owner_id, ''))
 FROM changed
-GROUP BY workspace_id
+LEFT JOIN coding_threads thread ON thread.workspace_id = changed.workspace_id
+  AND thread.agent_name = changed.agent_name AND thread.session_id = changed.session_id
+LEFT JOIN coding_worktrees tree ON tree.id = thread.worktree_id
+LEFT JOIN coding_projects project ON project.id = tree.project_id
+GROUP BY changed.workspace_id, project.owner_id
 `
 
 type GatewaySyncAgentChatSessionStatusesParams struct {
-	RetrySessionIds []string `json:"retry_session_ids"`
-	BusySessionIds  []string `json:"busy_session_ids"`
-	WorkspaceID     string   `json:"workspace_id"`
-	AgentName       string   `json:"agent_name"`
+	WorkspaceID     string      `json:"workspace_id"`
+	AgentName       string      `json:"agent_name"`
+	CodingDirectory pgtype.Text `json:"coding_directory"`
+	RetrySessionIds []string    `json:"retry_session_ids"`
+	BusySessionIds  []string    `json:"busy_session_ids"`
 }
 
 func (q *Queries) GatewaySyncAgentChatSessionStatuses(ctx context.Context, arg GatewaySyncAgentChatSessionStatusesParams) error {
 	_, err := q.db.Exec(ctx, gatewaySyncAgentChatSessionStatuses,
-		arg.RetrySessionIds,
-		arg.BusySessionIds,
 		arg.WorkspaceID,
 		arg.AgentName,
+		arg.CodingDirectory,
+		arg.RetrySessionIds,
+		arg.BusySessionIds,
 	)
 	return err
 }
@@ -4731,17 +6370,20 @@ RETURNING 1
 ), changed AS (
 UPDATE chat_sessions AS sessions
 SET
-  status = $6,
   source_updated_at = GREATEST(sessions.source_updated_at, $5),
   updated_at = NOW()
 WHERE sessions.workspace_id = $1
   AND sessions.agent_name = $2
   AND sessions.session_id = $3
   AND EXISTS (SELECT 1 FROM participant)
-RETURNING sessions.workspace_id
+RETURNING sessions.workspace_id, sessions.agent_name, sessions.session_id
 )
-SELECT pg_notify('agentz_chat_sessions', workspace_id)
+SELECT pg_notify('agentz_chat_sessions', changed.workspace_id || COALESCE('/' || project.owner_id, ''))
 FROM changed
+LEFT JOIN coding_threads thread ON thread.workspace_id = changed.workspace_id
+  AND thread.agent_name = changed.agent_name AND thread.session_id = changed.session_id
+LEFT JOIN coding_worktrees tree ON tree.id = thread.worktree_id
+LEFT JOIN coding_projects project ON project.id = tree.project_id
 `
 
 type GatewayTouchChatSessionParticipantParams struct {
@@ -4750,7 +6392,6 @@ type GatewayTouchChatSessionParticipantParams struct {
 	SessionID   string             `json:"session_id"`
 	UserID      string             `json:"user_id"`
 	MessagedAt  pgtype.Timestamptz `json:"messaged_at"`
-	Status      ChatSessionStatus  `json:"status"`
 }
 
 func (q *Queries) GatewayTouchChatSessionParticipant(ctx context.Context, arg GatewayTouchChatSessionParticipantParams) error {
@@ -4760,9 +6401,41 @@ func (q *Queries) GatewayTouchChatSessionParticipant(ctx context.Context, arg Ga
 		arg.SessionID,
 		arg.UserID,
 		arg.MessagedAt,
-		arg.Status,
 	)
 	return err
+}
+
+const gatewayTouchCodingSnapshot = `-- name: GatewayTouchCodingSnapshot :one
+INSERT INTO coding_snapshots(project_id, agent_name, worktree_id, demand_until)
+VALUES ($1, $2, $3, now() + interval '45 seconds')
+ON CONFLICT (project_id, agent_name, worktree_id) DO UPDATE SET demand_until = EXCLUDED.demand_until
+RETURNING project_id, agent_name, worktree_id, result, demand_until, next_refresh, github_retry_after, next_remote, lease_until, failures, generation, remote_refs
+`
+
+type GatewayTouchCodingSnapshotParams struct {
+	ProjectID  string `json:"project_id"`
+	AgentName  string `json:"agent_name"`
+	WorktreeID string `json:"worktree_id"`
+}
+
+func (q *Queries) GatewayTouchCodingSnapshot(ctx context.Context, arg GatewayTouchCodingSnapshotParams) (CodingSnapshot, error) {
+	row := q.db.QueryRow(ctx, gatewayTouchCodingSnapshot, arg.ProjectID, arg.AgentName, arg.WorktreeID)
+	var i CodingSnapshot
+	err := row.Scan(
+		&i.ProjectID,
+		&i.AgentName,
+		&i.WorktreeID,
+		&i.Result,
+		&i.DemandUntil,
+		&i.NextRefresh,
+		&i.GithubRetryAfter,
+		&i.NextRemote,
+		&i.LeaseUntil,
+		&i.Failures,
+		&i.Generation,
+		&i.RemoteRefs,
+	)
+	return i, err
 }
 
 const gatewayTransferAgentOwner = `-- name: GatewayTransferAgentOwner :one
@@ -4870,6 +6543,154 @@ func (q *Queries) GatewayTransitionWorkspaceProvisioning(ctx context.Context, ar
 	return result.RowsAffected(), nil
 }
 
+const gatewayUnlockResource = `-- name: GatewayUnlockResource :one
+SELECT (CASE WHEN $1::boolean
+  THEN pg_advisory_unlock_shared(hashtextextended($2::text, 0))
+  ELSE pg_advisory_unlock(hashtextextended($2::text, 0)) END)::boolean
+`
+
+type GatewayUnlockResourceParams struct {
+	Shared   bool   `json:"shared"`
+	Identity string `json:"identity"`
+}
+
+func (q *Queries) GatewayUnlockResource(ctx context.Context, arg GatewayUnlockResourceParams) (bool, error) {
+	row := q.db.QueryRow(ctx, gatewayUnlockResource, arg.Shared, arg.Identity)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const gatewayUnlockResources = `-- name: GatewayUnlockResources :exec
+SELECT pg_advisory_unlock_all()
+`
+
+func (q *Queries) GatewayUnlockResources(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, gatewayUnlockResources)
+	return err
+}
+
+const gatewayUpdateChatInput = `-- name: GatewayUpdateChatInput :one
+UPDATE chat_inputs SET state = $1, error = $2,
+  message_id = $3, resume = $4, revision = revision + 1, updated_at = now()
+WHERE id = $5 AND revision = $6 RETURNING id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, message_id, error, created_at, updated_at
+`
+
+type GatewayUpdateChatInputParams struct {
+	State     string    `json:"state"`
+	Error     string    `json:"error"`
+	MessageID string    `json:"message_id"`
+	Resume    bool      `json:"resume"`
+	ID        uuid.UUID `json:"id"`
+	Revision  int64     `json:"revision"`
+}
+
+func (q *Queries) GatewayUpdateChatInput(ctx context.Context, arg GatewayUpdateChatInputParams) (ChatInput, error) {
+	row := q.db.QueryRow(ctx, gatewayUpdateChatInput,
+		arg.State,
+		arg.Error,
+		arg.MessageID,
+		arg.Resume,
+		arg.ID,
+		arg.Revision,
+	)
+	var i ChatInput
+	err := row.Scan(
+		&i.ID,
+		&i.Sequence,
+		&i.WorkspaceID,
+		&i.AgentName,
+		&i.SessionID,
+		&i.OrganizationID,
+		&i.AuthorID,
+		&i.AuthorName,
+		&i.Directory,
+		&i.Resume,
+		&i.Content,
+		&i.Delivery,
+		&i.State,
+		&i.Revision,
+		&i.MessageID,
+		&i.Error,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const gatewayUpdateCodingBranch = `-- name: GatewayUpdateCodingBranch :exec
+UPDATE coding_worktrees SET branch = $1 WHERE id = $2
+`
+
+type GatewayUpdateCodingBranchParams struct {
+	Branch string `json:"branch"`
+	ID     string `json:"id"`
+}
+
+func (q *Queries) GatewayUpdateCodingBranch(ctx context.Context, arg GatewayUpdateCodingBranchParams) error {
+	_, err := q.db.Exec(ctx, gatewayUpdateCodingBranch, arg.Branch, arg.ID)
+	return err
+}
+
+const gatewayUpdateCodingOperation = `-- name: GatewayUpdateCodingOperation :execrows
+UPDATE coding_operations SET result = $1
+WHERE id = $2 AND lease_token = $3 AND lease_until > now()
+`
+
+type GatewayUpdateCodingOperationParams struct {
+	Result     []byte `json:"result"`
+	ID         string `json:"id"`
+	LeaseToken string `json:"lease_token"`
+}
+
+func (q *Queries) GatewayUpdateCodingOperation(ctx context.Context, arg GatewayUpdateCodingOperationParams) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayUpdateCodingOperation, arg.Result, arg.ID, arg.LeaseToken)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const gatewayUpdateCodingProjectPreference = `-- name: GatewayUpdateCodingProjectPreference :execrows
+UPDATE coding_projects SET last_agent_name = $1
+WHERE id = $2 AND workspace_id = $3 AND owner_id = $4
+`
+
+type GatewayUpdateCodingProjectPreferenceParams struct {
+	AgentName   pgtype.Text `json:"agent_name"`
+	ID          string      `json:"id"`
+	WorkspaceID string      `json:"workspace_id"`
+	OwnerID     string      `json:"owner_id"`
+}
+
+func (q *Queries) GatewayUpdateCodingProjectPreference(ctx context.Context, arg GatewayUpdateCodingProjectPreferenceParams) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayUpdateCodingProjectPreference,
+		arg.AgentName,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.OwnerID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const gatewayUpdateCodingRepository = `-- name: GatewayUpdateCodingRepository :exec
+UPDATE coding_projects SET repository = $1, default_branch = $2 WHERE id = $3
+`
+
+type GatewayUpdateCodingRepositoryParams struct {
+	Repository    string `json:"repository"`
+	DefaultBranch string `json:"default_branch"`
+	ID            string `json:"id"`
+}
+
+func (q *Queries) GatewayUpdateCodingRepository(ctx context.Context, arg GatewayUpdateCodingRepositoryParams) error {
+	_, err := q.db.Exec(ctx, gatewayUpdateCodingRepository, arg.Repository, arg.DefaultBranch, arg.ID)
+	return err
+}
+
 const gatewayUpsertChatSession = `-- name: GatewayUpsertChatSession :exec
 WITH changed AS (
 INSERT INTO chat_sessions(
@@ -4918,10 +6739,14 @@ WHERE ROW(
   EXCLUDED.source_created_at,
   GREATEST(chat_sessions.source_updated_at, EXCLUDED.source_updated_at)
 )
-RETURNING workspace_id
+RETURNING workspace_id, agent_name, session_id
 )
-SELECT pg_notify('agentz_chat_sessions', workspace_id)
+SELECT pg_notify('agentz_chat_sessions', changed.workspace_id || COALESCE('/' || project.owner_id, ''))
 FROM changed
+LEFT JOIN coding_threads thread ON thread.workspace_id = changed.workspace_id
+  AND thread.agent_name = changed.agent_name AND thread.session_id = changed.session_id
+LEFT JOIN coding_worktrees tree ON tree.id = thread.worktree_id
+LEFT JOIN coding_projects project ON project.id = tree.project_id
 `
 
 type GatewayUpsertChatSessionParams struct {

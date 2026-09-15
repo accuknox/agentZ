@@ -8,7 +8,7 @@ export type ChatSessionKind = "chat" | "workflow_run"
 
 export type ChatSessionStatus = "idle" | "busy" | "retry"
 
-export type ChatSessionGroupBy = "none" | "agent" | "status" | "date"
+export type ChatSessionGroupBy = "none" | "agent" | "status" | "date" | "project"
 
 export type ChatSessionDateBucket = "today" | "yesterday" | "previous_7_days" | "older"
 
@@ -20,6 +20,7 @@ export type ChatSessionParticipant = {
 }
 
 export type ChatSession = {
+  project_id?: string
   agent_name: AgentName
   session_id: string
   title: string
@@ -39,6 +40,7 @@ export type ListChatSessionsResponse = {
 }
 
 export type ChatSessionGroup = {
+  project?: CodingProject
   group_by: ChatSessionGroupBy
   key: string
   label: string
@@ -49,6 +51,55 @@ export type ChatSessionGroup = {
   sessions: Array<ChatSession>
   has_next_page: boolean
   next_page_token: string
+}
+
+export type ChatAttachment = {
+  id: string
+  filename: string
+  mediaType: string
+  path: string
+  size: number
+}
+
+export type ChatInputContent = {
+  text: string
+  attachments: Array<ChatAttachment>
+  model: {
+    modelID: string
+    providerID: string
+  }
+  agent?: string
+  variant?: string
+}
+
+export type ChatInputRequest = {
+  id: string
+  delivery: "steer" | "queue"
+  content: ChatInputContent
+}
+
+export type ChatInputState = "queued" | "sending" | "delivered" | "failed" | "recovered" | "removed"
+
+export type ChatInput = {
+  id: string
+  author: ResourceActor
+  delivery: "steer" | "queue"
+  content: ChatInputContent
+  state: ChatInputState
+  revision: number
+  created_at: string
+  message_id?: string
+  error: string
+}
+
+export type ChatInputs = {
+  items: Array<ChatInput>
+  stopping: boolean
+}
+
+export type ChatInputUpdate = {
+  revision: number
+  action: "remove" | "retry"
 }
 
 export type ChatSessionPreference = {
@@ -211,7 +262,10 @@ export type Tenant = {
 
 export type WorkspaceState = "provisioning" | "ready" | "failed" | "deleting"
 
+export type WorkspaceType = "general" | "coding"
+
 export type Workspace = {
+  type: WorkspaceType
   id: string
   name: string
   slug: string
@@ -249,6 +303,7 @@ export type ListWorkspacesResponse = {
 }
 
 export type CreateWorkspaceRequest = {
+  type?: WorkspaceType
   name: string
   admin_member_ids: Array<string>
   selected_organization_resources: SelectedOrganizationResources
@@ -2162,6 +2217,251 @@ export type DashboardTablePage = {
   error?: DashboardWidgetError
 }
 
+export type CodingProject = {
+  last_agent_name?: string
+  id: string
+  name: string
+  repository_id: number
+  repository: string
+  default_branch: string
+  created_at: string
+}
+
+export type CreateCodingProjectRequest = {
+  name: string
+  repository_id: number
+}
+
+export type CodingWorktree = {
+  id: string
+  project_id: string
+  agent_name: string
+  directory: string
+  branch: string
+  ready: boolean
+  shared: boolean
+}
+
+export type CodingThread = {
+  id: string
+  session_id: string
+  repository_id: number
+  repository: string
+  worktree: CodingWorktree
+}
+
+export type CodingProjectDetail = {
+  project: CodingProject
+  worktrees: Array<CodingWorktree>
+  threads: Array<CodingThread>
+}
+
+export type PrepareCodingCheckoutRequest = {
+  id: string
+  project_id: string
+  agent_name: string
+  worktree_id?: string
+  main_checkout?: boolean
+  base_ref?: string
+}
+
+export type CodingTextRequest = {
+  purpose: "branch" | "commit" | "pr"
+  text?: string
+  expected_tree?: string
+  model?: {
+    modelID: string
+    providerID: string
+  }
+}
+
+export type CodingPullRequestText = {
+  title: string
+  body: string
+}
+
+export type CodingTextSuggestion = {
+  text: string
+  pull_request?: CodingPullRequestText
+}
+
+export type CodingGitRequest = {
+  operation:
+    | "discover"
+    | "status"
+    | "diff"
+    | "stage"
+    | "unstage"
+    | "stashes"
+    | "stash_create"
+    | "stash_apply"
+    | "stash_pop"
+    | "stash_drop"
+    | "export"
+    | "import"
+    | "apply_commit"
+    | "checkout"
+    | "create_branch"
+    | "prepare_commit"
+    | "rename"
+    | "remove"
+  comparison?: CodingGitComparison
+  revision?: string
+  hunk?: number
+  stash?: string
+  message?: string
+  restore_index?: boolean
+  paths?: Array<string>
+  expected_tree?: string
+  expected_head?: string
+  ref?: string
+  bundle?: string
+}
+
+export type CodingGitResult = {
+  head: string
+  branch: string
+  default_branch: string
+  remote_head: string
+  ahead: number
+  behind: number
+  ahead_of_default: number
+  files: Array<CodingGitFile>
+  revision: string
+  patches?: Array<CodingGitPatch>
+  stashes?: Array<CodingGitStash>
+  bundle?: string
+  tree?: string
+  repository?: CodingRepositorySnapshot
+  pull_request?: CodingPullRequest
+  remote_error?: string
+}
+
+export type CodingGitFile = {
+  path: string
+  index: string
+  worktree: string
+  previous_path?: string
+  conflict: boolean
+}
+
+export type CodingGitComparison = "all" | "unstaged" | "staged"
+
+export type CodingGitPatch = {
+  path: string
+  patch: string
+  revision: string
+  can_stage_hunks: boolean
+  binary: boolean
+}
+
+export type CodingGitStash = {
+  oid: string
+  reference: string
+  message: string
+  created_at: string
+}
+
+export type CodingRepositoryPage = {
+  repositories: Array<CodingRepositoryItem>
+  next_page?: number
+  limited: boolean
+}
+
+export type CodingRef = {
+  ref: string
+  name: string
+  head: string
+  remote: boolean
+  worktree?: string
+  current: boolean
+  default: boolean
+  committed_at: number
+}
+
+export type CodingDiscoveredWorktree = {
+  directory: string
+  branch: string
+  head: string
+  managed_id?: string
+  available: boolean
+  reason?: string
+  locked: boolean
+}
+
+export type CodingRepositorySnapshot = {
+  refs: Array<CodingRef>
+  worktrees: Array<CodingDiscoveredWorktree>
+  revision: string
+  updated_at?: string
+  refreshing: boolean
+  error?: string
+  total_count: number
+  next_cursor?: string
+}
+
+export type AdoptCodingWorktreeRequest = {
+  agent_name: string
+  directory: string
+}
+
+export type CodingPullRequest = {
+  number: number
+  url: string
+}
+
+export type CodingAction =
+  | "commit"
+  | "push"
+  | "pull"
+  | "fetch"
+  | "create_pr"
+  | "commit_push"
+  | "commit_push_pr"
+  | "name_branch"
+
+export type CodingOperationRequest = {
+  id: string
+  agent_name: string
+  session_id: string
+  action: CodingAction
+  branch: string
+  expected_head: string
+  revision: string
+  expected_tree?: string
+  message?: string
+  feature_branch?: boolean
+  text?: string
+  model?: {
+    modelID: string
+    providerID: string
+  }
+  paths?: Array<string>
+}
+
+export type CodingOperation = {
+  id: string
+  project_id: string
+  worktree_id: string
+  agent_name: string
+  session_id: string
+  action: CodingAction
+  state: "queued" | "running" | "succeeded" | "failed" | "interrupted"
+  stage: string
+  created_at: string
+  updated_at: string
+  commit?: string
+  pushed: boolean
+  pull_request?: CodingPullRequest
+  error?: string
+}
+
+export type CodingRepositoryItem = {
+  id: number
+  name: string
+  private: boolean
+}
+
 export type WorkflowRunInputsWritable = JsonValueWritable
 
 export type JsonValueWritable =
@@ -2564,10 +2864,514 @@ export type DashboardWidgetNamePath = DashboardWidgetName
  */
 export type IdempotencyKeyHeader = string
 
+export type ListCodingProjectsData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/coding/project"
+}
+
+export type ListCodingProjectsErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type ListCodingProjectsError = ListCodingProjectsErrors[keyof ListCodingProjectsErrors]
+
+export type ListCodingProjectsResponses = {
+  /**
+   * The actor's projects.
+   */
+  200: Array<CodingProject>
+}
+
+export type ListCodingProjectsResponse =
+  ListCodingProjectsResponses[keyof ListCodingProjectsResponses]
+
+export type CreateCodingProjectData = {
+  body: CreateCodingProjectRequest
+  path?: never
+  query?: never
+  url: "/api/coding/project"
+}
+
+export type CreateCodingProjectErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type CreateCodingProjectError = CreateCodingProjectErrors[keyof CreateCodingProjectErrors]
+
+export type CreateCodingProjectResponses = {
+  /**
+   * Created project.
+   */
+  201: CodingProject
+}
+
+export type CreateCodingProjectResponse =
+  CreateCodingProjectResponses[keyof CreateCodingProjectResponses]
+
+export type DeleteCodingProjectData = {
+  body?: never
+  path: {
+    projectId: string
+  }
+  query?: never
+  url: "/api/coding/project/{projectId}"
+}
+
+export type DeleteCodingProjectErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type DeleteCodingProjectError = DeleteCodingProjectErrors[keyof DeleteCodingProjectErrors]
+
+export type DeleteCodingProjectResponses = {
+  /**
+   * Project and associated conversations deleted.
+   */
+  204: void
+}
+
+export type DeleteCodingProjectResponse =
+  DeleteCodingProjectResponses[keyof DeleteCodingProjectResponses]
+
+export type GetCodingProjectData = {
+  body?: never
+  path: {
+    projectId: string
+  }
+  query?: never
+  url: "/api/coding/project/{projectId}"
+}
+
+export type GetCodingProjectErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type GetCodingProjectError = GetCodingProjectErrors[keyof GetCodingProjectErrors]
+
+export type GetCodingProjectResponses = {
+  /**
+   * Project and checkouts.
+   */
+  200: CodingProjectDetail
+}
+
+export type GetCodingProjectResponse = GetCodingProjectResponses[keyof GetCodingProjectResponses]
+
+export type RenameCodingProjectData = {
+  body: {
+    name: string
+  }
+  path: {
+    projectId: string
+  }
+  query?: never
+  url: "/api/coding/project/{projectId}"
+}
+
+export type RenameCodingProjectErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type RenameCodingProjectError = RenameCodingProjectErrors[keyof RenameCodingProjectErrors]
+
+export type RenameCodingProjectResponses = {
+  /**
+   * Renamed.
+   */
+  204: void
+}
+
+export type RenameCodingProjectResponse =
+  RenameCodingProjectResponses[keyof RenameCodingProjectResponses]
+
+export type UpdateCodingProjectPreferenceData = {
+  body: {
+    agent_name: AgentName
+  }
+  path: {
+    projectId: string
+  }
+  query?: never
+  url: "/api/coding/project/{projectId}/preference"
+}
+
+export type UpdateCodingProjectPreferenceErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type UpdateCodingProjectPreferenceError =
+  UpdateCodingProjectPreferenceErrors[keyof UpdateCodingProjectPreferenceErrors]
+
+export type UpdateCodingProjectPreferenceResponses = {
+  /**
+   * Updated preference.
+   */
+  204: void
+}
+
+export type UpdateCodingProjectPreferenceResponse =
+  UpdateCodingProjectPreferenceResponses[keyof UpdateCodingProjectPreferenceResponses]
+
+export type PrepareCodingCheckoutData = {
+  body: PrepareCodingCheckoutRequest
+  path?: never
+  query?: never
+  url: "/api/coding/checkout"
+}
+
+export type PrepareCodingCheckoutErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type PrepareCodingCheckoutError =
+  PrepareCodingCheckoutErrors[keyof PrepareCodingCheckoutErrors]
+
+export type PrepareCodingCheckoutResponses = {
+  /**
+   * Prepared checkout.
+   */
+  201: CodingWorktree
+}
+
+export type PrepareCodingCheckoutResponse =
+  PrepareCodingCheckoutResponses[keyof PrepareCodingCheckoutResponses]
+
+export type GetCodingThreadData = {
+  body?: never
+  path: {
+    agentName: string
+    sessionId: string
+  }
+  query?: never
+  url: "/api/coding/agent/{agentName}/session/{sessionId}"
+}
+
+export type GetCodingThreadErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type GetCodingThreadError = GetCodingThreadErrors[keyof GetCodingThreadErrors]
+
+export type GetCodingThreadResponses = {
+  /**
+   * Thread checkout.
+   */
+  200: CodingThread
+}
+
+export type GetCodingThreadResponse = GetCodingThreadResponses[keyof GetCodingThreadResponses]
+
+export type SuggestCodingTextData = {
+  body: CodingTextRequest
+  path: {
+    agentName: string
+    sessionId: string
+  }
+  query?: never
+  url: "/api/coding/agent/{agentName}/session/{sessionId}/suggestion"
+}
+
+export type SuggestCodingTextErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type SuggestCodingTextError = SuggestCodingTextErrors[keyof SuggestCodingTextErrors]
+
+export type SuggestCodingTextResponses = {
+  /**
+   * Generated source-control text.
+   */
+  200: CodingTextSuggestion
+}
+
+export type SuggestCodingTextResponse = SuggestCodingTextResponses[keyof SuggestCodingTextResponses]
+
+export type RunCodingGitData = {
+  body: CodingGitRequest
+  path: {
+    worktreeId: string
+  }
+  query?: never
+  url: "/api/coding/worktree/{worktreeId}/git"
+}
+
+export type RunCodingGitErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type RunCodingGitError = RunCodingGitErrors[keyof RunCodingGitErrors]
+
+export type RunCodingGitResponses = {
+  /**
+   * Git result.
+   */
+  200: CodingGitResult
+}
+
+export type RunCodingGitResponse = RunCodingGitResponses[keyof RunCodingGitResponses]
+
+export type ListCodingRepositoriesData = {
+  body?: never
+  path?: never
+  query?: {
+    query?: string
+    page?: number
+  }
+  url: "/api/coding/repository"
+}
+
+export type ListCodingRepositoriesErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type ListCodingRepositoriesError =
+  ListCodingRepositoriesErrors[keyof ListCodingRepositoriesErrors]
+
+export type ListCodingRepositoriesResponses = {
+  /**
+   * Coding result.
+   */
+  200: CodingRepositoryPage
+}
+
+export type ListCodingRepositoriesResponse =
+  ListCodingRepositoriesResponses[keyof ListCodingRepositoriesResponses]
+
+export type ListCodingRefsData = {
+  body?: never
+  path: {
+    projectId: string
+  }
+  query: {
+    agent_name: string
+    query?: string
+    cursor?: string
+  }
+  url: "/api/coding/project/{projectId}/refs"
+}
+
+export type ListCodingRefsErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type ListCodingRefsError = ListCodingRefsErrors[keyof ListCodingRefsErrors]
+
+export type ListCodingRefsResponses = {
+  /**
+   * Coding result.
+   */
+  200: CodingRepositorySnapshot
+}
+
+export type ListCodingRefsResponse = ListCodingRefsResponses[keyof ListCodingRefsResponses]
+
+export type RefreshCodingRepositoryData = {
+  body?: never
+  path: {
+    projectId: string
+  }
+  query: {
+    agent_name: string
+  }
+  url: "/api/coding/project/{projectId}/refresh"
+}
+
+export type RefreshCodingRepositoryErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type RefreshCodingRepositoryError =
+  RefreshCodingRepositoryErrors[keyof RefreshCodingRepositoryErrors]
+
+export type RefreshCodingRepositoryResponses = {
+  /**
+   * Coding result.
+   */
+  202: CodingRepositorySnapshot
+}
+
+export type RefreshCodingRepositoryResponse =
+  RefreshCodingRepositoryResponses[keyof RefreshCodingRepositoryResponses]
+
+export type AdoptCodingWorktreeData = {
+  body: AdoptCodingWorktreeRequest
+  path: {
+    projectId: string
+  }
+  query?: never
+  url: "/api/coding/project/{projectId}/worktree"
+}
+
+export type AdoptCodingWorktreeErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type AdoptCodingWorktreeError = AdoptCodingWorktreeErrors[keyof AdoptCodingWorktreeErrors]
+
+export type AdoptCodingWorktreeResponses = {
+  /**
+   * Coding result.
+   */
+  201: CodingWorktree
+}
+
+export type AdoptCodingWorktreeResponse =
+  AdoptCodingWorktreeResponses[keyof AdoptCodingWorktreeResponses]
+
+export type ListCodingOperationsData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/coding/operation"
+}
+
+export type ListCodingOperationsErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type ListCodingOperationsError = ListCodingOperationsErrors[keyof ListCodingOperationsErrors]
+
+export type ListCodingOperationsResponses = {
+  /**
+   * Active and recent operations owned by the actor.
+   */
+  200: Array<CodingOperation>
+}
+
+export type ListCodingOperationsResponse =
+  ListCodingOperationsResponses[keyof ListCodingOperationsResponses]
+
+export type StartCodingOperationData = {
+  body: CodingOperationRequest
+  path?: never
+  query?: never
+  url: "/api/coding/operation"
+}
+
+export type StartCodingOperationErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type StartCodingOperationError = StartCodingOperationErrors[keyof StartCodingOperationErrors]
+
+export type StartCodingOperationResponses = {
+  /**
+   * Coding result.
+   */
+  202: CodingOperation
+}
+
+export type StartCodingOperationResponse =
+  StartCodingOperationResponses[keyof StartCodingOperationResponses]
+
+export type GetCodingOperationData = {
+  body?: never
+  path: {
+    operationId: string
+  }
+  query?: never
+  url: "/api/coding/operation/{operationId}"
+}
+
+export type GetCodingOperationErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type GetCodingOperationError = GetCodingOperationErrors[keyof GetCodingOperationErrors]
+
+export type GetCodingOperationResponses = {
+  /**
+   * Coding result.
+   */
+  200: CodingOperation
+}
+
+export type GetCodingOperationResponse =
+  GetCodingOperationResponses[keyof GetCodingOperationResponses]
+
+export type WatchCodingData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/coding/watch"
+}
+
+export type WatchCodingErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type WatchCodingError = WatchCodingErrors[keyof WatchCodingErrors]
+
+export type WatchCodingResponses = {
+  /**
+   * Invalidation notifications; read current state on every connection.
+   */
+  200: WatchChatSessionsEvent
+}
+
+export type WatchCodingResponse = WatchCodingResponses[keyof WatchCodingResponses]
+
 export type ListChatSessionsData = {
   body?: never
   path?: never
   query?: {
+    project_id?: string
     /**
      * Maximum number of sessions to return.
      */
@@ -2682,6 +3486,127 @@ export type WatchChatSessionsResponses = {
 }
 
 export type WatchChatSessionsResponse = WatchChatSessionsResponses[keyof WatchChatSessionsResponses]
+
+export type ListChatInputsData = {
+  body?: never
+  path: {
+    agentName: AgentName
+    sessionId: string
+  }
+  query?: never
+  url: "/api/chat-session/{agentName}/{sessionId}/input"
+}
+
+export type ListChatInputsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListChatInputsError = ListChatInputsErrors[keyof ListChatInputsErrors]
+
+export type ListChatInputsResponses = {
+  /**
+   * Read queued messages and your recovered drafts.
+   */
+  200: ChatInputs
+}
+
+export type ListChatInputsResponse = ListChatInputsResponses[keyof ListChatInputsResponses]
+
+export type SubmitChatInputData = {
+  body: ChatInputRequest
+  path: {
+    agentName: AgentName
+    sessionId: string
+  }
+  query?: never
+  url: "/api/chat-session/{agentName}/{sessionId}/input"
+}
+
+export type SubmitChatInputErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type SubmitChatInputError = SubmitChatInputErrors[keyof SubmitChatInputErrors]
+
+export type SubmitChatInputResponses = {
+  /**
+   * Persist a message for steering or queued delivery.
+   */
+  202: ChatInput
+}
+
+export type SubmitChatInputResponse = SubmitChatInputResponses[keyof SubmitChatInputResponses]
+
+export type UpdateChatInputData = {
+  body: ChatInputUpdate
+  path: {
+    agentName: AgentName
+    sessionId: string
+    inputId: string
+  }
+  query?: never
+  url: "/api/chat-session/{agentName}/{sessionId}/input/{inputId}"
+}
+
+export type UpdateChatInputErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type UpdateChatInputError = UpdateChatInputErrors[keyof UpdateChatInputErrors]
+
+export type UpdateChatInputResponses = {
+  /**
+   * Remove or retry your queued message.
+   */
+  200: ChatInput
+}
+
+export type UpdateChatInputResponse = UpdateChatInputResponses[keyof UpdateChatInputResponses]
 
 export type GetChatSessionPreferenceData = {
   body?: never
@@ -3390,6 +4315,10 @@ export type CreateAgentErrors = {
    */
   400: Error
   /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
    *
    */
@@ -3475,6 +4404,10 @@ export type UpdateAgentErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
@@ -7341,6 +8274,10 @@ export type DeleteWorkflowsErrors = {
    */
   400: Error
   /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
    */
@@ -7388,6 +8325,10 @@ export type ListWorkflowSummariesErrors = {
    */
   400: Error
   /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -7423,6 +8364,10 @@ export type CreateWorkflowErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
@@ -7480,6 +8425,10 @@ export type GetWorkflowErrors = {
    */
   400: Error
   /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
    */
@@ -7535,6 +8484,10 @@ export type ListAgentWorkflowSchedulesErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Unexpected server error.
    */
@@ -7593,6 +8546,10 @@ export type ListWorkflowSchedulesErrors = {
    */
   400: Error
   /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -7632,6 +8589,10 @@ export type CreateWorkflowScheduleErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
@@ -7695,6 +8656,10 @@ export type DeleteWorkflowScheduleErrors = {
    */
   400: Error
   /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
    */
@@ -7743,6 +8708,10 @@ export type UpdateWorkflowScheduleErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
@@ -7806,6 +8775,10 @@ export type CreateWorkflowRunErrors = {
    */
   400: Error
   /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
    */
@@ -7862,6 +8835,10 @@ export type InvokeWorkflowWebhookErrors = {
    * Request authentication failed.
    */
   401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
@@ -7925,6 +8902,10 @@ export type ListWorkflowWebhookTriggersErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Unexpected server error.
    */
@@ -7993,6 +8974,10 @@ export type ListWorkflowRunsErrors = {
    */
   400: Error
   /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
    */
@@ -8035,6 +9020,10 @@ export type WatchWorkflowRunsErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
@@ -8091,6 +9080,10 @@ export type DeleteWorkflowRunErrors = {
    */
   400: Error
   /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
    */
@@ -8138,6 +9131,10 @@ export type GetWorkflowRunErrors = {
    */
   400: Error
   /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
    */
@@ -8184,6 +9181,10 @@ export type PatchWorkflowRunStatusErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
@@ -8251,6 +9252,10 @@ export type PatchWorkflowRunNodeStatusErrors = {
    */
   400: Error
   /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
    */
@@ -8316,6 +9321,10 @@ export type ListDashboardsErrors = {
    */
   400: Error
   /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -8362,6 +9371,10 @@ export type ListAgentDashboardsErrors = {
    */
   400: Error
   /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
    */
@@ -8404,6 +9417,10 @@ export type CreateDashboardData = {
 }
 
 export type CreateDashboardErrors = {
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
    *
@@ -8459,6 +9476,10 @@ export type DeleteDashboardData = {
 
 export type DeleteDashboardErrors = {
   /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
    */
@@ -8504,6 +9525,10 @@ export type GetDashboardData = {
 }
 
 export type GetDashboardErrors = {
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *
@@ -8558,6 +9583,10 @@ export type PublishDashboardDataData = {
 }
 
 export type PublishDashboardDataErrors = {
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
    *
@@ -8617,6 +9646,10 @@ export type QueryDashboardData = {
 }
 
 export type QueryDashboardErrors = {
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * The request body does not match the operation schema.
    */
@@ -8692,6 +9725,10 @@ export type ListDashboardTableRowsErrors = {
    * Request validation failed.
    */
   400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
   /**
    * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
    *

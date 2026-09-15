@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"k8s.io/apimachinery/pkg/util/validation"
 
+	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
@@ -71,7 +72,9 @@ func requestID(r *http.Request) string {
 }
 
 func validAgentName(w http.ResponseWriter, r *http.Request, name string, fields ...string) (string, bool) {
-	if name != "" && name != agentzv1alpha1.AgentNameMCPConnection && len(name) <= 32 && len(validation.IsDNS1123Label(name)) == 0 {
+	reserved := name == agentzv1alpha1.AgentNameMCPConnection
+	allowed := name != "" && !reserved && len(name) <= 32
+	if allowed && len(validation.IsDNS1123Label(name)) == 0 {
 		return name, true
 	}
 
@@ -79,10 +82,10 @@ func validAgentName(w http.ResponseWriter, r *http.Request, name string, fields 
 	if len(fields) > 0 && fields[0] != "" {
 		field = fields[0]
 	}
-	writeError(
+	apiutil.WriteError(
 		w,
 		r,
-		newAPIError(
+		apiutil.NewError(
 			http.StatusBadRequest,
 			"invalid_request",
 			"request validation failed",
@@ -105,10 +108,10 @@ func validLimit(w http.ResponseWriter, r *http.Request, raw *gatewayapi.LimitQue
 		return limit, true
 	}
 
-	writeError(
+	apiutil.WriteError(
 		w,
 		r,
-		newAPIError(
+		apiutil.NewError(
 			http.StatusBadRequest,
 			"invalid_request",
 			"limit must be between 1 and 200",
@@ -122,18 +125,14 @@ func validTraceID(w http.ResponseWriter, r *http.Request, raw string) ([]byte, b
 	return validHexID(w, r, raw, "trace_id", 16)
 }
 
-func validSpanID(w http.ResponseWriter, r *http.Request, raw string) ([]byte, bool) {
-	return validHexID(w, r, raw, "span_id", 8)
-}
-
 func validHexID(w http.ResponseWriter, r *http.Request, raw string, field string, size int) ([]byte, bool) {
 	raw = strings.TrimSpace(raw)
 	out, err := hex.DecodeString(raw)
 	if err != nil || len(out) != size || raw != strings.ToLower(raw) {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -172,10 +171,10 @@ func decodeObservabilityQuery(w http.ResponseWriter, r *http.Request, query obse
 		filter.before = (*query.before).UTC()
 	}
 	if filter.after.After(filter.before) {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"event_time_after must be before or equal to event_time_before",
@@ -187,10 +186,10 @@ func decodeObservabilityQuery(w http.ResponseWriter, r *http.Request, query obse
 	if query.action != nil {
 		filter.action = string(*query.action)
 		if filter.action != "Allowed" && filter.action != "Blocked" {
-			writeError(
+			apiutil.WriteError(
 				w,
 				r,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusBadRequest,
 					"invalid_request",
 					"action must be Allowed or Blocked",
@@ -319,10 +318,10 @@ func decodeCursorPageToken[T any](w http.ResponseWriter, r *http.Request, token 
 }
 
 func writeInvalidPageToken(w http.ResponseWriter, r *http.Request, err error) {
-	writeError(
+	apiutil.WriteError(
 		w,
 		r,
-		newAPIError(
+		apiutil.NewError(
 			http.StatusBadRequest,
 			"invalid_request",
 			"page_token is invalid",

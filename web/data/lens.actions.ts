@@ -3,6 +3,7 @@
 import {
   getMcpGraph,
   getSpanDetail,
+  listChatSessions,
   listFileObservability,
   listFileObservabilitySummary,
   listNetworkObservability,
@@ -25,6 +26,7 @@ import {
   type Span,
   type SpanPayload,
   type TraceSession,
+  type WorkspaceType,
 } from "@/lib/gateway/client"
 import type {
   FileTelemetryActionResponse,
@@ -129,12 +131,34 @@ export async function getTraceChartAction(
 
 export async function listTraceSessionFilterAction(
   agentName: string,
-  workspaceId: string
+  workspaceId: string,
+  workspaceType: WorkspaceType
 ): Promise<TraceSessionFilterActionResponse> {
+  if (workspaceType === "coding") {
+    const client = getGatewayServerClient(workspaceId)
+    const sessions: TraceSessionFilterItem[] = []
+    let pageToken: string | undefined
+    for (;;) {
+      const result = await listChatSessions({
+        client,
+        query: { agent_name: agentName, limit: 50, page_token: pageToken },
+      })
+      if (result.error) return { data: undefined, error: result.error }
+      for (const session of result.data.sessions) {
+        sessions.push({ sessionId: session.session_id, title: session.title || session.session_id })
+      }
+      if (!result.data.has_next_page) return { data: sessions, error: undefined }
+      pageToken = result.data.next_page_token
+    }
+  }
+
   const client = await createAgentOpencodeClient(agentName, { workspaceId })
   const sessionListResult = await client.session.list()
   if (!sessionListResult.data) {
-    return { data: [], error: undefined }
+    return {
+      data: undefined,
+      error: { code: "session_list_failed", message: "Could not load trace sessions" },
+    }
   }
 
   const sessions: TraceSessionFilterItem[] = sessionListResult.data.map((session) => ({

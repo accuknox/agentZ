@@ -1,13 +1,5 @@
-import type {
-  AssistantMessage,
-  Message,
-  Part,
-  SnapshotFileDiff,
-  ToolPart,
-  UserMessage,
-} from "@opencode-ai/sdk/v2"
+import type { AssistantMessage, Message, Part, ToolPart, UserMessage } from "@opencode-ai/sdk/v2"
 import { attachmentFromPart, type ChatAttachment } from "@/components/blocks/chat/attachments"
-import { type OptimisticUserMessage } from "@/components/blocks/chat/use-opencode-chat"
 import { describeMessageError } from "@/components/blocks/chat/errors"
 import { z } from "zod"
 
@@ -28,20 +20,25 @@ export type RenderEntry =
   | { key: string; toolEntries: ToolEntry[]; type: "tool" }
 
 export type TimelineRow =
-  | { key: string; message: OptimisticUserMessage; type: "local" }
   | {
       actor?: MessageActor
       attachments: ChatAttachment[]
       createdAt: number
       key: string
       messageID: string
+      isWaiting: boolean
       text: string
       type: "user"
     }
-  | { createdAt: number; entries: RenderEntry[]; key: string; type: "assistant" }
+  | {
+      createdAt: number
+      entries: RenderEntry[]
+      isStreaming: boolean
+      key: string
+      type: "assistant"
+    }
   // "Thinking..." placeholder rendered while the active turn has no content yet.
   | { key: string; type: "thinking" }
-  | { body?: string; diffs: SnapshotFileDiff[]; key: string; title?: string; type: "diff-summary" }
   | { key: string; type: "checkpoint"; variant: "compaction" | "interrupted" }
   | { body: string; key: string; label: string; type: "assistant-error" }
 
@@ -156,7 +153,6 @@ function renderParts(parts: Part[], textByPart: Record<string, string>): RenderE
 type ProjectInput = {
   isBusy: boolean
   isRetrying: boolean
-  localMessages: OptimisticUserMessage[]
   messages: Message[]
   partsByMessage: Record<string, Part[]>
   // User turns at or after this id are rolled back: hidden from the transcript
@@ -176,11 +172,9 @@ function projectTurn(input: {
   partsByMessage: Record<string, Part[]>
   textByPart: Record<string, string>
   turnKey: string
-  userIsLast: boolean
-  isBusy: boolean
+  isActive: boolean
 }): void {
-  const { assistants, compacted, out, partsByMessage, textByPart, turnKey, userIsLast, isBusy } =
-    input
+  const { assistants, compacted, out, partsByMessage, textByPart, turnKey, isActive } = input
 
   const interruption = compacted
     ? undefined
@@ -200,6 +194,7 @@ function projectTurn(input: {
         out.push({
           createdAt,
           entries,
+          isStreaming: false,
           key: `${turnKey}:${segment}`,
           type: "assistant",
         })
@@ -220,18 +215,18 @@ function projectTurn(input: {
     }
   }
 
-  const isActiveTurn = userIsLast && isBusy
   if (entries.length > 0) {
     out.push({
       createdAt,
       entries,
+      isStreaming: isActive,
       key: interruption ? `${turnKey}:${segment}` : turnKey,
       type: "assistant",
     })
     hasContent = true
   }
 
-  if (!hasContent && isActiveTurn) {
+  if (!hasContent && isActive) {
     out.push({ key: `thinking:${turnKey}`, type: "thinking" })
   }
 
@@ -286,42 +281,13 @@ export function projectTimeline(input: ProjectInput): {
     return true
   })
 
-  const localByID = new Map(input.localMessages.map((message) => [message.id, message]))
-  const timeline: {
-    createdAt: number
-    key: string
-    local?: OptimisticUserMessage
-    turn?: (typeof turns)[number]
-  }[] = visible.map((turn) => {
-    const local = localByID.get(turn.user.id)
-    localByID.delete(turn.user.id)
-    return {
-      createdAt: turn.user.time.created,
-      key: turn.user.id,
-      local,
-      turn,
-    }
-  })
-  for (const local of localByID.values()) {
-    timeline.push({
-      createdAt: local.createdAt,
-      key: local.id,
-      local,
-      turn: undefined,
-    })
-  }
-  timeline.sort((x, y) => x.createdAt - y.createdAt || x.key.localeCompare(y.key))
-
-  const lastIndex = timeline.length - 1
-  timeline.forEach((item, index) => {
-    if (!item.turn) {
-      if (item.local) {
-        out.push({ key: item.local.id, message: item.local, type: "local" })
-      }
-      return
-    }
-
-    const turn = item.turn
+  // Steering persists a new user message before the current model step ends.
+  // Keep that step active until its own completion event arrives.
+  const runningIndex = visible.findLastIndex((turn) =>
+    turn.assistants.some((assistant) => !assistant.time.completed && !assistant.error)
+  )
+  const activeIndex = input.isBusy ? (runningIndex < 0 ? visible.length - 1 : runningIndex) : -1
+  visible.forEach((turn, index) => {
     const userParts = input.partsByMessage[turn.user.id] ?? []
     const attachments = userParts
       .filter((part): part is Extract<Part, { type: "text" }> => part.type === "text")
@@ -342,16 +308,16 @@ export function projectTimeline(input: ProjectInput): {
       }
     }
 
-    if (item.local) {
-      out.push({ key: item.local.id, message: item.local, type: "local" })
-    } else {
+    const text = userText(turn.user.id)
+    if (text || attachments.length > 0) {
       out.push({
         actor,
         attachments,
         createdAt: turn.user.time.created,
         key: `user:${turn.user.id}`,
         messageID: turn.user.id,
-        text: userText(turn.user.id),
+        isWaiting: input.isBusy && index > activeIndex,
+        text,
         type: "user",
       })
     }
@@ -367,26 +333,12 @@ export function projectTimeline(input: ProjectInput): {
     projectTurn({
       assistants: turn.assistants,
       compacted,
-      isBusy: input.isBusy && !input.isRetrying,
+      isActive: index === activeIndex && !input.isRetrying,
       out,
       partsByMessage: input.partsByMessage,
       textByPart: input.textByPart,
       turnKey: `assistant:${turn.user.id}`,
-      userIsLast: index === lastIndex,
     })
-
-    // Only completed turns: on the active turn the snapshot lands mid-stream
-    // and would flicker.
-    const diffs = turn.user.summary?.diffs ?? []
-    if (diffs.length > 0 && (index !== lastIndex || !input.isBusy)) {
-      out.push({
-        body: turn.user.summary?.body,
-        diffs,
-        key: `diff:${turn.user.id}`,
-        title: turn.user.summary?.title,
-        type: "diff-summary",
-      })
-    }
   })
 
   return { reverted, rows: out }

@@ -111,7 +111,8 @@ func (s *Service) evaluateInference(ctx context.Context, checkAttrs *authv3.Attr
 			slog.LevelError,
 		), attrs
 	}
-	isSubscription := provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICodex || provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindGitHubCopilot
+	isSubscription := provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICodex ||
+		provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindGitHubCopilot
 	if !isSubscription {
 		if attrs.pool == "" {
 			return denyDecision(

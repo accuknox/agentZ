@@ -37,6 +37,8 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
+// WorkflowRunByScheduleIndex finds runs owned by a schedule without listing
+// every run in the namespace.
 const WorkflowRunByScheduleIndex = "spec.scheduleRef.name"
 
 // Reconciler reconciles a WorkflowSchedule object.
@@ -60,6 +62,16 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	err := r.Get(ctx, req.NamespacedName, schedule)
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	var workspace agentzv1alpha1.Workspace
+	err = r.Get(ctx, client.ObjectKey{Name: schedule.Namespace}, &workspace)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("get workflow Workspace: %w", err)
+	}
+	if workspace.Spec.Type == agentzv1alpha1.WorkspaceTypeCoding {
+		// Admission rejects these resources; never execute them if it was bypassed.
+		return ctrl.Result{}, nil
 	}
 
 	if r.ControllerImage == "" {
@@ -317,12 +329,5 @@ func (r *Reconciler) updateStatus(ctx context.Context, schedule *agentzv1alpha1.
 }
 
 func newerFirst(left, right agentzv1alpha1.WorkflowRun) int {
-	switch {
-	case left.CreationTimestamp.After(right.CreationTimestamp.Time):
-		return -1
-	case right.CreationTimestamp.After(left.CreationTimestamp.Time):
-		return 1
-	default:
-		return 0
-	}
+	return right.CreationTimestamp.Compare(left.CreationTimestamp.Time)
 }

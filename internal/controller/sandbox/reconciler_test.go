@@ -114,10 +114,11 @@ func TestReconcileMCPAgentRouteIdentity(t *testing.T) {
 	if err := r.reconcileRoute(ctx, sandbox); err != nil {
 		t.Fatalf("reconcileRoute() error = %v", err)
 	}
-	if err := r.reconcileGatewayNetworkPolicy(ctx, namespace, []agentzv1alpha1.Sandbox{*sandbox}); err != nil {
+	owners := []agentzv1alpha1.Sandbox{*sandbox}
+	if err := r.reconcileGatewayNetworkPolicy(ctx, namespace, owners); err != nil {
 		t.Fatalf("reconcileGatewayNetworkPolicy() error = %v", err)
 	}
-	if err := r.reconcileTracePolicy(ctx, namespace, []agentzv1alpha1.Sandbox{*sandbox}); err != nil {
+	if err := r.reconcileTracePolicy(ctx, namespace, owners); err != nil {
 		t.Fatalf("reconcileTracePolicy() error = %v", err)
 	}
 
@@ -176,14 +177,16 @@ func TestReconcileMCPAgentRouteIdentity(t *testing.T) {
 	}
 }
 
+type traceEgressCase struct {
+	name    string
+	backend TraceBackend
+	want    []ciliumapi.EgressRule
+}
+
 func TestGatewayNetworkPolicySpecTraceEgress(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name    string
-		backend TraceBackend
-		want    []ciliumapi.EgressRule
-	}{
+	tests := []traceEgressCase{
 		{
 			name: "service",
 			backend: TraceBackend{
@@ -224,9 +227,10 @@ func TestGatewayNetworkPolicySpecTraceEgress(t *testing.T) {
 				)
 			}
 			for _, want := range tt.want {
-				if !slices.ContainsFunc(policy.Egress, func(got ciliumapi.EgressRule) bool {
+				found := slices.ContainsFunc(policy.Egress, func(got ciliumapi.EgressRule) bool {
 					return reflect.DeepEqual(got, want)
-				}) {
+				})
+				if !found {
 					t.Fatalf("gateway policy does not contain trace egress %#v", want)
 				}
 			}
@@ -239,14 +243,16 @@ func TestGatewayNetworkPolicySpecTraceEgress(t *testing.T) {
 	}
 }
 
+type inferenceExtAuthCase struct {
+	name        string
+	provider    agentzv1alpha1.InferenceProviderSpec
+	wantExtAuth bool
+}
+
 func TestReconcileInferenceGatewayExtAuthEgress(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name        string
-		provider    agentzv1alpha1.InferenceProviderSpec
-		wantExtAuth bool
-	}{
+	tests := []inferenceExtAuthCase{
 		{
 			name: "subscription provider",
 			provider: agentzv1alpha1.InferenceProviderSpec{
@@ -357,7 +363,8 @@ func TestReconcileInferenceGatewayExtAuthEgress(t *testing.T) {
 					ServicePort:      4317,
 				},
 			}
-			if err := r.reconcileInferenceGateway(context.Background(), workspaceNamespace); err != nil {
+			err := r.reconcileInferenceGateway(context.Background(), workspaceNamespace)
+			if err != nil {
 				t.Fatalf("reconcileInferenceGateway() error = %v", err)
 			}
 

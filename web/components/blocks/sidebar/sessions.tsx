@@ -3,6 +3,7 @@
 import type { Route } from "next"
 import Link from "next/link"
 import { useRouter } from "@bprogress/next/app"
+import { GitHubDark, GitHubLight } from "@ridemountainpig/svgl-react"
 import {
   experimental_streamedQuery as streamedQuery,
   infiniteQueryOptions,
@@ -11,6 +12,8 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
+  type InfiniteData,
+  type QueryClient,
 } from "@tanstack/react-query"
 import {
   Activity,
@@ -19,6 +22,9 @@ import {
   ChevronDown,
   ChevronRight,
   CirclePause,
+  FolderGit2,
+  Ellipsis,
+  Pencil,
   Layers3,
   ListFilter,
   LoaderCircle,
@@ -33,9 +39,14 @@ import {
   X,
 } from "lucide-react"
 import { nanoid } from "nanoid"
-import { useActionState, useEffect, useRef, useState } from "react"
-import { usePathname } from "next/navigation"
+import { useActionState, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
+import { usePathname, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
+import { Projects, ProjectPicker, type ProjectActions } from "@/components/blocks/coding/projects"
+import { authClient } from "@/lib/auth-client"
+import { codingGitOptions, codingThreadOptions } from "@/lib/coding/review"
+import { codingDrafts } from "@/components/blocks/coding/drafts"
+
 import { deleteAgentSessionAction } from "@/data/opencode.actions"
 import type { DeleteSessionFormState, ListAgentActionResponse, WorkspacePath } from "@/data/types"
 import { agentIsGettingReady, watchAgentsQueryOptions } from "@/components/agent-readiness"
@@ -65,6 +76,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
@@ -75,6 +88,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { UserAvatar } from "@/components/ui/avatar"
+import { sessionDiffQueryOptions } from "@/components/blocks/chat/use-opencode-chat"
 import { MultiSelectDropdown } from "@/components/ui/multi-select-dropdown"
 import {
   Select,
@@ -94,13 +108,17 @@ import { cn } from "@/lib/utils"
 import {
   listChatSessions,
   getChatSessionPreference,
+  getCodingThread,
+  listCodingProjects,
   updateChatSessionPreference,
   watchChatSessions,
+  type CodingProject,
   type ChatSession,
   type ChatSessionGroup,
   type ChatSessionGroupBy,
   type ChatSessionPreference,
   type AgentStatus,
+  type Workspace,
   type ListChatSessionsResponse,
   type WatchChatSessionsEvent,
 } from "@/lib/gateway/client"
@@ -111,6 +129,8 @@ type PreferenceMutation = {
 }
 
 type NavSessionsProps = {
+  userId: string
+  workspaceType: Workspace["type"]
   agents: ListAgentActionResponse
   initialPreferences: ChatSessionPreference
   initialSessions: ListChatSessionsResponse
@@ -134,6 +154,7 @@ const chatSessionKeys = {
     [
       "chatSessions",
       workspaceId,
+      "list",
       preferences.agent_name,
       preferences.include_workflow_runs,
       preferences.participant_user_ids,
@@ -173,17 +194,21 @@ function chatSessionsOptions(
   search: string,
   timeZone: string,
   activeAgentName: string | undefined,
-  activeSessionId: string | undefined
+  activeSessionId: string | undefined,
+  userId: string
 ) {
   return infiniteQueryOptions({
-    queryKey: chatSessionKeys.list(
-      workspaceId,
-      preferences,
-      search,
-      timeZone,
-      activeAgentName,
-      activeSessionId
-    ),
+    queryKey: [
+      ...chatSessionKeys.list(
+        workspaceId,
+        preferences,
+        search,
+        timeZone,
+        activeAgentName,
+        activeSessionId
+      ),
+      userId,
+    ],
     initialPageParam: undefined,
     queryFn: async ({
       pageParam,
@@ -218,18 +243,91 @@ function chatSessionsOptions(
   })
 }
 
+async function removeChatSessionFromCache(
+  queryClient: QueryClient,
+  workspaceId: string,
+  session: Pick<ChatSession, "agent_name" | "session_id">
+) {
+  const queryKey = chatSessionKeys.workspace(workspaceId)
+  await queryClient.cancelQueries({ queryKey })
+  queryClient.setQueriesData<InfiniteData<ListChatSessionsResponse>>(
+    { queryKey, predicate: (query) => query.queryKey[2] === "list" },
+    (current) =>
+      current && {
+        ...current,
+        pages: current.pages.map((page) => ({
+          ...page,
+          sessions: page.sessions.filter(
+            (entry) =>
+              entry.agent_name !== session.agent_name || entry.session_id !== session.session_id
+          ),
+          groups: page.groups.map((group) => ({
+            ...group,
+            sessions: group.sessions.filter(
+              (entry) =>
+                entry.agent_name !== session.agent_name || entry.session_id !== session.session_id
+            ),
+          })),
+        })),
+      }
+  )
+  queryClient.setQueriesData<InfiniteData<ChatSessionGroup>>(
+    { queryKey, predicate: (query) => query.queryKey[2] === "group" },
+    (current) =>
+      current && {
+        ...current,
+        pages: current.pages.map((page) => ({
+          ...page,
+          sessions: page.sessions.filter(
+            (entry) =>
+              entry.agent_name !== session.agent_name || entry.session_id !== session.session_id
+          ),
+        })),
+      }
+  )
+}
+
 export function NavSessions({
+  userId,
   agents,
   initialPreferences,
   initialSessions,
   workspaceId,
+  workspaceType,
   workspacePath,
 }: NavSessionsProps) {
   const { isMobile, state } = useSidebar()
   if (!isMobile && state === "collapsed") return null
 
+  if (workspaceType === "coding") {
+    return (
+      <Projects
+        projects={[]}
+        agentNames={(agents.agents ?? [])
+          .filter((agent) => agent.capabilities.use)
+          .map((agent) => agent.name)}
+        workspaceId={workspaceId}
+        workspacePath={workspacePath}
+      >
+        {(actions) => (
+          <NavSessionsContent
+            userId={userId}
+            workspaceType={workspaceType}
+            agents={agents}
+            initialPreferences={initialPreferences}
+            initialSessions={initialSessions}
+            workspaceId={workspaceId}
+            workspacePath={workspacePath}
+            projectActions={actions}
+          />
+        )}
+      </Projects>
+    )
+  }
   return (
     <NavSessionsContent
+      userId={userId}
+      workspaceType={workspaceType}
       agents={agents}
       initialPreferences={initialPreferences}
       initialSessions={initialSessions}
@@ -239,7 +337,13 @@ export function NavSessions({
   )
 }
 
-export function NavSessionsSkeleton({ groupBy }: { groupBy: ChatSessionGroupBy }) {
+export function NavSessionsSkeleton({
+  groupBy,
+  coding,
+}: {
+  groupBy: ChatSessionGroupBy
+  coding: boolean
+}) {
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-tour="loading-chats">
       <div
@@ -258,28 +362,58 @@ export function NavSessionsSkeleton({ groupBy }: { groupBy: ChatSessionGroupBy }
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-hidden px-[var(--sidebar-content-inset)] pb-2">
-        <SessionListSkeleton groupBy={groupBy} />
+        <SessionListSkeleton groupBy={groupBy} coding={coding} />
       </div>
     </div>
   )
 }
 
 function NavSessionsContent({
+  userId,
+  projectActions,
   agents,
   initialPreferences,
   initialSessions,
   workspaceId,
+  workspaceType,
   workspacePath,
-}: NavSessionsProps) {
+}: NavSessionsProps & { projectActions?: ProjectActions }) {
   const queryClient = useQueryClient()
   const router = useRouter()
   const path = usePathname()
+  const [initialPath] = useState(path)
+  const query = useSearchParams()
+  const { isMobile, setOpenMobile } = useSidebar()
+  const draftScope = `${userId}:${workspaceId}`
+  const [pickingProject, setPickingProject] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchText, setSearchText] = useState("")
   const [search, setSearch] = useState("")
   const [timeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone)
   const [dateBoundary, setDateBoundary] = useState(0)
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set())
+  const expansionKey = `coding-projects:${draftScope}`
+  const savedExpansion = useSyncExternalStore(
+    (listener) => {
+      window.addEventListener("storage", listener)
+      return () => window.removeEventListener("storage", listener)
+    },
+    () => {
+      try {
+        return window.localStorage.getItem(expansionKey) ?? "{}"
+      } catch {
+        return "{}"
+      }
+    },
+    () => "{}"
+  )
+  const projectExpansion = useMemo<Record<string, boolean>>(() => {
+    try {
+      return JSON.parse(savedExpansion)
+    } catch {
+      return {}
+    }
+  }, [savedExpansion])
   const searchInput = useRef<HTMLInputElement>(null)
   const trimmedSearch = searchText.trim()
   const searchLength = Array.from(trimmedSearch).length
@@ -314,7 +448,7 @@ function NavSessionsContent({
   }, [searchLength, trimmedSearch])
 
   const querySearch = trimmedSearch === search ? search : ""
-  const preferenceKey = chatSessionKeys.preference(workspaceId)
+  const preferenceKey = [...chatSessionKeys.preference(workspaceId), userId]
   const preference = useQuery({
     ...queryOptions({
       queryKey: preferenceKey,
@@ -331,6 +465,22 @@ function NavSessionsContent({
     initialData: initialPreferences,
   })
   const preferences = preference.data
+  const projects = useQuery(
+    queryOptions({
+      queryKey: ["chatSessions", workspaceId, "projects", userId],
+      queryFn: async ({ signal }) => {
+        const result = await listCodingProjects({
+          baseUrl: await getGatewayBaseURL(),
+          headers: { "X-AgentZ-Workspace-ID": workspaceId },
+          signal,
+        })
+        if (result.error) throw result.error
+        return result.data
+      },
+      enabled: workspaceType === "coding",
+      staleTime: Infinity,
+    })
+  )
   const agentQuery = useQuery({
     ...watchAgentsQueryOptions(workspaceId, agents.agents ?? []),
     enabled: agents.agents !== undefined,
@@ -351,13 +501,15 @@ function NavSessionsContent({
       querySearch,
       timeZone,
       activeAgentName,
-      activeSessionId
+      activeSessionId,
+      userId
     ),
     enabled:
       trimmedSearch === querySearch &&
       (searchLength === 0 || (searchLength >= 3 && searchLength <= 200)) &&
       (preferences.group_by !== "date" || timeZone !== ""),
     initialData:
+      path === initialPath &&
       matchesInitialPreferences &&
       querySearch === "" &&
       preferences.group_by !== "date" &&
@@ -387,10 +539,21 @@ function NavSessionsContent({
       queryClient.setQueryData(preferenceKey, saved)
     },
   })
-  const watch = useQuery(chatSessionWatchOptions(workspaceId))
+  useEffect(() => {
+    const channel = new BroadcastChannel(`chatSessionDeletion:${workspaceId}`)
+    channel.onmessage = (event: MessageEvent<Pick<ChatSession, "agent_name" | "session_id">>) => {
+      void removeChatSessionFromCache(queryClient, workspaceId, event.data)
+    }
+    return () => channel.close()
+  }, [queryClient, workspaceId])
+
+  const watch = useQuery(chatSessionWatchOptions(workspaceId, userId))
 
   useEffect(() => {
     if (!watch.data) return
+    void queryClient.invalidateQueries({
+      predicate: (query) => query.queryKey[0] === "chatInputs" && query.queryKey[1] === workspaceId,
+    })
     void queryClient.invalidateQueries({ queryKey: chatSessionKeys.workspace(workspaceId) })
   }, [queryClient, watch.data, workspaceId])
 
@@ -425,13 +588,187 @@ function NavSessionsContent({
   const searchInvalid = searchTooShort || searchTooLong
   const searchSettling = searchLength >= 3 && searchLength <= 200 && trimmedSearch !== querySearch
 
+  const newProjectChat = async (project: CodingProject) => {
+    const usable = availableAgents.filter((agent) => agent.capabilities.use)
+    const agent =
+      usable.find((agent) => agent.name === project.last_agent_name) ??
+      usable.find((agent) => agent.name === preferences.last_agent_name) ??
+      usable[0]
+    const draft = await codingDrafts.start(draftScope, project.id, agent?.name ?? "")
+    try {
+      window.localStorage.setItem(
+        expansionKey,
+        JSON.stringify({ ...projectExpansion, [project.id]: true })
+      )
+      window.dispatchEvent(new StorageEvent("storage", { key: expansionKey }))
+    } catch {
+      toast.error("Could not remember expanded projects")
+    }
+    setPickingProject(false)
+    setOpenMobile(false)
+    router.push(
+      `${workspacePath}/sessions/new?${new URLSearchParams({ project: project.id, draft: draft.id })}`
+    )
+  }
+  const grouping = (
+    <DropdownMenuRadioGroup value={preferences.group_by}>
+      <DropdownMenuRadioItem
+        onSelect={() => updatePreferences((current) => ({ ...current, group_by: "date" }))}
+        value="date"
+      >
+        <CalendarDays aria-hidden="true" />
+        Date
+      </DropdownMenuRadioItem>
+      <DropdownMenuRadioItem
+        onSelect={() => updatePreferences((current) => ({ ...current, group_by: "agent" }))}
+        value="agent"
+      >
+        <Bot aria-hidden="true" />
+        Agent
+      </DropdownMenuRadioItem>
+      <DropdownMenuRadioItem
+        onSelect={() => updatePreferences((current) => ({ ...current, group_by: "status" }))}
+        value="status"
+      >
+        <Activity aria-hidden="true" />
+        State
+      </DropdownMenuRadioItem>
+      {workspaceType === "coding" ? (
+        <DropdownMenuRadioItem
+          onSelect={() => updatePreferences((current) => ({ ...current, group_by: "project" }))}
+          value="project"
+        >
+          <FolderGit2 aria-hidden="true" />
+          Project
+        </DropdownMenuRadioItem>
+      ) : null}
+      <DropdownMenuSeparator />
+      <DropdownMenuRadioItem
+        onSelect={() => updatePreferences((current) => ({ ...current, group_by: "none" }))}
+        value="none"
+      >
+        <Rows3 aria-hidden="true" />
+        None
+      </DropdownMenuRadioItem>
+    </DropdownMenuRadioGroup>
+  )
+  const filters = (
+    <FieldGroup className="gap-4">
+      <Field className="gap-1.5">
+        <FieldLabel htmlFor="chat-agent-filter">Agent</FieldLabel>
+        <Select
+          value={preferences.agent_name ?? allAgentsValue}
+          onValueChange={(agentName) =>
+            updatePreferences((current) => ({
+              ...current,
+              agent_name: agentName === allAgentsValue ? null : agentName,
+            }))
+          }
+        >
+          <SelectTrigger className="w-full" id="chat-agent-filter">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem value={allAgentsValue}>
+                <Bot />
+                All agents
+              </SelectItem>
+              {availableAgents.map((agent) => (
+                <SelectItem key={agent.name} value={agent.name}>
+                  <Bot />
+                  {agent.name}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field className="gap-1.5">
+        <FieldLabel htmlFor="chat-people-filter">People in chat</FieldLabel>
+        <MultiSelectDropdown
+          contentClassName="w-(--radix-popover-trigger-width) min-w-0"
+          disabled={participantFilters.length === 0}
+          emptyMessage="No people found."
+          id="chat-people-filter"
+          onValueChangeAction={(participantUserIds) =>
+            updatePreferences((current) => ({
+              ...current,
+              participant_user_ids: participantUserIds,
+            }))
+          }
+          options={participantFilters.map((participant) => {
+            const label = participant.name || participant.email
+            return {
+              image: participant.image,
+              initials: label.slice(0, 1).toUpperCase(),
+              label,
+              value: participant.id,
+            }
+          })}
+          placeholder={participantFilters.length === 0 ? "No participants yet" : "All people"}
+          searchPlaceholder="Search people..."
+          value={preferences.participant_user_ids}
+        />
+      </Field>
+      {workspaceType !== "coding" && (
+        <>
+          <DropdownMenuSeparator className="-mx-3 w-[calc(100%+1.5rem)]" />
+          <Field orientation="horizontal">
+            <Checkbox
+              checked={preferences.include_workflow_runs}
+              id="chat-workflow-filter"
+              onCheckedChange={(checked) =>
+                updatePreferences((current) => ({
+                  ...current,
+                  include_workflow_runs: checked === true,
+                }))
+              }
+            />
+            <FieldLabel htmlFor="chat-workflow-filter">Show workflow run chats</FieldLabel>
+          </Field>
+        </>
+      )}
+    </FieldGroup>
+  )
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center gap-1 px-[var(--sidebar-content-inset)] pb-1">
         <Button
           className="text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground h-8 min-w-0 flex-1 justify-start gap-2 rounded-md px-2 text-sm font-medium shadow-none"
           data-tour="new-chat"
-          onClick={() => {
+          onClick={async (event) => {
+            if (projectActions) {
+              const available = projects.data ?? (await projects.refetch()).data
+              if (!available) {
+                toast.error("Could not load projects")
+                return
+              }
+              if (!available.length) {
+                projectActions.add()
+                return
+              }
+              if (available.length > 1 && !event.shiftKey) {
+                setPickingProject(true)
+                return
+              }
+              let projectId = query.get("project")
+              if (event.shiftKey && activeAgentName && activeSessionId) {
+                const thread = await getCodingThread({
+                  baseUrl: await getGatewayBaseURL(),
+                  headers: { "X-AgentZ-Workspace-ID": workspaceId },
+                  path: { agentName: activeAgentName, sessionId: activeSessionId },
+                })
+                if (thread.error) {
+                  toast.error("Could not load the active project")
+                  return
+                }
+                projectId = thread.data.worktree.project_id
+              }
+              const project = available.find((project) => project.id === projectId) ?? available[0]
+              if (project) void newProjectChat(project)
+              return
+            }
             const path = `${workspacePath}/sessions/new?draft=${nanoid()}`
             window.history.pushState(null, "", path)
             router.refresh({ showProgress: false })
@@ -442,6 +779,17 @@ function NavSessionsContent({
           <SquarePen aria-hidden="true" />
           New chat
         </Button>
+        {projectActions && preferences.group_by === "project" ? (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Add project"
+            title="Add project"
+            onClick={projectActions.add}
+          >
+            <FolderGit2 className="size-4" />
+          </Button>
+        ) : null}
         <Button
           aria-label="Search chats"
           data-tour="search-chats"
@@ -476,157 +824,58 @@ function NavSessionsContent({
               ) : null}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56" side="right" sideOffset={8}>
-            <DropdownMenuGroup>
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <Layers3 aria-hidden="true" className="text-muted-foreground" />
-                  <span className="min-w-0 flex-1">Group by</span>
-                  <span className="text-muted-foreground truncate capitalize">
-                    {preferences.group_by === "status" ? "State" : preferences.group_by}
-                  </span>
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="w-44" sideOffset={4}>
-                  <DropdownMenuRadioGroup value={preferences.group_by}>
-                    <DropdownMenuRadioItem
-                      onSelect={() =>
-                        updatePreferences((current) => ({ ...current, group_by: "date" }))
-                      }
-                      value="date"
-                    >
-                      <CalendarDays aria-hidden="true" />
-                      Date
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem
-                      onSelect={() =>
-                        updatePreferences((current) => ({ ...current, group_by: "agent" }))
-                      }
-                      value="agent"
-                    >
-                      <Bot aria-hidden="true" />
-                      Agent
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem
-                      onSelect={() =>
-                        updatePreferences((current) => ({ ...current, group_by: "status" }))
-                      }
-                      value="status"
-                    >
-                      <Activity aria-hidden="true" />
-                      State
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuRadioItem
-                      onSelect={() =>
-                        updatePreferences((current) => ({ ...current, group_by: "none" }))
-                      }
-                      value="none"
-                    >
-                      <Rows3 aria-hidden="true" />
-                      None
-                    </DropdownMenuRadioItem>
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <ListFilter aria-hidden="true" className="text-muted-foreground" />
-                  <span className="flex min-w-0 flex-1 items-center gap-1.5">
-                    Filters
-                    {activeFilterCount > 0 ? (
-                      <span className="bg-foreground/10 text-muted-foreground grid h-4 min-w-4 place-items-center rounded px-1 text-[10px] font-medium tabular-nums">
-                        {activeFilterCount}
-                      </span>
+          <DropdownMenuContent
+            align="start"
+            className={isMobile ? "w-72" : "w-56"}
+            side={isMobile ? "bottom" : "right"}
+            sideOffset={8}
+          >
+            {isMobile ? (
+              <>
+                <DropdownMenuLabel>Group by</DropdownMenuLabel>
+                {grouping}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Filters</DropdownMenuLabel>
+                <div className="p-2">{filters}</div>
+              </>
+            ) : (
+              <DropdownMenuGroup>
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <Layers3 aria-hidden="true" className="text-muted-foreground" />
+                    <span className="min-w-0 flex-1">Group by</span>
+                    <span className="text-muted-foreground truncate capitalize">
+                      {preferences.group_by === "status" ? "State" : preferences.group_by}
+                    </span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="w-44" sideOffset={4}>
+                    {grouping}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <ListFilter aria-hidden="true" className="text-muted-foreground" />
+                    <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                      Filters
+                      {activeFilterCount > 0 ? (
+                        <span className="bg-foreground/10 text-muted-foreground grid h-4 min-w-4 place-items-center rounded px-1 text-[10px] font-medium tabular-nums">
+                          {activeFilterCount}
+                        </span>
+                      ) : null}
+                    </span>
+                    {activeFilterCount === 0 ? (
+                      <span className="text-muted-foreground">None</span>
                     ) : null}
-                  </span>
-                  {activeFilterCount === 0 ? (
-                    <span className="text-muted-foreground">None</span>
-                  ) : null}
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent
-                  className="max-h-[calc(100dvh-1rem)] w-72 overflow-y-auto p-3"
-                  sideOffset={4}
-                >
-                  <FieldGroup className="gap-4">
-                    <Field className="gap-1.5">
-                      <FieldLabel htmlFor="chat-agent-filter">Agent</FieldLabel>
-                      <Select
-                        value={preferences.agent_name ?? allAgentsValue}
-                        onValueChange={(agentName) =>
-                          updatePreferences((current) => ({
-                            ...current,
-                            agent_name: agentName === allAgentsValue ? null : agentName,
-                          }))
-                        }
-                      >
-                        <SelectTrigger className="w-full" id="chat-agent-filter">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectGroup>
-                            <SelectItem value={allAgentsValue}>
-                              <Bot />
-                              All agents
-                            </SelectItem>
-                            {availableAgents.map((agent) => (
-                              <SelectItem key={agent.name} value={agent.name}>
-                                <Bot />
-                                {agent.name}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                    <Field className="gap-1.5">
-                      <FieldLabel htmlFor="chat-people-filter">People in chat</FieldLabel>
-                      <MultiSelectDropdown
-                        contentClassName="w-(--radix-popover-trigger-width) min-w-0"
-                        disabled={participantFilters.length === 0}
-                        emptyMessage="No people found."
-                        id="chat-people-filter"
-                        onValueChangeAction={(participantUserIds) =>
-                          updatePreferences((current) => ({
-                            ...current,
-                            participant_user_ids: participantUserIds,
-                          }))
-                        }
-                        options={participantFilters.map((participant) => {
-                          const label = participant.name || participant.email
-                          return {
-                            image: participant.image,
-                            initials: label.slice(0, 1).toUpperCase(),
-                            label,
-                            value: participant.id,
-                          }
-                        })}
-                        placeholder={
-                          participantFilters.length === 0 ? "No participants yet" : "All people"
-                        }
-                        searchPlaceholder="Search people..."
-                        value={preferences.participant_user_ids}
-                      />
-                    </Field>
-                    <DropdownMenuSeparator className="-mx-3 w-[calc(100%+1.5rem)]" />
-                    <Field orientation="horizontal">
-                      <Checkbox
-                        checked={preferences.include_workflow_runs}
-                        id="chat-workflow-filter"
-                        onCheckedChange={(checked) =>
-                          updatePreferences((current) => ({
-                            ...current,
-                            include_workflow_runs: checked === true,
-                          }))
-                        }
-                      />
-                      <FieldLabel htmlFor="chat-workflow-filter">
-                        Show workflow run chats
-                      </FieldLabel>
-                    </Field>
-                  </FieldGroup>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-            </DropdownMenuGroup>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent
+                    className="max-h-[calc(100dvh-1rem)] w-72 overflow-y-auto p-3"
+                    sideOffset={4}
+                  >
+                    {filters}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              </DropdownMenuGroup>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -686,7 +935,11 @@ function NavSessionsContent({
           </p>
         ) : null}
         {!searchInvalid && (sessions.isPending || searchSettling) ? (
-          <SessionListSkeleton groupBy={preferences.group_by} searching={searchLength >= 3} />
+          <SessionListSkeleton
+            groupBy={preferences.group_by}
+            searching={searchLength >= 3}
+            coding={workspaceType === "coding"}
+          />
         ) : null}
         {!searchInvalid && !sessions.isPending && !searchSettling && sessions.isError ? (
           <p className="text-destructive px-1 py-3 text-sm">Could not load chats</p>
@@ -708,6 +961,7 @@ function NavSessionsContent({
                   key={`${session.agent_name}:${session.session_id}`}
                   path={path}
                   session={session}
+                  workspaceType={workspaceType}
                   workspaceId={workspaceId}
                   workspacePath={workspacePath}
                 />
@@ -715,7 +969,11 @@ function NavSessionsContent({
             : null}
           {preferences.group_by === "none" && !searchInvalid && sessions.isFetchingNextPage
             ? Array.from({ length: 2 }, (_, index) => (
-                <SessionCardSkeleton key={`next-session-${index}`} showAgent />
+                <SessionCardSkeleton
+                  key={`next-session-${index}`}
+                  showAgent
+                  coding={workspaceType === "coding"}
+                />
               ))
             : null}
         </ul>
@@ -727,6 +985,9 @@ function NavSessionsContent({
         {preferences.group_by !== "none" && !searchInvalid && !searchSettling
           ? groups.map((group) => (
               <SessionGroup
+                onNewChat={newProjectChat}
+                projectActions={projectActions}
+                userId={userId}
                 activeAgentName={activeAgentName}
                 activeSessionId={activeSessionId}
                 agentStatus={
@@ -738,6 +999,18 @@ function NavSessionsContent({
                 key={group.key}
                 onOpenChange={(open) => {
                   if (querySearch !== "") return
+                  if (group.project) {
+                    try {
+                      window.localStorage.setItem(
+                        expansionKey,
+                        JSON.stringify({ ...projectExpansion, [group.project.id]: open })
+                      )
+                      window.dispatchEvent(new StorageEvent("storage", { key: expansionKey }))
+                    } catch {
+                      toast.error("Could not remember expanded projects")
+                    }
+                    return
+                  }
                   setOpenGroups((current) => {
                     const next = new Set(current)
                     if (open) next.add(group.key)
@@ -745,11 +1018,17 @@ function NavSessionsContent({
                     return next
                   })
                 }}
-                open={openGroups.has(group.key)}
+                open={
+                  group.project
+                    ? (projectExpansion[group.project.id] ??
+                      (group.contains_active || query.get("project") === group.project.id))
+                    : openGroups.has(group.key) || group.contains_active
+                }
                 path={path}
                 preferences={preferences}
                 search={querySearch}
                 timeZone={timeZone}
+                workspaceType={workspaceType}
                 workspaceId={workspaceId}
                 workspacePath={workspacePath}
               />
@@ -781,11 +1060,21 @@ function NavSessionsContent({
           </Button>
         ) : null}
       </div>
+      <ProjectPicker
+        open={pickingProject}
+        onOpenChange={setPickingProject}
+        onSelect={newProjectChat}
+        projects={projects.data ?? []}
+        workspacePath={workspacePath}
+      />
     </div>
   )
 }
 
 function SessionGroup({
+  onNewChat,
+  projectActions,
+  userId,
   activeAgentName,
   activeSessionId,
   agentStatus,
@@ -797,8 +1086,12 @@ function SessionGroup({
   search,
   timeZone,
   workspaceId,
+  workspaceType,
   workspacePath,
 }: {
+  onNewChat: (project: CodingProject) => Promise<void>
+  projectActions?: ProjectActions
+  userId: string
   activeAgentName: string | undefined
   activeSessionId: string | undefined
   agentStatus: AgentStatus | undefined
@@ -810,22 +1103,26 @@ function SessionGroup({
   search: string
   timeZone: string
   workspaceId: string
+  workspaceType: Workspace["type"]
   workspacePath: WorkspacePath
 }) {
   const router = useRouter()
-  const expanded = open || group.contains_active || search !== ""
+  const expanded = open || search !== ""
   const agentName = group.agent_name
   const pages = useInfiniteQuery(
     infiniteQueryOptions({
-      queryKey: chatSessionKeys.group(
-        workspaceId,
-        preferences,
-        group.key,
-        search,
-        timeZone,
-        activeAgentName,
-        activeSessionId
-      ),
+      queryKey: [
+        ...chatSessionKeys.group(
+          workspaceId,
+          preferences,
+          group.key,
+          search,
+          timeZone,
+          activeAgentName,
+          activeSessionId
+        ),
+        userId,
+      ],
       initialPageParam: undefined,
       queryFn: async ({
         pageParam,
@@ -860,7 +1157,8 @@ function SessionGroup({
       },
       getNextPageParam: (page) => (page.has_next_page ? page.next_page_token : undefined),
       enabled: expanded,
-      initialData: search !== "" ? { pages: [group], pageParams: [undefined] } : undefined,
+      initialData:
+        search !== "" && !group.project ? { pages: [group], pageParams: [undefined] } : undefined,
       staleTime: Infinity,
     })
   )
@@ -875,6 +1173,12 @@ function SessionGroup({
             className="focus-visible:ring-sidebar-ring text-sidebar-muted-foreground hover:text-sidebar-accent-foreground flex h-full min-w-0 flex-1 items-center gap-2 rounded-md px-[var(--sidebar-row-content-inset)] text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset"
             type="button"
           >
+            {group.project ? (
+              <>
+                <GitHubLight aria-hidden="true" className="size-4 shrink-0 dark:hidden" />
+                <GitHubDark aria-hidden="true" className="hidden size-4 shrink-0 dark:block" />
+              </>
+            ) : null}
             {group.group_by === "agent" ? <AgentBadge status={agentStatus} /> : null}
             {group.group_by === "date" ? (
               <CalendarDays aria-hidden="true" className="size-4 shrink-0" />
@@ -898,6 +1202,62 @@ function SessionGroup({
             />
           </button>
         </CollapsibleTrigger>
+        {group.project ? (
+          <>
+            <Button
+              aria-label={`New chat in ${group.label}`}
+              title={`New chat in ${group.label}`}
+              variant="ghost"
+              size="icon-sm"
+              className="size-7 shrink-0"
+              onClick={() => {
+                if (group.project) void onNewChat(group.project)
+              }}
+            >
+              <Plus className="size-3.5" />
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  aria-label={`Options for ${group.label}`}
+                  variant="ghost"
+                  size="icon-sm"
+                  className="mr-1 size-7 shrink-0"
+                >
+                  <Ellipsis className="size-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" side="right">
+                <DropdownMenuItem
+                  onSelect={() => {
+                    if (group.project) projectActions?.manage(group.project, "rename")
+                  }}
+                >
+                  <Pencil />
+                  Rename project
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    if (group.project) projectActions?.manage(group.project, "settings")
+                  }}
+                >
+                  <Settings2 />
+                  Project settings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  onSelect={() => {
+                    if (group.project) projectActions?.manage(group.project, "delete")
+                  }}
+                >
+                  <Trash2 />
+                  Delete project
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        ) : null}
         {agentName ? (
           <Button
             aria-label={`New chat with ${agentName}`}
@@ -928,7 +1288,9 @@ function SessionGroup({
           ) : null}
           {!pages.isPending && !pages.isError && sessions.length === 0 ? (
             <SidebarMenuSubItem>
-              <p className="text-sidebar-muted-foreground px-2 py-3 text-sm">No chats</p>
+              <p className="text-sidebar-muted-foreground px-2 py-3 text-sm">
+                {search ? "No matching chats" : "No chats yet"}
+              </p>
             </SidebarMenuSubItem>
           ) : null}
           {sessions.map((session) => (
@@ -937,6 +1299,7 @@ function SessionGroup({
               path={path}
               session={session}
               showAgent={group.group_by !== "agent"}
+              workspaceType={workspaceType}
               workspaceId={workspaceId}
               workspacePath={workspacePath}
             />
@@ -946,6 +1309,7 @@ function SessionGroup({
                 <SessionCardSkeleton
                   key={`group-session-${index}`}
                   showAgent={group.group_by !== "agent"}
+                  coding={workspaceType === "coding"}
                 />
               ))
             : null}
@@ -954,6 +1318,7 @@ function SessionGroup({
                 <SessionCardSkeleton
                   key={`next-group-session-${index}`}
                   showAgent={group.group_by !== "agent"}
+                  coding={workspaceType === "coding"}
                 />
               ))
             : null}
@@ -989,9 +1354,11 @@ function SessionGroup({
 function SessionListSkeleton({
   groupBy,
   searching = false,
+  coding,
 }: {
   groupBy: ChatSessionGroupBy
   searching?: boolean
+  coding: boolean
 }) {
   if (groupBy === "none") {
     return (
@@ -999,7 +1366,7 @@ function SessionListSkeleton({
         <span className="sr-only">{searching ? "Searching chats" : "Loading chats"}</span>
         <ul aria-hidden="true" className="flex min-w-0 flex-col gap-0.5">
           {Array.from({ length: 2 }, (_, index) => (
-            <SessionCardSkeleton key={`session-${index}`} showAgent />
+            <SessionCardSkeleton key={`session-${index}`} showAgent coding={coding} />
           ))}
         </ul>
       </div>
@@ -1028,7 +1395,7 @@ function SessionListSkeleton({
             </div>
             {searching ? (
               <SidebarMenuSub className="[&>li]:before:border-sidebar-border [&>li:last-child]:after:bg-sidebar mx-1.5 translate-x-0 gap-0.5 px-1.5 py-0 [&>li]:relative [&>li]:before:absolute [&>li]:before:top-1/2 [&>li]:before:right-full [&>li]:before:w-1.5 [&>li]:before:border-t [&>li:last-child]:after:absolute [&>li:last-child]:after:top-1/2 [&>li:last-child]:after:right-[calc(100%+0.375rem)] [&>li:last-child]:after:bottom-0 [&>li:last-child]:after:w-px">
-                <SessionCardSkeleton showAgent={groupBy !== "agent"} />
+                <SessionCardSkeleton showAgent={groupBy !== "agent"} coding={coding} />
               </SidebarMenuSub>
             ) : null}
           </div>
@@ -1038,12 +1405,17 @@ function SessionListSkeleton({
   )
 }
 
-function SessionCardSkeleton({ showAgent }: { showAgent: boolean }) {
+function SessionCardSkeleton({ showAgent, coding }: { showAgent: boolean; coding: boolean }) {
   return (
     <li aria-hidden="true" className="list-none rounded-md py-0.5">
-      <div className="h-16 px-[var(--sidebar-row-content-inset)] py-[var(--sidebar-content-inset)]">
+      <div
+        className={cn(
+          "px-[var(--sidebar-row-content-inset)] py-[var(--sidebar-content-inset)]",
+          coding ? "h-20" : "h-16"
+        )}
+      >
         <div className="flex h-5 min-w-0 items-center gap-1.5">
-          {showAgent ? (
+          {showAgent || coding ? (
             <>
               <Skeleton className="bg-sidebar-border size-3.5 shrink-0 rounded-sm" />
               <div className="min-w-0 flex-1">
@@ -1055,14 +1427,24 @@ function SessionCardSkeleton({ showAgent }: { showAgent: boolean }) {
           )}
           <Skeleton className="bg-sidebar-border h-3 w-8 shrink-0" />
         </div>
-        <div className="mt-1 flex h-6 min-w-0 items-center gap-2">
+        <div className={cn("mt-1 flex min-w-0 items-center gap-2", coding ? "h-5" : "h-6")}>
           <div className="min-w-0 flex-1">
             <Skeleton className="bg-sidebar-border h-4 w-3/4" />
           </div>
-          <div className="flex shrink-0 -space-x-[7px]">
-            <Skeleton className="bg-sidebar-border ring-sidebar size-6 rounded-full ring-2" />
-          </div>
+          {!coding ? (
+            <div className="flex shrink-0 -space-x-[7px]">
+              <Skeleton className="bg-sidebar-border ring-sidebar size-6 rounded-full ring-2" />
+            </div>
+          ) : null}
         </div>
+        {coding ? (
+          <div className="flex h-5 min-w-0 items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <Skeleton className="bg-sidebar-border h-3 w-2/3" />
+            </div>
+            <Skeleton className="bg-sidebar-border h-3 w-[7ch] shrink-0" />
+          </div>
+        ) : null}
       </div>
     </li>
   )
@@ -1082,19 +1464,77 @@ function AgentBadge({ status }: { status: AgentStatus | undefined }) {
   return <Bot aria-label="Unavailable" className="text-destructive size-4 shrink-0" role="status" />
 }
 
+function SessionCheckout({ session, workspaceId }: { session: ChatSession; workspaceId: string }) {
+  const { data: actor } = authClient.useSession()
+  const { data: thread, isPending: threadPending } = useQuery(
+    codingThreadOptions(workspaceId, session.agent_name, session.session_id)
+  )
+  const gitStatus = useQuery({
+    ...codingGitOptions(workspaceId, thread?.worktree.id, actor?.user.id),
+    enabled: false,
+  })
+  const {
+    data: diff,
+    isPending: diffPending,
+    refetch: refetchDiff,
+  } = useQuery(sessionDiffQueryOptions(session.agent_name, workspaceId, session.session_id))
+
+  useEffect(() => {
+    void refetchDiff()
+  }, [refetchDiff, session.status, session.updated_at])
+
+  const worktree = thread?.worktree
+  const branch = gitStatus.data?.branch ?? worktree?.branch
+
+  return (
+    <div className="flex h-5 min-w-0 items-center gap-2 text-xs">
+      <div className="text-sidebar-muted-foreground min-w-0 flex-1 truncate">
+        {threadPending ? (
+          <Skeleton
+            aria-label="Loading branch"
+            className="bg-sidebar-border h-3 w-2/3 motion-reduce:animate-none"
+            role="status"
+          />
+        ) : (
+          branch || worktree?.directory.split("/").at(-1)
+        )}
+      </div>
+      {diffPending ? (
+        <Skeleton
+          aria-label="Loading diff stats"
+          className="bg-sidebar-border h-3 w-[7ch] shrink-0 motion-reduce:animate-none"
+          role="status"
+        />
+      ) : diff ? (
+        <span
+          aria-label={`Latest turn: ${diff.additions} lines added, ${diff.deletions} lines removed`}
+          className="shrink-0 font-mono"
+          role="img"
+        >
+          <span className="text-emerald-600 dark:text-emerald-400">+{diff.additions}</span>{" "}
+          <span className="text-red-600 dark:text-red-400">−{diff.deletions}</span>
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
 function SessionCard({
   path,
   session,
   showAgent = true,
   workspaceId,
+  workspaceType,
   workspacePath,
 }: {
   path: string
   session: ChatSession
   showAgent?: boolean
   workspaceId: string
+  workspaceType: Workspace["type"]
   workspacePath: WorkspacePath
 }) {
+  const coding = workspaceType === "coding"
   const href =
     `${workspacePath}/agents/${encodeURIComponent(session.agent_name)}/sessions/${encodeURIComponent(session.session_id)}` as Route
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -1112,6 +1552,13 @@ function SessionCard({
       )
       if (!result.success) return result
 
+      await removeChatSessionFromCache(queryClient, workspaceId, session)
+      const channel = new BroadcastChannel(`chatSessionDeletion:${workspaceId}`)
+      channel.postMessage({
+        agent_name: session.agent_name,
+        session_id: session.session_id,
+      } satisfies Pick<ChatSession, "agent_name" | "session_id">)
+      channel.close()
       toast.success("Chat deleted")
       setConfirmingDelete(false)
 
@@ -1131,6 +1578,7 @@ function SessionCard({
     { success: false }
   )
 
+  const { setOpenMobile } = useSidebar()
   const participants = session.participants.slice(0, 3)
   const overflow = session.participants.length - participants.length
   const active = path === href
@@ -1153,40 +1601,60 @@ function SessionCard({
         <li
           className={cn(
             "group/session text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-within:bg-sidebar-accent focus-within:text-sidebar-accent-foreground data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground relative list-none rounded-md py-0.5 transition-colors",
-            active && "bg-sidebar-accent text-sidebar-accent-foreground"
+            active && "bg-sidebar-accent text-sidebar-accent-foreground",
+            coding && "rounded-lg"
           )}
         >
           <Link
+            onClick={() => setOpenMobile(false)}
             aria-label={`Open ${session.title}`}
             aria-current={active ? "page" : undefined}
-            className="focus-visible:ring-sidebar-ring absolute inset-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-inset"
+            className="focus-visible:ring-sidebar-ring absolute inset-0 rounded-[inherit] outline-none focus-visible:ring-2 focus-visible:ring-inset"
             href={href}
           />
-          <div className="pointer-events-none relative h-16 px-[var(--sidebar-row-content-inset)] py-[var(--sidebar-content-inset)]">
+          <div
+            className={cn(
+              "pointer-events-none relative px-[var(--sidebar-row-content-inset)] py-[var(--sidebar-content-inset)]",
+              coding ? "h-20" : "h-16"
+            )}
+          >
             <div className="flex h-5 min-w-0 items-center gap-1.5 text-xs">
-              {showAgent ? (
+              {showAgent || coding ? (
                 <>
-                  <Bot
-                    aria-hidden="true"
-                    className="text-sidebar-muted-foreground size-3.5 shrink-0"
-                  />
-                  <span className="text-sidebar-muted-foreground min-w-0 flex-1 truncate font-medium">
+                  <Bot aria-hidden="true" className="text-primary size-3.5 shrink-0" />
+                  <span
+                    className={cn(
+                      "text-sidebar-muted-foreground min-w-0 flex-1 truncate font-medium",
+                      coding && "font-semibold"
+                    )}
+                  >
                     {session.agent_name}
                   </span>
                 </>
               ) : (
                 <span className="min-w-0 flex-1" />
               )}
-              <span className="text-sidebar-muted-foreground shrink-0 tabular-nums">
+              <div className="text-sidebar-muted-foreground shrink-0 tabular-nums">
                 {session.status === "idle" ? (
                   formatShortAge(new Date(session.updated_at).getTime())
+                ) : coding ? (
+                  <span className="text-info flex items-center gap-1 font-medium" role="status">
+                    <LoaderCircle aria-hidden="true" className="size-3 motion-safe:animate-spin" />
+                    Working
+                  </span>
                 ) : (
                   <AgentWorkingIndicator className="gap-0 [&>span:last-child]:sr-only" isWorking />
                 )}
-              </span>
+              </div>
             </div>
-            <div className="mt-1 flex h-6 min-w-0 items-center gap-2">
-              <h3 className="relative min-w-0 flex-1 overflow-hidden text-sm leading-5 font-medium">
+            <div className={cn("mt-1 flex min-w-0 items-center gap-2", coding ? "h-5" : "h-6")}>
+              <h3
+                className={cn(
+                  "relative min-w-0 flex-1 overflow-hidden text-sm leading-5 font-medium",
+                  coding && "text-sidebar-foreground/80 font-semibold",
+                  coding && active && "text-sidebar-foreground"
+                )}
+              >
                 <span
                   className={cn(
                     "block truncate",
@@ -1208,7 +1676,7 @@ function SessionCard({
                   </span>
                 ) : null}
               </h3>
-              {session.participants.length > 0 ? (
+              {!coding && session.participants.length > 0 ? (
                 <div className="flex shrink-0 -space-x-[7px]">
                   {participants.map((participant) => (
                     <UserAvatar
@@ -1228,6 +1696,7 @@ function SessionCard({
                 </div>
               ) : null}
             </div>
+            {coding ? <SessionCheckout session={session} workspaceId={workspaceId} /> : null}
           </div>
         </li>
       </ContextMenuTrigger>
@@ -1272,10 +1741,10 @@ function SessionCard({
   )
 }
 
-function chatSessionWatchOptions(workspaceId: string) {
+function chatSessionWatchOptions(workspaceId: string, userId: string) {
   return queryOptions({
-    queryKey: ["watchChatSessions", workspaceId],
-    queryFn: streamedQuery<WatchChatSessionsEvent, string, ["watchChatSessions", string]>({
+    queryKey: ["watchChatSessions", workspaceId, userId],
+    queryFn: streamedQuery<WatchChatSessionsEvent, string, ["watchChatSessions", string, string]>({
       initialValue: "",
       reducer: (_, event) => event.revision,
       streamFn: async ({ signal }) => {

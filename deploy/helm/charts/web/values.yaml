@@ -78,6 +78,10 @@ env:
   emailPasswordAuthAllowedUser: ""
   # Optional GitHub OAuth client ID.
   githubClientID: ""
+  # Separate GitHub App for user-initiated Coding operations.
+  # global.secretName must contain CODING_GITHUB_CLIENT_SECRET and
+  # CODING_GITHUB_ENCRYPTION_KEY, encoded as 64 lowercase hex characters.
+  codingGithubClientID: ""
   # Optional GitHub allow-list user ID.
   githubAllowedUserID: ""
   # Optional GitHub organization gate.

@@ -103,10 +103,11 @@ var skillSyncImmutableCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-		if err := store.DownloadManifest(ctx, c.String("manifest"), c.String("target-dir")); err != nil {
-			return err
-		}
-		return nil
+		return store.DownloadManifest(
+			ctx,
+			c.String("manifest"),
+			c.String("target-dir"),
+		)
 	},
 }
 
@@ -121,10 +122,6 @@ var skillValidateCmd = &cli.Command{
 
 		skillDir := strings.TrimSpace(c.Args().Get(0))
 		skillDir = filepath.Clean(skillDir)
-		if err := skill.Validate(skillDir); err != nil {
-			return err
-		}
-
-		return nil
+		return skill.Validate(skillDir)
 	},
 }

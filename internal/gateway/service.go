@@ -36,6 +36,7 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	dashboarddb "github.com/accuknox/agentz/internal/gateway/dashboard/db"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
@@ -45,6 +46,12 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 	agentzclient "github.com/accuknox/agentz/pkg/controller/clientset/versioned"
 )
+
+// DefaultListenAddr is the default gateway listen address.
+const DefaultListenAddr = "localhost:8090"
+
+// DefaultMCPProbeStaleAfter bounds how long an MCP probe remains fresh.
+const DefaultMCPProbeStaleAfter = 5 * time.Minute
 
 const labelManagedBy = "app.kubernetes.io/managed-by"
 
@@ -68,24 +75,27 @@ const cleanupMaxAttempts = 8
 
 // Config describes how to start the gateway.
 type Config struct {
-	Addr                     string
-	PostgresDSN              string
-	ExternalJWTJWKSURL       string
-	ExternalJWTIssuer        string
-	ExternalJWTAudience      string
-	InternalK8sTokenAudience string
-	TargetOverride           string
-	FilesystemTargetOverride string
-	AgentImage               string
-	AgentTraceEndpoint       string
-	OpenBaoAddr              string
-	OpenBaoSecretMountPath   string
-	OpenBaoK8sAuthRole       string
-	OpenBaoK8sAuthMountPath  string
-	OpenBaoK8sAuthTokenPath  string
-	MCPProbeStaleAfter       time.Duration
-	AllowedWebOrigins        []string
-	SkillStore               skill.Config
+	CodingGitHubClientID      string
+	CodingGitHubClientSecret  string
+	CodingGitHubEncryptionKey string
+	Addr                      string
+	PostgresDSN               string
+	ExternalJWTJWKSURL        string
+	ExternalJWTIssuer         string
+	ExternalJWTAudience       string
+	InternalK8sTokenAudience  string
+	TargetOverride            string
+	FilesystemTargetOverride  string
+	AgentImage                string
+	AgentTraceEndpoint        string
+	OpenBaoAddr               string
+	OpenBaoSecretMountPath    string
+	OpenBaoK8sAuthRole        string
+	OpenBaoK8sAuthMountPath   string
+	OpenBaoK8sAuthTokenPath   string
+	MCPProbeStaleAfter        time.Duration
+	AllowedWebOrigins         []string
+	SkillStore                skill.Config
 }
 
 // Service implements the agent gateway HTTP API.
@@ -96,6 +106,8 @@ type Service struct {
 	queries            gatewaydb.Querier
 	dashboards         dashboarddb.Querier
 	db                 *pgxpool.Pool
+	lockDB             *pgxpool.Pool
+	controlDB          *pgxpool.Pool
 	cfg                Config
 	bao                *baoapi.Client
 	baoKV              *baoapi.KVv2
@@ -107,6 +119,8 @@ type Service struct {
 	skillStore         *skill.Client
 	skillImports       chan struct{}
 	chatSessionEvents  chatSessionEvents
+	chatInputWake      chan struct{}
+	codingEvents       chatSessionEvents
 	catalog            *inference.Catalog
 	openAPI            *openapi3.T
 	outboundHTTP       *http.Client
@@ -119,6 +133,7 @@ type statusRecorder struct {
 	cause   error
 }
 
+// WriteHeader records the status code for request logging before sending it.
 func (r *statusRecorder) WriteHeader(status int) {
 	r.status = status
 	r.ResponseWriter.WriteHeader(status)
@@ -130,6 +145,7 @@ func (r *statusRecorder) SetAPIError(code string, cause error) {
 	r.cause = cause
 }
 
+// Flush forwards streaming responses to writers that support flushing.
 func (r *statusRecorder) Flush() {
 	flusher, ok := r.ResponseWriter.(http.Flusher)
 	if ok {
@@ -137,6 +153,7 @@ func (r *statusRecorder) Flush() {
 	}
 }
 
+// Hijack hands the connection to callers when the underlying writer supports it.
 func (r *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	hijacker, ok := r.ResponseWriter.(http.Hijacker)
 	if !ok {
@@ -145,6 +162,7 @@ func (r *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return hijacker.Hijack()
 }
 
+// ReadFrom preserves the underlying writer's optimized copy path.
 func (r *statusRecorder) ReadFrom(src io.Reader) (int64, error) {
 	readerFrom, ok := r.ResponseWriter.(io.ReaderFrom)
 	if ok {
@@ -153,6 +171,7 @@ func (r *statusRecorder) ReadFrom(src io.Reader) (int64, error) {
 	return io.Copy(r.ResponseWriter, src)
 }
 
+// Unwrap exposes the original writer to http.ResponseController.
 func (r *statusRecorder) Unwrap() http.ResponseWriter {
 	return r.ResponseWriter
 }
@@ -269,6 +288,27 @@ func Serve(ctx context.Context, cfg Config) error {
 	if err := db.Ping(ctx); err != nil {
 		return fmt.Errorf("ping postgres: %w", err)
 	}
+	// Lock waiters must leave query connections available to lock holders.
+	lockCfg := db.Config()
+	lockCfg.MaxConns = 4
+	lockCfg.MinConns = 0
+	lockCfg.MinIdleConns = 0
+	lockDB, err := pgxpool.NewWithConfig(ctx, lockCfg)
+	if err != nil {
+		return fmt.Errorf("create postgres lock pool: %w", err)
+	}
+	defer lockDB.Close()
+	if err := lockDB.Ping(ctx); err != nil {
+		return fmt.Errorf("ping postgres lock pool: %w", err)
+	}
+
+	// Cancellation and event persistence must remain available when long
+	// executions occupy every project-lock connection.
+	controlDB, err := pgxpool.NewWithConfig(ctx, lockCfg.Copy())
+	if err != nil {
+		return fmt.Errorf("create postgres control pool: %w", err)
+	}
+	defer controlDB.Close()
 
 	baoClient, err := baoclient.NewClient(
 		ctx,
@@ -300,6 +340,8 @@ func Serve(ctx context.Context, cfg Config) error {
 		queries:            gatewaydb.New(db),
 		dashboards:         dashboarddb.New(db),
 		db:                 db,
+		lockDB:             lockDB,
+		controlDB:          controlDB,
 		cfg:                cfg,
 		bao:                baoClient,
 		baoKV:              baoClient.KVv2(cfg.OpenBaoSecretMountPath),
@@ -310,6 +352,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		externalJWTKeyfunc: externalJWTKeyfunc,
 		skillStore:         skillStore,
 		skillImports:       make(chan struct{}, 4),
+		chatInputWake:      make(chan struct{}, 1),
 		catalog:            inference.NewCatalog(nil),
 		openAPI:            openAPISpec,
 		outboundHTTP:       &http.Client{Timeout: 10 * time.Second},
@@ -326,6 +369,21 @@ func Serve(ctx context.Context, cfg Config) error {
 	go func() {
 		defer close(dashboardRetentionDone)
 		svc.runDashboardRetention(runCtx)
+	}()
+	chatInputsDone := make(chan struct{})
+	go func() {
+		defer close(chatInputsDone)
+		svc.runChatInputs(runCtx)
+	}()
+	codingDone := make(chan struct{})
+	go func() {
+		defer close(codingDone)
+		svc.runCoding(runCtx)
+	}()
+	codingEventsDone := make(chan struct{})
+	go func() {
+		defer close(codingEventsDone)
+		svc.listenCoding(runCtx)
 	}()
 	cleanupDone := make(chan struct{})
 	go func() {
@@ -387,6 +445,9 @@ func Serve(ctx context.Context, cfg Config) error {
 	stopRun()
 	<-dashboardRetentionDone
 	<-chatSessionNotificationsDone
+	<-chatInputsDone
+	<-codingDone
+	<-codingEventsDone
 	<-cleanupDone
 	<-eventTrailRetentionDone
 
@@ -599,7 +660,8 @@ func (s *Service) processCleanupJob(ctx context.Context, job gatewaydb.CleanupJo
 		if err != nil && !apierrors.IsNotFound(err) {
 			return fmt.Errorf("delete Agent %q: %w", agent.AgentName, err)
 		}
-		if err := s.deleteAgentSecretResources(ctx, workspace.Namespace, agent.AgentName); err != nil {
+		err = s.deleteAgentSecretResources(ctx, workspace.Namespace, agent.AgentName)
+		if err != nil {
 			return fmt.Errorf("delete Agent %q secrets: %w", agent.AgentName, err)
 		}
 
@@ -713,6 +775,14 @@ func (s *Service) processWorkspaceCleanup(ctx context.Context, job gatewaydb.Cle
 func (s *Service) routes() http.Handler {
 	r := chi.NewRouter()
 	r.Use(requestLog)
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasPrefix(r.URL.Path, "/api/coding/") {
+				r.Body = http.MaxBytesReader(w, r.Body, 90<<20)
+			}
+			next.ServeHTTP(w, r)
+		})
+	})
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   s.cfg.AllowedWebOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
@@ -721,8 +791,14 @@ func (s *Service) routes() http.Handler {
 		AllowCredentials: false,
 		MaxAge:           300,
 	}))
-	r.With(requireTenantRequest(s)).HandleFunc(opencodePrefix+"/{agentName}", s.handleOpenCodeProxy)
-	r.With(requireTenantRequest(s)).HandleFunc(opencodePrefix+"/{agentName}/*", s.handleOpenCodeProxy)
+	r.With(s.ptyWebsocketAuth, requireTenantRequest(s)).HandleFunc(
+		opencodePrefix+"/{agentName}",
+		s.handleOpenCodeProxy,
+	)
+	r.With(s.ptyWebsocketAuth, requireTenantRequest(s)).HandleFunc(
+		opencodePrefix+"/{agentName}/*",
+		s.handleOpenCodeProxy,
+	)
 
 	apiRouter := chi.NewRouter()
 	apiRouter.Use(nethttpmiddleware.OapiRequestValidatorWithOptions(
@@ -738,10 +814,10 @@ func (s *Service) routes() http.Handler {
 					status = statusErr.StatusCode()
 				}
 				fields := openAPIRequestFields(err)
-				writeError(
+				apiutil.WriteError(
 					w,
 					r,
-					newAPIError(
+					apiutil.NewError(
 						status,
 						"invalid_request",
 						"request does not match the API contract; correct the listed fields and retry",
@@ -813,8 +889,9 @@ func validateWebOrigins(origins []string) ([]string, error) {
 		}
 		validScheme := parsed.Scheme == "http" || parsed.Scheme == "https"
 		rootPath := parsed.Path == "" || parsed.Path == "/"
-		if !validScheme || parsed.Host == "" || parsed.User != nil || !rootPath ||
-			parsed.RawQuery != "" || parsed.Fragment != "" {
+		validHost := parsed.Host != "" && parsed.User == nil
+		originOnly := rootPath && parsed.RawQuery == "" && parsed.Fragment == ""
+		if !validScheme || !validHost || !originOnly {
 			return nil, fmt.Errorf("allowed web origin %q must be an absolute HTTP(S) origin", origin)
 		}
 

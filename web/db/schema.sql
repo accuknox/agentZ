@@ -11,6 +11,7 @@ CREATE TYPE "public"."permission_resource" AS ENUM('mcp_connection', 'skill', 's
 CREATE TYPE "public"."system_role" AS ENUM('superadmin', 'workspace_admin');
 CREATE TYPE "public"."theme_preference" AS ENUM('system', 'light', 'dark');
 CREATE TYPE "public"."workspace_state" AS ENUM('provisioning', 'ready', 'failed', 'deleting');
+CREATE TYPE "public"."workspace_type" AS ENUM('general', 'coding');
 CREATE TABLE "agent_owners" (
 	"organization_id" text NOT NULL,
 	"workspace_id" text NOT NULL,
@@ -91,6 +92,44 @@ CREATE TABLE "cleanup_jobs" (
         ("cleanup_jobs"."operation" = 'workspace_delete' AND "cleanup_jobs"."target_type" = 'workspace'))
 );
 
+CREATE TABLE "coding_projects" (
+	"id" text PRIMARY KEY NOT NULL,
+	"workspace_id" text NOT NULL,
+	"owner_id" text NOT NULL,
+	"name" text NOT NULL,
+	"repository_id" bigint NOT NULL,
+	"repository" text NOT NULL,
+	"last_agent_name" text,
+	"default_branch" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "coding_projects_workspace_id_uidx" UNIQUE("workspace_id","id")
+);
+
+CREATE TABLE "coding_threads" (
+	"id" text PRIMARY KEY NOT NULL,
+	"workspace_id" text NOT NULL,
+	"agent_name" text NOT NULL,
+	"worktree_id" text NOT NULL,
+	"session_id" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "coding_threads_session_uidx" UNIQUE("workspace_id","agent_name","session_id")
+);
+
+CREATE TABLE "coding_worktrees" (
+	"id" text PRIMARY KEY NOT NULL,
+	"workspace_id" text NOT NULL,
+	"project_id" text NOT NULL,
+	"agent_name" text NOT NULL,
+	"directory" text NOT NULL,
+	"branch" text NOT NULL,
+	"ready" boolean DEFAULT false NOT NULL,
+	"shared" boolean DEFAULT false NOT NULL,
+	"deleting" boolean DEFAULT false NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "coding_worktrees_workspace_agent_id_uidx" UNIQUE("workspace_id","agent_name","id"),
+	CONSTRAINT "coding_worktrees_directory_uidx" UNIQUE("workspace_id","agent_name","directory")
+);
+
 CREATE TABLE "event_trail_events" (
 	"id" text PRIMARY KEY NOT NULL,
 	"organization_id" text NOT NULL,
@@ -109,6 +148,25 @@ CREATE TABLE "event_trail_events" (
         ("event_trail_events"."actor_type" <> 'system' AND "event_trail_events"."actor_id" IS NOT NULL)),
 	CONSTRAINT "event_trail_events_workspace_target_ck" CHECK ("event_trail_events"."target_type" <> 'workspace' OR
         ("event_trail_events"."workspace_id" IS NOT NULL AND "event_trail_events"."target_id" = "event_trail_events"."workspace_id"))
+);
+
+CREATE TABLE "github_authorizations" (
+	"state" text PRIMARY KEY NOT NULL,
+	"user_id" text NOT NULL,
+	"session_id" text NOT NULL,
+	"verifier" text NOT NULL,
+	"expires_at" timestamp with time zone NOT NULL
+);
+
+CREATE TABLE "github_connections" (
+	"user_id" text PRIMARY KEY NOT NULL,
+	"github_user_id" bigint NOT NULL,
+	"login" text NOT NULL,
+	"access_token" text NOT NULL,
+	"refresh_token" text NOT NULL,
+	"expires_at" timestamp with time zone NOT NULL,
+	"refresh_expires_at" timestamp with time zone NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 
 CREATE TABLE "invitation_roles" (
@@ -253,6 +311,7 @@ CREATE TABLE "workspaces" (
 	"name" text NOT NULL,
 	"slug" text NOT NULL,
 	"namespace" text NOT NULL,
+	"type" "workspace_type" DEFAULT 'general' NOT NULL,
 	"state" "workspace_state" DEFAULT 'provisioning' NOT NULL,
 	"provisioning_attempt" bigint DEFAULT 1 NOT NULL,
 	"failure_reason" text,
@@ -456,7 +515,14 @@ ALTER TABLE "api_key_scopes" ADD CONSTRAINT "api_key_scopes_workspace_organizati
 ALTER TABLE "api_key_targets" ADD CONSTRAINT "api_key_targets_api_key_id_api_key_scopes_api_key_id_fk" FOREIGN KEY ("api_key_id") REFERENCES "public"."api_key_scopes"("api_key_id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "cleanup_jobs" ADD CONSTRAINT "cleanup_jobs_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE restrict ON UPDATE no action;
 ALTER TABLE "cleanup_jobs" ADD CONSTRAINT "cleanup_jobs_workspace_organization_fk" FOREIGN KEY ("workspace_id","organization_id") REFERENCES "public"."workspaces"("id","organization_id") ON DELETE restrict ON UPDATE no action;
+ALTER TABLE "coding_projects" ADD CONSTRAINT "coding_projects_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE restrict ON UPDATE no action;
+ALTER TABLE "coding_projects" ADD CONSTRAINT "coding_projects_owner_id_users_id_fk" FOREIGN KEY ("owner_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;
+ALTER TABLE "coding_threads" ADD CONSTRAINT "coding_threads_workspace_id_agent_name_worktree_id_coding_worktrees_workspace_id_agent_name_id_fk" FOREIGN KEY ("workspace_id","agent_name","worktree_id") REFERENCES "public"."coding_worktrees"("workspace_id","agent_name","id") ON DELETE restrict ON UPDATE no action;
+ALTER TABLE "coding_worktrees" ADD CONSTRAINT "coding_worktrees_workspace_id_project_id_coding_projects_workspace_id_id_fk" FOREIGN KEY ("workspace_id","project_id") REFERENCES "public"."coding_projects"("workspace_id","id") ON DELETE restrict ON UPDATE no action;
 ALTER TABLE "event_trail_events" ADD CONSTRAINT "event_trail_events_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE restrict ON UPDATE no action;
+ALTER TABLE "github_authorizations" ADD CONSTRAINT "github_authorizations_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "github_authorizations" ADD CONSTRAINT "github_authorizations_session_id_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."sessions"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "github_connections" ADD CONSTRAINT "github_connections_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "invitation_roles" ADD CONSTRAINT "invitation_roles_invitation_id_organization_invitations_id_fk" FOREIGN KEY ("invitation_id") REFERENCES "public"."organization_invitations"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "invitation_roles" ADD CONSTRAINT "invitation_roles_role_organization_fk" FOREIGN KEY ("role_id","organization_id") REFERENCES "public"."role_scopes"("role_id","organization_id") ON DELETE restrict ON UPDATE no action;
 ALTER TABLE "invitation_teams" ADD CONSTRAINT "invitation_teams_invitation_id_organization_invitations_id_fk" FOREIGN KEY ("invitation_id") REFERENCES "public"."organization_invitations"("id") ON DELETE cascade ON UPDATE no action;
@@ -510,6 +576,7 @@ CREATE INDEX "api_key_scopes_creator_idx" ON "api_key_scopes" USING btree ("orga
 CREATE INDEX "api_key_scopes_revoked_idx" ON "api_key_scopes" USING btree ("organization_id","workspace_id","revoked_at");
 CREATE INDEX "api_key_targets_agent_idx" ON "api_key_targets" USING btree ("agent_name");
 CREATE INDEX "cleanup_jobs_due_idx" ON "cleanup_jobs" USING btree ("state","next_attempt_at");
+CREATE INDEX "coding_projects_owner_idx" ON "coding_projects" USING btree ("workspace_id","owner_id");
 CREATE INDEX "event_trail_events_organization_created_idx" ON "event_trail_events" USING btree ("organization_id","created_at","id");
 CREATE INDEX "event_trail_events_workspace_created_idx" ON "event_trail_events" USING btree ("workspace_id","created_at");
 CREATE INDEX "event_trail_events_created_idx" ON "event_trail_events" USING btree ("created_at");

@@ -484,6 +484,10 @@ gateway:
     timeoutSeconds: 300
 
   config:
+    # Must match the web account flow.
+    # global.secretName must contain CODING_GITHUB_CLIENT_SECRET and
+    # CODING_GITHUB_ENCRYPTION_KEY, encoded as 64 lowercase hex characters.
+    codingGithubClientID: ""
     # Application log level passed to `agentz gateway serve`.
     logLevel: info
 
@@ -779,6 +783,10 @@ web:
 
     # Optional GitHub OAuth client ID.
     githubClientID: ""
+    # Separate GitHub App for user-initiated Coding operations.
+    # Use the same client ID as gateway.config.codingGithubClientID.
+    # Credentials come from global.secretName, as described above.
+    codingGithubClientID: ""
 
     # Optional GitHub allow-list user ID.
     githubAllowedUserID: ""

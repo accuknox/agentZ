@@ -8,6 +8,7 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
+	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	"github.com/accuknox/agentz/internal/gateway/workflow"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
@@ -17,7 +18,7 @@ import (
 func (s *Service) CreateWorkflowSchedule(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
@@ -30,10 +31,10 @@ func (s *Service) CreateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 	workflowName = strings.TrimSpace(workflowName)
 	fields := workflow.ValidateScheduleCreateRequest(agentName, workflowName, &req)
 	if len(fields) > 0 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -53,14 +54,14 @@ func (s *Service) CreateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 		req.Inputs,
 	)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if len(fields) > 0 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -80,28 +81,28 @@ func (s *Service) CreateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 		req,
 	)
 	if err != nil {
-		writeError(w, r, mapKubeHTTPError("create workflow schedule", err))
+		apiutil.WriteError(w, r, mapKubeHTTPError("create workflow schedule", err))
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, resp)
+	apiutil.WriteJSON(w, http.StatusCreated, resp)
 }
 
 // ListAgentWorkflowSchedules handles GET /api/workflow/{agentName}/schedule.
 func (s *Service) ListAgentWorkflowSchedules(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, params gatewayapi.ListAgentWorkflowSchedulesParams) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
 	agentName := strings.TrimSpace(agtName)
 	fields := workflow.ValidateAgentScheduleList(agentName)
 	if len(fields) > 0 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -117,10 +118,10 @@ func (s *Service) ListAgentWorkflowSchedules(w http.ResponseWriter, r *http.Requ
 		limit = int(*params.Limit)
 	}
 	if limit < 1 || limit > 200 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"limit must be between 1 and 200",
@@ -155,7 +156,7 @@ func (s *Service) ListAgentWorkflowSchedules(w http.ResponseWriter, r *http.Requ
 		offset,
 	)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("list workflow schedules: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("list workflow schedules: %w", err))
 		return
 	}
 
@@ -165,14 +166,14 @@ func (s *Service) ListAgentWorkflowSchedules(w http.ResponseWriter, r *http.Requ
 	if nextOffset > 0 {
 		resp.NextPageToken = encodeOffsetToken(nextOffset)
 	}
-	writeJSON(w, http.StatusOK, resp)
+	apiutil.WriteJSON(w, http.StatusOK, resp)
 }
 
 // ListWorkflowSchedules handles GET /api/workflow/{agentName}/{workflowName}/schedule.
 func (s *Service) ListWorkflowSchedules(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, params gatewayapi.ListWorkflowSchedulesParams) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
@@ -180,10 +181,10 @@ func (s *Service) ListWorkflowSchedules(w http.ResponseWriter, r *http.Request, 
 	workflowName = strings.TrimSpace(workflowName)
 	fields := workflow.ValidateScheduleList(agentName, workflowName)
 	if len(fields) > 0 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -199,10 +200,10 @@ func (s *Service) ListWorkflowSchedules(w http.ResponseWriter, r *http.Request, 
 		limit = int(*params.Limit)
 	}
 	if limit < 1 || limit > 200 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"limit must be between 1 and 200",
@@ -237,7 +238,7 @@ func (s *Service) ListWorkflowSchedules(w http.ResponseWriter, r *http.Request, 
 		offset,
 	)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("list workflow schedules: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("list workflow schedules: %w", err))
 		return
 	}
 
@@ -247,14 +248,14 @@ func (s *Service) ListWorkflowSchedules(w http.ResponseWriter, r *http.Request, 
 	if nextOffset > 0 {
 		resp.NextPageToken = encodeOffsetToken(nextOffset)
 	}
-	writeJSON(w, http.StatusOK, resp)
+	apiutil.WriteJSON(w, http.StatusOK, resp)
 }
 
 // DeleteWorkflowSchedule handles DELETE /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}.
 func (s *Service) DeleteWorkflowSchedule(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, scheduleName gatewayapi.WorkflowScheduleName) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
@@ -263,10 +264,10 @@ func (s *Service) DeleteWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 	scheduleName = strings.TrimSpace(scheduleName)
 	fields := workflow.ValidateScheduleLookup(agentName, workflowName, scheduleName)
 	if len(fields) > 0 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -287,10 +288,10 @@ func (s *Service) DeleteWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 	)
 	if err != nil {
 		if errors.Is(err, workflow.ErrScheduleAgentMismatch) {
-			writeError(
+			apiutil.WriteError(
 				w,
 				r,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusNotFound,
 					"not_found",
 					"delete workflow schedule not found",
@@ -299,7 +300,7 @@ func (s *Service) DeleteWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 			)
 			return
 		}
-		writeError(w, r, mapKubeHTTPError("delete workflow schedule", err))
+		apiutil.WriteError(w, r, mapKubeHTTPError("delete workflow schedule", err))
 		return
 	}
 
@@ -310,7 +311,7 @@ func (s *Service) DeleteWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 func (s *Service) UpdateWorkflowSchedule(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, scheduleName gatewayapi.WorkflowScheduleName) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
@@ -329,10 +330,10 @@ func (s *Service) UpdateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 		&req,
 	)
 	if len(fields) > 0 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -352,14 +353,14 @@ func (s *Service) UpdateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 		req.Inputs,
 	)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if len(fields) > 0 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -381,10 +382,10 @@ func (s *Service) UpdateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 	)
 	if err != nil {
 		if errors.Is(err, workflow.ErrScheduleAgentMismatch) {
-			writeError(
+			apiutil.WriteError(
 				w,
 				r,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusNotFound,
 					"not_found",
 					"update workflow schedule not found",
@@ -393,18 +394,18 @@ func (s *Service) UpdateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 			)
 			return
 		}
-		writeError(w, r, mapKubeHTTPError("update workflow schedule", err))
+		apiutil.WriteError(w, r, mapKubeHTTPError("update workflow schedule", err))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, resp)
+	apiutil.WriteJSON(w, http.StatusOK, resp)
 }
 
 // CreateWorkflowRun handles POST /api/workflow/{agentName}/{workflowName}/schedule/{scheduleName}/run.
 func (s *Service) CreateWorkflowRun(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, scheduleName gatewayapi.WorkflowScheduleName) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
@@ -413,10 +414,10 @@ func (s *Service) CreateWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 	scheduleName = strings.TrimSpace(scheduleName)
 	fields := workflow.ValidateScheduleLookup(agtName, workflowName, scheduleName)
 	if len(fields) > 0 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -437,10 +438,10 @@ func (s *Service) CreateWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 	)
 	if err != nil {
 		if errors.Is(err, workflow.ErrWorkflowRunScopeMismatch) {
-			writeError(
+			apiutil.WriteError(
 				w,
 				r,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusNotFound,
 					"not_found",
 					"create workflow run not found",
@@ -449,9 +450,9 @@ func (s *Service) CreateWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 			)
 			return
 		}
-		writeError(w, r, mapKubeHTTPError("create workflow run", err))
+		apiutil.WriteError(w, r, mapKubeHTTPError("create workflow run", err))
 		return
 	}
 
-	writeJSON(w, http.StatusAccepted, resp)
+	apiutil.WriteJSON(w, http.StatusAccepted, resp)
 }

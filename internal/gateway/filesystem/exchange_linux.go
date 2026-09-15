@@ -52,7 +52,9 @@ func exchangeFiles(root *os.Root, first, second string) (bool, error) {
 		return true, nil
 	}
 	// Some FUSE implementations report EINVAL when rename flags are unsupported.
-	unsupported := errors.Is(exchangeErr, unix.EINVAL) || errors.Is(exchangeErr, unix.ENOSYS) || errors.Is(exchangeErr, unix.EOPNOTSUPP)
+	unsupported := errors.Is(exchangeErr, unix.EINVAL) ||
+		errors.Is(exchangeErr, unix.ENOSYS) ||
+		errors.Is(exchangeErr, unix.EOPNOTSUPP)
 	if unsupported {
 		return false, nil
 	}

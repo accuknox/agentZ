@@ -22,6 +22,7 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/accuknox/agentz/internal/authorization"
+	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	internalmcp "github.com/accuknox/agentz/internal/mcp"
@@ -33,7 +34,7 @@ import (
 
 const mcpInternalErrorMessage = "Internal error"
 
-func (s *Service) resolveMCPAccess(ctx context.Context, workspaceID, name string, operation authorization.Operation) (resourceAccess, *apiError) {
+func (s *Service) resolveMCPAccess(ctx context.Context, workspaceID, name string, operation authorization.Operation) (resourceAccess, *apiutil.APIError) {
 	creatorFallback := authorization.Operation("")
 	switch operation {
 	case authorization.OperationListMCPConnections,
@@ -94,11 +95,11 @@ func mcpOperationAction(operation authorization.Operation) string {
 	}
 }
 
-func writeMCPAPIError(w http.ResponseWriter, r *http.Request, err *apiError) {
+func writeMCPAPIError(w http.ResponseWriter, r *http.Request, err *apiutil.APIError) {
 	if err != nil && err.Status >= http.StatusInternalServerError {
 		err.Message = mcpInternalErrorMessage
 	}
-	writeError(w, r, err)
+	apiutil.WriteError(w, r, err)
 }
 
 // ListMCPConnections handles GET /api/mcp-connection.
@@ -109,7 +110,7 @@ func (s *Service) ListMCPConnections(w http.ResponseWriter, r *http.Request, par
 	}
 	access, apiErr := s.resolveMCPAccess(r.Context(), workspaceID, "", authorization.OperationListMCPConnections)
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	limit, ok := validLimit(w, r, params.Limit)
@@ -135,16 +136,18 @@ func (s *Service) ListMCPConnections(w http.ResponseWriter, r *http.Request, par
 		}
 		items = append(items, inherited...)
 	}
+	byCreatedAt := params.SortBy != nil &&
+		*params.SortBy == gatewayapi.ListMCPConnectionsParamsSortByResourceSortCreatedAt
+	descending := params.SortOrder != nil &&
+		*params.SortOrder == gatewayapi.ListMCPConnectionsParamsSortOrderDesc
 	slices.SortFunc(
 		items,
 		func(a, b gatewayapi.MCPConnectionSummary) int {
 			order := cmp.Compare(a.Name, b.Name)
-			if params.SortBy != nil &&
-				*params.SortBy == gatewayapi.ListMCPConnectionsParamsSortByResourceSortCreatedAt {
+			if byCreatedAt {
 				order = a.CreatedAt.Compare(b.CreatedAt)
 			}
-			if params.SortOrder != nil &&
-				*params.SortOrder == gatewayapi.ListMCPConnectionsParamsSortOrderDesc {
+			if descending {
 				order = -order
 			}
 			if order != 0 {
@@ -165,7 +168,7 @@ func (s *Service) ListMCPConnections(w http.ResponseWriter, r *http.Request, par
 		resp.NextPageToken = encodeOffsetToken(end)
 	}
 
-	writeJSON(w, http.StatusOK, resp)
+	apiutil.WriteJSON(w, http.StatusOK, resp)
 }
 
 func (s *Service) listInheritedMCPConnectionSummaries(ctx context.Context, access resourceAccess) ([]gatewayapi.MCPConnectionSummary, error) {
@@ -212,7 +215,7 @@ func (s *Service) WatchMCPConnections(w http.ResponseWriter, r *http.Request, pa
 	}
 	access, apiErr := s.resolveMCPAccess(r.Context(), workspaceID, "", authorization.OperationWatchMCPConnections)
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	ns := access.namespace
@@ -230,10 +233,10 @@ func (s *Service) WatchMCPConnections(w http.ResponseWriter, r *http.Request, pa
 			name := strings.TrimSpace(ref.Name)
 			fields := validateMCPConnectionName(name, "names")
 			if len(fields) > 0 {
-				writeError(
+				apiutil.WriteError(
 					w,
 					r,
-					newAPIError(
+					apiutil.NewError(
 						http.StatusBadRequest,
 						"invalid_request",
 						"request validation failed",
@@ -271,7 +274,7 @@ func (s *Service) WatchMCPConnections(w http.ResponseWriter, r *http.Request, pa
 			McpConnections: items,
 		})
 		if err != nil {
-			recordRequestError(w, "internal_error", err)
+			apiutil.RecordRequestError(w, "internal_error", err)
 			return false
 		}
 		if event != "" {
@@ -327,7 +330,7 @@ func (s *Service) WatchMCPConnections(w http.ResponseWriter, r *http.Request, pa
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				return false
 			}
-			recordRequestError(w, "internal_error", err)
+			apiutil.RecordRequestError(w, "internal_error", err)
 			return false
 		}
 
@@ -420,20 +423,22 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request, pa
 	access, apiErr := s.resolveMCPAccess(r.Context(), workspaceID, "", authorization.OperationCreateMCPConnection)
 	if apiErr != nil {
 		if access.claims.OrganizationID != "" && access.claims.UserID != "" {
-			if err := s.createMCPEventTrail(r.Context(), access, "unknown", access.failureResult()); err != nil {
-				writeInternalError(w, r, err)
+			err := s.createMCPEventTrail(r.Context(), access, "unknown", access.failureResult())
+			if err != nil {
+				apiutil.WriteInternalError(w, r, err)
 				return
 			}
 		}
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	ns := access.namespace
 
 	var req gatewayapi.CreateMCPConnectionRequest
 	if !decodeJSONBody(w, r, &req, false) {
-		if err := s.createMCPEventTrail(r.Context(), access, "unknown", gatewaydb.EventTrailResultFailed); err != nil {
-			recordRequestError(w, "internal_error", err)
+		err := s.createMCPEventTrail(r.Context(), access, "unknown", gatewaydb.EventTrailResultFailed)
+		if err != nil {
+			apiutil.RecordRequestError(w, "internal_error", err)
 		}
 		return
 	}
@@ -441,14 +446,15 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request, pa
 	name := strings.TrimSpace(req.Name)
 	fields := validateMCPConnectionName(name, "name")
 	if len(fields) > 0 {
-		if err := s.createMCPEventTrail(r.Context(), access, name, gatewaydb.EventTrailResultFailed); err != nil {
-			writeInternalError(w, r, err)
+		err := s.createMCPEventTrail(r.Context(), access, name, gatewaydb.EventTrailResultFailed)
+		if err != nil {
+			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -473,14 +479,15 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request, pa
 
 	spec, fields := mcpConnectionSpecFromRequest(req.Endpoint, &req.Auth)
 	if len(fields) > 0 {
-		if err := s.createMCPEventTrail(r.Context(), access, name, gatewaydb.EventTrailResultFailed); err != nil {
-			writeInternalError(w, r, err)
+		err := s.createMCPEventTrail(r.Context(), access, name, gatewaydb.EventTrailResultFailed)
+		if err != nil {
+			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -526,8 +533,9 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request, pa
 		writeMCPAPIError(w, r, mapKubeHTTPError("create mcp connection", err))
 		return
 	}
-	if err := s.createMCPEventTrail(r.Context(), access, name, gatewaydb.EventTrailResultSucceeded); err != nil {
-		writeInternalError(w, r, err)
+	err := s.createMCPEventTrail(r.Context(), access, name, gatewaydb.EventTrailResultSucceeded)
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
@@ -537,10 +545,10 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request, pa
 		conn.Spec.LastModifiedByUserID,
 	)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	writeJSON(
+	apiutil.WriteJSON(
 		w,
 		http.StatusCreated,
 		s.mcpConnectionDetail(
@@ -560,7 +568,7 @@ func (s *Service) GetMCPConnection(w http.ResponseWriter, r *http.Request, name 
 	}
 	access, apiErr := s.resolveMCPAccess(r.Context(), workspaceID, name, authorization.OperationGetMCPConnection)
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	resourceScope := agentzv1alpha1.ResourceScope(params.Scope)
@@ -575,10 +583,10 @@ func (s *Service) GetMCPConnection(w http.ResponseWriter, r *http.Request, name 
 		},
 	)
 	if err != nil {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			&apiError{
+			&apiutil.APIError{
 				Status:  http.StatusNotFound,
 				Code:    "not_found",
 				Message: "mcp connection not found",
@@ -596,10 +604,10 @@ func (s *Service) GetMCPConnection(w http.ResponseWriter, r *http.Request, name 
 		conn.Spec.LastModifiedByUserID,
 	)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, s.mcpConnectionDetail(access, params.Scope, *conn, actors))
+	apiutil.WriteJSON(w, http.StatusOK, s.mcpConnectionDetail(access, params.Scope, *conn, actors))
 }
 
 // DeleteMCPConnection handles DELETE /api/mcp-connection/{name}.
@@ -611,18 +619,20 @@ func (s *Service) DeleteMCPConnection(w http.ResponseWriter, r *http.Request, na
 	access, apiErr := s.resolveMCPAccess(r.Context(), workspaceID, name, authorization.OperationDeleteMCPConnection)
 	if apiErr != nil {
 		if access.claims.OrganizationID != "" && access.claims.UserID != "" {
-			if err := s.createMCPEventTrail(r.Context(), access, name, access.failureResult()); err != nil {
-				writeInternalError(w, r, err)
+			err := s.createMCPEventTrail(r.Context(), access, name, access.failureResult())
+			if err != nil {
+				apiutil.WriteInternalError(w, r, err)
 				return
 			}
 		}
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	conn, ok := s.getMCPConnection(w, r, access.namespace, name)
 	if !ok {
-		if err := s.createMCPEventTrail(r.Context(), access, name, gatewaydb.EventTrailResultFailed); err != nil {
-			recordRequestError(w, "internal_error", err)
+		err := s.createMCPEventTrail(r.Context(), access, name, gatewaydb.EventTrailResultFailed)
+		if err != nil {
+			apiutil.RecordRequestError(w, "internal_error", err)
 		}
 		return
 	}
@@ -635,10 +645,10 @@ func (s *Service) DeleteMCPConnection(w http.ResponseWriter, r *http.Request, na
 	if err != nil || conflict != nil {
 		eventTrailErr := s.createMCPEventTrail(r.Context(), access, name, gatewaydb.EventTrailResultFailed)
 		if err != nil || eventTrailErr != nil {
-			writeInternalError(w, r, errors.Join(err, eventTrailErr))
+			apiutil.WriteInternalError(w, r, errors.Join(err, eventTrailErr))
 			return
 		}
-		writeError(w, r, conflict)
+		apiutil.WriteError(w, r, conflict)
 		return
 	}
 
@@ -652,14 +662,15 @@ func (s *Service) DeleteMCPConnection(w http.ResponseWriter, r *http.Request, na
 		return
 	}
 	if len(referrers) > 0 {
-		if err := s.createMCPEventTrail(r.Context(), access, name, gatewaydb.EventTrailResultFailed); err != nil {
-			writeInternalError(w, r, err)
+		err := s.createMCPEventTrail(r.Context(), access, name, gatewaydb.EventTrailResultFailed)
+		if err != nil {
+			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusConflict,
 				"conflict",
 				"mcp connection is referenced by sandboxes: "+strings.Join(referrers, ", "),
@@ -697,8 +708,9 @@ func (s *Service) DeleteMCPConnection(w http.ResponseWriter, r *http.Request, na
 		writeMCPInternalError(w, r, err)
 		return
 	}
-	if err := s.createMCPEventTrail(r.Context(), access, name, gatewaydb.EventTrailResultSucceeded); err != nil {
-		writeInternalError(w, r, err)
+	err = s.createMCPEventTrail(r.Context(), access, name, gatewaydb.EventTrailResultSucceeded)
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
@@ -709,10 +721,10 @@ func (s *Service) getMCPConnection(w http.ResponseWriter, r *http.Request, names
 	name := strings.TrimSpace(rawName)
 	fields := validateMCPConnectionName(name, "name")
 	if len(fields) > 0 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -984,10 +996,10 @@ func (s *Service) waitForMCPConnectionDeletion(ctx context.Context, name string)
 }
 
 func writeMCPInternalError(w http.ResponseWriter, r *http.Request, err error) {
-	writeError(
+	apiutil.WriteError(
 		w,
 		r,
-		newAPIError(
+		apiutil.NewError(
 			http.StatusInternalServerError,
 			"internal_error",
 			mcpInternalErrorMessage,
@@ -1069,7 +1081,9 @@ func authLocationFromRequest(location *gatewayapi.MCPConnectionAuthLocation) *ag
 		}
 	}
 	if location.QueryParameter != nil {
-		out.QueryParameter = &agentzv1alpha1.MCPConnectionQueryParameterLocation{Name: strings.TrimSpace(location.QueryParameter.Name)}
+		out.QueryParameter = &agentzv1alpha1.MCPConnectionQueryParameterLocation{
+			Name: strings.TrimSpace(location.QueryParameter.Name),
+		}
 	}
 	if location.Cookie != nil {
 		out.Cookie = &agentzv1alpha1.MCPConnectionCookieLocation{Name: strings.TrimSpace(location.Cookie.Name)}
@@ -1146,12 +1160,12 @@ func (s *Service) putMCPConnectionSecret(ctx context.Context, ref agentzv1alpha1
 	return nil
 }
 
-func (s *Service) putMCPConnectionCredentials(ctx context.Context, spec agentzv1alpha1.MCPConnectionSpec, req gatewayapi.MCPConnectionCredentials) *apiError {
+func (s *Service) putMCPConnectionCredentials(ctx context.Context, spec agentzv1alpha1.MCPConnectionSpec, req gatewayapi.MCPConnectionCredentials) *apiutil.APIError {
 	if spec.Auth == nil {
 		if req.Bearer == nil && req.Oauth == nil {
 			return nil
 		}
-		return newAPIError(
+		return apiutil.NewError(
 			http.StatusBadRequest,
 			"invalid_request",
 			"request validation failed",
@@ -1167,7 +1181,7 @@ func (s *Service) putMCPConnectionCredentials(ctx context.Context, spec agentzv1
 	switch {
 	case req.Bearer != nil && req.Oauth == nil:
 		if spec.Auth.Bearer == nil || spec.Auth.Bearer.SecretRef == nil {
-			return newAPIError(
+			return apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -1181,7 +1195,7 @@ func (s *Service) putMCPConnectionCredentials(ctx context.Context, spec agentzv1
 
 		token := strings.TrimSpace(req.Bearer.Token)
 		if token == "" {
-			return newAPIError(
+			return apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -1203,7 +1217,7 @@ func (s *Service) putMCPConnectionCredentials(ctx context.Context, spec agentzv1
 		return nil
 	case req.Oauth != nil && req.Bearer == nil:
 		if spec.Auth.OAuth == nil || spec.Auth.OAuth.SecretRef == nil {
-			return newAPIError(
+			return apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -1264,7 +1278,7 @@ func (s *Service) putMCPConnectionCredentials(ctx context.Context, spec agentzv1
 		}
 		return nil
 	default:
-		return newAPIError(
+		return apiutil.NewError(
 			http.StatusBadRequest,
 			"invalid_request",
 			"request validation failed",
@@ -1311,7 +1325,8 @@ func (s *Service) deleteMCPConnectionCredentials(ctx context.Context, conn agent
 }
 
 func (s *Service) deleteMCPConnectionSecret(ctx context.Context, ref agentzv1alpha1.MCPConnectionSecretRef) error {
-	if err := s.baoKV.DeleteMetadata(ctx, ref.Path); err != nil && !errors.Is(err, baoapi.ErrSecretNotFound) {
+	err := s.baoKV.DeleteMetadata(ctx, ref.Path)
+	if err != nil && !errors.Is(err, baoapi.ErrSecretNotFound) {
 		return err
 	}
 	return nil

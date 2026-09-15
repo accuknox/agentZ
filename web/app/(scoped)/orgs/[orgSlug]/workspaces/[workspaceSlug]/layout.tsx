@@ -1,3 +1,4 @@
+import { CodingActivity } from "@/components/blocks/coding/git-actions"
 import { Suspense } from "react"
 import type { Route } from "next"
 import type { Metadata } from "next"
@@ -165,6 +166,9 @@ async function WorkspaceContent({
           />
         }
       >
+        {result.workspace.type === "coding" && result.workspace.state === "ready" ? (
+          <CodingActivity workspaceId={result.workspace.id} />
+        ) : null}
         <AdministrationLayout>
           {result.workspace.state === "ready" ? (
             children

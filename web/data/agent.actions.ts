@@ -9,6 +9,7 @@ import {
   transferAgentOwner,
   updateAgent,
   upsertAgentShare,
+  type Workspace,
 } from "@/lib/gateway/client"
 import type { CreateAgentFormState, DeleteAgentFormState, WorkspacePath } from "@/data/types"
 import { createAgentSimpleFormSchema } from "@/data/schema"
@@ -17,6 +18,7 @@ import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { zAgentShareCapability, zResourceScope, zSkillName } from "@/lib/gateway/client/zod.gen"
 
 export type AgentActionScope = {
+  workspaceType: Workspace["type"]
   workspaceId: string
   workspacePath: WorkspacePath
 }

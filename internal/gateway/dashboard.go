@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/accuknox/agentz/internal/authorization"
+	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	dashboarddb "github.com/accuknox/agentz/internal/gateway/dashboard/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
@@ -63,10 +64,12 @@ type dashboardQuotaLimitError struct {
 	cause      error
 }
 
+// Error describes the exhausted dashboard quota.
 func (e *dashboardQuotaLimitError) Error() string {
 	return e.message
 }
 
+// Unwrap preserves the database error that rejected the quota reservation.
 func (e *dashboardQuotaLimitError) Unwrap() error {
 	return e.cause
 }
@@ -84,7 +87,7 @@ func (s *Service) ListAgentDashboards(w http.ResponseWriter, r *http.Request, ag
 func (s *Service) listDashboards(w http.ResponseWriter, r *http.Request, agentName *string, token *gatewayapi.PageTokenQuery) {
 	auth, ok := requestAuthState(r.Context())
 	if !ok {
-		writeError(w, r, newAPIError(
+		apiutil.WriteError(w, r, apiutil.NewError(
 			http.StatusUnauthorized,
 			"unauthorized",
 			"missing dashboard request scope",
@@ -96,7 +99,7 @@ func (s *Service) listDashboards(w http.ResponseWriter, r *http.Request, agentNa
 	if agentName == nil {
 		access, apiErr := s.resolveAgentAccess(r.Context(), "", authorization.OperationListAgents)
 		if apiErr != nil {
-			writeError(w, r, apiErr)
+			apiutil.WriteError(w, r, apiErr)
 			return
 		}
 		auth.workspaceID = access.workspaceID
@@ -104,12 +107,12 @@ func (s *Service) listDashboards(w http.ResponseWriter, r *http.Request, agentNa
 		if auth.actorType == requestActorUser {
 			capabilities, err := s.agentCapabilityProjections(r.Context(), access, "")
 			if err != nil {
-				writeInternalError(w, r, err)
+				apiutil.WriteInternalError(w, r, err)
 				return
 			}
 			agentNames = usableAgentNames(nil, capabilities)
 			if len(agentNames) == 0 {
-				writeJSON(w, http.StatusOK, gatewayapi.ListDashboardsResponse{
+				apiutil.WriteJSON(w, http.StatusOK, gatewayapi.ListDashboardsResponse{
 					Dashboards:    []gatewayapi.DashboardSummary{},
 					NextPageToken: "",
 				})
@@ -118,7 +121,7 @@ func (s *Service) listDashboards(w http.ResponseWriter, r *http.Request, agentNa
 		}
 	}
 	if agentName != nil && (auth.tenantNamespace == "" || auth.workspaceID == "") {
-		writeError(w, r, newAPIError(
+		apiutil.WriteError(w, r, apiutil.NewError(
 			http.StatusUnauthorized,
 			"unauthorized",
 			"missing dashboard request scope",
@@ -152,7 +155,7 @@ func (s *Service) listDashboards(w http.ResponseWriter, r *http.Request, agentNa
 
 	rows, err := s.dashboards.DashboardList(r.Context(), args)
 	if err != nil {
-		writeError(w, r, mapDashboardStoreError("list dashboards", err))
+		apiutil.WriteError(w, r, mapDashboardStoreError("list dashboards", err))
 		return
 	}
 
@@ -172,7 +175,7 @@ func (s *Service) listDashboards(w http.ResponseWriter, r *http.Request, agentNa
 			WidgetCount: row.WidgetCount,
 		}
 	}
-	writeJSON(w, http.StatusOK, gatewayapi.ListDashboardsResponse{
+	apiutil.WriteJSON(w, http.StatusOK, gatewayapi.ListDashboardsResponse{
 		Dashboards:    items,
 		NextPageToken: next,
 	})
@@ -190,10 +193,10 @@ func (s *Service) CreateDashboard(w http.ResponseWriter, r *http.Request, agentN
 	}
 	err := validateDashboard(req, quota.WidgetsPerDashboard)
 	if err != nil {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusUnprocessableEntity,
 				"invalid_dashboard",
 				"dashboard definition is invalid",
@@ -206,7 +209,7 @@ func (s *Service) CreateDashboard(w http.ResponseWriter, r *http.Request, agentN
 
 	tx, err := s.db.Begin(r.Context())
 	if err != nil {
-		writeError(w, r, mapDashboardStoreError("create dashboard", err))
+		apiutil.WriteError(w, r, mapDashboardStoreError("create dashboard", err))
 		return
 	}
 	defer tx.Rollback(r.Context())
@@ -216,7 +219,7 @@ func (s *Service) CreateDashboard(w http.ResponseWriter, r *http.Request, agentN
 		AgentName:       agentName,
 	})
 	if err != nil {
-		writeError(w, r, mapDashboardStoreError("lock agent dashboard quota", err))
+		apiutil.WriteError(w, r, mapDashboardStoreError("lock agent dashboard quota", err))
 		return
 	}
 
@@ -226,14 +229,14 @@ func (s *Service) CreateDashboard(w http.ResponseWriter, r *http.Request, agentN
 		AgentName:       agentName,
 	})
 	if err != nil {
-		writeError(w, r, mapDashboardStoreError("count dashboards", err))
+		apiutil.WriteError(w, r, mapDashboardStoreError("count dashboards", err))
 		return
 	}
 	if count >= int64(quota.DashboardsPerAgent) {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusTooManyRequests,
 				"dashboard_quota_exceeded",
 				"agent dashboard limit reached; delete a dashboard before retrying",
@@ -259,7 +262,7 @@ func (s *Service) CreateDashboard(w http.ResponseWriter, r *http.Request, agentN
 		Title:           req.Title,
 	})
 	if err != nil {
-		writeError(w, r, mapDashboardStoreError("create dashboard", err))
+		apiutil.WriteError(w, r, mapDashboardStoreError("create dashboard", err))
 		return
 	}
 	widgets := make([]dashboardWidgetInsert, len(req.Widgets))
@@ -276,7 +279,7 @@ func (s *Service) CreateDashboard(w http.ResponseWriter, r *http.Request, agentN
 	}
 	rawWidgets, err := json.Marshal(widgets)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("encode dashboard widgets: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("encode dashboard widgets: %w", err))
 		return
 	}
 	err = queries.DashboardCreateWidgets(r.Context(), dashboarddb.DashboardCreateWidgetsParams{
@@ -285,21 +288,21 @@ func (s *Service) CreateDashboard(w http.ResponseWriter, r *http.Request, agentN
 		Widgets:         rawWidgets,
 	})
 	if err != nil {
-		writeError(w, r, mapDashboardStoreError("create dashboard widgets", err))
+		apiutil.WriteError(w, r, mapDashboardStoreError("create dashboard widgets", err))
 		return
 	}
 	err = tx.Commit(r.Context())
 	if err != nil {
-		writeError(w, r, mapDashboardStoreError("commit dashboard", err))
+		apiutil.WriteError(w, r, mapDashboardStoreError("commit dashboard", err))
 		return
 	}
 
 	result, err := s.dashboard(r.Context(), auth, agentName, req.Name)
 	if err != nil {
-		writeError(w, r, mapDashboardStoreError("read dashboard", err))
+		apiutil.WriteError(w, r, mapDashboardStoreError("read dashboard", err))
 		return
 	}
-	writeJSON(w, http.StatusCreated, result)
+	apiutil.WriteJSON(w, http.StatusCreated, result)
 }
 
 // GetDashboard returns one dashboard definition and its widget revisions.
@@ -310,10 +313,10 @@ func (s *Service) GetDashboard(w http.ResponseWriter, r *http.Request, agentName
 	}
 	result, err := s.dashboard(r.Context(), auth, agentName, dashboardName)
 	if err != nil {
-		writeError(w, r, mapDashboardStoreError("get dashboard", err))
+		apiutil.WriteError(w, r, mapDashboardStoreError("get dashboard", err))
 		return
 	}
-	writeJSON(w, http.StatusOK, result)
+	apiutil.WriteJSON(w, http.StatusOK, result)
 }
 
 func (s *Service) dashboard(ctx context.Context, auth requestAuth, agentName, dashboardName string) (gatewayapi.Dashboard, error) {
@@ -376,7 +379,7 @@ func (s *Service) DeleteDashboard(w http.ResponseWriter, r *http.Request, agentN
 		Name:            dashboardName,
 	})
 	if err != nil {
-		writeError(w, r, mapDashboardStoreError("delete dashboard", err))
+		apiutil.WriteError(w, r, mapDashboardStoreError("delete dashboard", err))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -395,10 +398,10 @@ func (s *Service) PublishDashboardData(w http.ResponseWriter, r *http.Request, a
 		return
 	}
 	if len(req.Records) == 0 || len(req.Records) > int(quota.Publish.RecordsPerRequest) {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusUnprocessableEntity,
 				"invalid_dashboard_data",
 				"dashboard data is invalid",
@@ -417,7 +420,7 @@ func (s *Service) PublishDashboardData(w http.ResponseWriter, r *http.Request, a
 
 	requestJSON, err := json.Marshal(req)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("encode publish request: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("encode publish request: %w", err))
 		return
 	}
 	hash := sha256.Sum256(requestJSON)
@@ -425,7 +428,7 @@ func (s *Service) PublishDashboardData(w http.ResponseWriter, r *http.Request, a
 
 	tx, err := s.db.Begin(r.Context())
 	if err != nil {
-		writeError(w, r, mapDashboardStoreError("begin dashboard publish", err))
+		apiutil.WriteError(w, r, mapDashboardStoreError("begin dashboard publish", err))
 		return
 	}
 	defer tx.Rollback(r.Context())
@@ -439,14 +442,14 @@ func (s *Service) PublishDashboardData(w http.ResponseWriter, r *http.Request, a
 		WidgetName:      widgetName,
 	})
 	if err != nil {
-		writeError(w, r, mapDashboardStoreError("get dashboard widget", err))
+		apiutil.WriteError(w, r, mapDashboardStoreError("get dashboard widget", err))
 		return
 	}
 	if widget.Revision != req.DataRevision {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusConflict,
 				"stale_dashboard_revision",
 				"widget definition changed; get the dashboard and retry with its current data_revision",
@@ -462,15 +465,15 @@ func (s *Service) PublishDashboardData(w http.ResponseWriter, r *http.Request, a
 	var definition gatewayapi.DashboardWidgetDefinition
 	err = json.Unmarshal(widget.Definition, &definition)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("decode stored widget definition: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("decode stored widget definition: %w", err))
 		return
 	}
 	err = validateDashboardRecords(definition, req.Records, receivedAt)
 	if err != nil {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusUnprocessableEntity,
 				"invalid_dashboard_data",
 				"dashboard data does not match the widget definition",
@@ -491,10 +494,10 @@ func (s *Service) PublishDashboardData(w http.ResponseWriter, r *http.Request, a
 	)
 	if replayErr == nil {
 		if !bytes.Equal(replay.RequestHash, hash[:]) {
-			writeError(
+			apiutil.WriteError(
 				w,
 				r,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusConflict,
 					"idempotency_conflict",
 					"idempotency key was already used with different data",
@@ -507,7 +510,7 @@ func (s *Service) PublishDashboardData(w http.ResponseWriter, r *http.Request, a
 			)
 			return
 		}
-		writeJSON(w, http.StatusOK, gatewayapi.PublishDashboardDataResponse{
+		apiutil.WriteJSON(w, http.StatusOK, gatewayapi.PublishDashboardDataResponse{
 			AcceptedRecords: replay.AcceptedRecords,
 			ReceivedAt:      replay.ReceivedAt,
 			Replayed:        true,
@@ -515,7 +518,7 @@ func (s *Service) PublishDashboardData(w http.ResponseWriter, r *http.Request, a
 		return
 	}
 	if !errors.Is(replayErr, pgx.ErrNoRows) {
-		writeError(w, r, mapDashboardStoreError("read publish idempotency", replayErr))
+		apiutil.WriteError(w, r, mapDashboardStoreError("read publish idempotency", replayErr))
 		return
 	}
 
@@ -530,7 +533,7 @@ func (s *Service) PublishDashboardData(w http.ResponseWriter, r *http.Request, a
 		}
 		raw, err := json.Marshal(record)
 		if err != nil {
-			writeInternalError(w, r, fmt.Errorf("encode record %d: %w", i, err))
+			apiutil.WriteInternalError(w, r, fmt.Errorf("encode record %d: %w", i, err))
 			return
 		}
 		stored[i] = dashboardStoredRecord{
@@ -542,7 +545,7 @@ func (s *Service) PublishDashboardData(w http.ResponseWriter, r *http.Request, a
 	}
 	storedJSON, err := json.Marshal(stored)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("encode dashboard records: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("encode dashboard records: %w", err))
 		return
 	}
 
@@ -664,7 +667,7 @@ func (s *Service) PublishDashboardData(w http.ResponseWriter, r *http.Request, a
 			if err == nil {
 				err = fmt.Errorf("inserted %d of %d records", inserted, len(stored))
 			}
-			writeError(w, r, mapDashboardStoreError("append dashboard data", err))
+			apiutil.WriteError(w, r, mapDashboardStoreError("append dashboard data", err))
 			return
 		}
 	case gatewayapi.Latest:
@@ -673,7 +676,7 @@ func (s *Service) PublishDashboardData(w http.ResponseWriter, r *http.Request, a
 			WidgetRevision:  widget.Revision,
 		})
 		if err != nil {
-			writeError(w, r, mapDashboardStoreError("read latest dashboard usage", err))
+			apiutil.WriteError(w, r, mapDashboardStoreError("read latest dashboard usage", err))
 			return
 		}
 		_, err = queries.DashboardReserveLatestUsage(
@@ -705,7 +708,7 @@ func (s *Service) PublishDashboardData(w http.ResponseWriter, r *http.Request, a
 			},
 		)
 		if err != nil {
-			writeError(w, r, mapDashboardStoreError("replace latest dashboard data", err))
+			apiutil.WriteError(w, r, mapDashboardStoreError("replace latest dashboard data", err))
 			return
 		}
 	}
@@ -719,15 +722,15 @@ func (s *Service) PublishDashboardData(w http.ResponseWriter, r *http.Request, a
 		AcceptedRecords: int32(len(req.Records)),
 	})
 	if err != nil {
-		writeError(w, r, mapDashboardStoreError("save publish idempotency", err))
+		apiutil.WriteError(w, r, mapDashboardStoreError("save publish idempotency", err))
 		return
 	}
 	err = tx.Commit(r.Context())
 	if err != nil {
-		writeError(w, r, mapDashboardStoreError("commit dashboard publish", err))
+		apiutil.WriteError(w, r, mapDashboardStoreError("commit dashboard publish", err))
 		return
 	}
-	writeJSON(w, http.StatusOK, gatewayapi.PublishDashboardDataResponse{
+	apiutil.WriteJSON(w, http.StatusOK, gatewayapi.PublishDashboardDataResponse{
 		AcceptedRecords: int32(len(req.Records)),
 		ReceivedAt:      receivedAt,
 		Replayed:        false,
@@ -736,17 +739,17 @@ func (s *Service) PublishDashboardData(w http.ResponseWriter, r *http.Request, a
 
 func writeDashboardQuotaError(w http.ResponseWriter, r *http.Request, limit *dashboardQuotaLimitError) {
 	if !errors.Is(limit, pgx.ErrNoRows) {
-		writeError(w, r, mapDashboardStoreError("reserve dashboard quota", limit))
+		apiutil.WriteError(w, r, mapDashboardStoreError("reserve dashboard quota", limit))
 		return
 	}
 	if limit.retryAfter > 0 {
 		seconds := max(int64(limit.retryAfter.Round(time.Second)/time.Second), 1)
 		w.Header().Set("Retry-After", fmt.Sprintf("%d", seconds))
 	}
-	writeError(
+	apiutil.WriteError(
 		w,
 		r,
-		newAPIError(
+		apiutil.NewError(
 			http.StatusTooManyRequests,
 			"dashboard_quota_exceeded",
 			limit.message,
@@ -769,15 +772,15 @@ func writeDashboardQueryReservationError(w http.ResponseWriter, r *http.Request,
 		writeDashboardQuotaError(w, r, limit)
 		return
 	}
-	writeError(w, r, mapDashboardStoreError("reserve dashboard query", err))
+	apiutil.WriteError(w, r, mapDashboardStoreError("reserve dashboard query", err))
 }
 
-func mapDashboardStoreError(action string, err error) *apiError {
+func mapDashboardStoreError(action string, err error) *apiutil.APIError {
 	if errors.Is(err, pgx.ErrNoRows) {
-		return newAPIError(http.StatusNotFound, "not_found", "dashboard resource not found", err)
+		return apiutil.NewError(http.StatusNotFound, "not_found", "dashboard resource not found", err)
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
-		return newAPIError(
+		return apiutil.NewError(
 			http.StatusGatewayTimeout,
 			"dashboard_query_timeout",
 			"dashboard query timed out",
@@ -786,7 +789,7 @@ func mapDashboardStoreError(action string, err error) *apiError {
 	}
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "57014" {
-		return newAPIError(
+		return apiutil.NewError(
 			http.StatusGatewayTimeout,
 			"dashboard_query_timeout",
 			"dashboard query timed out",
@@ -878,10 +881,10 @@ func (s *Service) QueryDashboard(w http.ResponseWriter, r *http.Request, agentNa
 		return
 	}
 	if !req.To.After(req.From) || req.To.Sub(req.From) > dashboardRetention {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusUnprocessableEntity,
 				"invalid_time_range",
 				"dashboard time range is invalid",
@@ -899,10 +902,10 @@ func (s *Service) QueryDashboard(w http.ResponseWriter, r *http.Request, agentNa
 		maxPoints = *req.MaxPoints
 	}
 	if maxPoints < 1 || maxPoints > quota.Query.PointsPerSeries {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusUnprocessableEntity,
 				"invalid_max_points",
 				"max_points is outside the configured limit",
@@ -926,7 +929,7 @@ func (s *Service) QueryDashboard(w http.ResponseWriter, r *http.Request, agentNa
 		Name:            dashboardName,
 	})
 	if err != nil {
-		writeError(w, r, mapDashboardStoreError("get dashboard", err))
+		apiutil.WriteError(w, r, mapDashboardStoreError("get dashboard", err))
 		return
 	}
 	allWidgets, err := s.dashboards.DashboardListWidgets(
@@ -937,15 +940,15 @@ func (s *Service) QueryDashboard(w http.ResponseWriter, r *http.Request, agentNa
 		},
 	)
 	if err != nil {
-		writeError(w, r, mapDashboardStoreError("list dashboard widgets", err))
+		apiutil.WriteError(w, r, mapDashboardStoreError("list dashboard widgets", err))
 		return
 	}
 	widgets := selectedDashboardWidgets(allWidgets, req.Widgets)
 	if req.Widgets != nil && len(widgets) != len(*req.Widgets) {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusNotFound,
 				"widget_not_found",
 				"one or more requested widgets do not exist",
@@ -963,7 +966,7 @@ func (s *Service) QueryDashboard(w http.ResponseWriter, r *http.Request, agentNa
 	for i, widget := range widgets {
 		err = json.Unmarshal(widget.Definition, &definitions[i])
 		if err != nil {
-			writeInternalError(w, r, fmt.Errorf("decode widget %q definition: %w", widget.Name, err))
+			apiutil.WriteInternalError(w, r, fmt.Errorf("decode widget %q definition: %w", widget.Name, err))
 			return
 		}
 	}
@@ -978,7 +981,7 @@ func (s *Service) QueryDashboard(w http.ResponseWriter, r *http.Request, agentNa
 	defer cancel()
 	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
 	if err != nil {
-		writeError(w, r, mapDashboardStoreError("begin dashboard query", err))
+		apiutil.WriteError(w, r, mapDashboardStoreError("begin dashboard query", err))
 		return
 	}
 	defer tx.Rollback(context.Background())
@@ -988,7 +991,7 @@ func (s *Service) QueryDashboard(w http.ResponseWriter, r *http.Request, agentNa
 		fmt.Sprintf("%dms", quota.Query.Timeout.Milliseconds()),
 	)
 	if err != nil {
-		writeError(w, r, mapDashboardStoreError("set dashboard query timeout", err))
+		apiutil.WriteError(w, r, mapDashboardStoreError("set dashboard query timeout", err))
 		return
 	}
 
@@ -1020,7 +1023,7 @@ func (s *Service) QueryDashboard(w http.ResponseWriter, r *http.Request, agentNa
 			},
 		)
 		if err != nil {
-			writeError(w, r, mapDashboardStoreError("validate dashboard records", err))
+			apiutil.WriteError(w, r, mapDashboardStoreError("validate dashboard records", err))
 			return
 		}
 		if invalid > 0 {
@@ -1048,8 +1051,7 @@ func (s *Service) QueryDashboard(w http.ResponseWriter, r *http.Request, agentNa
 				result.Error = dashboardDataError(1)
 				break
 			}
-			result.BucketSeconds = new(int64)
-			*result.BucketSeconds = int64(bucketSeconds)
+			result.BucketSeconds = new(int64(bucketSeconds))
 			result.Points = make([]gatewayapi.DashboardTimePoint, len(rows))
 			for i, row := range rows {
 				err = json.Unmarshal(row.Values, &result.Points[i].Values)
@@ -1115,7 +1117,7 @@ func (s *Service) QueryDashboard(w http.ResponseWriter, r *http.Request, agentNa
 				RowLimit:        100,
 			})
 			if queryErr != nil {
-				writeError(w, r, mapDashboardStoreError("query funnel", queryErr))
+				apiutil.WriteError(w, r, mapDashboardStoreError("query funnel", queryErr))
 				return
 			}
 			result.Categories = make([]gatewayapi.DashboardCategory, len(rows))
@@ -1148,7 +1150,7 @@ func (s *Service) QueryDashboard(w http.ResponseWriter, r *http.Request, agentNa
 				RowLimit:        100,
 			})
 			if queryErr != nil {
-				writeError(w, r, mapDashboardStoreError("query sankey", queryErr))
+				apiutil.WriteError(w, r, mapDashboardStoreError("query sankey", queryErr))
 				return
 			}
 			indices := make(map[string]int32, len(rows)+1)
@@ -1236,7 +1238,7 @@ func (s *Service) QueryDashboard(w http.ResponseWriter, r *http.Request, agentNa
 				RowLimit:        1,
 			})
 			if queryErr != nil {
-				writeError(w, r, mapDashboardStoreError("query gauge", queryErr))
+				apiutil.WriteError(w, r, mapDashboardStoreError("query gauge", queryErr))
 				return
 			}
 			if len(rows) == 0 {
@@ -1250,28 +1252,27 @@ func (s *Service) QueryDashboard(w http.ResponseWriter, r *http.Request, agentNa
 				result.Error = dashboardDataError(1)
 				break
 			}
-			result.Value = new(float64)
-			*result.Value = (*record.Values)[0]
+			result.Value = new((*record.Values)[0])
 			returnedCells++
 		}
 		results = append(results, result)
 	}
 	err = tx.Commit(ctx)
 	if err != nil {
-		writeError(w, r, mapDashboardStoreError("commit dashboard query", err))
+		apiutil.WriteError(w, r, mapDashboardStoreError("commit dashboard query", err))
 		return
 	}
 	response := gatewayapi.QueryDashboardResponse{From: req.From, To: req.To, Widgets: results}
 	raw, err := json.Marshal(response)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("encode dashboard query: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("encode dashboard query: %w", err))
 		return
 	}
 	if int64(len(raw)) > quota.Query.ResponseBytes.Value() {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusTooManyRequests,
 				"dashboard_response_limit_exceeded",
 				"query response exceeds the byte limit; request fewer widgets or points",
@@ -1289,10 +1290,10 @@ func (s *Service) QueryDashboard(w http.ResponseWriter, r *http.Request, agentNa
 		return
 	}
 	if returnedCells > int64(quota.Query.CellsPerRequest) {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusTooManyRequests,
 				"dashboard_query_limit_exceeded",
 				"query returned too many cells; request fewer widgets or points",
@@ -1333,20 +1334,20 @@ func (s *Service) ListDashboardTableRows(w http.ResponseWriter, r *http.Request,
 		WidgetName:      widgetName,
 	})
 	if err != nil {
-		writeError(w, r, mapDashboardStoreError("get dashboard table", err))
+		apiutil.WriteError(w, r, mapDashboardStoreError("get dashboard table", err))
 		return
 	}
 	var definition gatewayapi.DashboardWidgetDefinition
 	err = json.Unmarshal(widget.Definition, &definition)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("decode table definition: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("decode table definition: %w", err))
 		return
 	}
 	if definition.Kind != gatewayapi.Table {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusUnprocessableEntity,
 				"invalid_widget_kind",
 				"row pagination is only available for table widgets",
@@ -1369,10 +1370,10 @@ func (s *Service) ListDashboardTableRows(w http.ResponseWriter, r *http.Request,
 		to = *params.EventTimeBefore
 	}
 	if !to.After(from) || to.Sub(from) > dashboardRetention {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusUnprocessableEntity,
 				"invalid_time_range",
 				"dashboard table time range is invalid",
@@ -1398,10 +1399,10 @@ func (s *Service) ListDashboardTableRows(w http.ResponseWriter, r *http.Request,
 	var sortDatetime [3]bool
 	if params.Sort != nil {
 		if len(*params.Sort) > len(sortIndices) {
-			writeError(
+			apiutil.WriteError(
 				w,
 				r,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusUnprocessableEntity,
 					"invalid_sort",
 					"at most three sort columns are allowed",
@@ -1417,10 +1418,10 @@ func (s *Service) ListDashboardTableRows(w http.ResponseWriter, r *http.Request,
 		for i, item := range *params.Sort {
 			name, direction, found := strings.Cut(item, ":")
 			if !found || (direction != "asc" && direction != "desc") {
-				writeError(
+				apiutil.WriteError(
 					w,
 					r,
-					newAPIError(
+					apiutil.NewError(
 						http.StatusUnprocessableEntity,
 						"invalid_sort",
 						"sort entry is invalid",
@@ -1440,10 +1441,10 @@ func (s *Service) ListDashboardTableRows(w http.ResponseWriter, r *http.Request,
 				},
 			)
 			if column < 0 {
-				writeError(
+				apiutil.WriteError(
 					w,
 					r,
-					newAPIError(
+					apiutil.NewError(
 						http.StatusUnprocessableEntity,
 						"invalid_sort",
 						"sort column is not available",
@@ -1484,11 +1485,11 @@ func (s *Service) ListDashboardTableRows(w http.ResponseWriter, r *http.Request,
 		},
 	)
 	if err != nil {
-		writeError(w, r, mapDashboardStoreError("validate dashboard table", err))
+		apiutil.WriteError(w, r, mapDashboardStoreError("validate dashboard table", err))
 		return
 	}
 	if invalid > 0 {
-		writeJSON(w, http.StatusOK, gatewayapi.DashboardTablePage{
+		apiutil.WriteJSON(w, http.StatusOK, gatewayapi.DashboardTablePage{
 			Status:        gatewayapi.InvalidData,
 			Rows:          []gatewayapi.DashboardTableRow{},
 			NextPageToken: "",
@@ -1514,7 +1515,7 @@ func (s *Service) ListDashboardTableRows(w http.ResponseWriter, r *http.Request,
 		ToTime:          to,
 	})
 	if err != nil {
-		writeError(w, r, mapDashboardStoreError("query dashboard table", err))
+		apiutil.WriteError(w, r, mapDashboardStoreError("query dashboard table", err))
 		return
 	}
 	next := ""
@@ -1527,7 +1528,7 @@ func (s *Service) ListDashboardTableRows(w http.ResponseWriter, r *http.Request,
 		var record gatewayapi.DashboardDataRecord
 		err = json.Unmarshal(row.Payload, &record)
 		if err != nil || record.Cells == nil {
-			writeJSON(w, http.StatusOK, gatewayapi.DashboardTablePage{
+			apiutil.WriteJSON(w, http.StatusOK, gatewayapi.DashboardTablePage{
 				Status:        gatewayapi.InvalidData,
 				Rows:          []gatewayapi.DashboardTableRow{},
 				NextPageToken: "",
@@ -1548,14 +1549,14 @@ func (s *Service) ListDashboardTableRows(w http.ResponseWriter, r *http.Request,
 	}
 	raw, err := json.Marshal(response)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("encode dashboard table page: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("encode dashboard table page: %w", err))
 		return
 	}
 	if int64(len(raw)) > quota.Query.ResponseBytes.Value() {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusTooManyRequests,
 				"dashboard_response_limit_exceeded",
 				"table response exceeds the byte limit; narrow the selected time range",
@@ -1574,10 +1575,10 @@ func (s *Service) ListDashboardTableRows(w http.ResponseWriter, r *http.Request,
 	}
 	returnedCells := int64(len(result) * len(definition.Columns))
 	if returnedCells > int64(quota.Query.CellsPerRequest) {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusTooManyRequests,
 				"dashboard_query_limit_exceeded",
 				"table page returned too many cells; narrow the selected time range",
@@ -1727,7 +1728,7 @@ func dashboardBucketSeconds(period time.Duration, maxPoints int32) int32 {
 func dashboardRequestState(w http.ResponseWriter, r *http.Request) (requestAuth, agentzv1alpha1.DashboardQuota, bool) {
 	auth, ok := requestAuthState(r.Context())
 	if !ok || auth.tenantNamespace == "" || auth.workspaceID == "" {
-		writeError(w, r, newAPIError(
+		apiutil.WriteError(w, r, apiutil.NewError(
 			http.StatusUnauthorized,
 			"unauthorized",
 			"missing dashboard request scope",
@@ -1737,11 +1738,11 @@ func dashboardRequestState(w http.ResponseWriter, r *http.Request) (requestAuth,
 	}
 	tenant, err := tenantObject(r.Context())
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("dashboard quota is unavailable: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("dashboard quota is unavailable: %w", err))
 		return requestAuth{}, agentzv1alpha1.DashboardQuota{}, false
 	}
 	if tenant.Spec.DashboardQuota == nil {
-		writeInternalError(w, r, errors.New("tenant dashboard quota is not configured"))
+		apiutil.WriteInternalError(w, r, errors.New("tenant dashboard quota is not configured"))
 		return requestAuth{}, agentzv1alpha1.DashboardQuota{}, false
 	}
 	return auth, *tenant.Spec.DashboardQuota, true
@@ -1857,8 +1858,8 @@ func validateDashboardWidget(widget gatewayapi.DashboardWidgetDefinition) error 
 	case gatewayapi.Gauge:
 		hasRange := widget.Minimum != nil && widget.Maximum != nil
 		validRange := hasRange && *widget.Minimum < *widget.Maximum
-		if widget.Mode != gatewayapi.Latest || seriesCount != 1 ||
-			columnCount != 0 || !validRange {
+		singleSeries := widget.Mode == gatewayapi.Latest && seriesCount == 1 && columnCount == 0
+		if !singleSeries || !validRange {
 			return errors.New("gauges require latest mode, one series, no columns, and an increasing range")
 		}
 		previous := *widget.Minimum
@@ -1871,7 +1872,9 @@ func validateDashboardWidget(widget gatewayapi.DashboardWidgetDefinition) error 
 			}
 			previous = threshold.Value
 			switch threshold.Tone {
-			case gatewayapi.Neutral, gatewayapi.Warning, gatewayapi.Critical:
+			case gatewayapi.DashboardGaugeThresholdToneNeutral,
+				gatewayapi.DashboardGaugeThresholdToneWarning,
+				gatewayapi.DashboardGaugeThresholdToneCritical:
 			default:
 				return fmt.Errorf("thresholds[%d] has unsupported tone %q", i, threshold.Tone)
 			}
@@ -1884,23 +1887,25 @@ func validateDashboardWidget(widget gatewayapi.DashboardWidgetDefinition) error 
 		if widget.Axes == nil || seriesCount == 0 || seriesCount > 5 || columnCount != 0 {
 			return errors.New("scatter plots require axes, 1-5 series, and no columns")
 		}
-		if utf8.RuneCountInString(widget.Axes.X.Label) < 1 ||
-			utf8.RuneCountInString(widget.Axes.X.Label) > 80 {
+		xLabelLen := utf8.RuneCountInString(widget.Axes.X.Label)
+		if xLabelLen < 1 || xLabelLen > 80 {
 			return errors.New("axes.x.label must contain 1-80 characters")
 		}
-		if widget.Axes.X.Unit != nil &&
-			(utf8.RuneCountInString(*widget.Axes.X.Unit) < 1 ||
-				utf8.RuneCountInString(*widget.Axes.X.Unit) > 32) {
-			return errors.New("axes.x.unit must contain 1-32 characters")
+		if widget.Axes.X.Unit != nil {
+			n := utf8.RuneCountInString(*widget.Axes.X.Unit)
+			if n < 1 || n > 32 {
+				return errors.New("axes.x.unit must contain 1-32 characters")
+			}
 		}
-		if utf8.RuneCountInString(widget.Axes.Y.Label) < 1 ||
-			utf8.RuneCountInString(widget.Axes.Y.Label) > 80 {
+		yLabelLen := utf8.RuneCountInString(widget.Axes.Y.Label)
+		if yLabelLen < 1 || yLabelLen > 80 {
 			return errors.New("axes.y.label must contain 1-80 characters")
 		}
-		if widget.Axes.Y.Unit != nil &&
-			(utf8.RuneCountInString(*widget.Axes.Y.Unit) < 1 ||
-				utf8.RuneCountInString(*widget.Axes.Y.Unit) > 32) {
-			return errors.New("axes.y.unit must contain 1-32 characters")
+		if widget.Axes.Y.Unit != nil {
+			n := utf8.RuneCountInString(*widget.Axes.Y.Unit)
+			if n < 1 || n > 32 {
+				return errors.New("axes.y.unit must contain 1-32 characters")
+			}
 		}
 	case gatewayapi.Table:
 		if columnCount == 0 || columnCount > 12 || seriesCount != 0 {
@@ -2070,8 +2075,8 @@ func validateDashboardRecord(widget gatewayapi.DashboardWidgetDefinition, record
 			record.X == nil &&
 			record.Y == nil &&
 			record.Label == nil
-		if record.Source == nil || record.Target == nil ||
-			record.Value == nil || !onlyFlow {
+		completeFlow := record.Source != nil && record.Target != nil && record.Value != nil
+		if !completeFlow || !onlyFlow {
 			return errors.New("expected source, target, and value only")
 		}
 		sourceLength := utf8.RuneCountInString(*record.Source)
@@ -2097,8 +2102,8 @@ func validateDashboardRecord(widget gatewayapi.DashboardWidgetDefinition, record
 			record.Values == nil &&
 			record.Cells == nil &&
 			!hasFlow
-		if record.X == nil || record.Y == nil ||
-			!seriesMatches || !onlyScatter {
+		hasPoint := record.X != nil && record.Y != nil
+		if !hasPoint || !seriesMatches || !onlyScatter {
 			expected := "series, x, y, and optional label only"
 			if widget.Mode == gatewayapi.Temporal {
 				expected = "recorded_at, series, x, y, and optional label only"
@@ -2142,8 +2147,7 @@ func validateDashboardRecord(widget gatewayapi.DashboardWidgetDefinition, record
 					widget.Columns[i].Type,
 				)
 			}
-			if cell.Text != nil &&
-				utf8.RuneCountInString(*cell.Text) > 1024 {
+			if cell.Text != nil && utf8.RuneCountInString(*cell.Text) > 1024 {
 				return fmt.Errorf(
 					"cell %d text contains more than 1024 characters",
 					i,

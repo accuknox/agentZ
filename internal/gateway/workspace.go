@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/gosimple/slug"
 	"github.com/jackc/pgx/v5"
@@ -21,6 +22,7 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/accuknox/agentz/internal/authorization"
+	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
@@ -41,7 +43,7 @@ type workspaceEventTrail struct {
 func (s *Service) ListWorkspaces(w http.ResponseWriter, r *http.Request, params gatewayapi.ListWorkspacesParams) {
 	claims, apiErr := externalWorkspaceClaims(r.Context())
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 
@@ -61,7 +63,7 @@ func (s *Service) ListWorkspaces(w http.ResponseWriter, r *http.Request, params 
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("resolve workspace authority: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("resolve workspace authority: %w", err))
 		return
 	}
 	organizationScope := authorization.Scope{OrganizationID: claims.OrganizationID}
@@ -73,7 +75,7 @@ func (s *Service) ListWorkspaces(w http.ResponseWriter, r *http.Request, params 
 		limit+1,
 	)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	var next string
@@ -99,7 +101,7 @@ func (s *Service) ListWorkspaces(w http.ResponseWriter, r *http.Request, params 
 		)
 	}
 
-	writeJSON(
+	apiutil.WriteJSON(
 		w,
 		http.StatusOK,
 		gatewayapi.ListWorkspacesResponse{
@@ -115,7 +117,7 @@ func (s *Service) ListWorkspaces(w http.ResponseWriter, r *http.Request, params 
 func (s *Service) ListWorkspaceMemberCandidates(w http.ResponseWriter, r *http.Request) {
 	claims, apiErr := externalWorkspaceClaims(r.Context())
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 
@@ -127,14 +129,14 @@ func (s *Service) ListWorkspaceMemberCandidates(w http.ResponseWriter, r *http.R
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("authorize workspace member list: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("authorize workspace member list: %w", err))
 		return
 	}
 	if !allowed {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusForbidden,
 				"forbidden",
 				"Superadmin authority is required",
@@ -152,7 +154,7 @@ func (s *Service) ListWorkspaceMemberCandidates(w http.ResponseWriter, r *http.R
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("list workspace admin candidates: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("list workspace admin candidates: %w", err))
 		return
 	}
 	members := make([]gatewayapi.WorkspaceMemberCandidate, 0, len(rows))
@@ -168,7 +170,7 @@ func (s *Service) ListWorkspaceMemberCandidates(w http.ResponseWriter, r *http.R
 		}
 		members = append(members, member)
 	}
-	writeJSON(
+	apiutil.WriteJSON(
 		w,
 		http.StatusOK,
 		gatewayapi.ListWorkspaceMemberCandidatesResponse{
@@ -181,7 +183,7 @@ func (s *Service) ListWorkspaceMemberCandidates(w http.ResponseWriter, r *http.R
 func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	claims, apiErr := externalWorkspaceClaims(r.Context())
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	var req gatewayapi.CreateWorkspaceRequest
@@ -190,10 +192,10 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	}
 	req.Name = strings.TrimSpace(req.Name)
 	if req.Name == "" {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"request validation failed",
@@ -202,6 +204,11 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 			),
 		)
 		return
+	}
+
+	workspaceType := gatewaydb.WorkspaceTypeGeneral
+	if req.Type != nil {
+		workspaceType = gatewaydb.WorkspaceType(*req.Type)
 	}
 
 	workspaceUUID := uuid.NewString()
@@ -218,14 +225,14 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 
 	tx, err := s.db.Begin(r.Context())
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("begin create workspace: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("begin create workspace: %w", err))
 		return
 	}
 	defer func() { _ = tx.Rollback(r.Context()) }()
 	q := gatewaydb.New(tx)
 	_, err = q.GatewayLockOrganization(r.Context(), claims.OrganizationID)
 	if err != nil {
-		writeError(w, r, mapGatewayStoreError("create workspace", err))
+		apiutil.WriteError(w, r, mapGatewayStoreError("create workspace", err))
 		return
 	}
 	allowed, err := q.GatewayIsActiveSuperadmin(
@@ -236,7 +243,7 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("authorize workspace create: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("authorize workspace create: %w", err))
 		return
 	}
 	if !allowed {
@@ -256,17 +263,17 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 			},
 		)
 		if err != nil {
-			writeInternalError(w, r, err)
+			apiutil.WriteInternalError(w, r, err)
 			return
 		}
 		if err := tx.Commit(r.Context()); err != nil {
-			writeInternalError(w, r, fmt.Errorf("commit denied workspace create: %w", err))
+			apiutil.WriteInternalError(w, r, fmt.Errorf("commit denied workspace create: %w", err))
 			return
 		}
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusForbidden,
 				"forbidden",
 				"Superadmin authority is required",
@@ -287,7 +294,7 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		selected,
 	)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if len(fields) > 0 {
@@ -301,17 +308,17 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 			},
 		)
 		if err != nil {
-			writeInternalError(w, r, err)
+			apiutil.WriteInternalError(w, r, err)
 			return
 		}
 		if err := tx.Commit(r.Context()); err != nil {
-			writeInternalError(w, r, fmt.Errorf("commit failed workspace create event trail: %w", err))
+			apiutil.WriteInternalError(w, r, fmt.Errorf("commit failed workspace create event trail: %w", err))
 			return
 		}
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusBadRequest,
 				"invalid_request",
 				"selected Organisation resources are invalid",
@@ -326,6 +333,7 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		r.Context(),
 		gatewaydb.GatewayCreateWorkspaceParams{
 			ID:             id,
+			Type:           workspaceType,
 			OrganizationID: claims.OrganizationID,
 			Name:           req.Name,
 			Slug:           workspaceSlug,
@@ -333,12 +341,12 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if err != nil {
-		writeError(w, r, mapGatewayStoreError("create workspace", err))
+		apiutil.WriteError(w, r, mapGatewayStoreError("create workspace", err))
 		return
 	}
 	err = insertWorkspaceResourceSelection(r.Context(), q, id, claims.OrganizationID, selected)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	role, err := q.GatewayCreateWorkspaceAdminRole(
@@ -349,7 +357,7 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("create Workspace Admin role: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("create Workspace Admin role: %w", err))
 		return
 	}
 	assigned, err := q.GatewayAssignWorkspaceAdmins(
@@ -362,7 +370,7 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("assign Workspace Admins: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("assign Workspace Admins: %w", err))
 		return
 	}
 	if assigned != int64(len(req.AdminMemberIds)) {
@@ -383,13 +391,13 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 			},
 		)
 		if err != nil {
-			writeInternalError(w, r, err)
+			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusUnprocessableEntity,
 				"invalid_request",
 				"one or more Workspace Admins are not eligible",
@@ -410,11 +418,11 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("project Workspace Admin roles: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("project Workspace Admin roles: %w", err))
 		return
 	}
 	if projected != assigned {
-		writeInternalError(w, r, errors.New("projected Workspace Admin count changed"))
+		apiutil.WriteInternalError(w, r, errors.New("projected Workspace Admin count changed"))
 		return
 	}
 	err = createWorkspaceEventTrail(
@@ -436,11 +444,11 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if err := tx.Commit(r.Context()); err != nil {
-		writeInternalError(w, r, fmt.Errorf("commit workspace create: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("commit workspace create: %w", err))
 		return
 	}
 
@@ -449,7 +457,7 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		gatewaydb.GatewayGetWorkspaceParams{ID: id, OrganizationID: claims.OrganizationID},
 	)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("read created workspace: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("read created workspace: %w", err))
 		return
 	}
 	if err := s.ensureWorkspaceResource(r.Context(), row); err != nil {
@@ -460,38 +468,38 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 			reason,
 		)
 		if err != nil {
-			writeInternalError(w, r, err)
+			apiutil.WriteInternalError(w, r, err)
 			return
 		}
 	}
 	capabilities, err := s.resolveResourceCapabilities(r.Context(), claims, row.ID)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, workspaceView(row, int64(len(req.AdminMemberIds)), true, capabilities))
+	apiutil.WriteJSON(w, http.StatusCreated, workspaceView(row, int64(len(req.AdminMemberIds)), true, capabilities))
 }
 
 // GetWorkspace handles GET /api/workspace/{workspaceId}.
 func (s *Service) GetWorkspace(w http.ResponseWriter, r *http.Request, workspaceID gatewayapi.WorkspaceIDPath) {
 	claims, apiErr := externalWorkspaceClaims(r.Context())
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	rows, err := s.workspaceAccess(r.Context(), claims)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	for _, row := range rows {
 		if row.Workspace.ID == workspaceID {
 			capabilities, err := s.resolveResourceCapabilities(r.Context(), claims, row.Workspace.ID)
 			if err != nil {
-				writeInternalError(w, r, err)
+				apiutil.WriteInternalError(w, r, err)
 				return
 			}
-			writeJSON(
+			apiutil.WriteJSON(
 				w,
 				http.StatusOK,
 				workspaceView(
@@ -504,14 +512,14 @@ func (s *Service) GetWorkspace(w http.ResponseWriter, r *http.Request, workspace
 			return
 		}
 	}
-	writeError(w, r, workspaceNotFound(workspaceID))
+	apiutil.WriteError(w, r, workspaceNotFound(workspaceID))
 }
 
 // ResolveWorkspaceSlug handles GET /api/workspace/slug/{workspaceSlug}.
 func (s *Service) ResolveWorkspaceSlug(w http.ResponseWriter, r *http.Request, workspaceSlug gatewayapi.WorkspaceSlugPath) {
 	claims, apiErr := externalWorkspaceClaims(r.Context())
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	resolved, err := s.queries.GatewayResolveWorkspaceSlug(
@@ -523,26 +531,26 @@ func (s *Service) ResolveWorkspaceSlug(w http.ResponseWriter, r *http.Request, w
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		writeError(w, r, workspaceNotFound(workspaceSlug))
+		apiutil.WriteError(w, r, workspaceNotFound(workspaceSlug))
 		return
 	}
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("resolve workspace slug: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("resolve workspace slug: %w", err))
 		return
 	}
 	rows, err := s.workspaceAccess(r.Context(), claims)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	for _, row := range rows {
 		if row.Workspace.ID == resolved.Workspace.ID {
 			capabilities, err := s.resolveResourceCapabilities(r.Context(), claims, row.Workspace.ID)
 			if err != nil {
-				writeInternalError(w, r, err)
+				apiutil.WriteInternalError(w, r, err)
 				return
 			}
-			writeJSON(
+			apiutil.WriteJSON(
 				w,
 				http.StatusOK,
 				workspaceView(
@@ -555,26 +563,26 @@ func (s *Service) ResolveWorkspaceSlug(w http.ResponseWriter, r *http.Request, w
 			return
 		}
 	}
-	writeError(w, r, workspaceNotFound(workspaceSlug))
+	apiutil.WriteError(w, r, workspaceNotFound(workspaceSlug))
 }
 
 // RetryWorkspace handles POST /api/workspace/{workspaceId}/retry.
 func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspaceID gatewayapi.WorkspaceIDPath) {
 	claims, apiErr := externalWorkspaceClaims(r.Context())
 	if apiErr != nil {
-		writeError(w, r, apiErr)
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	tx, err := s.db.Begin(r.Context())
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("begin retry workspace: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("begin retry workspace: %w", err))
 		return
 	}
 	defer func() { _ = tx.Rollback(r.Context()) }()
 	q := gatewaydb.New(tx)
 	_, err = q.GatewayLockOrganization(r.Context(), claims.OrganizationID)
 	if err != nil {
-		writeError(w, r, mapGatewayStoreError("retry workspace", err))
+		apiutil.WriteError(w, r, mapGatewayStoreError("retry workspace", err))
 		return
 	}
 	allowed, err := q.GatewayIsActiveSuperadmin(
@@ -585,7 +593,7 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("authorize workspace retry: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("authorize workspace retry: %w", err))
 		return
 	}
 	current, getErr := q.GatewayGetWorkspace(
@@ -609,19 +617,19 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 			},
 		)
 		if err != nil {
-			writeInternalError(w, r, err)
+			apiutil.WriteInternalError(w, r, err)
 			return
 		}
 		if err := tx.Commit(r.Context()); err != nil {
-			writeInternalError(w, r, fmt.Errorf("commit denied workspace retry: %w", err))
+			apiutil.WriteInternalError(w, r, fmt.Errorf("commit denied workspace retry: %w", err))
 			return
 		}
 		switch {
 		case !allowed:
-			writeError(
+			apiutil.WriteError(
 				w,
 				r,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusForbidden,
 					"forbidden",
 					"Superadmin authority is required",
@@ -629,14 +637,14 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 				),
 			)
 		case errors.Is(getErr, pgx.ErrNoRows):
-			writeError(w, r, workspaceNotFound(workspaceID))
+			apiutil.WriteError(w, r, workspaceNotFound(workspaceID))
 		case getErr != nil:
-			writeInternalError(w, r, fmt.Errorf("get workspace for retry: %w", getErr))
+			apiutil.WriteInternalError(w, r, fmt.Errorf("get workspace for retry: %w", getErr))
 		default:
-			writeError(
+			apiutil.WriteError(
 				w,
 				r,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusConflict,
 					"conflict",
 					"only failed Workspace provisioning can be retried",
@@ -657,14 +665,14 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("retry workspace provisioning: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("retry workspace provisioning: %w", err))
 		return
 	}
 	if changed != 1 {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusConflict,
 				"conflict",
 				"Workspace provisioning state changed",
@@ -700,11 +708,11 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if err := tx.Commit(r.Context()); err != nil {
-		writeInternalError(w, r, fmt.Errorf("commit workspace retry: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("commit workspace retry: %w", err))
 		return
 	}
 	current, err = s.queries.GatewayGetWorkspace(
@@ -715,7 +723,7 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("read retried workspace: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("read retried workspace: %w", err))
 		return
 	}
 	if err := s.ensureWorkspaceResource(r.Context(), current); err != nil {
@@ -726,23 +734,23 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 			reason,
 		)
 		if err != nil {
-			writeInternalError(w, r, err)
+			apiutil.WriteInternalError(w, r, err)
 			return
 		}
 	}
 	rows, err := s.workspaceAccess(r.Context(), claims)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	for _, row := range rows {
 		if row.Workspace.ID == current.ID {
 			capabilities, err := s.resolveResourceCapabilities(r.Context(), claims, current.ID)
 			if err != nil {
-				writeInternalError(w, r, err)
+				apiutil.WriteInternalError(w, r, err)
 				return
 			}
-			writeJSON(
+			apiutil.WriteJSON(
 				w,
 				http.StatusOK,
 				workspaceView(
@@ -755,17 +763,17 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 			return
 		}
 	}
-	writeError(w, r, workspaceNotFound(workspaceID))
+	apiutil.WriteError(w, r, workspaceNotFound(workspaceID))
 }
 
 // UpdateWorkspaceLifecycle handles PATCH /api/workspace/{workspaceId}/lifecycle.
 func (s *Service) UpdateWorkspaceLifecycle(w http.ResponseWriter, r *http.Request, workspaceID gatewayapi.WorkspaceIDPath) {
 	auth, ok := requestAuthState(r.Context())
 	if !ok || auth.claims != nil || auth.tenantNamespace == "" {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusForbidden,
 				"forbidden",
 				"Workspace lifecycle is restricted to internal controllers",
@@ -776,7 +784,7 @@ func (s *Service) UpdateWorkspaceLifecycle(w http.ResponseWriter, r *http.Reques
 	}
 	tenant, err := tenantObject(r.Context())
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	var req gatewayapi.UpdateWorkspaceLifecycleRequest
@@ -788,10 +796,10 @@ func (s *Service) UpdateWorkspaceLifecycle(w http.ResponseWriter, r *http.Reques
 	reason := pgtype.Text{}
 	if req.State == gatewayapi.UpdateWorkspaceLifecycleRequestStateFailed {
 		if req.FailureReason == nil || strings.TrimSpace(*req.FailureReason) == "" {
-			writeError(
+			apiutil.WriteError(
 				w,
 				r,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusBadRequest,
 					"invalid_request",
 					"failure_reason is required for a failed Workspace",
@@ -810,14 +818,14 @@ func (s *Service) UpdateWorkspaceLifecycle(w http.ResponseWriter, r *http.Reques
 
 	tx, err := s.db.Begin(r.Context())
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("begin workspace lifecycle update: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("begin workspace lifecycle update: %w", err))
 		return
 	}
 	defer func() { _ = tx.Rollback(r.Context()) }()
 	q := gatewaydb.New(tx)
 	_, err = q.GatewayLockOrganization(r.Context(), tenant.Spec.OrganizationID)
 	if err != nil {
-		writeError(w, r, mapGatewayStoreError("update workspace lifecycle", err))
+		apiutil.WriteError(w, r, mapGatewayStoreError("update workspace lifecycle", err))
 		return
 	}
 	previous, previousErr := q.GatewayGetWorkspace(
@@ -839,21 +847,21 @@ func (s *Service) UpdateWorkspaceLifecycle(w http.ResponseWriter, r *http.Reques
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, fmt.Errorf("transition workspace lifecycle: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("transition workspace lifecycle: %w", err))
 		return
 	}
 	if changed == 0 {
 		if errors.Is(previousErr, pgx.ErrNoRows) {
-			writeError(w, r, workspaceNotFound(workspaceID))
+			apiutil.WriteError(w, r, workspaceNotFound(workspaceID))
 			return
 		}
 		if previousErr != nil {
-			writeInternalError(w, r, fmt.Errorf("get workspace lifecycle: %w", previousErr))
+			apiutil.WriteInternalError(w, r, fmt.Errorf("get workspace lifecycle: %w", previousErr))
 			return
 		}
 		if previous.ProvisioningAttempt == req.ProvisioningAttempt && previous.State == state {
 			if err := tx.Commit(r.Context()); err != nil {
-				writeInternalError(w, r, fmt.Errorf("commit idempotent workspace lifecycle: %w", err))
+				apiutil.WriteInternalError(w, r, fmt.Errorf("commit idempotent workspace lifecycle: %w", err))
 				return
 			}
 			w.WriteHeader(http.StatusNoContent)
@@ -885,17 +893,17 @@ func (s *Service) UpdateWorkspaceLifecycle(w http.ResponseWriter, r *http.Reques
 			},
 		)
 		if err != nil {
-			writeInternalError(w, r, err)
+			apiutil.WriteInternalError(w, r, err)
 			return
 		}
 		if err := tx.Commit(r.Context()); err != nil {
-			writeInternalError(w, r, fmt.Errorf("commit denied workspace lifecycle: %w", err))
+			apiutil.WriteInternalError(w, r, fmt.Errorf("commit denied workspace lifecycle: %w", err))
 			return
 		}
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusConflict,
 				"conflict",
 				"Workspace provisioning attempt is stale",
@@ -905,7 +913,7 @@ func (s *Service) UpdateWorkspaceLifecycle(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if previousErr != nil {
-		writeInternalError(w, r, fmt.Errorf("read previous workspace lifecycle: %w", previousErr))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("read previous workspace lifecycle: %w", previousErr))
 		return
 	}
 	err = createWorkspaceEventTrail(
@@ -934,20 +942,20 @@ func (s *Service) UpdateWorkspaceLifecycle(w http.ResponseWriter, r *http.Reques
 		},
 	)
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if err := tx.Commit(r.Context()); err != nil {
-		writeInternalError(w, r, fmt.Errorf("commit workspace lifecycle: %w", err))
+		apiutil.WriteInternalError(w, r, fmt.Errorf("commit workspace lifecycle: %w", err))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func externalWorkspaceClaims(ctx context.Context) (gatewayClaims, *apiError) {
+func externalWorkspaceClaims(ctx context.Context) (gatewayClaims, *apiutil.APIError) {
 	auth, ok := requestAuthState(ctx)
 	if !ok || auth.claims == nil {
-		return gatewayClaims{}, newAPIError(
+		return gatewayClaims{}, apiutil.NewError(
 			http.StatusUnauthorized,
 			"unauthorized",
 			"missing bearer claims",
@@ -994,6 +1002,7 @@ func (s *Service) workspaceAccessPage(ctx context.Context, claims gatewayClaims,
 
 func workspaceView(row gatewaydb.Workspace, workspaceAdminCount int64, canAdminister bool, capabilities resourceCapabilitySet) gatewayapi.Workspace {
 	view := gatewayapi.Workspace{
+		Type: gatewayapi.WorkspaceType(row.Type),
 		Capabilities: gatewayapi.WorkspaceCapabilities{
 			Administer:         canAdminister,
 			Agents:             gatewayapi.AgentWorkspaceCapabilities{Author: capabilities.canAuthorAgents},
@@ -1019,6 +1028,56 @@ func workspaceView(row gatewaydb.Workspace, workspaceAdminCount int64, canAdmini
 		view.FailureReason = &row.FailureReason.String
 	}
 	return view
+}
+
+// requireWorkspaceFeatures applies Workspace restrictions to every caller,
+// including service accounts and webhook API keys.
+func (s *Service) requireWorkspaceFeatures(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth, ok := requestAuthState(r.Context())
+		if !ok {
+			next.ServeHTTP(w, r)
+			return
+		}
+		workspaceID := auth.workspaceID
+		if auth.claims != nil {
+			workspaceID = auth.claims.WorkspaceID
+		}
+		if workspaceID == "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		organizationID := auth.organizationID
+		if auth.claims != nil {
+			organizationID = auth.claims.OrganizationID
+		}
+		// SQL is authoritative while the controller reconciles the Workspace.
+		// A stale Kubernetes projection must not relax coding project privacy.
+		workspace, err := s.queries.GatewayGetWorkspace(
+			r.Context(),
+			gatewaydb.GatewayGetWorkspaceParams{ID: workspaceID, OrganizationID: organizationID},
+		)
+		if err != nil {
+			apiutil.WriteError(w, r, mapGatewayStoreError("get workspace", err))
+			return
+		}
+		auth.workspaceType = agentzv1alpha1.WorkspaceType(workspace.Type)
+		path := chi.RouteContext(r.Context()).RoutePattern()
+		disabledInCoding := strings.HasPrefix(path, "/api/workflow/") ||
+			path == "/api/dashboard" ||
+			strings.HasPrefix(path, "/api/agent/{agentName}/dashboard")
+		if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding && disabledInCoding {
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusForbidden,
+				"feature_disabled",
+				"workflows and dashboards are disabled in coding workspaces",
+				nil,
+			))
+			return
+		}
+		ctx := context.WithValue(r.Context(), authContextKey{}, auth)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 func (s *Service) ensureWorkspaceResource(ctx context.Context, row gatewaydb.Workspace) error {
@@ -1059,6 +1118,7 @@ func (s *Service) ensureWorkspaceResource(ctx context.Context, row gatewaydb.Wor
 				)},
 			},
 			Spec: agentzv1alpha1.WorkspaceSpec{
+				Type:                          agentzv1alpha1.WorkspaceType(row.Type),
 				WorkspaceID:                   row.ID,
 				OrganizationID:                row.OrganizationID,
 				ProvisioningAttempt:           row.ProvisioningAttempt,
@@ -1072,7 +1132,8 @@ func (s *Service) ensureWorkspaceResource(ctx context.Context, row gatewaydb.Wor
 	}
 	workspaceMismatch := workspace.Spec.WorkspaceID != row.ID
 	organizationMismatch := workspace.Spec.OrganizationID != row.OrganizationID
-	if workspaceMismatch || organizationMismatch {
+	typeMismatch := workspace.Spec.Type != agentzv1alpha1.WorkspaceType(row.Type)
+	if workspaceMismatch || organizationMismatch || typeMismatch {
 		return fmt.Errorf("workspace resource identity conflicts with database state")
 	}
 	selected, err := s.workspaceResourceSelection(ctx, row.ID, row.OrganizationID)
@@ -1213,8 +1274,8 @@ func createWorkspaceEventTrail(ctx context.Context, q gatewaydb.Querier, eventTr
 	return nil
 }
 
-func workspaceNotFound(value string) *apiError {
-	return newAPIError(
+func workspaceNotFound(value string) *apiutil.APIError {
+	return apiutil.NewError(
 		http.StatusNotFound,
 		"workspace_not_found",
 		"Workspace was not found",

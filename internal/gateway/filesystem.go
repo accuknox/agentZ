@@ -17,14 +17,21 @@ limitations under the License.
 package gateway
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"path"
 	"strings"
 
+	"github.com/accuknox/agentz/internal/gateway/apiutil"
+	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 const (
@@ -95,7 +102,7 @@ func (s *Service) ExportAgentMutableSkills(w http.ResponseWriter, r *http.Reques
 func (s *Service) proxyFilesystem(w http.ResponseWriter, r *http.Request, rawAgentName, upstreamPath string) {
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	agentName, ok := validAgentName(w, r, rawAgentName, "agentName")
@@ -104,16 +111,16 @@ func (s *Service) proxyFilesystem(w http.ResponseWriter, r *http.Request, rawAge
 	}
 	resolved, err := s.resolver.resolveAgent(r.Context(), ns, agentName)
 	if err != nil {
-		writeError(w, r, newAPIError(http.StatusNotFound, "not_found", "agent not found", err))
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusNotFound, "not_found", "agent not found", err))
 		return
 	}
 	skillRequest := strings.HasPrefix(upstreamPath, "/skill")
 	if skillRequest {
 		if statusFromAgent(resolved.Agent).Phase != agentPhaseReady {
-			writeError(
+			apiutil.WriteError(
 				w,
 				r,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusConflict,
 					"agent_not_ready",
 					"agent is not ready",
@@ -124,13 +131,87 @@ func (s *Service) proxyFilesystem(w http.ResponseWriter, r *http.Request, rawAge
 		}
 	}
 
+	auth, _ := requestAuthState(r.Context())
+	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding && !skillRequest {
+		access, apiErr := s.codingAccess(r.Context(), agentName)
+		if apiErr != nil {
+			apiutil.WriteError(w, r, apiErr)
+			return
+		}
+		paths := []string{r.URL.Query().Get("path")}
+		if upstreamPath != "/raw" && (r.Method == http.MethodPost || r.Method == http.MethodPut) {
+			raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, filesystemProxyBodyLimit))
+			if err != nil {
+				apiutil.WriteError(
+					w,
+					r,
+					apiutil.NewError(http.StatusBadRequest, "invalid_request", "Invalid file request", err),
+				)
+				return
+			}
+			switch {
+			case upstreamPath == "/directory":
+				var body gatewayapi.CreateAgentDirectoryRequest
+				err = json.Unmarshal(raw, &body)
+				paths = []string{body.Path}
+			case upstreamPath == "/rename":
+				var body gatewayapi.RenameAgentEntryRequest
+				err = json.Unmarshal(raw, &body)
+				paths = []string{body.Path, body.Target}
+			case r.Method == http.MethodPost:
+				var body gatewayapi.CreateAgentFileRequest
+				err = json.Unmarshal(raw, &body)
+				paths = []string{body.Path}
+			case r.Method == http.MethodPut:
+				var body gatewayapi.WriteAgentFileRequest
+				err = json.Unmarshal(raw, &body)
+				paths = []string{body.Path}
+			}
+			if err != nil {
+				apiutil.WriteError(
+					w,
+					r,
+					apiutil.NewError(http.StatusBadRequest, "invalid_request", "Invalid file request", err),
+				)
+				return
+			}
+			r.Body = io.NopCloser(bytes.NewReader(raw))
+		}
+		for _, name := range paths {
+			directory := strings.TrimPrefix(path.Clean(name), "/home/agentz/")
+			if attachment, ok := strings.CutPrefix(directory, ".agentz/attachments/"); ok {
+				// Attachments live outside Git checkouts and inherit session ownership.
+				sessionID, _, _ := strings.Cut(attachment, "/")
+				_, err := s.resolveCodingSession(r.Context(), access, agentName, sessionID)
+				if err != nil {
+					apiutil.WriteError(w, r, mapGatewayStoreError("get attachment", err))
+					return
+				}
+				continue
+			}
+			_, err := s.queries.GatewayOwnedCodingDirectory(
+				r.Context(),
+				gatewaydb.GatewayOwnedCodingDirectoryParams{
+					WorkspaceID: access.workspaceID,
+					AgentName:   agentName,
+					OwnerID:     access.claims.UserID,
+					Directory:   directory,
+				},
+			)
+			if err != nil {
+				apiutil.WriteError(w, r, mapGatewayStoreError("get file", err))
+				return
+			}
+		}
+	}
+
 	target, err := s.filesystemTarget(resolved)
 	if err != nil {
 		if skillRequest {
-			writeError(
+			apiutil.WriteError(
 				w,
 				r,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusBadGateway,
 					"filesystem_unavailable",
 					"agent filesystem is unavailable",
@@ -139,15 +220,15 @@ func (s *Service) proxyFilesystem(w http.ResponseWriter, r *http.Request, rawAge
 			)
 			return
 		}
-		writeInternalError(w, r, err)
+		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 
 	if r.ContentLength > filesystemProxyBodyLimit {
-		writeError(
+		apiutil.WriteError(
 			w,
 			r,
-			newAPIError(
+			apiutil.NewError(
 				http.StatusRequestEntityTooLarge,
 				"request_too_large",
 				"request body exceeds the maximum allowed size",
@@ -167,6 +248,7 @@ func (s *Service) proxyFilesystem(w http.ResponseWriter, r *http.Request, rawAge
 			preq.Out.Host = target.Host
 			preq.Out.Header.Del("Authorization")
 			preq.Out.Header.Del("Proxy-Authorization")
+			preq.Out.Header.Del("Cookie")
 			preq.Out.Header.Set("X-Request-ID", requestID(preq.In))
 			preq.SetXForwarded()
 		},
@@ -176,10 +258,10 @@ func (s *Service) proxyFilesystem(w http.ResponseWriter, r *http.Request, rawAge
 		},
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, proxyErr error) {
 			if _, ok := errors.AsType[*http.MaxBytesError](proxyErr); ok {
-				writeError(
+				apiutil.WriteError(
 					rw,
 					req,
-					newAPIError(
+					apiutil.NewError(
 						http.StatusRequestEntityTooLarge,
 						"request_too_large",
 						"request body exceeds the maximum allowed size",
@@ -188,10 +270,10 @@ func (s *Service) proxyFilesystem(w http.ResponseWriter, r *http.Request, rawAge
 				)
 				return
 			}
-			writeError(
+			apiutil.WriteError(
 				rw,
 				req,
-				newAPIError(
+				apiutil.NewError(
 					http.StatusBadGateway,
 					"filesystem_unavailable",
 					"agent filesystem is unavailable",

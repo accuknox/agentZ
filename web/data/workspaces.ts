@@ -122,6 +122,7 @@ export async function resolveWorkspaceDestination(
   }
 
   const root = `/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}`
+  if (scope.workspace.type === "coding") return `${root}/projects` as Route
   if (scope.workspace.capabilities.agents.author) {
     return `${root}/agents` as Route
   }

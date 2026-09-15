@@ -28,8 +28,7 @@ import {
   Presentation,
   RefreshCw,
   Save,
-  Scan,
-  Shrink,
+  Search,
   Trash2,
   X,
 } from "lucide-react"
@@ -58,7 +57,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
@@ -193,19 +191,50 @@ function agentFilesQueryOptions(
   return queryOptions({
     queryFn: async ({ signal }) => {
       const client = await createAgentOpencodeClient(agentName, workspaceId)
+      // OpenCode scopes paths to the checkout; file operations use agent-home paths.
+      const rootPath = root === "/home/agentz" ? "." : root.slice("/home/agentz/".length)
       const { data } = await client.file.list(
-        { directory: root, path },
+        {
+          directory: root,
+          path: path === rootPath ? "." : path.slice(rootPath === "." ? 0 : rootPath.length + 1),
+        },
         { signal, throwOnError: true }
       )
-      return data.toSorted((a, b) => {
-        if (a.type !== b.type) {
-          return a.type === "directory" ? -1 : 1
-        }
-        return a.name.localeCompare(b.name)
-      })
+      return data
+        .map((entry) => ({
+          ...entry,
+          path: rootPath === "." ? entry.path : `${rootPath}/${entry.path}`,
+        }))
+        .sort((a, b) => {
+          if (a.type !== b.type) {
+            return a.type === "directory" ? -1 : 1
+          }
+          return a.name.localeCompare(b.name)
+        })
     },
     queryKey: ["opencode-files", workspaceId, agentName, root, path],
     staleTime: 60_000,
+  })
+}
+
+function agentFileSearchQueryOptions(
+  agentName: string,
+  workspaceId: string,
+  root: string,
+  query: string
+) {
+  return queryOptions({
+    queryKey: ["opencode-file-search", workspaceId, agentName, root, query],
+    queryFn: async ({ signal }) => {
+      const client = await createAgentOpencodeClient(agentName, workspaceId)
+      const { data } = await client.find.files(
+        { directory: root, query, type: "file", limit: 100 },
+        { signal, throwOnError: true }
+      )
+      return data
+    },
+    enabled: query.length > 0,
+    staleTime: 10_000,
   })
 }
 
@@ -215,75 +244,26 @@ export function FilesWorkspace({
   sessionId,
   workspaceId,
 }: FilesWorkspaceProps): React.JSX.Element {
-  const { openAgent } = useFileWorkspace()
-  const filesOpen = openAgent === agentName
-
-  return (
-    <AnimatePresence initial={false}>
-      {filesOpen ? (
-        <OpenFilesWorkspace
-          agentName={agentName}
-          key={agentName}
-          onPreviewerOpenChange={onPreviewerOpenChange}
-          sessionId={sessionId}
-          workspaceId={workspaceId}
-        />
-      ) : null}
-    </AnimatePresence>
-  )
-}
-
-function OpenFilesWorkspace({
-  agentName,
-  onPreviewerOpenChange,
-  sessionId,
-  workspaceId,
-}: FilesWorkspaceProps) {
-  const [explorerWidth, setExplorerWidth] = React.useState(290)
-  const [workspaceWidth, setWorkspaceWidth] = React.useState(760)
-  const [expandedWidth, setExpandedWidth] = React.useState(760)
-  const reducedMotion = useReducedMotion()
+  const [width, setWidth] = React.useState(480)
   const [editorOpen, setEditorOpen] = React.useState(false)
-  const [expanded, setExpanded] = React.useState(false)
-  const [layoutChanging, setLayoutChanging] = React.useState(false)
-  const [resizing, setResizing] = React.useState(false)
-  const workspace = React.useRef<HTMLElement>(null)
-  const resize = React.useRef<{ startWidth: number; startX: number }>(null)
-  const width = editorOpen ? workspaceWidth : explorerWidth
-  const renderedWidth = expanded ? expandedWidth : width
+  const reducedMotion = useReducedMotion() ?? false
+  const workspace = React.useRef<HTMLDivElement>(null)
+  const explorerWidth = editorOpen ? (width >= 700 ? 240 : 0) : width
 
   React.useEffect(() => {
     const element = workspace.current
     if (!element) return
-
     const observer = new ResizeObserver(([entry]) => {
-      if (!entry || !expanded) return
-      setExpandedWidth(entry.contentRect.width)
+      if (entry && entry.contentRect.width > 0) setWidth(entry.contentRect.width)
     })
     observer.observe(element)
     return () => observer.disconnect()
-  }, [expanded])
+  }, [])
 
-  React.useEffect(() => () => onPreviewerOpenChange(false), [onPreviewerOpenChange])
-
-  const handleEditorOpenChange = React.useCallback(
-    (open: boolean) => {
-      setEditorOpen(open)
-      onPreviewerOpenChange(open)
-      if (!open) setExpanded(false)
-    },
-    [onPreviewerOpenChange]
-  )
-
-  const toggleExpanded = React.useCallback(() => {
-    if (!expanded) {
-      const availableWidth = workspace.current?.parentElement?.clientWidth
-      if (availableWidth) setExpandedWidth(availableWidth)
-    }
-    setLayoutChanging(true)
-    setExpanded((current) => !current)
-    window.requestAnimationFrame(() => setLayoutChanging(false))
-  }, [expanded])
+  React.useEffect(() => {
+    onPreviewerOpenChange(editorOpen)
+    return () => onPreviewerOpenChange(false)
+  }, [editorOpen, onPreviewerOpenChange])
 
   const rootQuery = useQuery(
     queryOptions({
@@ -307,112 +287,40 @@ function OpenFilesWorkspace({
   )
 
   return (
-    <motion.aside
-      ref={workspace}
-      animate={{ width: expanded ? "100%" : width, x: 0 }}
-      className={cn(
-        "bg-background hidden h-full min-h-0 shrink-0 overflow-hidden shadow-sm lg:block",
-        expanded ? "absolute inset-0 z-40" : "relative border-l"
-      )}
-      exit={{ width: 0, x: "100%" }}
-      initial={{ width: 0, x: "100%" }}
-      transition={{
-        duration: reducedMotion || resizing || layoutChanging ? 0 : 0.2,
-        ease: "linear",
-      }}
-    >
-      {!expanded ? (
+    <div ref={workspace} className="bg-background relative h-full min-h-0 w-full overflow-hidden">
+      {rootQuery.isPending ? (
         <div
-          aria-label="Resize files workspace"
-          aria-orientation="vertical"
-          aria-valuemax={editorOpen ? 1200 : 520}
-          aria-valuemin={editorOpen ? explorerWidth + 240 : 220}
-          aria-valuenow={width}
-          className="hover:bg-border focus-visible:bg-ring absolute inset-y-0 left-0 z-30 w-1 cursor-col-resize touch-none transition-colors"
-          onKeyDown={(event) => {
-            if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
-            event.preventDefault()
-            const nextWidth = width + (event.key === "ArrowLeft" ? 16 : -16)
-            if (editorOpen) {
-              setWorkspaceWidth(Math.min(1200, Math.max(explorerWidth + 240, nextWidth)))
-              return
-            }
-            setExplorerWidth(Math.min(520, Math.max(220, nextWidth)))
-          }}
-          onPointerDown={(event) => {
-            setResizing(true)
-            event.currentTarget.setPointerCapture(event.pointerId)
-            resize.current = {
-              startWidth: width,
-              startX: event.clientX,
-            }
-          }}
-          onPointerMove={(event) => {
-            if (!resize.current) return
-            const nextWidth = resize.current.startWidth + resize.current.startX - event.clientX
-            if (editorOpen) {
-              setWorkspaceWidth(Math.min(1200, Math.max(explorerWidth + 240, nextWidth)))
-              return
-            }
-            setExplorerWidth(Math.min(520, Math.max(220, nextWidth)))
-          }}
-          onPointerUp={(event) => {
-            resize.current = null
-            setResizing(false)
-            if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-              event.currentTarget.releasePointerCapture(event.pointerId)
-            }
-          }}
-          onPointerCancel={() => {
-            resize.current = null
-            setResizing(false)
-          }}
-          role="separator"
-          tabIndex={0}
+          aria-live="polite"
+          className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm"
+          role="status"
+        >
+          <Spinner /> Loading workspace...
+        </div>
+      ) : rootQuery.isError ? (
+        <div className="flex h-full items-center justify-center">
+          <Alert className="px-6" variant="destructive">
+            <AlertTitle>Files unavailable</AlertTitle>
+            <AlertDescription className="mt-1">
+              The agent workspace could not be reached.
+            </AlertDescription>
+            <Button className="mt-3" onClick={() => void rootQuery.refetch()} size="sm">
+              <RefreshCw /> Retry
+            </Button>
+          </Alert>
+        </div>
+      ) : (
+        <WorkspaceBody
+          agentName={agentName}
+          editorOpen={editorOpen}
+          explorerWidth={explorerWidth}
+          onEditorOpenChange={setEditorOpen}
+          reducedMotion={reducedMotion}
+          root={rootQuery.data}
+          workspaceWidth={width}
+          workspaceId={workspaceId}
         />
-      ) : null}
-      <div
-        className="bg-background absolute inset-y-0 right-0 min-h-0"
-        style={{ width: renderedWidth }}
-      >
-        {rootQuery.isPending ? (
-          <div
-            aria-live="polite"
-            className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm"
-            role="status"
-            style={{ width: explorerWidth }}
-          >
-            <Spinner /> Loading workspace...
-          </div>
-        ) : rootQuery.isError ? (
-          <div className="flex h-full items-center justify-center" style={{ width: explorerWidth }}>
-            <Alert className="px-6" variant="destructive">
-              <AlertTitle>Files unavailable</AlertTitle>
-              <AlertDescription className="mt-1">
-                The agent workspace could not be reached.
-              </AlertDescription>
-              <Button className="mt-3" onClick={() => void rootQuery.refetch()} size="sm">
-                <RefreshCw /> Retry
-              </Button>
-            </Alert>
-          </div>
-        ) : (
-          <WorkspaceBody
-            agentName={agentName}
-            editorOpen={editorOpen}
-            explorerWidth={explorerWidth}
-            expanded={expanded}
-            onEditorOpenChange={handleEditorOpenChange}
-            onExpandedChange={toggleExpanded}
-            reducedMotion={reducedMotion || resizing}
-            root={rootQuery.data}
-            setExplorerWidth={setExplorerWidth}
-            workspaceWidth={renderedWidth}
-            workspaceId={workspaceId}
-          />
-        )}
-      </div>
-    </motion.aside>
+      )}
+    </div>
   )
 }
 
@@ -420,38 +328,41 @@ function WorkspaceBody({
   agentName,
   editorOpen,
   explorerWidth,
-  expanded,
   onEditorOpenChange,
-  onExpandedChange,
   reducedMotion,
   root,
-  setExplorerWidth,
   workspaceWidth,
   workspaceId,
 }: {
   agentName: string
   editorOpen: boolean
   explorerWidth: number
-  expanded: boolean
   onEditorOpenChange: (open: boolean) => void
-  onExpandedChange: () => void
   reducedMotion: boolean
   root: string
-  setExplorerWidth: React.Dispatch<React.SetStateAction<number>>
   workspaceWidth: number
   workspaceId: string
 }) {
   const queryClient = useQueryClient()
-  const workspaceKey = `${agentName}:${root}`
-  const editorWidth = workspaceWidth - explorerWidth - 4
-  const filesQueryKey = agentFilesQueryOptions(agentName, workspaceId, root, ".").queryKey.slice(
-    0,
-    3
-  )
-  const filesFetching =
-    useIsFetching({
-      queryKey: filesQueryKey,
-    }) > 0
+  const workspaceKey = `${workspaceId}:${agentName}:${root}`
+  const rootPath = root === "/home/agentz" ? "." : root.slice("/home/agentz/".length)
+  const editorWidth = workspaceWidth - explorerWidth
+  const [search, setSearch] = React.useState("")
+  const [searchQuery, setSearchQuery] = React.useState("")
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => setSearchQuery(search.trim()), 200)
+    return () => window.clearTimeout(timer)
+  }, [search])
+  const searchOptions = agentFileSearchQueryOptions(agentName, workspaceId, root, searchQuery)
+  const searchQueryKey = searchOptions.queryKey.slice(0, 3)
+  const results = useQuery(searchOptions)
+  const filesQueryKey = agentFilesQueryOptions(
+    agentName,
+    workspaceId,
+    root,
+    rootPath
+  ).queryKey.slice(0, 3)
+  const filesFetching = useIsFetching({ queryKey: filesQueryKey }) > 0 || results.isFetching
   const {
     closeRoot,
     closeTab,
@@ -461,7 +372,6 @@ function WorkspaceBody({
     pendingPreview,
     resolvePreview,
     roots,
-    setAgentDirty,
     setSelected,
   } = useFileWorkspace()
   const rootState = roots[workspaceKey]
@@ -472,7 +382,6 @@ function WorkspaceBody({
   const tabScrollFrame = React.useRef<number | null>(null)
   const tabScrollTarget = React.useRef(0)
   const [tabOverflow, setTabOverflow] = React.useState({ left: false, right: false })
-  const resize = React.useRef<{ startWidth: number; startX: number }>(null)
   const dirty = Object.values(drafts).some((draft) => draft.dirty)
   const selected = rootState?.selected ?? null
   const tabs = rootState?.tabs ?? []
@@ -521,8 +430,8 @@ function WorkspaceBody({
       const target = variables.body.target
       const sourceSlash = path.lastIndexOf("/")
       const targetSlash = target.lastIndexOf("/")
-      const sourceDirectory = sourceSlash === -1 ? "." : `${path.slice(0, sourceSlash)}/`
-      const targetDirectory = targetSlash === -1 ? "." : `${target.slice(0, targetSlash)}/`
+      const sourceDirectory = sourceSlash === -1 ? "." : path.slice(0, sourceSlash)
+      const targetDirectory = targetSlash === -1 ? "." : target.slice(0, targetSlash)
 
       await Promise.allSettled([
         queryClient.invalidateQueries({
@@ -531,6 +440,7 @@ function WorkspaceBody({
         queryClient.invalidateQueries({
           queryKey: agentFilesQueryOptions(agentName, workspaceId, root, targetDirectory).queryKey,
         }),
+        queryClient.invalidateQueries({ queryKey: searchQueryKey }),
       ])
       moveDrafts(path, target)
       moveEntry(workspaceKey, path, target)
@@ -578,10 +488,6 @@ function WorkspaceBody({
     },
     [selected]
   )
-
-  React.useEffect(() => {
-    setAgentDirty(agentName, dirty)
-  }, [agentName, dirty, setAgentDirty])
 
   const updateTabOverflow = React.useCallback(() => {
     const element = tabsRef.current
@@ -680,10 +586,9 @@ function WorkspaceBody({
 
   React.useEffect(
     () => () => {
-      setAgentDirty(agentName, false)
       closeRoot(workspaceKey)
     },
-    [agentName, closeRoot, setAgentDirty, workspaceKey]
+    [closeRoot, workspaceKey]
   )
 
   React.useEffect(() => {
@@ -746,7 +651,7 @@ function WorkspaceBody({
             className="absolute inset-y-0 z-10 overflow-hidden"
             exit={{ width: 0 }}
             initial={{ width: 0 }}
-            style={{ right: explorerWidth + 4 }}
+            style={{ right: explorerWidth }}
             transition={{
               duration: reducedMotion ? 0 : 0.2,
               ease: "linear",
@@ -756,7 +661,7 @@ function WorkspaceBody({
               className="bg-background flex h-full min-w-0 flex-col"
               style={{ width: editorWidth }}
             >
-              <div className="flex h-(--workspace-topbar-height) shrink-0 items-stretch overflow-hidden border-b border-transparent">
+              <div className="flex h-9 shrink-0 items-stretch overflow-hidden border-b border-transparent">
                 <div className="relative flex min-w-0 flex-1 overflow-hidden">
                   {tabOverflow.left ? (
                     <div className="from-background pointer-events-none absolute inset-y-0 left-0 z-20 w-6 bg-linear-to-r to-transparent" />
@@ -859,22 +764,6 @@ function WorkspaceBody({
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
-                        aria-label={expanded ? "Collapse editor" : "Expand editor"}
-                        className="shrink-0"
-                        onClick={onExpandedChange}
-                        size="icon-sm"
-                        variant="ghost"
-                      >
-                        {expanded ? <Shrink /> : <Scan />}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {expanded ? "Collapse editor" : "Expand editor"}
-                    </TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
                         aria-label="Close editor"
                         className="shrink-0"
                         onClick={() => onEditorOpenChange(false)}
@@ -911,60 +800,22 @@ function WorkspaceBody({
         ) : null}
       </AnimatePresence>
 
-      {editorOpen ? (
-        <div
-          aria-label="Resize file explorer"
-          aria-orientation="vertical"
-          aria-valuemax={Math.min(520, workspaceWidth - 240)}
-          aria-valuemin={220}
-          aria-valuenow={explorerWidth}
-          className="hover:bg-border focus-visible:bg-ring absolute inset-y-0 z-20 w-1 cursor-col-resize touch-none border-l transition-colors"
-          onKeyDown={(event) => {
-            if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
-            event.preventDefault()
-            const nextWidth = explorerWidth + (event.key === "ArrowLeft" ? 16 : -16)
-            setExplorerWidth(
-              Math.min(520, Math.max(220, Math.min(workspaceWidth - 240, nextWidth)))
-            )
-          }}
-          onPointerDown={(event) => {
-            event.currentTarget.setPointerCapture(event.pointerId)
-            resize.current = {
-              startWidth: explorerWidth,
-              startX: event.clientX,
-            }
-          }}
-          onPointerMove={(event) => {
-            if (!resize.current) return
-            const nextWidth = resize.current.startWidth + resize.current.startX - event.clientX
-            setExplorerWidth(
-              Math.min(520, Math.max(220, Math.min(workspaceWidth - 240, nextWidth)))
-            )
-          }}
-          onPointerUp={(event) => {
-            resize.current = null
-            if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-              event.currentTarget.releasePointerCapture(event.pointerId)
-            }
-          }}
-          onPointerCancel={() => {
-            resize.current = null
-          }}
-          role="separator"
-          style={{ right: explorerWidth }}
-          tabIndex={0}
-        />
-      ) : null}
-
-      <section className="ml-auto flex min-h-0 shrink-0 flex-col" style={{ width: explorerWidth }}>
-        <div className="flex h-(--workspace-topbar-height) shrink-0 items-center gap-1 pr-12 pl-2">
+      <section
+        className={cn(
+          "ml-auto min-h-0 shrink-0 flex-col",
+          explorerWidth === 0 ? "hidden" : "flex",
+          editorOpen && "border-l"
+        )}
+        style={{ width: explorerWidth }}
+      >
+        <div className="flex h-9 shrink-0 items-center gap-1 px-2">
           <span className="min-w-0 flex-1 truncate text-sm font-medium">Explorer</span>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 aria-label="New file"
                 disabled={movePending}
-                onClick={() => setAction({ kind: "file", parent: "." })}
+                onClick={() => setAction({ kind: "file", parent: rootPath })}
                 size="icon-sm"
                 variant="ghost"
               >
@@ -978,7 +829,7 @@ function WorkspaceBody({
               <Button
                 aria-label="New folder"
                 disabled={movePending}
-                onClick={() => setAction({ kind: "directory", parent: "." })}
+                onClick={() => setAction({ kind: "directory", parent: rootPath })}
                 size="icon-sm"
                 variant="ghost"
               >
@@ -992,9 +843,10 @@ function WorkspaceBody({
             aria-label={filesFetching ? "Refreshing files" : "Refresh files"}
             disabled={filesFetching}
             onClick={() =>
-              void queryClient.invalidateQueries({
-                queryKey: filesQueryKey,
-              })
+              void Promise.all([
+                queryClient.invalidateQueries({ queryKey: filesQueryKey }),
+                queryClient.invalidateQueries({ queryKey: searchQueryKey }),
+              ])
             }
             size="icon-sm"
             variant="ghost"
@@ -1018,34 +870,99 @@ function WorkspaceBody({
             </span>
           </div>
         ) : null}
-        <Separator />
+        <div className="relative h-10 shrink-0 border-b px-2">
+          <Search className="text-muted-foreground pointer-events-none absolute top-2.5 left-4.5 size-3.5" />
+          <Input
+            aria-label="Find a file"
+            placeholder="Find a file..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setSearch("")
+            }}
+            className="h-8 pr-7 pl-8 text-xs"
+          />
+          {search ? (
+            <Button
+              aria-label="Clear file search"
+              size="icon-xs"
+              variant="ghost"
+              className="absolute top-1 right-3"
+              onClick={() => setSearch("")}
+            >
+              <X />
+            </Button>
+          ) : null}
+        </div>
         <div className="min-h-0 flex-1 overflow-auto px-1 py-1">
-          <FileTree
-            aria-busy={movePending}
-            className="rounded-none border-0 bg-transparent"
-            onDragOver={(event) => {
-              if (movePending || !event.dataTransfer.types.includes(fileDragType)) return
-              event.preventDefault()
-              event.dataTransfer.dropEffect = "move"
-            }}
-            onDrop={(event) => {
-              event.preventDefault()
-              if (movePending) return
-              moveFile(event.dataTransfer.getData(fileDragType), ".")
-            }}
-            onSelect={(path) => openFile({ name: path.slice(path.lastIndexOf("/") + 1), path })}
-            selectedPath={selected ?? undefined}
-          >
-            <DirectoryTree
-              agentName={agentName}
-              moveOperation={moveOperation}
-              onAction={setAction}
-              onMove={moveFile}
-              path="."
-              root={root}
-              workspaceId={workspaceId}
-            />
-          </FileTree>
+          {search.trim() ? (
+            <div aria-label="File search results">
+              {results.isFetching || search.trim() !== searchQuery ? (
+                <div
+                  role="status"
+                  className="text-muted-foreground flex items-center gap-2 p-3 text-xs"
+                >
+                  <Spinner /> Searching files...
+                </div>
+              ) : results.error ? (
+                <Button variant="ghost" size="sm" onClick={() => void results.refetch()}>
+                  Search failed. Retry
+                </Button>
+              ) : results.data?.length === 0 ? (
+                <p className="text-muted-foreground p-3 text-xs">No matching files.</p>
+              ) : (
+                results.data?.map((path) => (
+                  <button
+                    key={path}
+                    className="hover:bg-accent flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs"
+                    onClick={() =>
+                      openFile({
+                        name: path.slice(path.lastIndexOf("/") + 1),
+                        path: rootPath === "." ? path : `${rootPath}/${path}`,
+                      })
+                    }
+                  >
+                    <FileTypeIcon name={path} />
+                    <span className="truncate" title={path}>
+                      {path}
+                    </span>
+                  </button>
+                ))
+              )}
+              {results.data?.length === 100 ? (
+                <p className="text-muted-foreground p-3 text-xs">
+                  First 100 matches. Refine your search to find more.
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <FileTree
+              aria-busy={movePending}
+              className="rounded-none border-0 bg-transparent"
+              onDragOver={(event) => {
+                if (movePending || !event.dataTransfer.types.includes(fileDragType)) return
+                event.preventDefault()
+                event.dataTransfer.dropEffect = "move"
+              }}
+              onDrop={(event) => {
+                event.preventDefault()
+                if (movePending) return
+                moveFile(event.dataTransfer.getData(fileDragType), rootPath)
+              }}
+              onSelect={(path) => openFile({ name: path.slice(path.lastIndexOf("/") + 1), path })}
+              selectedPath={selected ?? undefined}
+            >
+              <DirectoryTree
+                agentName={agentName}
+                moveOperation={moveOperation}
+                onAction={setAction}
+                onMove={moveFile}
+                path={rootPath}
+                root={root}
+                workspaceId={workspaceId}
+              />
+            </FileTree>
+          )}
         </div>
       </section>
 
@@ -1241,14 +1158,14 @@ function DirectoryTree({
                   onMove(event.dataTransfer.getData(fileDragType), entryPath)
                 }}
                 onContextMenu={(event) => event.stopPropagation()}
-                path={entry.path}
+                path={entryPath}
               >
                 <DirectoryTree
                   agentName={agentName}
                   moveOperation={moveOperation}
                   onAction={onAction}
                   onMove={onMove}
-                  path={entry.path}
+                  path={entryPath}
                   root={root}
                   workspaceId={workspaceId}
                 />
@@ -1273,7 +1190,7 @@ function DirectoryTree({
                 event.dataTransfer.effectAllowed = "move"
               }}
               onContextMenu={(event) => event.stopPropagation()}
-              path={entry.path}
+              path={entryPath}
             />
           </ContextMenuTrigger>
           {menu}
@@ -1474,18 +1391,6 @@ function EditorPane({
     })
   }
 
-  if (statQuery.isPending || (readText && fileQuery.isPending) || (text && !draft)) {
-    return (
-      <div
-        aria-live="polite"
-        className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm"
-        role="status"
-      >
-        <Spinner /> Loading {filename}...
-      </div>
-    )
-  }
-
   if (statQuery.isError || (fileQuery.isError && !unsupportedText)) {
     return (
       <div className="flex h-full items-center justify-center p-6">
@@ -1496,6 +1401,18 @@ function EditorPane({
             if (readText) void fileQuery.refetch()
           }}
         />
+      </div>
+    )
+  }
+
+  if (statQuery.isPending || (readText && fileQuery.isPending) || (text && !draft)) {
+    return (
+      <div
+        aria-live="polite"
+        className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm"
+        role="status"
+      >
+        <Spinner /> Loading {filename}...
       </div>
     )
   }
@@ -1872,6 +1789,12 @@ function EntryDialog({
 }) {
   const queryClient = useQueryClient()
   const [name, setName] = React.useState("entry" in action ? action.entry.name : "")
+  const searchQueryKey = agentFileSearchQueryOptions(
+    agentName,
+    workspaceId,
+    root,
+    ""
+  ).queryKey.slice(0, 3)
   const createFile = useMutation(createAgentFileMutation())
   const createDirectory = useMutation(createAgentDirectoryMutation())
   const rename = useMutation(renameAgentEntryMutation())
@@ -1936,7 +1859,7 @@ function EntryDialog({
             onClick={() => {
               if (action.kind === "file" || action.kind === "directory") {
                 const path = action.parent === "." ? name.trim() : `${action.parent}/${name.trim()}`
-                const directoryPath = action.parent === "." ? "." : `${action.parent}/`
+                const directoryPath = action.parent
                 const mutation = action.kind === "file" ? createFile : createDirectory
                 mutation.mutate(
                   {
@@ -1948,6 +1871,9 @@ function EntryDialog({
                     onError: (error) => toast.error(label, { description: error.message }),
                     onSuccess: () => {
                       toast.success(action.kind === "file" ? "File created" : "Folder created")
+                      void queryClient.invalidateQueries({
+                        queryKey: searchQueryKey,
+                      })
                       void queryClient.invalidateQueries({
                         queryKey: agentFilesQueryOptions(
                           agentName,
@@ -1983,11 +1909,14 @@ function EntryDialog({
                         action.entry.type === "directory" ? "Folder renamed" : "File renamed"
                       )
                       void queryClient.invalidateQueries({
+                        queryKey: searchQueryKey,
+                      })
+                      void queryClient.invalidateQueries({
                         queryKey: agentFilesQueryOptions(
                           agentName,
                           workspaceId,
                           root,
-                          slash === -1 ? "." : `${action.entry.path.slice(0, slash)}/`
+                          slash === -1 ? "." : action.entry.path.slice(0, slash)
                         ).queryKey,
                       })
                       onRename(action.entry.path, target)
@@ -2012,11 +1941,14 @@ function EntryDialog({
                       action.entry.type === "directory" ? "Folder deleted" : "File deleted"
                     )
                     void queryClient.invalidateQueries({
+                      queryKey: searchQueryKey,
+                    })
+                    void queryClient.invalidateQueries({
                       queryKey: agentFilesQueryOptions(
                         agentName,
                         workspaceId,
                         root,
-                        slash === -1 ? "." : `${action.entry.path.slice(0, slash)}/`
+                        slash === -1 ? "." : action.entry.path.slice(0, slash)
                       ).queryKey,
                     })
                     onDelete(action.entry.path)

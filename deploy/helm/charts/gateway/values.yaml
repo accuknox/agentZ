@@ -87,6 +87,10 @@ waitForJWKS:
   timeoutSeconds: 300
 
 config:
+  # Share the Coding GitHub App and encryption key with the web account flow.
+  # global.secretName must contain CODING_GITHUB_CLIENT_SECRET and
+  # CODING_GITHUB_ENCRYPTION_KEY, encoded as 64 lowercase hex characters.
+  codingGithubClientID: ""
   logLevel: info
   logFormat: text
   logWithSource: false

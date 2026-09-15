@@ -70,6 +70,7 @@ func NewOpenBaoProvisioner(ctx context.Context, cfg RuntimeConfig) (OpenBaoProvi
 	return &openBaoProvisioner{client: client}, nil
 }
 
+// ProvisionSinjector binds the service account to its Agent's secret policy.
 func (p *openBaoProvisioner) ProvisionSinjector(ctx context.Context, cfg RuntimeConfig, opts SinjectorOpenBaoOptions) error {
 	policy, err := renderSinjectorPolicy(cfg.OpenBaoSecretMountPath, opts.Namespace, opts.AgentName)
 	if err != nil {
@@ -120,6 +121,8 @@ func renderSinjectorPolicy(mount, namespace, agentName string) (string, error) {
 	return out.String(), nil
 }
 
+// CleanupSinjector removes the Agent's OpenBao role and policy. Cleanup failures
+// are logged so an unavailable OpenBao does not block Kubernetes deletion.
 func (p *openBaoProvisioner) CleanupSinjector(ctx context.Context, cfg RuntimeConfig, opts SinjectorOpenBaoOptions) error {
 	rolePath := fmt.Sprintf("auth/%s/role/%s", strings.Trim(cfg.OpenBaoK8sAuthMountPath, "/"), opts.RoleName)
 	if _, err := p.client.Logical().DeleteWithContext(ctx, rolePath); err != nil {

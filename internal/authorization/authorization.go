@@ -383,7 +383,18 @@ func (e Effective) AgentCapabilities(scope Scope, agent Agent) (AgentCapabilitie
 // CanReceiveAgentShare reports whether the subject's Workspace grants support
 // every effective capability in the proposed Agent Share.
 func (e Effective) CanReceiveAgentShare(scope Scope, grants []gatewaydb.AgentShareCapability) (bool, error) {
-	return e.canReceiveAgentShare(scope, grants)
+	capabilities, err := e.AgentCapabilities(
+		scope,
+		Agent{
+			Name:        "prospective-share",
+			OwnerUserID: "owner",
+			ShareGrants: grants,
+		},
+	)
+	if err != nil {
+		return false, err
+	}
+	return capabilities.CoversShare(grants), nil
 }
 
 // CanReceiveAgentShare reports whether the supplied Workspace grants support
@@ -407,25 +418,10 @@ func CanReceiveAgentShare(workspaceID string, workspaceGrants []gatewaydb.Permis
 		}
 		effective.grants[key] = struct{}{}
 	}
-	return effective.canReceiveAgentShare(Scope{
+	return effective.CanReceiveAgentShare(Scope{
 		OrganizationID: "organization",
 		WorkspaceID:    workspaceID,
 	}, grants)
-}
-
-func (e Effective) canReceiveAgentShare(scope Scope, grants []gatewaydb.AgentShareCapability) (bool, error) {
-	capabilities, err := e.AgentCapabilities(
-		scope,
-		Agent{
-			Name:        "prospective-share",
-			OwnerUserID: "owner",
-			ShareGrants: grants,
-		},
-	)
-	if err != nil {
-		return false, err
-	}
-	return capabilities.CoversShare(grants), nil
 }
 
 // Active reports whether the subject has an enabled Membership in the

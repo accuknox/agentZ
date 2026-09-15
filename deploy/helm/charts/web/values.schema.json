@@ -3,7 +3,7 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "global": { "type": "object" },
+    "global": { "type": "object", "properties": { "secretName": { "type": "string" } } },
     "enabled": { "type": "boolean" },
     "nameOverride": { "type": "string" },
     "fullnameOverride": { "type": "string" },
@@ -59,24 +59,6 @@
         "nixosSearchESUsername": { "type": "string" },
         "nixosSearchESSchemaVersion": { "type": "string" },
         "nixosSearchESBranch": { "type": "string" }
-      }
-    },
-    "secrets": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "existingSecret": { "type": "string" },
-        "databaseURL": { "type": "string" },
-        "betterAuthSecret": { "type": "string", "pattern": "^$|^.{32,}$" },
-        "mcpOAuthCookieSecret": { "type": "string", "pattern": "^$|^.{32,}$" },
-        "codingGithubClientSecret": { "type": "string" },
-        "codingGithubEncryptionKey": { "type": "string", "pattern": "^$|^[a-f0-9]{64}$" },
-        "githubClientSecret": { "type": "string" },
-        "googleClientSecret": { "type": "string" },
-        "organizationAssetsS3AccessKeyID": { "type": "string" },
-        "organizationAssetsS3SecretAccessKey": { "type": "string" },
-        "organizationAssetsS3SessionToken": { "type": "string" },
-        "nixosSearchESPassword": { "type": "string" }
       }
     }
   },

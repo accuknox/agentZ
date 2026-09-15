@@ -1,3 +1,7 @@
+global:
+  # Operator-managed application credentials in the release namespace.
+  secretName: agentz
+
 enabled: true
 
 nameOverride: ""
@@ -75,6 +79,8 @@ env:
   # Optional GitHub OAuth client ID.
   githubClientID: ""
   # Separate GitHub App for user-initiated Coding operations.
+  # global.secretName must contain CODING_GITHUB_CLIENT_SECRET and
+  # CODING_GITHUB_ENCRYPTION_KEY, encoded as 64 lowercase hex characters.
   codingGithubClientID: ""
   # Optional GitHub allow-list user ID.
   githubAllowedUserID: ""
@@ -104,28 +110,3 @@ env:
   nixosSearchESSchemaVersion: ""
   # Optional NixOS search branch.
   nixosSearchESBranch: ""
-
-secrets:
-  # Name of an existing Secret containing the keys rendered by this chart.
-  existingSecret: ""
-  # Required database DSN for Better Auth and Drizzle.
-  databaseURL: ""
-  # Required Better Auth secret.
-  betterAuthSecret: ""
-  # Required secret used to protect MCP OAuth flow cookies.
-  mcpOAuthCookieSecret: ""
-  # Optional GitHub OAuth client secret.
-  githubClientSecret: ""
-  codingGithubClientSecret: ""
-  # 32 random bytes encoded as 64 lowercase hexadecimal characters.
-  codingGithubEncryptionKey: ""
-  # Optional Google OAuth client secret.
-  googleClientSecret: ""
-  # Optional static S3-compatible access key ID. The default provider chain is used when empty.
-  organizationAssetsS3AccessKeyID: ""
-  # Optional static S3-compatible secret access key.
-  organizationAssetsS3SecretAccessKey: ""
-  # Optional static S3-compatible session token.
-  organizationAssetsS3SessionToken: ""
-  # Optional NixOS search Elasticsearch password.
-  nixosSearchESPassword: ""

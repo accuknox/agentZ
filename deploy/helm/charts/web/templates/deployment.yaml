@@ -1,32 +1,8 @@
 {{- if .Values.enabled }}
+{{- $secretName := required "global.secretName is required" .Values.global.secretName }}
 {{- if and (not .Values.env.githubClientID) (not .Values.env.googleClientID) (not .Values.env.enableEmailPasswordAuth) }}
 {{- fail "web requires at least one auth method (github, google, or email/password)" }}
 {{- end }}
-{{- if and (not .Values.secrets.existingSecret) .Values.env.githubClientID (not .Values.secrets.githubClientSecret) }}
-{{- fail "web.env.githubClientID requires web.secrets.githubClientSecret" }}
-{{- end }}
-{{- if and .Values.secrets.githubClientSecret (not .Values.env.githubClientID) }}
-{{- fail "web.secrets.githubClientSecret requires web.env.githubClientID" }}
-{{- end }}
-{{- if and (not .Values.secrets.existingSecret) .Values.env.googleClientID (not .Values.secrets.googleClientSecret) }}
-{{- fail "web.env.googleClientID requires web.secrets.googleClientSecret" }}
-{{- end }}
-{{- if and (not .Values.secrets.existingSecret) (lt (len .Values.secrets.betterAuthSecret) 32) }}
-{{- fail "web.secrets.betterAuthSecret must contain at least 32 characters" }}
-{{- end }}
-{{- if and (not .Values.secrets.existingSecret) (lt (len .Values.secrets.mcpOAuthCookieSecret) 32) }}
-{{- fail "web.secrets.mcpOAuthCookieSecret must contain at least 32 characters" }}
-{{- end }}
-{{- if and .Values.secrets.googleClientSecret (not .Values.env.googleClientID) }}
-{{- fail "web.secrets.googleClientSecret requires web.env.googleClientID" }}
-{{- end }}
-{{- if and (not .Values.secrets.existingSecret) (ne (empty .Values.secrets.organizationAssetsS3AccessKeyID) (empty .Values.secrets.organizationAssetsS3SecretAccessKey)) }}
-{{- fail "web Organisation asset access key ID and secret must be set together" }}
-{{- end }}
-{{- if and (not .Values.secrets.existingSecret) .Values.secrets.organizationAssetsS3SessionToken (not .Values.secrets.organizationAssetsS3AccessKeyID) }}
-{{- fail "web.secrets.organizationAssetsS3SessionToken requires static Organisation asset credentials" }}
-{{- end }}
-{{- $secretName := include "web.secretName" . }}
 {{- $umbrella := dig "agentz" "umbrella" false (.Values.global | default dict) }}
 {{- $internalGatewayBaseURL := .Values.env.internalGatewayBaseURL }}
 {{- if and $umbrella (not $internalGatewayBaseURL) }}
@@ -50,17 +26,9 @@ spec:
       {{- include "web.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- if not .Values.secrets.existingSecret }}
-      annotations:
-        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
-        {{- with .Values.podAnnotations }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
-      {{- else }}
       {{- with .Values.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
-      {{- end }}
       {{- end }}
       labels:
         {{- include "web.selectorLabels" . | nindent 8 }}

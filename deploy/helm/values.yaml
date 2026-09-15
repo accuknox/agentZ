@@ -1,27 +1,20 @@
 # Controller manager chart.
 global:
+  # Operator-managed application credentials in the release namespace.
+  secretName: agentz
   agentz:
     umbrella: true
-
-# Shared PostgreSQL connection for Go services.
-postgres:
-  # Create the Secret referenced by gateway and observer.
-  createSecret: false
-  secretName: agentz-postgres
-  secretKey: DATABASE_URL
-  databaseURL: ""
 
 migrations:
   # Umbrella installs/upgrades prepare the complete shared database before
   # updating workloads, even when individual services are disabled.
   # Standalone subcharts do not run migrations.
   enabled: true
-  # Optional existing migration Secret; defaults to postgres.secretName/key.
-  # It must target the same database as web, gateway, and observer. Use a
-  # direct PostgreSQL connection or session pooling, not transaction pooling.
-  # The role must own the schema objects and be able to install pg_trgm.
-  secretName: ""
-  secretKey: ""
+  # Reuses global.secretName. The operator must create it before Helm runs.
+  # DATABASE_URL is the web connection; AGENTZ_POSTGRES_DSN is the Go one.
+  # Both URLs must target the same database, using direct connections or
+  # session pooling. Roles must own the objects they migrate; the Go role
+  # must be able to install pg_trgm.
   # Go runner deadline. The Job allows twice this value plus 60s for both
   # phases, including Drizzle Kit connection setup and image startup.
   # Set Helm --timeout above the Job deadline plus its 20s termination grace.
@@ -244,18 +237,6 @@ manager:
 
     # S3 bucket for immutable Skill object storage.
     skillsS3Bucket: agentz
-
-    # Secret containing the immutable Skill S3 access key ID.
-    skillsS3AccessKeyIDSecretName: agentz-skills-s3
-
-    # Secret key containing the immutable Skill S3 access key ID.
-    skillsS3AccessKeyIDSecretKey: access-key-id
-
-    # Secret containing the immutable Skill S3 secret access key.
-    skillsS3SecretAccessKeySecretName: agentz-skills-s3
-
-    # Secret key containing the immutable Skill S3 secret access key.
-    skillsS3SecretAccessKeySecretKey: secret-access-key
 
     # OpenBao address used by manager-managed workloads.
     openBaoAddr: http://openbao.openbao.svc.cluster.local:8200
@@ -504,8 +485,9 @@ gateway:
 
   config:
     # Must match the web account flow.
+    # global.secretName must contain CODING_GITHUB_CLIENT_SECRET and
+    # CODING_GITHUB_ENCRYPTION_KEY, encoded as 64 lowercase hex characters.
     codingGithubClientID: ""
-    codingGithubSecretName: ""
     # Application log level passed to `agentz gateway serve`.
     logLevel: info
 
@@ -562,18 +544,10 @@ gateway:
     # Maximum age before MCP probe results are treated as stale.
     mcpProbeStaleAfter: 5m
 
-    # Secret containing the PostgreSQL DSN for gateway state.
-    postgresSecretName: agentz-postgres
-    postgresSecretKey: DATABASE_URL
-
     # Immutable Skill object storage is owned by the gateway.
     skillsS3Endpoint: http://rustfs.rustfs.svc.cluster.local:9000
     skillsS3Region: us-east-1
     skillsS3Bucket: agentz
-    skillsS3AccessKeyIDSecretName: agentz-skills-s3
-    skillsS3AccessKeyIDSecretKey: access-key-id
-    skillsS3SecretAccessKeySecretName: agentz-skills-s3
-    skillsS3SecretAccessKeySecretKey: secret-access-key
 
   # Extra CLI arguments appended to `agentz gateway serve`.
   extraArgs: []
@@ -682,10 +656,6 @@ observer:
 
     # Include file and line information in logs.
     logWithSource: false
-
-    # Secret containing the PostgreSQL DSN for telemetry storage.
-    postgresSecretName: agentz-postgres
-    postgresSecretKey: DATABASE_URL
 
     # KubeArmor relay gRPC address.
     kubearmorRelayAddr: kubearmor-relay.kubearmor.svc.cluster.local:32767
@@ -814,6 +784,8 @@ web:
     # Optional GitHub OAuth client ID.
     githubClientID: ""
     # Separate GitHub App for user-initiated Coding operations.
+    # Use the same client ID as gateway.config.codingGithubClientID.
+    # Credentials come from global.secretName, as described above.
     codingGithubClientID: ""
 
     # Optional GitHub allow-list user ID.
@@ -857,40 +829,6 @@ web:
 
     # Optional NixOS search branch.
     nixosSearchESBranch: ""
-
-  secrets:
-    # Existing Secret containing the keys otherwise created by this chart.
-    existingSecret: ""
-
-    # Required database DSN for Better Auth and Drizzle.
-    databaseURL: ""
-
-    # Required Better Auth secret.
-    betterAuthSecret: ""
-
-    # Required secret used to protect MCP OAuth flow cookies.
-    mcpOAuthCookieSecret: ""
-
-    # Optional GitHub OAuth client secret.
-    githubClientSecret: ""
-    codingGithubClientSecret: ""
-    # 32 random bytes encoded as 64 lowercase hexadecimal characters.
-    codingGithubEncryptionKey: ""
-
-    # Optional Google OAuth client secret.
-    googleClientSecret: ""
-
-    # Optional static S3-compatible access key ID.
-    organizationAssetsS3AccessKeyID: ""
-
-    # Optional static S3-compatible secret access key.
-    organizationAssetsS3SecretAccessKey: ""
-
-    # Optional static S3-compatible session token.
-    organizationAssetsS3SessionToken: ""
-
-    # Optional NixOS search Elasticsearch password.
-    nixosSearchESPassword: ""
 
 # Shared ingress for the web UI and gateway API.
 ingress:

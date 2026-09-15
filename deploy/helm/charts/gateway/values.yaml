@@ -1,3 +1,7 @@
+global:
+  # Operator-managed application credentials in the release namespace.
+  secretName: agentz
+
 enabled: true
 
 nameOverride: ""
@@ -84,8 +88,9 @@ waitForJWKS:
 
 config:
   # Share the Coding GitHub App and encryption key with the web account flow.
+  # global.secretName must contain CODING_GITHUB_CLIENT_SECRET and
+  # CODING_GITHUB_ENCRYPTION_KEY, encoded as 64 lowercase hex characters.
   codingGithubClientID: ""
-  codingGithubSecretName: ""
   logLevel: info
   logFormat: text
   logWithSource: false
@@ -104,14 +109,8 @@ config:
   openBaoK8sAuthMountPath: kubernetes
   openBaoK8sAuthTokenPath: /var/run/secrets/kubernetes.io/serviceaccount/token
   mcpProbeStaleAfter: 5m
-  postgresSecretName: agentz-postgres
-  postgresSecretKey: DATABASE_URL
   skillsS3Endpoint: ""
   skillsS3Region: us-east-1
   skillsS3Bucket: ""
-  skillsS3AccessKeyIDSecretName: agentz-skills-s3
-  skillsS3AccessKeyIDSecretKey: access-key-id
-  skillsS3SecretAccessKeySecretName: agentz-skills-s3
-  skillsS3SecretAccessKeySecretKey: secret-access-key
 
 extraArgs: []

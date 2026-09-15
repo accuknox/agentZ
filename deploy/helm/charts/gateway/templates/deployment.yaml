@@ -1,4 +1,5 @@
 {{- if .Values.enabled }}
+{{- $secretName := required "global.secretName is required" .Values.global.secretName }}
 {{- $umbrella := dig "agentz" "umbrella" false (.Values.global | default dict) }}
 {{- $jwksURL := .Values.config.externalJWTJWKSURL }}
 {{- if and $umbrella (not $jwksURL) }}
@@ -127,25 +128,25 @@ spec:
             - name: {{ $key }}
               valueFrom:
                 secretKeyRef:
-                  name: {{ required "gateway.config.codingGithubSecretName is required" $.Values.config.codingGithubSecretName }}
+                  name: {{ $secretName }}
                   key: {{ $key }}
             {{- end }}
             {{- end }}
             - name: AGENTZ_POSTGRES_DSN
               valueFrom:
                 secretKeyRef:
-                  name: {{ required "gateway.config.postgresSecretName is required" .Values.config.postgresSecretName }}
-                  key: {{ required "gateway.config.postgresSecretKey is required" .Values.config.postgresSecretKey }}
+                  name: {{ $secretName }}
+                  key: AGENTZ_POSTGRES_DSN
             - name: AGENTZ_SKILLS_S3_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: {{ required "gateway.config.skillsS3AccessKeyIDSecretName is required" .Values.config.skillsS3AccessKeyIDSecretName }}
-                  key: {{ required "gateway.config.skillsS3AccessKeyIDSecretKey is required" .Values.config.skillsS3AccessKeyIDSecretKey }}
+                  name: {{ $secretName }}
+                  key: AGENTZ_SKILLS_S3_ACCESS_KEY_ID
             - name: AGENTZ_SKILLS_S3_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ required "gateway.config.skillsS3SecretAccessKeySecretName is required" .Values.config.skillsS3SecretAccessKeySecretName }}
-                  key: {{ required "gateway.config.skillsS3SecretAccessKeySecretKey is required" .Values.config.skillsS3SecretAccessKeySecretKey }}
+                  name: {{ $secretName }}
+                  key: AGENTZ_SKILLS_S3_SECRET_ACCESS_KEY
           startupProbe:
             tcpSocket:
               port: http

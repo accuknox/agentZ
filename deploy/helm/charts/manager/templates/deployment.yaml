@@ -1,4 +1,5 @@
 {{- if .Values.enabled }}
+{{- $secretName := required "global.secretName is required" .Values.global.secretName }}
 {{- if and .Values.config.enableWebhooks (not .Values.certManager.enabled) }}
 {{- fail "manager.config.enableWebhooks requires manager.certManager.enabled=true" }}
 {{- end }}
@@ -172,13 +173,13 @@ spec:
             - name: AGENTZ_SKILLS_S3_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: {{ required "manager.config.skillsS3AccessKeyIDSecretName is required" .Values.config.skillsS3AccessKeyIDSecretName }}
-                  key: {{ required "manager.config.skillsS3AccessKeyIDSecretKey is required" .Values.config.skillsS3AccessKeyIDSecretKey }}
+                  name: {{ $secretName }}
+                  key: AGENTZ_SKILLS_S3_ACCESS_KEY_ID
             - name: AGENTZ_SKILLS_S3_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ required "manager.config.skillsS3SecretAccessKeySecretName is required" .Values.config.skillsS3SecretAccessKeySecretName }}
-                  key: {{ required "manager.config.skillsS3SecretAccessKeySecretKey is required" .Values.config.skillsS3SecretAccessKeySecretKey }}
+                  name: {{ $secretName }}
+                  key: AGENTZ_SKILLS_S3_SECRET_ACCESS_KEY
           {{- if .Values.config.enableWebhooks }}
           ports:
             - containerPort: {{ .Values.service.webhook.targetPort }}

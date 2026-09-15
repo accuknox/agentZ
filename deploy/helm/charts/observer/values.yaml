@@ -1,3 +1,7 @@
+global:
+  # Operator-managed application credentials in the release namespace.
+  secretName: agentz
+
 enabled: true
 
 nameOverride: ""
@@ -67,8 +71,6 @@ config:
   logLevel: info
   logFormat: text
   logWithSource: false
-  postgresSecretName: agentz-postgres
-  postgresSecretKey: DATABASE_URL
   kubearmorRelayAddr: kubearmor-relay.kubearmor.svc.cluster.local:32767
   hubbleRelayAddr: hubble-relay.kube-system.svc.cluster.local:80
   batchSize: 500

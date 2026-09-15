@@ -23,27 +23,7 @@
 {{- end }}
 {{- end }}
 {{- $name := printf "%s-migrate" .Release.Name }}
-{{- $secretName := default .Values.postgres.secretName .Values.migrations.secretName }}
-{{- $secretKey := default .Values.postgres.secretKey .Values.migrations.secretKey }}
-{{- if and .Values.postgres.createSecret (eq $secretName .Values.postgres.secretName) }}
-{{- $secretName = printf "%s-db-hook" .Release.Name }}
-# Ordinary release Secrets do not exist during pre-install.
-apiVersion: v1
-kind: Secret
-metadata:
-  name: {{ $secretName }}
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "agentz.labels" . | nindent 4 }}
-  annotations:
-    helm.sh/hook: pre-install,pre-upgrade
-    helm.sh/hook-weight: "-20"
-    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
-type: Opaque
-stringData:
-  {{ $secretKey }}: {{ required "postgres.databaseURL is required when postgres.createSecret=true" .Values.postgres.databaseURL | quote }}
----
-{{- end }}
+{{- $secretName := required "global.secretName is required" .Values.global.secretName }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -91,8 +71,8 @@ spec:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ required "postgres.secretName or migrations.secretName is required" $secretName }}
-                  key: {{ required "postgres.secretKey or migrations.secretKey is required" $secretKey }}
+                  name: {{ $secretName }}
+                  key: DATABASE_URL
           securityContext:
             {{- toYaml .Values.web.containerSecurityContext | nindent 12 }}
           resources:
@@ -108,7 +88,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ $secretName }}
-                  key: {{ $secretKey }}
+                  key: AGENTZ_POSTGRES_DSN
           securityContext:
             {{- toYaml .Values.gateway.containerSecurityContext | nindent 12 }}
           resources:

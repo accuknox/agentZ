@@ -3,7 +3,7 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "global": { "type": "object" },
+    "global": { "type": "object", "properties": { "secretName": { "type": "string" } } },
     "enabled": { "type": "boolean" },
     "nameOverride": { "type": "string" },
     "fullnameOverride": { "type": "string" },
@@ -45,8 +45,6 @@
         "logLevel": { "enum": ["debug", "info", "warn", "error"] },
         "logFormat": { "enum": ["text", "json", "pretty"] },
         "logWithSource": { "type": "boolean" },
-        "postgresSecretName": { "type": "string" },
-        "postgresSecretKey": { "type": "string" },
         "kubearmorRelayAddr": { "type": "string", "minLength": 1 },
         "hubbleRelayAddr": { "type": "string", "minLength": 1 },
         "batchSize": { "type": "integer", "minimum": 1 },

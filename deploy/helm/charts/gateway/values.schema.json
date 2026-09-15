@@ -3,7 +3,7 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "global": { "type": "object" },
+    "global": { "type": "object", "properties": { "secretName": { "type": "string" } } },
     "enabled": { "type": "boolean" },
     "nameOverride": { "type": "string" },
     "fullnameOverride": { "type": "string" },
@@ -45,7 +45,6 @@
       "additionalProperties": false,
       "properties": {
         "codingGithubClientID": { "type": "string" },
-        "codingGithubSecretName": { "type": "string" },
         "logLevel": { "enum": ["debug", "info", "warn", "error"] },
         "logFormat": { "enum": ["text", "json", "pretty"] },
         "logWithSource": { "type": "boolean" },
@@ -69,15 +68,9 @@
         "openBaoK8sAuthMountPath": { "type": "string", "minLength": 1 },
         "openBaoK8sAuthTokenPath": { "type": "string", "minLength": 1 },
         "mcpProbeStaleAfter": { "type": "string", "minLength": 1 },
-        "postgresSecretName": { "type": "string" },
-        "postgresSecretKey": { "type": "string" },
         "skillsS3Endpoint": { "type": "string" },
         "skillsS3Region": { "type": "string", "minLength": 1 },
-        "skillsS3Bucket": { "type": "string" },
-        "skillsS3AccessKeyIDSecretName": { "type": "string", "minLength": 1 },
-        "skillsS3AccessKeyIDSecretKey": { "type": "string", "minLength": 1 },
-        "skillsS3SecretAccessKeySecretName": { "type": "string", "minLength": 1 },
-        "skillsS3SecretAccessKeySecretKey": { "type": "string", "minLength": 1 }
+        "skillsS3Bucket": { "type": "string" }
       }
     },
     "waitForJWKS": {

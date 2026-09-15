@@ -136,19 +136,21 @@ function QueueRow({
   const rowRef = useRef<HTMLDivElement>(null)
   const owned = item.author.id === userID
   const locked = item.state === "sending" || Boolean(item.message_id)
-  const preview =
-    item.content.text.trim().split("\n", 1)[0] ||
-    item.content.attachments.map((file) => file.filename).join(", ")
-  const status =
-    item.state === "recovered"
-      ? recoveredOnly
-        ? undefined
-        : "Draft"
-      : item.state === "failed"
-        ? "Needs attention"
-        : item.state === "sending" || item.delivery === "steer"
-          ? "Sending"
-          : undefined
+  const filenames = item.content.attachments.map((file) => file.filename).join(", ")
+  const preview = item.content.text.trim().split("\n", 1)[0] || filenames
+  const model = item.content.model.modelID
+  const agent = item.content.agent ? ` · ${item.content.agent}` : ""
+  let status: string | undefined
+  switch (item.state) {
+    case "recovered":
+      if (!recoveredOnly) status = "Draft"
+      break
+    case "failed":
+      status = "Needs attention"
+      break
+    default:
+      if (item.state === "sending" || item.delivery === "steer") status = "Sending"
+  }
   const change = async (action: ChatInputUpdate["action"]) => {
     if (pending) return
     setError("")
@@ -179,7 +181,7 @@ function QueueRow({
         ) : null}
         <p
           className="min-w-0 flex-1 truncate text-[13px] leading-5"
-          title={`${item.content.text || item.content.attachments.map((file) => file.filename).join(", ")}\n${item.content.model.modelID}${item.content.agent ? ` · ${item.content.agent}` : ""}`}
+          title={`${item.content.text || filenames}\n${model}${agent}`}
         >
           {!item.content.text && item.content.attachments.length ? (
             <PaperclipIcon className="text-muted-foreground mr-1.5 inline size-3 align-[-2px]" />

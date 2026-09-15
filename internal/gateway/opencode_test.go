@@ -24,6 +24,7 @@ type ptyWebSocketCase struct {
 	status                 int
 }
 
+// TestPTYWebSocketAuthentication keeps browser bearers out of upstream protocols.
 func TestPTYWebSocketAuthentication(t *testing.T) {
 	service := &Service{cfg: Config{AllowedWebOrigins: []string{"https://app.example.com"}}}
 	for _, test := range []ptyWebSocketCase{
@@ -153,7 +154,8 @@ func TestOpenCodeEventTransport(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			delta := gatewayapi.OpencodeEventMessagePartDelta{
-				Id: "evt_test", Type: gatewayapi.OpencodeEventMessagePartDeltaTypeMessagePartDelta,
+				Id:   "evt_test",
+				Type: gatewayapi.OpencodeEventMessagePartDeltaTypeMessagePartDelta,
 			}
 			delta.Properties.SessionID = "ses_test"
 			delta.Properties.MessageID = "msg_test"
@@ -249,7 +251,10 @@ func TestOpenCodeEventTransport(t *testing.T) {
 
 // TestAPIKeyPromptIdentity prevents key IDs from replacing their owner's identity.
 func TestAPIKeyPromptIdentity(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, "/session/ses_test/message", strings.NewReader(`{"parts":[{"type":"text","text":"hello"}]}`))
+	req := httptest.NewRequest(
+		http.MethodPost, "/session/ses_test/message",
+		strings.NewReader(`{"parts":[{"type":"text","text":"hello"}]}`),
+	)
 	auth := requestAuth{
 		actorType: requestActorAPIKey, actorID: "key_test", actorName: "Terminal key",
 		userID: "user_test", userName: "Terminal user",

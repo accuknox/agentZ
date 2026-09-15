@@ -9948,6 +9948,9 @@ components:
           x-enum-varnames: [CodingGitDiscover, CodingGitStatus, CodingGitDiff, CodingGitStage, CodingGitUnstage, CodingGitStashes, CodingGitStashCreate, CodingGitStashApply, CodingGitStashPop, CodingGitStashDrop, CodingGitExport, CodingGitImport, CodingGitApplyCommit, CodingGitCheckout, CodingGitCreateBranch, CodingGitPrepareCommit, CodingGitRename, CodingGitRemove]
         comparison:
           $ref: '#/components/schemas/CodingGitComparison'
+        fresh:
+          type: boolean
+          description: Read the live checkout instead of the cached status snapshot.
         revision: {type: string, pattern: '^[a-f0-9]{64}$'}
         hunk: {type: integer, minimum: 0}
         stash: {type: string, pattern: '^[a-f0-9]{40,64}$'}
@@ -10032,8 +10035,7 @@ components:
           type: array
           items: {$ref: '#/components/schemas/CodingRepositoryItem'}
         next_page: {type: integer}
-        limited: {type: boolean}
-      required: [repositories, limited]
+      required: [repositories]
     CodingRef:
       type: object
       additionalProperties: false

@@ -2598,6 +2598,7 @@ export const zCodingGitRequest = z.object({
     "remove",
   ]),
   comparison: zCodingGitComparison.optional(),
+  fresh: z.boolean().optional(),
   revision: z
     .string()
     .regex(/^[a-f0-9]{64}$/)
@@ -2773,7 +2774,6 @@ export const zCodingRepositoryItem = z.object({
 export const zCodingRepositoryPage = z.object({
   repositories: z.array(zCodingRepositoryItem),
   next_page: z.int().optional(),
-  limited: z.boolean(),
 })
 
 export const zJsonValueWritable = z

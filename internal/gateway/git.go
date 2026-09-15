@@ -11,11 +11,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -183,7 +185,57 @@ func (s *Service) codingIdentity(ctx context.Context, userID string) (codingIden
 	return identity, nil
 }
 
-// ListCodingRepositories lists repositories using only the caller's connection.
+// repositories yields repositories both the app and user can publish to.
+// Public repository metadata alone does not establish installation access.
+func (identity codingIdentity) repositories(ctx context.Context) iter.Seq2[*github.Repository, error] {
+	return func(yield func(*github.Repository, error) bool) {
+		opts := &github.ListOptions{PerPage: 100}
+		for installation, err := range identity.client.Apps.ListUserInstallationsIter(ctx, opts) {
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+			permissions := installation.GetPermissions()
+			writable := permissions.GetContents() == "write" &&
+				permissions.GetPullRequests() == "write" &&
+				permissions.GetWorkflows() == "write"
+			if installation.SuspendedAt != nil || !writable {
+				continue
+			}
+			for repo, err := range identity.client.Apps.ListUserReposIter(ctx, installation.GetID(), opts) {
+				if err != nil {
+					yield(nil, err)
+					return
+				}
+				if repo.GetArchived() || repo.GetDisabled() || !repo.GetPermissions().GetPush() {
+					continue
+				}
+				if !yield(repo, nil) {
+					return
+				}
+			}
+		}
+	}
+}
+
+func (identity codingIdentity) repository(ctx context.Context, id int64) (*github.Repository, error) {
+	for repo, err := range identity.repositories(ctx) {
+		if err != nil {
+			return nil, fmt.Errorf("check GitHub repository access: %w", err)
+		}
+		if repo.GetID() == id {
+			return repo, nil
+		}
+	}
+	return nil, apiutil.NewError(
+		http.StatusForbidden, "repository_access",
+		"Repository is not writable through the Coding GitHub App. "+
+			"Check repository access and Contents, Workflows, and Pull requests "+
+			"write permissions in GitHub installation settings.", nil,
+	)
+}
+
+// ListCodingRepositories lists repositories using only the caller's installation access.
 func (s *Service) ListCodingRepositories(w http.ResponseWriter, r *http.Request, params gatewayapi.ListCodingRepositoriesParams) {
 	access, apiErr := s.codingAccess(r.Context(), "")
 	if apiErr != nil {
@@ -199,59 +251,41 @@ func (s *Service) ListCodingRepositories(w http.ResponseWriter, r *http.Request,
 	if params.Page != nil {
 		page = *params.Page
 	}
-	var repos []*github.Repository
-	var response *github.Response
+	query := ""
+	if params.Query != nil {
+		query = strings.ToLower(strings.TrimSpace(*params.Query))
+	}
 	result := gatewayapi.CodingRepositoryPage{Repositories: []gatewayapi.CodingRepositoryItem{}}
-	switch {
-	case params.Query != nil && *params.Query != "":
-		if page > 20 {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(http.StatusBadRequest, "search_limit", "Narrow your repository search", nil),
-			)
+	seen := make(map[int64]bool)
+	for repo, err := range identity.repositories(r.Context()) {
+		if err != nil {
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusBadGateway, "github_failed",
+				"Could not list repositories accessible to the Coding GitHub App", err,
+			))
 			return
 		}
-		var found *github.RepositoriesSearchResult
-		found, response, err = identity.client.Search.Repositories(
-			r.Context(),
-			*params.Query+" in:name fork:true",
-			&github.SearchOptions{ListOptions: github.ListOptions{Page: page, PerPage: 50}},
-		)
-		if found != nil {
-			repos = found.Repositories
-			result.Limited = found.GetIncompleteResults() || found.GetTotal() > 1000
+		if seen[repo.GetID()] || !strings.Contains(strings.ToLower(repo.GetFullName()), query) {
+			continue
 		}
-	default:
-		repos, response, err = identity.client.Repositories.ListByAuthenticatedUser(
-			r.Context(),
-			&github.RepositoryListByAuthenticatedUserOptions{
-				Sort:        "updated",
-				ListOptions: github.ListOptions{Page: page, PerPage: 50},
-			},
-		)
+		seen[repo.GetID()] = true
+		result.Repositories = append(result.Repositories, gatewayapi.CodingRepositoryItem{
+			Id: repo.GetID(), Name: repo.GetFullName(), Private: repo.GetPrivate(),
+		})
 	}
-	if err != nil {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(http.StatusBadGateway, "github_failed", "Could not list GitHub repositories", err),
-		)
-		return
+	slices.SortFunc(result.Repositories, func(a, b gatewayapi.CodingRepositoryItem) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+	// Bound the page before multiplying so arbitrary API input cannot overflow.
+	start := len(result.Repositories)
+	if page > 0 && page-1 <= len(result.Repositories)/50 {
+		start = (page - 1) * 50
 	}
-	for _, repo := range repos {
-		result.Repositories = append(
-			result.Repositories,
-			gatewayapi.CodingRepositoryItem{
-				Id:      repo.GetID(),
-				Name:    repo.GetFullName(),
-				Private: repo.GetPrivate(),
-			},
-		)
+	end := start + min(50, len(result.Repositories)-start)
+	if end < len(result.Repositories) {
+		result.NextPage = new(page + 1)
 	}
-	if response.NextPage > 0 {
-		result.NextPage = &response.NextPage
-	}
+	result.Repositories = result.Repositories[start:end]
 	apiutil.WriteJSON(w, http.StatusOK, result)
 }
 
@@ -285,6 +319,10 @@ func (repo *codingRepository) run(ctx context.Context, remote bool, args ...stri
 		"core.hooksPath=/dev/null",
 		"-c",
 		"core.fsmonitor=false",
+		// This repository lasts one operation. Background repacking can remove
+		// pack indexes while the next import verifies them.
+		"-c",
+		"maintenance.auto=false",
 		"-c",
 		"credential.helper=",
 		"-c",
@@ -325,16 +363,45 @@ func (repo *codingRepository) run(ctx context.Context, remote bool, args ...stri
 	if err != nil {
 		return "", err
 	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return "", err
+	}
 	if err := cmd.Start(); err != nil {
 		return "", err
 	}
+	// Drain both pipes before Wait. Retain only bounded diagnostics, since
+	// GitHub and repository objects can contribute arbitrary error output.
+	diagnostics := make(chan string, 1)
+	go func() {
+		data, _ := io.ReadAll(io.LimitReader(stderr, 16<<10))
+		_, _ = io.Copy(io.Discard, stderr)
+		diagnostics <- strings.TrimSpace(string(data))
+	}()
 	out, readErr := io.ReadAll(io.LimitReader(stdout, (64<<20)+1))
 	if readErr != nil || len(out) > 64<<20 {
 		cmd.Process.Kill()
 	}
+	detail := <-diagnostics
 	err = cmd.Wait()
-	if err != nil || readErr != nil || len(out) > 64<<20 {
-		return "", fmt.Errorf("git %s failed; refresh the checkout and verify repository access", args[0])
+	if ctx.Err() != nil {
+		return "", ctx.Err()
+	}
+	if len(out) > 64<<20 {
+		return "", errors.New("git output exceeds 64 MiB")
+	}
+	if readErr != nil {
+		return "", fmt.Errorf("read Git output: %w", readErr)
+	}
+	if err != nil {
+		if repo.token != "" {
+			credentials := base64.StdEncoding.EncodeToString([]byte("x-access-token:" + repo.token))
+			detail = strings.NewReplacer(repo.token, "[REDACTED]", credentials, "[REDACTED]").Replace(detail)
+		}
+		if detail == "" {
+			return "", fmt.Errorf("git failed: %w", err)
+		}
+		return "", fmt.Errorf("git failed: %s: %w", detail[:min(len(detail), 8<<10)], err)
 	}
 	return strings.TrimRight(string(out), "\r\n"), nil
 }

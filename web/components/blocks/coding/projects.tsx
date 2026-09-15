@@ -485,7 +485,19 @@ export function Projects({
                           </div>
                         ) : (
                           <>
-                            <CommandEmpty>No repositories found.</CommandEmpty>
+                            <CommandEmpty>
+                              No writable repositories found. Grant the Coding GitHub App repository
+                              access and write permissions in{" "}
+                              <a
+                                href="https://github.com/settings/installations"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="underline"
+                              >
+                                GitHub installation settings
+                              </a>
+                              .
+                            </CommandEmpty>
                             <CommandGroup>
                               {repositories.data?.pages
                                 .flatMap((page) => page.repositories)
@@ -512,11 +524,6 @@ export function Projects({
                         )}
                       </CommandList>
                     </Command>
-                    {!searching && repositories.data?.pages.some((page) => page.limited) ? (
-                      <p className="text-muted-foreground px-3 pb-3 text-xs">
-                        More repositories may match. Narrow your search to find them.
-                      </p>
-                    ) : null}
                   </PopoverContent>
                 </Popover>
               </Field>

@@ -1531,6 +1531,9 @@ components:
         expected_tree:
           pattern: ^[a-f0-9]{40,64}$
           type: string
+        fresh:
+          description: Read the live checkout instead of the cached status snapshot.
+          type: boolean
         hunk:
           minimum: 0
           type: integer
@@ -1911,8 +1914,6 @@ components:
     CodingRepositoryPage:
       additionalProperties: false
       properties:
-        limited:
-          type: boolean
         next_page:
           type: integer
         repositories:
@@ -1921,7 +1922,6 @@ components:
           type: array
       required:
       - repositories
-      - limited
       type: object
     CodingRepositorySnapshot:
       additionalProperties: false

@@ -45,6 +45,7 @@ import {
   gitQueries,
   gitQuickAction,
   startWorkspaceOperation,
+  runWorkspaceGit,
 } from "@/lib/coding/review"
 import { watchCoding, type CodingThread, type WatchChatSessionsEvent } from "@/lib/gateway/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
@@ -94,13 +95,14 @@ export function GitActions({ thread, workspaceId }: { thread: CodingThread; work
   const [excluded, setExcluded] = useState<Set<string>>(new Set())
   const [editing, setEditing] = useState(false)
   const [confirmation, setConfirmation] = useState<Exclude<Action, "view_pr">>()
+  const reviewOptions = gitQueries(
+    { thread, workspaceId, visible: dialog, expanded: dialog },
+    "all",
+    undefined,
+    false
+  ).review
   const review = useQuery({
-    ...gitQueries(
-      { thread, workspaceId, visible: dialog, expanded: dialog },
-      "all",
-      undefined,
-      false
-    ).review,
+    ...reviewOptions,
     staleTime: 0,
     refetchInterval: dialog && !busy ? 5000 : false,
   })
@@ -156,33 +158,49 @@ export function GitActions({ thread, workspaceId }: { thread: CodingThread; work
       paths?: string[]
     }) => {
       if (!data) throw new Error("Git status is unavailable.")
+      const options = codingGitOptions(workspaceId, tree.id, actor?.user.id)
+      await queryClient.cancelQueries(options)
+      const current = await runWorkspaceGit(workspaceId, tree.id, {
+        operation: "status",
+        fresh: true,
+      })
+      queryClient.setQueryData(options.queryKey, {
+        ...current,
+        pull_request: current.branch === data.branch ? data.pull_request : undefined,
+        remote_error: data.remote_error,
+      })
+      if (
+        current.branch !== data.branch ||
+        current.head !== data.head ||
+        current.revision !== data.revision
+      ) {
+        await queryClient.invalidateQueries({
+          queryKey: reviewOptions.queryKey.slice(0, 4),
+        })
+        throw new Error("Checkout changed. Review the refreshed files and try again.")
+      }
       return startWorkspaceOperation(workspaceId, {
         id: crypto.randomUUID(),
         agent_name: tree.agent_name,
         session_id: thread.session_id,
         action,
-        branch: data.branch,
-        expected_head: data.head,
-        revision: data.revision,
+        branch: current.branch,
+        expected_head: current.head,
+        revision: current.revision,
         feature_branch: newBranch,
         message,
         paths,
       })
     },
     onSuccess: (operation) => {
+      setDialog(false)
+      setConfirmation(undefined)
       queryClient.setQueryData(
         codingOperationOptions(workspaceId, actor?.user.id).queryKey,
         (current) => [operation, ...(current ?? []).filter((item) => item.id !== operation.id)]
       )
     },
     onError: (error) => toast.error(error.message),
-    onSettled: () =>
-      queryClient.invalidateQueries({
-        predicate: (query) =>
-          query.queryKey[0] === "coding" &&
-          query.queryKey[2] === workspaceId &&
-          query.queryKey[3] === tree.id,
-      }),
   })
 
   function run(action: Action) {
@@ -438,7 +456,6 @@ export function GitActions({ thread, workspaceId }: { thread: CodingThread; work
               size="sm"
               disabled={!selected.length || busy}
               onClick={() => {
-                setDialog(false)
                 mutation.mutate({
                   action: "commit",
                   newBranch: true,
@@ -453,7 +470,6 @@ export function GitActions({ thread, workspaceId }: { thread: CodingThread; work
               size="sm"
               disabled={!selected.length || busy}
               onClick={() => {
-                setDialog(false)
                 mutation.mutate({
                   action: "commit",
                   message,
@@ -501,9 +517,9 @@ export function GitActions({ thread, workspaceId }: { thread: CodingThread; work
             <Button
               variant="outline"
               size="sm"
+              disabled={busy}
               onClick={() => {
                 if (confirmation) mutation.mutate({ action: confirmation })
-                setConfirmation(undefined)
               }}
             >
               {confirmingPR
@@ -514,9 +530,9 @@ export function GitActions({ thread, workspaceId }: { thread: CodingThread; work
             </Button>
             <Button
               size="sm"
+              disabled={busy}
               onClick={() => {
                 if (confirmation) mutation.mutate({ action: confirmation, newBranch: true })
-                setConfirmation(undefined)
               }}
             >
               Checkout feature branch & continue

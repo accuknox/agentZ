@@ -2306,6 +2306,10 @@ export type CodingGitRequest = {
     | "rename"
     | "remove"
   comparison?: CodingGitComparison
+  /**
+   * Read the live checkout instead of the cached status snapshot.
+   */
+  fresh?: boolean
   revision?: string
   hunk?: number
   stash?: string
@@ -2365,7 +2369,6 @@ export type CodingGitStash = {
 export type CodingRepositoryPage = {
   repositories: Array<CodingRepositoryItem>
   next_page?: number
-  limited: boolean
 }
 
 export type CodingRef = {

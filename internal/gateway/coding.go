@@ -147,18 +147,12 @@ func (s *Service) CreateCodingProject(w http.ResponseWriter, r *http.Request) {
 		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadGateway, "github_failed", err.Error(), err))
 		return
 	}
-	repo, _, err := identity.client.Repositories.GetByID(r.Context(), req.RepositoryId)
+	repo, err := identity.repository(r.Context(), req.RepositoryId)
 	if err != nil {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadGateway,
-				"github_failed",
-				"Could not access the GitHub repository",
-				err,
-			),
-		)
+		if !errors.As(err, &apiErr) {
+			apiErr = apiutil.NewError(http.StatusBadGateway, "github_failed", err.Error(), err)
+		}
+		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	project, err := s.queries.GatewayCreateCodingProject(
@@ -939,7 +933,7 @@ func (s *Service) RunCodingGit(w http.ResponseWriter, r *http.Request, worktreeI
 				apiutil.WriteInternalError(w, r, err)
 				return
 			}
-			if cached.Revision != "" {
+			if cached.Revision != "" && (req.Fresh == nil || !*req.Fresh) {
 				apiutil.WriteJSON(w, http.StatusOK, cached)
 				return
 			}

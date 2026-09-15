@@ -429,9 +429,15 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 	if err != nil {
 		return err
 	}
-	repository, _, err := identity.client.Repositories.GetByID(ctx, row.CodingProject.RepositoryID)
+	var repository *github.Repository
+	switch input.Action {
+	case gatewayapi.CodingActionCommit, gatewayapi.CodingActionFetch, gatewayapi.CodingActionPull:
+		repository, _, err = identity.client.Repositories.GetByID(ctx, row.CodingProject.RepositoryID)
+	default:
+		repository, err = identity.repository(ctx, row.CodingProject.RepositoryID)
+	}
 	if err != nil {
-		return errors.New("could not access the GitHub repository")
+		return err
 	}
 	repo, err := newCodingRepository(ctx, repository.GetFullName(), identity.token)
 	if err != nil {
@@ -682,7 +688,7 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 			current.Head+":refs/heads/"+current.Branch,
 		)
 		if err != nil {
-			return errors.New("could not confirm push; refresh remote state before retrying")
+			return fmt.Errorf("push failed; refresh remote state before retrying: %w", err)
 		}
 		result.Pushed = true
 		if err := publish("Pushed"); err != nil {

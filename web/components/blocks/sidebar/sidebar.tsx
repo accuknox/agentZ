@@ -217,7 +217,14 @@ async function WorkspaceSidebar({
     }
     chatSessions = (
       <SidebarGroup className="min-h-0 flex-1 px-0 py-1 group-data-[collapsible=icon]:hidden">
-        <Suspense fallback={<NavSessionsSkeleton groupBy={preference.data.group_by} />}>
+        <Suspense
+          fallback={
+            <NavSessionsSkeleton
+              groupBy={preference.data.group_by}
+              coding={workspace.type === "coding"}
+            />
+          }
+        >
           <WorkspaceChatSessions
             agents={agents}
             preferences={preference.data}

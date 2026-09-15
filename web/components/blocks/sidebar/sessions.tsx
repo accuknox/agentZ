@@ -289,7 +289,13 @@ export function NavSessions({
   )
 }
 
-export function NavSessionsSkeleton({ groupBy }: { groupBy: ChatSessionGroupBy }) {
+export function NavSessionsSkeleton({
+  groupBy,
+  coding,
+}: {
+  groupBy: ChatSessionGroupBy
+  coding: boolean
+}) {
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-tour="loading-chats">
       <div
@@ -308,7 +314,7 @@ export function NavSessionsSkeleton({ groupBy }: { groupBy: ChatSessionGroupBy }
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-hidden px-[var(--sidebar-content-inset)] pb-2">
-        <SessionListSkeleton groupBy={groupBy} />
+        <SessionListSkeleton groupBy={groupBy} coding={coding} />
       </div>
     </div>
   )
@@ -868,7 +874,11 @@ function NavSessionsContent({
           </p>
         ) : null}
         {!searchInvalid && (sessions.isPending || searchSettling) ? (
-          <SessionListSkeleton groupBy={preferences.group_by} searching={searchLength >= 3} />
+          <SessionListSkeleton
+            groupBy={preferences.group_by}
+            searching={searchLength >= 3}
+            coding={workspaceType === "coding"}
+          />
         ) : null}
         {!searchInvalid && !sessions.isPending && !searchSettling && sessions.isError ? (
           <p className="text-destructive px-1 py-3 text-sm">Could not load chats</p>
@@ -898,7 +908,11 @@ function NavSessionsContent({
             : null}
           {preferences.group_by === "none" && !searchInvalid && sessions.isFetchingNextPage
             ? Array.from({ length: 2 }, (_, index) => (
-                <SessionCardSkeleton key={`next-session-${index}`} showAgent />
+                <SessionCardSkeleton
+                  key={`next-session-${index}`}
+                  showAgent
+                  coding={workspaceType === "coding"}
+                />
               ))
             : null}
         </ul>
@@ -1234,6 +1248,7 @@ function SessionGroup({
                 <SessionCardSkeleton
                   key={`group-session-${index}`}
                   showAgent={group.group_by !== "agent"}
+                  coding={workspaceType === "coding"}
                 />
               ))
             : null}
@@ -1242,6 +1257,7 @@ function SessionGroup({
                 <SessionCardSkeleton
                   key={`next-group-session-${index}`}
                   showAgent={group.group_by !== "agent"}
+                  coding={workspaceType === "coding"}
                 />
               ))
             : null}
@@ -1277,9 +1293,11 @@ function SessionGroup({
 function SessionListSkeleton({
   groupBy,
   searching = false,
+  coding,
 }: {
   groupBy: ChatSessionGroupBy
   searching?: boolean
+  coding: boolean
 }) {
   if (groupBy === "none") {
     return (
@@ -1287,7 +1305,7 @@ function SessionListSkeleton({
         <span className="sr-only">{searching ? "Searching chats" : "Loading chats"}</span>
         <ul aria-hidden="true" className="flex min-w-0 flex-col gap-0.5">
           {Array.from({ length: 2 }, (_, index) => (
-            <SessionCardSkeleton key={`session-${index}`} showAgent />
+            <SessionCardSkeleton key={`session-${index}`} showAgent coding={coding} />
           ))}
         </ul>
       </div>
@@ -1316,7 +1334,7 @@ function SessionListSkeleton({
             </div>
             {searching ? (
               <SidebarMenuSub className="[&>li]:before:border-sidebar-border [&>li:last-child]:after:bg-sidebar mx-1.5 translate-x-0 gap-0.5 px-1.5 py-0 [&>li]:relative [&>li]:before:absolute [&>li]:before:top-1/2 [&>li]:before:right-full [&>li]:before:w-1.5 [&>li]:before:border-t [&>li:last-child]:after:absolute [&>li:last-child]:after:top-1/2 [&>li:last-child]:after:right-[calc(100%+0.375rem)] [&>li:last-child]:after:bottom-0 [&>li:last-child]:after:w-px">
-                <SessionCardSkeleton showAgent={groupBy !== "agent"} />
+                <SessionCardSkeleton showAgent={groupBy !== "agent"} coding={coding} />
               </SidebarMenuSub>
             ) : null}
           </div>
@@ -1326,12 +1344,17 @@ function SessionListSkeleton({
   )
 }
 
-function SessionCardSkeleton({ showAgent }: { showAgent: boolean }) {
+function SessionCardSkeleton({ showAgent, coding }: { showAgent: boolean; coding: boolean }) {
   return (
     <li aria-hidden="true" className="list-none rounded-md py-0.5">
-      <div className="h-16 px-[var(--sidebar-row-content-inset)] py-[var(--sidebar-content-inset)]">
+      <div
+        className={cn(
+          "px-[var(--sidebar-row-content-inset)] py-[var(--sidebar-content-inset)]",
+          coding ? "h-20" : "h-16"
+        )}
+      >
         <div className="flex h-5 min-w-0 items-center gap-1.5">
-          {showAgent ? (
+          {showAgent || coding ? (
             <>
               <Skeleton className="bg-sidebar-border size-3.5 shrink-0 rounded-sm" />
               <div className="min-w-0 flex-1">
@@ -1343,14 +1366,24 @@ function SessionCardSkeleton({ showAgent }: { showAgent: boolean }) {
           )}
           <Skeleton className="bg-sidebar-border h-3 w-8 shrink-0" />
         </div>
-        <div className="mt-1 flex h-6 min-w-0 items-center gap-2">
+        <div className={cn("mt-1 flex min-w-0 items-center gap-2", coding ? "h-5" : "h-6")}>
           <div className="min-w-0 flex-1">
             <Skeleton className="bg-sidebar-border h-4 w-3/4" />
           </div>
-          <div className="flex shrink-0 -space-x-[7px]">
-            <Skeleton className="bg-sidebar-border ring-sidebar size-6 rounded-full ring-2" />
-          </div>
+          {!coding ? (
+            <div className="flex shrink-0 -space-x-[7px]">
+              <Skeleton className="bg-sidebar-border ring-sidebar size-6 rounded-full ring-2" />
+            </div>
+          ) : null}
         </div>
+        {coding ? (
+          <div className="flex h-5 min-w-0 items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <Skeleton className="bg-sidebar-border h-3 w-2/3" />
+            </div>
+            <Skeleton className="bg-sidebar-border h-3 w-[7ch] shrink-0" />
+          </div>
+        ) : null}
       </div>
     </li>
   )
@@ -1370,38 +1403,72 @@ function AgentBadge({ status }: { status: AgentStatus | undefined }) {
   return <Bot aria-label="Unavailable" className="text-destructive size-4 shrink-0" role="status" />
 }
 
-function SessionDiff({ session, workspaceId }: { session: ChatSession; workspaceId: string }) {
+function SessionCheckout({ session, workspaceId }: { session: ChatSession; workspaceId: string }) {
+  const {
+    data: thread,
+    isPending: threadPending,
+    refetch: refetchThread,
+  } = useQuery(
+    queryOptions({
+      queryKey: ["codingThread", workspaceId, session.agent_name, session.session_id],
+      queryFn: async ({ signal }) => {
+        const result = await getCodingThread({
+          baseUrl: await getGatewayBaseURL(),
+          headers: { "X-AgentZ-Workspace-ID": workspaceId },
+          path: { agentName: session.agent_name, sessionId: session.session_id },
+          signal,
+        })
+        if (result.error) throw result.error
+        return result.data
+      },
+      retry: false,
+      staleTime: 60_000,
+    })
+  )
   const {
     data: diff,
-    isPending,
-    refetch,
+    isPending: diffPending,
+    refetch: refetchDiff,
   } = useQuery(sessionDiffQueryOptions(session.agent_name, workspaceId, session.session_id))
 
   useEffect(() => {
-    void refetch()
-  }, [refetch, session.status, session.updated_at])
+    void refetchThread()
+    void refetchDiff()
+  }, [refetchThread, refetchDiff, session.status, session.updated_at])
 
-  if (isPending) {
-    return (
-      <Skeleton
-        aria-label="Loading diff stats"
-        className="bg-sidebar-border h-4 w-[7ch] shrink-0 font-mono text-xs motion-reduce:animate-none"
-        role="status"
-      />
-    )
-  }
-
-  if (!diff) return null
+  const worktree = thread?.worktree
+  const branch = worktree?.branch || worktree?.directory.split("/").filter(Boolean).at(-1)
 
   return (
-    <span
-      aria-label={`Latest turn: ${diff.additions} lines added, ${diff.deletions} lines removed`}
-      className="shrink-0 font-mono text-xs"
-      role="img"
-    >
-      <span className="text-emerald-600 dark:text-emerald-400">+{diff.additions}</span>{" "}
-      <span className="text-red-600 dark:text-red-400">−{diff.deletions}</span>
-    </span>
+    <div className="flex h-5 min-w-0 items-center gap-2 text-xs">
+      <div className="text-sidebar-muted-foreground min-w-0 flex-1 truncate">
+        {threadPending ? (
+          <Skeleton
+            aria-label="Loading branch"
+            className="bg-sidebar-border h-3 w-2/3 motion-reduce:animate-none"
+            role="status"
+          />
+        ) : (
+          branch
+        )}
+      </div>
+      {diffPending ? (
+        <Skeleton
+          aria-label="Loading diff stats"
+          className="bg-sidebar-border h-3 w-[7ch] shrink-0 motion-reduce:animate-none"
+          role="status"
+        />
+      ) : diff ? (
+        <span
+          aria-label={`Latest turn: ${diff.additions} lines added, ${diff.deletions} lines removed`}
+          className="shrink-0 font-mono"
+          role="img"
+        >
+          <span className="text-emerald-600 dark:text-emerald-400">+{diff.additions}</span>{" "}
+          <span className="text-red-600 dark:text-red-400">−{diff.deletions}</span>
+        </span>
+      ) : null}
+    </div>
   )
 }
 
@@ -1420,6 +1487,7 @@ function SessionCard({
   workspaceType: Workspace["type"]
   workspacePath: WorkspacePath
 }) {
+  const coding = workspaceType === "coding"
   const href =
     `${workspacePath}/agents/${encodeURIComponent(session.agent_name)}/sessions/${encodeURIComponent(session.session_id)}` as Route
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -1479,41 +1547,60 @@ function SessionCard({
         <li
           className={cn(
             "group/session text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-within:bg-sidebar-accent focus-within:text-sidebar-accent-foreground data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground relative list-none rounded-md py-0.5 transition-colors",
-            active && "bg-sidebar-accent text-sidebar-accent-foreground"
+            active && "bg-sidebar-accent text-sidebar-accent-foreground",
+            coding && "rounded-lg"
           )}
         >
           <Link
             onClick={() => setOpenMobile(false)}
             aria-label={`Open ${session.title}`}
             aria-current={active ? "page" : undefined}
-            className="focus-visible:ring-sidebar-ring absolute inset-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-inset"
+            className="focus-visible:ring-sidebar-ring absolute inset-0 rounded-[inherit] outline-none focus-visible:ring-2 focus-visible:ring-inset"
             href={href}
           />
-          <div className="pointer-events-none relative h-16 px-[var(--sidebar-row-content-inset)] py-[var(--sidebar-content-inset)]">
+          <div
+            className={cn(
+              "pointer-events-none relative px-[var(--sidebar-row-content-inset)] py-[var(--sidebar-content-inset)]",
+              coding ? "h-20" : "h-16"
+            )}
+          >
             <div className="flex h-5 min-w-0 items-center gap-1.5 text-xs">
-              {showAgent ? (
+              {showAgent || coding ? (
                 <>
-                  <Bot
-                    aria-hidden="true"
-                    className="text-sidebar-muted-foreground size-3.5 shrink-0"
-                  />
-                  <span className="text-sidebar-muted-foreground min-w-0 flex-1 truncate font-medium">
+                  <Bot aria-hidden="true" className="text-primary size-3.5 shrink-0" />
+                  <span
+                    className={cn(
+                      "text-sidebar-muted-foreground min-w-0 flex-1 truncate font-medium",
+                      coding && "font-semibold"
+                    )}
+                  >
                     {session.agent_name}
                   </span>
                 </>
               ) : (
                 <span className="min-w-0 flex-1" />
               )}
-              <span className="text-sidebar-muted-foreground shrink-0 tabular-nums">
+              <div className="text-sidebar-muted-foreground shrink-0 tabular-nums">
                 {session.status === "idle" ? (
                   formatShortAge(new Date(session.updated_at).getTime())
+                ) : coding ? (
+                  <span className="text-info flex items-center gap-1 font-medium" role="status">
+                    <LoaderCircle aria-hidden="true" className="size-3 motion-safe:animate-spin" />
+                    Working
+                  </span>
                 ) : (
                   <AgentWorkingIndicator className="gap-0 [&>span:last-child]:sr-only" isWorking />
                 )}
-              </span>
+              </div>
             </div>
-            <div className="mt-1 flex h-6 min-w-0 items-center gap-2">
-              <h3 className="relative min-w-0 flex-1 overflow-hidden text-sm leading-5 font-medium">
+            <div className={cn("mt-1 flex min-w-0 items-center gap-2", coding ? "h-5" : "h-6")}>
+              <h3
+                className={cn(
+                  "relative min-w-0 flex-1 overflow-hidden text-sm leading-5 font-medium",
+                  coding && "text-sidebar-foreground/80 font-semibold",
+                  coding && active && "text-sidebar-foreground"
+                )}
+              >
                 <span
                   className={cn(
                     "block truncate",
@@ -1535,9 +1622,7 @@ function SessionCard({
                   </span>
                 ) : null}
               </h3>
-              {workspaceType === "coding" ? (
-                <SessionDiff session={session} workspaceId={workspaceId} />
-              ) : session.participants.length > 0 ? (
+              {!coding && session.participants.length > 0 ? (
                 <div className="flex shrink-0 -space-x-[7px]">
                   {participants.map((participant) => (
                     <UserAvatar
@@ -1557,6 +1642,7 @@ function SessionCard({
                 </div>
               ) : null}
             </div>
+            {coding ? <SessionCheckout session={session} workspaceId={workspaceId} /> : null}
           </div>
         </li>
       </ContextMenuTrigger>

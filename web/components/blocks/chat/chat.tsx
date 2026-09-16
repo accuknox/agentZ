@@ -844,6 +844,7 @@ function ChatInner({
   const contextUsage = getAssistantUsage(contextMessages, models)
   const {
     abortMessage,
+    canStop,
     canSubmit,
     hasSession,
     isStopping,
@@ -1784,7 +1785,7 @@ function ChatInner({
                       size="icon"
                       className="size-9 rounded-full shadow-xs transition-all duration-150 hover:scale-105 active:shadow-none enabled:inset-shadow-[0_1px_rgb(255_255_255_/_0.16)] disabled:hover:scale-100"
                       aria-label={showStop ? "Stop run" : "Send message"}
-                      disabled={showStop ? inputDisabled || isStopping : submitDisabled || blocked}
+                      disabled={showStop ? inputDisabled || !canStop : submitDisabled || blocked}
                       onClick={showStop ? () => void handleStop() : undefined}
                     >
                       {showStop ? (

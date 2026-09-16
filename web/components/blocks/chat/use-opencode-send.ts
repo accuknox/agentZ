@@ -217,6 +217,8 @@ export function useOpencodeSend(
   return {
     abortMessage: abort.mutateAsync,
     hasSession: Boolean(resolvedSessionID),
+    // A persisted stop holds sending, but must still allow cancellation retries.
+    canStop: !abort.isPending,
     canSubmit: !abort.isPending && !queue.data?.stopping,
     isStopping: abort.isPending || queue.data?.stopping === true,
     sendMessage: send.mutateAsync,

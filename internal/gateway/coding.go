@@ -375,7 +375,8 @@ func (s *Service) codingProjectAgents(ctx context.Context, access resourceAccess
 			return nil, nil, err
 		}
 		if !exists {
-			_, err := s.resolver.client.AgentzV1alpha1().Agents(access.namespace).Get(ctx, name, metav1.GetOptions{})
+			client := s.resolver.client.AgentzV1alpha1().Agents(access.namespace)
+			_, err := client.Get(ctx, name, metav1.GetOptions{})
 			if apierrors.IsNotFound(err) {
 				deleted = append(deleted, name)
 				agents = append(agents, agent)

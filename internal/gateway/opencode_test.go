@@ -512,10 +512,12 @@ type admissionQueries struct {
 	saves  int
 }
 
-func (q *admissionQueries) GatewayResourceBusy(context.Context, string) (bool, error) {
+// GatewayResourceBusy reports the execution lease simulated by the test.
+func (q *admissionQueries) GatewayResourceBusy(_ context.Context, _ string) (bool, error) {
 	return q.active, nil
 }
 
+// GatewayUpdateChatInput records writes so cases can detect premature release.
 func (q *admissionQueries) GatewayUpdateChatInput(_ context.Context, arg gatewaydb.GatewayUpdateChatInputParams) (gatewaydb.ChatInput, error) {
 	q.saves++
 	q.row.State = arg.State
@@ -525,7 +527,8 @@ func (q *admissionQueries) GatewayUpdateChatInput(_ context.Context, arg gateway
 	return q.row, nil
 }
 
-func (q *admissionQueries) GatewayNotifyChatInputs(context.Context, gatewaydb.GatewayNotifyChatInputsParams) error {
+// GatewayNotifyChatInputs suppresses notifications while testing reconciliation.
+func (q *admissionQueries) GatewayNotifyChatInputs(_ context.Context, _ gatewaydb.GatewayNotifyChatInputsParams) error {
 	return nil
 }
 
@@ -544,19 +547,55 @@ type admissionCase struct {
 // provider request, while a confirmed missing input becomes editable again.
 func TestChatInputAdmissionRecovery(t *testing.T) {
 	for _, tt := range []admissionCase{
-		{name: "admitted", messages: []int{200}, want: gatewayapi.ChatInputStateDelivered},
-		{name: "late admission", messages: []int{404, 200}, want: gatewayapi.ChatInputStateDelivered},
-		{name: "never admitted", messages: []int{404, 404}, want: gatewayapi.ChatInputStateFailed},
-		{name: "old failed input", messages: []int{404, 404}, failed: true, want: gatewayapi.ChatInputStateFailed},
-		{name: "recent admission", messages: []int{404}, recent: true, want: gatewayapi.ChatInputStateSending},
-		{name: "busy", messages: []int{404}, status: `{"ses_test":{"type":"busy"}}`, want: gatewayapi.ChatInputStateSending},
-		{name: "retrying", messages: []int{404}, status: `{"ses_test":{"type":"retry","attempt":1,"message":"retry","next":1}}`, want: gatewayapi.ChatInputStateSending},
-		{name: "execution lease", messages: []int{404}, active: true, want: gatewayapi.ChatInputStateSending},
-		{name: "provider error", messages: []int{503}, wantErr: true},
-		{name: "forbidden", messages: []int{403}, wantErr: true},
-		{name: "empty success", messages: []int{204}, wantErr: true},
-		{name: "second lookup failed", messages: []int{404, 503}, wantErr: true},
-		{name: "invalid status", messages: []int{404}, status: `invalid`, wantErr: true},
+		{
+			name: "admitted", messages: []int{http.StatusOK},
+			want: gatewayapi.ChatInputStateDelivered,
+		},
+		{
+			name: "late admission", messages: []int{http.StatusNotFound, http.StatusOK},
+			want: gatewayapi.ChatInputStateDelivered,
+		},
+		{
+			name:     "never admitted",
+			messages: []int{http.StatusNotFound, http.StatusNotFound},
+			want:     gatewayapi.ChatInputStateFailed,
+		},
+		{
+			name:     "old failed input",
+			messages: []int{http.StatusNotFound, http.StatusNotFound},
+			failed:   true,
+			want:     gatewayapi.ChatInputStateFailed,
+		},
+		{
+			name: "recent admission", messages: []int{http.StatusNotFound},
+			recent: true, want: gatewayapi.ChatInputStateSending,
+		},
+		{
+			name: "busy", messages: []int{http.StatusNotFound},
+			status: `{"ses_test":{"type":"busy"}}`,
+			want:   gatewayapi.ChatInputStateSending,
+		},
+		{
+			name: "retrying", messages: []int{http.StatusNotFound},
+			status: `{"ses_test":{"type":"retry","attempt":1,"message":"retry","next":1}}`,
+			want:   gatewayapi.ChatInputStateSending,
+		},
+		{
+			name: "execution lease", messages: []int{http.StatusNotFound},
+			active: true, want: gatewayapi.ChatInputStateSending,
+		},
+		{name: "provider error", messages: []int{http.StatusServiceUnavailable}, wantErr: true},
+		{name: "forbidden", messages: []int{http.StatusForbidden}, wantErr: true},
+		{name: "empty success", messages: []int{http.StatusNoContent}, wantErr: true},
+		{
+			name:     "second lookup failed",
+			messages: []int{http.StatusNotFound, http.StatusServiceUnavailable},
+			wantErr:  true,
+		},
+		{
+			name: "invalid status", messages: []int{http.StatusNotFound},
+			status: `invalid`, wantErr: true,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			row := gatewaydb.ChatInput{

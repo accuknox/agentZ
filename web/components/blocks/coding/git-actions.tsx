@@ -118,17 +118,15 @@ export function GitActions({ thread, workspaceId }: { thread: CodingThread; work
   const data = status.data
   const files = data?.files ?? []
   const selected = files.filter((file) => !excluded.has(file.path))
-  const paths = excluded.size
-    ? [
-        ...new Set(
-          selected.flatMap((file) =>
-            file.previous_path && (file.index === "R" || file.worktree === "R")
-              ? [file.previous_path, file.path]
-              : [file.path]
-          )
-        ),
-      ]
-    : undefined
+  let paths: string[] | undefined
+  if (excluded.size) {
+    const selectedPaths = selected.flatMap((file) =>
+      file.previous_path && (file.index === "R" || file.worktree === "R")
+        ? [file.previous_path, file.path]
+        : [file.path]
+    )
+    paths = [...new Set(selectedPaths)]
+  }
   const quick = gitQuickAction(busy ? undefined : data, !!data?.pull_request)
   const isDefault = data?.branch === data?.default_branch
   const confirmingPR = confirmation === "create_pr" || confirmation === "commit_push_pr"

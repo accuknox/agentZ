@@ -41,23 +41,25 @@ func (s *Service) authorizeObservability(w http.ResponseWriter, r *http.Request,
 		apiutil.WriteError(w, r, resourceForbidden(errors.New("effective Observability permission is missing")))
 		return "", false
 	}
-	if sessionID != nil {
-		workspace, err := s.queries.GatewayGetWorkspace(r.Context(), gatewaydb.GatewayGetWorkspaceParams{
-			ID: access.workspaceID, OrganizationID: access.organizationID,
-		})
-		if err != nil {
-			apiutil.WriteInternalError(w, r, err)
-			return "", false
-		}
-		if workspace.Type == gatewaydb.WorkspaceTypeCoding {
-			_, err := s.resolveCodingSession(
-				r.Context(), access, agentName, strings.TrimSpace(*sessionID),
-			)
-			if err != nil {
-				apiutil.WriteError(w, r, mapGatewayStoreError("get conversation", err))
-				return "", false
-			}
-		}
+	if sessionID == nil {
+		return access.namespace, true
+	}
+	workspace, err := s.queries.GatewayGetWorkspace(r.Context(), gatewaydb.GatewayGetWorkspaceParams{
+		ID: access.workspaceID, OrganizationID: access.organizationID,
+	})
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return "", false
+	}
+	if workspace.Type != gatewaydb.WorkspaceTypeCoding {
+		return access.namespace, true
+	}
+	_, err = s.resolveCodingSession(
+		r.Context(), access, agentName, strings.TrimSpace(*sessionID),
+	)
+	if err != nil {
+		apiutil.WriteError(w, r, mapGatewayStoreError("get conversation", err))
+		return "", false
 	}
 	return access.namespace, true
 }

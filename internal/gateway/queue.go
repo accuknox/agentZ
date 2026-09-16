@@ -75,7 +75,12 @@ func (s *Service) lockChatInputs(ctx context.Context, workspace, agent, session,
 		releaseProject = release
 		ctx = context.WithValue(ctx, gatewayLockKey{}, q)
 	}
-	_, release, err := lockGatewayResource(ctx, s.controlDB, "session-admission/"+workspace+"/"+agent+"/"+session, false)
+	_, release, err := lockGatewayResource(
+		ctx,
+		s.controlDB,
+		"session-admission/"+workspace+"/"+agent+"/"+session,
+		false,
+	)
 	if err != nil {
 		if releaseProject != nil {
 			releaseProject()
@@ -92,9 +97,13 @@ func (s *Service) lockChatInputs(ctx context.Context, workspace, agent, session,
 
 func chatInputView(row gatewaydb.ChatInput) (gatewayapi.ChatInput, error) {
 	result := gatewayapi.ChatInput{
-		Id: row.ID, Author: gatewayapi.ResourceActor{Id: row.AuthorID, Name: &row.AuthorName},
-		Delivery: gatewayapi.ChatInputDelivery(row.Delivery), State: gatewayapi.ChatInputState(row.State),
-		Revision: row.Revision, CreatedAt: row.CreatedAt, Error: row.Error,
+		Id:        row.ID,
+		Author:    gatewayapi.ResourceActor{Id: row.AuthorID, Name: &row.AuthorName},
+		Delivery:  gatewayapi.ChatInputDelivery(row.Delivery),
+		State:     gatewayapi.ChatInputState(row.State),
+		Revision:  row.Revision,
+		CreatedAt: row.CreatedAt,
+		Error:     row.Error,
 	}
 	if row.MessageID != "" {
 		result.MessageId = &row.MessageID
@@ -111,16 +120,24 @@ func (s *Service) ListChatInputs(w http.ResponseWriter, r *http.Request, agent s
 		return
 	}
 	rows, err := s.queries.GatewayListChatInputs(r.Context(), gatewaydb.GatewayListChatInputsParams{
-		WorkspaceID: access.workspaceID, AgentName: agent, SessionID: session, AuthorID: access.userID,
+		WorkspaceID: access.workspaceID,
+		AgentName:   agent,
+		SessionID:   session,
+		AuthorID:    access.userID,
 	})
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	result := gatewayapi.ChatInputs{Items: make([]gatewayapi.ChatInput, 0, len(rows))}
-	result.Stopping, err = s.queries.GatewayChatInputsStopping(r.Context(), gatewaydb.GatewayChatInputsStoppingParams{
-		WorkspaceID: access.workspaceID, AgentName: agent, SessionID: session,
-	})
+	result.Stopping, err = s.queries.GatewayChatInputsStopping(
+		r.Context(),
+		gatewaydb.GatewayChatInputsStoppingParams{
+			WorkspaceID: access.workspaceID,
+			AgentName:   agent,
+			SessionID:   session,
+		},
+	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
@@ -142,7 +159,8 @@ func validateChatInput(input gatewayapi.ChatInputContent) error {
 	}
 	for _, file := range input.Attachments {
 		// Uploaded paths are relative to the agent home, just like the file API.
-		if path.IsAbs(file.Path) || path.Clean(file.Path) != file.Path || strings.HasPrefix(file.Path, "../") || file.Path == ".." {
+		escapesHome := file.Path == ".." || strings.HasPrefix(file.Path, "../")
+		if path.IsAbs(file.Path) || path.Clean(file.Path) != file.Path || escapesHome {
 			return errors.New("attachment path must be relative to the agent home")
 		}
 	}
@@ -156,7 +174,10 @@ func (s *Service) SubmitChatInput(w http.ResponseWriter, r *http.Request, agent 
 		return
 	}
 	if err := validateChatInput(input.Content); err != nil {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_input", err.Error(), err))
+		apiutil.WriteError(
+			w, r,
+			apiutil.NewError(http.StatusBadRequest, "invalid_input", err.Error(), err),
+		)
 		return
 	}
 	access, directory, project, err := s.chatInputAccess(r.Context(), agent, session)
@@ -177,12 +198,27 @@ func (s *Service) SubmitChatInput(w http.ResponseWriter, r *http.Request, agent 
 	}
 	auth, _ := requestAuthState(r.Context())
 	row, err := s.queries.GatewayCreateChatInput(r.Context(), gatewaydb.GatewayCreateChatInputParams{
-		ID: input.Id, WorkspaceID: access.workspaceID, AgentName: agent, SessionID: session,
-		OrganizationID: access.organizationID, AuthorID: access.userID,
-		AuthorName: auth.actorName, Directory: directory, Content: raw, Delivery: string(input.Delivery),
+		ID:             input.Id,
+		WorkspaceID:    access.workspaceID,
+		AgentName:      agent,
+		SessionID:      session,
+		OrganizationID: access.organizationID,
+		AuthorID:       access.userID,
+		AuthorName:     auth.actorName,
+		Directory:      directory,
+		Content:        raw,
+		Delivery:       string(input.Delivery),
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "input_conflict", "This request ID belongs to another message.", err))
+		apiutil.WriteError(
+			w, r,
+			apiutil.NewError(
+				http.StatusConflict,
+				"input_conflict",
+				"This request ID belongs to another message.",
+				err,
+			),
+		)
 		return
 	}
 	if err != nil {
@@ -227,16 +263,30 @@ func (s *Service) UpdateChatInput(w http.ResponseWriter, r *http.Request, agent 
 		apiutil.WriteError(w, r, mapGatewayStoreError("get message", pgx.ErrNoRows))
 		return
 	}
-	if row.Revision != input.Revision || row.State == "sending" || row.State == "delivered" || row.State == "removed" || row.MessageID != "" {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "input_changed", "This message changed or is already being sent.", nil))
+	editable := true
+	switch gatewayapi.ChatInputState(row.State) {
+	case gatewayapi.ChatInputStateSending, gatewayapi.ChatInputStateDelivered,
+		gatewayapi.ChatInputStateRemoved:
+		editable = false
+	}
+	if row.Revision != input.Revision || row.MessageID != "" || !editable {
+		apiutil.WriteError(
+			w, r,
+			apiutil.NewError(
+				http.StatusConflict,
+				"input_changed",
+				"This message changed or is already being sent.",
+				nil,
+			),
+		)
 		return
 	}
 	switch input.Action {
 	case gatewayapi.ChatInputUpdateActionRetry:
 		row.Resume = true
-		row.State = "queued"
+		row.State = string(gatewayapi.ChatInputStateQueued)
 	case gatewayapi.ChatInputUpdateActionRemove:
-		row.State = "removed"
+		row.State = string(gatewayapi.ChatInputStateRemoved)
 	}
 	row.Error = ""
 	row, err = s.saveChatInput(r.Context(), row)
@@ -276,7 +326,12 @@ func (s *Service) stopOpenCodeSession(w http.ResponseWriter, r *http.Request, ro
 		return
 	}
 	defer release()
-	params := gatewaydb.GatewayStopChatInputsParams{WorkspaceID: access.workspaceID, AgentName: agent, SessionID: session, Stopping: true}
+	params := gatewaydb.GatewayStopChatInputsParams{
+		WorkspaceID: access.workspaceID,
+		AgentName:   agent,
+		SessionID:   session,
+		Stopping:    true,
+	}
 	err = s.queries.GatewayStopChatInputs(r.Context(), params)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
@@ -288,7 +343,10 @@ func (s *Service) stopOpenCodeSession(w http.ResponseWriter, r *http.Request, ro
 		return
 	}
 	rows, err := s.queries.GatewayListChatInputs(r.Context(), gatewaydb.GatewayListChatInputsParams{
-		WorkspaceID: access.workspaceID, AgentName: agent, SessionID: session, AuthorID: access.userID,
+		WorkspaceID: access.workspaceID,
+		AgentName:   agent,
+		SessionID:   session,
+		AuthorID:    access.userID,
 	})
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
@@ -303,24 +361,40 @@ func (s *Service) stopOpenCodeSession(w http.ResponseWriter, r *http.Request, ro
 			if row.MessageID == "" {
 				continue
 			}
-			message, err := client.SessionMessageWithResponse(r.Context(), agent, session, row.MessageID, &gatewayapi.SessionMessageParams{Directory: &directory})
+			message, err := client.SessionMessageWithResponse(
+				r.Context(),
+				agent,
+				session,
+				row.MessageID,
+				&gatewayapi.SessionMessageParams{Directory: &directory},
+			)
 			if err != nil || message.JSON200 == nil {
 				admitted = false
 				break
 			}
 		}
-		if interrupt {
+		var cancelled bool
+		switch {
+		case interrupt:
 			response, err := client.V2SessionInterruptWithResponse(r.Context(), agent, session)
-			if err != nil || response.StatusCode() != http.StatusNoContent {
-				break
-			}
-		} else {
-			response, err := client.SessionAbortWithResponse(r.Context(), agent, session, &gatewayapi.SessionAbortParams{Directory: &directory})
-			if err != nil || response.JSON200 == nil || !*response.JSON200 {
-				break
-			}
+			cancelled = err == nil && response.StatusCode() == http.StatusNoContent
+		default:
+			response, err := client.SessionAbortWithResponse(
+				r.Context(),
+				agent,
+				session,
+				&gatewayapi.SessionAbortParams{Directory: &directory},
+			)
+			cancelled = err == nil && response.JSON200 != nil && *response.JSON200
 		}
-		status, err := client.SessionStatusWithResponse(r.Context(), agent, &gatewayapi.SessionStatusParams{Directory: &directory})
+		if !cancelled {
+			break
+		}
+		status, err := client.SessionStatusWithResponse(
+			r.Context(),
+			agent,
+			&gatewayapi.SessionStatusParams{Directory: &directory},
+		)
 		if err != nil || status.JSON200 == nil {
 			break
 		}
@@ -329,7 +403,10 @@ func (s *Service) stopOpenCodeSession(w http.ResponseWriter, r *http.Request, ro
 			state, err := value.Discriminator()
 			idle = err == nil && state == string(gatewayapi.Idle)
 		}
-		active, err := s.queries.GatewayResourceBusy(r.Context(), "session-execution/"+access.workspaceID+"/"+agent+"/"+session)
+		active, err := s.queries.GatewayResourceBusy(
+			r.Context(),
+			"session-execution/"+access.workspaceID+"/"+agent+"/"+session,
+		)
 		if err != nil {
 			break
 		}
@@ -348,14 +425,22 @@ func (s *Service) stopOpenCodeSession(w http.ResponseWriter, r *http.Request, ro
 		}
 	}
 	if !stopped {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadGateway, "stop_failed", "Could not confirm the agent stopped. Queued messages are held; retry Stop.", nil))
+		apiutil.WriteError(
+			w, r,
+			apiutil.NewError(
+				http.StatusBadGateway,
+				"stop_failed",
+				"Could not confirm the agent stopped. Queued messages are held; retry Stop.",
+				nil,
+			),
+		)
 		return
 	}
 	for _, row := range rows {
 		if row.MessageID == "" {
 			continue
 		}
-		row.State = "delivered"
+		row.State = string(gatewayapi.ChatInputStateDelivered)
 		if _, err := s.saveChatInput(r.Context(), row); err != nil {
 			apiutil.WriteInternalError(w, r, err)
 			return
@@ -387,11 +472,19 @@ func (s *Service) stopOpenCodeSession(w http.ResponseWriter, r *http.Request, ro
 	query := target.Query()
 	query.Set("directory", directory)
 	target.RawQuery = query.Encode()
-	if err := s.refreshOpenCodeStatus(r.Context(), target, access.workspaceID, agent); err != nil {
+	err = s.refreshOpenCodeStatus(r.Context(), target, access.workspaceID, agent)
+	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	s.notifyChatInput(r.Context(), gatewaydb.ChatInput{WorkspaceID: access.workspaceID, AgentName: agent, SessionID: session})
+	s.notifyChatInput(
+		r.Context(),
+		gatewaydb.ChatInput{
+			WorkspaceID: access.workspaceID,
+			AgentName:   agent,
+			SessionID:   session,
+		},
+	)
 	if interrupt {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -401,7 +494,9 @@ func (s *Service) stopOpenCodeSession(w http.ResponseWriter, r *http.Request, ro
 
 func (s *Service) notifyChatInput(ctx context.Context, row gatewaydb.ChatInput) {
 	err := s.queries.GatewayNotifyChatInputs(ctx, gatewaydb.GatewayNotifyChatInputsParams{
-		WorkspaceID: row.WorkspaceID, AgentName: row.AgentName, SessionID: pgtype.Text{String: row.SessionID, Valid: true},
+		WorkspaceID: row.WorkspaceID,
+		AgentName:   row.AgentName,
+		SessionID:   pgtype.Text{String: row.SessionID, Valid: true},
 	})
 	if err != nil {
 		slog.ErrorContext(ctx, "notify chat input", "error", err)
@@ -414,7 +509,12 @@ func (s *Service) notifyChatInput(ctx context.Context, row gatewaydb.ChatInput) 
 
 func (s *Service) saveChatInput(ctx context.Context, row gatewaydb.ChatInput) (gatewaydb.ChatInput, error) {
 	saved, err := s.queries.GatewayUpdateChatInput(ctx, gatewaydb.GatewayUpdateChatInputParams{
-		ID: row.ID, Revision: row.Revision, State: row.State, Error: row.Error, MessageID: row.MessageID, Resume: row.Resume,
+		ID:        row.ID,
+		Revision:  row.Revision,
+		State:     row.State,
+		Error:     row.Error,
+		MessageID: row.MessageID,
+		Resume:    row.Resume,
 	})
 	if err == nil {
 		s.notifyChatInput(ctx, saved)
@@ -440,7 +540,8 @@ func (s *Service) runChatInputs(ctx context.Context) {
 		var wg sync.WaitGroup
 		slots := make(chan struct{}, 4)
 		for _, row := range rows {
-			if row.State == "failed" && row.MessageID == "" {
+			state := gatewayapi.ChatInputState(row.State)
+			if state == gatewayapi.ChatInputStateFailed && row.MessageID == "" {
 				continue
 			}
 			select {
@@ -451,8 +552,12 @@ func (s *Service) runChatInputs(ctx context.Context) {
 			}
 			wg.Go(func() {
 				defer func() { <-slots }()
-				if err := s.deliverChatInput(ctx, row); err != nil && ctx.Err() == nil {
-					slog.ErrorContext(ctx, "deliver chat input", "input", row.ID, "error", err)
+				err := s.deliverChatInput(ctx, row)
+				if err != nil && ctx.Err() == nil {
+					slog.ErrorContext(
+						ctx, "deliver chat input",
+						"input", row.ID, "error", err,
+					)
 				}
 			})
 		}
@@ -463,21 +568,39 @@ func (s *Service) runChatInputs(ctx context.Context) {
 func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput) error {
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	claims := gatewayClaims{UserID: row.AuthorID, OrganizationID: row.OrganizationID, WorkspaceID: row.WorkspaceID}
+	claims := gatewayClaims{
+		UserID:         row.AuthorID,
+		OrganizationID: row.OrganizationID,
+		WorkspaceID:    row.WorkspaceID,
+	}
 	ctx = context.WithValue(ctx, authContextKey{}, requestAuth{
-		claims: &claims, userID: row.AuthorID, userName: row.AuthorName, actorID: row.AuthorID, actorName: row.AuthorName, actorType: requestActorUser,
-		workspaceID: row.WorkspaceID, organizationID: row.OrganizationID,
+		claims:         &claims,
+		userID:         row.AuthorID,
+		userName:       row.AuthorName,
+		actorID:        row.AuthorID,
+		actorName:      row.AuthorName,
+		actorType:      requestActorUser,
+		workspaceID:    row.WorkspaceID,
+		organizationID: row.OrganizationID,
 	})
 	access, directory, project, err := s.chatInputAccess(ctx, row.AgentName, row.SessionID)
 	if err != nil {
 		var denied *apiutil.APIError
-		if errors.Is(err, pgx.ErrNoRows) || errors.As(err, &denied) && denied.Status == http.StatusForbidden {
-			release, lockErr := s.lockChatInputs(ctx, row.WorkspaceID, row.AgentName, row.SessionID, "")
+		forbidden := errors.As(err, &denied) && denied.Status == http.StatusForbidden
+		if errors.Is(err, pgx.ErrNoRows) || forbidden {
+			release, lockErr := s.lockChatInputs(
+				ctx,
+				row.WorkspaceID,
+				row.AgentName,
+				row.SessionID,
+				"",
+			)
 			if lockErr != nil {
 				return lockErr
 			}
 			defer release()
-			row.State, row.Error = "failed", "The author no longer has access to this conversation or its agent. Restore access before retrying."
+			row.State = string(gatewayapi.ChatInputStateFailed)
+			row.Error = "The author no longer has access to this conversation or its agent. Restore access before retrying."
 			_, saveErr := s.saveChatInput(ctx, row)
 			return saveErr
 		}
@@ -489,12 +612,22 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 	}
 	defer release()
 	row, err = s.queries.GatewayGetChatInput(ctx, gatewaydb.GatewayGetChatInputParams{
-		ID: row.ID, WorkspaceID: row.WorkspaceID, AgentName: row.AgentName, SessionID: row.SessionID,
+		ID:          row.ID,
+		WorkspaceID: row.WorkspaceID,
+		AgentName:   row.AgentName,
+		SessionID:   row.SessionID,
 	})
 	if err != nil {
 		return err
 	}
-	if row.State != "queued" && row.State != "sending" && (row.State != "failed" || row.MessageID == "") {
+	state := gatewayapi.ChatInputState(row.State)
+	switch state {
+	case gatewayapi.ChatInputStateQueued, gatewayapi.ChatInputStateSending:
+	case gatewayapi.ChatInputStateFailed:
+		if row.MessageID == "" {
+			return nil
+		}
+	default:
 		return nil
 	}
 	stopping, err := s.queries.GatewayChatInputsStopping(ctx, gatewaydb.GatewayChatInputsStoppingParams{
@@ -511,19 +644,27 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 		return err
 	}
 	if row.MessageID != "" {
-		response, err := client.SessionMessageWithResponse(ctx, row.AgentName, row.SessionID, row.MessageID, &gatewayapi.SessionMessageParams{Directory: &directory})
+		response, err := client.SessionMessageWithResponse(
+			ctx,
+			row.AgentName,
+			row.SessionID,
+			row.MessageID,
+			&gatewayapi.SessionMessageParams{Directory: &directory},
+		)
 		if err != nil {
 			return err
 		}
 		if response.JSON200 != nil {
-			row.State = "delivered"
+			row.State = string(gatewayapi.ChatInputStateDelivered)
 			_, err = s.saveChatInput(ctx, row)
 			return err
 		}
-		if row.State == "failed" || time.Since(row.UpdatedAt) < time.Minute {
+		recent := time.Since(row.UpdatedAt) < time.Minute
+		if state == gatewayapi.ChatInputStateFailed || recent {
 			return nil
 		}
-		row.State, row.Error = "failed", "Delivery could not be confirmed. Reload the conversation before sending this message again."
+		row.State = string(gatewayapi.ChatInputStateFailed)
+		row.Error = "Delivery could not be confirmed. Reload the conversation before sending this message again."
 		_, err = s.saveChatInput(ctx, row)
 		return err
 	}
@@ -538,7 +679,11 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 	}
 	// A queued follow-up must never be injected into an unfinished turn. Read
 	// history as well as status: prompt_async can acknowledge before busy appears.
-	status, err := client.SessionStatusWithResponse(ctx, row.AgentName, &gatewayapi.SessionStatusParams{Directory: &directory})
+	status, err := client.SessionStatusWithResponse(
+		ctx,
+		row.AgentName,
+		&gatewayapi.SessionStatusParams{Directory: &directory},
+	)
 	if err != nil {
 		return err
 	}
@@ -553,7 +698,11 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 		}
 		busy = state != string(gatewayapi.Idle)
 	}
-	permissions, err := client.PermissionListWithResponse(ctx, row.AgentName, &gatewayapi.PermissionListParams{Directory: &directory})
+	permissions, err := client.PermissionListWithResponse(
+		ctx,
+		row.AgentName,
+		&gatewayapi.PermissionListParams{Directory: &directory},
+	)
 	if err != nil {
 		return err
 	}
@@ -565,7 +714,11 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 			return nil
 		}
 	}
-	questions, err := client.QuestionListWithResponse(ctx, row.AgentName, &gatewayapi.QuestionListParams{Directory: &directory})
+	questions, err := client.QuestionListWithResponse(
+		ctx,
+		row.AgentName,
+		&gatewayapi.QuestionListParams{Directory: &directory},
+	)
 	if err != nil {
 		return err
 	}
@@ -577,12 +730,17 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 			return nil
 		}
 	}
-	if row.Delivery == "queue" {
+	if gatewayapi.ChatInputDelivery(row.Delivery) == gatewayapi.ChatInputDeliveryQueue {
 		if busy {
 			return nil
 		}
 		limit := 200
-		history, err := client.SessionMessagesWithResponse(ctx, row.AgentName, row.SessionID, &gatewayapi.SessionMessagesParams{Directory: &directory, Limit: &limit})
+		history, err := client.SessionMessagesWithResponse(
+			ctx,
+			row.AgentName,
+			row.SessionID,
+			&gatewayapi.SessionMessagesParams{Directory: &directory, Limit: &limit},
+		)
 		if err != nil {
 			return err
 		}
@@ -611,11 +769,16 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 				return nil
 			}
 			if assistant.Error != nil && !row.Resume {
-				row.State, row.Error = "failed", "The previous run stopped with an error. Remove or retry this message to continue."
+				row.State = string(gatewayapi.ChatInputStateFailed)
+				row.Error = "The previous run stopped with an error. Remove or retry this message to continue."
 				_, err = s.saveChatInput(ctx, row)
 				return err
 			}
-			if !row.Resume && assistant.Error == nil && (assistant.Finish == nil || *assistant.Finish == "tool-calls" || *assistant.Finish == "unknown") {
+			finished := false
+			if assistant.Finish != nil {
+				finished = *assistant.Finish != "tool-calls" && *assistant.Finish != "unknown"
+			}
+			if !row.Resume && assistant.Error == nil && !finished {
 				return nil
 			}
 		}
@@ -636,7 +799,17 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 		text := gatewayapi.OpencodeTextPartInput{
 			Type: gatewayapi.OpencodeTextPartInputTypeText, Synthetic: &synthetic,
 			Metadata: &map[string]any{"agentz_attachment": file},
-			Text:     fmt.Sprintf("<attached_file>\npath: %s\nname: %s\nmedia_type: %s\nsize: %d bytes\nThe path is exact. Copy it verbatim; do not shorten or remove directories.\nUse analyze_file when you need the contents of this file.\n</attached_file>", filePath, filename, mime, file.Size),
+			Text: fmt.Sprintf(
+				`<attached_file>
+path: %s
+name: %s
+media_type: %s
+size: %d bytes
+The path is exact. Copy it verbatim; do not shorten or remove directories.
+Use analyze_file when you need the contents of this file.
+</attached_file>`,
+				filePath, filename, mime, file.Size,
+			),
 		}
 		var part gatewayapi.OpencodePromptPartInput
 		if err := part.FromOpencodeTextPartInput(text); err != nil {
@@ -645,14 +818,21 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 		body.Parts = append(body.Parts, part)
 	}
 	var part gatewayapi.OpencodePromptPartInput
-	text := gatewayapi.OpencodeTextPartInput{Type: gatewayapi.OpencodeTextPartInputTypeText, Text: strings.TrimSpace(content.Text)}
+	text := gatewayapi.OpencodeTextPartInput{
+		Type: gatewayapi.OpencodeTextPartInputTypeText,
+		Text: strings.TrimSpace(content.Text),
+	}
 	if err := part.FromOpencodeTextPartInput(text); err != nil {
 		return err
 	}
 	body.Parts = append(body.Parts, part)
 	// Match OpenCode's ascending timestamp prefix, but allocate at admission,
 	// since a follow-up may have waited while later steers were submitted.
-	row.MessageID = fmt.Sprintf("msg_%012x%s", (time.Now().UnixMilli()<<12)&0xffffffffffff, rand.Text()[:14])
+	row.MessageID = fmt.Sprintf(
+		"msg_%012x%s",
+		(time.Now().UnixMilli()<<12)&0xffffffffffff,
+		rand.Text()[:14],
+	)
 	body.MessageID = &row.MessageID
 	raw, err := json.Marshal(body)
 	if err != nil {
@@ -663,25 +843,40 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 		return err
 	}
 	auth, _ := requestAuthState(ctx)
-	route := &opencodeRouteMatch{Method: http.MethodPost, ID: "session.prompt_async", Params: map[string]string{"sessionID": row.SessionID}}
+	route := &opencodeRouteMatch{
+		Method: http.MethodPost,
+		ID:     "session.prompt_async",
+		Params: map[string]string{"sessionID": row.SessionID},
+	}
 	if err := attributeOpenCodePrompt(req, route, auth); err != nil {
 		return err
 	}
-	row.State = "sending"
+	row.State = string(gatewayapi.ChatInputStateSending)
 	row, err = s.saveChatInput(ctx, row)
 	if err != nil {
 		return err
 	}
-	response, err := client.SessionPromptAsyncWithBodyWithResponse(ctx, row.AgentName, row.SessionID,
-		&gatewayapi.SessionPromptAsyncParams{Directory: &directory}, "application/json", req.Body)
+	response, err := client.SessionPromptAsyncWithBodyWithResponse(
+		ctx, row.AgentName, row.SessionID,
+		&gatewayapi.SessionPromptAsyncParams{Directory: &directory},
+		"application/json", req.Body,
+	)
+	// Keep uncertain admission for reconciliation.
 	if err != nil {
 		return err
-	} // Keep uncertain admission for reconciliation.
-	if response.StatusCode() >= 500 || response.StatusCode() < 400 && response.StatusCode() != http.StatusNoContent {
+	}
+	statusCode := response.StatusCode()
+	unexpected := statusCode < 400 && statusCode != http.StatusNoContent
+	if statusCode >= 500 || unexpected {
 		return fmt.Errorf("agent admission is uncertain: %s", response.Status())
 	}
-	if response.StatusCode() != http.StatusNoContent {
-		row.State, row.Error, row.MessageID = "failed", fmt.Sprintf("The agent rejected this message (%d). Remove or retry it.", response.StatusCode()), ""
+	if statusCode != http.StatusNoContent {
+		row.State = string(gatewayapi.ChatInputStateFailed)
+		row.MessageID = ""
+		row.Error = fmt.Sprintf(
+			"The agent rejected this message (%d). Remove or retry it.",
+			statusCode,
+		)
 		_, err = s.saveChatInput(ctx, row)
 		return err
 	}

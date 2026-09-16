@@ -123,7 +123,9 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		apiutil.WriteError(w, r, apiErr)
 		return
 	}
-	if auth, ok := requestAuthState(r.Context()); ok && auth.actorType != requestActorSystem && (route.ID == "session.abort" || route.ID == "v2.session.interrupt") {
+	auth, authenticated := requestAuthState(r.Context())
+	stop := route.ID == "session.abort" || route.ID == "v2.session.interrupt"
+	if authenticated && auth.actorType != requestActorSystem && stop {
 		s.stopOpenCodeSession(w, r, route, agentName)
 		return
 	}
@@ -148,7 +150,10 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 	if query.Get("directory") == "" && r.Header.Get("X-Opencode-Directory") != "" {
 		directory, err := url.PathUnescape(r.Header.Get("X-Opencode-Directory"))
 		if err != nil {
-			apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_directory", "Invalid checkout directory", err))
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusBadRequest, "invalid_directory",
+				"Invalid checkout directory", err,
+			))
 			return
 		}
 		query.Set("directory", directory)
@@ -159,7 +164,8 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 	// events use separate capacity, including for non-Coding workspaces.
 	input := false
 	switch route.ID {
-	case "session.prompt", "session.prompt_async", "session.command", "session.shell", "v2.session.prompt":
+	case "session.prompt", "session.prompt_async", "session.command",
+		"session.shell", "v2.session.prompt":
 		input = true
 		ctx, release, err := gatewayLocks(r.Context(), s.lockDB)
 		if err != nil {
@@ -171,7 +177,7 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		}
 		r = r.WithContext(ctx)
 	}
-	if auth, ok := requestAuthState(r.Context()); ok && auth.actorType != requestActorSystem {
+	if authenticated && auth.actorType != requestActorSystem {
 		release, apiErr := s.enforceCodingSession(r, access, route, agentName)
 		if release != nil {
 			defer release()
@@ -187,31 +193,46 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 	// Stop drain requests that passed admission before it acquired the lock.
 	changesInput := input || r.Method == http.MethodDelete
 	switch route.ID {
-	case "session.abort", "session.revert", "session.unrevert", "v2.session.interrupt", "v2.session.revert.stage", "v2.session.revert.commit", "v2.session.revert.clear":
+	case "session.abort", "session.revert", "session.unrevert",
+		"v2.session.interrupt", "v2.session.revert.stage",
+		"v2.session.revert.commit", "v2.session.revert.clear":
 		changesInput = true
 	}
-	if route.Params["sessionID"] != "" && changesInput {
-		release, err := s.lockChatInputs(r.Context(), access.workspaceID, agentName, route.Params["sessionID"], "")
+	sessionID := route.Params["sessionID"]
+	if sessionID != "" && changesInput {
+		release, err := s.lockChatInputs(
+			r.Context(), access.workspaceID, agentName, sessionID, "",
+		)
 		if err != nil {
 			apiutil.WriteError(w, r, mapGatewayStoreError("submit input", err))
 			return
 		}
-		if !input {
+		switch {
+		case !input:
 			defer release()
-		} else {
-			stopping, err := s.queries.GatewayChatInputsStopping(r.Context(), gatewaydb.GatewayChatInputsStoppingParams{
-				WorkspaceID: access.workspaceID, AgentName: agentName, SessionID: route.Params["sessionID"],
-			})
+		default:
+			stopping, err := s.queries.GatewayChatInputsStopping(
+				r.Context(),
+				gatewaydb.GatewayChatInputsStoppingParams{
+					WorkspaceID: access.workspaceID,
+					AgentName:   agentName,
+					SessionID:   sessionID,
+				},
+			)
 			if err != nil || stopping {
 				release()
 				if err != nil {
 					apiutil.WriteInternalError(w, r, err)
 					return
 				}
-				apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "session_stopping", "The session is stopping; retry Stop before sending another input", nil))
+				apiutil.WriteError(w, r, apiutil.NewError(
+					http.StatusConflict, "session_stopping",
+					"The session is stopping; retry Stop before sending another input", nil,
+				))
 				return
 			}
-			_, finish, err := lockGatewayResource(r.Context(), s.lockDB, "session-execution/"+access.workspaceID+"/"+agentName+"/"+route.Params["sessionID"], true)
+			identity := "session-execution/" + access.workspaceID + "/" + agentName + "/" + sessionID
+			_, finish, err := lockGatewayResource(r.Context(), s.lockDB, identity, true)
 			release()
 			if err != nil {
 				apiutil.WriteError(w, r, mapGatewayStoreError("submit input", err))
@@ -222,7 +243,8 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if route.ID == "session.status" {
-		_, release, err := lockGatewayResource(r.Context(), s.controlDB, "session-status/"+access.workspaceID+"/"+agentName, false)
+		identity := "session-status/" + access.workspaceID + "/" + agentName
+		_, release, err := lockGatewayResource(r.Context(), s.controlDB, identity, false)
 		if err != nil {
 			apiutil.WriteInternalError(w, r, err)
 			return
@@ -271,7 +293,6 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth, _ := requestAuthState(r.Context())
 	if err := attributeOpenCodePrompt(r, route, auth); err != nil {
 		apiutil.WriteError(
 			w,
@@ -354,11 +375,11 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 func (s *Service) streamOpenCodeEvents(w http.ResponseWriter, r *http.Request, route *opencodeRouteMatch, target *url.URL, access resourceAccess, agentName string) {
 	auth, _ := requestAuthState(r.Context())
 	nativeGlobal := route.ID == "global.event" && auth.workspaceType != agentzv1alpha1.WorkspaceTypeCoding
+	endpoint := "event"
 	if nativeGlobal {
-		target = target.JoinPath("global", "event")
-	} else {
-		target = target.JoinPath("event")
+		endpoint = "global/event"
 	}
+	target = target.JoinPath(endpoint)
 	target.RawQuery = r.URL.RawQuery
 	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, target.String(), nil)
 	if err != nil {
@@ -370,7 +391,10 @@ func (s *Service) streamOpenCodeEvents(w http.ResponseWriter, r *http.Request, r
 	client.Timeout = 0
 	resp, err := client.Do(req)
 	if err != nil {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadGateway, "event_failed", "Could not connect to agent events", err))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadGateway, "event_failed",
+			"Could not connect to agent events", err,
+		))
 		return
 	}
 	defer resp.Body.Close()
@@ -432,7 +456,8 @@ func (s *Service) streamOpenCodeEvents(w http.ResponseWriter, r *http.Request, r
 		case string(gatewayapi.OpencodeEventSessionDeletedTypeSessionDeleted):
 			value, decodeErr := event.AsOpencodeEventSessionDeleted()
 			err, sessionID = decodeErr, value.Properties.SessionID
-		case string(gatewayapi.OpencodeEventSessionStatusTypeSessionStatus), string(gatewayapi.OpencodeEventSessionIdleTypeSessionIdle):
+		case string(gatewayapi.OpencodeEventSessionStatusTypeSessionStatus),
+			string(gatewayapi.OpencodeEventSessionIdleTypeSessionIdle):
 			err = s.refreshOpenCodeStatus(r.Context(), &upstream, access.workspaceID, agentName)
 		}
 		if err == nil && sessionID != "" {
@@ -446,7 +471,8 @@ func (s *Service) streamOpenCodeEvents(w http.ResponseWriter, r *http.Request, r
 			}
 		}
 		if err != nil {
-			slog.ErrorContext(r.Context(), "persist agent event", "agent", agentName, "session", sessionID, "error", err)
+			slog.ErrorContext(r.Context(), "persist agent event",
+				"agent", agentName, "session", sessionID, "error", err)
 			return
 		}
 		data = []byte(frame.Data)
@@ -482,12 +508,14 @@ func (s *Service) streamOpenCodeEvents(w http.ResponseWriter, r *http.Request, r
 
 // refreshOpenCodeStatus reads runtime status after mutation and stream observations.
 func (s *Service) refreshOpenCodeStatus(ctx context.Context, target *url.URL, workspaceID, agentName string) error {
-	_, release, err := lockGatewayResource(ctx, s.controlDB, "session-status/"+workspaceID+"/"+agentName, false)
+	identity := "session-status/" + workspaceID + "/" + agentName
+	_, release, err := lockGatewayResource(ctx, s.controlDB, identity, false)
 	if err != nil {
 		return err
 	}
 	defer release()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target.JoinPath("session", "status").String(), nil)
+	statusURL := target.JoinPath("session", "status")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, statusURL.String(), nil)
 	if err != nil {
 		return err
 	}
@@ -500,8 +528,12 @@ func (s *Service) refreshOpenCodeStatus(ctx context.Context, target *url.URL, wo
 		return fmt.Errorf("read session status: %s", resp.Status)
 	}
 	var directory pgtype.Text
-	if auth, ok := requestAuthState(ctx); ok && auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding {
-		directory = pgtype.Text{String: strings.TrimPrefix(target.Query().Get("directory"), "/home/agentz/"), Valid: true}
+	auth, ok := requestAuthState(ctx)
+	if ok && auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding {
+		directory = pgtype.Text{
+			String: strings.TrimPrefix(target.Query().Get("directory"), "/home/agentz/"),
+			Valid:  true,
+		}
 	}
 	return s.storeOpenCodeSessionStatusResponse(ctx, resp, workspaceID, agentName, directory)
 }
@@ -617,7 +649,8 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 			}
 			return nil
 		}
-		if resp.Header.Get("Content-Type") == "text/event-stream" || strings.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream;") {
+		contentType := resp.Header.Get("Content-Type")
+		if contentType == "text/event-stream" || strings.HasPrefix(contentType, "text/event-stream;") {
 			return nil
 		}
 		// Upstream may already have committed when the client disconnects.
@@ -642,8 +675,10 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 		}
 		if !success {
 			// PATCH and prompt handlers can commit before reporting an error.
-			if sessionID != "" && (route.Method != http.MethodGet || resp.StatusCode == http.StatusNotFound) {
-				if err := s.refreshOpenCodeSession(ctx, &target, workspaceID, agentName, sessionID); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			refresh := route.Method != http.MethodGet || resp.StatusCode == http.StatusNotFound
+			if sessionID != "" && refresh {
+				err := s.refreshOpenCodeSession(ctx, &target, workspaceID, agentName, sessionID)
+				if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 					return err
 				}
 			}
@@ -681,13 +716,19 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 					return errors.New("invalid active sessions response")
 				}
 				for sessionID := range result.JSON200.Data {
-					row, err := s.queries.GatewayResolveCodingSession(ctx, gatewaydb.GatewayResolveCodingSessionParams{
-						WorkspaceID: workspaceID, AgentName: agentName, SessionID: sessionID, OwnerID: auth.userID,
-					})
+					row, err := s.queries.GatewayResolveCodingSession(
+						ctx, gatewaydb.GatewayResolveCodingSessionParams{
+							WorkspaceID: workspaceID,
+							AgentName:   agentName,
+							SessionID:   sessionID,
+							OwnerID:     auth.userID,
+						},
+					)
 					if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 						return err
 					}
-					if errors.Is(err, pgx.ErrNoRows) || "/home/agentz/"+row.CodingWorktree.Directory != directory {
+					worktree := "/home/agentz/" + row.CodingWorktree.Directory
+					if errors.Is(err, pgx.ErrNoRows) || worktree != directory {
 						delete(result.JSON200.Data, sessionID)
 					}
 				}
@@ -695,7 +736,8 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 			}
 		}
 		switch route.ID {
-		case "session.create", "session.fork", "session.get", "session.update", "session.revert", "session.unrevert", "session.share", "session.unshare":
+		case "session.create", "session.fork", "session.get", "session.update",
+			"session.revert", "session.unrevert", "session.share", "session.unshare":
 			session, err := decodeOpenCodeResponse[gatewayapi.OpencodeSession](resp)
 			if err != nil {
 				return err
@@ -738,7 +780,10 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 		case "session.status":
 			var directory pgtype.Text
 			if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding {
-				directory = pgtype.Text{String: strings.TrimPrefix(target.Query().Get("directory"), "/home/agentz/"), Valid: true}
+				directory = pgtype.Text{
+					String: strings.TrimPrefix(target.Query().Get("directory"), "/home/agentz/"),
+					Valid:  true,
+				}
 			}
 			return s.storeOpenCodeSessionStatusResponse(ctx, resp, workspaceID, agentName, directory)
 		}
@@ -751,7 +796,13 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 		}
 		err := s.refreshOpenCodeSession(ctx, &target, workspaceID, agentName, sessionID)
 		if err != nil {
-			return apiutil.NewError(http.StatusBadGateway, "session_persistence_failed", fmt.Sprintf("Could not save the workspace record for session %s. Read this session to retry persistence before creating another.", sessionID), err)
+			message := fmt.Sprintf(
+				"Could not save the workspace record for session %s. Read this session to retry persistence before creating another.",
+				sessionID,
+			)
+			return apiutil.NewError(
+				http.StatusBadGateway, "session_persistence_failed", message, err,
+			)
 		}
 		if err := s.recordOpenCodePrompt(ctx, route, auth, workspaceID, agentName); err != nil {
 			return err
@@ -768,14 +819,20 @@ func (s *Service) recordOpenCodePrompt(ctx context.Context, route *opencodeRoute
 		return nil
 	}
 	switch route.ID {
-	case "session.prompt", "session.prompt_async", "session.command", "session.shell", "session.init", "v2.session.prompt":
+	case "session.prompt", "session.prompt_async", "session.command",
+		"session.shell", "session.init", "v2.session.prompt":
 	default:
 		return nil
 	}
-	err := s.queries.GatewayTouchChatSessionParticipant(ctx, gatewaydb.GatewayTouchChatSessionParticipantParams{
-		WorkspaceID: workspaceID, AgentName: agentName, SessionID: route.Params["sessionID"],
-		UserID: auth.userID, MessagedAt: pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
-	})
+	err := s.queries.GatewayTouchChatSessionParticipant(
+		ctx, gatewaydb.GatewayTouchChatSessionParticipantParams{
+			WorkspaceID: workspaceID,
+			AgentName:   agentName,
+			SessionID:   route.Params["sessionID"],
+			UserID:      auth.userID,
+			MessagedAt:  pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("record chat session participant: %w", err)
 	}
@@ -790,9 +847,14 @@ func (s *Service) storeOpenCodeSessionStatusResponse(ctx context.Context, resp *
 	if directory.Valid {
 		auth, _ := requestAuthState(ctx)
 		for sessionID := range statuses {
-			row, err := s.queries.GatewayResolveCodingSession(ctx, gatewaydb.GatewayResolveCodingSessionParams{
-				WorkspaceID: workspaceID, AgentName: agentName, OwnerID: auth.userID, SessionID: sessionID,
-			})
+			row, err := s.queries.GatewayResolveCodingSession(
+				ctx, gatewaydb.GatewayResolveCodingSessionParams{
+					WorkspaceID: workspaceID,
+					AgentName:   agentName,
+					OwnerID:     auth.userID,
+					SessionID:   sessionID,
+				},
+			)
 			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 				return err
 			}
@@ -838,7 +900,8 @@ func (s *Service) storeOpenCodeSessionStatusResponse(ctx context.Context, resp *
 }
 
 func (s *Service) refreshOpenCodeSession(ctx context.Context, target *url.URL, workspaceID, agentName, sessionID string) error {
-	_, release, err := lockGatewayResource(ctx, s.controlDB, "session-metadata/"+workspaceID+"/"+agentName+"/"+sessionID, false)
+	identity := "session-metadata/" + workspaceID + "/" + agentName + "/" + sessionID
+	_, release, err := lockGatewayResource(ctx, s.controlDB, identity, false)
 	if err != nil {
 		return err
 	}
@@ -866,7 +929,10 @@ func (s *Service) refreshOpenCodeSession(ctx context.Context, target *url.URL, w
 			return err
 		}
 		err = s.queries.GatewayDeleteChatSession(ctx, gatewaydb.GatewayDeleteChatSessionParams{
-			WorkspaceID: workspaceID, AgentName: agentName, SessionID: pgtype.Text{String: sessionID, Valid: true}, TenantNamespace: namespace,
+			WorkspaceID:     workspaceID,
+			AgentName:       agentName,
+			SessionID:       pgtype.Text{String: sessionID, Valid: true},
+			TenantNamespace: namespace,
 		})
 		if err != nil {
 			return err

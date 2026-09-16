@@ -7,6 +7,7 @@ import type {
   PermissionRequest,
   QuestionRequest,
   Session,
+  SessionMessagesResponse2,
   SessionStatus,
   SessionStatusResponse,
   SnapshotFileDiff,
@@ -26,10 +27,7 @@ import { dayjs } from "@/lib/format"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { describeMessageError, opencodeErrorMessage } from "@/components/blocks/chat/errors"
 
-type SessionMessageRecord = {
-  info: Message
-  parts: Part[]
-}
+type SessionMessageRecord = SessionMessagesResponse2[number]
 
 type SessionMessagePage = {
   cursor?: string
@@ -99,7 +97,7 @@ function deriveSessionIsBusy(
   const last = messages.at(-1)
   if (!last) return false
   if (last.role === "user") return true
-  return last.role === "assistant" && last.time.completed === undefined
+  return last.time.completed === undefined
 }
 
 function upsertMessage(messages: Message[], next: Message) {
@@ -188,10 +186,6 @@ function upsertRequest<T extends { id: string }>(items: T[], next: T) {
     if (item.id === next.id) return next
     return item
   })
-}
-
-function removeRequest<T extends { id: string }>(items: T[], requestID: string) {
-  return items.filter((item) => item.id !== requestID)
 }
 
 function buildRequestMap<T extends { sessionID: string }>(items: T[]) {
@@ -362,7 +356,7 @@ function applyHitlEvent(store: HitlStore, event: StreamEvent): HitlStore {
         ...store,
         permissions: {
           ...store.permissions,
-          [sessionID]: removeRequest(current, event.properties.requestID),
+          [sessionID]: current.filter((item) => item.id !== event.properties.requestID),
         },
       }
     }
@@ -389,7 +383,7 @@ function applyHitlEvent(store: HitlStore, event: StreamEvent): HitlStore {
         ...store,
         questions: {
           ...store.questions,
-          [sessionID]: removeRequest(current, event.properties.requestID),
+          [sessionID]: current.filter((item) => item.id !== event.properties.requestID),
         },
       }
     }

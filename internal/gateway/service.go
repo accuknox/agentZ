@@ -371,11 +371,20 @@ func Serve(ctx context.Context, cfg Config) error {
 		svc.runDashboardRetention(runCtx)
 	}()
 	chatInputsDone := make(chan struct{})
-	go func() { defer close(chatInputsDone); svc.runChatInputs(runCtx) }()
+	go func() {
+		defer close(chatInputsDone)
+		svc.runChatInputs(runCtx)
+	}()
 	codingDone := make(chan struct{})
-	go func() { defer close(codingDone); svc.runCoding(runCtx) }()
+	go func() {
+		defer close(codingDone)
+		svc.runCoding(runCtx)
+	}()
 	codingEventsDone := make(chan struct{})
-	go func() { defer close(codingEventsDone); svc.listenCoding(runCtx) }()
+	go func() {
+		defer close(codingEventsDone)
+		svc.listenCoding(runCtx)
+	}()
 	cleanupDone := make(chan struct{})
 	go func() {
 		defer close(cleanupDone)

@@ -686,10 +686,9 @@ func rewriteOpenAPI31Keywords(value any) {
 			for _, key := range slices.Sorted(maps.Keys(patterns)) {
 				values = append(values, patterns[key])
 			}
+			node["additionalProperties"] = map[string]any{"anyOf": values}
 			if len(values) == 1 {
 				node["additionalProperties"] = values[0]
-			} else {
-				node["additionalProperties"] = map[string]any{"anyOf": values}
 			}
 			delete(node, "patternProperties")
 		}

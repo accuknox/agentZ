@@ -352,7 +352,10 @@ func TestCodingSuggestionModels(t *testing.T) {
 							Scope: agentzv1alpha1.ResourceScopeWorkspace,
 						}
 					}
-					k8s := fake.NewClientBuilder().WithScheme(scheme).WithObjects(ns, workspace, sandbox).Build()
+					k8s := fake.NewClientBuilder().
+						WithScheme(scheme).
+						WithObjects(ns, workspace, sandbox).
+						Build()
 					if test.missing {
 						if err := k8s.Delete(t.Context(), sandbox); err != nil {
 							t.Fatal(err)
@@ -370,7 +373,9 @@ func TestCodingSuggestionModels(t *testing.T) {
 					}
 					want := parent
 					if test.small {
-						want = &gatewayapi.OpencodeModelRef{ProviderID: "small-provider", Id: "family/small"}
+						want = &gatewayapi.OpencodeModelRef{
+							ProviderID: "small-provider", Id: "family/small",
+						}
 					}
 					calls := make(chan string, 10)
 					server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -378,12 +383,15 @@ func TestCodingSuggestionModels(t *testing.T) {
 						w.Header().Set("Content-Type", "application/json")
 						switch r.URL.Path {
 						case "/git":
-							_, _ = w.Write([]byte(`{"tree":"reviewed","branch":"feat/test","files":[{"path":"file.go","index":"M","worktree":" "}],"patches":[{"patch":"+change"}]}`))
+							_, _ = w.Write([]byte(
+								`{"tree":"reviewed","branch":"feat/test","files":[{"path":"file.go","index":"M","worktree":" "}],"patches":[{"patch":"+change"}]}`,
+							))
 						case "/session/parent":
 							if test.small || test.override {
 								t.Error("loaded parent despite selected model")
 							}
-							_ = json.NewEncoder(w).Encode(gatewayapi.OpencodeSession{Id: "parent", Model: parent})
+							session := gatewayapi.OpencodeSession{Id: "parent", Model: parent}
+							_ = json.NewEncoder(w).Encode(session)
 						case "/session":
 							var body gatewayapi.SessionCreateJSONRequestBody
 							if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -399,7 +407,9 @@ func TestCodingSuggestionModels(t *testing.T) {
 							if body.ParentID == nil || *body.ParentID != "parent" {
 								t.Error("missing parent")
 							}
-							if body.Permission == nil || len(*body.Permission) != 1 || (*body.Permission)[0].Action != gatewayapi.OpencodePermissionActionDeny {
+							denied := body.Permission != nil && len(*body.Permission) == 1 &&
+								(*body.Permission)[0].Action == gatewayapi.OpencodePermissionActionDeny
+							if !denied {
 								t.Error("tools were not denied")
 							}
 							_, _ = w.Write([]byte(`{"id":"child"}`))
@@ -410,7 +420,10 @@ func TestCodingSuggestionModels(t *testing.T) {
 								return
 							}
 							if test.override {
-								if body.Model == nil || body.Model.ProviderID != "override" || body.Model.ModelID != "family/override" {
+								model := body.Model
+								matches := model != nil && model.ProviderID == "override" &&
+									model.ModelID == "family/override"
+								if !matches {
 									t.Errorf("prompt model = %+v", body.Model)
 								}
 							}
@@ -437,18 +450,33 @@ func TestCodingSuggestionModels(t *testing.T) {
 					defer server.Close()
 					svc := &Service{
 						k8sClient: k8s, outboundHTTP: server.Client(),
-						cfg:      Config{FilesystemTargetOverride: strings.TrimPrefix(server.URL, "http://")},
-						resolver: &resolver{agents: listersv1alpha1.NewAgentLister(index), targetOverride: server.URL},
+						cfg: Config{
+							FilesystemTargetOverride: strings.TrimPrefix(server.URL, "http://"),
+						},
+						resolver: &resolver{
+							agents:         listersv1alpha1.NewAgentLister(index),
+							targetOverride: server.URL,
+						},
 					}
-					input := gatewayapi.CodingTextRequest{Purpose: purpose, Text: new("Change behavior"), ExpectedTree: new("reviewed")}
+					input := gatewayapi.CodingTextRequest{
+						Purpose:      purpose,
+						Text:         new("Change behavior"),
+						ExpectedTree: new("reviewed"),
+					}
 					if test.override {
-						err := json.Unmarshal([]byte(`{"model":{"providerID":"override","modelID":"family/override"}}`), &input)
+						err := json.Unmarshal(
+							[]byte(`{"model":{"providerID":"override","modelID":"family/override"}}`),
+							&input,
+						)
 						if err != nil {
 							t.Fatal(err)
 						}
 					}
-					_, err := svc.codingSuggestion(t.Context(), resourceAccess{namespace: ns.Name},
-						gatewaydb.CodingWorktree{AgentName: agent.Name}, gatewaydb.CodingProject{}, "parent", input)
+					_, err := svc.codingSuggestion(
+						t.Context(), resourceAccess{namespace: ns.Name},
+						gatewaydb.CodingWorktree{AgentName: agent.Name},
+						gatewaydb.CodingProject{}, "parent", input,
+					)
 					wantErr := test.failure || test.unselected || (test.missing && !test.override)
 					if (err != nil) != wantErr {
 						t.Fatalf("generation error = %v, want error %t", err, wantErr)
@@ -465,7 +493,9 @@ func TestCodingSuggestionModels(t *testing.T) {
 						}
 						return
 					}
-					if len(paths) < 4 || paths[len(paths)-2] != "/session/child/abort" || paths[len(paths)-1] != "/session/child" {
+					cleaned := len(paths) >= 4 && paths[len(paths)-2] == "/session/child/abort" &&
+						paths[len(paths)-1] == "/session/child"
+					if !cleaned {
 						t.Fatalf("missing cleanup: %v", paths)
 					}
 				})

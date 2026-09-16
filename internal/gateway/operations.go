@@ -407,14 +407,17 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 	}
 	checkoutChanged := row.CodingWorktree.ID != job.WorktreeID ||
 		row.CodingProject.ID != job.ProjectID
-	if checkoutChanged || row.CodingProject.Deleting || row.CodingWorktree.Deleting || !row.CodingWorktree.Ready {
+	unavailable := row.CodingProject.Deleting || row.CodingWorktree.Deleting || !row.CodingWorktree.Ready
+	if checkoutChanged || unavailable {
 		return errors.New("conversation checkout changed or is unavailable")
 	}
 	local := func(request gatewayapi.CodingGitRequest) (gatewayapi.CodingGitResult, error) {
 		if _, err := s.codingWorkerAccess(ctx, project, input.AgentName); err != nil {
 			return gatewayapi.CodingGitResult{}, err
 		}
-		return s.codingFilesystem(ctx, access.namespace, row.CodingWorktree, row.CodingProject, false, request)
+		return s.codingFilesystem(
+			ctx, access.namespace, row.CodingWorktree, row.CodingProject, false, request,
+		)
 	}
 	current, err := local(gatewayapi.CodingGitRequest{
 		Operation:    gatewayapi.CodingGitStatus,
@@ -626,7 +629,8 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 	if input.Action == gatewayapi.CodingActionCommit {
 		return nil
 	}
-	creatingPR := input.Action == gatewayapi.CodingActionCreatePR || input.Action == gatewayapi.CodingActionCommitPushPR
+	creatingPR := input.Action == gatewayapi.CodingActionCreatePR ||
+		input.Action == gatewayapi.CodingActionCommitPushPR
 	if creatingPR && current.Branch == repository.GetDefaultBranch() {
 		return errors.New("create a feature branch before opening a PR")
 	}
@@ -711,7 +715,10 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 		return errors.New("could not look up the existing pull request")
 	}
 	if len(pulls) > 0 {
-		result.PullRequest = &gatewayapi.CodingPullRequest{Number: pulls[0].GetNumber(), Url: pulls[0].GetHTMLURL()}
+		result.PullRequest = &gatewayapi.CodingPullRequest{
+			Number: pulls[0].GetNumber(),
+			Url:    pulls[0].GetHTMLURL(),
+		}
 		return nil
 	}
 	if err := publish("Generating PR content"); err != nil {
@@ -728,7 +735,10 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 		return err
 	}
 	base := "refs/remotes/origin/" + repository.GetDefaultBranch()
-	patch, err := repo.run(ctx, false, "diff", "--no-ext-diff", "--no-textconv", base+"..."+current.Head, "--")
+	patch, err := repo.run(
+		ctx, false, "diff", "--no-ext-diff", "--no-textconv",
+		base+"..."+current.Head, "--",
+	)
 	if err != nil || patch == "" {
 		return errors.New("no changes against the default branch")
 	}

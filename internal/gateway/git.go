@@ -61,7 +61,8 @@ func (s *Service) codingIdentity(ctx context.Context, userID string) (codingIden
 		return identity, fmt.Errorf("GitHub requests are paused until %s", retry.UTC().Format(time.RFC3339))
 	}
 	key, err := hex.DecodeString(s.cfg.CodingGitHubEncryptionKey)
-	if err != nil || len(key) != 32 || s.cfg.CodingGitHubClientID == "" || s.cfg.CodingGitHubClientSecret == "" {
+	configured := s.cfg.CodingGitHubClientID != "" && s.cfg.CodingGitHubClientSecret != ""
+	if err != nil || len(key) != 32 || !configured {
 		return identity, errors.New("the Coding GitHub App is not configured")
 	}
 	block, err := aes.NewCipher(key)
@@ -229,9 +230,8 @@ func (identity codingIdentity) repository(ctx context.Context, id int64) (*githu
 	}
 	return nil, apiutil.NewError(
 		http.StatusForbidden, "repository_access",
-		"Repository is not writable through the Coding GitHub App. "+
-			"Check repository access and Contents, Workflows, and Pull requests "+
-			"write permissions in GitHub installation settings.", nil,
+		"Repository is not writable through the Coding GitHub App. Check repository access and Contents, Workflows, and Pull requests write permissions in GitHub installation settings.",
+		nil,
 	)
 }
 
@@ -396,7 +396,10 @@ func (repo *codingRepository) run(ctx context.Context, remote bool, args ...stri
 	if err != nil {
 		if repo.token != "" {
 			credentials := base64.StdEncoding.EncodeToString([]byte("x-access-token:" + repo.token))
-			detail = strings.NewReplacer(repo.token, "[REDACTED]", credentials, "[REDACTED]").Replace(detail)
+			redact := strings.NewReplacer(
+				repo.token, "[REDACTED]", credentials, "[REDACTED]",
+			)
+			detail = redact.Replace(detail)
 		}
 		if detail == "" {
 			return "", fmt.Errorf("git failed: %w", err)

@@ -58,8 +58,9 @@ func (s *service) git(w http.ResponseWriter, r *http.Request) {
 		// the whole root, including incomplete clones and Git metadata, without
 		// requiring a working repository or following links inside it.
 		parts := strings.Split(req.Root, "/")
-		if len(parts) != 4 || parts[0] != "Projects" || parts[2] != "github" ||
-			!filepath.IsLocal(req.Root) || filepath.Clean(req.Root) != req.Root {
+		projectRoot := len(parts) == 4 && parts[0] == "Projects" && parts[2] == "github"
+		localRoot := filepath.IsLocal(req.Root) && filepath.Clean(req.Root) == req.Root
+		if !projectRoot || !localRoot {
 			writeFailure(w, r, badRequest("invalid project root", nil))
 			return
 		}

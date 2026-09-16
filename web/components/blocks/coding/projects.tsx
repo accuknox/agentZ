@@ -224,18 +224,19 @@ export function Projects({
   const projectBlocker = detail?.agents
     .flatMap((agent) => (agent.delete_disabled_reason ? [agent.delete_disabled_reason] : []))
     .join(" ")
-  const availabilityReason = projectQuery.isPending
-    ? "Checking agent availability."
-    : projectQuery.isError
-      ? "Could not check agent availability. Close and reopen this dialog to retry."
-      : undefined
-  const confirmReason = pending
-    ? "Please wait for the current operation to finish."
-    : dialog === "rename"
-      ? !editingName.trim()
-        ? "Enter a project name."
-        : undefined
-      : availabilityReason || projectBlocker
+  let confirmReason = projectBlocker
+  if (projectQuery.isError) {
+    confirmReason = "Could not check agent availability. Close and reopen this dialog to retry."
+  }
+  if (projectQuery.isPending) confirmReason = "Checking agent availability."
+  if (dialog === "rename") {
+    confirmReason = editingName.trim() ? undefined : "Enter a project name."
+  }
+  if (pending) confirmReason = "Please wait for the current operation to finish."
+
+  let confirmLabel = detail?.project.deleting ? "Retry project deletion" : "Delete project"
+  if (dialog === "rename") confirmLabel = "Save name"
+  if (pending) confirmLabel = dialog === "rename" ? "Saving..." : "Deleting..."
   const confirmButton = (
     <Button
       type="submit"
@@ -243,15 +244,7 @@ export function Projects({
       variant={dialog === "rename" ? "default" : "destructive"}
     >
       {pending ? <Spinner data-icon="inline-start" /> : null}
-      {pending
-        ? dialog === "rename"
-          ? "Saving..."
-          : "Deleting..."
-        : dialog === "rename"
-          ? "Save name"
-          : detail?.project.deleting
-            ? "Retry project deletion"
-            : "Delete project"}
+      {confirmLabel}
     </Button>
   )
 
@@ -554,11 +547,11 @@ export function Projects({
                       codingDrafts.remove(draftScope, draft.id)
                     }
                   }
-                  const removedRoute = removedThreads.some(
-                    (thread) =>
-                      pathname ===
-                      `${workspacePath}/agents/${encodeURIComponent(thread.worktree.agent_name)}/sessions/${encodeURIComponent(thread.session_id)}`
-                  )
+                  const removedRoute = removedThreads.some((thread) => {
+                    const agent = encodeURIComponent(thread.worktree.agent_name)
+                    const session = encodeURIComponent(thread.session_id)
+                    return pathname === `${workspacePath}/agents/${agent}/sessions/${session}`
+                  })
                   if (
                     removedRoute ||
                     (dialog === "delete" && search.get("project") === targetProject.id)

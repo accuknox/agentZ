@@ -472,9 +472,11 @@ func (s *Service) deleteCodingProject(ctx context.Context, access resourceAccess
 				return fmt.Errorf("stop checkout %s on %s: %w", tree.Branch, agent.Name, err)
 			}
 		}
-		_, err = s.codingFilesystem(ctx, access.namespace,
+		_, err = s.codingFilesystem(
+			ctx, access.namespace,
 			gatewaydb.CodingWorktree{AgentName: agent.Name}, project, false,
-			gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitRemove})
+			gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitRemove},
+		)
 		if err != nil {
 			return fmt.Errorf("delete project files on %s: %w", agent.Name, err)
 		}
@@ -499,7 +501,10 @@ func (s *Service) stopCodingWorktree(ctx context.Context, access resourceAccess,
 		return err
 	}
 	directory := "/home/agentz/" + tree.Directory
-	statuses, err := client.SessionStatusWithResponse(ctx, tree.AgentName, &gatewayapi.SessionStatusParams{Directory: &directory})
+	statuses, err := client.SessionStatusWithResponse(
+		ctx, tree.AgentName,
+		&gatewayapi.SessionStatusParams{Directory: &directory},
+	)
 	if err != nil {
 		return err
 	}
@@ -514,7 +519,10 @@ func (s *Service) stopCodingWorktree(ctx context.Context, access resourceAccess,
 		if state == string(gatewayapi.Idle) {
 			continue
 		}
-		stopped, err := client.SessionAbortWithResponse(ctx, tree.AgentName, id, &gatewayapi.SessionAbortParams{Directory: &directory})
+		stopped, err := client.SessionAbortWithResponse(
+			ctx, tree.AgentName, id,
+			&gatewayapi.SessionAbortParams{Directory: &directory},
+		)
 		if err != nil {
 			return err
 		}
@@ -524,7 +532,10 @@ func (s *Service) stopCodingWorktree(ctx context.Context, access resourceAccess,
 	}
 	// Instance disposal releases terminals, watchers, and cached services for
 	// this directory. Unlike listing PTYs, it also works after files vanished.
-	disposed, err := client.InstanceDisposeWithResponse(ctx, tree.AgentName, &gatewayapi.InstanceDisposeParams{Directory: &directory})
+	disposed, err := client.InstanceDisposeWithResponse(
+		ctx, tree.AgentName,
+		&gatewayapi.InstanceDisposeParams{Directory: &directory},
+	)
 	if err != nil {
 		return err
 	}
@@ -577,7 +588,9 @@ func (s *Service) PrepareCodingCheckout(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if project.Deleting {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "deleting", "Project deletion has started", nil))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict, "deleting", "Project deletion has started", nil,
+		))
 		return
 	}
 	var tree gatewaydb.CodingWorktree
@@ -779,7 +792,9 @@ func (s *Service) SuggestCodingText(w http.ResponseWriter, r *http.Request, agen
 		apiutil.WriteError(w, r, mapGatewayStoreError("get thread", err))
 		return
 	}
-	result, err := s.codingSuggestion(r.Context(), access, row.CodingWorktree, row.CodingProject, sessionId, input)
+	result, err := s.codingSuggestion(
+		r.Context(), access, row.CodingWorktree, row.CodingProject, sessionId, input,
+	)
 	if err != nil {
 		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadGateway, "generation_failed", err.Error(), err))
 		return
@@ -1166,7 +1181,8 @@ func (s *Service) RunCodingGit(w http.ResponseWriter, r *http.Request, worktreeI
 			return
 		}
 	}
-	if row.CodingProject.Deleting || row.CodingWorktree.Deleting && req.Operation != gatewayapi.CodingGitRemove {
+	unavailable := row.CodingWorktree.Deleting && req.Operation != gatewayapi.CodingGitRemove
+	if row.CodingProject.Deleting || unavailable {
 		apiutil.WriteError(
 			w,
 			r,
@@ -1189,7 +1205,9 @@ func (s *Service) RunCodingGit(w http.ResponseWriter, r *http.Request, worktreeI
 			return
 		}
 	}
-	result, err := s.codingFilesystem(r.Context(), access.namespace, row.CodingWorktree, row.CodingProject, false, req)
+	result, err := s.codingFilesystem(
+		r.Context(), access.namespace, row.CodingWorktree, row.CodingProject, false, req,
+	)
 	if err != nil {
 		if req.Operation == gatewayapi.CodingGitRemove {
 			ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
@@ -1247,7 +1265,10 @@ func (s *Service) codingFilesystem(ctx context.Context, namespace string, tree g
 	if err != nil {
 		return result, err
 	}
-	root := path.Join("Projects", base64.RawURLEncoding.EncodeToString([]byte(project.OwnerID)), "github", project.ID)
+	root := path.Join(
+		"Projects", base64.RawURLEncoding.EncodeToString([]byte(project.OwnerID)),
+		"github", project.ID,
+	)
 	body, err := json.Marshal(filesystem.GitRequest{
 		Root:       root,
 		Directory:  tree.Directory,

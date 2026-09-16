@@ -48,7 +48,9 @@ func (s *Service) ListCodingRefs(w http.ResponseWriter, r *http.Request, project
 		return
 	}
 	if project.Deleting {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "deleting", "Project deletion has started", nil))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict, "deleting", "Project deletion has started", nil,
+		))
 		return
 	}
 	row, err := s.queries.GatewayTouchCodingSnapshot(
@@ -157,7 +159,9 @@ func (s *Service) RefreshCodingRepository(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if project.Deleting {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "deleting", "Project deletion has started", nil))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict, "deleting", "Project deletion has started", nil,
+		))
 		return
 	}
 	_, err = s.queries.GatewayTouchCodingSnapshot(
@@ -213,10 +217,15 @@ func (s *Service) AdoptCodingWorktree(w http.ResponseWriter, r *http.Request, pr
 		return
 	}
 	if project.Deleting {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "deleting", "Project deletion has started", nil))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict, "deleting", "Project deletion has started", nil,
+		))
 		return
 	}
-	root := path.Join("Projects", base64.RawURLEncoding.EncodeToString([]byte(project.OwnerID)), "github", project.ID)
+	root := path.Join(
+		"Projects", base64.RawURLEncoding.EncodeToString([]byte(project.OwnerID)),
+		"github", project.ID,
+	)
 	tree := gatewaydb.CodingWorktree{AgentName: input.AgentName, Directory: root + "/repo"}
 	result, err := s.codingFilesystem(
 		r.Context(),
@@ -407,7 +416,10 @@ func (s *Service) loadCodingSnapshot(ctx context.Context, access resourceAccess,
 	if project.Deleting {
 		return errors.New("project deletion has started")
 	}
-	root := path.Join("Projects", base64.RawURLEncoding.EncodeToString([]byte(project.OwnerID)), "github", project.ID)
+	root := path.Join(
+		"Projects", base64.RawURLEncoding.EncodeToString([]byte(project.OwnerID)),
+		"github", project.ID,
+	)
 	tree := gatewaydb.CodingWorktree{AgentName: snapshot.AgentName, Directory: root + "/repo"}
 	if snapshot.WorktreeID != "" {
 		row, err := s.queries.GatewayGetCodingWorktree(
@@ -521,14 +533,18 @@ func (s *Service) loadCodingSnapshot(ctx context.Context, access resourceAccess,
 		for i := range result.Repository.Worktrees {
 			discovered := &result.Repository.Worktrees[i]
 			for _, managed := range trees {
-				if managed.AgentName == tree.AgentName && discovered.Directory == "/home/agentz/"+managed.Directory {
-					discovered.ManagedId = &managed.ID
-					if managed.Deleting {
-						discovered.Available = false
-						discovered.Reason = new("Checkout removal is in progress")
-					}
-					break
+				if managed.AgentName != tree.AgentName {
+					continue
 				}
+				if discovered.Directory != "/home/agentz/"+managed.Directory {
+					continue
+				}
+				discovered.ManagedId = &managed.ID
+				if managed.Deleting {
+					discovered.Available = false
+					discovered.Reason = new("Checkout removal is in progress")
+				}
+				break
 			}
 		}
 	}
@@ -542,8 +558,10 @@ func (s *Service) loadCodingSnapshot(ctx context.Context, access resourceAccess,
 		if err != nil {
 			return err
 		}
-		if project.Repository != repository.GetFullName() || project.DefaultBranch != repository.GetDefaultBranch() {
-			project.Repository, project.DefaultBranch = repository.GetFullName(), repository.GetDefaultBranch()
+		renamed := project.Repository != repository.GetFullName()
+		if renamed || project.DefaultBranch != repository.GetDefaultBranch() {
+			project.Repository = repository.GetFullName()
+			project.DefaultBranch = repository.GetDefaultBranch()
 			err = s.queries.GatewayUpdateCodingRepository(
 				ctx,
 				gatewaydb.GatewayUpdateCodingRepositoryParams{

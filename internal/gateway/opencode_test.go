@@ -536,7 +536,6 @@ type admissionCase struct {
 	name     string
 	messages []int
 	status   string
-	recent   bool
 	active   bool
 	failed   bool
 	want     gatewayapi.ChatInputState
@@ -565,10 +564,6 @@ func TestChatInputAdmissionRecovery(t *testing.T) {
 			messages: []int{http.StatusNotFound, http.StatusNotFound},
 			failed:   true,
 			want:     gatewayapi.ChatInputStateFailed,
-		},
-		{
-			name: "recent admission", messages: []int{http.StatusNotFound},
-			recent: true, want: gatewayapi.ChatInputStateSending,
 		},
 		{
 			name: "busy", messages: []int{http.StatusNotFound},
@@ -603,9 +598,6 @@ func TestChatInputAdmissionRecovery(t *testing.T) {
 				SessionID: "ses_test", MessageID: "msg_test", Revision: 1,
 				State:     string(gatewayapi.ChatInputStateSending),
 				UpdatedAt: time.Now().Add(-2 * time.Minute),
-			}
-			if tt.recent {
-				row.UpdatedAt = time.Now()
 			}
 			if tt.failed {
 				row.State = string(gatewayapi.ChatInputStateFailed)

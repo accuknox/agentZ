@@ -14,6 +14,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"slices"
 	"strings"
 	"text/template"
 	"time"
@@ -22,6 +23,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/accuknox/agentz/internal/authorization"
@@ -242,7 +245,7 @@ func (s *Service) GetCodingProject(w http.ResponseWriter, r *http.Request, proje
 	if project.LastAgentName.Valid {
 		result.Project.LastAgentName = &project.LastAgentName.String
 	}
-	result.Agents, err = s.codingProjectAgents(r.Context(), access, projectId)
+	result.Agents, _, err = s.codingProjectAgents(r.Context(), access, projectId)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
@@ -349,20 +352,39 @@ func (s *Service) DeleteCodingProject(w http.ResponseWriter, r *http.Request, pr
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// codingProjectAgents includes inaccessible checkouts so deletion never silently
-// leaves files behind on an agent omitted from the caller's checkout list.
-func (s *Service) codingProjectAgents(ctx context.Context, access resourceAccess, projectID string) ([]gatewayapi.CodingProjectAgent, error) {
+// codingProjectAgents includes inaccessible checkouts and identifies deleted
+// agents separately. Only the API server and database together prove deletion;
+// a missing informer entry may just reflect a watch delay.
+func (s *Service) codingProjectAgents(ctx context.Context, access resourceAccess, projectID string) ([]gatewayapi.CodingProjectAgent, []string, error) {
 	names, err := s.queries.GatewayCodingProjectAgents(ctx, projectID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	capabilities, err := s.agentCapabilityProjections(ctx, access, "")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	agents := make([]gatewayapi.CodingProjectAgent, 0, len(names))
+	var deleted []string
 	for _, name := range names {
 		agent := gatewayapi.CodingProjectAgent{Name: name}
+		exists, err := s.queries.GatewayAgentExists(ctx, gatewaydb.GatewayAgentExistsParams{
+			TenantNamespace: access.namespace, AgentName: name,
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+		if !exists {
+			_, err := s.resolver.client.AgentzV1alpha1().Agents(access.namespace).Get(ctx, name, metav1.GetOptions{})
+			if apierrors.IsNotFound(err) {
+				deleted = append(deleted, name)
+				agents = append(agents, agent)
+				continue
+			}
+			if err != nil {
+				return nil, nil, err
+			}
+		}
 		resolved, err := s.resolver.resolveAgent(ctx, access.namespace, name)
 		switch {
 		case !capabilities[name].Use:
@@ -372,7 +394,7 @@ func (s *Service) codingProjectAgents(ctx context.Context, access resourceAccess
 		}
 		agents = append(agents, agent)
 	}
-	return agents, nil
+	return agents, deleted, nil
 }
 
 func (s *Service) deleteCodingProject(ctx context.Context, access resourceAccess, project gatewaydb.CodingProject) error {
@@ -383,7 +405,7 @@ func (s *Service) deleteCodingProject(ctx context.Context, access resourceAccess
 		return err
 	}
 	defer unlock()
-	agents, err := s.codingProjectAgents(ctx, access, project.ID)
+	agents, deleted, err := s.codingProjectAgents(ctx, access, project.ID)
 	if err != nil {
 		return err
 	}
@@ -393,6 +415,9 @@ func (s *Service) deleteCodingProject(ctx context.Context, access resourceAccess
 		}
 	}
 	for _, agent := range agents {
+		if slices.Contains(deleted, agent.Name) {
+			continue
+		}
 		client, err := s.codingClient(ctx, access.namespace, agent.Name, s.outboundHTTP)
 		if err != nil {
 			return err
@@ -416,6 +441,9 @@ func (s *Service) deleteCodingProject(ctx context.Context, access resourceAccess
 	project.Deleting = true
 	for {
 		for _, tree := range trees {
+			if slices.Contains(deleted, tree.AgentName) {
+				continue
+			}
 			if err := s.stopCodingWorktree(ctx, access, tree); err != nil {
 				return fmt.Errorf("stop checkout %s on %s: %w", tree.Branch, tree.AgentName, err)
 			}
@@ -454,7 +482,7 @@ func (s *Service) deleteCodingProject(ctx context.Context, access resourceAccess
 	if err := q.GatewayBeginCodingProjectDeletion(ctx, project.ID); err != nil {
 		return err
 	}
-	agents, err = s.codingProjectAgents(ctx, access, project.ID)
+	agents, deleted, err = s.codingProjectAgents(ctx, access, project.ID)
 	if err != nil {
 		return err
 	}
@@ -464,24 +492,26 @@ func (s *Service) deleteCodingProject(ctx context.Context, access resourceAccess
 		}
 	}
 	for _, agent := range agents {
-		for _, tree := range trees {
-			if tree.AgentName != agent.Name {
-				continue
+		if !slices.Contains(deleted, agent.Name) {
+			for _, tree := range trees {
+				if tree.AgentName != agent.Name {
+					continue
+				}
+				if err := s.deleteCodingConversations(ctx, access, tree); err != nil {
+					return fmt.Errorf("delete conversations on %s: %w", agent.Name, err)
+				}
+				if err := s.stopCodingWorktree(ctx, access, tree); err != nil {
+					return fmt.Errorf("stop checkout %s on %s: %w", tree.Branch, agent.Name, err)
+				}
 			}
-			if err := s.deleteCodingConversations(ctx, access, tree); err != nil {
-				return fmt.Errorf("delete conversations on %s: %w", agent.Name, err)
+			_, err = s.codingFilesystem(
+				ctx, access.namespace,
+				gatewaydb.CodingWorktree{AgentName: agent.Name}, project, false,
+				gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitRemove},
+			)
+			if err != nil {
+				return fmt.Errorf("delete project files on %s: %w", agent.Name, err)
 			}
-			if err := s.stopCodingWorktree(ctx, access, tree); err != nil {
-				return fmt.Errorf("stop checkout %s on %s: %w", tree.Branch, agent.Name, err)
-			}
-		}
-		_, err = s.codingFilesystem(
-			ctx, access.namespace,
-			gatewaydb.CodingWorktree{AgentName: agent.Name}, project, false,
-			gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitRemove},
-		)
-		if err != nil {
-			return fmt.Errorf("delete project files on %s: %w", agent.Name, err)
 		}
 		err = q.GatewayDeleteCodingAgentCheckouts(ctx, gatewaydb.GatewayDeleteCodingAgentCheckoutsParams{
 			ProjectID: project.ID, AgentName: agent.Name,

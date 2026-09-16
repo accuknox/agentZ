@@ -358,18 +358,17 @@ func (s *Service) stopOpenCodeSession(w http.ResponseWriter, r *http.Request, ro
 	stopped := false
 	for time.Now().Before(deadline) {
 		admitted := true
-		for _, row := range rows {
-			if row.MessageID == "" {
+		for i, row := range rows {
+			if row.MessageID == "" || row.State == string(gatewayapi.ChatInputStateDelivered) {
 				continue
 			}
-			message, err := client.SessionMessageWithResponse(
-				r.Context(),
-				agent,
-				session,
-				row.MessageID,
-				&gatewayapi.SessionMessageParams{Directory: &directory},
-			)
-			if err != nil || message.JSON200 == nil {
+			row, err = s.reconcileChatInput(r.Context(), client, directory, row)
+			if err != nil {
+				admitted = false
+				break
+			}
+			rows[i] = row
+			if row.MessageID != "" && row.State != string(gatewayapi.ChatInputStateDelivered) {
 				admitted = false
 				break
 			}
@@ -437,16 +436,7 @@ func (s *Service) stopOpenCodeSession(w http.ResponseWriter, r *http.Request, ro
 		)
 		return
 	}
-	for _, row := range rows {
-		if row.MessageID == "" {
-			continue
-		}
-		row.State = string(gatewayapi.ChatInputStateDelivered)
-		if _, err := s.saveChatInput(r.Context(), row); err != nil {
-			apiutil.WriteInternalError(w, r, err)
-			return
-		}
-	}
+
 	err = s.queries.GatewayRecoverChatInputs(r.Context(), gatewaydb.GatewayRecoverChatInputsParams{
 		WorkspaceID: access.workspaceID, AgentName: agent, SessionID: session,
 	})
@@ -566,6 +556,75 @@ func (s *Service) runChatInputs(ctx context.Context) {
 	}
 }
 
+// reconcileChatInput runs under the conversation lock so retry and Stop cannot
+// release an input while another gateway is still submitting it.
+func (s *Service) reconcileChatInput(ctx context.Context, client *gatewayapi.ClientWithResponses, directory string, row gatewaydb.ChatInput) (gatewaydb.ChatInput, error) {
+	params := &gatewayapi.SessionMessageParams{Directory: &directory}
+	message, err := client.SessionMessageWithResponse(
+		ctx, row.AgentName, row.SessionID, row.MessageID, params,
+	)
+	if err != nil {
+		return row, err
+	}
+	if message.JSON200 != nil {
+		row.State = string(gatewayapi.ChatInputStateDelivered)
+		row.Error = ""
+		return s.saveChatInput(ctx, row)
+	}
+	if message.StatusCode() != http.StatusNotFound {
+		return row, fmt.Errorf("could not confirm admission: %s", message.Status())
+	}
+	// prompt_async acknowledges before persistence. A missing message alone
+	// is not enough to release its ID, even after a gateway restart.
+	if time.Since(row.UpdatedAt) < time.Minute {
+		return row, nil
+	}
+	status, err := client.SessionStatusWithResponse(
+		ctx, row.AgentName,
+		&gatewayapi.SessionStatusParams{Directory: &directory},
+	)
+	if err != nil {
+		return row, err
+	}
+	if status.JSON200 == nil {
+		return row, errors.New("could not read agent status")
+	}
+	if value, ok := (*status.JSON200)[row.SessionID]; ok {
+		state, err := value.Discriminator()
+		if err != nil {
+			return row, err
+		}
+		if state != string(gatewayapi.Idle) {
+			return row, nil
+		}
+	}
+	active, err := s.queries.GatewayResourceBusy(
+		ctx, "session-execution/"+row.WorkspaceID+"/"+row.AgentName+"/"+row.SessionID,
+	)
+	if err != nil || active {
+		return row, err
+	}
+	// Recheck after status and execution leases to catch late persistence.
+	message, err = client.SessionMessageWithResponse(
+		ctx, row.AgentName, row.SessionID, row.MessageID, params,
+	)
+	if err != nil {
+		return row, err
+	}
+	switch {
+	case message.JSON200 != nil:
+		row.State = string(gatewayapi.ChatInputStateDelivered)
+		row.Error = ""
+	case message.StatusCode() == http.StatusNotFound:
+		row.State = string(gatewayapi.ChatInputStateFailed)
+		row.MessageID = ""
+		row.Error = "The agent did not receive this message. Retry or remove it."
+	default:
+		return row, fmt.Errorf("could not confirm admission: %s", message.Status())
+	}
+	return s.saveChatInput(ctx, row)
+}
+
 func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput) error {
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
@@ -645,30 +704,10 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 		return err
 	}
 	if row.MessageID != "" {
-		response, err := client.SessionMessageWithResponse(
-			ctx,
-			row.AgentName,
-			row.SessionID,
-			row.MessageID,
-			&gatewayapi.SessionMessageParams{Directory: &directory},
-		)
-		if err != nil {
-			return err
-		}
-		if response.JSON200 != nil {
-			row.State = string(gatewayapi.ChatInputStateDelivered)
-			_, err = s.saveChatInput(ctx, row)
-			return err
-		}
-		recent := time.Since(row.UpdatedAt) < time.Minute
-		if state == gatewayapi.ChatInputStateFailed || recent {
-			return nil
-		}
-		row.State = string(gatewayapi.ChatInputStateFailed)
-		row.Error = "Delivery could not be confirmed. Reload the conversation before sending this message again."
-		_, err = s.saveChatInput(ctx, row)
+		_, err = s.reconcileChatInput(ctx, client, directory, row)
 		return err
 	}
+
 	head, err := s.queries.GatewayHeadChatInput(ctx, gatewaydb.GatewayHeadChatInputParams{
 		WorkspaceID: row.WorkspaceID, AgentName: row.AgentName, SessionID: row.SessionID,
 	})

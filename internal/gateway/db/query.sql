@@ -728,6 +728,7 @@ SELECT
 FROM observer_trace_spans
 WHERE tenant_namespace = sqlc.arg(tenant_namespace)
   AND agent_name = sqlc.arg(agent_name)
+  AND session_id = sqlc.arg(session_id)
   AND trace_id = sqlc.arg(trace_id)
   AND (
     NOT sqlc.arg(cursor_set)::bool
@@ -773,6 +774,7 @@ WITH span_row AS (
   FROM observer_trace_spans sp
   WHERE sp.tenant_namespace = sqlc.arg(tenant_namespace)
     AND sp.agent_name = sqlc.arg(agent_name)
+    AND sp.session_id = sqlc.arg(session_id)
     AND sp.trace_id = sqlc.arg(trace_id)
     AND sp.span_id = sqlc.arg(span_id)
   ORDER BY sp.start_time ASC, sp.id ASC

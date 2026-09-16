@@ -26,7 +26,7 @@ type observabilityRequest struct {
 	limit     int
 }
 
-func (s *Service) authorizeObservability(w http.ResponseWriter, r *http.Request, agentName string) (string, bool) {
+func (s *Service) authorizeObservability(w http.ResponseWriter, r *http.Request, agentName string, sessionID *string) (string, bool) {
 	access, apiErr := s.resolveAgentAccess(r.Context(), agentName, authorization.OperationUseSharedAgent)
 	if apiErr != nil {
 		apiutil.WriteError(w, r, apiErr)
@@ -41,6 +41,24 @@ func (s *Service) authorizeObservability(w http.ResponseWriter, r *http.Request,
 		apiutil.WriteError(w, r, resourceForbidden(errors.New("effective Observability permission is missing")))
 		return "", false
 	}
+	if sessionID != nil {
+		workspace, err := s.queries.GatewayGetWorkspace(r.Context(), gatewaydb.GatewayGetWorkspaceParams{
+			ID: access.workspaceID, OrganizationID: access.organizationID,
+		})
+		if err != nil {
+			apiutil.WriteInternalError(w, r, err)
+			return "", false
+		}
+		if workspace.Type == gatewaydb.WorkspaceTypeCoding {
+			_, err := s.resolveCodingSession(
+				r.Context(), access, agentName, strings.TrimSpace(*sessionID),
+			)
+			if err != nil {
+				apiutil.WriteError(w, r, mapGatewayStoreError("get conversation", err))
+				return "", false
+			}
+		}
+	}
 	return access.namespace, true
 }
 
@@ -49,7 +67,7 @@ func (s *Service) observabilityRequest(w http.ResponseWriter, r *http.Request, a
 	if !ok {
 		return observabilityRequest{}, false
 	}
-	namespace, ok := s.authorizeObservability(w, r, agentName)
+	namespace, ok := s.authorizeObservability(w, r, agentName, nil)
 	if !ok {
 		return observabilityRequest{}, false
 	}
@@ -70,7 +88,7 @@ func (s *Service) ListTraceSessions(w http.ResponseWriter, r *http.Request, agen
 	if !ok {
 		return
 	}
-	ns, ok := s.authorizeObservability(w, r, agentName)
+	ns, ok := s.authorizeObservability(w, r, agentName, &sessionID)
 	if !ok {
 		return
 	}
@@ -198,7 +216,7 @@ func (s *Service) ListSpans(w http.ResponseWriter, r *http.Request, agentName ga
 	if !ok {
 		return
 	}
-	ns, ok := s.authorizeObservability(w, r, agentName)
+	ns, ok := s.authorizeObservability(w, r, agentName, &sessionID)
 	if !ok {
 		return
 	}
@@ -235,6 +253,7 @@ func (s *Service) ListSpans(w http.ResponseWriter, r *http.Request, agentName ga
 		gatewaydb.GatewayListSpansParams{
 			TenantNamespace: ns,
 			AgentName:       agentName,
+			SessionID:       sessionID,
 			TraceID:         traceIDBytes,
 			CursorSet:       cursorSet,
 			CursorStartTime: cursor.StartTime,
@@ -277,7 +296,7 @@ func (s *Service) GetSpanDetail(w http.ResponseWriter, r *http.Request, agentNam
 	if !ok {
 		return
 	}
-	ns, ok := s.authorizeObservability(w, r, agentName)
+	ns, ok := s.authorizeObservability(w, r, agentName, &sessionID)
 	if !ok {
 		return
 	}
@@ -310,6 +329,7 @@ func (s *Service) GetSpanDetail(w http.ResponseWriter, r *http.Request, agentNam
 		gatewaydb.GatewayGetSpanDetailParams{
 			TenantNamespace: ns,
 			AgentName:       agentName,
+			SessionID:       sessionID,
 			TraceID:         traceIDBytes,
 			SpanID:          spanIDBytes,
 		},
@@ -358,7 +378,7 @@ func (s *Service) GetMCPGraph(w http.ResponseWriter, r *http.Request, agentName 
 	if !ok {
 		return
 	}
-	ns, ok := s.authorizeObservability(w, r, agentName)
+	ns, ok := s.authorizeObservability(w, r, agentName, nil)
 	if !ok {
 		return
 	}

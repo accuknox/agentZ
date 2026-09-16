@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/tmaxmax/go-sse"
@@ -499,6 +500,143 @@ func TestCodingSuggestionModels(t *testing.T) {
 						t.Fatalf("missing cleanup: %v", paths)
 					}
 				})
+			}
+		})
+	}
+}
+
+type admissionQueries struct {
+	gatewaydb.Querier
+	row    gatewaydb.ChatInput
+	active bool
+	saves  int
+}
+
+func (q *admissionQueries) GatewayResourceBusy(context.Context, string) (bool, error) {
+	return q.active, nil
+}
+
+func (q *admissionQueries) GatewayUpdateChatInput(_ context.Context, arg gatewaydb.GatewayUpdateChatInputParams) (gatewaydb.ChatInput, error) {
+	q.saves++
+	q.row.State = arg.State
+	q.row.MessageID = arg.MessageID
+	q.row.Error = arg.Error
+	q.row.Revision++
+	return q.row, nil
+}
+
+func (q *admissionQueries) GatewayNotifyChatInputs(context.Context, gatewaydb.GatewayNotifyChatInputsParams) error {
+	return nil
+}
+
+type admissionCase struct {
+	name     string
+	messages []int
+	status   string
+	recent   bool
+	active   bool
+	failed   bool
+	want     gatewayapi.ChatInputState
+	wantErr  bool
+}
+
+// TestChatInputAdmissionRecovery checks that retry cannot release an uncertain
+// provider request, while a confirmed missing input becomes editable again.
+func TestChatInputAdmissionRecovery(t *testing.T) {
+	for _, tt := range []admissionCase{
+		{name: "admitted", messages: []int{200}, want: gatewayapi.ChatInputStateDelivered},
+		{name: "late admission", messages: []int{404, 200}, want: gatewayapi.ChatInputStateDelivered},
+		{name: "never admitted", messages: []int{404, 404}, want: gatewayapi.ChatInputStateFailed},
+		{name: "old failed input", messages: []int{404, 404}, failed: true, want: gatewayapi.ChatInputStateFailed},
+		{name: "recent admission", messages: []int{404}, recent: true, want: gatewayapi.ChatInputStateSending},
+		{name: "busy", messages: []int{404}, status: `{"ses_test":{"type":"busy"}}`, want: gatewayapi.ChatInputStateSending},
+		{name: "retrying", messages: []int{404}, status: `{"ses_test":{"type":"retry","attempt":1,"message":"retry","next":1}}`, want: gatewayapi.ChatInputStateSending},
+		{name: "execution lease", messages: []int{404}, active: true, want: gatewayapi.ChatInputStateSending},
+		{name: "provider error", messages: []int{503}, wantErr: true},
+		{name: "forbidden", messages: []int{403}, wantErr: true},
+		{name: "empty success", messages: []int{204}, wantErr: true},
+		{name: "second lookup failed", messages: []int{404, 503}, wantErr: true},
+		{name: "invalid status", messages: []int{404}, status: `invalid`, wantErr: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			row := gatewaydb.ChatInput{
+				WorkspaceID: "workspace", AgentName: "agent",
+				SessionID: "ses_test", MessageID: "msg_test", Revision: 1,
+				State:     string(gatewayapi.ChatInputStateSending),
+				UpdatedAt: time.Now().Add(-2 * time.Minute),
+			}
+			if tt.recent {
+				row.UpdatedAt = time.Now()
+			}
+			if tt.failed {
+				row.State = string(gatewayapi.ChatInputStateFailed)
+				row.Error = "Uncertain admission"
+			}
+			calls := 0
+			provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				if r.URL.Query().Get("directory") != "/checkout" {
+					t.Error("lookup lost the checkout directory")
+				}
+				if strings.HasSuffix(r.URL.Path, "/session/status") {
+					body := tt.status
+					if body == "" {
+						body = `{}`
+					}
+					fmt.Fprint(w, body)
+					return
+				}
+				if calls >= len(tt.messages) {
+					t.Error("unexpected message lookup")
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				code := tt.messages[calls]
+				calls++
+				w.WriteHeader(code)
+				if code == http.StatusOK {
+					fmt.Fprint(w, `{"info":{"id":"msg_test","sessionID":"ses_test","role":"user"},"parts":[]}`)
+				}
+				if code == http.StatusNotFound {
+					fmt.Fprint(w, `{"name":"NotFoundError","data":{"message":"message not found"}}`)
+				}
+			}))
+			defer provider.Close()
+			client, err := gatewayapi.NewClientWithResponses(provider.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			q := &admissionQueries{row: row, active: tt.active}
+			s := &Service{queries: q}
+			got, err := s.reconcileChatInput(t.Context(), client, "/checkout", row)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("reconcile error = %v, want error %v", err, tt.wantErr)
+			}
+			if calls != len(tt.messages) {
+				t.Fatalf("message lookups = %d, want %d", calls, len(tt.messages))
+			}
+			if tt.wantErr {
+				if q.saves != 0 {
+					t.Fatal("provider failure changed the persisted input")
+				}
+				return
+			}
+			if got.State != string(tt.want) {
+				t.Fatalf("state = %s, want %s", got.State, tt.want)
+			}
+			switch tt.want {
+			case gatewayapi.ChatInputStateSending:
+				if q.saves != 0 || got.MessageID != row.MessageID {
+					t.Fatal("uncertain admission was released")
+				}
+			case gatewayapi.ChatInputStateFailed:
+				if q.saves != 1 || got.MessageID != "" || got.Error == "" {
+					t.Fatal("missing message did not become a retryable failure")
+				}
+			case gatewayapi.ChatInputStateDelivered:
+				if q.saves != 1 || got.MessageID != row.MessageID || got.Error != "" {
+					t.Fatal("admitted message was not recorded as delivered")
+				}
 			}
 		})
 	}

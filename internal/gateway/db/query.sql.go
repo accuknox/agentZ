@@ -1995,8 +1995,9 @@ WITH span_row AS (
   FROM observer_trace_spans sp
   WHERE sp.tenant_namespace = $1
     AND sp.agent_name = $2
-    AND sp.trace_id = $3
-    AND sp.span_id = $4
+    AND sp.session_id = $3
+    AND sp.trace_id = $4
+    AND sp.span_id = $5
   ORDER BY sp.start_time ASC, sp.id ASC
   LIMIT 1
 )
@@ -2042,6 +2043,7 @@ LEFT JOIN observer_trace_span_payloads p
 type GatewayGetSpanDetailParams struct {
 	TenantNamespace string `json:"tenant_namespace"`
 	AgentName       string `json:"agent_name"`
+	SessionID       string `json:"session_id"`
 	TraceID         []byte `json:"trace_id"`
 	SpanID          []byte `json:"span_id"`
 }
@@ -2084,6 +2086,7 @@ func (q *Queries) GatewayGetSpanDetail(ctx context.Context, arg GatewayGetSpanDe
 	row := q.db.QueryRow(ctx, gatewayGetSpanDetail,
 		arg.TenantNamespace,
 		arg.AgentName,
+		arg.SessionID,
 		arg.TraceID,
 		arg.SpanID,
 	)
@@ -4657,22 +4660,24 @@ SELECT
 FROM observer_trace_spans
 WHERE tenant_namespace = $1
   AND agent_name = $2
-  AND trace_id = $3
+  AND session_id = $3
+  AND trace_id = $4
   AND (
-    NOT $4::bool
-    OR start_time > $5
+    NOT $5::bool
+    OR start_time > $6
     OR (
-      start_time = $5
-      AND id > $6
+      start_time = $6
+      AND id > $7
     )
   )
 ORDER BY start_time ASC, id ASC
-LIMIT $7
+LIMIT $8
 `
 
 type GatewayListSpansParams struct {
 	TenantNamespace string    `json:"tenant_namespace"`
 	AgentName       string    `json:"agent_name"`
+	SessionID       string    `json:"session_id"`
 	TraceID         []byte    `json:"trace_id"`
 	CursorSet       bool      `json:"cursor_set"`
 	CursorStartTime time.Time `json:"cursor_start_time"`
@@ -4712,6 +4717,7 @@ func (q *Queries) GatewayListSpans(ctx context.Context, arg GatewayListSpansPara
 	rows, err := q.db.Query(ctx, gatewayListSpans,
 		arg.TenantNamespace,
 		arg.AgentName,
+		arg.SessionID,
 		arg.TraceID,
 		arg.CursorSet,
 		arg.CursorStartTime,

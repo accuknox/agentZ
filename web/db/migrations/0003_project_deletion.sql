@@ -1,1 +1,0 @@
-ALTER TABLE "coding_projects" ADD COLUMN "deleting" boolean DEFAULT false NOT NULL;

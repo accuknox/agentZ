@@ -19,15 +19,8 @@
     {
       "idx": 2,
       "version": "7",
-      "when": 1789382311594,
+      "when": 1789569013094,
       "tag": "0002_coding_workspaces",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1789496604031,
-      "tag": "0003_project_deletion",
       "breakpoints": true
     }
   ]

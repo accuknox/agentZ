@@ -7,6 +7,7 @@ CREATE TABLE "coding_projects" (
 	"repository_id" bigint NOT NULL,
 	"repository" text NOT NULL,
 	"last_agent_name" text,
+	"deleting" boolean DEFAULT false NOT NULL,
 	"default_branch" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "coding_projects_workspace_id_uidx" UNIQUE("workspace_id","id")

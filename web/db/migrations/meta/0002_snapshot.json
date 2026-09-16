@@ -1,5 +1,5 @@
 {
-  "id": "19afd6f9-5dfe-4012-a7ee-563fcb6b91c4",
+  "id": "68e94c05-4977-44c6-950c-e860cefc7a87",
   "prevId": "6586b51b-0bfa-4813-9096-e41a48488b61",
   "version": "7",
   "dialect": "postgresql",
@@ -829,6 +829,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "deleting": {
+          "name": "deleting",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "default_branch": {
           "name": "default_branch",

@@ -14,7 +14,7 @@ export function GitHubConnectionButton({
   disabled?: boolean
 }) {
   const { pending } = useFormStatus()
-  const label = connected ? "Disconnect GitHub" : "Connect GitHub"
+  const label = connected ? "Disconnect" : "Connect GitHub"
   const pendingLabel = connected ? "Disconnecting..." : "Connecting..."
 
   return (

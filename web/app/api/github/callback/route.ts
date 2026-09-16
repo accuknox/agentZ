@@ -9,7 +9,6 @@ export async function GET(request: NextRequest) {
   try {
     if (!code || !state) throw new Error("GitHub authorization was cancelled")
     await finishGitHubConnection(code, state)
-    target.searchParams.set("github", "connected")
   } catch {
     // OAuth errors can contain request bodies with tokens. Never log them.
     target.searchParams.set("github", "failed")

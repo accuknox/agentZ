@@ -4,7 +4,8 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
 import { headers } from "next/headers"
 import { and, eq, gt } from "drizzle-orm"
 import { Octokit } from "@octokit/rest"
-import { deleteAuthorization } from "@octokit/oauth-methods"
+import { checkToken, deleteAuthorization } from "@octokit/oauth-methods"
+import { RequestError } from "@octokit/request-error"
 import { z } from "zod"
 import { getAuth } from "@/lib/auth"
 import { getEnv } from "@/lib/env"
@@ -173,13 +174,20 @@ export async function disconnectGitHub() {
       .from(schema.githubConnections)
       .where(eq(schema.githubConnections.userId, actor.user.id))
     if (!connection) return
+    const options = {
+      ...githubApp(),
+      token: openToken(connection.accessToken, actor.user.id, connection.githubUserId),
+    }
     try {
-      await deleteAuthorization({
-        ...githubApp(),
-        token: openToken(connection.accessToken, actor.user.id, connection.githubUserId),
-      })
+      await deleteAuthorization(options)
     } catch {
-      throw new Error("GitHub could not confirm revocation. Retry disconnecting.")
+      // A revoked token cannot revoke its grant again. Confirm that it is
+      // invalid before removing the connection so outages remain retryable.
+      const invalid = await checkToken(options).then(
+        () => false,
+        (error: unknown) => error instanceof RequestError && error.status === 404
+      )
+      if (!invalid) throw new Error("GitHub could not confirm revocation. Retry disconnecting.")
     }
     await tx
       .delete(schema.githubConnections)

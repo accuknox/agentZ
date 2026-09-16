@@ -8,8 +8,7 @@ import { beginGitHubConnection, disconnectGitHub, githubActor } from "@/lib/codi
 import { getDB, schema } from "@/db"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { GitHubLight, GitHubDark } from "@ridemountainpig/svgl-react"
-import { Badge } from "@/components/ui/badge"
-import { CircleAlert, Check } from "lucide-react"
+import { CircleAlert } from "lucide-react"
 import { GitHubConnectionButton } from "./github-connection-button"
 
 export async function GitHubConnection({
@@ -19,7 +18,7 @@ export async function GitHubConnection({
 }) {
   const { github: result } = z
     .object({
-      github: z.enum(["connected", "failed", "disconnect_failed"]).optional().catch(undefined),
+      github: z.enum(["failed", "disconnect_failed"]).optional().catch(undefined),
     })
     .parse(await searchParams)
   const actor = await githubActor()
@@ -35,39 +34,23 @@ export async function GitHubConnection({
           Connect GitHub to browse repositories, push commits, and open pull requests.
         </p>
       </div>
-      {result === "failed" ? (
+      {result ? (
         <Alert variant="destructive">
           <CircleAlert aria-hidden="true" />
           <AlertDescription>
-            Could not connect to GitHub. Try again and complete authorization in the same browser
-            session.
+            {result === "disconnect_failed"
+              ? "Could not disconnect GitHub. Try again."
+              : "Could not connect to GitHub. Try again."}
           </AlertDescription>
         </Alert>
-      ) : null}
-      {result === "disconnect_failed" ? (
-        <Alert variant="destructive">
-          <CircleAlert aria-hidden="true" />
-          <AlertDescription>
-            Could not disconnect GitHub. Your account is still connected. Try again.
-          </AlertDescription>
-        </Alert>
-      ) : null}
-      {result === "connected" && connection ? (
-        <p role="status" className="text-primary flex items-center gap-2 text-sm">
-          <Check className="size-4" aria-hidden="true" />
-          GitHub connected.
-        </p>
       ) : null}
       {connection ? (
-        <div className="bg-card flex flex-wrap items-center gap-3 rounded-lg p-4">
+        <div className="bg-card flex w-full max-w-2xl items-center gap-3 rounded-lg p-4">
           <div className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg">
             <GitHubLight className="size-5 dark:hidden" aria-hidden="true" />
             <GitHubDark className="hidden size-5 dark:block" aria-hidden="true" />
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{connection.login}</p>
-            <Badge variant="successPlain">Connected</Badge>
-          </div>
+          <p className="min-w-0 flex-1 truncate text-sm font-medium">{connection.login}</p>
           <form
             action={async () => {
               "use server"
@@ -77,6 +60,7 @@ export async function GitHubConnection({
                 redirect("/settings/account?github=disconnect_failed")
               }
               revalidatePath("/settings/account")
+              redirect("/settings/account")
             }}
           >
             <GitHubConnectionButton connected />

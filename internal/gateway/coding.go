@@ -627,6 +627,22 @@ func (s *Service) PrepareCodingCheckout(w http.ResponseWriter, r *http.Request) 
 		))
 		return
 	}
+	root := path.Join(
+		"Projects",
+		base64.RawURLEncoding.EncodeToString([]byte(project.OwnerID)),
+		"github",
+		project.ID,
+	)
+	trees, err := q.GatewayListCodingWorktrees(
+		r.Context(),
+		gatewaydb.GatewayListCodingWorktreesParams{
+			ProjectID: project.ID, WorkspaceID: access.workspaceID,
+		},
+	)
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
 	var tree gatewaydb.CodingWorktree
 	treeID := req.Id
 	if req.WorktreeId != nil {
@@ -652,30 +668,34 @@ func (s *Service) PrepareCodingCheckout(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		id := req.Id
-		root := path.Join(
-			"Projects",
-			base64.RawURLEncoding.EncodeToString([]byte(project.OwnerID)),
-			"github",
-			project.ID,
-		)
 		directory, branch := root+"/worktrees/"+id, "chore/"+id
 		if req.MainCheckout != nil && *req.MainCheckout {
 			directory, branch = root+"/repo", project.DefaultBranch
+			// Another draft may have initialized the main checkout while this
+			// draft still referred to it by choice rather than by worktree ID.
+			for _, existing := range trees {
+				if existing.AgentName == req.AgentName && existing.Directory == directory {
+					tree = existing
+					break
+				}
+			}
 		}
-		tree, err = q.GatewayCreateCodingWorktree(
-			r.Context(),
-			gatewaydb.GatewayCreateCodingWorktreeParams{
-				ID:          id,
-				WorkspaceID: access.workspaceID,
-				ProjectID:   project.ID,
-				AgentName:   req.AgentName,
-				Directory:   directory,
-				Branch:      branch,
-			},
-		)
-		if err != nil {
-			apiutil.WriteError(w, r, mapGatewayStoreError("create worktree", err))
-			return
+		if tree.ID == "" {
+			tree, err = q.GatewayCreateCodingWorktree(
+				r.Context(),
+				gatewaydb.GatewayCreateCodingWorktreeParams{
+					ID:          id,
+					WorkspaceID: access.workspaceID,
+					ProjectID:   project.ID,
+					AgentName:   req.AgentName,
+					Directory:   directory,
+					Branch:      branch,
+				},
+			)
+			if err != nil {
+				apiutil.WriteError(w, r, mapGatewayStoreError("create worktree", err))
+				return
+			}
 		}
 	}
 	if tree.Deleting {
@@ -688,14 +708,6 @@ func (s *Service) PrepareCodingCheckout(w http.ResponseWriter, r *http.Request) 
 	}
 	var bundle []byte
 	if !tree.Ready {
-		trees, err := q.GatewayListCodingWorktrees(
-			r.Context(),
-			gatewaydb.GatewayListCodingWorktreesParams{ProjectID: project.ID, WorkspaceID: project.WorkspaceID},
-		)
-		if err != nil {
-			apiutil.WriteInternalError(w, r, err)
-			return
-		}
 		ready := false
 		for _, existing := range trees {
 			ready = ready || existing.AgentName == tree.AgentName && existing.Ready
@@ -741,13 +753,8 @@ func (s *Service) PrepareCodingCheckout(w http.ResponseWriter, r *http.Request) 
 		WorkspaceID: access.workspaceID,
 		ProjectID:   project.ID,
 		AgentName:   tree.AgentName,
-		Directory: path.Join(
-			"Projects",
-			base64.RawURLEncoding.EncodeToString([]byte(project.OwnerID)),
-			"github",
-			project.ID,
-			"repo",
-		), Branch: project.DefaultBranch,
+		Directory:   root + "/repo",
+		Branch:      project.DefaultBranch,
 	})
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)

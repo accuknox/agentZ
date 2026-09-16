@@ -16,6 +16,7 @@ type Querier interface {
 	GatewayAdoptCodingWorktree(ctx context.Context, arg GatewayAdoptCodingWorktreeParams) (CodingWorktree, error)
 	GatewayAgentExists(ctx context.Context, arg GatewayAgentExistsParams) (bool, error)
 	GatewayAssignWorkspaceAdmins(ctx context.Context, arg GatewayAssignWorkspaceAdminsParams) (int64, error)
+	GatewayBeginCodingProjectDeletion(ctx context.Context, id string) error
 	GatewayBindCodingSession(ctx context.Context, arg GatewayBindCodingSessionParams) error
 	GatewayChatInputsStopping(ctx context.Context, arg GatewayChatInputsStoppingParams) (bool, error)
 	GatewayClaimCleanupJob(ctx context.Context, arg GatewayClaimCleanupJobParams) (CleanupJob, error)
@@ -24,6 +25,7 @@ type Querier interface {
 	GatewayClearAgentChatPreferences(ctx context.Context, arg GatewayClearAgentChatPreferencesParams) error
 	GatewayCodingConnection(ctx context.Context, userID string) (GithubConnection, error)
 	GatewayCodingCooldown(ctx context.Context, ownerID string) (time.Time, error)
+	GatewayCodingProjectAgents(ctx context.Context, projectID string) ([]string, error)
 	GatewayCodingProjectIdentity(ctx context.Context, id string) (GatewayCodingProjectIdentityRow, error)
 	GatewayCodingWorktreeBound(ctx context.Context, worktreeID string) (bool, error)
 	GatewayCompleteCleanupJob(ctx context.Context, arg GatewayCompleteCleanupJobParams) (int64, error)
@@ -43,6 +45,7 @@ type Querier interface {
 	GatewayDeleteAgentOwner(ctx context.Context, arg GatewayDeleteAgentOwnerParams) (int64, error)
 	GatewayDeleteAgentShare(ctx context.Context, arg GatewayDeleteAgentShareParams) (int64, error)
 	GatewayDeleteChatSession(ctx context.Context, arg GatewayDeleteChatSessionParams) error
+	GatewayDeleteCodingAgentCheckouts(ctx context.Context, arg GatewayDeleteCodingAgentCheckoutsParams) error
 	GatewayDeleteCodingConversations(ctx context.Context, arg GatewayDeleteCodingConversationsParams) error
 	GatewayDeleteCodingProject(ctx context.Context, arg GatewayDeleteCodingProjectParams) (int64, error)
 	GatewayDeleteCodingWorktree(ctx context.Context, id string) error
@@ -91,6 +94,7 @@ type Querier interface {
 	GatewayListCodingOperations(ctx context.Context, arg GatewayListCodingOperationsParams) ([]CodingOperation, error)
 	GatewayListCodingProjects(ctx context.Context, arg GatewayListCodingProjectsParams) ([]CodingProject, error)
 	GatewayListCodingThreads(ctx context.Context, arg GatewayListCodingThreadsParams) ([]GatewayListCodingThreadsRow, error)
+	GatewayListCodingWorktreeThreads(ctx context.Context, worktreeID string) ([]CodingThread, error)
 	GatewayListCodingWorktrees(ctx context.Context, arg GatewayListCodingWorktreesParams) ([]CodingWorktree, error)
 	GatewayListEventTrailActors(ctx context.Context, arg GatewayListEventTrailActorsParams) ([]GatewayListEventTrailActorsRow, error)
 	GatewayListEventTrailCategories(ctx context.Context, arg GatewayListEventTrailCategoriesParams) ([]string, error)
@@ -151,6 +155,7 @@ type Querier interface {
 	GatewayTouchCodingSnapshot(ctx context.Context, arg GatewayTouchCodingSnapshotParams) (CodingSnapshot, error)
 	GatewayTransferAgentOwner(ctx context.Context, arg GatewayTransferAgentOwnerParams) (AgentOwner, error)
 	GatewayTransitionWorkspaceProvisioning(ctx context.Context, arg GatewayTransitionWorkspaceProvisioningParams) (int64, error)
+	GatewayTryLockResource(ctx context.Context, identity string) (bool, error)
 	GatewayUnlockResource(ctx context.Context, arg GatewayUnlockResourceParams) (bool, error)
 	GatewayUnlockResources(ctx context.Context) error
 	GatewayUpdateChatInput(ctx context.Context, arg GatewayUpdateChatInputParams) (ChatInput, error)

@@ -122,7 +122,7 @@ paths:
       operationId: deleteCodingProject
       tags: [coding]
       responses:
-        '204': {description: Project and associated conversations deleted.}
+        '204': {description: Project, conversations: '', and all managed checkout files deleted.: ''}
         default:
           description: Request failed.
           content:
@@ -9847,13 +9847,14 @@ components:
       additionalProperties: false
       properties:
         last_agent_name: {type: string}
+        deleting: {type: boolean}
         id: {type: string, pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'}
         name: {type: string}
         repository_id: {type: integer, format: int64}
         repository: {type: string}
         default_branch: {type: string}
         created_at: {type: string, format: date-time}
-      required: [id, name, repository_id, repository, default_branch, created_at]
+      required: [id, name, repository_id, repository, default_branch, created_at, deleting]
     CreateCodingProjectRequest:
       type: object
       additionalProperties: false
@@ -9883,18 +9884,28 @@ components:
         repository: {type: string}
         worktree: {$ref: '#/components/schemas/CodingWorktree'}
       required: [id, session_id, repository_id, repository, worktree]
+    CodingProjectAgent:
+      type: object
+      additionalProperties: false
+      properties:
+        name: {type: string}
+        delete_disabled_reason: {type: string}
+      required: [name]
     CodingProjectDetail:
       type: object
       additionalProperties: false
       properties:
         project: {$ref: '#/components/schemas/CodingProject'}
+        agents:
+          type: array
+          items: {$ref: '#/components/schemas/CodingProjectAgent'}
         worktrees:
           type: array
           items: {$ref: '#/components/schemas/CodingWorktree'}
         threads:
           type: array
           items: {$ref: '#/components/schemas/CodingThread'}
-      required: [project, worktrees, threads]
+      required: [project, worktrees, threads, agents]
     PrepareCodingCheckoutRequest:
       type: object
       additionalProperties: false

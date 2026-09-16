@@ -225,6 +225,7 @@ export type {
   CodingOperation,
   CodingOperationRequest,
   CodingProject,
+  CodingProjectAgent,
   CodingProjectDetail,
   CodingPullRequest,
   CodingPullRequestText,

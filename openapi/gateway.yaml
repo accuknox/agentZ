@@ -1803,6 +1803,8 @@ components:
           type: string
         default_branch:
           type: string
+        deleting:
+          type: boolean
         id:
           pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
           type: string
@@ -1822,10 +1824,25 @@ components:
       - repository
       - default_branch
       - created_at
+      - deleting
+      type: object
+    CodingProjectAgent:
+      additionalProperties: false
+      properties:
+        delete_disabled_reason:
+          type: string
+        name:
+          type: string
+      required:
+      - name
       type: object
     CodingProjectDetail:
       additionalProperties: false
       properties:
+        agents:
+          items:
+            $ref: '#/components/schemas/CodingProjectAgent'
+          type: array
         project:
           $ref: '#/components/schemas/CodingProject'
         threads:
@@ -1840,6 +1857,7 @@ components:
       - project
       - worktrees
       - threads
+      - agents
       type: object
     CodingPullRequest:
       additionalProperties: false
@@ -27415,7 +27433,9 @@ paths:
       operationId: deleteCodingProject
       responses:
         "204":
-          description: Project and associated conversations deleted.
+          and all managed checkout files deleted.: null
+          conversations: null
+          description: Project
         default:
           content:
             application/json:
@@ -35864,6 +35884,7 @@ paths:
       summary: Dispose instance
       tags:
       - instance
+      - coding
       x-codeSamples:
       - lang: js
         source: |-

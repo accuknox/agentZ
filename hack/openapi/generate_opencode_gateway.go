@@ -347,6 +347,11 @@ func rewriteOpenCode(doc map[string]any) (map[string]any, routeManifest, error) 
 			if !ok {
 				return nil, routeManifest{}, fmt.Errorf("%s %s has no operationId", method, path)
 			}
+			// Coding cleanup uses native disposal without generating clients for
+			// every unrelated endpoint tagged as an instance operation.
+			if operationID == "instance.dispose" {
+				op["tags"] = []any{"instance", "coding"}
+			}
 			operation, capability, err := opencodeOperation(operationID)
 			if err != nil {
 				return nil, routeManifest{}, fmt.Errorf("map %s %s: %w", method, path, err)

@@ -535,7 +535,7 @@ function ReauthDialog({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Confirm it&apos;s you</DialogTitle>
+        <DialogTitle>Confirm it is you</DialogTitle>
         <DialogDescription>
           Confirm your identity before {action === "enable" ? "enabling" : "disabling"} two-factor
           authentication.

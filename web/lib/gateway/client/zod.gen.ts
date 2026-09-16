@@ -2450,6 +2450,7 @@ export const zDashboardTablePage = z.object({
 
 export const zCodingProject = z.object({
   last_agent_name: z.string().optional(),
+  deleting: z.boolean(),
   id: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
   name: z.string(),
   repository_id: z.coerce
@@ -2523,8 +2524,14 @@ export const zCodingThread = z.object({
   worktree: zCodingWorktree,
 })
 
+export const zCodingProjectAgent = z.object({
+  name: z.string(),
+  delete_disabled_reason: z.string().optional(),
+})
+
 export const zCodingProjectDetail = z.object({
   project: zCodingProject,
+  agents: z.array(zCodingProjectAgent),
   worktrees: z.array(zCodingWorktree),
   threads: z.array(zCodingThread),
 })
@@ -3183,7 +3190,7 @@ export const zListCodingProjectsResponse = z.array(zCodingProject)
 export const zCreateCodingProjectResponse = zCodingProject
 
 /**
- * Project and associated conversations deleted.
+ * Project
  */
 export const zDeleteCodingProjectResponse = z.void()
 

@@ -958,6 +958,7 @@ type CodingProject struct {
 	RepositoryID  int64              `json:"repository_id"`
 	Repository    string             `json:"repository"`
 	LastAgentName pgtype.Text        `json:"last_agent_name"`
+	Deleting      bool               `json:"deleting"`
 	DefaultBranch string             `json:"default_branch"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 }

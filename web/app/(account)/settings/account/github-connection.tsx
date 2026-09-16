@@ -6,11 +6,11 @@ import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { beginGitHubConnection, disconnectGitHub, githubActor } from "@/lib/coding/github"
 import { getDB, schema } from "@/db"
-import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { GitHubLight, GitHubDark } from "@ridemountainpig/svgl-react"
 import { Badge } from "@/components/ui/badge"
-import { CircleAlert, Check, Unplug } from "lucide-react"
+import { CircleAlert, Check } from "lucide-react"
+import { GitHubConnectionButton } from "./github-connection-button"
 
 export async function GitHubConnection({
   searchParams,
@@ -30,7 +30,7 @@ export async function GitHubConnection({
   return (
     <section className="flex flex-col gap-4 px-4 md:px-6">
       <div>
-        <h2 className="text-lg font-semibold">GitHub for coding</h2>
+        <h2 className="text-lg font-semibold">GitHub</h2>
         <p className="text-muted-foreground mt-1 text-sm">
           Connect GitHub to browse repositories, push commits, and open pull requests.
         </p>
@@ -39,7 +39,7 @@ export async function GitHubConnection({
         <Alert variant="destructive">
           <CircleAlert aria-hidden="true" />
           <AlertDescription>
-            GitHub could not connect. Start again and complete authorization in the same signed-in
+            Could not connect to GitHub. Try again and complete authorization in the same browser
             session.
           </AlertDescription>
         </Alert>
@@ -48,12 +48,11 @@ export async function GitHubConnection({
         <Alert variant="destructive">
           <CircleAlert aria-hidden="true" />
           <AlertDescription>
-            GitHub could not confirm revocation. Your connection is still saved. Try disconnecting
-            again.
+            Could not disconnect GitHub. Your account is still connected. Try again.
           </AlertDescription>
         </Alert>
       ) : null}
-      {result === "connected" ? (
+      {result === "connected" && connection ? (
         <p role="status" className="text-primary flex items-center gap-2 text-sm">
           <Check className="size-4" aria-hidden="true" />
           GitHub connected.
@@ -80,10 +79,7 @@ export async function GitHubConnection({
               revalidatePath("/settings/account")
             }}
           >
-            <Button variant="outline" type="submit">
-              <Unplug data-icon="inline-start" />
-              Disconnect GitHub
-            </Button>
+            <GitHubConnectionButton connected />
           </form>
         </div>
       ) : (
@@ -93,16 +89,12 @@ export async function GitHubConnection({
             redirect(await beginGitHubConnection())
           }}
         >
-          <Button disabled={!getEnv().CODING_GITHUB_CLIENT_ID} variant="outline" type="submit">
-            <GitHubLight data-icon="inline-start" className="dark:hidden" />
-            <GitHubDark data-icon="inline-start" className="hidden dark:block" />
-            Connect GitHub
-          </Button>
+          <GitHubConnectionButton disabled={!getEnv().CODING_GITHUB_CLIENT_ID} />
         </form>
       )}
       {!getEnv().CODING_GITHUB_CLIENT_ID ? (
         <p className="text-muted-foreground text-sm">
-          Your administrator must configure the Coding GitHub App before accounts can connect.
+          GitHub connections are not available yet. Contact your administrator to enable them.
         </p>
       ) : null}
     </section>

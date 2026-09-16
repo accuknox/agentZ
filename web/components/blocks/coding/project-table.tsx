@@ -10,7 +10,7 @@ import {
   type ColumnDef,
   type SortingState,
 } from "@tanstack/react-table"
-import { Ellipsis, Pencil, Settings2 } from "lucide-react"
+import { Ellipsis, Pencil, Trash2 } from "lucide-react"
 import { GitHubDark, GitHubLight } from "@ridemountainpig/svgl-react"
 import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
 import { Button } from "@/components/ui/button"
@@ -18,9 +18,11 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { RelativeDateTime } from "@/components/ui/table"
+import type { ProjectActions } from "./projects"
 import type { CodingProject } from "@/lib/gateway/client"
 
 const columnLayout = {
@@ -89,7 +91,7 @@ export function ProjectTable({
   projects: CodingProject[]
   rowHref: (project: CodingProject) => Route
   emptyState: ReactNode
-  onProjectAction: (project: CodingProject, action: "settings" | "rename") => void
+  onProjectAction: ProjectActions["manage"]
   pending: boolean
 }) {
   "use no memo"
@@ -119,11 +121,15 @@ export function ProjectTable({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => onProjectAction(row.original, "settings")}>
-                  <Settings2 /> Project settings
-                </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => onProjectAction(row.original, "rename")}>
                   <Pencil /> Rename project
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  onSelect={() => onProjectAction(row.original, "delete")}
+                >
+                  <Trash2 /> Delete project
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

@@ -2302,6 +2302,27 @@ WHERE id = sqlc.arg(id) AND workspace_id = sqlc.arg(workspace_id) AND owner_id =
 UPDATE coding_projects SET name = sqlc.arg(name)
 WHERE id = sqlc.arg(id) AND workspace_id = sqlc.arg(workspace_id) AND owner_id = sqlc.arg(owner_id);
 
+-- name: GatewayBeginCodingProjectDeletion :exec
+WITH project AS (UPDATE coding_projects SET deleting = true WHERE id = @id)
+UPDATE coding_worktrees SET deleting = true WHERE project_id = @id;
+
+-- name: GatewayCodingProjectAgents :many
+SELECT DISTINCT agent_name FROM coding_worktrees WHERE project_id = @project_id
+ORDER BY agent_name;
+
+-- name: GatewayDeleteCodingAgentCheckouts :exec
+WITH threads AS (
+  DELETE FROM coding_threads WHERE worktree_id IN (
+    SELECT id FROM coding_worktrees WHERE project_id = @project_id AND agent_name = @agent_name
+  )
+), snapshots AS (
+  DELETE FROM coding_snapshots WHERE project_id = @project_id AND agent_name = @agent_name
+)
+DELETE FROM coding_worktrees WHERE coding_worktrees.project_id = @project_id AND coding_worktrees.agent_name = @agent_name;
+
+-- name: GatewayListCodingWorktreeThreads :many
+SELECT * FROM coding_threads WHERE worktree_id = @worktree_id;
+
 -- name: GatewayDeleteCodingProject :execrows
 DELETE FROM coding_projects
 WHERE coding_projects.id = sqlc.arg(id) AND coding_projects.workspace_id = sqlc.arg(workspace_id) AND coding_projects.owner_id = sqlc.arg(owner_id)
@@ -2363,6 +2384,9 @@ DELETE FROM coding_worktrees WHERE coding_worktrees.id = sqlc.arg(id);
 SELECT CASE WHEN @shared::boolean
   THEN pg_advisory_lock_shared(hashtextextended(@identity::text, 0))
   ELSE pg_advisory_lock(hashtextextended(@identity::text, 0)) END;
+
+-- name: GatewayTryLockResource :one
+SELECT pg_try_advisory_lock(hashtextextended(@identity::text, 0))::boolean;
 
 -- name: GatewayResourceBusy :one
 SELECT (NOT pg_try_advisory_xact_lock(hashtextextended(@identity::text, 0)))::boolean AS busy;
@@ -2429,6 +2453,7 @@ ORDER BY op.created_at DESC;
 UPDATE coding_operations SET lease_token = @lease_token, lease_until = now() + interval '60 seconds',
 result = jsonb_set(result, '{state}', '"running"')
 WHERE id = (SELECT queued.id FROM coding_operations queued WHERE queued.result->>'state' = 'queued'
+AND EXISTS (SELECT 1 FROM coding_projects p WHERE p.id = queued.project_id AND NOT p.deleting)
 AND NOT EXISTS (SELECT 1 FROM coding_operations running WHERE running.project_id = queued.project_id
 AND running.result->>'state' = 'running')
 ORDER BY queued.created_at FOR UPDATE OF queued SKIP LOCKED LIMIT 1)
@@ -2471,6 +2496,7 @@ UPDATE coding_snapshots SET lease_until = now() + interval '150 seconds'
 WHERE (project_id, agent_name, worktree_id) = (
 SELECT project_id, agent_name, worktree_id FROM coding_snapshots
 WHERE next_refresh <= now() AND lease_until <= now()
+AND EXISTS (SELECT 1 FROM coding_projects p WHERE p.id = coding_snapshots.project_id AND NOT p.deleting)
 ORDER BY next_refresh FOR UPDATE SKIP LOCKED LIMIT 1)
 RETURNING *;
 

@@ -2219,6 +2219,7 @@ export type DashboardTablePage = {
 
 export type CodingProject = {
   last_agent_name?: string
+  deleting: boolean
   id: string
   name: string
   repository_id: number
@@ -2250,8 +2251,14 @@ export type CodingThread = {
   worktree: CodingWorktree
 }
 
+export type CodingProjectAgent = {
+  name: string
+  delete_disabled_reason?: string
+}
+
 export type CodingProjectDetail = {
   project: CodingProject
+  agents: Array<CodingProjectAgent>
   worktrees: Array<CodingWorktree>
   threads: Array<CodingThread>
 }
@@ -2939,7 +2946,7 @@ export type DeleteCodingProjectError = DeleteCodingProjectErrors[keyof DeleteCod
 
 export type DeleteCodingProjectResponses = {
   /**
-   * Project and associated conversations deleted.
+   * Project
    */
   204: void
 }

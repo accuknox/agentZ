@@ -4,8 +4,15 @@ import { useCallback, useEffect, useRef, useState, useTransition, type ReactNode
 import { useRouter } from "@bprogress/next/app"
 import Link from "next/link"
 import { LegendList, type LegendListRef } from "@legendapp/list/react"
-import { useSearchParams } from "next/navigation"
-import { infiniteQueryOptions, useInfiniteQuery, useQueryClient } from "@tanstack/react-query"
+import { GitHubDark, GitHubLight } from "@ridemountainpig/svgl-react"
+import { usePathname, useSearchParams } from "next/navigation"
+import {
+  infiniteQueryOptions,
+  queryOptions,
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query"
 import {
   CircleAlert,
   ChevronDown,
@@ -14,17 +21,15 @@ import {
   GitBranch,
   Lock,
   Plus,
-  Trash2,
 } from "lucide-react"
 import { authClient } from "@/lib/auth-client"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
-import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty"
 import { Field, FieldGroup, FieldLabel, FieldDescription } from "@/components/ui/field"
 import { Spinner } from "@/components/ui/spinner"
+import { DisabledReason } from "@/components/ui/tooltip"
 import {
   Command,
   CommandInput,
@@ -51,17 +56,11 @@ import {
 } from "@/components/administration"
 import { ProjectTable } from "./project-table"
 import { codingDrafts, useCodingDrafts } from "./drafts"
-import type {
-  CodingProject,
-  CodingProjectDetail,
-  CodingWorktree,
-  CodingRepositoryItem,
-} from "@/lib/gateway/client"
+import type { CodingProject, CodingRepositoryItem } from "@/lib/gateway/client"
 import {
   deleteCodingProject,
   getCodingProject,
   renameCodingProject,
-  runCodingGit,
   listCodingRepositories,
   createCodingProject,
   listCodingRefs,
@@ -134,7 +133,7 @@ export function ProjectPicker({
 
 export type ProjectActions = {
   add: () => void
-  manage: (project: CodingProject, action: "settings" | "rename" | "delete") => void
+  manage: (project: CodingProject, action: "rename" | "delete") => void
 }
 
 export function Projects({
@@ -158,15 +157,33 @@ export function Projects({
   const router = useRouter()
   const queryClient = useQueryClient()
   const search = useSearchParams()
+  const pathname = usePathname()
   const [creatingProject, setAdding] = useState(false)
   const adding = creatingProject || (!children && search.get("new") === "true")
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const [targetProject, setTargetProject] = useState<CodingProject>()
-  const [settings, setSettings] = useState<CodingProjectDetail>()
   const [editingName, setEditingName] = useState("")
-  const [dialog, setDialog] = useState<
-    { action: "rename" | "delete" } | { action: "remove"; tree: CodingWorktree }
-  >()
+  const [dialog, setDialog] = useState<"rename" | "delete">()
+  const projectId = targetProject?.id
+  const projectQuery = useQuery(
+    queryOptions({
+      queryKey: ["coding", "project", workspaceId, actor?.user.id, projectId],
+      queryFn: async ({ signal }) => {
+        if (!projectId) throw new Error("No project selected")
+        const result = await getCodingProject({
+          baseUrl: await getGatewayBaseURL(),
+          headers: { "X-AgentZ-Workspace-ID": workspaceId },
+          path: { projectId },
+          signal,
+        })
+        if (result.error) throw new Error(result.error.message)
+        return result.data
+      },
+      enabled: Boolean(targetProject && dialog === "delete"),
+      refetchInterval: 5_000,
+      retry: false,
+    })
+  )
+  const detail = projectQuery.data
   const [name, setName] = useState("")
   const [repository, setRepository] = useState<CodingRepositoryItem>()
   const [repositoryOpen, setRepositoryOpen] = useState(false)
@@ -198,34 +215,52 @@ export function Projects({
     })
   )
   const searching = repositorySearch.trim() !== repositoryQuery || repositories.isPending
-  const onProjectAction = useCallback(
-    (item: CodingProject, action: "settings" | "rename" | "delete") => {
-      setTargetProject(item)
-      if (action === "rename") {
-        setEditingName(item.name)
-        setDialog({ action: "rename" })
-        return
-      }
-      if (action === "delete") {
-        setDialog({ action: "delete" })
-        return
-      }
-      startTransition(async () => {
-        try {
-          const result = await getCodingProject({
-            baseUrl: await getGatewayBaseURL(),
-            headers: { "X-AgentZ-Workspace-ID": workspaceId },
-            path: { projectId: item.id },
-          })
-          if (result.error) throw new Error(result.error.message)
-          setSettings(result.data)
-          setSettingsOpen(true)
-        } catch {
-          toast.error("Could not load project settings")
-        }
-      })
-    },
-    [setDialog, setEditingName, setSettingsOpen, startTransition, workspaceId]
+  const onProjectAction = useCallback<ProjectActions["manage"]>((item, action) => {
+    setTargetProject(item)
+    setEditingName(item.name)
+    setDialog(action)
+  }, [])
+
+  const projectBlocker = detail?.agents
+    .flatMap((agent) => (agent.delete_disabled_reason ? [agent.delete_disabled_reason] : []))
+    .join(" ")
+  const availabilityReason = projectQuery.isPending
+    ? "Checking agent availability."
+    : projectQuery.isError
+      ? "Could not check agent availability. Close and reopen this dialog to retry."
+      : undefined
+  const confirmReason = pending
+    ? "Please wait for the current operation to finish."
+    : dialog === "rename"
+      ? !editingName.trim()
+        ? "Enter a project name."
+        : undefined
+      : availabilityReason || projectBlocker
+  const confirmButton = (
+    <Button
+      type="submit"
+      disabled={Boolean(confirmReason)}
+      variant={dialog === "rename" ? "default" : "destructive"}
+    >
+      {pending ? <Spinner data-icon="inline-start" /> : null}
+      {pending
+        ? dialog === "rename"
+          ? "Saving..."
+          : "Deleting..."
+        : dialog === "rename"
+          ? "Save name"
+          : detail?.project.deleting
+            ? "Retry project deletion"
+            : "Delete project"}
+    </Button>
+  )
+
+  const cancelButton = (
+    <DialogClose asChild>
+      <Button type="button" variant="ghost" disabled={pending}>
+        Cancel
+      </Button>
+    </DialogClose>
   )
 
   return (
@@ -272,92 +307,6 @@ export function Projects({
           />
         </main>
       )}
-      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="flex flex-col sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Project settings</DialogTitle>
-            <DialogDescription className="break-all">{targetProject?.repository}</DialogDescription>
-          </DialogHeader>
-          {settings ? (
-            <>
-              <section>
-                <h3 className="mb-3 flex items-center gap-2 text-sm font-medium">
-                  <GitBranch className="text-primary size-4" aria-hidden="true" />
-                  Checkouts<Badge variant="secondary">{settings.worktrees.length}</Badge>
-                </h3>
-                <div className="flex flex-col gap-2">
-                  {settings.worktrees.map((tree) => (
-                    <div
-                      key={tree.id}
-                      className="flex min-w-0 items-center gap-3 rounded-lg border p-3"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium" title={tree.branch}>
-                          {tree.branch}
-                        </p>
-                        <p className="text-muted-foreground mt-1 flex items-center gap-2 text-xs">
-                          <span className="truncate">{tree.agent_name}</span>
-                          <Badge variant={tree.ready ? "successPlain" : "plain"}>
-                            {tree.ready ? "Ready" : "Preparing"}
-                          </Badge>
-                        </p>
-                        <p
-                          className="text-muted-foreground mt-1 truncate font-mono text-xs"
-                          title={tree.directory}
-                        >
-                          {tree.directory}
-                        </p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="shrink-0"
-                        aria-label={`Remove checkout ${tree.branch}`}
-                        title="Remove checkout"
-                        disabled={pending}
-                        onClick={() => {
-                          setSettingsOpen(false)
-                          setDialog({ action: "remove", tree })
-                        }}
-                      >
-                        <Trash2 />
-                      </Button>
-                    </div>
-                  ))}
-                  {!settings.worktrees.length ? (
-                    <Empty className="border">
-                      <EmptyHeader>
-                        <EmptyTitle>No checkouts yet</EmptyTitle>
-                        <EmptyDescription>
-                          Starting a thread creates a checkout on the selected agent.
-                        </EmptyDescription>
-                      </EmptyHeader>
-                    </Empty>
-                  ) : null}
-                </div>
-              </section>
-              {settings.worktrees.length ? (
-                <p className="text-muted-foreground text-xs">
-                  Remove all checkouts before deleting this project.
-                </p>
-              ) : null}
-              <DialogFooter>
-                <Button
-                  variant="ghost"
-                  disabled={pending || settings.worktrees.length > 0}
-                  onClick={() => {
-                    setSettingsOpen(false)
-                    setDialog({ action: "delete" })
-                  }}
-                >
-                  <Trash2 data-icon="inline-start" />
-                  Delete project
-                </Button>
-              </DialogFooter>
-            </>
-          ) : null}
-        </DialogContent>
-      </Dialog>
       <Dialog
         open={adding}
         onOpenChange={(open) => {
@@ -421,14 +370,12 @@ export function Projects({
                       className="w-full justify-between"
                     >
                       <span className="flex min-w-0 items-center gap-2">
-                        {repository?.private ? (
-                          <Lock aria-label="Private repository" />
-                        ) : (
-                          <FolderGit2 aria-hidden="true" />
-                        )}
+                        <GitHubLight aria-hidden="true" className="dark:hidden" />
+                        <GitHubDark aria-hidden="true" className="hidden dark:block" />
                         <span className="truncate">
                           {repository?.name ?? "Select a repository"}
                         </span>
+                        {repository?.private && <Lock aria-label="Private repository" />}
                       </span>
                       <ChevronDown data-icon="inline-end" />
                     </Button>
@@ -511,12 +458,10 @@ export function Projects({
                                       setRepositoryOpen(false)
                                     }}
                                   >
-                                    {item.private ? (
-                                      <Lock aria-label="Private repository" />
-                                    ) : (
-                                      <FolderGit2 aria-hidden="true" />
-                                    )}
+                                    <GitHubLight aria-hidden="true" className="dark:hidden" />
+                                    <GitHubDark aria-hidden="true" className="hidden dark:block" />
                                     <span className="truncate">{item.name}</span>
+                                    {item.private && <Lock aria-label="Private repository" />}
                                   </CommandItem>
                                 ))}
                             </CommandGroup>
@@ -557,82 +502,81 @@ export function Projects({
       <Dialog
         open={Boolean(dialog)}
         onOpenChange={(open) => {
-          if (!open && !pending) setDialog(undefined)
+          if (!open && !pending) {
+            setDialog(undefined)
+          }
         }}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {dialog?.action === "rename"
-                ? "Rename project"
-                : dialog?.action === "remove"
-                  ? "Remove checkout"
-                  : "Delete project"}
-            </DialogTitle>
+            <DialogTitle>{dialog === "rename" ? "Rename project" : "Delete project"}</DialogTitle>
             <DialogDescription>
-              {dialog?.action === "rename"
+              {dialog === "rename"
                 ? "Choose a name for this project."
-                : dialog?.action === "remove"
-                  ? "This removes the checkout and its threads. Close terminals, stop running tasks, and push your commits first."
-                  : "This permanently deletes the project."}
+                : `This permanently deletes ${targetProject?.name}, all its checkouts, worktrees, local changes, unpushed commits, and conversation history. Running tasks and terminals will be stopped.`}
             </DialogDescription>
           </DialogHeader>
           <form
             onSubmit={(event) => {
               event.preventDefault()
-              if (!dialog || !targetProject) return
+              if (!dialog || !targetProject || confirmReason) return
               startTransition(async () => {
                 try {
                   const options = {
                     baseUrl: await getGatewayBaseURL(),
                     headers: { "X-AgentZ-Workspace-ID": workspaceId },
                   }
-                  if (dialog.action === "remove") {
-                    const result = await runCodingGit({
-                      ...options,
-                      path: { worktreeId: dialog.tree.id },
-                      body: { operation: "remove" },
-                    })
-                    if (result.error) throw new Error(result.error.message)
-                  } else {
-                    const result =
-                      dialog.action === "rename"
-                        ? await renameCodingProject({
-                            ...options,
-                            path: { projectId: targetProject.id },
-                            body: { name: editingName.trim() },
-                          })
-                        : await deleteCodingProject({
-                            ...options,
-                            path: { projectId: targetProject.id },
-                          })
-                    if (result.error) throw new Error(result.error.message)
-                  }
+                  const result =
+                    dialog === "rename"
+                      ? await renameCodingProject({
+                          ...options,
+                          path: { projectId: targetProject.id },
+                          body: { name: editingName.trim() },
+                        })
+                      : await deleteCodingProject({
+                          ...options,
+                          path: { projectId: targetProject.id },
+                        })
+                  if (result.error) throw new Error(result.error.message)
                   await queryClient.invalidateQueries({
                     predicate: (query) =>
-                      query.queryKey[0] === "chatSessions" &&
-                      query.queryKey[1] === workspaceId &&
-                      (dialog.action !== "delete" || query.queryKey[2] !== "group"),
+                      query.queryKey[0] === "chatSessions" && query.queryKey[1] === workspaceId,
                   })
-                  if (dialog.action === "delete") {
-                    for (const draft of drafts) {
-                      if (draft.projectId === targetProject.id)
-                        codingDrafts.remove(draftScope, draft.id)
+                  await queryClient.invalidateQueries({
+                    predicate: (query) => query.queryKey[0] === "coding",
+                  })
+                  const removedThreads = dialog === "delete" ? (detail?.threads ?? []) : []
+                  for (const draft of drafts) {
+                    if (
+                      (dialog === "delete" && draft.projectId === targetProject.id) ||
+                      removedThreads.some((thread) => thread.session_id === draft.sessionID)
+                    ) {
+                      codingDrafts.remove(draftScope, draft.id)
                     }
                   }
-                  if (dialog.action === "delete" && search.get("project") === targetProject.id) {
+                  const removedRoute = removedThreads.some(
+                    (thread) =>
+                      pathname ===
+                      `${workspacePath}/agents/${encodeURIComponent(thread.worktree.agent_name)}/sessions/${encodeURIComponent(thread.session_id)}`
+                  )
+                  if (
+                    removedRoute ||
+                    (dialog === "delete" && search.get("project") === targetProject.id)
+                  ) {
                     router.replace(`${workspacePath}/projects`)
                   } else {
                     router.refresh()
                   }
                   setDialog(undefined)
                 } catch (error) {
+                  if (dialog === "delete") await projectQuery.refetch()
+                  router.refresh()
                   toast.error(error instanceof Error ? error.message : "Could not update project")
                 }
               })
             }}
           >
-            {dialog?.action === "rename" ? (
+            {dialog === "rename" ? (
               <Field>
                 <FieldLabel htmlFor="rename-project">Project name</FieldLabel>
                 <Input
@@ -645,31 +589,19 @@ export function Projects({
                 />
               </Field>
             ) : null}
-            {dialog?.action === "remove" ? (
-              <p className="mb-4 truncate font-mono text-sm">{dialog.tree.branch}</p>
-            ) : null}
             <DialogFooter className="mt-4">
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={pending}
-                onClick={() => setDialog(undefined)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={pending || (dialog?.action === "rename" && !editingName.trim())}
-                variant={dialog?.action === "rename" ? "default" : "destructive"}
-              >
-                {pending
-                  ? "Working..."
-                  : dialog?.action === "rename"
-                    ? "Save name"
-                    : dialog?.action === "remove"
-                      ? "Remove checkout"
-                      : "Delete project"}
-              </Button>
+              {pending ? (
+                <DisabledReason reason="Please wait for the current operation to finish.">
+                  {cancelButton}
+                </DisabledReason>
+              ) : (
+                cancelButton
+              )}
+              {confirmReason ? (
+                <DisabledReason reason={confirmReason}>{confirmButton}</DisabledReason>
+              ) : (
+                confirmButton
+              )}
             </DialogFooter>
           </form>
         </DialogContent>

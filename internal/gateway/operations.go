@@ -81,7 +81,8 @@ func (s *Service) StartCodingOperation(w http.ResponseWriter, r *http.Request) {
 		apiutil.WriteError(w, r, mapGatewayStoreError("get coding thread", err))
 		return
 	}
-	if row.CodingProject.OwnerID != access.claims.UserID || row.CodingWorktree.Deleting || !row.CodingWorktree.Ready {
+	unavailable := row.CodingProject.Deleting || row.CodingWorktree.Deleting || !row.CodingWorktree.Ready
+	if row.CodingProject.OwnerID != access.claims.UserID || unavailable {
 		apiutil.WriteError(w, r, mapGatewayStoreError("get checkout", pgx.ErrNoRows))
 		return
 	}
@@ -406,7 +407,7 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 	}
 	checkoutChanged := row.CodingWorktree.ID != job.WorktreeID ||
 		row.CodingProject.ID != job.ProjectID
-	if checkoutChanged || row.CodingWorktree.Deleting || !row.CodingWorktree.Ready {
+	if checkoutChanged || row.CodingProject.Deleting || row.CodingWorktree.Deleting || !row.CodingWorktree.Ready {
 		return errors.New("conversation checkout changed or is unavailable")
 	}
 	local := func(request gatewayapi.CodingGitRequest) (gatewayapi.CodingGitResult, error) {
@@ -854,7 +855,7 @@ func (s *Service) nameCodingBranch(ctx context.Context, job gatewaydb.CodingOper
 		return err
 	}
 	tree := current.CodingWorktree
-	unavailable := tree.Shared || tree.Deleting || !tree.Ready
+	unavailable := current.CodingProject.Deleting || tree.Shared || tree.Deleting || !tree.Ready
 	if unavailable || tree.Branch != row.CodingWorktree.Branch {
 		return errors.New("checkout changed while naming its branch")
 	}

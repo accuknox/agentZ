@@ -47,6 +47,10 @@ func (s *Service) ListCodingRefs(w http.ResponseWriter, r *http.Request, project
 		apiutil.WriteError(w, r, mapGatewayStoreError("get project", err))
 		return
 	}
+	if project.Deleting {
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "deleting", "Project deletion has started", nil))
+		return
+	}
 	row, err := s.queries.GatewayTouchCodingSnapshot(
 		r.Context(),
 		gatewaydb.GatewayTouchCodingSnapshotParams{ProjectID: project.ID, AgentName: params.AgentName},
@@ -140,7 +144,7 @@ func (s *Service) RefreshCodingRepository(w http.ResponseWriter, r *http.Request
 		apiutil.WriteError(w, r, apiErr)
 		return
 	}
-	_, err := s.queries.GatewayGetCodingProject(
+	project, err := s.queries.GatewayGetCodingProject(
 		r.Context(),
 		gatewaydb.GatewayGetCodingProjectParams{
 			ID:          projectId,
@@ -150,6 +154,10 @@ func (s *Service) RefreshCodingRepository(w http.ResponseWriter, r *http.Request
 	)
 	if err != nil {
 		apiutil.WriteError(w, r, mapGatewayStoreError("get project", err))
+		return
+	}
+	if project.Deleting {
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "deleting", "Project deletion has started", nil))
 		return
 	}
 	_, err = s.queries.GatewayTouchCodingSnapshot(
@@ -202,6 +210,10 @@ func (s *Service) AdoptCodingWorktree(w http.ResponseWriter, r *http.Request, pr
 	)
 	if err != nil {
 		apiutil.WriteError(w, r, mapGatewayStoreError("get project", err))
+		return
+	}
+	if project.Deleting {
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "deleting", "Project deletion has started", nil))
 		return
 	}
 	root := path.Join("Projects", base64.RawURLEncoding.EncodeToString([]byte(project.OwnerID)), "github", project.ID)
@@ -392,6 +404,9 @@ func (s *Service) refreshCodingSnapshot(ctx context.Context, snapshot gatewaydb.
 }
 
 func (s *Service) loadCodingSnapshot(ctx context.Context, access resourceAccess, project gatewaydb.CodingProject, snapshot *gatewaydb.CodingSnapshot, result *gatewayapi.CodingGitResult) error {
+	if project.Deleting {
+		return errors.New("project deletion has started")
+	}
 	root := path.Join("Projects", base64.RawURLEncoding.EncodeToString([]byte(project.OwnerID)), "github", project.ID)
 	tree := gatewaydb.CodingWorktree{AgentName: snapshot.AgentName, Directory: root + "/repo"}
 	if snapshot.WorktreeID != "" {
@@ -579,6 +594,13 @@ func (s *Service) loadCodingSnapshot(ctx context.Context, access resourceAccess,
 				return err
 			}
 			defer release()
+			current, err := s.queries.GatewayCodingProjectIdentity(ctx, project.ID)
+			if err != nil {
+				return err
+			}
+			if current.CodingProject.Deleting {
+				return errors.New("project deletion has started")
+			}
 			var bundle []byte
 			bundle, remoteErr = repo.fetchBundle(ctx)
 			if remoteErr == nil {

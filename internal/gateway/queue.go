@@ -42,7 +42,7 @@ func (s *Service) chatInputAccess(ctx context.Context, agent, session string) (r
 		if err != nil {
 			return access, "", "", err
 		}
-		if row.CodingWorktree.Deleting || !row.CodingWorktree.Ready {
+		if row.CodingProject.Deleting || row.CodingWorktree.Deleting || !row.CodingWorktree.Ready {
 			return access, "", "", errors.New("checkout is unavailable")
 		}
 		return access, "/home/agentz/" + row.CodingWorktree.Directory, row.CodingProject.ID, nil

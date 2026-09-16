@@ -117,6 +117,7 @@ func (s *Service) ListCodingProjects(w http.ResponseWriter, r *http.Request) {
 			RepositoryId:  row.RepositoryID,
 			DefaultBranch: row.DefaultBranch,
 			CreatedAt:     row.CreatedAt.Time,
+			Deleting:      row.Deleting,
 		})
 	}
 	apiutil.WriteJSON(w, http.StatusOK, projects)
@@ -178,6 +179,7 @@ func (s *Service) CreateCodingProject(w http.ResponseWriter, r *http.Request) {
 		RepositoryId:  project.RepositoryID,
 		DefaultBranch: project.DefaultBranch,
 		CreatedAt:     project.CreatedAt.Time,
+		Deleting:      project.Deleting,
 	})
 }
 
@@ -229,12 +231,18 @@ func (s *Service) GetCodingProject(w http.ResponseWriter, r *http.Request, proje
 			RepositoryId:  project.RepositoryID,
 			DefaultBranch: project.DefaultBranch,
 			CreatedAt:     project.CreatedAt.Time,
+			Deleting:      project.Deleting,
 		},
 		Worktrees: []gatewayapi.CodingWorktree{},
 		Threads:   []gatewayapi.CodingThread{},
 	}
 	if project.LastAgentName.Valid {
 		result.Project.LastAgentName = &project.LastAgentName.String
+	}
+	result.Agents, err = s.codingProjectAgents(r.Context(), access, projectId)
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
 	}
 	for _, tree := range trees {
 		if capabilities[tree.AgentName].Use {
@@ -317,57 +325,213 @@ func (s *Service) UpdateCodingProjectPreference(w http.ResponseWriter, r *http.R
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// DeleteCodingProject removes an owned project after its checkouts are removed.
+// DeleteCodingProject stops project work and removes its managed files on every agent.
 func (s *Service) DeleteCodingProject(w http.ResponseWriter, r *http.Request, projectId string) {
 	access, apiErr := s.codingAccess(r.Context(), "")
 	if apiErr != nil {
 		apiutil.WriteError(w, r, apiErr)
 		return
 	}
-	_, err := s.queries.GatewayGetCodingProject(
-		r.Context(),
-		gatewaydb.GatewayGetCodingProjectParams{
-			ID:          projectId,
-			WorkspaceID: access.workspaceID,
-			OwnerID:     access.userID,
-		},
-	)
+	project, err := s.queries.GatewayGetCodingProject(r.Context(), gatewaydb.GatewayGetCodingProjectParams{
+		ID: projectId, WorkspaceID: access.workspaceID, OwnerID: access.userID,
+	})
 	if err != nil {
 		apiutil.WriteError(w, r, mapGatewayStoreError("get project", err))
 		return
 	}
-	q, release, err := lockGatewayResource(r.Context(), s.lockDB, projectId, false)
-	if err != nil {
-		apiutil.WriteInternalError(w, r, err)
-		return
-	}
-	defer release()
-	count, err := q.GatewayDeleteCodingProject(
-		r.Context(),
-		gatewaydb.GatewayDeleteCodingProjectParams{
-			ID:          projectId,
-			WorkspaceID: access.workspaceID,
-			OwnerID:     access.userID,
-		},
-	)
-	if err != nil {
-		apiutil.WriteInternalError(w, r, err)
-		return
-	}
-	if count == 0 {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusConflict,
-				"cleanup_required",
-				"Clean up every project checkout before deleting this project",
-				nil,
-			),
-		)
+	if err := s.deleteCodingProject(r.Context(), access, project); err != nil {
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "cleanup_failed", err.Error(), err))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// codingProjectAgents includes inaccessible checkouts so deletion never silently
+// leaves files behind on an agent omitted from the caller's checkout list.
+func (s *Service) codingProjectAgents(ctx context.Context, access resourceAccess, projectID string) ([]gatewayapi.CodingProjectAgent, error) {
+	names, err := s.queries.GatewayCodingProjectAgents(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	capabilities, err := s.agentCapabilityProjections(ctx, access, "")
+	if err != nil {
+		return nil, err
+	}
+	agents := make([]gatewayapi.CodingProjectAgent, 0, len(names))
+	for _, name := range names {
+		agent := gatewayapi.CodingProjectAgent{Name: name}
+		resolved, err := s.resolver.resolveAgent(ctx, access.namespace, name)
+		switch {
+		case !capabilities[name].Use:
+			agent.DeleteDisabledReason = new("Access to agent " + name + " is required to delete its checkouts.")
+		case err != nil || statusFromAgent(resolved.Agent).Phase != agentPhaseReady:
+			agent.DeleteDisabledReason = new("Agent " + name + " is offline. Start it to delete its checkouts.")
+		}
+		agents = append(agents, agent)
+	}
+	return agents, nil
+}
+
+func (s *Service) deleteCodingProject(ctx context.Context, access resourceAccess, project gatewaydb.CodingProject) error {
+	// Serialize deletion separately: a running prompt holds the project lock
+	// until it finishes, and must be aborted before we wait for that lock.
+	q, unlock, err := lockGatewayResource(ctx, s.lockDB, project.ID+"/delete", false)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	agents, err := s.codingProjectAgents(ctx, access, project.ID)
+	if err != nil {
+		return err
+	}
+	for _, agent := range agents {
+		if agent.DeleteDisabledReason != nil {
+			return errors.New(*agent.DeleteDisabledReason)
+		}
+	}
+	for _, agent := range agents {
+		client, err := s.codingClient(ctx, access.namespace, agent.Name, s.outboundHTTP)
+		if err != nil {
+			return err
+		}
+		health, err := client.GlobalHealthWithResponse(ctx, agent.Name)
+		if err != nil || health.StatusCode() != http.StatusOK {
+			return fmt.Errorf("agent %s is unavailable; retry when it is online", agent.Name)
+		}
+	}
+	trees, err := s.queries.GatewayListCodingWorktrees(ctx, gatewaydb.GatewayListCodingWorktreesParams{
+		ProjectID: project.ID, WorkspaceID: access.workspaceID,
+	})
+	if err != nil {
+		return err
+	}
+	// Persist intent before stopping runs. Retries after a lost response or a
+	// gateway restart must keep new work from entering partially deleted files.
+	if err := s.queries.GatewayBeginCodingProjectDeletion(ctx, project.ID); err != nil {
+		return err
+	}
+	project.Deleting = true
+	for {
+		for _, tree := range trees {
+			if err := s.stopCodingWorktree(ctx, access, tree); err != nil {
+				return fmt.Errorf("stop checkout %s on %s: %w", tree.Branch, tree.AgentName, err)
+			}
+		}
+		locked, err := q.GatewayTryLockResource(ctx, project.ID)
+		if err != nil {
+			return err
+		}
+		if locked {
+			break
+		}
+		// A prompt admitted just before deletion can start after the first
+		// abort. Keep stopping it while its shared project lock drains.
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_, err := q.GatewayUnlockResource(ctx, gatewaydb.GatewayUnlockResourceParams{Identity: project.ID})
+		if err != nil {
+			slog.ErrorContext(ctx, "release project deletion lock", "error", err)
+		}
+	}()
+	// Preparation admitted before deletion may have completed while we stopped
+	// runs. Read its checkouts again under the lock before deleting any files.
+	trees, err = q.GatewayListCodingWorktrees(ctx, gatewaydb.GatewayListCodingWorktreesParams{
+		ProjectID: project.ID, WorkspaceID: access.workspaceID,
+	})
+	if err != nil {
+		return err
+	}
+	if err := q.GatewayBeginCodingProjectDeletion(ctx, project.ID); err != nil {
+		return err
+	}
+	agents, err = s.codingProjectAgents(ctx, access, project.ID)
+	if err != nil {
+		return err
+	}
+	for _, agent := range agents {
+		if agent.DeleteDisabledReason != nil {
+			return errors.New(*agent.DeleteDisabledReason)
+		}
+	}
+	for _, agent := range agents {
+		for _, tree := range trees {
+			if tree.AgentName != agent.Name {
+				continue
+			}
+			if err := s.deleteCodingConversations(ctx, access, tree); err != nil {
+				return fmt.Errorf("delete conversations on %s: %w", agent.Name, err)
+			}
+			if err := s.stopCodingWorktree(ctx, access, tree); err != nil {
+				return fmt.Errorf("stop checkout %s on %s: %w", tree.Branch, agent.Name, err)
+			}
+		}
+		_, err = s.codingFilesystem(ctx, access.namespace,
+			gatewaydb.CodingWorktree{AgentName: agent.Name}, project, false,
+			gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitRemove})
+		if err != nil {
+			return fmt.Errorf("delete project files on %s: %w", agent.Name, err)
+		}
+		err = q.GatewayDeleteCodingAgentCheckouts(ctx, gatewaydb.GatewayDeleteCodingAgentCheckoutsParams{
+			ProjectID: project.ID, AgentName: agent.Name,
+		})
+		if err != nil {
+			return err
+		}
+	}
+	_, err = q.GatewayDeleteCodingProject(ctx, gatewaydb.GatewayDeleteCodingProjectParams{
+		ID: project.ID, WorkspaceID: access.workspaceID, OwnerID: access.userID,
+	})
+	return err
+}
+
+// stopCodingWorktree shuts down only this checkout's runs and terminals. Native
+// abort requests bypass the project lock held by synchronous prompts.
+func (s *Service) stopCodingWorktree(ctx context.Context, access resourceAccess, tree gatewaydb.CodingWorktree) error {
+	client, err := s.codingClient(ctx, access.namespace, tree.AgentName, s.outboundHTTP)
+	if err != nil {
+		return err
+	}
+	directory := "/home/agentz/" + tree.Directory
+	statuses, err := client.SessionStatusWithResponse(ctx, tree.AgentName, &gatewayapi.SessionStatusParams{Directory: &directory})
+	if err != nil {
+		return err
+	}
+	if statuses.JSON200 == nil {
+		return errors.New("could not read agent session status")
+	}
+	for id, status := range *statuses.JSON200 {
+		state, err := status.Discriminator()
+		if err != nil {
+			return err
+		}
+		if state == string(gatewayapi.Idle) {
+			continue
+		}
+		stopped, err := client.SessionAbortWithResponse(ctx, tree.AgentName, id, &gatewayapi.SessionAbortParams{Directory: &directory})
+		if err != nil {
+			return err
+		}
+		if stopped.StatusCode() != http.StatusOK && stopped.StatusCode() != http.StatusNotFound {
+			return errors.New("could not stop agent session")
+		}
+	}
+	// Instance disposal releases terminals, watchers, and cached services for
+	// this directory. Unlike listing PTYs, it also works after files vanished.
+	disposed, err := client.InstanceDisposeWithResponse(ctx, tree.AgentName, &gatewayapi.InstanceDisposeParams{Directory: &directory})
+	if err != nil {
+		return err
+	}
+	if disposed.JSON200 == nil || !*disposed.JSON200 {
+		return errors.New("could not shut down checkout resources")
+	}
+	return nil
 }
 
 // PrepareCodingCheckout prepares or reuses an owned checkout for native sessions.
@@ -410,6 +574,10 @@ func (s *Service) PrepareCodingCheckout(w http.ResponseWriter, r *http.Request) 
 	)
 	if err != nil {
 		apiutil.WriteError(w, r, mapGatewayStoreError("get project", err))
+		return
+	}
+	if project.Deleting {
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "deleting", "Project deletion has started", nil))
 		return
 	}
 	var tree gatewaydb.CodingWorktree
@@ -988,7 +1156,7 @@ func (s *Service) RunCodingGit(w http.ResponseWriter, r *http.Request, worktreeI
 			return
 		}
 	}
-	if row.CodingWorktree.Deleting && req.Operation != gatewayapi.CodingGitRemove {
+	if row.CodingProject.Deleting || row.CodingWorktree.Deleting && req.Operation != gatewayapi.CodingGitRemove {
 		apiutil.WriteError(
 			w,
 			r,
@@ -1028,7 +1196,7 @@ func (s *Service) RunCodingGit(w http.ResponseWriter, r *http.Request, worktreeI
 		return
 	}
 	if req.Operation == gatewayapi.CodingGitRemove {
-		err = s.deleteCodingConversations(r.Context(), access, row.CodingWorktree, row.CodingProject)
+		err = s.deleteCodingConversations(r.Context(), access, row.CodingWorktree)
 		if err != nil {
 			apiutil.WriteInternalError(w, r, err)
 			return
@@ -1079,10 +1247,14 @@ func (s *Service) codingFilesystem(ctx context.Context, namespace string, tree g
 	if err != nil {
 		return result, err
 	}
+	method, endpoint := http.MethodPost, "git"
+	if project.Deleting && git.Operation == gatewayapi.CodingGitRemove {
+		method, endpoint = http.MethodDelete, "project"
+	}
 	request, err := http.NewRequestWithContext(
 		ctx,
-		http.MethodPost,
-		target.JoinPath("git").String(),
+		method,
+		target.JoinPath(endpoint).String(),
 		bytes.NewReader(body),
 	)
 	if err != nil {
@@ -1460,27 +1632,24 @@ func (s *Service) checkCodingAgentIdle(ctx context.Context, access resourceAcces
 	return nil
 }
 
-func (s *Service) deleteCodingConversations(ctx context.Context, access resourceAccess, tree gatewaydb.CodingWorktree, project gatewaydb.CodingProject) error {
+func (s *Service) deleteCodingConversations(ctx context.Context, access resourceAccess, tree gatewaydb.CodingWorktree) error {
 	client, err := s.codingClient(ctx, access.namespace, tree.AgentName, s.outboundHTTP)
 	if err != nil {
 		return err
 	}
 	directory := "/home/agentz/" + tree.Directory
-	threads, err := s.queries.GatewayListCodingThreads(
-		ctx,
-		gatewaydb.GatewayListCodingThreadsParams{ProjectID: project.ID, WorkspaceID: access.workspaceID},
-	)
+	threads, err := s.queries.GatewayListCodingWorktreeThreads(ctx, tree.ID)
 	if err != nil {
 		return err
 	}
 	for _, thread := range threads {
-		if thread.CodingThread.WorktreeID != tree.ID || !thread.CodingThread.SessionID.Valid {
+		if !thread.SessionID.Valid {
 			continue
 		}
 		response, err := client.SessionDeleteWithResponse(
 			ctx,
 			tree.AgentName,
-			thread.CodingThread.SessionID.String,
+			thread.SessionID.String,
 			&gatewayapi.SessionDeleteParams{Directory: &directory},
 		)
 		if err != nil {
@@ -1494,7 +1663,7 @@ func (s *Service) deleteCodingConversations(ctx context.Context, access resource
 			gatewaydb.GatewayDeleteSessionTracesParams{
 				TenantNamespace: access.namespace,
 				AgentName:       tree.AgentName,
-				SessionID:       thread.CodingThread.SessionID.String,
+				SessionID:       thread.SessionID.String,
 			},
 		)
 		if err != nil {

@@ -53,6 +53,33 @@ func (s *service) git(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 	}
+	if r.Method == http.MethodDelete {
+		// The gateway derives this root from the project owner and ID. Delete
+		// the whole root, including incomplete clones and Git metadata, without
+		// requiring a working repository or following links inside it.
+		parts := strings.Split(req.Root, "/")
+		if len(parts) != 4 || parts[0] != "Projects" || parts[2] != "github" ||
+			!filepath.IsLocal(req.Root) || filepath.Clean(req.Root) != req.Root {
+			writeFailure(w, r, badRequest("invalid project root", nil))
+			return
+		}
+		for i := 1; i < len(parts); i++ {
+			info, err := s.root.Lstat(strings.Join(parts[:i], "/"))
+			if errors.Is(err, os.ErrNotExist) {
+				break
+			}
+			if err != nil || info.Mode()&os.ModeSymlink != 0 {
+				writeFailure(w, r, badRequest("project parent must be a directory", err))
+				return
+			}
+		}
+		if err := s.root.RemoveAll(req.Root); err != nil {
+			writeFailure(w, r, internalFailure("delete project files", err))
+			return
+		}
+		writeJSON(w, http.StatusOK, gatewayapi.CodingGitResult{})
+		return
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
 	defer cancel()
 	result, err := s.runGit(ctx, req)
@@ -87,8 +114,11 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			return result, nil
 		}
 	}
-	if err := s.root.MkdirAll(req.Root, 0o700); err != nil {
-		return result, err
+	// A delayed status read must not recreate a project after cleanup.
+	if req.Prepare {
+		if err := s.root.MkdirAll(req.Root, 0o700); err != nil {
+			return result, err
+		}
 	}
 	root, err := filepath.EvalSymlinks(filepath.Join(s.root.Name(), req.Root))
 	if err != nil {

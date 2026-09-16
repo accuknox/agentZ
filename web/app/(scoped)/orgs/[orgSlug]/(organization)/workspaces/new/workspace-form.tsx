@@ -8,6 +8,7 @@ import { Box, Brain, Cable, CircleAlert, Code2, Layers, Plus, Wrench } from "luc
 import { createWorkspaceAction, type CreateWorkspaceFormState } from "@/app/(scoped)/orgs/actions"
 import { AdministrationPageHeader } from "@/components/administration"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -121,6 +122,7 @@ export function WorkspaceForm({
                   <SelectItem value="coding">
                     <Code2 aria-hidden="true" />
                     Coding
+                    <Badge variant="secondary">Preview</Badge>
                   </SelectItem>
                 </SelectGroup>
               </SelectContent>

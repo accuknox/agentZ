@@ -173,6 +173,7 @@ export const codingProjects = pgTable(
     repositoryId: bigint("repository_id", { mode: "number" }).notNull(),
     repository: text("repository").notNull(),
     lastAgentName: text("last_agent_name"),
+    deleting: boolean("deleting").default(false).notNull(),
     defaultBranch: text("default_branch").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },

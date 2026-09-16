@@ -330,10 +330,10 @@ function PromptAttachmentDialog({
           {!canPreview ? (
             <div className="text-muted-foreground flex flex-col items-center gap-4 text-center">
               <p>
-                Preview isn&apos;t available for{" "}
+                Preview is not available for
                 <span className="break-all" translate="no">
                   {attachment.filename}
-                </span>{" "}
+                </span>
                 ({formatByteSize(attachment.size)}).
               </p>
               <Button onClick={handleDownload} variant="outline">

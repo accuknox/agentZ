@@ -1236,14 +1236,6 @@ function SessionGroup({
                   <Pencil />
                   Rename project
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() => {
-                    if (group.project) projectActions?.manage(group.project, "settings")
-                  }}
-                >
-                  <Settings2 />
-                  Project settings
-                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   variant="destructive"

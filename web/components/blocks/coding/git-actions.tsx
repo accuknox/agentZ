@@ -633,7 +633,6 @@ export function CodingActivity({ workspaceId }: { workspaceId: string }) {
         toast.loading(operation.stage, {
           id,
           duration: Infinity,
-          description: operation.agent_name,
         })
       } else if (!initial) {
         if (operation.state === "succeeded") {

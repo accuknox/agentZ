@@ -122,7 +122,8 @@ paths:
       operationId: deleteCodingProject
       tags: [coding]
       responses:
-        '204': {description: Project, conversations: '', and all managed checkout files deleted.: ''}
+        '204':
+          description: Project, conversations, and all managed checkout files deleted.
         default:
           description: Request failed.
           content:
@@ -9919,6 +9920,10 @@ components:
       required: [id, project_id, agent_name]
     CodingTextRequest:
       type: object
+      description: >-
+        Generate source-control text using the explicit request model, otherwise
+        the sandbox small model, otherwise the thread model. A configured model
+        that fails does not fall back to another model.
       additionalProperties: false
       properties:
         purpose:

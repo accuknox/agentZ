@@ -1974,6 +1974,7 @@ components:
       type: object
     CodingTextRequest:
       additionalProperties: false
+      description: Generate source-control text using the explicit request model, otherwise the sandbox small model, otherwise the thread model. A configured model that fails does not fall back to another model.
       properties:
         expected_tree:
           pattern: ^[a-f0-9]{40,64}$
@@ -16921,18 +16922,7 @@ components:
         metadata:
           type: object
         model:
-          additionalProperties: false
-          properties:
-            id:
-              type: string
-            providerID:
-              type: string
-            variant:
-              type: string
-          required:
-          - id
-          - providerID
-          type: object
+          $ref: '#/components/schemas/OpencodeModelRef'
         parentID:
           pattern: ^ses
           type: string
@@ -27433,9 +27423,7 @@ paths:
       operationId: deleteCodingProject
       responses:
         "204":
-          and all managed checkout files deleted.: null
-          conversations: null
-          description: Project
+          description: Project, conversations, and all managed checkout files deleted.
         default:
           content:
             application/json:
@@ -38162,18 +38150,7 @@ paths:
                 metadata:
                   type: object
                 model:
-                  additionalProperties: false
-                  properties:
-                    id:
-                      type: string
-                    providerID:
-                      type: string
-                    variant:
-                      type: string
-                  required:
-                  - id
-                  - providerID
-                  type: object
+                  $ref: '#/components/schemas/OpencodeModelRef'
                 parentID:
                   pattern: ^ses
                   type: string

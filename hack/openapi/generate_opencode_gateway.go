@@ -927,6 +927,18 @@ func applyOAPICodegenFixups(doc map[string]any) error {
 	if !ok {
 		return fmt.Errorf("upstream spec has no paths")
 	}
+	// The legacy session API repeats ModelRef inline. Reuse its schema so
+	// callers can pass the same generated model type to both session APIs.
+	session := schemas["Session"].(map[string]any)
+	session["properties"].(map[string]any)["model"] = map[string]any{
+		"$ref": "#/components/schemas/ModelRef",
+	}
+	create := paths["/session"].(map[string]any)["post"].(map[string]any)
+	content := create["requestBody"].(map[string]any)["content"].(map[string]any)
+	body := content["application/json"].(map[string]any)["schema"].(map[string]any)
+	body["properties"].(map[string]any)["model"] = map[string]any{
+		"$ref": "#/components/schemas/ModelRef",
+	}
 	for _, path := range []string{
 		"/session/{sessionID}/message",
 		"/session/{sessionID}/prompt_async",

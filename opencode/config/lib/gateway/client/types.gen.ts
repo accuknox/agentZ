@@ -2272,6 +2272,9 @@ export type PrepareCodingCheckoutRequest = {
   base_ref?: string
 }
 
+/**
+ * Generate source-control text using the explicit request model, otherwise the sandbox small model, otherwise the thread model. A configured model that fails does not fall back to another model.
+ */
 export type CodingTextRequest = {
   purpose: "branch" | "commit" | "pr"
   text?: string
@@ -2946,7 +2949,7 @@ export type DeleteCodingProjectError = DeleteCodingProjectErrors[keyof DeleteCod
 
 export type DeleteCodingProjectResponses = {
   /**
-   * Project
+   * Project, conversations, and all managed checkout files deleted.
    */
   204: void
 }

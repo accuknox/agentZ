@@ -22,12 +22,15 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/accuknox/agentz/internal/authorization"
 	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	"github.com/accuknox/agentz/internal/gateway/filesystem"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	"github.com/accuknox/agentz/internal/scope"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 //go:embed prompts/*.tmpl
@@ -916,6 +919,34 @@ func (s *Service) codingSuggestion(ctx context.Context, access resourceAccess, t
 		}},
 	}
 	if input.Model == nil {
+		resolved, err := s.resolver.resolveAgent(ctx, access.namespace, agentName)
+		if err != nil {
+			return gatewayapi.CodingTextSuggestion{}, err
+		}
+		ref := resolved.Agent.Spec.SandboxRef
+		namespace, err := scope.SelectedNamespace(
+			ctx, s.k8sClient, access.namespace,
+			scope.Selection{
+				Scope: ref.Scope,
+				Kind:  agentzv1alpha1.OrganizationResourceKindSandbox,
+				Name:  ref.Name,
+			},
+		)
+		if err != nil {
+			return gatewayapi.CodingTextSuggestion{}, fmt.Errorf("resolve sandbox scope: %w", err)
+		}
+		var sandbox agentzv1alpha1.Sandbox
+		key := types.NamespacedName{Namespace: namespace, Name: ref.Name}
+		if err := s.k8sClient.Get(ctx, key, &sandbox); err != nil {
+			return gatewayapi.CodingTextSuggestion{}, fmt.Errorf("get sandbox: %w", err)
+		}
+		if model := sandbox.Spec.Inference.SmallModel; model != nil {
+			body.Model = &gatewayapi.OpencodeModelRef{
+				ProviderID: model.Provider, Id: model.Model,
+			}
+		}
+	}
+	if input.Model == nil && body.Model == nil {
 		parent, err := client.SessionGetWithResponse(
 			ctx,
 			agentName,

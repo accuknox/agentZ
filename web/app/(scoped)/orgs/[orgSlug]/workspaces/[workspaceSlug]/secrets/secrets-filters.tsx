@@ -1,9 +1,7 @@
 "use client"
 
-import * as React from "react"
 import type { Agent } from "@/lib/gateway/client"
-import { useRouter } from "@bprogress/next/app"
-import { usePathname, useSearchParams } from "next/navigation"
+import { useSelectResource } from "@/components/page-selection"
 import {
   Select,
   SelectContent,
@@ -21,26 +19,7 @@ export function SecretsFilters({
   agents: Agent[]
   selectedAgentName?: string
 }) {
-  const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
-  const [pending, startTransition] = React.useTransition()
-
-  function updateAgentName(agentName: string) {
-    const params = new URLSearchParams(searchParams)
-    params.delete("page_token")
-    params.delete("token_stack")
-    if (agentName) {
-      params.set("agent_name", agentName)
-    } else {
-      params.delete("agent_name")
-    }
-
-    startTransition(() => {
-      const query = params.toString()
-      router.replace(query === "" ? pathname : `${pathname}?${query}`)
-    })
-  }
+  const { pending, select } = useSelectResource(true)
 
   return (
     <div
@@ -49,9 +28,9 @@ export function SecretsFilters({
     >
       <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
         <Select
-          value={selectedAgentName}
-          onValueChange={updateAgentName}
-          disabled={agents.length === 0}
+          value={selectedAgentName ?? ""}
+          onValueChange={(agent_name) => select({ agent_name })}
+          disabled={agents.length === 0 || pending}
         >
           <SelectTrigger
             aria-label="Agent"

@@ -7,7 +7,8 @@ import {
   AdministrationPageHeader,
   AdministrationState,
 } from "@/components/administration"
-import { listAgentsCachedQuery } from "@/data/agent.queries"
+import { resolvePageSelection } from "@/data/page-selection"
+import { RememberPageSelection } from "@/components/page-selection"
 import {
   deleteSecretFormAction,
   putSecretFormAction,
@@ -50,39 +51,41 @@ async function WorkspaceSecrets({
   if (workspace.kind !== "ready") {
     notFound()
   }
-  const agents = await listAgentsCachedQuery(undefined, workspace.workspace.id)
-  if (agents.error) {
+  const parsed = secretsSearchParamsSchema.parse(search)
+  const state = await resolvePageSelection(workspace, "secrets", parsed)
+  if (state.error) {
     return (
       <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
         <AdministrationPageHeader title="Secrets" />
         <AdministrationState
-          description={agents.error.code === "forbidden" ? undefined : agents.error.message}
-          kind={agents.error.code === "forbidden" ? "forbidden" : "failed"}
-          title={agents.error.code === "forbidden" ? undefined : "Unable to load Agents"}
+          description={state.error.code === "forbidden" ? undefined : state.error.message}
+          kind={state.error.code === "forbidden" ? "forbidden" : "failed"}
+          title={state.error.code === "forbidden" ? undefined : "Unable to load Agents"}
         />
       </main>
     )
   }
-  const readableAgents = agents.agents.filter((agent) => agent.capabilities.read_secrets)
+  const readableAgents = state.agents
   const firstReadableAgent = readableAgents[0]
   if (!firstReadableAgent) {
     return (
       <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
+        <RememberPageSelection selected={state.selected} requested={state.requested} />
         <AdministrationPageHeader title="Secrets" />
         <AdministrationState kind="forbidden" />
       </main>
     )
   }
-  const parsed = secretsSearchParamsSchema.parse(search)
   const selectedAgent =
-    readableAgents.find((agent) => agent.name === parsed.agent_name) ?? firstReadableAgent
+    readableAgents.find((agent) => agent.name === state.selected.agent_name) ?? firstReadableAgent
   const writableAgent =
     readableAgents.find(
-      (agent) => agent.name === parsed.agent_name && agent.capabilities.write_secrets
+      (agent) => agent.name === state.selected.agent_name && agent.capabilities.write_secrets
     ) ?? readableAgents.find((agent) => agent.capabilities.write_secrets)
   const result = await listSecretsCachedQuery(selectedAgent.name, workspace.workspace.id, {
     limit: 50,
-    page_token: parsed.page_token,
+    page_token:
+      state.selected.agent_name === state.requested.agent_name ? parsed.page_token : undefined,
     sort_by: parsed.sort_by,
     sort_order: parsed.sort_order,
   })
@@ -118,6 +121,7 @@ async function WorkspaceSecrets({
         }
         title="Secrets"
       />
+      <RememberPageSelection selected={state.selected} requested={state.requested} />
       <SecretsFilters agents={readableAgents} selectedAgentName={selectedAgent.name} />
       <SecretTable
         agentName={selectedAgent.name}

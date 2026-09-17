@@ -6,9 +6,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import * as z from "zod"
 import Workflow from "@/components/blocks/workflow/workflow"
 import { Skeleton } from "@/components/ui/skeleton"
-import { listAgentsCachedQuery } from "@/data/agent.queries"
-import { selectWorkflowFiltersAction } from "@/data/workflow.actions"
-import { listWorkflowSummariesCachedQuery, getWorkflowCachedQuery } from "@/data/workflow.queries"
+import { resolvePageSelection, type ResolvedPageSelection } from "@/data/page-selection"
+import { RememberPageSelection } from "@/components/page-selection"
 import { getWorkspaceScope } from "@/data/workspaces"
 import { WorkflowsFilters } from "./workflows-filters"
 import { searchParamStringSchema } from "@/lib/search-params"
@@ -21,8 +20,6 @@ const workflowsSearchParamsSchema = z.object({
   agent_name: searchParamStringSchema,
   workflow_name: searchParamStringSchema,
 })
-
-type ResolvedSearchParams = z.output<typeof workflowsSearchParamsSchema>
 
 export default function WorkflowsPage(
   props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/workflows/graphs">
@@ -44,125 +41,45 @@ async function WorkspaceWorkflows({
     notFound()
   }
   const parsed = workflowsSearchParamsSchema.parse(search)
-  const actionScope = {
-    basePath: `/orgs/${workspace.scope.organization.slug}/workspaces/${workspace.workspace.slug}`,
-    workspaceId: workspace.workspace.id,
-  }
+  const selection = resolvePageSelection(workspace, "workflows/graphs", parsed)
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
       <AdministrationPageHeader title="Workflows" />
-      <Suspense fallback={<FiltersSkeleton />}>
-        <Filters actionScope={actionScope} searchParams={parsed} />
-      </Suspense>
-      <Suspense fallback={<CanvasSkeleton />}>
-        <WorkflowContent searchParams={parsed} workspaceId={workspace.workspace.id} />
+      <Suspense
+        fallback={
+          <>
+            <FiltersSkeleton />
+            <CanvasSkeleton />
+          </>
+        }
+      >
+        <WorkflowContent selection={selection} />
       </Suspense>
     </main>
   )
 }
 
-async function Filters({
-  actionScope,
-  searchParams,
-}: {
-  actionScope: { basePath: string; workspaceId: string }
-  searchParams: ResolvedSearchParams
-}) {
-  const agents = listAgentsCachedQuery(undefined, actionScope.workspaceId)
-  const selectedAgentName = searchParams.agent_name
-  const selectedWorkflowName = searchParams.workflow_name
-  const agentsResult = await agents
-  if (agentsResult.error) {
-    return <ErrorPanel message={agentsResult.error.message} />
-  }
-
-  const selectedAgent =
-    agentsResult.agents.find((agent) => agent.name === selectedAgentName) ?? agentsResult.agents[0]
-  if (!selectedAgent) {
-    return (
+async function WorkflowContent({ selection }: { selection: Promise<ResolvedPageSelection> }) {
+  const { selected, requested, agents, workflows, workflow, error } = await selection
+  if (error) return <ErrorPanel message={error.message} />
+  return (
+    <>
+      <RememberPageSelection selected={selected} requested={requested} />
       <WorkflowsFilters
-        action={selectWorkflowFiltersAction.bind(null, actionScope)}
-        agents={agentsResult.agents}
-        selectedAgentName={undefined}
-        workflows={[]}
-        selectedWorkflowName={undefined}
+        agents={agents}
+        workflows={workflows}
+        selectedAgentName={selected.agent_name}
+        selectedWorkflowName={selected.workflow_name}
       />
-    )
-  }
-
-  const workflowsResult = await listWorkflowSummariesCachedQuery(
-    selectedAgent.name,
-    actionScope.workspaceId
-  )
-  const workflows = workflowsResult.summaries ?? []
-  const selectedWorkflow =
-    workflows.find((workflow) => workflow.workflow_name === selectedWorkflowName) ?? workflows[0]
-
-  return (
-    <WorkflowsFilters
-      key={`${selectedAgent.name}:${selectedWorkflow?.workflow_name ?? ""}`}
-      action={selectWorkflowFiltersAction.bind(null, actionScope)}
-      agents={agentsResult.agents}
-      selectedAgentName={selectedAgent.name}
-      workflows={workflows}
-      selectedWorkflowName={selectedWorkflow?.workflow_name}
-    />
-  )
-}
-
-async function WorkflowContent({
-  searchParams,
-  workspaceId,
-}: {
-  searchParams: ResolvedSearchParams
-  workspaceId: string
-}) {
-  const agents = listAgentsCachedQuery(undefined, workspaceId)
-  const selectedAgentName = searchParams.agent_name
-  const selectedWorkflowName = searchParams.workflow_name
-  const agentsResult = await agents
-  if (agentsResult.error) {
-    return <ErrorPanel message={agentsResult.error.message} />
-  }
-
-  const selectedAgent =
-    agentsResult.agents?.find((agent) => agent.name === selectedAgentName) ??
-    agentsResult.agents?.[0]
-  if (!selectedAgent) {
-    return <EmptyState message="No agents available" />
-  }
-
-  const workflowsResult = await listWorkflowSummariesCachedQuery(selectedAgent.name, workspaceId)
-  if (workflowsResult.error) {
-    return <ErrorPanel message={workflowsResult.error.message} />
-  }
-
-  const selectedWorkflow =
-    workflowsResult.summaries?.find(
-      (workflow) => workflow.workflow_name === selectedWorkflowName
-    ) ?? workflowsResult.summaries?.[0]
-  if (!selectedWorkflow) {
-    return <EmptyState message={`No workflows available for ${selectedAgent.name}`} />
-  }
-
-  const workflowResult = await getWorkflowCachedQuery(
-    selectedAgent.name,
-    selectedWorkflow.workflow_name,
-    workspaceId
-  )
-  if (workflowResult.error) {
-    return <ErrorPanel message={workflowResult.error.message} />
-  }
-  if (!workflowResult.workflow) {
-    return <ErrorPanel message="Workflow data is unavailable" />
-  }
-
-  return (
-    <Workflow
-      key={`${selectedAgent.name}:${selectedWorkflow.workflow_name}`}
-      workflow={workflowResult.workflow}
-    />
+      {!selected.agent_name ? (
+        <EmptyState message="No agents available" />
+      ) : !workflow ? (
+        <EmptyState message={`No workflows available for ${selected.agent_name}`} />
+      ) : (
+        <Workflow key={`${selected.agent_name}:${selected.workflow_name}`} workflow={workflow} />
+      )}
+    </>
   )
 }
 

@@ -1,7 +1,7 @@
 "use client"
 
 import type { Route } from "next"
-import Link from "next/link"
+import { SelectionLink } from "@/components/page-selection"
 import { usePathname } from "next/navigation"
 import type { ReactNode } from "react"
 import { SidebarMenuButton, useSidebar } from "@/components/ui/sidebar"
@@ -32,14 +32,14 @@ export function SidebarNavigationLink<T extends string>({
 
   return (
     <SidebarMenuButton asChild isActive={active} tooltip={label}>
-      <Link
+      <SelectionLink
         aria-current={active ? "page" : undefined}
         href={href}
         onNavigate={() => setOpenMobile(false)}
       >
         {children}
         <span>{label}</span>
-      </Link>
+      </SelectionLink>
     </SidebarMenuButton>
   )
 }

@@ -5,13 +5,12 @@ import { AdministrationPageHeader } from "@/components/administration"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import * as z from "zod"
 import { Skeleton } from "@/components/ui/skeleton"
-import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { listWebhookAPIKeyDisplaysCachedQuery } from "@/data/api-key.queries"
-import { selectWorkflowRunsFiltersAction, type WorkflowActionScope } from "@/data/workflow.actions"
+import { resolvePageSelection, type ResolvedPageSelection } from "@/data/page-selection"
+import { RememberPageSelection } from "@/components/page-selection"
+import type { WorkflowActionScope } from "@/data/types"
 import { deleteWorkflowRunAction } from "@/data/workflow-run.actions"
 import { listWorkflowRunsCachedQuery } from "@/data/workflow-run.queries"
-import { listWorkflowSchedulesCachedQuery } from "@/data/workflow-schedule.queries"
-import { listWorkflowWebhookTriggersCachedQuery } from "@/data/workflow-trigger.queries"
 import { getWorkspaceScope } from "@/data/workspaces"
 import { RunsFilters } from "./runs-filters"
 import { RunsTable } from "./runs-table"
@@ -62,6 +61,7 @@ async function WorkflowRunsContent({
     notFound()
   }
   const parsed = workflowRunsSearchParamsSchema.parse(search)
+  const selection = resolvePageSelection(workspace, "workflows/triggers/runs", parsed)
   const actionScope: WorkflowActionScope = {
     basePath: `/orgs/${workspace.scope.organization.slug}/workspaces/${workspace.workspace.slug}`,
     workspaceId: workspace.workspace.id,
@@ -70,237 +70,99 @@ async function WorkflowRunsContent({
   return (
     <>
       <Suspense fallback={<FiltersSkeleton />}>
-        <Filters actionScope={actionScope} searchParams={parsed} />
+        <Filters workspaceId={workspace.workspace.id} selection={selection} />
       </Suspense>
       <Suspense fallback={<RunsTableSkeleton />}>
-        <Runs actionScope={actionScope} searchParams={parsed} />
+        <Runs actionScope={actionScope} searchParams={parsed} selection={selection} />
       </Suspense>
     </>
   )
 }
 
 async function Filters({
-  actionScope,
-  searchParams,
+  workspaceId,
+  selection,
 }: {
-  actionScope: WorkflowActionScope
-  searchParams: ResolvedSearchParams
+  workspaceId: string
+  selection: Promise<ResolvedPageSelection>
 }) {
-  const requestedAgentName = searchParams.agent_name
-  const requestedType = searchParams.type
-  const selectedType = requestedType === "webhook" ? "webhook" : "schedule"
-  const requestedWorkflowName = searchParams.workflow_name
-  const requestedScheduleName = searchParams.schedule_name
-  const requestedWebhookAPIKeyID = searchParams.webhook_api_key_id
-  const agentsResult = await listAgentsCachedQuery(undefined, actionScope.workspaceId)
-  if (agentsResult.error) {
-    return <ErrorPanel message={agentsResult.error.message} />
-  }
-
-  const selectedAgent =
-    agentsResult.agents.find((agent) => agent.name === requestedAgentName) ?? agentsResult.agents[0]
-  if (!selectedAgent) {
-    return (
-      <RunsFilters
-        action={selectWorkflowRunsFiltersAction.bind(null, actionScope)}
-        agents={agentsResult.agents}
-        schedules={[]}
-        selectedAgentName={undefined}
-        selectedType={selectedType}
-        webhookTriggers={[]}
-      />
-    )
-  }
-
-  if (selectedType === "webhook") {
-    const triggersResult = await listWorkflowWebhookTriggersCachedQuery(
-      selectedAgent.name,
-      actionScope.workspaceId,
-      { limit: 200 }
-    )
-    if (triggersResult.error) {
-      return <ErrorPanel message={triggersResult.error.message} />
-    }
-
-    const webhookKeyDisplaysByID = await listWebhookAPIKeyDisplaysCachedQuery(
-      actionScope.workspaceId
-    )
-
-    const selectedTrigger =
-      triggersResult.webhookTriggers.find(
-        (trigger) =>
-          trigger.workflow_name === requestedWorkflowName &&
-          trigger.api_key_id === requestedWebhookAPIKeyID
-      ) ?? triggersResult.webhookTriggers[0]
-
-    return (
-      <RunsFilters
-        key={`${selectedAgent.name}:webhook:${selectedTrigger?.workflow_name ?? ""}:${selectedTrigger?.api_key_id ?? ""}`}
-        action={selectWorkflowRunsFiltersAction.bind(null, actionScope)}
-        agents={agentsResult.agents}
-        schedules={[]}
-        selectedAgentName={selectedAgent.name}
-        selectedType="webhook"
-        selectedWebhookAPIKeyID={selectedTrigger?.api_key_id}
-        selectedWorkflowName={selectedTrigger?.workflow_name}
-        webhookTriggers={triggersResult.webhookTriggers.map((trigger) => {
-          const apiKey = webhookKeyDisplaysByID[trigger.api_key_id]
-          return {
-            apiKeyId: trigger.api_key_id,
-            label: `${trigger.workflow_name} - ${apiKey?.name || apiKey?.display || "Deleted key"}`,
-            workflowName: trigger.workflow_name,
-          }
-        })}
-      />
-    )
-  }
-
-  const schedulesResult = await listWorkflowSchedulesCachedQuery(
-    selectedAgent.name,
-    actionScope.workspaceId,
-    { limit: 200 }
-  )
-  if (schedulesResult.error) {
-    return <ErrorPanel message={schedulesResult.error.message} />
-  }
-
-  const selectedSchedule =
-    schedulesResult.workflowSchedules.find((schedule) => schedule.name === requestedScheduleName) ??
-    schedulesResult.workflowSchedules[0]
-
+  const state = await selection
+  if (state.error) return <ErrorPanel message={state.error.message} />
+  const displays =
+    state.selected.type === "webhook" ? await listWebhookAPIKeyDisplaysCachedQuery(workspaceId) : {}
   return (
-    <RunsFilters
-      key={`${selectedAgent.name}:schedule:${selectedSchedule?.name ?? ""}`}
-      action={selectWorkflowRunsFiltersAction.bind(null, actionScope)}
-      agents={agentsResult.agents}
-      schedules={schedulesResult.workflowSchedules}
-      selectedAgentName={selectedAgent.name}
-      selectedScheduleName={selectedSchedule?.name}
-      selectedType="schedule"
-      selectedWorkflowName={selectedSchedule?.workflow_name}
-      webhookTriggers={[]}
-    />
+    <>
+      <RememberPageSelection selected={state.selected} requested={state.requested} />
+      <RunsFilters
+        agents={state.agents}
+        schedules={state.schedules}
+        selectedAgentName={state.selected.agent_name}
+        selectedType={state.selected.type ?? "schedule"}
+        selectedScheduleName={state.selected.schedule_name}
+        selectedWorkflowName={state.selected.workflow_name}
+        selectedWebhookAPIKeyID={state.selected.webhook_api_key_id}
+        webhookTriggers={state.webhookTriggers.map((trigger) => ({
+          ...trigger,
+          label: `${trigger.workflow_name} - ${displays[trigger.api_key_id]?.name || displays[trigger.api_key_id]?.display || "Deleted key"}`,
+        }))}
+      />
+    </>
   )
 }
 
 async function Runs({
   actionScope,
   searchParams,
+  selection,
 }: {
   actionScope: WorkflowActionScope
   searchParams: ResolvedSearchParams
+  selection: Promise<ResolvedPageSelection>
 }) {
-  const requestedAgentName = searchParams.agent_name
-  const requestedType = searchParams.type
-  const selectedType = requestedType === "webhook" ? "webhook" : "schedule"
-  const requestedWorkflowName = searchParams.workflow_name
-  const requestedScheduleName = searchParams.schedule_name
-  const requestedWebhookAPIKeyID = searchParams.webhook_api_key_id
-  const pageToken = searchParams.page_token
-  const agentsResult = await listAgentsCachedQuery(undefined, actionScope.workspaceId)
-  if (agentsResult.error) {
-    return <ErrorPanel message={agentsResult.error.message} />
-  }
-
-  const selectedAgent =
-    agentsResult.agents?.find((agent) => agent.name === requestedAgentName) ??
-    agentsResult.agents?.[0]
-  if (!selectedAgent) {
-    return <ErrorPanel message="No agents available" />
-  }
-
-  if (selectedType === "webhook") {
-    const triggersResult = await listWorkflowWebhookTriggersCachedQuery(
-      selectedAgent.name,
-      actionScope.workspaceId,
-      { limit: 200 }
-    )
-    if (triggersResult.error || !triggersResult.webhookTriggers) {
-      return (
-        <ErrorPanel message={triggersResult.error?.message ?? "Unable to load webhook triggers"} />
-      )
-    }
-
-    const selectedTrigger =
-      triggersResult.webhookTriggers.find(
-        (trigger) =>
-          trigger.workflow_name === requestedWorkflowName &&
-          trigger.api_key_id === requestedWebhookAPIKeyID
-      ) ?? triggersResult.webhookTriggers[0]
-    if (!selectedTrigger) {
-      return <EmptyState message="No webhook-triggered workflow runs available" />
-    }
-
-    const result = await listWorkflowRunsCachedQuery(
-      selectedAgent.name,
-      selectedTrigger.workflow_name,
-      actionScope.workspaceId,
-      {
-        limit: 25,
-        page_token: pageToken,
-        trigger_type: "Webhook",
-        webhook_api_key_id: selectedTrigger.api_key_id,
-      }
-    )
-    if (result.error) {
-      return <ErrorPanel message={result.error.message} />
-    }
-
+  const { selected, requested, error } = await selection
+  if (error) return <ErrorPanel message={error.message} />
+  if (!selected.agent_name) return <EmptyState message="No agents available" />
+  if (!selected.workflow_name)
     return (
-      <RunsTable
-        agentName={selectedAgent.name}
-        basePath={actionScope.basePath}
-        deleteWorkflowRunAction={deleteWorkflowRunAction.bind(null, actionScope)}
-        hasNextPage={result.hasNextPage}
-        nextPageToken={result.nextPageToken}
-        workflowName={selectedTrigger.workflow_name}
-        workflowRuns={result.workflowRuns}
-        workspaceId={actionScope.workspaceId}
+      <EmptyState
+        message={
+          selected.type === "webhook"
+            ? "No webhook-triggered workflow runs available"
+            : "No scheduled workflow runs available"
+        }
       />
     )
-  }
-
-  const schedulesResult = await listWorkflowSchedulesCachedQuery(
-    selectedAgent.name,
-    actionScope.workspaceId,
-    { limit: 200 }
-  )
-  if (schedulesResult.error || !schedulesResult.workflowSchedules) {
-    return <ErrorPanel message={schedulesResult.error?.message ?? "Unable to load schedules"} />
-  }
-
-  const selectedSchedule =
-    schedulesResult.workflowSchedules.find((schedule) => schedule.name === requestedScheduleName) ??
-    schedulesResult.workflowSchedules[0]
-  if (!selectedSchedule) {
-    return <EmptyState message="No scheduled workflow runs available" />
-  }
-
+  const pageToken =
+    selected.agent_name === requested.agent_name &&
+    selected.type === requested.type &&
+    selected.workflow_name === requested.workflow_name &&
+    selected.schedule_name === requested.schedule_name &&
+    selected.webhook_api_key_id === requested.webhook_api_key_id
+      ? searchParams.page_token
+      : undefined
   const result = await listWorkflowRunsCachedQuery(
-    selectedAgent.name,
-    selectedSchedule.workflow_name,
+    selected.agent_name,
+    selected.workflow_name,
     actionScope.workspaceId,
     {
       limit: 25,
       page_token: pageToken,
-      schedule_name: selectedSchedule.name,
-      trigger_type: "Schedule",
+      ...(selected.type === "webhook"
+        ? { trigger_type: "Webhook", webhook_api_key_id: selected.webhook_api_key_id }
+        : { trigger_type: "Schedule", schedule_name: selected.schedule_name }),
     }
   )
-  if (result.error) {
-    return <ErrorPanel message={result.error.message} />
-  }
-
+  if (result.error) return <ErrorPanel message={result.error.message} />
   return (
     <RunsTable
-      agentName={selectedAgent.name}
+      agentName={selected.agent_name}
+      workflowName={selected.workflow_name}
       basePath={actionScope.basePath}
+      workspaceId={actionScope.workspaceId}
       deleteWorkflowRunAction={deleteWorkflowRunAction.bind(null, actionScope)}
       hasNextPage={result.hasNextPage}
       nextPageToken={result.nextPageToken}
-      workflowName={selectedSchedule.workflow_name}
       workflowRuns={result.workflowRuns}
-      workspaceId={actionScope.workspaceId}
     />
   )
 }

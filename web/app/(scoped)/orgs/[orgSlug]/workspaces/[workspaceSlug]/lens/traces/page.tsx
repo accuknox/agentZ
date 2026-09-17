@@ -6,13 +6,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { EventsChart } from "@/components/events-chart"
 import { EventsChartSkeleton } from "@/components/events-chart-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
-import { listAgentsCachedQuery } from "@/data/agent.queries"
-import {
-  getTraceChartAction,
-  listTraceSessionFilterAction,
-  listTraceSessionsAction,
-} from "@/data/lens.actions"
-import type { ListAgentActionResponse, TraceSessionFilterItem } from "@/data/types"
+import { resolvePageSelection, type ResolvedPageSelection } from "@/data/page-selection"
+import { RememberPageSelection } from "@/components/page-selection"
+import { getTraceChartAction, listTraceSessionsAction } from "@/data/lens.actions"
 import { LensFilters } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/lens-filters"
 import {
   lensDateRange,
@@ -22,7 +18,6 @@ import { TracesSkeleton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[worksp
 import { TracesTable } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/traces/traces-table"
 import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 import { getWorkspaceScope } from "@/data/workspaces"
-import type { WorkspaceType } from "@/lib/gateway/client"
 
 export const metadata: Metadata = {
   title: "Traces",
@@ -48,36 +43,6 @@ type TracesSearchParams = {
   limit?: SearchParamStringInput
 }
 
-type TraceScopeSuccess = {
-  agents: NonNullable<ListAgentActionResponse["agents"]>
-  sessions: TraceSessionFilterItem[]
-  selectedAgentName?: string
-  selectedSessionId?: string
-  error: undefined
-}
-
-type TraceScopeFailure = {
-  agents: undefined
-  sessions: undefined
-  selectedAgentName?: undefined
-  selectedSessionId?: undefined
-  error: NonNullable<ListAgentActionResponse["error"]>
-}
-
-type TraceScope = TraceScopeSuccess | TraceScopeFailure
-
-function traceScopeFailure(
-  error: NonNullable<ListAgentActionResponse["error"]>
-): TraceScopeFailure {
-  return {
-    agents: undefined,
-    sessions: undefined,
-    selectedAgentName: undefined,
-    selectedSessionId: undefined,
-    error,
-  }
-}
-
 export default async function TracesPage({
   params,
   searchParams,
@@ -96,14 +61,10 @@ export default async function TracesPage({
 
   const resolved = resolveTracesSearchParams(searchParams)
   const workspaceId = workspace.workspace.id
-  const agents = listAgentsCachedQuery(undefined, workspaceId)
   const scope = resolved.then((params) =>
-    getTraceScope({
-      agents,
-      agentName: params.agentName,
-      sessionID: params.sessionID,
-      workspaceId,
-      workspaceType: workspace.workspace.type,
+    resolvePageSelection(workspace, "lens/traces", {
+      agent_name: params.agentName,
+      session_id: params.sessionID,
     })
   )
 
@@ -138,7 +99,7 @@ async function Filters({
   scope: scopePromise,
 }: {
   searchParams: Promise<ResolvedTracesSearchParams>
-  scope: Promise<TraceScope>
+  scope: Promise<ResolvedPageSelection>
 }) {
   const params = await searchParams
   const scope = await scopePromise
@@ -147,14 +108,17 @@ async function Filters({
   }
 
   return (
-    <LensFilters
-      agents={scope.agents}
-      sessions={scope.sessions}
-      selectedAgentName={scope.selectedAgentName}
-      selectedSessionId={scope.selectedSessionId}
-      from={params.range.from}
-      to={params.range.to}
-    />
+    <>
+      <RememberPageSelection selected={scope.selected} requested={scope.requested} />
+      <LensFilters
+        agents={scope.agents}
+        sessions={scope.sessions}
+        selectedAgentName={scope.selected.agent_name}
+        selectedSessionId={scope.selected.session_id}
+        from={params.range.from}
+        to={params.range.to}
+      />
+    </>
   )
 }
 
@@ -165,7 +129,7 @@ async function Chart({
 }: {
   searchParams: Promise<ResolvedTracesSearchParams>
   workspaceId: string
-  scope: Promise<TraceScope>
+  scope: Promise<ResolvedPageSelection>
 }) {
   const params = await searchParams
   const scope = await scopePromise
@@ -173,17 +137,17 @@ async function Chart({
     return null
   }
 
-  if (!scope.selectedAgentName) {
+  if (!scope.selected.agent_name) {
     return null
   }
-  const sessionID = scope.selectedSessionId
+  const sessionID = scope.selected.session_id
   if (!sessionID) {
     return null
   }
 
   const result = await getTraceChartAction(
     {
-      agentName: scope.selectedAgentName,
+      agentName: scope.selected.agent_name,
       sessionID,
     },
     {
@@ -206,7 +170,7 @@ async function Traces({
 }: {
   searchParams: Promise<ResolvedTracesSearchParams>
   workspaceId: string
-  scope: Promise<TraceScope>
+  scope: Promise<ResolvedPageSelection>
 }) {
   const params = await searchParams
   const scope = await scopePromise
@@ -214,24 +178,25 @@ async function Traces({
     return <ErrorPanel message={scope.error.message} />
   }
 
-  if (!scope.selectedAgentName) {
-    if (params.agentName && scope.agents.length > 0) {
-      return <EmptyState message="The selected agent is no longer accessible" />
-    }
+  if (!scope.selected.agent_name) {
     return <EmptyState message="No accessible agents" />
   }
-  if (!scope.selectedSessionId) {
+  if (!scope.selected.session_id) {
     return <EmptyState message="No trace sessions for this agent" />
   }
 
   const result = await listTraceSessionsAction(
     {
-      agentName: scope.selectedAgentName,
-      sessionID: scope.selectedSessionId,
+      agentName: scope.selected.agent_name,
+      sessionID: scope.selected.session_id,
     },
     {
       limit: params.limit,
-      page_token: params.pageToken,
+      page_token:
+        scope.selected.agent_name === scope.requested.agent_name &&
+        scope.selected.session_id === scope.requested.session_id
+          ? params.pageToken
+          : undefined,
       started_after: params.range.after,
       started_before: params.range.before,
     },
@@ -280,57 +245,4 @@ function EmptyState({ message }: { message: string }) {
       {message}
     </div>
   )
-}
-
-async function getTraceScope({
-  agents,
-  agentName,
-  sessionID,
-  workspaceId,
-  workspaceType,
-}: {
-  agents: Promise<ListAgentActionResponse>
-  agentName?: string
-  sessionID?: string
-  workspaceId: string
-  workspaceType: WorkspaceType
-}): Promise<TraceScope> {
-  const agentResult = await agents
-  if (agentResult.error) {
-    return traceScopeFailure(agentResult.error)
-  }
-
-  const selectedAgentName = agentName
-    ? agentResult.agents.find((agent) => agent.name === agentName)?.name
-    : agentResult.agents[0]?.name
-  if (!selectedAgentName) {
-    return {
-      agents: agentResult.agents,
-      sessions: [],
-      selectedAgentName: undefined,
-      selectedSessionId: undefined,
-      error: undefined,
-    }
-  }
-
-  const sessionResult = await listTraceSessionFilterAction(
-    selectedAgentName,
-    workspaceId,
-    workspaceType
-  )
-  if (sessionResult.error) {
-    return traceScopeFailure(sessionResult.error)
-  }
-
-  const selectedSessionId = sessionResult.data.some((session) => session.sessionId === sessionID)
-    ? sessionID
-    : sessionResult.data[0]?.sessionId
-
-  return {
-    agents: agentResult.agents,
-    sessions: sessionResult.data,
-    selectedAgentName,
-    selectedSessionId,
-    error: undefined,
-  }
 }

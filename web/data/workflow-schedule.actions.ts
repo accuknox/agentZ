@@ -27,7 +27,7 @@ import type {
   WorkflowInputContractResult,
 } from "@/data/types"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
-import type { WorkflowActionScope } from "@/data/workflow.actions"
+import type { WorkflowActionScope } from "@/data/types"
 
 type ParsedScheduleForm = {
   data: CreateWorkflowScheduleFormValues

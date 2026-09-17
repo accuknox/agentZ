@@ -1,7 +1,7 @@
 "use client"
 
 import type { Route } from "next"
-import Link from "next/link"
+import { SelectionLink } from "@/components/page-selection"
 import { usePathname, useSearchParams } from "next/navigation"
 import { tabsListVariants } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
@@ -53,7 +53,7 @@ export function RouteTabs({ label, tabs }: { label: string; tabs: readonly Route
                 {tab.label}
               </span>
             ) : (
-              <Link
+              <SelectionLink
                 aria-current={active === tab ? "page" : undefined}
                 className={routeTabClassName}
                 data-active={active === tab ? "" : undefined}
@@ -61,7 +61,7 @@ export function RouteTabs({ label, tabs }: { label: string; tabs: readonly Route
                 key={tab.href}
               >
                 {tab.label}
-              </Link>
+              </SelectionLink>
             )
           )}
         </div>

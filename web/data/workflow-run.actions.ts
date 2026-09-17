@@ -6,7 +6,7 @@ import * as z from "zod"
 import { createWorkflowRun, deleteWorkflowRun, type Error } from "@/lib/gateway/client"
 import { workflowRunsTag } from "@/data/cache"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
-import type { WorkflowActionScope } from "@/data/workflow.actions"
+import type { WorkflowActionScope } from "@/data/types"
 
 export type DeleteWorkflowRunActionState = {
   success: boolean

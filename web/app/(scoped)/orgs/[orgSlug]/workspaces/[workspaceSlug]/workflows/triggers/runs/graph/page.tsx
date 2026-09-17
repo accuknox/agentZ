@@ -5,13 +5,8 @@ import { AdministrationPageHeader } from "@/components/administration"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import * as z from "zod"
 import { Skeleton } from "@/components/ui/skeleton"
-import { listAgentsCachedQuery } from "@/data/agent.queries"
-import {
-  selectWorkflowRunGraphFiltersAction,
-  type WorkflowActionScope,
-} from "@/data/workflow.actions"
-import { getWorkflowCachedQuery, listWorkflowSummariesCachedQuery } from "@/data/workflow.queries"
-import { getWorkflowRunCachedQuery, listWorkflowRunsCachedQuery } from "@/data/workflow-run.queries"
+import { resolvePageSelection } from "@/data/page-selection"
+import { RememberPageSelection } from "@/components/page-selection"
 import { getWorkspaceScope } from "@/data/workspaces"
 import { searchParamStringSchema } from "@/lib/search-params"
 import { WorkflowRunGraphFilters } from "./workflow-run-graph-filters"
@@ -50,130 +45,35 @@ async function WorkflowRunGraphContent({
     notFound()
   }
   const parsed = workflowRunGraphSearchParamsSchema.parse(search)
-  const actionScope: WorkflowActionScope = {
-    basePath: `/orgs/${workspace.scope.organization.slug}/workspaces/${workspace.workspace.slug}`,
-    workspaceId: workspace.workspace.id,
-  }
-
-  const agentsResult = await listAgentsCachedQuery(undefined, actionScope.workspaceId)
-  if (agentsResult.error) {
-    return <ErrorPanel message={agentsResult.error.message} />
-  }
-
-  const selectedAgent =
-    agentsResult.agents.find((agent) => agent.name === parsed.agent_name) ?? agentsResult.agents[0]
-  if (!selectedAgent) {
-    return (
-      <>
-        <WorkflowRunGraphFilters
-          action={selectWorkflowRunGraphFiltersAction.bind(null, actionScope)}
-          agents={agentsResult.agents}
-          workflowRuns={[]}
-          workflows={[]}
-        />
-        <EmptyState message="No agents available" />
-      </>
-    )
-  }
-
-  const workflowsResult = await listWorkflowSummariesCachedQuery(
-    selectedAgent.name,
-    actionScope.workspaceId
-  )
-  if (workflowsResult.error) {
-    return <ErrorPanel message={workflowsResult.error.message} />
-  }
-
-  const selectedWorkflow =
-    workflowsResult.summaries.find((workflow) => workflow.workflow_name === parsed.workflow_name) ??
-    workflowsResult.summaries[0]
-  if (!selectedWorkflow) {
-    return (
-      <>
-        <WorkflowRunGraphFilters
-          action={selectWorkflowRunGraphFiltersAction.bind(null, actionScope)}
-          agents={agentsResult.agents}
-          selectedAgentName={selectedAgent.name}
-          workflowRuns={[]}
-          workflows={workflowsResult.summaries}
-        />
-        <EmptyState message={`No workflows available for ${selectedAgent.name}`} />
-      </>
-    )
-  }
-
-  const runsResult = await listWorkflowRunsCachedQuery(
-    selectedAgent.name,
-    selectedWorkflow.workflow_name,
-    actionScope.workspaceId,
-    {
-      limit: 200,
-    }
-  )
-  if (runsResult.error) {
-    return <ErrorPanel message={runsResult.error.message} />
-  }
-
-  const selectedRun =
-    runsResult.workflowRuns.find((run) => run.name === parsed.run_name) ??
-    runsResult.workflowRuns[0]
-  if (!selectedRun) {
-    return (
-      <>
-        <WorkflowRunGraphFilters
-          action={selectWorkflowRunGraphFiltersAction.bind(null, actionScope)}
-          agents={agentsResult.agents}
-          selectedAgentName={selectedAgent.name}
-          selectedWorkflowName={selectedWorkflow.workflow_name}
-          workflowRuns={runsResult.workflowRuns}
-          workflows={workflowsResult.summaries}
-        />
-        <EmptyState message={`No workflow runs available for ${selectedWorkflow.workflow_name}`} />
-      </>
-    )
-  }
-
-  const [workflowResult, runResult] = await Promise.all([
-    getWorkflowCachedQuery(
-      selectedAgent.name,
-      selectedWorkflow.workflow_name,
-      actionScope.workspaceId
-    ),
-    getWorkflowRunCachedQuery(
-      selectedAgent.name,
-      selectedWorkflow.workflow_name,
-      selectedRun.name,
-      actionScope.workspaceId
-    ),
-  ])
-  if (workflowResult.error) {
-    return <ErrorPanel message={workflowResult.error.message} />
-  }
-  if (runResult.error) {
-    return <ErrorPanel message={runResult.error.message} />
-  }
-  if (!workflowResult.workflow) {
-    return <ErrorPanel message="Workflow data is unavailable" />
-  }
-
+  const state = await resolvePageSelection(workspace, "workflows/triggers/runs/graph", parsed)
+  if (state.error) return <ErrorPanel message={state.error.message} />
+  const { selected, workflow, workflowRun } = state
   return (
     <>
+      <RememberPageSelection selected={state.selected} requested={state.requested} />
       <WorkflowRunGraphFilters
-        action={selectWorkflowRunGraphFiltersAction.bind(null, actionScope)}
-        agents={agentsResult.agents}
-        selectedAgentName={selectedAgent.name}
-        selectedRunName={selectedRun.name}
-        selectedWorkflowName={selectedWorkflow.workflow_name}
-        workflowRuns={runsResult.workflowRuns}
-        workflows={workflowsResult.summaries}
+        agents={state.agents}
+        workflows={state.workflows}
+        workflowRuns={state.workflowRuns}
+        selectedAgentName={state.selected.agent_name}
+        selectedWorkflowName={state.selected.workflow_name}
+        selectedRunName={state.selected.run_name}
       />
-      <WorkflowRunGraph
-        key={`${selectedAgent.name}:${selectedWorkflow.workflow_name}:${selectedRun.name}`}
-        agentName={selectedAgent.name}
-        workflow={workflowResult.workflow}
-        workflowRun={runResult.workflowRun}
-        workspaceId={actionScope.workspaceId}
-      />
+      {!selected.agent_name ? (
+        <EmptyState message="No agents available" />
+      ) : !selected.workflow_name ? (
+        <EmptyState message={`No workflows available for ${selected.agent_name}`} />
+      ) : !workflow || !workflowRun ? (
+        <EmptyState message={`No workflow runs available for ${selected.workflow_name}`} />
+      ) : (
+        <WorkflowRunGraph
+          key={`${selected.agent_name}:${selected.workflow_name}:${selected.run_name}`}
+          agentName={selected.agent_name}
+          workflow={workflow}
+          workflowRun={workflowRun}
+          workspaceId={workspace.workspace.id}
+        />
+      )}
     </>
   )
 }

@@ -9,6 +9,9 @@ export function TelemetryTabs({ basePath }: { basePath: string }) {
 
   const href = (tab: "process" | "file" | "network"): Route => {
     const next = new URLSearchParams(searchParams.toString())
+    next.delete("agent_name")
+    next.delete("telemetry_page_token")
+    next.delete("telemetry_token_stack")
     const query = next.toString()
     const path = tab === "process" ? basePath : `${basePath}/${tab}`
 

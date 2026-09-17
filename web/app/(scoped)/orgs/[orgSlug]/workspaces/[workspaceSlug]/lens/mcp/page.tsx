@@ -4,9 +4,9 @@ import * as z from "zod"
 import { AdministrationPageHeader } from "@/components/administration"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
-import { listAgentsCachedQuery } from "@/data/agent.queries"
+import { resolvePageSelection, type ResolvedPageSelection } from "@/data/page-selection"
+import { RememberPageSelection } from "@/components/page-selection"
 import { getMcpGraphAction } from "@/data/lens.actions"
-import type { ListAgentActionResponse } from "@/data/types"
 import {
   McpEmptyState,
   McpGraph,
@@ -33,18 +33,6 @@ type McpSearchParams = {
   to?: SearchParamStringInput
 }
 
-type McpScope =
-  | {
-      agents: NonNullable<ListAgentActionResponse["agents"]>
-      selectedAgentName?: string
-      error: undefined
-    }
-  | {
-      agents: undefined
-      selectedAgentName?: undefined
-      error: NonNullable<ListAgentActionResponse["error"]>
-    }
-
 /**
  * McpPage renders MCP observability for one selected agent and date range.
  */
@@ -66,6 +54,9 @@ export default async function McpPage({
 
   const resolved = resolveMcpSearchParams(searchParams)
   const workspaceId = workspace.workspace.id
+  const selection = resolved.then((params) =>
+    resolvePageSelection(workspace, "lens/mcp", { agent_name: params.agentName })
+  )
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
@@ -79,10 +70,10 @@ export default async function McpPage({
             </div>
           }
         >
-          <Filters searchParams={resolved} workspaceId={workspaceId} />
+          <Filters searchParams={resolved} selection={selection} />
         </Suspense>
         <Suspense fallback={<McpGraphSkeleton />}>
-          <Graph searchParams={resolved} workspaceId={workspaceId} />
+          <Graph searchParams={resolved} workspaceId={workspaceId} selection={selection} />
         </Suspense>
       </div>
     </main>
@@ -91,58 +82,49 @@ export default async function McpPage({
 
 async function Filters({
   searchParams,
-  workspaceId,
+  selection,
 }: {
   searchParams: Promise<ResolvedMcpSearchParams>
-  workspaceId: string
+  selection: Promise<ResolvedPageSelection>
 }) {
-  const params = await searchParams
-  const range = params.range
-  const scope = await getMcpScope({
-    agents: listAgentsCachedQuery(undefined, workspaceId),
-    agentName: params.agentName,
-  })
-  if (scope.error) {
-    return <ErrorPanel message={scope.error.message} />
-  }
-
+  const [{ range }, scope] = await Promise.all([searchParams, selection])
+  if (scope.error) return <ErrorPanel message={scope.error.message} />
   return (
-    <LensFilters
-      agents={scope.agents}
-      selectedAgentName={scope.selectedAgentName}
-      from={range.from}
-      to={range.to}
-    />
+    <>
+      <RememberPageSelection selected={scope.selected} requested={scope.requested} />
+      <LensFilters
+        agents={scope.agents}
+        selectedAgentName={scope.selected.agent_name}
+        from={range.from}
+        to={range.to}
+      />
+    </>
   )
 }
 
 async function Graph({
   searchParams,
   workspaceId,
+  selection,
 }: {
   searchParams: Promise<ResolvedMcpSearchParams>
   workspaceId: string
+  selection: Promise<ResolvedPageSelection>
 }) {
   const params = await searchParams
   const range = params.range
-  const scope = await getMcpScope({
-    agents: listAgentsCachedQuery(undefined, workspaceId),
-    agentName: params.agentName,
-  })
+  const scope = await selection
 
   if (scope.error) {
     return <ErrorPanel message={scope.error.message} />
   }
 
-  if (!scope.selectedAgentName) {
-    if (params.agentName && scope.agents.length > 0) {
-      return <EmptyState message="The selected agent is no longer accessible" />
-    }
+  if (!scope.selected.agent_name) {
     return <EmptyState message="No agents available" />
   }
 
   const result = await getMcpGraphAction(
-    { agentName: scope.selectedAgentName },
+    { agentName: scope.selected.agent_name },
     { from: range.from, to: range.to },
     workspaceId
   )
@@ -201,31 +183,4 @@ function EmptyState({ message }: { message: string }) {
       {message}
     </div>
   )
-}
-
-async function getMcpScope({
-  agents,
-  agentName,
-}: {
-  agents: Promise<ListAgentActionResponse>
-  agentName?: string
-}): Promise<McpScope> {
-  const result = await agents
-  if (result.error) {
-    return {
-      agents: undefined,
-      selectedAgentName: undefined,
-      error: result.error,
-    }
-  }
-
-  const selectedAgentName = agentName
-    ? result.agents.find((agent) => agent.name === agentName)?.name
-    : result.agents[0]?.name
-
-  return {
-    agents: result.agents,
-    selectedAgentName,
-    error: undefined,
-  }
 }

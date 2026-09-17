@@ -6,7 +6,8 @@ import { EventsChart } from "@/components/events-chart"
 import { EventsChartSkeleton } from "@/components/events-chart-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
 import * as z from "zod"
-import { listAgentsCachedQuery } from "@/data/agent.queries"
+import { resolvePageSelection, type ResolvedPageSelection } from "@/data/page-selection"
+import { RememberPageSelection } from "@/components/page-selection"
 import type { Error } from "@/lib/gateway/client"
 import type {
   FileTelemetryActionResponse,
@@ -86,6 +87,13 @@ async function WorkspaceTelemetry<TData extends TelemetryPageData>({
 
   const search = telemetrySearchParamsSchema.parse(await searchParams)
   const resolved = { ...search, range: lensDateRange(search.from, search.to) }
+  const selection = resolvePageSelection(
+    workspace,
+    config.value === "process"
+      ? "lens/runtime-telemetry"
+      : `lens/runtime-telemetry/${config.value}`,
+    search
+  )
   const basePath = `/orgs/${workspace.scope.organization.slug}/workspaces/${workspace.workspace.slug}/lens/runtime-telemetry`
   const workspaceId = workspace.workspace.id
 
@@ -101,7 +109,7 @@ async function WorkspaceTelemetry<TData extends TelemetryPageData>({
             </div>
           }
         >
-          <Filters searchParams={resolved} workspaceId={workspaceId} />
+          <Filters searchParams={resolved} selection={selection} />
         </Suspense>
         <Tabs value={config.value} className="flex flex-1 flex-col">
           <div className="border-b px-4 py-2 sm:px-6">
@@ -113,6 +121,7 @@ async function WorkspaceTelemetry<TData extends TelemetryPageData>({
                 <TelemetryContent
                   config={config}
                   searchParams={resolved}
+                  selection={selection}
                   workspaceId={workspaceId}
                 />
               </Suspense>
@@ -128,23 +137,23 @@ async function TelemetryContent<TData extends TelemetryPageData>({
   config,
   searchParams: params,
   workspaceId,
+  selection,
 }: {
   config: TelemetryPageConfig<TData>
   searchParams: ResolvedTelemetrySearchParams
   workspaceId: string
+  selection: Promise<ResolvedPageSelection>
 }) {
-  const { agentName, agents, error, pageToken, range } = await resolveTelemetryPageState(
-    params,
-    workspaceId
-  )
+  const { selected, requested, error } = await selection
+  const agentName = selected.agent_name
+  const range = params.range
+  const pageToken =
+    selected.agent_name === requested.agent_name ? params.telemetry_page_token : undefined
   if (error) {
     return <ErrorPanel message={error.message} />
   }
 
   if (!agentName) {
-    if (params.agent_name && agents.length > 0) {
-      return <EmptyState message="The selected agent is no longer accessible" />
-    }
     return <EmptyState message="No agents available" />
   }
 
@@ -227,26 +236,23 @@ async function Table<TData extends TelemetryPageData>({
 
 async function Filters({
   searchParams: params,
-  workspaceId,
+  selection,
 }: {
   searchParams: ResolvedTelemetrySearchParams
-  workspaceId: string
+  selection: Promise<ResolvedPageSelection>
 }) {
-  const { agents, error, selectedAgentName, range } = await resolveTelemetryPageState(
-    params,
-    workspaceId
-  )
-  if (error) {
-    return <ErrorPanel message={error.message} />
-  }
-
+  const state = await selection
+  if (state.error) return <ErrorPanel message={state.error.message} />
   return (
-    <LensFilters
-      agents={agents}
-      selectedAgentName={selectedAgentName}
-      from={range.from}
-      to={range.to}
-    />
+    <>
+      <RememberPageSelection selected={state.selected} requested={state.requested} />
+      <LensFilters
+        agents={state.agents}
+        selectedAgentName={state.selected.agent_name}
+        from={params.range.from}
+        to={params.range.to}
+      />
+    </>
   )
 }
 
@@ -266,44 +272,6 @@ function EmptyState({ message }: { message: string }) {
   )
 }
 
-type TelemetryPageState = {
-  agentName?: string
-  agents: NonNullable<Awaited<ReturnType<typeof listAgentsCachedQuery>>["agents"]>
-  error?: Error
-  pageToken?: string
-  range: LensDateRange
-  selectedAgentName?: string
-}
-
 type ResolvedTelemetrySearchParams = z.output<typeof telemetrySearchParamsSchema> & {
   range: LensDateRange
-}
-
-async function resolveTelemetryPageState(
-  search: ResolvedTelemetrySearchParams,
-  workspaceId: string
-) {
-  const agentsResult = await listAgentsCachedQuery(undefined, workspaceId)
-  if (agentsResult.error) {
-    return {
-      agents: [],
-      error: agentsResult.error,
-      pageToken: search.telemetry_page_token,
-      range: search.range,
-    } satisfies TelemetryPageState
-  }
-
-  const agents = agentsResult.agents
-  const selectedAgent = search.agent_name
-    ? agents.find((agent) => agent.name === search.agent_name)
-    : agents[0]
-
-  return {
-    agentName: selectedAgent?.name,
-    agents,
-    error: undefined,
-    pageToken: search.telemetry_page_token,
-    range: search.range,
-    selectedAgentName: selectedAgent?.name,
-  } satisfies TelemetryPageState
 }

@@ -396,3 +396,8 @@ export type ProviderModelItem = {
   providerID: string
   variants?: string[]
 }
+
+export type WorkflowActionScope = {
+  basePath: string
+  workspaceId: string
+}

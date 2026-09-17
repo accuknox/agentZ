@@ -1,3 +1,5 @@
+import { PageSelectionProvider } from "@/components/page-selection"
+import { getSelectionHistory } from "@/data/page-selection"
 import { CodingActivity } from "@/components/blocks/coding/git-actions"
 import { Suspense } from "react"
 import type { Route } from "next"
@@ -141,8 +143,21 @@ async function WorkspaceContent({
     )
   }
 
+  const selectionScope = JSON.stringify([
+    result.scope.organizationSession.session.user.id,
+    result.scope.organization.id,
+    result.workspace.id,
+  ])
+  const selectionHistory = (await getSelectionHistory()).filter(
+    ([scope]) => scope === selectionScope
+  )
   return (
-    <>
+    <PageSelectionProvider
+      key={selectionScope}
+      scope={selectionScope}
+      basePath={root}
+      initialHistory={selectionHistory}
+    >
       <ThemeSync theme={preferences.theme} />
       <AppShell
         sidebar={
@@ -184,6 +199,6 @@ async function WorkspaceContent({
           )}
         </AdministrationLayout>
       </AppShell>
-    </>
+    </PageSelectionProvider>
   )
 }

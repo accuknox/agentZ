@@ -5,7 +5,6 @@ import { AdministrationLoadingState, AdministrationPageHeader } from "@/componen
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import * as z from "zod"
 import { Skeleton } from "@/components/ui/skeleton"
-import { listAgentsCachedQuery } from "@/data/agent.queries"
 import { listWebhookAPIKeyDisplaysCachedQuery } from "@/data/api-key.queries"
 import { triggerWorkflowRunAction } from "@/data/workflow-run.actions"
 import {
@@ -16,10 +15,9 @@ import {
 } from "@/data/workflow-schedule.actions"
 import { listWorkflowSchedulesCachedQuery } from "@/data/workflow-schedule.queries"
 import { listWorkflowWebhookTriggersCachedQuery } from "@/data/workflow-trigger.queries"
-import {
-  selectWorkflowTriggerFiltersAction,
-  type WorkflowActionScope,
-} from "@/data/workflow.actions"
+import { resolvePageSelection, type ResolvedPageSelection } from "@/data/page-selection"
+import { RememberPageSelection } from "@/components/page-selection"
+import type { WorkflowActionScope } from "@/data/types"
 import { listWorkflowSummariesCachedQuery } from "@/data/workflow.queries"
 import { getWorkspaceScope } from "@/data/workspaces"
 import { NewScheduleButton } from "./new-schedule-button"
@@ -64,6 +62,7 @@ async function WorkspaceTriggers({
     notFound()
   }
   const parsed = workflowTriggersSearchParamsSchema.parse(search)
+  const selection = resolvePageSelection(workspace, "workflows/triggers", parsed)
   const actionScope: WorkflowActionScope = {
     basePath: `/orgs/${workspace.scope.organization.slug}/workspaces/${workspace.workspace.slug}`,
     workspaceId: workspace.workspace.id,
@@ -73,87 +72,58 @@ async function WorkspaceTriggers({
     <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
       <AdministrationPageHeader
         actions={
-          <Suspense fallback={<HeaderButtonSkeleton />}>
-            <HeaderAction actionScope={actionScope} searchParams={parsed} />
+          <Suspense fallback={<Skeleton className="h-9 w-44 rounded-md" />}>
+            <HeaderAction actionScope={actionScope} selection={selection} />
           </Suspense>
         }
         title="Triggers"
       />
       <Suspense fallback={<FiltersSkeleton />}>
-        <Filters actionScope={actionScope} searchParams={parsed} />
+        <Filters selection={selection} />
       </Suspense>
       <Suspense fallback={<TableSkeleton />}>
-        <Triggers actionScope={actionScope} searchParams={parsed} />
+        <Triggers actionScope={actionScope} searchParams={parsed} selection={selection} />
       </Suspense>
     </main>
   )
 }
 
-async function Filters({
-  actionScope,
-  searchParams,
-}: {
-  actionScope: WorkflowActionScope
-  searchParams: ResolvedSearchParams
-}) {
-  const requestedAgentName = searchParams.agent_name
-  const requestedType = searchParams.type
-  const selectedType = requestedType === "webhook" ? "webhook" : "schedule"
-  const agentsResult = await listAgentsCachedQuery(undefined, actionScope.workspaceId)
-  if (agentsResult.error) {
-    return <ErrorPanel message={agentsResult.error.message} />
-  }
-
-  const selectedAgent =
-    agentsResult.agents.find((agent) => agent.name === requestedAgentName) ?? agentsResult.agents[0]
-  if (!selectedAgent) {
-    return (
-      <TriggersFilters
-        action={selectWorkflowTriggerFiltersAction.bind(null, actionScope)}
-        agents={agentsResult.agents}
-        selectedAgentName={undefined}
-        selectedType={selectedType}
-      />
-    )
-  }
-
+async function Filters({ selection }: { selection: Promise<ResolvedPageSelection> }) {
+  const state = await selection
+  if (state.error) return <ErrorPanel message={state.error.message} />
   return (
-    <TriggersFilters
-      key={`${selectedAgent.name}:${selectedType}`}
-      action={selectWorkflowTriggerFiltersAction.bind(null, actionScope)}
-      agents={agentsResult.agents}
-      selectedAgentName={selectedAgent.name}
-      selectedType={selectedType}
-    />
+    <>
+      <RememberPageSelection selected={state.selected} requested={state.requested} />
+      <TriggersFilters
+        agents={state.agents}
+        selectedAgentName={state.selected.agent_name}
+        selectedType={state.selected.type ?? "schedule"}
+      />
+    </>
   )
 }
 
 async function Triggers({
   actionScope,
   searchParams,
+  selection,
 }: {
   actionScope: WorkflowActionScope
   searchParams: ResolvedSearchParams
+  selection: Promise<ResolvedPageSelection>
 }) {
-  const requestedAgentName = searchParams.agent_name
-  const requestedType = searchParams.type
-  const selectedType = requestedType === "webhook" ? "webhook" : "schedule"
-  const pageToken = searchParams.page_token
-  const agentsResult = await listAgentsCachedQuery(undefined, actionScope.workspaceId)
-  if (agentsResult.error) {
-    return <ErrorPanel message={agentsResult.error.message} />
-  }
-
-  const selectedAgent =
-    agentsResult.agents?.find((agent) => agent.name === requestedAgentName) ??
-    agentsResult.agents?.[0]
-  if (!selectedAgent) {
-    return <EmptyState message="No agents available" />
-  }
+  const { selected, requested, error } = await selection
+  if (error) return <ErrorPanel message={error.message} />
+  if (!selected.agent_name) return <EmptyState message="No agents available" />
+  const selectedType = selected.type
+  const pageToken =
+    selected.agent_name === requested.agent_name && selected.type === requested.type
+      ? searchParams.page_token
+      : undefined
 
   if (selectedType === "webhook") {
     const triggersResult = await listWorkflowWebhookTriggersCachedQuery(
-      selectedAgent.name,
+      selected.agent_name,
       actionScope.workspaceId,
       { limit: 50, page_token: pageToken }
     )
@@ -179,7 +149,7 @@ async function Triggers({
 
     return (
       <WebhookTriggersTable
-        agentName={selectedAgent.name}
+        agentName={selected.agent_name}
         basePath={actionScope.basePath}
         hasNextPage={triggersResult.hasNextPage}
         nextPageToken={triggersResult.nextPageToken}
@@ -189,7 +159,7 @@ async function Triggers({
   }
 
   const schedulesResult = await listWorkflowSchedulesCachedQuery(
-    selectedAgent.name,
+    selected.agent_name,
     actionScope.workspaceId,
     {
       limit: 50,
@@ -203,15 +173,15 @@ async function Triggers({
   }
 
   const workflowsResult = await listWorkflowSummariesCachedQuery(
-    selectedAgent.name,
+    selected.agent_name,
     actionScope.workspaceId
   )
-  const workflows = workflowsResult.error ? [] : (workflowsResult.summaries ?? [])
+  const workflows = workflowsResult.error ? [] : workflowsResult.summaries
 
   return (
     <ScheduleTriggersTable
-      key={selectedAgent.name}
-      agentName={selectedAgent.name}
+      key={selected.agent_name}
+      agentName={selected.agent_name}
       basePath={actionScope.basePath}
       deleteWorkflowScheduleAction={deleteWorkflowScheduleFormAction.bind(null, actionScope)}
       getWorkflowInputContractAction={getWorkflowInputContractAction.bind(null, actionScope)}
@@ -229,41 +199,25 @@ async function Triggers({
 
 async function HeaderAction({
   actionScope,
-  searchParams,
+  selection,
 }: {
   actionScope: WorkflowActionScope
-  searchParams: ResolvedSearchParams
+  selection: Promise<ResolvedPageSelection>
 }) {
-  const requestedAgentName = searchParams.agent_name
-  const requestedType = searchParams.type
-  const selectedType = requestedType === "webhook" ? "webhook" : "schedule"
-  if (selectedType === "webhook") {
-    return null
-  }
-
-  const agentsResult = await listAgentsCachedQuery(undefined, actionScope.workspaceId)
-  if (agentsResult.error) {
-    return null
-  }
-
-  const selectedAgent =
-    agentsResult.agents?.find((agent) => agent.name === requestedAgentName) ??
-    agentsResult.agents?.[0]
-  if (!selectedAgent) {
-    return null
-  }
+  const { selected, error } = await selection
+  if (error || !selected.agent_name || selected.type === "webhook") return null
 
   const workflowsResult = await listWorkflowSummariesCachedQuery(
-    selectedAgent.name,
+    selected.agent_name,
     actionScope.workspaceId
   )
   return (
     <NewScheduleButton
-      key={selectedAgent.name}
-      agentName={selectedAgent.name}
+      key={selected.agent_name}
+      agentName={selected.agent_name}
       createWorkflowScheduleAction={createWorkflowScheduleFormAction.bind(null, actionScope)}
       getWorkflowInputContractAction={getWorkflowInputContractAction.bind(null, actionScope)}
-      workflows={workflowsResult.error ? [] : (workflowsResult.summaries ?? [])}
+      workflows={workflowsResult.error ? [] : workflowsResult.summaries}
     />
   )
 }
@@ -291,10 +245,6 @@ function TableSkeleton() {
       <Skeleton className="h-8 w-full rounded-md" />
     </div>
   )
-}
-
-function HeaderButtonSkeleton() {
-  return <Skeleton className="h-9 w-44 rounded-md" />
 }
 
 function ErrorPanel({ message }: { message: string }) {

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useSelectResource } from "@/components/page-selection"
 import { BotIcon, MessageSquareQuote } from "lucide-react"
 import { useRouter } from "@bprogress/next/app"
 import { usePathname, useSearchParams } from "next/navigation"
@@ -34,6 +35,7 @@ export function LensFilters({
   sessions,
   to,
 }: LensFiltersProps) {
+  const { select, pending: selectionPending } = useSelectResource(true)
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -59,14 +61,14 @@ export function LensFilters({
 
   return (
     <div
-      data-pending={pending}
+      data-pending={pending || selectionPending}
       className="bg-background flex min-h-14 flex-col gap-3 border-b px-4 py-2 data-[pending=true]:opacity-70 sm:flex-row sm:items-center sm:justify-between sm:px-6"
     >
       <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
         <Select
-          value={selectedAgentName}
-          onValueChange={(agentName) => update({ agent_name: agentName, session_id: undefined })}
-          disabled={agents.length === 0}
+          value={selectedAgentName ?? ""}
+          onValueChange={(agent_name) => select({ agent_name })}
+          disabled={agents.length === 0 || pending || selectionPending}
         >
           <SelectTrigger className="h-8 w-full min-w-0 rounded-md sm:w-64 sm:min-w-52">
             <SelectValue placeholder="Agent" />
@@ -84,9 +86,9 @@ export function LensFilters({
         </Select>
         {sessions ? (
           <Select
-            value={selectedSessionId}
-            onValueChange={(sessionID) => update({ session_id: sessionID })}
-            disabled={sessions.length === 0}
+            value={selectedSessionId ?? ""}
+            onValueChange={(session_id) => select({ agent_name: selectedAgentName, session_id })}
+            disabled={sessions.length === 0 || pending || selectionPending}
           >
             <SelectTrigger className="h-8 w-full min-w-0 rounded-md sm:w-72 sm:min-w-52">
               <SelectValue placeholder="Session" className="truncate" />
@@ -109,7 +111,6 @@ export function LensFilters({
             update({
               from: formatDateParam(range.from),
               to: formatDateParam(range.to),
-              ...(sessions ? { session_id: undefined } : {}),
             })
           }
           range={{ from: dayjs(from).toDate(), to: dayjs(to).toDate() }}

@@ -1,7 +1,7 @@
 "use client"
 
 import type { Route } from "next"
-import Link from "next/link"
+import { SelectionLink } from "@/components/page-selection"
 import { usePathname } from "next/navigation"
 import { Cable, ChevronRightIcon, RouteIcon, Search, Server } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -56,10 +56,10 @@ export function NavLens({ rootPath }: { rootPath: string }) {
               return (
                 <SidebarMenuSubItem key={item.href}>
                   <SidebarMenuSubButton asChild isActive={active}>
-                    <Link aria-current={active ? "page" : undefined} href={item.href}>
+                    <SelectionLink aria-current={active ? "page" : undefined} href={item.href}>
                       <Icon aria-hidden="true" />
                       <span>{item.label}</span>
-                    </Link>
+                    </SelectionLink>
                   </SidebarMenuSubButton>
                 </SidebarMenuSubItem>
               )

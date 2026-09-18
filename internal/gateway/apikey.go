@@ -339,6 +339,7 @@ func invalidAPIKeyAuthError(err error) *apiutil.APIError {
 }
 
 func hashAPIKey(key string) string {
-	sum := sha256.Sum256([]byte(key))
-	return base64.RawURLEncoding.EncodeToString(sum[:])
+	mac := hmac.New(sha256.New, pepperKey)
+	mac.Write([]byte(key))
+	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }

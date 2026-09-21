@@ -95,3 +95,18 @@ func TestMetadataUpdatePreservesStoredDefaults(t *testing.T) {
 		t.Fatalf("finalizer removal: %v", err)
 	}
 }
+
+func TestExecutionImmutableWithLegacyDefault(t *testing.T) {
+	t.Parallel()
+	old := &agentzv1alpha1.Agent{Spec: agentzv1alpha1.AgentSpec{SandboxRef: agentzv1alpha1.ResourceReference{Name: "sandbox"}}}
+	updated := old.DeepCopy()
+	updated.Spec.Execution = agentzv1alpha1.AgentExecutionKubernetes
+	validator := NewValidator(nil)
+	if _, err := validator.ValidateUpdate(t.Context(), old, updated); err != nil {
+		t.Fatalf("explicit legacy execution default rejected: %v", err)
+	}
+	updated.Spec.Execution = agentzv1alpha1.AgentExecutionNative
+	if _, err := validator.ValidateUpdate(t.Context(), old, updated); err == nil {
+		t.Fatal("changing existing Agent placement was accepted")
+	}
+}

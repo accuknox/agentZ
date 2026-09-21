@@ -1,0 +1,14 @@
+[Unit]
+Description=AgentZ native KubeArmor telemetry
+Requires=agentz-sensor-firewall.service
+After=agentz-sensor-firewall.service
+[Service]
+Type=simple
+WorkingDirectory=/opt/kubearmor
+ExecStart=/opt/kubearmor/kubearmor
+Restart=on-failure
+RestartSec=5
+UMask=0077
+LimitMEMLOCK=infinity
+[Install]
+WantedBy=multi-user.target

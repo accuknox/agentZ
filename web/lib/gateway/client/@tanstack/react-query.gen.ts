@@ -14,6 +14,7 @@ import {
   createAgentDirectory,
   createAgentFile,
   createCodingProject,
+  createComputeEnrollment,
   createDashboard,
   createInferencePool,
   createInferenceProvider,
@@ -117,6 +118,7 @@ import {
   queryDashboard,
   readAgentFile,
   readAgentFileRaw,
+  redeemComputeEnrollment,
   refreshCodingRepository,
   refreshInferenceProviderModels,
   renameAgentEntry,
@@ -124,6 +126,7 @@ import {
   replaceWorkspaceInheritedResources,
   resolveWorkspaceSlug,
   retryWorkspace,
+  revokeComputeHost,
   runCodingGit,
   startCodingOperation,
   statAgentFile,
@@ -160,6 +163,9 @@ import type {
   CreateCodingProjectData,
   CreateCodingProjectError,
   CreateCodingProjectResponse,
+  CreateComputeEnrollmentData,
+  CreateComputeEnrollmentError,
+  CreateComputeEnrollmentResponse,
   CreateDashboardData,
   CreateDashboardError,
   CreateDashboardResponse,
@@ -466,6 +472,9 @@ import type {
   ReadAgentFileRawError,
   ReadAgentFileRawResponse,
   ReadAgentFileResponse,
+  RedeemComputeEnrollmentData,
+  RedeemComputeEnrollmentError,
+  RedeemComputeEnrollmentResponse2,
   RefreshCodingRepositoryData,
   RefreshCodingRepositoryError,
   RefreshCodingRepositoryResponse,
@@ -487,6 +496,9 @@ import type {
   RetryWorkspaceData,
   RetryWorkspaceError,
   RetryWorkspaceResponse,
+  RevokeComputeHostData,
+  RevokeComputeHostError,
+  RevokeComputeHostResponse,
   RunCodingGitData,
   RunCodingGitError,
   RunCodingGitResponse,
@@ -545,6 +557,78 @@ import type {
   WriteAgentFileRawResponse,
   WriteAgentFileResponse,
 } from "../types.gen"
+
+export const revokeComputeHostMutation = (
+  options?: Partial<Options<RevokeComputeHostData>>
+): UseMutationOptions<
+  RevokeComputeHostResponse,
+  RevokeComputeHostError,
+  Options<RevokeComputeHostData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    RevokeComputeHostResponse,
+    RevokeComputeHostError,
+    Options<RevokeComputeHostData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await revokeComputeHost({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const createComputeEnrollmentMutation = (
+  options?: Partial<Options<CreateComputeEnrollmentData>>
+): UseMutationOptions<
+  CreateComputeEnrollmentResponse,
+  CreateComputeEnrollmentError,
+  Options<CreateComputeEnrollmentData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    CreateComputeEnrollmentResponse,
+    CreateComputeEnrollmentError,
+    Options<CreateComputeEnrollmentData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createComputeEnrollment({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const redeemComputeEnrollmentMutation = (
+  options?: Partial<Options<RedeemComputeEnrollmentData>>
+): UseMutationOptions<
+  RedeemComputeEnrollmentResponse2,
+  RedeemComputeEnrollmentError,
+  Options<RedeemComputeEnrollmentData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    RedeemComputeEnrollmentResponse2,
+    RedeemComputeEnrollmentError,
+    Options<RedeemComputeEnrollmentData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await redeemComputeEnrollment({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
 
 export type QueryKey<TOptions extends Options> = [
   Pick<TOptions, "baseUrl" | "body" | "headers" | "path" | "query"> & {

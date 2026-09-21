@@ -235,7 +235,7 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			if err != nil || !filepath.IsLocal(rel) {
 				continue
 			}
-			tree.Directory = "/home/agentz/" + filepath.ToSlash(filepath.Join(req.Root, rel))
+			tree.Directory = filepath.ToSlash(filepath.Join(s.root.Name(), req.Root, rel))
 			snapshot.Worktrees = append(snapshot.Worktrees, tree)
 			entry := &snapshot.Worktrees[len(snapshot.Worktrees)-1]
 			resolved, err := filepath.EvalSymlinks(directory)
@@ -289,7 +289,7 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			for _, tree := range snapshot.Worktrees {
 				if !ref.Remote && tree.Branch == ref.Name && tree.Available {
 					ref.Worktree = &tree.Directory
-					ref.Current = tree.Directory == "/home/agentz/"+req.Directory
+					ref.Current = tree.Directory == filepath.ToSlash(filepath.Join(s.root.Name(), req.Directory))
 					break
 				}
 			}

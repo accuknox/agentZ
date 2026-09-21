@@ -22,7 +22,11 @@ import (
 	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
+
+// computeConnectionContextKey fences every native request in a coding operation.
+type computeConnectionContextKey struct{}
 
 // codingWorkerAccess resolves current grants from the saved owner identity. A
 // worker is never a system actor and cannot bypass personal project ownership.
@@ -69,6 +73,11 @@ func (s *Service) StartCodingOperation(w http.ResponseWriter, r *http.Request) {
 		apiutil.WriteError(w, r, apiErr)
 		return
 	}
+	connection, apiErr := s.nativeAdmission(r.Context(), access.namespace, input.AgentName)
+	if apiErr != nil {
+		apiutil.WriteError(w, r, apiErr)
+		return
+	}
 	row, err := s.queries.GatewayGetCodingThread(
 		r.Context(),
 		gatewaydb.GatewayGetCodingThreadParams{
@@ -111,14 +120,15 @@ func (s *Service) StartCodingOperation(w http.ResponseWriter, r *http.Request) {
 	job, err := s.queries.GatewayCreateCodingOperation(
 		r.Context(),
 		gatewaydb.GatewayCreateCodingOperationParams{
-			ID:             input.Id,
-			WorkspaceID:    access.workspaceID,
-			OrganizationID: access.claims.OrganizationID,
-			OwnerID:        access.claims.UserID,
-			ProjectID:      row.CodingProject.ID,
-			WorktreeID:     row.CodingWorktree.ID,
-			Request:        request,
-			Result:         body,
+			ID:                  input.Id,
+			ComputeConnectionID: connection,
+			WorkspaceID:         access.workspaceID,
+			OrganizationID:      access.claims.OrganizationID,
+			OwnerID:             access.claims.UserID,
+			ProjectID:           row.CodingProject.ID,
+			WorktreeID:          row.CodingWorktree.ID,
+			Request:             request,
+			Result:              body,
 		},
 	)
 	if err != nil {
@@ -292,6 +302,9 @@ func (s *Service) runCoding(ctx context.Context) {
 func (s *Service) runCodingOperation(ctx context.Context, job gatewaydb.CodingOperation) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
+	if job.ComputeConnectionID != "" {
+		ctx = context.WithValue(ctx, computeConnectionContextKey{}, job.ComputeConnectionID)
+	}
 	var result gatewayapi.CodingOperation
 	var input gatewayapi.CodingOperationRequest
 	if err := json.Unmarshal(job.Result, &result); err != nil {
@@ -369,6 +382,16 @@ func (s *Service) runCodingOperation(ctx context.Context, job gatewaydb.CodingOp
 }
 
 func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.CodingOperation, input gatewayapi.CodingOperationRequest, result *gatewayapi.CodingOperation, publish func(string) error) error {
+	if job.ComputeConnectionID != "" {
+		namespace := agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeWorkspace, job.WorkspaceID)
+		connection, ready := "", false
+		if s.computeServer != nil {
+			connection, ready = s.computeServer.Connection(namespace, input.AgentName)
+		}
+		if !ready || connection != job.ComputeConnectionID {
+			return errors.New("host disconnected; retry the coding operation explicitly when ready")
+		}
+	}
 	if input.Action == gatewayapi.CodingActionNameBranch {
 		return s.nameCodingBranch(ctx, job, input, publish)
 	}

@@ -21,7 +21,7 @@ limitations under the License.
 package v1alpha1
 
 import (
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -139,6 +139,11 @@ func (in *AgentQuotaStatus) DeepCopy() *AgentQuotaStatus {
 func (in *AgentSpec) DeepCopyInto(out *AgentSpec) {
 	*out = *in
 	out.ResourceAudit = in.ResourceAudit
+	if in.SecretProxy != nil {
+		in, out := &in.SecretProxy, &out.SecretProxy
+		*out = new(bool)
+		**out = **in
+	}
 	in.Resources.DeepCopyInto(&out.Resources)
 	if in.Env != nil {
 		in, out := &in.Env, &out.Env

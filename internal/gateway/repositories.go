@@ -198,6 +198,20 @@ func (s *Service) AdoptCodingWorktree(w http.ResponseWriter, r *http.Request, pr
 		apiutil.WriteError(w, r, apiErr)
 		return
 	}
+	connection, apiErr := s.nativeAdmission(r.Context(), access.namespace, input.AgentName)
+	if apiErr != nil {
+		apiutil.WriteError(w, r, apiErr)
+		return
+	}
+	if connection != "" {
+		r = r.WithContext(context.WithValue(r.Context(), computeConnectionContextKey{}, connection))
+	}
+
+	resolved, err := s.resolver.resolveAgent(r.Context(), access.namespace, input.AgentName)
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
 	q, release, err := lockGatewayResource(r.Context(), s.lockDB, projectId, false)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
@@ -251,7 +265,7 @@ func (s *Service) AdoptCodingWorktree(w http.ResponseWriter, r *http.Request, pr
 					WorkspaceID: access.workspaceID,
 					ProjectID:   projectId,
 					AgentName:   input.AgentName,
-					Directory:   strings.TrimPrefix(discovered.Directory, "/home/agentz/"),
+					Directory:   strings.TrimPrefix(discovered.Directory, resolved.Root+"/"),
 					Branch:      discovered.Branch,
 				},
 			)
@@ -263,7 +277,12 @@ func (s *Service) AdoptCodingWorktree(w http.ResponseWriter, r *http.Request, pr
 				apiutil.WriteInternalError(w, r, err)
 				return
 			}
-			apiutil.WriteJSON(w, http.StatusCreated, codingWorktree(tree))
+			view, err := s.codingWorktree(r.Context(), access.namespace, tree)
+			if err != nil {
+				apiutil.WriteInternalError(w, r, err)
+				return
+			}
+			apiutil.WriteJSON(w, http.StatusCreated, view)
 			return
 		}
 	}
@@ -413,6 +432,10 @@ func (s *Service) refreshCodingSnapshot(ctx context.Context, snapshot gatewaydb.
 }
 
 func (s *Service) loadCodingSnapshot(ctx context.Context, access resourceAccess, project gatewaydb.CodingProject, snapshot *gatewaydb.CodingSnapshot, result *gatewayapi.CodingGitResult) error {
+	resolved, err := s.resolver.resolveAgent(ctx, access.namespace, snapshot.AgentName)
+	if err != nil {
+		return err
+	}
 	if project.Deleting {
 		return errors.New("project deletion has started")
 	}
@@ -536,7 +559,7 @@ func (s *Service) loadCodingSnapshot(ctx context.Context, access resourceAccess,
 				if managed.AgentName != tree.AgentName {
 					continue
 				}
-				if discovered.Directory != "/home/agentz/"+managed.Directory {
+				if discovered.Directory != path.Join(resolved.Root, managed.Directory) {
 					continue
 				}
 				discovered.ManagedId = &managed.ID

@@ -64,6 +64,16 @@ func (d *Defaulter) Default(ctx context.Context, agt *agentzv1alpha1.Agent) erro
 			return nil
 		}
 	}
+	if agt.Spec.Execution == "" {
+		agt.Spec.Execution = agentzv1alpha1.AgentExecutionKubernetes
+	}
+	if agt.Spec.SecretProxy == nil {
+		enabled := true
+		agt.Spec.SecretProxy = &enabled
+	}
+	if agt.Spec.Execution == agentzv1alpha1.AgentExecutionNative {
+		return nil
+	}
 	if agt.Spec.Image == "" {
 		agt.Spec.Image = d.agentDefaultImage
 	}

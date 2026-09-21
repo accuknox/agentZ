@@ -746,8 +746,7 @@ export function McpSheet({
   }, [discoveredDefaultScopes, discoveredSupportedScopes])
   const isCurrentDiscoveryTarget = discoveryURL === trimmedEndpointURL
   const isCurrentDiscoveryResult = oauthQuery.data?.endpointURL === trimmedEndpointURL
-  const discoveryWarningMessage =
-    oauthQuery.error instanceof Error ? oauthQuery.error.message : undefined
+  const discoveryWarningMessage = oauthQuery.error?.message
   const discoveryWarningURL =
     authMode === "oauth" &&
     hasTriggeredDiscovery &&

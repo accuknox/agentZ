@@ -114,3 +114,23 @@ config:
   skillsS3Bucket: ""
 
 extraArgs: []
+
+# Native host compute is opt-in. The bundled SPIRE server uses one persistent
+# gateway replica; external SPIRE deployments can provide HA independently.
+compute:
+  enabled: false
+  trustDomain: agentz.local
+  publicAddress: ""
+  spirePublicAddress: ""
+  port: 9443
+  spire:
+    image: ghcr.io/spiffe/spire-server:1.15.3
+    # Existing Secret containing root.pem and root-key.pem. Provision a stable
+    # upstream CA with overlapping trust during root rotation; never regenerate
+    # it on Helm upgrades. Its remaining validity must exceed one year.
+    upstreamSecret: ""
+    storageSize: 1Gi
+    storageClassName: ""
+  service:
+    type: ClusterIP
+    annotations: {}

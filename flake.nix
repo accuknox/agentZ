@@ -107,6 +107,34 @@
           packages = rec {
             opencodePluginOtel = otel;
             opencodeConfigDir = cfg;
+            # Native hosts retain their real HOME/XDG environment. The daemon
+            # gives only OpenCode's own directories a managed filesystem view.
+            opencodeNativeRuntime = pkgs.buildEnv {
+              name = "agentz-native-runtime";
+              paths = [
+                (pkgs.runCommand "agentz-native-opencode"
+                  { nativeBuildInputs = [ pkgs.makeBinaryWrapper ]; }
+                  ''
+                    mkdir -p "$out/libexec" "$out/bin"
+                    # Keep the actual executable name stable for KubeArmor's
+                    # ParentProcessName selection, preserving Nix's wrapper env.
+                    cp ${pkgs.opencode}/bin/.opencode-wrapped "$out/libexec/opencode"
+                    makeWrapper "$out/libexec/opencode" "$out/bin/opencode" \
+                      --prefix PATH : ${pkgs.ripgrep}/bin \
+                      --set OPENCODE_DISABLE_AUTOUPDATE true
+                  '')
+                pkgs.bashInteractive
+                pkgs.coreutils-full
+                pkgs.git
+                pkgs.cacert
+                (pkgs.runCommand "agentz-native-config" { } ''
+                  mkdir -p "$out/etc/opencode"
+                  cp -R ${cfg}/. "$out/etc/opencode/"
+                  touch "$out/etc/opencode/.gitignore"
+                '')
+              ];
+              pathsToLink = [ "/bin" "/etc" ];
+            };
             opencodeAgentRuntime = pkgs.buildEnv {
               name = "opencode-runtime";
               paths = [
@@ -123,6 +151,7 @@
                 (pkgs.runCommand "opencode-etc" { } ''
                   mkdir -p "$out/etc/opencode"
                   cp -R ${cfg}/. "$out/etc/opencode/"
+                  touch "$out/etc/opencode/.gitignore"
                 '')
                 (pkgs.runCommand "opencode-shell-paths" { } ''
                   mkdir -p "$out/usr/bin"
@@ -220,6 +249,9 @@
               goreleaser
               golangci-lint
               grpcurl
+              protobuf
+              protoc-gen-go
+              protoc-gen-go-grpc
               sqlc
               postgresql_18
               openapi-generator-cli

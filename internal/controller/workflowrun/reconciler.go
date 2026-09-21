@@ -380,6 +380,16 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 	if err != nil {
 		return fmt.Errorf("get agent %q: %w", run.Spec.AgentName, err)
 	}
+	connection := run.Annotations[agentzv1alpha1.AgentComputeConnectionAnnotation]
+	if agt.Spec.Execution == agentzv1alpha1.AgentExecutionNative && (!agt.Status.Connected || connection == "") {
+		return fmt.Errorf("native host is offline or the run has no live admission; submit a new run")
+	}
+	connectionEditor := func(_ context.Context, request *http.Request) error {
+		if connection != "" {
+			request.Header.Set("X-Agentz-Compute-Connection", connection)
+		}
+		return nil
+	}
 	sandbox := &agentzv1alpha1.Sandbox{}
 	sandboxKey := client.ObjectKey{
 		Name:      agt.Spec.SandboxRef.Name,
@@ -421,6 +431,7 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 			Permission: &permission,
 		},
 		gwreq.RequestEditor(r.TokenPath, run.Namespace),
+		connectionEditor,
 	)
 	if err != nil {
 		return fmt.Errorf("create session: %w", err)
@@ -442,6 +453,7 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 		nil,
 		prompt,
 		gwreq.RequestEditor(r.TokenPath, run.Namespace),
+		connectionEditor,
 	)
 	if err != nil {
 		return fmt.Errorf("send workflow prompt: %w", err)

@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -122,6 +123,18 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 	if apiErr != nil {
 		apiutil.WriteError(w, r, apiErr)
 		return
+	}
+	connection, apiErr := s.nativeAdmission(r.Context(), access.namespace, agentName)
+	if apiErr != nil {
+		apiutil.WriteError(w, r, apiErr)
+		return
+	}
+	if expected := r.Header.Get("X-Agentz-Compute-Connection"); connection != "" && expected != "" && expected != connection {
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "host_reconnected", "The host reconnected; submit new work explicitly.", nil))
+		return
+	}
+	if connection != "" {
+		r.Header.Set("X-Agentz-Compute-Connection", connection)
 	}
 	auth, authenticated := requestAuthState(r.Context())
 	stop := route.ID == "session.abort" || route.ID == "v2.session.interrupt"
@@ -307,6 +320,7 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	proxy := &httputil.ReverseProxy{
+		Transport: s.outboundHTTP.Transport,
 		Rewrite: func(preq *httputil.ProxyRequest) {
 			preq.Out.URL.Scheme = target.Scheme
 			preq.Out.URL.Host = target.Host
@@ -411,7 +425,11 @@ func (s *Service) streamOpenCodeEvents(w http.ResponseWriter, r *http.Request, r
 	}
 	directory := target.Query().Get("directory")
 	if directory == "" {
-		directory = "/home/agentz"
+		resolved, err := s.resolver.resolveAgent(r.Context(), access.namespace, agentName)
+		if err != nil {
+			return
+		}
+		directory = resolved.Root
 	}
 	upstream := *target
 	upstream.Path = ""
@@ -530,8 +548,13 @@ func (s *Service) refreshOpenCodeStatus(ctx context.Context, target *url.URL, wo
 	var directory pgtype.Text
 	auth, ok := requestAuthState(ctx)
 	if ok && auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding {
+		namespace := agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeWorkspace, workspaceID)
+		resolved, err := s.resolver.resolveAgent(ctx, namespace, agentName)
+		if err != nil {
+			return err
+		}
 		directory = pgtype.Text{
-			String: strings.TrimPrefix(target.Query().Get("directory"), "/home/agentz/"),
+			String: strings.TrimPrefix(target.Query().Get("directory"), resolved.Root+"/"),
 			Valid:  true,
 		}
 	}
@@ -656,6 +679,15 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 		// Upstream may already have committed when the client disconnects.
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 		defer cancel()
+		var runtimeRoot string
+		if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding {
+			namespace := agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeWorkspace, workspaceID)
+			resolved, err := s.resolver.resolveAgent(ctx, namespace, agentName)
+			if err != nil {
+				return err
+			}
+			runtimeRoot = resolved.Root
+		}
 		target := *upstream
 		target.RawQuery = resp.Request.URL.RawQuery
 		sessionID := route.Params["sessionID"]
@@ -727,7 +759,7 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 					if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 						return err
 					}
-					worktree := "/home/agentz/" + row.CodingWorktree.Directory
+					worktree := path.Join(runtimeRoot, row.CodingWorktree.Directory)
 					if errors.Is(err, pgx.ErrNoRows) || worktree != directory {
 						delete(result.JSON200.Data, sessionID)
 					}
@@ -781,7 +813,7 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 			var directory pgtype.Text
 			if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding {
 				directory = pgtype.Text{
-					String: strings.TrimPrefix(target.Query().Get("directory"), "/home/agentz/"),
+					String: strings.TrimPrefix(target.Query().Get("directory"), runtimeRoot+"/"),
 					Valid:  true,
 				}
 			}
@@ -966,9 +998,14 @@ func (s *Service) storeOpenCodeSession(ctx context.Context, workspaceID, agentNa
 	q := gatewaydb.New(tx)
 	auth, _ := requestAuthState(ctx)
 	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding && auth.actorType != requestActorSystem {
+		namespace := agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeWorkspace, workspaceID)
+		resolved, err := s.resolver.resolveAgent(ctx, namespace, agentName)
+		if err != nil {
+			return err
+		}
 		tree, err := q.GatewayOwnedCodingDirectory(ctx, gatewaydb.GatewayOwnedCodingDirectoryParams{
 			WorkspaceID: workspaceID, AgentName: agentName, OwnerID: auth.userID,
-			Directory: strings.TrimPrefix(session.Directory, "/home/agentz/"),
+			Directory: strings.TrimPrefix(session.Directory, resolved.Root+"/"),
 		})
 		if err != nil {
 			return err

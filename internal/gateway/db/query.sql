@@ -2435,8 +2435,8 @@ UPDATE github_connections SET access_token = @access_token, refresh_token = @ref
 expires_at = @expires_at, refresh_expires_at = @refresh_expires_at WHERE user_id = @user_id;
 
 -- name: GatewayCreateCodingOperation :one
-INSERT INTO coding_operations(id, workspace_id, organization_id, owner_id, project_id, worktree_id, request, result)
-VALUES (@id, @workspace_id, @organization_id, @owner_id, @project_id, @worktree_id, @request, @result)
+INSERT INTO coding_operations(id, workspace_id, organization_id, owner_id, project_id, worktree_id, request, result, compute_connection_id)
+VALUES (@id, @workspace_id, @organization_id, @owner_id, @project_id, @worktree_id, @request, @result, @compute_connection_id)
 ON CONFLICT (id) DO UPDATE SET id = coding_operations.id
 WHERE coding_operations.owner_id = @owner_id AND coding_operations.workspace_id = @workspace_id
 RETURNING *;
@@ -2590,9 +2590,9 @@ LIMIT 1;
 
 -- name: GatewayCreateChatInput :one
 INSERT INTO chat_inputs (id, workspace_id, agent_name, session_id,
-  organization_id, author_id, author_name, directory, content, delivery)
+  organization_id, author_id, author_name, directory, content, delivery, compute_connection_id)
 VALUES (@id, @workspace_id, @agent_name, @session_id,
-  @organization_id, @author_id, @author_name, @directory, @content, @delivery)
+  @organization_id, @author_id, @author_name, @directory, @content, @delivery, @compute_connection_id)
 ON CONFLICT (id) DO UPDATE SET id = chat_inputs.id
 WHERE chat_inputs.workspace_id = EXCLUDED.workspace_id
   AND chat_inputs.agent_name = EXCLUDED.agent_name
@@ -2615,7 +2615,7 @@ SELECT * FROM chat_inputs WHERE id = @id AND workspace_id = @workspace_id
 
 -- name: GatewayUpdateChatInput :one
 UPDATE chat_inputs SET state = @state, error = @error,
-  message_id = @message_id, resume = @resume, revision = revision + 1, updated_at = now()
+  message_id = @message_id, resume = @resume, compute_connection_id = @compute_connection_id, revision = revision + 1, updated_at = now()
 WHERE id = @id AND revision = @revision RETURNING *;
 
 -- name: GatewayPendingChatInputs :many
@@ -2654,3 +2654,36 @@ WHERE workspace_id = @workspace_id AND agent_name = @agent_name AND session_id =
 ORDER BY CASE WHEN state = 'sending' OR message_id <> '' AND state = 'failed' THEN 0
   WHEN delivery = 'steer' AND state = 'queued' THEN 1 ELSE 2 END, sequence
 LIMIT 1;
+
+-- name: GatewayPrepareComputeEnrollment :one
+INSERT INTO compute_hosts(id, tenant_namespace, agent_name, enrollment_hash, enrollment_expires_at)
+VALUES (@id, @tenant_namespace, @agent_name, @enrollment_hash, @enrollment_expires_at)
+ON CONFLICT (tenant_namespace, agent_name) DO UPDATE SET
+  id = EXCLUDED.id, enrollment_hash = EXCLUDED.enrollment_hash,
+  enrollment_expires_at = EXCLUDED.enrollment_expires_at,
+  revoked = false, workload_id = '', node_id = '', hostname = '', work_directory = ''
+WHERE compute_hosts.node_id = '' OR compute_hosts.revoked
+RETURNING *;
+
+-- name: GatewayConsumeComputeEnrollment :one
+UPDATE compute_hosts SET enrollment_hash = NULL, hostname = @hostname, work_directory = @work_directory
+WHERE enrollment_hash = @enrollment_hash AND enrollment_expires_at > now() AND NOT revoked
+RETURNING *;
+
+-- name: GatewayBindComputeHost :execrows
+UPDATE compute_hosts SET node_id = @node_id, workload_id = @workload_id
+WHERE id = @id AND NOT revoked AND node_id = '';
+
+-- name: GatewayComputeIdentity :one
+SELECT * FROM compute_hosts WHERE workload_id = @workload_id AND NOT revoked;
+
+-- name: GatewayComputeHost :one
+SELECT * FROM compute_hosts WHERE tenant_namespace = @tenant_namespace AND agent_name = @agent_name;
+
+-- name: GatewayObserveComputeHost :execrows
+UPDATE compute_hosts SET last_seen = now(), node_expires_at = @node_expires_at
+WHERE id = @id AND NOT revoked;
+
+-- name: GatewayRevokeComputeHost :one
+UPDATE compute_hosts SET revoked = true, enrollment_hash = NULL
+WHERE tenant_namespace = @tenant_namespace AND agent_name = @agent_name RETURNING *;

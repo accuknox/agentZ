@@ -1,0 +1,14 @@
+[Unit]
+Description=AgentZ native compute supervisor
+Wants=network-online.target agentz-spire.service agentz-kubearmor.service
+After=network-online.target agentz-spire.service agentz-kubearmor.service
+ConditionPathExists=/etc/agentz/daemon.json
+[Service]
+Type=simple
+Environment=PATH=/var/lib/agentz/runtime/tools/bin:/nix/var/nix/profiles/default/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+ExecStart=/usr/local/lib/agentz/agentz daemon run --config /etc/agentz/daemon.json
+Restart=on-failure
+RestartSec=5
+UMask=0022
+[Install]
+WantedBy=multi-user.target

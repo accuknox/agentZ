@@ -89,7 +89,7 @@ export function McpViewSheet({
           <div className="flex flex-1 items-center justify-center px-4 pb-2">
             <Spinner />
           </div>
-        ) : query.error instanceof Error ? (
+        ) : query.isError ? (
           <Alert className="px-4" variant="destructive">
             <CircleAlert aria-hidden="true" />
             <AlertTitle>Connection could not be loaded</AlertTitle>

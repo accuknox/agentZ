@@ -356,8 +356,7 @@ export function OAuthSecretSheet({
 
     return oauthSecretSearch.search(deferredCatalogQuery).map((result) => result.item)
   }, [deferredCatalogQuery])
-  const discoveryWarningMessage =
-    oauthQuery.error instanceof Error ? oauthQuery.error.message : undefined
+  const discoveryWarningMessage = oauthQuery.error?.message
   const discoveryWarningURL =
     hasTriggeredDiscovery && validEndpointURL && discoveryURL === trimmedEndpointURL
       ? discoveryURL

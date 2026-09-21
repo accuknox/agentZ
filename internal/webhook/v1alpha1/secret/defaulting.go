@@ -59,32 +59,29 @@ func ApplyDefaults(spec *agentzv1alpha1.SecretSpec) {
 	}
 
 	spec.OAuth.Provider = strings.TrimSpace(spec.OAuth.Provider)
-	spec.OAuth.Issuer = stableHTTPSURL(spec.OAuth.Issuer)
-	spec.OAuth.AuthorizationEndpoint = stableHTTPSURL(spec.OAuth.AuthorizationEndpoint)
-	spec.OAuth.TokenEndpoint = stableHTTPSURL(spec.OAuth.TokenEndpoint)
-	spec.OAuth.RegistrationEndpoint = stableHTTPSURL(spec.OAuth.RegistrationEndpoint)
-	spec.OAuth.Resource = stableHTTPSURL(spec.OAuth.Resource)
+	for _, endpoint := range []*string{
+		&spec.OAuth.Issuer, &spec.OAuth.AuthorizationEndpoint,
+		&spec.OAuth.TokenEndpoint, &spec.OAuth.RegistrationEndpoint,
+		&spec.OAuth.Resource,
+	} {
+		*endpoint = strings.TrimSpace(*endpoint)
+		if *endpoint == "" {
+			continue
+		}
+		parsed, err := url.Parse(*endpoint)
+		if err != nil {
+			continue
+		}
+		parsed.Host = strings.ToLower(parsed.Host)
+		if parsed.Scheme == "https" && parsed.Port() == "443" {
+			parsed.Host = parsed.Hostname()
+		}
+		*endpoint = parsed.String()
+	}
 }
 
 // Default applies defaults to one Secret resource.
 func (d *Defaulter) Default(_ context.Context, secret *agentzv1alpha1.Secret) error {
 	ApplyDefaults(&secret.Spec)
 	return nil
-}
-
-func stableHTTPSURL(raw string) string {
-	value := strings.TrimSpace(raw)
-	if value == "" {
-		return ""
-	}
-
-	parsed, err := url.Parse(value)
-	if err != nil {
-		return value
-	}
-	parsed.Host = strings.ToLower(parsed.Host)
-	if parsed.Scheme == "https" && parsed.Port() == "443" {
-		parsed.Host = parsed.Hostname()
-	}
-	return parsed.String()
 }

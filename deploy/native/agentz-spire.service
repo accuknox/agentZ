@@ -1,0 +1,15 @@
+[Unit]
+Description=AgentZ SPIRE node identity
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=/etc/agentz/spire.conf
+[Service]
+Type=simple
+ExecStart=/usr/local/lib/agentz/spire-agent run -config /etc/agentz/spire.conf
+Restart=on-failure
+RestartSec=5
+RuntimeDirectory=agentz/spire
+RuntimeDirectoryMode=0700
+UMask=0077
+[Install]
+WantedBy=multi-user.target

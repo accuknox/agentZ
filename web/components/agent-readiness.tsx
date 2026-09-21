@@ -16,6 +16,7 @@ import {
 import type { ReactElement } from "react"
 
 type AgentReadiness = {
+  isOffline: boolean
   isGettingReady: boolean
 }
 
@@ -79,20 +80,29 @@ export function useAgentReadiness(
   const { data } = useQuery({
     ...watchAgentsQueryOptions(workspaceId),
     enabled: agentName !== undefined,
-    select: (agents) => agents.find((agent) => agent.name === agentName)?.status,
+    select: (agents) => agents.find((agent) => agent.name === agentName),
   })
-  const status = data ?? initialStatus
+  const status = data?.status ?? initialStatus
 
   return {
+    isOffline: data?.execution === "Native" && data.connected === false,
     isGettingReady: status ? agentIsGettingReady(status) : false,
   }
 }
 
-export function AgentGettingReady({ className }: { className?: string }): ReactElement {
+export function AgentGettingReady({
+  className,
+  offline = false,
+}: {
+  className?: string
+  offline?: boolean
+}): ReactElement {
   return (
     <span className={className ?? "text-muted-foreground flex min-w-0 items-center gap-2 text-sm"}>
-      <Spinner aria-hidden="true" className="size-3.5" />
-      <span className="truncate">Your agent is getting ready</span>
+      {offline ? null : <Spinner aria-hidden="true" className="size-3.5" />}
+      <span className="truncate">
+        {offline ? "Your host is offline" : "Your agent is getting ready"}
+      </span>
     </span>
   )
 }

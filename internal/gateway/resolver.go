@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"fmt"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -18,6 +19,7 @@ import (
 )
 
 type resolvedAgent struct {
+	Root   string
 	Target string
 	Agent  *agentzv1alpha1.Agent
 }
@@ -390,13 +392,24 @@ func (r *resolver) resolveAgent(_ context.Context, namespace, agentName string) 
 	if err != nil {
 		return nil, errAgentNotFound
 	}
+	root := "/home/agentz"
+	if agt.Spec.Execution == agentzv1alpha1.AgentExecutionNative {
+		root = agt.Status.RuntimeRoot
+		if !path.IsAbs(root) || root == "/" || path.Clean(root) != root {
+			return nil, fmt.Errorf("native Agent has not reported a valid working directory")
+		}
+	}
 	return &resolvedAgent{
+		Root:   root,
 		Target: r.agentTarget(agt),
 		Agent:  agt.DeepCopy(),
 	}, nil
 }
 
 func (r *resolver) agentTarget(agt *agentzv1alpha1.Agent) string {
+	if agt.Spec.Execution == agentzv1alpha1.AgentExecutionNative {
+		return fmt.Sprintf("%s.%s.native.agentz:4096", agt.Name, agt.Namespace)
+	}
 	if r.targetOverride != "" {
 		return r.targetOverride
 	}

@@ -4,6 +4,28 @@ export type ClientOptions = {
   baseUrl: `${string}://${string}` | (string & {})
 }
 
+export type AgentExecution = "Kubernetes" | "Native"
+
+export type ComputeEnrollment = {
+  code: string
+  expires_at: string
+}
+
+export type RedeemComputeEnrollmentRequest = {
+  code: string
+  hostname: string
+  work_directory: string
+}
+
+export type RedeemComputeEnrollmentResponse = {
+  join_token: string
+  trust_domain: string
+  trust_bundle: string
+  spire_server: string
+  compute_server: string
+  workload_id: string
+}
+
 export type ChatSessionKind = "chat" | "workflow_run"
 
 export type ChatSessionStatus = "idle" | "busy" | "retry"
@@ -534,17 +556,22 @@ export type ListWorkflowWebhookTriggersResponse = {
 }
 
 export type Agent = {
+  connected?: boolean
+  hostname?: string
+  runtime_root?: string
+  execution?: AgentExecution
+  secret_proxy?: boolean
+  capabilities: AgentCapabilities
+  created_at: string
+  created_by: ResourceActor
+  last_activity: string
+  last_modified_by: ResourceActor
+  memory: AgentMemoryConfig
+  modified_at: string
   name: AgentName
   sandbox: ResourceReference
-  created_by: ResourceActor
-  last_modified_by: ResourceActor
-  last_activity: string
-  memory: AgentMemoryConfig
-  created_at: string
-  modified_at: string
   skills: Array<ResourceReference>
   status: AgentStatus
-  capabilities: AgentCapabilities
 }
 
 export type AgentCapabilities = {
@@ -726,14 +753,16 @@ export type UpdateSkillRequest = {
 export type AgentStatus = "UNSPECIFIED" | "PROGRESSING" | "DEGRADED" | "DELETED" | "IDLE"
 
 export type CreateAgentRequest = {
-  name: AgentName
-  memory?: AgentMemoryConfig
+  execution?: AgentExecution
+  secret_proxy?: boolean
   env?: {
     [key: string]: string
   }
+  memory?: AgentMemoryConfig
+  name: AgentName
+  opencode?: AgentOpencodeConfig
   sandbox: ResourceReference
   skills?: Array<ResourceReference>
-  opencode?: AgentOpencodeConfig
 }
 
 export type CreateWorkflowRequest = {
@@ -921,13 +950,14 @@ export type DeleteWorkflowsRequest = {
 }
 
 export type UpdateAgentRequest = {
+  secret_proxy?: boolean
   env?: {
     [key: string]: string
   }
   memory?: AgentMemoryConfig
+  opencode?: AgentOpencodeConfig
   sandbox?: ResourceReference
   skills?: Array<ResourceReference>
-  opencode?: AgentOpencodeConfig
 }
 
 export type TransferAgentOwnerRequest = {
@@ -2855,6 +2885,103 @@ export type DashboardWidgetNamePath = DashboardWidgetName
  * Stable publish call identifier.
  */
 export type IdempotencyKeyHeader = string
+
+export type RevokeComputeHostData = {
+  body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
+  path: {
+    agentName: AgentName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/compute"
+}
+
+export type RevokeComputeHostErrors = {
+  /**
+   * Unexpected server error.
+   */
+  default: Error
+}
+
+export type RevokeComputeHostError = RevokeComputeHostErrors[keyof RevokeComputeHostErrors]
+
+export type RevokeComputeHostResponses = {
+  /**
+   * Host disconnected
+   */
+  204: void
+}
+
+export type RevokeComputeHostResponse = RevokeComputeHostResponses[keyof RevokeComputeHostResponses]
+
+export type CreateComputeEnrollmentData = {
+  body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
+  path: {
+    agentName: AgentName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/compute"
+}
+
+export type CreateComputeEnrollmentErrors = {
+  /**
+   * Unexpected server error.
+   */
+  default: Error
+}
+
+export type CreateComputeEnrollmentError =
+  CreateComputeEnrollmentErrors[keyof CreateComputeEnrollmentErrors]
+
+export type CreateComputeEnrollmentResponses = {
+  /**
+   * One-use host enrollment code
+   */
+  201: ComputeEnrollment
+}
+
+export type CreateComputeEnrollmentResponse =
+  CreateComputeEnrollmentResponses[keyof CreateComputeEnrollmentResponses]
+
+export type RedeemComputeEnrollmentData = {
+  body: RedeemComputeEnrollmentRequest
+  path?: never
+  query?: never
+  url: "/api/compute/enroll"
+}
+
+export type RedeemComputeEnrollmentErrors = {
+  /**
+   * Unexpected server error.
+   */
+  default: Error
+}
+
+export type RedeemComputeEnrollmentError =
+  RedeemComputeEnrollmentErrors[keyof RedeemComputeEnrollmentErrors]
+
+export type RedeemComputeEnrollmentResponses = {
+  /**
+   * SPIRE bootstrap credentials
+   */
+  200: RedeemComputeEnrollmentResponse
+}
+
+export type RedeemComputeEnrollmentResponse2 =
+  RedeemComputeEnrollmentResponses[keyof RedeemComputeEnrollmentResponses]
 
 export type ListCodingProjectsData = {
   body?: never

@@ -41,6 +41,8 @@ const (
 )
 
 const (
+	// AgentComputeConnectionAnnotation fences native work to one live connection.
+	AgentComputeConnectionAnnotation = "agentz.accuknox.com/compute-connection"
 	// AgentNameMCPConnection is reserved for tenant-scoped MCP credentials.
 	AgentNameMCPConnection = "mcp-connection"
 	// AgentPackageJobLabel selects package preparation Jobs and their Pods.
@@ -66,12 +68,34 @@ const (
 	ReasonReconcileFailed = "ReconcileFailed"
 )
 
+// AgentExecution selects where an Agent runs.
+type AgentExecution string
+
+const (
+	// AgentExecutionKubernetes runs the Agent in a managed Kubernetes pod.
+	AgentExecutionKubernetes AgentExecution = "Kubernetes"
+	// AgentExecutionNative runs the Agent on an enrolled Linux host.
+	AgentExecutionNative AgentExecution = "Native"
+)
+
 // AgentSpec defines the desired state of Agent.
 // +kubebuilder:validation:XValidation:rule="!has(self.skills) || self.skills.all(s, size(s.name) <= 63)",message="skill names must not exceed 63 characters"
 // +kubebuilder:validation:XValidation:rule="!has(self.skills) || self.skills.all(s, s.name.matches('^[a-z0-9]+(-[a-z0-9]+)*$'))",message="skill names must use lowercase letters, digits, and single hyphens"
-// +kubebuilder:validation:XValidation:rule="self.createdByUserID == oldSelf.createdByUserID",message="createdByUserID is immutable"
+// +kubebuilder:validation:XValidation:rule="has(self.createdByUserID) == has(oldSelf.createdByUserID) && (!has(self.createdByUserID) || self.createdByUserID == oldSelf.createdByUserID)",message="createdByUserID is immutable"
+// +kubebuilder:validation:XValidation:rule="(has(self.execution) ? self.execution : 'Kubernetes') == (has(oldSelf.execution) ? oldSelf.execution : 'Kubernetes')",message="execution is immutable"
 type AgentSpec struct {
 	ResourceAudit `json:",inline"`
+
+	// Execution selects the runtime. Omission preserves Kubernetes execution.
+	// +kubebuilder:validation:Enum=Kubernetes;Native
+	// +kubebuilder:default=Kubernetes
+	// +optional
+	Execution AgentExecution `json:"execution,omitempty"`
+
+	// SecretProxy routes HTTPS through the hosted secret injection proxy.
+	// +kubebuilder:default=true
+	// +optional
+	SecretProxy *bool `json:"secretProxy,omitempty"`
 
 	// Image is the container image used for the Agent runtime.
 	// +optional
@@ -139,6 +163,18 @@ type TelemetryConfig struct {
 
 // AgentStatus defines the observed state of Agent.
 type AgentStatus struct {
+	// Hostname identifies the enrolled native host reported by its daemon.
+	// +optional
+	Hostname string `json:"hostname,omitempty"`
+
+	// Connected indicates an authenticated native daemon is connected.
+	// +optional
+	Connected bool `json:"connected,omitempty"`
+
+	// RuntimeRoot is the enrolled native working directory used for files and projects.
+	// +optional
+	RuntimeRoot string `json:"runtimeRoot,omitempty"`
+
 	// Conditions represent the current state of the Agent resource.
 	// +listType=map
 	// +listMapKey=type

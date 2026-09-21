@@ -1,0 +1,9 @@
+[Unit]
+Description=Keep AgentZ sensor endpoints host-local
+Before=agentz-kubearmor.service
+[Service]
+Type=oneshot
+ExecStart=/var/lib/agentz/runtime/tools/bin/nft -f /etc/agentz/sensor.nft
+RemainAfterExit=yes
+[Install]
+WantedBy=multi-user.target

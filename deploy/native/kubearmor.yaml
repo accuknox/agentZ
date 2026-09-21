@@ -1,0 +1,8 @@
+k8s: false
+enableKubeArmorHostPolicy: true
+enableKubeArmorVm: false
+hostVisibility: process,file,network
+gRPC: "32767"
+tlsEnabled: true
+tlsCertProvider: self
+tlsCertPath: /var/lib/agentz/sensor-tls

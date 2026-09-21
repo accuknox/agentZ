@@ -51,6 +51,7 @@ var baseOperationCapabilities = map[string][]string{
 		"listSecrets", "watchSecrets",
 	},
 	"agent.use_shared": {
+		"createComputeEnrollment", "revokeComputeHost",
 		"listChatInputs",
 		"submitChatInput",
 		"updateChatInput",
@@ -426,6 +427,10 @@ func applyBaseCapabilities(doc map[string]any) error {
 			operation, ok := op["operationId"].(string)
 			if !ok || strings.TrimSpace(operation) == "" {
 				return fmt.Errorf("base operation %s %s has no operationId", method, path)
+			}
+			if operation == "redeemComputeEnrollment" && path == "/api/compute/enroll" && method == "post" {
+				op["security"] = []any{}
+				continue
 			}
 			capability, mapped := capabilities[operation]
 			if !mapped {

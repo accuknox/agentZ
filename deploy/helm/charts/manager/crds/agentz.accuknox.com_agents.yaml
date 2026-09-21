@@ -218,6 +218,14 @@ spec:
                   - name
                   type: object
                 type: array
+              execution:
+                default: Kubernetes
+                description: Execution selects the runtime. Omission preserves Kubernetes
+                  execution.
+                enum:
+                - Kubernetes
+                - Native
+                type: string
               image:
                 description: Image is the container image used for the Agent runtime.
                 type: string
@@ -334,6 +342,11 @@ spec:
                 - name
                 - scope
                 type: object
+              secretProxy:
+                default: true
+                description: SecretProxy routes HTTPS through the hosted secret injection
+                  proxy.
+                type: boolean
               skills:
                 description: Skills lists immutable Skill names attached directly
                   to this Agent.
@@ -388,7 +401,11 @@ spec:
                 hyphens
               rule: '!has(self.skills) || self.skills.all(s, s.name.matches(''^[a-z0-9]+(-[a-z0-9]+)*$''))'
             - message: createdByUserID is immutable
-              rule: self.createdByUserID == oldSelf.createdByUserID
+              rule: has(self.createdByUserID) == has(oldSelf.createdByUserID) && (!has(self.createdByUserID)
+                || self.createdByUserID == oldSelf.createdByUserID)
+            - message: execution is immutable
+              rule: '(has(self.execution) ? self.execution : ''Kubernetes'') == (has(oldSelf.execution)
+                ? oldSelf.execution : ''Kubernetes'')'
           status:
             description: status defines the observed state of Agent.
             properties:
@@ -452,10 +469,22 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              connected:
+                description: Connected indicates an authenticated native daemon is
+                  connected.
+                type: boolean
+              hostname:
+                description: Hostname identifies the enrolled native host reported
+                  by its daemon.
+                type: string
               observedGeneration:
                 description: ObservedGeneration is the latest reconciled generation.
                 format: int64
                 type: integer
+              runtimeRoot:
+                description: RuntimeRoot is the enrolled native working directory
+                  used for files and projects.
+                type: string
               serviceName:
                 description: ServiceName is the service exposing the Agent API.
                 type: string

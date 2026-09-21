@@ -1,6 +1,7 @@
 package observer
 
 import (
+	"cmp"
 	"strings"
 	"time"
 
@@ -15,7 +16,10 @@ func kubeArmorLogEvent(item *pb.Log, agentName string) (event, bool) {
 	ts := eventTime(item.GetUpdatedTime(), item.GetTimestamp())
 	switch item.GetOperation() {
 	case "Process":
-		process := processName(item.GetProcessName(), item.GetResource())
+		process := item.GetProcessName()
+		if process == "" {
+			process = firstToken(item.GetResource())
+		}
 		if process == "" {
 			return event{}, false
 		}
@@ -27,13 +31,13 @@ func kubeArmorLogEvent(item *pb.Log, agentName string) (event, bool) {
 			podName:           item.GetPodName(),
 			process:           process,
 			parentProcess:     item.GetParentProcessName(),
-			commandInvocation: commandLine(item.GetResource(), process),
+			commandInvocation: cmp.Or(strings.TrimSpace(item.GetResource()), process),
 			action:            actionAllowed,
 			source:            sourceKubeArmorLog,
 		}}, true
 	case "File":
 		path := firstToken(item.GetResource())
-		process := commandLine(item.GetProcessName(), firstToken(item.GetSource()))
+		process := cmp.Or(strings.TrimSpace(item.GetProcessName()), firstToken(item.GetSource()))
 		if path == "" || process == "" {
 			return event{}, false
 		}
@@ -45,7 +49,7 @@ func kubeArmorLogEvent(item *pb.Log, agentName string) (event, bool) {
 			podName:           item.GetPodName(),
 			filePathAccessed:  path,
 			process:           process,
-			commandInvocation: commandLine(item.GetSource(), process),
+			commandInvocation: cmp.Or(strings.TrimSpace(item.GetSource()), process),
 			action:            actionAllowed,
 			source:            sourceKubeArmorLog,
 		}}, true
@@ -64,7 +68,10 @@ func kubeArmorAlertEvent(item *pb.Alert, agentName string) (event, bool) {
 	action := kubeArmorAction(item.GetAction())
 	switch item.GetOperation() {
 	case "Process":
-		process := processName(item.GetProcessName(), item.GetResource())
+		process := item.GetProcessName()
+		if process == "" {
+			process = firstToken(item.GetResource())
+		}
 		if process == "" {
 			return event{}, false
 		}
@@ -76,13 +83,13 @@ func kubeArmorAlertEvent(item *pb.Alert, agentName string) (event, bool) {
 			podName:           item.GetPodName(),
 			process:           process,
 			parentProcess:     item.GetParentProcessName(),
-			commandInvocation: commandLine(item.GetResource(), process),
+			commandInvocation: cmp.Or(strings.TrimSpace(item.GetResource()), process),
 			action:            action,
 			source:            sourceKubeArmorAlert,
 		}}, true
 	case "File":
 		path := firstToken(item.GetResource())
-		process := commandLine(item.GetProcessName(), firstToken(item.GetSource()))
+		process := cmp.Or(strings.TrimSpace(item.GetProcessName()), firstToken(item.GetSource()))
 		if path == "" || process == "" {
 			return event{}, false
 		}
@@ -94,7 +101,7 @@ func kubeArmorAlertEvent(item *pb.Alert, agentName string) (event, bool) {
 			podName:           item.GetPodName(),
 			filePathAccessed:  path,
 			process:           process,
-			commandInvocation: commandLine(item.GetSource(), process),
+			commandInvocation: cmp.Or(strings.TrimSpace(item.GetSource()), process),
 			action:            action,
 			source:            sourceKubeArmorAlert,
 		}}, true
@@ -135,21 +142,6 @@ func eventTime(updated string, unix int64) time.Time {
 		return time.Unix(unix, 0).UTC()
 	}
 	return time.Now().UTC()
-}
-
-func processName(processName, resource string) string {
-	if processName != "" {
-		return processName
-	}
-	return firstToken(resource)
-}
-
-func commandLine(primary, fallback string) string {
-	primary = strings.TrimSpace(primary)
-	if primary != "" {
-		return primary
-	}
-	return fallback
 }
 
 func firstToken(raw string) string {

@@ -28,3 +28,6 @@ go.work
 .ref
 agentz.yaml
 node_modules
+
+# Generated native release metadata
+/deploy/native/source-revision

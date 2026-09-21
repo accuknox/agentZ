@@ -4,6 +4,8 @@ import * as z from "zod"
 import { revalidatePath, updateTag } from "next/cache"
 import {
   createAgent,
+  createComputeEnrollment,
+  revokeComputeHost,
   deleteAgent,
   deleteAgentShare,
   transferAgentOwner,
@@ -66,6 +68,8 @@ export async function createAgentFormAction(
     ...Object.fromEntries(formData),
     skills: { names: formData.getAll("skillNames"), scopes: formData.getAll("skillScopes") },
     memoryEnabled: formData.has("memoryEnabled"),
+    secretProxy: formData.has("secretProxy"),
+    execution: formData.get("execution") ?? "Kubernetes",
   })
   if (!parsed.success) {
     return invalidAgentFormState(parsed.error)
@@ -74,6 +78,8 @@ export async function createAgentFormAction(
   const result = await createAgent({
     body: {
       name: parsed.data.name,
+      execution: parsed.data.execution,
+      secret_proxy: parsed.data.secretProxy,
       sandbox: { scope: parsed.data.sandboxScope, name: parsed.data.sandboxName },
       skills: parsed.data.skills,
       memory: { enabled: parsed.data.memoryEnabled },
@@ -86,7 +92,7 @@ export async function createAgentFormAction(
 
   updateTag(agentsTag)
   updateTag(skillsTag)
-  return { success: true }
+  return { success: true, agent: result.data }
 }
 
 export async function updateAgentFormAction(
@@ -99,6 +105,8 @@ export async function updateAgentFormAction(
     ...Object.fromEntries(formData),
     skills: { names: formData.getAll("skillNames"), scopes: formData.getAll("skillScopes") },
     memoryEnabled: formData.has("memoryEnabled"),
+    secretProxy: formData.has("secretProxy"),
+    execution: formData.get("execution") ?? "Kubernetes",
   })
   if (!parsed.success) {
     return invalidAgentFormState(parsed.error)
@@ -106,6 +114,7 @@ export async function updateAgentFormAction(
 
   const result = await updateAgent({
     body: {
+      secret_proxy: parsed.data.secretProxy,
       sandbox: { scope: parsed.data.sandboxScope, name: parsed.data.sandboxName },
       skills: parsed.data.skills,
       memory: { enabled: parsed.data.memoryEnabled },
@@ -242,4 +251,21 @@ function refreshAgentRoutes(scope: AgentActionScope, agentName: string) {
   updateTag(`${agentsTag}:${scope.workspaceId}:${agentName}`)
   revalidatePath(`${scope.workspacePath}/agents`)
   revalidatePath(`${scope.workspacePath}/agents/${agentName}`)
+}
+
+export async function enrollComputeAction(workspaceId: string, agentName: string) {
+  const result = await createComputeEnrollment({
+    client: getGatewayServerClient(workspaceId),
+    path: { agentName },
+  })
+  return { data: result.data, error: result.error }
+}
+
+export async function disconnectComputeAction(workspaceId: string, agentName: string) {
+  const result = await revokeComputeHost({
+    client: getGatewayServerClient(workspaceId),
+    path: { agentName },
+  })
+  updateTag(agentsTag)
+  return { error: result.error }
 }

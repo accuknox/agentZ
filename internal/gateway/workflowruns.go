@@ -331,6 +331,11 @@ func (s *Service) InvokeWorkflowWebhook(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
+	connection, apiErr := s.nativeAdmission(r.Context(), ns, agentName)
+	if apiErr != nil {
+		apiutil.WriteError(w, r, apiErr)
+		return
+	}
 	resp, err := workflow.CreateWebhookRun(
 		r.Context(),
 		s.k8sClient,
@@ -340,6 +345,7 @@ func (s *Service) InvokeWorkflowWebhook(w http.ResponseWriter, r *http.Request, 
 		rawInputs,
 		timeoutSeconds,
 		auth.apiKeyID,
+		connection,
 	)
 	if err != nil {
 		apiutil.WriteError(w, r, mapKubeHTTPError("invoke workflow webhook", err))

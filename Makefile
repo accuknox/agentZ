@@ -22,7 +22,7 @@ SKILLS_S3_SECRET_ACCESS_KEY ?= admin
 
 KUBECTL ?= kubectl
 KUSTOMIZE ?= kustomize
-CONTROLLER_GEN ?= controller-gen
+CONTROLLER_GEN ?= go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.20.1
 
 GO_PKGS := ./cmd ./hack/... ./internal/... ./pkg/...
 
@@ -33,6 +33,7 @@ all: generate lint build
 generate:
 	cd web && bun run gen:db-schema
 	sqlc generate
+	go generate ./internal/compute
 	go run ./hack/inference/generate_providers.go
 	go run ./hack/openapi/generate_opencode_gateway.go
 	oapi-codegen \
@@ -45,6 +46,7 @@ generate:
 		output:webhook:artifacts:config=deploy/kustomize/webhook \
 		output:crd:artifacts:config=deploy/kustomize/crd/bases
 	cp deploy/kustomize/crd/bases/*.yaml deploy/helm/charts/manager/crds/
+	yamlfmt deploy/kustomize/crd/bases deploy/kustomize/rbac deploy/kustomize/webhook
 	cd web && bun run gen:openapi-client
 	cd opencode/config && bun run gen:openapi-client
 

@@ -1,0 +1,80 @@
+{{- if and .Values.enabled .Values.compute.enabled }}
+{{- if ne (int .Values.replicaCount) 1 }}
+{{- fail "bundled compute SPIRE requires gateway.replicaCount=1; use an external SPIRE deployment for HA" }}
+{{- end }}
+{{- if ne .Values.strategy.type "Recreate" }}
+{{- fail "bundled compute SPIRE requires gateway.strategy.type=Recreate to protect its persistent signing state" }}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "gateway.fullname" . }}-spire
+  namespace: {{ .Release.Namespace }}
+data:
+  server.conf: |
+    server {
+      trust_domain = {{ .Values.compute.trustDomain | quote }}
+      bind_address = "0.0.0.0"
+      bind_port = 8081
+      socket_path = "/run/spire/api.sock"
+      data_dir = "/var/lib/spire"
+      agent_ttl = "5040h"
+      default_x509_svid_ttl = "1h"
+      ca_ttl = "8760h"
+    }
+    plugins {
+      DataStore "sql" {
+        plugin_data {
+          database_type = "sqlite3"
+          connection_string = "/var/lib/spire/datastore.sqlite3"
+        }
+      }
+      KeyManager "disk" {
+        plugin_data { keys_path = "/var/lib/spire/keys.json" }
+      }
+      NodeAttestor "join_token" { plugin_data {} }
+      UpstreamAuthority "disk" {
+        plugin_data {
+          cert_file_path = "/etc/spire/upstream/root.pem"
+          key_file_path = "/etc/spire/upstream/root-key.pem"
+        }
+      }
+    }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "gateway.fullname" . }}-spire
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- if .Values.compute.spire.storageClassName }}
+  storageClassName: {{ .Values.compute.spire.storageClassName | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.compute.spire.storageSize }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "gateway.fullname" . }}-compute
+  namespace: {{ .Release.Namespace }}
+  {{- with .Values.compute.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.compute.service.type }}
+  selector:
+    {{- include "gateway.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: compute
+      port: {{ .Values.compute.port }}
+      targetPort: compute
+      protocol: TCP
+    - name: spire
+      port: 8081
+      targetPort: spire
+      protocol: TCP
+{{- end }}

@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"path"
 	"slices"
 	"strings"
 
@@ -94,6 +95,8 @@ var (
 
 // RuntimeConfig configures controller-side launch defaults.
 type RuntimeConfig struct {
+	GatewayServiceAccountName        string
+	GatewayServiceAccountNamespace   string
 	AgentDefaultImage                string
 	GatewayURL                       string
 	SharedNixPVC                     string
@@ -204,9 +207,19 @@ type opencodeInstructionFile struct {
 }
 
 func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]byte, []opencodeInstructionFile, error) {
+	configDirectory := opencodeConfigDir
+	skillPaths := []string{opencodeBundledSkillsPath, opencodeImmutableSkillsPath, opencodeWritableSkillsPath}
+	if envCfg.RuntimePaths != nil {
+		configDirectory = envCfg.RuntimePaths.ConfigDirectory
+		skillPaths = []string{
+			envCfg.RuntimePaths.BundledSkillsDirectory,
+			envCfg.RuntimePaths.ImmutableSkillsDirectory,
+			envCfg.RuntimePaths.WritableSkillsDirectory,
+		}
+	}
 	general := envCfg.WorkspaceType != agentzv1alpha1.WorkspaceTypeCoding
 	agent := opencodeAgentFile{
-		Prompt: "{file:" + opencodePhilosophyPath + "}\n\n{file:" + opencodeUnslopPath + "}",
+		Prompt: "{file:" + path.Join(configDirectory, opencodePhilosophyKey) + "}\n\n{file:" + path.Join(configDirectory, opencodeUnslopKey) + "}",
 		Permission: opencodeAgentPermissionFile{
 			Skill: map[string]opencodePermissionRule{
 				"customize-opencode": "deny",
@@ -247,15 +260,14 @@ func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]by
 	if err != nil {
 		return nil, nil, err
 	}
+	for i := range instructionFiles {
+		instructionFiles[i].Path = path.Join(configDirectory, path.Base(instructionFiles[i].Path))
+	}
 	if strings.TrimSpace(agt.Spec.Instruction) != "" {
-		cfg.Instructions = []string{opencodeInstructionPath}
+		cfg.Instructions = []string{path.Join(configDirectory, opencodeInstructionKey)}
 	}
 	cfg.Skills = &opencodeSkillsFile{
-		Paths: []string{
-			opencodeBundledSkillsPath,
-			opencodeImmutableSkillsPath,
-			opencodeWritableSkillsPath,
-		},
+		Paths: skillPaths,
 	}
 	cfg.Provider = envCfg.Providers
 	cfg.EnabledProviders = make([]string, 0, len(envCfg.Providers))

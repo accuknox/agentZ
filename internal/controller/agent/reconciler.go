@@ -43,6 +43,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/accuknox/agentz/internal/compute"
 	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/mcp"
 	"github.com/accuknox/agentz/internal/sandboxutil"
@@ -103,7 +104,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, nil
 	}
 
-	if agt.Spec.Image == "" && r.Config.AgentDefaultImage == "" {
+	if agt.Spec.Execution != agentzv1alpha1.AgentExecutionNative && agt.Spec.Image == "" && r.Config.AgentDefaultImage == "" {
 		err = errImageEmpty
 		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
 		if updateErr != nil {
@@ -119,6 +120,16 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
 		}
 		return ctrl.Result{}, fmt.Errorf("resolve sandbox: %w", err)
+	}
+
+	if agt.Spec.Execution == agentzv1alpha1.AgentExecutionNative {
+		result, err := r.reconcileNative(ctx, agt, envCfg)
+		if err != nil {
+			if updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err); updateErr != nil {
+				return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
+			}
+		}
+		return result, err
 	}
 
 	var opencodeCfg []byte
@@ -186,25 +197,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("reconcile agent pvcs: %w", err)
 	}
 
-	if !ctrlutil.ContainsFinalizer(agt, sinjectorFinalizer) {
-		patch := client.MergeFrom(agt.DeepCopy())
-		ctrlutil.AddFinalizer(agt, sinjectorFinalizer)
-		if err := r.Patch(ctx, agt, patch); err != nil {
-			return ctrl.Result{}, fmt.Errorf("add sinjector finalizer: %w", err)
-		}
-	}
-
-	err = r.reconcileSinjector(ctx, agt, envCfg.AllowedHosts)
+	ready, err := r.reconcileSecretProxy(ctx, agt, envCfg.AllowedHosts)
 	if err != nil {
-		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
-		if updateErr != nil {
+		if updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err); updateErr != nil {
 			return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
 		}
-		return ctrl.Result{}, fmt.Errorf("reconcile sinjector: %w", err)
-	}
-	ready, err := r.sinjectorReady(ctx, agt)
-	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("check sinjector readiness: %w", err)
+		return ctrl.Result{}, fmt.Errorf("reconcile secret proxy: %w", err)
 	}
 	if !ready {
 		return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
@@ -288,6 +286,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 type sandboxConfig struct {
+	RuntimePaths            *compute.NativeEndpoints
 	WorkspaceType           agentzv1alpha1.WorkspaceType
 	Packages                []string
 	AllowedHosts            []string

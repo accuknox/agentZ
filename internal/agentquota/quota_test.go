@@ -146,3 +146,24 @@ func TestUsageStatus(t *testing.T) {
 		t.Errorf("available resources = %#v, want zero", status.Resources.Available)
 	}
 }
+
+func TestMeasureExcludesNativeAgents(t *testing.T) {
+	t.Parallel()
+	agents := []agentzv1alpha1.Agent{
+		{Spec: agentzv1alpha1.AgentSpec{Resources: corev1.ResourceRequirements{
+			Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("250m")},
+		}}},
+		{Spec: agentzv1alpha1.AgentSpec{Execution: agentzv1alpha1.AgentExecutionKubernetes}},
+		{Spec: agentzv1alpha1.AgentSpec{
+			Execution: agentzv1alpha1.AgentExecutionNative,
+			Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("100"),
+				corev1.ResourceMemory: resource.MustParse("100Gi"),
+			}},
+		}},
+	}
+	usage := Measure(agents)
+	if usage.Count != 2 || usage.Resources.CPU.Cmp(resource.MustParse("250m")) != 0 || !usage.Resources.Memory.IsZero() {
+		t.Fatalf("native Agent consumed managed quota: %#v", usage)
+	}
+}

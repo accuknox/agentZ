@@ -587,7 +587,9 @@ func (s *Service) ListProcessObservability(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	items, next := eventPage(rows, req.limit, processEvent, processCursor)
+	items, next := eventPage(rows, req.limit, processEvent, func(row gatewaydb.GatewayListProcessEventsRow) eventPageCursor {
+		return eventPageCursor{EventTime: row.EventTime, ID: row.ID}
+	})
 	apiutil.WriteJSON(
 		w,
 		http.StatusOK,
@@ -696,7 +698,9 @@ func (s *Service) ListFileObservability(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	items, next := eventPage(rows, req.limit, fileEvent, fileCursor)
+	items, next := eventPage(rows, req.limit, fileEvent, func(row gatewaydb.GatewayListFileEventsRow) eventPageCursor {
+		return eventPageCursor{EventTime: row.EventTime, ID: row.ID}
+	})
 	apiutil.WriteJSON(
 		w,
 		http.StatusOK,
@@ -805,7 +809,9 @@ func (s *Service) ListNetworkObservability(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	items, next := eventPage(rows, req.limit, networkEvent, networkCursor)
+	items, next := eventPage(rows, req.limit, networkEvent, func(row gatewaydb.GatewayListNetworkEventsRow) eventPageCursor {
+		return eventPageCursor{EventTime: row.EventTime, ID: row.ID}
+	})
 	apiutil.WriteJSON(
 		w,
 		http.StatusOK,
@@ -1004,18 +1010,6 @@ func eventPage[T any, E any, C any](rows []T, limit int, convert func(T) E, curs
 		items = append(items, convert(row))
 	}
 	return items, next
-}
-
-func processCursor(row gatewaydb.GatewayListProcessEventsRow) eventPageCursor {
-	return eventPageCursor{EventTime: row.EventTime, ID: row.ID}
-}
-
-func fileCursor(row gatewaydb.GatewayListFileEventsRow) eventPageCursor {
-	return eventPageCursor{EventTime: row.EventTime, ID: row.ID}
-}
-
-func networkCursor(row gatewaydb.GatewayListNetworkEventsRow) eventPageCursor {
-	return eventPageCursor{EventTime: row.EventTime, ID: row.ID}
 }
 
 func processEvent(row gatewaydb.GatewayListProcessEventsRow) gatewayapi.ProcessObservabilityEvent {

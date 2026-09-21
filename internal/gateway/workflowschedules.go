@@ -428,6 +428,11 @@ func (s *Service) CreateWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 		return
 	}
 
+	connection, apiErr := s.nativeAdmission(r.Context(), ns, agtName)
+	if apiErr != nil {
+		apiutil.WriteError(w, r, apiErr)
+		return
+	}
 	resp, err := workflow.CreateScheduledRun(
 		r.Context(),
 		s.k8sClient,
@@ -435,6 +440,7 @@ func (s *Service) CreateWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 		agtName,
 		workflowName,
 		scheduleName,
+		connection,
 	)
 	if err != nil {
 		if errors.Is(err, workflow.ErrWorkflowRunScopeMismatch) {

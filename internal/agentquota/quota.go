@@ -68,14 +68,19 @@ func Resources(defaults agentzv1alpha1.AgentDefaults) corev1.ResourceRequirement
 func Measure(agents []agentzv1alpha1.Agent) Usage {
 	cpu := resource.Quantity{}
 	memory := resource.Quantity{}
+	var count int32
 	for i := range agents {
+		if agents[i].Spec.Execution == agentzv1alpha1.AgentExecutionNative {
+			continue
+		}
+		count++
 		requests := EffectiveRequests(agents[i].Spec.Resources)
 		cpu.Add(requests.CPU)
 		memory.Add(requests.Memory)
 	}
 
 	return Usage{
-		Count: int32(len(agents)),
+		Count: count,
 		Resources: agentzv1alpha1.ComputeResources{
 			CPU:    cpu,
 			Memory: memory,

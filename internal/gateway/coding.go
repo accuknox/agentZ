@@ -51,16 +51,20 @@ type codingPromptData struct {
 }
 
 // codingWorktree exposes the agent path and keeps deleting checkouts unavailable.
-func codingWorktree(tree gatewaydb.CodingWorktree) gatewayapi.CodingWorktree {
+func (s *Service) codingWorktree(ctx context.Context, namespace string, tree gatewaydb.CodingWorktree) (gatewayapi.CodingWorktree, error) {
+	resolved, err := s.resolver.resolveAgent(ctx, namespace, tree.AgentName)
+	if err != nil {
+		return gatewayapi.CodingWorktree{}, err
+	}
 	return gatewayapi.CodingWorktree{
 		Id:        tree.ID,
 		ProjectId: tree.ProjectID,
 		AgentName: tree.AgentName,
-		Directory: "/home/agentz/" + tree.Directory,
+		Directory: path.Join(resolved.Root, tree.Directory),
 		Branch:    tree.Branch,
 		Ready:     tree.Ready && !tree.Deleting,
 		Shared:    tree.Shared,
-	}
+	}, nil
 }
 
 // codingAccess requires a human in a Coding workspace. Administrator privileges
@@ -252,15 +256,25 @@ func (s *Service) GetCodingProject(w http.ResponseWriter, r *http.Request, proje
 	}
 	for _, tree := range trees {
 		if capabilities[tree.AgentName].Use {
-			result.Worktrees = append(result.Worktrees, codingWorktree(tree))
+			view, err := s.codingWorktree(r.Context(), access.namespace, tree)
+			if err != nil {
+				apiutil.WriteInternalError(w, r, err)
+				return
+			}
+			result.Worktrees = append(result.Worktrees, view)
 		}
 	}
 	for _, thread := range threads {
 		if capabilities[thread.CodingThread.AgentName].Use {
+			view, err := s.codingWorktree(r.Context(), access.namespace, thread.CodingWorktree)
+			if err != nil {
+				apiutil.WriteInternalError(w, r, err)
+				return
+			}
 			result.Threads = append(result.Threads, gatewayapi.CodingThread{
 				Id:           thread.CodingThread.ID,
 				SessionId:    thread.CodingThread.SessionID.String,
-				Worktree:     codingWorktree(thread.CodingWorktree),
+				Worktree:     view,
 				Repository:   thread.CodingProject.Repository,
 				RepositoryId: thread.CodingProject.RepositoryID,
 			})
@@ -530,11 +544,15 @@ func (s *Service) deleteCodingProject(ctx context.Context, access resourceAccess
 // stopCodingWorktree shuts down only this checkout's runs and terminals. Native
 // abort requests bypass the project lock held by synchronous prompts.
 func (s *Service) stopCodingWorktree(ctx context.Context, access resourceAccess, tree gatewaydb.CodingWorktree) error {
+	resolved, err := s.resolver.resolveAgent(ctx, access.namespace, tree.AgentName)
+	if err != nil {
+		return err
+	}
 	client, err := s.codingClient(ctx, access.namespace, tree.AgentName, s.outboundHTTP)
 	if err != nil {
 		return err
 	}
-	directory := "/home/agentz/" + tree.Directory
+	directory := path.Join(resolved.Root, tree.Directory)
 	statuses, err := client.SessionStatusWithResponse(
 		ctx, tree.AgentName,
 		&gatewayapi.SessionStatusParams{Directory: &directory},
@@ -590,6 +608,15 @@ func (s *Service) PrepareCodingCheckout(w http.ResponseWriter, r *http.Request) 
 		apiutil.WriteError(w, r, apiErr)
 		return
 	}
+	connection, apiErr := s.nativeAdmission(r.Context(), access.namespace, req.AgentName)
+	if apiErr != nil {
+		apiutil.WriteError(w, r, apiErr)
+		return
+	}
+	if connection != "" {
+		r = r.WithContext(context.WithValue(r.Context(), computeConnectionContextKey{}, connection))
+	}
+
 	project, err := s.queries.GatewayGetCodingProject(
 		r.Context(),
 		gatewaydb.GatewayGetCodingProjectParams{
@@ -773,7 +800,12 @@ func (s *Service) PrepareCodingCheckout(w http.ResponseWriter, r *http.Request) 
 		}
 		tree.Ready = true
 	}
-	apiutil.WriteJSON(w, http.StatusCreated, codingWorktree(tree))
+	view, err := s.codingWorktree(r.Context(), access.namespace, tree)
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+	apiutil.WriteJSON(w, http.StatusCreated, view)
 }
 
 // codingClient routes the generated gateway client directly to the agent while
@@ -808,10 +840,15 @@ func (s *Service) GetCodingThread(w http.ResponseWriter, r *http.Request, agentN
 		apiutil.WriteError(w, r, mapGatewayStoreError("get thread", err))
 		return
 	}
+	view, err := s.codingWorktree(r.Context(), access.namespace, thread.CodingWorktree)
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
 	apiutil.WriteJSON(w, http.StatusOK, gatewayapi.CodingThread{
 		Id:           thread.CodingThread.ID,
 		SessionId:    thread.CodingThread.SessionID.String,
-		Worktree:     codingWorktree(thread.CodingWorktree),
+		Worktree:     view,
 		Repository:   thread.CodingProject.Repository,
 		RepositoryId: thread.CodingProject.RepositoryID,
 	})
@@ -828,6 +865,15 @@ func (s *Service) SuggestCodingText(w http.ResponseWriter, r *http.Request, agen
 		apiutil.WriteError(w, r, apiErr)
 		return
 	}
+	connection, apiErr := s.nativeAdmission(r.Context(), access.namespace, agentName)
+	if apiErr != nil {
+		apiutil.WriteError(w, r, apiErr)
+		return
+	}
+	if connection != "" {
+		r = r.WithContext(context.WithValue(r.Context(), computeConnectionContextKey{}, connection))
+	}
+
 	row, err := s.resolveCodingSession(r.Context(), access, agentName, sessionId)
 	if err != nil {
 		apiutil.WriteError(w, r, mapGatewayStoreError("get thread", err))
@@ -947,7 +993,11 @@ func (s *Service) codingSuggestion(ctx context.Context, access resourceAccess, t
 	if err != nil {
 		return gatewayapi.CodingTextSuggestion{}, err
 	}
-	directory := "/home/agentz/" + tree.Directory
+	resolvedAgent, err := s.resolver.resolveAgent(ctx, access.namespace, agentName)
+	if err != nil {
+		return gatewayapi.CodingTextSuggestion{}, err
+	}
+	directory := path.Join(resolvedAgent.Root, tree.Directory)
 	body := gatewayapi.SessionCreateJSONRequestBody{
 		ParentID: &sessionID, Title: new("Source control suggestion"),
 		Permission: &gatewayapi.OpencodePermissionRuleset{{
@@ -1151,6 +1201,15 @@ func (s *Service) RunCodingGit(w http.ResponseWriter, r *http.Request, worktreeI
 		apiutil.WriteError(w, r, apiErr)
 		return
 	}
+	connection, apiErr := s.nativeAdmission(r.Context(), access.namespace, row.CodingWorktree.AgentName)
+	if apiErr != nil {
+		apiutil.WriteError(w, r, apiErr)
+		return
+	}
+	if connection != "" {
+		r = r.WithContext(context.WithValue(r.Context(), computeConnectionContextKey{}, connection))
+	}
+
 	var req gatewayapi.CodingGitRequest
 	if !decodeJSONBody(w, r, &req, false) {
 		return
@@ -1387,6 +1446,10 @@ func (s *Service) codingFilesystem(ctx context.Context, namespace string, tree g
 // Tasks create sessions inside the engine, so their first direct link can arrive
 // before the gateway has seen any metadata for them.
 func (s *Service) resolveCodingSession(ctx context.Context, access resourceAccess, agentName, sessionID string) (gatewaydb.GatewayResolveCodingSessionRow, error) {
+	resolved, err := s.resolver.resolveAgent(ctx, access.namespace, agentName)
+	if err != nil {
+		return gatewaydb.GatewayResolveCodingSessionRow{}, err
+	}
 	params := gatewaydb.GatewayResolveCodingSessionParams{
 		WorkspaceID: access.workspaceID,
 		AgentName:   agentName,
@@ -1439,7 +1502,7 @@ func (s *Service) resolveCodingSession(ctx context.Context, access resourceAcces
 			return row, err
 		}
 		for _, child := range children {
-			if path.Clean(child.Directory) != "/home/agentz/"+row.CodingWorktree.Directory {
+			if path.Clean(child.Directory) != path.Join(resolved.Root, row.CodingWorktree.Directory) {
 				return row, pgx.ErrNoRows
 			}
 		}
@@ -1471,6 +1534,10 @@ func (s *Service) enforceCodingSession(r *http.Request, access resourceAccess, r
 	}
 	if workspace.Type != gatewaydb.WorkspaceTypeCoding {
 		return nil, nil
+	}
+	resolved, err := s.resolver.resolveAgent(r.Context(), access.namespace, agentName)
+	if err != nil {
+		return nil, mapGatewayStoreError("resolve agent directory", err)
 	}
 	if route.ID == "session.share" {
 		return nil, apiutil.NewError(http.StatusForbidden, "private_project", "Coding conversations are private", nil)
@@ -1544,12 +1611,12 @@ func (s *Service) enforceCodingSession(r *http.Request, access resourceAccess, r
 		if createV2 != nil && createV2.Location != nil {
 			directory = createV2.Location.Directory
 		}
-		if catalog && (directory == "" || path.Clean(directory) == "/home/agentz") {
+		if catalog && (directory == "" || path.Clean(directory) == resolved.Root) {
 			// Pre-checkout catalogs must use the agent home, never a caller's
 			// workspace selector or a previously active project's configuration.
 			query := r.URL.Query()
-			query.Set("directory", "/home/agentz")
-			query.Set("location[directory]", "/home/agentz")
+			query.Set("directory", resolved.Root)
+			query.Set("location[directory]", resolved.Root)
 			query.Del("workspace")
 			query.Del("location[workspace]")
 			r.URL.RawQuery = query.Encode()
@@ -1557,7 +1624,7 @@ func (s *Service) enforceCodingSession(r *http.Request, access resourceAccess, r
 			r.Header.Del("X-Opencode-Workspace")
 			return nil, nil
 		}
-		directory = strings.TrimPrefix(path.Clean(directory), "/home/agentz/")
+		directory = strings.TrimPrefix(path.Clean(directory), resolved.Root+"/")
 		tree, err = s.queries.GatewayOwnedCodingDirectory(
 			r.Context(),
 			gatewaydb.GatewayOwnedCodingDirectoryParams{
@@ -1581,7 +1648,7 @@ func (s *Service) enforceCodingSession(r *http.Request, access resourceAccess, r
 			if err := apiutil.DecodeJSONBody(r, &body, false); err != nil {
 				return nil, apiutil.NewError(http.StatusBadRequest, "invalid_request", "Invalid terminal request", err)
 			}
-			body.Cwd = new("/home/agentz/" + tree.Directory)
+			body.Cwd = new(path.Join(resolved.Root, tree.Directory))
 			if err := replaceOpenCodeRequest(r, body); err != nil {
 				return nil, apiutil.NewError(
 					http.StatusInternalServerError, "internal_error",
@@ -1653,7 +1720,7 @@ func (s *Service) enforceCodingSession(r *http.Request, access resourceAccess, r
 		}
 	}
 	if createV2 != nil {
-		createV2.Location = &gatewayapi.OpencodeLocationRef{Directory: "/home/agentz/" + tree.Directory}
+		createV2.Location = &gatewayapi.OpencodeLocationRef{Directory: path.Join(resolved.Root, tree.Directory)}
 		if err := replaceOpenCodeRequest(r, createV2); err != nil {
 			return release, apiutil.NewError(http.StatusBadRequest, "invalid_request", "Invalid session request", err)
 		}
@@ -1663,7 +1730,7 @@ func (s *Service) enforceCodingSession(r *http.Request, access resourceAccess, r
 		if err != nil {
 			return release, mapGatewayStoreError("get project", err)
 		}
-		directory := "/home/agentz/" + tree.Directory
+		directory := path.Join(resolved.Root, tree.Directory)
 		current, err := client.ProjectCurrentWithResponse(
 			r.Context(), agentName,
 			&gatewayapi.ProjectCurrentParams{Directory: &directory},
@@ -1699,7 +1766,7 @@ func (s *Service) enforceCodingSession(r *http.Request, access resourceAccess, r
 			)
 		}
 		sameDirectory := cursor.Directory != nil &&
-			*cursor.Directory == "/home/agentz/"+tree.Directory
+			*cursor.Directory == path.Join(resolved.Root, tree.Directory)
 		if !sameDirectory || cursor.Project != nil || cursor.Workspace != nil {
 			return release, apiutil.NewError(
 				http.StatusBadRequest, "invalid_cursor",
@@ -1711,8 +1778,8 @@ func (s *Service) enforceCodingSession(r *http.Request, access resourceAccess, r
 	if strings.HasSuffix(route.Path, "/session") {
 		query.Del("path")
 	}
-	query.Set("directory", "/home/agentz/"+tree.Directory)
-	query.Set("location[directory]", "/home/agentz/"+tree.Directory)
+	query.Set("directory", path.Join(resolved.Root, tree.Directory))
+	query.Set("location[directory]", path.Join(resolved.Root, tree.Directory))
 	query.Del("scope")
 	query.Del("workspace")
 	query.Del("location[workspace]")
@@ -1724,11 +1791,15 @@ func (s *Service) enforceCodingSession(r *http.Request, access resourceAccess, r
 
 // checkCodingAgentIdle refuses cleanup when an agent cannot confirm it is idle.
 func (s *Service) checkCodingAgentIdle(ctx context.Context, access resourceAccess, tree gatewaydb.CodingWorktree) error {
+	resolved, err := s.resolver.resolveAgent(ctx, access.namespace, tree.AgentName)
+	if err != nil {
+		return err
+	}
 	client, err := s.codingClient(ctx, access.namespace, tree.AgentName, s.outboundHTTP)
 	if err != nil {
 		return err
 	}
-	directory := "/home/agentz/" + tree.Directory
+	directory := path.Join(resolved.Root, tree.Directory)
 	statuses, err := client.SessionStatusWithResponse(
 		ctx,
 		tree.AgentName,
@@ -1765,11 +1836,15 @@ func (s *Service) checkCodingAgentIdle(ctx context.Context, access resourceAcces
 }
 
 func (s *Service) deleteCodingConversations(ctx context.Context, access resourceAccess, tree gatewaydb.CodingWorktree) error {
+	resolved, err := s.resolver.resolveAgent(ctx, access.namespace, tree.AgentName)
+	if err != nil {
+		return err
+	}
 	client, err := s.codingClient(ctx, access.namespace, tree.AgentName, s.outboundHTTP)
 	if err != nil {
 		return err
 	}
-	directory := "/home/agentz/" + tree.Directory
+	directory := path.Join(resolved.Root, tree.Directory)
 	threads, err := s.queries.GatewayListCodingWorktreeThreads(ctx, tree.ID)
 	if err != nil {
 		return err

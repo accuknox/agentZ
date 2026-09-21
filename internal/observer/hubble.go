@@ -41,10 +41,6 @@ type dnsCache struct {
 	items map[dnsCacheKey]dnsCacheEntry
 }
 
-func newDNSCache() *dnsCache {
-	return &dnsCache{items: map[dnsCacheKey]dnsCacheEntry{}}
-}
-
 func (c *dnsCache) put(agentName, podName, ip, domain string, now time.Time, ttl uint32) {
 	if agentName == "" || podName == "" || ip == "" || domain == "" {
 		return
@@ -144,7 +140,7 @@ func observeDNSFlow(item *flowpb.Flow, src managedSource, cache *dnsCache, now t
 	}
 
 	dns := item.GetL7().GetDns()
-	domain := dnsName(dns.GetQuery())
+	domain := strings.TrimSuffix(strings.TrimSpace(dns.GetQuery()), ".")
 	if domain == "" {
 		return
 	}
@@ -224,22 +220,17 @@ func networkProtocol(l4 *flowpb.Layer4) (string, int64) {
 }
 
 func destinationDomain(cacheDomain string, names []string, fallback string) string {
-	cacheDomain = dnsName(cacheDomain)
+	cacheDomain = strings.TrimSuffix(strings.TrimSpace(cacheDomain), ".")
 	if cacheDomain != "" {
 		return cacheDomain
 	}
 	for _, item := range names {
-		item = dnsName(item)
+		item = strings.TrimSuffix(strings.TrimSpace(item), ".")
 		if item != "" {
 			return item
 		}
 	}
-	return dnsName(fallback)
-}
-
-func dnsName(raw string) string {
-	raw = strings.TrimSpace(raw)
-	return strings.TrimSuffix(raw, ".")
+	return strings.TrimSuffix(strings.TrimSpace(fallback), ".")
 }
 
 func flowEventTime(item *flowpb.Flow) time.Time {

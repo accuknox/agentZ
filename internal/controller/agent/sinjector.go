@@ -39,6 +39,50 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
+func (r *Reconciler) reconcileSecretProxy(ctx context.Context, agt *agentzv1alpha1.Agent, allowedHosts []string) (bool, error) {
+	if agt.Spec.SecretProxy != nil && !*agt.Spec.SecretProxy {
+		if !ctrlutil.ContainsFinalizer(agt, sinjectorFinalizer) {
+			return true, nil
+		}
+		if err := r.cleanupSinjector(ctx, agt); err != nil {
+			return false, err
+		}
+		resources := []client.Object{
+			&appsv1.Deployment{}, &corev1.Service{}, &corev1.ServiceAccount{},
+			&rbacv1.Role{}, &rbacv1.RoleBinding{}, &ciliumv2.CiliumNetworkPolicy{},
+		}
+		key := client.ObjectKey{Namespace: agt.Namespace, Name: sinjectorName(agt)}
+		for _, resource := range resources {
+			if err := r.Get(ctx, key, resource); err != nil {
+				if client.IgnoreNotFound(err) != nil {
+					return false, err
+				}
+				continue
+			}
+			if !metav1.IsControlledBy(resource, agt) {
+				return false, fmt.Errorf("refuse to delete unowned secret proxy resource %s", key)
+			}
+			if err := client.IgnoreNotFound(r.Delete(ctx, resource)); err != nil {
+				return false, err
+			}
+		}
+		patch := client.MergeFrom(agt.DeepCopy())
+		ctrlutil.RemoveFinalizer(agt, sinjectorFinalizer)
+		return true, r.Patch(ctx, agt, patch)
+	}
+	if !ctrlutil.ContainsFinalizer(agt, sinjectorFinalizer) {
+		patch := client.MergeFrom(agt.DeepCopy())
+		ctrlutil.AddFinalizer(agt, sinjectorFinalizer)
+		if err := r.Patch(ctx, agt, patch); err != nil {
+			return false, err
+		}
+	}
+	if err := r.reconcileSinjector(ctx, agt, allowedHosts); err != nil {
+		return false, err
+	}
+	return r.sinjectorReady(ctx, agt)
+}
+
 func (r *Reconciler) reconcileSinjector(ctx context.Context, agt *agentzv1alpha1.Agent, allowedHosts []string) error {
 	sipLabels := sinjectorLabels(agt)
 	sipName := sinjectorName(agt)
@@ -315,6 +359,20 @@ func (r *Reconciler) reconcileSinjectorPolicy(ctx context.Context, agt *agentzv1
 	egress := buildHostEgressRules(uniqueHosts(hosts), uniqueHosts(dnsHosts))
 	egress = append(egress, openBaoEgressRule())
 	egress = append(egress, kubeAPIServerEgressRule())
+	caller := ciliumapi.NewESFromLabels(
+		ciliumlabels.NewLabel("io.kubernetes.pod.namespace", agt.Namespace, ciliumlabels.LabelSourceK8s),
+		ciliumlabels.NewLabel("io.cilium.k8s.policy.serviceaccount", agt.Name, ciliumlabels.LabelSourceK8s),
+		ciliumlabels.NewLabel("agentz.accuknox.com/agent", agt.Name, ciliumlabels.LabelSourceK8s),
+	)
+	if agt.Spec.Execution == agentzv1alpha1.AgentExecutionNative {
+		if r.Config.GatewayServiceAccountNamespace == "" || r.Config.GatewayServiceAccountName == "" {
+			return fmt.Errorf("native secret proxy requires the gateway service account identity")
+		}
+		caller = ciliumapi.NewESFromLabels(
+			ciliumlabels.NewLabel("io.kubernetes.pod.namespace", r.Config.GatewayServiceAccountNamespace, ciliumlabels.LabelSourceK8s),
+			ciliumlabels.NewLabel("io.cilium.k8s.policy.serviceaccount", r.Config.GatewayServiceAccountName, ciliumlabels.LabelSourceK8s),
+		)
+	}
 	current := &ciliumv2.CiliumNetworkPolicy{}
 	current.Name = sinjectorName(agt)
 	current.Namespace = agt.Namespace
@@ -335,25 +393,7 @@ func (r *Reconciler) reconcileSinjectorPolicy(ctx context.Context, agt *agentzv1
 				),
 				Ingress: []ciliumapi.IngressRule{{
 					IngressCommonRule: ciliumapi.IngressCommonRule{
-						FromEndpoints: []ciliumapi.EndpointSelector{
-							ciliumapi.NewESFromLabels(
-								ciliumlabels.NewLabel(
-									"io.kubernetes.pod.namespace",
-									agt.Namespace,
-									ciliumlabels.LabelSourceK8s,
-								),
-								ciliumlabels.NewLabel(
-									"io.cilium.k8s.policy.serviceaccount",
-									agt.Name,
-									ciliumlabels.LabelSourceK8s,
-								),
-								ciliumlabels.NewLabel(
-									"agentz.accuknox.com/agent",
-									agt.Name,
-									ciliumlabels.LabelSourceK8s,
-								),
-							),
-						},
+						FromEndpoints: []ciliumapi.EndpointSelector{caller},
 					},
 					ToPorts: ciliumapi.PortRules{{
 						Ports: []ciliumapi.PortProtocol{{

@@ -22,6 +22,14 @@ var gatewayServeCmd = &cli.Command{
 	Name:  "serve",
 	Usage: "Run the gateway HTTP server",
 	Flags: []cli.Flag{
+		&cli.StringFlag{Name: "compute-addr", Value: "", Usage: "Native compute gRPC listen address; empty disables compute"},
+		&cli.StringFlag{Name: "compute-spire-socket", Value: "/run/spire/api.sock", Usage: "SPIRE local administrative Unix socket"},
+		&cli.StringFlag{Name: "compute-trust-domain", Value: "agentz.local", Usage: "SPIFFE trust domain"},
+		&cli.StringFlag{Name: "compute-public-address", Value: "", Usage: "Public native compute gRPC address"},
+		&cli.StringFlag{Name: "compute-spire-public-address", Value: "", Usage: "Public SPIRE address"},
+		&cli.StringFlag{Name: "compute-ca-secret-name", Value: "sinjector", Usage: "Tenant proxy CA Secret name"},
+		&cli.StringFlag{Name: "compute-ca-secret-key", Value: "ca.crt", Usage: "Proxy CA bundle key"},
+
 		&cli.StringFlag{
 			Name:    "coding-github-client-id",
 			Usage:   "Coding GitHub App client ID shared with the web app",
@@ -187,6 +195,14 @@ var gatewayServeCmd = &cli.Command{
 		return gateway.Serve(
 			ctx,
 			gateway.Config{
+				ComputeAddr:               c.String("compute-addr"),
+				ComputeSPIRESocket:        c.String("compute-spire-socket"),
+				ComputeTrustDomain:        c.String("compute-trust-domain"),
+				ComputePublicAddress:      c.String("compute-public-address"),
+				ComputeSPIREPublicAddress: c.String("compute-spire-public-address"),
+				ComputeCASecretName:       c.String("compute-ca-secret-name"),
+				ComputeCASecretKey:        c.String("compute-ca-secret-key"),
+
 				Addr:                      c.String("addr"),
 				CodingGitHubClientID:      c.String("coding-github-client-id"),
 				CodingGitHubClientSecret:  c.String("coding-github-client-secret"),

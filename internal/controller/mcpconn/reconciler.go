@@ -72,14 +72,6 @@ type MCPConnectionReconciler struct {
 	OpenBaoK8sAuthTokenPath string
 }
 
-func (r *MCPConnectionReconciler) managerOpenBaoAddr() string {
-	addr := strings.TrimSpace(r.ManagerOpenBaoAddr)
-	if addr != "" {
-		return addr
-	}
-	return strings.TrimSpace(r.OpenBaoAddr)
-}
-
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=mcpconnections,verbs=get;list;watch;patch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=mcpconnections/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=mcpconnections/finalizers,verbs=update
@@ -637,7 +629,10 @@ func (r *MCPConnectionReconciler) deleteRuntime(ctx context.Context, conn *agent
 		return err
 	}
 
-	openBaoAddr := strings.TrimSpace(r.managerOpenBaoAddr())
+	openBaoAddr := strings.TrimSpace(r.ManagerOpenBaoAddr)
+	if openBaoAddr == "" {
+		openBaoAddr = strings.TrimSpace(r.OpenBaoAddr)
+	}
 	openBaoSecretMntPath := strings.TrimSpace(r.OpenBaoSecretMountPath)
 	openBaoK8sAuthRole := strings.TrimSpace(r.OpenBaoK8sAuthRole)
 	if openBaoAddr == "" || openBaoSecretMntPath == "" || openBaoK8sAuthRole == "" {

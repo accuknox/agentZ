@@ -174,12 +174,11 @@ func consumeKubeArmorStream(ctx context.Context, cfg Config, r *resolver, mode w
 				return err
 			}
 			atomic.AddUint64(&s.received, 1)
-			agentName, ok := resolveAgent(
+			agentName, ok := r.resolve(
 				ctx,
-				r,
 				item.GetNamespaceName(),
-				item.GetLabels(),
-				item.GetOwner(),
+				parseLabels(item.GetLabels()),
+				item.GetOwner().GetName(),
 				item.GetPodName(),
 			)
 			if !ok {
@@ -207,12 +206,11 @@ func consumeKubeArmorStream(ctx context.Context, cfg Config, r *resolver, mode w
 				return err
 			}
 			atomic.AddUint64(&s.received, 1)
-			agentName, ok := resolveAgent(
+			agentName, ok := r.resolve(
 				ctx,
-				r,
 				item.GetNamespaceName(),
-				item.GetLabels(),
-				item.GetOwner(),
+				parseLabels(item.GetLabels()),
+				item.GetOwner().GetName(),
 				item.GetPodName(),
 			)
 			if !ok {
@@ -231,10 +229,6 @@ func consumeKubeArmorStream(ctx context.Context, cfg Config, r *resolver, mode w
 	default:
 		return fmt.Errorf("unsupported watch mode %q", mode)
 	}
-}
-
-func resolveAgent(ctx context.Context, r *resolver, namespace, rawLabels string, owner *pb.Podowner, podName string) (string, bool) {
-	return r.resolve(ctx, namespace, parseLabels(rawLabels), owner.GetName(), podName)
 }
 
 func sendEvent(ctx context.Context, out chan<- event, ev event) error {
@@ -316,7 +310,7 @@ func consumeHubbleStream(ctx context.Context, cfg Config, r *resolver, out chan<
 	}
 	slog.InfoContext(ctx, "connected to Hubble relay stream")
 
-	cache := newDNSCache()
+	cache := &dnsCache{items: map[dnsCacheKey]dnsCacheEntry{}}
 	for {
 		item, err := stream.Recv()
 		if err != nil {

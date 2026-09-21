@@ -328,7 +328,9 @@ func TestRenderPoolBackend(t *testing.T) {
 			t.Fatalf("group %d unhealthy condition = %q", i, *health.UnhealthyCondition)
 		}
 		eviction := health.Eviction
-		if eviction.Duration == nil || eviction.ConsecutiveFailures == nil || eviction.RestoreHealth == nil {
+		missingEviction := eviction.Duration == nil ||
+			eviction.ConsecutiveFailures == nil || eviction.RestoreHealth == nil
+		if missingEviction {
 			t.Fatalf("group %d eviction = %#v", i, eviction)
 		}
 		durationMismatch := eviction.Duration.Duration != 60*time.Second

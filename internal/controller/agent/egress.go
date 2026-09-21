@@ -112,7 +112,9 @@ func (r *Reconciler) buildEgressPolicySpec(agt *agentzv1alpha1.Agent, envCfg san
 	if envCfg.InferenceURL != "" {
 		egress = append(egress, serviceEgressRules(envCfg.InferenceURL)...)
 	}
-	egress = append(egress, sinjectorEgressRule(agt))
+	if agt.Spec.SecretProxy == nil || *agt.Spec.SecretProxy {
+		egress = append(egress, sinjectorEgressRule(agt))
+	}
 
 	return &ciliumapi.Rule{
 		EndpointSelector: ciliumapi.NewESFromLabels(

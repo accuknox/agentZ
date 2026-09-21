@@ -227,6 +227,7 @@ var cmd = &cli.Command{
 		},
 	},
 	Commands: []*cli.Command{
+		subcommands.DaemonCmd,
 		subcommands.ExtAuthCmd,
 		subcommands.FilesystemCmd,
 		managerCmd,
@@ -1173,6 +1174,8 @@ var managerCmd = &cli.Command{
 		}
 
 		runtimeConfig := agent.RuntimeConfig{
+			GatewayServiceAccountName:        gatewayServiceAccountName,
+			GatewayServiceAccountNamespace:   gatewayServiceAccountNamespace,
 			AgentDefaultImage:                agentImage,
 			GatewayURL:                       gatewayURL,
 			SharedNixPVC:                     nixStorePVC,
@@ -1256,10 +1259,12 @@ var managerCmd = &cli.Command{
 		}
 
 		sandboxReconciler := &sandboxcontroller.Reconciler{
-			Client:       mgr.GetClient(),
-			Scheme:       mgr.GetScheme(),
-			AgentGateway: agClient,
-			TraceBackend: traceBackend,
+			GatewayServiceAccountName:      gatewayServiceAccountName,
+			GatewayServiceAccountNamespace: gatewayServiceAccountNamespace,
+			Client:                         mgr.GetClient(),
+			Scheme:                         mgr.GetScheme(),
+			AgentGateway:                   agClient,
+			TraceBackend:                   traceBackend,
 		}
 		if err := sandboxReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.ErrorContext(ctx,

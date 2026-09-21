@@ -105,7 +105,7 @@ CREATE TABLE observer_network_events(
   destination_port BIGINT NOT NULL,
   protocol TEXT NOT NULL,
   action TEXT NOT NULL CHECK(action IN ('Allowed', 'Blocked')),
-  source TEXT NOT NULL CHECK(source = 'hubble'),
+  source TEXT NOT NULL CHECK(source IN ('hubble', 'kubearmor-log', 'kubearmor-alert')),
   FOREIGN KEY(tenant_namespace, agent_name)
     REFERENCES agents(tenant_namespace, agent_name)
     ON DELETE CASCADE

@@ -45,6 +45,66 @@ tags:
   description: Workspace chat inbox and preference APIs.
 
 paths:
+  /api/agent/{agentName}/compute:
+    parameters:
+    - name: agentName
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/AgentName'
+    post:
+      operationId: createComputeEnrollment
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
+      tags:
+      - agents
+      responses:
+        '201':
+          description: One-use host enrollment code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeEnrollment'
+        default:
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: revokeComputeHost
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
+      tags:
+      - agents
+      responses:
+        '204':
+          description: Host disconnected
+        default:
+          $ref: '#/components/responses/InternalError'
+  /api/compute/enroll:
+    post:
+      operationId: redeemComputeEnrollment
+      tags:
+      - agents
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RedeemComputeEnrollmentRequest'
+      responses:
+        '200':
+          description: SPIRE bootstrap credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RedeemComputeEnrollmentResponse'
+        default:
+          $ref: '#/components/responses/InternalError'
   /api/coding/project:
     get:
       operationId: listCodingProjects
@@ -4748,6 +4808,54 @@ components:
             $ref: '#/components/schemas/Error'
 
   schemas:
+    AgentExecution:
+      type: string
+      enum: [Kubernetes, Native]
+      x-enum-varnames: [AgentExecutionKubernetes, AgentExecutionNative]
+    ComputeEnrollment:
+      type: object
+      additionalProperties: false
+      required: [code, expires_at]
+      properties:
+        code:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+    RedeemComputeEnrollmentRequest:
+      type: object
+      additionalProperties: false
+      required: [code, hostname, work_directory]
+      properties:
+        code:
+          type: string
+          minLength: 32
+          maxLength: 128
+        hostname:
+          type: string
+          minLength: 1
+          maxLength: 253
+        work_directory:
+          type: string
+          minLength: 1
+          maxLength: 4096
+    RedeemComputeEnrollmentResponse:
+      type: object
+      additionalProperties: false
+      required: [join_token, trust_domain, trust_bundle, spire_server, compute_server, workload_id]
+      properties:
+        join_token:
+          type: string
+        trust_domain:
+          type: string
+        trust_bundle:
+          type: string
+        spire_server:
+          type: string
+        compute_server:
+          type: string
+        workload_id:
+          type: string
     ChatSessionKind:
       type: string
       enum: [chat, workflow_run]
@@ -5977,36 +6085,46 @@ components:
       required: [webhook_triggers, next_page_token]
 
     Agent:
-      type: object
       additionalProperties: false
       properties:
+        connected:
+          type: boolean
+        hostname:
+          type: string
+        runtime_root:
+          type: string
+        execution:
+          $ref: '#/components/schemas/AgentExecution'
+        secret_proxy:
+          type: boolean
+          default: true
+        capabilities:
+          $ref: '#/components/schemas/AgentCapabilities'
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          $ref: '#/components/schemas/ResourceActor'
+        last_activity:
+          format: date-time
+          type: string
+        last_modified_by:
+          $ref: '#/components/schemas/ResourceActor'
+        memory:
+          $ref: '#/components/schemas/AgentMemoryConfig'
+        modified_at:
+          format: date-time
+          type: string
         name:
           $ref: '#/components/schemas/AgentName'
         sandbox:
           $ref: '#/components/schemas/ResourceReference'
-        created_by:
-          $ref: '#/components/schemas/ResourceActor'
-        last_modified_by:
-          $ref: '#/components/schemas/ResourceActor'
-        last_activity:
-          type: string
-          format: date-time
-        memory:
-          $ref: '#/components/schemas/AgentMemoryConfig'
-        created_at:
-          type: string
-          format: date-time
-        modified_at:
-          type: string
-          format: date-time
         skills:
-          type: array
           items:
             $ref: '#/components/schemas/ResourceReference'
+          type: array
         status:
           $ref: '#/components/schemas/AgentStatus'
-        capabilities:
-          $ref: '#/components/schemas/AgentCapabilities'
       required:
       - name
       - sandbox
@@ -6019,7 +6137,7 @@ components:
       - skills
       - status
       - capabilities
-
+      type: object
     AgentCapabilities:
       type: object
       additionalProperties: false
@@ -6481,27 +6599,33 @@ components:
       - IDLE
 
     CreateAgentRequest:
-      type: object
       additionalProperties: false
       properties:
-        name:
-          $ref: '#/components/schemas/AgentName'
-        memory:
-          $ref: '#/components/schemas/AgentMemoryConfig'
+        execution:
+          $ref: '#/components/schemas/AgentExecution'
+        secret_proxy:
+          type: boolean
+          default: true
         env:
-          type: object
           additionalProperties:
             type: string
+          type: object
+        memory:
+          $ref: '#/components/schemas/AgentMemoryConfig'
+        name:
+          $ref: '#/components/schemas/AgentName'
+        opencode:
+          $ref: '#/components/schemas/AgentOpencodeConfig'
         sandbox:
           $ref: '#/components/schemas/ResourceReference'
         skills:
-          type: array
           items:
             $ref: '#/components/schemas/ResourceReference'
-        opencode:
-          $ref: '#/components/schemas/AgentOpencodeConfig'
-      required: [name, sandbox]
-
+          type: array
+      required:
+      - name
+      - sandbox
+      type: object
     CreateWorkflowRequest:
       type: object
       additionalProperties: false
@@ -7037,25 +7161,27 @@ components:
       required: [workflow_names]
 
     UpdateAgentRequest:
-      type: object
       additionalProperties: false
+      minProperties: 1
       properties:
+        secret_proxy:
+          type: boolean
+          default: true
         env:
-          type: object
           additionalProperties:
             type: string
+          type: object
         memory:
           $ref: '#/components/schemas/AgentMemoryConfig'
+        opencode:
+          $ref: '#/components/schemas/AgentOpencodeConfig'
         sandbox:
           $ref: '#/components/schemas/ResourceReference'
         skills:
-          type: array
           items:
             $ref: '#/components/schemas/ResourceReference'
-        opencode:
-          $ref: '#/components/schemas/AgentOpencodeConfig'
-      minProperties: 1
-
+          type: array
+      type: object
     TransferAgentOwnerRequest:
       type: object
       additionalProperties: false

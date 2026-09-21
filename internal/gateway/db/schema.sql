@@ -118,6 +118,7 @@ CREATE TABLE workspace_chat_preferences (
 
 CREATE TABLE coding_operations (
     id text PRIMARY KEY,
+    compute_connection_id text NOT NULL DEFAULT '',
     workspace_id text NOT NULL REFERENCES workspaces(id),
     organization_id text NOT NULL REFERENCES organizations(id),
     owner_id text NOT NULL REFERENCES users(id),
@@ -165,6 +166,7 @@ CREATE TABLE chat_inputs (
   state TEXT NOT NULL DEFAULT 'queued'
     CHECK (state IN ('queued', 'sending', 'delivered', 'failed', 'recovered', 'removed')),
   revision BIGINT NOT NULL DEFAULT 1,
+  compute_connection_id TEXT NOT NULL DEFAULT '',
   message_id TEXT NOT NULL DEFAULT '',
   error TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -182,3 +184,22 @@ CREATE TABLE chat_input_sessions (
   FOREIGN KEY (workspace_id, agent_name, session_id)
     REFERENCES chat_sessions(workspace_id, agent_name, session_id) ON DELETE CASCADE
 );
+
+CREATE TABLE compute_hosts (
+  id UUID PRIMARY KEY,
+  tenant_namespace TEXT NOT NULL,
+  agent_name TEXT NOT NULL,
+  enrollment_hash BYTEA,
+  enrollment_expires_at TIMESTAMPTZ NOT NULL DEFAULT 'epoch',
+  workload_id TEXT NOT NULL DEFAULT '',
+  node_id TEXT NOT NULL DEFAULT '',
+  hostname TEXT NOT NULL DEFAULT '',
+  work_directory TEXT NOT NULL DEFAULT '',
+  revoked BOOLEAN NOT NULL DEFAULT false,
+  last_seen TIMESTAMPTZ NOT NULL DEFAULT 'epoch',
+  node_expires_at TIMESTAMPTZ NOT NULL DEFAULT 'epoch',
+  UNIQUE (tenant_namespace, agent_name),
+  FOREIGN KEY (tenant_namespace, agent_name) REFERENCES agents ON DELETE CASCADE
+);
+CREATE UNIQUE INDEX compute_hosts_enrollment_idx ON compute_hosts(enrollment_hash) WHERE enrollment_hash IS NOT NULL;
+CREATE UNIQUE INDEX compute_hosts_identity_idx ON compute_hosts(workload_id) WHERE workload_id <> '';

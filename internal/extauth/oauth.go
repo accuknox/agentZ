@@ -102,9 +102,11 @@ func (s *Service) refreshOAuthToken(ctx context.Context, conn *agentzv1alpha1.MC
 	}
 	record.UpdatedAt = now
 
-	err = s.writeSecretRecord(ctx, auth.SecretRef.Path, auth.SecretRef.Key, record)
+	secretCtx, cancel := context.WithTimeout(ctx, kubeRequestTimeout)
+	defer cancel()
+	err = secretstore.WriteField(secretCtx, s.kv, auth.SecretRef.Path, auth.SecretRef.Key, record)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%v: %w", err, errCredentialUnavailable)
 	}
 	return &record, nil
 }
@@ -156,14 +158,4 @@ func (s *Service) readOAuthRecord(ctx context.Context, ref agentzv1alpha1.MCPCon
 		record.Revocation = map[string]any{}
 	}
 	return record, nil
-}
-
-func (s *Service) writeSecretRecord(ctx context.Context, path, key string, record any) error {
-	secretCtx, cancel := context.WithTimeout(ctx, kubeRequestTimeout)
-	defer cancel()
-
-	if err := secretstore.WriteField(secretCtx, s.kv, path, key, record); err != nil {
-		return fmt.Errorf("%v: %w", err, errCredentialUnavailable)
-	}
-	return nil
 }

@@ -867,24 +867,25 @@ type Apikey struct {
 }
 
 type ChatInput struct {
-	ID             uuid.UUID   `json:"id"`
-	Sequence       pgtype.Int8 `json:"sequence"`
-	WorkspaceID    string      `json:"workspace_id"`
-	AgentName      string      `json:"agent_name"`
-	SessionID      string      `json:"session_id"`
-	OrganizationID string      `json:"organization_id"`
-	AuthorID       string      `json:"author_id"`
-	AuthorName     string      `json:"author_name"`
-	Directory      string      `json:"directory"`
-	Resume         bool        `json:"resume"`
-	Content        []byte      `json:"content"`
-	Delivery       string      `json:"delivery"`
-	State          string      `json:"state"`
-	Revision       int64       `json:"revision"`
-	MessageID      string      `json:"message_id"`
-	Error          string      `json:"error"`
-	CreatedAt      time.Time   `json:"created_at"`
-	UpdatedAt      time.Time   `json:"updated_at"`
+	ID                  uuid.UUID   `json:"id"`
+	Sequence            pgtype.Int8 `json:"sequence"`
+	WorkspaceID         string      `json:"workspace_id"`
+	AgentName           string      `json:"agent_name"`
+	SessionID           string      `json:"session_id"`
+	OrganizationID      string      `json:"organization_id"`
+	AuthorID            string      `json:"author_id"`
+	AuthorName          string      `json:"author_name"`
+	Directory           string      `json:"directory"`
+	Resume              bool        `json:"resume"`
+	Content             []byte      `json:"content"`
+	Delivery            string      `json:"delivery"`
+	State               string      `json:"state"`
+	Revision            int64       `json:"revision"`
+	ComputeConnectionID string      `json:"compute_connection_id"`
+	MessageID           string      `json:"message_id"`
+	Error               string      `json:"error"`
+	CreatedAt           time.Time   `json:"created_at"`
+	UpdatedAt           time.Time   `json:"updated_at"`
 }
 
 type ChatInputSession struct {
@@ -937,17 +938,18 @@ type CleanupJob struct {
 }
 
 type CodingOperation struct {
-	ID             string    `json:"id"`
-	WorkspaceID    string    `json:"workspace_id"`
-	OrganizationID string    `json:"organization_id"`
-	OwnerID        string    `json:"owner_id"`
-	ProjectID      string    `json:"project_id"`
-	WorktreeID     string    `json:"worktree_id"`
-	Request        []byte    `json:"request"`
-	Result         []byte    `json:"result"`
-	LeaseToken     string    `json:"lease_token"`
-	LeaseUntil     time.Time `json:"lease_until"`
-	CreatedAt      time.Time `json:"created_at"`
+	ID                  string    `json:"id"`
+	ComputeConnectionID string    `json:"compute_connection_id"`
+	WorkspaceID         string    `json:"workspace_id"`
+	OrganizationID      string    `json:"organization_id"`
+	OwnerID             string    `json:"owner_id"`
+	ProjectID           string    `json:"project_id"`
+	WorktreeID          string    `json:"worktree_id"`
+	Request             []byte    `json:"request"`
+	Result              []byte    `json:"result"`
+	LeaseToken          string    `json:"lease_token"`
+	LeaseUntil          time.Time `json:"lease_until"`
+	CreatedAt           time.Time `json:"created_at"`
 }
 
 type CodingProject struct {
@@ -998,6 +1000,21 @@ type CodingWorktree struct {
 	Shared      bool               `json:"shared"`
 	Deleting    bool               `json:"deleting"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type ComputeHost struct {
+	ID                  uuid.UUID `json:"id"`
+	TenantNamespace     string    `json:"tenant_namespace"`
+	AgentName           string    `json:"agent_name"`
+	EnrollmentHash      []byte    `json:"enrollment_hash"`
+	EnrollmentExpiresAt time.Time `json:"enrollment_expires_at"`
+	WorkloadID          string    `json:"workload_id"`
+	NodeID              string    `json:"node_id"`
+	Hostname            string    `json:"hostname"`
+	WorkDirectory       string    `json:"work_directory"`
+	Revoked             bool      `json:"revoked"`
+	LastSeen            time.Time `json:"last_seen"`
+	NodeExpiresAt       time.Time `json:"node_expires_at"`
 }
 
 type EventTrailEvent struct {

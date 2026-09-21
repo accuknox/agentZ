@@ -199,6 +199,25 @@ func (q *Queries) GatewayBindCodingSession(ctx context.Context, arg GatewayBindC
 	return err
 }
 
+const gatewayBindComputeHost = `-- name: GatewayBindComputeHost :execrows
+UPDATE compute_hosts SET node_id = $1, workload_id = $2
+WHERE id = $3 AND NOT revoked AND node_id = ''
+`
+
+type GatewayBindComputeHostParams struct {
+	NodeID     string    `json:"node_id"`
+	WorkloadID string    `json:"workload_id"`
+	ID         uuid.UUID `json:"id"`
+}
+
+func (q *Queries) GatewayBindComputeHost(ctx context.Context, arg GatewayBindComputeHostParams) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayBindComputeHost, arg.NodeID, arg.WorkloadID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const gatewayChatInputsStopping = `-- name: GatewayChatInputsStopping :one
 SELECT EXISTS (SELECT 1 FROM chat_input_sessions WHERE workspace_id = $1
   AND agent_name = $2 AND session_id = $3 AND stopping)::boolean
@@ -298,7 +317,7 @@ AND EXISTS (SELECT 1 FROM coding_projects p WHERE p.id = queued.project_id AND N
 AND NOT EXISTS (SELECT 1 FROM coding_operations running WHERE running.project_id = queued.project_id
 AND running.result->>'state' = 'running')
 ORDER BY queued.created_at FOR UPDATE OF queued SKIP LOCKED LIMIT 1)
-RETURNING id, workspace_id, organization_id, owner_id, project_id, worktree_id, request, result, lease_token, lease_until, created_at
+RETURNING id, compute_connection_id, workspace_id, organization_id, owner_id, project_id, worktree_id, request, result, lease_token, lease_until, created_at
 `
 
 func (q *Queries) GatewayClaimCodingOperation(ctx context.Context, leaseToken string) (CodingOperation, error) {
@@ -306,6 +325,7 @@ func (q *Queries) GatewayClaimCodingOperation(ctx context.Context, leaseToken st
 	var i CodingOperation
 	err := row.Scan(
 		&i.ID,
+		&i.ComputeConnectionID,
 		&i.WorkspaceID,
 		&i.OrganizationID,
 		&i.OwnerID,
@@ -504,6 +524,91 @@ func (q *Queries) GatewayCompleteCleanupJob(ctx context.Context, arg GatewayComp
 	return result.RowsAffected(), nil
 }
 
+const gatewayComputeHost = `-- name: GatewayComputeHost :one
+SELECT id, tenant_namespace, agent_name, enrollment_hash, enrollment_expires_at, workload_id, node_id, hostname, work_directory, revoked, last_seen, node_expires_at FROM compute_hosts WHERE tenant_namespace = $1 AND agent_name = $2
+`
+
+type GatewayComputeHostParams struct {
+	TenantNamespace string `json:"tenant_namespace"`
+	AgentName       string `json:"agent_name"`
+}
+
+func (q *Queries) GatewayComputeHost(ctx context.Context, arg GatewayComputeHostParams) (ComputeHost, error) {
+	row := q.db.QueryRow(ctx, gatewayComputeHost, arg.TenantNamespace, arg.AgentName)
+	var i ComputeHost
+	err := row.Scan(
+		&i.ID,
+		&i.TenantNamespace,
+		&i.AgentName,
+		&i.EnrollmentHash,
+		&i.EnrollmentExpiresAt,
+		&i.WorkloadID,
+		&i.NodeID,
+		&i.Hostname,
+		&i.WorkDirectory,
+		&i.Revoked,
+		&i.LastSeen,
+		&i.NodeExpiresAt,
+	)
+	return i, err
+}
+
+const gatewayComputeIdentity = `-- name: GatewayComputeIdentity :one
+SELECT id, tenant_namespace, agent_name, enrollment_hash, enrollment_expires_at, workload_id, node_id, hostname, work_directory, revoked, last_seen, node_expires_at FROM compute_hosts WHERE workload_id = $1 AND NOT revoked
+`
+
+func (q *Queries) GatewayComputeIdentity(ctx context.Context, workloadID string) (ComputeHost, error) {
+	row := q.db.QueryRow(ctx, gatewayComputeIdentity, workloadID)
+	var i ComputeHost
+	err := row.Scan(
+		&i.ID,
+		&i.TenantNamespace,
+		&i.AgentName,
+		&i.EnrollmentHash,
+		&i.EnrollmentExpiresAt,
+		&i.WorkloadID,
+		&i.NodeID,
+		&i.Hostname,
+		&i.WorkDirectory,
+		&i.Revoked,
+		&i.LastSeen,
+		&i.NodeExpiresAt,
+	)
+	return i, err
+}
+
+const gatewayConsumeComputeEnrollment = `-- name: GatewayConsumeComputeEnrollment :one
+UPDATE compute_hosts SET enrollment_hash = NULL, hostname = $1, work_directory = $2
+WHERE enrollment_hash = $3 AND enrollment_expires_at > now() AND NOT revoked
+RETURNING id, tenant_namespace, agent_name, enrollment_hash, enrollment_expires_at, workload_id, node_id, hostname, work_directory, revoked, last_seen, node_expires_at
+`
+
+type GatewayConsumeComputeEnrollmentParams struct {
+	Hostname       string `json:"hostname"`
+	WorkDirectory  string `json:"work_directory"`
+	EnrollmentHash []byte `json:"enrollment_hash"`
+}
+
+func (q *Queries) GatewayConsumeComputeEnrollment(ctx context.Context, arg GatewayConsumeComputeEnrollmentParams) (ComputeHost, error) {
+	row := q.db.QueryRow(ctx, gatewayConsumeComputeEnrollment, arg.Hostname, arg.WorkDirectory, arg.EnrollmentHash)
+	var i ComputeHost
+	err := row.Scan(
+		&i.ID,
+		&i.TenantNamespace,
+		&i.AgentName,
+		&i.EnrollmentHash,
+		&i.EnrollmentExpiresAt,
+		&i.WorkloadID,
+		&i.NodeID,
+		&i.Hostname,
+		&i.WorkDirectory,
+		&i.Revoked,
+		&i.LastSeen,
+		&i.NodeExpiresAt,
+	)
+	return i, err
+}
+
 const gatewayCreateAgent = `-- name: GatewayCreateAgent :one
 INSERT INTO agents(tenant_namespace, agent_name)
 VALUES ($1, $2)
@@ -677,9 +782,9 @@ func (q *Queries) GatewayCreateAgentShare(ctx context.Context, arg GatewayCreate
 
 const gatewayCreateChatInput = `-- name: GatewayCreateChatInput :one
 INSERT INTO chat_inputs (id, workspace_id, agent_name, session_id,
-  organization_id, author_id, author_name, directory, content, delivery)
+  organization_id, author_id, author_name, directory, content, delivery, compute_connection_id)
 VALUES ($1, $2, $3, $4,
-  $5, $6, $7, $8, $9, $10)
+  $5, $6, $7, $8, $9, $10, $11)
 ON CONFLICT (id) DO UPDATE SET id = chat_inputs.id
 WHERE chat_inputs.workspace_id = EXCLUDED.workspace_id
   AND chat_inputs.agent_name = EXCLUDED.agent_name
@@ -687,20 +792,21 @@ WHERE chat_inputs.workspace_id = EXCLUDED.workspace_id
   AND chat_inputs.author_id = EXCLUDED.author_id
   AND chat_inputs.content = EXCLUDED.content
   AND chat_inputs.delivery = EXCLUDED.delivery
-RETURNING id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, message_id, error, created_at, updated_at
+RETURNING id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, compute_connection_id, message_id, error, created_at, updated_at
 `
 
 type GatewayCreateChatInputParams struct {
-	ID             uuid.UUID `json:"id"`
-	WorkspaceID    string    `json:"workspace_id"`
-	AgentName      string    `json:"agent_name"`
-	SessionID      string    `json:"session_id"`
-	OrganizationID string    `json:"organization_id"`
-	AuthorID       string    `json:"author_id"`
-	AuthorName     string    `json:"author_name"`
-	Directory      string    `json:"directory"`
-	Content        []byte    `json:"content"`
-	Delivery       string    `json:"delivery"`
+	ID                  uuid.UUID `json:"id"`
+	WorkspaceID         string    `json:"workspace_id"`
+	AgentName           string    `json:"agent_name"`
+	SessionID           string    `json:"session_id"`
+	OrganizationID      string    `json:"organization_id"`
+	AuthorID            string    `json:"author_id"`
+	AuthorName          string    `json:"author_name"`
+	Directory           string    `json:"directory"`
+	Content             []byte    `json:"content"`
+	Delivery            string    `json:"delivery"`
+	ComputeConnectionID string    `json:"compute_connection_id"`
 }
 
 func (q *Queries) GatewayCreateChatInput(ctx context.Context, arg GatewayCreateChatInputParams) (ChatInput, error) {
@@ -715,6 +821,7 @@ func (q *Queries) GatewayCreateChatInput(ctx context.Context, arg GatewayCreateC
 		arg.Directory,
 		arg.Content,
 		arg.Delivery,
+		arg.ComputeConnectionID,
 	)
 	var i ChatInput
 	err := row.Scan(
@@ -732,6 +839,7 @@ func (q *Queries) GatewayCreateChatInput(ctx context.Context, arg GatewayCreateC
 		&i.Delivery,
 		&i.State,
 		&i.Revision,
+		&i.ComputeConnectionID,
 		&i.MessageID,
 		&i.Error,
 		&i.CreatedAt,
@@ -741,22 +849,23 @@ func (q *Queries) GatewayCreateChatInput(ctx context.Context, arg GatewayCreateC
 }
 
 const gatewayCreateCodingOperation = `-- name: GatewayCreateCodingOperation :one
-INSERT INTO coding_operations(id, workspace_id, organization_id, owner_id, project_id, worktree_id, request, result)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO coding_operations(id, workspace_id, organization_id, owner_id, project_id, worktree_id, request, result, compute_connection_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 ON CONFLICT (id) DO UPDATE SET id = coding_operations.id
 WHERE coding_operations.owner_id = $4 AND coding_operations.workspace_id = $2
-RETURNING id, workspace_id, organization_id, owner_id, project_id, worktree_id, request, result, lease_token, lease_until, created_at
+RETURNING id, compute_connection_id, workspace_id, organization_id, owner_id, project_id, worktree_id, request, result, lease_token, lease_until, created_at
 `
 
 type GatewayCreateCodingOperationParams struct {
-	ID             string `json:"id"`
-	WorkspaceID    string `json:"workspace_id"`
-	OrganizationID string `json:"organization_id"`
-	OwnerID        string `json:"owner_id"`
-	ProjectID      string `json:"project_id"`
-	WorktreeID     string `json:"worktree_id"`
-	Request        []byte `json:"request"`
-	Result         []byte `json:"result"`
+	ID                  string `json:"id"`
+	WorkspaceID         string `json:"workspace_id"`
+	OrganizationID      string `json:"organization_id"`
+	OwnerID             string `json:"owner_id"`
+	ProjectID           string `json:"project_id"`
+	WorktreeID          string `json:"worktree_id"`
+	Request             []byte `json:"request"`
+	Result              []byte `json:"result"`
+	ComputeConnectionID string `json:"compute_connection_id"`
 }
 
 func (q *Queries) GatewayCreateCodingOperation(ctx context.Context, arg GatewayCreateCodingOperationParams) (CodingOperation, error) {
@@ -769,10 +878,12 @@ func (q *Queries) GatewayCreateCodingOperation(ctx context.Context, arg GatewayC
 		arg.WorktreeID,
 		arg.Request,
 		arg.Result,
+		arg.ComputeConnectionID,
 	)
 	var i CodingOperation
 	err := row.Scan(
 		&i.ID,
+		&i.ComputeConnectionID,
 		&i.WorkspaceID,
 		&i.OrganizationID,
 		&i.OwnerID,
@@ -1631,7 +1742,7 @@ func (q *Queries) GatewayGetAgentShare(ctx context.Context, arg GatewayGetAgentS
 }
 
 const gatewayGetChatInput = `-- name: GatewayGetChatInput :one
-SELECT id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, message_id, error, created_at, updated_at FROM chat_inputs WHERE id = $1 AND workspace_id = $2
+SELECT id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, compute_connection_id, message_id, error, created_at, updated_at FROM chat_inputs WHERE id = $1 AND workspace_id = $2
   AND agent_name = $3 AND session_id = $4
 `
 
@@ -1665,6 +1776,7 @@ func (q *Queries) GatewayGetChatInput(ctx context.Context, arg GatewayGetChatInp
 		&i.Delivery,
 		&i.State,
 		&i.Revision,
+		&i.ComputeConnectionID,
 		&i.MessageID,
 		&i.Error,
 		&i.CreatedAt,
@@ -1713,7 +1825,7 @@ func (q *Queries) GatewayGetChatSessionGroup(ctx context.Context, arg GatewayGet
 }
 
 const gatewayGetCodingOperation = `-- name: GatewayGetCodingOperation :one
-SELECT id, workspace_id, organization_id, owner_id, project_id, worktree_id, request, result, lease_token, lease_until, created_at FROM coding_operations WHERE id = $1 AND workspace_id = $2 AND owner_id = $3
+SELECT id, compute_connection_id, workspace_id, organization_id, owner_id, project_id, worktree_id, request, result, lease_token, lease_until, created_at FROM coding_operations WHERE id = $1 AND workspace_id = $2 AND owner_id = $3
 `
 
 type GatewayGetCodingOperationParams struct {
@@ -1727,6 +1839,7 @@ func (q *Queries) GatewayGetCodingOperation(ctx context.Context, arg GatewayGetC
 	var i CodingOperation
 	err := row.Scan(
 		&i.ID,
+		&i.ComputeConnectionID,
 		&i.WorkspaceID,
 		&i.OrganizationID,
 		&i.OwnerID,
@@ -2189,7 +2302,7 @@ func (q *Queries) GatewayGetWorkspaceChatPreference(ctx context.Context, arg Gat
 }
 
 const gatewayHeadChatInput = `-- name: GatewayHeadChatInput :one
-SELECT id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, message_id, error, created_at, updated_at FROM chat_inputs
+SELECT id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, compute_connection_id, message_id, error, created_at, updated_at FROM chat_inputs
 WHERE workspace_id = $1 AND agent_name = $2 AND session_id = $3
   AND state IN ('queued', 'sending', 'failed')
 ORDER BY CASE WHEN state = 'sending' OR message_id <> '' AND state = 'failed' THEN 0
@@ -2221,6 +2334,7 @@ func (q *Queries) GatewayHeadChatInput(ctx context.Context, arg GatewayHeadChatI
 		&i.Delivery,
 		&i.State,
 		&i.Revision,
+		&i.ComputeConnectionID,
 		&i.MessageID,
 		&i.Error,
 		&i.CreatedAt,
@@ -2998,7 +3112,7 @@ func (q *Queries) GatewayListAgentsByName(ctx context.Context, arg GatewayListAg
 }
 
 const gatewayListChatInputs = `-- name: GatewayListChatInputs :many
-SELECT id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, message_id, error, created_at, updated_at FROM chat_inputs
+SELECT id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, compute_connection_id, message_id, error, created_at, updated_at FROM chat_inputs
 WHERE workspace_id = $1 AND agent_name = $2 AND session_id = $3
   AND state NOT IN ('delivered', 'removed')
   AND (author_id = $4 OR state <> 'recovered')
@@ -3041,6 +3155,7 @@ func (q *Queries) GatewayListChatInputs(ctx context.Context, arg GatewayListChat
 			&i.Delivery,
 			&i.State,
 			&i.Revision,
+			&i.ComputeConnectionID,
 			&i.MessageID,
 			&i.Error,
 			&i.CreatedAt,
@@ -3382,7 +3497,7 @@ func (q *Queries) GatewayListChatSessions(ctx context.Context, arg GatewayListCh
 }
 
 const gatewayListCodingOperations = `-- name: GatewayListCodingOperations :many
-SELECT op.id, op.workspace_id, op.organization_id, op.owner_id, op.project_id, op.worktree_id, op.request, op.result, op.lease_token, op.lease_until, op.created_at FROM coding_operations op WHERE op.workspace_id = $1 AND op.owner_id = $2
+SELECT op.id, op.compute_connection_id, op.workspace_id, op.organization_id, op.owner_id, op.project_id, op.worktree_id, op.request, op.result, op.lease_token, op.lease_until, op.created_at FROM coding_operations op WHERE op.workspace_id = $1 AND op.owner_id = $2
 AND (op.result->>'state' IN ('queued', 'running') OR op.id IN (
 SELECT recent.id FROM coding_operations recent WHERE recent.workspace_id = $1 AND recent.owner_id = $2
 AND recent.result->>'state' NOT IN ('queued', 'running') ORDER BY recent.created_at DESC LIMIT 100))
@@ -3405,6 +3520,7 @@ func (q *Queries) GatewayListCodingOperations(ctx context.Context, arg GatewayLi
 		var i CodingOperation
 		if err := rows.Scan(
 			&i.ID,
+			&i.ComputeConnectionID,
 			&i.WorkspaceID,
 			&i.OrganizationID,
 			&i.OwnerID,
@@ -5422,6 +5538,24 @@ func (q *Queries) GatewayNotifyCoding(ctx context.Context, arg GatewayNotifyCodi
 	return err
 }
 
+const gatewayObserveComputeHost = `-- name: GatewayObserveComputeHost :execrows
+UPDATE compute_hosts SET last_seen = now(), node_expires_at = $1
+WHERE id = $2 AND NOT revoked
+`
+
+type GatewayObserveComputeHostParams struct {
+	NodeExpiresAt time.Time `json:"node_expires_at"`
+	ID            uuid.UUID `json:"id"`
+}
+
+func (q *Queries) GatewayObserveComputeHost(ctx context.Context, arg GatewayObserveComputeHostParams) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewayObserveComputeHost, arg.NodeExpiresAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const gatewayOwnedCodingDirectory = `-- name: GatewayOwnedCodingDirectory :one
 SELECT coding_worktrees.id, coding_worktrees.workspace_id, coding_worktrees.project_id, coding_worktrees.agent_name, coding_worktrees.directory, coding_worktrees.branch, coding_worktrees.ready, coding_worktrees.shared, coding_worktrees.deleting, coding_worktrees.created_at
 FROM coding_worktrees JOIN coding_projects ON coding_projects.id = coding_worktrees.project_id
@@ -5465,7 +5599,7 @@ func (q *Queries) GatewayOwnedCodingDirectory(ctx context.Context, arg GatewayOw
 }
 
 const gatewayPendingChatInputs = `-- name: GatewayPendingChatInputs :many
-SELECT DISTINCT ON (workspace_id, agent_name, session_id) id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, message_id, error, created_at, updated_at FROM chat_inputs
+SELECT DISTINCT ON (workspace_id, agent_name, session_id) id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, compute_connection_id, message_id, error, created_at, updated_at FROM chat_inputs
 WHERE state IN ('queued', 'sending', 'failed')
 ORDER BY workspace_id, agent_name, session_id,
   CASE WHEN state = 'sending' OR message_id <> '' AND state = 'failed' THEN 0 WHEN delivery = 'steer' AND state = 'queued' THEN 1 ELSE 2 END,
@@ -5496,6 +5630,7 @@ func (q *Queries) GatewayPendingChatInputs(ctx context.Context) ([]ChatInput, er
 			&i.Delivery,
 			&i.State,
 			&i.Revision,
+			&i.ComputeConnectionID,
 			&i.MessageID,
 			&i.Error,
 			&i.CreatedAt,
@@ -5509,6 +5644,51 @@ func (q *Queries) GatewayPendingChatInputs(ctx context.Context) ([]ChatInput, er
 		return nil, err
 	}
 	return items, nil
+}
+
+const gatewayPrepareComputeEnrollment = `-- name: GatewayPrepareComputeEnrollment :one
+INSERT INTO compute_hosts(id, tenant_namespace, agent_name, enrollment_hash, enrollment_expires_at)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (tenant_namespace, agent_name) DO UPDATE SET
+  id = EXCLUDED.id, enrollment_hash = EXCLUDED.enrollment_hash,
+  enrollment_expires_at = EXCLUDED.enrollment_expires_at,
+  revoked = false, workload_id = '', node_id = '', hostname = '', work_directory = ''
+WHERE compute_hosts.node_id = '' OR compute_hosts.revoked
+RETURNING id, tenant_namespace, agent_name, enrollment_hash, enrollment_expires_at, workload_id, node_id, hostname, work_directory, revoked, last_seen, node_expires_at
+`
+
+type GatewayPrepareComputeEnrollmentParams struct {
+	ID                  uuid.UUID `json:"id"`
+	TenantNamespace     string    `json:"tenant_namespace"`
+	AgentName           string    `json:"agent_name"`
+	EnrollmentHash      []byte    `json:"enrollment_hash"`
+	EnrollmentExpiresAt time.Time `json:"enrollment_expires_at"`
+}
+
+func (q *Queries) GatewayPrepareComputeEnrollment(ctx context.Context, arg GatewayPrepareComputeEnrollmentParams) (ComputeHost, error) {
+	row := q.db.QueryRow(ctx, gatewayPrepareComputeEnrollment,
+		arg.ID,
+		arg.TenantNamespace,
+		arg.AgentName,
+		arg.EnrollmentHash,
+		arg.EnrollmentExpiresAt,
+	)
+	var i ComputeHost
+	err := row.Scan(
+		&i.ID,
+		&i.TenantNamespace,
+		&i.AgentName,
+		&i.EnrollmentHash,
+		&i.EnrollmentExpiresAt,
+		&i.WorkloadID,
+		&i.NodeID,
+		&i.Hostname,
+		&i.WorkDirectory,
+		&i.Revoked,
+		&i.LastSeen,
+		&i.NodeExpiresAt,
+	)
+	return i, err
 }
 
 const gatewayProjectMemberRoleTransports = `-- name: GatewayProjectMemberRoleTransports :execrows
@@ -5995,6 +6175,36 @@ func (q *Queries) GatewayRetryWorkspaceProvisioning(ctx context.Context, arg Gat
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const gatewayRevokeComputeHost = `-- name: GatewayRevokeComputeHost :one
+UPDATE compute_hosts SET revoked = true, enrollment_hash = NULL
+WHERE tenant_namespace = $1 AND agent_name = $2 RETURNING id, tenant_namespace, agent_name, enrollment_hash, enrollment_expires_at, workload_id, node_id, hostname, work_directory, revoked, last_seen, node_expires_at
+`
+
+type GatewayRevokeComputeHostParams struct {
+	TenantNamespace string `json:"tenant_namespace"`
+	AgentName       string `json:"agent_name"`
+}
+
+func (q *Queries) GatewayRevokeComputeHost(ctx context.Context, arg GatewayRevokeComputeHostParams) (ComputeHost, error) {
+	row := q.db.QueryRow(ctx, gatewayRevokeComputeHost, arg.TenantNamespace, arg.AgentName)
+	var i ComputeHost
+	err := row.Scan(
+		&i.ID,
+		&i.TenantNamespace,
+		&i.AgentName,
+		&i.EnrollmentHash,
+		&i.EnrollmentExpiresAt,
+		&i.WorkloadID,
+		&i.NodeID,
+		&i.Hostname,
+		&i.WorkDirectory,
+		&i.Revoked,
+		&i.LastSeen,
+		&i.NodeExpiresAt,
+	)
+	return i, err
 }
 
 const gatewayRevokeScopedAPIKey = `-- name: GatewayRevokeScopedAPIKey :execrows
@@ -6686,17 +6896,18 @@ func (q *Queries) GatewayUnlockResources(ctx context.Context) error {
 
 const gatewayUpdateChatInput = `-- name: GatewayUpdateChatInput :one
 UPDATE chat_inputs SET state = $1, error = $2,
-  message_id = $3, resume = $4, revision = revision + 1, updated_at = now()
-WHERE id = $5 AND revision = $6 RETURNING id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, message_id, error, created_at, updated_at
+  message_id = $3, resume = $4, compute_connection_id = $5, revision = revision + 1, updated_at = now()
+WHERE id = $6 AND revision = $7 RETURNING id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, compute_connection_id, message_id, error, created_at, updated_at
 `
 
 type GatewayUpdateChatInputParams struct {
-	State     string    `json:"state"`
-	Error     string    `json:"error"`
-	MessageID string    `json:"message_id"`
-	Resume    bool      `json:"resume"`
-	ID        uuid.UUID `json:"id"`
-	Revision  int64     `json:"revision"`
+	State               string    `json:"state"`
+	Error               string    `json:"error"`
+	MessageID           string    `json:"message_id"`
+	Resume              bool      `json:"resume"`
+	ComputeConnectionID string    `json:"compute_connection_id"`
+	ID                  uuid.UUID `json:"id"`
+	Revision            int64     `json:"revision"`
 }
 
 func (q *Queries) GatewayUpdateChatInput(ctx context.Context, arg GatewayUpdateChatInputParams) (ChatInput, error) {
@@ -6705,6 +6916,7 @@ func (q *Queries) GatewayUpdateChatInput(ctx context.Context, arg GatewayUpdateC
 		arg.Error,
 		arg.MessageID,
 		arg.Resume,
+		arg.ComputeConnectionID,
 		arg.ID,
 		arg.Revision,
 	)
@@ -6724,6 +6936,7 @@ func (q *Queries) GatewayUpdateChatInput(ctx context.Context, arg GatewayUpdateC
 		&i.Delivery,
 		&i.State,
 		&i.Revision,
+		&i.ComputeConnectionID,
 		&i.MessageID,
 		&i.Error,
 		&i.CreatedAt,

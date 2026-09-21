@@ -283,7 +283,9 @@ func (c *Client) VersionSummary(ctx context.Context, namespace, name string, ver
 			}
 			summary.FileCount++
 			summary.SizeBytes += aws.ToInt64(item.Size)
-			if item.LastModified != nil && (summary.Modified == nil || item.LastModified.After(*summary.Modified)) {
+			newer := item.LastModified != nil &&
+				(summary.Modified == nil || item.LastModified.After(*summary.Modified))
+			if newer {
 				modified := *item.LastModified
 				summary.Modified = &modified
 			}
@@ -456,7 +458,9 @@ func (c *Client) DownloadManifest(ctx context.Context, manifestPath, targetDir s
 	if err := json.NewDecoder(file).Decode(&manifest); err != nil {
 		return fmt.Errorf("decode immutable skill manifest: %w", err)
 	}
-	if manifest.Namespace == "" || len(manifest.Namespace) > 63 || !namespaceNameRE.MatchString(manifest.Namespace) {
+	invalidNamespace := manifest.Namespace == "" || len(manifest.Namespace) > 63 ||
+		!namespaceNameRE.MatchString(manifest.Namespace)
+	if invalidNamespace {
 		return errors.New("immutable skill manifest namespace is invalid")
 	}
 	slices.SortFunc(

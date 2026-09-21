@@ -94,7 +94,8 @@ func TestPTYProxyOrigins(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := &Service{
-		cfg: Config{AllowedWebOrigins: []string{"https://app.example.com"}},
+		outboundHTTP: http.DefaultClient,
+		cfg:          Config{AllowedWebOrigins: []string{"https://app.example.com"}},
 		resolver: &resolver{
 			agents: listersv1alpha1.NewAgentLister(index), targetOverride: upstream.URL,
 		},

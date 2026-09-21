@@ -489,7 +489,7 @@ func applyNodeStatusPatch(nodes []agentzv1alpha1.WorkflowRunNodeStatus, nodeName
 }
 
 // CreateScheduledRun creates one run from one workflow schedule.
-func CreateScheduledRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, schName string) (gatewayapi.WorkflowRunSummary, error) {
+func CreateScheduledRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, schName string, connection string) (gatewayapi.WorkflowRunSummary, error) {
 	schedule, err := getSchedule(ctx, k8sClient, ns, agtName, wfName, schName)
 	if err != nil {
 		return gatewayapi.WorkflowRunSummary{}, err
@@ -529,11 +529,11 @@ func CreateScheduledRun(ctx context.Context, k8sClient ctrlclient.Client, ns str
 		},
 	}
 
-	return createRun(ctx, k8sClient, run)
+	return createRun(ctx, k8sClient, run, connection)
 }
 
 // CreateWebhookRun creates one direct workflow run from a webhook request.
-func CreateWebhookRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, inputs []byte, timeoutSeconds int32, apiKeyID string) (gatewayapi.WorkflowRunSummary, error) {
+func CreateWebhookRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, inputs []byte, timeoutSeconds int32, apiKeyID string, connection string) (gatewayapi.WorkflowRunSummary, error) {
 	agent := &agentzv1alpha1.Agent{}
 	agentKey := ctrlclient.ObjectKey{Name: agtName, Namespace: ns}
 	if err := k8sClient.Get(ctx, agentKey, agent); err != nil {
@@ -575,7 +575,7 @@ func CreateWebhookRun(ctx context.Context, k8sClient ctrlclient.Client, ns strin
 		},
 	}
 
-	return createRun(ctx, k8sClient, run)
+	return createRun(ctx, k8sClient, run, connection)
 }
 
 // ListWebhookTriggers lists distinct webhook trigger rows for one agent.
@@ -762,7 +762,20 @@ func DeleteRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtN
 	}
 }
 
-func createRun(ctx context.Context, k8sClient ctrlclient.Client, run *agentzv1alpha1.WorkflowRun) (gatewayapi.WorkflowRunSummary, error) {
+func createRun(ctx context.Context, k8sClient ctrlclient.Client, run *agentzv1alpha1.WorkflowRun, connection string) (gatewayapi.WorkflowRunSummary, error) {
+	var agt agentzv1alpha1.Agent
+	if err := k8sClient.Get(ctx, ctrlclient.ObjectKey{Namespace: run.Namespace, Name: run.Spec.AgentName}, &agt); err != nil {
+		return gatewayapi.WorkflowRunSummary{}, err
+	}
+	if agt.Spec.Execution == agentzv1alpha1.AgentExecutionNative {
+		if connection == "" || !agt.Status.Connected {
+			return gatewayapi.WorkflowRunSummary{}, errors.New("native host is offline; workflow runs are not queued")
+		}
+		if run.Annotations == nil {
+			run.Annotations = make(map[string]string)
+		}
+		run.Annotations[agentzv1alpha1.AgentComputeConnectionAnnotation] = connection
+	}
 	if err := k8sClient.Create(ctx, run); err != nil {
 		return gatewayapi.WorkflowRunSummary{}, err
 	}

@@ -201,6 +201,7 @@ function AgentActions({
           mode="update"
           actionScope={actionScope}
           agentName={agent.name}
+          initialAgent={agent}
           initialSandboxName={agent.sandbox.name}
           initialMemoryEnabled={agent.memory.enabled}
           initialSkills={agent.skills}

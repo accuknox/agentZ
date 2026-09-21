@@ -951,9 +951,13 @@ func extAuthPolicySpec(ns string, workspaces []workspaceAccess) *ciliumapi.Rule 
 }
 
 func (r *ExtAuthRuntimeReconciler) reconcileExtAuthOpenBao(ctx context.Context, ns string) error {
+	addr := strings.TrimSpace(r.ManagerOpenBaoAddr)
+	if addr == "" {
+		addr = strings.TrimSpace(r.OpenBaoAddr)
+	}
 	baoClient, err := openbao.NewClient(
 		ctx,
-		r.managerOpenBaoAddr(),
+		addr,
 		r.OpenBaoK8sAuthRole,
 		r.OpenBaoK8sAuthMountPath,
 		r.OpenBaoK8sAuthTokenPath,
@@ -1141,13 +1145,17 @@ func (r *ExtAuthRuntimeReconciler) deleteExtAuthRuntime(ctx context.Context, ns 
 		return fmt.Errorf("delete ext auth service account: %w", err)
 	}
 
-	if strings.TrimSpace(r.managerOpenBaoAddr()) == "" || strings.TrimSpace(r.OpenBaoK8sAuthRole) == "" {
+	addr := strings.TrimSpace(r.ManagerOpenBaoAddr)
+	if addr == "" {
+		addr = strings.TrimSpace(r.OpenBaoAddr)
+	}
+	if addr == "" || strings.TrimSpace(r.OpenBaoK8sAuthRole) == "" {
 		return nil
 	}
 
 	baoClient, err := openbao.NewClient(
 		ctx,
-		r.managerOpenBaoAddr(),
+		addr,
 		r.OpenBaoK8sAuthRole,
 		r.OpenBaoK8sAuthMountPath,
 		r.OpenBaoK8sAuthTokenPath,
@@ -1166,12 +1174,4 @@ func (r *ExtAuthRuntimeReconciler) deleteExtAuthRuntime(ctx context.Context, ns 
 	}
 
 	return nil
-}
-
-func (r *ExtAuthRuntimeReconciler) managerOpenBaoAddr() string {
-	addr := strings.TrimSpace(r.ManagerOpenBaoAddr)
-	if addr != "" {
-		return addr
-	}
-	return strings.TrimSpace(r.OpenBaoAddr)
 }

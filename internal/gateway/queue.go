@@ -22,7 +22,26 @@ import (
 	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
+
+// nativeAdmission fences new work to the currently connected native runtime.
+// Kubernetes Agents retain their existing durable queue behavior.
+func (s *Service) nativeAdmission(_ context.Context, namespace, agent string) (string, *apiutil.APIError) {
+	agt, err := s.resolver.agents.Agents(namespace).Get(agent)
+	if err != nil {
+		return "", mapGatewayStoreError("resolve Agent", err)
+	}
+	if agt.Spec.Execution != agentzv1alpha1.AgentExecutionNative {
+		return "", nil
+	}
+	if s.computeServer != nil {
+		if connection, ready := s.computeServer.Connection(namespace, agent); ready {
+			return connection, nil
+		}
+	}
+	return "", apiutil.NewError(http.StatusServiceUnavailable, "host_offline", "The host is offline or preparing its runtime. Submit new work when it is ready.", nil)
+}
 
 // chatInputAccess resolves the target on every admission, including worker
 // admissions after the author's browser and bearer token have gone away.
@@ -46,7 +65,11 @@ func (s *Service) chatInputAccess(ctx context.Context, agent, session string) (r
 		if project.Deleting || tree.Deleting || !tree.Ready {
 			return access, "", "", errors.New("checkout is unavailable")
 		}
-		return access, "/home/agentz/" + tree.Directory, project.ID, nil
+		resolved, err := s.resolver.resolveAgent(ctx, access.namespace, agent)
+		if err != nil {
+			return access, "", "", err
+		}
+		return access, path.Join(resolved.Root, tree.Directory), project.ID, nil
 	}
 	client, err := s.codingClient(ctx, access.namespace, agent, s.outboundHTTP)
 	if err != nil {
@@ -192,6 +215,11 @@ func (s *Service) SubmitChatInput(w http.ResponseWriter, r *http.Request, agent 
 		return
 	}
 	defer release()
+	connection, apiErr := s.nativeAdmission(r.Context(), access.namespace, agent)
+	if apiErr != nil {
+		apiutil.WriteError(w, r, apiErr)
+		return
+	}
 	raw, err := json.Marshal(input.Content)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
@@ -199,16 +227,17 @@ func (s *Service) SubmitChatInput(w http.ResponseWriter, r *http.Request, agent 
 	}
 	auth, _ := requestAuthState(r.Context())
 	row, err := s.queries.GatewayCreateChatInput(r.Context(), gatewaydb.GatewayCreateChatInputParams{
-		ID:             input.Id,
-		WorkspaceID:    access.workspaceID,
-		AgentName:      agent,
-		SessionID:      session,
-		OrganizationID: access.organizationID,
-		AuthorID:       access.userID,
-		AuthorName:     auth.actorName,
-		Directory:      directory,
-		Content:        raw,
-		Delivery:       string(input.Delivery),
+		ID:                  input.Id,
+		WorkspaceID:         access.workspaceID,
+		AgentName:           agent,
+		SessionID:           session,
+		OrganizationID:      access.organizationID,
+		AuthorID:            access.userID,
+		AuthorName:          auth.actorName,
+		Directory:           directory,
+		Content:             raw,
+		Delivery:            string(input.Delivery),
+		ComputeConnectionID: connection,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		apiutil.WriteError(
@@ -284,6 +313,12 @@ func (s *Service) UpdateChatInput(w http.ResponseWriter, r *http.Request, agent 
 	}
 	switch input.Action {
 	case gatewayapi.ChatInputUpdateActionRetry:
+		connection, apiErr := s.nativeAdmission(r.Context(), access.namespace, agent)
+		if apiErr != nil {
+			apiutil.WriteError(w, r, apiErr)
+			return
+		}
+		row.ComputeConnectionID = connection
 		row.Resume = true
 		row.State = string(gatewayapi.ChatInputStateQueued)
 	case gatewayapi.ChatInputUpdateActionRemove:
@@ -500,12 +535,13 @@ func (s *Service) notifyChatInput(ctx context.Context, row gatewaydb.ChatInput) 
 
 func (s *Service) saveChatInput(ctx context.Context, row gatewaydb.ChatInput) (gatewaydb.ChatInput, error) {
 	saved, err := s.queries.GatewayUpdateChatInput(ctx, gatewaydb.GatewayUpdateChatInputParams{
-		ID:        row.ID,
-		Revision:  row.Revision,
-		State:     row.State,
-		Error:     row.Error,
-		MessageID: row.MessageID,
-		Resume:    row.Resume,
+		ID:                  row.ID,
+		Revision:            row.Revision,
+		ComputeConnectionID: row.ComputeConnectionID,
+		State:               row.State,
+		Error:               row.Error,
+		MessageID:           row.MessageID,
+		Resume:              row.Resume,
 	})
 	if err == nil {
 		s.notifyChatInput(ctx, saved)
@@ -643,6 +679,24 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 		workspaceID:    row.WorkspaceID,
 		organizationID: row.OrganizationID,
 	})
+	if row.MessageID == "" && row.ComputeConnectionID != "" {
+		namespace := agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeWorkspace, row.WorkspaceID)
+		connection, ready := "", false
+		if s.computeServer != nil {
+			connection, ready = s.computeServer.Connection(namespace, row.AgentName)
+		}
+		if !ready || connection != row.ComputeConnectionID {
+			release, err := s.lockChatInputs(ctx, row.WorkspaceID, row.AgentName, row.SessionID, "")
+			if err != nil {
+				return err
+			}
+			defer release()
+			row.State = string(gatewayapi.ChatInputStateRecovered)
+			row.Error = "The host disconnected. Retry this message explicitly when it is ready."
+			_, err = s.saveChatInput(ctx, row)
+			return err
+		}
+	}
 	access, directory, project, err := s.chatInputAccess(ctx, row.AgentName, row.SessionID)
 	if err != nil {
 		var denied *apiutil.APIError
@@ -831,8 +885,12 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 		Agent: content.Agent, Model: &content.Model, Variant: content.Variant,
 		Parts: make([]gatewayapi.OpencodePromptPartInput, 0, len(content.Attachments)+1),
 	}
+	resolved, err := s.resolver.resolveAgent(ctx, access.namespace, row.AgentName)
+	if err != nil {
+		return err
+	}
 	for _, file := range content.Attachments {
-		filePath, _ := json.Marshal("/home/agentz/" + file.Path)
+		filePath, _ := json.Marshal(path.Join(resolved.Root, file.Path))
 		filename, _ := json.Marshal(file.Filename)
 		mime, _ := json.Marshal(file.MediaType)
 		synthetic := true
@@ -906,6 +964,12 @@ Use analyze_file when you need the contents of this file.
 		ctx, row.AgentName, row.SessionID,
 		&gatewayapi.SessionPromptAsyncParams{Directory: &directory},
 		"application/json", req.Body,
+		func(_ context.Context, request *http.Request) error {
+			if row.ComputeConnectionID != "" {
+				request.Header.Set("X-Agentz-Compute-Connection", row.ComputeConnectionID)
+			}
+			return nil
+		},
 	)
 	// Keep uncertain admission for reconciliation.
 	if err != nil {

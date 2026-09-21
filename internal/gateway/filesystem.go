@@ -114,6 +114,14 @@ func (s *Service) proxyFilesystem(w http.ResponseWriter, r *http.Request, rawAge
 		apiutil.WriteError(w, r, apiutil.NewError(http.StatusNotFound, "not_found", "agent not found", err))
 		return
 	}
+	if resolved.Agent.Spec.Execution == agentzv1alpha1.AgentExecutionNative {
+		connection, apiErr := s.nativeAdmission(r.Context(), ns, agentName)
+		if apiErr != nil {
+			apiutil.WriteError(w, r, apiErr)
+			return
+		}
+		r.Header.Set("X-Agentz-Compute-Connection", connection)
+	}
 	skillRequest := strings.HasPrefix(upstreamPath, "/skill")
 	if skillRequest {
 		if statusFromAgent(resolved.Agent).Phase != agentPhaseReady {
@@ -178,7 +186,7 @@ func (s *Service) proxyFilesystem(w http.ResponseWriter, r *http.Request, rawAge
 			r.Body = io.NopCloser(bytes.NewReader(raw))
 		}
 		for _, name := range paths {
-			directory := strings.TrimPrefix(path.Clean(name), "/home/agentz/")
+			directory := strings.TrimPrefix(path.Clean(name), resolved.Root+"/")
 			if attachment, ok := strings.CutPrefix(directory, ".agentz/attachments/"); ok {
 				// Attachments live outside Git checkouts and inherit session ownership.
 				sessionID, _, _ := strings.Cut(attachment, "/")
@@ -240,6 +248,7 @@ func (s *Service) proxyFilesystem(w http.ResponseWriter, r *http.Request, rawAge
 	r.Body = http.MaxBytesReader(w, r.Body, filesystemProxyBodyLimit)
 
 	proxy := &httputil.ReverseProxy{
+		Transport: s.outboundHTTP.Transport,
 		Rewrite: func(preq *httputil.ProxyRequest) {
 			preq.Out.URL.Scheme = target.Scheme
 			preq.Out.URL.Host = target.Host
@@ -287,6 +296,9 @@ func (s *Service) proxyFilesystem(w http.ResponseWriter, r *http.Request, rawAge
 
 func (s *Service) filesystemTarget(resolved *resolvedAgent) (*url.URL, error) {
 	address := strings.TrimSpace(s.cfg.FilesystemTargetOverride)
+	if resolved.Agent.Spec.Execution == agentzv1alpha1.AgentExecutionNative {
+		address = fmt.Sprintf("%s.%s.native.agentz:4097", resolved.Agent.Name, resolved.Agent.Namespace)
+	}
 	if address == "" {
 		serviceName := strings.TrimSpace(resolved.Agent.Status.ServiceName)
 		if serviceName == "" {

@@ -8,6 +8,8 @@ import {
   useEffectEvent,
   useState,
 } from "react"
+import { useQuery } from "@tanstack/react-query"
+import { watchAgentsQueryOptions } from "@/components/agent-readiness"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Box, Plus, Save, Wrench, CircleAlert } from "lucide-react"
@@ -39,15 +41,18 @@ import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import {
   createAgentFormAction,
+  enrollComputeAction,
+  disconnectComputeAction,
   updateAgentFormAction,
   type AgentActionScope,
 } from "@/data/agent.actions"
 import { listSandboxesAction } from "@/data/sandbox.actions"
 import { createAgentSimpleFormSchema } from "@/data/schema"
 import type { CreateAgentFormState } from "@/data/types"
-import type { Agent, ResourceScope, Sandbox, Skill } from "@/lib/gateway/client"
+import type { Agent, ComputeEnrollment, ResourceScope, Sandbox, Skill } from "@/lib/gateway/client"
 import type * as z from "zod"
 import { toast } from "sonner"
+import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 
 type Mode = "create" | "update"
 
@@ -61,6 +66,7 @@ type AgentDialogProps = {
   agentName?: string
   initialSandboxName?: string
   initialMemoryEnabled?: boolean
+  initialAgent?: Agent
   initialSkills?: Agent["skills"]
   open?: boolean
   onOpenChangeAction?: (open: boolean) => void
@@ -211,16 +217,20 @@ export function AgentDialog({
   agentName,
   initialSandboxName,
   initialMemoryEnabled = false,
+  initialAgent,
   initialSkills = [],
   open,
   onOpenChangeAction,
   trigger,
 }: AgentDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false)
+  const [nativeAgent, setNativeAgent] = useState<Agent>()
   const router = useRouter()
   const dialogOpen = open ?? internalOpen
   const hasSandboxes = sandboxes.length > 0
   const defaultValues: AgentFormValues = {
+    execution: initialAgent?.execution ?? "Kubernetes",
+    secretProxy: initialAgent?.secret_proxy ?? true,
     name: agentName ?? "",
     sandboxScope: "Organisation",
     sandboxName: initialSandboxName ?? (mode === "create" ? (sandboxes[0]?.name ?? "") : ""),
@@ -273,6 +283,11 @@ export function AgentDialog({
           form.setError(field, { type: "server", types: { server: errors } })
         }
       }
+      if (result.success && result.agent?.execution === "Native") {
+        setNativeAgent(result.agent)
+        router.refresh()
+        return result
+      }
       if (result.success) {
         toast.success(mode === "update" ? "Agent updated" : "Agent created")
         onOpenChangeAction?.(false)
@@ -283,6 +298,7 @@ export function AgentDialog({
     },
     {}
   )
+  const execution = useWatch({ control: form.control, name: "execution" })
   const selectedSkills = useWatch({
     control: form.control,
     name: "skills",
@@ -317,6 +333,7 @@ export function AgentDialog({
 
   const onOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
+      setNativeAgent(undefined)
       form.reset(defaultValues)
       form.clearErrors()
     }
@@ -338,175 +355,427 @@ export function AgentDialog({
         </DialogTrigger>
       ) : null}
       <DialogContent className={mode === "update" ? "sm:max-w-md" : undefined}>
-        <DialogHeader>
-          <DialogTitle>{mode === "create" ? "New agent" : "Update agent"}</DialogTitle>
-          <DialogDescription>
-            {mode === "create"
-              ? "Create an agent with a name and sandbox."
-              : "Update the sandbox and immutable skills for this agent."}
-          </DialogDescription>
-        </DialogHeader>
-        <form id="agent-form-simple" action={submit} className="space-y-5">
-          <input type="hidden" name="sandboxScope" value={sandboxScope} />
-          {selectedSkills.map((skill) => (
-            <Fragment key={JSON.stringify([skill.scope, skill.name])}>
-              <input type="hidden" name="skillScopes" value={skill.scope} />
-              <input type="hidden" name="skillNames" value={skill.name} />
-            </Fragment>
-          ))}
-          <FieldGroup>
-            {mode === "create" ? (
-              <Controller
-                name="name"
-                control={form.control}
-                render={({ field, fieldState }) => (
-                  <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel htmlFor="agent-form-name" required>
-                      Agent name
-                    </FieldLabel>
-                    <Input
-                      id="agent-form-name"
-                      name={field.name}
-                      ref={field.ref}
-                      value={field.value}
-                      onBlur={field.onBlur}
-                      onChange={field.onChange}
-                      aria-invalid={fieldState.invalid}
-                      aria-required="true"
-                      placeholder="coding-agent"
-                    />
-                    {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+        {nativeAgent ? (
+          <NativeSetup agent={nativeAgent} workspaceId={actionScope.workspaceId} />
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>{mode === "create" ? "New agent" : "Update agent"}</DialogTitle>
+              <DialogDescription>
+                {mode === "create"
+                  ? "Create an agent with a name and sandbox."
+                  : "Update the sandbox and immutable skills for this agent."}
+              </DialogDescription>
+            </DialogHeader>
+            <form id="agent-form-simple" action={submit} className="space-y-5">
+              <input type="hidden" name="sandboxScope" value={sandboxScope} />
+              {selectedSkills.map((skill) => (
+                <Fragment key={JSON.stringify([skill.scope, skill.name])}>
+                  <input type="hidden" name="skillScopes" value={skill.scope} />
+                  <input type="hidden" name="skillNames" value={skill.name} />
+                </Fragment>
+              ))}
+              <FieldGroup>
+                {mode === "create" ? (
+                  <Controller
+                    name="execution"
+                    control={form.control}
+                    render={({ field }) => (
+                      <Field>
+                        <FieldLabel htmlFor="agent-execution">Compute</FieldLabel>
+                        <Select
+                          name={field.name}
+                          value={field.value}
+                          onValueChange={field.onChange}
+                        >
+                          <SelectTrigger id="agent-execution">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Kubernetes">Hosted by AgentZ</SelectItem>
+                            <SelectItem value="Native">My Linux host</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FieldDescription>
+                          {field.value === "Native"
+                            ? "Your machine, the same AgentZ tools and workflows. Nothing runs in containers."
+                            : "AgentZ provisions and manages the runtime."}
+                        </FieldDescription>
+                      </Field>
+                    )}
+                  />
+                ) : (
+                  <input type="hidden" name="execution" value={execution} />
+                )}
+                {execution === "Native" ? (
+                  <Controller
+                    name="secretProxy"
+                    control={form.control}
+                    render={({ field }) => (
+                      <Field orientation="horizontal">
+                        <div>
+                          <FieldLabel htmlFor="agent-secret-proxy">
+                            Inject platform secrets
+                          </FieldLabel>
+                          <FieldDescription>
+                            Use the secret proxy for CLI credentials. Turn off to use credentials
+                            already on your host. MCP always uses the gateway.
+                          </FieldDescription>
+                        </div>
+                        <input
+                          type="hidden"
+                          name="secretProxy"
+                          disabled={!field.value}
+                          value="on"
+                        />
+                        <Switch
+                          id="agent-secret-proxy"
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </Field>
+                    )}
+                  />
+                ) : (
+                  <input type="hidden" name="secretProxy" value="on" />
+                )}
+
+                {mode === "create" ? (
+                  <Controller
+                    name="name"
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor="agent-form-name" required>
+                          Agent name
+                        </FieldLabel>
+                        <Input
+                          id="agent-form-name"
+                          name={field.name}
+                          ref={field.ref}
+                          value={field.value}
+                          onBlur={field.onBlur}
+                          onChange={field.onChange}
+                          aria-invalid={fieldState.invalid}
+                          aria-required="true"
+                          placeholder="coding-agent"
+                        />
+                        {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                      </Field>
+                    )}
+                  />
+                ) : (
+                  <Field>
+                    <FieldLabel htmlFor="agent-form-name-readonly">Agent name</FieldLabel>
+                    <Input id="agent-form-name-readonly" value={agentName ?? ""} disabled />
                   </Field>
                 )}
-              />
-            ) : (
-              <Field>
-                <FieldLabel htmlFor="agent-form-name-readonly">Agent name</FieldLabel>
-                <Input id="agent-form-name-readonly" value={agentName ?? ""} disabled />
-              </Field>
-            )}
-            <Controller
-              name="sandboxName"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="agent-form-sandbox" required>
-                    Sandbox
-                  </FieldLabel>
-                  <SandboxSelect
-                    disabled={!hasSandboxes}
-                    id="agent-form-sandbox"
-                    name={field.name}
-                    value={field.value}
-                    initialSandboxes={sandboxes}
-                    initialHasNextPage={initialHasNextSandboxPage}
-                    initialNextPageToken={initialNextSandboxPageToken}
-                    workspaceId={actionScope.workspaceId}
-                    onBlurAction={field.onBlur}
-                    onValueChangeAction={field.onChange}
-                    aria-invalid={fieldState.invalid}
-                    aria-required="true"
-                  />
-                  {!hasSandboxes ? (
-                    <FieldDescription>
-                      Create a sandbox{" "}
-                      <button
-                        type="button"
-                        className="text-foreground underline"
-                        onClick={() => {
-                          onOpenChange(false)
-                          router.push(`${actionScope.workspacePath}/sandboxes/new`)
+                <Controller
+                  name="sandboxName"
+                  control={form.control}
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel htmlFor="agent-form-sandbox" required>
+                        Sandbox
+                      </FieldLabel>
+                      <SandboxSelect
+                        disabled={!hasSandboxes}
+                        id="agent-form-sandbox"
+                        name={field.name}
+                        value={field.value}
+                        initialSandboxes={sandboxes}
+                        initialHasNextPage={initialHasNextSandboxPage}
+                        initialNextPageToken={initialNextSandboxPageToken}
+                        workspaceId={actionScope.workspaceId}
+                        onBlurAction={field.onBlur}
+                        onValueChangeAction={field.onChange}
+                        aria-invalid={fieldState.invalid}
+                        aria-required="true"
+                      />
+                      {!hasSandboxes ? (
+                        <FieldDescription>
+                          Create a sandbox{" "}
+                          <button
+                            type="button"
+                            className="text-foreground underline"
+                            onClick={() => {
+                              onOpenChange(false)
+                              router.push(`${actionScope.workspacePath}/sandboxes/new`)
+                            }}
+                          >
+                            here
+                          </button>{" "}
+                          before continuing.
+                        </FieldDescription>
+                      ) : null}
+                      {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                    </Field>
+                  )}
+                />
+                <Controller
+                  name="skills"
+                  control={form.control}
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel htmlFor="agent-form-skills">Immutable skills</FieldLabel>
+                      <MultiSelectDropdown
+                        id="agent-form-skills"
+                        invalid={fieldState.invalid}
+                        options={Array.from(skills, ([value, skill]) => ({
+                          icon: Wrench,
+                          label: skill.name,
+                          badge: skill.scope,
+                          value,
+                        }))}
+                        value={field.value.map((skill) =>
+                          JSON.stringify([skill.scope, skill.name])
+                        )}
+                        placeholder="Select skills"
+                        emptyMessage="No immutable skills"
+                        onBlurAction={field.onBlur}
+                        onValueChangeAction={(values) => {
+                          field.onChange(
+                            Array.from(skills)
+                              .filter(([key]) => values.includes(key))
+                              .map(([, skill]) => skill)
+                          )
                         }}
-                      >
-                        here
-                      </button>{" "}
-                      before continuing.
-                    </FieldDescription>
-                  ) : null}
-                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-                </Field>
-              )}
-            />
-            <Controller
-              name="skills"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="agent-form-skills">Immutable skills</FieldLabel>
-                  <MultiSelectDropdown
-                    id="agent-form-skills"
-                    invalid={fieldState.invalid}
-                    options={Array.from(skills, ([value, skill]) => ({
-                      icon: Wrench,
-                      label: skill.name,
-                      badge: skill.scope,
-                      value,
-                    }))}
-                    value={field.value.map((skill) => JSON.stringify([skill.scope, skill.name]))}
-                    placeholder="Select skills"
-                    emptyMessage="No immutable skills"
-                    onBlurAction={field.onBlur}
-                    onValueChangeAction={(values) => {
-                      field.onChange(
-                        Array.from(skills)
-                          .filter(([key]) => values.includes(key))
-                          .map(([, skill]) => skill)
-                      )
-                    }}
+                      />
+                      {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                    </Field>
+                  )}
+                />
+                {actionScope.workspaceType !== "coding" && (
+                  <Controller
+                    name="memoryEnabled"
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                      <Field orientation="horizontal" data-invalid={fieldState.invalid}>
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <FieldLabel htmlFor="agent-form-memory">Persistent memory</FieldLabel>
+                          <FieldDescription>
+                            Allow this Agent to save facts and journal entries across sessions.
+                          </FieldDescription>
+                          <FieldError errors={[fieldState.error]} />
+                        </div>
+                        {field.value ? <input type="hidden" name={field.name} /> : null}
+                        <Switch
+                          id="agent-form-memory"
+                          ref={field.ref}
+                          checked={field.value}
+                          onBlur={field.onBlur}
+                          onCheckedChange={field.onChange}
+                          aria-label="Enable persistent memory"
+                          aria-invalid={fieldState.invalid}
+                        />
+                      </Field>
+                    )}
                   />
-                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-                </Field>
-              )}
-            />
-            {actionScope.workspaceType !== "coding" && (
-              <Controller
-                name="memoryEnabled"
-                control={form.control}
-                render={({ field, fieldState }) => (
-                  <Field orientation="horizontal" data-invalid={fieldState.invalid}>
-                    <div className="min-w-0 flex-1 space-y-0.5">
-                      <FieldLabel htmlFor="agent-form-memory">Persistent memory</FieldLabel>
-                      <FieldDescription>
-                        Allow this Agent to save facts and journal entries across sessions.
-                      </FieldDescription>
-                      <FieldError errors={[fieldState.error]} />
-                    </div>
-                    {field.value ? <input type="hidden" name={field.name} /> : null}
-                    <Switch
-                      id="agent-form-memory"
-                      ref={field.ref}
-                      checked={field.value}
-                      onBlur={field.onBlur}
-                      onCheckedChange={field.onChange}
-                      aria-label="Enable persistent memory"
-                      aria-invalid={fieldState.invalid}
-                    />
-                  </Field>
                 )}
-              />
-            )}
-          </FieldGroup>
-        </form>
-        {form.formState.errors.root ? (
-          <Alert variant="destructive">
-            <CircleAlert aria-hidden="true" />
-            <AlertDescription>
-              <FieldError errors={[form.formState.errors.root]} />
-            </AlertDescription>
-          </Alert>
-        ) : null}
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="outline" disabled={isPending}>
-              Cancel
-            </Button>
-          </DialogClose>
-          <Button type="submit" form="agent-form-simple" disabled={isPending || !hasSandboxes}>
-            {isPending ? <Spinner aria-hidden="true" /> : <Save data-icon="inline-start" />}
-            {mode === "create" ? "Create agent" : "Update agent"}
-          </Button>
-        </DialogFooter>
+              </FieldGroup>
+            </form>
+            {form.formState.errors.root ? (
+              <Alert variant="destructive">
+                <CircleAlert aria-hidden="true" />
+                <AlertDescription>
+                  <FieldError errors={[form.formState.errors.root]} />
+                </AlertDescription>
+              </Alert>
+            ) : null}
+            {initialAgent?.execution === "Native" ? (
+              <Button type="button" variant="outline" onClick={() => setNativeAgent(initialAgent)}>
+                Manage Linux host
+              </Button>
+            ) : null}
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button" variant="outline" disabled={isPending}>
+                  Cancel
+                </Button>
+              </DialogClose>
+              <Button type="submit" form="agent-form-simple" disabled={isPending || !hasSandboxes}>
+                {isPending ? <Spinner aria-hidden="true" /> : <Save data-icon="inline-start" />}
+                {mode === "create" ? "Create agent" : "Update agent"}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
+  )
+}
+
+function NativeSetup({ agent, workspaceId }: { agent: Agent; workspaceId: string }) {
+  const { data: hosts } = useQuery(watchAgentsQueryOptions(workspaceId, [agent], [agent.name]))
+  const host = hosts?.[0] ?? agent
+  const [enrollment, setEnrollment] = useState<ComputeEnrollment>()
+  const [backend, setBackend] = useState("")
+  const [release, setRelease] = useState("")
+  const [error, setError] = useState("")
+  const [pending, setPending] = useState(false)
+  useEffect(() => {
+    let active = true
+    getGatewayBaseURL()
+      .then((value) => {
+        if (active) setBackend(value ?? "")
+      })
+      .catch(() => {
+        if (active) setError("Could not load the backend address")
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+  async function enroll() {
+    setPending(true)
+    setError("")
+    try {
+      const result = await enrollComputeAction(workspaceId, agent.name)
+      if (result.error) setError(result.error.message)
+      else setEnrollment(result.data)
+    } catch {
+      setError("Could not generate an enrollment code")
+    } finally {
+      setPending(false)
+    }
+  }
+  let title = "Bring your agent home"
+  if (host.hostname) title = "Your host is offline"
+  if (host.connected) title = "Your host is connected"
+  const command =
+    /^v\d+\.\d+\.\d+$/.test(release) && backend.startsWith("https://")
+      ? `sudo bash install.sh '${backend.replaceAll("'", "'\\''")}' '${release}' "$USER" "$HOME/agentz" "${"${XDG_CONFIG_HOME:-$HOME/.config}"}" "${"${XDG_DATA_HOME:-$HOME/.local/share}"}" "${"${XDG_STATE_HOME:-$HOME/.local/state}"}" "${"${XDG_CACHE_HOME:-$HOME/.cache}"}"`
+      : ""
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>{title}</DialogTitle>
+        <DialogDescription>
+          {agent.name} uses your Linux host with your user account and files. Start with a systemd
+          host and sudo access.
+        </DialogDescription>
+      </DialogHeader>
+      <div className="space-y-5">
+        <div className="rounded-lg border p-4" role="status">
+          <p className="font-medium">{host.hostname || "Waiting for your host"}</p>
+          <p className="text-muted-foreground text-sm">
+            {host.connected
+              ? `Runtime: ${host.status}. Work directory: ${host.runtime_root}`
+              : "Existing local work continues if the connection drops. New remote work is unavailable while the host is offline."}
+          </p>
+        </div>
+        {!host.connected && !host.hostname ? (
+          <>
+            <p className="text-sm">
+              Download{" "}
+              <a
+                className="underline"
+                href="https://github.com/accuknox/agentz/releases"
+                target="_blank"
+                rel="noreferrer"
+              >
+                the installer from an AgentZ release
+              </a>
+              . The installer verifies the release and installs SPIRE, KubeArmor, Nix, and the
+              native runtime.
+            </p>
+            {backend && !backend.startsWith("https://") ? (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  Host enrollment requires an HTTPS gateway address. Configure the public gateway
+                  URL before installing.
+                </AlertDescription>
+              </Alert>
+            ) : null}
+            <Field>
+              <FieldLabel htmlFor="native-release">Release version</FieldLabel>
+              <Input
+                id="native-release"
+                placeholder="v0.3.0"
+                value={release}
+                onChange={(event) => setRelease(event.target.value)}
+              />
+            </Field>
+            {command ? (
+              <div className="space-y-2">
+                <pre className="bg-muted overflow-x-auto rounded-md p-3 text-xs">{command}</pre>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => navigator.clipboard.writeText(command)}
+                >
+                  Copy install command
+                </Button>
+              </div>
+            ) : null}
+            <Button type="button" disabled={pending} onClick={enroll}>
+              {pending ? <Spinner /> : null}
+              {enrollment ? "Generate a fresh code" : "Generate enrollment code"}
+            </Button>
+            {enrollment ? (
+              <div className="space-y-2 rounded-lg border p-4">
+                <p className="text-sm">
+                  Paste this code when the installer asks. It works once and expires in 15 minutes.
+                </p>
+                <code className="block text-sm break-all">{enrollment.code}</code>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => navigator.clipboard.writeText(enrollment.code)}
+                >
+                  Copy enrollment code
+                </Button>
+              </div>
+            ) : null}
+          </>
+        ) : null}
+        {!host.connected && host.hostname ? (
+          <div className="space-y-2 text-sm">
+            <p>Turn on your host to reconnect. If it is already running, check its connection:</p>
+            <pre className="bg-muted overflow-x-auto rounded-md p-3 text-xs">
+              sudo /usr/local/lib/agentz/agentz daemon doctor
+            </pre>
+          </div>
+        ) : null}
+        <Button
+          type="button"
+          variant="destructive"
+          disabled={pending}
+          onClick={async () => {
+            setPending(true)
+            try {
+              const result = await disconnectComputeAction(workspaceId, agent.name)
+              if (result.error) setError(result.error.message)
+              else {
+                setEnrollment(undefined)
+              }
+            } catch {
+              setError("Could not disconnect the host")
+            } finally {
+              setPending(false)
+            }
+          }}
+        >
+          Disconnect host
+        </Button>
+        <p className="text-muted-foreground text-xs">
+          Before enrolling this host again, run{" "}
+          <code>sudo /usr/local/lib/agentz/agentz daemon unenroll</code> on it. Your work files are
+          preserved.
+        </p>
+        {error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+      </div>
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button type="button" variant="outline">
+            Done
+          </Button>
+        </DialogClose>
+      </DialogFooter>
+    </>
   )
 }

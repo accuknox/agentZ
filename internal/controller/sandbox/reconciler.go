@@ -59,6 +59,8 @@ import (
 
 // Reconciler reconciles Sandbox lifecycle protection and MCP runtime.
 type Reconciler struct {
+	GatewayServiceAccountName      string
+	GatewayServiceAccountNamespace string
 	client.Client
 	Scheme       *runtime.Scheme
 	AgentGateway agentgatewayclientset.Interface
@@ -1237,6 +1239,38 @@ func (r *Reconciler) reconcileGatewayNetworkPolicy(ctx context.Context, namespac
 				}
 				for j := range agents {
 					agt := &agents[j]
+					source := ciliumapi.NewESFromLabels(
+						ciliumlabels.NewLabel(
+							"io.kubernetes.pod.namespace",
+							agt.Namespace,
+							ciliumlabels.LabelSourceK8s,
+						),
+						ciliumlabels.NewLabel(
+							"app.kubernetes.io/name",
+							"agentz-agent",
+							ciliumlabels.LabelSourceK8s,
+						),
+						ciliumlabels.NewLabel(
+							"app.kubernetes.io/instance",
+							agt.Name,
+							ciliumlabels.LabelSourceK8s,
+						),
+						ciliumlabels.NewLabel(
+							"agentz.accuknox.com/agent",
+							agt.Name,
+							ciliumlabels.LabelSourceK8s,
+						),
+					)
+					if agt.Spec.Execution == agentzv1alpha1.AgentExecutionNative {
+						if r.GatewayServiceAccountName == "" || r.GatewayServiceAccountNamespace == "" {
+							return fmt.Errorf("native compute requires the gateway service account identity")
+						}
+						source = ciliumapi.NewESFromLabels(
+							ciliumlabels.NewLabel("io.kubernetes.pod.namespace", r.GatewayServiceAccountNamespace, ciliumlabels.LabelSourceK8s),
+							ciliumlabels.NewLabel("io.cilium.k8s.policy.serviceaccount", r.GatewayServiceAccountName, ciliumlabels.LabelSourceK8s),
+						)
+					}
+
 					routePath := mcp.AgentRoutePath(
 						owners[i].Name,
 						agt.Namespace,
@@ -1248,28 +1282,7 @@ func (r *Reconciler) reconcileGatewayNetworkPolicy(ctx context.Context, namespac
 						ciliumapi.IngressRule{
 							IngressCommonRule: ciliumapi.IngressCommonRule{
 								FromEndpoints: []ciliumapi.EndpointSelector{
-									ciliumapi.NewESFromLabels(
-										ciliumlabels.NewLabel(
-											"io.kubernetes.pod.namespace",
-											agt.Namespace,
-											ciliumlabels.LabelSourceK8s,
-										),
-										ciliumlabels.NewLabel(
-											"app.kubernetes.io/name",
-											"agentz-agent",
-											ciliumlabels.LabelSourceK8s,
-										),
-										ciliumlabels.NewLabel(
-											"app.kubernetes.io/instance",
-											agt.Name,
-											ciliumlabels.LabelSourceK8s,
-										),
-										ciliumlabels.NewLabel(
-											"agentz.accuknox.com/agent",
-											agt.Name,
-											ciliumlabels.LabelSourceK8s,
-										),
-									),
+									source,
 								},
 							},
 							ToPorts: []ciliumapi.PortRule{{

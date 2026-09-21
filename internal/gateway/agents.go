@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -21,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/utils/ptr"
 
 	"github.com/accuknox/agentz/internal/agentquota"
 	"github.com/accuknox/agentz/internal/authorization"
@@ -438,7 +440,7 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	if tenant.Spec.AgentQuota != nil {
+	if agt.Spec.Execution != agentzv1alpha1.AgentExecutionNative && tenant.Spec.AgentQuota != nil {
 		agt.Spec.Resources = agentquota.Resources(tenant.Spec.AgentQuota.Defaults)
 		agents, err := agentquota.Agents(r.Context(), s.k8sClient, tenant.Name)
 		if err != nil {
@@ -549,8 +551,13 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		w,
 		http.StatusCreated,
 		gatewayapi.Agent{
-			Name:    row.AgentName,
-			Sandbox: req.Sandbox,
+			Execution:   ptr.To(gatewayapi.AgentExecution(cmp.Or(agt.Spec.Execution, agentzv1alpha1.AgentExecutionKubernetes))),
+			SecretProxy: agt.Spec.SecretProxy,
+			Connected:   ptr.To(agt.Status.Connected),
+			Hostname:    ptr.To(agt.Status.Hostname),
+			RuntimeRoot: ptr.To(agt.Status.RuntimeRoot),
+			Name:        row.AgentName,
+			Sandbox:     req.Sandbox,
 			Memory: gatewayapi.AgentMemoryConfig{
 				Enabled: agt.Spec.Memory.Enabled,
 			},
@@ -754,8 +761,13 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		w,
 		http.StatusOK,
 		gatewayapi.Agent{
-			Name:    row.AgentName,
-			Sandbox: resourceReferenceFromCRD(updated.Spec.SandboxRef),
+			Execution:   ptr.To(gatewayapi.AgentExecution(cmp.Or(updated.Spec.Execution, agentzv1alpha1.AgentExecutionKubernetes))),
+			SecretProxy: updated.Spec.SecretProxy,
+			Connected:   ptr.To(updated.Status.Connected),
+			Hostname:    ptr.To(updated.Status.Hostname),
+			RuntimeRoot: ptr.To(updated.Status.RuntimeRoot),
+			Name:        row.AgentName,
+			Sandbox:     resourceReferenceFromCRD(updated.Spec.SandboxRef),
 			Memory: gatewayapi.AgentMemoryConfig{
 				Enabled: updated.Spec.Memory.Enabled,
 			},
@@ -842,6 +854,11 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 		apiutil.WriteInternalError(w, r, fmt.Errorf("lock Agent owner: %w", err))
 		return
 	}
+	if err := s.revokeCompute(r.Context(), ns, agentName); err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+
 	err = s.resolver.client.AgentzV1alpha1().Agents(ns).Delete(
 		r.Context(),
 		row.AgentName,
@@ -2384,18 +2401,15 @@ func (s *Service) listAgentItems(ctx context.Context, q gatewaydb.GatewayListAge
 	agents := make(map[string]*agentzv1alpha1.Agent, len(rows))
 	userIDs := make([]string, 0, len(rows)*2)
 	for _, row := range rows {
-		resolved, resolveErr := s.resolver.resolveAgent(ctx, q.TenantNamespace, row.AgentName)
-		if resolveErr != nil && !errors.Is(resolveErr, errAgentNotFound) {
-			return nil, "", resolveErr
+		agt, err := s.resolver.agents.Agents(q.TenantNamespace).Get(row.AgentName)
+		if err != nil {
+			return nil, "", fmt.Errorf("get Agent %q: %w", row.AgentName, err)
 		}
-		if resolved == nil || resolved.Agent == nil {
-			return nil, "", fmt.Errorf("resolve agent %q: %w", row.AgentName, errAgentNotFound)
-		}
-		agents[row.AgentName] = resolved.Agent
+		agents[row.AgentName] = agt
 		userIDs = append(
 			userIDs,
-			resolved.Agent.Spec.CreatedByUserID,
-			resolved.Agent.Spec.LastModifiedByUserID,
+			agt.Spec.CreatedByUserID,
+			agt.Spec.LastModifiedByUserID,
 		)
 	}
 	actors, err := s.resourceActors(ctx, userIDs...)
@@ -2409,6 +2423,11 @@ func (s *Service) listAgentItems(ctx context.Context, q gatewaydb.GatewayListAge
 		items = append(
 			items,
 			gatewayapi.Agent{
+				Execution:    ptr.To(gatewayapi.AgentExecution(cmp.Or(agt.Spec.Execution, agentzv1alpha1.AgentExecutionKubernetes))),
+				SecretProxy:  agt.Spec.SecretProxy,
+				Connected:    ptr.To(agt.Status.Connected),
+				Hostname:     ptr.To(agt.Status.Hostname),
+				RuntimeRoot:  ptr.To(agt.Status.RuntimeRoot),
 				Name:         row.AgentName,
 				Sandbox:      resourceReferenceFromCRD(agt.Spec.SandboxRef),
 				Capabilities: caps[row.AgentName],
@@ -2566,6 +2585,11 @@ func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, name
 			},
 		},
 	}
+	if req.Execution != nil {
+		agt.Spec.Execution = agentzv1alpha1.AgentExecution(*req.Execution)
+	}
+	agt.Spec.SecretProxy = req.SecretProxy
+
 	if req.Skills != nil {
 		agt.Spec.Skills = resourceReferencesToCRD(*req.Skills)
 	}
@@ -2577,6 +2601,9 @@ func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, name
 }
 
 func updateAgentRequestHasChanges(req gatewayapi.UpdateAgentRequest) bool {
+	if req.SecretProxy != nil {
+		return true
+	}
 	if req.Env != nil {
 		return true
 	}
@@ -2596,6 +2623,9 @@ func updateAgentRequestHasChanges(req gatewayapi.UpdateAgentRequest) bool {
 }
 
 func applyUpdateAgentRequest(agt *agentzv1alpha1.Agent, req gatewayapi.UpdateAgentRequest) {
+	if req.SecretProxy != nil {
+		agt.Spec.SecretProxy = req.SecretProxy
+	}
 	if req.Env != nil {
 		agt.Spec.Env = envVarsFromMap(*req.Env)
 	}

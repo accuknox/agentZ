@@ -334,30 +334,33 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, env
 		},
 	)
 
-	bundleKey := r.Config.SinjectorCASecretBundleKey
-	volumes = append(
-		volumes,
-		corev1.Volume{
-			Name: sinjectorCAVolume,
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: r.Config.SinjectorCASecretName,
-					Items: []corev1.KeyToPath{{
-						Key:  bundleKey,
-						Path: "ca.crt",
-					}},
+	if agt.Spec.SecretProxy == nil || *agt.Spec.SecretProxy {
+		bundleKey := r.Config.SinjectorCASecretBundleKey
+		volumes = append(
+			volumes,
+			corev1.Volume{
+				Name: sinjectorCAVolume,
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: r.Config.SinjectorCASecretName,
+						Items: []corev1.KeyToPath{{
+							Key:  bundleKey,
+							Path: "ca.crt",
+						}},
+					},
 				},
 			},
-		},
-	)
-	volumeMounts = append(
-		volumeMounts,
-		corev1.VolumeMount{
-			Name:      sinjectorCAVolume,
-			MountPath: sinjectorCAMountPath,
-			ReadOnly:  true,
-		},
-	)
+		)
+		volumeMounts = append(
+			volumeMounts,
+			corev1.VolumeMount{
+				Name:      sinjectorCAVolume,
+				MountPath: sinjectorCAMountPath,
+				ReadOnly:  true,
+			},
+		)
+	}
+
 	volumes = append(
 		volumes,
 		corev1.Volume{
@@ -631,20 +634,24 @@ func (r *Reconciler) agentEnv(agt *agentzv1alpha1.Agent, envCfg sandboxConfig, m
 			},
 		)
 	}
-	noProxyValue := strings.Join(noProxy, ",")
-	forced = append(
-		forced,
-		corev1.EnvVar{Name: "https_proxy", Value: proxy},
-		corev1.EnvVar{Name: "HTTPS_PROXY", Value: proxy},
-		corev1.EnvVar{Name: "no_proxy", Value: noProxyValue},
-		corev1.EnvVar{Name: "NO_PROXY", Value: noProxyValue},
-		corev1.EnvVar{Name: "SSL_CERT_FILE", Value: r.Config.AgentCABundlePath},
-		corev1.EnvVar{Name: "REQUESTS_CA_BUNDLE", Value: r.Config.AgentCABundlePath},
-		corev1.EnvVar{Name: "CURL_CA_BUNDLE", Value: r.Config.AgentCABundlePath},
-		corev1.EnvVar{Name: "NODE_EXTRA_CA_CERTS", Value: r.Config.AgentCABundlePath},
+	if agt.Spec.SecretProxy == nil || *agt.Spec.SecretProxy {
+		noProxyValue := strings.Join(noProxy, ",")
+		forced = append(forced,
+			corev1.EnvVar{Name: "https_proxy", Value: proxy},
+			corev1.EnvVar{Name: "HTTPS_PROXY", Value: proxy},
+			corev1.EnvVar{Name: "no_proxy", Value: noProxyValue},
+			corev1.EnvVar{Name: "NO_PROXY", Value: noProxyValue},
+			corev1.EnvVar{Name: "SSL_CERT_FILE", Value: r.Config.AgentCABundlePath},
+			corev1.EnvVar{Name: "REQUESTS_CA_BUNDLE", Value: r.Config.AgentCABundlePath},
+			corev1.EnvVar{Name: "CURL_CA_BUNDLE", Value: r.Config.AgentCABundlePath},
+			corev1.EnvVar{Name: "NODE_EXTRA_CA_CERTS", Value: r.Config.AgentCABundlePath},
+		)
+	}
+	forced = append(forced,
 		corev1.EnvVar{Name: "OPENCODE_DISABLE_SHARE", Value: "1"},
 		corev1.EnvVar{Name: "AGENTZ_IMMUTABLE_SKILLS_PATH", Value: opencodeImmutableSkillsPath},
 	)
+
 	var telemetryURL string
 	if telemetryEndpoint != "" {
 		telemetryURL = "http://" + telemetryEndpoint

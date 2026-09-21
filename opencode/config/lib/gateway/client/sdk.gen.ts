@@ -23,6 +23,9 @@ import type {
   CreateCodingProjectData,
   CreateCodingProjectErrors,
   CreateCodingProjectResponses,
+  CreateComputeEnrollmentData,
+  CreateComputeEnrollmentErrors,
+  CreateComputeEnrollmentResponses,
   CreateDashboardData,
   CreateDashboardErrors,
   CreateDashboardResponses,
@@ -329,6 +332,9 @@ import type {
   ReadAgentFileRawErrors,
   ReadAgentFileRawResponses,
   ReadAgentFileResponses,
+  RedeemComputeEnrollmentData,
+  RedeemComputeEnrollmentErrors,
+  RedeemComputeEnrollmentResponses,
   RefreshCodingRepositoryData,
   RefreshCodingRepositoryErrors,
   RefreshCodingRepositoryResponses,
@@ -350,6 +356,9 @@ import type {
   RetryWorkspaceData,
   RetryWorkspaceErrors,
   RetryWorkspaceResponses,
+  RevokeComputeHostData,
+  RevokeComputeHostErrors,
+  RevokeComputeHostResponses,
   RunCodingGitData,
   RunCodingGitErrors,
   RunCodingGitResponses,
@@ -458,6 +467,48 @@ export type Options<
    */
   meta?: Record<string, unknown>
 }
+
+export const revokeComputeHost = <ThrowOnError extends boolean = false>(
+  options: Options<RevokeComputeHostData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<
+    RevokeComputeHostResponses,
+    RevokeComputeHostErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/compute",
+    ...options,
+  })
+
+export const createComputeEnrollment = <ThrowOnError extends boolean = false>(
+  options: Options<CreateComputeEnrollmentData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    CreateComputeEnrollmentResponses,
+    CreateComputeEnrollmentErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/compute",
+    ...options,
+  })
+
+export const redeemComputeEnrollment = <ThrowOnError extends boolean = false>(
+  options: Options<RedeemComputeEnrollmentData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    RedeemComputeEnrollmentResponses,
+    RedeemComputeEnrollmentErrors,
+    ThrowOnError
+  >({
+    url: "/api/compute/enroll",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
 
 export const listCodingProjects = <ThrowOnError extends boolean = false>(
   options?: Options<ListCodingProjectsData, ThrowOnError>

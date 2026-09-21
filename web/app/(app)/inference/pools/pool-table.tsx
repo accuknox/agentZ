@@ -507,7 +507,7 @@ function PoolViewSheet({
           <div className="flex flex-1 items-center justify-center">
             <Spinner />
           </div>
-        ) : query.error instanceof Error ? (
+        ) : query.isError ? (
           <Alert className="px-4" variant="destructive">
             <CircleAlert aria-hidden="true" />
             <AlertTitle>Pool could not be loaded</AlertTitle>

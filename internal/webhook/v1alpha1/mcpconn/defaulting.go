@@ -54,9 +54,6 @@ func ApplyDefaults(spec *agentzv1alpha1.MCPConnectionSpec) {
 		spec.Endpoint.URL = parsed.String()
 	}
 
-	if spec.Auth == nil {
-		return
-	}
 }
 
 // Default applies defaults to an MCPConnection resource.

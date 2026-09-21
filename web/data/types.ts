@@ -280,6 +280,7 @@ export type SpanDetailActionResponse =
     }
 
 export type CreateAgentFormState = {
+  agent?: Agent
   error?: Error
   success?: boolean
 }

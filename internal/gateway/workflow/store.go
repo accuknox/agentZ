@@ -188,7 +188,15 @@ func Create(ctx context.Context, pool *pgxpool.Pool, tenantNamespace string, agt
 
 // DeleteMany removes multiple workflows for one agent.
 func DeleteMany(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlclient.Client, tenantNamespace string, agtName string, wfNames []string) ([]string, error) {
-	names := uniqueNames(wfNames)
+	seen := make(map[string]struct{}, len(wfNames))
+	names := make([]string, 0, len(wfNames))
+	for _, name := range wfNames {
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		names = append(names, name)
+	}
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin tx: %w", err)
@@ -545,19 +553,4 @@ func decodeInputContract(raw []byte) (*gatewayapi.WorkflowInputs, *gatewayapi.Wo
 		return nil, nil, fmt.Errorf("unmarshal workflow input contract: %w", err)
 	}
 	return decoded.Inputs, decoded.ArbitraryJSON, nil
-}
-
-func uniqueNames(names []string) []string {
-	seen := map[string]struct{}{}
-	out := make([]string, 0, len(names))
-
-	for _, name := range names {
-		if _, ok := seen[name]; ok {
-			continue
-		}
-		seen[name] = struct{}{}
-		out = append(out, name)
-	}
-
-	return out
 }

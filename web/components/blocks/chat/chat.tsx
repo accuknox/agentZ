@@ -698,6 +698,7 @@ function ChatInner({
   const modelCatalog = useQuery(
     queryOptions({
       queryKey: ["opencode", "modelCatalog", workspaceId, agentName],
+      enabled: !agentReadiness.isGettingReady,
       queryFn: async () => {
         const client = await createAgentOpencodeClient(agentName, workspaceId)
         const [providersResult, configResult, agentsResult] = await Promise.all([
@@ -1600,7 +1601,7 @@ function ChatInner({
                             disabled={inputDisabled}
                           >
                             {agentReadiness.isGettingReady ? (
-                              <AgentGettingReady />
+                              <AgentGettingReady offline={agentReadiness.isOffline} />
                             ) : (
                               <BrainIcon className="text-muted-foreground size-4" />
                             )}

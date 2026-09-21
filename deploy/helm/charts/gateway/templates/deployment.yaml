@@ -45,7 +45,11 @@ spec:
       priorityClassName: {{ . }}
       {{- end }}
       securityContext:
+        {{- if .Values.compute.enabled }}
+        {{- toYaml (mergeOverwrite (deepCopy .Values.podSecurityContext) (dict "fsGroup" 65532)) | nindent 8 }}
+        {{- else }}
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+        {{- end }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -80,6 +84,13 @@ spec:
           args:
             - gateway
             - serve
+            {{- if .Values.compute.enabled }}
+            - --compute-addr=0.0.0.0:{{ .Values.compute.port }}
+            - --compute-spire-socket=/run/spire/api.sock
+            - --compute-trust-domain={{ .Values.compute.trustDomain }}
+            - --compute-public-address={{ required "compute.publicAddress is required" .Values.compute.publicAddress }}
+            - --compute-spire-public-address={{ required "compute.spirePublicAddress is required" .Values.compute.spirePublicAddress }}
+            {{- end }}
             - --log-level={{ .Values.config.logLevel }}
             - --log-format={{ .Values.config.logFormat }}
             - "--addr=0.0.0.0:{{ .Values.service.port }}"
@@ -117,6 +128,11 @@ spec:
             - {{ . | quote }}
             {{- end }}
           ports:
+            {{- if .Values.compute.enabled }}
+            - name: compute
+              containerPort: {{ .Values.compute.port }}
+              protocol: TCP
+            {{- end }}
             - name: http
               containerPort: {{ .Values.service.port }}
               protocol: TCP
@@ -167,7 +183,53 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            {{- if .Values.compute.enabled }}
+            - name: spire-socket
+              mountPath: /run/spire
+            {{- end }}
+        {{- if .Values.compute.enabled }}
+        - name: spire-server
+          image: {{ .Values.compute.spire.image | quote }}
+          args: ["-config", "/etc/spire/server.conf"]
+          ports:
+            - name: spire
+              containerPort: 8081
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: spire-data
+              mountPath: /var/lib/spire
+            - name: spire-socket
+              mountPath: /run/spire
+            - name: spire-config
+              mountPath: /etc/spire/server.conf
+              subPath: server.conf
+              readOnly: true
+            - name: spire-upstream
+              mountPath: /etc/spire/upstream
+              readOnly: true
+        {{- end }}
       volumes:
+        {{- if .Values.compute.enabled }}
+        - name: spire-data
+          persistentVolumeClaim:
+            claimName: {{ include "gateway.fullname" . }}-spire
+        - name: spire-socket
+          emptyDir: {}
+        - name: spire-config
+          configMap:
+            name: {{ include "gateway.fullname" . }}-spire
+        - name: spire-upstream
+          secret:
+            secretName: {{ required "compute.spire.upstreamSecret must name a stable upstream CA Secret" .Values.compute.spire.upstreamSecret }}
+            defaultMode: 0440
+        {{- end }}
         - name: tmp
           emptyDir: {}
       {{- with .Values.nodeSelector }}

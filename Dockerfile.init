@@ -50,7 +50,7 @@ ENV PATH="/root/.nix-profile/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/b
 ENV NIX_PROFILES="/nix/var/nix/profiles/default /root/.nix-profile"
 ENV NIX_SSL_CERT_FILE="/etc/ssl/certs/ca-certificates.crt"
 
-COPY hack/nix-init.sh /usr/local/bin/nix-init.sh
+COPY hack/nix-init.sh hack/nix-packages.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/nix-init.sh
 
 ENTRYPOINT ["/usr/local/bin/nix-init.sh"]

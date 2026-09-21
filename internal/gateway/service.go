@@ -36,6 +36,7 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	"github.com/accuknox/agentz/internal/compute"
 	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	dashboarddb "github.com/accuknox/agentz/internal/gateway/dashboard/db"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
@@ -45,6 +46,7 @@ import (
 	"github.com/accuknox/agentz/internal/skill"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 	agentzclient "github.com/accuknox/agentz/pkg/controller/clientset/versioned"
+	tracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 )
 
 // DefaultListenAddr is the default gateway listen address.
@@ -75,6 +77,13 @@ const cleanupMaxAttempts = 8
 
 // Config describes how to start the gateway.
 type Config struct {
+	ComputeAddr               string
+	ComputeSPIRESocket        string
+	ComputeTrustDomain        string
+	ComputePublicAddress      string
+	ComputeSPIREPublicAddress string
+	ComputeCASecretName       string
+	ComputeCASecretKey        string
 	CodingGitHubClientID      string
 	CodingGitHubClientSecret  string
 	CodingGitHubEncryptionKey string
@@ -100,6 +109,10 @@ type Config struct {
 
 // Service implements the agent gateway HTTP API.
 type Service struct {
+	computeClient   ctrlclient.Client
+	computeIdentity *compute.IdentityAdmin
+	computeServer   *compute.Server
+	computeTrace    tracev1.TraceServiceClient
 	gatewayapi.Unimplemented
 	ctx                context.Context
 	resolver           *resolver
@@ -241,15 +254,20 @@ func Serve(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return fmt.Errorf("create k8s client: %w", err)
 	}
+	usageObjects := map[ctrlclient.Object]ctrlcache.ByObject{
+		&agentzv1alpha1.Sandbox{}: {}, &agentzv1alpha1.InferencePool{}: {},
+	}
+	if cfg.ComputeAddr != "" {
+		for _, object := range []ctrlclient.Object{&corev1.Namespace{}, &agentzv1alpha1.InferenceProvider{}, &agentzv1alpha1.Workspace{}, &agentzv1alpha1.Tenant{}, &agentzv1alpha1.Skill{}, &agentzv1alpha1.MCPConnection{}} {
+			usageObjects[object] = ctrlcache.ByObject{}
+		}
+	}
 	usageCache, err := ctrlcache.New(
 		kubeCfg,
 		ctrlcache.Options{
 			Scheme:                      scheme,
 			ReaderFailOnMissingInformer: true,
-			ByObject: map[ctrlclient.Object]ctrlcache.ByObject{
-				&agentzv1alpha1.Sandbox{}:       {},
-				&agentzv1alpha1.InferencePool{}: {},
-			},
+			ByObject:                    usageObjects,
 		},
 	)
 	if err != nil {
@@ -260,6 +278,11 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 	if err := inference.IndexPools(ctx, usageCache); err != nil {
 		return fmt.Errorf("index inference pool references: %w", err)
+	}
+	for object := range usageObjects {
+		if _, err := usageCache.GetInformer(ctx, object); err != nil {
+			return fmt.Errorf("register runtime cache for %T: %w", object, err)
+		}
 	}
 	runCtx, stopRun := context.WithCancel(ctx)
 	defer stopRun()
@@ -357,6 +380,15 @@ func Serve(ctx context.Context, cfg Config) error {
 		openAPI:            openAPISpec,
 		outboundHTTP:       &http.Client{Timeout: 10 * time.Second},
 	}
+	svc.computeClient, err = ctrlclient.New(kubeCfg, ctrlclient.Options{Scheme: scheme, Cache: &ctrlclient.CacheOptions{Reader: usageCache}})
+	if err != nil {
+		return err
+	}
+	stopCompute, err := svc.startCompute(runCtx)
+	if err != nil {
+		return err
+	}
+	defer stopCompute()
 	if err := svc.recoverWorkspaceProvisioning(ctx); err != nil {
 		return err
 	}
@@ -800,6 +832,7 @@ func (s *Service) routes() http.Handler {
 		s.handleOpenCodeProxy,
 	)
 
+	r.Post("/api/compute/enroll", s.RedeemComputeEnrollment)
 	apiRouter := chi.NewRouter()
 	apiRouter.Use(nethttpmiddleware.OapiRequestValidatorWithOptions(
 		s.openAPI,

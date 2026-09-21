@@ -2,6 +2,7 @@ import * as z from "zod"
 import ipaddr from "ipaddr.js"
 import {
   zAgentName,
+  zAgentExecution,
   zMcpConnectionName,
   zResourceReference,
   zResourceScope,
@@ -342,6 +343,8 @@ export const sandboxAllowedHostSchema = z
   .transform(parseSandboxHost)
 
 export const createAgentSimpleFormSchema = z.object({
+  execution: zAgentExecution,
+  secretProxy: z.boolean(),
   name: agentNameInputSchema,
   sandboxScope: zResourceScope,
   sandboxName: sandboxNameSchema,

@@ -1,0 +1,9 @@
+# Idempotent table replacement is committed in one nftables transaction.
+table inet agentz_sensor
+delete table inet agentz_sensor
+table inet agentz_sensor {
+  chain input {
+    type filter hook input priority -10; policy accept;
+    iifname != "lo" tcp dport { 32766, 32767 } drop
+  }
+}

@@ -1,13 +1,43 @@
 version: 2
 project_name: agentz
+before:
+  hooks:
+  - sh -c 'git rev-parse HEAD > deploy/native/source-revision'
 builds:
-- skip: true
+- id: agentz
+  main: ./cmd/agentz
+  binary: agentz
+  env:
+  - CGO_ENABLED=0
+  goos:
+  - linux
+  goarch:
+  - amd64
+  - arm64
+  flags:
+  - -trimpath
+  ldflags:
+  - -s -w
+archives:
+- formats: [tar.gz]
+  name_template: 'agentz_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+  files:
+  - LICENSE
+  - src: deploy/native/*
+    dst: native
+    strip_parent: true
+  - src: hack/nix-packages.sh
+    dst: native
+    strip_parent: true
 checksum:
-  disable: true
+  name_template: checksums.txt
 changelog:
   use: github-native
 release:
   header: |-
+    Native Linux daemon archives are available for amd64 and arm64.
+    Verify their GitHub build attestations before installation.
+
     Container images for linux/amd64 and linux/arm64:
 
     - `public.ecr.aws/k9v9d5v2/agentz:{{ .Tag }}`

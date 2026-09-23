@@ -51,7 +51,6 @@ import { codingDrafts } from "@/components/blocks/coding/drafts"
 import { deleteAgentSessionAction } from "@/data/opencode.actions"
 import type { DeleteSessionFormState, ListAgentActionResponse, WorkspacePath } from "@/data/types"
 import { agentIsGettingReady, watchAgentsQueryOptions } from "@/components/agent-readiness"
-import { AgentWorkingIndicator } from "@/components/agent-working-indicator"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
@@ -1404,6 +1403,8 @@ function SessionListSkeleton({
 }
 
 function SessionCardSkeleton({ showAgent, coding }: { showAgent: boolean; coding: boolean }) {
+  const groupedByAgent = !coding && !showAgent
+
   return (
     <li aria-hidden="true" className="list-none rounded-md py-0.5">
       <div
@@ -1412,37 +1413,44 @@ function SessionCardSkeleton({ showAgent, coding }: { showAgent: boolean; coding
           coding ? "h-20" : "h-16"
         )}
       >
-        <div className="flex h-5 min-w-0 items-center gap-1.5">
-          {showAgent || coding ? (
-            <>
+        {groupedByAgent ? (
+          <div className="grid h-full min-w-0 grid-cols-[minmax(0,1fr)_max-content] grid-rows-[1.25rem_1.5rem] gap-x-2 gap-y-1">
+            <div className="row-span-2 min-w-0 space-y-1">
+              <Skeleton className="bg-sidebar-border h-4 w-full" />
+              <Skeleton className="bg-sidebar-border h-4 w-2/3" />
+            </div>
+            <Skeleton className="bg-sidebar-border h-3 w-8 self-center justify-self-end" />
+            <Skeleton className="bg-sidebar-border ring-sidebar size-6 rounded-full ring-2" />
+          </div>
+        ) : (
+          <>
+            <div className="flex h-5 min-w-0 items-center gap-1.5">
               <Skeleton className="bg-sidebar-border size-3.5 shrink-0 rounded-sm" />
               <div className="min-w-0 flex-1">
                 <Skeleton className="bg-sidebar-border h-3 w-20" />
               </div>
-            </>
-          ) : (
-            <span className="min-w-0 flex-1" />
-          )}
-          <Skeleton className="bg-sidebar-border h-3 w-8 shrink-0" />
-        </div>
-        <div className={cn("mt-1 flex min-w-0 items-center gap-2", coding ? "h-5" : "h-6")}>
-          <div className="min-w-0 flex-1">
-            <Skeleton className="bg-sidebar-border h-4 w-3/4" />
-          </div>
-          {!coding ? (
-            <div className="flex shrink-0 -space-x-[7px]">
-              <Skeleton className="bg-sidebar-border ring-sidebar size-6 rounded-full ring-2" />
+              <Skeleton className="bg-sidebar-border h-3 w-8 shrink-0" />
             </div>
-          ) : null}
-        </div>
-        {coding ? (
-          <div className="flex h-5 min-w-0 items-center gap-2">
-            <div className="min-w-0 flex-1">
-              <Skeleton className="bg-sidebar-border h-3 w-2/3" />
+            <div className={cn("mt-1 flex min-w-0 items-center gap-2", coding ? "h-5" : "h-6")}>
+              <div className="min-w-0 flex-1">
+                <Skeleton className="bg-sidebar-border h-4 w-3/4" />
+              </div>
+              {!coding ? (
+                <div className="flex shrink-0 -space-x-[7px]">
+                  <Skeleton className="bg-sidebar-border ring-sidebar size-6 rounded-full ring-2" />
+                </div>
+              ) : null}
             </div>
-            <Skeleton className="bg-sidebar-border h-3 w-[7ch] shrink-0" />
-          </div>
-        ) : null}
+            {coding ? (
+              <div className="flex h-5 min-w-0 items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <Skeleton className="bg-sidebar-border h-3 w-2/3" />
+                </div>
+                <Skeleton className="bg-sidebar-border h-3 w-[7ch] shrink-0" />
+              </div>
+            ) : null}
+          </>
+        )}
       </div>
     </li>
   )
@@ -1577,9 +1585,37 @@ function SessionCard({
   )
 
   const { setOpenMobile } = useSidebar()
-  const participants = session.participants.slice(0, 3)
-  const overflow = session.participants.length - participants.length
   const active = path === href
+  const groupedByAgent = !coding && !showAgent
+  const status =
+    session.status === "idle" ? (
+      formatShortAge(new Date(session.updated_at).getTime())
+    ) : (
+      <span className="text-info flex items-center gap-1 font-medium" role="status">
+        <LoaderCircle aria-hidden="true" className="size-3 motion-safe:animate-spin" />
+        Working
+      </span>
+    )
+  const avatars =
+    !coding && session.participants.length > 0 ? (
+      <div className="flex shrink-0 -space-x-[7px]">
+        {session.participants.slice(0, 3).map((participant) => (
+          <UserAvatar
+            email={participant.email}
+            id={participant.id}
+            image={participant.image}
+            key={participant.id}
+            name={participant.name}
+            size="sm"
+          />
+        ))}
+        {session.participants.length > 3 ? (
+          <span className="bg-sidebar-control-surface text-sidebar-muted-foreground ring-sidebar grid size-6 place-items-center rounded-full text-[10px] ring-2">
+            +{session.participants.length - 3}
+          </span>
+        ) : null}
+      </div>
+    ) : null
 
   useEffect(() => {
     const title = titleRef.current
@@ -1591,16 +1627,15 @@ function SessionCard({
     observer.observe(title)
 
     return () => observer.disconnect()
-  }, [session.title])
+  }, [groupedByAgent, session.title])
 
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <li
           className={cn(
-            "group/session text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-within:bg-sidebar-accent focus-within:text-sidebar-accent-foreground data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground relative list-none rounded-md py-0.5 transition-colors",
-            active && "bg-sidebar-accent text-sidebar-accent-foreground",
-            coding && "rounded-lg"
+            "group/session text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-within:bg-sidebar-accent focus-within:text-sidebar-accent-foreground data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground relative list-none rounded-lg py-0.5 transition-colors",
+            active && "bg-sidebar-accent text-sidebar-accent-foreground"
           )}
         >
           <Link
@@ -1616,85 +1651,65 @@ function SessionCard({
               coding ? "h-20" : "h-16"
             )}
           >
-            <div className="flex h-5 min-w-0 items-center gap-1.5 text-xs">
-              {showAgent || coding ? (
-                <>
+            {groupedByAgent ? (
+              <div className="grid h-full min-w-0 grid-cols-[minmax(0,1fr)_max-content] grid-rows-[1.25rem_1.5rem] gap-x-2 gap-y-1">
+                <h3
+                  className={cn(
+                    "text-sidebar-foreground/80 row-span-2 min-w-0 overflow-hidden text-sm leading-5 font-semibold",
+                    active && "text-sidebar-foreground"
+                  )}
+                >
+                  <span className="line-clamp-2">{session.title}</span>
+                </h3>
+                <div className="text-sidebar-muted-foreground self-center justify-self-end text-xs tabular-nums">
+                  {status}
+                </div>
+                <div className="self-center justify-self-end">{avatars}</div>
+              </div>
+            ) : (
+              <>
+                <div className="flex h-5 min-w-0 items-center gap-1.5 text-xs">
                   <Bot aria-hidden="true" className="text-primary size-3.5 shrink-0" />
-                  <span
-                    className={cn(
-                      "text-sidebar-muted-foreground min-w-0 flex-1 truncate font-medium",
-                      coding && "font-semibold"
-                    )}
-                  >
+                  <span className="text-sidebar-muted-foreground min-w-0 flex-1 truncate font-semibold">
                     {session.agent_name}
                   </span>
-                </>
-              ) : (
-                <span className="min-w-0 flex-1" />
-              )}
-              <div className="text-sidebar-muted-foreground shrink-0 tabular-nums">
-                {session.status === "idle" ? (
-                  formatShortAge(new Date(session.updated_at).getTime())
-                ) : coding ? (
-                  <span className="text-info flex items-center gap-1 font-medium" role="status">
-                    <LoaderCircle aria-hidden="true" className="size-3 motion-safe:animate-spin" />
-                    Working
-                  </span>
-                ) : (
-                  <AgentWorkingIndicator className="gap-0 [&>span:last-child]:sr-only" isWorking />
-                )}
-              </div>
-            </div>
-            <div className={cn("mt-1 flex min-w-0 items-center gap-2", coding ? "h-5" : "h-6")}>
-              <h3
-                className={cn(
-                  "relative min-w-0 flex-1 overflow-hidden text-sm leading-5 font-medium",
-                  coding && "text-sidebar-foreground/80 font-semibold",
-                  coding && active && "text-sidebar-foreground"
-                )}
-              >
-                <span
-                  className={cn(
-                    "block truncate",
-                    titleOverflows && "motion-safe:group-hover/session:invisible"
-                  )}
-                  ref={titleRef}
-                >
-                  {session.title}
-                </span>
-                {titleOverflows ? (
-                  <span
-                    aria-hidden="true"
-                    className="absolute inset-y-0 left-0 hidden w-max items-center motion-safe:group-hover/session:flex"
-                  >
-                    <span className="animate-session-title-marquee flex w-max items-center gap-8 whitespace-nowrap">
-                      <span>{session.title}</span>
-                      <span>{session.title}</span>
-                    </span>
-                  </span>
-                ) : null}
-              </h3>
-              {!coding && session.participants.length > 0 ? (
-                <div className="flex shrink-0 -space-x-[7px]">
-                  {participants.map((participant) => (
-                    <UserAvatar
-                      email={participant.email}
-                      id={participant.id}
-                      image={participant.image}
-                      key={participant.id}
-                      name={participant.name}
-                      size="sm"
-                    />
-                  ))}
-                  {overflow > 0 ? (
-                    <span className="bg-sidebar-control-surface text-sidebar-muted-foreground ring-sidebar grid size-6 place-items-center rounded-full text-[10px] ring-2">
-                      +{overflow}
-                    </span>
-                  ) : null}
+                  <div className="text-sidebar-muted-foreground shrink-0 tabular-nums">
+                    {status}
+                  </div>
                 </div>
-              ) : null}
-            </div>
-            {coding ? <SessionCheckout session={session} workspaceId={workspaceId} /> : null}
+                <div className={cn("mt-1 flex min-w-0 items-center gap-2", coding ? "h-5" : "h-6")}>
+                  <h3
+                    className={cn(
+                      "text-sidebar-foreground/80 relative min-w-0 flex-1 overflow-hidden text-sm leading-5 font-semibold",
+                      active && "text-sidebar-foreground"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "block truncate",
+                        titleOverflows && "motion-safe:group-hover/session:invisible"
+                      )}
+                      ref={titleRef}
+                    >
+                      {session.title}
+                    </span>
+                    {titleOverflows ? (
+                      <span
+                        aria-hidden="true"
+                        className="absolute inset-y-0 left-0 hidden w-max items-center motion-safe:group-hover/session:flex"
+                      >
+                        <span className="animate-session-title-marquee flex w-max items-center gap-8 whitespace-nowrap">
+                          <span>{session.title}</span>
+                          <span>{session.title}</span>
+                        </span>
+                      </span>
+                    ) : null}
+                  </h3>
+                  {avatars}
+                </div>
+                {coding ? <SessionCheckout session={session} workspaceId={workspaceId} /> : null}
+              </>
+            )}
           </div>
         </li>
       </ContextMenuTrigger>

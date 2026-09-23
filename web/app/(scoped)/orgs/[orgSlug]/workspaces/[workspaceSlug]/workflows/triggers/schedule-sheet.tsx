@@ -71,7 +71,6 @@ import {
   buildWorkflowScheduleFormSchema,
   type CreateWorkflowScheduleFormValues,
   type WorkflowInputContract,
-  type WorkflowScheduleInputValue,
   workflowInputDefaultValues,
   workflowScheduleInputsSchema,
 } from "@/data/workflow-schedule.schema"
@@ -779,6 +778,8 @@ function WorkflowInputField({
   const enumValues = input.enum
 
   if (enumValues && enumValues.length > 0) {
+    const unsetValue = input.required ? "" : "__empty__"
+
     return (
       <Controller
         name={`inputs.${name}` as const}
@@ -802,7 +803,7 @@ function WorkflowInputField({
                 ) : null}
               </div>
               <Select
-                value={field.value === undefined ? "__empty__" : JSON.stringify(field.value)}
+                value={field.value === undefined ? unsetValue : JSON.stringify(field.value)}
                 onValueChange={(value) => {
                   field.onChange(
                     value === "__empty__"
@@ -813,7 +814,7 @@ function WorkflowInputField({
               >
                 <SelectTrigger
                   id={`input-${name}`}
-                  className="w-full border-0 shadow-none focus-visible:ring-0"
+                  className="w-full"
                   aria-invalid={fieldState.invalid}
                   aria-required={input.required}
                 >
@@ -919,7 +920,7 @@ function WorkflowInputField({
                 step={inputType === "number" ? step : undefined}
                 min={input.minimum ?? input.exclusiveMinimum}
                 max={input.maximum ?? input.exclusiveMaximum}
-                value={workflowInputFormValue(field.value)}
+                value={field.value === undefined ? "" : field.value.toString()}
                 onBlur={field.onBlur}
                 onChange={(event) => {
                   if (input.type === "integer" || input.type === "number") {
@@ -957,10 +958,6 @@ function scheduleValuesFromItem(item: WorkflowSchedule): CreateWorkflowScheduleF
     inputs,
     arbitrary_json: jsonText(item.inputs),
   }
-}
-
-function workflowInputFormValue(value: WorkflowScheduleInputValue) {
-  return value === undefined ? "" : value.toString()
 }
 
 function mergeWorkflowInputValues(

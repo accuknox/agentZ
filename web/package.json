@@ -62,7 +62,7 @@
     "cmdk": "^1.1.1",
     "codemirror": "^6.0.2",
     "cron-validate": "^1.5.3",
-    "dayjs": "^1.11.21",
+    "dayjs": "1.11.21",
     "docx-preview": "0.3.6",
     "dotenv": "^17.4.2",
     "driver.js": "^1.8.0",
@@ -135,5 +135,8 @@
     "qs": "6.15.3",
     "sharp": "0.35.4",
     "undici": "7.29.0"
+  },
+  "patchedDependencies": {
+    "dayjs@1.11.21": "patches/dayjs@1.11.21.patch"
   }
 }

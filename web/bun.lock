@@ -52,7 +52,7 @@
         "cmdk": "^1.1.1",
         "codemirror": "^6.0.2",
         "cron-validate": "^1.5.3",
-        "dayjs": "^1.11.21",
+        "dayjs": "1.11.21",
         "docx-preview": "0.3.6",
         "dotenv": "^17.4.2",
         "driver.js": "^1.8.0",
@@ -109,6 +109,9 @@
     "sharp",
     "unrs-resolver",
   ],
+  "patchedDependencies": {
+    "dayjs@1.11.21": "patches/dayjs@1.11.21.patch",
+  },
   "overrides": {
     "@hono/node-server": "2.0.10",
     "dompurify": "3.4.13",

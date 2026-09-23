@@ -4,7 +4,14 @@ import * as React from "react"
 import { toast } from "sonner"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm, useWatch, type Control, type Resolver } from "react-hook-form"
-import { CalendarCheck, ListFilter, MinusCircle, Workflow, CircleAlert } from "lucide-react"
+import {
+  CalendarCheck,
+  ChevronsUpDown,
+  CircleAlert,
+  ListFilter,
+  MinusCircle,
+  Workflow,
+} from "lucide-react"
 import * as z from "zod"
 import type {
   JsonValue,
@@ -17,6 +24,14 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import {
   Field,
   FieldDescription,
   FieldError,
@@ -26,6 +41,7 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { InputGroup, InputGroupInput } from "@/components/ui/input-group"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
@@ -62,6 +78,7 @@ import {
 
 const historyLimitDefault = 3
 const timeoutSecondsDefault = 3600
+const timeZones = dayjs.tz.names()
 const scheduleServerFieldSchema = z.enum([
   "name",
   "workflow_name",
@@ -141,6 +158,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
   })
   const [schemaError, setSchemaError] = React.useState<string>()
   const [schemaPending, startSchemaTransition] = React.useTransition()
+  const [timeZoneOpen, setTimeZoneOpen] = React.useState(false)
   const schemaRequestRef = React.useRef(0)
   const formSchema = React.useMemo(
     () => buildWorkflowScheduleFormSchema(workflowInputContract),
@@ -156,7 +174,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
       return {
         ...createDefaults,
         workflow_name: firstWorkflowName,
-        time_zone: dayjs.tz.guess() || "UTC",
+        time_zone: dayjs.tz.guess(),
       }
     }
 
@@ -330,6 +348,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
     }
 
     const values = form.getValues()
+    formData.set("time_zone", values.time_zone)
     if (workflowInputContract.arbitrary_json) {
       formData.set("arbitrary_json", values.arbitrary_json)
       React.startTransition(() => {
@@ -354,6 +373,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
     if (!nextOpen) {
       schemaRequestRef.current += 1
       setSchemaError(undefined)
+      setTimeZoneOpen(false)
       setWorkflowInputContract({ inputs: {} })
     }
     onOpenChangeAction(nextOpen)
@@ -483,7 +503,69 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
                 </Field>
               )}
             />
-            <input type="hidden" {...form.register("time_zone")} />
+            <Controller
+              name="time_zone"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="schedule-time-zone" required>
+                    Time zone
+                  </FieldLabel>
+                  <Popover
+                    open={timeZoneOpen}
+                    onOpenChange={(nextOpen) => {
+                      setTimeZoneOpen(nextOpen)
+                      if (!nextOpen) {
+                        field.onBlur()
+                      }
+                    }}
+                  >
+                    <PopoverTrigger asChild>
+                      <Button
+                        id="schedule-time-zone"
+                        ref={field.ref}
+                        type="button"
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={timeZoneOpen}
+                        aria-invalid={fieldState.invalid}
+                        aria-required="true"
+                        disabled={isPending || schemaPending}
+                        className="w-full justify-between font-normal"
+                      >
+                        <span className="truncate">{field.value}</span>
+                        <ChevronsUpDown className="text-muted-foreground size-4 shrink-0" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-(--radix-popover-trigger-width) p-0">
+                      <Command>
+                        <CommandInput placeholder="Search time zones..." />
+                        <CommandList>
+                          <CommandEmpty>No time zone found.</CommandEmpty>
+                          <CommandGroup>
+                            {timeZones.map((timeZone) => (
+                              <CommandItem
+                                key={timeZone}
+                                value={timeZone}
+                                data-checked={field.value === timeZone}
+                                onSelect={() => {
+                                  field.onChange(timeZone)
+                                  form.clearErrors("time_zone")
+                                  setTimeZoneOpen(false)
+                                }}
+                              >
+                                {timeZone}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                  {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
+                </Field>
+              )}
+            />
             <Controller
               name="timeout_seconds"
               control={form.control}

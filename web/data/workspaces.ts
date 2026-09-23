@@ -18,6 +18,7 @@ import {
   retryWorkspace,
   type CreateWorkspaceRequest,
   type InheritedResourceType,
+  type McpConnectionSummary,
   type Workspace,
 } from "@/lib/gateway/client"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
@@ -165,7 +166,7 @@ export async function getWorkspaceCreation(orgSlug: string) {
       return { data: names, error: undefined }
     })(),
     (async () => {
-      const names: string[] = []
+      const connections: McpConnectionSummary[] = []
       let pageToken: string | undefined
       do {
         const result = await listMcpConnections({
@@ -173,10 +174,10 @@ export async function getWorkspaceCreation(orgSlug: string) {
           query: { limit: 200, page_token: pageToken },
         })
         if (result.error) return result
-        names.push(...result.data.mcp_connections.map(({ name }) => name))
+        connections.push(...result.data.mcp_connections)
         pageToken = result.data.next_page_token || undefined
       } while (pageToken)
-      return { data: names, error: undefined }
+      return { data: connections, error: undefined }
     })(),
     listInferenceProvidersCachedQuery(),
   ])
@@ -191,8 +192,12 @@ export async function getWorkspaceCreation(orgSlug: string) {
     resources: {
       skills: skills.skills.map(({ name }) => name),
       sandboxes: sandboxes.data,
-      mcp_connections: mcps.data,
-      inference_providers: providers.providers.map(({ id }) => id),
+      mcp_connections: mcps.data.map(({ endpoint_url, name }) => ({ endpoint_url, name })),
+      inference_providers: providers.providers.map(({ catalog_provider, display_name, id }) => ({
+        catalog_provider,
+        display_name,
+        id,
+      })),
     },
     scope,
   }

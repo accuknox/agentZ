@@ -4,7 +4,9 @@ import type { Route } from "next"
 import Link from "next/link"
 import { useRouter } from "@bprogress/next/app"
 import { useActionState, useState } from "react"
-import { Box, Brain, Cable, CircleAlert, Code2, Layers, Plus, Wrench } from "lucide-react"
+import { Box, CircleAlert, Code2, Layers, Plus, Wrench } from "lucide-react"
+import { ProviderIcon } from "@/app/(app)/inference/providers/provider-shared"
+import { renderMcpServerIcon } from "@/app/(app)/mcps/catalog"
 import { createWorkspaceAction, type CreateWorkspaceFormState } from "@/app/(scoped)/orgs/actions"
 import { AdministrationPageHeader } from "@/components/administration"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -29,12 +31,26 @@ import {
   SelectGroup,
   SelectItem,
 } from "@/components/ui/select"
-import { MultiSelectDropdown } from "@/components/ui/multi-select-dropdown"
+import {
+  MultiSelectDropdown,
+  type MultiSelectDropdownOption,
+} from "@/components/ui/multi-select-dropdown"
 import { Spinner } from "@/components/ui/spinner"
-import type { WorkspaceMemberCandidate } from "@/lib/gateway/client"
-import type { SelectedOrganizationResources } from "@/lib/gateway/client"
+import type {
+  InferenceProvider,
+  McpConnectionSummary,
+  SelectedOrganizationResources,
+  WorkspaceMemberCandidate,
+} from "@/lib/gateway/client"
 import { zCreateWorkspaceRequest } from "@/lib/gateway/client/zod.gen"
 import { toast } from "sonner"
+
+type WorkspaceCreationResources = {
+  skills: SelectedOrganizationResources["skills"]
+  sandboxes: SelectedOrganizationResources["sandboxes"]
+  mcp_connections: Pick<McpConnectionSummary, "endpoint_url" | "name">[]
+  inference_providers: Pick<InferenceProvider, "catalog_provider" | "display_name" | "id">[]
+}
 
 export function WorkspaceForm({
   candidates,
@@ -43,7 +59,7 @@ export function WorkspaceForm({
 }: {
   candidates: WorkspaceMemberCandidate[]
   orgSlug: string
-  resources: SelectedOrganizationResources
+  resources: WorkspaceCreationResources
 }) {
   const router = useRouter()
   const [confirmationOpen, setConfirmationOpen] = useState(false)
@@ -69,12 +85,31 @@ export function WorkspaceForm({
     {}
   )
 
-  const options = candidates.map((candidate) => ({
+  const adminOptions = candidates.map((candidate) => ({
     image: candidate.image,
     initials: (candidate.name || candidate.email).slice(0, 1).toUpperCase(),
     label: candidate.name ? `${candidate.name} (${candidate.email})` : candidate.email,
     value: candidate.member_id,
   }))
+  const resourceOptions = {
+    skills: resources.skills.map((name) => ({ icon: Wrench, label: name, value: name })),
+    sandboxes: resources.sandboxes.map((name) => ({ icon: Box, label: name, value: name })),
+    mcp_connections: resources.mcp_connections.map(({ endpoint_url, name }) => ({
+      iconElement: renderMcpServerIcon(endpoint_url, {
+        "aria-hidden": "true",
+        className: "size-4 shrink-0",
+      }),
+      label: name,
+      value: name,
+    })),
+    inference_providers: resources.inference_providers.map(
+      ({ catalog_provider, display_name, id }) => ({
+        iconElement: <ProviderIcon className="size-4 shrink-0" provider={catalog_provider} />,
+        label: `${display_name} (${id})`,
+        value: id,
+      })
+    ),
+  } satisfies Record<keyof SelectedOrganizationResources, MultiSelectDropdownOption[]>
   const errors = clientErrors ?? state.errors
 
   return (
@@ -156,7 +191,7 @@ export function WorkspaceForm({
                 setAdmins(value)
                 setClientErrors(undefined)
               }}
-              options={options}
+              options={adminOptions}
               placeholder="No initial administrators"
               searchPlaceholder="Search active members..."
               value={admins}
@@ -166,7 +201,7 @@ export function WorkspaceForm({
 
           <div className="grid gap-4 pt-2">
             <h3 className="font-medium">Inherited organization resources</h3>
-            {inheritanceCategories.map(({ icon, key, label }) => (
+            {inheritanceCategories.map(({ key, label }) => (
               <Field key={key}>
                 <FieldLabel htmlFor={`inherited-${key}`}>{label}</FieldLabel>
                 <MultiSelectDropdown
@@ -174,7 +209,7 @@ export function WorkspaceForm({
                   onValueChangeAction={(value) =>
                     setInherited((current) => ({ ...current, [key]: value }))
                   }
-                  options={resources[key].map((name) => ({ icon, label: name, value: name }))}
+                  options={resourceOptions[key]}
                   placeholder={`No ${label.toLowerCase()} selected`}
                   searchPlaceholder={`Search ${label.toLowerCase()}...`}
                   value={inherited[key]}
@@ -267,17 +302,15 @@ export function WorkspaceForm({
 }
 
 const inheritanceCategories = [
-  { field: "inherited_skills", icon: Wrench, key: "skills", label: "Skills" },
-  { field: "inherited_sandboxes", icon: Box, key: "sandboxes", label: "Sandboxes" },
+  { field: "inherited_skills", key: "skills", label: "Skills" },
+  { field: "inherited_sandboxes", key: "sandboxes", label: "Sandboxes" },
   {
     field: "inherited_mcp_connections",
-    icon: Cable,
     key: "mcp_connections",
     label: "MCP connections",
   },
   {
     field: "inherited_inference_providers",
-    icon: Brain,
     key: "inference_providers",
     label: "Inference providers",
   },

@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type ComponentType,
+  type ReactElement,
   type SVGProps,
 } from "react"
 import { ChevronDownIcon, PlusIcon } from "lucide-react"
@@ -27,11 +28,19 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 type MultiSelectDropdownOptionIdentity =
   | {
       icon: ComponentType<SVGProps<SVGSVGElement>>
+      iconElement?: never
       image?: never
       initials?: never
     }
   | {
       icon?: never
+      iconElement: ReactElement
+      image?: never
+      initials?: never
+    }
+  | {
+      icon?: never
+      iconElement?: never
       image: string | null
       initials: string
     }
@@ -182,6 +191,7 @@ function MultiSelectDropdown({
               <CommandGroup heading={group} key={group ?? "options"}>
                 {groupOptions.map((option) => {
                   const Icon = option.icon
+                  const iconElement = option.iconElement
                   const BadgeIcon = option.badgeIcon
                   const checked = selectedValues.has(option.value)
                   const nextValue = checked
@@ -205,6 +215,8 @@ function MultiSelectDropdown({
                           <AvatarImage alt="" src={option.image ?? undefined} />
                           <AvatarFallback>{option.initials}</AvatarFallback>
                         </Avatar>
+                      ) : iconElement ? (
+                        iconElement
                       ) : Icon ? (
                         <Icon aria-hidden="true" />
                       ) : null}

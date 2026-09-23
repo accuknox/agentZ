@@ -110,6 +110,8 @@
         "managerGatewayTokenAudience": { "type": "string", "minLength": 1 },
         "gatewayServiceAccountName": { "type": "string" },
         "gatewayServiceAccountNamespace": { "type": "string" },
+        "relayServiceAccountName": { "type": "string" },
+        "relayServiceAccountNamespace": { "type": "string" },
         "sinjectorCASecretName": { "type": "string", "minLength": 1 },
         "sinjectorCASecretCertKey": { "type": "string", "minLength": 1 },
         "sinjectorCASecretKeyKey": { "type": "string", "minLength": 1 },

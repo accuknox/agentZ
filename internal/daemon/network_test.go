@@ -18,6 +18,18 @@ import (
 	"github.com/accuknox/agentz/internal/sandboxutil"
 )
 
+type blockedDNSWriter struct {
+	dns.ResponseWriter
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (w *blockedDNSWriter) WriteMsg(*dns.Msg) error {
+	close(w.entered)
+	<-w.release
+	return nil
+}
+
 type dnsMatchCase struct {
 	name  string
 	allow bool
@@ -142,12 +154,37 @@ func TestNativeNetworkPackets(t *testing.T) {
 	upstream := &dns.Server{PacketConn: resolver, Handler: dns.HandlerFunc(func(w dns.ResponseWriter, request *dns.Msg) {
 		answer := new(dns.Msg)
 		answer.SetReply(request)
-		answer.Answer = []dns.RR{&dns.A{Hdr: dns.RR_Header{Name: request.Question[0].Name, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 1}, A: net.ParseIP("198.18.0.1")}}
+		answer.Answer = []dns.RR{&dns.A{
+			Hdr: dns.RR_Header{Name: request.Question[0].Name, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 1},
+			A:   net.ParseIP("198.18.0.1"),
+		}}
+		if request.Question[0].Name == "malformed.test." {
+			answer.Answer = []dns.RR{&dns.A{
+				Hdr: dns.RR_Header{Name: "malformed.test.", Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 60},
+				A:   net.ParseIP("198.18.0.3"),
+			}}
+			packet, err := answer.Pack()
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			// A truncated additional record leaves a decoded answer alongside
+			// an error. That answer must never authorize network access.
+			packet[11]++
+			packet = append(packet, 0xc0)
+			var partial dns.Msg
+			if err := partial.Unpack(packet); err == nil || len(partial.Answer) != 1 {
+				t.Error("malformed fixture must yield a partial answer and an error")
+				return
+			}
+			_, _ = w.Write(packet)
+			return
+		}
 		_ = w.WriteMsg(answer)
 	})}
 	go upstream.ActivateAndServe()
 	defer upstream.Shutdown()
-	n, err := NewNetwork(t.Context(), []string{"allowed.test", "198.18.0.2/32", "fd42::1/128"})
+	n, err := NewNetwork(t.Context(), []string{"allowed.test", "malformed.test", "198.18.0.2/32", "fd42::1/128"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +255,7 @@ func TestNativeNetworkPackets(t *testing.T) {
 	probe("udp4", net.JoinHostPort("198.18.0.2", udpPort), true)
 	probe("udp4", net.JoinHostPort("198.18.0.3", udpPort), false)
 	probe("tcp6", net.JoinHostPort("fd42::1", tcpPort), true)
-	for _, question := range []string{"denied.test.", "allowed.test."} {
+	for _, question := range []string{"denied.test.", "malformed.test.", "allowed.test."} {
 		var answer *dns.Msg
 		err := inNamespace(func() error {
 			request := new(dns.Msg)
@@ -232,6 +269,9 @@ func TestNativeNetworkPackets(t *testing.T) {
 		}
 		if question == "denied.test." && answer.Rcode != dns.RcodeRefused {
 			t.Fatal("unauthorized DNS query was forwarded")
+		}
+		if question == "malformed.test." && answer.Rcode != dns.RcodeServerFailure {
+			t.Fatal("malformed upstream answer was accepted")
 		}
 		if question == "allowed.test." && answer.Rcode != dns.RcodeSuccess {
 			t.Fatalf("authorized DNS query failed: %s", answer)
@@ -251,6 +291,7 @@ func TestNativeNetworkPackets(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	probe("tcp4", net.JoinHostPort("198.18.0.3", tcpPort), false)
 	probe("tcp4", net.JoinHostPort("198.18.0.1", tcpPort), true)
 	time.Sleep(1200 * time.Millisecond)
 	probe("tcp4", net.JoinHostPort("198.18.0.1", tcpPort), false)
@@ -258,4 +299,31 @@ func TestNativeNetworkPackets(t *testing.T) {
 		t.Fatal(err)
 	}
 	probe("tcp4", net.JoinHostPort("198.18.0.2", tcpPort), false)
+
+	// A client that stops reading must not delay revoking its DNS-granted access.
+	if err := n.Update(t.Context(), []string{"allowed.test"}); err != nil {
+		t.Fatal(err)
+	}
+	writer := &blockedDNSWriter{entered: make(chan struct{}), release: make(chan struct{})}
+	finished := make(chan struct{})
+	defer func() { close(writer.release); <-finished }()
+	request := new(dns.Msg)
+	request.SetQuestion("allowed.test.", dns.TypeA)
+	go func() { n.serveDNS(writer, request); close(finished) }()
+	select {
+	case <-writer.entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("DNS request did not reach the client")
+	}
+	updated := make(chan error, 1)
+	go func() { updated <- n.Update(t.Context(), nil) }()
+	select {
+	case err := <-updated:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("slow DNS client blocked policy revocation")
+	}
+	probe("tcp4", net.JoinHostPort("198.18.0.1", tcpPort), false)
 }

@@ -53,6 +53,7 @@ import type { Agent, ComputeEnrollment, ResourceScope, Sandbox, Skill } from "@/
 import type * as z from "zod"
 import { toast } from "sonner"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
+import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard"
 
 type Mode = "create" | "update"
 
@@ -646,6 +647,8 @@ function NativeSetup({ agent, workspaceId }: { agent: Agent; workspaceId: string
     /^v\d+\.\d+\.\d+$/.test(release) && backend.startsWith("https://")
       ? `sudo bash install.sh '${backend.replaceAll("'", "'\\''")}' '${release}' "$USER" "$HOME/agentz" "${"${XDG_CONFIG_HOME:-$HOME/.config}"}" "${"${XDG_DATA_HOME:-$HOME/.local/share}"}" "${"${XDG_STATE_HOME:-$HOME/.local/state}"}" "${"${XDG_CACHE_HOME:-$HOME/.cache}"}"`
       : ""
+  const installCopy = useCopyToClipboard({ text: command })
+  const enrollmentCopy = useCopyToClipboard({ text: enrollment?.code ?? "" })
   return (
     <>
       <DialogHeader>
@@ -655,7 +658,7 @@ function NativeSetup({ agent, workspaceId }: { agent: Agent; workspaceId: string
           host and sudo access.
         </DialogDescription>
       </DialogHeader>
-      <div className="space-y-5">
+      <div className="min-w-0 space-y-5">
         <div className="rounded-lg border p-4" role="status">
           <p className="font-medium">{host.hostname || "Waiting for your host"}</p>
           <p className="text-muted-foreground text-sm">
@@ -699,12 +702,8 @@ function NativeSetup({ agent, workspaceId }: { agent: Agent; workspaceId: string
             {command ? (
               <div className="space-y-2">
                 <pre className="bg-muted overflow-x-auto rounded-md p-3 text-xs">{command}</pre>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => navigator.clipboard.writeText(command)}
-                >
-                  Copy install command
+                <Button type="button" variant="outline" onClick={installCopy.handleCopy}>
+                  {installCopy.isCopied ? "Copied" : "Copy install command"}
                 </Button>
               </div>
             ) : null}
@@ -718,12 +717,8 @@ function NativeSetup({ agent, workspaceId }: { agent: Agent; workspaceId: string
                   Paste this code when the installer asks. It works once and expires in 15 minutes.
                 </p>
                 <code className="block text-sm break-all">{enrollment.code}</code>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => navigator.clipboard.writeText(enrollment.code)}
-                >
-                  Copy enrollment code
+                <Button type="button" variant="outline" onClick={enrollmentCopy.handleCopy}>
+                  {enrollmentCopy.isCopied ? "Copied" : "Copy enrollment code"}
                 </Button>
               </div>
             ) : null}
@@ -743,6 +738,7 @@ function NativeSetup({ agent, workspaceId }: { agent: Agent; workspaceId: string
           disabled={pending}
           onClick={async () => {
             setPending(true)
+            setError("")
             try {
               const result = await disconnectComputeAction(workspaceId, agent.name)
               if (result.error) setError(result.error.message)

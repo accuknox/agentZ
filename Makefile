@@ -24,7 +24,7 @@ KUBECTL ?= kubectl
 KUSTOMIZE ?= kustomize
 CONTROLLER_GEN ?= go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.20.1
 
-GO_PKGS := ./cmd ./hack/... ./internal/... ./pkg/...
+GO_PKGS := ./cmd/... ./hack/... ./internal/... ./pkg/...
 
 .PHONY: all
 all: generate lint build
@@ -33,7 +33,7 @@ all: generate lint build
 generate:
 	cd web && bun run gen:db-schema
 	sqlc generate
-	go generate ./internal/compute
+	go generate ./internal/host
 	go run ./hack/inference/generate_providers.go
 	go run ./hack/openapi/generate_opencode_gateway.go
 	oapi-codegen \

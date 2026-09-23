@@ -90,6 +90,12 @@ config:
   # Share the Coding GitHub App and encryption key with the web account flow.
   # global.secretName must contain CODING_GITHUB_CLIENT_SECRET and
   # CODING_GITHUB_ENCRYPTION_KEY, encoded as 64 lowercase hex characters.
+  relayAddress: ""
+  relayTrustDomain: "agentz.local"
+  relayTrustBundle: "/etc/agentz/relay/ca.crt"
+  relayCertFile: "/etc/agentz/relay/tls.crt"
+  relayKeyFile: "/etc/agentz/relay/tls.key"
+  relayIdentitySecret: ""
   codingGithubClientID: ""
   logLevel: info
   logFormat: text
@@ -114,23 +120,3 @@ config:
   skillsS3Bucket: ""
 
 extraArgs: []
-
-# Native host compute is opt-in. The bundled SPIRE server uses one persistent
-# gateway replica; external SPIRE deployments can provide HA independently.
-compute:
-  enabled: false
-  trustDomain: agentz.local
-  publicAddress: ""
-  spirePublicAddress: ""
-  port: 9443
-  spire:
-    image: ghcr.io/spiffe/spire-server:1.15.3
-    # Existing Secret containing root.pem and root-key.pem. Provision a stable
-    # upstream CA with overlapping trust during root rotation; never regenerate
-    # it on Helm upgrades. Its remaining validity must exceed one year.
-    upstreamSecret: ""
-    storageSize: 1Gi
-    storageClassName: ""
-  service:
-    type: ClusterIP
-    annotations: {}

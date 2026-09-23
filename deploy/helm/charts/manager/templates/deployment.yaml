@@ -102,6 +102,8 @@ spec:
             - --manager-service-account-namespace={{ .Release.Namespace }}
             - --gateway-service-account-name={{ default (printf "%s-gateway" .Release.Name) .Values.config.gatewayServiceAccountName }}
             - --gateway-service-account-namespace={{ default .Release.Namespace .Values.config.gatewayServiceAccountNamespace }}
+            - --relay-service-account-name={{ default (printf "%s-relay" .Release.Name) .Values.config.relayServiceAccountName }}
+            - --relay-service-account-namespace={{ default .Release.Namespace .Values.config.relayServiceAccountNamespace }}
             - --sinjector-ca-secret-name={{ .Values.config.sinjectorCASecretName }}
             - --sinjector-ca-secret-cert-key={{ .Values.config.sinjectorCASecretCertKey }}
             - --sinjector-ca-secret-key-key={{ .Values.config.sinjectorCASecretKeyKey }}

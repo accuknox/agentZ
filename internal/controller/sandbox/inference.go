@@ -508,12 +508,12 @@ func (r *Reconciler) reconcileInferenceGateway(ctx context.Context, namespace st
 						),
 					)
 					if agt.Spec.Execution == agentzv1alpha1.AgentExecutionNative {
-						if r.GatewayServiceAccountName == "" || r.GatewayServiceAccountNamespace == "" {
-							return fmt.Errorf("native compute requires the gateway service account identity")
+						if r.RelayServiceAccountName == "" || r.RelayServiceAccountNamespace == "" {
+							return fmt.Errorf("native execution requires the relay service account identity")
 						}
 						source = ciliumapi.NewESFromLabels(
-							ciliumlabels.NewLabel("io.kubernetes.pod.namespace", r.GatewayServiceAccountNamespace, ciliumlabels.LabelSourceK8s),
-							ciliumlabels.NewLabel("io.cilium.k8s.policy.serviceaccount", r.GatewayServiceAccountName, ciliumlabels.LabelSourceK8s),
+							ciliumlabels.NewLabel("io.kubernetes.pod.namespace", r.RelayServiceAccountNamespace, ciliumlabels.LabelSourceK8s),
+							ciliumlabels.NewLabel("io.cilium.k8s.policy.serviceaccount", r.RelayServiceAccountName, ciliumlabels.LabelSourceK8s),
 						)
 					}
 

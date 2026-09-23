@@ -364,6 +364,7 @@ func (n *Network) serveDNS(w dns.ResponseWriter, request *dns.Msg) {
 		var err error
 		answer, _, err = client.ExchangeContext(ctx, request, upstream)
 		if err != nil {
+			answer = nil
 			continue
 		}
 		if answer.Truncated {
@@ -381,8 +382,8 @@ func (n *Network) serveDNS(w dns.ResponseWriter, request *dns.Msg) {
 		return
 	}
 	n.mu.Lock()
-	defer n.mu.Unlock()
 	if n.generation != generation {
+		n.mu.Unlock()
 		_ = w.WriteMsg(response)
 		return
 	}
@@ -404,6 +405,7 @@ func (n *Network) serveDNS(w dns.ResponseWriter, request *dns.Msg) {
 	}
 	if script.Len() > 0 {
 		if err := networkCommand(ctx, script.String(), "ip", "netns", "exec", NativeNetworkNamespace, "nft", "-f", "-"); err != nil {
+			n.mu.Unlock()
 			slog.WarnContext(ctx, "native DNS could not authorize response", "err", err)
 			response.SetRcode(request, dns.RcodeServerFailure)
 			_ = w.WriteMsg(response)
@@ -430,6 +432,7 @@ func (n *Network) serveDNS(w dns.ResponseWriter, request *dns.Msg) {
 			n.cache[key] = dnsCacheEntry{answer: answer.Copy(), created: time.Now(), ttl: time.Duration(ttl) * time.Second}
 		}
 	}
+	n.mu.Unlock()
 	_ = w.WriteMsg(answer)
 }
 

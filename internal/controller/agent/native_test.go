@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"k8s.io/apimachinery/pkg/api/meta"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -17,7 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	"github.com/accuknox/agentz/internal/compute"
+	"github.com/accuknox/agentz/internal/host"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -69,7 +70,7 @@ func TestNativeReconcileDoesNotAllocateKubernetesRuntime(t *testing.T) {
 			t.Errorf("unexpected managed runtime resources: %#v", items)
 		}
 	}
-	endpoints := compute.NativeEndpoints{
+	endpoints := host.NativeEndpoints{
 		MCP: "http://127.0.0.1:4181", Inference: "http://127.0.0.1:4182",
 		Platform: "http://127.0.0.1:4183", ConfigDirectory: "/runtime/config",
 		ImmutableSkillsDirectory: "/runtime/skills", BundledSkillsDirectory: "/runtime/core",
@@ -88,5 +89,45 @@ func TestNativeReconcileDoesNotAllocateKubernetesRuntime(t *testing.T) {
 	}
 	if spec.Env["AGENTZ_GATEWAY_URL"] != endpoints.Platform || spec.Env["AGENTZ_GATEWAY_TOKEN_PATH"] != endpoints.GatewayTokenPath {
 		t.Fatalf("native platform bridge not configured: %#v", spec.Env)
+	}
+}
+
+func TestSecretProxyNetworkSource(t *testing.T) {
+	for _, execution := range []agentzv1alpha1.AgentExecution{agentzv1alpha1.AgentExecutionKubernetes, agentzv1alpha1.AgentExecutionNative} {
+		t.Run(string(execution), func(t *testing.T) {
+			scheme := runtime.NewScheme()
+			for _, add := range []func(*runtime.Scheme) error{ciliumv2.AddToScheme, agentzv1alpha1.AddToScheme} {
+				if err := add(scheme); err != nil {
+					t.Fatal(err)
+				}
+			}
+			agt := &agentzv1alpha1.Agent{ObjectMeta: metav1.ObjectMeta{Name: "agent", Namespace: "workspace", UID: "uid"}, Spec: agentzv1alpha1.AgentSpec{Execution: execution}}
+			c := fake.NewClientBuilder().WithScheme(scheme).Build()
+			r := &Reconciler{Client: c, Scheme: scheme, Config: RuntimeConfig{RelayServiceAccountName: "relay", RelayServiceAccountNamespace: "relay-namespace"}}
+			if err := r.reconcileSinjectorPolicy(t.Context(), agt, nil); err != nil {
+				t.Fatal(err)
+			}
+			var policy ciliumv2.CiliumNetworkPolicy
+			if err := c.Get(t.Context(), client.ObjectKey{Name: sinjectorName(agt), Namespace: agt.Namespace}, &policy); err != nil {
+				t.Fatal(err)
+			}
+			labels := policy.Spec.Ingress[0].FromEndpoints[0].MatchLabels
+			wantNamespace, wantAccount := "workspace", "agent"
+			if execution == agentzv1alpha1.AgentExecutionNative {
+				wantNamespace, wantAccount = "relay-namespace", "relay"
+				if len(labels) != 2 {
+					t.Fatalf("unexpected native source labels: %v", labels)
+				}
+			}
+			if labels["k8s:io.kubernetes.pod.namespace"] != wantNamespace || labels["k8s:io.cilium.k8s.policy.serviceaccount"] != wantAccount {
+				t.Fatalf("wrong caller identity: %v", labels)
+			}
+			if execution == agentzv1alpha1.AgentExecutionNative {
+				r.Config.RelayServiceAccountNamespace = ""
+				if err := r.reconcileSinjectorPolicy(t.Context(), agt, nil); err == nil {
+					t.Fatal("missing relay namespace must fail closed")
+				}
+			}
+		})
 	}
 }

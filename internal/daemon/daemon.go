@@ -26,8 +26,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/accuknox/agentz/internal/compute"
-	pb "github.com/accuknox/agentz/internal/compute/proto"
+	"github.com/accuknox/agentz/internal/host"
+	pb "github.com/accuknox/agentz/internal/host/proto"
 	"github.com/accuknox/agentz/internal/skill"
 	"github.com/spiffe/go-spiffe/v2/spiffegrpc/grpccredentials"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -62,7 +62,7 @@ type supervisor struct {
 	user      *user.User
 	network   *Network
 	mu        sync.Mutex
-	status    compute.Status
+	status    host.Status
 	desired   *pb.Runtime
 	changed   chan struct{}
 	password  string
@@ -132,7 +132,7 @@ func Run(ctx context.Context, config Config) error {
 		return err
 	}
 	hostname, _ := os.Hostname()
-	s := &supervisor{config: config, user: owner, changed: make(chan struct{}, 1), status: compute.Status{WorkDirectory: config.WorkDirectory, Hostname: hostname}}
+	s := &supervisor{config: config, user: owner, changed: make(chan struct{}, 1), status: host.Status{WorkDirectory: config.WorkDirectory, Hostname: hostname}}
 	scope := sha256.Sum256([]byte(config.WorkloadID))
 	s.statePath = filepath.Join(runtimeRoot, "state", hex.EncodeToString(scope[:16]))
 	passwordPath := filepath.Join(config.StateDirectory, "opencode-password")
@@ -176,7 +176,11 @@ func Run(ctx context.Context, config Config) error {
 	if err != nil {
 		return err
 	}
-	// Do not remove firewall/network state on connection loss or daemon restart.
+	// Stop DNS on exit while leaving the workload firewall in place.
+	defer func() {
+		cancel()
+		s.network.Close()
+	}()
 	go s.reconcile(ctx)
 	source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClientOptions(workloadapi.WithAddr(config.WorkloadSocket)))
 	if err != nil {
@@ -188,7 +192,7 @@ func Run(ctx context.Context, config Config) error {
 		return err
 	}
 	defer conn.Close()
-	client := &compute.Client{RPC: pb.NewComputeClient(conn), Apply: s.apply, Status: s.report}
+	client := &host.Client{RPC: pb.NewHostRelayClient(conn), Apply: s.apply, Status: s.report}
 	client.DialLocal = func(ctx context.Context, service pb.Service) (net.Conn, error) {
 		address := ""
 		switch service {
@@ -240,7 +244,11 @@ func Run(ctx context.Context, config Config) error {
 		return conn, err
 	}}
 	var listener net.Listener
-	err = inNamespace(func() error { var err error; listener, err = net.Listen("tcp", "127.0.0.1:4180"); return err })
+	err = inNamespace(func() error {
+		var err error
+		listener, err = net.Listen("tcp", "127.0.0.1:4180")
+		return err
+	})
 	if err != nil {
 		return err
 	}
@@ -335,7 +343,7 @@ func (s *supervisor) apply(_ context.Context, desired *pb.Runtime) error {
 	if len(desired.Configuration) > 4*1024*1024 {
 		return fmt.Errorf("runtime configuration too large")
 	}
-	var spec compute.RuntimeSpec
+	var spec host.RuntimeSpec
 	if err := json.Unmarshal(desired.Configuration, &spec); err != nil {
 		return err
 	}
@@ -433,7 +441,7 @@ func (s *supervisor) reconcile(ctx context.Context) {
 }
 
 func (s *supervisor) install(ctx context.Context, desired *pb.Runtime) error {
-	var spec compute.RuntimeSpec
+	var spec host.RuntimeSpec
 	if err := json.Unmarshal(desired.Configuration, &spec); err != nil {
 		return err
 	}
@@ -572,7 +580,7 @@ func (s *supervisor) install(ctx context.Context, desired *pb.Runtime) error {
 	return os.WriteFile(filepath.Join(s.config.StateDirectory, "installed-generation"), []byte(desired.Generation), 0600)
 }
 
-func (s *supervisor) units(spec compute.RuntimeSpec) (map[string]string, error) {
+func (s *supervisor) units(spec host.RuntimeSpec) (map[string]string, error) {
 	environment := make(map[string]string, len(spec.Env)+8)
 	for key, value := range spec.Env {
 		environment[key] = value
@@ -591,7 +599,19 @@ func (s *supervisor) units(spec compute.RuntimeSpec) (map[string]string, error) 
 	environment["OPENCODE_SERVER_PASSWORD"] = s.password
 	// Keep local CLI credentials in the real HOME and XDG directories. Only
 	// OpenCode's own configuration directories are overlaid in the unit.
-	common := "[Unit]\nAfter=network-online.target\n[Service]\nType=simple\nUser=" + s.user.Uid + "\nGroup=" + s.user.Gid + "\nWorkingDirectory=" + strings.ReplaceAll(s.config.WorkDirectory, "%", "%%") + "\nNetworkNamespacePath=/run/netns/agentz\nBindReadOnlyPaths=/etc/netns/agentz/resolv.conf:/etc/resolv.conf\nRestart=on-failure\nRestartSec=5\nKillMode=control-group\n"
+	common := fmt.Sprintf(`[Unit]
+After=network-online.target
+[Service]
+Type=simple
+User=%s
+Group=%s
+WorkingDirectory=%s
+NetworkNamespacePath=/run/netns/agentz
+BindReadOnlyPaths=/etc/netns/agentz/resolv.conf:/etc/resolv.conf
+Restart=on-failure
+RestartSec=5
+KillMode=control-group
+`, s.user.Uid, s.user.Gid, strings.ReplaceAll(s.config.WorkDirectory, "%", "%%"))
 	var env strings.Builder
 	for key, value := range environment {
 		if key == "" || strings.ContainsAny(key, "=\n\r\x00") {
@@ -599,18 +619,24 @@ func (s *supervisor) units(spec compute.RuntimeSpec) (map[string]string, error) 
 		}
 		env.WriteString("Environment=" + unitQuote(key+"="+value) + "\n")
 	}
-	openCode := common + env.String() + "BindReadOnlyPaths=" + unitQuote(runtimeRoot+"/empty") + ":" + unitQuote(filepath.Join(s.user.HomeDir, ".opencode")) + " " + unitQuote(runtimeRoot+"/bundle") + ":" + unitQuote(filepath.Join(s.config.XDGConfigHome, "opencode")) + " " + runtimeRoot + "/empty:/etc/opencode\nExecStart=:" + unitQuote(filepath.Join(s.config.RuntimeDirectory, "bin/opencode")) + " serve --hostname 127.0.0.1 --port 4096\n"
+	openCode := common + env.String() +
+		"BindReadOnlyPaths=" + unitQuote(runtimeRoot+"/empty") + ":" + unitQuote(filepath.Join(s.user.HomeDir, ".opencode")) +
+		" " + unitQuote(runtimeRoot+"/bundle") + ":" + unitQuote(filepath.Join(s.config.XDGConfigHome, "opencode")) +
+		" " + runtimeRoot + "/empty:/etc/opencode\nExecStart=:" +
+		unitQuote(filepath.Join(s.config.RuntimeDirectory, "bin/opencode")) + " serve --hostname 127.0.0.1 --port 4096\n"
 	for destination, source := range map[string]string{s.config.XDGDataHome: "data", s.config.XDGStateHome: "state", s.config.XDGCacheHome: "cache"} {
 		openCode += "BindPaths=" + unitQuote(filepath.Join(s.statePath, source)) + ":" + unitQuote(filepath.Join(destination, "opencode")) + "\n"
 	}
-	filesystem := common + "Environment=" + unitQuote("HOME="+s.user.HomeDir) + "\nExecStart=:" + unitQuote(s.config.Executable) + " filesystem serve --addr 127.0.0.1:4097 --root " + unitQuote(s.config.WorkDirectory) + "\n"
+	filesystem := common + "Environment=" + unitQuote("HOME="+s.user.HomeDir) +
+		"\nExecStart=:" + unitQuote(s.config.Executable) +
+		" filesystem serve --addr 127.0.0.1:4097 --root " + unitQuote(s.config.WorkDirectory) + "\n"
 	return map[string]string{"agentz-opencode.service": openCode, "agentz-filesystem.service": filesystem}, nil
 }
 
 // unitQuote escapes systemd specifier/argument expansion as well as whitespace.
 func unitQuote(value string) string { return strconv.Quote(strings.ReplaceAll(value, "%", "%%")) }
 
-func (s *supervisor) installSkills(ctx context.Context, spec compute.RuntimeSpec) error {
+func (s *supervisor) installSkills(ctx context.Context, spec host.RuntimeSpec) error {
 	staged, err := os.MkdirTemp(runtimeRoot+"/skills", "staging-")
 	if err != nil {
 		return err

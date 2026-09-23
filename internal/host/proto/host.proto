@@ -1,0 +1,106 @@
+syntax = "proto3";
+package agentz.host.v1;
+option go_package = "github.com/accuknox/agentz/internal/host/proto;hostv1";
+
+// HostRelay accepts only outbound connections initiated by enrolled hosts.
+service HostRelay {
+  rpc Control(stream Heartbeat) returns (stream Command);
+  rpc Data(stream DataFrame) returns (stream DataFrame);
+  rpc Forward(stream DataFrame) returns (stream DataFrame);
+}
+message Heartbeat {
+  string generation = 1;
+  bool ready = 2;
+  string error = 3;
+  string version = 4;
+  string work_directory = 5;
+  string hostname = 6;
+}
+message Command {
+  oneof body {
+    Runtime runtime = 1;
+    Open open = 2;
+  }
+}
+// Runtime is compiled by the backend. Configuration is not a shell program.
+message Runtime {
+  string generation = 1;
+  bytes configuration = 2;
+}
+message Open {
+  string id = 1;
+  Service service = 2;
+}
+enum Service {
+  SERVICE_UNSPECIFIED = 0;
+  SERVICE_OPENCODE = 1;
+  SERVICE_FILESYSTEM = 2;
+  SERVICE_MCP = 3;
+  SERVICE_INFERENCE = 4;
+  SERVICE_SECRET_PROXY = 5;
+  SERVICE_PLATFORM = 6;
+  reserved 7;
+  reserved "SERVICE_GIT";
+  SERVICE_TELEMETRY = 8;
+  SERVICE_TRACES = 9;
+}
+// The first client frame identifies the pending connection. Subsequent frames
+// contain at most 32 KiB. There is no replay or resumable byte-stream contract.
+message DataFrame {
+  string id = 1;
+  bytes data = 2;
+  string error = 3;
+  Service service = 4;
+}
+
+// RelayControl is available only to authenticated backend services.
+service RelayControl {
+  rpc Enroll(EnrollmentRequest) returns (EnrollmentResponse);
+  rpc Revoke(RevokeRequest) returns (RevokeResponse);
+  rpc GetSession(SessionRequest) returns (SessionResponse);
+  rpc Dial(stream RelayFrame) returns (stream RelayFrame);
+}
+message EnrollmentRequest { string assignment_id = 1; }
+message EnrollmentResponse {
+  string join_token = 1;
+  string node_id = 2;
+  string workload_id = 3;
+  bytes trust_bundle = 4;
+  string trust_domain = 5;
+  string relay_address = 6;
+  string spire_address = 7;
+}
+message RevokeRequest {
+  string namespace = 1;
+  string agent = 2;
+  string assignment_id = 3;
+  string node_id = 4;
+  string workload_id = 5;
+  reserved 6;
+  reserved "relay_address";
+}
+message RevokeResponse {}
+message SessionRequest {
+  string namespace = 1;
+  string agent = 2;
+  string session_id = 3;
+}
+message SessionResponse {
+  string session_id = 1;
+  bool ready = 2;
+  reserved 3;
+  reserved "relay_address";
+}
+message HostTarget {
+  string namespace = 1;
+  string agent = 2;
+  string session_id = 3;
+  Service service = 4;
+}
+// Dial starts with a target and a ready acknowledgement. Later frames contain
+// only data, bounded to 32 KiB; a disconnected stream is never replayed.
+message RelayFrame {
+  HostTarget target = 1;
+  bytes data = 2;
+  bool ready = 3;
+}

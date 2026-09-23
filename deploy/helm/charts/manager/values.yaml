@@ -132,6 +132,8 @@ config:
   managerGatewayTokenAudience: agentz-gateway
   gatewayServiceAccountName: ""
   gatewayServiceAccountNamespace: ""
+  relayServiceAccountName: ""
+  relayServiceAccountNamespace: ""
   sinjectorCASecretName: sinjector
   sinjectorCASecretCertKey: tls.crt
   sinjectorCASecretKeyKey: tls.key

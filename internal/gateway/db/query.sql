@@ -2687,3 +2687,6 @@ WHERE id = @id AND NOT revoked;
 -- name: GatewayRevokeComputeHost :one
 UPDATE compute_hosts SET revoked = true, enrollment_hash = NULL
 WHERE tenant_namespace = @tenant_namespace AND agent_name = @agent_name RETURNING *;
+
+-- name: RelayRegistration :one
+SELECT * FROM compute_hosts WHERE id = @id AND NOT revoked;

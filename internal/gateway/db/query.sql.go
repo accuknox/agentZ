@@ -7166,3 +7166,27 @@ func (q *Queries) GatewayUpsertWorkspaceChatPreference(ctx context.Context, arg 
 	)
 	return i, err
 }
+
+const relayRegistration = `-- name: RelayRegistration :one
+SELECT id, tenant_namespace, agent_name, enrollment_hash, enrollment_expires_at, workload_id, node_id, hostname, work_directory, revoked, last_seen, node_expires_at FROM compute_hosts WHERE id = $1 AND NOT revoked
+`
+
+func (q *Queries) RelayRegistration(ctx context.Context, id uuid.UUID) (ComputeHost, error) {
+	row := q.db.QueryRow(ctx, relayRegistration, id)
+	var i ComputeHost
+	err := row.Scan(
+		&i.ID,
+		&i.TenantNamespace,
+		&i.AgentName,
+		&i.EnrollmentHash,
+		&i.EnrollmentExpiresAt,
+		&i.WorkloadID,
+		&i.NodeID,
+		&i.Hostname,
+		&i.WorkDirectory,
+		&i.Revoked,
+		&i.LastSeen,
+		&i.NodeExpiresAt,
+	)
+	return i, err
+}

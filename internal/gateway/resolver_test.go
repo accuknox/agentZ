@@ -4,8 +4,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/accuknox/agentz/internal/compute"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 
@@ -60,7 +58,8 @@ func TestNativeAdmissionRejectsStaleConnectedStatus(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	s := &Service{resolver: &resolver{agents: listersv1alpha1.NewAgentLister(index)}, computeServer: compute.NewServer(compute.Callbacks{})}
+	relay, _ := newGatewayRelay(t, "")
+	s := &Service{resolver: &resolver{agents: listersv1alpha1.NewAgentLister(index)}, relay: relay}
 	connection, apiErr := s.nativeAdmission(t.Context(), "workspace", "agent")
 	if connection != "" || apiErr == nil || apiErr.Status != http.StatusServiceUnavailable {
 		t.Fatalf("stale CR status admitted new native work: connection=%q, err=%v", connection, apiErr)

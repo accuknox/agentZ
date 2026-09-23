@@ -1,5 +1,5 @@
-// Package compute defines the native Agent runtime transport contract.
-package compute
+// Package host defines the native Agent runtime transport contract.
+package host
 
 import (
 	"encoding/json"

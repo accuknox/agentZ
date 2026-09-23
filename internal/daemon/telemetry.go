@@ -17,7 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/accuknox/agentz/internal/compute"
+	"github.com/accuknox/agentz/internal/host"
 	pb "github.com/kubearmor/KubeArmor/protobuf"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -66,7 +66,7 @@ func runTelemetry(ctx context.Context) error {
 	}
 	defer conn.Close()
 	client := pb.NewLogServiceClient(conn)
-	queue := make(chan compute.SecurityEvent, 256)
+	queue := make(chan host.SecurityEvent, 256)
 	var dropped atomic.Uint64
 	enqueue := func(kind, parent string, message proto.Message) {
 		if filepath.Base(parent) != "opencode" {
@@ -78,7 +78,7 @@ func runTelemetry(ctx context.Context) error {
 			return
 		}
 		select {
-		case queue <- compute.SecurityEvent{Kind: kind, Event: data}:
+		case queue <- host.SecurityEvent{Kind: kind, Event: data}:
 		default:
 			dropped.Add(1)
 		}

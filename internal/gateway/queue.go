@@ -27,7 +27,7 @@ import (
 
 // nativeAdmission fences new work to the currently connected native runtime.
 // Kubernetes Agents retain their existing durable queue behavior.
-func (s *Service) nativeAdmission(_ context.Context, namespace, agent string) (string, *apiutil.APIError) {
+func (s *Service) nativeAdmission(ctx context.Context, namespace, agent string) (string, *apiutil.APIError) {
 	agt, err := s.resolver.agents.Agents(namespace).Get(agent)
 	if err != nil {
 		return "", mapGatewayStoreError("resolve Agent", err)
@@ -35,8 +35,8 @@ func (s *Service) nativeAdmission(_ context.Context, namespace, agent string) (s
 	if agt.Spec.Execution != agentzv1alpha1.AgentExecutionNative {
 		return "", nil
 	}
-	if s.computeServer != nil {
-		if connection, ready := s.computeServer.Connection(namespace, agent); ready {
+	if s.relay != nil {
+		if connection, ready, err := s.relay.Connection(ctx, namespace, agent); err == nil && ready {
 			return connection, nil
 		}
 	}
@@ -682,8 +682,8 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 	if row.MessageID == "" && row.ComputeConnectionID != "" {
 		namespace := agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeWorkspace, row.WorkspaceID)
 		connection, ready := "", false
-		if s.computeServer != nil {
-			connection, ready = s.computeServer.Connection(namespace, row.AgentName)
+		if s.relay != nil {
+			connection, ready, _ = s.relay.Connection(ctx, namespace, row.AgentName)
 		}
 		if !ready || connection != row.ComputeConnectionID {
 			release, err := s.lockChatInputs(ctx, row.WorkspaceID, row.AgentName, row.SessionID, "")

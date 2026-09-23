@@ -13,13 +13,16 @@
 {{- if .Values.web.image.digest }}
 {{- $webImage = printf "%s@%s" .Values.web.image.repository .Values.web.image.digest }}
 {{- end }}
-{{- if .Values.observer.enabled }}
-{{- $observerImage := printf "%s:%s" .Values.observer.image.repository .Values.observer.image.tag }}
-{{- if .Values.observer.image.digest }}
-{{- $observerImage = printf "%s@%s" .Values.observer.image.repository .Values.observer.image.digest }}
+{{- range $service := list "observer" "relay" }}
+{{- $values := index $.Values $service }}
+{{- if $values.enabled }}
+{{- $image := printf "%s:%s" $values.image.repository $values.image.tag }}
+{{- if $values.image.digest }}
+{{- $image = printf "%s@%s" $values.image.repository $values.image.digest }}
 {{- end }}
-{{- if ne $goImage $observerImage }}
-{{- fail "observer.image must match gateway.image when migrations.enabled=true" }}
+{{- if ne $goImage $image }}
+{{- fail (printf "%s.image must match gateway.image when migrations.enabled=true" $service) }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- $name := printf "%s-migrate" .Release.Name }}

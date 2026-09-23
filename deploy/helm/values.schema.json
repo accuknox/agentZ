@@ -27,6 +27,163 @@
         "affinity": { "type": "object" }
       }
     },
+    "relay": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "image": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "repository": {
+              "type": "string"
+            },
+            "tag": {
+              "type": "string"
+            },
+            "digest": {
+              "type": "string"
+            },
+            "pullPolicy": {
+              "enum": [
+                "Always",
+                "IfNotPresent",
+                "Never"
+              ]
+            }
+          }
+        },
+        "serviceAccountName": {
+          "type": "string"
+        },
+        "publicAddress": {
+          "type": "string"
+        },
+        "service": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "enum": [
+                "ClusterIP",
+                "LoadBalancer",
+                "NodePort"
+              ]
+            },
+            "annotations": {
+              "type": "object"
+            }
+          }
+        },
+        "resources": {
+          "type": "object"
+        },
+        "nodeSelector": {
+          "type": "object"
+        },
+        "tolerations": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "affinity": {
+          "type": "object"
+        },
+        "config": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "gatewayURL": {
+              "type": "string"
+            },
+            "internalK8sTokenAudience": {
+              "type": "string"
+            },
+            "proxyCASecretName": {
+              "type": "string"
+            },
+            "proxyCASecretKey": {
+              "type": "string"
+            },
+            "agentTraceEndpoint": {
+              "type": "string"
+            },
+            "skillsS3Endpoint": {
+              "type": "string"
+            },
+            "skillsS3Region": {
+              "type": "string"
+            },
+            "skillsS3Bucket": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "spire": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "trustDomain": {
+          "type": "string"
+        },
+        "rootSecret": {
+          "type": "string"
+        },
+        "publicAddress": {
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "storageSize": {
+          "type": "string"
+        },
+        "storageClassName": {
+          "type": "string"
+        },
+        "service": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "enum": [
+                "ClusterIP",
+                "LoadBalancer",
+                "NodePort"
+              ]
+            },
+            "annotations": {
+              "type": "object"
+            }
+          }
+        },
+        "maintenanceResources": { "type": "object" },
+        "resources": {
+          "type": "object"
+        },
+        "nodeSelector": {
+          "type": "object"
+        },
+        "tolerations": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "affinity": {
+          "type": "object"
+        }
+      }
+    },
     "manager": { "type": "object" },
     "gateway": { "type": "object" },
     "observer": { "type": "object" },

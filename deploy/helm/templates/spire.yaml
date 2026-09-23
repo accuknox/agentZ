@@ -1,0 +1,247 @@
+{{- if .Values.spire.enabled }}
+{{- $name := printf "%s-spire" .Release.Name }}
+{{- $root := required "spire.rootSecret must name a stable CA Secret containing tls.crt/tls.key" .Values.spire.rootSecret }}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ $name }}-root
+  namespace: {{ .Release.Namespace }}
+spec:
+  ca:
+    secretName: {{ $root }}
+{{- if .Values.relay.enabled }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .Release.Name }}-relay-identity
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretName: {{ .Release.Name }}-relay-identity
+  duration: 24h
+  renewBefore: 8h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  uris:
+    - {{ printf "spiffe://%s/agentz/relay-admin" .Values.spire.trustDomain | quote }}
+  usages: [digital signature, client auth, server auth]
+  issuerRef:
+    name: {{ $name }}-root
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .Release.Name }}-gateway-relay-client
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretName: {{ default (printf "%s-relay-client" (include "agentz.gatewayFullname" .)) .Values.gateway.config.relayIdentitySecret }}
+  duration: 24h
+  renewBefore: 8h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  uris:
+    - {{ printf "spiffe://%s/agentz/gateway" .Values.spire.trustDomain | quote }}
+  usages: [digital signature, client auth]
+  issuerRef:
+    name: {{ $name }}-root
+    kind: Issuer
+{{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+data:
+  server.conf: |
+    server {
+      trust_domain = {{ .Values.spire.trustDomain | quote }}
+      bind_address = "0.0.0.0"
+      bind_port = 8081
+      socket_path = "/run/spire/api.sock"
+      data_dir = "/var/lib/spire"
+      agent_ttl = "5040h"
+      default_x509_svid_ttl = "1h"
+      ca_ttl = "8760h"
+      admin_ids = [{{ printf "spiffe://%s/agentz/relay-admin" .Values.spire.trustDomain | quote }}]
+    }
+    plugins {
+      DataStore "sql" {
+        plugin_data {
+          database_type = "sqlite3"
+          connection_string = "/var/lib/spire/datastore.sqlite3"
+        }
+      }
+      KeyManager "disk" {
+        plugin_data { keys_path = "/var/lib/spire/keys.json" }
+      }
+      NodeAttestor "join_token" { plugin_data {} }
+      UpstreamAuthority "disk" {
+        plugin_data {
+          cert_file_path = "/etc/spire/upstream/root.pem"
+          key_file_path = "/etc/spire/upstream/root-key.pem"
+        }
+      }
+    }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  {{- with .Values.spire.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.spire.service.type }}
+  selector:
+    app.kubernetes.io/name: spire
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: spire
+      port: 8081
+      targetPort: spire
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ printf "%s-headless" $name | trunc 63 | trimSuffix "-" }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: spire
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: spire
+      port: 8081
+      targetPort: spire
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  serviceName: {{ printf "%s-headless" $name | trunc 63 | trimSuffix "-" }}
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: spire
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ toYaml .Values.spire | sha256sum }}
+      labels:
+        app.kubernetes.io/name: spire
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: spire-server
+          image: {{ .Values.spire.image | quote }}
+          args: ["-config", "/etc/spire/server.conf"]
+          ports:
+            - name: spire
+              containerPort: 8081
+          readinessProbe:
+            tcpSocket:
+              port: spire
+          livenessProbe:
+            tcpSocket:
+              port: spire
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            {{- toYaml .Values.spire.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/spire
+            - name: socket
+              mountPath: /run/spire
+            - name: config
+              mountPath: /etc/spire/server.conf
+              subPath: server.conf
+              readOnly: true
+            - name: root
+              mountPath: /etc/spire/upstream
+              readOnly: true
+        - name: authority-maintenance
+          image: "{{ .Values.gateway.image.repository }}{{ if .Values.gateway.image.digest }}@{{ .Values.gateway.image.digest }}{{ else }}:{{ .Values.gateway.image.tag }}{{ end }}"
+          imagePullPolicy: {{ .Values.gateway.image.pullPolicy }}
+          command: ["/agentz"]
+          args:
+            - spire
+            - maintain
+            - --socket=/run/spire/api.sock
+            - --trust-domain={{ .Values.spire.trustDomain }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            {{- toYaml .Values.spire.maintenanceResources | nindent 12 }}
+          volumeMounts:
+            - name: socket
+              mountPath: /run/spire
+      volumes:
+        - name: socket
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: {{ $name }}
+        - name: root
+          secret:
+            secretName: {{ $root }}
+            defaultMode: 0440
+            items:
+              - key: tls.crt
+                path: root.pem
+              - key: tls.key
+                path: root-key.pem
+      {{- with .Values.spire.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.spire.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.spire.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- if .Values.spire.storageClassName }}
+        storageClassName: {{ .Values.spire.storageClassName | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.spire.storageSize }}
+{{- end }}

@@ -12,28 +12,28 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/accuknox/agentz/internal/compute"
+	"github.com/accuknox/agentz/internal/host"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 // NativeRuntime resolves the same sandbox, inference, MCP, skills and OpenCode
 // configuration used by Kubernetes Agents, targeting daemon-owned local bridges.
-func (r *Reconciler) NativeRuntime(ctx context.Context, agt *agentzv1alpha1.Agent, endpoints compute.NativeEndpoints) (compute.RuntimeSpec, error) {
+func (r *Reconciler) NativeRuntime(ctx context.Context, agt *agentzv1alpha1.Agent, endpoints host.NativeEndpoints) (host.RuntimeSpec, error) {
 	if agt.Spec.Execution != agentzv1alpha1.AgentExecutionNative {
-		return compute.RuntimeSpec{}, fmt.Errorf("agent does not use native execution")
+		return host.RuntimeSpec{}, fmt.Errorf("agent does not use native execution")
 	}
 	cfg, err := r.resolveSandbox(ctx, agt)
 	if err != nil {
-		return compute.RuntimeSpec{}, err
+		return host.RuntimeSpec{}, err
 	}
 	if endpoints.MCP == "" || endpoints.Inference == "" || endpoints.Platform == "" {
-		return compute.RuntimeSpec{}, fmt.Errorf("native MCP, inference and platform bridges are required")
+		return host.RuntimeSpec{}, fmt.Errorf("native MCP, inference and platform bridges are required")
 	}
 	cfg.RuntimePaths = &endpoints
 	if cfg.MCPURL != "" {
 		route, err := url.Parse(cfg.MCPURL)
 		if err != nil {
-			return compute.RuntimeSpec{}, fmt.Errorf("parse MCP route: %w", err)
+			return host.RuntimeSpec{}, fmt.Errorf("parse MCP route: %w", err)
 		}
 		cfg.MCPURL = endpoints.MCP + route.RequestURI()
 	}
@@ -41,7 +41,7 @@ func (r *Reconciler) NativeRuntime(ctx context.Context, agt *agentzv1alpha1.Agen
 		if provider.Options != nil && provider.Options.BaseURL != "" {
 			route, err := url.Parse(provider.Options.BaseURL)
 			if err != nil {
-				return compute.RuntimeSpec{}, fmt.Errorf("parse inference route: %w", err)
+				return host.RuntimeSpec{}, fmt.Errorf("parse inference route: %w", err)
 			}
 			provider.Options.BaseURL = endpoints.Inference + route.RequestURI()
 		}
@@ -51,7 +51,7 @@ func (r *Reconciler) NativeRuntime(ctx context.Context, agt *agentzv1alpha1.Agen
 			}
 			route, err := url.Parse(model.Provider.API)
 			if err != nil {
-				return compute.RuntimeSpec{}, fmt.Errorf("parse model route: %w", err)
+				return host.RuntimeSpec{}, fmt.Errorf("parse model route: %w", err)
 			}
 			model.Provider.API = endpoints.Inference + route.RequestURI()
 			provider.Models[name] = model
@@ -59,9 +59,9 @@ func (r *Reconciler) NativeRuntime(ctx context.Context, agt *agentzv1alpha1.Agen
 	}
 	config, instructions, err := renderOpencodeConfig(agt, cfg)
 	if err != nil {
-		return compute.RuntimeSpec{}, err
+		return host.RuntimeSpec{}, err
 	}
-	result := compute.RuntimeSpec{
+	result := host.RuntimeSpec{
 		OpenCodeConfig: config,
 		Instructions:   make(map[string]string, len(instructions)),
 		Packages:       cfg.Packages,
@@ -76,7 +76,7 @@ func (r *Reconciler) NativeRuntime(ctx context.Context, agt *agentzv1alpha1.Agen
 	}
 	for _, env := range r.agentEnv(agt, cfg, true) {
 		if env.ValueFrom != nil {
-			return compute.RuntimeSpec{}, fmt.Errorf("native environment %q cannot use Kubernetes valueFrom", env.Name)
+			return host.RuntimeSpec{}, fmt.Errorf("native environment %q cannot use Kubernetes valueFrom", env.Name)
 		}
 		result.Env[env.Name] = env.Value
 	}
@@ -92,7 +92,7 @@ func (r *Reconciler) NativeRuntime(ctx context.Context, agt *agentzv1alpha1.Agen
 	result.Env["AGENTZ_IMMUTABLE_SKILLS_PATH"] = endpoints.ImmutableSkillsDirectory
 	if result.SecretProxy {
 		if endpoints.Proxy == "" || endpoints.CABundlePath == "" {
-			return compute.RuntimeSpec{}, fmt.Errorf("secret proxy requires local proxy and CA bundle")
+			return host.RuntimeSpec{}, fmt.Errorf("secret proxy requires local proxy and CA bundle")
 		}
 		result.Env["https_proxy"] = endpoints.Proxy
 		result.Env["HTTPS_PROXY"] = endpoints.Proxy

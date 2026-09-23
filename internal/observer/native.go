@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/accuknox/agentz/internal/compute"
+	"github.com/accuknox/agentz/internal/host"
 	"github.com/jackc/pgx/v5/pgxpool"
 	pb "github.com/kubearmor/KubeArmor/protobuf"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -16,7 +16,7 @@ import (
 
 // NativeSecurityEvent stores a host event under its authenticated assignment.
 // Payload namespace, pod, labels and owner fields never determine attribution.
-func NativeSecurityEvent(ctx context.Context, pool *pgxpool.Pool, namespace, agent string, payload compute.SecurityEvent) error {
+func NativeSecurityEvent(ctx context.Context, pool *pgxpool.Pool, namespace, agent string, payload host.SecurityEvent) error {
 	if namespace == "" || agent == "" {
 		return fmt.Errorf("native event requires an agent assignment")
 	}
@@ -29,7 +29,7 @@ func NativeSecurityEvent(ctx context.Context, pool *pgxpool.Pool, namespace, age
 	return (&dbStore{pool: pool}).insertBatch(ctx, collected.flush())
 }
 
-func nativeSecurityEvent(namespace, agent string, payload compute.SecurityEvent) (event, error) {
+func nativeSecurityEvent(namespace, agent string, payload host.SecurityEvent) (event, error) {
 	if len(payload.Event) > 64*1024 {
 		return event{}, fmt.Errorf("native event exceeds size limit")
 	}

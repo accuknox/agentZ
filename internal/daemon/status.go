@@ -12,16 +12,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/accuknox/agentz/internal/compute"
+	"github.com/accuknox/agentz/internal/host"
 )
 
 type snapshot struct {
-	Connected bool           `json:"connected"`
-	UpdatedAt time.Time      `json:"updated_at"`
-	Runtime   compute.Status `json:"runtime"`
+	Connected bool        `json:"connected"`
+	UpdatedAt time.Time   `json:"updated_at"`
+	Runtime   host.Status `json:"runtime"`
 }
 
-func (s *supervisor) report() compute.Status {
+func (s *supervisor) report() host.Status {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	state := snapshot{Connected: s.connected, UpdatedAt: time.Now(), Runtime: s.status}

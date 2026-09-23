@@ -1,4 +1,4 @@
-package compute
+package host
 
 import (
 	"context"
@@ -7,13 +7,13 @@ import (
 	"sync"
 	"time"
 
-	pb "github.com/accuknox/agentz/internal/compute/proto"
+	pb "github.com/accuknox/agentz/internal/host/proto"
 )
 
 // Client maintains an outbound control session and fixed local service bridges.
 // Apply must update desired runtime state independently of the connection lifetime.
 type Client struct {
-	RPC       pb.ComputeClient
+	RPC       pb.HostRelayClient
 	Apply     func(context.Context, *pb.Runtime) error
 	Status    func() Status
 	DialLocal func(context.Context, pb.Service) (net.Conn, error)
@@ -43,7 +43,10 @@ func (c *Client) Run(ctx context.Context) error {
 		defer ticker.Stop()
 		for {
 			state := c.Status()
-			err := stream.Send(&pb.Heartbeat{Generation: state.Generation, Ready: state.Ready, Error: state.Error, Version: state.Version, WorkDirectory: state.WorkDirectory, Hostname: state.Hostname})
+			err := stream.Send(&pb.Heartbeat{
+				Generation: state.Generation, Ready: state.Ready, Error: state.Error,
+				Version: state.Version, WorkDirectory: state.WorkDirectory, Hostname: state.Hostname,
+			})
 			if err != nil {
 				cancel()
 				return

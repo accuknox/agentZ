@@ -43,7 +43,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/accuknox/agentz/internal/compute"
+	"github.com/accuknox/agentz/internal/host"
 	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/mcp"
 	"github.com/accuknox/agentz/internal/sandboxutil"
@@ -286,7 +286,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 type sandboxConfig struct {
-	RuntimePaths            *compute.NativeEndpoints
+	RuntimePaths            *host.NativeEndpoints
 	WorkspaceType           agentzv1alpha1.WorkspaceType
 	Packages                []string
 	AllowedHosts            []string

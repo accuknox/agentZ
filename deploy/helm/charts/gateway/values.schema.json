@@ -3,60 +3,6 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "compute": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
-        "publicAddress": { "type": "string" },
-        "spirePublicAddress": { "type": "string" },
-        "trustDomain": {
-          "type": "string",
-          "minLength": 1
-        },
-        "port": {
-          "type": "integer",
-          "minimum": 1024,
-          "maximum": 65535
-        },
-        "spire": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "image": {
-              "type": "string"
-            },
-            "upstreamSecret": {
-              "type": "string"
-            },
-            "storageSize": {
-              "type": "string"
-            },
-            "storageClassName": {
-              "type": "string"
-            }
-          }
-        },
-        "service": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "type": {
-              "enum": [
-                "ClusterIP",
-                "LoadBalancer",
-                "NodePort"
-              ]
-            },
-            "annotations": {
-              "type": "object"
-            }
-          }
-        }
-      }
-    },
     "global": { "type": "object", "properties": { "secretName": { "type": "string" } } },
     "enabled": { "type": "boolean" },
     "nameOverride": { "type": "string" },
@@ -98,6 +44,12 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "relayAddress": { "type": "string" },
+        "relayTrustDomain": { "type": "string" },
+        "relayTrustBundle": { "type": "string" },
+        "relayCertFile": { "type": "string" },
+        "relayKeyFile": { "type": "string" },
+        "relayIdentitySecret": { "type": "string" },
         "codingGithubClientID": { "type": "string" },
         "logLevel": { "enum": ["debug", "info", "warn", "error"] },
         "logFormat": { "enum": ["text", "json", "pretty"] },

@@ -48,132 +48,144 @@ import (
 func TestReconcileMCPAgentRouteIdentity(t *testing.T) {
 	t.Parallel()
 
-	const (
-		namespace   = "workspace"
-		agentName   = "agent"
-		sandboxName = "sandbox"
-		wantPath    = "/mcp/agents/workspace/agent/sandboxes/sandbox"
-	)
-	scheme := runtime.NewScheme()
-	adders := []func(*runtime.Scheme) error{
-		corev1.AddToScheme,
-		discoveryv1.AddToScheme,
-		ciliumv2.AddToScheme,
-		gwv1.Install,
-		agentzv1alpha1.AddToScheme,
-	}
-	for _, add := range adders {
-		if err := add(scheme); err != nil {
-			t.Fatalf("add scheme: %v", err)
-		}
-	}
+	for _, execution := range []agentzv1alpha1.AgentExecution{agentzv1alpha1.AgentExecutionKubernetes, agentzv1alpha1.AgentExecutionNative} {
+		t.Run(string(execution), func(t *testing.T) {
+			const (
+				namespace   = "workspace"
+				agentName   = "agent"
+				sandboxName = "sandbox"
+				wantPath    = "/mcp/agents/workspace/agent/sandboxes/sandbox"
+			)
+			scheme := runtime.NewScheme()
+			adders := []func(*runtime.Scheme) error{
+				corev1.AddToScheme,
+				discoveryv1.AddToScheme,
+				ciliumv2.AddToScheme,
+				gwv1.Install,
+				agentzv1alpha1.AddToScheme,
+			}
+			for _, add := range adders {
+				if err := add(scheme); err != nil {
+					t.Fatalf("add scheme: %v", err)
+				}
+			}
 
-	sandbox := &agentzv1alpha1.Sandbox{
-		ObjectMeta: metav1.ObjectMeta{Name: sandboxName, Namespace: namespace},
-	}
-	agt := &agentzv1alpha1.Agent{
-		ObjectMeta: metav1.ObjectMeta{Name: agentName, Namespace: namespace},
-		Spec: agentzv1alpha1.AgentSpec{SandboxRef: agentzv1alpha1.ResourceReference{
-			Scope: agentzv1alpha1.ResourceScopeWorkspace,
-			Name:  sandboxName,
-		}},
-	}
-	k8sClient := fake.NewClientBuilder().
-		WithScheme(scheme).
-		WithObjects(
-			&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
-				Name: namespace,
-				Labels: map[string]string{
-					agentzv1alpha1.WorkspaceNameLabel: namespace,
+			sandbox := &agentzv1alpha1.Sandbox{
+				ObjectMeta: metav1.ObjectMeta{Name: sandboxName, Namespace: namespace},
+			}
+			agt := &agentzv1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{Name: agentName, Namespace: namespace},
+				Spec: agentzv1alpha1.AgentSpec{Execution: execution, SandboxRef: agentzv1alpha1.ResourceReference{
+					Scope: agentzv1alpha1.ResourceScopeWorkspace,
+					Name:  sandboxName,
+				}},
+			}
+			k8sClient := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithObjects(
+					&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
+						Name: namespace,
+						Labels: map[string]string{
+							agentzv1alpha1.WorkspaceNameLabel: namespace,
+						},
+					}},
+					sandbox,
+					agt,
+				).
+				WithIndex(
+					&agentzv1alpha1.Agent{},
+					sandboxutil.AgentBySandboxIndex,
+					func(obj client.Object) []string {
+						agt := obj.(*agentzv1alpha1.Agent)
+						return []string{agt.Spec.SandboxRef.Name}
+					},
+				).
+				Build()
+			r := &Reconciler{
+				RelayServiceAccountName: "relay", RelayServiceAccountNamespace: "relay-namespace",
+				Client:       k8sClient,
+				Scheme:       scheme,
+				AgentGateway: agentgatewayfake.NewSimpleClientset(),
+				TraceBackend: TraceBackend{
+					Mode:             TraceBackendModeService,
+					ServiceName:      "observer",
+					ServiceNamespace: "agentz-system",
+					ServicePort:      4317,
 				},
-			}},
-			sandbox,
-			agt,
-		).
-		WithIndex(
-			&agentzv1alpha1.Agent{},
-			sandboxutil.AgentBySandboxIndex,
-			func(obj client.Object) []string {
-				agt := obj.(*agentzv1alpha1.Agent)
-				return []string{agt.Spec.SandboxRef.Name}
-			},
-		).
-		Build()
-	r := &Reconciler{
-		Client:       k8sClient,
-		Scheme:       scheme,
-		AgentGateway: agentgatewayfake.NewSimpleClientset(),
-		TraceBackend: TraceBackend{
-			Mode:             TraceBackendModeService,
-			ServiceName:      "observer",
-			ServiceNamespace: "agentz-system",
-			ServicePort:      4317,
-		},
-	}
-	ctx := context.Background()
-	if err := r.reconcileRoute(ctx, sandbox); err != nil {
-		t.Fatalf("reconcileRoute() error = %v", err)
-	}
-	owners := []agentzv1alpha1.Sandbox{*sandbox}
-	if err := r.reconcileGatewayNetworkPolicy(ctx, namespace, owners); err != nil {
-		t.Fatalf("reconcileGatewayNetworkPolicy() error = %v", err)
-	}
-	if err := r.reconcileTracePolicy(ctx, namespace, owners); err != nil {
-		t.Fatalf("reconcileTracePolicy() error = %v", err)
-	}
+			}
+			ctx := context.Background()
+			if err := r.reconcileRoute(ctx, sandbox); err != nil {
+				t.Fatalf("reconcileRoute() error = %v", err)
+			}
+			owners := []agentzv1alpha1.Sandbox{*sandbox}
+			if err := r.reconcileGatewayNetworkPolicy(ctx, namespace, owners); err != nil {
+				t.Fatalf("reconcileGatewayNetworkPolicy() error = %v", err)
+			}
+			if err := r.reconcileTracePolicy(ctx, namespace, owners); err != nil {
+				t.Fatalf("reconcileTracePolicy() error = %v", err)
+			}
 
-	route := &gwv1.HTTPRoute{}
-	key := client.ObjectKey{Name: mcp.SandboxRouteName(sandboxName), Namespace: namespace}
-	if err := k8sClient.Get(ctx, key, route); err != nil {
-		t.Fatalf("get MCP HTTPRoute: %v", err)
-	}
-	if len(route.Spec.Rules) != 1 || len(route.Spec.Rules[0].Matches) != 1 {
-		t.Fatalf("MCP HTTPRoute matches = %#v, want one agent match", route.Spec.Rules)
-	}
-	gotPath := route.Spec.Rules[0].Matches[0].Path.Value
-	if gotPath == nil || *gotPath != wantPath {
-		t.Fatalf("MCP HTTPRoute path = %v, want %q", gotPath, wantPath)
-	}
+			route := &gwv1.HTTPRoute{}
+			key := client.ObjectKey{Name: mcp.SandboxRouteName(sandboxName), Namespace: namespace}
+			if err := k8sClient.Get(ctx, key, route); err != nil {
+				t.Fatalf("get MCP HTTPRoute: %v", err)
+			}
+			if len(route.Spec.Rules) != 1 || len(route.Spec.Rules[0].Matches) != 1 {
+				t.Fatalf("MCP HTTPRoute matches = %#v, want one agent match", route.Spec.Rules)
+			}
+			gotPath := route.Spec.Rules[0].Matches[0].Path.Value
+			if gotPath == nil || *gotPath != wantPath {
+				t.Fatalf("MCP HTTPRoute path = %v, want %q", gotPath, wantPath)
+			}
 
-	policy := &ciliumv2.CiliumNetworkPolicy{}
-	key = client.ObjectKey{Name: mcp.GatewayName, Namespace: namespace}
-	if err := k8sClient.Get(ctx, key, policy); err != nil {
-		t.Fatalf("get MCP CiliumNetworkPolicy: %v", err)
-	}
-	wantL7Path := "^/mcp/agents/workspace/agent/sandboxes/sandbox(/.*)?$"
-	gotL7Path := policy.Spec.Ingress[0].ToPorts[0].Rules.HTTP[0].Path
-	if gotL7Path != wantL7Path {
-		t.Fatalf("MCP CiliumNetworkPolicy path = %q, want %q", gotL7Path, wantL7Path)
-	}
+			policy := &ciliumv2.CiliumNetworkPolicy{}
+			key = client.ObjectKey{Name: mcp.GatewayName, Namespace: namespace}
+			if err := k8sClient.Get(ctx, key, policy); err != nil {
+				t.Fatalf("get MCP CiliumNetworkPolicy: %v", err)
+			}
+			wantL7Path := "^/mcp/agents/workspace/agent/sandboxes/sandbox(/.*)?$"
+			gotL7Path := policy.Spec.Ingress[0].ToPorts[0].Rules.HTTP[0].Path
+			if gotL7Path != wantL7Path {
+				t.Fatalf("MCP CiliumNetworkPolicy path = %q, want %q", gotL7Path, wantL7Path)
+			}
 
-	tracePolicy, err := r.AgentGateway.AgentgatewayAgentgateway().
-		AgentgatewayPolicies(namespace).
-		Get(ctx, tracePolicyName, metav1.GetOptions{})
-	if err != nil {
-		t.Fatalf("get MCP trace policy: %v", err)
-	}
-	attrs := map[agentgatewayv1alpha1.ShortString]agentgatewayv1alpha1.CELExpression{}
-	for _, attr := range tracePolicy.Spec.Frontend.Tracing.Attributes.Add {
-		attrs[attr.Name] = attr.Expression
-	}
-	wantTenant := agentgatewayv1alpha1.CELExpression(`request.path.split("/")[3]`)
-	wantAgent := agentgatewayv1alpha1.CELExpression(`request.path.split("/")[4]`)
-	if attrs[agentgatewayv1alpha1.ShortString("agentz.tenant_namespace")] != wantTenant {
-		t.Fatalf("tenant trace attribute = %q, want %q", attrs["agentz.tenant_namespace"], wantTenant)
-	}
-	if attrs[agentgatewayv1alpha1.ShortString("agentz.agent_name")] != wantAgent {
-		t.Fatalf("agent trace attribute = %q, want %q", attrs["agentz.agent_name"], wantAgent)
-	}
+			tracePolicy, err := r.AgentGateway.AgentgatewayAgentgateway().
+				AgentgatewayPolicies(namespace).
+				Get(ctx, tracePolicyName, metav1.GetOptions{})
+			if err != nil {
+				t.Fatalf("get MCP trace policy: %v", err)
+			}
+			attrs := map[agentgatewayv1alpha1.ShortString]agentgatewayv1alpha1.CELExpression{}
+			for _, attr := range tracePolicy.Spec.Frontend.Tracing.Attributes.Add {
+				attrs[attr.Name] = attr.Expression
+			}
+			wantTenant := agentgatewayv1alpha1.CELExpression(`request.path.split("/")[3]`)
+			wantAgent := agentgatewayv1alpha1.CELExpression(`request.path.split("/")[4]`)
+			if attrs[agentgatewayv1alpha1.ShortString("agentz.tenant_namespace")] != wantTenant {
+				t.Fatalf("tenant trace attribute = %q, want %q", attrs["agentz.tenant_namespace"], wantTenant)
+			}
+			if attrs[agentgatewayv1alpha1.ShortString("agentz.agent_name")] != wantAgent {
+				t.Fatalf("agent trace attribute = %q, want %q", attrs["agentz.agent_name"], wantAgent)
+			}
 
-	if err := k8sClient.Delete(ctx, agt); err != nil {
-		t.Fatalf("delete Agent: %v", err)
-	}
-	if err := r.reconcileRoute(ctx, sandbox); err != nil {
-		t.Fatalf("reconcileRoute() after Agent deletion error = %v", err)
-	}
-	key = client.ObjectKey{Name: mcp.SandboxRouteName(sandboxName), Namespace: namespace}
-	if err := k8sClient.Get(ctx, key, route); !apierrors.IsNotFound(err) {
-		t.Fatalf("get MCP HTTPRoute after Agent deletion error = %v, want not found", err)
+			if err := k8sClient.Delete(ctx, agt); err != nil {
+				t.Fatalf("delete Agent: %v", err)
+			}
+			if err := r.reconcileRoute(ctx, sandbox); err != nil {
+				t.Fatalf("reconcileRoute() after Agent deletion error = %v", err)
+			}
+			key = client.ObjectKey{Name: mcp.SandboxRouteName(sandboxName), Namespace: namespace}
+			if err := k8sClient.Get(ctx, key, route); !apierrors.IsNotFound(err) {
+				t.Fatalf("get MCP HTTPRoute after Agent deletion error = %v, want not found", err)
+			}
+			if execution == agentzv1alpha1.AgentExecutionNative {
+				labels := policy.Spec.Ingress[0].FromEndpoints[0].MatchLabels
+				if labels["k8s:io.kubernetes.pod.namespace"] != "relay-namespace" || labels["k8s:io.cilium.k8s.policy.serviceaccount"] != "relay" || len(labels) != 2 {
+					t.Fatalf("native MCP source must select only the relay identity: %v", labels)
+				}
+			}
+
+		})
 	}
 }
 
@@ -244,6 +256,7 @@ func TestGatewayNetworkPolicySpecTraceEgress(t *testing.T) {
 }
 
 type inferenceExtAuthCase struct {
+	execution   agentzv1alpha1.AgentExecution
 	name        string
 	provider    agentzv1alpha1.InferenceProviderSpec
 	wantExtAuth bool
@@ -253,6 +266,8 @@ func TestReconcileInferenceGatewayExtAuthEgress(t *testing.T) {
 	t.Parallel()
 
 	tests := []inferenceExtAuthCase{
+		{name: "native subscription provider", execution: agentzv1alpha1.AgentExecutionNative,
+			provider: agentzv1alpha1.InferenceProviderSpec{Kind: agentzv1alpha1.InferenceProviderKindOpenAICodex}, wantExtAuth: true},
 		{
 			name: "subscription provider",
 			provider: agentzv1alpha1.InferenceProviderSpec{
@@ -300,6 +315,7 @@ func TestReconcileInferenceGatewayExtAuthEgress(t *testing.T) {
 			}
 
 			objects := []client.Object{
+				&agentzv1alpha1.Agent{ObjectMeta: metav1.ObjectMeta{Name: "agent", Namespace: workspaceNamespace}, Spec: agentzv1alpha1.AgentSpec{Execution: tt.execution, SandboxRef: agentzv1alpha1.ResourceReference{Name: "debug", Scope: agentzv1alpha1.ResourceScopeWorkspace}}},
 				&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
 					Name: workspaceNamespace,
 					Labels: map[string]string{
@@ -353,6 +369,7 @@ func TestReconcileInferenceGatewayExtAuthEgress(t *testing.T) {
 				).
 				Build()
 			r := &Reconciler{
+				RelayServiceAccountName: "relay", RelayServiceAccountNamespace: "relay-namespace",
 				Client:       k8sClient,
 				Scheme:       scheme,
 				AgentGateway: agentgatewayfake.NewSimpleClientset(),
@@ -373,6 +390,17 @@ func TestReconcileInferenceGatewayExtAuthEgress(t *testing.T) {
 			if err := k8sClient.Get(context.Background(), key, policy); err != nil {
 				t.Fatalf("get inference CiliumNetworkPolicy: %v", err)
 			}
+			if tt.execution == agentzv1alpha1.AgentExecutionNative {
+				source := policy.Spec.Ingress[0].FromEndpoints[0].MatchLabels
+				if source["k8s:io.kubernetes.pod.namespace"] != "relay-namespace" || source["k8s:io.cilium.k8s.policy.serviceaccount"] != "relay" || len(source) != 2 {
+					t.Fatalf("incorrect native inference source: %v", source)
+				}
+				path := policy.Spec.Ingress[0].ToPorts[0].Rules.HTTP[0].Path
+				if !strings.Contains(path, "/sandboxes/debug/") {
+					t.Fatalf("native inference lost Sandbox path restriction: %s", path)
+				}
+			}
+
 			want := networkpolicy.ServiceEgress(
 				organizationNamespace,
 				mcp.ExtAuthServiceName,

@@ -3,7 +3,7 @@ package observer
 import (
 	"testing"
 
-	"github.com/accuknox/agentz/internal/compute"
+	"github.com/accuknox/agentz/internal/host"
 	pb "github.com/kubearmor/KubeArmor/protobuf"
 	tracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
@@ -18,7 +18,7 @@ func TestNativeSecurityEventAttributionAndResult(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	event, err := nativeSecurityEvent("tenant-trusted", "agent-trusted", compute.SecurityEvent{Kind: "log", Event: data})
+	event, err := nativeSecurityEvent("tenant-trusted", "agent-trusted", host.SecurityEvent{Kind: "log", Event: data})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,14 +34,14 @@ func TestNativeSecurityEventAttributionAndResult(t *testing.T) {
 	}
 	record.ParentProcessName = "/bin/bash"
 	data, _ = protojson.Marshal(record)
-	_, err = nativeSecurityEvent("tenant", "agent", compute.SecurityEvent{Kind: "log", Event: data})
+	_, err = nativeSecurityEvent("tenant", "agent", host.SecurityEvent{Kind: "log", Event: data})
 	if err == nil {
 		t.Fatal("accepted unrelated parent")
 	}
 	record.ParentProcessName = "opencode"
 	record.ContainerID = "container"
 	data, _ = protojson.Marshal(record)
-	_, err = nativeSecurityEvent("tenant", "agent", compute.SecurityEvent{Kind: "log", Event: data})
+	_, err = nativeSecurityEvent("tenant", "agent", host.SecurityEvent{Kind: "log", Event: data})
 	if err == nil {
 		t.Fatal("accepted container event")
 	}

@@ -1,4 +1,4 @@
-package compute
+package host
 
 import (
 	"context"
@@ -14,12 +14,11 @@ import (
 	"log/slog"
 	"net/url"
 	"path/filepath"
-	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
+	hostv1 "github.com/accuknox/agentz/internal/host/proto"
 	"github.com/google/uuid"
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -41,20 +40,8 @@ import (
 // NodeLifetime is the node certificate lifetime, independent of workload SVIDs.
 const NodeLifetime = 210 * 24 * time.Hour
 
-// OfflineTarget maintains headroom beyond six calendar months of inactivity.
-const OfflineTarget = 200 * 24 * time.Hour
-
 // DaemonExecutable is installed as an actual executable, not a version symlink.
 const DaemonExecutable = "/usr/local/lib/agentz/agentz"
-
-// Enrollment contains a single-use bootstrap credential and its public identities.
-type Enrollment struct {
-	JoinToken   string    `json:"joinToken"`
-	NodeID      string    `json:"nodeID"`
-	WorkloadID  string    `json:"workloadID"`
-	ExpiresAt   time.Time `json:"expiresAt"`
-	TrustBundle string    `json:"trustBundle"`
-}
 
 // IdentityAdmin uses SPIRE's administrative API; it never issues credentials itself.
 // Its socket or client identity must never be exposed to a managed workload.
@@ -65,7 +52,6 @@ type IdentityAdmin struct {
 	entries     entryv1.EntryClient
 	bundles     bundlev1.BundleClient
 	authorities authorityv1.LocalAuthorityClient
-	rotation    sync.Mutex
 	material    atomic.Pointer[serverIdentity]
 }
 
@@ -110,40 +96,47 @@ func (a *IdentityAdmin) Close() error { return a.conn.Close() }
 
 // Enroll binds a one-time token to precisely one daemon workload identity.
 // The identity UUID comes from the authorized backend enrollment, not the host.
-func (a *IdentityAdmin) Enroll(ctx context.Context, identity string, uid uint32, executable string) (Enrollment, error) {
+func (a *IdentityAdmin) Enroll(ctx context.Context, identity string) (*hostv1.EnrollmentResponse, error) {
 	if _, err := uuid.Parse(identity); err != nil {
-		return Enrollment{}, fmt.Errorf("invalid compute identity: %w", err)
+		return nil, fmt.Errorf("invalid host identity: %w", err)
 	}
-	if uid != 0 || executable != DaemonExecutable {
-		return Enrollment{}, errors.New("daemon requires fixed root UID and installed executable")
+	state, err := a.authorities.GetX509AuthorityState(ctx, &authorityv1.GetX509AuthorityStateRequest{})
+	if err != nil {
+		return nil, fmt.Errorf("get SPIRE signing authority: %w", err)
 	}
-	if err := a.RotateAuthority(ctx); err != nil {
-		return Enrollment{}, err
+	if state.Active == nil || state.Active.UpstreamAuthoritySubjectKeyId == "" {
+		return nil, errors.New("host enrollment requires a stable SPIRE upstream root")
+	}
+	if !time.Unix(state.Active.ExpiresAt, 0).After(time.Now().Add(NodeLifetime + time.Hour)) {
+		return nil, errors.New("SPIRE signing authority lacks six-month node headroom; check authority maintenance")
 	}
 	bundle, err := a.Bundle(ctx)
 	if err != nil {
-		return Enrollment{}, err
+		return nil, err
 	}
 	token, err := a.agents.CreateJoinToken(ctx, &agentv1.CreateJoinTokenRequest{Ttl: 600})
 	if err != nil {
-		return Enrollment{}, fmt.Errorf("create SPIRE join token: %w", err)
+		return nil, fmt.Errorf("create SPIRE join token: %w", err)
 	}
 	node := &types.SPIFFEID{TrustDomain: a.domain.String(), Path: "/spire/agent/join_token/" + token.Value}
 	workload := &types.SPIFFEID{TrustDomain: a.domain.String(), Path: "/agentz/daemon/" + identity}
 	result, err := a.entries.BatchCreateEntry(ctx, &entryv1.BatchCreateEntryRequest{Entries: []*types.Entry{{
 		SpiffeId: workload, ParentId: node, X509SvidTtl: 3600,
-		Selectors: []*types.Selector{{Type: "unix", Value: "uid:" + strconv.FormatUint(uint64(uid), 10)}, {Type: "unix", Value: "path:" + executable}},
+		Selectors: []*types.Selector{
+			{Type: "unix", Value: "uid:0"},
+			{Type: "unix", Value: "path:" + DaemonExecutable},
+		},
 	}}})
 	if err != nil {
-		return Enrollment{}, fmt.Errorf("register daemon workload: %w", err)
+		return nil, fmt.Errorf("register daemon workload: %w", err)
 	}
 	if len(result.Results) != 1 || result.Results[0].GetStatus().GetCode() != int32(codes.OK) {
-		return Enrollment{}, errors.New("SPIRE did not register daemon workload")
+		return nil, errors.New("SPIRE did not register daemon workload")
 	}
-	return Enrollment{
-		JoinToken: token.Value, NodeID: "spiffe://" + node.TrustDomain + node.Path,
-		WorkloadID: "spiffe://" + workload.TrustDomain + workload.Path,
-		ExpiresAt:  time.Unix(token.ExpiresAt, 0), TrustBundle: string(bundle),
+	return &hostv1.EnrollmentResponse{
+		JoinToken: token.Value, NodeId: "spiffe://" + node.TrustDomain + node.Path,
+		WorkloadId:  "spiffe://" + workload.TrustDomain + workload.Path,
+		TrustBundle: bundle, TrustDomain: a.domain.String(),
 	}, nil
 }
 
@@ -170,7 +163,8 @@ func (a *IdentityAdmin) Bundle(ctx context.Context) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("parse SPIRE root: %w", err)
 		}
-		if hex.EncodeToString(cert.SubjectKeyId) == state.Active.UpstreamAuthoritySubjectKeyId && cert.NotAfter.After(time.Now().Add(365*24*time.Hour)) {
+		activeRoot := hex.EncodeToString(cert.SubjectKeyId) == state.Active.UpstreamAuthoritySubjectKeyId
+		if activeRoot && cert.NotAfter.After(time.Now().Add(365*24*time.Hour)) {
 			longLived = true
 		}
 		result = append(result, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: authority.Asn1})...)
@@ -185,7 +179,7 @@ func (a *IdentityAdmin) Bundle(ctx context.Context) ([]byte, error) {
 func (a *IdentityAdmin) Validate(ctx context.Context, nodeID string) (time.Time, error) {
 	id, err := spiffeid.FromString(nodeID)
 	if err != nil || !id.MemberOf(a.domain) || !strings.HasPrefix(id.Path(), "/spire/agent/join_token/") {
-		return time.Time{}, errors.New("invalid SPIRE compute node identity")
+		return time.Time{}, errors.New("invalid SPIRE host node identity")
 	}
 	agent, err := a.agents.GetAgent(ctx, &agentv1.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: a.domain.String(), Path: id.Path()}})
 	if err != nil {
@@ -206,7 +200,7 @@ func (a *IdentityAdmin) Validate(ctx context.Context, nodeID string) (time.Time,
 func (a *IdentityAdmin) Revoke(ctx context.Context, nodeID, workloadID string) error {
 	node, err := spiffeid.FromString(nodeID)
 	if err != nil || !node.MemberOf(a.domain) || !strings.HasPrefix(node.Path(), "/spire/agent/join_token/") {
-		return errors.New("invalid compute node identity")
+		return errors.New("invalid host node identity")
 	}
 	workload, err := spiffeid.FromString(workloadID)
 	if err != nil || !workload.MemberOf(a.domain) || !strings.HasPrefix(workload.Path(), "/agentz/daemon/") {
@@ -250,23 +244,27 @@ func (a *IdentityAdmin) Revoke(ctx context.Context, nodeID, workloadID string) e
 	return banErr
 }
 
-// RotateAuthority advances only this server's signing intermediate through SPIRE's
-// built-in APIs. Run on every server periodically; never revoke the old authority
-// during ordinary rotation, since sleeping nodes still depend on its signatures.
-func (a *IdentityAdmin) RotateAuthority(ctx context.Context) error {
-	a.rotation.Lock()
-	defer a.rotation.Unlock()
+// rotateAuthority advances a signing intermediate through SPIRE's built-in APIs.
+// Exactly one maintainer may call it per SPIRE server.
+// Old authorities remain valid for sleeping nodes.
+func (a *IdentityAdmin) rotateAuthority(ctx context.Context) error {
 	state, err := a.authorities.GetX509AuthorityState(ctx, &authorityv1.GetX509AuthorityStateRequest{})
 	if err != nil {
 		return fmt.Errorf("get SPIRE authority: %w", err)
 	}
 	if state.Active == nil || state.Active.UpstreamAuthoritySubjectKeyId == "" {
-		return errors.New("six-month compute identity requires a stable SPIRE upstream root")
+		return errors.New("six-month host identity requires a stable SPIRE upstream root")
 	}
 	// A 365-day CA is advanced after 90 days, leaving 65 days of slack above
 	// the 210-day node lifetime even if the periodic maintenance call is delayed.
 	if time.Unix(state.Active.ExpiresAt, 0).After(time.Now().Add(275 * 24 * time.Hour)) {
 		return nil
+	}
+	// SPIRE automatically prepares within 30 days and activates within seven.
+	// Its API checks and slot rotation are not one atomic operation. If this
+	// maintainer was absent that long, leave recovery to SPIRE's own rotator.
+	if !time.Unix(state.Active.ExpiresAt, 0).After(time.Now().Add(31 * 24 * time.Hour)) {
+		return errors.New("SPIRE authority reached automatic rotation window; waiting for built-in rotation")
 	}
 	prepared := state.Prepared
 	if prepared == nil || time.Unix(prepared.ExpiresAt, 0).Before(time.Now().Add(300*24*time.Hour)) {
@@ -292,7 +290,7 @@ type serverIdentity struct {
 	bundle *x509bundle.Bundle
 }
 
-// ServerTLS obtains the backend workload identity from SPIRE's built-in mint API.
+// ServerTLS obtains the relay workload identity from SPIRE's built-in mint API.
 // The caller must run Maintain for certificate and trust-bundle refresh.
 func (a *IdentityAdmin) ServerTLS(ctx context.Context) (*tls.Config, error) {
 	if err := a.refreshServerIdentity(ctx); err != nil {
@@ -311,7 +309,7 @@ func (a *IdentityAdmin) ServerTLS(ctx context.Context) (*tls.Config, error) {
 func (a *IdentityAdmin) GetX509SVID() (*x509svid.SVID, error) {
 	material := a.material.Load()
 	if material == nil {
-		return nil, errors.New("backend SPIFFE identity unavailable")
+		return nil, errors.New("relay SPIFFE identity unavailable")
 	}
 	return material.svid, nil
 }
@@ -326,16 +324,13 @@ func (a *IdentityAdmin) GetX509BundleForTrustDomain(domain spiffeid.TrustDomain)
 }
 
 func (a *IdentityAdmin) refreshServerIdentity(ctx context.Context) error {
-	if err := a.RotateAuthority(ctx); err != nil {
-		return err
-	}
 	raw, err := a.Bundle(ctx)
 	if err != nil {
 		return err
 	}
 	bundle, err := x509bundle.Parse(a.domain, raw)
 	if err != nil {
-		return fmt.Errorf("parse backend trust bundle: %w", err)
+		return fmt.Errorf("parse relay trust bundle: %w", err)
 	}
 	current := a.material.Load()
 	if current != nil && current.svid.Certificates[0].NotAfter.After(time.Now().Add(30*time.Minute)) {
@@ -346,17 +341,17 @@ func (a *IdentityAdmin) refreshServerIdentity(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	id, err := spiffeid.FromPath(a.domain, "/agentz/backend")
+	id, err := spiffeid.FromPath(a.domain, "/agentz/relay")
 	if err != nil {
 		return err
 	}
 	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{URIs: []*url.URL{id.URL()}}, key)
 	if err != nil {
-		return fmt.Errorf("create backend CSR: %w", err)
+		return fmt.Errorf("create relay CSR: %w", err)
 	}
 	response, err := svidv1.NewSVIDClient(a.conn).MintX509SVID(ctx, &svidv1.MintX509SVIDRequest{Csr: csr, Ttl: 3600})
 	if err != nil {
-		return fmt.Errorf("mint backend SVID: %w", err)
+		return fmt.Errorf("mint relay SVID: %w", err)
 	}
 	var chain []byte
 	for _, cert := range response.GetSvid().GetCertChain() {
@@ -368,17 +363,17 @@ func (a *IdentityAdmin) refreshServerIdentity(ctx context.Context) error {
 	}
 	svid, err := x509svid.ParseRaw(chain, keyDER)
 	if err != nil {
-		return fmt.Errorf("parse backend SVID: %w", err)
+		return fmt.Errorf("parse relay SVID: %w", err)
 	}
 	if svid.ID != id {
-		return errors.New("SPIRE returned an unexpected backend identity")
+		return errors.New("SPIRE returned an unexpected relay identity")
 	}
 	a.material.Store(&serverIdentity{svid: svid, bundle: bundle})
 	return nil
 }
 
-// Maintain refreshes short-lived backend certificates and advances local CA
-// rotation. Transient failures retain the last identity and are retried; expired
+// Maintain refreshes short-lived relay certificates and trust bundles.
+// Transient failures retain the last identity and are retried; expired
 // certificates still fail TLS verification rather than weakening authentication.
 func (a *IdentityAdmin) Maintain(ctx context.Context) error {
 	ticker := time.NewTicker(time.Minute)
@@ -392,8 +387,30 @@ func (a *IdentityAdmin) Maintain(ctx context.Context) error {
 			err := a.refreshServerIdentity(refreshCtx)
 			cancel()
 			if err != nil {
-				slog.ErrorContext(ctx, "refresh compute SPIFFE identity", "error", err)
+				slog.ErrorContext(ctx, "refresh relay SPIFFE identity", "error", err)
 			}
+		}
+	}
+}
+
+// MaintainAuthority runs only beside the singleton SPIRE server using its local
+// admin socket. Relays must never mutate shared signing authority slots.
+// SPIRE prepares and activates the certificates; this loop only schedules early
+// rotation to preserve the node lifetime beyond its seven-day automatic cap.
+func (a *IdentityAdmin) MaintainAuthority(ctx context.Context) error {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for {
+		rotationCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		err := a.rotateAuthority(rotationCtx)
+		cancel()
+		if err != nil && ctx.Err() == nil {
+			slog.ErrorContext(ctx, "maintain SPIRE authority", "error", err)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
 		}
 	}
 }

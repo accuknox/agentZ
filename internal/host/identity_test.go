@@ -1,7 +1,8 @@
-package compute
+package host
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -23,12 +24,6 @@ type validityCase struct {
 	remaining         time.Duration
 	banned, wantError bool
 }
-type enrollmentCase struct {
-	identity   string
-	uid        uint32
-	executable string
-}
-
 type testAuthorityClient struct {
 	authorityv1.LocalAuthorityClient
 	state               *authorityv1.GetX509AuthorityStateResponse
@@ -50,6 +45,7 @@ func (c *testAuthorityClient) ActivateX509Authority(context.Context, *authorityv
 
 func TestEarlyAuthorityRotation(t *testing.T) {
 	for _, tc := range []rotationCase{
+		{"defer to automatic recovery", 29 * 24 * time.Hour, 365 * 24 * time.Hour, "root", false, true},
 		{"healthy", 300 * 24 * time.Hour, 365 * 24 * time.Hour, "root", false, false},
 		{"advance before node truncation", 274 * 24 * time.Hour, 365 * 24 * time.Hour, "root", true, false},
 		{"reject short upstream", 274 * 24 * time.Hour, 180 * 24 * time.Hour, "root", false, true},
@@ -64,7 +60,7 @@ func TestEarlyAuthorityRotation(t *testing.T) {
 				lifetime: tc.newLifetime,
 			}
 			admin := &IdentityAdmin{authorities: client}
-			err := admin.RotateAuthority(t.Context())
+			err := admin.rotateAuthority(t.Context())
 			if (err != nil) != tc.wantError {
 				t.Fatalf("error=%v, wantError=%v", err, tc.wantError)
 			}
@@ -105,15 +101,25 @@ func TestNodeValidityUsesActualCertificate(t *testing.T) {
 	}
 }
 
-func TestEnrollmentRejectsUntrustedExecutionIdentity(t *testing.T) {
+func TestEnrollmentRejectsInvalidIdentity(t *testing.T) {
 	admin := &IdentityAdmin{}
-	for _, tc := range []enrollmentCase{
-		{"not-a-uuid", 0, DaemonExecutable},
-		{"f81d4fae-7dec-11d0-a765-00a0c91e6bf6", 1000, DaemonExecutable},
-		{"f81d4fae-7dec-11d0-a765-00a0c91e6bf6", 0, "/tmp/agentz"},
-	} {
-		if _, err := admin.Enroll(t.Context(), tc.identity, tc.uid, tc.executable); err == nil {
-			t.Fatal("accepted untrusted execution identity")
-		}
+	if _, err := admin.Enroll(t.Context(), "not-a-uuid"); err == nil {
+		t.Fatal("accepted invalid identity")
+	}
+}
+
+func TestEnrollmentOnlyReadsAuthorityHeadroom(t *testing.T) {
+	authority := &testAuthorityClient{state: &authorityv1.GetX509AuthorityStateResponse{Active: &authorityv1.AuthorityState{
+		ExpiresAt: time.Now().Add(200 * 24 * time.Hour).Unix(), UpstreamAuthoritySubjectKeyId: "root",
+	}}}
+	admin := &IdentityAdmin{authorities: authority}
+	// Insufficient headroom must fail before bundle or token calls, and must
+	// never repair the shared authority from a relay.
+	_, err := admin.Enroll(t.Context(), "48ad5708-d759-44a4-8ae4-9007939a4761")
+	if err == nil || !strings.Contains(err.Error(), "headroom") {
+		t.Fatalf("insufficient authority headroom: %v", err)
+	}
+	if authority.prepares != 0 || authority.activates != 0 {
+		t.Fatal("enrollment mutated shared SPIRE authority")
 	}
 }

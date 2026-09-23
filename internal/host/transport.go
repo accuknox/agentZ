@@ -1,6 +1,6 @@
-//go:generate protoc --proto_path=../.. --go_out=../.. --go_opt=module=github.com/accuknox/agentz --go-grpc_out=../.. --go-grpc_opt=module=github.com/accuknox/agentz internal/compute/proto/compute.proto
+//go:generate protoc --proto_path=../.. --go_out=../.. --go_opt=module=github.com/accuknox/agentz --go-grpc_out=../.. --go-grpc_opt=module=github.com/accuknox/agentz internal/host/proto/host.proto
 
-package compute
+package host
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	pb "github.com/accuknox/agentz/internal/compute/proto"
+	pb "github.com/accuknox/agentz/internal/host/proto"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -21,34 +21,37 @@ import (
 const chunkSize = 32 * 1024
 const connectionLimit = 64
 
-// Binding is the authenticated assignment and ownership epoch of a host.
+// Binding is the authenticated assignment and enrollment epoch of a host.
 // Authorizers must derive it from the peer identity, never client metadata.
 type Binding struct{ Namespace, Agent, Epoch string }
 
 // Status reports host readiness independently of its registration.
 type Status struct {
-	Generation, Error, Version, WorkDirectory, Hostname string
-	Ready, Connected                                    bool
+	Generation, Error, Version, WorkDirectory, Hostname, SessionID string
+	Ready, Connected                                               bool
 }
 
 // Callbacks connect the transport to existing authorization and runtime state.
-// Authorize must reject revoked identities on every RPC. Observe must fence
-// stale epochs, including disconnect notifications. Desired must not mutate
-// ownership. DialUpstream accepts only the enumerated backend services.
+// Authorize must reject revoked identities on every RPC. Validate checks the
+// assignment before registration. Observe must fence assignment and session
+// identities, including disconnect notifications. Desired must not mutate
+// assignment. DialUpstream accepts only the enumerated backend services.
 type Callbacks struct {
 	Authorize    func(context.Context) (Binding, error)
+	Validate     func(context.Context, Binding) error
 	Desired      func(context.Context, Binding) (*pb.Runtime, error)
 	Observe      func(context.Context, Binding, Status) error
 	DialUpstream func(context.Context, Binding, pb.Service) (net.Conn, error)
 }
 
-// Server bridges authenticated outbound host connections to existing HTTP services.
-// Replica routing and persistent ownership leases belong to its caller.
-type Server struct {
-	pb.UnimplementedComputeServer
-	callbacks Callbacks
-	mu        sync.Mutex
-	hosts     map[string]*host
+// Relay bridges authenticated outbound host connections to existing HTTP services.
+// Its caller persists enrollment and revocation.
+type Relay struct {
+	pb.UnimplementedHostRelayServer
+	callbacks  Callbacks
+	mu         sync.Mutex
+	hosts      map[string]*host
+	validating map[string]bool
 }
 
 type host struct {
@@ -59,6 +62,7 @@ type host struct {
 	stop     chan struct{}
 	stopOnce sync.Once
 	pending  map[string]*connection
+	forwards int
 	ready    bool
 }
 type connection struct {
@@ -67,18 +71,18 @@ type connection struct {
 	claimed       bool
 }
 
-// NewServer constructs the local replica's transport registry.
-func NewServer(callbacks Callbacks) *Server {
-	return &Server{callbacks: callbacks, hosts: make(map[string]*host)}
+// NewRelay constructs the transport registry.
+func NewRelay(callbacks Callbacks) *Relay {
+	return &Relay{callbacks: callbacks, hosts: make(map[string]*host), validating: make(map[string]bool)}
 }
 
 // Connection returns the live control connection identity and runtime readiness.
-// It changes on every reconnect, independently of the persistent assignment.
-func (s *Server) Connection(namespace, agent string) (string, bool) {
+// A nonempty epoch restricts the lookup to that exact assignment.
+func (s *Relay) Connection(binding Binding) (string, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	h := s.hosts[namespace+"/"+agent]
-	if h == nil {
+	h := s.hosts[binding.Namespace+"/"+binding.Agent]
+	if h == nil || binding.Epoch != "" && h.binding.Epoch != binding.Epoch {
 		return "", false
 	}
 	select {
@@ -91,29 +95,24 @@ func (s *Server) Connection(namespace, agent string) (string, bool) {
 	}
 }
 
-// Ready reports whether this replica has a usable native runtime connection.
-func (s *Server) Ready(namespace, agent string) bool {
-	_, ready := s.Connection(namespace, agent)
-	return ready
-}
-
-// Revoke immediately cancels a local host connection and all its streams.
-// Persisted revocation must precede this call so reconnect authorization fails.
-func (s *Server) Revoke(namespace, agent string) {
+// RevokeAssignment closes only the named assignment, preserving a newer enrollment.
+func (s *Relay) RevokeAssignment(namespace, agent, epoch string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if h := s.hosts[namespace+"/"+agent]; h != nil {
-		h.ready = false
-		h.stopOnce.Do(func() { close(h.stop) })
-		for _, p := range h.pending {
-			p.local.Close()
-			p.remote.Close()
-		}
+	h := s.hosts[namespace+"/"+agent]
+	if h == nil || h.binding.Epoch != epoch {
+		return
+	}
+	h.ready = false
+	h.stopOnce.Do(func() { close(h.stop) })
+	for _, conn := range h.pending {
+		conn.local.Close()
+		conn.remote.Close()
 	}
 }
 
 // Control owns one host connection. Local processes outlive this RPC.
-func (s *Server) Control(stream grpc.BidiStreamingServer[pb.Heartbeat, pb.Command]) error {
+func (s *Relay) Control(stream grpc.BidiStreamingServer[pb.Heartbeat, pb.Command]) error {
 	if s.callbacks.Authorize == nil {
 		return status.Error(codes.Unauthenticated, "host authorization unavailable")
 	}
@@ -124,21 +123,36 @@ func (s *Server) Control(stream grpc.BidiStreamingServer[pb.Heartbeat, pb.Comman
 	if binding.Namespace == "" || binding.Agent == "" || binding.Epoch == "" {
 		return status.Error(codes.PermissionDenied, "unassigned host")
 	}
-	h := &host{id: uuid.NewString(), binding: binding, commands: make(chan *pb.Command, connectionLimit), done: make(chan struct{}), stop: make(chan struct{}), pending: make(map[string]*connection)}
+	h := &host{
+		id: uuid.NewString(), binding: binding,
+		commands: make(chan *pb.Command, connectionLimit),
+		done:     make(chan struct{}), stop: make(chan struct{}),
+		pending: make(map[string]*connection),
+	}
 	key := binding.Namespace + "/" + binding.Agent
 	s.mu.Lock()
 	old := s.hosts[key]
-	if old != nil && old.binding.Epoch == binding.Epoch {
+	if s.validating[key] || old != nil {
 		s.mu.Unlock()
-		return status.Error(codes.AlreadyExists, "host already connected to this replica")
+		return status.Error(codes.AlreadyExists, "host already connected")
 	}
-	if old != nil {
-		old.stopOnce.Do(func() { close(old.stop) })
+	s.validating[key] = true
+	s.mu.Unlock()
+	if s.callbacks.Validate != nil {
+		if err := s.callbacks.Validate(stream.Context(), binding); err != nil {
+			s.mu.Lock()
+			delete(s.validating, key)
+			s.mu.Unlock()
+			return err
+		}
 	}
+	s.mu.Lock()
+	delete(s.validating, key)
 	s.hosts[key] = h
 	s.mu.Unlock()
 	defer func() {
 		s.mu.Lock()
+		h.ready = false
 		close(h.done)
 		for _, p := range h.pending {
 			p.local.Close()
@@ -148,14 +162,12 @@ func (s *Server) Control(stream grpc.BidiStreamingServer[pb.Heartbeat, pb.Comman
 		if s.callbacks.Observe != nil {
 			ctx, cancel := context.WithTimeout(context.WithoutCancel(stream.Context()), 5*time.Second)
 			defer cancel()
-			_ = s.callbacks.Observe(ctx, binding, Status{Error: "host disconnected"})
+			_ = s.callbacks.Observe(ctx, binding, Status{SessionID: h.id, Error: "host disconnected"})
 		}
 		// Keep the assignment occupied until its final observation completes,
 		// so a reconnect cannot be overwritten by this disconnect notification.
 		s.mu.Lock()
-		if s.hosts[key] == h {
-			delete(s.hosts, key)
-		}
+		delete(s.hosts, key)
 		s.mu.Unlock()
 	}()
 	heartbeats := make(chan *pb.Heartbeat, 1)
@@ -176,7 +188,7 @@ func (s *Server) Control(stream grpc.BidiStreamingServer[pb.Heartbeat, pb.Comman
 			}
 		}
 	}()
-	timer := time.NewTimer(45 * time.Second)
+	timer := time.NewTimer(30 * time.Second)
 	defer timer.Stop()
 	poll := time.NewTicker(5 * time.Second)
 	defer poll.Stop()
@@ -226,7 +238,7 @@ func (s *Server) Control(stream grpc.BidiStreamingServer[pb.Heartbeat, pb.Comman
 	for {
 		select {
 		case <-h.stop:
-			return status.Error(codes.Aborted, "host ownership replaced")
+			return status.Error(codes.Aborted, "host assignment revoked")
 		case <-stream.Context().Done():
 			return stream.Context().Err()
 		case err := <-failures:
@@ -234,17 +246,27 @@ func (s *Server) Control(stream grpc.BidiStreamingServer[pb.Heartbeat, pb.Comman
 		case <-timer.C:
 			return status.Error(codes.DeadlineExceeded, "host heartbeat expired")
 		case heartbeat := <-heartbeats:
-			timer.Reset(45 * time.Second)
+			timer.Reset(30 * time.Second)
 			ready := heartbeat.Ready && generation != "" && heartbeat.Generation == generation
-			s.mu.Lock()
-			h.ready = ready
-			s.mu.Unlock()
 			if s.callbacks.Observe != nil {
-				err := s.callbacks.Observe(stream.Context(), binding, Status{Generation: heartbeat.Generation, Connected: true, Ready: ready, Error: heartbeat.Error, Version: heartbeat.Version, WorkDirectory: heartbeat.WorkDirectory, Hostname: heartbeat.Hostname})
+				err := s.callbacks.Observe(stream.Context(), binding, Status{
+					SessionID: h.id, Generation: heartbeat.Generation, Connected: true,
+					Ready: ready, Error: heartbeat.Error, Version: heartbeat.Version,
+					WorkDirectory: heartbeat.WorkDirectory, Hostname: heartbeat.Hostname,
+				})
 				if err != nil {
 					return err
 				}
 			}
+			s.mu.Lock()
+			select {
+			case <-h.stop:
+				s.mu.Unlock()
+				return status.Error(codes.Aborted, "host assignment revoked")
+			default:
+				h.ready = ready
+			}
+			s.mu.Unlock()
 		case command := <-h.commands:
 			if err := send(command); err != nil {
 				return err
@@ -257,14 +279,8 @@ func (s *Server) Control(stream grpc.BidiStreamingServer[pb.Heartbeat, pb.Comman
 	}
 }
 
-// DialContext opens one bounded stream to a fixed local host service. It never
-// queues work for an offline host or replays bytes after reconnect.
-func (s *Server) DialContext(ctx context.Context, namespace, agent, service string) (net.Conn, error) {
-	return s.DialConnection(ctx, namespace, agent, service, "")
-}
-
 // DialConnection refuses to cross a control reconnect when expected is nonempty.
-func (s *Server) DialConnection(ctx context.Context, namespace, agent, service, expected string) (net.Conn, error) {
+func (s *Relay) DialConnection(ctx context.Context, namespace, agent, service, expected string) (net.Conn, error) {
 	var target pb.Service
 	switch service {
 	case "opencode":
@@ -272,7 +288,7 @@ func (s *Server) DialConnection(ctx context.Context, namespace, agent, service, 
 	case "filesystem":
 		target = pb.Service_SERVICE_FILESYSTEM
 	default:
-		return nil, fmt.Errorf("unsupported compute service %q", service)
+		return nil, fmt.Errorf("unsupported host service %q", service)
 	}
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
@@ -287,7 +303,7 @@ func (s *Server) DialConnection(ctx context.Context, namespace, agent, service, 
 		p.remote.Close()
 		return nil, status.Error(codes.Unavailable, "host offline or runtime not ready")
 	}
-	if len(h.pending) >= connectionLimit {
+	if len(h.pending)+h.forwards >= connectionLimit {
 		s.mu.Unlock()
 		p.local.Close()
 		p.remote.Close()
@@ -322,7 +338,7 @@ func (s *Server) DialConnection(ctx context.Context, namespace, agent, service, 
 }
 
 // Data attaches a host-originated data stream to a pending, authorized dial.
-func (s *Server) Data(stream grpc.BidiStreamingServer[pb.DataFrame, pb.DataFrame]) error {
+func (s *Relay) Data(stream grpc.BidiStreamingServer[pb.DataFrame, pb.DataFrame]) error {
 	if s.callbacks.Authorize == nil {
 		return status.Error(codes.Unauthenticated, "host authorization unavailable")
 	}
@@ -364,7 +380,7 @@ func (s *Server) Data(stream grpc.BidiStreamingServer[pb.DataFrame, pb.DataFrame
 }
 
 // Forward exposes only backend services selected by the authenticated host binding.
-func (s *Server) Forward(stream grpc.BidiStreamingServer[pb.DataFrame, pb.DataFrame]) error {
+func (s *Relay) Forward(stream grpc.BidiStreamingServer[pb.DataFrame, pb.DataFrame]) error {
 	if s.callbacks.Authorize == nil || s.callbacks.DialUpstream == nil {
 		return status.Error(codes.Unauthenticated, "forwarding unavailable")
 	}
@@ -377,25 +393,33 @@ func (s *Server) Forward(stream grpc.BidiStreamingServer[pb.DataFrame, pb.DataFr
 		return err
 	}
 	_, known := pb.Service_name[int32(frame.Service)]
-	if !known || frame.Id != "" || len(frame.Data) != 0 || frame.Error != "" || frame.Service < pb.Service_SERVICE_MCP || frame.Service > pb.Service_SERVICE_TRACES {
+	forwardService := known && frame.Service >= pb.Service_SERVICE_MCP && frame.Service <= pb.Service_SERVICE_TRACES
+	if !forwardService || frame.Id != "" || len(frame.Data) != 0 || frame.Error != "" {
 		return status.Error(codes.InvalidArgument, "invalid forwarding service")
 	}
 	// Forward streams share the host's aggregate budget with inbound connections.
-	id := uuid.NewString()
 	s.mu.Lock()
 	h := s.hosts[binding.Namespace+"/"+binding.Agent]
 	if h == nil || h.binding != binding {
 		s.mu.Unlock()
 		return status.Error(codes.PermissionDenied, "host is not connected")
 	}
-	if len(h.pending) >= connectionLimit {
+	if len(h.pending)+h.forwards >= connectionLimit {
 		s.mu.Unlock()
 		return status.Error(codes.ResourceExhausted, "host connection limit")
 	}
-	local, remote := net.Pipe()
-	h.pending[id] = &connection{local: local, remote: remote}
+	select {
+	case <-h.stop:
+		s.mu.Unlock()
+		return status.Error(codes.PermissionDenied, "host assignment revoked")
+	case <-h.done:
+		s.mu.Unlock()
+		return status.Error(codes.PermissionDenied, "host disconnected")
+	default:
+	}
+	h.forwards++
 	s.mu.Unlock()
-	defer func() { s.mu.Lock(); delete(h.pending, id); s.mu.Unlock(); local.Close(); remote.Close() }()
+	defer func() { s.mu.Lock(); h.forwards--; s.mu.Unlock() }()
 	conn, err := s.callbacks.DialUpstream(stream.Context(), binding, frame.Service)
 	if err != nil {
 		return err
@@ -452,7 +476,8 @@ func relay(stream dataStream, conn net.Conn) error {
 				done <- err
 				return
 			}
-			if len(frame.Data) == 0 || len(frame.Data) > chunkSize || frame.Id != "" || frame.Error != "" || frame.Service != pb.Service_SERVICE_UNSPECIFIED {
+			dataOnly := frame.Id == "" && frame.Error == "" && frame.Service == pb.Service_SERVICE_UNSPECIFIED
+			if !dataOnly || len(frame.Data) == 0 || len(frame.Data) > chunkSize {
 				done <- status.Error(codes.InvalidArgument, "invalid data frame")
 				return
 			}

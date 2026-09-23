@@ -95,8 +95,8 @@ var (
 
 // RuntimeConfig configures controller-side launch defaults.
 type RuntimeConfig struct {
-	GatewayServiceAccountName        string
-	GatewayServiceAccountNamespace   string
+	RelayServiceAccountName          string
+	RelayServiceAccountNamespace     string
 	AgentDefaultImage                string
 	GatewayURL                       string
 	SharedNixPVC                     string

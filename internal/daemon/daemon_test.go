@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/accuknox/agentz/internal/compute"
+	"github.com/accuknox/agentz/internal/host"
 )
 
 func TestRuntimeUnitsParseWithUserPathsAndEnvironment(t *testing.T) {
@@ -31,7 +31,7 @@ func TestRuntimeUnitsParseWithUserPathsAndEnvironment(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := &supervisor{config: Config{RuntimeDirectory: bundle, Executable: "/bin/true", WorkDirectory: root, XDGConfigHome: filepath.Join(root, ".config"), XDGDataHome: filepath.Join(root, ".local/share"), XDGStateHome: filepath.Join(root, ".local/state"), XDGCacheHome: filepath.Join(root, ".cache")}, user: owner, password: "local-password", statePath: filepath.Join(root, "state")}
-	units, err := s.units(compute.RuntimeSpec{Env: map[string]string{"LOCAL_SETTING": "literal $HOME %n \"quoted\"\nnext line"}})
+	units, err := s.units(host.RuntimeSpec{Env: map[string]string{"LOCAL_SETTING": "literal $HOME %n \"quoted\"\nnext line"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestRuntimeUnitsParseWithUserPathsAndEnvironment(t *testing.T) {
 func TestRuntimeEnvironmentRejectsInjectedDirectives(t *testing.T) {
 	s := &supervisor{user: &user.User{}, config: Config{}}
 	for _, key := range []string{"", "NORMAL\nExecStart", "NAME=value", "NAME\x00"} {
-		if _, err := s.units(compute.RuntimeSpec{Env: map[string]string{key: "x"}}); err == nil {
+		if _, err := s.units(host.RuntimeSpec{Env: map[string]string{key: "x"}}); err == nil {
 			t.Errorf("accepted environment key %q", key)
 		}
 	}
@@ -159,7 +159,7 @@ func TestNativeRuntimeSmoke(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	units, err := s.units(compute.RuntimeSpec{})
+	units, err := s.units(host.RuntimeSpec{})
 	if err != nil {
 		t.Fatal(err)
 	}

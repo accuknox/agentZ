@@ -152,7 +152,7 @@ func Enroll(ctx context.Context, backend, username, workdir, runtimeDirectory, c
 	config := Config{
 		WorkloadID:       enrollment.WorkloadId,
 		Backend:          enrollment.ComputeServer,
-		ServerSPIFFEID:   "spiffe://" + enrollment.TrustDomain + "/agentz/backend",
+		ServerSPIFFEID:   "spiffe://" + enrollment.TrustDomain + "/agentz/relay",
 		WorkloadSocket:   "unix:///run/agentz/spire/api.sock",
 		Username:         username,
 		XDGConfigHome:    configHome,

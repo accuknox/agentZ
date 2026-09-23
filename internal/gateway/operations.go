@@ -385,8 +385,8 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 	if job.ComputeConnectionID != "" {
 		namespace := agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeWorkspace, job.WorkspaceID)
 		connection, ready := "", false
-		if s.computeServer != nil {
-			connection, ready = s.computeServer.Connection(namespace, input.AgentName)
+		if s.relay != nil {
+			connection, ready, _ = s.relay.Connection(ctx, namespace, input.AgentName)
 		}
 		if !ready || connection != job.ComputeConnectionID {
 			return errors.New("host disconnected; retry the coding operation explicitly when ready")

@@ -268,6 +268,8 @@ manager:
     managerGatewayTokenAudience: agentz-gateway
     gatewayServiceAccountName: ""
     gatewayServiceAccountNamespace: ""
+    relayServiceAccountName: ""
+    relayServiceAccountNamespace: ""
 
     # Secret name that stores the sinjector CA materials.
     sinjectorCASecretName: sinjector
@@ -487,6 +489,12 @@ gateway:
     # Must match the web account flow.
     # global.secretName must contain CODING_GITHUB_CLIENT_SECRET and
     # CODING_GITHUB_ENCRYPTION_KEY, encoded as 64 lowercase hex characters.
+    relayAddress: ""
+    relayTrustDomain: "agentz.local"
+    relayTrustBundle: "/etc/agentz/relay/ca.crt"
+    relayCertFile: "/etc/agentz/relay/tls.crt"
+    relayKeyFile: "/etc/agentz/relay/tls.key"
+    relayIdentitySecret: ""
     codingGithubClientID: ""
     # Application log level passed to `agentz gateway serve`.
     logLevel: info
@@ -847,3 +855,51 @@ ingress:
 
   # TLS blocks passed through directly to the Ingress.
   tls: []
+
+# Native host relay. One replica; the HTTP gateway scales independently.
+# Set gateway.config.relayAddress to <release>-relay:9444 when enabling.
+relay:
+  enabled: false
+  image:
+    repository: public.ecr.aws/k9v9d5v2/agentz
+    tag: latest
+    digest: ""
+    pullPolicy: IfNotPresent
+  serviceAccountName: ""
+  publicAddress: ""
+  service:
+    type: ClusterIP
+    annotations: {}
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  config:
+    gatewayURL: ""
+    internalK8sTokenAudience: agentz-gateway
+    proxyCASecretName: sinjector
+    proxyCASecretKey: ca.crt
+    agentTraceEndpoint: ""
+    skillsS3Endpoint: ""
+    skillsS3Region: us-east-1
+    skillsS3Bucket: ""
+
+# SPIRE is intentionally a singleton with persistent signing/database state.
+# Provision an operator-managed stable CA Secret with tls.crt/tls.key before
+# enabling. Its remaining validity must exceed the one-year issuing CA TTL.
+spire:
+  enabled: false
+  trustDomain: agentz.local
+  rootSecret: ""
+  publicAddress: ""
+  image: ghcr.io/spiffe/spire-server:1.15.3
+  storageSize: 1Gi
+  storageClassName: ""
+  service:
+    type: ClusterIP
+    annotations: {}
+  resources: {}
+  maintenanceResources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}

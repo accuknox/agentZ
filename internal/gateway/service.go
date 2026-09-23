@@ -36,17 +36,16 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	"github.com/accuknox/agentz/internal/compute"
 	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	dashboarddb "github.com/accuknox/agentz/internal/gateway/dashboard/db"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	"github.com/accuknox/agentz/internal/host"
 	"github.com/accuknox/agentz/internal/inference"
 	baoclient "github.com/accuknox/agentz/internal/openbao"
 	"github.com/accuknox/agentz/internal/skill"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 	agentzclient "github.com/accuknox/agentz/pkg/controller/clientset/versioned"
-	tracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 )
 
 // DefaultListenAddr is the default gateway listen address.
@@ -77,13 +76,12 @@ const cleanupMaxAttempts = 8
 
 // Config describes how to start the gateway.
 type Config struct {
-	ComputeAddr               string
-	ComputeSPIRESocket        string
-	ComputeTrustDomain        string
-	ComputePublicAddress      string
-	ComputeSPIREPublicAddress string
-	ComputeCASecretName       string
-	ComputeCASecretKey        string
+	RelayAddress     string
+	RelayTrustDomain string
+	RelayTrustBundle string
+	RelayCertFile    string
+	RelayKeyFile     string
+
 	CodingGitHubClientID      string
 	CodingGitHubClientSecret  string
 	CodingGitHubEncryptionKey string
@@ -109,10 +107,8 @@ type Config struct {
 
 // Service implements the agent gateway HTTP API.
 type Service struct {
-	computeClient   ctrlclient.Client
-	computeIdentity *compute.IdentityAdmin
-	computeServer   *compute.Server
-	computeTrace    tracev1.TraceServiceClient
+	relay *host.RelayClient
+
 	gatewayapi.Unimplemented
 	ctx                context.Context
 	resolver           *resolver
@@ -257,11 +253,6 @@ func Serve(ctx context.Context, cfg Config) error {
 	usageObjects := map[ctrlclient.Object]ctrlcache.ByObject{
 		&agentzv1alpha1.Sandbox{}: {}, &agentzv1alpha1.InferencePool{}: {},
 	}
-	if cfg.ComputeAddr != "" {
-		for _, object := range []ctrlclient.Object{&corev1.Namespace{}, &agentzv1alpha1.InferenceProvider{}, &agentzv1alpha1.Workspace{}, &agentzv1alpha1.Tenant{}, &agentzv1alpha1.Skill{}, &agentzv1alpha1.MCPConnection{}} {
-			usageObjects[object] = ctrlcache.ByObject{}
-		}
-	}
 	usageCache, err := ctrlcache.New(
 		kubeCfg,
 		ctrlcache.Options{
@@ -380,15 +371,11 @@ func Serve(ctx context.Context, cfg Config) error {
 		openAPI:            openAPISpec,
 		outboundHTTP:       &http.Client{Timeout: 10 * time.Second},
 	}
-	svc.computeClient, err = ctrlclient.New(kubeCfg, ctrlclient.Options{Scheme: scheme, Cache: &ctrlclient.CacheOptions{Reader: usageCache}})
+	stopRelay, err := svc.startRelay()
 	if err != nil {
 		return err
 	}
-	stopCompute, err := svc.startCompute(runCtx)
-	if err != nil {
-		return err
-	}
-	defer stopCompute()
+	defer stopRelay()
 	if err := svc.recoverWorkspaceProvisioning(ctx); err != nil {
 		return err
 	}

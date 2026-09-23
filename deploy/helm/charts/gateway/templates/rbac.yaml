@@ -6,23 +6,10 @@ metadata:
   labels:
     {{- include "gateway.labels" . | nindent 4 }}
 rules:
-  {{- if .Values.compute.enabled }}
-  - apiGroups: ["agentz.accuknox.com"]
-    resources: ["inferenceproviders", "workspaces", "skills", "tenants"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: [""]
-    resources: ["namespaces"]
-    verbs: ["watch"]
+  {{- if .Values.config.relayAddress }}
   - apiGroups: ["agentz.accuknox.com"]
     resources: ["agents/status"]
-    verbs: ["get", "patch", "update"]
-  - apiGroups: [""]
-    resources: ["serviceaccounts/token"]
-    verbs: ["create"]
-  - apiGroups: [""]
-    resources: ["secrets"]
-    resourceNames: ["sinjector"]
-    verbs: ["get"]
+    verbs: ["patch"]
   {{- end }}
   - apiGroups: [""]
     resources: ["namespaces"]

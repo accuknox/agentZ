@@ -118,6 +118,8 @@ var (
 	managerGatewayTokenAudience                      string
 	managerServiceAccountName                        string
 	managerServiceAccountNamespace                   string
+	relayServiceAccountName                          string
+	relayServiceAccountNamespace                     string
 	gatewayServiceAccountName                        string
 	gatewayServiceAccountNamespace                   string
 	sinjectorCASecretName                            string
@@ -228,6 +230,8 @@ var cmd = &cli.Command{
 	},
 	Commands: []*cli.Command{
 		subcommands.DaemonCmd,
+		subcommands.RelayCmd,
+		subcommands.SpireCmd,
 		subcommands.ExtAuthCmd,
 		subcommands.FilesystemCmd,
 		managerCmd,
@@ -594,6 +598,20 @@ var managerCmd = &cli.Command{
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
+		},
+		&cli.StringFlag{
+			Name:        "relay-service-account-name",
+			Usage:       "Relay ServiceAccount granted native Agent network access",
+			Value:       "relay",
+			Destination: &relayServiceAccountName,
+			Config:      cli.StringConfig{TrimSpace: true},
+		},
+		&cli.StringFlag{
+			Name:        "relay-service-account-namespace",
+			Usage:       "Namespace containing the Relay ServiceAccount",
+			Value:       "agentz-system",
+			Destination: &relayServiceAccountNamespace,
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:        "sinjector-ca-secret-name",
@@ -1174,8 +1192,8 @@ var managerCmd = &cli.Command{
 		}
 
 		runtimeConfig := agent.RuntimeConfig{
-			GatewayServiceAccountName:        gatewayServiceAccountName,
-			GatewayServiceAccountNamespace:   gatewayServiceAccountNamespace,
+			RelayServiceAccountName:          relayServiceAccountName,
+			RelayServiceAccountNamespace:     relayServiceAccountNamespace,
 			AgentDefaultImage:                agentImage,
 			GatewayURL:                       gatewayURL,
 			SharedNixPVC:                     nixStorePVC,
@@ -1259,12 +1277,12 @@ var managerCmd = &cli.Command{
 		}
 
 		sandboxReconciler := &sandboxcontroller.Reconciler{
-			GatewayServiceAccountName:      gatewayServiceAccountName,
-			GatewayServiceAccountNamespace: gatewayServiceAccountNamespace,
-			Client:                         mgr.GetClient(),
-			Scheme:                         mgr.GetScheme(),
-			AgentGateway:                   agClient,
-			TraceBackend:                   traceBackend,
+			RelayServiceAccountName:      relayServiceAccountName,
+			RelayServiceAccountNamespace: relayServiceAccountNamespace,
+			Client:                       mgr.GetClient(),
+			Scheme:                       mgr.GetScheme(),
+			AgentGateway:                 agClient,
+			TraceBackend:                 traceBackend,
 		}
 		if err := sandboxReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.ErrorContext(ctx,

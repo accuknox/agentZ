@@ -365,12 +365,12 @@ func (r *Reconciler) reconcileSinjectorPolicy(ctx context.Context, agt *agentzv1
 		ciliumlabels.NewLabel("agentz.accuknox.com/agent", agt.Name, ciliumlabels.LabelSourceK8s),
 	)
 	if agt.Spec.Execution == agentzv1alpha1.AgentExecutionNative {
-		if r.Config.GatewayServiceAccountNamespace == "" || r.Config.GatewayServiceAccountName == "" {
-			return fmt.Errorf("native secret proxy requires the gateway service account identity")
+		if r.Config.RelayServiceAccountNamespace == "" || r.Config.RelayServiceAccountName == "" {
+			return fmt.Errorf("native secret proxy requires the relay service account identity")
 		}
 		caller = ciliumapi.NewESFromLabels(
-			ciliumlabels.NewLabel("io.kubernetes.pod.namespace", r.Config.GatewayServiceAccountNamespace, ciliumlabels.LabelSourceK8s),
-			ciliumlabels.NewLabel("io.cilium.k8s.policy.serviceaccount", r.Config.GatewayServiceAccountName, ciliumlabels.LabelSourceK8s),
+			ciliumlabels.NewLabel("io.kubernetes.pod.namespace", r.Config.RelayServiceAccountNamespace, ciliumlabels.LabelSourceK8s),
+			ciliumlabels.NewLabel("io.cilium.k8s.policy.serviceaccount", r.Config.RelayServiceAccountName, ciliumlabels.LabelSourceK8s),
 		)
 	}
 	current := &ciliumv2.CiliumNetworkPolicy{}

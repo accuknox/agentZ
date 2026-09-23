@@ -28,3 +28,19 @@
 {{- if and .Values.manager.enabled .Values.gateway.enabled .Values.gateway.serviceAccount.name (not .Values.manager.config.gatewayServiceAccountName) }}
 {{- fail "manager.config.gatewayServiceAccountName is required when gateway.serviceAccount.name is set" }}
 {{- end }}
+
+{{- if and .Values.relay.enabled .Values.manager.enabled (ne (default (printf "%s-relay" .Release.Name) .Values.manager.config.relayServiceAccountName) (default (printf "%s-relay" .Release.Name) .Values.relay.serviceAccountName)) }}
+{{- fail "manager.config.relayServiceAccountName must match relay.serviceAccountName" }}
+{{- end }}
+{{- if and .Values.relay.enabled (not .Values.gateway.enabled) (not .Values.relay.config.gatewayURL) }}
+{{- fail "relay.config.gatewayURL is required when gateway.enabled=false" }}
+{{- end }}
+{{- if and .Values.relay.enabled (not .Values.observer.enabled) (not .Values.relay.config.agentTraceEndpoint) }}
+{{- fail "relay.config.agentTraceEndpoint is required when observer.enabled=false" }}
+{{- end }}
+{{- if and .Values.relay.enabled .Values.observer.enabled (or .Values.observer.nameOverride .Values.observer.fullnameOverride) (not .Values.relay.config.agentTraceEndpoint) }}
+{{- fail "relay.config.agentTraceEndpoint is required when the observer name is overridden" }}
+{{- end }}
+{{- if and .Values.relay.enabled .Values.manager.enabled (ne (default .Release.Namespace .Values.manager.config.relayServiceAccountNamespace) .Release.Namespace) }}
+{{- fail "manager.config.relayServiceAccountNamespace must match the release namespace" }}
+{{- end }}

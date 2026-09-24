@@ -213,7 +213,9 @@ func (s *Service) WatchMCPConnections(w http.ResponseWriter, r *http.Request, pa
 	if params.XAgentZWorkspaceID != nil {
 		workspaceID = *params.XAgentZWorkspaceID
 	}
-	access, apiErr := s.resolveMCPAccess(r.Context(), workspaceID, "", authorization.OperationWatchMCPConnections)
+	access, apiErr := s.resolveMCPAccess(
+		r.Context(), workspaceID, "", authorization.OperationWatchMCPConnections,
+	)
 	if apiErr != nil {
 		apiutil.WriteError(w, r, apiErr)
 		return
@@ -420,7 +422,9 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request, pa
 	if params.XAgentZWorkspaceID != nil {
 		workspaceID = *params.XAgentZWorkspaceID
 	}
-	access, apiErr := s.resolveMCPAccess(r.Context(), workspaceID, "", authorization.OperationCreateMCPConnection)
+	access, apiErr := s.resolveMCPAccess(
+		r.Context(), workspaceID, "", authorization.OperationCreateMCPConnection,
+	)
 	if apiErr != nil {
 		if access.claims.OrganizationID != "" && access.claims.UserID != "" {
 			err := s.createMCPEventTrail(r.Context(), access, "unknown", access.failureResult())
@@ -616,7 +620,9 @@ func (s *Service) DeleteMCPConnection(w http.ResponseWriter, r *http.Request, na
 	if params.XAgentZWorkspaceID != nil {
 		workspaceID = *params.XAgentZWorkspaceID
 	}
-	access, apiErr := s.resolveMCPAccess(r.Context(), workspaceID, name, authorization.OperationDeleteMCPConnection)
+	access, apiErr := s.resolveMCPAccess(
+		r.Context(), workspaceID, name, authorization.OperationDeleteMCPConnection,
+	)
 	if apiErr != nil {
 		if access.claims.OrganizationID != "" && access.claims.UserID != "" {
 			err := s.createMCPEventTrail(r.Context(), access, name, access.failureResult())
@@ -907,8 +913,12 @@ func (s *Service) mcpConnectionStatus(conn agentzv1alpha1.MCPConnection) (gatewa
 	accepted := apimeta.FindStatusCondition(conn.Status.Conditions, internalmcp.ConditionAccepted)
 	degraded := apimeta.FindStatusCondition(conn.Status.Conditions, internalmcp.ConditionDegraded)
 	probeHealthy := apimeta.FindStatusCondition(conn.Status.Conditions, internalmcp.ConditionProbeHealthy)
-	unreachable := apimeta.FindStatusCondition(conn.Status.Conditions, internalmcp.ConditionConnectionUnreachable)
-	credentialsInvalid := apimeta.FindStatusCondition(conn.Status.Conditions, internalmcp.ConditionCredentialsInvalid)
+	unreachable := apimeta.FindStatusCondition(
+		conn.Status.Conditions, internalmcp.ConditionConnectionUnreachable,
+	)
+	credentialsInvalid := apimeta.FindStatusCondition(
+		conn.Status.Conditions, internalmcp.ConditionCredentialsInvalid,
+	)
 	protocolError := apimeta.FindStatusCondition(conn.Status.Conditions, internalmcp.ConditionProtocolError)
 
 	stateDegraded := conn.Status.State == agentzv1alpha1.MCPConnectionStateDegraded

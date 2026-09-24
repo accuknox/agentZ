@@ -48,7 +48,11 @@ func Diagnose(ctx context.Context, configPath string, doctor bool, output io.Wri
 	}
 	fmt.Fprintf(output, "User: %s\nWork directory: %s\n", config.Username, config.WorkDirectory)
 	var failures []error
-	for _, unit := range []string{"agentz-spire.service", "agentz-daemon.service", "agentz-opencode.service", "agentz-filesystem.service", "agentz-kubearmor.service"} {
+	units := []string{
+		"agentz-spire.service", "agentz-daemon.service", "agentz-opencode.service",
+		"agentz-filesystem.service", "agentz-kubearmor.service",
+	}
+	for _, unit := range units {
 		state, err := exec.CommandContext(ctx, "systemctl", "is-active", unit).Output()
 		fmt.Fprintf(output, "%s: %s\n", unit, strings.TrimSpace(string(state)))
 		if err != nil {
@@ -58,13 +62,22 @@ func Diagnose(ctx context.Context, configPath string, doctor bool, output io.Wri
 	data, err = os.ReadFile("/run/agentz/daemon-status.json")
 	if err != nil {
 		failures = append(failures, fmt.Errorf("live daemon status unavailable: %w", err))
-	} else {
+	}
+	if err == nil {
 		var state snapshot
-		if err := json.Unmarshal(data, &state); err != nil {
-			failures = append(failures, fmt.Errorf("decode live status: %w", err))
-		} else {
+		decodeErr := json.Unmarshal(data, &state)
+		if decodeErr != nil {
+			failures = append(failures, fmt.Errorf("decode live status: %w", decodeErr))
+		}
+		if decodeErr == nil {
 			stale := time.Since(state.UpdatedAt) > time.Minute
-			fmt.Fprintf(output, "Backend connected: %t\nRuntime ready: %t\nStatus last updated: %s\n", state.Connected && !stale, state.Runtime.Ready && !stale, state.UpdatedAt.Format(time.RFC3339))
+			fmt.Fprintf(
+				output,
+				"Backend connected: %t\nRuntime ready: %t\nStatus last updated: %s\n",
+				state.Connected && !stale,
+				state.Runtime.Ready && !stale,
+				state.UpdatedAt.Format(time.RFC3339),
+			)
 			if state.Runtime.Error != "" {
 				fmt.Fprintf(output, "Runtime error: %s\n", state.Runtime.Error)
 			}
@@ -78,9 +91,14 @@ func Diagnose(ctx context.Context, configPath string, doctor bool, output io.Wri
 			location, err := exec.LookPath(program)
 			if err != nil {
 				// sudo may reset PATH; check the same installed tools as the service.
-				for _, directory := range []string{"/var/lib/agentz/runtime/tools/bin", "/nix/var/nix/profiles/default/bin"} {
+				directories := []string{
+					"/var/lib/agentz/runtime/tools/bin",
+					"/nix/var/nix/profiles/default/bin",
+				}
+				for _, directory := range directories {
 					candidate := filepath.Join(directory, program)
-					if info, statErr := os.Stat(candidate); statErr == nil && info.Mode().IsRegular() && info.Mode().Perm()&0111 != 0 {
+					info, statErr := os.Stat(candidate)
+					if statErr == nil && info.Mode().IsRegular() && info.Mode().Perm()&0111 != 0 {
 						location, err = candidate, nil
 						break
 					}

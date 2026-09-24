@@ -54,7 +54,10 @@ func (s *Service) authorizeHost(ctx context.Context) (host.Binding, error) {
 	}
 	// go-spiffe verifies the chain in its TLS callback, so VerifiedChains is empty.
 	tlsInfo, ok := p.AuthInfo.(credentials.TLSInfo)
-	if !ok || len(tlsInfo.State.PeerCertificates) == 0 || len(tlsInfo.State.PeerCertificates[0].URIs) != 1 {
+	if !ok || len(tlsInfo.State.PeerCertificates) == 0 {
+		return host.Binding{}, status.Error(codes.Unauthenticated, "missing verified identity")
+	}
+	if len(tlsInfo.State.PeerCertificates[0].URIs) != 1 {
 		return host.Binding{}, status.Error(codes.Unauthenticated, "missing verified identity")
 	}
 	id, err := spiffeid.FromURI(tlsInfo.State.PeerCertificates[0].URIs[0])
@@ -66,8 +69,10 @@ func (s *Service) authorizeHost(ctx context.Context) (host.Binding, error) {
 		return host.Binding{}, status.Error(codes.PermissionDenied, "host is not assigned")
 	}
 	agt := &agentzv1alpha1.Agent{}
-	err = s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Namespace: record.TenantNamespace, Name: record.AgentName}, agt)
-	if err != nil || !agt.DeletionTimestamp.IsZero() || agt.Spec.Execution != agentzv1alpha1.AgentExecutionNative {
+	key := ctrlclient.ObjectKey{Namespace: record.TenantNamespace, Name: record.AgentName}
+	err = s.k8sClient.Get(ctx, key, agt)
+	agentUnavailable := err != nil || !agt.DeletionTimestamp.IsZero() || agt.Spec.Execution != agentzv1alpha1.AgentExecutionNative
+	if agentUnavailable {
 		return host.Binding{}, status.Error(codes.PermissionDenied, "Agent is unavailable")
 	}
 	method, _ := grpc.Method(ctx)
@@ -79,7 +84,11 @@ func (s *Service) authorizeHost(ctx context.Context) (host.Binding, error) {
 			return host.Binding{}, status.Error(codes.PermissionDenied, "host is not connected")
 		}
 	}
-	return host.Binding{Namespace: record.TenantNamespace, Agent: record.AgentName, Epoch: record.ID.String()}, nil
+	return host.Binding{
+		Namespace: record.TenantNamespace,
+		Agent:     record.AgentName,
+		Epoch:     record.ID.String(),
+	}, nil
 }
 
 func (s *Service) nativeSpec(ctx context.Context, binding host.Binding) (host.RuntimeSpec, error) {
@@ -118,7 +127,8 @@ func (s *Service) nativeSpec(ctx context.Context, binding host.Binding) (host.Ru
 		ImmutableSkillsDirectory: "/var/lib/agentz/runtime/skills/immutable",
 		WritableSkillsDirectory:  filepath.Join(record.WorkDirectory, ".agents/skills"),
 		CABundlePath:             "/var/lib/agentz/runtime/ca.pem",
-		GatewayTokenPath:         "/var/lib/agentz/runtime/gateway-token", WorkDirectory: record.WorkDirectory,
+		GatewayTokenPath:         "/var/lib/agentz/runtime/gateway-token",
+		WorkDirectory:            record.WorkDirectory,
 	})
 	if err != nil {
 		return spec, err
@@ -253,7 +263,8 @@ func (s *Service) dialUpstream(ctx context.Context, binding host.Binding, servic
 		local, remote := net.Pipe()
 		listener := &streamListener{conn: remote, done: make(chan struct{})}
 		server := grpc.NewServer(grpc.MaxRecvMsgSize(4<<20), grpc.MaxConcurrentStreams(4))
-		tracev1.RegisterTraceServiceServer(server, observer.NativeTraceServer(binding.Namespace, binding.Agent, s.trace))
+		traceServer := observer.NativeTraceServer(binding.Namespace, binding.Agent, s.trace)
+		tracev1.RegisterTraceServiceServer(server, traceServer)
 		go func() { defer remote.Close(); _ = server.Serve(listener) }()
 		go func() { <-ctx.Done(); server.Stop() }()
 		return local, nil
@@ -345,7 +356,9 @@ func (s *Service) dialUpstream(ctx context.Context, binding host.Binding, servic
 					if ns == "" {
 						ns = binding.Namespace
 					}
-					selections = append(selections, skill.VersionSelection{Namespace: ns, Name: item.Name, Version: item.Version})
+					selections = append(selections, skill.VersionSelection{
+						Namespace: ns, Name: item.Name, Version: item.Version,
+					})
 				}
 				w.Header().Set("Content-Type", "application/zip")
 				if err := s.skillStore.WriteVersionsZIP(r.Context(), w, selections); err != nil {

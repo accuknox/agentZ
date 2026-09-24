@@ -364,7 +364,10 @@ func (s *Service) probeToken(ctx context.Context, conn *agentzv1alpha1.MCPConnec
 		}
 		return strings.TrimSpace(token), location, nil
 	}
-	return "", nil, fmt.Errorf("mcp connection %q has no supported auth mode: %w", conn.Name, errCredentialUnavailable)
+	return "", nil, fmt.Errorf(
+		"mcp connection %q has no supported auth mode: %w",
+		conn.Name, errCredentialUnavailable,
+	)
 }
 
 func classifyProbeError(err error, statusCode int) string {

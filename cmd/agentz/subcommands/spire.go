@@ -15,10 +15,19 @@ import (
 var SpireCmd = &cli.Command{
 	Name: "spire", Usage: "Maintain SPIRE signing authority for enrolled hosts",
 	Commands: []*cli.Command{{
-		Name: "maintain", Usage: "Advance the signing authority using SPIRE's built-in API",
+		Name:  "maintain",
+		Usage: "Advance the signing authority using SPIRE's built-in API",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "socket", Value: "/run/spire/api.sock", Usage: "Local SPIRE administrator socket"},
-			&cli.StringFlag{Name: "trust-domain", Required: true, Usage: "SPIFFE trust domain"},
+			&cli.StringFlag{
+				Name:  "socket",
+				Value: "/run/spire/api.sock",
+				Usage: "Local SPIRE administrator socket",
+			},
+			&cli.StringFlag{
+				Name:     "trust-domain",
+				Required: true,
+				Usage:    "SPIFFE trust domain",
+			},
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
 			ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)

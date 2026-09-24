@@ -87,7 +87,11 @@ func Enroll(ctx context.Context, backend, username, workdir, runtimeDirectory, c
 	if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("inspect enrollment state: %w", err)
 	}
-	for _, dir := range []string{"/etc/agentz", "/var/lib/agentz/spire", "/var/lib/agentz/daemon", "/run/agentz/spire"} {
+	identityDirectories := []string{
+		"/etc/agentz", "/var/lib/agentz/spire",
+		"/var/lib/agentz/daemon", "/run/agentz/spire",
+	}
+	for _, dir := range identityDirectories {
 		if err := os.MkdirAll(dir, 0700); err != nil {
 			return err
 		}
@@ -126,7 +130,10 @@ func Enroll(ctx context.Context, backend, username, workdir, runtimeDirectory, c
 	if err != nil {
 		return err
 	}
-	response, err := client.RedeemComputeEnrollmentWithResponse(ctx, gatewayapi.RedeemComputeEnrollmentRequest{Code: code, Hostname: hostname, WorkDirectory: workdir})
+	request := gatewayapi.RedeemComputeEnrollmentRequest{
+		Code: code, Hostname: hostname, WorkDirectory: workdir,
+	}
+	response, err := client.RedeemComputeEnrollmentWithResponse(ctx, request)
 	if err != nil {
 		return fmt.Errorf("redeem enrollment: %w", err)
 	}
@@ -216,7 +223,10 @@ plugins {
 			return err
 		}
 	}
-	command := exec.CommandContext(ctx, "systemctl", "enable", "--now", "agentz-spire.service", "agentz-daemon.service")
+	command := exec.CommandContext(
+		ctx, "systemctl", "enable", "--now",
+		"agentz-spire.service", "agentz-daemon.service",
+	)
 	command.Stdout, command.Stderr = output, output
 	if err := command.Run(); err != nil {
 		return fmt.Errorf("start native services: %w", err)

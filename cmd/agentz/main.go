@@ -325,53 +325,41 @@ var managerCmd = &cli.Command{
 			Name:        "controller-image",
 			Usage:       "Container image for workflow schedule CronJob pods",
 			Destination: &controllerImage,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:        "agent-image",
 			Usage:       "Default container image for Agent pods",
 			Destination: &agentImage,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:        "gateway-url",
 			Usage:       "Gateway base URL exposed to Agent workflow tools",
 			Value:       "http://localhost:8090",
 			Destination: &gatewayURL,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:        "agentgateway-trace-mode",
 			Usage:       "OTLP/gRPC backend mode used by agentgateway for MCP traces: service or static",
 			Value:       string(sandboxcontroller.TraceBackendModeService),
 			Destination: &agentgatewayTraceMode,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:        "agentgateway-trace-service-name",
 			Usage:       "Kubernetes Service name for the agentgateway MCP trace backend",
 			Value:       "observer",
 			Destination: &agentgatewayTraceServiceName,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:        "agentgateway-trace-service-namespace",
 			Usage:       "Kubernetes namespace for the agentgateway MCP trace Service backend",
 			Value:       "agentz-system",
 			Destination: &agentgatewayTraceServiceNamespace,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.IntFlag{
 			Name:        "agentgateway-trace-service-port",
@@ -383,9 +371,7 @@ var managerCmd = &cli.Command{
 			Name:        "agentgateway-trace-host",
 			Usage:       "Static host or IP for the agentgateway MCP trace backend",
 			Destination: &agentgatewayTraceHost,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.IntFlag{
 			Name:        "agentgateway-trace-port",
@@ -397,18 +383,14 @@ var managerCmd = &cli.Command{
 			Name:        "nix-store-pvc",
 			Usage:       "Name of each scope-local shared nix store PVC used by agent package jobs",
 			Destination: &nixStorePVC,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:        "nix-store-size",
 			Usage:       "Requested storage size for each scope-local nix store PVC",
 			Value:       "5Gi",
 			Destination: &nixStoreSize,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringSliceFlag{
 			Name:        "nix-store-access-mode",
@@ -420,27 +402,21 @@ var managerCmd = &cli.Command{
 			Name:        "nix-store-storage-class",
 			Usage:       "Optional storage class for scope-local nix store PVCs",
 			Destination: &nixStoreStorageClass,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:        "nix-cache-endpoint",
 			Usage:       "Nix binary cache endpoint used by agent package jobs",
 			Value:       "https://cache.nixos.org",
 			Destination: &nixCacheEndpoint,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:        "skills-s3-endpoint",
 			Usage:       "S3-compatible endpoint for immutable skill storage",
 			Destination: &skillsS3Endpoint,
 			Sources:     cli.EnvVars("AGENTZ_SKILLS_S3_ENDPOINT"),
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:        "skills-s3-region",
@@ -448,107 +424,83 @@ var managerCmd = &cli.Command{
 			Value:       "us-east-1",
 			Destination: &skillsS3Region,
 			Sources:     cli.EnvVars("AGENTZ_SKILLS_S3_REGION"),
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:        "skills-s3-bucket",
 			Usage:       "S3 bucket for immutable skill storage",
 			Destination: &skillsS3Bucket,
 			Sources:     cli.EnvVars("AGENTZ_SKILLS_S3_BUCKET"),
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:        "agent-init-image",
 			Usage:       "Container image for nix agent init containers",
 			Destination: &agentInitImage,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:        "openbao-addr",
 			Usage:       "OpenBao server address",
 			Value:       "http://openbao.openbao.svc.cluster.local:8200",
 			Destination: &openBaoAddr,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:        "manager-openbao-addr",
 			Usage:       "Controller-manager OpenBao address for provisioning",
 			Hidden:      true,
 			Destination: &managerOpenBaoAddr,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:        "openbao-secret-mount-path",
 			Usage:       "OpenBao KV v2 secret engine mount path",
 			Value:       "kv",
 			Destination: &openBaoSecretMountPath,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:        "openbao-k8s-auth-mount-path",
 			Usage:       "OpenBao Kubernetes auth mount path",
 			Value:       "kubernetes",
 			Destination: &openBaoK8sAuthMountPath,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:        "sinjector-openbao-k8s-auth-token-path",
 			Usage:       "SIP Kubernetes service account token path",
 			Value:       "/var/run/secrets/kubernetes.io/serviceaccount/token",
 			Destination: &sinjectorOpenBaoK8sAuthTokenPath,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:        "manager-openbao-k8s-auth-role",
 			Usage:       "OpenBao Kubernetes auth role for controller-manager provisioning",
 			Value:       "manager",
 			Destination: &managerOpenBaoK8sAuthRole,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:        "manager-openbao-k8s-auth-token-path",
 			Usage:       "Kubernetes service account token path for manager OpenBao auth",
 			Value:       "/var/run/secrets/kubernetes.io/serviceaccount/token",
 			Destination: &managerOpenBaoK8sAuthTokenPath,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:        "manager-gateway-token-path",
 			Usage:       "Projected Kubernetes service account token path for gateway auth",
 			Value:       "/var/run/secrets/agentz/gateway/token",
 			Destination: &managerGatewayTokenPath,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:        "inference-secret-store-name",
 			Usage:       "ClusterSecretStore used for inference provider credentials",
 			Value:       "agentz-inference",
 			Destination: &inferenceSecretStoreName,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.DurationFlag{
 			Name:        "inference-secret-refresh-interval",
@@ -561,43 +513,33 @@ var managerCmd = &cli.Command{
 			Usage:       "Audience for projected Kubernetes service account tokens used for gateway auth",
 			Value:       "agentz-gateway",
 			Destination: &managerGatewayTokenAudience,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:        "manager-service-account-name",
 			Usage:       "Manager ServiceAccount name granted tenant gateway access",
 			Destination: &managerServiceAccountName,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:        "manager-service-account-namespace",
 			Usage:       "Manager ServiceAccount namespace granted tenant gateway access",
 			Destination: &managerServiceAccountNamespace,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:        "gateway-service-account-name",
 			Usage:       "Gateway ServiceAccount granted access in managed namespaces",
 			Value:       "gateway",
 			Destination: &gatewayServiceAccountName,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:        "gateway-service-account-namespace",
 			Usage:       "Namespace containing the Gateway ServiceAccount",
 			Value:       "agentz-system",
 			Destination: &gatewayServiceAccountNamespace,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:        "relay-service-account-name",
@@ -618,9 +560,7 @@ var managerCmd = &cli.Command{
 			Usage:       "Tenant-scoped cert-manager Secret containing SIP CA cert/key/bundle",
 			Value:       "sinjector",
 			Destination: &sinjectorCASecretName,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:        "sinjector-ca-secret-cert-key",
@@ -808,9 +748,7 @@ var managerCmd = &cli.Command{
 			Name:        "watch-namespace",
 			Usage:       "Namespace(s) to watch and manage. Use commas for multiple.",
 			Destination: &watchNamespace,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:      cli.StringConfig{TrimSpace: true},
 		},
 		&cli.BoolFlag{
 			Name:        "enable-webhooks",
@@ -895,12 +833,9 @@ var managerCmd = &cli.Command{
 			setupLog.InfoContext(
 				ctx,
 				"initializing metrics certificate watcher using provided certificates",
-				"metrics-cert-path",
-				metricsCertPath,
-				"metrics-cert-name",
-				metricsCertName,
-				"metrics-cert-key",
-				metricsCertKey,
+				"metrics-cert-path", metricsCertPath,
+				"metrics-cert-name", metricsCertName,
+				"metrics-cert-key", metricsCertKey,
 			)
 			metricsServerOptions.CertDir = metricsCertPath
 			metricsServerOptions.CertName = metricsCertName
@@ -964,9 +899,10 @@ var managerCmd = &cli.Command{
 			mgr.GetFieldIndexer(),
 		)
 		if err != nil {
-			setupLog.ErrorContext(ctx, "failed to register shared field index", "error", err,
-				"index",
-				sandboxutil.AgentBySandboxIndex,
+			setupLog.ErrorContext(ctx,
+				"failed to register shared field index",
+				"error", err,
+				"index", sandboxutil.AgentBySandboxIndex,
 			)
 			os.Exit(1)
 		}
@@ -991,18 +927,21 @@ var managerCmd = &cli.Command{
 			mgr.GetFieldIndexer(),
 		)
 		if err != nil {
-			setupLog.ErrorContext(ctx, "failed to register shared field index", "error", err,
-				"index",
-				workflowschedulecontroller.WorkflowRunByScheduleIndex,
+			setupLog.ErrorContext(ctx,
+				"failed to register shared field index",
+				"error", err,
+				"index", workflowschedulecontroller.WorkflowRunByScheduleIndex,
 			)
 			os.Exit(1)
 		}
 
 		gwClient, err := gatewayapi.NewClientWithResponses(gatewayURL, gatewayapi.WithHTTPClient(&http.Client{}))
 		if err != nil {
-			setupLog.ErrorContext(ctx, "failed to create gateway client", "error", err,
-				"gatewayURL",
-				gatewayURL,
+			setupLog.ErrorContext(
+				ctx,
+				"failed to create gateway client",
+				"error", err,
+				"gatewayURL", gatewayURL,
 			)
 			os.Exit(1)
 		}

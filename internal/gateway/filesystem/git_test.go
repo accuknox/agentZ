@@ -37,7 +37,11 @@ func TestGitDiscoveryUsesConfiguredRuntimeRoot(t *testing.T) {
 	}
 	defer root.Close()
 	s := &service{root: root}
-	result, err := s.runGit(t.Context(), GitRequest{Root: project, Directory: project + "/repo", Git: gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitDiscover}})
+	request := GitRequest{
+		Root: project, Directory: project + "/repo",
+		Git: gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitDiscover},
+	}
+	result, err := s.runGit(t.Context(), request)
 	if err != nil {
 		t.Fatal(err)
 	}

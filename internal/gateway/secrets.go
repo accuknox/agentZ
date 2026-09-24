@@ -416,7 +416,8 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 		items,
 		func(a, b agentzv1alpha1.Secret) int {
 			order := cmp.Compare(strings.ToLower(a.Spec.Key), strings.ToLower(b.Spec.Key))
-			if params.SortBy != nil && *params.SortBy == gatewayapi.ListSecretsParamsSortBySecretSortCreatedAt {
+			sortByCreation := params.SortBy != nil && *params.SortBy == gatewayapi.ListSecretsParamsSortBySecretSortCreatedAt
+			if sortByCreation {
 				order = a.CreationTimestamp.Compare(b.CreationTimestamp.Time)
 			}
 			if descending {
@@ -836,7 +837,8 @@ func (s *Service) secretFromRequest(ns string, tenant *agentzv1alpha1.Tenant, ag
 		if req.Oauth.Credentials.ExpiresAt != nil {
 			token.Expiry = req.Oauth.Credentials.ExpiresAt.UTC()
 		}
-		if token.AccessToken != "" || token.RefreshToken != "" || token.TokenType != "" || !token.Expiry.IsZero() {
+		tokenPopulated := token.AccessToken != "" || token.RefreshToken != "" || token.TokenType != "" || !token.Expiry.IsZero()
+		if tokenPopulated {
 			runtimeRecord.Token = &token
 		}
 		record = runtimeRecord

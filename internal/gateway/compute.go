@@ -35,7 +35,9 @@ func (s *Service) CreateComputeEnrollment(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if s.relay == nil {
-		apiutil.WriteError(w, r, apiutil.NewError(503, "compute_unavailable", "Host enrollment is not configured", nil))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			503, "compute_unavailable", "Host enrollment is not configured", nil,
+		))
 		return
 	}
 	agt := &agentzv1alpha1.Agent{}
@@ -45,7 +47,9 @@ func (s *Service) CreateComputeEnrollment(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if agt.Spec.Execution != agentzv1alpha1.AgentExecutionNative {
-		apiutil.WriteError(w, r, apiutil.NewError(409, "execution_conflict", "This Agent uses Kubernetes compute", nil))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			409, "execution_conflict", "This Agent uses Kubernetes compute", nil,
+		))
 		return
 	}
 	secret := make([]byte, 32)
@@ -56,12 +60,17 @@ func (s *Service) CreateComputeEnrollment(w http.ResponseWriter, r *http.Request
 	code := base64.RawURLEncoding.EncodeToString(secret)
 	hash := sha256.Sum256([]byte(code))
 	expires := time.Now().Add(15 * time.Minute)
-	_, err = s.queries.GatewayPrepareComputeEnrollment(r.Context(), gatewaydb.GatewayPrepareComputeEnrollmentParams{
-		ID: uuid.New(), TenantNamespace: access.namespace, AgentName: agentName,
-		EnrollmentHash: hash[:], EnrollmentExpiresAt: expires,
-	})
+	_, err = s.queries.GatewayPrepareComputeEnrollment(
+		r.Context(), gatewaydb.GatewayPrepareComputeEnrollmentParams{
+			ID: uuid.New(), TenantNamespace: access.namespace, AgentName: agentName,
+			EnrollmentHash: hash[:], EnrollmentExpiresAt: expires,
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		apiutil.WriteError(w, r, apiutil.NewError(409, "host_already_enrolled", "Disconnect the current host before enrolling another", nil))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			409, "host_already_enrolled",
+			"Disconnect the current host before enrolling another", nil,
+		))
 		return
 	}
 	if err != nil {
@@ -75,7 +84,9 @@ func (s *Service) CreateComputeEnrollment(w http.ResponseWriter, r *http.Request
 // RedeemComputeEnrollment exchanges the one-time code for native SPIRE bootstrap.
 func (s *Service) RedeemComputeEnrollment(w http.ResponseWriter, r *http.Request) {
 	if s.relay == nil {
-		apiutil.WriteError(w, r, apiutil.NewError(503, "compute_unavailable", "Host enrollment is not configured", nil))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			503, "compute_unavailable", "Host enrollment is not configured", nil,
+		))
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 8<<10)
@@ -92,11 +103,16 @@ func (s *Service) RedeemComputeEnrollment(w http.ResponseWriter, r *http.Request
 		return
 	}
 	hash := sha256.Sum256([]byte(req.Code))
-	registration, err := s.queries.GatewayConsumeComputeEnrollment(r.Context(), gatewaydb.GatewayConsumeComputeEnrollmentParams{
-		EnrollmentHash: hash[:], Hostname: req.Hostname, WorkDirectory: req.WorkDirectory,
-	})
+	registration, err := s.queries.GatewayConsumeComputeEnrollment(
+		r.Context(), gatewaydb.GatewayConsumeComputeEnrollmentParams{
+			EnrollmentHash: hash[:], Hostname: req.Hostname, WorkDirectory: req.WorkDirectory,
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		apiutil.WriteError(w, r, apiutil.NewError(401, "invalid_enrollment", "Enrollment code has expired or was already used", nil))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			401, "invalid_enrollment",
+			"Enrollment code has expired or was already used", nil,
+		))
 		return
 	}
 	if err != nil {
@@ -104,12 +120,21 @@ func (s *Service) RedeemComputeEnrollment(w http.ResponseWriter, r *http.Request
 		return
 	}
 	agt := &agentzv1alpha1.Agent{}
-	err = s.k8sClient.Get(r.Context(), ctrlclient.ObjectKey{Namespace: registration.TenantNamespace, Name: registration.AgentName}, agt)
-	if err != nil || !agt.DeletionTimestamp.IsZero() || agt.Spec.Execution != agentzv1alpha1.AgentExecutionNative {
-		apiutil.WriteError(w, r, apiutil.NewError(409, "agent_unavailable", "Agent is no longer available for enrollment", err))
+	key := ctrlclient.ObjectKey{
+		Namespace: registration.TenantNamespace,
+		Name:      registration.AgentName,
+	}
+	err = s.k8sClient.Get(r.Context(), key, agt)
+	agentUnavailable := err != nil || !agt.DeletionTimestamp.IsZero() || agt.Spec.Execution != agentzv1alpha1.AgentExecutionNative
+	if agentUnavailable {
+		apiutil.WriteError(w, r, apiutil.NewError(
+			409, "agent_unavailable", "Agent is no longer available for enrollment", err,
+		))
 		return
 	}
-	enrollment, err := s.relay.Enroll(r.Context(), &hostv1.EnrollmentRequest{AssignmentId: registration.ID.String()})
+	enrollment, err := s.relay.Enroll(r.Context(), &hostv1.EnrollmentRequest{
+		AssignmentId: registration.ID.String(),
+	})
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
@@ -125,7 +150,10 @@ func (s *Service) RedeemComputeEnrollment(w http.ResponseWriter, r *http.Request
 			AssignmentId: registration.ID.String(), NodeId: enrollment.NodeId,
 			WorkloadId: enrollment.WorkloadId,
 		})
-		apiutil.WriteInternalError(w, r, errors.Join(err, revokeErr, errors.New("enrollment was replaced or revoked")))
+		apiutil.WriteInternalError(
+			w, r,
+			errors.Join(err, revokeErr, errors.New("enrollment was replaced or revoked")),
+		)
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
@@ -151,7 +179,13 @@ func (s *Service) RevokeComputeHost(w http.ResponseWriter, r *http.Request, agen
 }
 
 func (s *Service) revokeCompute(ctx context.Context, namespace, name string) error {
-	registration, err := s.queries.GatewayRevokeComputeHost(ctx, gatewaydb.GatewayRevokeComputeHostParams{TenantNamespace: namespace, AgentName: name})
+	registration, err := s.queries.GatewayRevokeComputeHost(
+		ctx,
+		gatewaydb.GatewayRevokeComputeHostParams{
+			TenantNamespace: namespace,
+			AgentName:       name,
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
 	}
@@ -207,15 +241,18 @@ func (t *hostHTTPTransport) RoundTrip(request *http.Request) (*http.Response, er
 	if !ready {
 		return nil, errors.New("native Agent is offline")
 	}
-	if expected := request.Header.Get("X-Agentz-Compute-Connection"); expected != "" && expected != connection {
+	expected := request.Header.Get("X-Agentz-Compute-Connection")
+	if expected != "" && expected != connection {
 		return nil, errors.New("native Agent reconnected; submit new work explicitly")
 	}
-	if expected, _ := request.Context().Value(computeConnectionContextKey{}).(string); expected != "" && expected != connection {
+	expected, _ = request.Context().Value(computeConnectionContextKey{}).(string)
+	if expected != "" && expected != connection {
 		return nil, errors.New("native Agent reconnected; submit new work explicitly")
 	}
 	forward := request.Clone(request.Context())
 	forward.Header.Del("X-Agentz-Compute-Connection")
-	forward.URL.Host = net.JoinHostPort(parts[0]+"."+parts[1]+"."+connection+".native.agentz", request.URL.Port())
+	hostname := parts[0] + "." + parts[1] + "." + connection + ".native.agentz"
+	forward.URL.Host = net.JoinHostPort(hostname, request.URL.Port())
 	return t.transport.RoundTrip(forward)
 }
 

@@ -98,7 +98,9 @@ func TestMetadataUpdatePreservesStoredDefaults(t *testing.T) {
 
 func TestExecutionImmutableWithLegacyDefault(t *testing.T) {
 	t.Parallel()
-	old := &agentzv1alpha1.Agent{Spec: agentzv1alpha1.AgentSpec{SandboxRef: agentzv1alpha1.ResourceReference{Name: "sandbox"}}}
+	old := &agentzv1alpha1.Agent{Spec: agentzv1alpha1.AgentSpec{
+		SandboxRef: agentzv1alpha1.ResourceReference{Name: "sandbox"},
+	}}
 	updated := old.DeepCopy()
 	updated.Spec.Execution = agentzv1alpha1.AgentExecutionKubernetes
 	validator := NewValidator(nil)

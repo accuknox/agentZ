@@ -96,7 +96,8 @@ func (c *Client) open(ctx context.Context, request *pb.Open) {
 	handshake := &pb.DataFrame{Id: request.Id}
 	if err != nil {
 		handshake.Error = "local service unavailable"
-	} else {
+	}
+	if err == nil {
 		defer conn.Close()
 	}
 	stream, streamErr := c.RPC.Data(ctx)

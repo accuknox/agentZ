@@ -142,7 +142,10 @@ func Serve(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return err
 	}
-	adminTLS, err := host.ClientTLS(cfg.IdentityCert, cfg.IdentityKey, cfg.TrustBundle, cfg.TrustDomain, "/spire/server")
+	adminTLS, err := host.ClientTLS(
+		cfg.IdentityCert, cfg.IdentityKey, cfg.TrustBundle,
+		cfg.TrustDomain, "/spire/server",
+	)
 	if err != nil {
 		return err
 	}
@@ -161,7 +164,10 @@ func Serve(ctx context.Context, cfg Config) error {
 		return errors.Join(err, identityErr)
 	}
 	go func() { failures <- identity.Maintain(runCtx) }()
-	observer, err := grpc.NewClient(cfg.AgentTraceEndpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	observer, err := grpc.NewClient(
+		cfg.AgentTraceEndpoint,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
 	if err != nil {
 		return err
 	}
@@ -183,7 +189,8 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 	for i := range agents.Items {
 		agent := &agents.Items[i]
-		if agent.Spec.Execution != agentzv1alpha1.AgentExecutionNative || !agent.DeletionTimestamp.IsZero() {
+		nativeUnavailable := agent.Spec.Execution != agentzv1alpha1.AgentExecutionNative || !agent.DeletionTimestamp.IsZero()
+		if nativeUnavailable {
 			continue
 		}
 		key := ctrlclient.ObjectKeyFromObject(agent)
@@ -192,7 +199,8 @@ func Serve(ctx context.Context, cfg Config) error {
 			if err := direct.Get(check, key, agent); err != nil {
 				return ctrlclient.IgnoreNotFound(err)
 			}
-			if agent.Spec.Execution != agentzv1alpha1.AgentExecutionNative || !agent.DeletionTimestamp.IsZero() {
+			nativeUnavailable := agent.Spec.Execution != agentzv1alpha1.AgentExecutionNative || !agent.DeletionTimestamp.IsZero()
+			if nativeUnavailable {
 				return nil
 			}
 			before := agent.DeepCopy()

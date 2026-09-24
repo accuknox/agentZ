@@ -37,7 +37,9 @@ type dnsMatchCase struct {
 
 func TestNativeDNSPreservesSandboxWildcardSemantics(t *testing.T) {
 	t.Parallel()
-	hosts, err := sandboxutil.ParseHostList([]string{"exact.example", "*.single.example", "**.deep.example", "10.0.0.0/8"})
+	hosts, err := sandboxutil.ParseHostList([]string{
+		"exact.example", "*.single.example", "**.deep.example", "10.0.0.0/8",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,13 +58,24 @@ func TestNativeDNSPreservesSandboxWildcardSemantics(t *testing.T) {
 func TestDNSAddressesDoNotTrustUnrelatedAnswers(t *testing.T) {
 	t.Parallel()
 	answers := []dns.RR{
-		&dns.A{Hdr: dns.RR_Header{Name: "unrelated.example.", Rrtype: dns.TypeA, Ttl: 600}, A: net.ParseIP("192.0.2.9")},
+		&dns.A{
+			Hdr: dns.RR_Header{Name: "unrelated.example.", Rrtype: dns.TypeA, Ttl: 600},
+			A:   net.ParseIP("192.0.2.9"),
+		},
 		&dns.A{Hdr: dns.RR_Header{Name: "cdn.example.", Rrtype: dns.TypeA, Ttl: 600}, A: net.ParseIP("192.0.2.1")},
-		&dns.CNAME{Hdr: dns.RR_Header{Name: "allowed.example.", Rrtype: dns.TypeCNAME, Ttl: 30}, Target: "cdn.example."},
-		&dns.AAAA{Hdr: dns.RR_Header{Name: "cdn.example.", Rrtype: dns.TypeAAAA, Ttl: 20}, AAAA: net.ParseIP("2001:db8::1")},
+		&dns.CNAME{
+			Hdr:    dns.RR_Header{Name: "allowed.example.", Rrtype: dns.TypeCNAME, Ttl: 30},
+			Target: "cdn.example.",
+		},
+		&dns.AAAA{
+			Hdr:  dns.RR_Header{Name: "cdn.example.", Rrtype: dns.TypeAAAA, Ttl: 20},
+			AAAA: net.ParseIP("2001:db8::1"),
+		},
 	}
 	actual := dnsAddresses("ALLOWED.EXAMPLE.", answers)
-	if len(actual) != 2 || actual[netip.MustParseAddr("192.0.2.1")] != 30 || actual[netip.MustParseAddr("2001:db8::1")] != 20 {
+	ipv4TTL := actual[netip.MustParseAddr("192.0.2.1")]
+	ipv6TTL := actual[netip.MustParseAddr("2001:db8::1")]
+	if len(actual) != 2 || ipv4TTL != 30 || ipv6TTL != 20 {
 		t.Fatalf("CNAME address/TTL authorization = %#v", actual)
 	}
 }
@@ -119,13 +132,16 @@ func TestNativeNetworkPackets(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		command := exec.CommandContext(t.Context(), "unshare", "--net", "--mount", "--propagation", "private", binary, "-test.run=^TestNativeNetworkPackets$", "-test.v")
+		command := exec.CommandContext(
+			t.Context(), "unshare", "--net", "--mount", "--propagation", "private",
+			binary, "-test.run=^TestNativeNetworkPackets$", "-test.v",
+		)
 		command.Env = append(os.Environ(), "AGENTZ_NETWORK_ISOLATED_TEST=1")
-		if output, err := command.CombinedOutput(); err != nil {
+		output, err := command.CombinedOutput()
+		if err != nil {
 			t.Fatalf("isolated native packet test: %v\n%s", err, output)
-		} else {
-			t.Log(string(output))
 		}
+		t.Log(string(output))
 		return
 	}
 	for _, target := range []string{"/run", "/etc"} {
@@ -151,37 +167,40 @@ func TestNativeNetworkPackets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	upstream := &dns.Server{PacketConn: resolver, Handler: dns.HandlerFunc(func(w dns.ResponseWriter, request *dns.Msg) {
-		answer := new(dns.Msg)
-		answer.SetReply(request)
-		answer.Answer = []dns.RR{&dns.A{
-			Hdr: dns.RR_Header{Name: request.Question[0].Name, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 1},
-			A:   net.ParseIP("198.18.0.1"),
-		}}
-		if request.Question[0].Name == "malformed.test." {
+	upstream := &dns.Server{
+		PacketConn: resolver,
+		Handler: dns.HandlerFunc(func(w dns.ResponseWriter, request *dns.Msg) {
+			answer := new(dns.Msg)
+			answer.SetReply(request)
 			answer.Answer = []dns.RR{&dns.A{
-				Hdr: dns.RR_Header{Name: "malformed.test.", Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 60},
-				A:   net.ParseIP("198.18.0.3"),
+				Hdr: dns.RR_Header{Name: request.Question[0].Name, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 1},
+				A:   net.ParseIP("198.18.0.1"),
 			}}
-			packet, err := answer.Pack()
-			if err != nil {
-				t.Error(err)
+			if request.Question[0].Name == "malformed.test." {
+				answer.Answer = []dns.RR{&dns.A{
+					Hdr: dns.RR_Header{Name: "malformed.test.", Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 60},
+					A:   net.ParseIP("198.18.0.3"),
+				}}
+				packet, err := answer.Pack()
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				// A truncated additional record leaves a decoded answer alongside
+				// an error. That answer must never authorize network access.
+				packet[11]++
+				packet = append(packet, 0xc0)
+				var partial dns.Msg
+				if err := partial.Unpack(packet); err == nil || len(partial.Answer) != 1 {
+					t.Error("malformed fixture must yield a partial answer and an error")
+					return
+				}
+				_, _ = w.Write(packet)
 				return
 			}
-			// A truncated additional record leaves a decoded answer alongside
-			// an error. That answer must never authorize network access.
-			packet[11]++
-			packet = append(packet, 0xc0)
-			var partial dns.Msg
-			if err := partial.Unpack(packet); err == nil || len(partial.Answer) != 1 {
-				t.Error("malformed fixture must yield a partial answer and an error")
-				return
-			}
-			_, _ = w.Write(packet)
-			return
-		}
-		_ = w.WriteMsg(answer)
-	})}
+			_ = w.WriteMsg(answer)
+		}),
+	}
 	go upstream.ActivateAndServe()
 	defer upstream.Shutdown()
 	n, err := NewNetwork(t.Context(), []string{"allowed.test", "malformed.test", "198.18.0.2/32", "fd42::1/128"})

@@ -125,7 +125,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if agt.Spec.Execution == agentzv1alpha1.AgentExecutionNative {
 		result, err := r.reconcileNative(ctx, agt, envCfg)
 		if err != nil {
-			if updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err); updateErr != nil {
+			updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
+			if updateErr != nil {
 				return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
 			}
 		}
@@ -199,7 +200,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	ready, err := r.reconcileSecretProxy(ctx, agt, envCfg.AllowedHosts)
 	if err != nil {
-		if updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err); updateErr != nil {
+		updateErr := r.setDegradedStatus(ctx, req.NamespacedName, agt.Generation, err)
+		if updateErr != nil {
 			return ctrl.Result{}, fmt.Errorf("set degraded status: %w", updateErr)
 		}
 		return ctrl.Result{}, fmt.Errorf("reconcile secret proxy: %w", err)
@@ -270,8 +272,14 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&agentzv1alpha1.Agent{}).
 		Watches(&agentzv1alpha1.Sandbox{}, handler.EnqueueRequestsFromMapFunc(r.agentsForSandbox)).
-		Watches(&agentzv1alpha1.InferenceProvider{}, handler.EnqueueRequestsFromMapFunc(r.agentsForInferenceProvider)).
-		Watches(&agentzv1alpha1.InferencePool{}, handler.EnqueueRequestsFromMapFunc(r.agentsForInferencePool)).
+		Watches(
+			&agentzv1alpha1.InferenceProvider{},
+			handler.EnqueueRequestsFromMapFunc(r.agentsForInferenceProvider),
+		).
+		Watches(
+			&agentzv1alpha1.InferencePool{},
+			handler.EnqueueRequestsFromMapFunc(r.agentsForInferencePool),
+		).
 		Watches(&agentzv1alpha1.Skill{}, handler.EnqueueRequestsFromMapFunc(r.agentsForSkill)).
 		Owns(&appsv1.Deployment{}).
 		Owns(&batchv1.Job{}).

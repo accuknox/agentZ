@@ -98,7 +98,13 @@ func (r *Reconciler) NativeRuntime(ctx context.Context, agt *agentzv1alpha1.Agen
 		result.Env["HTTPS_PROXY"] = endpoints.Proxy
 		result.Env["no_proxy"] = "localhost,127.0.0.1,::1"
 		result.Env["NO_PROXY"] = "localhost,127.0.0.1,::1"
-		for _, name := range []string{"SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE", "NODE_EXTRA_CA_CERTS"} {
+		certificateVariables := []string{
+			"SSL_CERT_FILE",
+			"REQUESTS_CA_BUNDLE",
+			"CURL_CA_BUNDLE",
+			"NODE_EXTRA_CA_CERTS",
+		}
+		for _, name := range certificateVariables {
 			result.Env[name] = endpoints.CABundlePath
 		}
 	}

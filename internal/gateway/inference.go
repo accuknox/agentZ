@@ -1281,7 +1281,9 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 		apiutil.WriteError(w, r, mapKubeHTTPError("update inference provider", err))
 		return
 	}
-	err = s.createInferenceProviderEventTrail(r.Context(), access, providerName, gatewaydb.EventTrailResultSucceeded)
+	err = s.createInferenceProviderEventTrail(
+		r.Context(), access, providerName, gatewaydb.EventTrailResultSucceeded,
+	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
@@ -1415,7 +1417,9 @@ func (s *Service) DeleteInferenceProvider(w http.ResponseWriter, r *http.Request
 		apiutil.WriteError(w, r, mapKubeHTTPError("delete inference provider", err))
 		return
 	}
-	err = s.createInferenceProviderEventTrail(r.Context(), access, providerName, gatewaydb.EventTrailResultSucceeded)
+	err = s.createInferenceProviderEventTrail(
+		r.Context(), access, providerName, gatewaydb.EventTrailResultSucceeded,
+	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return

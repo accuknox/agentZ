@@ -434,7 +434,10 @@ func applyBaseCapabilities(doc map[string]any) error {
 			}
 			capability, mapped := capabilities[operation]
 			if !mapped {
-				return fmt.Errorf("base operation %s %s (%q) has no capability mapping", method, path, operation)
+				return fmt.Errorf(
+					"base operation %s %s (%q) has no capability mapping",
+					method, path, operation,
+				)
 			}
 			op["security"] = []any{map[string]any{
 				capability.Scheme: []any{capability.Scope},

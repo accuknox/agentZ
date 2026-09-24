@@ -386,7 +386,9 @@ func (s *Service) UpdateSkill(w http.ResponseWriter, r *http.Request, skillName 
 	if params.XAgentZWorkspaceID != nil {
 		workspaceID = *params.XAgentZWorkspaceID
 	}
-	access, apiErr := s.resolveSkillAccess(r.Context(), workspaceID, skillName, authorization.OperationUpdateSkill)
+	access, apiErr := s.resolveSkillAccess(
+		r.Context(), workspaceID, skillName, authorization.OperationUpdateSkill,
+	)
 	if apiErr != nil {
 		if access.claims.OrganizationID != "" {
 			err := s.createSkillEventTrail(r.Context(), access, skillName, access.failureResult())
@@ -535,7 +537,9 @@ func (s *Service) DeleteSkill(w http.ResponseWriter, r *http.Request, skillName 
 	if params.XAgentZWorkspaceID != nil {
 		workspaceID = *params.XAgentZWorkspaceID
 	}
-	access, apiErr := s.resolveSkillAccess(r.Context(), workspaceID, skillName, authorization.OperationDeleteSkill)
+	access, apiErr := s.resolveSkillAccess(
+		r.Context(), workspaceID, skillName, authorization.OperationDeleteSkill,
+	)
 	if apiErr != nil {
 		if access.claims.OrganizationID != "" {
 			err := s.createSkillEventTrail(r.Context(), access, skillName, access.failureResult())
@@ -708,7 +712,10 @@ func (s *Service) listSkillReferences(ctx context.Context, namespace string) (ma
 		}
 	}
 
-	refs := make(map[agentzv1alpha1.ResourceReference]gatewayapi.SkillReferences, len(agentRefs)+len(sandboxRefs))
+	refs := make(
+		map[agentzv1alpha1.ResourceReference]gatewayapi.SkillReferences,
+		len(agentRefs)+len(sandboxRefs),
+	)
 	for ref, items := range agentRefs {
 		names := make([]gatewayapi.AgentName, 0, len(items))
 		for item := range items {
@@ -1304,7 +1311,8 @@ func (s *Service) importImmutableSkills(ctx context.Context, bundle skill.Bundle
 				errBadRequest,
 			)
 		}
-		if action == skill.DecisionOverwrite && !canModify && current.Spec.CreatedByUserID != access.claims.UserID {
+		overwriteDenied := action == skill.DecisionOverwrite && !canModify && current.Spec.CreatedByUserID != access.claims.UserID
+		if overwriteDenied {
 			eventTrailAccess := access
 			eventTrailAccess.operation = authorization.OperationUpdateSkill
 			err := s.createSkillEventTrail(ctx, eventTrailAccess, tree.Name, gatewaydb.EventTrailResultDenied)

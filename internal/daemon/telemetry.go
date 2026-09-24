@@ -41,7 +41,7 @@ func runTelemetry(ctx context.Context) error {
 	if !roots.AppendCertsFromPEM(ca) {
 		return fmt.Errorf("invalid sensor CA")
 	}
-	conn, err := grpc.NewClient("127.0.0.1:32767", grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
+	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{certificate},
 		// Stock KubeArmor uses the changing host IP in its server certificate.
 		// A dedicated root-owned sensor CA pins this service independently of DNS.
@@ -60,7 +60,12 @@ func runTelemetry(ctx context.Context) error {
 			})
 			return err
 		},
-	})), grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(64*1024)))
+	}
+	conn, err := grpc.NewClient(
+		"127.0.0.1:32767",
+		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(64*1024)),
+	)
 	if err != nil {
 		return err
 	}
@@ -88,7 +93,8 @@ func runTelemetry(ctx context.Context) error {
 		readers.Go(func() {
 			for ctx.Err() == nil {
 				var watchErr error
-				if kind == "log" {
+				switch kind {
+				case "log":
 					stream, err := client.WatchLogs(ctx, &pb.RequestMessage{Filter: "all"})
 					watchErr = err
 					if err == nil {
@@ -103,7 +109,7 @@ func runTelemetry(ctx context.Context) error {
 							}
 						}
 					}
-				} else {
+				case "alert":
 					stream, err := client.WatchAlerts(ctx, &pb.RequestMessage{Filter: "all"})
 					watchErr = err
 					if err == nil {
@@ -132,15 +138,18 @@ func runTelemetry(ctx context.Context) error {
 		})
 	}
 	defer readers.Wait()
-	transport := &http.Transport{MaxIdleConnsPerHost: 1, DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-		var conn net.Conn
-		err := inNamespace(func() error {
-			var err error
-			conn, err = (&net.Dialer{Timeout: time.Second}).DialContext(ctx, network, address)
-			return err
-		})
-		return conn, err
-	}}
+	transport := &http.Transport{
+		MaxIdleConnsPerHost: 1,
+		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+			var conn net.Conn
+			err := inNamespace(func() error {
+				var err error
+				conn, err = (&net.Dialer{Timeout: time.Second}).DialContext(ctx, network, address)
+				return err
+			})
+			return conn, err
+		},
+	}
 	defer transport.CloseIdleConnections()
 	httpClient := &http.Client{Transport: transport, Timeout: 2 * time.Second}
 	report := time.NewTicker(time.Minute)
@@ -164,7 +173,10 @@ func runTelemetry(ctx context.Context) error {
 				dropped.Add(1)
 				continue
 			}
-			request, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://127.0.0.1:4186/events", bytes.NewReader(data))
+			request, err := http.NewRequestWithContext(
+				ctx, http.MethodPost,
+				"http://127.0.0.1:4186/events", bytes.NewReader(data),
+			)
 			if err != nil {
 				dropped.Add(1)
 				continue

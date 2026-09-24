@@ -27,7 +27,8 @@ func NewRelayClient(address string, tlsConfig *tls.Config) (*RelayClient, error)
 	if address == "" || tlsConfig == nil {
 		return nil, errors.New("relay client requires an address and verified TLS")
 	}
-	if tlsConfig.InsecureSkipVerify && tlsConfig.VerifyConnection == nil && tlsConfig.VerifyPeerCertificate == nil {
+	verificationDisabled := tlsConfig.InsecureSkipVerify && tlsConfig.VerifyConnection == nil && tlsConfig.VerifyPeerCertificate == nil
+	if verificationDisabled {
 		return nil, errors.New("relay TLS requires peer verification")
 	}
 	conn, err := grpc.NewClient(address,
@@ -89,7 +90,10 @@ func (c *RelayClient) DialConnection(ctx context.Context, namespace, agent, serv
 	timer := time.AfterFunc(5*time.Second, cancel)
 	stream, err := c.client.Dial(streamCtx)
 	if err == nil {
-		err = stream.Send(&pb.RelayFrame{Target: &pb.HostTarget{Namespace: namespace, Agent: agent, SessionId: expected, Service: targetService}})
+		err = stream.Send(&pb.RelayFrame{Target: &pb.HostTarget{
+			Namespace: namespace, Agent: agent,
+			SessionId: expected, Service: targetService,
+		}})
 	}
 	if err == nil {
 		var frame *pb.RelayFrame

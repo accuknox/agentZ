@@ -118,10 +118,11 @@ func (r *ExtAuthRuntimeReconciler) namespaceForWorkspace(_ context.Context, obj 
 	if !ok {
 		return nil
 	}
-	return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: agentzv1alpha1.ScopeNamespace(
+	name := agentzv1alpha1.ScopeNamespace(
 		agentzv1alpha1.ResourceScopeOrganisation,
 		workspace.Spec.OrganizationID,
-	)}}}
+	)
+	return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: name}}}
 }
 
 func (r *ExtAuthRuntimeReconciler) namespaceForObject(_ context.Context, obj client.Object) []reconcile.Request {
@@ -184,7 +185,8 @@ func (r *ExtAuthRuntimeReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	if strings.TrimSpace(r.OpenBaoK8sAuthRole) == "" {
 		return ctrl.Result{}, fmt.Errorf("openbao kubernetes auth role is required for ext auth runtime")
 	}
-	ownerRefs := []metav1.OwnerReference{*metav1.NewControllerRef(ns, corev1.SchemeGroupVersion.WithKind("Namespace"))}
+	namespaceKind := corev1.SchemeGroupVersion.WithKind("Namespace")
+	ownerRefs := []metav1.OwnerReference{*metav1.NewControllerRef(ns, namespaceKind)}
 
 	labels := map[string]string{
 		"app.kubernetes.io/name":       extAuthLabelName,

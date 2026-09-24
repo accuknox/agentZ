@@ -208,7 +208,10 @@ func ResolvePool(ctx context.Context, reader client.Reader, pool *agentzv1alpha1
 		contract.Capabilities.Temperature = contract.Capabilities.Temperature && member.Model.Capabilities.Temperature
 		contract.Capabilities.ToolCall = contract.Capabilities.ToolCall && member.Model.Capabilities.ToolCall
 		contract.Modalities.Input = modalityIntersection(contract.Modalities.Input, member.Model.Modalities.Input)
-		contract.Modalities.Output = modalityIntersection(contract.Modalities.Output, member.Model.Modalities.Output)
+		contract.Modalities.Output = modalityIntersection(
+			contract.Modalities.Output,
+			member.Model.Modalities.Output,
+		)
 		contract.Limits.Context = min(contract.Limits.Context, member.Model.Limits.Context)
 		contract.Limits.Output = min(contract.Limits.Output, member.Model.Limits.Output)
 		memberInput := member.Model.Limits.Context

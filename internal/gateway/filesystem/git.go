@@ -1096,7 +1096,8 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 	default:
 		return result, errors.New("unsupported local Git operation")
 	}
-	if req.Git.Operation != gatewayapi.CodingGitStatus && req.Git.Operation != gatewayapi.CodingGitExport {
+	readOnly := req.Git.Operation == gatewayapi.CodingGitStatus || req.Git.Operation == gatewayapi.CodingGitExport
+	if !readOnly {
 		if err := readStatus(); err != nil {
 			return result, err
 		}

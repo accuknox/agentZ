@@ -57,8 +57,18 @@ func RewriteNativeTraces(namespace, agent string, request *tracev1.ExportTraceSe
 		}
 		resource.Resource.Attributes = slices.DeleteFunc(resource.Resource.Attributes, identityKey)
 		resource.Resource.Attributes = append(resource.Resource.Attributes,
-			&commonpb.KeyValue{Key: attrAgentZTenantNamespace, Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: namespace}}},
-			&commonpb.KeyValue{Key: attrAgentZAgentName, Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: agent}}},
+			&commonpb.KeyValue{
+				Key: attrAgentZTenantNamespace,
+				Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{
+					StringValue: namespace,
+				}},
+			},
+			&commonpb.KeyValue{
+				Key: attrAgentZAgentName,
+				Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{
+					StringValue: agent,
+				}},
+			},
 		)
 		for _, scope := range resource.GetScopeSpans() {
 			for _, span := range scope.GetSpans() {

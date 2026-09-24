@@ -164,7 +164,8 @@ func (s *Service) agentOperationAllowed(ctx context.Context, access resourceAcce
 	if operation == authorization.OperationCreateAgent {
 		return access.effective.Allows(scope, operation), nil
 	}
-	if operation == authorization.OperationListAgents || operation == authorization.OperationWatchAgents {
+	listing := operation == authorization.OperationListAgents || operation == authorization.OperationWatchAgents
+	if listing {
 		return access.effective.HasAccess(scope), nil
 	}
 	if name == "" || !access.effective.HasAccess(scope) {
@@ -332,7 +333,8 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	auth, _ := requestAuthState(r.Context())
-	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding && req.Memory != nil && req.Memory.Enabled {
+	memoryEnabled := req.Memory != nil && req.Memory.Enabled
+	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding && memoryEnabled {
 		apiutil.WriteError(w, r, apiutil.NewError(
 			http.StatusForbidden,
 			"feature_disabled",
@@ -551,7 +553,10 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		w,
 		http.StatusCreated,
 		gatewayapi.Agent{
-			Execution:   ptr.To(gatewayapi.AgentExecution(cmp.Or(agt.Spec.Execution, agentzv1alpha1.AgentExecutionKubernetes))),
+			Execution: ptr.To(gatewayapi.AgentExecution(cmp.Or(
+				agt.Spec.Execution,
+				agentzv1alpha1.AgentExecutionKubernetes,
+			))),
 			SecretProxy: agt.Spec.SecretProxy,
 			Connected:   ptr.To(agt.Status.Connected),
 			Hostname:    ptr.To(agt.Status.Hostname),
@@ -591,7 +596,8 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 	ns := access.namespace
 
 	auth, _ := requestAuthState(r.Context())
-	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding && req.Memory != nil && req.Memory.Enabled {
+	memoryEnabled := req.Memory != nil && req.Memory.Enabled
+	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding && memoryEnabled {
 		apiutil.WriteError(w, r, apiutil.NewError(
 			http.StatusForbidden,
 			"feature_disabled",
@@ -761,7 +767,10 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		w,
 		http.StatusOK,
 		gatewayapi.Agent{
-			Execution:   ptr.To(gatewayapi.AgentExecution(cmp.Or(updated.Spec.Execution, agentzv1alpha1.AgentExecutionKubernetes))),
+			Execution: ptr.To(gatewayapi.AgentExecution(cmp.Or(
+				updated.Spec.Execution,
+				agentzv1alpha1.AgentExecutionKubernetes,
+			))),
 			SecretProxy: updated.Spec.SecretProxy,
 			Connected:   ptr.To(updated.Status.Connected),
 			Hostname:    ptr.To(updated.Status.Hostname),
@@ -2423,7 +2432,10 @@ func (s *Service) listAgentItems(ctx context.Context, q gatewaydb.GatewayListAge
 		items = append(
 			items,
 			gatewayapi.Agent{
-				Execution:    ptr.To(gatewayapi.AgentExecution(cmp.Or(agt.Spec.Execution, agentzv1alpha1.AgentExecutionKubernetes))),
+				Execution: ptr.To(gatewayapi.AgentExecution(cmp.Or(
+					agt.Spec.Execution,
+					agentzv1alpha1.AgentExecutionKubernetes,
+				))),
 				SecretProxy:  agt.Spec.SecretProxy,
 				Connected:    ptr.To(agt.Status.Connected),
 				Hostname:     ptr.To(agt.Status.Hostname),

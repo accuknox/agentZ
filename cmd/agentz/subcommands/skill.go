@@ -70,28 +70,22 @@ var skillSyncImmutableCmd = &cli.Command{
 	Usage: "Sync immutable skill versions from object storage",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
-			Name:  "bucket-secret-dir",
-			Usage: "Directory containing immutable skill bucket secret files",
-			Value: defaultImmutableSkillSecretDir,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Name:   "bucket-secret-dir",
+			Usage:  "Directory containing immutable skill bucket secret files",
+			Value:  defaultImmutableSkillSecretDir,
+			Config: cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
-			Name:  "manifest",
-			Usage: "Immutable skill manifest JSON path",
-			Value: defaultImmutableSkillManifest,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Name:   "manifest",
+			Usage:  "Immutable skill manifest JSON path",
+			Value:  defaultImmutableSkillManifest,
+			Config: cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
-			Name:  "target-dir",
-			Usage: "Directory where immutable skills are staged",
-			Value: defaultImmutableSkillTargetDir,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Name:   "target-dir",
+			Usage:  "Directory where immutable skills are staged",
+			Value:  defaultImmutableSkillTargetDir,
+			Config: cli.StringConfig{TrimSpace: true},
 		},
 	},
 	Action: func(ctx context.Context, c *cli.Command) error {

@@ -88,7 +88,9 @@ type WorkflowRunNodePhase string
 
 // Terminal returns true when the phase is terminal.
 func (p WorkflowRunPhase) Terminal() bool {
-	return p == WorkflowRunPhaseSucceeded || p == WorkflowRunPhaseFailed || p == WorkflowRunPhaseUnacked
+	return p == WorkflowRunPhaseSucceeded ||
+		p == WorkflowRunPhaseFailed ||
+		p == WorkflowRunPhaseUnacked
 }
 
 // Terminal returns true when the node phase is terminal.

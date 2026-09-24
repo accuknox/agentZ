@@ -13,18 +13,29 @@ import (
 )
 
 func TestNativeSecurityEventAttributionAndResult(t *testing.T) {
-	record := &pb.Log{Type: "HostLog", NamespaceName: "forged", PodName: "forged", ParentProcessName: "/nix/store/runtime/bin/opencode", ProcessName: "/usr/bin/curl", Operation: "Network", Resource: "remoteip=2001:db8::1 port=443 protocol=TCP", Result: "Permission denied"}
+	record := &pb.Log{
+		Type: "HostLog", NamespaceName: "forged", PodName: "forged",
+		ParentProcessName: "/nix/store/runtime/bin/opencode",
+		ProcessName:       "/usr/bin/curl",
+		Operation:         "Network",
+		Resource:          "remoteip=2001:db8::1 port=443 protocol=TCP",
+		Result:            "Permission denied",
+	}
 	data, err := protojson.Marshal(record)
 	if err != nil {
 		t.Fatal(err)
 	}
-	event, err := nativeSecurityEvent("tenant-trusted", "agent-trusted", host.SecurityEvent{Kind: "log", Event: data})
+	event, err := nativeSecurityEvent(
+		"tenant-trusted", "agent-trusted",
+		host.SecurityEvent{Kind: "log", Event: data},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	network := event.network
 	if network == nil {
 		t.Fatal("missing network event")
+		return
 	}
 	wrongAttribution := network.tenantNamespace != "tenant-trusted" ||
 		network.agentName != "agent-trusted" || network.podName != ""
@@ -49,14 +60,30 @@ func TestNativeSecurityEventAttributionAndResult(t *testing.T) {
 
 func TestRewriteNativeTracesRemovesSpanTenantOverrides(t *testing.T) {
 	forged := func(key string) *commonpb.KeyValue {
-		return &commonpb.KeyValue{Key: key, Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: "forged"}}}
+		return &commonpb.KeyValue{
+			Key: key,
+			Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{
+				StringValue: "forged",
+			}},
+		}
 	}
 	span := &tracepb.Span{TraceId: make([]byte, 16), SpanId: make([]byte, 8), Attributes: []*commonpb.KeyValue{
-		forged(attrAgentZTenantNamespace), forged(attrAgentZTenantNamespace), forged(attrAgentZAgentName), forged(attrK8sNamespaceName), forged(attrServiceNamespace),
-		{Key: attrSessionID, Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: "session-1"}}},
+		forged(attrAgentZTenantNamespace),
+		forged(attrAgentZTenantNamespace),
+		forged(attrAgentZAgentName),
+		forged(attrK8sNamespaceName),
+		forged(attrServiceNamespace),
+		{
+			Key: attrSessionID,
+			Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{
+				StringValue: "session-1",
+			}},
+		},
 	}}
 	request := &tracev1.ExportTraceServiceRequest{ResourceSpans: []*tracepb.ResourceSpans{{
-		Resource:   &resourcepb.Resource{Attributes: []*commonpb.KeyValue{forged(attrAgentZTenantNamespace), forged(attrAgentZAgentName)}},
+		Resource: &resourcepb.Resource{Attributes: []*commonpb.KeyValue{
+			forged(attrAgentZTenantNamespace), forged(attrAgentZAgentName),
+		}},
 		ScopeSpans: []*tracepb.ScopeSpans{{Spans: []*tracepb.Span{span}}},
 	}}}
 	RewriteNativeTraces("trusted-tenant", "trusted-agent", request)

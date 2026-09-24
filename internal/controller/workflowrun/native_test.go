@@ -32,7 +32,11 @@ func TestPendingNativeWorkflowFailsOfflineInsteadOfWaiting(t *testing.T) {
 		Spec:   agentzv1alpha1.WorkflowRunSpec{AgentName: "agent"},
 		Status: agentzv1alpha1.WorkflowRunStatus{Phase: agentzv1alpha1.WorkflowRunPhasePending},
 	}
-	c := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(run).WithObjects(agt, run).Build()
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithStatusSubresource(run).
+		WithObjects(agt, run).
+		Build()
 	r := &Reconciler{Client: c, GatewayClient: &gatewayapi.ClientWithResponses{}}
 	result, err := r.reconcilePending(t.Context(), run)
 	if err != nil {

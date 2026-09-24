@@ -40,7 +40,12 @@ func (s *Service) nativeAdmission(ctx context.Context, namespace, agent string) 
 			return connection, nil
 		}
 	}
-	return "", apiutil.NewError(http.StatusServiceUnavailable, "host_offline", "The host is offline or preparing its runtime. Submit new work when it is ready.", nil)
+	return "", apiutil.NewError(
+		http.StatusServiceUnavailable,
+		"host_offline",
+		"The host is offline or preparing its runtime. Submit new work when it is ready.",
+		nil,
+	)
 }
 
 // chatInputAccess resolves the target on every admission, including worker

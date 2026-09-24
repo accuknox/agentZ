@@ -107,7 +107,8 @@ func Run(ctx context.Context, config Config) error {
 	if config.XDGConfigHome == "" {
 		config.XDGConfigHome = filepath.Join(owner.HomeDir, ".config")
 	}
-	if !filepath.IsAbs(config.XDGConfigHome) || strings.ContainsAny(config.XDGConfigHome+owner.HomeDir, "\n\r\x00:") {
+	configPathInvalid := !filepath.IsAbs(config.XDGConfigHome) || strings.ContainsAny(config.XDGConfigHome+owner.HomeDir, "\n\r\x00:")
+	if configPathInvalid {
 		return fmt.Errorf("invalid enrolled user's configuration path")
 	}
 
@@ -120,8 +121,18 @@ func Run(ctx context.Context, config Config) error {
 	if config.XDGCacheHome == "" {
 		config.XDGCacheHome = filepath.Join(owner.HomeDir, ".cache")
 	}
-	for _, path := range []string{config.WorkDirectory, config.StateDirectory, config.RuntimeDirectory, config.Executable, config.XDGDataHome, config.XDGStateHome, config.XDGCacheHome} {
-		if !filepath.IsAbs(path) || strings.TrimSpace(path) != path || strings.ContainsAny(path, "\n\r\x00:") {
+	paths := []string{
+		config.WorkDirectory,
+		config.StateDirectory,
+		config.RuntimeDirectory,
+		config.Executable,
+		config.XDGDataHome,
+		config.XDGStateHome,
+		config.XDGCacheHome,
+	}
+	for _, path := range paths {
+		pathInvalid := !filepath.IsAbs(path) || strings.TrimSpace(path) != path || strings.ContainsAny(path, "\n\r\x00:")
+		if pathInvalid {
 			return fmt.Errorf("invalid daemon path %q", path)
 		}
 	}
@@ -132,7 +143,15 @@ func Run(ctx context.Context, config Config) error {
 		return err
 	}
 	hostname, _ := os.Hostname()
-	s := &supervisor{config: config, user: owner, changed: make(chan struct{}, 1), status: host.Status{WorkDirectory: config.WorkDirectory, Hostname: hostname}}
+	s := &supervisor{
+		config:  config,
+		user:    owner,
+		changed: make(chan struct{}, 1),
+		status: host.Status{
+			WorkDirectory: config.WorkDirectory,
+			Hostname:      hostname,
+		},
+	}
 	scope := sha256.Sum256([]byte(config.WorkloadID))
 	s.statePath = filepath.Join(runtimeRoot, "state", hex.EncodeToString(scope[:16]))
 	passwordPath := filepath.Join(config.StateDirectory, "opencode-password")
@@ -149,19 +168,27 @@ func Run(ctx context.Context, config Config) error {
 		return fmt.Errorf("local runtime credential: %w", err)
 	}
 	s.password = string(password)
-	s.health = &http.Client{Timeout: 5 * time.Second, Transport: &http.Transport{DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-		var conn net.Conn
-		err := inNamespace(func() error {
-			var err error
-			conn, err = (&net.Dialer{Timeout: 5 * time.Second}).DialContext(ctx, network, address)
-			return err
-		})
-		return conn, err
-	}}}
+	s.health = &http.Client{
+		Timeout: 5 * time.Second,
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+				var conn net.Conn
+				err := inNamespace(func() error {
+					var err error
+					conn, err = (&net.Dialer{Timeout: 5 * time.Second}).DialContext(ctx, network, address)
+					return err
+				})
+				return conn, err
+			},
+		},
+	}
 	defer s.health.CloseIdleConnections()
 	// Restore desired state before connecting, so a backend outage does not stop
 	// an enrolled machine from restoring its existing local runtime after reboot.
 	persisted, err := os.ReadFile(filepath.Join(config.StateDirectory, "desired.json"))
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
 	if err == nil {
 		var desired pb.Runtime
 		if err = json.Unmarshal(persisted, &desired); err != nil {
@@ -169,8 +196,6 @@ func Run(ctx context.Context, config Config) error {
 		}
 		s.desired = &desired
 		s.changed <- struct{}{}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
 	}
 	s.network, err = NewNetwork(ctx, nil)
 	if err != nil {
@@ -182,12 +207,24 @@ func Run(ctx context.Context, config Config) error {
 		s.network.Close()
 	}()
 	go s.reconcile(ctx)
-	source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClientOptions(workloadapi.WithAddr(config.WorkloadSocket)))
+	source, err := workloadapi.NewX509Source(
+		ctx,
+		workloadapi.WithClientOptions(workloadapi.WithAddr(config.WorkloadSocket)),
+	)
 	if err != nil {
 		return err
 	}
 	defer source.Close()
-	conn, err := grpc.NewClient(config.Backend, grpc.WithTransportCredentials(grpccredentials.MTLSClientCredentials(source, source, tlsconfig.AuthorizeID(serverID))), grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(5*1024*1024)))
+	credentials := grpccredentials.MTLSClientCredentials(
+		source,
+		source,
+		tlsconfig.AuthorizeID(serverID),
+	)
+	conn, err := grpc.NewClient(
+		config.Backend,
+		grpc.WithTransportCredentials(credentials),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(5*1024*1024)),
+	)
 	if err != nil {
 		return err
 	}
@@ -211,7 +248,15 @@ func Run(ctx context.Context, config Config) error {
 		})
 		return conn, err
 	}
-	for service, port := range map[pb.Service]int{pb.Service_SERVICE_MCP: 4181, pb.Service_SERVICE_INFERENCE: 4182, pb.Service_SERVICE_PLATFORM: 4183, pb.Service_SERVICE_SECRET_PROXY: 4184, pb.Service_SERVICE_TELEMETRY: 4186, pb.Service_SERVICE_TRACES: 4187} {
+	ports := map[pb.Service]int{
+		pb.Service_SERVICE_MCP:          4181,
+		pb.Service_SERVICE_INFERENCE:    4182,
+		pb.Service_SERVICE_PLATFORM:     4183,
+		pb.Service_SERVICE_SECRET_PROXY: 4184,
+		pb.Service_SERVICE_TELEMETRY:    4186,
+		pb.Service_SERVICE_TRACES:       4187,
+	}
+	for service, port := range ports {
 		var listener net.Listener
 		err := inNamespace(func() error {
 			var err error
@@ -223,7 +268,8 @@ func Run(ctx context.Context, config Config) error {
 		}
 		defer listener.Close()
 		go func() {
-			if err := client.ServeForward(ctx, listener, service); err != nil && ctx.Err() == nil {
+			err := client.ServeForward(ctx, listener, service)
+			if ctx.Err() == nil {
 				slog.ErrorContext(ctx, "local service bridge stopped", "service", service, "error", err)
 				cancel()
 			}
@@ -234,15 +280,17 @@ func Run(ctx context.Context, config Config) error {
 		request.SetURL(target)
 		request.Out.SetBasicAuth("opencode", s.password)
 	}}
-	proxy.Transport = &http.Transport{DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-		var conn net.Conn
-		err := inNamespace(func() error {
-			var err error
-			conn, err = (&net.Dialer{}).DialContext(ctx, network, address)
-			return err
-		})
-		return conn, err
-	}}
+	proxy.Transport = &http.Transport{
+		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+			var conn net.Conn
+			err := inNamespace(func() error {
+				var err error
+				conn, err = (&net.Dialer{}).DialContext(ctx, network, address)
+				return err
+			})
+			return conn, err
+		},
+	}
 	var listener net.Listener
 	err = inNamespace(func() error {
 		var err error
@@ -256,7 +304,8 @@ func Run(ctx context.Context, config Config) error {
 	server := &http.Server{Handler: proxy, ReadHeaderTimeout: 10 * time.Second}
 	defer server.Close()
 	go func() {
-		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) && ctx.Err() == nil {
+		err := server.Serve(listener)
+		if err != nil && !errors.Is(err, http.ErrServerClosed) && ctx.Err() == nil {
 			slog.ErrorContext(ctx, "local runtime bridge stopped", "error", err)
 			cancel()
 		}
@@ -409,7 +458,11 @@ func (s *supervisor) reconcile(ctx context.Context) {
 			}
 		}
 		if err == nil {
-			for _, address := range []string{"http://127.0.0.1:4096/config", "http://127.0.0.1:4097/stat?path=.agents/skills"} {
+			addresses := []string{
+				"http://127.0.0.1:4096/config",
+				"http://127.0.0.1:4097/stat?path=.agents/skills",
+			}
+			for _, address := range addresses {
 				request, requestErr := http.NewRequestWithContext(ctx, http.MethodGet, address, nil)
 				if requestErr != nil {
 					err = requestErr
@@ -453,7 +506,11 @@ func (s *supervisor) install(ctx context.Context, desired *pb.Runtime) error {
 	}
 	installed, err := os.ReadFile(filepath.Join(s.config.StateDirectory, "installed-generation"))
 	if err == nil && string(installed) == desired.Generation {
-		if output, err := exec.CommandContext(ctx, "systemctl", "start", "agentz-opencode.service", "agentz-filesystem.service").CombinedOutput(); err != nil {
+		command := exec.CommandContext(
+			ctx, "systemctl", "start",
+			"agentz-opencode.service", "agentz-filesystem.service",
+		)
+		if output, err := command.CombinedOutput(); err != nil {
 			return fmt.Errorf("restore runtime units: %w: %.4096s", err, output)
 		}
 		return nil
@@ -461,13 +518,20 @@ func (s *supervisor) install(ctx context.Context, desired *pb.Runtime) error {
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	for _, path := range []string{runtimeRoot, runtimeRoot + "/config", runtimeRoot + "/empty", runtimeRoot + "/skills/immutable"} {
+	runtimePaths := []string{
+		runtimeRoot,
+		runtimeRoot + "/config",
+		runtimeRoot + "/empty",
+		runtimeRoot + "/skills/immutable",
+	}
+	for _, path := range runtimePaths {
 		if err := os.MkdirAll(path, 0755); err != nil {
 			return err
 		}
 	}
 	for _, directory := range []string{"config", "empty"} {
-		if err := os.WriteFile(filepath.Join(runtimeRoot, directory, ".gitignore"), []byte("node_modules\n"), 0644); err != nil {
+		path := filepath.Join(runtimeRoot, directory, ".gitignore")
+		if err := os.WriteFile(path, []byte("node_modules\n"), 0644); err != nil {
 			return err
 		}
 	}
@@ -513,14 +577,16 @@ func (s *supervisor) install(ctx context.Context, desired *pb.Runtime) error {
 			}
 		}
 	}
-	if err := os.WriteFile(runtimeRoot+"/config/opencode.json", spec.OpenCodeConfig, 0644); err != nil {
+	opencodeConfig := runtimeRoot + "/config/opencode.json"
+	if err := os.WriteFile(opencodeConfig, spec.OpenCodeConfig, 0644); err != nil {
 		return err
 	}
 	for name, content := range spec.Instructions {
 		if filepath.Base(name) != name || name == "." || !strings.HasSuffix(name, ".md") {
 			return fmt.Errorf("invalid instruction filename")
 		}
-		if err := os.WriteFile(filepath.Join(runtimeRoot, "config", name), []byte(content), 0644); err != nil {
+		path := filepath.Join(runtimeRoot, "config", name)
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 			return err
 		}
 	}
@@ -532,7 +598,11 @@ func (s *supervisor) install(ctx context.Context, desired *pb.Runtime) error {
 			return fmt.Errorf("secret proxy requires a valid CA bundle")
 		}
 		bundle := append([]byte(nil), spec.CABundle...)
-		for _, path := range []string{"/etc/ssl/certs/ca-certificates.crt", "/etc/pki/tls/certs/ca-bundle.crt"} {
+		certificatePaths := []string{
+			"/etc/ssl/certs/ca-certificates.crt",
+			"/etc/pki/tls/certs/ca-bundle.crt",
+		}
+		for _, path := range certificatePaths {
 			if system, err := os.ReadFile(path); err == nil {
 				bundle = append(bundle, '\n')
 				bundle = append(bundle, system...)
@@ -550,7 +620,10 @@ func (s *supervisor) install(ctx context.Context, desired *pb.Runtime) error {
 			return fmt.Errorf("invalid package attribute")
 		}
 	}
-	command := exec.CommandContext(ctx, "/usr/local/lib/agentz/nix-packages.sh", "build", runtimeRoot+"/packages")
+	command := exec.CommandContext(
+		ctx,
+		"/usr/local/lib/agentz/nix-packages.sh", "build", runtimeRoot+"/packages",
+	)
 	command.Env = append(os.Environ(), "NIX_PACKAGES="+strings.Join(spec.Packages, ","))
 	if output, err := command.CombinedOutput(); err != nil {
 		return fmt.Errorf("provision native packages: %w: %.4096s", err, output)
@@ -558,7 +631,16 @@ func (s *supervisor) install(ctx context.Context, desired *pb.Runtime) error {
 	if err := s.installSkills(ctx, spec); err != nil {
 		return err
 	}
-	command = exec.CommandContext(ctx, "runuser", "-u", s.user.Username, "--", "mkdir", "-p", "--", s.config.WorkDirectory, filepath.Join(s.config.WorkDirectory, ".agents/skills"), filepath.Join(s.user.HomeDir, ".opencode"), filepath.Join(s.config.XDGConfigHome, "opencode"), filepath.Join(s.config.XDGDataHome, "opencode"), filepath.Join(s.config.XDGStateHome, "opencode"), filepath.Join(s.config.XDGCacheHome, "opencode"))
+	command = exec.CommandContext(
+		ctx, "runuser", "-u", s.user.Username, "--", "mkdir", "-p", "--",
+		s.config.WorkDirectory,
+		filepath.Join(s.config.WorkDirectory, ".agents/skills"),
+		filepath.Join(s.user.HomeDir, ".opencode"),
+		filepath.Join(s.config.XDGConfigHome, "opencode"),
+		filepath.Join(s.config.XDGDataHome, "opencode"),
+		filepath.Join(s.config.XDGStateHome, "opencode"),
+		filepath.Join(s.config.XDGCacheHome, "opencode"),
+	)
 	if output, err := command.CombinedOutput(); err != nil {
 		return fmt.Errorf("create user work directory: %w: %.4096s", err, output)
 	}
@@ -567,17 +649,24 @@ func (s *supervisor) install(ctx context.Context, desired *pb.Runtime) error {
 		return err
 	}
 	for name, contents := range units {
-		if err := os.WriteFile(filepath.Join("/etc/systemd/system", name), []byte(contents), 0600); err != nil {
+		path := filepath.Join("/etc/systemd/system", name)
+		if err := os.WriteFile(path, []byte(contents), 0600); err != nil {
 			return err
 		}
 	}
-	if output, err := exec.CommandContext(ctx, "systemctl", "daemon-reload").CombinedOutput(); err != nil {
+	command = exec.CommandContext(ctx, "systemctl", "daemon-reload")
+	if output, err := command.CombinedOutput(); err != nil {
 		return fmt.Errorf("reload runtime units: %w: %.4096s", err, output)
 	}
-	if output, err := exec.CommandContext(ctx, "systemctl", "restart", "agentz-opencode.service", "agentz-filesystem.service").CombinedOutput(); err != nil {
+	command = exec.CommandContext(
+		ctx, "systemctl", "restart",
+		"agentz-opencode.service", "agentz-filesystem.service",
+	)
+	if output, err := command.CombinedOutput(); err != nil {
 		return fmt.Errorf("start runtime units: %w: %.4096s", err, output)
 	}
-	return os.WriteFile(filepath.Join(s.config.StateDirectory, "installed-generation"), []byte(desired.Generation), 0600)
+	generationPath := filepath.Join(s.config.StateDirectory, "installed-generation")
+	return os.WriteFile(generationPath, []byte(desired.Generation), 0600)
 }
 
 func (s *supervisor) units(spec host.RuntimeSpec) (map[string]string, error) {
@@ -619,18 +708,30 @@ KillMode=control-group
 		}
 		env.WriteString("Environment=" + unitQuote(key+"="+value) + "\n")
 	}
+	userConfig := unitQuote(filepath.Join(s.user.HomeDir, ".opencode"))
+	managedConfig := unitQuote(filepath.Join(s.config.XDGConfigHome, "opencode"))
+	opencodeExecutable := unitQuote(filepath.Join(s.config.RuntimeDirectory, "bin/opencode"))
 	openCode := common + env.String() +
-		"BindReadOnlyPaths=" + unitQuote(runtimeRoot+"/empty") + ":" + unitQuote(filepath.Join(s.user.HomeDir, ".opencode")) +
-		" " + unitQuote(runtimeRoot+"/bundle") + ":" + unitQuote(filepath.Join(s.config.XDGConfigHome, "opencode")) +
+		"BindReadOnlyPaths=" + unitQuote(runtimeRoot+"/empty") + ":" + userConfig +
+		" " + unitQuote(runtimeRoot+"/bundle") + ":" + managedConfig +
 		" " + runtimeRoot + "/empty:/etc/opencode\nExecStart=:" +
-		unitQuote(filepath.Join(s.config.RuntimeDirectory, "bin/opencode")) + " serve --hostname 127.0.0.1 --port 4096\n"
-	for destination, source := range map[string]string{s.config.XDGDataHome: "data", s.config.XDGStateHome: "state", s.config.XDGCacheHome: "cache"} {
-		openCode += "BindPaths=" + unitQuote(filepath.Join(s.statePath, source)) + ":" + unitQuote(filepath.Join(destination, "opencode")) + "\n"
+		opencodeExecutable + " serve --hostname 127.0.0.1 --port 4096\n"
+	stateDirectories := map[string]string{
+		s.config.XDGDataHome:  "data",
+		s.config.XDGStateHome: "state",
+		s.config.XDGCacheHome: "cache",
+	}
+	for destination, source := range stateDirectories {
+		openCode += "BindPaths=" + unitQuote(filepath.Join(s.statePath, source)) + ":" +
+			unitQuote(filepath.Join(destination, "opencode")) + "\n"
 	}
 	filesystem := common + "Environment=" + unitQuote("HOME="+s.user.HomeDir) +
 		"\nExecStart=:" + unitQuote(s.config.Executable) +
 		" filesystem serve --addr 127.0.0.1:4097 --root " + unitQuote(s.config.WorkDirectory) + "\n"
-	return map[string]string{"agentz-opencode.service": openCode, "agentz-filesystem.service": filesystem}, nil
+	return map[string]string{
+		"agentz-opencode.service":   openCode,
+		"agentz-filesystem.service": filesystem,
+	}, nil
 }
 
 // unitQuote escapes systemd specifier/argument expansion as well as whitespace.
@@ -646,18 +747,28 @@ func (s *supervisor) installSkills(ctx context.Context, spec host.RuntimeSpec) e
 		return err
 	}
 	if len(spec.Skills) > 0 {
-		transport := &http.Transport{DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-			var conn net.Conn
-			err := inNamespace(func() error {
-				var err error
-				conn, err = (&net.Dialer{Timeout: 5 * time.Second}).DialContext(ctx, network, address)
-				return err
-			})
-			return conn, err
-		}}
+		transport := &http.Transport{
+			DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+				var conn net.Conn
+				err := inNamespace(func() error {
+					var err error
+					conn, err = (&net.Dialer{Timeout: 5 * time.Second}).DialContext(ctx, network, address)
+					return err
+				})
+				return conn, err
+			},
+		}
 		defer transport.CloseIdleConnections()
-		client := &http.Client{Transport: transport, Timeout: time.Minute, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
-		request, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1:4183/api/compute/skills", nil)
+		client := &http.Client{
+			Transport: transport,
+			Timeout:   time.Minute,
+			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		}
+		request, err := http.NewRequestWithContext(
+			ctx, http.MethodGet, "http://127.0.0.1:4183/api/compute/skills", nil,
+		)
 		if err != nil {
 			return err
 		}
@@ -722,43 +833,62 @@ func Unenroll(ctx context.Context, output io.Writer) error {
 	if os.Geteuid() != 0 {
 		return errors.New("unenrollment requires sudo")
 	}
-	units := []string{"agentz-daemon.service", "agentz-spire.service", "agentz-opencode.service", "agentz-filesystem.service"}
+	units := []string{
+		"agentz-daemon.service", "agentz-spire.service",
+		"agentz-opencode.service", "agentz-filesystem.service",
+	}
 	for _, unit := range units {
 		if err := exec.CommandContext(ctx, "systemctl", "stop", unit).Run(); err != nil {
-			state, inspectErr := exec.CommandContext(ctx, "systemctl", "show", "--property=ActiveState", "--value", unit).Output()
+			inspect := exec.CommandContext(
+				ctx, "systemctl", "show", "--property=ActiveState", "--value", unit,
+			)
+			state, inspectErr := inspect.Output()
 			value := strings.TrimSpace(string(state))
 			if inspectErr != nil || value != "inactive" && value != "failed" {
 				return fmt.Errorf("stop %s before deleting identity: %w", unit, err)
 			}
 		}
 	}
-	if _, err := os.Stat("/run/agentz/native-network"); err == nil {
+	_, err := os.Stat("/run/agentz/native-network")
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	if err == nil {
 		if err := networkCommand(ctx, "", "ip", "link", "show", "agentz-host"); err == nil {
 			if err := networkCommand(ctx, "", "ip", "link", "delete", "agentz-host"); err != nil {
 				return err
 			}
 		}
-		if _, err := os.Stat("/run/netns/agentz"); err == nil {
+		_, namespaceErr := os.Stat("/run/netns/agentz")
+		if namespaceErr != nil && !errors.Is(namespaceErr, os.ErrNotExist) {
+			return namespaceErr
+		}
+		if namespaceErr == nil {
 			if err := networkCommand(ctx, "", "ip", "netns", "delete", NativeNetworkNamespace); err != nil {
 				return err
 			}
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return err
 		}
 		if err := networkCommand(ctx, "", "nft", "list", "table", "inet", networkTable); err == nil {
 			if err := networkCommand(ctx, "", "nft", "delete", "table", "inet", networkTable); err != nil {
 				return err
 			}
 		}
-		for _, path := range []string{"/etc/netns/agentz/resolv.conf", "/etc/netns/agentz", "/run/agentz/native-network"} {
+		networkPaths := []string{
+			"/etc/netns/agentz/resolv.conf",
+			"/etc/netns/agentz",
+			"/run/agentz/native-network",
+		}
+		for _, path := range networkPaths {
 			if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
 		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
 	}
-	for _, path := range []string{"/etc/agentz/daemon.json", "/etc/agentz/spire.conf", "/etc/agentz/join-token", "/run/agentz/daemon-status.json"} {
+	identityPaths := []string{
+		"/etc/agentz/daemon.json", "/etc/agentz/spire.conf",
+		"/etc/agentz/join-token", "/run/agentz/daemon-status.json",
+	}
+	for _, path := range identityPaths {
 		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}

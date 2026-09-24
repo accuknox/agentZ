@@ -381,7 +381,8 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 		return fmt.Errorf("get agent %q: %w", run.Spec.AgentName, err)
 	}
 	connection := run.Annotations[agentzv1alpha1.AgentComputeConnectionAnnotation]
-	if agt.Spec.Execution == agentzv1alpha1.AgentExecutionNative && (!agt.Status.Connected || connection == "") {
+	nativeOffline := !agt.Status.Connected || connection == ""
+	if agt.Spec.Execution == agentzv1alpha1.AgentExecutionNative && nativeOffline {
 		return fmt.Errorf("native host is offline or the run has no live admission; submit a new run")
 	}
 	connectionEditor := func(_ context.Context, request *http.Request) error {

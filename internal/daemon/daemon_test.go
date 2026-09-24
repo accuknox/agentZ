@@ -30,8 +30,21 @@ func TestRuntimeUnitsParseWithUserPathsAndEnvironment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := &supervisor{config: Config{RuntimeDirectory: bundle, Executable: "/bin/true", WorkDirectory: root, XDGConfigHome: filepath.Join(root, ".config"), XDGDataHome: filepath.Join(root, ".local/share"), XDGStateHome: filepath.Join(root, ".local/state"), XDGCacheHome: filepath.Join(root, ".cache")}, user: owner, password: "local-password", statePath: filepath.Join(root, "state")}
-	units, err := s.units(host.RuntimeSpec{Env: map[string]string{"LOCAL_SETTING": "literal $HOME %n \"quoted\"\nnext line"}})
+	s := &supervisor{
+		config: Config{
+			RuntimeDirectory: bundle,
+			Executable:       "/bin/true",
+			WorkDirectory:    root,
+			XDGConfigHome:    filepath.Join(root, ".config"),
+			XDGDataHome:      filepath.Join(root, ".local/share"),
+			XDGStateHome:     filepath.Join(root, ".local/state"),
+			XDGCacheHome:     filepath.Join(root, ".cache"),
+		},
+		user: owner, password: "local-password", statePath: filepath.Join(root, "state"),
+	}
+	units, err := s.units(host.RuntimeSpec{Env: map[string]string{
+		"LOCAL_SETTING": "literal $HOME %n \"quoted\"\nnext line",
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +110,16 @@ func TestNativeRuntimeSmoke(t *testing.T) {
 		t.Fatal(err)
 	}
 	owner.HomeDir = filepath.Join(root, "home")
-	for _, path := range []string{owner.HomeDir, filepath.Join(owner.HomeDir, "work"), filepath.Join(owner.HomeDir, "work/.agents"), filepath.Join(owner.HomeDir, "work/.agents/skills"), filepath.Join(owner.HomeDir, ".opencode"), filepath.Join(owner.HomeDir, ".config"), filepath.Join(owner.HomeDir, ".config/opencode")} {
+	userPaths := []string{
+		owner.HomeDir,
+		filepath.Join(owner.HomeDir, "work"),
+		filepath.Join(owner.HomeDir, "work/.agents"),
+		filepath.Join(owner.HomeDir, "work/.agents/skills"),
+		filepath.Join(owner.HomeDir, ".opencode"),
+		filepath.Join(owner.HomeDir, ".config"),
+		filepath.Join(owner.HomeDir, ".config/opencode"),
+	}
+	for _, path := range userPaths {
 		if err := os.MkdirAll(path, 0755); err != nil {
 			t.Fatal(err)
 		}
@@ -112,7 +134,8 @@ func TestNativeRuntimeSmoke(t *testing.T) {
 		}
 	}
 	for _, directory := range []string{"config", "empty"} {
-		if err := os.WriteFile(filepath.Join(managed, directory, ".gitignore"), []byte("node_modules\n"), 0644); err != nil {
+		path := filepath.Join(managed, directory, ".gitignore")
+		if err := os.WriteFile(path, []byte("node_modules\n"), 0644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -128,14 +151,18 @@ func TestNativeRuntimeSmoke(t *testing.T) {
 		if entry.Name() == "opencode.json" || entry.Name() == ".gitignore" {
 			continue
 		}
-		if err := os.Symlink(filepath.Join(bundle, entry.Name()), filepath.Join(managed, "config", entry.Name())); err != nil {
+		source := filepath.Join(bundle, entry.Name())
+		destination := filepath.Join(managed, "config", entry.Name())
+		if err := os.Symlink(source, destination); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := os.WriteFile(managed+"/config/opencode.json", []byte(`{"share":"disabled"}`), 0644); err != nil {
+	opencodeConfig := managed + "/config/opencode.json"
+	if err := os.WriteFile(opencodeConfig, []byte(`{"share":"disabled"}`), 0644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "resolv.conf"), []byte("nameserver 127.0.0.53\n"), 0644); err != nil {
+	resolverPath := filepath.Join(root, "resolv.conf")
+	if err := os.WriteFile(resolverPath, []byte("nameserver 127.0.0.53\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 	namespace := filepath.Base(root)
@@ -150,8 +177,31 @@ func TestNativeRuntimeSmoke(t *testing.T) {
 	run("ip", "netns", "add", namespace)
 	t.Cleanup(func() { exec.Command("ip", "netns", "delete", namespace).Run() })
 	run("ip", "-n", namespace, "link", "set", "lo", "up")
-	s := &supervisor{config: Config{RuntimeDirectory: runtimePath, Executable: executable, WorkDirectory: owner.HomeDir + "/work", XDGConfigHome: owner.HomeDir + "/.config", XDGDataHome: owner.HomeDir + "/.local/share", XDGStateHome: owner.HomeDir + "/.local/state", XDGCacheHome: owner.HomeDir + "/.cache"}, user: owner, password: "smoke-password", statePath: runtimeRoot + "/state/smoke"}
-	for _, path := range []string{managed + "/state/smoke/data", managed + "/state/smoke/state", managed + "/state/smoke/cache", owner.HomeDir + "/.local", owner.HomeDir + "/.local/share", owner.HomeDir + "/.local/state", owner.HomeDir + "/.cache", owner.HomeDir + "/.local/share/opencode", owner.HomeDir + "/.local/state/opencode", owner.HomeDir + "/.cache/opencode"} {
+	s := &supervisor{
+		config: Config{
+			RuntimeDirectory: runtimePath,
+			Executable:       executable,
+			WorkDirectory:    owner.HomeDir + "/work",
+			XDGConfigHome:    owner.HomeDir + "/.config",
+			XDGDataHome:      owner.HomeDir + "/.local/share",
+			XDGStateHome:     owner.HomeDir + "/.local/state",
+			XDGCacheHome:     owner.HomeDir + "/.cache",
+		},
+		user: owner, password: "smoke-password", statePath: runtimeRoot + "/state/smoke",
+	}
+	statePaths := []string{
+		managed + "/state/smoke/data",
+		managed + "/state/smoke/state",
+		managed + "/state/smoke/cache",
+		owner.HomeDir + "/.local",
+		owner.HomeDir + "/.local/share",
+		owner.HomeDir + "/.local/state",
+		owner.HomeDir + "/.cache",
+		owner.HomeDir + "/.local/share/opencode",
+		owner.HomeDir + "/.local/state/opencode",
+		owner.HomeDir + "/.cache/opencode",
+	}
+	for _, path := range statePaths {
 		if err := os.MkdirAll(path, 0755); err != nil {
 			t.Fatal(err)
 		}
@@ -167,7 +217,9 @@ func TestNativeRuntimeSmoke(t *testing.T) {
 		name := namespace + "-" + original
 		content = strings.ReplaceAll(content, runtimeRoot, managed)
 		content = strings.ReplaceAll(content, "/run/netns/agentz", "/run/netns/"+namespace)
-		content = strings.ReplaceAll(content, "/etc/netns/agentz/resolv.conf", filepath.Join(root, "resolv.conf"))
+		content = strings.ReplaceAll(
+			content, "/etc/netns/agentz/resolv.conf", filepath.Join(root, "resolv.conf"),
+		)
 		path := filepath.Join(root, name)
 		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 			t.Fatal(err)
@@ -181,10 +233,21 @@ func TestNativeRuntimeSmoke(t *testing.T) {
 		run("systemctl", "link", path)
 		run("systemctl", "start", name)
 	}
-	for _, endpoint := range []string{"http://127.0.0.1:4096/global/health", "http://127.0.0.1:4097/stat?path=.agents/skills", "http://127.0.0.1:4096/config", "http://127.0.0.1:4096/experimental/tool/ids"} {
+	endpoints := []string{
+		"http://127.0.0.1:4096/global/health",
+		"http://127.0.0.1:4097/stat?path=.agents/skills",
+		"http://127.0.0.1:4096/config",
+		"http://127.0.0.1:4096/experimental/tool/ids",
+	}
+	for _, endpoint := range endpoints {
 		var output []byte
 		for attempt := 0; attempt < 40; attempt++ {
-			output, err = exec.CommandContext(t.Context(), "ip", "netns", "exec", namespace, "curl", "--max-time", "2", "--fail-with-body", "--silent", "--show-error", "-u", "opencode:smoke-password", endpoint).CombinedOutput()
+			command := exec.CommandContext(
+				t.Context(), "ip", "netns", "exec", namespace, "curl",
+				"--max-time", "2", "--fail-with-body", "--silent", "--show-error",
+				"-u", "opencode:smoke-password", endpoint,
+			)
+			output, err = command.CombinedOutput()
 			if err == nil {
 				break
 			}
@@ -199,7 +262,12 @@ func TestNativeRuntimeSmoke(t *testing.T) {
 				}
 				t.Logf("opencode log %s: %s", file, data)
 			}
-			logs, _ := exec.CommandContext(t.Context(), "journalctl", "--no-pager", "-n", "100", "-u", namespace+"-agentz-opencode.service", "-u", namespace+"-agentz-filesystem.service").CombinedOutput()
+			command := exec.CommandContext(
+				t.Context(), "journalctl", "--no-pager", "-n", "100",
+				"-u", namespace+"-agentz-opencode.service",
+				"-u", namespace+"-agentz-filesystem.service",
+			)
+			logs, _ := command.CombinedOutput()
 			t.Fatalf("native endpoint %s: %v\n%s\n%s", endpoint, err, output, logs)
 		}
 		t.Logf("native endpoint %s succeeded (%d bytes)", endpoint, len(output))

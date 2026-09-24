@@ -129,8 +129,14 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		apiutil.WriteError(w, r, apiErr)
 		return
 	}
-	if expected := r.Header.Get("X-Agentz-Compute-Connection"); connection != "" && expected != "" && expected != connection {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "host_reconnected", "The host reconnected; submit new work explicitly.", nil))
+	expected := r.Header.Get("X-Agentz-Compute-Connection")
+	if connection != "" && expected != "" && expected != connection {
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict,
+			"host_reconnected",
+			"The host reconnected; submit new work explicitly.",
+			nil,
+		))
 		return
 	}
 	if connection != "" {
@@ -997,7 +1003,8 @@ func (s *Service) storeOpenCodeSession(ctx context.Context, workspaceID, agentNa
 	defer tx.Rollback(context.WithoutCancel(ctx))
 	q := gatewaydb.New(tx)
 	auth, _ := requestAuthState(ctx)
-	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding && auth.actorType != requestActorSystem {
+	userCodingRequest := auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding && auth.actorType != requestActorSystem
+	if userCodingRequest {
 		namespace := agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeWorkspace, workspaceID)
 		resolved, err := s.resolver.resolveAgent(ctx, namespace, agentName)
 		if err != nil {

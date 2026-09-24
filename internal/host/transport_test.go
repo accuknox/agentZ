@@ -56,22 +56,31 @@ func TestTransportReconnectDoesNotReplay(t *testing.T) {
 	state := Status{}
 	applies := 0
 	opens := 0
-	client := &Client{RPC: pb.NewHostRelayClient(conn), Apply: func(_ context.Context, runtime *pb.Runtime) error {
-		mu.Lock()
-		defer mu.Unlock()
-		if state.Generation != runtime.Generation {
-			applies++
-		}
-		state = Status{Generation: runtime.Generation, Ready: true}
-		return nil
-	}, Status: func() Status { mu.Lock(); defer mu.Unlock(); return state }, DialLocal: func(context.Context, pb.Service) (net.Conn, error) {
-		mu.Lock()
-		opens++
-		mu.Unlock()
-		local, remote := net.Pipe()
-		go func() { defer remote.Close(); io.Copy(remote, remote) }()
-		return local, nil
-	}}
+	client := &Client{
+		RPC: pb.NewHostRelayClient(conn),
+		Apply: func(_ context.Context, runtime *pb.Runtime) error {
+			mu.Lock()
+			defer mu.Unlock()
+			if state.Generation != runtime.Generation {
+				applies++
+			}
+			state = Status{Generation: runtime.Generation, Ready: true}
+			return nil
+		},
+		Status: func() Status {
+			mu.Lock()
+			defer mu.Unlock()
+			return state
+		},
+		DialLocal: func(context.Context, pb.Service) (net.Conn, error) {
+			mu.Lock()
+			opens++
+			mu.Unlock()
+			local, remote := net.Pipe()
+			go func() { defer remote.Close(); io.Copy(remote, remote) }()
+			return local, nil
+		},
+	}
 	// Initial status can acknowledge the desired generation immediately, keeping
 	// this test independent of the production heartbeat interval.
 	state = Status{Generation: "one", Ready: true}
@@ -96,7 +105,10 @@ func TestTransportReconnectDoesNotReplay(t *testing.T) {
 	if !online || firstConnection == "" {
 		t.Fatal("ready host has no connection identity")
 	}
-	if id, ready := server.Connection(Binding{Namespace: "org", Agent: "agent", Epoch: "previous-assignment"}); id != "" || ready {
+	id, ready := server.Connection(Binding{
+		Namespace: "org", Agent: "agent", Epoch: "previous-assignment",
+	})
+	if id != "" || ready {
 		t.Fatal("replacement assignment exposed another assignment's session")
 	}
 	if id, ready := server.Connection(binding); id != firstConnection || !ready {
@@ -149,7 +161,8 @@ func TestTransportReconnectDoesNotReplay(t *testing.T) {
 		case <-time.After(time.Millisecond):
 		}
 	}
-	if _, err := server.DialConnection(ctx, "org", "agent", "opencode", ""); status.Code(err) != codes.Unavailable {
+	_, err = server.DialConnection(ctx, "org", "agent", "opencode", "")
+	if status.Code(err) != codes.Unavailable {
 		t.Fatalf("offline host accepted work: %v", err)
 	}
 	if _, err := server.DialConnection(ctx, "org", "agent", "127.0.0.1:22", ""); err == nil {
@@ -172,7 +185,8 @@ func TestTransportReconnectDoesNotReplay(t *testing.T) {
 	if !online || secondConnection == firstConnection {
 		t.Fatal("reconnect reused a pending-work connection identity")
 	}
-	if _, err := server.DialConnection(ctx, "org", "agent", "opencode", firstConnection); status.Code(err) != codes.Unavailable {
+	_, err = server.DialConnection(ctx, "org", "agent", "opencode", firstConnection)
+	if status.Code(err) != codes.Unavailable {
 		t.Fatalf("old admission crossed reconnect: %v", err)
 	}
 	mu.Lock()
@@ -257,7 +271,9 @@ func TestForwardSharesConnectionBudgetAndReleasesSlots(t *testing.T) {
 	defer grpcServer.Stop()
 	conn, err := grpc.NewClient("passthrough:///test",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) { return listener.DialContext(ctx) }),
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			return listener.DialContext(ctx)
+		}),
 	)
 	if err != nil {
 		t.Fatal(err)

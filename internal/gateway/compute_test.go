@@ -73,7 +73,11 @@ func TestNativeTransportOfflineNeverDials(t *testing.T) {
 	t.Parallel()
 	client, fixture := newGatewayRelay(t, "")
 	transport := &hostHTTPTransport{relay: client}
-	for _, hostname := range []string{"agent.workspace.native.agentz", "agent.workspace.stale.native.agentz"} {
+	hostnames := []string{
+		"agent.workspace.native.agentz",
+		"agent.workspace.stale.native.agentz",
+	}
+	for _, hostname := range hostnames {
 		request := httptest.NewRequest(http.MethodPost, "http://"+hostname+":4096/session", nil)
 		request.Header.Set("X-Agentz-Compute-Connection", "old-connection")
 		if _, err := transport.RoundTrip(request); err == nil {
@@ -93,17 +97,26 @@ func TestComputeAgentListingBeforeEnrollment(t *testing.T) {
 	index := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
 	for _, agt := range []*agentzv1alpha1.Agent{
 		{ObjectMeta: metav1.ObjectMeta{Name: "legacy", Namespace: "workspace"}},
-		{ObjectMeta: metav1.ObjectMeta{Name: "native", Namespace: "workspace"}, Spec: agentzv1alpha1.AgentSpec{Execution: agentzv1alpha1.AgentExecutionNative}},
+		{
+			ObjectMeta: metav1.ObjectMeta{Name: "native", Namespace: "workspace"},
+			Spec: agentzv1alpha1.AgentSpec{
+				Execution: agentzv1alpha1.AgentExecutionNative,
+			},
+		},
 	} {
 		if err := index.Add(agt); err != nil {
 			t.Fatal(err)
 		}
 	}
 	s := &Service{queries: &computeQueries{}, resolver: &resolver{agents: listersv1alpha1.NewAgentLister(index)}}
-	if connection, apiErr := s.nativeAdmission(t.Context(), "workspace", "native"); connection != "" || apiErr == nil || apiErr.Status != http.StatusServiceUnavailable {
+	connection, apiErr := s.nativeAdmission(t.Context(), "workspace", "native")
+	if connection != "" || apiErr == nil || apiErr.Status != http.StatusServiceUnavailable {
 		t.Fatalf("unenrolled native admission should be offline: connection=%q error=%v", connection, apiErr)
 	}
-	items, _, err := s.listAgentItems(t.Context(), gatewaydb.GatewayListAgentsByNameParams{TenantNamespace: "workspace", PageSize: 3}, nil, 0)
+	params := gatewaydb.GatewayListAgentsByNameParams{
+		TenantNamespace: "workspace", PageSize: 3,
+	}
+	items, _, err := s.listAgentItems(t.Context(), params, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,11 +133,16 @@ func TestComputeAgentListingBeforeEnrollment(t *testing.T) {
 
 func TestRedeemComputeRejectsInvalidRootBeforeConsumingCode(t *testing.T) {
 	t.Parallel()
-	for _, root := range []string{"/", "relative", "/home/alice/../bob", "/home/alice/", "/home/alice\n"} {
+	invalidRoots := []string{
+		"/", "relative", "/home/alice/../bob", "/home/alice/", "/home/alice\n",
+	}
+	for _, root := range invalidRoots {
 		t.Run(root, func(t *testing.T) {
 			q := &computeQueries{}
 			s := &Service{queries: q, relay: &host.RelayClient{}}
-			body, err := json.Marshal(gatewayapi.RedeemComputeEnrollmentRequest{Code: strings.Repeat("a", 43), Hostname: "laptop", WorkDirectory: root})
+			body, err := json.Marshal(gatewayapi.RedeemComputeEnrollmentRequest{
+				Code: strings.Repeat("a", 43), Hostname: "laptop", WorkDirectory: root,
+			})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -142,10 +160,17 @@ func TestQueuedNativeCodingOperationNeverReplaysOffline(t *testing.T) {
 	t.Parallel()
 	client, _ := newGatewayRelay(t, "")
 	service := &Service{relay: client}
-	job := gatewaydb.CodingOperation{ComputeConnectionID: "previous-control-connection", WorkspaceID: "workspace"}
+	job := gatewaydb.CodingOperation{
+		ComputeConnectionID: "previous-control-connection",
+		WorkspaceID:         "workspace",
+	}
 	// No stores, Git clients or publish callbacks are available: rejection must
 	// precede every side effect, including the branch-naming special case.
-	for _, action := range []gatewayapi.CodingAction{gatewayapi.CodingActionNameBranch, gatewayapi.CodingActionCommit} {
+	actions := []gatewayapi.CodingAction{
+		gatewayapi.CodingActionNameBranch,
+		gatewayapi.CodingActionCommit,
+	}
+	for _, action := range actions {
 		input := gatewayapi.CodingOperationRequest{AgentName: "agent", Action: action}
 		err := service.executeCodingOperation(t.Context(), job, input, &gatewayapi.CodingOperation{}, nil)
 		if err == nil || !strings.Contains(err.Error(), "retry the coding operation explicitly") {
@@ -162,12 +187,22 @@ func TestNativeTransportRejectsPreviousConnectionContext(t *testing.T) {
 	client, fixture := newGatewayRelay(t, "current-control-connection")
 	transport := &hostHTTPTransport{relay: client}
 	request := httptest.NewRequest(http.MethodPost, "http://agent."+namespace+".native.agentz:4096/session", nil)
-	request = request.WithContext(context.WithValue(ctx, computeConnectionContextKey{}, "previous-control-connection"))
-	if _, err := transport.RoundTrip(request); err == nil || !strings.Contains(err.Error(), "reconnected") {
+	requestContext := context.WithValue(
+		ctx, computeConnectionContextKey{}, "previous-control-connection",
+	)
+	request = request.WithContext(requestContext)
+	_, err := transport.RoundTrip(request)
+	if err == nil || !strings.Contains(err.Error(), "reconnected") {
 		t.Fatalf("stale context reached newly connected host: %v", err)
 	}
 	service := &Service{relay: client}
-	err := service.executeCodingOperation(ctx, gatewaydb.CodingOperation{WorkspaceID: "workspace", ComputeConnectionID: "previous-control-connection"}, gatewayapi.CodingOperationRequest{AgentName: "agent"}, &gatewayapi.CodingOperation{}, nil)
+	operation := gatewaydb.CodingOperation{
+		WorkspaceID: "workspace", ComputeConnectionID: "previous-control-connection",
+	}
+	err = service.executeCodingOperation(
+		ctx, operation, gatewayapi.CodingOperationRequest{AgentName: "agent"},
+		&gatewayapi.CodingOperation{}, nil,
+	)
 	if err == nil {
 		t.Fatal("queued operation replayed onto newly connected host")
 	}
@@ -201,7 +236,11 @@ func newGatewayRelay(t *testing.T, session string) (*host.RelayClient, *gatewayR
 		t.Fatal(err)
 	}
 	fixture := &gatewayRelayFixture{session: session}
-	server := grpc.NewServer(grpc.Creds(credentials.NewTLS(&tls.Config{Certificates: certificate.TLS.Certificates, MinVersion: tls.VersionTLS13})))
+	tlsConfig := &tls.Config{
+		Certificates: certificate.TLS.Certificates,
+		MinVersion:   tls.VersionTLS13,
+	}
+	server := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
 	hostv1.RegisterRelayControlServer(server, fixture)
 	go server.Serve(listener)
 	t.Cleanup(server.Stop)

@@ -73,7 +73,11 @@ type connection struct {
 
 // NewRelay constructs the transport registry.
 func NewRelay(callbacks Callbacks) *Relay {
-	return &Relay{callbacks: callbacks, hosts: make(map[string]*host), validating: make(map[string]bool)}
+	return &Relay{
+		callbacks:  callbacks,
+		hosts:      make(map[string]*host),
+		validating: make(map[string]bool),
+	}
 }
 
 // Connection returns the live control connection identity and runtime readiness.
@@ -311,7 +315,13 @@ func (s *Relay) DialConnection(ctx context.Context, namespace, agent, service, e
 	}
 	h.pending[id] = p
 	s.mu.Unlock()
-	cleanup := func() { s.mu.Lock(); delete(h.pending, id); s.mu.Unlock(); p.local.Close(); p.remote.Close() }
+	cleanup := func() {
+		s.mu.Lock()
+		delete(h.pending, id)
+		s.mu.Unlock()
+		p.local.Close()
+		p.remote.Close()
+	}
 	select {
 	case h.commands <- &pb.Command{Body: &pb.Command_Open{Open: &pb.Open{Id: id, Service: target}}}:
 	case <-ctx.Done():

@@ -235,7 +235,8 @@ func (s *Service) resolveInferenceSubscription(ctx context.Context, provider *ag
 		return inference.SubscriptionRecord{}, false, err
 	}
 	if record.Kind != provider.Spec.Kind {
-		return inference.SubscriptionRecord{}, false, fmt.Errorf("inference credential kind does not match provider")
+		return inference.SubscriptionRecord{}, false,
+			fmt.Errorf("inference credential kind does not match provider")
 	}
 	if oauth.TokenUsable(record.Token, time.Now().UTC()) {
 		return record, false, nil

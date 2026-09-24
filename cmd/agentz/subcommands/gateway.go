@@ -22,12 +22,26 @@ var gatewayServeCmd = &cli.Command{
 	Name:  "serve",
 	Usage: "Run the gateway HTTP server",
 	Flags: []cli.Flag{
-		&cli.StringFlag{Name: "relay-address", Usage: "Internal host relay control address; empty disables host enrollment"},
-		&cli.StringFlag{Name: "relay-trust-domain", Usage: "SPIFFE trust domain for the host relay"},
-		&cli.StringFlag{Name: "relay-trust-bundle", Usage: "PEM trust bundle for the host relay"},
-		&cli.StringFlag{Name: "relay-cert-file", Usage: "Gateway SPIFFE client certificate for the host relay"},
-		&cli.StringFlag{Name: "relay-key-file", Usage: "Gateway SPIFFE client private key for the host relay"},
-
+		&cli.StringFlag{
+			Name:  "relay-address",
+			Usage: "Internal host relay control address; empty disables host enrollment",
+		},
+		&cli.StringFlag{
+			Name:  "relay-trust-domain",
+			Usage: "SPIFFE trust domain for the host relay",
+		},
+		&cli.StringFlag{
+			Name:  "relay-trust-bundle",
+			Usage: "PEM trust bundle for the host relay",
+		},
+		&cli.StringFlag{
+			Name:  "relay-cert-file",
+			Usage: "Gateway SPIFFE client certificate for the host relay",
+		},
+		&cli.StringFlag{
+			Name:  "relay-key-file",
+			Usage: "Gateway SPIFFE client private key for the host relay",
+		},
 		&cli.StringFlag{
 			Name:    "coding-github-client-id",
 			Usage:   "Coding GitHub App client ID shared with the web app",
@@ -44,121 +58,91 @@ var gatewayServeCmd = &cli.Command{
 			Sources: cli.EnvVars("CODING_GITHUB_ENCRYPTION_KEY"),
 		},
 		&cli.StringFlag{
-			Name:  "addr",
-			Usage: "Listen address",
-			Value: gateway.DefaultListenAddr,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Name:   "addr",
+			Usage:  "Listen address",
+			Value:  gateway.DefaultListenAddr,
+			Config: cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:     "postgres-dsn",
 			Usage:    "PostgreSQL DSN for session history and agent listing",
 			Required: true,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:   cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:     "external-jwt-jwks-url",
 			Usage:    "JWKS URL for external Better Auth bearer tokens",
 			Required: true,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:   cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:     "external-jwt-issuer",
 			Usage:    "JWT issuer for external Better Auth bearer tokens",
 			Required: true,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:   cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:     "external-jwt-audience",
 			Usage:    "JWT audience for external Better Auth bearer tokens",
 			Required: true,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:   cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:     "internal-k8s-token-audience",
 			Usage:    "Audience required on internal Kubernetes service account bearer tokens",
 			Required: true,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:   cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
-			Name:  "target-override",
-			Usage: "Override resolved backend target for local port-forward testing",
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Name:   "target-override",
+			Usage:  "Override resolved backend target for local port-forward testing",
+			Config: cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
-			Name:  "filesystem-target-override",
-			Usage: "Override the filesystem target for local port-forward testing",
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Name:   "filesystem-target-override",
+			Usage:  "Override the filesystem target for local port-forward testing",
+			Config: cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
-			Name:  "agent-image",
-			Usage: "Container image for gateway-created Agents",
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Name:   "agent-image",
+			Usage:  "Container image for gateway-created Agents",
+			Config: cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:     "agent-trace-endpoint",
 			Usage:    "OTLP/gRPC trace endpoint for gateway-created Agents",
 			Required: true,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:   cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:     "openbao-addr",
 			Usage:    "OpenBao server address (e.g. http://openbao:8200)",
 			Required: true,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:   cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:     "openbao-secret-mount-path",
 			Usage:    "OpenBao KV v2 secret engine mount path",
 			Required: true,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:   cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
 			Name:     "openbao-k8s-auth-role",
 			Usage:    "OpenBao Kubernetes auth role name",
 			Required: true,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:   cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
-			Name:  "openbao-k8s-auth-mount-path",
-			Usage: "OpenBao Kubernetes auth mount path",
-			Value: "kubernetes",
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Name:   "openbao-k8s-auth-mount-path",
+			Usage:  "OpenBao Kubernetes auth mount path",
+			Value:  "kubernetes",
+			Config: cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
-			Name:  "openbao-k8s-auth-token-path",
-			Usage: "Path to Kubernetes service account JWT for OpenBao auth. Defaults to in-pod path.",
-			Value: "/var/run/secrets/kubernetes.io/serviceaccount/token",
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Name:   "openbao-k8s-auth-token-path",
+			Usage:  "Path to Kubernetes service account JWT for OpenBao auth. Defaults to in-pod path.",
+			Value:  "/var/run/secrets/kubernetes.io/serviceaccount/token",
+			Config: cli.StringConfig{TrimSpace: true},
 		},
 		&cli.DurationFlag{
 			Name:  "mcp-probe-stale-after",
@@ -190,43 +174,39 @@ var gatewayServeCmd = &cli.Command{
 		},
 	},
 	Action: func(ctx context.Context, c *cli.Command) error {
-		return gateway.Serve(
-			ctx,
-			gateway.Config{
-				RelayAddress:     c.String("relay-address"),
-				RelayTrustDomain: c.String("relay-trust-domain"),
-				RelayTrustBundle: c.String("relay-trust-bundle"),
-				RelayCertFile:    c.String("relay-cert-file"),
-				RelayKeyFile:     c.String("relay-key-file"),
-
-				Addr:                      c.String("addr"),
-				CodingGitHubClientID:      c.String("coding-github-client-id"),
-				CodingGitHubClientSecret:  c.String("coding-github-client-secret"),
-				CodingGitHubEncryptionKey: c.String("coding-github-encryption-key"),
-				PostgresDSN:               c.String("postgres-dsn"),
-				ExternalJWTJWKSURL:        c.String("external-jwt-jwks-url"),
-				ExternalJWTIssuer:         c.String("external-jwt-issuer"),
-				ExternalJWTAudience:       c.String("external-jwt-audience"),
-				InternalK8sTokenAudience:  c.String("internal-k8s-token-audience"),
-				TargetOverride:            c.String("target-override"),
-				FilesystemTargetOverride:  c.String("filesystem-target-override"),
-				AgentImage:                c.String("agent-image"),
-				AgentTraceEndpoint:        c.String("agent-trace-endpoint"),
-				OpenBaoAddr:               c.String("openbao-addr"),
-				OpenBaoSecretMountPath:    c.String("openbao-secret-mount-path"),
-				OpenBaoK8sAuthRole:        c.String("openbao-k8s-auth-role"),
-				OpenBaoK8sAuthMountPath:   c.String("openbao-k8s-auth-mount-path"),
-				OpenBaoK8sAuthTokenPath:   c.String("openbao-k8s-auth-token-path"),
-				MCPProbeStaleAfter:        c.Duration("mcp-probe-stale-after"),
-				AllowedWebOrigins:         c.StringSlice("allowed-web-origin"),
-				SkillStore: skill.Config{
-					Endpoint:        c.String("skills-s3-endpoint"),
-					Region:          c.String("skills-s3-region"),
-					Bucket:          c.String("skills-s3-bucket"),
-					AccessKeyID:     strings.TrimSpace(os.Getenv("AGENTZ_SKILLS_S3_ACCESS_KEY_ID")),
-					SecretAccessKey: strings.TrimSpace(os.Getenv("AGENTZ_SKILLS_S3_SECRET_ACCESS_KEY")),
-				},
+		return gateway.Serve(ctx, gateway.Config{
+			RelayAddress:              c.String("relay-address"),
+			RelayTrustDomain:          c.String("relay-trust-domain"),
+			RelayTrustBundle:          c.String("relay-trust-bundle"),
+			RelayCertFile:             c.String("relay-cert-file"),
+			RelayKeyFile:              c.String("relay-key-file"),
+			Addr:                      c.String("addr"),
+			CodingGitHubClientID:      c.String("coding-github-client-id"),
+			CodingGitHubClientSecret:  c.String("coding-github-client-secret"),
+			CodingGitHubEncryptionKey: c.String("coding-github-encryption-key"),
+			PostgresDSN:               c.String("postgres-dsn"),
+			ExternalJWTJWKSURL:        c.String("external-jwt-jwks-url"),
+			ExternalJWTIssuer:         c.String("external-jwt-issuer"),
+			ExternalJWTAudience:       c.String("external-jwt-audience"),
+			InternalK8sTokenAudience:  c.String("internal-k8s-token-audience"),
+			TargetOverride:            c.String("target-override"),
+			FilesystemTargetOverride:  c.String("filesystem-target-override"),
+			AgentImage:                c.String("agent-image"),
+			AgentTraceEndpoint:        c.String("agent-trace-endpoint"),
+			OpenBaoAddr:               c.String("openbao-addr"),
+			OpenBaoSecretMountPath:    c.String("openbao-secret-mount-path"),
+			OpenBaoK8sAuthRole:        c.String("openbao-k8s-auth-role"),
+			OpenBaoK8sAuthMountPath:   c.String("openbao-k8s-auth-mount-path"),
+			OpenBaoK8sAuthTokenPath:   c.String("openbao-k8s-auth-token-path"),
+			MCPProbeStaleAfter:        c.Duration("mcp-probe-stale-after"),
+			AllowedWebOrigins:         c.StringSlice("allowed-web-origin"),
+			SkillStore: skill.Config{
+				Endpoint:        c.String("skills-s3-endpoint"),
+				Region:          c.String("skills-s3-region"),
+				Bucket:          c.String("skills-s3-bucket"),
+				AccessKeyID:     strings.TrimSpace(os.Getenv("AGENTZ_SKILLS_S3_ACCESS_KEY_ID")),
+				SecretAccessKey: strings.TrimSpace(os.Getenv("AGENTZ_SKILLS_S3_SECRET_ACCESS_KEY")),
 			},
-		)
+		})
 	},
 }

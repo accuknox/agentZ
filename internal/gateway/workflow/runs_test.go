@@ -21,7 +21,10 @@ func TestNativeWorkflowRequiresLiveAdmission(t *testing.T) {
 		Spec:       agentzv1alpha1.AgentSpec{Execution: agentzv1alpha1.AgentExecutionNative},
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(agt).Build()
-	run := &agentzv1alpha1.WorkflowRun{ObjectMeta: metav1.ObjectMeta{Name: "run", Namespace: "workspace"}, Spec: agentzv1alpha1.WorkflowRunSpec{AgentName: "agent"}}
+	run := &agentzv1alpha1.WorkflowRun{
+		ObjectMeta: metav1.ObjectMeta{Name: "run", Namespace: "workspace"},
+		Spec:       agentzv1alpha1.WorkflowRunSpec{AgentName: "agent"},
+	}
 	if _, err := createRun(t.Context(), c, run, "old-connection"); err == nil {
 		t.Fatal("offline native workflow was queued")
 	}

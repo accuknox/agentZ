@@ -23,14 +23,22 @@ func TestResolveAgentRuntimeRoot(t *testing.T) {
 	for _, tc := range []runtimeRootCase{
 		{name: "legacy", want: "/home/agentz"},
 		{name: "kubernetes", execution: agentzv1alpha1.AgentExecutionKubernetes, want: "/home/agentz"},
-		{name: "native", execution: agentzv1alpha1.AgentExecutionNative, reported: "/home/alice/agentz", want: "/home/alice/agentz"},
+		{
+			name: "native", execution: agentzv1alpha1.AgentExecutionNative,
+			reported: "/home/alice/agentz", want: "/home/alice/agentz",
+		},
 		{name: "native unreported", execution: agentzv1alpha1.AgentExecutionNative},
 		{name: "native relative", execution: agentzv1alpha1.AgentExecutionNative, reported: "agentz"},
 		{name: "native unsafe root", execution: agentzv1alpha1.AgentExecutionNative, reported: "/"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			index := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
-			if err := index.Add(&agentzv1alpha1.Agent{ObjectMeta: metav1.ObjectMeta{Name: "agent", Namespace: "workspace"}, Spec: agentzv1alpha1.AgentSpec{Execution: tc.execution}, Status: agentzv1alpha1.AgentStatus{RuntimeRoot: tc.reported}}); err != nil {
+			agt := &agentzv1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{Name: "agent", Namespace: "workspace"},
+				Spec:       agentzv1alpha1.AgentSpec{Execution: tc.execution},
+				Status:     agentzv1alpha1.AgentStatus{RuntimeRoot: tc.reported},
+			}
+			if err := index.Add(agt); err != nil {
 				t.Fatal(err)
 			}
 			r := &resolver{agents: listersv1alpha1.NewAgentLister(index)}

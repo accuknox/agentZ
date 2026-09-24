@@ -279,6 +279,6 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         BUNDLE: ${{ steps.native-attestation.outputs.bundle-path }}
         TAG: ${{ github.ref_name }}
-      run: |
+      run: |-
         cp "$BUNDLE" native.sigstore.jsonl
         gh release upload "$TAG" native.sigstore.jsonl deploy/native/install.sh

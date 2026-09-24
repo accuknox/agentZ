@@ -71,7 +71,9 @@ func (v *Validator) ValidateUpdate(_ context.Context, oldSecret, newSecret *agen
 	specPath := field.NewPath("spec")
 	fields := field.ErrorList{}
 	if oldSecret.Spec.AgentRef.Name != newSecret.Spec.AgentRef.Name {
-		fields = append(fields, field.Forbidden(specPath.Child("agentRef").Child("name"), "agentRef.name is immutable"))
+		fields = append(fields, field.Forbidden(
+			specPath.Child("agentRef").Child("name"), "agentRef.name is immutable",
+		))
 	}
 	if oldSecret.Spec.Key != newSecret.Spec.Key {
 		fields = append(fields, field.Forbidden(specPath.Child("key"), "key is immutable"))
@@ -109,7 +111,9 @@ func validateSpec(spec agentzv1alpha1.SecretSpec, path *field.Path) field.ErrorL
 		fields = append(fields, field.Invalid(path.Child("key"), spec.Key, "must be at most 128 characters"))
 	}
 	if key != "" && !secretKeyPattern.MatchString(key) {
-		fields = append(fields, field.Invalid(path.Child("key"), spec.Key, "must be a valid environment variable name"))
+		fields = append(fields, field.Invalid(
+			path.Child("key"), spec.Key, "must be a valid environment variable name",
+		))
 	}
 
 	hosts, err := sinjector.ParseSecretHosts(spec.Hosts)
@@ -160,7 +164,10 @@ func validateOAuthSpec(spec *agentzv1alpha1.SecretOAuthSpec, path *field.Path) f
 		path.Child("authorizationEndpoint"),
 	)...)
 	fields = append(fields, validateOptionalHTTPSURL(spec.TokenEndpoint, path.Child("tokenEndpoint"))...)
-	fields = append(fields, validateOptionalHTTPSURL(spec.RegistrationEndpoint, path.Child("registrationEndpoint"))...)
+	registrationIssues := validateOptionalHTTPSURL(
+		spec.RegistrationEndpoint, path.Child("registrationEndpoint"),
+	)
+	fields = append(fields, registrationIssues...)
 	fields = append(fields, validateOptionalHTTPSURL(spec.Resource, path.Child("resource"))...)
 
 	if strings.TrimSpace(spec.TokenEndpoint) == "" {

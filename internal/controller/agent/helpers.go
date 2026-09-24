@@ -208,7 +208,11 @@ type opencodeInstructionFile struct {
 
 func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]byte, []opencodeInstructionFile, error) {
 	configDirectory := opencodeConfigDir
-	skillPaths := []string{opencodeBundledSkillsPath, opencodeImmutableSkillsPath, opencodeWritableSkillsPath}
+	skillPaths := []string{
+		opencodeBundledSkillsPath,
+		opencodeImmutableSkillsPath,
+		opencodeWritableSkillsPath,
+	}
 	if envCfg.RuntimePaths != nil {
 		configDirectory = envCfg.RuntimePaths.ConfigDirectory
 		skillPaths = []string{

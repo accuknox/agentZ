@@ -477,7 +477,8 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	apiutil.WriteJSON(w, http.StatusCreated, workspaceView(row, int64(len(req.AdminMemberIds)), true, capabilities))
+	view := workspaceView(row, int64(len(req.AdminMemberIds)), true, capabilities)
+	apiutil.WriteJSON(w, http.StatusCreated, view)
 }
 
 // GetWorkspace handles GET /api/workspace/{workspaceId}.

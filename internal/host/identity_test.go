@@ -36,7 +36,12 @@ func (c *testAuthorityClient) GetX509AuthorityState(context.Context, *authorityv
 }
 func (c *testAuthorityClient) PrepareX509Authority(context.Context, *authorityv1.PrepareX509AuthorityRequest, ...grpc.CallOption) (*authorityv1.PrepareX509AuthorityResponse, error) {
 	c.prepares++
-	return &authorityv1.PrepareX509AuthorityResponse{PreparedAuthority: &authorityv1.AuthorityState{AuthorityId: "next", ExpiresAt: time.Now().Add(c.lifetime).Unix()}}, nil
+	return &authorityv1.PrepareX509AuthorityResponse{
+		PreparedAuthority: &authorityv1.AuthorityState{
+			AuthorityId: "next",
+			ExpiresAt:   time.Now().Add(c.lifetime).Unix(),
+		},
+	}, nil
 }
 func (c *testAuthorityClient) ActivateX509Authority(context.Context, *authorityv1.ActivateX509AuthorityRequest, ...grpc.CallOption) (*authorityv1.ActivateX509AuthorityResponse, error) {
 	c.activates++
@@ -109,9 +114,12 @@ func TestEnrollmentRejectsInvalidIdentity(t *testing.T) {
 }
 
 func TestEnrollmentOnlyReadsAuthorityHeadroom(t *testing.T) {
-	authority := &testAuthorityClient{state: &authorityv1.GetX509AuthorityStateResponse{Active: &authorityv1.AuthorityState{
-		ExpiresAt: time.Now().Add(200 * 24 * time.Hour).Unix(), UpstreamAuthoritySubjectKeyId: "root",
-	}}}
+	authority := &testAuthorityClient{state: &authorityv1.GetX509AuthorityStateResponse{
+		Active: &authorityv1.AuthorityState{
+			ExpiresAt:                     time.Now().Add(200 * 24 * time.Hour).Unix(),
+			UpstreamAuthoritySubjectKeyId: "root",
+		},
+	}}
 	admin := &IdentityAdmin{authorities: authority}
 	// Insufficient headroom must fail before bundle or token calls, and must
 	// never repair the shared authority from a relay.

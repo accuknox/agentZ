@@ -80,7 +80,10 @@ func (p *openBaoProvisioner) ProvisionSinjector(ctx context.Context, cfg Runtime
 		return fmt.Errorf("put openbao policy: %w", err)
 	}
 
-	rolePath := fmt.Sprintf("auth/%s/role/%s", strings.Trim(cfg.OpenBaoK8sAuthMountPath, "/"), opts.RoleName)
+	rolePath := fmt.Sprintf(
+		"auth/%s/role/%s",
+		strings.Trim(cfg.OpenBaoK8sAuthMountPath, "/"), opts.RoleName,
+	)
 	_, err = p.client.Logical().WriteWithContext(
 		ctx,
 		rolePath,
@@ -124,7 +127,10 @@ func renderSinjectorPolicy(mount, namespace, agentName string) (string, error) {
 // CleanupSinjector removes the Agent's OpenBao role and policy. Cleanup failures
 // are logged so an unavailable OpenBao does not block Kubernetes deletion.
 func (p *openBaoProvisioner) CleanupSinjector(ctx context.Context, cfg RuntimeConfig, opts SinjectorOpenBaoOptions) error {
-	rolePath := fmt.Sprintf("auth/%s/role/%s", strings.Trim(cfg.OpenBaoK8sAuthMountPath, "/"), opts.RoleName)
+	rolePath := fmt.Sprintf(
+		"auth/%s/role/%s",
+		strings.Trim(cfg.OpenBaoK8sAuthMountPath, "/"), opts.RoleName,
+	)
 	if _, err := p.client.Logical().DeleteWithContext(ctx, rolePath); err != nil {
 		slog.WarnContext(
 			ctx,

@@ -369,8 +369,16 @@ func (r *Reconciler) reconcileSinjectorPolicy(ctx context.Context, agt *agentzv1
 			return fmt.Errorf("native secret proxy requires the relay service account identity")
 		}
 		caller = ciliumapi.NewESFromLabels(
-			ciliumlabels.NewLabel("io.kubernetes.pod.namespace", r.Config.RelayServiceAccountNamespace, ciliumlabels.LabelSourceK8s),
-			ciliumlabels.NewLabel("io.cilium.k8s.policy.serviceaccount", r.Config.RelayServiceAccountName, ciliumlabels.LabelSourceK8s),
+			ciliumlabels.NewLabel(
+				"io.kubernetes.pod.namespace",
+				r.Config.RelayServiceAccountNamespace,
+				ciliumlabels.LabelSourceK8s,
+			),
+			ciliumlabels.NewLabel(
+				"io.cilium.k8s.policy.serviceaccount",
+				r.Config.RelayServiceAccountName,
+				ciliumlabels.LabelSourceK8s,
+			),
 		)
 	}
 	current := &ciliumv2.CiliumNetworkPolicy{}

@@ -190,7 +190,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 		runtime.ExternalSecret = currentExternalSecret
 	}
-	if r.Recorder != nil && runtime.ExternalSecret != nil && !externalSecretReady(runtime.ExternalSecret) {
+	externalSecretPending := runtime.ExternalSecret != nil && !externalSecretReady(runtime.ExternalSecret)
+	if r.Recorder != nil && externalSecretPending {
 		r.Recorder.Eventf(
 			provider,
 			nil,
@@ -490,7 +491,8 @@ func (r *Reconciler) updateStatus(ctx context.Context, provider *agentzv1alpha1.
 				credentialsReady = externalSecretReady(runtime.ExternalSecret)
 				credentialsMessage = "Authentication is still being prepared"
 				secret := &corev1.Secret{}
-				err := r.Get(ctx, types.NamespacedName{Name: current.Name, Namespace: current.Namespace}, secret)
+				key := types.NamespacedName{Name: current.Name, Namespace: current.Namespace}
+				err := r.Get(ctx, key, secret)
 				switch {
 				case err == nil:
 					keysReady := hasKeys(secret, runtime.SecretKeys)

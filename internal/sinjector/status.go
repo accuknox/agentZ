@@ -212,7 +212,10 @@ func (r *resolver) writeStatusForKey(ctx context.Context, key string, status sec
 		return
 	}
 	if err := r.writeSecretStatus(ctx, secret.Namespace, secret.Name, status); err != nil {
-		slog.WarnContext(ctx, "update secret runtime status", slog.String("secret", secret.Name), slog.Any("err", err))
+		slog.WarnContext(
+			ctx, "update secret runtime status",
+			slog.String("secret", secret.Name), slog.Any("err", err),
+		)
 	}
 }
 

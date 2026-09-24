@@ -23,33 +23,25 @@ var observerServeCmd = &cli.Command{
 			Name:     "postgres-dsn",
 			Usage:    "PostgreSQL DSN",
 			Required: true,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Config:   cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
-			Name:  "kubearmor-relay-addr",
-			Usage: "KubeArmor relay gRPC address",
-			Value: observer.DefaultKubeArmorRelayAddr,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Name:   "kubearmor-relay-addr",
+			Usage:  "KubeArmor relay gRPC address",
+			Value:  observer.DefaultKubeArmorRelayAddr,
+			Config: cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
-			Name:  "hubble-relay-addr",
-			Usage: "Hubble relay gRPC address",
-			Value: observer.DefaultHubbleRelayAddr,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Name:   "hubble-relay-addr",
+			Usage:  "Hubble relay gRPC address",
+			Value:  observer.DefaultHubbleRelayAddr,
+			Config: cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
-			Name:  "otlp-trace-grpc-addr",
-			Usage: "OTLP trace receiver gRPC listen address",
-			Value: observer.DefaultOTLPTraceGRPCAddr,
-			Config: cli.StringConfig{
-				TrimSpace: true,
-			},
+			Name:   "otlp-trace-grpc-addr",
+			Usage:  "OTLP trace receiver gRPC listen address",
+			Value:  observer.DefaultOTLPTraceGRPCAddr,
+			Config: cli.StringConfig{TrimSpace: true},
 		},
 		&cli.IntFlag{
 			Name:  "batch-size",
@@ -63,16 +55,13 @@ var observerServeCmd = &cli.Command{
 		},
 	},
 	Action: func(ctx context.Context, c *cli.Command) error {
-		return observer.Serve(
-			ctx,
-			observer.Config{
-				PostgresDSN:        c.String("postgres-dsn"),
-				KubeArmorRelayAddr: c.String("kubearmor-relay-addr"),
-				HubbleRelayAddr:    c.String("hubble-relay-addr"),
-				OTLPTraceGRPCAddr:  c.String("otlp-trace-grpc-addr"),
-				BatchSize:          c.Int("batch-size"),
-				FlushInterval:      c.Duration("flush-interval"),
-			},
-		)
+		return observer.Serve(ctx, observer.Config{
+			PostgresDSN:        c.String("postgres-dsn"),
+			KubeArmorRelayAddr: c.String("kubearmor-relay-addr"),
+			HubbleRelayAddr:    c.String("hubble-relay-addr"),
+			OTLPTraceGRPCAddr:  c.String("otlp-trace-grpc-addr"),
+			BatchSize:          c.Int("batch-size"),
+			FlushInterval:      c.Duration("flush-interval"),
+		})
 	},
 }

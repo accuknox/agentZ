@@ -115,13 +115,23 @@ func (v *Validator) ValidateDelete(_ context.Context, _ *agentzv1alpha1.Agent) (
 func (v *Validator) validateAgent(ctx context.Context, agt *agentzv1alpha1.Agent) field.ErrorList {
 	var allErrs field.ErrorList
 	specPath := field.NewPath("spec")
-	if agt.Spec.Execution != "" && agt.Spec.Execution != agentzv1alpha1.AgentExecutionKubernetes && agt.Spec.Execution != agentzv1alpha1.AgentExecutionNative {
-		allErrs = append(allErrs, field.NotSupported(specPath.Child("execution"), agt.Spec.Execution, []string{"Kubernetes", "Native"}))
+	executionSet := agt.Spec.Execution != ""
+	executionInvalid := agt.Spec.Execution != agentzv1alpha1.AgentExecutionKubernetes &&
+		agt.Spec.Execution != agentzv1alpha1.AgentExecutionNative
+	if executionSet && executionInvalid {
+		allErrs = append(allErrs, field.NotSupported(
+			specPath.Child("execution"),
+			agt.Spec.Execution,
+			[]string{"Kubernetes", "Native"},
+		))
 	}
 	if agt.Spec.Execution == agentzv1alpha1.AgentExecutionNative {
 		for i, env := range agt.Spec.Env {
 			if env.ValueFrom != nil {
-				allErrs = append(allErrs, field.Forbidden(specPath.Child("env").Index(i).Child("valueFrom"), "native Agents do not expose Kubernetes secret or pod references"))
+				allErrs = append(allErrs, field.Forbidden(
+					specPath.Child("env").Index(i).Child("valueFrom"),
+					"native Agents do not expose Kubernetes secret or pod references",
+				))
 			}
 		}
 	}

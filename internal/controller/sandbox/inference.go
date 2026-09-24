@@ -512,8 +512,16 @@ func (r *Reconciler) reconcileInferenceGateway(ctx context.Context, namespace st
 							return fmt.Errorf("native execution requires the relay service account identity")
 						}
 						source = ciliumapi.NewESFromLabels(
-							ciliumlabels.NewLabel("io.kubernetes.pod.namespace", r.RelayServiceAccountNamespace, ciliumlabels.LabelSourceK8s),
-							ciliumlabels.NewLabel("io.cilium.k8s.policy.serviceaccount", r.RelayServiceAccountName, ciliumlabels.LabelSourceK8s),
+							ciliumlabels.NewLabel(
+								"io.kubernetes.pod.namespace",
+								r.RelayServiceAccountNamespace,
+								ciliumlabels.LabelSourceK8s,
+							),
+							ciliumlabels.NewLabel(
+								"io.cilium.k8s.policy.serviceaccount",
+								r.RelayServiceAccountName,
+								ciliumlabels.LabelSourceK8s,
+							),
 						)
 					}
 

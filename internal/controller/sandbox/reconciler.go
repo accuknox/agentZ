@@ -275,12 +275,18 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&agentzv1alpha1.Sandbox{}).
 		Watches(&agentzv1alpha1.Agent{}, handler.EnqueueRequestsFromMapFunc(r.sandboxForAgent)).
-		Watches(&agentzv1alpha1.MCPConnection{}, handler.EnqueueRequestsFromMapFunc(r.sandboxesForMCPConnection)).
+		Watches(
+			&agentzv1alpha1.MCPConnection{},
+			handler.EnqueueRequestsFromMapFunc(r.sandboxesForMCPConnection),
+		).
 		Watches(
 			&agentzv1alpha1.InferenceProvider{},
 			handler.EnqueueRequestsFromMapFunc(r.sandboxesForInferenceProvider),
 		).
-		Watches(&agentzv1alpha1.InferencePool{}, handler.EnqueueRequestsFromMapFunc(r.sandboxesForInferencePool)).
+		Watches(
+			&agentzv1alpha1.InferencePool{},
+			handler.EnqueueRequestsFromMapFunc(r.sandboxesForInferencePool),
+		).
 		Watches(&gwv1.Gateway{}, handler.EnqueueRequestsFromMapFunc(r.sandboxesForInferenceGateway)).
 		Owns(&gwv1.HTTPRoute{}).
 		Watches(
@@ -708,7 +714,11 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, sandbox *agentzv1alph
 		targetCount++
 	}
 	targets := make([]agentgatewayv1alpha1.McpTargetSelector, 0, targetCount)
-	matchExpressions := make([]agentgatewayv1alpha1.CELExpression, 0, len(sandbox.Spec.MCPConnectionRefs))
+	matchExpressions := make(
+		[]agentgatewayv1alpha1.CELExpression,
+		0,
+		len(sandbox.Spec.MCPConnectionRefs),
+	)
 	for _, conn := range conns {
 		target, err := mcp.ParseTarget(&conn)
 		if err != nil {
@@ -815,7 +825,9 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, sandbox *agentzv1alph
 		}
 		return nil
 	}
-	if reflect.DeepEqual(currentSpec, obj.Spec) && reflect.DeepEqual(currentOwners, obj.OwnerReferences) {
+	specEqual := reflect.DeepEqual(currentSpec, obj.Spec)
+	ownersEqual := reflect.DeepEqual(currentOwners, obj.OwnerReferences)
+	if specEqual && ownersEqual {
 		return nil
 	}
 	if _, err := client.Update(ctx, obj, metav1.UpdateOptions{}); err != nil {
@@ -1074,7 +1086,9 @@ func (r *Reconciler) reconcileTracePolicy(ctx context.Context, namespace string,
 		}
 		return nil
 	}
-	if reflect.DeepEqual(currentSpec, obj.Spec) && reflect.DeepEqual(currentOwners, obj.OwnerReferences) {
+	specEqual := reflect.DeepEqual(currentSpec, obj.Spec)
+	ownersEqual := reflect.DeepEqual(currentOwners, obj.OwnerReferences)
+	if specEqual && ownersEqual {
 		return nil
 	}
 	if _, err := client.Update(ctx, obj, metav1.UpdateOptions{}); err != nil {
@@ -1266,8 +1280,16 @@ func (r *Reconciler) reconcileGatewayNetworkPolicy(ctx context.Context, namespac
 							return fmt.Errorf("native execution requires the relay service account identity")
 						}
 						source = ciliumapi.NewESFromLabels(
-							ciliumlabels.NewLabel("io.kubernetes.pod.namespace", r.RelayServiceAccountNamespace, ciliumlabels.LabelSourceK8s),
-							ciliumlabels.NewLabel("io.cilium.k8s.policy.serviceaccount", r.RelayServiceAccountName, ciliumlabels.LabelSourceK8s),
+							ciliumlabels.NewLabel(
+								"io.kubernetes.pod.namespace",
+								r.RelayServiceAccountNamespace,
+								ciliumlabels.LabelSourceK8s,
+							),
+							ciliumlabels.NewLabel(
+								"io.cilium.k8s.policy.serviceaccount",
+								r.RelayServiceAccountName,
+								ciliumlabels.LabelSourceK8s,
+							),
 						)
 					}
 

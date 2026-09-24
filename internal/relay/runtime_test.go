@@ -92,9 +92,16 @@ func TestHostAuthorization(t *testing.T) {
 			execution: agentzv1alpha1.AgentExecutionNative,
 			method:    hostv1.HostRelay_Data_FullMethodName, want: codes.PermissionDenied,
 		},
-		{name: "deleted Agent", peer: authenticated, execution: agentzv1alpha1.AgentExecutionNative, deleted: true, want: codes.PermissionDenied},
+		{
+			name: "deleted Agent", peer: authenticated,
+			execution: agentzv1alpha1.AgentExecutionNative,
+			deleted:   true, want: codes.PermissionDenied,
+		},
 		// go-spiffe authenticates in VerifyPeerCertificate; crypto/tls VerifiedChains is empty.
-		{name: "SPIFFE callback verified native", peer: authenticated, execution: agentzv1alpha1.AgentExecutionNative, want: codes.OK},
+		{
+			name: "SPIFFE callback verified native", peer: authenticated,
+			execution: agentzv1alpha1.AgentExecutionNative, want: codes.OK,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -175,7 +182,11 @@ func TestHostForwardRejectsRouteEscapes(t *testing.T) {
 		t.Run(target, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
-			conn, err := s.dialUpstream(ctx, host.Binding{Namespace: "workspace", Agent: "agent"}, hostv1.Service_SERVICE_MCP)
+			conn, err := s.dialUpstream(
+				ctx,
+				host.Binding{Namespace: "workspace", Agent: "agent"},
+				hostv1.Service_SERVICE_MCP,
+			)
 			if err != nil {
 				t.Fatal(err)
 			}

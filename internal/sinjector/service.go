@@ -294,7 +294,10 @@ func (r *resolver) resolve(ctx context.Context, name string) (resolvedSecret, er
 	}
 	typ, err := secretstore.RecordType(rawSecret.Data)
 	if err != nil {
-		r.writeStatusForKey(ctx, name, degradedSecretStatus(agentzv1alpha1.SecretReasonReconcileFailed, err.Error()))
+		status := degradedSecretStatus(
+			agentzv1alpha1.SecretReasonReconcileFailed, err.Error(),
+		)
+		r.writeStatusForKey(ctx, name, status)
 		return resolvedSecret{}, fmt.Errorf("%w: %s", errBadSecret, name)
 	}
 	switch typ {

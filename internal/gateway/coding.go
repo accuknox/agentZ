@@ -1540,7 +1540,10 @@ func (s *Service) enforceCodingSession(r *http.Request, access resourceAccess, r
 		return nil, mapGatewayStoreError("resolve agent directory", err)
 	}
 	if route.ID == "session.share" {
-		return nil, apiutil.NewError(http.StatusForbidden, "private_project", "Coding conversations are private", nil)
+		return nil, apiutil.NewError(
+			http.StatusForbidden,
+			"private_project", "Coding conversations are private", nil,
+		)
 	}
 	changesCheckout := strings.Contains(route.Path, "/experimental/worktree") ||
 		strings.Contains(route.Path, "/experimental/workspace") ||

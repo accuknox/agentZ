@@ -78,7 +78,8 @@ func NewNetwork(ctx context.Context, allowedHosts []string) (*Network, error) {
 		cancel()
 		return nil, fmt.Errorf("refuse to adopt an unowned agentz network namespace")
 	}
-	if errors.Is(namespaceErr, os.ErrNotExist) {
+	namespaceMissing := errors.Is(namespaceErr, os.ErrNotExist)
+	if namespaceMissing {
 		if err := networkCommand(ctx, "", "ip", "link", "show", "agentz-host"); err == nil {
 			cancel()
 			return nil, fmt.Errorf("refuse to adopt an existing agentz-host interface")
@@ -95,7 +96,8 @@ func NewNetwork(ctx context.Context, allowedHosts []string) (*Network, error) {
 			cancel()
 			return nil, err
 		}
-	} else if namespaceErr != nil {
+	}
+	if namespaceErr != nil && !namespaceMissing {
 		cancel()
 		return nil, namespaceErr
 	}
@@ -105,7 +107,11 @@ func NewNetwork(ctx context.Context, allowedHosts []string) (*Network, error) {
 	}
 	// Namespace policy is already installed before either end of the veth is up.
 	if err := networkCommand(ctx, "", "ip", "link", "show", "agentz-host"); err != nil {
-		if err := networkCommand(ctx, "", "ip", "link", "add", "agentz-host", "type", "veth", "peer", "name", "agentz-peer", "netns", NativeNetworkNamespace); err != nil {
+		err := networkCommand(
+			ctx, "", "ip", "link", "add", "agentz-host", "type", "veth",
+			"peer", "name", "agentz-peer", "netns", NativeNetworkNamespace,
+		)
+		if err != nil {
 			cancel()
 			return nil, err
 		}
@@ -113,13 +119,22 @@ func NewNetwork(ctx context.Context, allowedHosts []string) (*Network, error) {
 	commands := [][]string{
 		{"ip", "address", "replace", "169.254.240.1/30", "dev", "agentz-host"},
 		{"ip", "-6", "address", "replace", "fd41:6765:6e74::1/126", "dev", "agentz-host", "nodad"},
-		{"ip", "-n", NativeNetworkNamespace, "address", "replace", "169.254.240.2/30", "dev", "agentz-peer"},
-		{"ip", "-n", NativeNetworkNamespace, "-6", "address", "replace", "fd41:6765:6e74::2/126", "dev", "agentz-peer", "nodad"},
+		{
+			"ip", "-n", NativeNetworkNamespace, "address", "replace",
+			"169.254.240.2/30", "dev", "agentz-peer",
+		},
+		{
+			"ip", "-n", NativeNetworkNamespace, "-6", "address", "replace",
+			"fd41:6765:6e74::2/126", "dev", "agentz-peer", "nodad",
+		},
 		{"ip", "link", "set", "agentz-host", "up"},
 		{"ip", "-n", NativeNetworkNamespace, "link", "set", "lo", "up"},
 		{"ip", "-n", NativeNetworkNamespace, "link", "set", "agentz-peer", "up"},
 		{"ip", "-n", NativeNetworkNamespace, "route", "replace", "default", "via", "169.254.240.1"},
-		{"ip", "-n", NativeNetworkNamespace, "-6", "route", "replace", "default", "via", "fd41:6765:6e74::1"},
+		{
+			"ip", "-n", NativeNetworkNamespace, "-6", "route", "replace",
+			"default", "via", "fd41:6765:6e74::1",
+		},
 	}
 	for _, args := range commands {
 		if err := networkCommand(ctx, "", args[0], args[1:]...); err != nil {
@@ -172,7 +187,11 @@ func NewNetwork(ctx context.Context, allowedHosts []string) (*Network, error) {
 			}
 		}
 	}
-	for _, file := range []string{"/proc/sys/net/ipv4/ip_forward", "/proc/sys/net/ipv6/conf/all/forwarding"} {
+	forwardingFiles := []string{
+		"/proc/sys/net/ipv4/ip_forward",
+		"/proc/sys/net/ipv6/conf/all/forwarding",
+	}
+	for _, file := range forwardingFiles {
 		value, err := os.ReadFile(file)
 		if err != nil {
 			cancel()
@@ -190,7 +209,8 @@ func NewNetwork(ctx context.Context, allowedHosts []string) (*Network, error) {
 		cancel()
 		return nil, err
 	}
-	if err := os.WriteFile("/etc/netns/agentz/resolv.conf", []byte("nameserver 127.0.0.53\noptions timeout:2 attempts:2\n"), 0644); err != nil {
+	resolverConfig := []byte("nameserver 127.0.0.53\noptions timeout:2 attempts:2\n")
+	if err := os.WriteFile("/etc/netns/agentz/resolv.conf", resolverConfig, 0644); err != nil {
 		cancel()
 		return nil, err
 	}
@@ -213,7 +233,13 @@ func NewNetwork(ctx context.Context, allowedHosts []string) (*Network, error) {
 		return nil, fmt.Errorf("bind native DNS: %w", err)
 	}
 	n.udp = &dns.Server{PacketConn: udp, Handler: dns.HandlerFunc(n.serveDNS), UDPSize: 1232}
-	n.tcp = &dns.Server{Listener: tcp, Handler: dns.HandlerFunc(n.serveDNS), MaxTCPQueries: 64, ReadTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second}
+	n.tcp = &dns.Server{
+		Listener:      tcp,
+		Handler:       dns.HandlerFunc(n.serveDNS),
+		MaxTCPQueries: 64,
+		ReadTimeout:   5 * time.Second,
+		WriteTimeout:  5 * time.Second,
+	}
 	for _, server := range []*dns.Server{n.udp, n.tcp} {
 		go func() {
 			if err := server.ActivateAndServe(); err != nil && n.ctx.Err() == nil {
@@ -235,7 +261,11 @@ func (n *Network) Update(ctx context.Context, allowedHosts []string) error {
 	}
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	if err := networkCommand(ctx, nativeRules(hosts), "ip", "netns", "exec", NativeNetworkNamespace, "nft", "-f", "-"); err != nil {
+	err = networkCommand(
+		ctx, nativeRules(hosts),
+		"ip", "netns", "exec", NativeNetworkNamespace, "nft", "-f", "-",
+	)
+	if err != nil {
 		return err
 	}
 	n.hosts = hosts
@@ -259,9 +289,9 @@ func nativeRules(hosts []sandboxutil.Host) string {
 		prefix, _ := netip.ParsePrefix(host.Value)
 		if prefix.Addr().Is4() {
 			ipv4 = append(ipv4, host.Value)
-		} else {
-			ipv6 = append(ipv6, host.Value)
+			continue
 		}
+		ipv6 = append(ipv6, host.Value)
 	}
 	var rules strings.Builder
 	rules.WriteString(`add table inet agentz_native
@@ -304,7 +334,8 @@ func allowedDNS(hosts []sandboxutil.Host, name string) bool {
 		case sandboxutil.HostKindWildcard, sandboxutil.HostKindDeepWildcard:
 			suffix := strings.TrimPrefix(strings.TrimPrefix(host.Value, "**"), "*")
 			prefix, ok := strings.CutSuffix(name, suffix)
-			if ok && prefix != "" && (host.Kind == sandboxutil.HostKindDeepWildcard || !strings.Contains(prefix, ".")) {
+			deepMatch := host.Kind == sandboxutil.HostKindDeepWildcard
+			if ok && prefix != "" && (deepMatch || !strings.Contains(prefix, ".")) {
 				return true
 			}
 		}
@@ -315,7 +346,8 @@ func allowedDNS(hosts []sandboxutil.Host, name string) bool {
 func (n *Network) serveDNS(w dns.ResponseWriter, request *dns.Msg) {
 	response := new(dns.Msg)
 	response.SetRcode(request, dns.RcodeRefused)
-	if len(request.Question) != 1 || request.Opcode != dns.OpcodeQuery || request.Question[0].Qclass != dns.ClassINET {
+	validQuestion := len(request.Question) == 1 && request.Opcode == dns.OpcodeQuery
+	if !validQuestion || request.Question[0].Qclass != dns.ClassINET {
 		_ = w.WriteMsg(response)
 		return
 	}
@@ -404,7 +436,11 @@ func (n *Network) serveDNS(w dns.ResponseWriter, request *dns.Msg) {
 		fmt.Fprintf(&script, "add element inet %s %s { %s }\n", networkTable, set, element)
 	}
 	if script.Len() > 0 {
-		if err := networkCommand(ctx, script.String(), "ip", "netns", "exec", NativeNetworkNamespace, "nft", "-f", "-"); err != nil {
+		err := networkCommand(
+			ctx, script.String(),
+			"ip", "netns", "exec", NativeNetworkNamespace, "nft", "-f", "-",
+		)
+		if err != nil {
 			n.mu.Unlock()
 			slog.WarnContext(ctx, "native DNS could not authorize response", "err", err)
 			response.SetRcode(request, dns.RcodeServerFailure)
@@ -429,7 +465,10 @@ func (n *Network) serveDNS(w dns.ResponseWriter, request *dns.Msg) {
 			}
 		}
 		if ttl > 0 && len(n.cache) < 1024 {
-			n.cache[key] = dnsCacheEntry{answer: answer.Copy(), created: time.Now(), ttl: time.Duration(ttl) * time.Second}
+			n.cache[key] = dnsCacheEntry{
+				answer: answer.Copy(), created: time.Now(),
+				ttl: time.Duration(ttl) * time.Second,
+			}
 		}
 	}
 	n.mu.Unlock()
@@ -485,7 +524,8 @@ func dnsAddresses(name string, answers []dns.RR) map[netip.Addr]uint32 {
 
 func networkCommand(ctx context.Context, input string, program string, args ...string) error {
 	installed := filepath.Join("/var/lib/agentz/runtime/tools/bin", program)
-	if info, err := os.Stat(installed); err == nil && info.Mode().IsRegular() && info.Mode().Perm()&0111 != 0 {
+	info, err := os.Stat(installed)
+	if err == nil && info.Mode().IsRegular() && info.Mode().Perm()&0111 != 0 {
 		program = installed
 	}
 	command := exec.CommandContext(ctx, program, args...)
@@ -494,7 +534,10 @@ func networkCommand(ctx context.Context, input string, program string, args ...s
 	}
 	output, err := command.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("native network %s %s: %w: %s", program, strings.Join(args, " "), err, strconv.Quote(string(output)))
+		return fmt.Errorf(
+			"native network %s %s: %w: %s",
+			program, strings.Join(args, " "), err, strconv.Quote(string(output)),
+		)
 	}
 	return nil
 }

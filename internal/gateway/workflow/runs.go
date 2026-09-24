@@ -267,7 +267,8 @@ func PatchRunStatus(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 				return ErrWorkflowRunScopeMismatch
 			}
 
-			if current.Status.Phase.Terminal() && current.Status.Phase == phase && current.Status.Message == msg {
+			statusUnchanged := current.Status.Phase == phase && current.Status.Message == msg
+			if current.Status.Phase.Terminal() && statusUnchanged {
 				resultErr = nil
 				return nil
 			}
@@ -669,13 +670,16 @@ func ListRuns(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtNa
 		if params.Status != nil && string(*params.Status) != string(run.Status.Phase) {
 			continue
 		}
-		if params.TriggerType != nil && *params.TriggerType == gatewayapi.Schedule && run.Spec.ScheduleRef == nil {
+		scheduleMismatch := params.TriggerType != nil && *params.TriggerType == gatewayapi.Schedule && run.Spec.ScheduleRef == nil
+		if scheduleMismatch {
 			continue
 		}
-		if params.TriggerType != nil && *params.TriggerType == gatewayapi.Webhook && run.Spec.ScheduleRef != nil {
+		webhookMismatch := params.TriggerType != nil && *params.TriggerType == gatewayapi.Webhook && run.Spec.ScheduleRef != nil
+		if webhookMismatch {
 			continue
 		}
-		if scheduleName != "" && (run.Spec.ScheduleRef == nil || run.Spec.ScheduleRef.Name != scheduleName) {
+		scheduleNameMismatch := run.Spec.ScheduleRef == nil || run.Spec.ScheduleRef.Name != scheduleName
+		if scheduleName != "" && scheduleNameMismatch {
 			continue
 		}
 		if webhookAPIKeyID != "" && workflowRunWebhookAPIKeyID(run) != webhookAPIKeyID {
@@ -764,7 +768,8 @@ func DeleteRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtN
 
 func createRun(ctx context.Context, k8sClient ctrlclient.Client, run *agentzv1alpha1.WorkflowRun, connection string) (gatewayapi.WorkflowRunSummary, error) {
 	var agt agentzv1alpha1.Agent
-	if err := k8sClient.Get(ctx, ctrlclient.ObjectKey{Namespace: run.Namespace, Name: run.Spec.AgentName}, &agt); err != nil {
+	key := ctrlclient.ObjectKey{Namespace: run.Namespace, Name: run.Spec.AgentName}
+	if err := k8sClient.Get(ctx, key, &agt); err != nil {
 		return gatewayapi.WorkflowRunSummary{}, err
 	}
 	if agt.Spec.Execution == agentzv1alpha1.AgentExecutionNative {

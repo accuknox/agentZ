@@ -97,7 +97,9 @@ func (s *Service) Dial(stream grpc.BidiStreamingServer[hostv1.RelayFrame, hostv1
 	if !session.Ready {
 		return status.Error(codes.Unavailable, "host is preparing its runtime")
 	}
-	connection, err := s.hosts.DialConnection(stream.Context(), target.Namespace, target.Agent, service, target.SessionId)
+	connection, err := s.hosts.DialConnection(
+		stream.Context(), target.Namespace, target.Agent, service, target.SessionId,
+	)
 	if err != nil {
 		return err
 	}

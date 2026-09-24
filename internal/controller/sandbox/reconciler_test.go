@@ -48,7 +48,11 @@ import (
 func TestReconcileMCPAgentRouteIdentity(t *testing.T) {
 	t.Parallel()
 
-	for _, execution := range []agentzv1alpha1.AgentExecution{agentzv1alpha1.AgentExecutionKubernetes, agentzv1alpha1.AgentExecutionNative} {
+	executions := []agentzv1alpha1.AgentExecution{
+		agentzv1alpha1.AgentExecutionKubernetes,
+		agentzv1alpha1.AgentExecutionNative,
+	}
+	for _, execution := range executions {
 		t.Run(string(execution), func(t *testing.T) {
 			const (
 				namespace   = "workspace"
@@ -180,7 +184,9 @@ func TestReconcileMCPAgentRouteIdentity(t *testing.T) {
 			}
 			if execution == agentzv1alpha1.AgentExecutionNative {
 				labels := policy.Spec.Ingress[0].FromEndpoints[0].MatchLabels
-				if labels["k8s:io.kubernetes.pod.namespace"] != "relay-namespace" || labels["k8s:io.cilium.k8s.policy.serviceaccount"] != "relay" || len(labels) != 2 {
+				namespaceMatches := labels["k8s:io.kubernetes.pod.namespace"] == "relay-namespace"
+				accountMatches := labels["k8s:io.cilium.k8s.policy.serviceaccount"] == "relay"
+				if !namespaceMatches || !accountMatches || len(labels) != 2 {
 					t.Fatalf("native MCP source must select only the relay identity: %v", labels)
 				}
 			}
@@ -266,8 +272,13 @@ func TestReconcileInferenceGatewayExtAuthEgress(t *testing.T) {
 	t.Parallel()
 
 	tests := []inferenceExtAuthCase{
-		{name: "native subscription provider", execution: agentzv1alpha1.AgentExecutionNative,
-			provider: agentzv1alpha1.InferenceProviderSpec{Kind: agentzv1alpha1.InferenceProviderKindOpenAICodex}, wantExtAuth: true},
+		{
+			name: "native subscription provider", execution: agentzv1alpha1.AgentExecutionNative,
+			provider: agentzv1alpha1.InferenceProviderSpec{
+				Kind: agentzv1alpha1.InferenceProviderKindOpenAICodex,
+			},
+			wantExtAuth: true,
+		},
 		{
 			name: "subscription provider",
 			provider: agentzv1alpha1.InferenceProviderSpec{
@@ -315,7 +326,15 @@ func TestReconcileInferenceGatewayExtAuthEgress(t *testing.T) {
 			}
 
 			objects := []client.Object{
-				&agentzv1alpha1.Agent{ObjectMeta: metav1.ObjectMeta{Name: "agent", Namespace: workspaceNamespace}, Spec: agentzv1alpha1.AgentSpec{Execution: tt.execution, SandboxRef: agentzv1alpha1.ResourceReference{Name: "debug", Scope: agentzv1alpha1.ResourceScopeWorkspace}}},
+				&agentzv1alpha1.Agent{
+					ObjectMeta: metav1.ObjectMeta{Name: "agent", Namespace: workspaceNamespace},
+					Spec: agentzv1alpha1.AgentSpec{
+						Execution: tt.execution,
+						SandboxRef: agentzv1alpha1.ResourceReference{
+							Name: "debug", Scope: agentzv1alpha1.ResourceScopeWorkspace,
+						},
+					},
+				},
 				&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
 					Name: workspaceNamespace,
 					Labels: map[string]string{
@@ -392,7 +411,9 @@ func TestReconcileInferenceGatewayExtAuthEgress(t *testing.T) {
 			}
 			if tt.execution == agentzv1alpha1.AgentExecutionNative {
 				source := policy.Spec.Ingress[0].FromEndpoints[0].MatchLabels
-				if source["k8s:io.kubernetes.pod.namespace"] != "relay-namespace" || source["k8s:io.cilium.k8s.policy.serviceaccount"] != "relay" || len(source) != 2 {
+				namespaceMatches := source["k8s:io.kubernetes.pod.namespace"] == "relay-namespace"
+				accountMatches := source["k8s:io.cilium.k8s.policy.serviceaccount"] == "relay"
+				if !namespaceMatches || !accountMatches || len(source) != 2 {
 					t.Fatalf("incorrect native inference source: %v", source)
 				}
 				path := policy.Spec.Ingress[0].ToPorts[0].Rules.HTTP[0].Path

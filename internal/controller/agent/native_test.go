@@ -39,7 +39,10 @@ func TestNativeReconcileDoesNotAllocateKubernetesRuntime(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "native", Namespace: "workspace", UID: "agent-uid"},
 		Spec: agentzv1alpha1.AgentSpec{
 			Execution: agentzv1alpha1.AgentExecutionNative, SecretProxy: &disabled,
-			SandboxRef: agentzv1alpha1.ResourceReference{Scope: agentzv1alpha1.ResourceScopeWorkspace, Name: "sandbox"},
+			SandboxRef: agentzv1alpha1.ResourceReference{
+				Scope: agentzv1alpha1.ResourceScopeWorkspace,
+				Name:  "sandbox",
+			},
 		},
 	}
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
@@ -48,9 +51,16 @@ func TestNativeReconcileDoesNotAllocateKubernetesRuntime(t *testing.T) {
 	}}
 	workspace := &agentzv1alpha1.Workspace{ObjectMeta: metav1.ObjectMeta{Name: "workspace"}}
 	sandbox := &agentzv1alpha1.Sandbox{ObjectMeta: metav1.ObjectMeta{Name: "sandbox", Namespace: "workspace"}}
-	c := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(agt).WithObjects(agt, ns, workspace, sandbox).Build()
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithStatusSubresource(agt).
+		WithObjects(agt, ns, workspace, sandbox).
+		Build()
 	r := &Reconciler{Client: c, Scheme: scheme}
-	_, err := r.Reconcile(t.Context(), ctrl.Request{NamespacedName: types.NamespacedName{Name: agt.Name, Namespace: agt.Namespace}})
+	request := ctrl.Request{NamespacedName: types.NamespacedName{
+		Name: agt.Name, Namespace: agt.Namespace,
+	}}
+	_, err := r.Reconcile(t.Context(), request)
 	if err != nil {
 		t.Fatalf("native reconcile required managed image, package job or OpenBao: %v", err)
 	}
@@ -84,7 +94,9 @@ func TestNativeReconcileDoesNotAllocateKubernetesRuntime(t *testing.T) {
 	if spec.SecretProxy || spec.Env["HTTPS_PROXY"] != "" || spec.Env["NODE_EXTRA_CA_CERTS"] != "" {
 		t.Fatalf("disabled proxy still injected: %#v", spec.Env)
 	}
-	if strings.Contains(string(spec.OpenCodeConfig), "/etc/agentz") || !strings.Contains(string(spec.OpenCodeConfig), "/runtime/config/philosophy.md") {
+	usesHostConfig := strings.Contains(string(spec.OpenCodeConfig), "/etc/agentz")
+	usesRuntimeConfig := strings.Contains(string(spec.OpenCodeConfig), "/runtime/config/philosophy.md")
+	if usesHostConfig || !usesRuntimeConfig {
 		t.Fatalf("native renderer did not use runtime directory: %s", spec.OpenCodeConfig)
 	}
 	if spec.Env["AGENTZ_GATEWAY_URL"] != endpoints.Platform || spec.Env["AGENTZ_GATEWAY_TOKEN_PATH"] != endpoints.GatewayTokenPath {
@@ -93,22 +105,40 @@ func TestNativeReconcileDoesNotAllocateKubernetesRuntime(t *testing.T) {
 }
 
 func TestSecretProxyNetworkSource(t *testing.T) {
-	for _, execution := range []agentzv1alpha1.AgentExecution{agentzv1alpha1.AgentExecutionKubernetes, agentzv1alpha1.AgentExecutionNative} {
+	executions := []agentzv1alpha1.AgentExecution{
+		agentzv1alpha1.AgentExecutionKubernetes,
+		agentzv1alpha1.AgentExecutionNative,
+	}
+	for _, execution := range executions {
 		t.Run(string(execution), func(t *testing.T) {
 			scheme := runtime.NewScheme()
-			for _, add := range []func(*runtime.Scheme) error{ciliumv2.AddToScheme, agentzv1alpha1.AddToScheme} {
+			adders := []func(*runtime.Scheme) error{
+				ciliumv2.AddToScheme,
+				agentzv1alpha1.AddToScheme,
+			}
+			for _, add := range adders {
 				if err := add(scheme); err != nil {
 					t.Fatal(err)
 				}
 			}
-			agt := &agentzv1alpha1.Agent{ObjectMeta: metav1.ObjectMeta{Name: "agent", Namespace: "workspace", UID: "uid"}, Spec: agentzv1alpha1.AgentSpec{Execution: execution}}
+			agt := &agentzv1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{Name: "agent", Namespace: "workspace", UID: "uid"},
+				Spec:       agentzv1alpha1.AgentSpec{Execution: execution},
+			}
 			c := fake.NewClientBuilder().WithScheme(scheme).Build()
-			r := &Reconciler{Client: c, Scheme: scheme, Config: RuntimeConfig{RelayServiceAccountName: "relay", RelayServiceAccountNamespace: "relay-namespace"}}
+			r := &Reconciler{
+				Client: c, Scheme: scheme,
+				Config: RuntimeConfig{
+					RelayServiceAccountName:      "relay",
+					RelayServiceAccountNamespace: "relay-namespace",
+				},
+			}
 			if err := r.reconcileSinjectorPolicy(t.Context(), agt, nil); err != nil {
 				t.Fatal(err)
 			}
 			var policy ciliumv2.CiliumNetworkPolicy
-			if err := c.Get(t.Context(), client.ObjectKey{Name: sinjectorName(agt), Namespace: agt.Namespace}, &policy); err != nil {
+			key := client.ObjectKey{Name: sinjectorName(agt), Namespace: agt.Namespace}
+			if err := c.Get(t.Context(), key, &policy); err != nil {
 				t.Fatal(err)
 			}
 			labels := policy.Spec.Ingress[0].FromEndpoints[0].MatchLabels
@@ -119,7 +149,9 @@ func TestSecretProxyNetworkSource(t *testing.T) {
 					t.Fatalf("unexpected native source labels: %v", labels)
 				}
 			}
-			if labels["k8s:io.kubernetes.pod.namespace"] != wantNamespace || labels["k8s:io.cilium.k8s.policy.serviceaccount"] != wantAccount {
+			namespaceMatches := labels["k8s:io.kubernetes.pod.namespace"] == wantNamespace
+			accountMatches := labels["k8s:io.cilium.k8s.policy.serviceaccount"] == wantAccount
+			if !namespaceMatches || !accountMatches {
 				t.Fatalf("wrong caller identity: %v", labels)
 			}
 			if execution == agentzv1alpha1.AgentExecutionNative {

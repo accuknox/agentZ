@@ -34,7 +34,8 @@ func (f *controlFixture) Dial(stream grpc.BidiStreamingServer[pb.RelayFrame, pb.
 	if err != nil {
 		return err
 	}
-	if frame.Target == nil || frame.Target.SessionId != f.session.Load().SessionId || frame.Target.Service != pb.Service_SERVICE_OPENCODE {
+	invalidTarget := frame.Target == nil || frame.Target.SessionId != f.session.Load().SessionId
+	if invalidTarget || frame.Target.Service != pb.Service_SERVICE_OPENCODE {
 		return status.Error(codes.Aborted, "session changed")
 	}
 	f.opened.Add(1)
@@ -96,7 +97,8 @@ func TestRelayClientSessionFenceAndCancellation(t *testing.T) {
 		t.Fatal("net.Conn read deadline was ignored")
 	}
 	fixture.session.Store(&pb.SessionResponse{SessionId: "second", Ready: true})
-	if _, err := client.DialConnection(ctx, "tenant", "agent", "opencode", id); status.Code(err) != codes.Aborted {
+	_, err = client.DialConnection(ctx, "tenant", "agent", "opencode", id)
+	if status.Code(err) != codes.Aborted {
 		t.Fatalf("old admission was not fenced: %v", err)
 	}
 	if fixture.opened.Load() != 1 {
@@ -149,7 +151,8 @@ func TestRelayValidationFailureDoesNotObserveDisconnect(t *testing.T) {
 	if status.Code(err) != codes.AlreadyExists {
 		t.Fatalf("validation rejection lost: %v", err)
 	}
-	if id, _ := relay.Connection(Binding{Namespace: "tenant", Agent: "agent"}); id != "" || observations.Load() != 0 {
+	id, _ := relay.Connection(Binding{Namespace: "tenant", Agent: "agent"})
+	if id != "" || observations.Load() != 0 {
 		t.Fatal("failed validation published state")
 	}
 	if _, err := NewRelayClient("relay", &tls.Config{InsecureSkipVerify: true}); err == nil {
@@ -277,7 +280,8 @@ func TestRelayReconnectWaitsForDisconnectObservation(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("disconnect did not reach observation")
 	}
-	if _, err := relay.DialConnection(ctx, "tenant", "agent", "opencode", ""); status.Code(err) != codes.Unavailable {
+	_, err = relay.DialConnection(ctx, "tenant", "agent", "opencode", "")
+	if status.Code(err) != codes.Unavailable {
 		t.Fatalf("disconnect retained admission during final observation: %v", err)
 	}
 	binding.Store(&Binding{Namespace: "tenant", Agent: "agent", Epoch: "replacement"})

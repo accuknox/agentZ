@@ -66,7 +66,9 @@ func NewIdentityAdmin(socketPath, trustDomain string) (*IdentityAdmin, error) {
 // NewRemoteIdentityAdmin requires caller-provided mutually authenticated TLS.
 // Use go-spiffe's dynamically rotating client configuration and pin the server ID.
 func NewRemoteIdentityAdmin(target, trustDomain string, config *tls.Config) (*IdentityAdmin, error) {
-	if config == nil || config.InsecureSkipVerify && config.VerifyPeerCertificate == nil && config.VerifyConnection == nil {
+	verificationDisabled := config != nil && config.InsecureSkipVerify &&
+		config.VerifyPeerCertificate == nil && config.VerifyConnection == nil
+	if config == nil || verificationDisabled {
 		return nil, errors.New("SPIRE remote administration requires verified TLS")
 	}
 	if len(config.Certificates) == 0 && config.GetClientCertificate == nil {
@@ -118,15 +120,19 @@ func (a *IdentityAdmin) Enroll(ctx context.Context, identity string) (*hostv1.En
 	if err != nil {
 		return nil, fmt.Errorf("create SPIRE join token: %w", err)
 	}
-	node := &types.SPIFFEID{TrustDomain: a.domain.String(), Path: "/spire/agent/join_token/" + token.Value}
+	node := &types.SPIFFEID{
+		TrustDomain: a.domain.String(),
+		Path:        "/spire/agent/join_token/" + token.Value,
+	}
 	workload := &types.SPIFFEID{TrustDomain: a.domain.String(), Path: "/agentz/daemon/" + identity}
-	result, err := a.entries.BatchCreateEntry(ctx, &entryv1.BatchCreateEntryRequest{Entries: []*types.Entry{{
+	request := &entryv1.BatchCreateEntryRequest{Entries: []*types.Entry{{
 		SpiffeId: workload, ParentId: node, X509SvidTtl: 3600,
 		Selectors: []*types.Selector{
 			{Type: "unix", Value: "uid:0"},
 			{Type: "unix", Value: "path:" + DaemonExecutable},
 		},
-	}}})
+	}}}
+	result, err := a.entries.BatchCreateEntry(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("register daemon workload: %w", err)
 	}
@@ -167,7 +173,8 @@ func (a *IdentityAdmin) Bundle(ctx context.Context) ([]byte, error) {
 		if activeRoot && cert.NotAfter.After(time.Now().Add(365*24*time.Hour)) {
 			longLived = true
 		}
-		result = append(result, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: authority.Asn1})...)
+		block := &pem.Block{Type: "CERTIFICATE", Bytes: authority.Asn1}
+		result = append(result, pem.EncodeToMemory(block)...)
 	}
 	if !longLived {
 		return nil, errors.New("SPIRE upstream root has less than one year validity; rotate with offline trust overlap")
@@ -178,10 +185,14 @@ func (a *IdentityAdmin) Bundle(ctx context.Context) ([]byte, error) {
 // Validate checks actual attested validity before promising another offline window.
 func (a *IdentityAdmin) Validate(ctx context.Context, nodeID string) (time.Time, error) {
 	id, err := spiffeid.FromString(nodeID)
-	if err != nil || !id.MemberOf(a.domain) || !strings.HasPrefix(id.Path(), "/spire/agent/join_token/") {
+	validNode := err == nil && id.MemberOf(a.domain) && strings.HasPrefix(id.Path(), "/spire/agent/join_token/")
+	if !validNode {
 		return time.Time{}, errors.New("invalid SPIRE host node identity")
 	}
-	agent, err := a.agents.GetAgent(ctx, &agentv1.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: a.domain.String(), Path: id.Path()}})
+	request := &agentv1.GetAgentRequest{Id: &types.SPIFFEID{
+		TrustDomain: a.domain.String(), Path: id.Path(),
+	}}
+	agent, err := a.agents.GetAgent(ctx, request)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("get SPIRE node: %w", err)
 	}
@@ -199,14 +210,19 @@ func (a *IdentityAdmin) Validate(ctx context.Context, nodeID string) (time.Time,
 // authorization must separately close sessions using already-issued workload SVIDs.
 func (a *IdentityAdmin) Revoke(ctx context.Context, nodeID, workloadID string) error {
 	node, err := spiffeid.FromString(nodeID)
-	if err != nil || !node.MemberOf(a.domain) || !strings.HasPrefix(node.Path(), "/spire/agent/join_token/") {
+	validNode := err == nil && node.MemberOf(a.domain) && strings.HasPrefix(node.Path(), "/spire/agent/join_token/")
+	if !validNode {
 		return errors.New("invalid host node identity")
 	}
 	workload, err := spiffeid.FromString(workloadID)
-	if err != nil || !workload.MemberOf(a.domain) || !strings.HasPrefix(workload.Path(), "/agentz/daemon/") {
+	validWorkload := err == nil && workload.MemberOf(a.domain) && strings.HasPrefix(workload.Path(), "/agentz/daemon/")
+	if !validWorkload {
 		return errors.New("invalid daemon workload identity")
 	}
-	_, banErr := a.agents.BanAgent(ctx, &agentv1.BanAgentRequest{Id: &types.SPIFFEID{TrustDomain: a.domain.String(), Path: node.Path()}})
+	banRequest := &agentv1.BanAgentRequest{Id: &types.SPIFFEID{
+		TrustDomain: a.domain.String(), Path: node.Path(),
+	}}
+	_, banErr := a.agents.BanAgent(ctx, banRequest)
 	if status.Code(banErr) == codes.NotFound {
 		banErr = nil
 	}
@@ -268,7 +284,8 @@ func (a *IdentityAdmin) rotateAuthority(ctx context.Context) error {
 	}
 	prepared := state.Prepared
 	if prepared == nil || time.Unix(prepared.ExpiresAt, 0).Before(time.Now().Add(300*24*time.Hour)) {
-		response, err := a.authorities.PrepareX509Authority(ctx, &authorityv1.PrepareX509AuthorityRequest{})
+		request := &authorityv1.PrepareX509AuthorityRequest{}
+		response, err := a.authorities.PrepareX509Authority(ctx, request)
 		if err != nil {
 			return fmt.Errorf("prepare SPIRE authority: %w", err)
 		}
@@ -277,7 +294,8 @@ func (a *IdentityAdmin) rotateAuthority(ctx context.Context) error {
 	if prepared == nil || time.Unix(prepared.ExpiresAt, 0).Before(time.Now().Add(300*24*time.Hour)) {
 		return errors.New("upstream CA cannot issue a sufficiently long signing authority")
 	}
-	_, err = a.authorities.ActivateX509Authority(ctx, &authorityv1.ActivateX509AuthorityRequest{AuthorityId: prepared.AuthorityId})
+	request := &authorityv1.ActivateX509AuthorityRequest{AuthorityId: prepared.AuthorityId}
+	_, err = a.authorities.ActivateX509Authority(ctx, request)
 	if err != nil {
 		return fmt.Errorf("activate SPIRE authority: %w", err)
 	}
@@ -345,11 +363,13 @@ func (a *IdentityAdmin) refreshServerIdentity(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{URIs: []*url.URL{id.URL()}}, key)
+	csrTemplate := &x509.CertificateRequest{URIs: []*url.URL{id.URL()}}
+	csr, err := x509.CreateCertificateRequest(rand.Reader, csrTemplate, key)
 	if err != nil {
 		return fmt.Errorf("create relay CSR: %w", err)
 	}
-	response, err := svidv1.NewSVIDClient(a.conn).MintX509SVID(ctx, &svidv1.MintX509SVIDRequest{Csr: csr, Ttl: 3600})
+	request := &svidv1.MintX509SVIDRequest{Csr: csr, Ttl: 3600}
+	response, err := svidv1.NewSVIDClient(a.conn).MintX509SVID(ctx, request)
 	if err != nil {
 		return fmt.Errorf("mint relay SVID: %w", err)
 	}

@@ -9,7 +9,9 @@ import { Badge } from "@/components/ui/badge"
 import { UserIdentity } from "@/components/ui/avatar"
 import { TokenTablePagination } from "@/components/table-pagination"
 import { EmptyValue, RelativeDateTime } from "@/components/ui/table"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { ActiveMember, InvitationRow, MemberDirectory, MemberTab } from "@/data/members"
+import { formatAge } from "@/lib/format"
 import { DisabledUserActions, InvitationActions, UserTableActions } from "./member-actions"
 
 const memberLayout = {
@@ -188,12 +190,19 @@ function InvitationTable({ data, orgSlug }: { data: MemberDirectory; orgSlug: st
       {
         accessorKey: "expiresAt",
         header: "Expiry",
-        cell: ({ row }) => (
-          <>
+        cell: ({ row }) =>
+          row.original.expired ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge className="cursor-default" tabIndex={0} variant="destructivePlain">
+                  Expired
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent>{formatAge(row.original.expiresAt)}</TooltipContent>
+            </Tooltip>
+          ) : (
             <RelativeDateTime value={row.original.expiresAt} />
-            {row.original.expired ? <Badge variant="destructivePlain">Expired</Badge> : null}
-          </>
-        ),
+          ),
       },
       {
         id: "actions",

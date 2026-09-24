@@ -271,8 +271,8 @@ function buildAuth() {
       },
     },
     session: {
-      expiresIn: 60 * 60,
-      updateAge: 15 * 60,
+      expiresIn: 7 * 24 * 60 * 60,
+      updateAge: 24 * 60 * 60,
     },
     account: {
       encryptOAuthTokens: true,

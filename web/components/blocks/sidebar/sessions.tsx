@@ -390,7 +390,7 @@ function NavSessionsContent({
   const [search, setSearch] = useState("")
   const [timeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone)
   const [dateBoundary, setDateBoundary] = useState(0)
-  const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set())
+  const [groupExpansion, setGroupExpansion] = useState<Map<string, boolean>>(() => new Map())
   const expansionKey = `coding-projects:${draftScope}`
   const savedExpansion = useSyncExternalStore(
     (listener) => {
@@ -1013,10 +1013,9 @@ function NavSessionsContent({
                     }
                     return
                   }
-                  setOpenGroups((current) => {
-                    const next = new Set(current)
-                    if (open) next.add(group.key)
-                    else next.delete(group.key)
+                  setGroupExpansion((current) => {
+                    const next = new Map(current)
+                    next.set(`${group.group_by}:${group.key}`, open)
                     return next
                   })
                 }}
@@ -1024,7 +1023,8 @@ function NavSessionsContent({
                   group.project
                     ? (projectExpansion[group.project.id] ??
                       (group.contains_active || query.get("project") === group.project.id))
-                    : openGroups.has(group.key) || group.contains_active
+                    : (groupExpansion.get(`${group.group_by}:${group.key}`) ??
+                      group.contains_active)
                 }
                 path={path}
                 preferences={preferences}

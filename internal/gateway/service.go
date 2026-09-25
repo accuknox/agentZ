@@ -117,6 +117,7 @@ type Service struct {
 	agentz             agentzclient.Interface
 	externalJWTKeyfunc jwt.Keyfunc
 	skillStore         *skill.Client
+	APIKeyPepper       string
 	skillImports       chan struct{}
 	chatSessionEvents  chatSessionEvents
 	chatInputWake      chan struct{}
@@ -210,6 +211,9 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 	if cfg.MCPProbeStaleAfter <= 0 {
 		return fmt.Errorf("mcp probe stale after is required")
+	}
+	if strings.TrimSpace(cfg.APIKeyPepper) == "" {
+		return fmt.Errorf("api key pepper is required (set AGENTZ_API_KEY_PEPPER, shared with the web app)")
 	}
 	allowedWebOrigins, err := validateWebOrigins(cfg.AllowedWebOrigins)
 	if err != nil {

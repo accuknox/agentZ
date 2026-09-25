@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
@@ -135,17 +136,45 @@ func (s *Service) resolveWebhookAPIKeyAuth(r *http.Request) (requestAuth, error)
 }
 
 func (s *Service) getAPIKeyByHash(ctx context.Context, rawKey string, configID string) (gatewaydb.GatewayGetAPIKeyByHashRow, error) {
+nowAt := pgtype.Timestamp{Time: time.Now().UTC(), Valid: true}
+
+lookup := func(ctx context.Context, hash string) (gatewaydb.GatewayGetAPIKeyByHashRow, error) {
 	return s.queries.GatewayGetAPIKeyByHash(
 		ctx,
 		gatewaydb.GatewayGetAPIKeyByHashParams{
-			Key:      hashAPIKey(rawKey),
+			Key:      hash,
 			ConfigID: configID,
-			NowAt: pgtype.Timestamp{
-				Time:  time.Now().UTC(),
-				Valid: true,
-			},
+			NowAt:    nowAT,
 		},
 	)
+}
+rehash := func(ctx context.Context, id, hash string) error {
+	return s.queries.GatewayRehashAPIKey(
+		ctx,
+		gatewaydb.GatewayRehashAPIKeyParams{ID: id, Key: hash},
+	)
+}
+return lookupAPIKeyWithRehash(ctx, rawKey, s.cfg.APIKeyPepper, lookup, rehash)
+}
+	
+// lookupAPIKeyWithRehash resolves an API key for a raw secret while migrating
+// stored hashes from the legacy unsalted SHA-256 scheme to HMAC-SHA256 keyed
+// with a server-side pepper.
+
+func lookupAPIKeyWithRehash(
+	ctx context.Context,
+	rawkey, pepper string,
+	lookup func(ctx context.Context, hash string) (gatewaydb.GatewayGetAPIKeyByHashRow, error),
+	rehash func(ctx context.Context, id, hash string) error,
+) (gatewaydb.GatewayGetAPIKeyByHashRow, error) {
+	key, err := lookup(ctx, hashAPIKey(rawKey, pepper))
+	if err == nil {
+		return key, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return gatewaydb.GatewayGetAPIKeyByHashRow{}, fmt.Errorf("lookup api key by hmac hash: %w", err)
+	}
+	return key, nil
 }
 
 type apiKeyScope struct {
@@ -338,7 +367,13 @@ func invalidAPIKeyAuthError(err error) *apiutil.APIError {
 	)
 }
 
-func hashAPIKey(key string) string {
+func hashAPIKey(key, pepper string) string {
+	mac := hmac.New(sha256.New, []byte(pepper))
+	mac.Write([]byte(key))
+	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+}
+
+func hashAPIKeyLegacy(key string) string {
 	sum := sha256.Sum256([]byte(key))
 	return base64.RawURLEncoding.EncodeToString(sum[:])
 }

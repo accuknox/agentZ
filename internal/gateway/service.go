@@ -75,6 +75,7 @@ const cleanupMaxAttempts = 8
 
 // Config describes how to start the gateway.
 type Config struct {
+	EvaluationGraderURL       string
 	CodingGitHubClientID      string
 	CodingGitHubClientSecret  string
 	CodingGitHubEncryptionKey string
@@ -375,6 +376,11 @@ func Serve(ctx context.Context, cfg Config) error {
 		defer close(chatInputsDone)
 		svc.runChatInputs(runCtx)
 	}()
+	evaluationsDone := make(chan struct{})
+	go func() {
+		defer close(evaluationsDone)
+		svc.runEvaluations(runCtx)
+	}()
 	codingDone := make(chan struct{})
 	go func() {
 		defer close(codingDone)
@@ -446,6 +452,7 @@ func Serve(ctx context.Context, cfg Config) error {
 	<-dashboardRetentionDone
 	<-chatSessionNotificationsDone
 	<-chatInputsDone
+	<-evaluationsDone
 	<-codingDone
 	<-codingEventsDone
 	<-cleanupDone

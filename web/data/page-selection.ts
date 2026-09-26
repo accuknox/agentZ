@@ -185,7 +185,13 @@ export async function resolvePageSelection(
     return state
   }
 
-  if (page !== "workflows/graphs" && page !== "workflows/triggers/runs/graph") return state
+  if (
+    page !== "workflows/graphs" &&
+    page !== "workflows/evaluations" &&
+    page !== "workflows/runs" &&
+    page !== "workflows/triggers/runs/graph"
+  )
+    return state
   const workflows = await listWorkflowSummariesCachedQuery(agent.name, workspaceId)
   if (workflows.error) return { ...state, error: workflows.error }
   state.workflows = workflows.summaries

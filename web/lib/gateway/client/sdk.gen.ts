@@ -46,6 +46,9 @@ import type {
   CreateSkillResponses,
   CreateWorkflowData,
   CreateWorkflowErrors,
+  CreateWorkflowEvaluationData,
+  CreateWorkflowEvaluationErrors,
+  CreateWorkflowEvaluationResponses,
   CreateWorkflowResponses,
   CreateWorkflowRunData,
   CreateWorkflowRunErrors,
@@ -163,6 +166,9 @@ import type {
   GetTenantResponses,
   GetWorkflowData,
   GetWorkflowErrors,
+  GetWorkflowEvaluationData,
+  GetWorkflowEvaluationErrors,
+  GetWorkflowEvaluationResponses,
   GetWorkflowResponses,
   GetWorkflowRunData,
   GetWorkflowRunErrors,
@@ -278,6 +284,9 @@ import type {
   ListTraceSessionsData,
   ListTraceSessionsErrors,
   ListTraceSessionsResponses,
+  ListWorkflowEvaluationsData,
+  ListWorkflowEvaluationsErrors,
+  ListWorkflowEvaluationsResponses,
   ListWorkflowRunsData,
   ListWorkflowRunsErrors,
   ListWorkflowRunsResponses,
@@ -392,6 +401,9 @@ import type {
   UpdateSkillData,
   UpdateSkillErrors,
   UpdateSkillResponses,
+  UpdateWorkflowEvaluationData,
+  UpdateWorkflowEvaluationErrors,
+  UpdateWorkflowEvaluationResponses,
   UpdateWorkflowScheduleData,
   UpdateWorkflowScheduleErrors,
   UpdateWorkflowScheduleResponses,
@@ -458,6 +470,66 @@ export type Options<
    */
   meta?: Record<string, unknown>
 }
+
+export const listWorkflowEvaluations = <ThrowOnError extends boolean = false>(
+  options: Options<ListWorkflowEvaluationsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListWorkflowEvaluationsResponses,
+    ListWorkflowEvaluationsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workflow/{agentName}/{workflowName}/evaluation",
+    ...options,
+  })
+
+export const createWorkflowEvaluation = <ThrowOnError extends boolean = false>(
+  options: Options<CreateWorkflowEvaluationData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    CreateWorkflowEvaluationResponses,
+    CreateWorkflowEvaluationErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workflow/{agentName}/{workflowName}/evaluation",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+export const getWorkflowEvaluation = <ThrowOnError extends boolean = false>(
+  options: Options<GetWorkflowEvaluationData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    GetWorkflowEvaluationResponses,
+    GetWorkflowEvaluationErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workflow/{agentName}/{workflowName}/evaluation/{evaluationId}",
+    ...options,
+  })
+
+export const updateWorkflowEvaluation = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateWorkflowEvaluationData, ThrowOnError>
+) =>
+  (options.client ?? client).patch<
+    UpdateWorkflowEvaluationResponses,
+    UpdateWorkflowEvaluationErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workflow/{agentName}/{workflowName}/evaluation/{evaluationId}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
 
 export const listCodingProjects = <ThrowOnError extends boolean = false>(
   options?: Options<ListCodingProjectsData, ThrowOnError>

@@ -65,6 +65,10 @@ sql:
       emit_interface: true
       emit_empty_slices: true
       overrides:
+      - db_type: uuid
+        go_type:
+          import: github.com/google/uuid
+          type: UUID
       - db_type: timestamptz
         go_type:
           import: time

@@ -38,6 +38,8 @@ generate:
 	oapi-codegen \
 		--include-tags coding,agents,tenants,workspaces,event-trail,lens,secrets,sandboxes,inference,skills,mcp-connections,workflows,workflow-schedules,workflow-runs,workflow-webhooks,chat-sessions,session,sessions,event,global,project,permission,question,pty,dashboards \
 		-config oapi-codegen.gateway.yaml openapi/gateway.yaml
+	oapi-codegen -config oapi-codegen.evaluator.yaml openapi/evaluator.yaml
+	cd evaluator && bun run generate
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./pkg/apis/..."
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd:allowDangerousTypes=false webhook \
 		paths="./pkg/apis/...;./internal/controller/...;./internal/webhook/..." \

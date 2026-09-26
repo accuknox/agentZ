@@ -21,3 +21,9 @@
 
 # Re-include nix init script used by Dockerfile.nix-init
 !hack/nix-init.sh
+
+# Internal grading sidecar
+!evaluator/package.json
+!evaluator/bun.lock
+!evaluator/server.ts
+!evaluator/client/*.ts

@@ -4,6 +4,131 @@ export type ClientOptions = {
   baseUrl: `${string}://${string}` | (string & {})
 }
 
+export type WorkflowEvaluationSummary = {
+  id: string
+  name: string
+  state: WorkflowEvaluationState
+  model_count: number
+  case_count: number
+  repetitions: number
+  attempt_count: number
+  completed_count: number
+  created_at: string
+  updated_at: string
+}
+
+export type WorkflowEvaluationState =
+  | "draft"
+  | "queued"
+  | "running"
+  | "completed"
+  | "cancelled"
+  | "error"
+  | "archived"
+
+export type EvaluationGradeResult = {
+  checks: Array<EvaluationCheck>
+  quality: number
+  tokens: number
+  cost: number
+}
+
+export type EvaluationCase = {
+  id: string
+  name: string
+  inputs: JsonValue
+  expected: string
+}
+
+export type EvaluationCandidate = {
+  id: string
+  label: string
+  provider_id: string
+  model_id: string
+  variant?: string
+}
+
+export type EvaluationPolicy = {
+  version: "reference-v1"
+  rubric: string
+  minimum_quality: number
+  token_reference: number
+  tool_reference: number
+  duration_reference: number
+  efficiency_weight: number
+  judge?: EvaluationCandidate
+}
+
+export type WorkflowEvaluationRequest = {
+  id: string
+  name: string
+  cases: Array<EvaluationCase>
+  candidates: Array<EvaluationCandidate>
+  repetitions: number
+  timeout_seconds: number
+  policy: EvaluationPolicy
+  draft: boolean
+  /**
+   * Acknowledges execution on the existing agent with its live tools.
+   */
+  live_tools: boolean
+}
+
+export type EvaluationCheck = {
+  name: string
+  passed: boolean
+  score: number
+  reason: string
+}
+
+export type EvaluationTool = {
+  id: string
+  session_id?: string
+  name: string
+  state: string
+  input: string
+  output: string
+}
+
+export type EvaluationAttempt = {
+  id: string
+  case_id: string
+  candidate_id: string
+  repetition: number
+  state: "queued" | "running" | "grading" | "completed" | "failed" | "error" | "cancelled"
+  run_name: string
+  session_id?: string
+  output: string
+  checks: Array<EvaluationCheck>
+  tools: Array<EvaluationTool>
+  message: string
+  score?: number
+  quality?: number
+  grading?: EvaluationGradeResult
+  tokens?: number
+  cost?: number
+  duration_seconds?: number
+  task_calls?: number
+  protocol_calls?: number
+  models_used?: Array<string>
+  started_at?: string
+  completed_at?: string
+}
+
+export type WorkflowEvaluation = {
+  id: string
+  agent_name: string
+  workflow_name: string
+  state: WorkflowEvaluationState
+  request: WorkflowEvaluationRequest
+  workflow: Workflow
+  attempts: Array<EvaluationAttempt>
+  created_at: string
+  updated_at: string
+  message: string
+  assessment_revision: number
+}
+
 export type ChatSessionKind = "chat" | "workflow_run"
 
 export type ChatSessionStatus = "idle" | "busy" | "retry"
@@ -2869,6 +2994,142 @@ export type DashboardWidgetNamePath = DashboardWidgetName
  * Stable publish call identifier.
  */
 export type IdempotencyKeyHeader = string
+
+export type ListWorkflowEvaluationsData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    workflowName: WorkflowName
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/evaluation"
+}
+
+export type ListWorkflowEvaluationsErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type ListWorkflowEvaluationsError =
+  ListWorkflowEvaluationsErrors[keyof ListWorkflowEvaluationsErrors]
+
+export type ListWorkflowEvaluationsResponses = {
+  /**
+   * Saved evaluations, newest first.
+   */
+  200: Array<WorkflowEvaluationSummary>
+}
+
+export type ListWorkflowEvaluationsResponse =
+  ListWorkflowEvaluationsResponses[keyof ListWorkflowEvaluationsResponses]
+
+export type CreateWorkflowEvaluationData = {
+  body: WorkflowEvaluationRequest
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    workflowName: WorkflowName
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/evaluation"
+}
+
+export type CreateWorkflowEvaluationErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type CreateWorkflowEvaluationError =
+  CreateWorkflowEvaluationErrors[keyof CreateWorkflowEvaluationErrors]
+
+export type CreateWorkflowEvaluationResponses = {
+  /**
+   * Evaluation saved.
+   */
+  202: WorkflowEvaluation
+}
+
+export type CreateWorkflowEvaluationResponse =
+  CreateWorkflowEvaluationResponses[keyof CreateWorkflowEvaluationResponses]
+
+export type GetWorkflowEvaluationData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    workflowName: WorkflowName
+    evaluationId: string
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/evaluation/{evaluationId}"
+}
+
+export type GetWorkflowEvaluationErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type GetWorkflowEvaluationError =
+  GetWorkflowEvaluationErrors[keyof GetWorkflowEvaluationErrors]
+
+export type GetWorkflowEvaluationResponses = {
+  /**
+   * Evaluation with recorded attempts.
+   */
+  200: WorkflowEvaluation
+}
+
+export type GetWorkflowEvaluationResponse =
+  GetWorkflowEvaluationResponses[keyof GetWorkflowEvaluationResponses]
+
+export type UpdateWorkflowEvaluationData = {
+  body: {
+    action: "launch" | "cancel" | "regrade" | "archive"
+  }
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    workflowName: WorkflowName
+    evaluationId: string
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/evaluation/{evaluationId}"
+}
+
+export type UpdateWorkflowEvaluationErrors = {
+  /**
+   * Request failed.
+   */
+  default: Error
+}
+
+export type UpdateWorkflowEvaluationError =
+  UpdateWorkflowEvaluationErrors[keyof UpdateWorkflowEvaluationErrors]
+
+export type UpdateWorkflowEvaluationResponses = {
+  /**
+   * Updated evaluation.
+   */
+  200: WorkflowEvaluation
+}
+
+export type UpdateWorkflowEvaluationResponse =
+  UpdateWorkflowEvaluationResponses[keyof UpdateWorkflowEvaluationResponses]
 
 export type ListCodingProjectsData = {
   body?: never

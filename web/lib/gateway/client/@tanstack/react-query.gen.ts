@@ -22,6 +22,7 @@ import {
   createSandbox,
   createSkill,
   createWorkflow,
+  createWorkflowEvaluation,
   createWorkflowRun,
   createWorkflowSchedule,
   createWorkspace,
@@ -61,6 +62,7 @@ import {
   getSpanDetail,
   getTenant,
   getWorkflow,
+  getWorkflowEvaluation,
   getWorkflowRun,
   getWorkspace,
   importImmutableSkills,
@@ -99,6 +101,7 @@ import {
   listSkills,
   listSpans,
   listTraceSessions,
+  listWorkflowEvaluations,
   listWorkflowRuns,
   listWorkflowSchedules,
   listWorkflowSummaries,
@@ -138,6 +141,7 @@ import {
   updateInferenceProvider,
   updateSandbox,
   updateSkill,
+  updateWorkflowEvaluation,
   updateWorkflowSchedule,
   updateWorkspaceLifecycle,
   upsertAgentShare,
@@ -183,6 +187,9 @@ import type {
   CreateSkillResponse,
   CreateWorkflowData,
   CreateWorkflowError,
+  CreateWorkflowEvaluationData,
+  CreateWorkflowEvaluationError,
+  CreateWorkflowEvaluationResponse,
   CreateWorkflowResponse,
   CreateWorkflowRunData,
   CreateWorkflowRunError,
@@ -300,6 +307,9 @@ import type {
   GetTenantResponse,
   GetWorkflowData,
   GetWorkflowError,
+  GetWorkflowEvaluationData,
+  GetWorkflowEvaluationError,
+  GetWorkflowEvaluationResponse,
   GetWorkflowResponse,
   GetWorkflowRunData,
   GetWorkflowRunError,
@@ -415,6 +425,9 @@ import type {
   ListTraceSessionsData,
   ListTraceSessionsError,
   ListTraceSessionsResponse2,
+  ListWorkflowEvaluationsData,
+  ListWorkflowEvaluationsError,
+  ListWorkflowEvaluationsResponse,
   ListWorkflowRunsData,
   ListWorkflowRunsError,
   ListWorkflowRunsResponse2,
@@ -529,6 +542,9 @@ import type {
   UpdateSkillData,
   UpdateSkillError,
   UpdateSkillResponse,
+  UpdateWorkflowEvaluationData,
+  UpdateWorkflowEvaluationError,
+  UpdateWorkflowEvaluationResponse,
   UpdateWorkflowScheduleData,
   UpdateWorkflowScheduleError,
   UpdateWorkflowScheduleResponse,
@@ -583,6 +599,98 @@ const createQueryKey = <TOptions extends Options>(
     params.query = options.query
   }
   return [params]
+}
+
+export const listWorkflowEvaluationsQueryKey = (options: Options<ListWorkflowEvaluationsData>) =>
+  createQueryKey("listWorkflowEvaluations", options)
+
+export const listWorkflowEvaluationsOptions = (options: Options<ListWorkflowEvaluationsData>) =>
+  queryOptions<
+    ListWorkflowEvaluationsResponse,
+    ListWorkflowEvaluationsError,
+    ListWorkflowEvaluationsResponse,
+    ReturnType<typeof listWorkflowEvaluationsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listWorkflowEvaluations({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listWorkflowEvaluationsQueryKey(options),
+  })
+
+export const createWorkflowEvaluationMutation = (
+  options?: Partial<Options<CreateWorkflowEvaluationData>>
+): UseMutationOptions<
+  CreateWorkflowEvaluationResponse,
+  CreateWorkflowEvaluationError,
+  Options<CreateWorkflowEvaluationData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    CreateWorkflowEvaluationResponse,
+    CreateWorkflowEvaluationError,
+    Options<CreateWorkflowEvaluationData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createWorkflowEvaluation({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const getWorkflowEvaluationQueryKey = (options: Options<GetWorkflowEvaluationData>) =>
+  createQueryKey("getWorkflowEvaluation", options)
+
+export const getWorkflowEvaluationOptions = (options: Options<GetWorkflowEvaluationData>) =>
+  queryOptions<
+    GetWorkflowEvaluationResponse,
+    GetWorkflowEvaluationError,
+    GetWorkflowEvaluationResponse,
+    ReturnType<typeof getWorkflowEvaluationQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getWorkflowEvaluation({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getWorkflowEvaluationQueryKey(options),
+  })
+
+export const updateWorkflowEvaluationMutation = (
+  options?: Partial<Options<UpdateWorkflowEvaluationData>>
+): UseMutationOptions<
+  UpdateWorkflowEvaluationResponse,
+  UpdateWorkflowEvaluationError,
+  Options<UpdateWorkflowEvaluationData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UpdateWorkflowEvaluationResponse,
+    UpdateWorkflowEvaluationError,
+    Options<UpdateWorkflowEvaluationData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await updateWorkflowEvaluation({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
 }
 
 export const listCodingProjectsQueryKey = (options?: Options<ListCodingProjectsData>) =>

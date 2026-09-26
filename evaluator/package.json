@@ -1,0 +1,21 @@
+{
+  "name": "agentz-evaluator",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run server.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "bun build server.ts --target=node --packages=external --outfile=dist/server.mjs",
+    "generate": "openapi-ts"
+  },
+  "dependencies": {
+    "promptfoo": "0.123.1",
+    "@opencode-ai/sdk": "1.18.16",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "@types/node": "24.10.1",
+    "@hey-api/openapi-ts": "0.97.3"
+  }
+}

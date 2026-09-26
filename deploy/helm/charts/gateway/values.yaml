@@ -23,6 +23,19 @@ image:
   digest: ""
   pullPolicy: IfNotPresent
 
+evaluator:
+  image:
+    repository: public.ecr.aws/k9v9d5v2/agentz/evaluator
+    tag: latest
+    digest: ""
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
 waitImage:
   repository: busybox
   tag: "1.37.0"

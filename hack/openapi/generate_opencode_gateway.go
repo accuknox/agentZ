@@ -76,6 +76,7 @@ var baseOperationCapabilities = map[string][]string{
 		"createAgentDirectory",
 		"createAgentFile",
 		"createWorkflow",
+		"createWorkflowEvaluation", "listWorkflowEvaluations", "getWorkflowEvaluation", "updateWorkflowEvaluation",
 		"createWorkflowRun",
 		"createWorkflowSchedule",
 		"deleteAgent",
@@ -879,6 +880,21 @@ func applyOAPICodegenFixups(doc map[string]any) error {
 			"compaction":  "#/components/schemas/CompactionPart",
 		},
 	}
+	// Message roles and tool states are mutually exclusive wire discriminators.
+	for name, field := range map[string]string{"Message": "role", "ToolState": "status"} {
+		schema := schemas[name].(map[string]any)
+		mapping := make(map[string]any)
+		for _, variant := range schema["anyOf"].([]any) {
+			ref := variant.(map[string]any)["$ref"].(string)
+			variantSchema := schemas[strings.TrimPrefix(ref, "#/components/schemas/")].(map[string]any)
+			properties := variantSchema["properties"].(map[string]any)
+			tag := properties[field].(map[string]any)["enum"].([]any)[0].(string)
+			mapping[tag] = ref
+		}
+		schema["oneOf"] = schema["anyOf"]
+		delete(schema, "anyOf")
+		schema["discriminator"] = map[string]any{"propertyName": field, "mapping": mapping}
+	}
 	// Event variants already carry a unique type. Generate discriminator access
 	// instead of making proxy consumers probe each possible JSON shape.
 	event := schemas["Event"].(map[string]any)
@@ -939,6 +955,13 @@ func applyOAPICodegenFixups(doc map[string]any) error {
 	body["properties"].(map[string]any)["model"] = map[string]any{
 		"$ref": "#/components/schemas/ModelRef",
 	}
+	schemas["PromptModel"] = map[string]any{
+		"type": "object", "required": []any{"providerID", "modelID"},
+		"properties": map[string]any{
+			"providerID": map[string]any{"type": "string"},
+			"modelID":    map[string]any{"type": "string"},
+		},
+	}
 	for _, path := range []string{
 		"/session/{sessionID}/message",
 		"/session/{sessionID}/prompt_async",
@@ -971,6 +994,7 @@ func applyOAPICodegenFixups(doc map[string]any) error {
 		if !ok {
 			return fmt.Errorf("upstream POST %s request has no properties", path)
 		}
+		properties["model"] = map[string]any{"$ref": "#/components/schemas/PromptModel"}
 		parts, ok := properties["parts"].(map[string]any)
 		if !ok {
 			return fmt.Errorf("upstream POST %s request has no parts", path)

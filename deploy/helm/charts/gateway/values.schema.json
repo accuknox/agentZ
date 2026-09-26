@@ -12,6 +12,7 @@
     "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0 },
     "strategy": { "$ref": "#/definitions/strategy" },
     "image": { "$ref": "#/definitions/image" },
+    "evaluator": {"type": "object", "additionalProperties": false, "properties": {"image": {"$ref": "#/definitions/image"}, "resources": {"type": "object"}}, "required": ["image", "resources"]},
     "waitImage": { "$ref": "#/definitions/image" },
     "imagePullSecrets": { "type": "array" },
     "serviceAccount": { "$ref": "#/definitions/serviceAccount" },

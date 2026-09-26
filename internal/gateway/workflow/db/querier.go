@@ -9,6 +9,15 @@ import (
 )
 
 type Querier interface {
+	EvaluationArchiveAssessment(ctx context.Context, arg EvaluationArchiveAssessmentParams) error
+	EvaluationCancel(ctx context.Context, arg EvaluationCancelParams) (WorkflowEvaluation, error)
+	EvaluationClaim(ctx context.Context, leaseToken string) (WorkflowEvaluation, error)
+	EvaluationCreate(ctx context.Context, arg EvaluationCreateParams) (WorkflowEvaluation, error)
+	EvaluationGet(ctx context.Context, arg EvaluationGetParams) (WorkflowEvaluation, error)
+	EvaluationList(ctx context.Context, arg EvaluationListParams) ([]WorkflowEvaluation, error)
+	EvaluationReplaceDraft(ctx context.Context, arg EvaluationReplaceDraftParams) (WorkflowEvaluation, error)
+	EvaluationSave(ctx context.Context, arg EvaluationSaveParams) (int64, error)
+	EvaluationTransition(ctx context.Context, arg EvaluationTransitionParams) (WorkflowEvaluation, error)
 	WorkflowCreate(ctx context.Context, arg WorkflowCreateParams) (Workflow, error)
 	WorkflowCreateEdges(ctx context.Context, arg WorkflowCreateEdgesParams) error
 	WorkflowCreateNodes(ctx context.Context, arg WorkflowCreateNodesParams) error

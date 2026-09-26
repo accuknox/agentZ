@@ -8,7 +8,365 @@ package workflowdb
 import (
 	"context"
 	"time"
+
+	"github.com/google/uuid"
 )
+
+const evaluationArchiveAssessment = `-- name: EvaluationArchiveAssessment :exec
+INSERT INTO workflow_evaluation_assessments (evaluation_id, revision, result) VALUES ($1,$2,$3)
+ON CONFLICT DO NOTHING
+`
+
+type EvaluationArchiveAssessmentParams struct {
+	EvaluationID uuid.UUID `json:"evaluation_id"`
+	Revision     int32     `json:"revision"`
+	Result       []byte    `json:"result"`
+}
+
+func (q *Queries) EvaluationArchiveAssessment(ctx context.Context, arg EvaluationArchiveAssessmentParams) error {
+	_, err := q.db.Exec(ctx, evaluationArchiveAssessment, arg.EvaluationID, arg.Revision, arg.Result)
+	return err
+}
+
+const evaluationCancel = `-- name: EvaluationCancel :one
+UPDATE workflow_evaluations SET cancel_requested=true,
+  result=jsonb_set(result, '{message}', '"Cancellation requested"'), updated_at=now()
+WHERE id=$1 AND tenant_namespace=$2 AND agent_name=$3 AND workflow_name=$4
+  AND state IN ('queued','running') RETURNING id, tenant_namespace, workspace_id, organization_id, owner_id, agent_name, workflow_name, state, request, result, cancel_requested, lease_token, lease_until, created_at, updated_at
+`
+
+type EvaluationCancelParams struct {
+	ID              uuid.UUID `json:"id"`
+	TenantNamespace string    `json:"tenant_namespace"`
+	AgentName       string    `json:"agent_name"`
+	WorkflowName    string    `json:"workflow_name"`
+}
+
+func (q *Queries) EvaluationCancel(ctx context.Context, arg EvaluationCancelParams) (WorkflowEvaluation, error) {
+	row := q.db.QueryRow(ctx, evaluationCancel,
+		arg.ID,
+		arg.TenantNamespace,
+		arg.AgentName,
+		arg.WorkflowName,
+	)
+	var i WorkflowEvaluation
+	err := row.Scan(
+		&i.ID,
+		&i.TenantNamespace,
+		&i.WorkspaceID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.AgentName,
+		&i.WorkflowName,
+		&i.State,
+		&i.Request,
+		&i.Result,
+		&i.CancelRequested,
+		&i.LeaseToken,
+		&i.LeaseUntil,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const evaluationClaim = `-- name: EvaluationClaim :one
+UPDATE workflow_evaluations SET lease_token=$1, lease_until=now()+interval '60 seconds'
+WHERE id=(SELECT id FROM workflow_evaluations WHERE state IN ('queued','running') AND lease_until < now()
+ORDER BY lease_until FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING id, tenant_namespace, workspace_id, organization_id, owner_id, agent_name, workflow_name, state, request, result, cancel_requested, lease_token, lease_until, created_at, updated_at
+`
+
+func (q *Queries) EvaluationClaim(ctx context.Context, leaseToken string) (WorkflowEvaluation, error) {
+	row := q.db.QueryRow(ctx, evaluationClaim, leaseToken)
+	var i WorkflowEvaluation
+	err := row.Scan(
+		&i.ID,
+		&i.TenantNamespace,
+		&i.WorkspaceID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.AgentName,
+		&i.WorkflowName,
+		&i.State,
+		&i.Request,
+		&i.Result,
+		&i.CancelRequested,
+		&i.LeaseToken,
+		&i.LeaseUntil,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const evaluationCreate = `-- name: EvaluationCreate :one
+INSERT INTO workflow_evaluations (id, tenant_namespace, workspace_id, organization_id, owner_id, agent_name, workflow_name, state, request, result)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+ON CONFLICT (id) DO NOTHING RETURNING id, tenant_namespace, workspace_id, organization_id, owner_id, agent_name, workflow_name, state, request, result, cancel_requested, lease_token, lease_until, created_at, updated_at
+`
+
+type EvaluationCreateParams struct {
+	ID              uuid.UUID `json:"id"`
+	TenantNamespace string    `json:"tenant_namespace"`
+	WorkspaceID     string    `json:"workspace_id"`
+	OrganizationID  string    `json:"organization_id"`
+	OwnerID         string    `json:"owner_id"`
+	AgentName       string    `json:"agent_name"`
+	WorkflowName    string    `json:"workflow_name"`
+	State           string    `json:"state"`
+	Request         []byte    `json:"request"`
+	Result          []byte    `json:"result"`
+}
+
+func (q *Queries) EvaluationCreate(ctx context.Context, arg EvaluationCreateParams) (WorkflowEvaluation, error) {
+	row := q.db.QueryRow(ctx, evaluationCreate,
+		arg.ID,
+		arg.TenantNamespace,
+		arg.WorkspaceID,
+		arg.OrganizationID,
+		arg.OwnerID,
+		arg.AgentName,
+		arg.WorkflowName,
+		arg.State,
+		arg.Request,
+		arg.Result,
+	)
+	var i WorkflowEvaluation
+	err := row.Scan(
+		&i.ID,
+		&i.TenantNamespace,
+		&i.WorkspaceID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.AgentName,
+		&i.WorkflowName,
+		&i.State,
+		&i.Request,
+		&i.Result,
+		&i.CancelRequested,
+		&i.LeaseToken,
+		&i.LeaseUntil,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const evaluationGet = `-- name: EvaluationGet :one
+SELECT id, tenant_namespace, workspace_id, organization_id, owner_id, agent_name, workflow_name, state, request, result, cancel_requested, lease_token, lease_until, created_at, updated_at FROM workflow_evaluations WHERE id=$1 AND tenant_namespace=$2 AND agent_name=$3 AND workflow_name=$4
+`
+
+type EvaluationGetParams struct {
+	ID              uuid.UUID `json:"id"`
+	TenantNamespace string    `json:"tenant_namespace"`
+	AgentName       string    `json:"agent_name"`
+	WorkflowName    string    `json:"workflow_name"`
+}
+
+func (q *Queries) EvaluationGet(ctx context.Context, arg EvaluationGetParams) (WorkflowEvaluation, error) {
+	row := q.db.QueryRow(ctx, evaluationGet,
+		arg.ID,
+		arg.TenantNamespace,
+		arg.AgentName,
+		arg.WorkflowName,
+	)
+	var i WorkflowEvaluation
+	err := row.Scan(
+		&i.ID,
+		&i.TenantNamespace,
+		&i.WorkspaceID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.AgentName,
+		&i.WorkflowName,
+		&i.State,
+		&i.Request,
+		&i.Result,
+		&i.CancelRequested,
+		&i.LeaseToken,
+		&i.LeaseUntil,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const evaluationList = `-- name: EvaluationList :many
+SELECT id, tenant_namespace, workspace_id, organization_id, owner_id, agent_name, workflow_name, state, request, result, cancel_requested, lease_token, lease_until, created_at, updated_at FROM workflow_evaluations WHERE tenant_namespace=$1 AND agent_name=$2 AND workflow_name=$3 AND state <> 'archived'
+ORDER BY created_at DESC LIMIT 100
+`
+
+type EvaluationListParams struct {
+	TenantNamespace string `json:"tenant_namespace"`
+	AgentName       string `json:"agent_name"`
+	WorkflowName    string `json:"workflow_name"`
+}
+
+func (q *Queries) EvaluationList(ctx context.Context, arg EvaluationListParams) ([]WorkflowEvaluation, error) {
+	rows, err := q.db.Query(ctx, evaluationList, arg.TenantNamespace, arg.AgentName, arg.WorkflowName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WorkflowEvaluation{}
+	for rows.Next() {
+		var i WorkflowEvaluation
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantNamespace,
+			&i.WorkspaceID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.AgentName,
+			&i.WorkflowName,
+			&i.State,
+			&i.Request,
+			&i.Result,
+			&i.CancelRequested,
+			&i.LeaseToken,
+			&i.LeaseUntil,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const evaluationReplaceDraft = `-- name: EvaluationReplaceDraft :one
+UPDATE workflow_evaluations SET request=$1, result=$2,
+  state=$3, updated_at=now(), lease_until=now()
+WHERE id=$4 AND tenant_namespace=$5
+  AND agent_name=$6 AND workflow_name=$7
+  AND state='draft' AND updated_at=$8 RETURNING id, tenant_namespace, workspace_id, organization_id, owner_id, agent_name, workflow_name, state, request, result, cancel_requested, lease_token, lease_until, created_at, updated_at
+`
+
+type EvaluationReplaceDraftParams struct {
+	Request         []byte    `json:"request"`
+	Result          []byte    `json:"result"`
+	State           string    `json:"state"`
+	ID              uuid.UUID `json:"id"`
+	TenantNamespace string    `json:"tenant_namespace"`
+	AgentName       string    `json:"agent_name"`
+	WorkflowName    string    `json:"workflow_name"`
+	PreviousUpdate  time.Time `json:"previous_update"`
+}
+
+func (q *Queries) EvaluationReplaceDraft(ctx context.Context, arg EvaluationReplaceDraftParams) (WorkflowEvaluation, error) {
+	row := q.db.QueryRow(ctx, evaluationReplaceDraft,
+		arg.Request,
+		arg.Result,
+		arg.State,
+		arg.ID,
+		arg.TenantNamespace,
+		arg.AgentName,
+		arg.WorkflowName,
+		arg.PreviousUpdate,
+	)
+	var i WorkflowEvaluation
+	err := row.Scan(
+		&i.ID,
+		&i.TenantNamespace,
+		&i.WorkspaceID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.AgentName,
+		&i.WorkflowName,
+		&i.State,
+		&i.Request,
+		&i.Result,
+		&i.CancelRequested,
+		&i.LeaseToken,
+		&i.LeaseUntil,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const evaluationSave = `-- name: EvaluationSave :execrows
+UPDATE workflow_evaluations SET
+  result=CASE WHEN cancel_requested AND $1::text <> 'cancelled'
+    THEN jsonb_set(jsonb_set($2::jsonb, '{message}', '"Cancellation requested"'), '{state}', '"queued"')
+    ELSE $2::jsonb END,
+  state=CASE WHEN cancel_requested AND $1::text <> 'cancelled' THEN 'queued' ELSE $1::text END,
+  cancel_requested=cancel_requested AND $1::text <> 'cancelled',
+  updated_at=now(), lease_until=now()+interval '2 seconds', lease_token=''
+WHERE id=$3 AND lease_token=$4
+`
+
+type EvaluationSaveParams struct {
+	State      string    `json:"state"`
+	Result     []byte    `json:"result"`
+	ID         uuid.UUID `json:"id"`
+	LeaseToken string    `json:"lease_token"`
+}
+
+func (q *Queries) EvaluationSave(ctx context.Context, arg EvaluationSaveParams) (int64, error) {
+	result, err := q.db.Exec(ctx, evaluationSave,
+		arg.State,
+		arg.Result,
+		arg.ID,
+		arg.LeaseToken,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const evaluationTransition = `-- name: EvaluationTransition :one
+UPDATE workflow_evaluations SET result=$1, state=$2, updated_at=now(), lease_until=now(), lease_token=''
+WHERE id=$3 AND tenant_namespace=$4
+  AND agent_name=$5 AND workflow_name=$6
+  AND updated_at=$7 AND lease_token='' RETURNING id, tenant_namespace, workspace_id, organization_id, owner_id, agent_name, workflow_name, state, request, result, cancel_requested, lease_token, lease_until, created_at, updated_at
+`
+
+type EvaluationTransitionParams struct {
+	Result          []byte    `json:"result"`
+	State           string    `json:"state"`
+	ID              uuid.UUID `json:"id"`
+	TenantNamespace string    `json:"tenant_namespace"`
+	AgentName       string    `json:"agent_name"`
+	WorkflowName    string    `json:"workflow_name"`
+	PreviousUpdate  time.Time `json:"previous_update"`
+}
+
+func (q *Queries) EvaluationTransition(ctx context.Context, arg EvaluationTransitionParams) (WorkflowEvaluation, error) {
+	row := q.db.QueryRow(ctx, evaluationTransition,
+		arg.Result,
+		arg.State,
+		arg.ID,
+		arg.TenantNamespace,
+		arg.AgentName,
+		arg.WorkflowName,
+		arg.PreviousUpdate,
+	)
+	var i WorkflowEvaluation
+	err := row.Scan(
+		&i.ID,
+		&i.TenantNamespace,
+		&i.WorkspaceID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.AgentName,
+		&i.WorkflowName,
+		&i.State,
+		&i.Request,
+		&i.Result,
+		&i.CancelRequested,
+		&i.LeaseToken,
+		&i.LeaseUntil,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
 
 const workflowCreate = `-- name: WorkflowCreate :one
 INSERT INTO workflows(

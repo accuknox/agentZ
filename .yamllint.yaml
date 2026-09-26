@@ -3,6 +3,7 @@ ignore:
 - .ref/
 - web/
 - opencode/
+- evaluator/node_modules/
 - deploy/helm/
 rules:
   indentation:

@@ -234,6 +234,11 @@ export function WorkspaceNavigation({
                       <SidebarMenuItem data-tour="workflows">
                         <SidebarNavigationLink
                           href={`${root}/workflows/graphs`}
+                          match={
+                            pathname.includes("/workflows/triggers")
+                              ? undefined
+                              : `${root}/workflows`
+                          }
                           label={resourceLabels.workflow.collection}
                         >
                           <Workflow aria-hidden="true" />

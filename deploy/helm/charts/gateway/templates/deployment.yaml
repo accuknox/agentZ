@@ -73,6 +73,28 @@ spec:
           securityContext:
             {{- toYaml .Values.waitContainerSecurityContext | nindent 12 }}
       containers:
+        - name: evaluator
+          image: "{{ .Values.evaluator.image.repository }}{{ if .Values.evaluator.image.digest }}@{{ .Values.evaluator.image.digest }}{{ else }}:{{ .Values.evaluator.image.tag }}{{ end }}"
+          imagePullPolicy: {{ .Values.evaluator.image.pullPolicy }}
+          readinessProbe:
+            exec:
+              command: [bun, -e, 'fetch("http://127.0.0.1:8091/health").then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))']
+            periodSeconds: 10
+            timeoutSeconds: 3
+          resources:
+            {{- toYaml .Values.evaluator.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          env:
+            - name: PROMPTFOO_DISABLE_TELEMETRY
+              value: "1"
+            - name: PROMPTFOO_DISABLE_UPDATE
+              value: "1"
+            - name: HOME
+              value: /tmp
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
         - name: gateway
           image: "{{ .Values.image.repository }}{{ if .Values.image.digest }}@{{ .Values.image.digest }}{{ else }}:{{ .Values.image.tag }}{{ end }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}

@@ -95,7 +95,7 @@ export function AppSidebar({
 
   if (scope.kind === "workspace" && scope.workspace.state === "ready") {
     return (
-      <Sidebar collapsible="icon" data-app-sidebar {...sidebarProps}>
+      <Sidebar side="right" collapsible="icon" data-app-sidebar {...sidebarProps}>
         <WorkspaceSidebar scope={scope} showTourButton={showTourButton} userMenu={userMenu} />
         <SidebarRail />
       </Sidebar>
@@ -206,7 +206,9 @@ async function WorkspaceSidebar({
         agent.capabilities.delete_secrets
     ) ?? false
   const showWorkflows =
-    workspace.type !== "coding" && (agents.agents?.some((agent) => agent.capabilities.use) ?? false)
+    workspace.type !== "coding" &&
+    (workspace.capabilities.agents.author ||
+      (agents.agents?.some((agent) => agent.capabilities.use) ?? false))
   let chatSessions: React.JSX.Element | null = null
   if (showAgents) {
     const preference = await getChatSessionPreference({

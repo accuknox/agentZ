@@ -28,3 +28,5 @@ go.work
 .ref
 agentz.yaml
 node_modules
+
+/evaluator/dist/

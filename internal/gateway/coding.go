@@ -419,7 +419,7 @@ func (s *Service) deleteCodingProject(ctx context.Context, access resourceAccess
 		if slices.Contains(deleted, agent.Name) {
 			continue
 		}
-		client, err := s.codingClient(ctx, access.namespace, agent.Name, s.outboundHTTP)
+		client, err := s.agentClient(ctx, access.namespace, agent.Name, s.outboundHTTP)
 		if err != nil {
 			return err
 		}
@@ -530,7 +530,7 @@ func (s *Service) deleteCodingProject(ctx context.Context, access resourceAccess
 // stopCodingWorktree shuts down only this checkout's runs and terminals. Native
 // abort requests bypass the project lock held by synchronous prompts.
 func (s *Service) stopCodingWorktree(ctx context.Context, access resourceAccess, tree gatewaydb.CodingWorktree) error {
-	client, err := s.codingClient(ctx, access.namespace, tree.AgentName, s.outboundHTTP)
+	client, err := s.agentClient(ctx, access.namespace, tree.AgentName, s.outboundHTTP)
 	if err != nil {
 		return err
 	}
@@ -778,7 +778,7 @@ func (s *Service) PrepareCodingCheckout(w http.ResponseWriter, r *http.Request) 
 
 // codingClient routes the generated gateway client directly to the agent while
 // retaining the caller's transport and request timeout.
-func (s *Service) codingClient(ctx context.Context, namespace, agentName string, httpClient *http.Client) (*gatewayapi.ClientWithResponses, error) {
+func (s *Service) agentClient(ctx context.Context, namespace, agentName string, httpClient *http.Client) (*gatewayapi.ClientWithResponses, error) {
 	resolved, err := s.resolver.resolveAgent(ctx, namespace, agentName)
 	if err != nil {
 		return nil, err
@@ -943,7 +943,7 @@ func (s *Service) codingSuggestion(ctx context.Context, access resourceAccess, t
 	// timeout used for ordinary gateway lookups. Keep the shared transport.
 	httpClient := *s.outboundHTTP
 	httpClient.Timeout = 0
-	client, err := s.codingClient(ctx, access.namespace, agentName, &httpClient)
+	client, err := s.agentClient(ctx, access.namespace, agentName, &httpClient)
 	if err != nil {
 		return gatewayapi.CodingTextSuggestion{}, err
 	}
@@ -1058,13 +1058,17 @@ func (s *Service) codingSuggestion(ctx context.Context, access resourceAccess, t
 	if err != nil {
 		return gatewayapi.CodingTextSuggestion{}, err
 	}
+	var model *gatewayapi.OpencodePromptModel
+	if input.Model != nil {
+		model = &gatewayapi.OpencodePromptModel{ProviderID: input.Model.ProviderID, ModelID: input.Model.ModelID}
+	}
 	reply, err := client.SessionPromptWithResponse(
 		ctx,
 		agentName,
 		session.JSON200.Id,
 		&gatewayapi.SessionPromptParams{Directory: &directory},
 		gatewayapi.SessionPromptJSONRequestBody{
-			Model: input.Model,
+			Model: model,
 			Parts: []gatewayapi.OpencodePromptPartInput{part},
 		},
 	)
@@ -1397,7 +1401,7 @@ func (s *Service) resolveCodingSession(ctx context.Context, access resourceAcces
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return row, err
 	}
-	client, err := s.codingClient(ctx, access.namespace, agentName, s.outboundHTTP)
+	client, err := s.agentClient(ctx, access.namespace, agentName, s.outboundHTTP)
 	if err != nil {
 		return row, err
 	}
@@ -1659,7 +1663,7 @@ func (s *Service) enforceCodingSession(r *http.Request, access resourceAccess, r
 		}
 	}
 	if route.ID == "project.directories" {
-		client, err := s.codingClient(r.Context(), access.namespace, agentName, s.outboundHTTP)
+		client, err := s.agentClient(r.Context(), access.namespace, agentName, s.outboundHTTP)
 		if err != nil {
 			return release, mapGatewayStoreError("get project", err)
 		}
@@ -1724,7 +1728,7 @@ func (s *Service) enforceCodingSession(r *http.Request, access resourceAccess, r
 
 // checkCodingAgentIdle refuses cleanup when an agent cannot confirm it is idle.
 func (s *Service) checkCodingAgentIdle(ctx context.Context, access resourceAccess, tree gatewaydb.CodingWorktree) error {
-	client, err := s.codingClient(ctx, access.namespace, tree.AgentName, s.outboundHTTP)
+	client, err := s.agentClient(ctx, access.namespace, tree.AgentName, s.outboundHTTP)
 	if err != nil {
 		return err
 	}
@@ -1765,7 +1769,7 @@ func (s *Service) checkCodingAgentIdle(ctx context.Context, access resourceAcces
 }
 
 func (s *Service) deleteCodingConversations(ctx context.Context, access resourceAccess, tree gatewaydb.CodingWorktree) error {
-	client, err := s.codingClient(ctx, access.namespace, tree.AgentName, s.outboundHTTP)
+	client, err := s.agentClient(ctx, access.namespace, tree.AgentName, s.outboundHTTP)
 	if err != nil {
 		return err
 	}

@@ -1,0 +1,7 @@
+package: evaluatorapi
+output: internal/gateway/evaluatorapi/client.gen.go
+generate:
+  models: true
+  client: true
+import-mapping:
+  ./base.yaml: github.com/accuknox/agentz/internal/gateway/openapi

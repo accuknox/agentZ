@@ -1,0 +1,42 @@
+openapi: 3.0.3
+info:
+  title: Internal evaluation grader
+  version: 1.0.0
+paths:
+  /grade:
+    post:
+      operationId: gradeEvaluation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GradeRequest'
+      responses:
+        '200':
+          description: Completed assessment
+          content:
+            application/json:
+              schema:
+                $ref: './base.yaml#/components/schemas/EvaluationGradeResult'
+        '422':
+          description: Grading could not complete
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GradeError'
+components:
+  schemas:
+    GradeError:
+      type: object
+      required: [message]
+      properties:
+        message: {type: string}
+    GradeRequest:
+      type: object
+      required: [target, output, expected, policy]
+      properties:
+        target: {type: string, format: uri}
+        output: {type: string}
+        expected: {type: string}
+        policy: {$ref: './base.yaml#/components/schemas/EvaluationPolicy'}

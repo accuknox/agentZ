@@ -23,6 +23,11 @@ var gatewayServeCmd = &cli.Command{
 	Usage: "Run the gateway HTTP server",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
+			Name:  "evaluation-grader-url",
+			Value: "http://127.0.0.1:8091",
+			Usage: "Loopback evaluation grading service",
+		},
+		&cli.StringFlag{
 			Name:    "coding-github-client-id",
 			Usage:   "Coding GitHub App client ID shared with the web app",
 			Sources: cli.EnvVars("CODING_GITHUB_CLIENT_ID"),
@@ -188,6 +193,7 @@ var gatewayServeCmd = &cli.Command{
 			ctx,
 			gateway.Config{
 				Addr:                      c.String("addr"),
+				EvaluationGraderURL:       c.String("evaluation-grader-url"),
 				CodingGitHubClientID:      c.String("coding-github-client-id"),
 				CodingGitHubClientSecret:  c.String("coding-github-client-secret"),
 				CodingGitHubEncryptionKey: c.String("coding-github-encryption-key"),

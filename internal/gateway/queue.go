@@ -48,7 +48,7 @@ func (s *Service) chatInputAccess(ctx context.Context, agent, session string) (r
 		}
 		return access, "/home/agentz/" + tree.Directory, project.ID, nil
 	}
-	client, err := s.codingClient(ctx, access.namespace, agent, s.outboundHTTP)
+	client, err := s.agentClient(ctx, access.namespace, agent, s.outboundHTTP)
 	if err != nil {
 		return access, "", "", err
 	}
@@ -338,7 +338,7 @@ func (s *Service) stopOpenCodeSession(w http.ResponseWriter, r *http.Request, ro
 		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	client, err := s.codingClient(r.Context(), access.namespace, agent, s.outboundHTTP)
+	client, err := s.agentClient(r.Context(), access.namespace, agent, s.outboundHTTP)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
@@ -699,7 +699,7 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 	if stopping && row.MessageID == "" {
 		return nil
 	}
-	client, err := s.codingClient(ctx, access.namespace, row.AgentName, s.outboundHTTP)
+	client, err := s.agentClient(ctx, access.namespace, row.AgentName, s.outboundHTTP)
 	if err != nil {
 		return err
 	}
@@ -828,7 +828,7 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 		return err
 	}
 	body := gatewayapi.SessionPromptAsyncJSONRequestBody{
-		Agent: content.Agent, Model: &content.Model, Variant: content.Variant,
+		Agent: content.Agent, Model: &gatewayapi.OpencodePromptModel{ProviderID: content.Model.ProviderID, ModelID: content.Model.ModelID}, Variant: content.Variant,
 		Parts: make([]gatewayapi.OpencodePromptPartInput, 0, len(content.Attachments)+1),
 	}
 	for _, file := range content.Attachments {

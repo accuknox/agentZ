@@ -77,6 +77,20 @@ jobs:
     - name: Typecheck
       run: bun run typecheck
 
+  evaluator:
+    name: Grader contract and build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: evaluator
+    steps:
+    - uses: actions/checkout@v7.0.1
+    - uses: oven-sh/setup-bun@v2.2.0
+    - run: bun install --frozen-lockfile
+    - run: bun run typecheck
+    - run: bun run build
+
   yaml:
     name: YAML lint
     runs-on: ubuntu-24.04
@@ -105,7 +119,7 @@ jobs:
 
   images:
     name: Build ${{ matrix.image.name }} (${{ matrix.platform.arch }})
-    needs: [go-test, go-lint, frontend, yaml, prepare]
+    needs: [go-test, go-lint, frontend, evaluator, yaml, prepare]
     if: needs.prepare.outputs.tag != ''
     runs-on: ${{ matrix.platform.runner }}
     timeout-minutes: 90
@@ -121,6 +135,10 @@ jobs:
           repository: public.ecr.aws/k9v9d5v2/agentz/web
           context: web
           file: web/Dockerfile
+        - name: evaluator
+          repository: public.ecr.aws/k9v9d5v2/agentz/evaluator
+          context: .
+          file: evaluator/Dockerfile
         - name: init
           repository: public.ecr.aws/k9v9d5v2/agentz/init
           context: .
@@ -211,6 +229,8 @@ jobs:
           repository: public.ecr.aws/k9v9d5v2/agentz
         - name: web
           repository: public.ecr.aws/k9v9d5v2/agentz/web
+        - name: evaluator
+          repository: public.ecr.aws/k9v9d5v2/agentz/evaluator
         - name: init
           repository: public.ecr.aws/k9v9d5v2/agentz/init
         - name: agent

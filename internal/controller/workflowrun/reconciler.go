@@ -38,6 +38,7 @@ import (
 
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	"github.com/accuknox/agentz/internal/gwreq"
+	"github.com/accuknox/agentz/internal/scope"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -64,6 +65,7 @@ type promptTemplateData struct {
 	WorkflowName string
 	RunName      string
 	InputsJSON   string
+	Definition   string
 }
 
 // Reconciler reconciles a WorkflowRun object.
@@ -246,6 +248,16 @@ func (r *Reconciler) finalizeRun(ctx context.Context, run *agentzv1alpha1.Workfl
 		return fmt.Errorf("gateway client is not configured")
 	}
 	if run.Status.SessionID != "" {
+		abortResp, err := r.GatewayClient.SessionAbortWithResponse(
+			ctx, run.Spec.AgentName, run.Status.SessionID, nil,
+			gwreq.RequestEditor(r.TokenPath, run.Namespace),
+		)
+		if err != nil {
+			return fmt.Errorf("abort workflow session: %w", err)
+		}
+		if abortResp.StatusCode() != http.StatusOK && abortResp.StatusCode() != http.StatusNotFound {
+			return fmt.Errorf("abort workflow session returned status %d", abortResp.StatusCode())
+		}
 		resp, err := r.GatewayClient.SessionDeleteWithResponse(
 			ctx,
 			run.Spec.AgentName,
@@ -299,7 +311,7 @@ func (r *Reconciler) reconcilePending(ctx context.Context, run *agentzv1alpha1.W
 		run,
 		agentzv1alpha1.WorkflowRunReasonGatewayError,
 		err.Error(),
-		false,
+		true,
 	)
 	if failErr != nil {
 		return ctrl.Result{}, fmt.Errorf("mark workflow run failed: %w", failErr)
@@ -381,9 +393,15 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 		return fmt.Errorf("get agent %q: %w", run.Spec.AgentName, err)
 	}
 	sandbox := &agentzv1alpha1.Sandbox{}
+	ref := agt.Spec.SandboxRef
+	sandboxNamespace, err := scope.SelectedNamespace(ctx, r.Client, run.Namespace,
+		scope.Selection{Scope: ref.Scope, Kind: agentzv1alpha1.OrganizationResourceKindSandbox, Name: ref.Name})
+	if err != nil {
+		return fmt.Errorf("resolve workflow sandbox: %w", err)
+	}
 	sandboxKey := client.ObjectKey{
-		Name:      agt.Spec.SandboxRef.Name,
-		Namespace: run.Namespace,
+		Name:      ref.Name,
+		Namespace: sandboxNamespace,
 	}
 	err = r.Get(ctx, sandboxKey, sandbox)
 	if err != nil {
@@ -411,6 +429,10 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 		}
 	}
 
+	prompt, err := buildPromptRequest(run)
+	if err != nil {
+		return err
+	}
 	title := "workflowrun/" + run.Namespace + "/" + run.Name
 	createResp, err := r.GatewayClient.SessionCreateWithResponse(
 		ctx,
@@ -430,44 +452,56 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 	}
 
 	sessionID := createResp.JSON200.Id
-	prompt, err := buildPromptRequest(run)
-	if err != nil {
-		return err
-	}
 
+	// Persist admission before submitting work. Retrying an ambiguous prompt
+	// response can repeat live tool effects; recovery inspects this same session.
+	now := metav1.Now()
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		current := &agentzv1alpha1.WorkflowRun{}
+		if err := r.Get(ctx, client.ObjectKeyFromObject(run), current); err != nil {
+			return err
+		}
+		if !current.DeletionTimestamp.IsZero() || current.Status.Phase != agentzv1alpha1.WorkflowRunPhasePending {
+			return errors.New("workflow run is no longer pending")
+		}
+		patch := client.MergeFromWithOptions(current.DeepCopy(), client.MergeFromWithOptimisticLock{})
+		current.Status.Phase = agentzv1alpha1.WorkflowRunPhaseRunning
+		current.Status.ObservedGeneration = run.Generation
+		current.Status.SessionID = sessionID
+		current.Status.StartedAt = &now
+		current.Status.Message = ""
+		r.setActiveConditions(&current.Status, run.Generation,
+			agentzv1alpha1.WorkflowRunReasonSessionRunning, "workflow run is executing")
+		if err := r.Status().Patch(ctx, current, patch); err != nil {
+			return err
+		}
+		run.Status = current.Status
+		return nil
+	})
+	if err != nil {
+		_, cleanupErr := r.GatewayClient.SessionDeleteWithResponse(
+			ctx, run.Spec.AgentName, sessionID, nil,
+			gwreq.RequestEditor(r.TokenPath, run.Namespace),
+		)
+		if cleanupErr != nil {
+			slog.WarnContext(ctx, "delete unadmitted workflow session", "sessionID", sessionID, "error", cleanupErr)
+		}
+		return fmt.Errorf("persist workflow session admission: %w", err)
+	}
 	promptResp, err := r.GatewayClient.SessionPromptAsyncWithResponse(
-		ctx,
-		run.Spec.AgentName,
-		sessionID,
-		nil,
-		prompt,
+		ctx, run.Spec.AgentName, sessionID, nil, prompt,
 		gwreq.RequestEditor(r.TokenPath, run.Namespace),
 	)
 	if err != nil {
-		return fmt.Errorf("send workflow prompt: %w", err)
+		// The request may have reached OpenCode. The running reconciler observes
+		// its evidence and timeout; it must not submit a replacement prompt.
+		slog.WarnContext(ctx, "workflow prompt admission uncertain", "run", run.Name, "error", err)
+		return nil
 	}
 	if promptResp.StatusCode() != http.StatusNoContent {
 		return fmt.Errorf("send workflow prompt returned status %d", promptResp.StatusCode())
 	}
-
-	now := metav1.Now()
-	return r.patchStatus(
-		ctx,
-		run,
-		func(status *agentzv1alpha1.WorkflowRunStatus) {
-			status.Phase = agentzv1alpha1.WorkflowRunPhaseRunning
-			status.ObservedGeneration = run.Generation
-			status.SessionID = sessionID
-			status.StartedAt = &now
-			status.Message = ""
-			r.setActiveConditions(
-				status,
-				run.Generation,
-				agentzv1alpha1.WorkflowRunReasonSessionRunning,
-				"workflow run is executing",
-			)
-		},
-	)
+	return nil
 }
 
 func (r *Reconciler) failRun(ctx context.Context, run *agentzv1alpha1.WorkflowRun, reason string, message string, abort bool) error {
@@ -481,23 +515,9 @@ func (r *Reconciler) failRun(ctx context.Context, run *agentzv1alpha1.WorkflowRu
 		)
 		switch {
 		case err != nil:
-			slog.WarnContext(
-				ctx,
-				"abort workflow session",
-				slog.String("agent", run.Spec.AgentName),
-				slog.String("namespace", run.Namespace),
-				slog.String("sessionID", run.Status.SessionID),
-				slog.Any("err", err),
-			)
+			return fmt.Errorf("abort workflow session: %w", err)
 		case resp.StatusCode() != http.StatusOK && resp.StatusCode() != http.StatusNotFound:
-			slog.WarnContext(
-				ctx,
-				"abort workflow session returned unexpected status",
-				slog.String("agent", run.Spec.AgentName),
-				slog.String("namespace", run.Namespace),
-				slog.String("sessionID", run.Status.SessionID),
-				slog.Int("status", resp.StatusCode()),
-			)
+			return fmt.Errorf("abort workflow session returned status %d", resp.StatusCode())
 		}
 	}
 
@@ -577,21 +597,26 @@ func (r *Reconciler) markPending(ctx context.Context, run *agentzv1alpha1.Workfl
 		return fmt.Errorf("gateway client is not configured")
 	}
 
-	resp, err := r.GatewayClient.GetWorkflowWithResponse(
-		ctx,
-		run.Spec.AgentName,
-		run.Spec.WorkflowName,
-		gwreq.RequestEditor(r.TokenPath, run.Namespace),
-	)
-	if err != nil {
-		return fmt.Errorf("get workflow: %w", err)
-	}
-	if resp.JSON200 == nil {
-		return fmt.Errorf("get workflow returned status %d", resp.StatusCode())
+	var definition gatewayapi.Workflow
+	switch {
+	case run.Spec.Definition != nil:
+		if err := json.Unmarshal(run.Spec.Definition.Raw, &definition); err != nil {
+			return fmt.Errorf("decode frozen workflow: %w", err)
+		}
+	default:
+		resp, err := r.GatewayClient.GetWorkflowWithResponse(ctx, run.Spec.AgentName,
+			run.Spec.WorkflowName, gwreq.RequestEditor(r.TokenPath, run.Namespace))
+		if err != nil {
+			return fmt.Errorf("get workflow: %w", err)
+		}
+		if resp.JSON200 == nil {
+			return fmt.Errorf("get workflow returned status %d", resp.StatusCode())
+		}
+		definition = *resp.JSON200
 	}
 
-	nodes := make([]agentzv1alpha1.WorkflowRunNodeStatus, 0, len(resp.JSON200.Nodes))
-	for _, node := range resp.JSON200.Nodes {
+	nodes := make([]agentzv1alpha1.WorkflowRunNodeStatus, 0, len(definition.Nodes))
+	for _, node := range definition.Nodes {
 		nodes = append(
 			nodes,
 			agentzv1alpha1.WorkflowRunNodeStatus{
@@ -677,6 +702,16 @@ func buildPromptRequest(run *agentzv1alpha1.WorkflowRun) (gatewayapi.SessionProm
 		inputs = string(run.Spec.Inputs.Raw)
 	}
 
+	var definition string
+	if run.Spec.Definition != nil {
+		definition = string(run.Spec.Definition.Raw)
+	}
+	if run.Spec.Model != nil {
+		body.Model = &gatewayapi.OpencodePromptModel{ProviderID: run.Spec.Model.ProviderID, ModelID: run.Spec.Model.ModelID}
+		if run.Spec.Model.Variant != "" {
+			body.Variant = &run.Spec.Model.Variant
+		}
+	}
 	var prompt strings.Builder
 	err := promptTemplate.Execute(
 		&prompt,
@@ -685,6 +720,7 @@ func buildPromptRequest(run *agentzv1alpha1.WorkflowRun) (gatewayapi.SessionProm
 			WorkflowName: run.Spec.WorkflowName,
 			RunName:      run.Name,
 			InputsJSON:   inputs,
+			Definition:   definition,
 		},
 	)
 	if err != nil {
@@ -701,7 +737,7 @@ func buildPromptRequest(run *agentzv1alpha1.WorkflowRun) (gatewayapi.SessionProm
 	}
 	body.Parts = []gatewayapi.OpencodePromptPartInput{part}
 	body.Tools = &map[string]bool{
-		"get_workflow":           true,
+		"get_workflow":           run.Spec.Definition == nil,
 		"question":               false,
 		"set_workflowrun_status": true,
 	}

@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   Copy,
   Download,
-  Info,
   Loader2,
   Maximize2,
   Minimize2,
@@ -18,6 +17,14 @@ import {
   X,
   XCircle,
 } from "lucide-react"
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -183,20 +190,20 @@ export function EvaluationResults({
   }
   return (
     <section className="flex min-h-0 flex-1 flex-col">
-      <header className="border-b px-5 py-6 sm:px-8">
-        <Button variant="ghost" size="sm" className="mb-4 -ml-3" onClick={onBack}>
+      <header className="border-b p-4 sm:px-6">
+        <Button variant="ghost" size="sm" className="mb-3 -ml-3" onClick={onBack}>
           <ArrowLeft />
           Evaluations
         </Button>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-semibold tracking-tight">{e.request.name}</h1>
+              <h2 className="text-base font-semibold">{e.request.name}</h2>
               <Badge variant={e.state === "error" ? "destructive" : "secondary"}>{e.state}</Badge>
             </div>
             <p className="text-muted-foreground mt-2 text-sm">
-              {e.request.cases.length} cases · {e.request.candidates.length} models ·{" "}
-              {e.request.repetitions} attempts each · Assessment {e.assessment_revision}
+              Cases: {e.request.cases.length} · Models: {e.request.candidates.length} · Attempts:{" "}
+              {e.request.repetitions} · Assessment {e.assessment_revision}
             </p>
           </div>
           <div className="flex gap-2">
@@ -240,37 +247,31 @@ export function EvaluationResults({
           </div>
         )}
       </header>
-      <div className="space-y-6 px-5 py-6 sm:px-8">
-        <div className="bg-muted/25 flex flex-wrap items-start justify-between gap-4 rounded-lg border p-4">
-          <div className="flex gap-3">
-            <Info className="text-muted-foreground mt-0.5 size-4 shrink-0" />
-            <div>
-              <p className="text-sm font-medium">
-                {running
-                  ? "Results are still coming in"
-                  : graded < e.attempts.length
-                    ? "Some results could not be scored"
-                    : columns.every((column) => column.passed === 0)
-                      ? "No model met the success criteria"
-                      : "Explore the tradeoffs before choosing a model"}
-              </p>
-              <p className="text-muted-foreground mt-1 max-w-3xl text-xs leading-relaxed">
-                {e.message && e.message !== "Cancellation requested"
-                  ? e.message
-                  : "These runs use a shared environment with live tools. Scores describe this evaluation; they do not establish a controlled model ranking."}
-              </p>
-            </div>
-          </div>
-          <button
-            className="text-primary text-xs font-medium hover:underline"
+      <div className="space-y-4 p-4 sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+          <p className="text-muted-foreground" role="status">
+            {e.message ||
+              (running
+                ? "Results update as attempts finish."
+                : graded < e.attempts.length
+                  ? "Some attempts could not be scored."
+                  : columns.every((column) => column.passed === 0)
+                    ? "No model met the success criteria."
+                    : "Shared environment with live tools.")}
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-expanded={explain}
+            aria-controls="scoring-policy"
             onClick={() => setExplain(!explain)}
           >
-            How scoring works
-          </button>
+            Scoring details
+          </Button>
         </div>
         {explain && (
-          <div className="rounded-lg border p-5 text-sm">
-            <h2 className="font-semibold">{e.request.policy.version} · frozen scoring policy</h2>
+          <div id="scoring-policy" className="rounded-md border p-4 text-sm">
+            <h2 className="text-sm font-medium">Scoring policy</h2>
             <p className="text-muted-foreground mt-2 leading-relaxed">
               Failed workflow execution or a failed required output check earns zero. Otherwise, the
               score is quality × 100, reduced by up to{" "}
@@ -298,14 +299,15 @@ export function EvaluationResults({
             </dl>
             <p className="text-muted-foreground mt-4 text-xs">
               Cost is reported separately. References are chosen for this workflow, not an
-              industry-standard weighting. Missing evidence is unscored.
+              industry-standard weighting. Missing evidence is unscored. These attempts share an
+              environment; this is not a controlled model ranking.
             </p>
           </div>
         )}
-        <div className="overflow-x-auto rounded-lg border">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-muted/30 text-muted-foreground border-b text-xs">
-              <tr>
+        <div className="min-w-0 rounded-md border">
+          <Table className="w-full text-left text-sm">
+            <TableHeader className="bg-muted/30 text-muted-foreground border-b text-xs">
+              <TableRow>
                 {[
                   "Model",
                   "Score / 100",
@@ -316,23 +318,23 @@ export function EvaluationResults({
                   "Reported cost / attempt",
                   "Duration",
                 ].map((label) => (
-                  <th key={label} className="px-4 py-3 font-medium whitespace-nowrap">
+                  <TableHead key={label} className="px-4 py-3 font-medium whitespace-nowrap">
                     {label}
-                  </th>
+                  </TableHead>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {columns.map((c) => (
-                <tr key={c.candidate.id} className="border-b last:border-0">
-                  <td className="min-w-52 px-4 py-4">
+                <TableRow key={c.candidate.id} className="border-b last:border-0">
+                  <TableCell className="min-w-52 px-4 py-3">
                     <p className="font-medium">{c.candidate.label}</p>
                     <p className="text-muted-foreground mt-1 text-xs">
                       {c.candidate.provider_id}
                       {c.candidate.id === baseline?.id ? " · baseline" : ""}
                     </p>
-                  </td>
-                  <td className="px-4 text-lg font-semibold tabular-nums">
+                  </TableCell>
+                  <TableCell className="px-4 text-lg font-semibold tabular-nums">
                     <button
                       onClick={() => setExplain(true)}
                       className="hover:text-primary"
@@ -340,44 +342,44 @@ export function EvaluationResults({
                     >
                       {c.score === undefined ? "—" : number.format(c.score)}
                     </button>
-                  </td>
-                  <td className="px-4 tabular-nums">
+                  </TableCell>
+                  <TableCell className="px-4 tabular-nums">
                     {c.score !== undefined && base?.score !== undefined
                       ? `${c.score - base.score > 0 ? "+" : ""}${number.format(c.score - base.score)}`
                       : "—"}
-                  </td>
-                  <td className="px-4 tabular-nums">
+                  </TableCell>
+                  <TableCell className="px-4 tabular-nums">
                     {c.passed}/{c.attempts.length}
                     {c.measured < c.attempts.length && (
                       <p className="text-muted-foreground mt-1 text-xs whitespace-nowrap">
                         Usage: {c.measured}/{c.attempts.length}
                       </p>
                     )}
-                  </td>
-                  <td className="px-4 tabular-nums">
+                  </TableCell>
+                  <TableCell className="px-4 tabular-nums">
                     {c.tokens === undefined ? "—" : number.format(c.tokens)}
-                  </td>
-                  <td className="px-4 tabular-nums">
+                  </TableCell>
+                  <TableCell className="px-4 tabular-nums">
                     {c.calls === undefined ? "—" : number.format(c.calls)}
-                  </td>
-                  <td className="px-4 tabular-nums">
+                  </TableCell>
+                  <TableCell className="px-4 tabular-nums">
                     {c.cost === undefined ? "—" : money.format(c.cost)}
-                  </td>
-                  <td className="px-4 tabular-nums">
+                  </TableCell>
+                  <TableCell className="px-4 tabular-nums">
                     {c.duration === undefined ? "—" : `${number.format(c.duration)}s`}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
         <p className="text-muted-foreground text-xs">
           Usage averages include measured attempts, including failures. Reported cost can be zero
           when provider pricing is unavailable.
         </p>
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <h2 className="font-semibold">
-            Compare test cases{" "}
+          <h2 className="text-sm font-medium">
+            Test cases{" "}
             <span className="text-muted-foreground ml-2 text-sm font-normal">{cases.length}</span>
           </h2>
           <div className="flex flex-wrap items-center gap-2">
@@ -429,13 +431,13 @@ export function EvaluationResults({
           <div className="min-w-0">
             <div className="max-h-[65vh] overflow-auto rounded-lg border">
               <table className="w-full table-fixed text-left text-sm">
-                <thead className="bg-muted sticky top-0 z-20">
-                  <tr>
-                    <th className="bg-muted sticky left-0 z-30 w-56 border-r px-4 py-3 text-xs font-medium">
+                <TableHeader className="bg-muted sticky top-0 z-20">
+                  <TableRow>
+                    <TableHead className="bg-muted sticky left-0 z-30 w-44 border-r px-4 py-3 text-xs font-medium sm:w-56">
                       Test case
-                    </th>
+                    </TableHead>
                     {columns.map((c) => (
-                      <th
+                      <TableHead
                         key={c.candidate.id}
                         className="w-64 border-r px-4 py-3 font-medium last:border-r-0"
                       >
@@ -445,21 +447,24 @@ export function EvaluationResults({
                             Baseline
                           </span>
                         )}
-                      </th>
+                      </TableHead>
                     ))}
-                  </tr>
-                </thead>
-                <tbody>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {cases.slice(page * 25, page * 25 + 25).map((c) => (
-                    <tr key={c.id} className="border-t align-top">
-                      <td className="bg-background sticky left-0 z-10 border-r px-4 py-4">
+                    <TableRow key={c.id} className="border-t align-top">
+                      <TableCell className="bg-background sticky left-0 z-10 border-r px-4 py-3">
                         <p className="font-medium">{c.name}</p>
                         <pre className="text-muted-foreground mt-2 line-clamp-3 font-mono text-xs break-words whitespace-pre-wrap">
                           {JSON.stringify(c.inputs, null, 2)}
                         </pre>
-                      </td>
+                      </TableCell>
                       {columns.map((column) => (
-                        <td key={column.candidate.id} className="border-r p-2 last:border-r-0">
+                        <TableCell
+                          key={column.candidate.id}
+                          className="border-r p-2 last:border-r-0"
+                        >
                           <div className="space-y-2">
                             {column.attempts
                               .filter((a) => a.case_id === c.id)
@@ -485,7 +490,11 @@ export function EvaluationResults({
                                       ) : a.state === "running" || a.state === "grading" ? (
                                         <Loader2 className="size-3.5 animate-spin" />
                                       ) : null}
-                                      {a.state}
+                                      {a.state === "completed"
+                                        ? a.checks.every((check) => check.passed)
+                                          ? "Passed"
+                                          : "Failed"
+                                        : a.state}
                                     </span>
                                     <span className="font-semibold tabular-nums">
                                       {a.score === undefined ? "—" : number.format(a.score)}
@@ -502,11 +511,11 @@ export function EvaluationResults({
                                 </button>
                               ))}
                           </div>
-                        </td>
+                        </TableCell>
                       ))}
-                    </tr>
+                    </TableRow>
                   ))}
-                </tbody>
+                </TableBody>
               </table>
               {cases.length === 0 && (
                 <p className="text-muted-foreground p-12 text-center text-sm">
@@ -514,32 +523,34 @@ export function EvaluationResults({
                 </p>
               )}
             </div>
-            <div className="text-muted-foreground mt-3 flex items-center justify-between text-xs">
-              <span>
-                Showing {cases.length ? Math.min(page * 25 + 1, cases.length) : 0}–
-                {Math.min((page + 1) * 25, cases.length)} of {cases.length}
-              </span>
-              <div className="flex gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Previous page"
-                  disabled={page === 0}
-                  onClick={() => setPage(page - 1)}
-                >
-                  <ArrowLeft />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Next page"
-                  disabled={(page + 1) * 25 >= cases.length}
-                  onClick={() => setPage(page + 1)}
-                >
-                  <ArrowRight />
-                </Button>
+            {cases.length > 25 && (
+              <div className="text-muted-foreground mt-3 flex items-center justify-between text-xs">
+                <span>
+                  Showing {cases.length ? Math.min(page * 25 + 1, cases.length) : 0}–
+                  {Math.min((page + 1) * 25, cases.length)} of {cases.length}
+                </span>
+                <div className="flex gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Previous page"
+                    disabled={page === 0}
+                    onClick={() => setPage(page - 1)}
+                  >
+                    <ArrowLeft />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Next page"
+                    disabled={(page + 1) * 25 >= cases.length}
+                    onClick={() => setPage(page + 1)}
+                  >
+                    <ArrowRight />
+                  </Button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
           {selected && (
             <aside
@@ -587,11 +598,7 @@ export function EvaluationResults({
                   aria-label="Evidence type"
                 >
                   {(["output", "checks", "tools", "usage"] as const).map((value) => (
-                    <TabsTrigger
-                      key={value}
-                      value={value}
-                      className={`border-b-2 py-3 text-xs font-medium capitalize ${tab === value ? "border-primary" : "text-muted-foreground border-transparent"}`}
-                    >
+                    <TabsTrigger key={value} value={value} className="capitalize">
                       {value}
                     </TabsTrigger>
                   ))}

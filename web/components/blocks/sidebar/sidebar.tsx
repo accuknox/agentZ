@@ -95,7 +95,7 @@ export function AppSidebar({
 
   if (scope.kind === "workspace" && scope.workspace.state === "ready") {
     return (
-      <Sidebar side="right" collapsible="icon" data-app-sidebar {...sidebarProps}>
+      <Sidebar collapsible="icon" data-app-sidebar {...sidebarProps}>
         <WorkspaceSidebar scope={scope} showTourButton={showTourButton} userMenu={userMenu} />
         <SidebarRail />
       </Sidebar>

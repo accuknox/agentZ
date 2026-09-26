@@ -1,6 +1,10 @@
 import { Suspense } from "react"
 import { notFound } from "next/navigation"
-import { AdministrationLoadingState, AdministrationPageHeader } from "@/components/administration"
+import {
+  AdministrationLoadingState,
+  AdministrationPageHeader,
+  AdministrationState,
+} from "@/components/administration"
 import { RememberPageSelection } from "@/components/page-selection"
 import { getWorkspaceScope } from "@/data/workspaces"
 import { resolvePageSelection } from "@/data/page-selection"
@@ -71,12 +75,11 @@ async function Content({
           initial={data}
         />
       ) : (
-        <div className="grid flex-1 place-content-center p-12 text-center">
-          <h2 className="text-lg font-semibold">Choose a workflow to compare models</h2>
-          <p className="text-muted-foreground mt-2">
-            Select an agent and workflow above to get started.
-          </p>
-        </div>
+        <AdministrationState
+          kind="empty"
+          title="Select a workflow"
+          description="Choose an agent and workflow above to view evaluations."
+        />
       )}
     </>
   )

@@ -16,6 +16,14 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import {
   DropdownMenu,
@@ -227,19 +235,23 @@ export function Evaluations({
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-3">
-            <select
-              aria-label="Filter evaluations by status"
-              value={status}
-              onChange={(event) => setStatus(event.target.value)}
-              className="bg-background h-9 rounded-md border px-3 text-sm"
-            >
-              <option value="all">All statuses</option>
-              {["draft", "queued", "running", "completed", "error", "cancelled"].map((state) => (
-                <option key={state} value={state}>
-                  {state}
-                </option>
-              ))}
-            </select>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger aria-label="Filter evaluations by status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  {["draft", "queued", "running", "completed", "error", "cancelled"].map(
+                    (state) => (
+                      <SelectItem key={state} value={state}>
+                        {state}
+                      </SelectItem>
+                    )
+                  )}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
             <div className="relative max-w-xs">
               <Search className="text-muted-foreground absolute top-2.5 left-3 size-4" />
               <Input

@@ -76,7 +76,7 @@ var baseOperationCapabilities = map[string][]string{
 		"createAgentDirectory",
 		"createAgentFile",
 		"createWorkflow",
-		"createWorkflowEvaluation", "listWorkflowEvaluations", "getWorkflowEvaluation", "updateWorkflowEvaluation",
+		"suggestWorkflowEvaluationCases", "createWorkflowEvaluation", "listWorkflowEvaluations", "getWorkflowEvaluation", "updateWorkflowEvaluation",
 		"createWorkflowRun",
 		"createWorkflowSchedule",
 		"deleteAgent",
@@ -352,6 +352,9 @@ func rewriteOpenCode(doc map[string]any) (map[string]any, routeManifest, error) 
 			// every unrelated endpoint tagged as an instance operation.
 			if operationID == "instance.dispose" {
 				op["tags"] = []any{"instance", "coding"}
+			}
+			if operationID == "app.skills" || operationID == "tool.list" {
+				op["tags"] = []any{"workflows"}
 			}
 			operation, capability, err := opencodeOperation(operationID)
 			if err != nil {

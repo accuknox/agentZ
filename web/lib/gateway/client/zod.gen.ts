@@ -25,6 +25,39 @@ export const zWorkflowEvaluationSummary = z.object({
   updated_at: z.iso.datetime(),
 })
 
+export const zEvaluationCaseSuggestions = z.object({
+  cases: z
+    .array(
+      z.object({
+        name: z.string().min(1).max(160),
+        inputs: z.unknown(),
+      })
+    )
+    .min(1)
+    .max(20),
+  rubric: z.string().min(1).max(20000),
+  coverage: z.object({
+    ready: z.boolean(),
+    issues: z.array(z.string().min(1).max(500)).max(10),
+    nodes: z.array(
+      z.object({
+        node_name: z.string().min(1),
+        case_names: z.array(z.string().min(1)).min(1),
+        rationale: z.string().min(1).max(1000),
+      })
+    ),
+    edges: z.array(
+      z.object({
+        source: z.string().min(1),
+        target: z.string().min(1),
+        branch_label: z.string(),
+        case_names: z.array(z.string().min(1)).min(1),
+        rationale: z.string().min(1).max(1000),
+      })
+    ),
+  }),
+})
+
 export const zEvaluationCandidate = z.object({
   id: z.string().min(1).max(80),
   label: z.string().min(1).max(160),
@@ -3434,6 +3467,11 @@ export const zListWorkflowEvaluationsResponse = z.array(zWorkflowEvaluationSumma
  * Evaluation saved.
  */
 export const zCreateWorkflowEvaluationResponse = zWorkflowEvaluation
+
+/**
+ * Generated drafts for review. Existing cases are unchanged.
+ */
+export const zSuggestWorkflowEvaluationCasesResponse = zEvaluationCaseSuggestions
 
 /**
  * Evaluation with recorded attempts.

@@ -3137,6 +3137,107 @@ components:
       - inputs
       - expected
       type: object
+    EvaluationCaseSuggestions:
+      additionalProperties: false
+      properties:
+        cases:
+          items:
+            additionalProperties: false
+            properties:
+              inputs:
+                description: JSON inputs validated against the workflow input contract.
+                nullable: true
+              name:
+                maxLength: 160
+                minLength: 1
+                type: string
+            required:
+            - name
+            - inputs
+            type: object
+          maxItems: 20
+          minItems: 1
+          type: array
+        coverage:
+          additionalProperties: false
+          properties:
+            edges:
+              items:
+                additionalProperties: false
+                properties:
+                  branch_label:
+                    type: string
+                  case_names:
+                    items:
+                      minLength: 1
+                      type: string
+                    minItems: 1
+                    type: array
+                  rationale:
+                    maxLength: 1000
+                    minLength: 1
+                    type: string
+                  source:
+                    minLength: 1
+                    type: string
+                  target:
+                    minLength: 1
+                    type: string
+                required:
+                - source
+                - target
+                - branch_label
+                - case_names
+                - rationale
+                type: object
+              type: array
+            issues:
+              items:
+                maxLength: 500
+                minLength: 1
+                type: string
+              maxItems: 10
+              type: array
+            nodes:
+              items:
+                additionalProperties: false
+                properties:
+                  case_names:
+                    items:
+                      minLength: 1
+                      type: string
+                    minItems: 1
+                    type: array
+                  node_name:
+                    minLength: 1
+                    type: string
+                  rationale:
+                    maxLength: 1000
+                    minLength: 1
+                    type: string
+                required:
+                - node_name
+                - case_names
+                - rationale
+                type: object
+              type: array
+            ready:
+              type: boolean
+          required:
+          - ready
+          - issues
+          - nodes
+          - edges
+          type: object
+        rubric:
+          maxLength: 20000
+          minLength: 1
+          type: string
+      required:
+      - cases
+      - rubric
+      - coverage
+      type: object
     EvaluationCheck:
       properties:
         name:
@@ -34727,7 +34828,7 @@ paths:
         - agent.use_shared
       summary: List tools
       tags:
-      - experimental
+      - workflows
       x-codeSamples:
       - lang: js
         source: |-
@@ -40642,7 +40743,7 @@ paths:
         - agent.use_shared
       summary: List skills
       tags:
-      - instance
+      - workflows
       x-codeSamples:
       - lang: js
         source: |-
@@ -43000,6 +43101,50 @@ paths:
       security:
       - GatewayBearer:
         - agent.use_shared
+      tags:
+      - workflows
+  /api/workflow/{agentName}/{workflowName}/evaluation/cases:
+    parameters:
+    - $ref: '#/components/parameters/AgentNamePath'
+    - in: path
+      name: workflowName
+      required: true
+      schema:
+        $ref: '#/components/schemas/WorkflowName'
+    post:
+      operationId: suggestWorkflowEvaluationCases
+      requestBody:
+        content:
+          application/json:
+            schema:
+              additionalProperties: false
+              properties:
+                cases:
+                  items:
+                    $ref: '#/components/schemas/EvaluationCase'
+                  maxItems: 1000
+                  type: array
+              required:
+              - cases
+              type: object
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvaluationCaseSuggestions'
+          description: Generated drafts for review. Existing cases are unchanged.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Generation failed. Retry without changing existing cases.
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Suggest editable test cases and a rubric without running the workflow.
       tags:
       - workflows
   /api/workflow/{agentName}/{workflowName}/run:

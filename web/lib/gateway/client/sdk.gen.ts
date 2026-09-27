@@ -374,6 +374,9 @@ import type {
   SuggestCodingTextData,
   SuggestCodingTextErrors,
   SuggestCodingTextResponses,
+  SuggestWorkflowEvaluationCasesData,
+  SuggestWorkflowEvaluationCasesErrors,
+  SuggestWorkflowEvaluationCasesResponses,
   TransferAgentOwnerData,
   TransferAgentOwnerErrors,
   TransferAgentOwnerResponses,
@@ -494,6 +497,26 @@ export const createWorkflowEvaluation = <ThrowOnError extends boolean = false>(
   >({
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/workflow/{agentName}/{workflowName}/evaluation",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Suggest editable test cases and a rubric without running the workflow.
+ */
+export const suggestWorkflowEvaluationCases = <ThrowOnError extends boolean = false>(
+  options: Options<SuggestWorkflowEvaluationCasesData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    SuggestWorkflowEvaluationCasesResponses,
+    SuggestWorkflowEvaluationCasesErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workflow/{agentName}/{workflowName}/evaluation/cases",
     ...options,
     headers: {
       "Content-Type": "application/json",

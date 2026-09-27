@@ -33,6 +33,33 @@ export type EvaluationGradeResult = {
   cost: number
 }
 
+export type EvaluationCaseSuggestions = {
+  cases: Array<{
+    name: string
+    /**
+     * JSON inputs validated against the workflow input contract.
+     */
+    inputs: unknown
+  }>
+  rubric: string
+  coverage: {
+    ready: boolean
+    issues: Array<string>
+    nodes: Array<{
+      node_name: string
+      case_names: Array<string>
+      rationale: string
+    }>
+    edges: Array<{
+      source: string
+      target: string
+      branch_label: string
+      case_names: Array<string>
+      rationale: string
+    }>
+  }
+}
+
 export type EvaluationCase = {
   id: string
   name: string
@@ -3060,6 +3087,41 @@ export type CreateWorkflowEvaluationResponses = {
 
 export type CreateWorkflowEvaluationResponse =
   CreateWorkflowEvaluationResponses[keyof CreateWorkflowEvaluationResponses]
+
+export type SuggestWorkflowEvaluationCasesData = {
+  body: {
+    cases: Array<EvaluationCase>
+  }
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    workflowName: WorkflowName
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/evaluation/cases"
+}
+
+export type SuggestWorkflowEvaluationCasesErrors = {
+  /**
+   * Generation failed. Retry without changing existing cases.
+   */
+  default: Error
+}
+
+export type SuggestWorkflowEvaluationCasesError =
+  SuggestWorkflowEvaluationCasesErrors[keyof SuggestWorkflowEvaluationCasesErrors]
+
+export type SuggestWorkflowEvaluationCasesResponses = {
+  /**
+   * Generated drafts for review. Existing cases are unchanged.
+   */
+  200: EvaluationCaseSuggestions
+}
+
+export type SuggestWorkflowEvaluationCasesResponse =
+  SuggestWorkflowEvaluationCasesResponses[keyof SuggestWorkflowEvaluationCasesResponses]
 
 export type GetWorkflowEvaluationData = {
   body?: never

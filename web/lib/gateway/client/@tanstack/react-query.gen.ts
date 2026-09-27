@@ -132,6 +132,7 @@ import {
   statAgentFile,
   submitChatInput,
   suggestCodingText,
+  suggestWorkflowEvaluationCases,
   transferAgentOwner,
   updateAgent,
   updateChatInput,
@@ -515,6 +516,9 @@ import type {
   SuggestCodingTextData,
   SuggestCodingTextError,
   SuggestCodingTextResponse,
+  SuggestWorkflowEvaluationCasesData,
+  SuggestWorkflowEvaluationCasesError,
+  SuggestWorkflowEvaluationCasesResponse,
   TransferAgentOwnerData,
   TransferAgentOwnerError,
   TransferAgentOwnerResponse,
@@ -637,6 +641,33 @@ export const createWorkflowEvaluationMutation = (
   > = {
     mutationFn: async (fnOptions) => {
       const { data } = await createWorkflowEvaluation({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Suggest editable test cases and a rubric without running the workflow.
+ */
+export const suggestWorkflowEvaluationCasesMutation = (
+  options?: Partial<Options<SuggestWorkflowEvaluationCasesData>>
+): UseMutationOptions<
+  SuggestWorkflowEvaluationCasesResponse,
+  SuggestWorkflowEvaluationCasesError,
+  Options<SuggestWorkflowEvaluationCasesData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    SuggestWorkflowEvaluationCasesResponse,
+    SuggestWorkflowEvaluationCasesError,
+    Options<SuggestWorkflowEvaluationCasesData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await suggestWorkflowEvaluationCases({
         ...options,
         ...fnOptions,
         throwOnError: true,

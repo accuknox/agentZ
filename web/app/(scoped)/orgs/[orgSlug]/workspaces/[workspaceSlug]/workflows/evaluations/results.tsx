@@ -26,6 +26,14 @@ import {
   TableCell,
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
@@ -383,36 +391,41 @@ export function EvaluationResults({
             <span className="text-muted-foreground ml-2 text-sm font-normal">{cases.length}</span>
           </h2>
           <div className="flex flex-wrap items-center gap-2">
-            <label className="text-muted-foreground flex items-center gap-2 text-xs">
-              Baseline
-              <select
-                className="bg-background text-foreground h-9 max-w-48 rounded-md border px-2 text-sm"
-                value={baseline?.id ?? ""}
-                onChange={(event) => update({ baseline: event.target.value })}
-              >
-                {e.request.candidates.map((candidate) => (
-                  <option key={candidate.id} value={candidate.id}>
-                    {candidate.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <select
-              aria-label="Filter results"
+            <Select value={baseline?.id ?? ""} onValueChange={(baseline) => update({ baseline })}>
+              <SelectTrigger aria-label="Baseline model" className="max-w-48">
+                <SelectValue placeholder="Baseline model" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {e.request.candidates.map((candidate) => (
+                    <SelectItem key={candidate.id} value={candidate.id}>
+                      {candidate.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <Select
               value={filter}
-              onChange={(event) => {
+              onValueChange={(filter) => {
                 setPage(0)
-                update({ filter: event.target.value })
+                update({ filter })
               }}
-              className="bg-background h-9 rounded-md border px-3 text-sm"
             >
-              <option value="all">All results</option>
-              <option value="failures">Failures</option>
-              <option value="regressions">Regressions</option>
-              <option value="improvements">Improvements</option>
-              <option value="inconsistent">Inconsistent</option>
-              <option value="errors">Grading errors</option>
-            </select>
+              <SelectTrigger aria-label="Filter results">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="all">All results</SelectItem>
+                  <SelectItem value="failures">Failures</SelectItem>
+                  <SelectItem value="regressions">Regressions</SelectItem>
+                  <SelectItem value="improvements">Improvements</SelectItem>
+                  <SelectItem value="inconsistent">Inconsistent</SelectItem>
+                  <SelectItem value="errors">Grading errors</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
             <Input
               aria-label="Search test cases"
               value={query}

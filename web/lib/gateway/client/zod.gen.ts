@@ -38,7 +38,7 @@ export const zEvaluationCaseSuggestions = z.object({
   rubric: z.string().min(1).max(20000),
   coverage: z.object({
     ready: z.boolean(),
-    issues: z.array(z.string().min(1).max(500)).max(10),
+    issues: z.array(z.string().min(1).max(200)),
     nodes: z.array(
       z.object({
         node_name: z.string().min(1),

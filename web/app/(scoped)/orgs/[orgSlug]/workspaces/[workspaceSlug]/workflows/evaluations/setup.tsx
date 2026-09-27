@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Check,
   ChevronsUpDown,
+  ChevronDown,
   FileUp,
   Plus,
   Trash2,
@@ -29,6 +30,7 @@ import {
   FieldLegend,
 } from "@/components/ui/field"
 import { Badge } from "@/components/ui/badge"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
   Accordion,
   AccordionContent,
@@ -241,11 +243,16 @@ export function EvaluationSetup({
         .catch(() => {
           throw new Error("Could not reach the agent. Try preparation again.")
         })
-      if (response.error) throw new Error(response.error.message)
-      return response.data
+      if (!response.response) {
+        throw new Error("Could not reach the agent. Try preparation again.")
+      }
+      if (response.error && response.response.ok) {
+        throw new Error("The agent returned an invalid response. Try preparation again.")
+      }
+      return response
     },
-    onSuccess: (result, { controller }) => {
-      if (controller.signal.aborted) return
+    onSuccess: ({ data: result, error }, { controller }) => {
+      if (controller.signal.aborted || error) return
       setCases((current) => [
         ...current,
         ...result.cases.map((c) => ({
@@ -255,15 +262,29 @@ export function EvaluationSetup({
           expected: "",
         })),
       ])
-      setPolicy((current) =>
-        current.rubric.trim() ? current : { ...current, rubric: result.rubric }
-      )
+      setPolicy((current) => {
+        const rubric = current.rubric.trim() ? current.rubric : result.rubric
+        const notes = result.coverage.issues.filter((issue) => !rubric.includes(issue))
+        return {
+          ...current,
+          rubric: notes.length
+            ? `${rubric}\n\nEvaluation scope. Do not require facts or outcomes excluded below:\n- ${notes.join("\n- ")}`
+            : rubric,
+        }
+      })
       setPreparationMessage("")
     },
-    onError: (error, { controller }) => {
-      if (!controller.signal.aborted) setPreparationMessage(error.message)
-    },
   })
+  const preparationError = preparation.variables?.controller.signal.aborted
+    ? undefined
+    : (preparation.error?.message ??
+      (preparation.data?.error
+        ? preparation.data.error.message || "Could not prepare test cases. Try again."
+        : undefined))
+  const preparationNotes =
+    preparation.data?.error?.errors?.map((issue) => issue.message) ??
+    preparation.data?.data?.coverage.issues ??
+    []
   const { mutate: prepare } = preparation
   useEffect(() => {
     if (!previous) {
@@ -523,7 +544,7 @@ export function EvaluationSetup({
                     Loading models
                   </>
                 ) : candidates.length ? (
-                  `${candidates.length} models selected`
+                  `${candidates.length} ${candidates.length === 1 ? "model" : "models"} selected`
                 ) : (
                   "Select models"
                 )}
@@ -593,16 +614,10 @@ export function EvaluationSetup({
         </Field>
       </FieldGroup>
       <div className="flex flex-col gap-3" aria-live="polite">
-        <Alert
-          variant={
-            preparation.error && !preparation.variables?.controller.signal.aborted
-              ? "destructive"
-              : "default"
-          }
-        >
+        <Alert variant={preparationError ? "destructive" : "default"}>
           {preparation.isPending ? (
             <Spinner />
-          ) : preparation.error ? (
+          ) : preparationError ? (
             <CircleAlert />
           ) : cases.length ? (
             <Check />
@@ -612,17 +627,34 @@ export function EvaluationSetup({
           <AlertTitle>
             {preparation.isPending
               ? "Researching workflow…"
-              : preparation.error
+              : preparationError
                 ? "Could not prepare test cases"
                 : preparationMessage ||
-                  (cases.length ? `${cases.length} test cases ready` : "No test cases yet")}
+                  (cases.length
+                    ? `${cases.length} ${cases.length === 1 ? "test case" : "test cases"} ready`
+                    : "No test cases yet")}
           </AlertTitle>
           {preparation.isPending && (
             <AlertDescription>Reading references and checking test coverage.</AlertDescription>
           )}
-          {preparation.error && !preparation.variables?.controller.signal.aborted && (
+          {preparationError && <AlertDescription>{preparationError}</AlertDescription>}
+          {!preparation.isPending && preparationNotes.length > 0 && (
             <AlertDescription>
-              {preparationMessage} Your existing cases are unchanged.
+              <Collapsible>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="sm">
+                    {preparationError ? "View details" : "Evaluation scope"}
+                    <ChevronDown data-icon="inline-end" />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <ul className="flex list-disc flex-col gap-2 py-2 pl-4">
+                    {preparationNotes.map((note, index) => (
+                      <li key={index}>{note}</li>
+                    ))}
+                  </ul>
+                </CollapsibleContent>
+              </Collapsible>
             </AlertDescription>
           )}
           <AlertAction>
@@ -651,7 +683,7 @@ export function EvaluationSetup({
                 }}
               >
                 <Sparkles data-icon="inline-start" />
-                {preparation.error ? "Retry" : cases.length ? "Generate more" : "Generate"}
+                {preparationError ? "Retry" : cases.length ? "Generate more" : "Generate"}
               </Button>
             )}
           </AlertAction>

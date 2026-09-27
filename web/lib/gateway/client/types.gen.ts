@@ -43,7 +43,13 @@ export type EvaluationCaseSuggestions = {
   }>
   rubric: string
   coverage: {
+    /**
+     * True when meaningful cases can be graded from available evidence; complete coverage and exact reference answers are not required.
+     */
     ready: boolean
+    /**
+     * Concise scope limitations when ready, or missing information needed to prepare any meaningful cases when not ready.
+     */
     issues: Array<string>
     nodes: Array<{
       node_name: string

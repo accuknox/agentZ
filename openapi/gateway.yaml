@@ -3192,11 +3192,12 @@ components:
                 type: object
               type: array
             issues:
+              description: Concise scope limitations when ready, or missing information
+                needed to prepare any meaningful cases when not ready.
               items:
-                maxLength: 500
+                maxLength: 200
                 minLength: 1
                 type: string
-              maxItems: 10
               type: array
             nodes:
               items:
@@ -3222,6 +3223,8 @@ components:
                 type: object
               type: array
             ready:
+              description: True when meaningful cases can be graded from available
+                evidence; complete coverage and exact reference answers are not required.
               type: boolean
           required:
           - ready

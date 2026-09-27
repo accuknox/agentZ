@@ -18,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
@@ -88,6 +89,7 @@ type evaluationPreparationCase struct {
 	definition string
 	review     string
 	wantError  bool
+	wantNotes  []string
 }
 
 // Case generation accepts only complete, distinct cases and always stops its session.
@@ -103,6 +105,13 @@ func TestPrepareEvaluationCases(t *testing.T) {
 		{name: "existing input", structured: `{"cases":[{"name":"One","inputs":{"title":"Existing incident"}}],"rubric":"Use facts."}`, wantError: true},
 	}
 	tests = append(tests,
+		evaluationPreparationCase{
+			name:       "partial graph retains useful cases",
+			structured: `{"cases":[{"name":"Ordinary input","inputs":{"title":"An incident"}}],"rubric":"Check incident classification only.","coverage":{"ready":true,"issues":[],"nodes":[{"node_name":"triage","case_names":["Ordinary input"],"rationale":"The report can be classified without an owner directory."}],"edges":[]}}`,
+			definition: `{"agent_name":"agent","inputs":{"title":{"type":"string","required":true}},"nodes":[{"name":"triage"},{"name":"route"}],"edges":[{"source":"triage","target":"route","branch_label":"routable"}]}`,
+			wantNotes:  []string{"Node coverage: 1 of 2. Uncovered nodes are outside this evaluation's scope.", "Branch coverage: 0 of 1. Uncovered branches are outside this evaluation's scope."},
+		},
+		evaluationPreparationCase{name: "usable cases with qualitative criteria", structured: `{"cases":[{"name":"Ordinary input","inputs":{"title":"An incident"}}],"rubric":"Check that the response flags unverified claims and explains urgency from the supplied evidence. Do not require exact owners or update times.","coverage":{"ready":true,"issues":["Exact owners and update times are not specified; assess completeness and uncertainty handling."],"nodes":[],"edges":[]}}`},
 		evaluationPreparationCase{name: "uncovered node", structured: `{"cases":[{"name":"Ordinary input","inputs":{"title":"An incident"}}],"rubric":"Use facts."}`, definition: `{"agent_name":"agent","inputs":{"title":{"type":"string","required":true}},"nodes":[{"name":"triage","goal":"Classify incidents","preferred_skills":["incident-guide"],"preferred_tools":["incident_lookup"]}]}`, wantError: true},
 		evaluationPreparationCase{name: "review rejects proposal", structured: `{"cases":[{"name":"Ordinary input","inputs":{"title":"An incident"}}],"rubric":"Use facts."}`, review: `{"cases":[{"name":"Ordinary input","inputs":{"title":"An incident"}}],"rubric":"Use facts.","coverage":{"ready":false,"issues":["Missing routing policy at docs/routing.md."],"nodes":[],"edges":[]}}`, wantError: true},
 		evaluationPreparationCase{name: "unknown coverage case", structured: `{"cases":[{"name":"Ordinary input","inputs":{"title":"An incident"}}],"rubric":"Use facts.","coverage":{"ready":true,"issues":[],"nodes":[{"node_name":"triage","case_names":["Invented case"],"rationale":"Input reaches triage."}],"edges":[]}}`, definition: `{"agent_name":"agent","inputs":{"title":{"type":"string","required":true}},"nodes":[{"name":"triage"}]}`, wantError: true},
@@ -202,6 +211,24 @@ func TestPrepareEvaluationCases(t *testing.T) {
 			result, err := service.prepareEvaluationCases(ctx, agent, definition, existing, nil, gatewayapi.OpencodeModelRef{ProviderID: "test", Id: "test"})
 			if (err != nil) != tt.wantError {
 				t.Fatalf("result = %+v, err = %v", result, err)
+			}
+			for _, note := range tt.wantNotes {
+				if !slices.Contains(result.Coverage.Issues, note) {
+					t.Errorf("missing scope limitation %q: %v", note, result.Coverage.Issues)
+				}
+			}
+			if tt.name == "review rejects proposal" {
+				var apiErr *apiutil.APIError
+				if !errors.As(err, &apiErr) {
+					t.Fatalf("expected actionable context error, got %v", err)
+				}
+				if apiErr.Message != "Add the missing workflow context, then retry." {
+					t.Errorf("review detail leaked into summary: %q", apiErr.Message)
+				}
+				want := []gatewayapi.FieldError{{Field: "preparation", Message: "Missing routing policy at docs/routing.md."}}
+				if !slices.Equal(apiErr.Fields, want) {
+					t.Errorf("missing structured blocker detail: %v", apiErr.Fields)
+				}
 			}
 			aborted, deleted := 0, 0
 			for _, call := range calls {

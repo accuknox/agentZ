@@ -4,19 +4,8 @@ import { useState } from "react"
 import dynamic from "next/dynamic"
 import { useQuery } from "@tanstack/react-query"
 import { getWorkflowEvaluationOptions } from "@/lib/gateway/client/@tanstack/react-query.gen"
-import {
-  Scale,
-  CircleAlert,
-  Download,
-  FunctionSquare,
-  Check,
-  Clock3,
-  Play,
-  ScanSearch,
-  ChevronDown,
-} from "lucide-react"
-import type { WorkflowEvaluation } from "@/lib/gateway/client"
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible"
+import { Scale, CircleAlert, FunctionSquare, Check, Clock3, Play, ScanSearch } from "lucide-react"
+import type { WorkflowEvaluation, EvaluationEvidenceReference } from "@/lib/gateway/client"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
@@ -47,8 +36,12 @@ import {
 } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Spinner } from "@/components/ui/spinner"
-import { ProviderIcon } from "@/app/(app)/inference/providers/provider-shared"
+import { ProviderIcons } from "@/app/(app)/inference/providers/provider-shared"
 import { formatDurationSeconds } from "@/lib/format"
+
+const Transcript = dynamic(() => import("./transcript").then((module) => module.Transcript), {
+  loading: () => <Skeleton className="mt-3 h-80" />,
+})
 
 const Charts = dynamic(() => import("./charts").then((module) => module.Charts), {
   loading: () => (
@@ -67,11 +60,11 @@ export function Results({
 }: {
   evaluation: WorkflowEvaluation
   workspaceId: string
-  providerBrands: Record<string, string>
+  providerBrands: Record<string, string[]>
 }) {
   const [selected, setSelected] = useState<string>()
   const [tab, setTab] = useState("judgment")
-  const [expanded, setExpanded] = useState<string>()
+  const [reference, setReference] = useState<EvaluationEvidenceReference>()
   const execution = evaluation.executions.find((item) => item.run_name === selected)
   const evidenceReady = execution && !["queued", "running"].includes(execution.state)
   const evidence = useQuery({
@@ -98,9 +91,16 @@ export function Results({
         <span className="text-muted-foreground inline-flex items-center gap-2">
           <Scale aria-hidden className="size-4" />
           Judge
-          <ProviderIcon
+          <ProviderIcons
             className="text-foreground size-4 shrink-0"
-            provider={providerBrands[evaluation.request.judge.provider_id] ?? "custom"}
+            providers={
+              providerBrands[
+                JSON.stringify([
+                  evaluation.request.judge.provider_id,
+                  evaluation.request.judge.model_id,
+                ])
+              ] ?? []
+            }
           />
           <span className="text-foreground">{evaluation.request.judge.label}</span>
         </span>
@@ -232,23 +232,36 @@ export function Results({
         </TableHeader>
         <TableBody>
           {rows.map((row) => (
-            <TableRow key={row.run_name}>
+            <TableRow
+              key={row.run_name}
+              tabIndex={0}
+              aria-label={`View ${row.model.label} execution`}
+              className="focus-visible:outline-ring cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
+              onClick={() => {
+                setSelected(row.run_name)
+                setTab("judgment")
+                setReference(undefined)
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault()
+                  setSelected(row.run_name)
+                  setTab("judgment")
+                  setReference(undefined)
+                }
+              }}
+            >
               <TableCell>
-                <Button
-                  variant="link"
-                  onClick={() => {
-                    setSelected(row.run_name)
-                    setTab("judgment")
-                    setExpanded(undefined)
-                  }}
-                  className="text-foreground max-w-64 justify-start px-0"
-                >
-                  <ProviderIcon
+                <span className="flex items-center gap-2 font-medium">
+                  <ProviderIcons
                     className="size-4 shrink-0"
-                    provider={providerBrands[row.model.provider_id] ?? "custom"}
+                    providers={
+                      providerBrands[JSON.stringify([row.model.provider_id, row.model.model_id])] ??
+                      []
+                    }
                   />
                   <span className="truncate">{row.model.label}</span>
-                </Button>
+                </span>
               </TableCell>
               <TableCell>
                 <Badge
@@ -317,14 +330,28 @@ export function Results({
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               {execution ? (
-                <ProviderIcon
+                <ProviderIcons
                   className="size-4 shrink-0"
-                  provider={providerBrands[execution.model.provider_id] ?? "custom"}
+                  providers={
+                    providerBrands[
+                      JSON.stringify([execution.model.provider_id, execution.model.model_id])
+                    ] ?? []
+                  }
                 />
               ) : null}
               {execution?.model.label}
             </SheetTitle>
-            <SheetDescription>{execution?.run_name}</SheetDescription>
+            <SheetDescription className="flex flex-wrap gap-3">
+              {execution?.tokens !== undefined ? (
+                <span>{execution.tokens.toLocaleString()} tokens</span>
+              ) : null}
+              {execution?.tool_calls !== undefined ? (
+                <span>{execution.tool_calls} tool calls</span>
+              ) : null}
+              {execution?.duration_seconds !== undefined ? (
+                <span>{formatDurationSeconds(execution.duration_seconds)}</span>
+              ) : null}
+            </SheetDescription>
           </SheetHeader>
           {execution ? (
             <Tabs value={tab} onValueChange={setTab} className="min-h-0 flex-1 px-4 pb-4">
@@ -365,13 +392,29 @@ export function Results({
                         </p>
                       </div>
                     </div>
-                    <p className="text-sm">{execution.judgment.summary}</p>
+                    <p className="text-sm leading-relaxed">{execution.judgment.summary}</p>
                     <section>
-                      <h3 className="mb-2 text-sm font-medium">Evidence</h3>
+                      <h3 className="mb-2 text-sm font-medium">Findings</h3>
                       <ul className="flex list-disc flex-col gap-3 pl-5 text-sm">
                         {execution.judgment.evidence.map((item, index) => (
-                          <li key={index} className="break-words">
+                          <li key={index} className="leading-relaxed break-words">
                             {item}
+                            {execution.judgment?.references
+                              ?.filter((item) => item.evidence_index === index)
+                              .map((item) => (
+                                <Button
+                                  key={`${item.session_id}:${item.message_id}:${item.part_id ?? ""}`}
+                                  variant="link"
+                                  size="sm"
+                                  className="ml-1 h-auto p-0 text-xs"
+                                  onClick={() => {
+                                    setReference(item)
+                                    setTab("transcript")
+                                  }}
+                                >
+                                  <ScanSearch /> View step
+                                </Button>
+                              ))}
                           </li>
                         ))}
                       </ul>
@@ -411,70 +454,7 @@ export function Results({
                 ) : !recordedExecution?.transcript?.length ? (
                   <p className="text-muted-foreground py-6 text-sm">No transcript available</p>
                 ) : (
-                  <>
-                    <div className="flex items-center justify-between py-3">
-                      <span className="text-muted-foreground text-xs">
-                        {recordedExecution?.transcript?.length ?? 0}{" "}
-                        {recordedExecution?.transcript?.length === 1 ? "session" : "sessions"}
-                      </span>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          const url = URL.createObjectURL(
-                            new Blob(
-                              [
-                                JSON.stringify(
-                                  {
-                                    workflow: evaluation.workflow,
-                                    inputs: evaluation.request.inputs,
-                                    execution: recordedExecution,
-                                  },
-                                  null,
-                                  2
-                                ),
-                              ],
-                              { type: "application/json" }
-                            )
-                          )
-                          const link = document.createElement("a")
-                          link.href = url
-                          link.download = `${execution.run_name}.json`
-                          link.click()
-                          setTimeout(() => URL.revokeObjectURL(url), 1000)
-                        }}
-                      >
-                        <Download />
-                        Download
-                      </Button>
-                    </div>
-                    {tab === "transcript"
-                      ? recordedExecution?.transcript?.map((session) => (
-                          <Collapsible
-                            key={session.session_id}
-                            open={expanded === session.session_id}
-                            onOpenChange={(open) =>
-                              setExpanded(open ? session.session_id : undefined)
-                            }
-                            className="mb-3 rounded-md border"
-                          >
-                            <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 p-3 text-left font-mono text-xs">
-                              <span className="truncate">
-                                {session.session_id} · {session.messages.length} messages
-                              </span>
-                              <ChevronDown className="size-4 shrink-0" />
-                            </CollapsibleTrigger>
-                            <CollapsibleContent>
-                              {expanded === session.session_id ? (
-                                <pre className="bg-muted overflow-auto p-3 text-xs">
-                                  {JSON.stringify(session, null, 2)}
-                                </pre>
-                              ) : null}
-                            </CollapsibleContent>
-                          </Collapsible>
-                        ))
-                      : null}
-                  </>
+                  <Transcript sessions={recordedExecution.transcript} reference={reference} />
                 )}
               </TabsContent>
             </Tabs>

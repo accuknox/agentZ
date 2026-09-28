@@ -13,6 +13,7 @@ import {
   type FieldError as APIFieldError,
 } from "@/lib/gateway/client"
 import {
+  listAgentModelCatalogOptions,
   listWorkflowEvaluationsOptions,
   getWorkflowEvaluationOptions,
 } from "@/lib/gateway/client/@tanstack/react-query.gen"
@@ -49,17 +50,15 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { dayjs } from "@/lib/format"
 
-import { ProviderIcon } from "@/app/(app)/inference/providers/provider-shared"
+import { ProviderIcons } from "@/app/(app)/inference/providers/provider-shared"
 import { Results } from "./results"
 
 export function Evaluations({
   workflow,
   workspaceId,
-  providerBrands,
 }: {
   workflow: Workflow
   workspaceId: string
-  providerBrands: Record<string, string>
 }) {
   const queryClient = useQueryClient()
   const [selected, setSelected] = useState<string>()
@@ -68,6 +67,16 @@ export function Evaluations({
   const [actionPending, setActionPending] = useState(false)
   const [actionError, setActionError] = useState<string>()
   const headers = { "X-AgentZ-Workspace-ID": workspaceId }
+  const branding = useQuery({
+    ...listAgentModelCatalogOptions({ headers, path: { agentName: workflow.agent_name } }),
+    staleTime: 60_000,
+  })
+  const providerBrands = Object.fromEntries(
+    (branding.data ?? []).map((item) => [
+      JSON.stringify([item.provider_id, item.model_id]),
+      item.providers,
+    ])
+  )
   const path = { agentName: workflow.agent_name, workflowName: workflow.workflow_name }
   const historyOptions = listWorkflowEvaluationsOptions({ headers, path })
   const history = useQuery({
@@ -319,7 +328,7 @@ function EvaluationForm({
   workflow: Workflow
   models: { model: EvaluationModel; key: string; group: string }[]
   workspaceId: string
-  providerBrands: Record<string, string>
+  providerBrands: Record<string, string[]>
   retry?: WorkflowEvaluation
   onComplete: (result: WorkflowEvaluation) => Promise<void>
 }) {
@@ -437,9 +446,13 @@ function EvaluationForm({
                   label: item.model.label,
                   group: item.group,
                   iconElement: (
-                    <ProviderIcon
+                    <ProviderIcons
                       className="size-4 shrink-0"
-                      provider={providerBrands[item.model.provider_id] ?? "custom"}
+                      providers={
+                        providerBrands[
+                          JSON.stringify([item.model.provider_id, item.model.model_id])
+                        ] ?? []
+                      }
                     />
                   ),
                   disabled: selection.length >= 8 && !selection.includes(item.key),
@@ -478,9 +491,13 @@ function EvaluationForm({
                 <SelectGroup>
                   {models.map((item) => (
                     <SelectItem value={item.key} key={item.key}>
-                      <ProviderIcon
+                      <ProviderIcons
                         className="size-4 shrink-0"
-                        provider={providerBrands[item.model.provider_id] ?? "custom"}
+                        providers={
+                          providerBrands[
+                            JSON.stringify([item.model.provider_id, item.model.model_id])
+                          ] ?? []
+                        }
                       />
                       {item.model.label}
                     </SelectItem>

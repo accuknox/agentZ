@@ -191,6 +191,9 @@ import type {
   ListAgentDashboardsData,
   ListAgentDashboardsErrors,
   ListAgentDashboardsResponses,
+  ListAgentModelCatalogData,
+  ListAgentModelCatalogErrors,
+  ListAgentModelCatalogResponses,
   ListAgentMutableSkillsData,
   ListAgentMutableSkillsErrors,
   ListAgentMutableSkillsResponses,
@@ -2577,6 +2580,19 @@ export const listWorkflowWebhookTriggers = <ThrowOnError extends boolean = false
   >({
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/workflow/{agentName}/webhook",
+    ...options,
+  })
+
+export const listAgentModelCatalog = <ThrowOnError extends boolean = false>(
+  options: Options<ListAgentModelCatalogData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListAgentModelCatalogResponses,
+    ListAgentModelCatalogErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/model-catalog",
     ...options,
   })
 

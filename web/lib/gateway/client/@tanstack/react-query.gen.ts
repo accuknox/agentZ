@@ -70,6 +70,7 @@ import {
   invokeWorkflowWebhook,
   listAgentAccessTargets,
   listAgentDashboards,
+  listAgentModelCatalog,
   listAgentMutableSkills,
   listAgents,
   listAgentShares,
@@ -332,6 +333,9 @@ import type {
   ListAgentDashboardsData,
   ListAgentDashboardsError,
   ListAgentDashboardsResponse,
+  ListAgentModelCatalogData,
+  ListAgentModelCatalogError,
+  ListAgentModelCatalogResponse,
   ListAgentMutableSkillsData,
   ListAgentMutableSkillsError,
   ListAgentMutableSkillsResponse,
@@ -3858,6 +3862,28 @@ export const listWorkflowWebhookTriggersOptions = (
       return data
     },
     queryKey: listWorkflowWebhookTriggersQueryKey(options),
+  })
+
+export const listAgentModelCatalogQueryKey = (options: Options<ListAgentModelCatalogData>) =>
+  createQueryKey("listAgentModelCatalog", options)
+
+export const listAgentModelCatalogOptions = (options: Options<ListAgentModelCatalogData>) =>
+  queryOptions<
+    ListAgentModelCatalogResponse,
+    ListAgentModelCatalogError,
+    ListAgentModelCatalogResponse,
+    ReturnType<typeof listAgentModelCatalogQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listAgentModelCatalog({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listAgentModelCatalogQueryKey(options),
   })
 
 export const listWorkflowEvaluationsQueryKey = (options: Options<ListWorkflowEvaluationsData>) =>

@@ -778,6 +778,22 @@ components:
       required:
       - enabled
       type: object
+    AgentModelCatalogEntry:
+      properties:
+        model_id:
+          type: string
+        provider_id:
+          type: string
+        providers:
+          items:
+            type: string
+          type: array
+          uniqueItems: true
+      required:
+      - provider_id
+      - model_id
+      - providers
+      type: object
     AgentName:
       maxLength: 32
       minLength: 1
@@ -3008,6 +3024,28 @@ components:
       - code
       - message
       type: object
+    EvaluationEvidenceReference:
+      additionalProperties: false
+      properties:
+        evidence_index:
+          description: Zero-based index into the evidence findings.
+          minimum: 0
+          type: integer
+        message_id:
+          minLength: 1
+          type: string
+        part_id:
+          description: The native part ID, when citing a tool call.
+          minLength: 1
+          type: string
+        session_id:
+          minLength: 1
+          type: string
+      required:
+      - evidence_index
+      - session_id
+      - message_id
+      type: object
     EvaluationExecution:
       properties:
         duration_seconds:
@@ -3093,6 +3131,11 @@ components:
             type: string
           maxItems: 8
           type: array
+        references:
+          items:
+            $ref: '#/components/schemas/EvaluationEvidenceReference'
+          maxItems: 16
+          type: array
         summary:
           maxLength: 2000
           minLength: 1
@@ -3147,10 +3190,20 @@ components:
       properties:
         messages:
           items:
-            $ref: '#/components/schemas/JSONValue'
+            properties:
+              info:
+                $ref: '#/components/schemas/OpencodeMessage'
+              parts:
+                items:
+                  $ref: '#/components/schemas/OpencodePart'
+                type: array
+            required:
+            - info
+            - parts
+            type: object
           type: array
         session:
-          $ref: '#/components/schemas/JSONValue'
+          $ref: '#/components/schemas/OpencodeSession'
         session_id:
           type: string
       required:
@@ -26806,6 +26859,27 @@ paths:
       summary: Read agent workspace entry metadata.
       tags:
       - agents
+  /api/agent/{agentName}/model-catalog:
+    get:
+      operationId: listAgentModelCatalog
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/AgentModelCatalogEntry'
+                type: array
+          description: Provider branding for the agent's configured models, including pools and inherited providers.
+        default:
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      tags:
+      - agents
+    parameters:
+    - $ref: '#/components/parameters/AgentNamePath'
   /api/agent/{agentName}/owner:
     get:
       operationId: getAgentOwner

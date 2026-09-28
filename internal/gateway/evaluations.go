@@ -662,14 +662,9 @@ func (s *Service) collectEvaluationTranscript(ctx context.Context, namespace, ag
 		if len(*messages.JSON200) == 0 {
 			return fmt.Errorf("session %s has no transcript", id)
 		}
-		record := gatewayapi.EvaluationTranscriptSession{SessionId: id, Session: new(gatewayapi.JSONValue)}
-		if err = json.Unmarshal(session.Body, record.Session); err != nil {
-			return err
-		}
-		if err = json.Unmarshal(messages.Body, &record.Messages); err != nil {
-			return err
-		}
-		transcript = append(transcript, record)
+		transcript = append(transcript, gatewayapi.EvaluationTranscriptSession{
+			SessionId: id, Session: *session.JSON200, Messages: *messages.JSON200,
+		})
 		answered := false
 		for _, message := range *messages.JSON200 {
 			role, err := message.Info.Discriminator()

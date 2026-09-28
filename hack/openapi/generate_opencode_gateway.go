@@ -76,7 +76,9 @@ var baseOperationCapabilities = map[string][]string{
 		"createAgentDirectory",
 		"createAgentFile",
 		"createWorkflow",
-		"createWorkflowEvaluation", "listWorkflowEvaluations", "getWorkflowEvaluation", "updateWorkflowEvaluation",
+		"listAgentModelCatalog",
+		"createWorkflowEvaluation", "listWorkflowEvaluations",
+		"getWorkflowEvaluation", "updateWorkflowEvaluation",
 		"createWorkflowRun",
 		"createWorkflowSchedule",
 		"deleteAgent",
@@ -272,6 +274,12 @@ func run() error {
 		return err
 	}
 
+	// Evaluation evidence shares the pinned native session contract with the SDK.
+	externalRefs := make(map[string]string)
+	for _, name := range []string{"Session", "Message", "Part"} {
+		externalRefs[upstreamSpecURL+"#/components/schemas/"+name] = "#/components/schemas/Opencode" + name
+	}
+	rewriteRefs(base, externalRefs)
 	mergeSpec(base, rewritten)
 
 	if err := writeYAML(outputSpecPath, base); err != nil {

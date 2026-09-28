@@ -16,7 +16,7 @@ import {
   XAIDark,
   XAILight,
 } from "@ridemountainpig/svgl-react"
-import { Cloud } from "lucide-react"
+import { Cloud, Cpu } from "lucide-react"
 import type { InferenceProviderKind } from "@/lib/gateway/client"
 
 /** providerKindLabels describes the configuration selected by each kind. */
@@ -128,5 +128,23 @@ export function ProviderIcon({
         setFailedProvider(provider)
       }}
     />
+  )
+}
+
+/** ProviderIcons shows each provider that can serve a model, including pool members. */
+export function ProviderIcons({
+  providers,
+  className = "size-4 shrink-0",
+}: {
+  providers: string[]
+  className?: string
+}) {
+  if (!providers.length) return <Cpu aria-label="Provider unavailable" className={className} />
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1">
+      {providers.map((provider) => (
+        <ProviderIcon key={provider} provider={provider} className={className} />
+      ))}
+    </span>
   )
 }

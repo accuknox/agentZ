@@ -821,6 +821,12 @@ export const zListAgentsResponse = z.object({
  */
 export const zApiKeyId = z.string().min(1)
 
+export const zAgentModelCatalogEntry = z.object({
+  provider_id: z.string(),
+  model_id: z.string(),
+  providers: z.array(z.string()),
+})
+
 export const zEvaluationModel = z.object({
   provider_id: z.string().min(1),
   model_id: z.string().min(1),
@@ -842,12 +848,20 @@ export const zEvaluationReferences = z.object({
   duration_seconds: z.number().gte(0),
 })
 
+export const zEvaluationEvidenceReference = z.object({
+  evidence_index: z.int().gte(0),
+  session_id: z.string().min(1),
+  message_id: z.string().min(1),
+  part_id: z.string().min(1).optional(),
+})
+
 export const zEvaluationJudgment = z.object({
   correctness: z.int().gte(0).lte(4),
   efficiency: z.int().gte(0).lte(4),
   summary: z.string().min(1).max(2000),
   evidence: z.array(z.string().min(1).max(1000)).min(1).max(8),
   limitations: z.array(z.string().min(1).max(1000)).max(8),
+  references: z.array(zEvaluationEvidenceReference).max(16).optional(),
 })
 
 export const zWorkflowRunTriggerType = z.enum(["Schedule", "Webhook"])
@@ -1451,12 +1465,6 @@ export const zWorkflowEvaluationRequest = z.object({
   judge: zEvaluationModel,
 })
 
-export const zEvaluationTranscriptSession = z.object({
-  session_id: z.string(),
-  session: zJsonValue,
-  messages: z.array(zJsonValue),
-})
-
 export const zWorkflowRunInputs = zJsonValue
 
 export const zWorkflowRunDetail = z.object({
@@ -1482,32 +1490,6 @@ export const zWorkflowRunDetail = z.object({
     })
     .optional(),
   node_statuses: z.array(zWorkflowRunNodeStatus),
-})
-
-export const zEvaluationExecution = z.object({
-  model: zEvaluationModel,
-  run_name: z.string(),
-  state: z.enum(["queued", "running", "judging", "completed", "error", "cancelled"]),
-  run_status: zWorkflowRunStatus.optional(),
-  run: zWorkflowRunDetail.optional(),
-  message: z.string().optional(),
-  session_id: z.string().optional(),
-  transcript: z.array(zEvaluationTranscriptSession).optional(),
-  measured_efficiency: z.number().gte(0).lte(1).optional(),
-  tokens: z.number().gte(0).optional(),
-  tool_calls: z.int().gte(0).optional(),
-  duration_seconds: z.number().gte(0).optional(),
-  judgment: zEvaluationJudgment.optional(),
-  judge_context_compacted: z.boolean().optional(),
-  score: z.number().gte(0).lte(100).optional(),
-})
-
-export const zWorkflowEvaluationSummary = z.object({
-  id: z.uuid(),
-  judge: zEvaluationModel,
-  executions: z.array(zEvaluationExecution),
-  state: zWorkflowEvaluationState,
-  created_at: z.iso.datetime(),
 })
 
 export const zCreateWorkflowScheduleRequest = z.object({
@@ -1561,19 +1543,6 @@ export const zWorkflow = z.object({
   edges: z.array(zWorkflowEdge),
   created_at: z.iso.datetime(),
   updated_at: z.iso.datetime(),
-})
-
-export const zWorkflowEvaluation = z.object({
-  id: z.uuid(),
-  request: zWorkflowEvaluationRequest,
-  workflow: zWorkflow,
-  executions: z.array(zEvaluationExecution),
-  state: zWorkflowEvaluationState,
-  message: z.string().optional(),
-  created_at: z.iso.datetime(),
-  updated_at: z.iso.datetime(),
-  scoring_version: z.enum(["trace-v1"]),
-  references: zEvaluationReferences.optional(),
 })
 
 export const zSpanDetail = zSpan.and(
@@ -2988,6 +2957,540 @@ export const zCodingRepositoryPage = z.object({
   next_page: z.int().optional(),
 })
 
+export const zApiError = z.object({
+  name: z.enum(["APIError"]),
+  data: z.object({
+    message: z.string(),
+    statusCode: z.int().gte(0).optional(),
+    isRetryable: z.boolean(),
+    responseHeaders: z.record(z.string(), z.string()).optional(),
+    responseBody: z.string().optional(),
+    metadata: z.record(z.string(), z.string()).optional(),
+  }),
+})
+
+export const zAgentPart = z.object({
+  id: z.string().regex(/^prt/),
+  sessionID: z.string().regex(/^ses/),
+  messageID: z.string().regex(/^msg/),
+  type: z.enum(["agent"]),
+  name: z.string(),
+  source: z
+    .object({
+      value: z.string(),
+      start: z.int().gte(0),
+      end: z.int().gte(0),
+    })
+    .optional(),
+})
+
+export const zCompactionPart = z.object({
+  id: z.string().regex(/^prt/),
+  sessionID: z.string().regex(/^ses/),
+  messageID: z.string().regex(/^msg/),
+  type: z.enum(["compaction"]),
+  auto: z.boolean(),
+  overflow: z.boolean().optional(),
+  tail_start_id: z.string().regex(/^msg/).optional(),
+})
+
+export const zContentFilterError = z.object({
+  name: z.enum(["ContentFilterError"]),
+  data: z.object({
+    message: z.string(),
+  }),
+})
+
+export const zContextOverflowError = z.object({
+  name: z.enum(["ContextOverflowError"]),
+  data: z.object({
+    message: z.string(),
+    responseBody: z.string().optional(),
+  }),
+})
+
+export const zFilePartSourceText = z.object({
+  value: z.string(),
+  start: z.number(),
+  end: z.number(),
+})
+
+export const zFileSource = z.object({
+  text: zFilePartSourceText,
+  type: z.enum(["file"]),
+  path: z.string(),
+})
+
+export const zJsonSchema = z.record(z.string(), z.unknown())
+
+export const zMessageAbortedError = z.object({
+  name: z.enum(["MessageAbortedError"]),
+  data: z.object({
+    message: z.string(),
+  }),
+})
+
+export const zMessageOutputLengthError = z.object({
+  name: z.enum(["MessageOutputLengthError"]),
+  data: z.record(z.string(), z.unknown()),
+})
+
+export const zOutputFormatJsonSchema = z.object({
+  type: z.enum(["json_schema"]),
+  schema: zJsonSchema,
+  retryCount: z.int().gte(0).optional(),
+})
+
+export const zOutputFormatText = z.object({
+  type: z.enum(["text"]),
+})
+
+export const zOutputFormat = z.union([zOutputFormatText, zOutputFormatJsonSchema])
+
+export const zPatchPart = z.object({
+  id: z.string().regex(/^prt/),
+  sessionID: z.string().regex(/^ses/),
+  messageID: z.string().regex(/^msg/),
+  type: z.enum(["patch"]),
+  hash: z.string(),
+  files: z.array(z.string()),
+})
+
+export const zPermissionAction = z.enum(["allow", "deny", "ask"])
+
+export const zPermissionRule = z.object({
+  permission: z.string(),
+  pattern: z.string(),
+  action: zPermissionAction,
+})
+
+export const zPermissionRuleset = z.array(zPermissionRule)
+
+export const zProviderAuthError = z.object({
+  name: z.enum(["ProviderAuthError"]),
+  data: z.object({
+    providerID: z.string(),
+    message: z.string(),
+  }),
+})
+
+export const zRange = z.object({
+  start: z.object({
+    line: z.int().gte(0),
+    character: z.int().gte(0),
+  }),
+  end: z.object({
+    line: z.int().gte(0),
+    character: z.int().gte(0),
+  }),
+})
+
+export const zReasoningPart = z.object({
+  id: z.string().regex(/^prt/),
+  sessionID: z.string().regex(/^ses/),
+  messageID: z.string().regex(/^msg/),
+  type: z.enum(["reasoning"]),
+  text: z.string(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  time: z.object({
+    start: z.int().gte(0),
+    end: z.int().gte(0).optional(),
+  }),
+})
+
+export const zResourceSource = z.object({
+  text: zFilePartSourceText,
+  type: z.enum(["resource"]),
+  clientName: z.string(),
+  uri: z.string(),
+})
+
+export const zRetryPart = z.object({
+  id: z.string().regex(/^prt/),
+  sessionID: z.string().regex(/^ses/),
+  messageID: z.string().regex(/^msg/),
+  type: z.enum(["retry"]),
+  attempt: z.int().gte(0),
+  error: zApiError,
+  time: z.object({
+    created: z.int().gte(0),
+  }),
+})
+
+export const zSnapshotFileDiff = z.object({
+  file: z.string().optional(),
+  patch: z.string().optional(),
+  additions: z.number(),
+  deletions: z.number(),
+  status: z.enum(["added", "deleted", "modified"]).optional(),
+})
+
+export const zSession = z.object({
+  id: z.string().regex(/^ses/),
+  slug: z.string(),
+  projectID: z.string(),
+  workspaceID: z.string().regex(/^wrk/).optional(),
+  directory: z.string(),
+  path: z.string().optional(),
+  parentID: z.string().regex(/^ses/).optional(),
+  summary: z
+    .object({
+      additions: z.number(),
+      deletions: z.number(),
+      files: z.number(),
+      diffs: z.array(zSnapshotFileDiff).optional(),
+    })
+    .optional(),
+  cost: z.number().optional(),
+  tokens: z
+    .object({
+      input: z.number(),
+      output: z.number(),
+      reasoning: z.number(),
+      cache: z.object({
+        read: z.number(),
+        write: z.number(),
+      }),
+    })
+    .optional(),
+  share: z
+    .object({
+      url: z.string(),
+    })
+    .optional(),
+  title: z.string(),
+  agent: z.string().optional(),
+  model: z
+    .object({
+      id: z.string(),
+      providerID: z.string(),
+      variant: z.string().optional(),
+    })
+    .optional(),
+  version: z.string(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  time: z.object({
+    created: z.int().gte(0),
+    updated: z.int().gte(0),
+    compacting: z.int().gte(0).optional(),
+    archived: z.number().optional(),
+  }),
+  permission: zPermissionRuleset.optional(),
+  revert: z
+    .object({
+      messageID: z.string().regex(/^msg/),
+      partID: z.string().regex(/^prt/).optional(),
+      snapshot: z.string().optional(),
+      diff: z.string().optional(),
+    })
+    .optional(),
+})
+
+export const zSnapshotPart = z.object({
+  id: z.string().regex(/^prt/),
+  sessionID: z.string().regex(/^ses/),
+  messageID: z.string().regex(/^msg/),
+  type: z.enum(["snapshot"]),
+  snapshot: z.string(),
+})
+
+export const zStepFinishPart = z.object({
+  id: z.string().regex(/^prt/),
+  sessionID: z.string().regex(/^ses/),
+  messageID: z.string().regex(/^msg/),
+  type: z.enum(["step-finish"]),
+  reason: z.string(),
+  snapshot: z.string().optional(),
+  cost: z.number(),
+  tokens: z.object({
+    total: z.number().optional(),
+    input: z.number(),
+    output: z.number(),
+    reasoning: z.number(),
+    cache: z.object({
+      read: z.number(),
+      write: z.number(),
+    }),
+  }),
+})
+
+export const zStepStartPart = z.object({
+  id: z.string().regex(/^prt/),
+  sessionID: z.string().regex(/^ses/),
+  messageID: z.string().regex(/^msg/),
+  type: z.enum(["step-start"]),
+  snapshot: z.string().optional(),
+})
+
+export const zStructuredOutputError = z.object({
+  name: z.enum(["StructuredOutputError"]),
+  data: z.object({
+    message: z.string(),
+    retries: z.int().gte(0),
+  }),
+})
+
+export const zSubtaskPart = z.object({
+  id: z.string().regex(/^prt/),
+  sessionID: z.string().regex(/^ses/),
+  messageID: z.string().regex(/^msg/),
+  type: z.enum(["subtask"]),
+  prompt: z.string(),
+  description: z.string(),
+  agent: z.string(),
+  model: z
+    .object({
+      providerID: z.string(),
+      modelID: z.string(),
+    })
+    .optional(),
+  command: z.string().optional(),
+})
+
+export const zSymbolSource = z.object({
+  text: zFilePartSourceText,
+  type: z.enum(["symbol"]),
+  path: z.string(),
+  range: zRange,
+  name: z.string(),
+  kind: z.int().gte(0),
+})
+
+export const zFilePartSource = z.union([zFileSource, zSymbolSource, zResourceSource])
+
+export const zFilePart = z.object({
+  id: z.string().regex(/^prt/),
+  sessionID: z.string().regex(/^ses/),
+  messageID: z.string().regex(/^msg/),
+  type: z.enum(["file"]),
+  mime: z.string(),
+  filename: z.string().optional(),
+  url: z.string(),
+  source: zFilePartSource.optional(),
+})
+
+export const zTextPart = z.object({
+  id: z.string().regex(/^prt/),
+  sessionID: z.string().regex(/^ses/),
+  messageID: z.string().regex(/^msg/),
+  type: z.enum(["text"]),
+  text: z.string(),
+  synthetic: z.boolean().optional(),
+  ignored: z.boolean().optional(),
+  time: z
+    .object({
+      start: z.int().gte(0),
+      end: z.int().gte(0).optional(),
+    })
+    .optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+})
+
+export const zToolStateCompleted = z.object({
+  status: z.enum(["completed"]),
+  input: z.record(z.string(), z.unknown()),
+  output: z.string(),
+  title: z.string(),
+  metadata: z.record(z.string(), z.unknown()),
+  time: z.object({
+    start: z.int().gte(0),
+    end: z.int().gte(0),
+    compacted: z.int().gte(0).optional(),
+  }),
+  attachments: z.array(zFilePart).optional(),
+})
+
+export const zToolStateError = z.object({
+  status: z.enum(["error"]),
+  input: z.record(z.string(), z.unknown()),
+  error: z.string(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  time: z.object({
+    start: z.int().gte(0),
+    end: z.int().gte(0),
+  }),
+})
+
+export const zToolStatePending = z.object({
+  status: z.enum(["pending"]),
+  input: z.record(z.string(), z.unknown()),
+  raw: z.string(),
+})
+
+export const zToolStateRunning = z.object({
+  status: z.enum(["running"]),
+  input: z.record(z.string(), z.unknown()),
+  title: z.string().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  time: z.object({
+    start: z.int().gte(0),
+  }),
+})
+
+export const zToolState = z.union([
+  zToolStatePending,
+  zToolStateRunning,
+  zToolStateCompleted,
+  zToolStateError,
+])
+
+export const zToolPart = z.object({
+  id: z.string().regex(/^prt/),
+  sessionID: z.string().regex(/^ses/),
+  messageID: z.string().regex(/^msg/),
+  type: z.enum(["tool"]),
+  callID: z.string(),
+  tool: z.string(),
+  state: zToolState,
+  metadata: z.record(z.string(), z.unknown()).optional(),
+})
+
+export const zPart = z.union([
+  zTextPart,
+  zSubtaskPart,
+  zReasoningPart,
+  zFilePart,
+  zToolPart,
+  zStepStartPart,
+  zStepFinishPart,
+  zSnapshotPart,
+  zPatchPart,
+  zAgentPart,
+  zRetryPart,
+  zCompactionPart,
+])
+
+export const zUnknownError = z.object({
+  name: z.enum(["UnknownError"]),
+  data: z.object({
+    message: z.string(),
+    ref: z.string().optional(),
+  }),
+})
+
+export const zAssistantMessage = z.object({
+  id: z.string().regex(/^msg/),
+  sessionID: z.string().regex(/^ses/),
+  role: z.enum(["assistant"]),
+  time: z.object({
+    created: z.int().gte(0),
+    completed: z.int().gte(0).optional(),
+  }),
+  error: z
+    .union([
+      zProviderAuthError,
+      zUnknownError,
+      zMessageOutputLengthError,
+      zMessageAbortedError,
+      zStructuredOutputError,
+      zContextOverflowError,
+      zContentFilterError,
+      zApiError,
+    ])
+    .optional(),
+  parentID: z.string().regex(/^msg/),
+  modelID: z.string(),
+  providerID: z.string(),
+  mode: z.string(),
+  agent: z.string(),
+  path: z.object({
+    cwd: z.string(),
+    root: z.string(),
+  }),
+  summary: z.boolean().optional(),
+  cost: z.number(),
+  tokens: z.object({
+    total: z.number().optional(),
+    input: z.number(),
+    output: z.number(),
+    reasoning: z.number(),
+    cache: z.object({
+      read: z.number(),
+      write: z.number(),
+    }),
+  }),
+  structured: z.unknown().optional(),
+  variant: z.string().optional(),
+  finish: z.string().optional(),
+})
+
+export const zUserMessage = z.object({
+  id: z.string().regex(/^msg/),
+  sessionID: z.string().regex(/^ses/),
+  role: z.enum(["user"]),
+  time: z.object({
+    created: z.number().gte(0),
+  }),
+  format: zOutputFormat.optional(),
+  summary: z
+    .object({
+      title: z.string().optional(),
+      body: z.string().optional(),
+      diffs: z.array(zSnapshotFileDiff),
+    })
+    .optional(),
+  agent: z.string(),
+  model: z.object({
+    providerID: z.string(),
+    modelID: z.string(),
+    variant: z.string().optional(),
+  }),
+  system: z.string().optional(),
+  tools: z.record(z.string(), z.boolean()).optional(),
+})
+
+export const zMessage = z.union([zUserMessage, zAssistantMessage])
+
+export const zEvaluationTranscriptSession = z.object({
+  session_id: z.string(),
+  session: zSession,
+  messages: z.array(
+    z.object({
+      info: zMessage,
+      parts: z.array(zPart),
+    })
+  ),
+})
+
+export const zEvaluationExecution = z.object({
+  model: zEvaluationModel,
+  run_name: z.string(),
+  state: z.enum(["queued", "running", "judging", "completed", "error", "cancelled"]),
+  run_status: zWorkflowRunStatus.optional(),
+  run: zWorkflowRunDetail.optional(),
+  message: z.string().optional(),
+  session_id: z.string().optional(),
+  transcript: z.array(zEvaluationTranscriptSession).optional(),
+  measured_efficiency: z.number().gte(0).lte(1).optional(),
+  tokens: z.number().gte(0).optional(),
+  tool_calls: z.int().gte(0).optional(),
+  duration_seconds: z.number().gte(0).optional(),
+  judgment: zEvaluationJudgment.optional(),
+  judge_context_compacted: z.boolean().optional(),
+  score: z.number().gte(0).lte(100).optional(),
+})
+
+export const zWorkflowEvaluation = z.object({
+  id: z.uuid(),
+  request: zWorkflowEvaluationRequest,
+  workflow: zWorkflow,
+  executions: z.array(zEvaluationExecution),
+  state: zWorkflowEvaluationState,
+  message: z.string().optional(),
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime(),
+  scoring_version: z.enum(["trace-v1"]),
+  references: zEvaluationReferences.optional(),
+})
+
+export const zWorkflowEvaluationSummary = z.object({
+  id: z.uuid(),
+  judge: zEvaluationModel,
+  executions: z.array(zEvaluationExecution),
+  state: zWorkflowEvaluationState,
+  created_at: z.iso.datetime(),
+})
+
 export const zJsonValueWritable = z
   .union([
     z.boolean(),
@@ -4025,6 +4528,11 @@ export const zInvokeWorkflowWebhookResponse = zWorkflowRunSummary
  * Paginated webhook trigger rows for an agent.
  */
 export const zListWorkflowWebhookTriggersResponse2 = zListWorkflowWebhookTriggersResponse
+
+/**
+ * Provider branding for the agent's configured models, including pools and inherited providers.
+ */
+export const zListAgentModelCatalogResponse = z.array(zAgentModelCatalogEntry)
 
 /**
  * Recent model comparisons without full transcripts.

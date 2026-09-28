@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/util/retry"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/accuknox/agentz/internal/agentquota"
 	"github.com/accuknox/agentz/internal/authorization"
@@ -2707,4 +2708,87 @@ func statusFromView(view *agentStatusView) gatewayapi.AgentStatus {
 	default:
 		return gatewayapi.UNSPECIFIED
 	}
+}
+
+// ListAgentModelCatalog exposes branding for models available through the agent,
+// without requiring permission to list or administer their providers.
+func (s *Service) ListAgentModelCatalog(w http.ResponseWriter, r *http.Request, agentName string) {
+	access, apiErr := s.resolveAgentAccess(r.Context(), agentName, authorization.OperationUseSharedAgent)
+	if apiErr != nil {
+		apiutil.WriteError(w, r, apiErr)
+		return
+	}
+	resolved, err := s.resolver.resolveAgent(r.Context(), access.namespace, agentName)
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+	ref := resolved.Agent.Spec.SandboxRef
+	namespace, err := scope.SelectedNamespace(r.Context(), s.k8sClient, access.namespace, scope.Selection{
+		Scope: ref.Scope, Kind: agentzv1alpha1.OrganizationResourceKindSandbox, Name: ref.Name,
+	})
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+	var sandbox agentzv1alpha1.Sandbox
+	key := client.ObjectKey{Namespace: namespace, Name: ref.Name}
+	err = s.k8sClient.Get(r.Context(), key, &sandbox)
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+	catalog, err := agentModelCatalog(r.Context(), s.k8sClient, &sandbox)
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+	apiutil.WriteJSON(w, http.StatusOK, catalog)
+}
+
+func agentModelCatalog(ctx context.Context, reader client.Reader, sandbox *agentzv1alpha1.Sandbox) ([]gatewayapi.AgentModelCatalogEntry, error) {
+	catalog := make([]gatewayapi.AgentModelCatalogEntry, 0, len(sandbox.Spec.Inference.Models))
+	providers := make(map[client.ObjectKey]string)
+	for _, model := range sandbox.Spec.Inference.Models {
+		members := []agentzv1alpha1.InferencePoolMember{{Scope: model.Scope, Provider: model.Provider, Model: model.Model}}
+		memberNamespace := sandbox.Namespace
+		if model.Provider == agentzv1alpha1.InferencePoolProvider {
+			namespace, err := scope.Namespace(ctx, reader, sandbox.Namespace, model.Scope)
+			if err != nil {
+				return nil, err
+			}
+			var pool agentzv1alpha1.InferencePool
+			key := client.ObjectKey{Namespace: namespace, Name: model.Model}
+			if err := reader.Get(ctx, key, &pool); err != nil {
+				return nil, err
+			}
+			members = pool.Spec.Members
+			memberNamespace = pool.Namespace
+		}
+		entry := gatewayapi.AgentModelCatalogEntry{ProviderId: model.Provider, ModelId: model.Model, Providers: []string{}}
+		for _, member := range members {
+			namespace, err := scope.SelectedNamespace(ctx, reader, memberNamespace, scope.Selection{
+				Scope: member.Scope, Kind: agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+				Name: member.Provider,
+			})
+			if err != nil {
+				return nil, err
+			}
+			key := client.ObjectKey{Namespace: namespace, Name: member.Provider}
+			brand, found := providers[key]
+			if !found {
+				var provider agentzv1alpha1.InferenceProvider
+				if err := reader.Get(ctx, key, &provider); err != nil {
+					return nil, err
+				}
+				brand = provider.Spec.CatalogProvider
+				providers[key] = brand
+			}
+			if !slices.Contains(entry.Providers, brand) {
+				entry.Providers = append(entry.Providers, brand)
+			}
+		}
+		catalog = append(catalog, entry)
+	}
+	return catalog, nil
 }

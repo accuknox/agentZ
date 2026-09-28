@@ -3620,6 +3620,21 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /api/agent/{agentName}/model-catalog:
+    parameters:
+    - $ref: '#/components/parameters/AgentNamePath'
+    get:
+      operationId: listAgentModelCatalog
+      tags: [agents]
+      responses:
+        '200':
+          description: Provider branding for the agent's configured models, including pools and inherited providers.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/AgentModelCatalogEntry'}
+        default: {$ref: '#/components/responses/InternalError'}
   /api/workflow/{agentName}/{workflowName}/evaluation:
     parameters:
     - $ref: '#/components/parameters/AgentNamePath'
@@ -6701,6 +6716,16 @@ components:
       minLength: 1
       description: Better Auth API key identifier.
 
+    AgentModelCatalogEntry:
+      type: object
+      required: [provider_id, model_id, providers]
+      properties:
+        provider_id: {type: string}
+        model_id: {type: string}
+        providers:
+          type: array
+          uniqueItems: true
+          items: {type: string}
     EvaluationModel:
       type: object
       additionalProperties: false
@@ -6774,8 +6799,17 @@ components:
       required: [session_id, session, messages]
       properties:
         session_id: {type: string}
-        session: {$ref: '#/components/schemas/JSONValue'}
-        messages: {type: array, items: {$ref: '#/components/schemas/JSONValue'}}
+        session: {$ref: 'https://raw.githubusercontent.com/anomalyco/opencode/a3647eb025c7615159d417dcc49fc39fdaeba65b/packages/sdk/openapi.json#/components/schemas/Session'}
+        messages:
+          type: array
+          items:
+            type: object
+            required: [info, parts]
+            properties:
+              info: {$ref: 'https://raw.githubusercontent.com/anomalyco/opencode/a3647eb025c7615159d417dcc49fc39fdaeba65b/packages/sdk/openapi.json#/components/schemas/Message'}
+              parts:
+                type: array
+                items: {$ref: 'https://raw.githubusercontent.com/anomalyco/opencode/a3647eb025c7615159d417dcc49fc39fdaeba65b/packages/sdk/openapi.json#/components/schemas/Part'}
     EvaluationReferences:
       type: object
       required: [tokens, tool_calls, duration_seconds]
@@ -6793,6 +6827,20 @@ components:
         summary: {type: string, minLength: 1, maxLength: 2000}
         evidence: {type: array, minItems: 1, maxItems: 8, items: {type: string, minLength: 1, maxLength: 1000}}
         limitations: {type: array, maxItems: 8, items: {type: string, minLength: 1, maxLength: 1000}}
+        references:
+          type: array
+          maxItems: 16
+          items: {$ref: '#/components/schemas/EvaluationEvidenceReference'}
+
+    EvaluationEvidenceReference:
+      type: object
+      additionalProperties: false
+      required: [evidence_index, session_id, message_id]
+      properties:
+        evidence_index: {type: integer, minimum: 0, description: Zero-based index into the evidence findings.}
+        session_id: {type: string, minLength: 1}
+        message_id: {type: string, minLength: 1}
+        part_id: {type: string, minLength: 1, description: 'The native part ID, when citing a tool call.'}
 
     WorkflowRunInputs:
       $ref: '#/components/schemas/JSONValue'

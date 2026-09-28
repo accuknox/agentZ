@@ -161,14 +161,17 @@ export function Evaluations({
       <div className="flex flex-wrap items-center gap-2 px-4 pt-4 pb-1 sm:px-6">
         {history.data?.length ? (
           <Select value={id} onValueChange={setSelected}>
-            <SelectTrigger className="w-auto min-w-52" aria-label="Evaluation">
-              <CalendarClock className="text-muted-foreground" />
-              <SelectValue />
+            <SelectTrigger
+              className="h-8 w-full min-w-0 rounded-md sm:w-64 sm:min-w-52"
+              aria-label="Evaluation"
+            >
+              <SelectValue placeholder="Evaluation" />
             </SelectTrigger>
-            <SelectContent position="popper" align="start">
+            <SelectContent>
               <SelectGroup>
                 {history.data.map((item) => (
                   <SelectItem key={item.id} value={item.id}>
+                    <CalendarClock />
                     {dayjs(item.created_at).format("MMM D, h:mm A")} · {item.executions.length}{" "}
                     {item.executions.length === 1 ? "model" : "models"}
                   </SelectItem>

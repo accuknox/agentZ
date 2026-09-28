@@ -3657,9 +3657,14 @@ paths:
     get:
       operationId: getWorkflowEvaluation
       tags: [workflows]
+      parameters:
+      - name: include_transcript
+        in: query
+        description: Include full native transcripts and workflow run records.
+        schema: {type: boolean, default: false}
       responses:
         '200':
-          description: Execution results and complete transcripts.
+          description: Execution results, optionally including complete transcripts.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/WorkflowEvaluation'}
@@ -6759,7 +6764,6 @@ components:
         tokens: {type: number, format: double, minimum: 0}
         tool_calls: {type: integer, minimum: 0}
         duration_seconds: {type: number, format: double, minimum: 0}
-        cost: {type: number, format: double, minimum: 0}
         judgment: {$ref: '#/components/schemas/EvaluationJudgment'}
         judge_context_compacted:
           type: boolean

@@ -1,9 +1,8 @@
 "use client"
 
 import { useRef, useState } from "react"
-import dynamic from "next/dynamic"
 import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Bot, CircleAlert, Plus, Play, RefreshCw, Square } from "lucide-react"
+import { Bot, CalendarClock, CircleAlert, Plus, Play, RefreshCw, Square } from "lucide-react"
 import {
   createWorkflowEvaluation,
   updateWorkflowEvaluation,
@@ -50,10 +49,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { dayjs } from "@/lib/format"
 
-const Results = dynamic(() => import("./results").then((module) => module.Results), {
-  loading: () => <Skeleton className="m-6 h-80" />,
-  ssr: false,
-})
+import { Results } from "./results"
 
 export function Evaluations({
   workflow,
@@ -71,7 +67,13 @@ export function Evaluations({
   const headers = { "X-AgentZ-Workspace-ID": workspaceId }
   const path = { agentName: workflow.agent_name, workflowName: workflow.workflow_name }
   const historyOptions = listWorkflowEvaluationsOptions({ headers, path })
-  const history = useQuery({ ...historyOptions, refetchInterval: 5000 })
+  const history = useQuery({
+    ...historyOptions,
+    refetchInterval: (query) =>
+      query.state.data?.some((item) => ["queued", "running", "cancelling"].includes(item.state))
+        ? 5000
+        : false,
+  })
   const id = selected ?? history.data?.[0]?.id
   const detailOptions = getWorkflowEvaluationOptions({
     headers,
@@ -90,6 +92,8 @@ export function Evaluations({
   const catalog = useQuery(
     queryOptions({
       queryKey: ["evaluation-models", workspaceId, workflow.agent_name],
+      enabled: creating || retrying,
+      staleTime: 60_000,
       queryFn: async () => {
         const client = await createAgentOpencodeClient(workflow.agent_name, workspaceId)
         const { data } = await client.config.providers({}, { throwOnError: true })
@@ -154,17 +158,18 @@ export function Evaluations({
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3 sm:px-6">
+      <div className="flex flex-wrap items-center gap-2 px-4 pt-4 pb-1 sm:px-6">
         {history.data?.length ? (
           <Select value={id} onValueChange={setSelected}>
-            <SelectTrigger className="w-64" aria-label="Evaluation">
+            <SelectTrigger className="w-auto min-w-52" aria-label="Evaluation">
+              <CalendarClock className="text-muted-foreground" />
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
                 {history.data.map((item) => (
                   <SelectItem key={item.id} value={item.id}>
-                    {dayjs(item.created_at).format("MMM D, HH:mm:ss")} · {item.executions.length}{" "}
+                    {dayjs(item.created_at).format("MMM D, h:mm A")} · {item.executions.length}{" "}
                     {item.executions.length === 1 ? "model" : "models"}
                   </SelectItem>
                 ))}
@@ -175,7 +180,9 @@ export function Evaluations({
           <span className="text-sm font-medium">Evaluations</span>
         )}
         {evaluation ? (
-          <Badge variant={active ? "pending" : "secondary"}>{evaluation.state}</Badge>
+          <Badge className="capitalize" variant={active ? "pending" : "outline"}>
+            {evaluation.state}
+          </Badge>
         ) : null}
         <div className="ml-auto flex items-center gap-2">
           {active ? (
@@ -223,7 +230,7 @@ export function Evaluations({
           <Skeleton className="h-80" />
         </div>
       ) : evaluation ? (
-        <Results evaluation={evaluation} />
+        <Results key={evaluation.id} evaluation={evaluation} workspaceId={workspaceId} />
       ) : (
         <div className="text-muted-foreground flex h-48 items-center justify-center text-sm">
           No evaluations yet
@@ -556,7 +563,7 @@ function EvaluationForm({
         <p className="text-muted-foreground text-xs">
           {retry
             ? "Uses saved transcripts. Workflows will not run again."
-            : "Runs use live tools and shared state. Model charges apply."}
+            : "Runs can change shared files and services."}
         </p>
         <Button type="submit" disabled={pending}>
           {pending ? <Spinner /> : <Play />}

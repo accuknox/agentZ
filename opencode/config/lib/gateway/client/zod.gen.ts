@@ -1497,7 +1497,6 @@ export const zEvaluationExecution = z.object({
   tokens: z.number().gte(0).optional(),
   tool_calls: z.int().gte(0).optional(),
   duration_seconds: z.number().gte(0).optional(),
-  cost: z.number().gte(0).optional(),
   judgment: zEvaluationJudgment.optional(),
   judge_context_compacted: z.boolean().optional(),
   score: z.number().gte(0).lte(100).optional(),
@@ -4982,8 +4981,12 @@ export const zGetWorkflowEvaluationPath = z.object({
   evaluationId: z.uuid(),
 })
 
+export const zGetWorkflowEvaluationQuery = z.object({
+  include_transcript: z.boolean().optional().default(false),
+})
+
 /**
- * Execution results and complete transcripts.
+ * Execution results, optionally including complete transcripts.
  */
 export const zGetWorkflowEvaluationResponse = zWorkflowEvaluation
 

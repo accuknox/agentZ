@@ -36,62 +36,60 @@ export function WorkflowsFilters({
   const { pending, select } = useSelectResource()
 
   return (
-    <>
-      <div className="bg-background flex min-h-14 flex-col gap-3 border-b px-4 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-          <Select
-            value={selectedAgentName ?? ""}
-            onValueChange={(agent_name) => select({ agent_name })}
-            disabled={agents.length === 0 || pending}
+    <div className="bg-background flex min-h-14 flex-col gap-3 border-b px-4 py-2 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+        <Select
+          value={selectedAgentName ?? ""}
+          onValueChange={(agent_name) => select({ agent_name })}
+          disabled={agents.length === 0 || pending}
+        >
+          <SelectTrigger
+            aria-label="Agent"
+            className="h-8 w-full min-w-0 rounded-md sm:w-64 sm:min-w-52"
           >
-            <SelectTrigger
-              aria-label="Agent"
-              className="h-8 w-full min-w-0 rounded-md sm:w-64 sm:min-w-52"
-            >
-              <SelectValue placeholder="Agent" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {agents.map((agent) => (
-                  <SelectItem key={agent.name} value={agent.name}>
-                    <BotIcon />
-                    {agent.name}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-          <Select
-            value={selectedWorkflowName ?? ""}
-            onValueChange={(workflow_name) =>
-              select({ agent_name: selectedAgentName, workflow_name })
-            }
-            disabled={workflows.length === 0 || pending}
+            <SelectValue placeholder="Agent" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              {agents.map((agent) => (
+                <SelectItem key={agent.name} value={agent.name}>
+                  <BotIcon />
+                  {agent.name}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+        <Select
+          value={selectedWorkflowName ?? ""}
+          onValueChange={(workflow_name) =>
+            select({ agent_name: selectedAgentName, workflow_name })
+          }
+          disabled={workflows.length === 0 || pending}
+        >
+          <SelectTrigger
+            aria-label="Workflow"
+            className="h-8 w-full min-w-0 rounded-md sm:w-72 sm:min-w-52"
           >
-            <SelectTrigger
-              aria-label="Workflow"
-              className="h-8 w-full min-w-0 rounded-md sm:w-72 sm:min-w-52"
-            >
-              <SelectValue placeholder="Workflow" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {workflows.map((workflow) => (
-                  <SelectItem key={workflow.workflow_name} value={workflow.workflow_name}>
-                    <WorkflowIcon />
-                    {workflow.workflow_name}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
+            <SelectValue placeholder="Workflow" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              {workflows.map((workflow) => (
+                <SelectItem key={workflow.workflow_name} value={workflow.workflow_name}>
+                  <WorkflowIcon />
+                  {workflow.workflow_name}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
       </div>
       <Tabs
         value={pathname.endsWith("/evaluations") ? "evaluations" : "graphs"}
-        className="border-b px-4 py-2 sm:px-6"
+        className="shrink-0"
       >
-        <TabsList variant="line" aria-label="Workflow views">
+        <TabsList aria-label="Workflow views">
           <TabsTrigger value="graphs" asChild>
             <Link href={`${root}/graphs?${params}`}>Graph</Link>
           </TabsTrigger>
@@ -102,6 +100,6 @@ export function WorkflowsFilters({
           </TabsTrigger>
         </TabsList>
       </Tabs>
-    </>
+    </div>
   )
 }

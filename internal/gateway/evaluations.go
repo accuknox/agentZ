@@ -217,18 +217,19 @@ func (s *Service) ListWorkflowEvaluations(w http.ResponseWriter, r *http.Request
 	apiutil.WriteJSON(w, 200, results)
 }
 
-// GetWorkflowEvaluation returns the frozen inputs, judgments and full native transcripts.
-func (s *Service) GetWorkflowEvaluation(w http.ResponseWriter, r *http.Request, agentName, workflowName string, id uuid.UUID) {
+// GetWorkflowEvaluation returns results, with native evidence on request.
+func (s *Service) GetWorkflowEvaluation(w http.ResponseWriter, r *http.Request, agentName, workflowName string, id uuid.UUID, params gatewayapi.GetWorkflowEvaluationParams) {
 	access, apiErr := s.resolveAgentAccess(r.Context(), agentName, authorization.OperationUseSharedAgent)
 	if apiErr != nil {
 		apiutil.WriteError(w, r, apiErr)
 		return
 	}
-	row, err := workflowdb.New(s.db).RunEvaluationGet(r.Context(), workflowdb.RunEvaluationGetParams{
-		ID:              id,
-		TenantNamespace: access.namespace,
-		AgentName:       agentName,
-		WorkflowName:    workflowName,
+	row, err := workflowdb.New(s.db).RunEvaluationView(r.Context(), workflowdb.RunEvaluationViewParams{
+		ID:                id,
+		IncludeTranscript: params.IncludeTranscript != nil && *params.IncludeTranscript,
+		TenantNamespace:   access.namespace,
+		AgentName:         agentName,
+		WorkflowName:      workflowName,
 	})
 	if err != nil {
 		apiutil.WriteError(w, r, mapGatewayStoreError("get evaluation", err))
@@ -616,7 +617,7 @@ func (s *Service) collectEvaluationTranscript(ctx context.Context, namespace, ag
 	sessions := []string{*execution.SessionId}
 	seen := map[string]bool{*execution.SessionId: true}
 	transcript := []gatewayapi.EvaluationTranscriptSession{}
-	var tokens, cost float64
+	var tokens float64
 	var calls int
 	var started, completed int64
 	for index := 0; index < len(sessions); index++ {
@@ -704,7 +705,6 @@ func (s *Service) collectEvaluationTranscript(ctx context.Context, namespace, ag
 			tokens += float64(info.Tokens.Input) + float64(info.Tokens.Output) +
 				float64(info.Tokens.Reasoning) + float64(info.Tokens.Cache.Read) +
 				float64(info.Tokens.Cache.Write)
-			cost += float64(info.Cost)
 			for _, part := range message.Parts {
 				kind, err := part.Discriminator()
 				if err != nil {
@@ -758,7 +758,6 @@ func (s *Service) collectEvaluationTranscript(ctx context.Context, namespace, ag
 	// The native runtime substitutes zero for missing provider usage. Zero
 	// tokens cannot establish completeness, so leave that metric unavailable.
 	execution.Transcript = &transcript
-	execution.Cost = &cost
 	execution.ToolCalls = &calls
 	execution.DurationSeconds = new(float64(completed-started) / 1000)
 	if tokens > 0 {

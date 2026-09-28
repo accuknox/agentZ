@@ -842,7 +842,6 @@ export type EvaluationExecution = {
   tokens?: number
   tool_calls?: number
   duration_seconds?: number
-  cost?: number
   judgment?: EvaluationJudgment
   /**
    * The judge continued after native context compaction. Informational only; does not affect scoring.
@@ -9094,7 +9093,12 @@ export type GetWorkflowEvaluationData = {
     workflowName: WorkflowName
     evaluationId: string
   }
-  query?: never
+  query?: {
+    /**
+     * Include full native transcripts and workflow run records.
+     */
+    include_transcript?: boolean
+  }
   url: "/api/workflow/{agentName}/{workflowName}/evaluation/{evaluationId}"
 }
 
@@ -9110,7 +9114,7 @@ export type GetWorkflowEvaluationError =
 
 export type GetWorkflowEvaluationResponses = {
   /**
-   * Execution results and complete transcripts.
+   * Execution results, optionally including complete transcripts.
    */
   200: WorkflowEvaluation
 }

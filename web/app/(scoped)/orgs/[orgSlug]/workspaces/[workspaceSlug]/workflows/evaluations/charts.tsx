@@ -1,0 +1,281 @@
+"use client"
+
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  LabelList,
+  Legend,
+  Scatter,
+  ScatterChart,
+  XAxis,
+  YAxis,
+  ZAxis,
+} from "recharts"
+import { ChartContainer, ChartTooltip } from "@/components/ui/chart"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { BarChart3, ScatterChart as ScatterIcon, Gauge, ScanSearch } from "lucide-react"
+import type { WorkflowEvaluation } from "@/lib/gateway/client"
+import { formatCompactNumber } from "@/lib/format"
+
+const resources = [
+  { key: "tokens", label: "Tokens", unit: "tokens" },
+  { key: "tool_calls", label: "Tool calls", unit: "calls" },
+  { key: "duration_seconds", label: "Duration", unit: "s" },
+] as const
+const axis = {
+  axisLine: false,
+  tickLine: false,
+  tickMargin: 8,
+  tick: { fill: "var(--muted-foreground)", fontSize: 12 },
+} as const
+
+export function Charts({
+  executions,
+  pending,
+}: {
+  executions: WorkflowEvaluation["executions"]
+  pending: boolean
+}) {
+  const rows = executions.map((item, index) => ({
+    run_name: item.run_name,
+    name: item.model.label,
+    tokens: item.tokens,
+    tool_calls: item.tool_calls,
+    duration_seconds: item.duration_seconds,
+    color: `color-mix(in oklab, var(--chart-${[2, 4, 1, 3, 5][index % 5]}) 75%, var(--muted-foreground))`,
+    score: item.score === undefined ? undefined : Math.round(item.score * 10) / 10,
+    correctness: item.judgment ? item.judgment.correctness * 25 : undefined,
+    efficiency: item.judgment ? item.judgment.efficiency * 25 : undefined,
+    measured:
+      item.measured_efficiency === undefined
+        ? undefined
+        : Math.round(item.measured_efficiency * 1000) / 10,
+  }))
+  const ranked = rows
+    .filter((row) => row.score !== undefined)
+    .toSorted((a, b) => (b.score ?? 0) - (a.score ?? 0))
+  return (
+    <div className="bg-muted/30 grid min-w-0 grid-cols-1 gap-2 p-2 xl:grid-cols-2">
+      <section
+        className="bg-card min-w-0 overflow-hidden rounded-lg border shadow-[0_1px_2px_color-mix(in_oklab,var(--foreground)_5%,transparent)]"
+        aria-label="Score ranking"
+      >
+        <header className="from-card to-muted/20 flex h-12 items-center gap-2.5 border-b bg-gradient-to-r px-3.5">
+          <BarChart3 className="text-muted-foreground size-4" />
+          <h2 className="text-sm font-semibold">Score</h2>
+        </header>
+        {ranked.length ? (
+          <ChartContainer
+            resizeDebounce={250}
+            config={{
+              score: {
+                label: "Score",
+                color: "color-mix(in oklab, var(--chart-2) 75%, var(--muted-foreground))",
+              },
+            }}
+            className="h-[calc(20rem-3rem)] w-full p-3"
+          >
+            <BarChart
+              data={ranked.map((row) => ({ ...row, fill: row.color }))}
+              layout="vertical"
+              margin={{ left: 0, right: 38, bottom: 8 }}
+              accessibilityLayer
+            >
+              <CartesianGrid horizontal={false} strokeDasharray="3 5" />
+              <XAxis {...axis} type="number" domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} />
+              <YAxis {...axis} type="category" dataKey="name" width={120} tick={{ fontSize: 12 }} />
+              <ChartTooltip isAnimationActive={false} />
+              <Bar
+                dataKey="score"
+                name="Score"
+                maxBarSize={26}
+                radius={[0, 4, 4, 0]}
+                isAnimationActive={false}
+              >
+                <LabelList dataKey="score" position="right" className="fill-foreground text-xs" />
+              </Bar>
+            </BarChart>
+          </ChartContainer>
+        ) : (
+          <div className="text-muted-foreground flex h-[calc(20rem-3rem)] flex-col items-center justify-center gap-3 text-sm">
+            {pending ? (
+              <ScanSearch className="text-primary/40 size-7 motion-safe:animate-pulse" />
+            ) : null}
+            {pending ? "Waiting for judgments" : "No scores available"}
+          </div>
+        )}
+      </section>
+      <section
+        className="bg-card min-w-0 overflow-hidden rounded-lg border shadow-[0_1px_2px_color-mix(in_oklab,var(--foreground)_5%,transparent)]"
+        aria-label="Score and resource tradeoffs"
+      >
+        <Tabs defaultValue="tokens" className="gap-0">
+          <div className="from-card to-muted/20 flex h-12 items-center justify-between gap-2 border-b bg-gradient-to-r px-3.5">
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <ScatterIcon className="text-muted-foreground size-4" />
+              Score vs. usage
+            </h2>
+            <TabsList aria-label="Resource">
+              <TabsTrigger value="tokens">Tokens</TabsTrigger>
+              <TabsTrigger value="tool_calls">Calls</TabsTrigger>
+              <TabsTrigger value="duration_seconds">Time</TabsTrigger>
+            </TabsList>
+          </div>
+          {resources.map((resource) => (
+            <TabsContent key={resource.key} value={resource.key}>
+              {ranked.some((row) => row[resource.key] !== undefined) ? (
+                <ChartContainer
+                  resizeDebounce={250}
+                  config={{ score: { label: "Score" } }}
+                  className="h-[calc(20rem-3rem)] w-full p-3"
+                >
+                  <ScatterChart
+                    margin={{ left: 0, right: 20, bottom: 20, top: 8 }}
+                    accessibilityLayer
+                  >
+                    <CartesianGrid strokeDasharray="3 5" />
+                    <XAxis
+                      {...axis}
+                      type="number"
+                      dataKey={resource.key}
+                      name={resource.label}
+                      tickFormatter={formatCompactNumber}
+                      label={{ value: resource.unit, position: "insideBottom", offset: -12 }}
+                    />
+                    <YAxis
+                      {...axis}
+                      type="number"
+                      dataKey="score"
+                      name="Score"
+                      domain={[0, 100]}
+                      width={36}
+                    />
+                    <ZAxis range={[75, 75]} />
+                    <ChartTooltip cursor={{ strokeDasharray: "3 3" }} isAnimationActive={false} />
+                    {ranked
+                      .filter((row) => row[resource.key] !== undefined)
+                      .map((row) => (
+                        <Scatter
+                          key={row.run_name}
+                          name={row.name}
+                          data={[row]}
+                          fill={row.color}
+                          isAnimationActive={false}
+                        />
+                      ))}
+                    <Legend iconSize={8} wrapperStyle={{ paddingTop: 12 }} />
+                  </ScatterChart>
+                </ChartContainer>
+              ) : (
+                <div className="text-muted-foreground flex h-[calc(20rem-3rem)] flex-col items-center justify-center gap-3 text-sm">
+                  No scored measurements
+                </div>
+              )}
+            </TabsContent>
+          ))}
+        </Tabs>
+      </section>
+      <section className="bg-card min-w-0 overflow-hidden rounded-lg border shadow-[0_1px_2px_color-mix(in_oklab,var(--foreground)_5%,transparent)] xl:col-span-2">
+        <Tabs defaultValue="ratings" className="gap-0">
+          <header className="from-card to-muted/20 flex h-12 items-center justify-between gap-2 border-b bg-gradient-to-r px-3.5">
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <Gauge className="text-muted-foreground size-4" />
+              Measurements
+            </h2>
+            <TabsList aria-label="Measurement charts">
+              <TabsTrigger value="ratings">Ratings</TabsTrigger>
+              <TabsTrigger value="resources">Resources</TabsTrigger>
+            </TabsList>
+          </header>
+          <TabsContent value="ratings">
+            <ChartContainer
+              resizeDebounce={250}
+              className="h-[calc(20rem-3rem)] w-full p-3"
+              config={{
+                correctness: {
+                  label: "Correctness",
+                  color: "color-mix(in oklab, var(--chart-2) 75%, var(--muted-foreground))",
+                },
+                efficiency: {
+                  label: "Judge efficiency",
+                  color: "color-mix(in oklab, var(--chart-4) 75%, var(--muted-foreground))",
+                },
+                measured: {
+                  label: "Measured efficiency",
+                  color: "color-mix(in oklab, var(--chart-3) 65%, var(--muted-foreground))",
+                },
+              }}
+            >
+              <BarChart data={rows} margin={{ left: 0, right: 12, top: 8 }} accessibilityLayer>
+                <CartesianGrid vertical={false} strokeDasharray="3 5" />
+                <XAxis {...axis} dataKey="name" />
+                <YAxis {...axis} domain={[0, 100]} width="auto" unit="%" />
+                <ChartTooltip isAnimationActive={false} />
+                <Legend iconSize={8} />
+                <Bar
+                  dataKey="correctness"
+                  name="Correctness (%)"
+                  fill="var(--color-correctness)"
+                  maxBarSize={24}
+                  radius={[3, 3, 0, 0]}
+                  isAnimationActive={false}
+                />
+                <Bar
+                  dataKey="efficiency"
+                  name="Judge efficiency (%)"
+                  fill="var(--color-efficiency)"
+                  maxBarSize={24}
+                  radius={[3, 3, 0, 0]}
+                  isAnimationActive={false}
+                />
+                <Bar
+                  dataKey="measured"
+                  name="Measured efficiency (%)"
+                  fill="var(--color-measured)"
+                  maxBarSize={24}
+                  radius={[3, 3, 0, 0]}
+                  isAnimationActive={false}
+                />
+              </BarChart>
+            </ChartContainer>
+          </TabsContent>
+          <TabsContent value="resources">
+            <div className="grid gap-3 p-3 md:grid-cols-3">
+              {resources.map((resource) => (
+                <div key={resource.key} className="min-w-0">
+                  <h3 className="mt-3 text-xs font-medium">{resource.label}</h3>
+                  <ChartContainer
+                    resizeDebounce={250}
+                    config={{ [resource.key]: { label: resource.label } }}
+                    className="h-48 w-full"
+                  >
+                    <BarChart
+                      data={rows
+                        .filter((row) => row[resource.key] !== undefined)
+                        .map((row) => ({ ...row, fill: row.color }))}
+                      margin={{ left: 0, right: 12, top: 12 }}
+                      accessibilityLayer
+                    >
+                      <CartesianGrid vertical={false} strokeDasharray="3 5" />
+                      <XAxis {...axis} dataKey="name" />
+                      <YAxis {...axis} width={42} tickFormatter={formatCompactNumber} />
+                      <ChartTooltip isAnimationActive={false} />
+                      <Bar
+                        dataKey={resource.key}
+                        name={resource.label}
+                        maxBarSize={30}
+                        radius={[3, 3, 0, 0]}
+                        isAnimationActive={false}
+                      />
+                    </BarChart>
+                  </ChartContainer>
+                </div>
+              ))}
+            </div>
+          </TabsContent>
+        </Tabs>
+      </section>
+    </div>
+  )
+}

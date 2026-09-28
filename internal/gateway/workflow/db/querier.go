@@ -19,6 +19,7 @@ type Querier interface {
 	RunEvaluationList(ctx context.Context, arg RunEvaluationListParams) ([][]byte, error)
 	RunEvaluationRetryJudge(ctx context.Context, arg RunEvaluationRetryJudgeParams) (int64, error)
 	RunEvaluationSave(ctx context.Context, arg RunEvaluationSaveParams) (int64, error)
+	RunEvaluationView(ctx context.Context, arg RunEvaluationViewParams) (RunEvaluationViewRow, error)
 	WorkflowCreate(ctx context.Context, arg WorkflowCreateParams) (Workflow, error)
 	WorkflowCreateEdges(ctx context.Context, arg WorkflowCreateEdgesParams) error
 	WorkflowCreateNodes(ctx context.Context, arg WorkflowCreateNodesParams) error

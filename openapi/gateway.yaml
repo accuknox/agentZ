@@ -3010,10 +3010,6 @@ components:
       type: object
     EvaluationExecution:
       properties:
-        cost:
-          format: double
-          minimum: 0
-          type: number
         duration_seconds:
           format: double
           minimum: 0
@@ -42723,13 +42719,20 @@ paths:
   /api/workflow/{agentName}/{workflowName}/evaluation/{evaluationId}:
     get:
       operationId: getWorkflowEvaluation
+      parameters:
+      - description: Include full native transcripts and workflow run records.
+        in: query
+        name: include_transcript
+        schema:
+          default: false
+          type: boolean
       responses:
         "200":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/WorkflowEvaluation'
-          description: Execution results and complete transcripts.
+          description: Execution results, optionally including complete transcripts.
         default:
           $ref: '#/components/responses/InternalError'
       security:

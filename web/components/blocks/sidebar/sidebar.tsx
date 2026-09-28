@@ -206,9 +206,7 @@ async function WorkspaceSidebar({
         agent.capabilities.delete_secrets
     ) ?? false
   const showWorkflows =
-    workspace.type !== "coding" &&
-    (workspace.capabilities.agents.author ||
-      (agents.agents?.some((agent) => agent.capabilities.use) ?? false))
+    workspace.type !== "coding" && (agents.agents?.some((agent) => agent.capabilities.use) ?? false)
   let chatSessions: React.JSX.Element | null = null
   if (showAgents) {
     const preference = await getChatSessionPreference({

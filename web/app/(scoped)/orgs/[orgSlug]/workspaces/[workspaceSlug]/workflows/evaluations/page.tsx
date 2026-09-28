@@ -1,27 +1,30 @@
-import { Suspense } from "react"
+import type { Metadata } from "next"
 import { notFound } from "next/navigation"
+import { Suspense } from "react"
+import * as z from "zod"
 import {
   AdministrationLoadingState,
   AdministrationPageHeader,
   AdministrationState,
 } from "@/components/administration"
 import { RememberPageSelection } from "@/components/page-selection"
-import { getWorkspaceScope } from "@/data/workspaces"
 import { resolvePageSelection } from "@/data/page-selection"
-import { listWorkflowEvaluations } from "@/lib/gateway/client"
-import { getGatewayServerClient } from "@/lib/gateway/server-client"
+import { getWorkspaceScope } from "@/data/workspaces"
+import { searchParamStringSchema } from "@/lib/search-params"
 import { WorkflowsFilters } from "../graphs/workflows-filters"
 import { Evaluations } from "./evaluations"
-import { z } from "zod"
-import { searchParamStringSchema } from "@/lib/search-params"
 
-export const metadata = { title: "Workflow evaluations" }
+export const metadata: Metadata = { title: "Workflow evaluations" }
+const searchSchema = z.object({
+  agent_name: searchParamStringSchema,
+  workflow_name: searchParamStringSchema,
+})
 
 export default function EvaluationsPage(
   props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/workflows/evaluations">
 ) {
   return (
-    <main className="flex min-h-0 flex-1 flex-col">
+    <main className="flex min-w-0 flex-1 flex-col">
       <AdministrationPageHeader title="Workflows" />
       <Suspense fallback={<AdministrationLoadingState />}>
         <Content {...props} />
@@ -37,49 +40,31 @@ async function Content({
   const [route, search] = await Promise.all([params, searchParams])
   const scope = await getWorkspaceScope(route.orgSlug, route.workspaceSlug)
   if (scope.kind !== "ready" || scope.workspace.type === "coding") notFound()
-  const requested = z
-    .object({ agent_name: searchParamStringSchema, workflow_name: searchParamStringSchema })
-    .parse(search)
-  const state = await resolvePageSelection(scope, "workflows/evaluations", requested)
-  if (state.error)
-    return (
-      <p role="alert" className="text-destructive p-6">
-        {state.error.message}
-      </p>
-    )
-  const { data, error } = state.workflow
-    ? await listWorkflowEvaluations({
-        client: getGatewayServerClient(scope.workspace.id),
-        headers: { "X-AgentZ-Workspace-ID": scope.workspace.id },
-        path: { agentName: state.workflow.agent_name, workflowName: state.workflow.workflow_name },
-      })
-    : { data: [], error: undefined }
+  const { selected, requested, agents, workflows, workflow, error } = await resolvePageSelection(
+    scope,
+    "workflows/evaluations",
+    searchSchema.parse(search)
+  )
+  if (error) return <AdministrationState kind="failed" description={error.message} />
   return (
     <>
-      <RememberPageSelection selected={state.selected} requested={state.requested} />
+      <RememberPageSelection selected={selected} requested={requested} />
       <WorkflowsFilters
-        agents={state.agents}
-        workflows={state.workflows}
-        selectedAgentName={state.selected.agent_name}
-        selectedWorkflowName={state.selected.workflow_name}
+        agents={agents}
+        workflows={workflows}
+        selectedAgentName={selected.agent_name}
+        selectedWorkflowName={selected.workflow_name}
       />
-      {error ? (
-        <p role="alert" className="text-destructive p-6">
-          {error.message}
-        </p>
-      ) : state.workflow ? (
+      {workflow ? (
         <Evaluations
-          key={`${state.workflow.agent_name}:${state.workflow.workflow_name}`}
+          key={`${workflow.agent_name}:${workflow.workflow_name}`}
+          workflow={workflow}
           workspaceId={scope.workspace.id}
-          workflow={state.workflow}
-          initial={data}
         />
       ) : (
-        <AdministrationState
-          kind="empty"
-          title="Select a workflow"
-          description="Choose an agent and workflow above to view evaluations."
-        />
+        <div className="text-muted-foreground flex h-48 items-center justify-center text-sm">
+          {agents.length ? "No workflows available" : "No agents available"}
+        </div>
       )}
     </>
   )

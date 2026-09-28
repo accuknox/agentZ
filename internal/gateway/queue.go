@@ -828,7 +828,10 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 		return err
 	}
 	body := gatewayapi.SessionPromptAsyncJSONRequestBody{
-		Agent: content.Agent, Model: &gatewayapi.OpencodePromptModel{ProviderID: content.Model.ProviderID, ModelID: content.Model.ModelID}, Variant: content.Variant,
+		Agent: content.Agent, Variant: content.Variant,
+		Model: &gatewayapi.OpencodePromptModel{
+			ProviderID: content.Model.ProviderID, ModelID: content.Model.ModelID,
+		},
 		Parts: make([]gatewayapi.OpencodePromptPartInput, 0, len(content.Attachments)+1),
 	}
 	for _, file := range content.Attachments {

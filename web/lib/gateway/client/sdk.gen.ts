@@ -374,9 +374,6 @@ import type {
   SuggestCodingTextData,
   SuggestCodingTextErrors,
   SuggestCodingTextResponses,
-  SuggestWorkflowEvaluationCasesData,
-  SuggestWorkflowEvaluationCasesErrors,
-  SuggestWorkflowEvaluationCasesResponses,
   TransferAgentOwnerData,
   TransferAgentOwnerErrors,
   TransferAgentOwnerResponses,
@@ -473,86 +470,6 @@ export type Options<
    */
   meta?: Record<string, unknown>
 }
-
-export const listWorkflowEvaluations = <ThrowOnError extends boolean = false>(
-  options: Options<ListWorkflowEvaluationsData, ThrowOnError>
-) =>
-  (options.client ?? client).get<
-    ListWorkflowEvaluationsResponses,
-    ListWorkflowEvaluationsErrors,
-    ThrowOnError
-  >({
-    security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/workflow/{agentName}/{workflowName}/evaluation",
-    ...options,
-  })
-
-export const createWorkflowEvaluation = <ThrowOnError extends boolean = false>(
-  options: Options<CreateWorkflowEvaluationData, ThrowOnError>
-) =>
-  (options.client ?? client).post<
-    CreateWorkflowEvaluationResponses,
-    CreateWorkflowEvaluationErrors,
-    ThrowOnError
-  >({
-    security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/workflow/{agentName}/{workflowName}/evaluation",
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  })
-
-/**
- * Suggest editable test cases and a rubric without running the workflow.
- */
-export const suggestWorkflowEvaluationCases = <ThrowOnError extends boolean = false>(
-  options: Options<SuggestWorkflowEvaluationCasesData, ThrowOnError>
-) =>
-  (options.client ?? client).post<
-    SuggestWorkflowEvaluationCasesResponses,
-    SuggestWorkflowEvaluationCasesErrors,
-    ThrowOnError
-  >({
-    security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/workflow/{agentName}/{workflowName}/evaluation/cases",
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  })
-
-export const getWorkflowEvaluation = <ThrowOnError extends boolean = false>(
-  options: Options<GetWorkflowEvaluationData, ThrowOnError>
-) =>
-  (options.client ?? client).get<
-    GetWorkflowEvaluationResponses,
-    GetWorkflowEvaluationErrors,
-    ThrowOnError
-  >({
-    security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/workflow/{agentName}/{workflowName}/evaluation/{evaluationId}",
-    ...options,
-  })
-
-export const updateWorkflowEvaluation = <ThrowOnError extends boolean = false>(
-  options: Options<UpdateWorkflowEvaluationData, ThrowOnError>
-) =>
-  (options.client ?? client).patch<
-    UpdateWorkflowEvaluationResponses,
-    UpdateWorkflowEvaluationErrors,
-    ThrowOnError
-  >({
-    security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/workflow/{agentName}/{workflowName}/evaluation/{evaluationId}",
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  })
 
 export const listCodingProjects = <ThrowOnError extends boolean = false>(
   options?: Options<ListCodingProjectsData, ThrowOnError>
@@ -2661,6 +2578,66 @@ export const listWorkflowWebhookTriggers = <ThrowOnError extends boolean = false
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/workflow/{agentName}/webhook",
     ...options,
+  })
+
+export const listWorkflowEvaluations = <ThrowOnError extends boolean = false>(
+  options: Options<ListWorkflowEvaluationsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListWorkflowEvaluationsResponses,
+    ListWorkflowEvaluationsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workflow/{agentName}/{workflowName}/evaluation",
+    ...options,
+  })
+
+export const createWorkflowEvaluation = <ThrowOnError extends boolean = false>(
+  options: Options<CreateWorkflowEvaluationData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    CreateWorkflowEvaluationResponses,
+    CreateWorkflowEvaluationErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workflow/{agentName}/{workflowName}/evaluation",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+export const getWorkflowEvaluation = <ThrowOnError extends boolean = false>(
+  options: Options<GetWorkflowEvaluationData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    GetWorkflowEvaluationResponses,
+    GetWorkflowEvaluationErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workflow/{agentName}/{workflowName}/evaluation/{evaluationId}",
+    ...options,
+  })
+
+export const updateWorkflowEvaluation = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateWorkflowEvaluationData, ThrowOnError>
+) =>
+  (options.client ?? client).patch<
+    UpdateWorkflowEvaluationResponses,
+    UpdateWorkflowEvaluationErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workflow/{agentName}/{workflowName}/evaluation/{evaluationId}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
   })
 
 /**

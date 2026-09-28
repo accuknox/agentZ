@@ -5,7 +5,6 @@ export const selectionCookie = "agentz-selection-v1"
 export const selectionPages = [
   "workflows/graphs",
   "workflows/evaluations",
-  "workflows/runs",
   "workflows/triggers",
   "workflows/triggers/runs",
   "workflows/triggers/runs/graph",
@@ -48,9 +47,8 @@ export function readSelectionHistory(value: string | undefined): SelectionHistor
 /** Groups keep composite identities together and children under their own parent. */
 export function selectionGroups(page: SelectionPage, selection: PageSelection): SelectionField[][] {
   switch (page) {
-    case "workflows/evaluations":
-    case "workflows/runs":
     case "workflows/graphs":
+    case "workflows/evaluations":
       return [["agent_name"], ["workflow_name"]]
     case "workflows/triggers":
       return [["agent_name"], ["type"]]

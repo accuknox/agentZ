@@ -1,810 +1,544 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import dynamic from "next/dynamic"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useState } from "react"
 import {
-  ArrowLeft,
-  ArrowRight,
-  CheckCircle2,
-  Copy,
-  Download,
-  Loader2,
-  Maximize2,
-  Minimize2,
-  RefreshCw,
-  Square,
-  X,
-  XCircle,
-} from "lucide-react"
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-} from "@/components/ui/table"
+  Bar,
+  BarChart,
+  CartesianGrid,
+  LabelList,
+  Legend,
+  Scatter,
+  ScatterChart,
+  XAxis,
+  YAxis,
+  ZAxis,
+} from "recharts"
+import { CircleAlert, Download, FunctionSquare } from "lucide-react"
+import type { WorkflowEvaluation } from "@/lib/gateway/client"
+import { ChartContainer, ChartTooltip } from "@/components/ui/chart"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Progress } from "@/components/ui/progress"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import type { WorkflowEvaluation } from "@/lib/gateway/client"
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Spinner } from "@/components/ui/spinner"
+import { formatCompactNumber, formatDurationSeconds } from "@/lib/format"
 
-const OutputDiff = dynamic(
-  () => import("@pierre/diffs/react").then((module) => module.MultiFileDiff),
-  { ssr: false }
-)
+const resources = [
+  { key: "tokens", label: "Tokens", unit: "tokens" },
+  { key: "tool_calls", label: "Tool calls", unit: "calls" },
+  { key: "duration_seconds", label: "Duration", unit: "s" },
+  { key: "cost", label: "Recorded cost", unit: "USD" },
+] as const
+const axis = { axisLine: false, tickLine: false } as const
 
-const number = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 })
-const money = new Intl.NumberFormat(undefined, {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 4,
-})
-
-export function EvaluationResults({
-  evaluation: e,
-  busy,
-  onBack,
-  onCancel,
-  onRegrade,
-  onDuplicate,
-}: {
-  evaluation: WorkflowEvaluation
-  busy: boolean
-  onBack: () => void
-  onCancel: () => void
-  onRegrade: () => void
-  onDuplicate: () => void
-}) {
-  const router = useRouter()
-  const search = useSearchParams()
-  const [tab, setTab] = useState("output")
-  const [page, setPage] = useState(0)
-  const evidence = useRef<HTMLElement>(null)
-  const invoker = useRef<HTMLButtonElement>(null)
-  const [expanded, setExpanded] = useState(false)
-  const [explain, setExplain] = useState(false)
-  const filter = search.get("filter") ?? "all"
-  const query = search.get("q") ?? ""
-  const baseline =
-    e.request.candidates.find((c) => c.id === search.get("baseline")) ?? e.request.candidates[0]
-  const selected = e.attempts.find((a) => a.id === search.get("attempt"))
-  const selectedId = selected?.id
-  useEffect(() => {
-    if (selectedId) {
-      evidence.current?.focus({ preventScroll: true })
-      evidence.current?.scrollIntoView({ block: "nearest" })
-    }
-  }, [selectedId])
-  const running = e.state === "queued" || e.state === "running"
-  const done = e.attempts.filter((a) =>
-    ["completed", "failed", "error", "cancelled"].includes(a.state)
+export function Results({ evaluation }: { evaluation: WorkflowEvaluation }) {
+  const [selected, setSelected] = useState<string>()
+  const execution = evaluation.executions.find((item) => item.run_name === selected)
+  const rows = evaluation.executions.map((item, index) => ({
+    ...item,
+    name: item.model.label,
+    failed: item.run_status === "Failed" || item.run_status === "Unacked",
+    color: `var(--chart-${(index % 5) + 1})`,
+    score: item.score === undefined ? undefined : Math.round(item.score * 10) / 10,
+    correctness: item.judgment ? (item.judgment.correctness / 4) * 100 : undefined,
+    efficiency: item.judgment ? (item.judgment.efficiency / 4) * 100 : undefined,
+    measured:
+      item.measured_efficiency === undefined
+        ? undefined
+        : Math.round(item.measured_efficiency * 1000) / 10,
+  }))
+  const ranked = rows
+    .filter((row) => row.score !== undefined)
+    .toSorted((a, b) => (b.score ?? 0) - (a.score ?? 0))
+  const completed = rows.filter((row) =>
+    ["completed", "error", "cancelled"].includes(row.state)
   ).length
-  const graded = e.attempts.filter((a) => a.score !== undefined).length
-  const columns = e.request.candidates.map((candidate) => {
-    const attempts = e.attempts.filter((a) => a.candidate_id === candidate.id)
-    const scored = attempts.filter((a) => a.score !== undefined)
-    const score =
-      scored.length === attempts.length && attempts.length
-        ? scored.reduce((sum, a) => sum + (a.score ?? 0), 0) / attempts.length
-        : undefined
-    const measured = attempts.filter((a) => a.tokens !== undefined)
-    const tokens = measured.length
-      ? measured.reduce((sum, a) => sum + (a.tokens ?? 0), 0) / measured.length
-      : undefined
-    const cost = measured.length
-      ? measured.reduce((sum, a) => sum + (a.cost ?? 0), 0) / measured.length
-      : undefined
-    const calls = measured.length
-      ? measured.reduce((sum, a) => sum + (a.task_calls ?? 0), 0) / measured.length
-      : undefined
-    const duration = measured.length
-      ? measured.reduce((sum, a) => sum + (a.duration_seconds ?? 0), 0) / measured.length
-      : undefined
-    return {
-      candidate,
-      attempts,
-      score,
-      tokens,
-      cost,
-      calls,
-      duration,
-      measured: measured.length,
-      passed: attempts.filter((a) => a.state === "completed" && a.checks.every((c) => c.passed))
-        .length,
-    }
-  })
-  const base = columns.find((c) => c.candidate.id === baseline?.id)
-  const cases = e.request.cases.filter((c) => {
-    if (
-      !`${c.name} ${c.expected} ${JSON.stringify(c.inputs)}`
-        .toLowerCase()
-        .includes(query.toLowerCase())
-    )
-      return false
-    const attempts = e.attempts.filter((a) => a.case_id === c.id)
-    if (filter === "failures")
-      return attempts.some((a) => a.state === "failed" || a.checks.some((check) => !check.passed))
-    if (filter === "errors") return attempts.some((a) => a.state === "error")
-    if (filter === "inconsistent")
-      return columns.some(
-        (column) =>
-          new Set(
-            attempts
-              .filter((a) => a.candidate_id === column.candidate.id && a.score !== undefined)
-              .map((a) => a.score)
-          ).size > 1
-      )
-    if (filter === "regressions" || filter === "improvements") {
-      const baselineScores = attempts.filter(
-        (a) => a.candidate_id === baseline?.id && a.score !== undefined
-      )
-      if (!baselineScores.length) return false
-      const mean =
-        baselineScores.reduce((sum, a) => sum + (a.score ?? 0), 0) / baselineScores.length
-      return columns.some((column) => {
-        if (column.candidate.id === baseline?.id) return false
-        const scores = attempts.filter(
-          (a) => a.candidate_id === column.candidate.id && a.score !== undefined
-        )
-        if (
-          scores.length !== e.request.repetitions ||
-          baselineScores.length !== e.request.repetitions
-        )
-          return false
-        const candidateMean = scores.reduce((sum, a) => sum + (a.score ?? 0), 0) / scores.length
-        return filter === "regressions" ? candidateMean < mean : candidateMean > mean
-      })
-    }
-    return true
-  })
-  const selectedCase = e.request.cases.find((c) => c.id === selected?.case_id)
-  const reference =
-    selected &&
-    e.attempts.find(
-      (a) =>
-        a.case_id === selected.case_id &&
-        a.candidate_id === baseline?.id &&
-        a.repetition === selected.repetition
-    )
-  function update(values: Record<string, string | undefined>) {
-    const params = new URLSearchParams(search)
-    for (const [key, value] of Object.entries(values)) {
-      if (value) params.set(key, value)
-      else params.delete(key)
-    }
-    router.replace(`?${params.toString()}`, { scroll: false })
-  }
-  function download() {
-    const url = URL.createObjectURL(
-      new Blob([JSON.stringify(e, null, 2)], { type: "application/json" })
-    )
-    const link = document.createElement("a")
-    link.href = url
-    link.download = `evaluation-${e.id}.json`
-    link.click()
-    URL.revokeObjectURL(url)
-  }
+  const pending = ["queued", "running", "cancelling"].includes(evaluation.state)
   return (
-    <section className="flex min-h-0 flex-1 flex-col">
-      <header className="border-b p-4 sm:px-6">
-        <Button variant="ghost" size="sm" className="mb-3 -ml-3" onClick={onBack}>
-          <ArrowLeft />
-          Evaluations
-        </Button>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3">
-              <h2 className="text-base font-semibold">{e.request.name}</h2>
-              <Badge variant={e.state === "error" ? "destructive" : "secondary"}>{e.state}</Badge>
-            </div>
-            <p className="text-muted-foreground mt-2 text-sm">
-              Cases: {e.request.cases.length} · Models: {e.request.candidates.length} · Attempts:{" "}
-              {e.request.repetitions} · Assessment {e.assessment_revision}
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={download}>
-              <Download />
-              Export
+    <div className="flex min-w-0 flex-col">
+      <div className="flex flex-wrap items-center gap-3 px-4 py-3 text-xs sm:px-6">
+        <span className="text-muted-foreground">
+          Judge <span className="text-foreground">{evaluation.request.judge.label}</span>
+        </span>
+        {pending ? (
+          <span className="flex items-center gap-2" role="status">
+            <Spinner />
+            {completed}/{rows.length} complete
+          </span>
+        ) : null}
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button variant="ghost" size="sm" className="ml-auto">
+              <FunctionSquare />
+              Scoring
             </Button>
-            {running ? (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={busy || e.message === "Cancellation requested"}
-                onClick={onCancel}
-              >
-                <Square />
-                Cancel
-              </Button>
-            ) : (
-              <Button size="sm" onClick={onDuplicate}>
-                <Copy />
-                Run again
-              </Button>
-            )}
-          </div>
-        </div>
-        {running && (
-          <div className="mt-6 max-w-2xl">
-            <div className="mb-2 flex justify-between text-xs">
-              <span className="flex items-center gap-2">
-                <Loader2 className="size-3 animate-spin" />
-                {e.message || "Executing and grading"}
-              </span>
-              <span className="tabular-nums">
-                {done} / {e.attempts.length} finished · {graded} scored
-              </span>
-            </div>
-            <Progress value={(100 * done) / Math.max(1, e.attempts.length)} className="h-1.5" />
-            <p className="text-muted-foreground mt-2 text-xs">
-              Progress is saved. You can leave this page and return later.
-            </p>
-          </div>
-        )}
-      </header>
-      <div className="space-y-4 p-4 sm:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-          <p className="text-muted-foreground" role="status">
-            {e.message ||
-              (running
-                ? "Results update as attempts finish."
-                : graded < e.attempts.length
-                  ? "Some attempts could not be scored."
-                  : columns.every((column) => column.passed === 0)
-                    ? "No model met the success criteria."
-                    : "Shared environment with live tools.")}
-          </p>
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-expanded={explain}
-            aria-controls="scoring-policy"
-            onClick={() => setExplain(!explain)}
-          >
-            Scoring details
-          </Button>
-        </div>
-        {explain && (
-          <div id="scoring-policy" className="rounded-md border p-4 text-sm">
-            <h2 className="text-sm font-medium">Scoring policy</h2>
-            <p className="text-muted-foreground mt-2 leading-relaxed">
-              Failed workflow execution or a failed required output check earns zero. Otherwise, the
-              score is quality × 100, reduced by up to{" "}
-              {number.format(e.request.policy.efficiency_weight * 100)}% for exceeding resource
-              references. Token, task-call, and duration efficiency each contribute equally to that
-              reduction. Usage below its reference earns full efficiency credit.
-            </p>
-            <dl className="mt-4 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
-              <div>
-                <dt className="text-muted-foreground">Minimum quality</dt>
-                <dd>{e.request.policy.minimum_quality}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Reference tokens</dt>
-                <dd>{number.format(e.request.policy.token_reference)}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Reference calls</dt>
-                <dd>{e.request.policy.tool_reference}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Reference duration</dt>
-                <dd>{e.request.policy.duration_reference}s</dd>
-              </div>
-            </dl>
-            <p className="text-muted-foreground mt-4 text-xs">
-              Cost is reported separately. References are chosen for this workflow, not an
-              industry-standard weighting. Missing evidence is unscored. These attempts share an
-              environment; this is not a controlled model ranking.
-            </p>
-          </div>
-        )}
-        <div className="min-w-0 rounded-md border">
-          <Table className="w-full text-left text-sm">
-            <TableHeader className="bg-muted/30 text-muted-foreground border-b text-xs">
-              <TableRow>
-                {[
-                  "Model",
-                  "Score / 100",
-                  "Δ baseline",
-                  "Passed",
-                  "Tokens / attempt",
-                  "Task calls",
-                  "Reported cost / attempt",
-                  "Duration",
-                ].map((label) => (
-                  <TableHead key={label} className="px-4 py-3 font-medium whitespace-nowrap">
-                    {label}
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {columns.map((c) => (
-                <TableRow key={c.candidate.id} className="border-b last:border-0">
-                  <TableCell className="min-w-52 px-4 py-3">
-                    <p className="font-medium">{c.candidate.label}</p>
-                    <p className="text-muted-foreground mt-1 text-xs">
-                      {c.candidate.provider_id}
-                      {c.candidate.id === baseline?.id ? " · baseline" : ""}
-                    </p>
-                  </TableCell>
-                  <TableCell className="px-4 text-lg font-semibold tabular-nums">
-                    <button
-                      onClick={() => setExplain(true)}
-                      className="hover:text-primary"
-                      aria-label={`Explain score for ${c.candidate.label}`}
-                    >
-                      {c.score === undefined ? "—" : number.format(c.score)}
-                    </button>
-                  </TableCell>
-                  <TableCell className="px-4 tabular-nums">
-                    {c.score !== undefined && base?.score !== undefined
-                      ? `${c.score - base.score > 0 ? "+" : ""}${number.format(c.score - base.score)}`
-                      : "—"}
-                  </TableCell>
-                  <TableCell className="px-4 tabular-nums">
-                    {c.passed}/{c.attempts.length}
-                    {c.measured < c.attempts.length && (
-                      <p className="text-muted-foreground mt-1 text-xs whitespace-nowrap">
-                        Usage: {c.measured}/{c.attempts.length}
-                      </p>
-                    )}
-                  </TableCell>
-                  <TableCell className="px-4 tabular-nums">
-                    {c.tokens === undefined ? "—" : number.format(c.tokens)}
-                  </TableCell>
-                  <TableCell className="px-4 tabular-nums">
-                    {c.calls === undefined ? "—" : number.format(c.calls)}
-                  </TableCell>
-                  <TableCell className="px-4 tabular-nums">
-                    {c.cost === undefined ? "—" : money.format(c.cost)}
-                  </TableCell>
-                  <TableCell className="px-4 tabular-nums">
-                    {c.duration === undefined ? "—" : `${number.format(c.duration)}s`}
-                  </TableCell>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Scoring</DialogTitle>
+              <DialogDescription>trace-v1 · Relative to this evaluation</DialogDescription>
+            </DialogHeader>
+            <code className="bg-muted rounded-md p-3 text-sm">
+              100 × Q × (0.80 + 0.10J + 0.10D)
+            </code>
+            <Table>
+              <TableBody>
+                <TableRow>
+                  <TableCell>Q</TableCell>
+                  <TableCell>Judge correctness ÷ 4</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-        <p className="text-muted-foreground text-xs">
-          Usage averages include measured attempts, including failures. Reported cost can be zero
-          when provider pricing is unavailable.
-        </p>
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <h2 className="text-sm font-medium">
-            Test cases{" "}
-            <span className="text-muted-foreground ml-2 text-sm font-normal">{cases.length}</span>
-          </h2>
-          <div className="flex flex-wrap items-center gap-2">
-            <Select value={baseline?.id ?? ""} onValueChange={(baseline) => update({ baseline })}>
-              <SelectTrigger aria-label="Baseline model" className="max-w-48">
-                <SelectValue placeholder="Baseline model" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {e.request.candidates.map((candidate) => (
-                    <SelectItem key={candidate.id} value={candidate.id}>
-                      {candidate.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            <Select
-              value={filter}
-              onValueChange={(filter) => {
-                setPage(0)
-                update({ filter })
-              }}
-            >
-              <SelectTrigger aria-label="Filter results">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="all">All results</SelectItem>
-                  <SelectItem value="failures">Failures</SelectItem>
-                  <SelectItem value="regressions">Regressions</SelectItem>
-                  <SelectItem value="improvements">Improvements</SelectItem>
-                  <SelectItem value="inconsistent">Inconsistent</SelectItem>
-                  <SelectItem value="errors">Grading errors</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            <Input
-              aria-label="Search test cases"
-              value={query}
-              placeholder="Search cases"
-              className="h-9 w-44"
-              onChange={(event) => {
-                setPage(0)
-                update({ q: event.target.value })
-              }}
-            />
-          </div>
-        </div>
-        <div
-          className={`grid min-w-0 gap-4 ${selected && !expanded ? "xl:grid-cols-[minmax(0,1fr)_minmax(360px,44%)]" : ""}`}
-        >
-          <div className="min-w-0">
-            <div className="max-h-[65vh] overflow-auto rounded-lg border">
-              <table className="w-full table-fixed text-left text-sm">
-                <TableHeader className="bg-muted sticky top-0 z-20">
-                  <TableRow>
-                    <TableHead className="bg-muted sticky left-0 z-30 w-44 border-r px-4 py-3 text-xs font-medium sm:w-56">
-                      Test case
-                    </TableHead>
-                    {columns.map((c) => (
-                      <TableHead
-                        key={c.candidate.id}
-                        className="w-64 border-r px-4 py-3 font-medium last:border-r-0"
-                      >
-                        {c.candidate.label}
-                        {c.candidate.id === baseline?.id && (
-                          <span className="text-muted-foreground mt-1 block text-xs font-normal">
-                            Baseline
-                          </span>
-                        )}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {cases.slice(page * 25, page * 25 + 25).map((c) => (
-                    <TableRow key={c.id} className="border-t align-top">
-                      <TableCell className="bg-background sticky left-0 z-10 border-r px-4 py-3">
-                        <p className="font-medium">{c.name}</p>
-                        <pre className="text-muted-foreground mt-2 line-clamp-3 font-mono text-xs break-words whitespace-pre-wrap">
-                          {JSON.stringify(c.inputs, null, 2)}
-                        </pre>
-                      </TableCell>
-                      {columns.map((column) => (
-                        <TableCell
-                          key={column.candidate.id}
-                          className="border-r p-2 last:border-r-0"
-                        >
-                          <div className="space-y-2">
-                            {column.attempts
-                              .filter((a) => a.case_id === c.id)
-                              .map((a) => (
-                                <button
-                                  key={a.id}
-                                  onClick={(event) => {
-                                    invoker.current = event.currentTarget
-                                    update({ attempt: a.id })
-                                  }}
-                                  aria-label={`Inspect ${c.name}, ${column.candidate.label}, attempt ${a.repetition}`}
-                                  aria-pressed={selected?.id === a.id}
-                                  className={`w-full rounded-md border p-3 text-left transition-colors ${selected?.id === a.id ? "border-primary bg-primary/5" : "hover:border-border hover:bg-muted/30 border-transparent"}`}
-                                >
-                                  <div className="flex items-center justify-between gap-2">
-                                    <span className="flex items-center gap-1.5 text-xs">
-                                      {a.state === "completed" &&
-                                      a.checks.every((check) => check.passed) ? (
-                                        <CheckCircle2 className="size-3.5 text-emerald-600" />
-                                      ) : a.state === "failed" ||
-                                        a.checks.some((check) => !check.passed) ? (
-                                        <XCircle className="text-destructive size-3.5" />
-                                      ) : a.state === "running" || a.state === "grading" ? (
-                                        <Loader2 className="size-3.5 animate-spin" />
-                                      ) : null}
-                                      {a.state === "completed"
-                                        ? a.checks.every((check) => check.passed)
-                                          ? "Passed"
-                                          : "Failed"
-                                        : a.state}
-                                    </span>
-                                    <span className="font-semibold tabular-nums">
-                                      {a.score === undefined ? "—" : number.format(a.score)}
-                                    </span>
-                                  </div>
-                                  <p className="text-muted-foreground mt-3 line-clamp-3 text-xs leading-relaxed break-words whitespace-pre-wrap">
-                                    {a.output || a.message || "Waiting for execution"}
-                                  </p>
-                                  {e.request.repetitions > 1 && (
-                                    <p className="text-muted-foreground mt-3 text-[11px]">
-                                      Attempt {a.repetition}
-                                    </p>
-                                  )}
-                                </button>
-                              ))}
-                          </div>
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </table>
-              {cases.length === 0 && (
-                <p className="text-muted-foreground p-12 text-center text-sm">
-                  No cases match these filters.
-                </p>
-              )}
-            </div>
-            {cases.length > 25 && (
-              <div className="text-muted-foreground mt-3 flex items-center justify-between text-xs">
-                <span>
-                  Showing {cases.length ? Math.min(page * 25 + 1, cases.length) : 0}–
-                  {Math.min((page + 1) * 25, cases.length)} of {cases.length}
-                </span>
-                <div className="flex gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Previous page"
-                    disabled={page === 0}
-                    onClick={() => setPage(page - 1)}
-                  >
-                    <ArrowLeft />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Next page"
-                    disabled={(page + 1) * 25 >= cases.length}
-                    onClick={() => setPage(page + 1)}
-                  >
-                    <ArrowRight />
-                  </Button>
-                </div>
+                <TableRow>
+                  <TableCell>J</TableCell>
+                  <TableCell>Judge efficiency ÷ 4</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell>D</TableCell>
+                  <TableCell>Mean token, tool-call, and duration ratios</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+            <p className="text-sm">
+              Each ratio is median ÷ (median + usage). Zero ÷ zero is 0.5. Medians freeze after
+              execution, before judging.
+            </p>
+            {evaluation.references ? (
+              <div className="text-muted-foreground flex flex-wrap gap-4 text-xs">
+                <span>{evaluation.references.tokens.toLocaleString()} tokens</span>
+                <span>{evaluation.references.tool_calls.toLocaleString()} calls</span>
+                <span>{formatDurationSeconds(evaluation.references.duration_seconds)}</span>
               </div>
-            )}
-          </div>
-          {selected && (
-            <aside
-              ref={evidence}
-              tabIndex={-1}
-              className="bg-card focus-visible:outline-primary min-w-0 rounded-lg border focus-visible:outline-2"
-              aria-label="Attempt evidence"
+            ) : null}
+            <p className="text-sm">
+              Failed runs or correctness below 3/4 score zero. Missing evidence or measurements
+              remain unscored.
+            </p>
+            <p className="text-muted-foreground text-xs">
+              Weights are product policy. Scores compare this group of executions, not different
+              workflows. Cost is reported separately.
+            </p>
+          </DialogContent>
+        </Dialog>
+      </div>
+      {evaluation.message ? (
+        <Alert variant="destructive" className="mx-4 mb-3 w-auto">
+          <CircleAlert />
+          <AlertDescription>{evaluation.message}</AlertDescription>
+        </Alert>
+      ) : null}
+      <div className="grid min-w-0 grid-cols-1 gap-4 px-4 pb-4 sm:px-6 xl:grid-cols-2">
+        <section className="min-w-0 rounded-lg border p-4" aria-label="Score ranking">
+          <h2 className="mb-4 text-sm font-medium">Score</h2>
+          {ranked.length ? (
+            <ChartContainer
+              config={{ score: { label: "Score", color: "var(--chart-2)" } }}
+              className="h-72 w-full"
             >
-              <div className="flex items-start justify-between gap-3 border-b p-4">
-                <div>
-                  <p className="text-muted-foreground text-xs">
-                    Attempt {selected.repetition} · {selected.state}
+              <BarChart
+                data={ranked.map((row) => ({ ...row, fill: row.color }))}
+                layout="vertical"
+                margin={{ left: 0, right: 38, bottom: 8 }}
+                accessibilityLayer
+              >
+                <CartesianGrid horizontal={false} strokeDasharray="3 5" />
+                <XAxis {...axis} type="number" domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} />
+                <YAxis
+                  {...axis}
+                  type="category"
+                  dataKey="name"
+                  width={140}
+                  tick={{ fontSize: 12 }}
+                />
+                <ChartTooltip isAnimationActive={false} />
+                <Bar
+                  dataKey="score"
+                  name="Score"
+                  maxBarSize={26}
+                  radius={[0, 4, 4, 0]}
+                  isAnimationActive={false}
+                >
+                  <LabelList dataKey="score" position="right" className="fill-foreground text-xs" />
+                </Bar>
+              </BarChart>
+            </ChartContainer>
+          ) : (
+            <div className="text-muted-foreground flex h-72 items-center justify-center text-sm">
+              {pending ? "Waiting for judgments" : "No scores available"}
+            </div>
+          )}
+        </section>
+        <section
+          className="min-w-0 rounded-lg border p-4"
+          aria-label="Score and resource tradeoffs"
+        >
+          <Tabs defaultValue="tokens">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-medium">Score vs. usage</h2>
+              <TabsList aria-label="Resource">
+                <TabsTrigger value="tokens">Tokens</TabsTrigger>
+                <TabsTrigger value="tool_calls">Calls</TabsTrigger>
+                <TabsTrigger value="duration_seconds">Time</TabsTrigger>
+                <TabsTrigger value="cost">Cost</TabsTrigger>
+              </TabsList>
+            </div>
+            {resources.map((resource) => (
+              <TabsContent key={resource.key} value={resource.key}>
+                {ranked.some((row) => row[resource.key] !== undefined) ? (
+                  <ChartContainer config={{ score: { label: "Score" } }} className="h-72 w-full">
+                    <ScatterChart
+                      margin={{ left: 0, right: 20, bottom: 20, top: 15 }}
+                      accessibilityLayer
+                    >
+                      <CartesianGrid strokeDasharray="3 5" />
+                      <XAxis
+                        {...axis}
+                        type="number"
+                        dataKey={resource.key}
+                        name={resource.label}
+                        tickFormatter={formatCompactNumber}
+                        label={{ value: resource.unit, position: "insideBottom", offset: -12 }}
+                      />
+                      <YAxis
+                        {...axis}
+                        type="number"
+                        dataKey="score"
+                        name="Score"
+                        domain={[0, 100]}
+                        width={36}
+                      />
+                      <ZAxis range={[75, 75]} />
+                      <ChartTooltip cursor={{ strokeDasharray: "3 3" }} isAnimationActive={false} />
+                      {ranked
+                        .filter((row) => row[resource.key] !== undefined)
+                        .map((row) => (
+                          <Scatter
+                            key={row.run_name}
+                            name={row.name}
+                            data={[row]}
+                            fill={row.color}
+                            isAnimationActive={false}
+                          />
+                        ))}
+                      <Legend iconSize={8} wrapperStyle={{ paddingTop: 18 }} />
+                    </ScatterChart>
+                  </ChartContainer>
+                ) : (
+                  <div className="text-muted-foreground flex h-72 items-center justify-center text-sm">
+                    No scored measurements
+                  </div>
+                )}
+              </TabsContent>
+            ))}
+          </Tabs>
+        </section>
+        <section className="min-w-0 rounded-lg border p-4 xl:col-span-2">
+          <Tabs defaultValue="ratings">
+            <TabsList aria-label="Measurement charts">
+              <TabsTrigger value="ratings">Ratings</TabsTrigger>
+              <TabsTrigger value="resources">Resources</TabsTrigger>
+            </TabsList>
+            <TabsContent value="ratings">
+              <ChartContainer
+                className="h-64 w-full"
+                config={{
+                  correctness: { label: "Correctness", color: "var(--chart-2)" },
+                  efficiency: { label: "Judge efficiency", color: "var(--chart-1)" },
+                  measured: { label: "Measured efficiency", color: "var(--chart-3)" },
+                }}
+              >
+                <BarChart data={rows} margin={{ left: 0, right: 12, top: 18 }} accessibilityLayer>
+                  <CartesianGrid vertical={false} strokeDasharray="3 5" />
+                  <XAxis {...axis} dataKey="name" tick={{ fontSize: 11 }} />
+                  <YAxis {...axis} domain={[0, 100]} width={40} unit="%" />
+                  <ChartTooltip isAnimationActive={false} />
+                  <Legend iconSize={8} />
+                  <Bar
+                    dataKey="correctness"
+                    name="Correctness (%)"
+                    fill="var(--color-correctness)"
+                    maxBarSize={24}
+                    radius={[3, 3, 0, 0]}
+                    isAnimationActive={false}
+                  />
+                  <Bar
+                    dataKey="efficiency"
+                    name="Judge efficiency (%)"
+                    fill="var(--color-efficiency)"
+                    maxBarSize={24}
+                    radius={[3, 3, 0, 0]}
+                    isAnimationActive={false}
+                  />
+                  <Bar
+                    dataKey="measured"
+                    name="Measured efficiency (%)"
+                    fill="var(--color-measured)"
+                    maxBarSize={24}
+                    radius={[3, 3, 0, 0]}
+                    isAnimationActive={false}
+                  />
+                </BarChart>
+              </ChartContainer>
+            </TabsContent>
+            <TabsContent value="resources">
+              <div className="grid gap-6 md:grid-cols-2">
+                {resources.map((resource) => (
+                  <div key={resource.key} className="min-w-0">
+                    <h3 className="mt-3 text-xs font-medium">{resource.label}</h3>
+                    <ChartContainer
+                      config={{ [resource.key]: { label: resource.label } }}
+                      className="h-48 w-full"
+                    >
+                      <BarChart
+                        data={rows
+                          .filter((row) => row[resource.key] !== undefined)
+                          .map((row) => ({ ...row, fill: row.color }))}
+                        margin={{ left: 0, right: 12, top: 12 }}
+                        accessibilityLayer
+                      >
+                        <CartesianGrid vertical={false} strokeDasharray="3 5" />
+                        <XAxis {...axis} dataKey="name" tick={{ fontSize: 10 }} />
+                        <YAxis {...axis} width={42} tickFormatter={formatCompactNumber} />
+                        <ChartTooltip isAnimationActive={false} />
+                        <Bar
+                          dataKey={resource.key}
+                          name={resource.label}
+                          maxBarSize={30}
+                          radius={[3, 3, 0, 0]}
+                          isAnimationActive={false}
+                        />
+                      </BarChart>
+                    </ChartContainer>
+                  </div>
+                ))}
+              </div>
+            </TabsContent>
+          </Tabs>
+        </section>
+      </div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Model</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="text-right">Score</TableHead>
+            <TableHead className="text-right">Correctness</TableHead>
+            <TableHead className="text-right">Judge efficiency</TableHead>
+            <TableHead className="text-right">Measured efficiency</TableHead>
+            <TableHead className="text-right">Tokens</TableHead>
+            <TableHead className="text-right">Calls</TableHead>
+            <TableHead className="text-right">Duration</TableHead>
+            <TableHead className="text-right">Cost</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row) => (
+            <TableRow key={row.run_name}>
+              <TableCell>
+                <Button
+                  variant="link"
+                  onClick={() => setSelected(row.run_name)}
+                  className="max-w-64 justify-start px-0"
+                >
+                  <span className="truncate">{row.name}</span>
+                </Button>
+              </TableCell>
+              <TableCell>
+                <Badge
+                  variant={
+                    row.state === "error" || row.failed
+                      ? "destructive"
+                      : row.state === "completed"
+                        ? "success"
+                        : "secondary"
+                  }
+                >
+                  {row.failed
+                    ? row.run_status
+                    : row.state === "error" && row.transcript
+                      ? "Judge failed"
+                      : row.state}
+                </Badge>
+              </TableCell>
+              <TableCell className="text-right font-medium tabular-nums">
+                {row.score?.toFixed(1) ?? "—"}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                {row.judgment ? `${row.judgment.correctness}/4` : "—"}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                {row.judgment ? `${row.judgment.efficiency}/4` : "—"}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                {row.measured_efficiency?.toFixed(3) ?? "—"}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                {row.tokens?.toLocaleString() ?? "—"}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">{row.tool_calls ?? "—"}</TableCell>
+              <TableCell className="text-right tabular-nums">
+                {row.duration_seconds === undefined
+                  ? "—"
+                  : formatDurationSeconds(row.duration_seconds)}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                {row.cost === undefined ? "—" : `$${row.cost.toFixed(4)}`}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      <Sheet
+        open={!!execution}
+        onOpenChange={(open) => {
+          if (!open) setSelected(undefined)
+        }}
+      >
+        <SheetContent className="flex w-full flex-col data-[side=right]:sm:max-w-2xl">
+          <SheetHeader>
+            <SheetTitle>{execution?.model.label}</SheetTitle>
+            <SheetDescription>{execution?.run_name}</SheetDescription>
+          </SheetHeader>
+          {execution ? (
+            <Tabs defaultValue="judgment" className="min-h-0 flex-1 px-4 pb-4">
+              <TabsList aria-label="Execution details">
+                <TabsTrigger value="judgment">Judgment</TabsTrigger>
+                <TabsTrigger value="transcript">Transcript</TabsTrigger>
+              </TabsList>
+              <TabsContent value="judgment" className="overflow-y-auto">
+                {execution.message ? (
+                  <Alert variant="destructive">
+                    <CircleAlert />
+                    <AlertDescription>{execution.message}</AlertDescription>
+                  </Alert>
+                ) : null}
+                {execution.judgment && execution.score === undefined ? (
+                  <p className="text-muted-foreground py-3 text-sm">
+                    Score unavailable. Complete token, tool-call, and timing measurements are
+                    required.
                   </p>
-                  <h3 className="mt-1 font-semibold">{selectedCase?.name}</h3>
-                  <p className="text-muted-foreground mt-1 text-xs">
-                    {e.request.candidates.find((c) => c.id === selected.candidate_id)?.label}
-                  </p>
-                </div>
-                <div className="flex gap-1">
+                ) : null}
+                {execution.judgment ? (
+                  <div className="flex flex-col gap-5 py-4">
+                    {execution.judge_context_compacted ? (
+                      <Badge variant="secondary">Compacted context</Badge>
+                    ) : null}
+                    <div className="flex flex-wrap gap-6">
+                      <div>
+                        <p className="text-muted-foreground text-xs">Correctness</p>
+                        <p className="text-2xl tabular-nums">
+                          {execution.judgment.correctness}
+                          <span className="text-muted-foreground text-sm">/4</span>
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground text-xs">Efficiency</p>
+                        <p className="text-2xl tabular-nums">
+                          {execution.judgment.efficiency}
+                          <span className="text-muted-foreground text-sm">/4</span>
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-sm">{execution.judgment.summary}</p>
+                    <section>
+                      <h3 className="mb-2 text-sm font-medium">Evidence</h3>
+                      <ul className="flex list-disc flex-col gap-3 pl-5 text-sm">
+                        {execution.judgment.evidence.map((item, index) => (
+                          <li key={index} className="break-words">
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                    {execution.judgment.limitations.length ? (
+                      <section>
+                        <h3 className="mb-2 text-sm font-medium">Limitations</h3>
+                        <ul className="text-muted-foreground flex list-disc flex-col gap-2 pl-5 text-sm">
+                          {execution.judgment.limitations.map((item, index) => (
+                            <li key={index}>{item}</li>
+                          ))}
+                        </ul>
+                      </section>
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground py-6 text-sm">No judgment available</p>
+                )}
+              </TabsContent>
+              <TabsContent value="transcript" className="min-h-0 overflow-y-auto">
+                <div className="flex items-center justify-between py-3">
+                  <span className="text-muted-foreground text-xs">
+                    {execution.transcript?.length ?? 0}{" "}
+                    {execution.transcript?.length === 1 ? "session" : "sessions"}
+                  </span>
                   <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={expanded ? "Restore comparison layout" : "Expand evidence"}
-                    onClick={() => setExpanded(!expanded)}
-                  >
-                    {expanded ? <Minimize2 /> : <Maximize2 />}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Close evidence"
+                    size="sm"
+                    variant="outline"
+                    disabled={!execution.transcript}
                     onClick={() => {
-                      update({ attempt: undefined })
-                      invoker.current?.focus()
+                      const url = URL.createObjectURL(
+                        new Blob(
+                          [
+                            JSON.stringify(
+                              {
+                                workflow: evaluation.workflow,
+                                inputs: evaluation.request.inputs,
+                                execution,
+                              },
+                              null,
+                              2
+                            ),
+                          ],
+                          { type: "application/json" }
+                        )
+                      )
+                      const link = document.createElement("a")
+                      link.href = url
+                      link.download = `${execution.run_name}.json`
+                      link.click()
+                      setTimeout(() => URL.revokeObjectURL(url), 1000)
                     }}
                   >
-                    <X />
+                    <Download />
+                    Download
                   </Button>
                 </div>
-              </div>
-              <Tabs value={tab} onValueChange={setTab}>
-                <TabsList
-                  variant="line"
-                  className="w-full justify-start gap-4 border-b px-4"
-                  aria-label="Evidence type"
-                >
-                  {(["output", "checks", "tools", "usage"] as const).map((value) => (
-                    <TabsTrigger key={value} value={value} className="capitalize">
-                      {value}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-                <TabsContent value={tab} className="max-h-[60vh] space-y-5 overflow-auto p-4">
-                  {selected.message && (
-                    <p role="status" className="bg-muted rounded-md p-3 text-sm">
-                      {selected.message}
-                    </p>
-                  )}
-                  {tab === "output" && (
-                    <>
-                      <div>
-                        <h4 className="text-muted-foreground mb-2 text-xs font-semibold">
-                          Expected output
-                        </h4>
-                        <pre className="bg-muted/40 rounded-md p-3 font-sans text-sm break-words whitespace-pre-wrap">
-                          {selectedCase?.expected || "Evaluated against the quality rubric"}
-                        </pre>
-                      </div>
-                      {reference && reference.id !== selected.id && (
-                        <div>
-                          <h4 className="text-muted-foreground mb-2 text-xs font-semibold">
-                            Baseline output
-                          </h4>
-                          <pre className="font-sans text-sm leading-relaxed break-words whitespace-pre-wrap">
-                            {reference.output || "No output recorded"}
-                          </pre>
-                        </div>
-                      )}
-                      {reference &&
-                        reference.id !== selected.id &&
-                        reference.output &&
-                        selected.output && (
-                          <details className="rounded-md border">
-                            <summary className="cursor-pointer p-3 text-sm font-medium">
-                              Compare output changes
-                            </summary>
-                            <OutputDiff
-                              oldFile={{ name: "baseline.txt", contents: reference.output }}
-                              newFile={{ name: "selected.txt", contents: selected.output }}
-                              options={{ diffStyle: "unified", overflow: "wrap" }}
-                            />
-                          </details>
-                        )}
-                      <div>
-                        <h4 className="text-muted-foreground mb-2 text-xs font-semibold">
-                          Selected output
-                        </h4>
-                        <pre className="font-sans text-sm leading-relaxed break-words whitespace-pre-wrap">
-                          {selected.output || "No output recorded"}
-                        </pre>
-                      </div>
-                    </>
-                  )}
-                  {tab === "checks" && (
-                    <>
-                      {selected.checks.length === 0 ? (
-                        <p className="text-muted-foreground text-sm">
-                          No grading results recorded yet.
-                        </p>
-                      ) : (
-                        selected.checks.map((check) => (
-                          <div key={check.name} className="rounded-md border p-3">
-                            <div className="flex items-center justify-between">
-                              <p className="text-sm font-medium">{check.name}</p>
-                              <Badge variant={check.passed ? "secondary" : "destructive"}>
-                                {check.passed ? "Passed" : "Failed"}
-                              </Badge>
-                            </div>
-                            <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
-                              {check.reason}
-                            </p>
-                          </div>
-                        ))
-                      )}
-                    </>
-                  )}
-                  {tab === "tools" && (
-                    <>
-                      {selected.tools.length === 0 ? (
-                        <p className="text-muted-foreground text-sm">No tool calls recorded.</p>
-                      ) : (
-                        selected.tools.map((tool, index) => (
-                          <details key={`${tool.id}-${index}`} className="rounded-md border">
-                            <summary className="cursor-pointer p-3 text-sm">
-                              <span className="text-muted-foreground mr-2 text-xs">
-                                {index + 1}
-                              </span>
-                              {tool.name}
-                              <span className="text-muted-foreground ml-2 text-xs">
-                                {tool.state}
-                              </span>
-                            </summary>
-                            <div className="space-y-3 border-t p-3">
-                              <pre className="font-mono text-xs break-words whitespace-pre-wrap">
-                                {tool.input}
-                              </pre>
-                              <pre className="text-muted-foreground font-mono text-xs break-words whitespace-pre-wrap">
-                                {tool.output}
-                              </pre>
-                            </div>
-                          </details>
-                        ))
-                      )}
-                    </>
-                  )}
-                  {tab === "usage" && (
-                    <dl className="space-y-4 text-sm">
-                      {selected.models_used && (
-                        <div className="space-y-2">
-                          <dt className="text-muted-foreground">
-                            Models used, including delegated sessions
-                          </dt>
-                          <dd className="text-xs break-words">{selected.models_used.join(", ")}</dd>
-                        </div>
-                      )}
-                      {[
-                        {
-                          label: "Tokens",
-                          value:
-                            selected.tokens === undefined
-                              ? "Unavailable"
-                              : number.format(selected.tokens),
-                        },
-                        { label: "Task tool calls", value: selected.task_calls ?? "Unavailable" },
-                        {
-                          label: "Workflow protocol calls",
-                          value: selected.protocol_calls ?? "Unavailable",
-                        },
-                        {
-                          label: "Reported candidate cost",
-                          value:
-                            selected.cost === undefined
-                              ? "Unavailable"
-                              : money.format(selected.cost),
-                        },
-                        {
-                          label: "Duration",
-                          value:
-                            selected.duration_seconds === undefined
-                              ? "Unavailable"
-                              : `${number.format(selected.duration_seconds)} seconds`,
-                        },
-                        {
-                          label: "Judge tokens",
-                          value: selected.grading
-                            ? number.format(selected.grading.tokens)
-                            : "Unavailable",
-                        },
-                        {
-                          label: "Reported judge cost",
-                          value: selected.grading
-                            ? money.format(selected.grading.cost)
-                            : "Unavailable",
-                        },
-                        {
-                          label: "Quality",
-                          value:
-                            selected.quality === undefined
-                              ? "Unscored"
-                              : number.format(selected.quality * 100) + "%",
-                        },
-                      ].map((item) => (
-                        <div key={item.label} className="flex justify-between gap-4">
-                          <dt className="text-muted-foreground">{item.label}</dt>
-                          <dd className="font-medium tabular-nums">{item.value}</dd>
-                        </div>
-                      ))}
-                    </dl>
-                  )}
-                </TabsContent>
-              </Tabs>
-            </aside>
-          )}
-        </div>
-        {!running && (
-          <div className="flex items-center justify-between border-t pt-5">
-            <p className="text-muted-foreground text-xs">
-              Regrading uses saved evidence and keeps the previous assessment.
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={busy || e.state === "cancelled" || e.state === "archived"}
-              onClick={onRegrade}
-            >
-              <RefreshCw />
-              Regrade
-            </Button>
-          </div>
-        )}
-      </div>
-    </section>
+                {execution.transcript?.map((session) => (
+                  <details key={session.session_id} className="mb-3 rounded-md border">
+                    <summary className="cursor-pointer p-3 font-mono text-xs">
+                      {session.session_id} · {session.messages.length} messages
+                    </summary>
+                    <pre className="bg-muted overflow-auto p-3 text-xs">
+                      {JSON.stringify(session, null, 2)}
+                    </pre>
+                  </details>
+                ))}
+              </TabsContent>
+            </Tabs>
+          ) : null}
+        </SheetContent>
+      </Sheet>
+    </div>
   )
 }

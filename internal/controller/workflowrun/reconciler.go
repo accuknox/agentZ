@@ -434,6 +434,10 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 		return err
 	}
 	title := "workflowrun/" + run.Namespace + "/" + run.Name
+	var metadata *map[string]any
+	if evaluation := run.Labels["agentz.accuknox.com/evaluation"]; evaluation != "" {
+		metadata = &map[string]any{"agentz.evaluation_id": evaluation}
+	}
 	createResp, err := r.GatewayClient.SessionCreateWithResponse(
 		ctx,
 		run.Spec.AgentName,
@@ -441,6 +445,7 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 		gatewayapi.SessionCreateJSONRequestBody{
 			Title:      &title,
 			Permission: &permission,
+			Metadata:   metadata,
 		},
 		gwreq.RequestEditor(r.TokenPath, run.Namespace),
 	)
@@ -823,37 +828,31 @@ func assistantFailureMessage(assistant gatewayapi.OpencodeAssistantMessage) stri
 		return ""
 	}
 
-	if providerAuthError, err := assistant.Error.AsOpencodeProviderAuthError(); err == nil {
-		message := providerAuthError.Data.Message
-		if providerAuthError.Data.ProviderID != "" {
-			return providerAuthError.Data.ProviderID + ": " + message
+	value, err := assistant.Error.ValueByDiscriminator()
+	if err != nil {
+		return "workflow session failed"
+	}
+	switch failure := value.(type) {
+	case gatewayapi.OpencodeProviderAuthError:
+		if failure.Data.ProviderID != "" {
+			return failure.Data.ProviderID + ": " + failure.Data.Message
 		}
-		return message
-	}
-	if apiError, err := assistant.Error.AsOpencodeAPIError(); err == nil {
-		message := apiError.Data.Message
-		if apiError.Data.StatusCode != nil {
-			return fmt.Sprintf("%s (status %d)", message, *apiError.Data.StatusCode)
+		return failure.Data.Message
+	case gatewayapi.OpencodeAPIError:
+		if failure.Data.StatusCode != nil {
+			return fmt.Sprintf("%s (status %d)", failure.Data.Message, *failure.Data.StatusCode)
 		}
-		return message
-	}
-	if unknownError, err := assistant.Error.AsOpencodeUnknownError(); err == nil {
-		return unknownError.Data.Message
-	}
-	if abortedError, err := assistant.Error.AsOpencodeMessageAbortedError(); err == nil {
-		return abortedError.Data.Message
-	}
-	if contextOverflowError, err := assistant.Error.AsOpencodeContextOverflowError(); err == nil {
-		return contextOverflowError.Data.Message
-	}
-	if structuredOutputError, err := assistant.Error.AsOpencodeStructuredOutputError(); err == nil {
-		return structuredOutputError.Data.Message
-	}
-	if outputLengthError, err := assistant.Error.AsOpencodeMessageOutputLengthError(); err == nil {
-		raw, marshalErr := json.Marshal(outputLengthError.Data)
-		if marshalErr == nil {
-			return string(raw)
-		}
+		return failure.Data.Message
+	case gatewayapi.OpencodeUnknownError:
+		return failure.Data.Message
+	case gatewayapi.OpencodeMessageAbortedError:
+		return failure.Data.Message
+	case gatewayapi.OpencodeContextOverflowError:
+		return failure.Data.Message
+	case gatewayapi.OpencodeStructuredOutputError:
+		return failure.Data.Message
+	case gatewayapi.OpencodeMessageOutputLengthError:
+		return "workflow response exceeded the output limit"
 	}
 
 	return "workflow session failed"

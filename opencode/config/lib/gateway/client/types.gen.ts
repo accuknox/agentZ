@@ -778,6 +778,89 @@ export type WorkflowSchedule = {
  */
 export type ApiKeyId = string
 
+export type EvaluationModel = {
+  provider_id: string
+  model_id: string
+  label: string
+  variant?: string
+}
+
+export type WorkflowEvaluationRequest = {
+  id: string
+  inputs: JsonValue
+  models: Array<EvaluationModel>
+  judge: EvaluationModel
+}
+
+export type WorkflowEvaluationState =
+  "queued" | "running" | "cancelling" | "completed" | "cancelled"
+
+export type WorkflowEvaluation = {
+  id: string
+  request: WorkflowEvaluationRequest
+  workflow: Workflow
+  executions: Array<EvaluationExecution>
+  state: WorkflowEvaluationState
+  message?: string
+  created_at: string
+  updated_at: string
+  scoring_version: "trace-v1"
+  references?: EvaluationReferences
+}
+
+export type WorkflowEvaluationSummary = {
+  id: string
+  judge: EvaluationModel
+  executions: Array<EvaluationExecution>
+  state: WorkflowEvaluationState
+  created_at: string
+}
+
+export type EvaluationExecution = {
+  model: EvaluationModel
+  run_name: string
+  state: "queued" | "running" | "judging" | "completed" | "error" | "cancelled"
+  run_status?: WorkflowRunStatus
+  run?: WorkflowRunDetail
+  message?: string
+  session_id?: string
+  /**
+   * Complete native session messages and metadata, including delegated sessions. Never truncated or summarized.
+   */
+  transcript?: Array<EvaluationTranscriptSession>
+  measured_efficiency?: number
+  tokens?: number
+  tool_calls?: number
+  duration_seconds?: number
+  cost?: number
+  judgment?: EvaluationJudgment
+  /**
+   * The judge continued after native context compaction. Informational only; does not affect scoring.
+   */
+  judge_context_compacted?: boolean
+  score?: number
+}
+
+export type EvaluationTranscriptSession = {
+  session_id: string
+  session: JsonValue
+  messages: Array<JsonValue>
+}
+
+export type EvaluationReferences = {
+  tokens: number
+  tool_calls: number
+  duration_seconds: number
+}
+
+export type EvaluationJudgment = {
+  correctness: number
+  efficiency: number
+  summary: string
+  evidence: Array<string>
+  limitations: Array<string>
+}
+
 export type WorkflowRunInputs = JsonValue
 
 export type WorkflowRunTriggerType = "Schedule" | "Webhook"
@@ -8916,6 +8999,143 @@ export type ListWorkflowWebhookTriggersResponses = {
 
 export type ListWorkflowWebhookTriggersResponse2 =
   ListWorkflowWebhookTriggersResponses[keyof ListWorkflowWebhookTriggersResponses]
+
+export type ListWorkflowEvaluationsData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    workflowName: WorkflowName
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/evaluation"
+}
+
+export type ListWorkflowEvaluationsErrors = {
+  /**
+   * Unexpected server error.
+   */
+  default: Error
+}
+
+export type ListWorkflowEvaluationsError =
+  ListWorkflowEvaluationsErrors[keyof ListWorkflowEvaluationsErrors]
+
+export type ListWorkflowEvaluationsResponses = {
+  /**
+   * Recent model comparisons without full transcripts.
+   */
+  200: Array<WorkflowEvaluationSummary>
+}
+
+export type ListWorkflowEvaluationsResponse =
+  ListWorkflowEvaluationsResponses[keyof ListWorkflowEvaluationsResponses]
+
+export type CreateWorkflowEvaluationData = {
+  body: WorkflowEvaluationRequest
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    workflowName: WorkflowName
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/evaluation"
+}
+
+export type CreateWorkflowEvaluationErrors = {
+  /**
+   * Unexpected server error.
+   */
+  default: Error
+}
+
+export type CreateWorkflowEvaluationError =
+  CreateWorkflowEvaluationErrors[keyof CreateWorkflowEvaluationErrors]
+
+export type CreateWorkflowEvaluationResponses = {
+  /**
+   * Workflow executions queued for evaluation.
+   */
+  202: WorkflowEvaluation
+}
+
+export type CreateWorkflowEvaluationResponse =
+  CreateWorkflowEvaluationResponses[keyof CreateWorkflowEvaluationResponses]
+
+export type GetWorkflowEvaluationData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    workflowName: WorkflowName
+    evaluationId: string
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/evaluation/{evaluationId}"
+}
+
+export type GetWorkflowEvaluationErrors = {
+  /**
+   * Unexpected server error.
+   */
+  default: Error
+}
+
+export type GetWorkflowEvaluationError =
+  GetWorkflowEvaluationErrors[keyof GetWorkflowEvaluationErrors]
+
+export type GetWorkflowEvaluationResponses = {
+  /**
+   * Execution results and complete transcripts.
+   */
+  200: WorkflowEvaluation
+}
+
+export type GetWorkflowEvaluationResponse =
+  GetWorkflowEvaluationResponses[keyof GetWorkflowEvaluationResponses]
+
+export type UpdateWorkflowEvaluationData = {
+  body: {
+    action: "cancel" | "judge"
+    judge?: EvaluationModel
+  }
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    workflowName: WorkflowName
+    evaluationId: string
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/evaluation/{evaluationId}"
+}
+
+export type UpdateWorkflowEvaluationErrors = {
+  /**
+   * Unexpected server error.
+   */
+  default: Error
+}
+
+export type UpdateWorkflowEvaluationError =
+  UpdateWorkflowEvaluationErrors[keyof UpdateWorkflowEvaluationErrors]
+
+export type UpdateWorkflowEvaluationResponses = {
+  /**
+   * Updated evaluation.
+   */
+  200: WorkflowEvaluation
+}
+
+export type UpdateWorkflowEvaluationResponse =
+  UpdateWorkflowEvaluationResponses[keyof UpdateWorkflowEvaluationResponses]
 
 export type ListWorkflowRunsData = {
   body?: never

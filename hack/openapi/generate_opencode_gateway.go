@@ -76,7 +76,7 @@ var baseOperationCapabilities = map[string][]string{
 		"createAgentDirectory",
 		"createAgentFile",
 		"createWorkflow",
-		"suggestWorkflowEvaluationCases", "createWorkflowEvaluation", "listWorkflowEvaluations", "getWorkflowEvaluation", "updateWorkflowEvaluation",
+		"createWorkflowEvaluation", "listWorkflowEvaluations", "getWorkflowEvaluation", "updateWorkflowEvaluation",
 		"createWorkflowRun",
 		"createWorkflowSchedule",
 		"deleteAgent",
@@ -352,9 +352,6 @@ func rewriteOpenCode(doc map[string]any) (map[string]any, routeManifest, error) 
 			// every unrelated endpoint tagged as an instance operation.
 			if operationID == "instance.dispose" {
 				op["tags"] = []any{"instance", "coding"}
-			}
-			if operationID == "app.skills" || operationID == "tool.list" {
-				op["tags"] = []any{"workflows"}
 			}
 			operation, capability, err := opencodeOperation(operationID)
 			if err != nil {
@@ -898,6 +895,20 @@ func applyOAPICodegenFixups(doc map[string]any) error {
 		delete(schema, "anyOf")
 		schema["discriminator"] = map[string]any{"propertyName": field, "mapping": mapping}
 	}
+	// Assistant errors have explicit names; do not decode them by trial.
+	assistant := schemas["AssistantMessage"].(map[string]any)["properties"].(map[string]any)
+	failure := assistant["error"].(map[string]any)
+	errorMapping := make(map[string]any)
+	for _, variant := range failure["anyOf"].([]any) {
+		ref := variant.(map[string]any)["$ref"].(string)
+		variantSchema := schemas[strings.TrimPrefix(ref, "#/components/schemas/")].(map[string]any)
+		properties := variantSchema["properties"].(map[string]any)
+		name := properties["name"].(map[string]any)["enum"].([]any)[0].(string)
+		errorMapping[name] = ref
+	}
+	failure["oneOf"] = failure["anyOf"]
+	delete(failure, "anyOf")
+	failure["discriminator"] = map[string]any{"propertyName": "name", "mapping": errorMapping}
 	// Event variants already carry a unique type. Generate discriminator access
 	// instead of making proxy consumers probe each possible JSON shape.
 	event := schemas["Event"].(map[string]any)
@@ -958,6 +969,11 @@ func applyOAPICodegenFixups(doc map[string]any) error {
 	body["properties"].(map[string]any)["model"] = map[string]any{
 		"$ref": "#/components/schemas/ModelRef",
 	}
+	// Native message timestamps are Unix milliseconds; float32 loses minutes.
+	user := schemas["UserMessage"].(map[string]any)["properties"].(map[string]any)
+	userTime := user["time"].(map[string]any)["properties"].(map[string]any)
+	userTime["created"] = map[string]any{"type": "integer", "format": "int64"}
+
 	schemas["PromptModel"] = map[string]any{
 		"type": "object", "required": []any{"providerID", "modelID"},
 		"properties": map[string]any{

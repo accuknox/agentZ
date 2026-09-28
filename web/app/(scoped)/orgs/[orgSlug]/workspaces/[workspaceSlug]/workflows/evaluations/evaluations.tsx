@@ -1,21 +1,34 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRef, useState } from "react"
+import dynamic from "next/dynamic"
 import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Plus, Search, MoreHorizontal, Play, Copy, Archive } from "lucide-react"
-import { toast } from "sonner"
-import { AdministrationState } from "@/components/administration"
+import { Bot, CircleAlert, Plus, Play, RefreshCw, Square } from "lucide-react"
 import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-} from "@/components/ui/table"
+  createWorkflowEvaluation,
+  updateWorkflowEvaluation,
+  type EvaluationModel,
+  type JsonValue,
+  type Workflow,
+  type WorkflowEvaluation,
+  type FieldError as APIFieldError,
+} from "@/lib/gateway/client"
+import {
+  listWorkflowEvaluationsOptions,
+  getWorkflowEvaluationOptions,
+} from "@/lib/gateway/client/@tanstack/react-query.gen"
+import { createAgentOpencodeClient } from "@/lib/opencode/client"
+import {
+  buildWorkflowInputObjectSchema,
+  workflowInputDefaultValues,
+  workflowScheduleArbitraryJSONSchema,
+} from "@/data/workflow-schedule.schema"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Field, FieldLabel, FieldError, FieldDescription, FieldGroup } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { MultiSelectDropdown } from "@/components/ui/multi-select-dropdown"
 import {
   Select,
   SelectContent,
@@ -24,364 +37,532 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-  listWorkflowEvaluations,
-  getWorkflowEvaluation,
-  updateWorkflowEvaluation,
-  type Workflow,
-  type WorkflowEvaluation,
-  type WorkflowEvaluationSummary,
-} from "@/lib/gateway/client"
-import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
-import { EvaluationSetup } from "./setup"
-import { EvaluationResults } from "./results"
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetFooter,
+} from "@/components/ui/sheet"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Spinner } from "@/components/ui/spinner"
+import { dayjs } from "@/lib/format"
+
+const Results = dynamic(() => import("./results").then((module) => module.Results), {
+  loading: () => <Skeleton className="m-6 h-80" />,
+  ssr: false,
+})
 
 export function Evaluations({
-  workspaceId,
   workflow,
-  initial,
+  workspaceId,
 }: {
-  workspaceId: string
   workflow: Workflow
-  initial: WorkflowEvaluationSummary[]
+  workspaceId: string
 }) {
   const queryClient = useQueryClient()
-  const router = useRouter()
-  const search = useSearchParams()
-  const [filter, setFilter] = useState("")
-  const [status, setStatus] = useState("all")
-  const [copy, setCopy] = useState<WorkflowEvaluation>()
-  const [busy, setBusy] = useState(false)
-  const key = ["workflow-evaluations", workspaceId, workflow.agent_name, workflow.workflow_name]
-  const listOptions = queryOptions({
-    queryKey: key,
-    initialData: initial,
-    queryFn: async () => {
-      const result = await listWorkflowEvaluations({
-        baseUrl: await getGatewayBaseURL(),
-        headers: { "X-AgentZ-Workspace-ID": workspaceId },
-        path: { agentName: workflow.agent_name, workflowName: workflow.workflow_name },
-      })
-      if (result.error) throw new Error(result.error.message)
-      return result.data
-    },
-    refetchInterval: (query) =>
-      query.state.data?.some((e) => e.state === "queued" || e.state === "running") ? 2500 : false,
+  const [selected, setSelected] = useState<string>()
+  const [creating, setCreating] = useState(false)
+  const [retrying, setRetrying] = useState(false)
+  const [actionPending, setActionPending] = useState(false)
+  const [actionError, setActionError] = useState<string>()
+  const headers = { "X-AgentZ-Workspace-ID": workspaceId }
+  const path = { agentName: workflow.agent_name, workflowName: workflow.workflow_name }
+  const historyOptions = listWorkflowEvaluationsOptions({ headers, path })
+  const history = useQuery({ ...historyOptions, refetchInterval: 5000 })
+  const id = selected ?? history.data?.[0]?.id
+  const detailOptions = getWorkflowEvaluationOptions({
+    headers,
+    path: { ...path, evaluationId: id ?? "" },
   })
-  const evaluations = useQuery(listOptions)
-  const selectedId = search.get("evaluation")
-  function detailOptions(selectedId: string | null) {
-    return queryOptions({
-      queryKey: [
-        "workflow-evaluation",
-        workspaceId,
-        workflow.agent_name,
-        workflow.workflow_name,
-        selectedId,
-      ],
-      enabled: selectedId !== null && selectedId !== "new",
+  const detail = useQuery({
+    ...detailOptions,
+    enabled: !!id,
+    refetchInterval: (query) =>
+      query.state.data && ["queued", "running", "cancelling"].includes(query.state.data.state)
+        ? 2000
+        : false,
+  })
+  const evaluation = detail.data
+  const active = evaluation && ["queued", "running", "cancelling"].includes(evaluation.state)
+  const catalog = useQuery(
+    queryOptions({
+      queryKey: ["evaluation-models", workspaceId, workflow.agent_name],
       queryFn: async () => {
-        if (!selectedId || selectedId === "new") throw new Error("Choose an evaluation")
-        const response = await getWorkflowEvaluation({
-          baseUrl: await getGatewayBaseURL(),
-          headers: { "X-AgentZ-Workspace-ID": workspaceId },
-          path: {
-            agentName: workflow.agent_name,
-            workflowName: workflow.workflow_name,
-            evaluationId: selectedId,
-          },
-        })
-        if (response.error) throw new Error(response.error.message)
-        return response.data
+        const client = await createAgentOpencodeClient(workflow.agent_name, workspaceId)
+        const { data } = await client.config.providers({}, { throwOnError: true })
+        return data.providers.flatMap((provider) =>
+          Object.values(provider.models)
+            .filter((model) => model.capabilities.toolcall)
+            .flatMap((model) => {
+              const base: EvaluationModel = {
+                provider_id: provider.id,
+                model_id: model.id,
+                label: model.name,
+              }
+              return [
+                base,
+                ...Object.keys(model.variants ?? {}).map((variant) => ({
+                  ...base,
+                  variant,
+                  label: `${model.name} · ${variant}`,
+                })),
+              ].map((model) => ({
+                model,
+                group: provider.name,
+                key: JSON.stringify([model.provider_id, model.model_id, model.variant]),
+              }))
+            })
+        )
       },
-      refetchInterval: (query) =>
-        query.state.data?.state === "queued" || query.state.data?.state === "running"
-          ? 2500
-          : false,
     })
-  }
-  const detail = useQuery(detailOptions(selectedId))
-  const selected = detail.data
-  const creating = search.get("evaluation") === "new"
-  const filtered = evaluations.data.filter(
-    (e) =>
-      e.name.toLowerCase().includes(filter.toLowerCase()) &&
-      (status === "all" || e.state === status)
   )
 
-  function navigate(id?: string) {
-    const params = new URLSearchParams(search)
-    if (id) params.set("evaluation", id)
-    else params.delete("evaluation")
-    router.push(`?${params.toString()}`, { scroll: false })
+  async function refresh(result: WorkflowEvaluation) {
+    setSelected(result.id)
+    queryClient.setQueryData(
+      getWorkflowEvaluationOptions({ headers, path: { ...path, evaluationId: result.id } })
+        .queryKey,
+      result
+    )
+    await queryClient.invalidateQueries({ queryKey: historyOptions.queryKey })
   }
-  async function transition(id: string, action: "launch" | "cancel" | "regrade" | "archive") {
-    setBusy(true)
+
+  async function cancel() {
+    if (!id) return
+    setActionPending(true)
+    setActionError(undefined)
     try {
-      const result = await updateWorkflowEvaluation({
-        baseUrl: await getGatewayBaseURL(),
-        headers: { "X-AgentZ-Workspace-ID": workspaceId },
-        path: {
-          agentName: workflow.agent_name,
-          workflowName: workflow.workflow_name,
-          evaluationId: id,
-        },
-        body: { action },
+      const { data, error } = await updateWorkflowEvaluation({
+        headers,
+        path: { ...path, evaluationId: id },
+        body: { action: "cancel" },
       })
-      if (result.error) throw new Error(result.error.message)
-      queryClient.setQueryData(detailOptions(id).queryKey, result.data)
-      await queryClient.invalidateQueries({ queryKey: listOptions.queryKey, exact: true })
-      if (action === "archive") navigate()
-      toast.success(
-        action === "cancel"
-          ? "Cancellation requested"
-          : action === "regrade"
-            ? "Grading queued"
-            : action === "archive"
-              ? "Evaluation archived"
-              : "Evaluation queued"
-      )
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not update evaluation")
+      if (error) {
+        setActionError(error.message)
+        return
+      }
+      await refresh(data)
+    } catch {
+      setActionError("Could not cancel. Try again.")
     } finally {
-      setBusy(false)
+      setActionPending(false)
     }
   }
-  if (creating || selected?.state === "draft")
-    return (
-      <EvaluationSetup
-        workflow={workflow}
-        workspaceId={workspaceId}
-        key={selected?.id ?? "new"}
-        previous={selected?.state === "draft" ? selected : copy}
-        draftId={selected?.state === "draft" ? selected.id : undefined}
-        onCancel={() => navigate()}
-        onCreated={(evaluation) => {
-          queryClient.setQueryData(detailOptions(evaluation.id).queryKey, evaluation)
-          void queryClient.invalidateQueries({ queryKey: listOptions.queryKey, exact: true })
-          toast.success(evaluation.state === "draft" ? "Draft saved" : "Evaluation queued")
-          navigate(evaluation.id)
-        }}
-      />
-    )
-  if (selectedId && !selected)
-    return (
-      <section className="p-4 sm:p-6">
-        <Button variant="ghost" onClick={() => navigate()}>
-          Back to evaluations
-        </Button>
-        <p className="mt-8 text-sm" role="status">
-          {detail.error?.message ?? "Loading evaluation…"}
-        </p>
-        {detail.error && (
-          <Button variant="outline" className="mt-4" onClick={() => detail.refetch()}>
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3 sm:px-6">
+        {history.data?.length ? (
+          <Select value={id} onValueChange={setSelected}>
+            <SelectTrigger className="w-64" aria-label="Evaluation">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {history.data.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {dayjs(item.created_at).format("MMM D, HH:mm:ss")} · {item.executions.length}{" "}
+                    {item.executions.length === 1 ? "model" : "models"}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        ) : (
+          <span className="text-sm font-medium">Evaluations</span>
+        )}
+        {evaluation ? (
+          <Badge variant={active ? "pending" : "secondary"}>{evaluation.state}</Badge>
+        ) : null}
+        <div className="ml-auto flex items-center gap-2">
+          {active ? (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={actionPending || evaluation.state === "cancelling"}
+              onClick={cancel}
+            >
+              <Square />
+              Cancel
+            </Button>
+          ) : evaluation?.state === "completed" ? (
+            <Button size="sm" variant="outline" onClick={() => setRetrying(true)}>
+              <RefreshCw />
+              Judge again
+            </Button>
+          ) : null}
+          <Button size="sm" onClick={() => setCreating(true)}>
+            <Plus />
+            New evaluation
+          </Button>
+        </div>
+      </div>
+      {history.error || detail.error || actionError ? (
+        <Alert variant="destructive" className="m-4 w-auto">
+          <CircleAlert />
+          <AlertDescription>{actionError ?? "Could not load evaluations."}</AlertDescription>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              void history.refetch()
+              void detail.refetch()
+              setActionError(undefined)
+            }}
+          >
             Retry
           </Button>
-        )}
-      </section>
-    )
-  if (selected)
-    return (
-      <EvaluationResults
-        evaluation={selected}
-        busy={busy}
-        onBack={() => navigate()}
-        onCancel={() => transition(selected.id, "cancel")}
-        onRegrade={() => transition(selected.id, "regrade")}
-        onDuplicate={() => {
-          setCopy(selected)
-          navigate("new")
-        }}
-      />
-    )
-  return (
-    <section className="flex min-w-0 flex-1 flex-col gap-4 p-4 sm:p-6">
-      {evaluations.error && (
-        <p
-          role="alert"
-          className="border-destructive/30 text-destructive rounded-md border p-3 text-sm"
-        >
-          {evaluations.error.message}{" "}
-          <button className="underline" onClick={() => evaluations.refetch()}>
-            Retry
-          </button>
-        </p>
+        </Alert>
+      ) : null}
+      {history.isPending || (id && detail.isPending) ? (
+        <div className="grid gap-4 p-6 md:grid-cols-2">
+          <Skeleton className="h-80" />
+          <Skeleton className="h-80" />
+        </div>
+      ) : evaluation ? (
+        <Results evaluation={evaluation} />
+      ) : (
+        <div className="text-muted-foreground flex h-48 items-center justify-center text-sm">
+          No evaluations yet
+        </div>
       )}
-      {evaluations.data.length === 0 ? (
-        <AdministrationState
-          kind="empty"
-          title="No evaluations yet"
-          description="Compare models on the same workflow inputs."
-          actions={
-            <Button
-              size="sm"
-              onClick={() => {
-                setCopy(undefined)
-                navigate("new")
+      <Sheet
+        open={creating || retrying}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCreating(false)
+            setRetrying(false)
+          }
+        }}
+      >
+        <SheetContent className="flex w-full flex-col data-[side=right]:sm:max-w-xl">
+          <SheetHeader>
+            <SheetTitle>{retrying ? "Judge again" : "New evaluation"}</SheetTitle>
+            <SheetDescription>{workflow.title}</SheetDescription>
+          </SheetHeader>
+          {catalog.isPending ? (
+            <div className="grid gap-4 p-4">
+              <Skeleton className="h-8" />
+              <Skeleton className="h-8" />
+            </div>
+          ) : catalog.error ? (
+            <Alert variant="destructive" className="mx-4 w-auto">
+              <CircleAlert />
+              <AlertDescription>Could not load models.</AlertDescription>
+              <Button variant="outline" onClick={() => void catalog.refetch()}>
+                Retry
+              </Button>
+            </Alert>
+          ) : !catalog.data?.length ? (
+            <p className="text-muted-foreground p-4 text-sm">No models available for this agent.</p>
+          ) : (
+            <EvaluationForm
+              key={retrying ? `judge-${id}` : "new"}
+              workflow={workflow}
+              models={catalog.data}
+              workspaceId={workspaceId}
+              retry={retrying ? evaluation : undefined}
+              onComplete={async (result) => {
+                setCreating(false)
+                setRetrying(false)
+                await refresh(result)
+              }}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
+    </>
+  )
+}
+
+function EvaluationForm({
+  workflow,
+  models,
+  workspaceId,
+  retry,
+  onComplete,
+}: {
+  workflow: Workflow
+  models: { model: EvaluationModel; key: string; group: string }[]
+  workspaceId: string
+  retry?: WorkflowEvaluation
+  onComplete: (result: WorkflowEvaluation) => Promise<void>
+}) {
+  const [selection, setSelection] = useState<string[]>([])
+  const [judgeKey, setJudgeKey] = useState(
+    () =>
+      models.find(
+        (item) =>
+          retry &&
+          item.model.provider_id === retry.request.judge.provider_id &&
+          item.model.model_id === retry.request.judge.model_id &&
+          item.model.variant === retry.request.judge.variant
+      )?.key ?? ""
+  )
+  const [inputs, setInputs] = useState(() => workflowInputDefaultValues(workflow.inputs ?? {}))
+  const [json, setJSON] = useState("{}")
+  const [errors, setErrors] = useState<APIFieldError[]>([])
+  const [failure, setFailure] = useState<string>()
+  const [pending, setPending] = useState(false)
+  const requestId = useRef<string>(undefined)
+  const submitted = useRef<string>(undefined)
+  const busy = useRef(false)
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (busy.current) return
+    const form = event.currentTarget
+    const issues: APIFieldError[] = []
+    const judge = models.find((item) => item.key === judgeKey)?.model
+    const chosen = models.filter((item) => selection.includes(item.key)).map((item) => item.model)
+    if (!judge) issues.push({ field: "judge", message: "Select a judge" })
+    if (!retry && (!chosen.length || chosen.length > 8))
+      issues.push({ field: "models", message: "Select 1–8 models" })
+    const parsed = workflow.arbitrary_json
+      ? workflowScheduleArbitraryJSONSchema.safeParse(json)
+      : buildWorkflowInputObjectSchema(workflow.inputs ?? {})
+          .transform((values) => {
+            const defined: Record<string, JsonValue> = {}
+            for (const [name, value] of Object.entries(values)) {
+              if (value !== undefined) defined[name] = value
+            }
+            return defined
+          })
+          .safeParse(inputs)
+    if (!retry && !parsed.success)
+      for (const issue of parsed.error.issues)
+        issues.push({
+          field: `inputs${issue.path.length ? `.${issue.path.join(".")}` : ""}`,
+          message: issue.message,
+        })
+    setErrors(issues)
+    setFailure(undefined)
+    if (issues.length || !judge || (!retry && !parsed.success)) {
+      requestAnimationFrame(() => form.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus())
+      return
+    }
+    busy.current = true
+    setPending(true)
+    try {
+      const headers = { "X-AgentZ-Workspace-ID": workspaceId }
+      const path = { agentName: workflow.agent_name, workflowName: workflow.workflow_name }
+      if (retry) {
+        const { data, error } = await updateWorkflowEvaluation({
+          headers,
+          path: { ...path, evaluationId: retry.id },
+          body: { action: "judge", judge },
+        })
+        if (error) {
+          setFailure(error.message)
+          return
+        }
+        await onComplete(data)
+        return
+      }
+      if (!parsed.success) return
+      const body = { inputs: parsed.data ?? null, models: chosen, judge }
+      const identity = JSON.stringify(body)
+      if (submitted.current !== identity) {
+        submitted.current = identity
+        requestId.current = crypto.randomUUID()
+      }
+      const { data, error } = await createWorkflowEvaluation({
+        headers,
+        path,
+        body: { ...body, id: requestId.current ?? crypto.randomUUID() },
+      })
+      if (error) {
+        setErrors(error.errors ?? [])
+        if (!error.errors?.length) setFailure(error.message)
+        requestAnimationFrame(() =>
+          form.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+        )
+        return
+      }
+      await onComplete(data)
+    } catch {
+      setFailure("Could not start evaluation. Your settings are saved here. Try again.")
+    } finally {
+      busy.current = false
+      setPending(false)
+    }
+  }
+
+  return (
+    <form onSubmit={submit} noValidate className="flex min-h-0 flex-1 flex-col">
+      <div className="flex-1 overflow-y-auto px-4 pb-4">
+        <FieldGroup>
+          {!retry ? (
+            <Field data-invalid={errors.some((error) => error.field === "models")}>
+              <FieldLabel htmlFor="evaluation-models">Models</FieldLabel>
+              <MultiSelectDropdown
+                id="evaluation-models"
+                options={models.map((item) => ({
+                  value: item.key,
+                  label: item.model.label,
+                  group: item.group,
+                  icon: Bot,
+                  disabled: selection.length >= 8 && !selection.includes(item.key),
+                }))}
+                value={selection}
+                onValueChangeAction={(value) => {
+                  setSelection(value)
+                  setErrors((errors) => errors.filter((error) => error.field !== "models"))
+                }}
+                invalid={errors.some((error) => error.field === "models")}
+                placeholder="Select models"
+              />
+              <FieldError errors={errors.filter((error) => error.field === "models")} />
+            </Field>
+          ) : null}
+          <Field data-invalid={errors.some((error) => error.field === "judge")}>
+            <FieldLabel htmlFor="evaluation-judge">Judge</FieldLabel>
+            <Select
+              value={judgeKey}
+              onValueChange={(value) => {
+                setJudgeKey(value)
+                setErrors((errors) => errors.filter((error) => error.field !== "judge"))
               }}
             >
-              <Plus />
-              New evaluation
-            </Button>
-          }
-        />
-      ) : (
-        <>
-          <div className="flex flex-wrap items-center gap-3">
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger aria-label="Filter evaluations by status">
-                <SelectValue />
+              <SelectTrigger
+                id="evaluation-judge"
+                className="w-full"
+                aria-invalid={errors.some((error) => error.field === "judge")}
+              >
+                <SelectValue placeholder="Select a judge" />
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
-                  <SelectItem value="all">All statuses</SelectItem>
-                  {["draft", "queued", "running", "completed", "error", "cancelled"].map(
-                    (state) => (
-                      <SelectItem key={state} value={state}>
-                        {state}
-                      </SelectItem>
-                    )
-                  )}
+                  {models.map((item) => (
+                    <SelectItem value={item.key} key={item.key}>
+                      {item.model.label}
+                    </SelectItem>
+                  ))}
                 </SelectGroup>
               </SelectContent>
             </Select>
-            <div className="relative max-w-xs">
-              <Search className="text-muted-foreground absolute top-2.5 left-3 size-4" />
-              <Input
-                aria-label="Search evaluations"
-                placeholder="Find an evaluation…"
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                className="pl-9"
+            <FieldDescription>Use your strongest model.</FieldDescription>
+            <FieldError errors={errors.filter((error) => error.field === "judge")} />
+          </Field>
+          {!retry && workflow.arbitrary_json ? (
+            <Field data-invalid={errors.some((error) => error.field === "inputs")}>
+              <FieldLabel htmlFor="evaluation-inputs">Inputs</FieldLabel>
+              <Textarea
+                id="evaluation-inputs"
+                value={json}
+                onChange={(event) => {
+                  setJSON(event.target.value)
+                  setErrors((errors) => errors.filter((error) => error.field !== "inputs"))
+                }}
+                rows={6}
+                aria-invalid={errors.some((error) => error.field === "inputs")}
               />
-            </div>
-            <Button
-              size="sm"
-              className="sm:ml-auto"
-              onClick={() => {
-                setCopy(undefined)
-                navigate("new")
-              }}
-            >
-              <Plus />
-              New evaluation
-            </Button>
-          </div>
-          <div className="min-w-0 rounded-md border">
-            <Table className="w-full text-left text-sm">
-              <TableHeader className="bg-muted/40 text-muted-foreground border-b text-xs">
-                <TableRow>
-                  <TableHead className="px-4 py-3 font-medium">Evaluation</TableHead>
-                  <TableHead className="px-4 py-3 font-medium">Status</TableHead>
-                  <TableHead className="px-4 py-3 font-medium">Models</TableHead>
-                  <TableHead className="px-4 py-3 font-medium">Attempts</TableHead>
-                  <TableHead className="px-4 py-3 font-medium">Created</TableHead>
-                  <TableHead className="w-12">
-                    <span className="sr-only">Actions</span>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((e) => (
-                  <TableRow key={e.id} className="hover:bg-muted/30 border-b last:border-0">
-                    <TableCell className="min-w-60 px-4 py-3">
-                      <button
-                        onClick={() => navigate(e.id)}
-                        className="text-left font-medium hover:underline"
+              <FieldError errors={errors.filter((error) => error.field === "inputs")} />
+            </Field>
+          ) : null}
+          {!retry && !workflow.arbitrary_json
+            ? Object.entries(workflow.inputs ?? {}).map(([name, input]) => {
+                const fieldErrors = errors.filter((error) => error.field === `inputs.${name}`)
+                const options = input.enum ?? (input.type === "boolean" ? [true, false] : undefined)
+                return (
+                  <Field key={name} data-invalid={!!fieldErrors.length}>
+                    <FieldLabel htmlFor={`evaluation-${name}`} required={input.required}>
+                      {name}
+                    </FieldLabel>
+                    {options ? (
+                      <Select
+                        value={
+                          inputs[name] === undefined ? "__unset__" : JSON.stringify(inputs[name])
+                        }
+                        onValueChange={(value) => {
+                          setErrors((current) =>
+                            current.filter((error) => error.field !== `inputs.${name}`)
+                          )
+                          setInputs((previous) => ({
+                            ...previous,
+                            [name]: options.find((option) => JSON.stringify(option) === value),
+                          }))
+                        }}
                       >
-                        {e.name}
-                      </button>
-                      <p className="text-muted-foreground mt-1 text-xs">
-                        Cases: {e.case_count} · Attempts per case: {e.repetitions}
-                      </p>
-                    </TableCell>
-                    <TableCell className="px-4">
-                      <Badge variant={e.state === "error" ? "destructive" : "secondary"}>
-                        {e.state}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="px-4">{e.model_count}</TableCell>
-                    <TableCell className="px-4 tabular-nums">
-                      {e.completed_count} / {e.attempt_count}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground px-4">
-                      {new Date(e.created_at).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className="pr-3">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" aria-label={`Actions for ${e.name}`}>
-                            <MoreHorizontal />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onSelect={async () => {
-                              setBusy(true)
-                              try {
-                                const response = await getWorkflowEvaluation({
-                                  baseUrl: await getGatewayBaseURL(),
-                                  headers: { "X-AgentZ-Workspace-ID": workspaceId },
-                                  path: {
-                                    agentName: workflow.agent_name,
-                                    workflowName: workflow.workflow_name,
-                                    evaluationId: e.id,
-                                  },
-                                })
-                                if (response.error) throw new Error(response.error.message)
-                                setCopy(response.data)
-                                navigate("new")
-                              } catch (error) {
-                                toast.error(
-                                  error instanceof Error
-                                    ? error.message
-                                    : "Could not open evaluation"
-                                )
-                              } finally {
-                                setBusy(false)
-                              }
-                            }}
-                          >
-                            <Copy />
-                            Duplicate setup
-                          </DropdownMenuItem>
-                          {e.state === "draft" && (
-                            <DropdownMenuItem onSelect={() => navigate(e.id)}>
-                              <Play />
-                              Review and run
-                            </DropdownMenuItem>
-                          )}
-                          {e.state !== "running" && e.state !== "queued" && (
-                            <DropdownMenuItem onSelect={() => transition(e.id, "archive")}>
-                              <Archive />
-                              Archive
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            {filtered.length === 0 && (
-              <p className="text-muted-foreground p-10 text-center">
-                No evaluations match your search.
-              </p>
-            )}
-          </div>
-          {evaluations.data.length === 100 && (
-            <p className="text-muted-foreground text-xs">Showing the latest 100 evaluations.</p>
-          )}
-        </>
-      )}
-    </section>
+                        <SelectTrigger
+                          id={`evaluation-${name}`}
+                          className="w-full"
+                          aria-invalid={!!fieldErrors.length}
+                        >
+                          <SelectValue placeholder="Select a value" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectItem value="__unset__">
+                              {input.required ? "Select a value" : "Unset"}
+                            </SelectItem>
+                            {options.map((option) => (
+                              <SelectItem
+                                key={JSON.stringify(option)}
+                                value={JSON.stringify(option)}
+                              >
+                                {option.toString()}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        id={`evaluation-${name}`}
+                        type={
+                          input.type === "integer" || input.type === "number" ? "number" : "text"
+                        }
+                        step={input.type === "integer" ? 1 : "any"}
+                        value={inputs[name]?.toString() ?? ""}
+                        aria-invalid={!!fieldErrors.length}
+                        onChange={(event) => {
+                          const value = event.target.value
+                          setErrors((errors) =>
+                            errors.filter((error) => error.field !== `inputs.${name}`)
+                          )
+                          setInputs((previous) => ({
+                            ...previous,
+                            [name]:
+                              value === ""
+                                ? undefined
+                                : input.type === "integer" || input.type === "number"
+                                  ? event.target.valueAsNumber
+                                  : value,
+                          }))
+                        }}
+                      />
+                    )}
+                    <FieldError errors={fieldErrors} />
+                    {input.description ? (
+                      <FieldDescription>{input.description}</FieldDescription>
+                    ) : null}
+                  </Field>
+                )
+              })
+            : null}
+          {failure ? (
+            <Alert variant="destructive">
+              <CircleAlert />
+              <AlertDescription>{failure}</AlertDescription>
+            </Alert>
+          ) : null}
+        </FieldGroup>
+      </div>
+      <SheetFooter className="border-t">
+        <p className="text-muted-foreground text-xs">
+          {retry
+            ? "Uses saved transcripts. Workflows will not run again."
+            : "Runs use live tools and shared state. Model charges apply."}
+        </p>
+        <Button type="submit" disabled={pending}>
+          {pending ? <Spinner /> : <Play />}
+          {retry ? "Judge executions" : "Run evaluation"}
+        </Button>
+      </SheetFooter>
+    </form>
   )
 }

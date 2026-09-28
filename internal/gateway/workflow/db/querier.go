@@ -6,18 +6,19 @@ package workflowdb
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 type Querier interface {
-	EvaluationArchiveAssessment(ctx context.Context, arg EvaluationArchiveAssessmentParams) error
-	EvaluationCancel(ctx context.Context, arg EvaluationCancelParams) (WorkflowEvaluation, error)
-	EvaluationClaim(ctx context.Context, leaseToken string) (WorkflowEvaluation, error)
-	EvaluationCreate(ctx context.Context, arg EvaluationCreateParams) (WorkflowEvaluation, error)
-	EvaluationGet(ctx context.Context, arg EvaluationGetParams) (WorkflowEvaluation, error)
-	EvaluationList(ctx context.Context, arg EvaluationListParams) ([]WorkflowEvaluation, error)
-	EvaluationReplaceDraft(ctx context.Context, arg EvaluationReplaceDraftParams) (WorkflowEvaluation, error)
-	EvaluationSave(ctx context.Context, arg EvaluationSaveParams) (int64, error)
-	EvaluationTransition(ctx context.Context, arg EvaluationTransitionParams) (WorkflowEvaluation, error)
+	RunEvaluationCancel(ctx context.Context, arg RunEvaluationCancelParams) (int64, error)
+	RunEvaluationCancelled(ctx context.Context, id uuid.UUID) (bool, error)
+	RunEvaluationClaim(ctx context.Context, leaseToken string) (WorkflowRunEvaluation, error)
+	RunEvaluationCreate(ctx context.Context, arg RunEvaluationCreateParams) (WorkflowRunEvaluation, error)
+	RunEvaluationGet(ctx context.Context, arg RunEvaluationGetParams) (WorkflowRunEvaluation, error)
+	RunEvaluationList(ctx context.Context, arg RunEvaluationListParams) ([][]byte, error)
+	RunEvaluationRetryJudge(ctx context.Context, arg RunEvaluationRetryJudgeParams) (int64, error)
+	RunEvaluationSave(ctx context.Context, arg RunEvaluationSaveParams) (int64, error)
 	WorkflowCreate(ctx context.Context, arg WorkflowCreateParams) (Workflow, error)
 	WorkflowCreateEdges(ctx context.Context, arg WorkflowCreateEdgesParams) error
 	WorkflowCreateNodes(ctx context.Context, arg WorkflowCreateNodesParams) error

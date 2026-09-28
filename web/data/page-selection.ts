@@ -188,7 +188,6 @@ export async function resolvePageSelection(
   if (
     page !== "workflows/graphs" &&
     page !== "workflows/evaluations" &&
-    page !== "workflows/runs" &&
     page !== "workflows/triggers/runs/graph"
   )
     return state

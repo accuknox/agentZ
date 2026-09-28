@@ -4,164 +4,6 @@ export type ClientOptions = {
   baseUrl: `${string}://${string}` | (string & {})
 }
 
-export type WorkflowEvaluationSummary = {
-  id: string
-  name: string
-  state: WorkflowEvaluationState
-  model_count: number
-  case_count: number
-  repetitions: number
-  attempt_count: number
-  completed_count: number
-  created_at: string
-  updated_at: string
-}
-
-export type WorkflowEvaluationState =
-  | "draft"
-  | "queued"
-  | "running"
-  | "completed"
-  | "cancelled"
-  | "error"
-  | "archived"
-
-export type EvaluationGradeResult = {
-  checks: Array<EvaluationCheck>
-  quality: number
-  tokens: number
-  cost: number
-}
-
-export type EvaluationCaseSuggestions = {
-  cases: Array<{
-    name: string
-    /**
-     * JSON inputs validated against the workflow input contract.
-     */
-    inputs: unknown
-  }>
-  rubric: string
-  coverage: {
-    /**
-     * True when meaningful cases can be graded from available evidence; complete coverage and exact reference answers are not required.
-     */
-    ready: boolean
-    /**
-     * Concise scope limitations when ready, or missing information needed to prepare any meaningful cases when not ready.
-     */
-    issues: Array<string>
-    nodes: Array<{
-      node_name: string
-      case_names: Array<string>
-      rationale: string
-    }>
-    edges: Array<{
-      source: string
-      target: string
-      branch_label: string
-      case_names: Array<string>
-      rationale: string
-    }>
-  }
-}
-
-export type EvaluationCase = {
-  id: string
-  name: string
-  inputs: JsonValue
-  expected: string
-}
-
-export type EvaluationCandidate = {
-  id: string
-  label: string
-  provider_id: string
-  model_id: string
-  variant?: string
-}
-
-export type EvaluationPolicy = {
-  version: "reference-v1"
-  rubric: string
-  minimum_quality: number
-  token_reference: number
-  tool_reference: number
-  duration_reference: number
-  efficiency_weight: number
-  judge?: EvaluationCandidate
-}
-
-export type WorkflowEvaluationRequest = {
-  id: string
-  name: string
-  cases: Array<EvaluationCase>
-  candidates: Array<EvaluationCandidate>
-  repetitions: number
-  timeout_seconds: number
-  policy: EvaluationPolicy
-  draft: boolean
-  /**
-   * Acknowledges execution on the existing agent with its live tools.
-   */
-  live_tools: boolean
-}
-
-export type EvaluationCheck = {
-  name: string
-  passed: boolean
-  score: number
-  reason: string
-}
-
-export type EvaluationTool = {
-  id: string
-  session_id?: string
-  name: string
-  state: string
-  input: string
-  output: string
-}
-
-export type EvaluationAttempt = {
-  id: string
-  case_id: string
-  candidate_id: string
-  repetition: number
-  state: "queued" | "running" | "grading" | "completed" | "failed" | "error" | "cancelled"
-  run_name: string
-  session_id?: string
-  output: string
-  checks: Array<EvaluationCheck>
-  tools: Array<EvaluationTool>
-  message: string
-  score?: number
-  quality?: number
-  grading?: EvaluationGradeResult
-  tokens?: number
-  cost?: number
-  duration_seconds?: number
-  task_calls?: number
-  protocol_calls?: number
-  models_used?: Array<string>
-  started_at?: string
-  completed_at?: string
-}
-
-export type WorkflowEvaluation = {
-  id: string
-  agent_name: string
-  workflow_name: string
-  state: WorkflowEvaluationState
-  request: WorkflowEvaluationRequest
-  workflow: Workflow
-  attempts: Array<EvaluationAttempt>
-  created_at: string
-  updated_at: string
-  message: string
-  assessment_revision: number
-}
-
 export type ChatSessionKind = "chat" | "workflow_run"
 
 export type ChatSessionStatus = "idle" | "busy" | "retry"
@@ -941,6 +783,93 @@ export type WorkflowSchedule = {
  * Better Auth API key identifier.
  */
 export type ApiKeyId = string
+
+export type EvaluationModel = {
+  provider_id: string
+  model_id: string
+  label: string
+  variant?: string
+}
+
+export type WorkflowEvaluationRequest = {
+  id: string
+  inputs: JsonValue
+  models: Array<EvaluationModel>
+  judge: EvaluationModel
+}
+
+export type WorkflowEvaluationState =
+  | "queued"
+  | "running"
+  | "cancelling"
+  | "completed"
+  | "cancelled"
+
+export type WorkflowEvaluation = {
+  id: string
+  request: WorkflowEvaluationRequest
+  workflow: Workflow
+  executions: Array<EvaluationExecution>
+  state: WorkflowEvaluationState
+  message?: string
+  created_at: string
+  updated_at: string
+  scoring_version: "trace-v1"
+  references?: EvaluationReferences
+}
+
+export type WorkflowEvaluationSummary = {
+  id: string
+  judge: EvaluationModel
+  executions: Array<EvaluationExecution>
+  state: WorkflowEvaluationState
+  created_at: string
+}
+
+export type EvaluationExecution = {
+  model: EvaluationModel
+  run_name: string
+  state: "queued" | "running" | "judging" | "completed" | "error" | "cancelled"
+  run_status?: WorkflowRunStatus
+  run?: WorkflowRunDetail
+  message?: string
+  session_id?: string
+  /**
+   * Complete native session messages and metadata, including delegated sessions. Never truncated or summarized.
+   */
+  transcript?: Array<EvaluationTranscriptSession>
+  measured_efficiency?: number
+  tokens?: number
+  tool_calls?: number
+  duration_seconds?: number
+  cost?: number
+  judgment?: EvaluationJudgment
+  /**
+   * The judge continued after native context compaction. Informational only; does not affect scoring.
+   */
+  judge_context_compacted?: boolean
+  score?: number
+}
+
+export type EvaluationTranscriptSession = {
+  session_id: string
+  session: JsonValue
+  messages: Array<JsonValue>
+}
+
+export type EvaluationReferences = {
+  tokens: number
+  tool_calls: number
+  duration_seconds: number
+}
+
+export type EvaluationJudgment = {
+  correctness: number
+  efficiency: number
+  summary: string
+  evidence: Array<string>
+  limitations: Array<string>
+}
 
 export type WorkflowRunInputs = JsonValue
 
@@ -3027,177 +2956,6 @@ export type DashboardWidgetNamePath = DashboardWidgetName
  * Stable publish call identifier.
  */
 export type IdempotencyKeyHeader = string
-
-export type ListWorkflowEvaluationsData = {
-  body?: never
-  path: {
-    /**
-     * Agent name.
-     */
-    agentName: AgentName
-    workflowName: WorkflowName
-  }
-  query?: never
-  url: "/api/workflow/{agentName}/{workflowName}/evaluation"
-}
-
-export type ListWorkflowEvaluationsErrors = {
-  /**
-   * Request failed.
-   */
-  default: Error
-}
-
-export type ListWorkflowEvaluationsError =
-  ListWorkflowEvaluationsErrors[keyof ListWorkflowEvaluationsErrors]
-
-export type ListWorkflowEvaluationsResponses = {
-  /**
-   * Saved evaluations, newest first.
-   */
-  200: Array<WorkflowEvaluationSummary>
-}
-
-export type ListWorkflowEvaluationsResponse =
-  ListWorkflowEvaluationsResponses[keyof ListWorkflowEvaluationsResponses]
-
-export type CreateWorkflowEvaluationData = {
-  body: WorkflowEvaluationRequest
-  path: {
-    /**
-     * Agent name.
-     */
-    agentName: AgentName
-    workflowName: WorkflowName
-  }
-  query?: never
-  url: "/api/workflow/{agentName}/{workflowName}/evaluation"
-}
-
-export type CreateWorkflowEvaluationErrors = {
-  /**
-   * Request failed.
-   */
-  default: Error
-}
-
-export type CreateWorkflowEvaluationError =
-  CreateWorkflowEvaluationErrors[keyof CreateWorkflowEvaluationErrors]
-
-export type CreateWorkflowEvaluationResponses = {
-  /**
-   * Evaluation saved.
-   */
-  202: WorkflowEvaluation
-}
-
-export type CreateWorkflowEvaluationResponse =
-  CreateWorkflowEvaluationResponses[keyof CreateWorkflowEvaluationResponses]
-
-export type SuggestWorkflowEvaluationCasesData = {
-  body: {
-    cases: Array<EvaluationCase>
-  }
-  path: {
-    /**
-     * Agent name.
-     */
-    agentName: AgentName
-    workflowName: WorkflowName
-  }
-  query?: never
-  url: "/api/workflow/{agentName}/{workflowName}/evaluation/cases"
-}
-
-export type SuggestWorkflowEvaluationCasesErrors = {
-  /**
-   * Generation failed. Retry without changing existing cases.
-   */
-  default: Error
-}
-
-export type SuggestWorkflowEvaluationCasesError =
-  SuggestWorkflowEvaluationCasesErrors[keyof SuggestWorkflowEvaluationCasesErrors]
-
-export type SuggestWorkflowEvaluationCasesResponses = {
-  /**
-   * Generated drafts for review. Existing cases are unchanged.
-   */
-  200: EvaluationCaseSuggestions
-}
-
-export type SuggestWorkflowEvaluationCasesResponse =
-  SuggestWorkflowEvaluationCasesResponses[keyof SuggestWorkflowEvaluationCasesResponses]
-
-export type GetWorkflowEvaluationData = {
-  body?: never
-  path: {
-    /**
-     * Agent name.
-     */
-    agentName: AgentName
-    workflowName: WorkflowName
-    evaluationId: string
-  }
-  query?: never
-  url: "/api/workflow/{agentName}/{workflowName}/evaluation/{evaluationId}"
-}
-
-export type GetWorkflowEvaluationErrors = {
-  /**
-   * Request failed.
-   */
-  default: Error
-}
-
-export type GetWorkflowEvaluationError =
-  GetWorkflowEvaluationErrors[keyof GetWorkflowEvaluationErrors]
-
-export type GetWorkflowEvaluationResponses = {
-  /**
-   * Evaluation with recorded attempts.
-   */
-  200: WorkflowEvaluation
-}
-
-export type GetWorkflowEvaluationResponse =
-  GetWorkflowEvaluationResponses[keyof GetWorkflowEvaluationResponses]
-
-export type UpdateWorkflowEvaluationData = {
-  body: {
-    action: "launch" | "cancel" | "regrade" | "archive"
-  }
-  path: {
-    /**
-     * Agent name.
-     */
-    agentName: AgentName
-    workflowName: WorkflowName
-    evaluationId: string
-  }
-  query?: never
-  url: "/api/workflow/{agentName}/{workflowName}/evaluation/{evaluationId}"
-}
-
-export type UpdateWorkflowEvaluationErrors = {
-  /**
-   * Request failed.
-   */
-  default: Error
-}
-
-export type UpdateWorkflowEvaluationError =
-  UpdateWorkflowEvaluationErrors[keyof UpdateWorkflowEvaluationErrors]
-
-export type UpdateWorkflowEvaluationResponses = {
-  /**
-   * Updated evaluation.
-   */
-  200: WorkflowEvaluation
-}
-
-export type UpdateWorkflowEvaluationResponse =
-  UpdateWorkflowEvaluationResponses[keyof UpdateWorkflowEvaluationResponses]
 
 export type ListCodingProjectsData = {
   body?: never
@@ -9259,6 +9017,143 @@ export type ListWorkflowWebhookTriggersResponses = {
 
 export type ListWorkflowWebhookTriggersResponse2 =
   ListWorkflowWebhookTriggersResponses[keyof ListWorkflowWebhookTriggersResponses]
+
+export type ListWorkflowEvaluationsData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    workflowName: WorkflowName
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/evaluation"
+}
+
+export type ListWorkflowEvaluationsErrors = {
+  /**
+   * Unexpected server error.
+   */
+  default: Error
+}
+
+export type ListWorkflowEvaluationsError =
+  ListWorkflowEvaluationsErrors[keyof ListWorkflowEvaluationsErrors]
+
+export type ListWorkflowEvaluationsResponses = {
+  /**
+   * Recent model comparisons without full transcripts.
+   */
+  200: Array<WorkflowEvaluationSummary>
+}
+
+export type ListWorkflowEvaluationsResponse =
+  ListWorkflowEvaluationsResponses[keyof ListWorkflowEvaluationsResponses]
+
+export type CreateWorkflowEvaluationData = {
+  body: WorkflowEvaluationRequest
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    workflowName: WorkflowName
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/evaluation"
+}
+
+export type CreateWorkflowEvaluationErrors = {
+  /**
+   * Unexpected server error.
+   */
+  default: Error
+}
+
+export type CreateWorkflowEvaluationError =
+  CreateWorkflowEvaluationErrors[keyof CreateWorkflowEvaluationErrors]
+
+export type CreateWorkflowEvaluationResponses = {
+  /**
+   * Workflow executions queued for evaluation.
+   */
+  202: WorkflowEvaluation
+}
+
+export type CreateWorkflowEvaluationResponse =
+  CreateWorkflowEvaluationResponses[keyof CreateWorkflowEvaluationResponses]
+
+export type GetWorkflowEvaluationData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    workflowName: WorkflowName
+    evaluationId: string
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/evaluation/{evaluationId}"
+}
+
+export type GetWorkflowEvaluationErrors = {
+  /**
+   * Unexpected server error.
+   */
+  default: Error
+}
+
+export type GetWorkflowEvaluationError =
+  GetWorkflowEvaluationErrors[keyof GetWorkflowEvaluationErrors]
+
+export type GetWorkflowEvaluationResponses = {
+  /**
+   * Execution results and complete transcripts.
+   */
+  200: WorkflowEvaluation
+}
+
+export type GetWorkflowEvaluationResponse =
+  GetWorkflowEvaluationResponses[keyof GetWorkflowEvaluationResponses]
+
+export type UpdateWorkflowEvaluationData = {
+  body: {
+    action: "cancel" | "judge"
+    judge?: EvaluationModel
+  }
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    workflowName: WorkflowName
+    evaluationId: string
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/evaluation/{evaluationId}"
+}
+
+export type UpdateWorkflowEvaluationErrors = {
+  /**
+   * Unexpected server error.
+   */
+  default: Error
+}
+
+export type UpdateWorkflowEvaluationError =
+  UpdateWorkflowEvaluationErrors[keyof UpdateWorkflowEvaluationErrors]
+
+export type UpdateWorkflowEvaluationResponses = {
+  /**
+   * Updated evaluation.
+   */
+  200: WorkflowEvaluation
+}
+
+export type UpdateWorkflowEvaluationResponse =
+  UpdateWorkflowEvaluationResponses[keyof UpdateWorkflowEvaluationResponses]
 
 export type ListWorkflowRunsData = {
   body?: never

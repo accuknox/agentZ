@@ -2,129 +2,6 @@
 
 import * as z from "zod"
 
-export const zWorkflowEvaluationState = z.enum([
-  "draft",
-  "queued",
-  "running",
-  "completed",
-  "cancelled",
-  "error",
-  "archived",
-])
-
-export const zWorkflowEvaluationSummary = z.object({
-  id: z.uuid(),
-  name: z.string(),
-  state: zWorkflowEvaluationState,
-  model_count: z.int(),
-  case_count: z.int(),
-  repetitions: z.int(),
-  attempt_count: z.int(),
-  completed_count: z.int(),
-  created_at: z.iso.datetime(),
-  updated_at: z.iso.datetime(),
-})
-
-export const zEvaluationCaseSuggestions = z.object({
-  cases: z
-    .array(
-      z.object({
-        name: z.string().min(1).max(160),
-        inputs: z.unknown(),
-      })
-    )
-    .min(1)
-    .max(20),
-  rubric: z.string().min(1).max(20000),
-  coverage: z.object({
-    ready: z.boolean(),
-    issues: z.array(z.string().min(1).max(200)),
-    nodes: z.array(
-      z.object({
-        node_name: z.string().min(1),
-        case_names: z.array(z.string().min(1)).min(1),
-        rationale: z.string().min(1).max(1000),
-      })
-    ),
-    edges: z.array(
-      z.object({
-        source: z.string().min(1),
-        target: z.string().min(1),
-        branch_label: z.string(),
-        case_names: z.array(z.string().min(1)).min(1),
-        rationale: z.string().min(1).max(1000),
-      })
-    ),
-  }),
-})
-
-export const zEvaluationCandidate = z.object({
-  id: z.string().min(1).max(80),
-  label: z.string().min(1).max(160),
-  provider_id: z.string().min(1),
-  model_id: z.string().min(1),
-  variant: z.string().optional(),
-})
-
-export const zEvaluationPolicy = z.object({
-  version: z.enum(["reference-v1"]),
-  rubric: z.string().max(20000),
-  minimum_quality: z.number().gte(0).lte(1),
-  token_reference: z.number().gte(1),
-  tool_reference: z.number().gte(1),
-  duration_reference: z.number().gte(1),
-  efficiency_weight: z.number().gte(0).lte(1),
-  judge: zEvaluationCandidate.optional(),
-})
-
-export const zEvaluationCheck = z.object({
-  name: z.string(),
-  passed: z.boolean(),
-  score: z.number().gte(0).lte(1),
-  reason: z.string(),
-})
-
-export const zEvaluationGradeResult = z.object({
-  checks: z.array(zEvaluationCheck),
-  quality: z.number().gte(0).lte(1),
-  tokens: z.number().gte(0),
-  cost: z.number().gte(0),
-})
-
-export const zEvaluationTool = z.object({
-  id: z.string(),
-  session_id: z.string().optional(),
-  name: z.string(),
-  state: z.string(),
-  input: z.string(),
-  output: z.string(),
-})
-
-export const zEvaluationAttempt = z.object({
-  id: z.string(),
-  case_id: z.string(),
-  candidate_id: z.string(),
-  repetition: z.int(),
-  state: z.enum(["queued", "running", "grading", "completed", "failed", "error", "cancelled"]),
-  run_name: z.string(),
-  session_id: z.string().optional(),
-  output: z.string(),
-  checks: z.array(zEvaluationCheck),
-  tools: z.array(zEvaluationTool),
-  message: z.string(),
-  score: z.number().optional(),
-  quality: z.number().optional(),
-  grading: zEvaluationGradeResult.optional(),
-  tokens: z.number().optional(),
-  cost: z.number().optional(),
-  duration_seconds: z.number().optional(),
-  task_calls: z.int().optional(),
-  protocol_calls: z.int().optional(),
-  models_used: z.array(z.string()).optional(),
-  started_at: z.iso.datetime().optional(),
-  completed_at: z.iso.datetime().optional(),
-})
-
 export const zChatSessionKind = z.enum(["chat", "workflow_run"])
 
 export const zChatSessionStatus = z.enum(["idle", "busy", "retry"])
@@ -944,6 +821,35 @@ export const zListAgentsResponse = z.object({
  */
 export const zApiKeyId = z.string().min(1)
 
+export const zEvaluationModel = z.object({
+  provider_id: z.string().min(1),
+  model_id: z.string().min(1),
+  label: z.string().min(1).max(200),
+  variant: z.string().optional(),
+})
+
+export const zWorkflowEvaluationState = z.enum([
+  "queued",
+  "running",
+  "cancelling",
+  "completed",
+  "cancelled",
+])
+
+export const zEvaluationReferences = z.object({
+  tokens: z.number().gte(0),
+  tool_calls: z.number().gte(0),
+  duration_seconds: z.number().gte(0),
+})
+
+export const zEvaluationJudgment = z.object({
+  correctness: z.int().gte(0).lte(4),
+  efficiency: z.int().gte(0).lte(4),
+  summary: z.string().min(1).max(2000),
+  evidence: z.array(z.string().min(1).max(1000)).min(1).max(8),
+  limitations: z.array(z.string().min(1).max(1000)).max(8),
+})
+
 export const zWorkflowRunTriggerType = z.enum(["Schedule", "Webhook"])
 
 export const zWorkflowRunSummary = z.object({
@@ -1512,25 +1418,6 @@ export const zJsonValue = z
   ])
   .nullable()
 
-export const zEvaluationCase = z.object({
-  id: z.string().min(1).max(80),
-  name: z.string().min(1).max(160),
-  inputs: zJsonValue,
-  expected: z.string().max(20000),
-})
-
-export const zWorkflowEvaluationRequest = z.object({
-  id: z.uuid(),
-  name: z.string().min(1).max(160),
-  cases: z.array(zEvaluationCase).min(1).max(1000),
-  candidates: z.array(zEvaluationCandidate).min(1).max(10),
-  repetitions: z.int().gte(1).lte(10),
-  timeout_seconds: z.int().gte(30).lte(3600),
-  policy: zEvaluationPolicy,
-  draft: z.boolean(),
-  live_tools: z.boolean(),
-})
-
 export const zError = z.object({
   code: z.string().min(1),
   message: z.string().min(1),
@@ -1555,6 +1442,19 @@ export const zWorkflowSchedule = z.object({
 export const zListWorkflowSchedulesResponse = z.object({
   workflow_schedules: z.array(zWorkflowSchedule),
   next_page_token: z.string(),
+})
+
+export const zWorkflowEvaluationRequest = z.object({
+  id: z.uuid(),
+  inputs: zJsonValue,
+  models: z.array(zEvaluationModel).min(1).max(8),
+  judge: zEvaluationModel,
+})
+
+export const zEvaluationTranscriptSession = z.object({
+  session_id: z.string(),
+  session: zJsonValue,
+  messages: z.array(zJsonValue),
 })
 
 export const zWorkflowRunInputs = zJsonValue
@@ -1582,6 +1482,33 @@ export const zWorkflowRunDetail = z.object({
     })
     .optional(),
   node_statuses: z.array(zWorkflowRunNodeStatus),
+})
+
+export const zEvaluationExecution = z.object({
+  model: zEvaluationModel,
+  run_name: z.string(),
+  state: z.enum(["queued", "running", "judging", "completed", "error", "cancelled"]),
+  run_status: zWorkflowRunStatus.optional(),
+  run: zWorkflowRunDetail.optional(),
+  message: z.string().optional(),
+  session_id: z.string().optional(),
+  transcript: z.array(zEvaluationTranscriptSession).optional(),
+  measured_efficiency: z.number().gte(0).lte(1).optional(),
+  tokens: z.number().gte(0).optional(),
+  tool_calls: z.int().gte(0).optional(),
+  duration_seconds: z.number().gte(0).optional(),
+  cost: z.number().gte(0).optional(),
+  judgment: zEvaluationJudgment.optional(),
+  judge_context_compacted: z.boolean().optional(),
+  score: z.number().gte(0).lte(100).optional(),
+})
+
+export const zWorkflowEvaluationSummary = z.object({
+  id: z.uuid(),
+  judge: zEvaluationModel,
+  executions: z.array(zEvaluationExecution),
+  state: zWorkflowEvaluationState,
+  created_at: z.iso.datetime(),
 })
 
 export const zCreateWorkflowScheduleRequest = z.object({
@@ -1639,16 +1566,15 @@ export const zWorkflow = z.object({
 
 export const zWorkflowEvaluation = z.object({
   id: z.uuid(),
-  agent_name: z.string(),
-  workflow_name: z.string(),
-  state: zWorkflowEvaluationState,
   request: zWorkflowEvaluationRequest,
   workflow: zWorkflow,
-  attempts: z.array(zEvaluationAttempt),
+  executions: z.array(zEvaluationExecution),
+  state: zWorkflowEvaluationState,
+  message: z.string().optional(),
   created_at: z.iso.datetime(),
   updated_at: z.iso.datetime(),
-  message: z.string(),
-  assessment_revision: z.int(),
+  scoring_version: z.enum(["trace-v1"]),
+  references: zEvaluationReferences.optional(),
 })
 
 export const zSpanDetail = zSpan.and(
@@ -3459,31 +3385,6 @@ export const zDashboardWidgetNamePath = zDashboardWidgetName
 export const zIdempotencyKeyHeader = z.string().min(1).max(128)
 
 /**
- * Saved evaluations, newest first.
- */
-export const zListWorkflowEvaluationsResponse = z.array(zWorkflowEvaluationSummary)
-
-/**
- * Evaluation saved.
- */
-export const zCreateWorkflowEvaluationResponse = zWorkflowEvaluation
-
-/**
- * Generated drafts for review. Existing cases are unchanged.
- */
-export const zSuggestWorkflowEvaluationCasesResponse = zEvaluationCaseSuggestions
-
-/**
- * Evaluation with recorded attempts.
- */
-export const zGetWorkflowEvaluationResponse = zWorkflowEvaluation
-
-/**
- * Updated evaluation.
- */
-export const zUpdateWorkflowEvaluationResponse = zWorkflowEvaluation
-
-/**
  * The actor's projects.
  */
 export const zListCodingProjectsResponse = z.array(zCodingProject)
@@ -4125,6 +4026,26 @@ export const zInvokeWorkflowWebhookResponse = zWorkflowRunSummary
  * Paginated webhook trigger rows for an agent.
  */
 export const zListWorkflowWebhookTriggersResponse2 = zListWorkflowWebhookTriggersResponse
+
+/**
+ * Recent model comparisons without full transcripts.
+ */
+export const zListWorkflowEvaluationsResponse = z.array(zWorkflowEvaluationSummary)
+
+/**
+ * Workflow executions queued for evaluation.
+ */
+export const zCreateWorkflowEvaluationResponse = zWorkflowEvaluation
+
+/**
+ * Execution results and complete transcripts.
+ */
+export const zGetWorkflowEvaluationResponse = zWorkflowEvaluation
+
+/**
+ * Updated evaluation.
+ */
+export const zUpdateWorkflowEvaluationResponse = zWorkflowEvaluation
 
 /**
  * Paginated workflow runs for a workflow.

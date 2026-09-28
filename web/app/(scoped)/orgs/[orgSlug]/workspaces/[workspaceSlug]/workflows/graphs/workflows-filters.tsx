@@ -1,7 +1,9 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { useParams, usePathname } from "next/navigation"
+import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { BotIcon, WorkflowIcon } from "lucide-react"
 import type { Agent, WorkflowSummary } from "@/lib/gateway/client"
 import { useSelectResource } from "@/components/page-selection"
@@ -25,10 +27,13 @@ export function WorkflowsFilters({
   workflows: WorkflowSummary[]
   selectedWorkflowName?: string
 }) {
-  const { pending, select } = useSelectResource()
   const pathname = usePathname()
-  const root = pathname.slice(0, pathname.indexOf("/workflows/"))
-  const query = { agent_name: selectedAgentName, workflow_name: selectedWorkflowName }
+  const { orgSlug, workspaceSlug } = useParams<{ orgSlug: string; workspaceSlug: string }>()
+  const root = `/orgs/${orgSlug}/workspaces/${workspaceSlug}/workflows` as const
+  const params = new URLSearchParams()
+  if (selectedAgentName) params.set("agent_name", selectedAgentName)
+  if (selectedWorkflowName) params.set("workflow_name", selectedWorkflowName)
+  const { pending, select } = useSelectResource()
 
   return (
     <>
@@ -82,25 +87,21 @@ export function WorkflowsFilters({
           </Select>
         </div>
       </div>
-      <nav
-        aria-label="Workflow sections"
-        className="bg-background flex gap-6 border-b px-4 sm:px-6"
+      <Tabs
+        value={pathname.endsWith("/evaluations") ? "evaluations" : "graphs"}
+        className="border-b px-4 py-2 sm:px-6"
       >
-        {[
-          { label: "Graph", path: "graphs" },
-          { label: "Runs", path: "runs" },
-          { label: "Evaluations", path: "evaluations" },
-        ].map((tab) => (
-          <Link
-            key={tab.path}
-            href={{ pathname: `${root}/workflows/${tab.path}`, query }}
-            aria-current={pathname.endsWith(tab.path) ? "page" : undefined}
-            className={`border-b-2 py-3 text-sm transition-colors ${pathname.endsWith(tab.path) ? "border-primary text-foreground font-semibold" : "text-muted-foreground hover:text-foreground border-transparent"}`}
-          >
-            {tab.label}
-          </Link>
-        ))}
-      </nav>
+        <TabsList variant="line" aria-label="Workflow views">
+          <TabsTrigger value="graphs" asChild>
+            <Link href={`${root}/graphs?${params}`}>Graph</Link>
+          </TabsTrigger>
+          <TabsTrigger value="evaluations" asChild>
+            <Link href={`${root}/evaluations?${params}`}>
+              Evaluations <Badge variant="secondary">Preview</Badge>
+            </Link>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
     </>
   )
 }

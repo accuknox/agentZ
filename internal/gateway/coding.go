@@ -37,9 +37,9 @@ import (
 )
 
 //go:embed prompts/*.tmpl
-var codingPromptFiles embed.FS
+var gatewayPromptFiles embed.FS
 
-var codingPrompts = template.Must(template.ParseFS(codingPromptFiles, "prompts/*.tmpl"))
+var gatewayPrompts = template.Must(template.ParseFS(gatewayPromptFiles, "prompts/*.tmpl"))
 
 type gatewayLockKey struct{}
 
@@ -776,7 +776,7 @@ func (s *Service) PrepareCodingCheckout(w http.ResponseWriter, r *http.Request) 
 	apiutil.WriteJSON(w, http.StatusCreated, codingWorktree(tree))
 }
 
-// codingClient routes the generated gateway client directly to the agent while
+// agentClient routes the generated gateway client directly to the agent while
 // retaining the caller's transport and request timeout.
 func (s *Service) agentClient(ctx context.Context, namespace, agentName string, httpClient *http.Client) (*gatewayapi.ClientWithResponses, error) {
 	resolved, err := s.resolver.resolveAgent(ctx, namespace, agentName)
@@ -936,7 +936,7 @@ func (s *Service) codingSuggestion(ctx context.Context, access resourceAccess, t
 		)
 	}
 	var prompt strings.Builder
-	if err := codingPrompts.ExecuteTemplate(&prompt, name, data); err != nil {
+	if err := gatewayPrompts.ExecuteTemplate(&prompt, name, data); err != nil {
 		return gatewayapi.CodingTextSuggestion{}, fmt.Errorf("render coding prompt: %w", err)
 	}
 	// Model generation uses the request's deadline instead of the short

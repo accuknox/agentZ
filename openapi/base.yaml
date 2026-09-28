@@ -45,118 +45,6 @@ tags:
   description: Workspace chat inbox and preference APIs.
 
 paths:
-  /api/workflow/{agentName}/{workflowName}/evaluation:
-    parameters:
-    - {$ref: '#/components/parameters/AgentNamePath'}
-    - {name: workflowName, in: path, required: true, schema: {$ref: '#/components/schemas/WorkflowName'}}
-    get:
-      operationId: listWorkflowEvaluations
-      tags: [workflows]
-      responses:
-        '200':
-          description: Saved evaluations, newest first.
-          content:
-            application/json:
-              schema: {type: array, items: {$ref: '#/components/schemas/WorkflowEvaluationSummary'}}
-        default:
-          description: Request failed.
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/Error'}
-    post:
-      operationId: createWorkflowEvaluation
-      tags: [workflows]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: '#/components/schemas/WorkflowEvaluationRequest'}
-      responses:
-        '202':
-          description: Evaluation saved.
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/WorkflowEvaluation'}
-        default:
-          description: Request failed.
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/Error'}
-  /api/workflow/{agentName}/{workflowName}/evaluation/cases:
-    parameters:
-    - {$ref: '#/components/parameters/AgentNamePath'}
-    - {name: workflowName, in: path, required: true, schema: {$ref: '#/components/schemas/WorkflowName'}}
-    post:
-      operationId: suggestWorkflowEvaluationCases
-      tags: [workflows]
-      summary: Suggest editable test cases and a rubric without running the workflow.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: false
-              required: [cases]
-              properties:
-                cases:
-                  type: array
-                  maxItems: 1000
-                  items: {$ref: '#/components/schemas/EvaluationCase'}
-      responses:
-        '200':
-          description: Generated drafts for review. Existing cases are unchanged.
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/EvaluationCaseSuggestions'}
-        default:
-          description: Generation failed. Retry without changing existing cases.
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/Error'}
-  /api/workflow/{agentName}/{workflowName}/evaluation/{evaluationId}:
-    parameters:
-    - {$ref: '#/components/parameters/AgentNamePath'}
-    - {name: workflowName, in: path, required: true, schema: {$ref: '#/components/schemas/WorkflowName'}}
-    - {name: evaluationId, in: path, required: true, schema: {type: string, format: uuid}}
-    get:
-      operationId: getWorkflowEvaluation
-      tags: [workflows]
-      responses:
-        '200':
-          description: Evaluation with recorded attempts.
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/WorkflowEvaluation'}
-        default:
-          description: Request failed.
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/Error'}
-    patch:
-      operationId: updateWorkflowEvaluation
-      tags: [workflows]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: false
-              required: [action]
-              properties:
-                action: {type: string, enum: [launch, cancel, regrade, archive]}
-      responses:
-        '200':
-          description: Updated evaluation.
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/WorkflowEvaluation'}
-        default:
-          description: Request failed.
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/Error'}
   /api/coding/project:
     get:
       operationId: listCodingProjects
@@ -3732,6 +3620,72 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /api/workflow/{agentName}/{workflowName}/evaluation:
+    parameters:
+    - $ref: '#/components/parameters/AgentNamePath'
+    - {name: workflowName, in: path, required: true, schema: {$ref: '#/components/schemas/WorkflowName'}}
+    get:
+      operationId: listWorkflowEvaluations
+      tags: [workflows]
+      responses:
+        '200':
+          description: Recent model comparisons without full transcripts.
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/WorkflowEvaluationSummary'}}
+        default: {$ref: '#/components/responses/InternalError'}
+    post:
+      operationId: createWorkflowEvaluation
+      tags: [workflows]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/WorkflowEvaluationRequest'}
+      responses:
+        '202':
+          description: Workflow executions queued for evaluation.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/WorkflowEvaluation'}
+        default: {$ref: '#/components/responses/InternalError'}
+  /api/workflow/{agentName}/{workflowName}/evaluation/{evaluationId}:
+    parameters:
+    - $ref: '#/components/parameters/AgentNamePath'
+    - {name: workflowName, in: path, required: true, schema: {$ref: '#/components/schemas/WorkflowName'}}
+    - {name: evaluationId, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      operationId: getWorkflowEvaluation
+      tags: [workflows]
+      responses:
+        '200':
+          description: Execution results and complete transcripts.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/WorkflowEvaluation'}
+        default: {$ref: '#/components/responses/InternalError'}
+    patch:
+      operationId: updateWorkflowEvaluation
+      tags: [workflows]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [action]
+              properties:
+                action: {type: string, enum: [cancel, judge]}
+                judge: {$ref: '#/components/schemas/EvaluationModel'}
+      responses:
+        '200':
+          description: Updated evaluation.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/WorkflowEvaluation'}
+        default: {$ref: '#/components/responses/InternalError'}
+
   /api/workflow/{agentName}/{workflowName}/run:
     get:
       operationId: listWorkflowRuns
@@ -4860,189 +4814,6 @@ components:
             $ref: '#/components/schemas/Error'
 
   schemas:
-    WorkflowEvaluationSummary:
-      type: object
-      required: [id, name, state, model_count, case_count, repetitions, attempt_count, completed_count, created_at, updated_at]
-      properties:
-        id: {type: string, format: uuid}
-        name: {type: string}
-        state: {$ref: '#/components/schemas/WorkflowEvaluationState'}
-        model_count: {type: integer}
-        case_count: {type: integer}
-        repetitions: {type: integer}
-        attempt_count: {type: integer}
-        completed_count: {type: integer}
-        created_at: {type: string, format: date-time}
-        updated_at: {type: string, format: date-time}
-    WorkflowEvaluationState:
-      type: string
-      enum: [draft, queued, running, completed, cancelled, error, archived]
-    EvaluationGradeResult:
-      type: object
-      required: [checks, quality, tokens, cost]
-      properties:
-        checks: {type: array, items: {$ref: '#/components/schemas/EvaluationCheck'}}
-        quality: {type: number, minimum: 0, maximum: 1, format: double}
-        tokens: {type: number, minimum: 0, format: double}
-        cost: {type: number, minimum: 0, format: double}
-    EvaluationCaseSuggestions:
-      type: object
-      additionalProperties: false
-      required: [cases, rubric, coverage]
-      properties:
-        cases:
-          type: array
-          minItems: 1
-          maxItems: 20
-          items:
-            type: object
-            additionalProperties: false
-            required: [name, inputs]
-            properties:
-              name: {type: string, minLength: 1, maxLength: 160}
-              inputs:
-                nullable: true
-                description: JSON inputs validated against the workflow input contract.
-        rubric: {type: string, minLength: 1, maxLength: 20000}
-        coverage:
-          type: object
-          additionalProperties: false
-          required: [ready, issues, nodes, edges]
-          properties:
-            ready:
-              type: boolean
-              description: True when meaningful cases can be graded from available evidence; complete coverage and exact reference answers are not required.
-            issues:
-              type: array
-              description: Concise scope limitations when ready, or missing information needed to prepare any meaningful cases when not ready.
-              items: {type: string, minLength: 1, maxLength: 200}
-            nodes:
-              type: array
-              items:
-                type: object
-                additionalProperties: false
-                required: [node_name, case_names, rationale]
-                properties:
-                  node_name: {type: string, minLength: 1}
-                  case_names: {type: array, minItems: 1, items: {type: string, minLength: 1}}
-                  rationale: {type: string, minLength: 1, maxLength: 1000}
-            edges:
-              type: array
-              items:
-                type: object
-                additionalProperties: false
-                required: [source, target, branch_label, case_names, rationale]
-                properties:
-                  source: {type: string, minLength: 1}
-                  target: {type: string, minLength: 1}
-                  branch_label: {type: string}
-                  case_names: {type: array, minItems: 1, items: {type: string, minLength: 1}}
-                  rationale: {type: string, minLength: 1, maxLength: 1000}
-    EvaluationCase:
-      type: object
-      additionalProperties: false
-      required: [id, name, inputs, expected]
-      properties:
-        id: {type: string, minLength: 1, maxLength: 80}
-        name: {type: string, minLength: 1, maxLength: 160}
-        inputs: {$ref: '#/components/schemas/JSONValue'}
-        expected: {type: string, maxLength: 20000}
-    EvaluationCandidate:
-      type: object
-      additionalProperties: false
-      required: [id, label, provider_id, model_id]
-      properties:
-        id: {type: string, minLength: 1, maxLength: 80}
-        label: {type: string, minLength: 1, maxLength: 160}
-        provider_id: {type: string, minLength: 1}
-        model_id: {type: string, minLength: 1}
-        variant: {type: string}
-    EvaluationPolicy:
-      type: object
-      additionalProperties: false
-      required: [version, rubric, minimum_quality, token_reference, tool_reference, duration_reference, efficiency_weight]
-      properties:
-        version: {type: string, enum: [reference-v1]}
-        rubric: {type: string, maxLength: 20000}
-        minimum_quality: {type: number, minimum: 0, maximum: 1, format: double}
-        token_reference: {type: number, minimum: 1, format: double}
-        tool_reference: {type: number, minimum: 1, format: double}
-        duration_reference: {type: number, minimum: 1, format: double}
-        efficiency_weight: {type: number, minimum: 0, maximum: 1, format: double}
-        judge: {$ref: '#/components/schemas/EvaluationCandidate'}
-    WorkflowEvaluationRequest:
-      type: object
-      additionalProperties: false
-      required: [id, name, cases, candidates, repetitions, timeout_seconds, policy, draft, live_tools]
-      properties:
-        id: {type: string, format: uuid}
-        name: {type: string, minLength: 1, maxLength: 160}
-        cases: {type: array, minItems: 1, maxItems: 1000, items: {$ref: '#/components/schemas/EvaluationCase'}}
-        candidates: {type: array, minItems: 1, maxItems: 10, items: {$ref: '#/components/schemas/EvaluationCandidate'}}
-        repetitions: {type: integer, minimum: 1, maximum: 10}
-        timeout_seconds: {type: integer, minimum: 30, maximum: 3600}
-        policy: {$ref: '#/components/schemas/EvaluationPolicy'}
-        draft: {type: boolean}
-        live_tools: {type: boolean, description: Acknowledges execution on the existing agent with its live tools.}
-    EvaluationCheck:
-      type: object
-      required: [name, passed, score, reason]
-      properties:
-        name: {type: string}
-        passed: {type: boolean}
-        score: {type: number, format: double, minimum: 0, maximum: 1}
-        reason: {type: string}
-    EvaluationTool:
-      type: object
-      required: [id, name, state, input, output]
-      properties:
-        id: {type: string}
-        session_id: {type: string}
-        name: {type: string}
-        state: {type: string}
-        input: {type: string}
-        output: {type: string}
-    EvaluationAttempt:
-      type: object
-      required: [id, case_id, candidate_id, repetition, state, run_name, output, checks, tools, message]
-      properties:
-        id: {type: string}
-        case_id: {type: string}
-        candidate_id: {type: string}
-        repetition: {type: integer}
-        state: {type: string, enum: [queued, running, grading, completed, failed, error, cancelled]}
-        run_name: {type: string}
-        session_id: {type: string}
-        output: {type: string}
-        checks: {type: array, items: {$ref: '#/components/schemas/EvaluationCheck'}}
-        tools: {type: array, items: {$ref: '#/components/schemas/EvaluationTool'}}
-        message: {type: string}
-        score: {type: number, format: double}
-        quality: {type: number, format: double}
-        grading: {$ref: '#/components/schemas/EvaluationGradeResult'}
-        tokens: {type: number, format: double}
-        cost: {type: number, format: double}
-        duration_seconds: {type: number, format: double}
-        task_calls: {type: integer}
-        protocol_calls: {type: integer}
-        models_used: {type: array, items: {type: string}}
-        started_at: {type: string, format: date-time}
-        completed_at: {type: string, format: date-time}
-    WorkflowEvaluation:
-      type: object
-      required: [id, agent_name, workflow_name, state, request, workflow, attempts, created_at, updated_at, message, assessment_revision]
-      properties:
-        id: {type: string, format: uuid}
-        agent_name: {type: string}
-        workflow_name: {type: string}
-        state: {$ref: '#/components/schemas/WorkflowEvaluationState'}
-        request: {$ref: '#/components/schemas/WorkflowEvaluationRequest'}
-        workflow: {$ref: '#/components/schemas/Workflow'}
-        attempts: {type: array, items: {$ref: '#/components/schemas/EvaluationAttempt'}}
-        created_at: {type: string, format: date-time}
-        updated_at: {type: string, format: date-time}
-        message: {type: string}
-        assessment_revision: {type: integer}
     ChatSessionKind:
       type: string
       enum: [chat, workflow_run]
@@ -6924,6 +6695,100 @@ components:
       type: string
       minLength: 1
       description: Better Auth API key identifier.
+
+    EvaluationModel:
+      type: object
+      additionalProperties: false
+      required: [provider_id, model_id, label]
+      properties:
+        provider_id: {type: string, minLength: 1}
+        model_id: {type: string, minLength: 1}
+        label: {type: string, minLength: 1, maxLength: 200}
+        variant: {type: string}
+    WorkflowEvaluationRequest:
+      type: object
+      additionalProperties: false
+      required: [id, inputs, models, judge]
+      properties:
+        id: {type: string, format: uuid}
+        inputs: {$ref: '#/components/schemas/JSONValue'}
+        models: {type: array, minItems: 1, maxItems: 8, items: {$ref: '#/components/schemas/EvaluationModel'}}
+        judge: {$ref: '#/components/schemas/EvaluationModel'}
+    WorkflowEvaluationState:
+      type: string
+      enum: [queued, running, cancelling, completed, cancelled]
+    WorkflowEvaluation:
+      type: object
+      required: [id, request, workflow, executions, state, created_at, updated_at, scoring_version]
+      properties:
+        id: {type: string, format: uuid}
+        request: {$ref: '#/components/schemas/WorkflowEvaluationRequest'}
+        workflow: {$ref: '#/components/schemas/Workflow'}
+        executions: {type: array, items: {$ref: '#/components/schemas/EvaluationExecution'}}
+        state: {$ref: '#/components/schemas/WorkflowEvaluationState'}
+        message: {type: string}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        scoring_version: {type: string, enum: [trace-v1]}
+        references: {$ref: '#/components/schemas/EvaluationReferences'}
+    WorkflowEvaluationSummary:
+      type: object
+      required: [id, judge, executions, state, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        judge: {$ref: '#/components/schemas/EvaluationModel'}
+        executions: {type: array, items: {$ref: '#/components/schemas/EvaluationExecution'}}
+        state: {$ref: '#/components/schemas/WorkflowEvaluationState'}
+        created_at: {type: string, format: date-time}
+    EvaluationExecution:
+      type: object
+      required: [model, run_name, state]
+      properties:
+        model: {$ref: '#/components/schemas/EvaluationModel'}
+        run_name: {type: string}
+        state: {type: string, enum: [queued, running, judging, completed, error, cancelled]}
+        run_status: {$ref: '#/components/schemas/WorkflowRunStatus'}
+        run: {$ref: '#/components/schemas/WorkflowRunDetail'}
+        message: {type: string}
+        session_id: {type: string}
+        transcript:
+          description: Complete native session messages and metadata, including delegated sessions. Never truncated or summarized.
+          type: array
+          items: {$ref: '#/components/schemas/EvaluationTranscriptSession'}
+        measured_efficiency: {type: number, format: double, minimum: 0, maximum: 1}
+        tokens: {type: number, format: double, minimum: 0}
+        tool_calls: {type: integer, minimum: 0}
+        duration_seconds: {type: number, format: double, minimum: 0}
+        cost: {type: number, format: double, minimum: 0}
+        judgment: {$ref: '#/components/schemas/EvaluationJudgment'}
+        judge_context_compacted:
+          type: boolean
+          description: The judge continued after native context compaction. Informational only; does not affect scoring.
+        score: {type: number, format: double, minimum: 0, maximum: 100}
+    EvaluationTranscriptSession:
+      type: object
+      required: [session_id, session, messages]
+      properties:
+        session_id: {type: string}
+        session: {$ref: '#/components/schemas/JSONValue'}
+        messages: {type: array, items: {$ref: '#/components/schemas/JSONValue'}}
+    EvaluationReferences:
+      type: object
+      required: [tokens, tool_calls, duration_seconds]
+      properties:
+        tokens: {type: number, format: double, minimum: 0}
+        tool_calls: {type: number, format: double, minimum: 0}
+        duration_seconds: {type: number, format: double, minimum: 0}
+    EvaluationJudgment:
+      type: object
+      additionalProperties: false
+      required: [correctness, efficiency, summary, evidence, limitations]
+      properties:
+        correctness: {type: integer, minimum: 0, maximum: 4}
+        efficiency: {type: integer, minimum: 0, maximum: 4}
+        summary: {type: string, minLength: 1, maxLength: 2000}
+        evidence: {type: array, minItems: 1, maxItems: 8, items: {type: string, minLength: 1, maxLength: 1000}}
+        limitations: {type: array, maxItems: 8, items: {type: string, minLength: 1, maxLength: 1000}}
 
     WorkflowRunInputs:
       $ref: '#/components/schemas/JSONValue'

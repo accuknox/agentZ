@@ -959,6 +959,12 @@ func (s *Service) refreshOpenCodeSession(ctx context.Context, target *url.URL, w
 }
 
 func (s *Service) storeOpenCodeSession(ctx context.Context, workspaceID, agentName string, kind gatewaydb.ChatSessionKind, session gatewayapi.OpencodeSession) error {
+	if session.Metadata != nil {
+		if _, evaluation := (*session.Metadata)["agentz.evaluation_id"]; evaluation {
+			// Evaluation evidence belongs to the comparison, not chat history.
+			return nil
+		}
+	}
 	var parentID pgtype.Text
 	if session.ParentID != nil {
 		parentID = pgtype.Text{String: *session.ParentID, Valid: true}

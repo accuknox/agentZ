@@ -235,9 +235,9 @@ export function WorkspaceNavigation({
                         <SidebarNavigationLink
                           href={`${root}/workflows/graphs`}
                           match={
-                            pathname.includes("/workflows/triggers")
-                              ? undefined
-                              : `${root}/workflows`
+                            pathname.startsWith(`${root}/workflows/evaluations`)
+                              ? `${root}/workflows/evaluations`
+                              : undefined
                           }
                           label={resourceLabels.workflow.collection}
                         >

@@ -145,7 +145,7 @@ export function Results({
       </div>
       {pending ? (
         <div
-          className="bg-muted/40 motion-safe:animate-in motion-safe:fade-in mx-4 mb-4 rounded-lg p-4 sm:mx-6"
+          className="bg-primary/10 border-primary/30 motion-safe:animate-in motion-safe:fade-in mx-4 mb-4 rounded-lg border border-dotted p-4 sm:mx-6"
           role="status"
           aria-live="polite"
         >

@@ -5,6 +5,7 @@ import dynamic from "next/dynamic"
 import { useQuery } from "@tanstack/react-query"
 import { getWorkflowEvaluationOptions } from "@/lib/gateway/client/@tanstack/react-query.gen"
 import {
+  Scale,
   CircleAlert,
   Download,
   FunctionSquare,
@@ -46,6 +47,7 @@ import {
 } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Spinner } from "@/components/ui/spinner"
+import { ProviderIcon } from "@/app/(app)/inference/providers/provider-shared"
 import { formatDurationSeconds } from "@/lib/format"
 
 const Charts = dynamic(() => import("./charts").then((module) => module.Charts), {
@@ -61,9 +63,11 @@ const Charts = dynamic(() => import("./charts").then((module) => module.Charts),
 export function Results({
   evaluation,
   workspaceId,
+  providerBrands,
 }: {
   evaluation: WorkflowEvaluation
   workspaceId: string
+  providerBrands: Record<string, string>
 }) {
   const [selected, setSelected] = useState<string>()
   const [tab, setTab] = useState("judgment")
@@ -91,8 +95,14 @@ export function Results({
   return (
     <div className="flex min-w-0 flex-col">
       <div className="flex flex-wrap items-center gap-3 px-4 py-3 text-xs sm:px-6">
-        <span className="text-muted-foreground">
-          Judge <span className="text-foreground">{evaluation.request.judge.label}</span>
+        <span className="text-muted-foreground inline-flex items-center gap-2">
+          <Scale aria-hidden className="size-4" />
+          Judge
+          <ProviderIcon
+            className="text-foreground size-4 shrink-0"
+            provider={providerBrands[evaluation.request.judge.provider_id] ?? "custom"}
+          />
+          <span className="text-foreground">{evaluation.request.judge.label}</span>
         </span>
         <Dialog>
           <DialogTrigger asChild>
@@ -145,7 +155,7 @@ export function Results({
       </div>
       {pending ? (
         <div
-          className="bg-primary/10 border-primary/30 motion-safe:animate-in motion-safe:fade-in mx-4 mb-4 rounded-lg border border-dotted p-4 sm:mx-6"
+          className="bg-muted/40 border-primary/50 motion-safe:animate-in motion-safe:fade-in mx-4 mb-4 rounded-lg border border-dotted p-4 sm:mx-6"
           role="status"
           aria-live="polite"
         >
@@ -233,6 +243,10 @@ export function Results({
                   }}
                   className="text-foreground max-w-64 justify-start px-0"
                 >
+                  <ProviderIcon
+                    className="size-4 shrink-0"
+                    provider={providerBrands[row.model.provider_id] ?? "custom"}
+                  />
                   <span className="truncate">{row.model.label}</span>
                 </Button>
               </TableCell>
@@ -301,7 +315,15 @@ export function Results({
       >
         <SheetContent className="flex w-full flex-col data-[side=right]:sm:max-w-2xl">
           <SheetHeader>
-            <SheetTitle>{execution?.model.label}</SheetTitle>
+            <SheetTitle className="flex items-center gap-2">
+              {execution ? (
+                <ProviderIcon
+                  className="size-4 shrink-0"
+                  provider={providerBrands[execution.model.provider_id] ?? "custom"}
+                />
+              ) : null}
+              {execution?.model.label}
+            </SheetTitle>
             <SheetDescription>{execution?.run_name}</SheetDescription>
           </SheetHeader>
           {execution ? (

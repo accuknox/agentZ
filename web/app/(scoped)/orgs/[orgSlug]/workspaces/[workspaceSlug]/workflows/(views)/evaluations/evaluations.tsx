@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react"
 import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Bot, CalendarClock, CircleAlert, Plus, Play, RefreshCw, Square } from "lucide-react"
+import { Scale, CalendarClock, CircleAlert, Plus, Play, RefreshCw, Square } from "lucide-react"
 import {
   createWorkflowEvaluation,
   updateWorkflowEvaluation,
@@ -49,14 +49,17 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { dayjs } from "@/lib/format"
 
+import { ProviderIcon } from "@/app/(app)/inference/providers/provider-shared"
 import { Results } from "./results"
 
 export function Evaluations({
   workflow,
   workspaceId,
+  providerBrands,
 }: {
   workflow: Workflow
   workspaceId: string
+  providerBrands: Record<string, string>
 }) {
   const queryClient = useQueryClient()
   const [selected, setSelected] = useState<string>()
@@ -244,7 +247,12 @@ export function Evaluations({
           <Skeleton className="h-80" />
         </div>
       ) : evaluation ? (
-        <Results key={evaluation.id} evaluation={evaluation} workspaceId={workspaceId} />
+        <Results
+          key={evaluation.id}
+          evaluation={evaluation}
+          workspaceId={workspaceId}
+          providerBrands={providerBrands}
+        />
       ) : (
         <div className="text-muted-foreground flex h-48 items-center justify-center text-sm">
           No evaluations yet
@@ -284,6 +292,7 @@ export function Evaluations({
               key={retrying ? `judge-${id}` : "new"}
               workflow={workflow}
               models={catalog.data}
+              providerBrands={providerBrands}
               workspaceId={workspaceId}
               retry={retrying ? evaluation : undefined}
               onComplete={async (result) => {
@@ -303,12 +312,14 @@ function EvaluationForm({
   workflow,
   models,
   workspaceId,
+  providerBrands,
   retry,
   onComplete,
 }: {
   workflow: Workflow
   models: { model: EvaluationModel; key: string; group: string }[]
   workspaceId: string
+  providerBrands: Record<string, string>
   retry?: WorkflowEvaluation
   onComplete: (result: WorkflowEvaluation) => Promise<void>
 }) {
@@ -425,7 +436,12 @@ function EvaluationForm({
                   value: item.key,
                   label: item.model.label,
                   group: item.group,
-                  icon: Bot,
+                  iconElement: (
+                    <ProviderIcon
+                      className="size-4 shrink-0"
+                      provider={providerBrands[item.model.provider_id] ?? "custom"}
+                    />
+                  ),
                   disabled: selection.length >= 8 && !selection.includes(item.key),
                 }))}
                 value={selection}
@@ -440,7 +456,10 @@ function EvaluationForm({
             </Field>
           ) : null}
           <Field data-invalid={errors.some((error) => error.field === "judge")}>
-            <FieldLabel htmlFor="evaluation-judge">Judge</FieldLabel>
+            <FieldLabel htmlFor="evaluation-judge">
+              <Scale className="text-muted-foreground size-4" />
+              Judge
+            </FieldLabel>
             <Select
               value={judgeKey}
               onValueChange={(value) => {
@@ -459,6 +478,10 @@ function EvaluationForm({
                 <SelectGroup>
                   {models.map((item) => (
                     <SelectItem value={item.key} key={item.key}>
+                      <ProviderIcon
+                        className="size-4 shrink-0"
+                        provider={providerBrands[item.model.provider_id] ?? "custom"}
+                      />
                       {item.model.label}
                     </SelectItem>
                   ))}

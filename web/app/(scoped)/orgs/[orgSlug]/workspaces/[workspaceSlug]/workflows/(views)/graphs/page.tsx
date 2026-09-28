@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { Suspense } from "react"
-import { AdministrationLoadingState, AdministrationPageHeader } from "@/components/administration"
+import { AdministrationLoadingState } from "@/components/administration"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import * as z from "zod"
 import Workflow from "@/components/blocks/workflow/workflow"
@@ -9,7 +9,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { resolvePageSelection, type ResolvedPageSelection } from "@/data/page-selection"
 import { RememberPageSelection } from "@/components/page-selection"
 import { getWorkspaceScope } from "@/data/workspaces"
-import { WorkflowsFilters } from "./workflows-filters"
 import { searchParamStringSchema } from "@/lib/search-params"
 import { CircleAlert } from "lucide-react"
 
@@ -45,34 +44,18 @@ async function WorkspaceWorkflows({
   const selection = resolvePageSelection(workspace, "workflows/graphs", parsed)
 
   return (
-    <main className="flex min-w-0 flex-1 flex-col gap-0 p-0">
-      <AdministrationPageHeader title="Workflows" />
-      <Suspense
-        fallback={
-          <>
-            <FiltersSkeleton />
-            <CanvasSkeleton />
-          </>
-        }
-      >
-        <WorkflowContent selection={selection} />
-      </Suspense>
-    </main>
+    <Suspense fallback={<CanvasSkeleton />}>
+      <WorkflowContent selection={selection} />
+    </Suspense>
   )
 }
 
 async function WorkflowContent({ selection }: { selection: Promise<ResolvedPageSelection> }) {
-  const { selected, requested, agents, workflows, workflow, error } = await selection
+  const { selected, requested, workflow, error } = await selection
   if (error) return <ErrorPanel message={error.message} />
   return (
     <>
       <RememberPageSelection selected={selected} requested={requested} />
-      <WorkflowsFilters
-        agents={agents}
-        workflows={workflows}
-        selectedAgentName={selected.agent_name}
-        selectedWorkflowName={selected.workflow_name}
-      />
       {!selected.agent_name ? (
         <EmptyState message="No agents available" />
       ) : !workflow ? (
@@ -81,19 +64,6 @@ async function WorkflowContent({ selection }: { selection: Promise<ResolvedPageS
         <Workflow key={`${selected.agent_name}:${selected.workflow_name}`} workflow={workflow} />
       )}
     </>
-  )
-}
-
-function FiltersSkeleton() {
-  return (
-    <div className="bg-background border-b px-4 py-2 sm:px-6">
-      <div className="flex min-h-14 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Skeleton className="h-8 w-full min-w-0 rounded-md sm:w-64 sm:min-w-52" />
-          <Skeleton className="h-8 w-full min-w-0 rounded-md sm:w-72 sm:min-w-52" />
-        </div>
-      </div>
-    </div>
   )
 }
 

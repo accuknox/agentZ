@@ -2,16 +2,12 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { Suspense } from "react"
 import * as z from "zod"
-import {
-  AdministrationLoadingState,
-  AdministrationPageHeader,
-  AdministrationState,
-} from "@/components/administration"
+import { AdministrationLoadingState, AdministrationState } from "@/components/administration"
 import { RememberPageSelection } from "@/components/page-selection"
 import { resolvePageSelection } from "@/data/page-selection"
 import { getWorkspaceScope } from "@/data/workspaces"
 import { searchParamStringSchema } from "@/lib/search-params"
-import { WorkflowsFilters } from "../graphs/workflows-filters"
+import { listInferenceProvidersCachedQuery } from "@/data/inference-provider.queries"
 import { Evaluations } from "./evaluations"
 
 export const metadata: Metadata = { title: "Workflow evaluations" }
@@ -24,12 +20,9 @@ export default function EvaluationsPage(
   props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/workflows/evaluations">
 ) {
   return (
-    <main className="flex min-w-0 flex-1 flex-col">
-      <AdministrationPageHeader title="Workflows" />
-      <Suspense fallback={<AdministrationLoadingState />}>
-        <Content {...props} />
-      </Suspense>
-    </main>
+    <Suspense fallback={<AdministrationLoadingState />}>
+      <Content {...props} />
+    </Suspense>
   )
 }
 
@@ -40,26 +33,24 @@ async function Content({
   const [route, search] = await Promise.all([params, searchParams])
   const scope = await getWorkspaceScope(route.orgSlug, route.workspaceSlug)
   if (scope.kind !== "ready" || scope.workspace.type === "coding") notFound()
-  const { selected, requested, agents, workflows, workflow, error } = await resolvePageSelection(
-    scope,
-    "workflows/evaluations",
-    searchSchema.parse(search)
+  const [selection, providers] = await Promise.all([
+    resolvePageSelection(scope, "workflows/evaluations", searchSchema.parse(search)),
+    listInferenceProvidersCachedQuery(scope.workspace.id),
+  ])
+  const { selected, requested, agents, workflow, error } = selection
+  const providerBrands = Object.fromEntries(
+    (providers.providers ?? []).map((provider) => [provider.id, provider.catalog_provider])
   )
   if (error) return <AdministrationState kind="failed" description={error.message} />
   return (
     <>
       <RememberPageSelection selected={selected} requested={requested} />
-      <WorkflowsFilters
-        agents={agents}
-        workflows={workflows}
-        selectedAgentName={selected.agent_name}
-        selectedWorkflowName={selected.workflow_name}
-      />
       {workflow ? (
         <Evaluations
           key={`${workflow.agent_name}:${workflow.workflow_name}`}
           workflow={workflow}
           workspaceId={scope.workspace.id}
+          providerBrands={providerBrands}
         />
       ) : (
         <div className="text-muted-foreground flex h-48 items-center justify-center text-sm">

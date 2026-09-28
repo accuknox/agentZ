@@ -1,7 +1,9 @@
 "use client"
 
 import Link from "next/link"
-import { useParams, usePathname } from "next/navigation"
+import { useQuery } from "@tanstack/react-query"
+import { listWorkflowSummariesOptions } from "@/lib/gateway/client/@tanstack/react-query.gen"
+import { useParams, usePathname, useSearchParams } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { BotIcon, WorkflowIcon, FlaskConical } from "lucide-react"
@@ -18,16 +20,33 @@ import {
 
 export function WorkflowsFilters({
   agents,
-  selectedAgentName,
-  workflows,
-  selectedWorkflowName,
+  selectedAgentName: initialAgentName,
+  workflows: initialWorkflows,
+  selectedWorkflowName: initialWorkflowName,
+  workspaceId,
 }: {
+  workspaceId: string
   agents: Agent[]
   selectedAgentName?: string
   workflows: WorkflowSummary[]
   selectedWorkflowName?: string
 }) {
   const pathname = usePathname()
+  const search = useSearchParams()
+  const selectedAgentName = search.get("agent_name") ?? initialAgentName
+  const workflowOptions = useQuery({
+    ...listWorkflowSummariesOptions({
+      headers: { "X-AgentZ-Workspace-ID": workspaceId },
+      path: { agentName: selectedAgentName ?? "" },
+    }),
+    enabled: !!selectedAgentName,
+    initialData: selectedAgentName === initialAgentName ? initialWorkflows : undefined,
+    staleTime: 60_000,
+  })
+  const workflows = workflowOptions.data ?? []
+  const selectedWorkflowName =
+    search.get("workflow_name") ??
+    (selectedAgentName === initialAgentName ? initialWorkflowName : workflows[0]?.workflow_name)
   const { orgSlug, workspaceSlug } = useParams<{ orgSlug: string; workspaceSlug: string }>()
   const root = `/orgs/${orgSlug}/workspaces/${workspaceSlug}/workflows` as const
   const params = new URLSearchParams()
@@ -65,7 +84,7 @@ export function WorkflowsFilters({
           onValueChange={(workflow_name) =>
             select({ agent_name: selectedAgentName, workflow_name })
           }
-          disabled={workflows.length === 0 || pending}
+          disabled={workflows.length === 0 || pending || workflowOptions.isFetching}
         >
           <SelectTrigger
             aria-label="Workflow"

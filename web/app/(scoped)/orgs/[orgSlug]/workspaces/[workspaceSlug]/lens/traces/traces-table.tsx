@@ -4,9 +4,7 @@ import * as React from "react"
 import { getCoreRowModel, type ColumnDef, useReactTable } from "@tanstack/react-table"
 import {
   Brain,
-  Calendar,
   CircleAlert,
-  Clock,
   HardDrive,
   Network,
   type LucideIcon,
@@ -14,7 +12,6 @@ import {
   Server,
   Wrench,
   Cpu,
-  ServerCrash,
 } from "lucide-react"
 import {
   getRuntimeTelemetryTabAction,
@@ -36,10 +33,17 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
 import { ErrorState } from "@/components/error-state"
-import { CodeBlock } from "@/components/ai-elements/code-block"
 import { TablePagination, TokenTablePagination } from "@/components/table-pagination"
 import { Progress } from "@/components/ui/progress"
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { Sheet } from "@/components/ui/sheet"
+import {
+  TraceInspectorSheet,
+  TraceInspectorLayout,
+  TraceInspectorRow,
+  TraceInspectorDetail,
+  TraceTokenMeter,
+  TraceContentPanel,
+} from "@/components/trace-inspector"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TelemetryTableSkeleton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/telemetry-table-skeleton"
 import {
@@ -50,7 +54,6 @@ import {
 } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/telemetry-table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatCompactNumber } from "@/lib/format"
-import { cn } from "@/lib/utils"
 
 const layout: Record<string, AdminColumnLayout> = {
   trace: { minWidth: 160, contentMaxWidth: 256 },
@@ -394,16 +397,13 @@ function TraceInspector({
   onTabChange: (tab: TraceInspectorTab) => void
 }) {
   return (
-    <SheetContent
-      aria-describedby={undefined}
-      className="bg-background gap-0 overflow-x-hidden overflow-y-auto border-l p-0 text-sm shadow-2xl data-[side=right]:w-full data-[side=right]:max-w-full sm:max-w-none! md:w-[89vw]! lg:w-[84vw]! lg:overflow-hidden [&_svg]:size-4"
-    >
-      <SheetHeader>
-        <SheetTitle className="text-md truncate font-mono">
-          {trace?.traceId ? `Trace ID: ${trace?.traceId}` : "Trace inspector"}
-        </SheetTitle>
-      </SheetHeader>
-      <div className="bg-background flex flex-col lg:grid lg:min-h-0 lg:flex-1 lg:grid-rows-[auto_1fr]">
+    <TraceInspectorSheet
+      title={
+        <span className="font-mono">
+          {trace?.traceId ? `Trace ID: ${trace.traceId}` : "Trace inspector"}
+        </span>
+      }
+      tabs={
         <Tabs
           value={tab}
           onValueChange={(value) => {
@@ -411,7 +411,6 @@ function TraceInspector({
               onTabChange(value)
             }
           }}
-          className="bg-muted/50 py-2"
         >
           <TabsList className="gap-2">
             <TabsTrigger value="spans" className="gap-2">
@@ -422,36 +421,35 @@ function TraceInspector({
             </TabsTrigger>
           </TabsList>
         </Tabs>
-        <div className="lg:min-h-0 lg:overflow-hidden">
-          {tab === "spans" ? (
-            <SpansInspectorContent
-              workspaceId={workspaceId}
-              key={trace?.traceId}
-              trace={trace}
-              data={spans}
-              error={spansError}
-              pending={pending}
-              pagePending={spansPending}
-              canGoPrevious={canGoPreviousSpans}
-              onNextPage={onNextSpans}
-              onPreviousPage={onPreviousSpans}
-            />
-          ) : (
-            <RuntimeTelemetryContent
-              key={trace?.traceId}
-              telemetryTab={telemetryTab}
-              telemetryPage={telemetryPage}
-              error={telemetryError}
-              pagePending={telemetryPending}
-              onTabChange={onTelemetryTabChange}
-              canGoPrevious={canGoPreviousTelemetry}
-              onNextPage={onNextTelemetry}
-              onPreviousPage={onPreviousTelemetry}
-            />
-          )}
-        </div>
-      </div>
-    </SheetContent>
+      }
+    >
+      {tab === "spans" ? (
+        <SpansInspectorContent
+          workspaceId={workspaceId}
+          key={trace?.traceId}
+          trace={trace}
+          data={spans}
+          error={spansError}
+          pending={pending}
+          pagePending={spansPending}
+          canGoPrevious={canGoPreviousSpans}
+          onNextPage={onNextSpans}
+          onPreviousPage={onPreviousSpans}
+        />
+      ) : (
+        <RuntimeTelemetryContent
+          key={trace?.traceId}
+          telemetryTab={telemetryTab}
+          telemetryPage={telemetryPage}
+          error={telemetryError}
+          pagePending={telemetryPending}
+          onTabChange={onTelemetryTabChange}
+          canGoPrevious={canGoPreviousTelemetry}
+          onNextPage={onNextTelemetry}
+          onPreviousPage={onPreviousTelemetry}
+        />
+      )}
+    </TraceInspectorSheet>
   )
 }
 
@@ -536,52 +534,47 @@ function SpansInspectorContent({
   }
 
   return (
-    <div className="bg-background lg:h-full lg:overflow-hidden">
-      <div className="flex flex-col lg:grid lg:h-full lg:min-h-0 lg:min-w-245 lg:grid-cols-[34%_66%]">
-        <aside className="bg-background min-h-0 border-b lg:border-r lg:border-b-0">
-          <div className="bg-muted/10 flex h-10 items-center justify-between px-4 lg:px-5">
-            <div className="text-sm font-medium">Spans</div>
-            <TablePagination
-              canGoNext={data.hasNextPage}
-              canGoPrevious={canGoPrevious}
-              goNext={onNextPage}
-              goPrevious={onPreviousPage}
-              pending={pagePending}
-            />
-          </div>
-          <div className="max-h-72 overflow-auto py-2 pb-5 lg:h-[calc(100vh-134px)] lg:max-h-none lg:pb-8">
-            {data.spans.length > 0 ? (
-              data.spans.map((span) => (
-                <SpanTreeRow
-                  key={span.spanId}
-                  span={span}
-                  selected={selectedSpan?.spanId === span.spanId}
-                  onClick={() => {
-                    if (selectedSpan?.spanId === span.spanId) {
-                      return
-                    }
+    <TraceInspectorLayout
+      title="Spans"
+      pagination={
+        <TablePagination
+          canGoNext={data.hasNextPage}
+          canGoPrevious={canGoPrevious}
+          goNext={onNextPage}
+          goPrevious={onPreviousPage}
+          pending={pagePending}
+        />
+      }
+      navigation={
+        data.spans.length > 0 ? (
+          data.spans.map((span) => (
+            <SpanTreeRow
+              key={span.spanId}
+              span={span}
+              selected={selectedSpan?.spanId === span.spanId}
+              onClick={() => {
+                if (selectedSpan?.spanId === span.spanId) {
+                  return
+                }
 
-                    setSelectedSpanID(span.spanId)
-                    setDetailState({})
-                  }}
-                />
-              ))
-            ) : (
-              <div className="text-muted-foreground px-4 py-10 text-sm lg:px-5">No spans</div>
-            )}
-          </div>
-        </aside>
-        <section className="bg-background min-h-0">
-          <SpanDetailViewer
-            trace={trace}
-            span={selectedSpan}
-            detail={detail}
-            error={detailError}
-            pending={detailPending}
-          />
-        </section>
-      </div>
-    </div>
+                setSelectedSpanID(span.spanId)
+                setDetailState({})
+              }}
+            />
+          ))
+        ) : (
+          <div className="text-muted-foreground px-4 py-10 text-sm lg:px-5">No spans</div>
+        )
+      }
+    >
+      <SpanDetailViewer
+        trace={trace}
+        span={selectedSpan}
+        detail={detail}
+        error={detailError}
+        pending={detailPending}
+      />
+    </TraceInspectorLayout>
   )
 }
 
@@ -594,45 +587,21 @@ function SpanTreeRow({
   selected: boolean
   onClick: () => void
 }) {
-  const indent = span.depth * 22 + 28
-
   return (
-    <button
-      type="button"
-      className={cn(
-        "hover:bg-muted/35 relative flex w-full flex-col border-l-4 border-transparent py-2 pr-4 text-left lg:pr-5",
-        selected && "border-primary/55 bg-muted/55"
-      )}
-      style={{ paddingLeft: indent }}
+    <TraceInspectorRow
+      label={span.displayName}
+      icon={<SpanKindIcon span={span} />}
+      selected={selected}
       onClick={onClick}
-    >
-      <div className="flex min-w-0 items-center gap-2">
-        <span
-          className={cn("text-muted-foreground flex size-4 shrink-0 items-center justify-center")}
-        >
-          <SpanKindIcon span={span} />
-        </span>
-        <span className="truncate text-sm font-medium">{span.displayName}</span>
-        {span.hasError ? <CircleAlert className="text-destructive" /> : null}
-      </div>
-      <div className="text-muted-foreground mt-0.5 ml-6 flex flex-wrap items-center gap-2 text-xs lg:gap-3 [&_svg]:size-3.5">
-        <span className="inline-flex items-center gap-1">
-          <Clock />
-          {span.duration}
-        </span>
-        {span.totalTokens > 0 ? <span>{formatCompactNumber(span.totalTokens)} tokens</span> : null}
-        <span className="font-mono">{span.spanId.slice(0, 8)}</span>
-      </div>
-      <div className="bg-border mt-1.5 ml-6 h-0.5 rounded-full">
-        <div
-          className={cn("h-full rounded-full", spanTimelineClass(span))}
-          style={{
-            width: `${span.durationPercent}%`,
-            marginLeft: `${span.offsetPercent}%`,
-          }}
-        />
-      </div>
-    </button>
+      depth={span.depth}
+      duration={span.duration}
+      tokens={span.totalTokens}
+      id={span.spanId}
+      hasError={span.hasError}
+      timelineClass={spanTimelineClass(span)}
+      durationPercent={span.durationPercent}
+      offsetPercent={span.offsetPercent}
+    />
   )
 }
 
@@ -664,41 +633,40 @@ function SpanDetailViewer({
   const title = span?.displayName ?? (trace ? trace.traceId.slice(0, 8) : "Trace")
 
   return (
-    <div className="flex flex-col lg:h-full">
-      <div className="bg-muted/10 flex h-10 items-center justify-between px-4 lg:px-5 [&_svg]:size-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="text-muted-foreground text-sm">Inspect:</span>
-          <span className="truncate text-sm font-medium">{title}</span>
+    <TraceInspectorDetail
+      title={title}
+      started={span?.startLabel ?? trace?.startedDate}
+      duration={span?.duration ?? trace?.duration}
+      tokens={span?.totalTokens}
+    >
+      {span && span.spanType !== "agent" ? (
+        <TraceTokenMeter
+          segments={[
+            {
+              label: "Input",
+              value: Math.max(span.inputTokens - span.cachedInputTokens, 0),
+              displayValue: span.inputTokens,
+              colorClass: "bg-chart-1",
+            },
+            { label: "Cached", value: span.cachedInputTokens, colorClass: "bg-chart-3" },
+            { label: "Output", value: span.outputTokens, colorClass: "bg-chart-4" },
+          ]}
+        />
+      ) : null}
+      {error ? (
+        <Alert variant="destructive">
+          <CircleAlert aria-hidden="true" />
+          <AlertDescription>{error.message}</AlertDescription>
+        </Alert>
+      ) : pending ? (
+        <div className="flex flex-col gap-5">
+          <Skeleton className="h-44 w-full" />
+          <Skeleton className="h-28 w-full" />
         </div>
-      </div>
-      <div className="overflow-auto px-4 py-4 lg:min-h-0 lg:flex-1 lg:px-6">
-        <div className="text-muted-foreground mb-5 flex flex-wrap items-center gap-3 text-sm lg:gap-4 [&_svg]:size-4">
-          <span className="inline-flex items-center gap-1">
-            <Calendar />
-            {span?.startLabel ?? trace?.startedDate}
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <Clock />
-            {span?.duration ?? trace?.duration}
-          </span>
-          {span ? <span>{formatCompactNumber(span.totalTokens)} tokens</span> : null}
-        </div>
-        {span && span.spanType !== "agent" ? <InspectorTokenMeter span={span} /> : null}
-        {error ? (
-          <Alert variant="destructive">
-            <CircleAlert aria-hidden="true" />
-            <AlertDescription>{error.message}</AlertDescription>
-          </Alert>
-        ) : pending ? (
-          <div className="flex flex-col gap-5">
-            <Skeleton className="h-44 w-full" />
-            <Skeleton className="h-28 w-full" />
-          </div>
-        ) : (
-          <SpanJSONSections span={span} detail={detail} trace={trace} />
-        )}
-      </div>
-    </div>
+      ) : (
+        <SpanJSONSections span={span} detail={detail} trace={trace} />
+      )}
+    </TraceInspectorDetail>
   )
 }
 
@@ -739,21 +707,21 @@ function SpanJSONSections({
   return (
     <div className="flex flex-col gap-5">
       {span.error ? (
-        <JSONTextPanel title="Error" code={JSON.stringify({ error: span.error }, null, 2)} />
+        <TraceContentPanel title="Error" code={JSON.stringify({ error: span.error }, null, 2)} />
       ) : null}
-      {input && !input.empty ? <JSONTextPanel title="Input" code={input.json} /> : null}
-      {output && !output.empty ? <JSONTextPanel title="Output" code={output.json} /> : null}
+      {input && !input.empty ? <TraceContentPanel title="Input" code={input.json} /> : null}
+      {output && !output.empty ? <TraceContentPanel title="Output" code={output.json} /> : null}
       {toolArguments && !toolArguments.empty ? (
-        <JSONTextPanel title="Tool arguments" code={toolArguments.json} />
+        <TraceContentPanel title="Tool arguments" code={toolArguments.json} />
       ) : null}
       {toolResult && !toolResult.empty ? (
-        <JSONTextPanel title="Tool result" code={toolResult.json} />
+        <TraceContentPanel title="Tool result" code={toolResult.json} />
       ) : null}
       {detail?.resourceAttributes && !detail.resourceAttributes.empty ? (
-        <JSONTextPanel title="Resource attributes" code={detail.resourceAttributes.json} />
+        <TraceContentPanel title="Resource attributes" code={detail.resourceAttributes.json} />
       ) : null}
       {detail?.spanAttributes && !detail.spanAttributes.empty ? (
-        <JSONTextPanel title="Span attributes" code={detail.spanAttributes.json} />
+        <TraceContentPanel title="Span attributes" code={detail.spanAttributes.json} />
       ) : null}
       <JSONPanel
         title="Usage"
@@ -775,81 +743,6 @@ function SpanJSONSections({
         ]}
       />
     </div>
-  )
-}
-
-function JSONTextPanel({ title, code }: { title: string; code: string }) {
-  return (
-    <section>
-      <div className="my-2 flex items-center justify-between">
-        {title === "Error" ? (
-          <div className="text-destructive text-sm font-medium">
-            <ServerCrash className="mr-1.5 inline-block" />
-            <span>{title}</span>
-          </div>
-        ) : (
-          <div className="text-sm font-medium">{title}</div>
-        )}
-      </div>
-      <div className="max-h-100 overflow-auto rounded-md">
-        <CodeBlock
-          code={code}
-          language="json"
-          showLineNumbers={true}
-          className="bg-muted/20 border-0"
-        />
-      </div>
-    </section>
-  )
-}
-
-function InspectorTokenMeter({ span }: { span: SpanListItem }) {
-  if (span.totalTokens === 0) {
-    return null
-  }
-
-  const uncachedInput = Math.max(span.inputTokens - span.cachedInputTokens, 0)
-  const inputWidth = span.totalTokens === 0 ? 0 : (uncachedInput / span.totalTokens) * 100
-  const cachedWidth = span.totalTokens === 0 ? 0 : (span.cachedInputTokens / span.totalTokens) * 100
-  const outputWidth = span.totalTokens === 0 ? 0 : (span.outputTokens / span.totalTokens) * 100
-
-  return (
-    <section className="bg-muted/10 mb-5 rounded-md p-4">
-      <div className="mb-3 flex items-center justify-between gap-3 text-xs">
-        <span className="text-foreground font-medium">
-          {formatCompactNumber(span.totalTokens)} total
-        </span>
-      </div>
-      <div className="bg-muted flex h-1.5 overflow-hidden rounded-full">
-        <span className="bg-chart-1" style={{ width: `${inputWidth}%` }} />
-        <span className="bg-chart-3" style={{ width: `${cachedWidth}%` }} />
-        <span className="bg-chart-4" style={{ width: `${outputWidth}%` }} />
-      </div>
-      <div className="text-muted-foreground mt-3 grid grid-cols-1 gap-2 text-xs sm:grid-cols-3 sm:gap-3">
-        <TokenLegend colorClass="bg-chart-1" label="Input" value={span.inputTokens} />
-        <TokenLegend colorClass="bg-chart-3" label="Cached" value={span.cachedInputTokens} />
-        <TokenLegend colorClass="bg-chart-4" label="Output" value={span.outputTokens} />
-      </div>
-    </section>
-  )
-}
-
-function TokenLegend({
-  colorClass,
-  label,
-  value,
-}: {
-  colorClass: string
-  label: string
-  value: number
-}) {
-  return (
-    <span className="flex min-w-0 items-center gap-1.5">
-      <span className={cn("size-2 shrink-0 rounded-full", colorClass)} />
-      <span className="truncate">
-        {label} {formatCompactNumber(value)}
-      </span>
-    </span>
   )
 }
 
@@ -1221,7 +1114,9 @@ function networkProtocol(event: RuntimeTelemetryEventItem) {
 }
 
 function JSONPanel({ title, rows }: { title: string; rows: [string, string][] }) {
-  return <JSONTextPanel title={title} code={JSON.stringify(Object.fromEntries(rows), null, 2)} />
+  return (
+    <TraceContentPanel title={title} code={JSON.stringify(Object.fromEntries(rows), null, 2)} />
+  )
 }
 
 function InspectorSkeleton() {

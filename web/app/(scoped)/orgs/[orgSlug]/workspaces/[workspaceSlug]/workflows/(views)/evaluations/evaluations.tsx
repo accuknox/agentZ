@@ -213,7 +213,7 @@ export function Evaluations({
         <div className="ml-auto flex items-center gap-2">
           {active ? (
             <Button
-              variant="outline"
+              variant="destructive"
               size="sm"
               disabled={actionPending || evaluation.state === "cancelling"}
               onClick={cancel}

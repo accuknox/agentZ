@@ -19,13 +19,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
+import { Sheet } from "@/components/ui/sheet"
+import { TraceInspectorSheet } from "@/components/trace-inspector"
 import {
   Dialog,
   DialogContent,
@@ -199,7 +194,7 @@ export function Results({
               >
                 <Icon className="group-data-[active=true]:text-primary size-3.5 shrink-0 motion-safe:group-data-[active=true]:animate-pulse" />
                 <span>{label}</span>
-                <span className="ml-auto tabular-nums">{count}</span>
+                <span className="tabular-nums">{count}</span>
               </div>
             ))}
           </div>
@@ -326,140 +321,152 @@ export function Results({
           if (!open) setSelected(undefined)
         }}
       >
-        <SheetContent className="flex w-full flex-col data-[side=right]:sm:max-w-2xl">
-          <SheetHeader>
-            <SheetTitle className="flex items-center gap-2">
-              {execution ? (
-                <ProviderIcons
-                  className="size-4 shrink-0"
-                  providers={
-                    providerBrands[
-                      JSON.stringify([execution.model.provider_id, execution.model.model_id])
-                    ] ?? []
-                  }
-                />
-              ) : null}
-              {execution?.model.label}
-            </SheetTitle>
-            <SheetDescription className="flex flex-wrap gap-3">
-              {execution?.tokens !== undefined ? (
-                <span>{execution.tokens.toLocaleString()} tokens</span>
-              ) : null}
-              {execution?.tool_calls !== undefined ? (
-                <span>{execution.tool_calls} tool calls</span>
-              ) : null}
-              {execution?.duration_seconds !== undefined ? (
-                <span>{formatDurationSeconds(execution.duration_seconds)}</span>
-              ) : null}
-            </SheetDescription>
-          </SheetHeader>
-          {execution ? (
-            <Tabs value={tab} onValueChange={setTab} className="min-h-0 flex-1 px-4 pb-4">
+        <Tabs value={tab} onValueChange={setTab}>
+          <TraceInspectorSheet
+            title={
+              <span className="flex items-center gap-2">
+                {execution ? (
+                  <ProviderIcons
+                    className="size-4 shrink-0"
+                    providers={
+                      providerBrands[
+                        JSON.stringify([execution.model.provider_id, execution.model.model_id])
+                      ] ?? []
+                    }
+                  />
+                ) : null}
+                {execution?.model.label}
+              </span>
+            }
+            description={
+              <span className="flex flex-wrap gap-3">
+                {execution?.tokens !== undefined ? (
+                  <span>{execution.tokens.toLocaleString()} tokens</span>
+                ) : null}
+                {execution?.tool_calls !== undefined ? (
+                  <span>{execution.tool_calls} tool calls</span>
+                ) : null}
+                {execution?.duration_seconds !== undefined ? (
+                  <span>{formatDurationSeconds(execution.duration_seconds)}</span>
+                ) : null}
+              </span>
+            }
+            tabs={
               <TabsList aria-label="Execution details">
                 <TabsTrigger value="judgment">Judgment</TabsTrigger>
                 <TabsTrigger value="transcript">Transcript</TabsTrigger>
               </TabsList>
-              <TabsContent value="judgment" className="overflow-y-auto">
-                {execution.message ? (
-                  <Alert variant="destructive">
-                    <CircleAlert />
-                    <AlertDescription>{execution.message}</AlertDescription>
-                  </Alert>
-                ) : null}
-                {execution.judgment && execution.score === undefined ? (
-                  <p className="text-muted-foreground py-3 text-sm">
-                    Score unavailable. Measurements are incomplete.
-                  </p>
-                ) : null}
-                {execution.judgment ? (
-                  <div className="flex flex-col gap-5 py-4">
-                    {execution.judge_context_compacted ? (
-                      <Badge variant="secondary">Compacted context</Badge>
+            }
+          >
+            {execution ? (
+              <>
+                <TabsContent value="judgment" className="m-0 h-full overflow-y-auto px-6 py-4">
+                  <div className="max-w-3xl">
+                    {execution.message ? (
+                      <Alert variant="destructive">
+                        <CircleAlert />
+                        <AlertDescription>{execution.message}</AlertDescription>
+                      </Alert>
                     ) : null}
-                    <div className="flex flex-wrap gap-6">
-                      <div>
-                        <p className="text-muted-foreground text-xs">Correctness</p>
-                        <p className="text-2xl tabular-nums">
-                          {execution.judgment.correctness}
-                          <span className="text-muted-foreground text-sm">/4</span>
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground text-xs">Efficiency</p>
-                        <p className="text-2xl tabular-nums">
-                          {execution.judgment.efficiency}
-                          <span className="text-muted-foreground text-sm">/4</span>
-                        </p>
-                      </div>
-                    </div>
-                    <p className="text-sm leading-relaxed">{execution.judgment.summary}</p>
-                    <section>
-                      <h3 className="mb-2 text-sm font-medium">Findings</h3>
-                      <ul className="flex list-disc flex-col gap-3 pl-5 text-sm">
-                        {execution.judgment.evidence.map((item, index) => (
-                          <li key={index} className="leading-relaxed break-words">
-                            {item}
-                            {execution.judgment?.references
-                              ?.filter((item) => item.evidence_index === index)
-                              .map((item) => (
-                                <Button
-                                  key={`${item.session_id}:${item.message_id}:${item.part_id ?? ""}`}
-                                  variant="link"
-                                  size="sm"
-                                  className="ml-1 h-auto p-0 text-xs"
-                                  onClick={() => {
-                                    setReference(item)
-                                    setTab("transcript")
-                                  }}
-                                >
-                                  <ScanSearch /> View step
-                                </Button>
+                    {execution.judgment && execution.score === undefined ? (
+                      <p className="text-muted-foreground py-3 text-sm">
+                        Score unavailable. Measurements are incomplete.
+                      </p>
+                    ) : null}
+                    {execution.judgment ? (
+                      <div className="flex flex-col gap-5 py-4">
+                        {execution.judge_context_compacted ? (
+                          <Badge variant="secondary">Compacted context</Badge>
+                        ) : null}
+                        <div className="flex flex-wrap gap-6">
+                          <div>
+                            <p className="text-muted-foreground text-xs">Correctness</p>
+                            <p className="text-2xl tabular-nums">
+                              {execution.judgment.correctness}
+                              <span className="text-muted-foreground text-sm">/4</span>
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground text-xs">Efficiency</p>
+                            <p className="text-2xl tabular-nums">
+                              {execution.judgment.efficiency}
+                              <span className="text-muted-foreground text-sm">/4</span>
+                            </p>
+                          </div>
+                        </div>
+                        <p className="text-sm leading-relaxed">{execution.judgment.summary}</p>
+                        <section>
+                          <h3 className="mb-2 text-sm font-medium">Findings</h3>
+                          <ul className="flex list-disc flex-col gap-3 pl-5 text-sm">
+                            {execution.judgment.evidence.map((item, index) => (
+                              <li key={index} className="leading-relaxed break-words">
+                                {item}
+                                {execution.judgment?.references
+                                  ?.filter((item) => item.evidence_index === index)
+                                  .map((item) => (
+                                    <Button
+                                      key={`${item.session_id}:${item.message_id}:${item.part_id ?? ""}`}
+                                      variant="link"
+                                      size="sm"
+                                      className="ml-1 h-auto p-0 text-xs"
+                                      onClick={() => {
+                                        setReference(item)
+                                        setTab("transcript")
+                                      }}
+                                    >
+                                      <ScanSearch /> View step
+                                    </Button>
+                                  ))}
+                              </li>
+                            ))}
+                          </ul>
+                        </section>
+                        {execution.judgment.limitations.length ? (
+                          <section>
+                            <h3 className="mb-2 text-sm font-medium">Limitations</h3>
+                            <ul className="text-muted-foreground flex list-disc flex-col gap-2 pl-5 text-sm">
+                              {execution.judgment.limitations.map((item, index) => (
+                                <li key={index}>{item}</li>
                               ))}
-                          </li>
-                        ))}
-                      </ul>
-                    </section>
-                    {execution.judgment.limitations.length ? (
-                      <section>
-                        <h3 className="mb-2 text-sm font-medium">Limitations</h3>
-                        <ul className="text-muted-foreground flex list-disc flex-col gap-2 pl-5 text-sm">
-                          {execution.judgment.limitations.map((item, index) => (
-                            <li key={index}>{item}</li>
-                          ))}
-                        </ul>
-                      </section>
-                    ) : null}
+                            </ul>
+                          </section>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <p className="text-muted-foreground py-6 text-sm">No judgment available</p>
+                    )}
                   </div>
-                ) : (
-                  <p className="text-muted-foreground py-6 text-sm">No judgment available</p>
-                )}
-              </TabsContent>
-              <TabsContent value="transcript" className="min-h-0 overflow-y-auto">
-                {!evidenceReady ? (
-                  <p className="text-muted-foreground py-6 text-sm">
-                    Transcript available after execution.
-                  </p>
-                ) : evidence.isPending ? (
-                  <Skeleton className="mt-3 h-40 motion-reduce:animate-none" />
-                ) : evidence.isError ? (
-                  <Alert variant="destructive">
-                    <CircleAlert />
-                    <AlertDescription className="flex flex-col items-start gap-3">
-                      Could not load transcript.
-                      <Button size="sm" variant="outline" onClick={() => evidence.refetch()}>
-                        Retry
-                      </Button>
-                    </AlertDescription>
-                  </Alert>
-                ) : !recordedExecution?.transcript?.length ? (
-                  <p className="text-muted-foreground py-6 text-sm">No transcript available</p>
-                ) : (
-                  <Transcript sessions={recordedExecution.transcript} reference={reference} />
-                )}
-              </TabsContent>
-            </Tabs>
-          ) : null}
-        </SheetContent>
+                </TabsContent>
+                <TabsContent
+                  value="transcript"
+                  className="m-0 min-h-0 lg:h-full lg:overflow-hidden"
+                >
+                  {!evidenceReady ? (
+                    <p className="text-muted-foreground py-6 text-sm">
+                      Transcript available after execution.
+                    </p>
+                  ) : evidence.isPending ? (
+                    <Skeleton className="mt-3 h-40 motion-reduce:animate-none" />
+                  ) : evidence.isError ? (
+                    <Alert variant="destructive">
+                      <CircleAlert />
+                      <AlertDescription className="flex flex-col items-start gap-3">
+                        Could not load transcript.
+                        <Button size="sm" variant="outline" onClick={() => evidence.refetch()}>
+                          Retry
+                        </Button>
+                      </AlertDescription>
+                    </Alert>
+                  ) : !recordedExecution?.transcript?.length ? (
+                    <p className="text-muted-foreground py-6 text-sm">No transcript available</p>
+                  ) : (
+                    <Transcript sessions={recordedExecution.transcript} reference={reference} />
+                  )}
+                </TabsContent>
+              </>
+            ) : null}
+          </TraceInspectorSheet>
+        </Tabs>
       </Sheet>
     </div>
   )

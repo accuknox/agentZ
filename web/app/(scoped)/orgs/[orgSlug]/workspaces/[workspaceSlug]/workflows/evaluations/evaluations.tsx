@@ -165,7 +165,7 @@ export function Evaluations({
               <CalendarClock className="text-muted-foreground" />
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="popper" align="start">
               <SelectGroup>
                 {history.data.map((item) => (
                   <SelectItem key={item.id} value={item.id}>
@@ -180,7 +180,18 @@ export function Evaluations({
           <span className="text-sm font-medium">Evaluations</span>
         )}
         {evaluation ? (
-          <Badge className="capitalize" variant={active ? "pending" : "outline"}>
+          <Badge
+            className="capitalize"
+            variant={
+              evaluation.state === "completed"
+                ? "success"
+                : evaluation.state === "running"
+                  ? "running"
+                  : evaluation.state === "cancelling"
+                    ? "warning"
+                    : "pending"
+            }
+          >
             {evaluation.state}
           </Badge>
         ) : null}

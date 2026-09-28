@@ -119,4 +119,19 @@ function ChartTooltip(props: React.ComponentProps<typeof RechartsPrimitive.Toolt
   )
 }
 
-export { ChartContainer, ChartTooltip }
+function chartColorProperty(index: number): string {
+  switch (index % 5) {
+    case 0:
+      return "--chart-2"
+    case 1:
+      return "--chart-4"
+    case 2:
+      return "--chart-1"
+    case 3:
+      return "--chart-3"
+    default:
+      return "--chart-5"
+  }
+}
+
+export { ChartContainer, ChartTooltip, chartColorProperty }

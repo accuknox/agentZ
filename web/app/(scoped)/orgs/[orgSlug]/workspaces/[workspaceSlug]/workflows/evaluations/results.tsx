@@ -245,8 +245,10 @@ export function Results({
                     row.run_status === "Unacked"
                       ? "destructive"
                       : row.state === "completed"
-                        ? "outline"
-                        : "secondary"
+                        ? "success"
+                        : row.state === "running" || row.state === "judging"
+                          ? "running"
+                          : "pending"
                   }
                 >
                   {row.state === "running" || row.state === "judging" ? (

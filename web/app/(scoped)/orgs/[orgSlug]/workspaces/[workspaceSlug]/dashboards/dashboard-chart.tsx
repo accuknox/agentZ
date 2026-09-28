@@ -41,6 +41,7 @@ import {
   ChartContainer,
   ChartTooltip,
   chartTooltipStyle,
+  chartColorProperty,
   type ChartConfig,
 } from "@/components/ui/chart"
 import { dayjs } from "@/lib/format"
@@ -647,19 +648,4 @@ function DashboardSankeyNode({
       </text>
     </g>
   )
-}
-
-function chartColorProperty(index: number): string {
-  switch (index % 5) {
-    case 0:
-      return "--chart-2"
-    case 1:
-      return "--chart-4"
-    case 2:
-      return "--chart-1"
-    case 3:
-      return "--chart-3"
-    default:
-      return "--chart-5"
-  }
 }

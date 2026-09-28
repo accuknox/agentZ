@@ -12,16 +12,16 @@ import {
   YAxis,
   ZAxis,
 } from "recharts"
-import { ChartContainer, ChartTooltip } from "@/components/ui/chart"
+import { ChartContainer, ChartTooltip, chartColorProperty } from "@/components/ui/chart"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { BarChart3, ScatterChart as ScatterIcon, Gauge, ScanSearch } from "lucide-react"
 import type { WorkflowEvaluation } from "@/lib/gateway/client"
-import { formatCompactNumber } from "@/lib/format"
+import { formatCompactNumber, formatDurationSeconds } from "@/lib/format"
 
 const resources = [
-  { key: "tokens", label: "Tokens", unit: "tokens" },
-  { key: "tool_calls", label: "Tool calls", unit: "calls" },
-  { key: "duration_seconds", label: "Duration", unit: "s" },
+  { key: "tokens", label: "Tokens" },
+  { key: "tool_calls", label: "Tool calls" },
+  { key: "duration_seconds", label: "Duration" },
 ] as const
 const axis = {
   axisLine: false,
@@ -43,7 +43,7 @@ export function Charts({
     tokens: item.tokens,
     tool_calls: item.tool_calls,
     duration_seconds: item.duration_seconds,
-    color: `color-mix(in oklab, var(--chart-${[2, 4, 1, 3, 5][index % 5]}) 75%, var(--muted-foreground))`,
+    color: `var(${chartColorProperty(index)})`,
     score: item.score === undefined ? undefined : Math.round(item.score * 10) / 10,
     correctness: item.judgment ? item.judgment.correctness * 25 : undefined,
     efficiency: item.judgment ? item.judgment.efficiency * 25 : undefined,
@@ -71,7 +71,7 @@ export function Charts({
             config={{
               score: {
                 label: "Score",
-                color: "color-mix(in oklab, var(--chart-2) 75%, var(--muted-foreground))",
+                color: `var(${chartColorProperty(0)})`,
               },
             }}
             className="h-[calc(20rem-3rem)] w-full p-3"
@@ -84,7 +84,7 @@ export function Charts({
             >
               <CartesianGrid horizontal={false} strokeDasharray="3 5" />
               <XAxis {...axis} type="number" domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} />
-              <YAxis {...axis} type="category" dataKey="name" width={120} tick={{ fontSize: 12 }} />
+              <YAxis {...axis} type="category" dataKey="name" width={120} />
               <ChartTooltip isAnimationActive={false} />
               <Bar
                 dataKey="score"
@@ -140,8 +140,11 @@ export function Charts({
                       type="number"
                       dataKey={resource.key}
                       name={resource.label}
-                      tickFormatter={formatCompactNumber}
-                      label={{ value: resource.unit, position: "insideBottom", offset: -12 }}
+                      tickFormatter={
+                        resource.key === "duration_seconds"
+                          ? formatDurationSeconds
+                          : formatCompactNumber
+                      }
                     />
                     <YAxis
                       {...axis}
@@ -177,33 +180,33 @@ export function Charts({
         </Tabs>
       </section>
       <section className="bg-card min-w-0 overflow-hidden rounded-lg border shadow-[0_1px_2px_color-mix(in_oklab,var(--foreground)_5%,transparent)] xl:col-span-2">
-        <Tabs defaultValue="ratings" className="gap-0">
+        <Tabs defaultValue="scores" className="gap-0">
           <header className="from-card to-muted/20 flex h-12 items-center justify-between gap-2 border-b bg-gradient-to-r px-3.5">
             <h2 className="flex items-center gap-2 text-sm font-semibold">
               <Gauge className="text-muted-foreground size-4" />
               Measurements
             </h2>
             <TabsList aria-label="Measurement charts">
-              <TabsTrigger value="ratings">Ratings</TabsTrigger>
-              <TabsTrigger value="resources">Resources</TabsTrigger>
+              <TabsTrigger value="scores">Scores</TabsTrigger>
+              <TabsTrigger value="usage">Usage</TabsTrigger>
             </TabsList>
           </header>
-          <TabsContent value="ratings">
+          <TabsContent value="scores">
             <ChartContainer
               resizeDebounce={250}
               className="h-[calc(20rem-3rem)] w-full p-3"
               config={{
                 correctness: {
                   label: "Correctness",
-                  color: "color-mix(in oklab, var(--chart-2) 75%, var(--muted-foreground))",
+                  color: `var(${chartColorProperty(0)})`,
                 },
                 efficiency: {
                   label: "Judge efficiency",
-                  color: "color-mix(in oklab, var(--chart-4) 75%, var(--muted-foreground))",
+                  color: `var(${chartColorProperty(1)})`,
                 },
                 measured: {
                   label: "Measured efficiency",
-                  color: "color-mix(in oklab, var(--chart-3) 65%, var(--muted-foreground))",
+                  color: `var(${chartColorProperty(2)})`,
                 },
               }}
             >
@@ -212,7 +215,7 @@ export function Charts({
                 <XAxis {...axis} dataKey="name" />
                 <YAxis {...axis} domain={[0, 100]} width="auto" unit="%" />
                 <ChartTooltip isAnimationActive={false} />
-                <Legend iconSize={8} />
+                <Legend iconSize={8} wrapperStyle={{ paddingTop: 12 }} />
                 <Bar
                   dataKey="correctness"
                   name="Correctness (%)"
@@ -240,7 +243,7 @@ export function Charts({
               </BarChart>
             </ChartContainer>
           </TabsContent>
-          <TabsContent value="resources">
+          <TabsContent value="usage">
             <div className="grid gap-3 p-3 md:grid-cols-3">
               {resources.map((resource) => (
                 <div key={resource.key} className="min-w-0">
@@ -259,7 +262,15 @@ export function Charts({
                     >
                       <CartesianGrid vertical={false} strokeDasharray="3 5" />
                       <XAxis {...axis} dataKey="name" />
-                      <YAxis {...axis} width={42} tickFormatter={formatCompactNumber} />
+                      <YAxis
+                        {...axis}
+                        width="auto"
+                        tickFormatter={
+                          resource.key === "duration_seconds"
+                            ? formatDurationSeconds
+                            : formatCompactNumber
+                        }
+                      />
                       <ChartTooltip isAnimationActive={false} />
                       <Bar
                         dataKey={resource.key}

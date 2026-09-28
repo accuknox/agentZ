@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useParams, usePathname } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { BotIcon, WorkflowIcon } from "lucide-react"
+import { BotIcon, WorkflowIcon, FlaskConical } from "lucide-react"
 import type { Agent, WorkflowSummary } from "@/lib/gateway/client"
 import { useSelectResource } from "@/components/page-selection"
 import {
@@ -85,21 +85,27 @@ export function WorkflowsFilters({
           </SelectContent>
         </Select>
       </div>
-      <Tabs
-        value={pathname.endsWith("/evaluations") ? "evaluations" : "graphs"}
-        className="shrink-0"
-      >
-        <TabsList aria-label="Workflow views">
-          <TabsTrigger value="graphs" asChild>
-            <Link href={`${root}/graphs?${params}`}>Graph</Link>
-          </TabsTrigger>
-          <TabsTrigger value="evaluations" asChild>
-            <Link href={`${root}/evaluations?${params}`}>
-              Evaluations <Badge variant="secondary">Preview</Badge>
-            </Link>
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <div className="flex shrink-0 items-center gap-3">
+        <Tabs
+          value={pathname.endsWith("/evaluations") ? "evaluations" : "graphs"}
+          className="shrink-0"
+        >
+          <TabsList aria-label="Workflow views">
+            <TabsTrigger value="graphs" asChild>
+              <Link href={`${root}/graphs?${params}`}>Graph</Link>
+            </TabsTrigger>
+            <TabsTrigger value="evaluations" asChild>
+              <Link href={`${root}/evaluations?${params}`}>Evaluations</Link>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+        {pathname.endsWith("/evaluations") ? (
+          <Badge variant="plain">
+            <FlaskConical data-icon="inline-start" />
+            Preview
+          </Badge>
+        ) : null}
+      </div>
     </div>
   )
 }

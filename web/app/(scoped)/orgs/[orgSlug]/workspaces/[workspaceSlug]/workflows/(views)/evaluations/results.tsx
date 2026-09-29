@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Sheet } from "@/components/ui/sheet"
-import { TraceInspectorSheet } from "@/components/trace-inspector"
+import { TraceInspectorSheet, TraceInspectorSkeleton } from "@/components/trace-inspector"
 import {
   Dialog,
   DialogContent,
@@ -35,7 +35,7 @@ import { ProviderIcons } from "@/app/(app)/inference/providers/provider-shared"
 import { formatDurationSeconds } from "@/lib/format"
 
 const Transcript = dynamic(() => import("./transcript").then((module) => module.Transcript), {
-  loading: () => <Skeleton className="mt-3 h-80" />,
+  loading: () => <TraceInspectorSkeleton />,
 })
 
 const Charts = dynamic(() => import("./charts").then((module) => module.Charts), {
@@ -446,7 +446,7 @@ export function Results({
                       Transcript available after execution.
                     </p>
                   ) : evidence.isPending ? (
-                    <Skeleton className="mt-3 h-40 motion-reduce:animate-none" />
+                    <TraceInspectorSkeleton />
                   ) : evidence.isError ? (
                     <Alert variant="destructive">
                       <CircleAlert />

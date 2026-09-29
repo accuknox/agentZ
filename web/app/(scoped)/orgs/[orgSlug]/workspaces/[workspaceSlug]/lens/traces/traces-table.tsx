@@ -38,13 +38,14 @@ import { Progress } from "@/components/ui/progress"
 import { Sheet } from "@/components/ui/sheet"
 import {
   TraceInspectorSheet,
+  TraceInspectorSkeleton,
+  TraceContentSkeleton,
   TraceInspectorLayout,
   TraceInspectorRow,
   TraceInspectorDetail,
   TraceTokenMeter,
   TraceContentPanel,
 } from "@/components/trace-inspector"
-import { Skeleton } from "@/components/ui/skeleton"
 import { TelemetryTableSkeleton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/telemetry-table-skeleton"
 import {
   TelemetryTable as SharedTelemetryTable,
@@ -517,7 +518,7 @@ function SpansInspectorContent({
   }, [selectedSpan, startDetailTransition, workspaceId])
 
   if (pending && !data) {
-    return <InspectorSkeleton />
+    return <TraceInspectorSkeleton />
   }
 
   if (error) {
@@ -659,10 +660,7 @@ function SpanDetailViewer({
           <AlertDescription>{error.message}</AlertDescription>
         </Alert>
       ) : pending ? (
-        <div className="flex flex-col gap-5">
-          <Skeleton className="h-44 w-full" />
-          <Skeleton className="h-28 w-full" />
-        </div>
+        <TraceContentSkeleton />
       ) : (
         <SpanJSONSections span={span} detail={detail} trace={trace} />
       )}
@@ -1116,25 +1114,6 @@ function networkProtocol(event: RuntimeTelemetryEventItem) {
 function JSONPanel({ title, rows }: { title: string; rows: [string, string][] }) {
   return (
     <TraceContentPanel title={title} code={JSON.stringify(Object.fromEntries(rows), null, 2)} />
-  )
-}
-
-function InspectorSkeleton() {
-  return (
-    <div className="bg-background grid h-full grid-cols-[360px_1fr]">
-      <div className="border-r p-4">
-        <Skeleton className="h-10 w-40" />
-        <div className="mt-5 flex flex-col gap-3">
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
-        </div>
-      </div>
-      <div className="p-6">
-        <Skeleton className="h-10 w-64" />
-        <Skeleton className="mt-6 h-64 w-full" />
-      </div>
-    </div>
   )
 }
 

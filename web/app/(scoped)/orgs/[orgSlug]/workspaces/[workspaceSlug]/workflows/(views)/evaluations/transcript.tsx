@@ -50,7 +50,6 @@ export function Transcript({
   const session = sessions.find((item) => item.session_id === selection.sessionId) ?? sessions[0]
   if (!session) return <p className="text-muted-foreground p-6 text-sm">No transcript available.</p>
 
-  let stepNumber = 0
   const steps = session.messages.flatMap<TranscriptStep>((message) => {
     const assistant = message.info.role === "assistant" ? message.info : undefined
     const start = message.info.time.created
@@ -59,7 +58,7 @@ export function Transcript({
       {
         id: message.info.id,
         message,
-        label: assistant ? `Step ${++stepNumber}` : "Input",
+        label: assistant ? "Model call" : "Input",
         start,
         end,
         tokens: assistant
@@ -100,6 +99,7 @@ export function Transcript({
   const end = steps.reduce((end, step) => Math.max(end, step.end), start)
   const duration = Math.max(end - start, 1)
   const info = selected?.message.info
+  const toolCalls = selected?.message.parts.filter((part) => part.type === "tool") ?? []
   const missingReference =
     reference &&
     !sessions.some(
@@ -169,7 +169,7 @@ export function Transcript({
                 }
                 selected={selected?.id === step.id}
                 onClick={() => setSelection({ ...selection, stepId: step.id })}
-                depth={step.tool ? 1 : 0}
+                depth={0}
                 duration={formatDurationMs(Math.max(step.end - step.start, 0))}
                 tokens={step.tokens}
                 hasError={
@@ -226,10 +226,27 @@ export function Transcript({
             />
           ) : null}
           {selected
-            ? (selected.tool ? [selected.tool] : selected.message.parts).map((part) => (
+            ? (selected.tool
+                ? [selected.tool]
+                : selected.message.parts.filter((part) => part.type !== "tool")
+              ).map((part) => (
                 <TranscriptPart key={part.id} part={part} role={selected.message.info.role} />
               ))
             : null}
+          {!selected?.tool && toolCalls.length > 0 ? (
+            <TraceContentPanel
+              title="Tool calls"
+              code={JSON.stringify(
+                toolCalls.map((tool) => ({
+                  id: tool.callID,
+                  name: tool.tool,
+                  arguments: tool.state.input,
+                })),
+                null,
+                2
+              )}
+            />
+          ) : null}
           {selected ? (
             <TraceContentPanel
               title="Usage"
@@ -240,8 +257,11 @@ export function Transcript({
                   "part.id": selected.tool?.id,
                   "call.id": selected.tool?.callID,
                   status: selected.tool?.state.status,
-                  model: info?.role === "assistant" ? info.modelID : undefined,
-                  tokens: info?.role === "assistant" ? info.tokens : undefined,
+                  model: !selected.tool && info?.role === "assistant" ? info.modelID : undefined,
+                  provider:
+                    !selected.tool && info?.role === "assistant" ? info.providerID : undefined,
+                  finish: !selected.tool && info?.role === "assistant" ? info.finish : undefined,
+                  tokens: !selected.tool && info?.role === "assistant" ? info.tokens : undefined,
                 },
                 null,
                 2
@@ -304,9 +324,8 @@ function TranscriptPart({ part, role }: { part: Part; role: "user" | "assistant"
     case "compaction":
       return <p className="text-muted-foreground text-xs">Context compacted</p>
     case "step-start":
-      return null
     case "step-finish":
-      return <p className="text-muted-foreground text-xs">Finished · {part.reason}</p>
+      return null
     case "snapshot":
       return <TraceContentPanel title="Snapshot" text={part.snapshot} />
   }

@@ -4,6 +4,7 @@ import { useId, type ReactNode } from "react"
 import { Calendar, CircleAlert, Clock, ServerCrash } from "lucide-react"
 import { SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
 import dynamic from "next/dynamic"
+import { Skeleton } from "@/components/ui/skeleton"
 
 import { formatCompactNumber } from "@/lib/format"
 import { cn } from "@/lib/utils"
@@ -66,6 +67,80 @@ export function TraceInspectorLayout({
         </aside>
         <section className="bg-background min-h-0 min-w-0">{children}</section>
       </div>
+    </div>
+  )
+}
+
+export function TraceInspectorSkeleton() {
+  return (
+    <div
+      role="status"
+      aria-label="Loading trace"
+      className="h-full motion-reduce:[&_[data-slot=skeleton]]:animate-none"
+    >
+      <span className="sr-only">Loading trace</span>
+      <TraceInspectorLayout
+        title={<Skeleton className="h-4 w-20" />}
+        pagination={<Skeleton className="h-4 w-28" />}
+        navigation={Array.from({ length: 6 }, (_, index) => (
+          <div key={index} aria-hidden className="flex flex-col gap-2 px-7 py-3">
+            <div className="flex items-center gap-2">
+              <Skeleton className="size-4" />
+              <Skeleton className={index % 2 === 0 ? "h-4 w-24" : "h-4 w-32"} />
+            </div>
+            <div className="ml-6 flex gap-3">
+              <Skeleton className="h-3 w-12" />
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="h-3 w-12" />
+            </div>
+            <Skeleton className="ml-6 h-0.5" />
+          </div>
+        ))}
+      >
+        <div aria-hidden className="flex flex-col lg:h-full">
+          <div className="bg-muted/10 flex h-10 shrink-0 items-center gap-3 px-4 lg:px-5">
+            <Skeleton className="h-4 w-12" />
+            <Skeleton className="h-4 w-28" />
+          </div>
+          <div className="overflow-hidden px-4 py-4 lg:px-6">
+            <div className="mb-5 flex gap-4">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-4 w-20" />
+            </div>
+            <div className="bg-muted/10 mb-5 flex flex-col gap-3 rounded-md p-4">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-1.5 w-full" />
+              <div className="flex flex-wrap gap-6">
+                {Array.from({ length: 4 }, (_, index) => (
+                  <Skeleton key={index} className="h-3 w-20" />
+                ))}
+              </div>
+            </div>
+            <TraceContentSkeleton />
+          </div>
+        </div>
+      </TraceInspectorLayout>
+    </div>
+  )
+}
+
+export function TraceContentSkeleton() {
+  return (
+    <div
+      aria-hidden
+      className="flex flex-col gap-5 motion-reduce:[&_[data-slot=skeleton]]:animate-none"
+    >
+      {[4, 3].map((lines) => (
+        <div key={lines} className="flex flex-col gap-3">
+          <Skeleton className="my-2 h-4 w-20" />
+          <div className="bg-muted/20 flex flex-col gap-3 rounded-md p-4">
+            {Array.from({ length: lines }, (_, index) => (
+              <Skeleton key={index} className={index === lines - 1 ? "h-3 w-2/3" : "h-3 w-full"} />
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useId, useState } from "react"
 import dynamic from "next/dynamic"
 import { useQuery } from "@tanstack/react-query"
 import { getWorkflowEvaluationOptions } from "@/lib/gateway/client/@tanstack/react-query.gen"
@@ -14,7 +14,13 @@ import {
   Play,
   ScanSearch,
 } from "lucide-react"
-import type { WorkflowEvaluation, EvaluationEvidenceReference } from "@/lib/gateway/client"
+import type {
+  WorkflowEvaluation,
+  EvaluationEvidenceReference,
+  JsonValue,
+} from "@/lib/gateway/client"
+import { Field, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
+import { Textarea } from "@/components/ui/textarea"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
@@ -29,11 +35,7 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Sheet } from "@/components/ui/sheet"
-import {
-  TraceInspectorSheet,
-  TraceInspectorSkeleton,
-  TraceContentPanel,
-} from "@/components/trace-inspector"
+import { TraceInspectorSheet, TraceInspectorSkeleton } from "@/components/trace-inspector"
 import {
   Dialog,
   DialogContent,
@@ -225,11 +227,16 @@ export function Results({
               View inputs
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-2xl" aria-describedby={undefined}>
+          <DialogContent
+            className="max-h-[85dvh] grid-rows-[auto_minmax(0,1fr)] sm:max-w-2xl"
+            aria-describedby={undefined}
+          >
             <DialogHeader>
               <DialogTitle>Evaluation inputs</DialogTitle>
             </DialogHeader>
-            <TraceContentPanel code={JSON.stringify(evaluation.request.inputs, null, 2)} />
+            <div className="min-w-0 overflow-y-auto p-1">
+              <EvaluationInput value={evaluation.request.inputs} />
+            </div>
           </DialogContent>
         </Dialog>
         <Dialog>
@@ -598,5 +605,49 @@ export function Results({
         </Tabs>
       </Sheet>
     </div>
+  )
+}
+
+function EvaluationInput({ label, value }: { label?: string; value: JsonValue }) {
+  const id = useId()
+  if (value !== null && typeof value === "object") {
+    const entries = Array.isArray(value)
+      ? value.map((item, index): [string, JsonValue] => [`Item ${index + 1}`, item])
+      : Object.entries(value)
+    return (
+      <FieldSet className="min-w-0">
+        {label ? (
+          <FieldLegend variant="label" className="wrap-anywhere">
+            {label}
+          </FieldLegend>
+        ) : null}
+        {entries.length ? (
+          <FieldGroup className={label ? "border-l pl-4" : undefined}>
+            {entries.map(([name, item]) => (
+              <EvaluationInput key={name} label={name} value={item} />
+            ))}
+          </FieldGroup>
+        ) : (
+          <p className="text-muted-foreground text-sm">
+            {label ? (Array.isArray(value) ? "No items" : "No fields") : "No inputs"}
+          </p>
+        )}
+      </FieldSet>
+    )
+  }
+  return (
+    <Field>
+      <FieldLabel htmlFor={id} className="wrap-anywhere">
+        {label ?? "Input"}
+      </FieldLabel>
+      <Textarea
+        id={id}
+        readOnly
+        value={typeof value === "boolean" ? (value ? "true" : "false") : (value ?? "")}
+        placeholder={value === null ? "Not provided" : "Empty"}
+        rows={1}
+        className="field-sizing-content min-h-9 resize-none"
+      />
+    </Field>
   )
 }

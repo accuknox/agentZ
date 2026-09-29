@@ -304,22 +304,20 @@ export function TraceContentPanel({
   code,
   text,
 }: {
-  title?: string
+  title: string
 } & ({ code: string; text?: never } | { text: string; code?: never })) {
   return (
     <section>
-      {title ? (
-        <div className="my-2 flex items-center justify-between">
-          {title === "Error" ? (
-            <div className="text-destructive text-sm font-medium">
-              <ServerCrash className="mr-1.5 inline-block" />
-              <span>{title}</span>
-            </div>
-          ) : (
-            <div className="text-sm font-medium">{title}</div>
-          )}
-        </div>
-      ) : null}
+      <div className="my-2 flex items-center justify-between">
+        {title === "Error" ? (
+          <div className="text-destructive text-sm font-medium">
+            <ServerCrash className="mr-1.5 inline-block" />
+            <span>{title}</span>
+          </div>
+        ) : (
+          <div className="text-sm font-medium">{title}</div>
+        )}
+      </div>
       <div className="max-h-100 overflow-auto rounded-md">
         {code !== undefined ? (
           <CodeBlock code={code} language="json" showLineNumbers className="bg-muted/20 border-0" />

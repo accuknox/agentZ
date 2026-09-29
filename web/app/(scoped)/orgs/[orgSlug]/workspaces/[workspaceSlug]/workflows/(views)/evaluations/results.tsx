@@ -646,7 +646,7 @@ function EvaluationInput({ label, value }: { label?: string; value: JsonValue })
         value={typeof value === "boolean" ? (value ? "true" : "false") : (value ?? "")}
         placeholder={value === null ? "Not provided" : "Empty"}
         rows={1}
-        className="bg-muted dark:bg-muted field-sizing-content min-h-0 resize-none rounded-md border-0 p-3 font-mono text-sm"
+        className="bg-muted dark:bg-muted field-sizing-content min-h-0 resize-none rounded-md border-0 p-3 font-mono text-sm focus-visible:ring-0"
       />
     </Field>
   )

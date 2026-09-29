@@ -3673,10 +3673,10 @@ paths:
       operationId: getWorkflowEvaluation
       tags: [workflows]
       parameters:
-      - name: include_transcript
+      - name: transcript_run
         in: query
-        description: Include full native transcripts and workflow run records.
-        schema: {type: boolean, default: false}
+        description: Include native transcripts and the workflow run record for this execution only.
+        schema: {type: string, minLength: 1}
       responses:
         '200':
           description: Execution results, optionally including complete transcripts.

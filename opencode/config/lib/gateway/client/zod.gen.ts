@@ -5494,7 +5494,7 @@ export const zGetWorkflowEvaluationPath = z.object({
 })
 
 export const zGetWorkflowEvaluationQuery = z.object({
-  include_transcript: z.boolean().optional().default(false),
+  transcript_run: z.string().min(1).optional(),
 })
 
 /**

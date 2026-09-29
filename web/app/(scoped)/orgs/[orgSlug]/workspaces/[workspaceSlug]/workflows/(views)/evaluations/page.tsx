@@ -2,12 +2,12 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { Suspense } from "react"
 import * as z from "zod"
-import { AdministrationLoadingState, AdministrationState } from "@/components/administration"
+import { AdministrationState } from "@/components/administration"
 import { RememberPageSelection } from "@/components/page-selection"
 import { resolvePageSelection } from "@/data/page-selection"
 import { getWorkspaceScope } from "@/data/workspaces"
 import { searchParamStringSchema } from "@/lib/search-params"
-import { Evaluations } from "./evaluations"
+import { Evaluations, EvaluationsSkeleton } from "./evaluations"
 
 export const metadata: Metadata = { title: "Workflow evaluations" }
 const searchSchema = z.object({
@@ -19,7 +19,7 @@ export default function EvaluationsPage(
   props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/workflows/evaluations">
 ) {
   return (
-    <Suspense fallback={<AdministrationLoadingState />}>
+    <Suspense fallback={<EvaluationsSkeleton />}>
       <Content {...props} />
     </Suspense>
   )

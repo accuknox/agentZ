@@ -51,7 +51,23 @@ import { Spinner } from "@/components/ui/spinner"
 import { dayjs } from "@/lib/format"
 
 import { ProviderIcons } from "@/app/(app)/inference/providers/provider-shared"
-import { Results } from "./results"
+import { Results, ResultsSkeleton } from "./results"
+
+export function EvaluationsSkeleton() {
+  return (
+    <>
+      <div
+        aria-hidden
+        className="flex flex-wrap items-center gap-2 px-4 pt-4 pb-1 sm:px-6 motion-reduce:[&_[data-slot=skeleton]]:animate-none"
+      >
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-5 w-20 rounded-full" />
+        <Skeleton className="ml-auto h-8 w-32" />
+      </div>
+      <ResultsSkeleton />
+    </>
+  )
+}
 
 export function Evaluations({
   workflow,
@@ -251,10 +267,7 @@ export function Evaluations({
         </Alert>
       ) : null}
       {history.isPending || (id && detail.isPending) ? (
-        <div className="grid gap-4 p-6 md:grid-cols-2">
-          <Skeleton className="h-80" />
-          <Skeleton className="h-80" />
-        </div>
+        <ResultsSkeleton rows={history.data?.find((item) => item.id === id)?.executions.length} />
       ) : evaluation ? (
         <Results
           key={evaluation.id}
@@ -262,11 +275,11 @@ export function Evaluations({
           workspaceId={workspaceId}
           providerBrands={providerBrands}
         />
-      ) : (
+      ) : !history.error && !detail.error ? (
         <div className="text-muted-foreground flex h-48 items-center justify-center text-sm">
           No evaluations yet
         </div>
-      )}
+      ) : null}
       <Sheet
         open={creating || retrying}
         onOpenChange={(open) => {
@@ -282,9 +295,50 @@ export function Evaluations({
             <SheetDescription>{workflow.title}</SheetDescription>
           </SheetHeader>
           {catalog.isPending ? (
-            <div className="grid gap-4 p-4">
-              <Skeleton className="h-8" />
-              <Skeleton className="h-8" />
+            <div
+              role="status"
+              aria-label="Loading models"
+              className="flex min-h-0 flex-1 flex-col motion-reduce:[&_[data-slot=skeleton]]:animate-none"
+            >
+              <div aria-hidden className="flex-1 overflow-y-auto px-4 pb-4">
+                <FieldGroup>
+                  {!retrying ? (
+                    <Field>
+                      <FieldLabel>Models</FieldLabel>
+                      <Skeleton className="h-8 w-full" />
+                    </Field>
+                  ) : null}
+                  <Field>
+                    <FieldLabel>
+                      <Scale className="text-muted-foreground size-4" />
+                      Judge
+                    </FieldLabel>
+                    <Skeleton className="h-8 w-full" />
+                    <FieldDescription>Use your strongest model.</FieldDescription>
+                  </Field>
+                  {!retrying && workflow.arbitrary_json ? (
+                    <Field>
+                      <FieldLabel>Inputs</FieldLabel>
+                      <Skeleton className="h-36 w-full" />
+                    </Field>
+                  ) : null}
+                  {!retrying && !workflow.arbitrary_json
+                    ? Object.entries(workflow.inputs ?? {}).map(([name, input]) => (
+                        <Field key={name}>
+                          <FieldLabel required={input.required}>{name}</FieldLabel>
+                          <Skeleton className="h-8 w-full" />
+                          {input.description ? (
+                            <FieldDescription>{input.description}</FieldDescription>
+                          ) : null}
+                        </Field>
+                      ))
+                    : null}
+                </FieldGroup>
+              </div>
+              <SheetFooter aria-hidden className="border-t">
+                <Skeleton className="h-3 w-64" />
+                <Skeleton className="h-8 w-full" />
+              </SheetFooter>
             </div>
           ) : catalog.error ? (
             <Alert variant="destructive" className="mx-4 w-auto">

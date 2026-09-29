@@ -148,6 +148,10 @@ func (s *Service) CreateWorkflowEvaluation(w http.ResponseWriter, r *http.Reques
 		apiutil.WriteInternalError(w, r, err)
 		return
 	}
+	for i := range result.Executions {
+		result.Executions[i].Transcript = nil
+		result.Executions[i].Run = nil
+	}
 	apiutil.WriteJSON(w, http.StatusAccepted, result)
 }
 
@@ -224,12 +228,16 @@ func (s *Service) GetWorkflowEvaluation(w http.ResponseWriter, r *http.Request, 
 		apiutil.WriteError(w, r, apiErr)
 		return
 	}
+	transcriptRun := ""
+	if params.TranscriptRun != nil {
+		transcriptRun = *params.TranscriptRun
+	}
 	row, err := workflowdb.New(s.db).RunEvaluationView(r.Context(), workflowdb.RunEvaluationViewParams{
-		ID:                id,
-		IncludeTranscript: params.IncludeTranscript != nil && *params.IncludeTranscript,
-		TenantNamespace:   access.namespace,
-		AgentName:         agentName,
-		WorkflowName:      workflowName,
+		ID:              id,
+		TranscriptRun:   transcriptRun,
+		TenantNamespace: access.namespace,
+		AgentName:       agentName,
+		WorkflowName:    workflowName,
 	})
 	if err != nil {
 		apiutil.WriteError(w, r, mapGatewayStoreError("get evaluation", err))
@@ -290,6 +298,10 @@ func (s *Service) UpdateWorkflowEvaluation(w http.ResponseWriter, r *http.Reques
 			return
 		}
 		result.State = gatewayapi.WorkflowEvaluationStateCancelling
+		for i := range result.Executions {
+			result.Executions[i].Transcript = nil
+			result.Executions[i].Run = nil
+		}
 		apiutil.WriteJSON(w, 200, result)
 		return
 	}
@@ -347,6 +359,10 @@ func (s *Service) UpdateWorkflowEvaluation(w http.ResponseWriter, r *http.Reques
 	if affected == 0 {
 		apiutil.WriteError(w, r, apiutil.NewError(409, "conflict", "Evaluation changed. Refresh and try again.", nil))
 		return
+	}
+	for i := range result.Executions {
+		result.Executions[i].Transcript = nil
+		result.Executions[i].Run = nil
 	}
 	apiutil.WriteJSON(w, 200, result)
 }

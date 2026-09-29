@@ -168,8 +168,8 @@ func (q *Queries) RunEvaluationGet(ctx context.Context, arg RunEvaluationGetPara
 }
 
 const runEvaluationList = `-- name: RunEvaluationList :many
-SELECT (result - 'workflow' - 'request' - 'executions' || jsonb_build_object('judge', result->'request'->'judge', 'state', CASE WHEN cancel_requested AND state <> 'cancelled' THEN 'cancelling' ELSE state END, 'executions',
-  (SELECT jsonb_agg(e - 'transcript' - 'run') FROM jsonb_array_elements(result->'executions') AS e)))::jsonb AS summary
+SELECT (result - ARRAY['workflow', 'request', 'executions'] || jsonb_build_object('judge', result->'request'->'judge', 'state', CASE WHEN cancel_requested AND state <> 'cancelled' THEN 'cancelling' ELSE state END, 'executions',
+  (SELECT jsonb_agg(e - ARRAY['transcript', 'run']) FROM jsonb_array_elements(result->'executions') AS e)))::jsonb AS summary
 FROM workflow_run_evaluations WHERE tenant_namespace=$1 AND agent_name=$2 AND workflow_name=$3
 ORDER BY created_at DESC LIMIT 50
 `
@@ -259,20 +259,21 @@ func (q *Queries) RunEvaluationSave(ctx context.Context, arg RunEvaluationSavePa
 
 const runEvaluationView = `-- name: RunEvaluationView :one
 SELECT state, cancel_requested,
-  (result || jsonb_build_object('executions',
-    (SELECT jsonb_agg(CASE WHEN $1::boolean THEN e ELSE e - 'transcript' - 'run' END)
-     FROM jsonb_array_elements(result->'executions') AS e)))::jsonb AS result
+  jsonb_set(result, '{executions}',
+    (SELECT jsonb_agg(CASE WHEN e->>'run_name' = $1::text
+      THEN e ELSE e - ARRAY['transcript', 'run'] END)
+     FROM jsonb_array_elements(result->'executions') AS e))::jsonb AS result
 FROM workflow_run_evaluations
 WHERE id=$2 AND tenant_namespace=$3
   AND agent_name=$4 AND workflow_name=$5
 `
 
 type RunEvaluationViewParams struct {
-	IncludeTranscript bool      `json:"include_transcript"`
-	ID                uuid.UUID `json:"id"`
-	TenantNamespace   string    `json:"tenant_namespace"`
-	AgentName         string    `json:"agent_name"`
-	WorkflowName      string    `json:"workflow_name"`
+	TranscriptRun   string    `json:"transcript_run"`
+	ID              uuid.UUID `json:"id"`
+	TenantNamespace string    `json:"tenant_namespace"`
+	AgentName       string    `json:"agent_name"`
+	WorkflowName    string    `json:"workflow_name"`
 }
 
 type RunEvaluationViewRow struct {
@@ -283,7 +284,7 @@ type RunEvaluationViewRow struct {
 
 func (q *Queries) RunEvaluationView(ctx context.Context, arg RunEvaluationViewParams) (RunEvaluationViewRow, error) {
 	row := q.db.QueryRow(ctx, runEvaluationView,
-		arg.IncludeTranscript,
+		arg.TranscriptRun,
 		arg.ID,
 		arg.TenantNamespace,
 		arg.AgentName,

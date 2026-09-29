@@ -4,7 +4,16 @@ import { useState } from "react"
 import dynamic from "next/dynamic"
 import { useQuery } from "@tanstack/react-query"
 import { getWorkflowEvaluationOptions } from "@/lib/gateway/client/@tanstack/react-query.gen"
-import { Scale, CircleAlert, FunctionSquare, Check, Clock3, Play, ScanSearch } from "lucide-react"
+import {
+  Scale,
+  CircleAlert,
+  FunctionSquare,
+  FileInput,
+  Check,
+  Clock3,
+  Play,
+  ScanSearch,
+} from "lucide-react"
 import type { WorkflowEvaluation, EvaluationEvidenceReference } from "@/lib/gateway/client"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -20,7 +29,11 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Sheet } from "@/components/ui/sheet"
-import { TraceInspectorSheet, TraceInspectorSkeleton } from "@/components/trace-inspector"
+import {
+  TraceInspectorSheet,
+  TraceInspectorSkeleton,
+  TraceContentPanel,
+} from "@/components/trace-inspector"
 import {
   Dialog,
   DialogContent,
@@ -33,20 +46,126 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Spinner } from "@/components/ui/spinner"
 import { ProviderIcons } from "@/app/(app)/inference/providers/provider-shared"
 import { formatDurationSeconds } from "@/lib/format"
+import { cn } from "@/lib/utils"
 
 const Transcript = dynamic(() => import("./transcript").then((module) => module.Transcript), {
   loading: () => <TraceInspectorSkeleton />,
 })
 
 const Charts = dynamic(() => import("./charts").then((module) => module.Charts), {
-  loading: () => (
-    <div className="grid gap-2 p-2 md:grid-cols-2">
-      <Skeleton className="h-80 motion-reduce:animate-none" />
-      <Skeleton className="h-80 motion-reduce:animate-none" />
-    </div>
-  ),
+  loading: () => <ChartsSkeleton />,
   ssr: false,
 })
+
+const resultColumns = [
+  "Model",
+  "Status",
+  "Score",
+  "Correctness",
+  "Judge efficiency",
+  "Measured efficiency",
+  "Tokens",
+  "Calls",
+  "Duration",
+]
+
+export function ResultsSkeleton({ rows = 2 }: { rows?: number }) {
+  return (
+    <div
+      role="status"
+      aria-label="Loading evaluation"
+      className="motion-reduce:[&_[data-slot=skeleton]]:animate-none"
+    >
+      <div aria-hidden className="flex items-center gap-3 px-4 py-3 sm:px-6">
+        <Skeleton className="size-4" />
+        <Skeleton className="h-4 w-36" />
+        <Skeleton className="ml-auto h-8 w-24" />
+      </div>
+      <Table aria-hidden>
+        <TableHeader>
+          <TableRow>
+            {resultColumns.map((name, index) => (
+              <TableHead key={name} className={index > 1 ? "text-right" : undefined}>
+                {name}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {Array.from({ length: rows }, (_, row) => (
+            <TableRow key={row}>
+              {resultColumns.map((name, index) => (
+                <TableCell key={name}>
+                  <Skeleton
+                    className={
+                      index === 0
+                        ? "h-4 w-36"
+                        : index === 1
+                          ? "h-5 w-20 rounded-full"
+                          : "ml-auto h-4 w-12"
+                    }
+                  />
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      <ChartsSkeleton />
+    </div>
+  )
+}
+
+function ChartsSkeleton() {
+  return (
+    <div
+      aria-hidden
+      className="bg-muted/30 grid min-w-0 grid-cols-1 gap-2 p-2 xl:grid-cols-2 motion-reduce:[&_[data-slot=skeleton]]:animate-none"
+    >
+      {["Score", "Score vs. usage", "Model comparison"].map((title, index) => (
+        <section
+          key={title}
+          className={
+            index === 2
+              ? "bg-card h-80 overflow-hidden rounded-lg border xl:col-span-2"
+              : "bg-card h-80 overflow-hidden rounded-lg border"
+          }
+        >
+          <header className="from-card to-muted/20 flex h-12 items-center gap-2.5 border-b bg-gradient-to-r px-3.5">
+            <Skeleton className="size-4" />
+            <h2 className="text-sm font-semibold">{title}</h2>
+            {index > 0 ? <Skeleton className="ml-auto h-7 w-32" /> : null}
+          </header>
+          <div className="flex h-[calc(20rem-3rem)] flex-col gap-3 p-6">
+            <div className="relative min-h-0 flex-1 border-b border-l">
+              {index === 0 ? (
+                <div className="flex h-full flex-col justify-around py-4">
+                  <Skeleton className="h-6 w-3/4 rounded-l-none" />
+                  <Skeleton className="h-6 w-2/3 rounded-l-none" />
+                </div>
+              ) : index === 1 ? (
+                <>
+                  <Skeleton className="absolute top-1/4 left-2/3 size-3 rounded-full" />
+                  <Skeleton className="absolute top-1/3 left-1/2 size-3 rounded-full" />
+                </>
+              ) : (
+                <div className="flex h-full items-end justify-around gap-6 px-6">
+                  {["h-2/3", "h-1/2", "h-3/4", "h-1/3"].map((height) => (
+                    <Skeleton key={height} className={cn("w-6 rounded-b-none", height)} />
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex justify-center gap-4">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-3 w-20" />
+            </div>
+          </div>
+        </section>
+      ))}
+    </div>
+  )
+}
 
 export function Results({
   evaluation,
@@ -70,7 +189,7 @@ export function Results({
         workflowName: evaluation.workflow.workflow_name,
         evaluationId: evaluation.id,
       },
-      query: { include_transcript: true },
+      query: { transcript_run: selected },
     }),
     enabled: !!evidenceReady && tab === "transcript",
   })
@@ -102,6 +221,20 @@ export function Results({
         <Dialog>
           <DialogTrigger asChild>
             <Button variant="ghost" size="sm" className="ml-auto">
+              <FileInput />
+              View inputs
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-2xl" aria-describedby={undefined}>
+            <DialogHeader>
+              <DialogTitle>Evaluation inputs</DialogTitle>
+            </DialogHeader>
+            <TraceContentPanel code={JSON.stringify(evaluation.request.inputs, null, 2)} />
+          </DialogContent>
+        </Dialog>
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button variant="ghost" size="sm">
               <FunctionSquare />
               Scoring
             </Button>
@@ -214,15 +347,11 @@ export function Results({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Model</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Score</TableHead>
-            <TableHead className="text-right">Correctness</TableHead>
-            <TableHead className="text-right">Judge efficiency</TableHead>
-            <TableHead className="text-right">Measured efficiency</TableHead>
-            <TableHead className="text-right">Tokens</TableHead>
-            <TableHead className="text-right">Calls</TableHead>
-            <TableHead className="text-right">Duration</TableHead>
+            {resultColumns.map((name, index) => (
+              <TableHead key={name} className={index > 1 ? "text-right" : undefined}>
+                {name}
+              </TableHead>
+            ))}
           </TableRow>
         </TableHeader>
         <TableBody>

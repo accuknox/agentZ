@@ -42794,12 +42794,12 @@ paths:
     get:
       operationId: getWorkflowEvaluation
       parameters:
-      - description: Include full native transcripts and workflow run records.
+      - description: Include native transcripts and the workflow run record for this execution only.
         in: query
-        name: include_transcript
+        name: transcript_run
         schema:
-          default: false
-          type: boolean
+          minLength: 1
+          type: string
       responses:
         "200":
           content:

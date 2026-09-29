@@ -9639,9 +9639,9 @@ export type GetWorkflowEvaluationData = {
   }
   query?: {
     /**
-     * Include full native transcripts and workflow run records.
+     * Include native transcripts and the workflow run record for this execution only.
      */
-    include_transcript?: boolean
+    transcript_run?: string
   }
   url: "/api/workflow/{agentName}/{workflowName}/evaluation/{evaluationId}"
 }

@@ -240,16 +240,17 @@ SELECT * FROM workflow_run_evaluations WHERE id=$1 AND tenant_namespace=$2 AND a
 
 -- name: RunEvaluationView :one
 SELECT state, cancel_requested,
-  (result || jsonb_build_object('executions',
-    (SELECT jsonb_agg(CASE WHEN sqlc.arg(include_transcript)::boolean THEN e ELSE e - 'transcript' - 'run' END)
-     FROM jsonb_array_elements(result->'executions') AS e)))::jsonb AS result
+  jsonb_set(result, '{executions}',
+    (SELECT jsonb_agg(CASE WHEN e->>'run_name' = sqlc.arg(transcript_run)::text
+      THEN e ELSE e - ARRAY['transcript', 'run'] END)
+     FROM jsonb_array_elements(result->'executions') AS e))::jsonb AS result
 FROM workflow_run_evaluations
 WHERE id=sqlc.arg(id) AND tenant_namespace=sqlc.arg(tenant_namespace)
   AND agent_name=sqlc.arg(agent_name) AND workflow_name=sqlc.arg(workflow_name);
 
 -- name: RunEvaluationList :many
-SELECT (result - 'workflow' - 'request' - 'executions' || jsonb_build_object('judge', result->'request'->'judge', 'state', CASE WHEN cancel_requested AND state <> 'cancelled' THEN 'cancelling' ELSE state END, 'executions',
-  (SELECT jsonb_agg(e - 'transcript' - 'run') FROM jsonb_array_elements(result->'executions') AS e)))::jsonb AS summary
+SELECT (result - ARRAY['workflow', 'request', 'executions'] || jsonb_build_object('judge', result->'request'->'judge', 'state', CASE WHEN cancel_requested AND state <> 'cancelled' THEN 'cancelling' ELSE state END, 'executions',
+  (SELECT jsonb_agg(e - ARRAY['transcript', 'run']) FROM jsonb_array_elements(result->'executions') AS e)))::jsonb AS summary
 FROM workflow_run_evaluations WHERE tenant_namespace=$1 AND agent_name=$2 AND workflow_name=$3
 ORDER BY created_at DESC LIMIT 50;
 

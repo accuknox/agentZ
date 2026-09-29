@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import {
   Bar,
   BarChart,
@@ -37,6 +38,8 @@ export function Charts({
   executions: WorkflowEvaluation["executions"]
   pending: boolean
 }) {
+  const [resourceKey, setResourceKey] = useState("tokens")
+  const resource = resources.find((item) => item.key === resourceKey) ?? resources[0]
   const rows = executions.map((item, index) => ({
     run_name: item.run_name,
     name: item.model.label,
@@ -110,7 +113,7 @@ export function Charts({
         className="bg-card min-w-0 overflow-hidden rounded-lg border shadow-[0_1px_2px_color-mix(in_oklab,var(--foreground)_5%,transparent)]"
         aria-label="Score and resource tradeoffs"
       >
-        <Tabs defaultValue="tokens" className="gap-0">
+        <Tabs value={resourceKey} onValueChange={setResourceKey} className="gap-0">
           <div className="from-card to-muted/20 flex h-12 items-center justify-between gap-2 border-b bg-gradient-to-r px-3.5">
             <h2 className="flex items-center gap-2 text-sm font-semibold">
               <ScatterIcon className="text-muted-foreground size-4" />
@@ -122,61 +125,59 @@ export function Charts({
               <TabsTrigger value="duration_seconds">Time</TabsTrigger>
             </TabsList>
           </div>
-          {resources.map((resource) => (
-            <TabsContent key={resource.key} value={resource.key}>
-              {ranked.some((row) => row[resource.key] !== undefined) ? (
-                <ChartContainer
-                  resizeDebounce={250}
-                  config={{ score: { label: "Score" } }}
-                  className="h-[calc(20rem-3rem)] w-full p-3"
+          <TabsContent value={resource.key}>
+            {ranked.some((row) => row[resource.key] !== undefined) ? (
+              <ChartContainer
+                resizeDebounce={250}
+                config={{ score: { label: "Score" } }}
+                className="h-[calc(20rem-3rem)] w-full p-3"
+              >
+                <ScatterChart
+                  margin={{ left: 0, right: 20, bottom: 20, top: 8 }}
+                  accessibilityLayer
                 >
-                  <ScatterChart
-                    margin={{ left: 0, right: 20, bottom: 20, top: 8 }}
-                    accessibilityLayer
-                  >
-                    <CartesianGrid strokeDasharray="3 5" />
-                    <XAxis
-                      {...axis}
-                      type="number"
-                      dataKey={resource.key}
-                      name={resource.label}
-                      tickFormatter={
-                        resource.key === "duration_seconds"
-                          ? formatDurationSeconds
-                          : formatCompactNumber
-                      }
-                    />
-                    <YAxis
-                      {...axis}
-                      type="number"
-                      dataKey="score"
-                      name="Score"
-                      domain={[0, 100]}
-                      width={36}
-                    />
-                    <ZAxis range={[75, 75]} />
-                    <ChartTooltip cursor={{ strokeDasharray: "3 3" }} isAnimationActive={false} />
-                    {ranked
-                      .filter((row) => row[resource.key] !== undefined)
-                      .map((row) => (
-                        <Scatter
-                          key={row.run_name}
-                          name={row.name}
-                          data={[row]}
-                          fill={row.color}
-                          isAnimationActive={false}
-                        />
-                      ))}
-                    <Legend iconSize={8} wrapperStyle={{ paddingTop: 12 }} />
-                  </ScatterChart>
-                </ChartContainer>
-              ) : (
-                <div className="text-muted-foreground flex h-[calc(20rem-3rem)] flex-col items-center justify-center gap-3 text-sm">
-                  No scored measurements
-                </div>
-              )}
-            </TabsContent>
-          ))}
+                  <CartesianGrid strokeDasharray="3 5" />
+                  <XAxis
+                    {...axis}
+                    type="number"
+                    dataKey={resource.key}
+                    name={resource.label}
+                    tickFormatter={
+                      resource.key === "duration_seconds"
+                        ? formatDurationSeconds
+                        : formatCompactNumber
+                    }
+                  />
+                  <YAxis
+                    {...axis}
+                    type="number"
+                    dataKey="score"
+                    name="Score"
+                    domain={[0, 100]}
+                    width={36}
+                  />
+                  <ZAxis range={[75, 75]} />
+                  <ChartTooltip cursor={{ strokeDasharray: "3 3" }} isAnimationActive={false} />
+                  {ranked
+                    .filter((row) => row[resource.key] !== undefined)
+                    .map((row) => (
+                      <Scatter
+                        key={row.run_name}
+                        name={row.name}
+                        data={[row]}
+                        fill={row.color}
+                        isAnimationActive={false}
+                      />
+                    ))}
+                  <Legend iconSize={8} wrapperStyle={{ paddingTop: 12 }} />
+                </ScatterChart>
+              </ChartContainer>
+            ) : (
+              <div className="text-muted-foreground flex h-[calc(20rem-3rem)] flex-col items-center justify-center gap-3 text-sm">
+                No scored measurements
+              </div>
+            )}
+          </TabsContent>
         </Tabs>
       </section>
       <section className="bg-card min-w-0 overflow-hidden rounded-lg border shadow-[0_1px_2px_color-mix(in_oklab,var(--foreground)_5%,transparent)] xl:col-span-2">

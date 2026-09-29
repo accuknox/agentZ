@@ -1,7 +1,6 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { Suspense } from "react"
-import { AdministrationLoadingState } from "@/components/administration"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import * as z from "zod"
 import Workflow from "@/components/blocks/workflow/workflow"
@@ -25,7 +24,7 @@ export default function WorkflowsPage(
   props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/workflows/graphs">
 ) {
   return (
-    <Suspense fallback={<AdministrationLoadingState />}>
+    <Suspense fallback={<CanvasSkeleton />}>
       <WorkspaceWorkflows {...props} />
     </Suspense>
   )
@@ -69,7 +68,11 @@ async function WorkflowContent({ selection }: { selection: Promise<ResolvedPageS
 
 function CanvasSkeleton() {
   return (
-    <div className="bg-sidebar relative flex min-h-0 flex-1 overflow-hidden border-t">
+    <div
+      role="status"
+      aria-label="Loading workflow"
+      className="bg-sidebar relative flex min-h-0 flex-1 overflow-hidden border-t motion-reduce:[&_[data-slot=skeleton]]:animate-none"
+    >
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle,var(--color-sidebar-border)_1px,transparent_1px)] bg-size-[14px_14px] opacity-35" />
         <div className="from-background/22 absolute inset-x-0 top-0 h-32 bg-linear-to-b to-transparent" />

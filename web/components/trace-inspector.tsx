@@ -9,8 +9,21 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { formatCompactNumber } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
-const CodeBlock = dynamic(() =>
-  import("@/components/ai-elements/code-block").then((module) => module.CodeBlock)
+const CodeBlock = dynamic(
+  () => import("@/components/ai-elements/code-block").then((module) => module.CodeBlock),
+  {
+    loading: () => (
+      <div
+        aria-label="Loading code"
+        role="status"
+        className="bg-muted/20 flex flex-col gap-3 p-4 motion-reduce:[&_[data-slot=skeleton]]:animate-none"
+      >
+        {["w-4/5", "w-2/3", "w-3/4", "w-1/2"].map((width) => (
+          <Skeleton key={width} className={cn("h-3", width)} />
+        ))}
+      </div>
+    ),
+  }
 )
 
 export function TraceInspectorSheet({
@@ -291,20 +304,22 @@ export function TraceContentPanel({
   code,
   text,
 }: {
-  title: string
+  title?: string
 } & ({ code: string; text?: never } | { text: string; code?: never })) {
   return (
     <section>
-      <div className="my-2 flex items-center justify-between">
-        {title === "Error" ? (
-          <div className="text-destructive text-sm font-medium">
-            <ServerCrash className="mr-1.5 inline-block" />
-            <span>{title}</span>
-          </div>
-        ) : (
-          <div className="text-sm font-medium">{title}</div>
-        )}
-      </div>
+      {title ? (
+        <div className="my-2 flex items-center justify-between">
+          {title === "Error" ? (
+            <div className="text-destructive text-sm font-medium">
+              <ServerCrash className="mr-1.5 inline-block" />
+              <span>{title}</span>
+            </div>
+          ) : (
+            <div className="text-sm font-medium">{title}</div>
+          )}
+        </div>
+      ) : null}
       <div className="max-h-100 overflow-auto rounded-md">
         {code !== undefined ? (
           <CodeBlock code={code} language="json" showLineNumbers className="bg-muted/20 border-0" />

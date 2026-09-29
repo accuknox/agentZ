@@ -184,9 +184,9 @@ export function Charts({
           <header className="from-card to-muted/20 flex h-12 items-center justify-between gap-2 border-b bg-gradient-to-r px-3.5">
             <h2 className="flex items-center gap-2 text-sm font-semibold">
               <Gauge className="text-muted-foreground size-4" />
-              Measurements
+              Model comparison
             </h2>
-            <TabsList aria-label="Measurement charts">
+            <TabsList aria-label="Model comparison charts">
               <TabsTrigger value="scores">Scores</TabsTrigger>
               <TabsTrigger value="usage">Usage</TabsTrigger>
             </TabsList>

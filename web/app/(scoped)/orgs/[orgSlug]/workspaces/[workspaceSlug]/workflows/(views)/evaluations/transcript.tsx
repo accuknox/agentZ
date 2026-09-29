@@ -50,6 +50,7 @@ export function Transcript({
   const session = sessions.find((item) => item.session_id === selection.sessionId) ?? sessions[0]
   if (!session) return <p className="text-muted-foreground p-6 text-sm">No transcript available.</p>
 
+  let stepNumber = 0
   const steps = session.messages.flatMap<TranscriptStep>((message) => {
     const assistant = message.info.role === "assistant" ? message.info : undefined
     const start = message.info.time.created
@@ -58,7 +59,7 @@ export function Transcript({
       {
         id: message.info.id,
         message,
-        label: assistant?.modelID ?? "Input",
+        label: assistant ? `Step ${++stepNumber}` : "Input",
         start,
         end,
         tokens: assistant

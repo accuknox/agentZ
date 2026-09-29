@@ -1046,7 +1046,9 @@ func (s *Service) tenantScopeForNamespace(ctx context.Context, namespace string)
 	if err != nil {
 		return nil, "", err
 	}
-	if tenant.Spec.OrganizationID != workspace.Spec.OrganizationID || tenant.Status.Namespace != tenant.Name {
+	scopeMismatch := tenant.Spec.OrganizationID != workspace.Spec.OrganizationID ||
+		tenant.Status.Namespace != tenant.Name
+	if scopeMismatch {
 		return nil, "", apierrors.NewNotFound(
 			agentzv1alpha1.Resource("tenant"),
 			tenantName,

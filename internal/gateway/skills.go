@@ -1304,7 +1304,10 @@ func (s *Service) importImmutableSkills(ctx context.Context, bundle skill.Bundle
 				errBadRequest,
 			)
 		}
-		if action == skill.DecisionOverwrite && !canModify && current.Spec.CreatedByUserID != access.claims.UserID {
+		overwriteDenied := action == skill.DecisionOverwrite &&
+			!canModify &&
+			current.Spec.CreatedByUserID != access.claims.UserID
+		if overwriteDenied {
 			eventTrailAccess := access
 			eventTrailAccess.operation = authorization.OperationUpdateSkill
 			err := s.createSkillEventTrail(ctx, eventTrailAccess, tree.Name, gatewaydb.EventTrailResultDenied)

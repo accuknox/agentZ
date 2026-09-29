@@ -163,7 +163,8 @@ func (s *Service) agentOperationAllowed(ctx context.Context, access resourceAcce
 	if operation == authorization.OperationCreateAgent {
 		return access.effective.Allows(scope, operation), nil
 	}
-	if operation == authorization.OperationListAgents || operation == authorization.OperationWatchAgents {
+	switch operation {
+	case authorization.OperationListAgents, authorization.OperationWatchAgents:
 		return access.effective.HasAccess(scope), nil
 	}
 	if name == "" || !access.effective.HasAccess(scope) {
@@ -331,7 +332,10 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	auth, _ := requestAuthState(r.Context())
-	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding && req.Memory != nil && req.Memory.Enabled {
+	codingMemoryEnabled := auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding &&
+		req.Memory != nil &&
+		req.Memory.Enabled
+	if codingMemoryEnabled {
 		apiutil.WriteError(w, r, apiutil.NewError(
 			http.StatusForbidden,
 			"feature_disabled",
@@ -585,7 +589,10 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 	ns := access.namespace
 
 	auth, _ := requestAuthState(r.Context())
-	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding && req.Memory != nil && req.Memory.Enabled {
+	codingMemoryEnabled := auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding &&
+		req.Memory != nil &&
+		req.Memory.Enabled
+	if codingMemoryEnabled {
 		apiutil.WriteError(w, r, apiutil.NewError(
 			http.StatusForbidden,
 			"feature_disabled",

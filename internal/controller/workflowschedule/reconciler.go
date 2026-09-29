@@ -255,6 +255,9 @@ func (r *Reconciler) pruneRuns(ctx context.Context, schedule *agentzv1alpha1.Wor
 		}
 	}
 
+	newerFirst := func(left, right agentzv1alpha1.WorkflowRun) int {
+		return right.CreationTimestamp.Compare(left.CreationTimestamp.Time)
+	}
 	slices.SortFunc(successful, newerFirst)
 	slices.SortFunc(failed, newerFirst)
 
@@ -326,8 +329,4 @@ func (r *Reconciler) updateStatus(ctx context.Context, schedule *agentzv1alpha1.
 	patch := client.MergeFrom(current.DeepCopy())
 	current.Status = *status
 	return r.Status().Patch(ctx, current, patch)
-}
-
-func newerFirst(left, right agentzv1alpha1.WorkflowRun) int {
-	return right.CreationTimestamp.Compare(left.CreationTimestamp.Time)
 }

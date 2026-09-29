@@ -402,8 +402,7 @@ function EvaluationForm({
   const [errors, setErrors] = useState<APIFieldError[]>([])
   const [failure, setFailure] = useState<string>()
   const [pending, setPending] = useState(false)
-  const requestId = useRef<string>(undefined)
-  const submitted = useRef<string>(undefined)
+  const request = useRef<{ id: string; body: string }>(undefined)
   const busy = useRef(false)
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -460,14 +459,13 @@ function EvaluationForm({
       if (!parsed.success) return
       const body = { inputs: parsed.data ?? null, models: chosen, judge }
       const identity = JSON.stringify(body)
-      if (submitted.current !== identity) {
-        submitted.current = identity
-        requestId.current = crypto.randomUUID()
+      if (request.current?.body !== identity) {
+        request.current = { id: crypto.randomUUID(), body: identity }
       }
       const { data, error } = await createWorkflowEvaluation({
         headers,
         path,
-        body: { ...body, id: requestId.current ?? crypto.randomUUID() },
+        body: { ...body, id: request.current.id },
       })
       if (error) {
         setErrors(error.errors ?? [])

@@ -466,7 +466,9 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 		if err := r.Get(ctx, client.ObjectKeyFromObject(run), current); err != nil {
 			return err
 		}
-		if !current.DeletionTimestamp.IsZero() || current.Status.Phase != agentzv1alpha1.WorkflowRunPhasePending {
+		noLongerPending := !current.DeletionTimestamp.IsZero() ||
+			current.Status.Phase != agentzv1alpha1.WorkflowRunPhasePending
+		if noLongerPending {
 			return errors.New("workflow run is no longer pending")
 		}
 		patch := client.MergeFromWithOptions(current.DeepCopy(), client.MergeFromWithOptimisticLock{})

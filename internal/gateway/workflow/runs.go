@@ -268,12 +268,11 @@ func PatchRunStatus(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 				return ErrWorkflowRunScopeMismatch
 			}
 
-			if current.Status.Phase.Terminal() && current.Status.Phase == phase && current.Status.Message == msg {
-				resultErr = nil
-				return nil
-			}
 			if current.Status.Phase.Terminal() {
 				resultErr = ErrWorkflowRunTerminal
+				if current.Status.Phase == phase && current.Status.Message == msg {
+					resultErr = nil
+				}
 				return nil
 			}
 			if current.Status.Phase != agentzv1alpha1.WorkflowRunPhaseRunning {
@@ -680,10 +679,11 @@ func ListRuns(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtNa
 		if params.Status != nil && string(*params.Status) != string(run.Status.Phase) {
 			continue
 		}
-		if params.TriggerType != nil && *params.TriggerType == gatewayapi.Schedule && run.Spec.ScheduleRef == nil {
+		trigger := params.TriggerType
+		if trigger != nil && *trigger == gatewayapi.Schedule && run.Spec.ScheduleRef == nil {
 			continue
 		}
-		if params.TriggerType != nil && *params.TriggerType == gatewayapi.Webhook && run.Spec.ScheduleRef != nil {
+		if trigger != nil && *trigger == gatewayapi.Webhook && run.Spec.ScheduleRef != nil {
 			continue
 		}
 		if scheduleName != "" && (run.Spec.ScheduleRef == nil || run.Spec.ScheduleRef.Name != scheduleName) {

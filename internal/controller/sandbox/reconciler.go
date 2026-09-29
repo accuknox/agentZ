@@ -813,7 +813,9 @@ func (r *Reconciler) reconcileBackend(ctx context.Context, sandbox *agentzv1alph
 		}
 		return nil
 	}
-	if reflect.DeepEqual(currentSpec, obj.Spec) && reflect.DeepEqual(currentOwners, obj.OwnerReferences) {
+	unchanged := reflect.DeepEqual(currentSpec, obj.Spec) &&
+		reflect.DeepEqual(currentOwners, obj.OwnerReferences)
+	if unchanged {
 		return nil
 	}
 	if _, err := client.Update(ctx, obj, metav1.UpdateOptions{}); err != nil {
@@ -1072,7 +1074,9 @@ func (r *Reconciler) reconcileTracePolicy(ctx context.Context, namespace string,
 		}
 		return nil
 	}
-	if reflect.DeepEqual(currentSpec, obj.Spec) && reflect.DeepEqual(currentOwners, obj.OwnerReferences) {
+	unchanged := reflect.DeepEqual(currentSpec, obj.Spec) &&
+		reflect.DeepEqual(currentOwners, obj.OwnerReferences)
+	if unchanged {
 		return nil
 	}
 	if _, err := client.Update(ctx, obj, metav1.UpdateOptions{}); err != nil {

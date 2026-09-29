@@ -836,7 +836,11 @@ func (s *Service) secretFromRequest(ns string, tenant *agentzv1alpha1.Tenant, ag
 		if req.Oauth.Credentials.ExpiresAt != nil {
 			token.Expiry = req.Oauth.Credentials.ExpiresAt.UTC()
 		}
-		if token.AccessToken != "" || token.RefreshToken != "" || token.TokenType != "" || !token.Expiry.IsZero() {
+		hasToken := token.AccessToken != "" ||
+			token.RefreshToken != "" ||
+			token.TokenType != "" ||
+			!token.Expiry.IsZero()
+		if hasToken {
 			runtimeRecord.Token = &token
 		}
 		record = runtimeRecord

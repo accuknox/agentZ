@@ -190,7 +190,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 		runtime.ExternalSecret = currentExternalSecret
 	}
-	if r.Recorder != nil && runtime.ExternalSecret != nil && !externalSecretReady(runtime.ExternalSecret) {
+	credentialsNotReady := r.Recorder != nil &&
+		runtime.ExternalSecret != nil &&
+		!externalSecretReady(runtime.ExternalSecret)
+	if credentialsNotReady {
 		r.Recorder.Eventf(
 			provider,
 			nil,

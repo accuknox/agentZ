@@ -55,9 +55,11 @@ export function Charts({
         ? undefined
         : Math.round(item.measured_efficiency * 1000) / 10,
   }))
-  const ranked = rows
+  const modelRows = rows.map((row) => ({ ...row, fill: row.color }))
+  const ranked = modelRows
     .filter((row) => row.score !== undefined)
     .toSorted((a, b) => (b.score ?? 0) - (a.score ?? 0))
+  const usage = ranked.filter((row) => row[resource.key] !== undefined)
   return (
     <div className="bg-muted/30 grid min-w-0 grid-cols-1 gap-2 p-2 xl:grid-cols-2">
       <section
@@ -80,7 +82,7 @@ export function Charts({
             className="h-[calc(20rem-3rem)] w-full p-3"
           >
             <BarChart
-              data={ranked.map((row) => ({ ...row, fill: row.color }))}
+              data={ranked}
               layout="vertical"
               margin={{ left: 0, right: 38, bottom: 8 }}
               accessibilityLayer
@@ -126,7 +128,7 @@ export function Charts({
             </TabsList>
           </div>
           <TabsContent value={resource.key}>
-            {ranked.some((row) => row[resource.key] !== undefined) ? (
+            {usage.length > 0 ? (
               <ChartContainer
                 resizeDebounce={250}
                 config={{ score: { label: "Score" } }}
@@ -158,17 +160,15 @@ export function Charts({
                   />
                   <ZAxis range={[75, 75]} />
                   <ChartTooltip cursor={{ strokeDasharray: "3 3" }} isAnimationActive={false} />
-                  {ranked
-                    .filter((row) => row[resource.key] !== undefined)
-                    .map((row) => (
-                      <Scatter
-                        key={row.run_name}
-                        name={row.name}
-                        data={[row]}
-                        fill={row.color}
-                        isAnimationActive={false}
-                      />
-                    ))}
+                  {usage.map((row) => (
+                    <Scatter
+                      key={row.run_name}
+                      name={row.name}
+                      data={[row]}
+                      fill={row.fill}
+                      isAnimationActive={false}
+                    />
+                  ))}
                   <Legend iconSize={8} wrapperStyle={{ paddingTop: 12 }} />
                 </ScatterChart>
               </ChartContainer>
@@ -255,9 +255,7 @@ export function Charts({
                     className="h-48 w-full"
                   >
                     <BarChart
-                      data={rows
-                        .filter((row) => row[resource.key] !== undefined)
-                        .map((row) => ({ ...row, fill: row.color }))}
+                      data={modelRows.filter((row) => row[resource.key] !== undefined)}
                       margin={{ left: 0, right: 12, top: 12 }}
                       accessibilityLayer
                     >

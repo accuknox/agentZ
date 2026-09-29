@@ -678,7 +678,8 @@ func TestEvaluationSessionsStayOutOfChat(t *testing.T) {
 	service := &Service{}
 	session := gatewayapi.OpencodeSession{Metadata: &map[string]any{"agentz.evaluation_id": "evaluation"}}
 	for _, kind := range []gatewaydb.ChatSessionKind{gatewaydb.ChatSessionKindChat, gatewaydb.ChatSessionKindWorkflowRun} {
-		if err := service.storeOpenCodeSession(t.Context(), "workspace", "agent", kind, session); err != nil {
+		err := service.storeOpenCodeSession(t.Context(), "workspace", "agent", kind, session)
+		if err != nil {
 			t.Fatal(err)
 		}
 	}

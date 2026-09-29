@@ -168,7 +168,8 @@ func (s *Service) validateEvaluationModels(ctx context.Context, namespace, agent
 		return nil, err
 	}
 	var sandbox agentzv1alpha1.Sandbox
-	if err := s.k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: ref.Name}, &sandbox); err != nil {
+	err = s.k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: ref.Name}, &sandbox)
+	if err != nil {
 		return nil, err
 	}
 	var fields []gatewayapi.FieldError
@@ -469,7 +470,9 @@ func (s *Service) advanceEvaluation(ctx context.Context, job workflowdb.Workflow
 	// Finish all executions before freezing metric references and starting judgment.
 	for i := range result.Executions {
 		execution := &result.Executions[i]
-		if execution.State != gatewayapi.EvaluationExecutionStateQueued && execution.State != gatewayapi.EvaluationExecutionStateRunning {
+		switch execution.State {
+		case gatewayapi.EvaluationExecutionStateQueued, gatewayapi.EvaluationExecutionStateRunning:
+		default:
 			continue
 		}
 		var run agentzv1alpha1.WorkflowRun
@@ -535,7 +538,8 @@ func (s *Service) advanceEvaluation(ctx context.Context, job workflowdb.Workflow
 		}
 		execution.Run = &detail
 		execution.SessionId = &run.Status.SessionID
-		if err = s.collectEvaluationTranscript(ctx, job.TenantNamespace, job.AgentName, execution); err != nil {
+		err = s.collectEvaluationTranscript(ctx, job.TenantNamespace, job.AgentName, execution)
+		if err != nil {
 			if ctx.Err() != nil {
 				return err
 			}
@@ -580,8 +584,7 @@ func (s *Service) cancelEvaluation(ctx context.Context, job workflowdb.WorkflowR
 		switch execution.State {
 		case gatewayapi.EvaluationExecutionStateCompleted, gatewayapi.EvaluationExecutionStateError, gatewayapi.EvaluationExecutionStateCancelled:
 			continue
-		}
-		if execution.State == gatewayapi.EvaluationExecutionStateJudging || execution.State == gatewayapi.EvaluationExecutionStateQueued {
+		case gatewayapi.EvaluationExecutionStateJudging, gatewayapi.EvaluationExecutionStateQueued:
 			execution.State = gatewayapi.EvaluationExecutionStateCancelled
 			continue
 		}
@@ -841,7 +844,8 @@ func (s *Service) judgeEvaluation(ctx context.Context, namespace string, evaluat
 		return err
 	}
 	var prompt bytes.Buffer
-	if err := gatewayPrompts.ExecuteTemplate(&prompt, "workflow-evaluation.tmpl", string(raw)); err != nil {
+	err = gatewayPrompts.ExecuteTemplate(&prompt, "workflow-evaluation.tmpl", string(raw))
+	if err != nil {
 		return err
 	}
 
@@ -902,7 +906,8 @@ func scoreEvaluation(evaluation *gatewayapi.WorkflowEvaluation) {
 	if evaluation.References == nil {
 		var metrics [3][]float64
 		for _, execution := range evaluation.Executions {
-			if execution.State == gatewayapi.EvaluationExecutionStateQueued || execution.State == gatewayapi.EvaluationExecutionStateRunning {
+			switch execution.State {
+			case gatewayapi.EvaluationExecutionStateQueued, gatewayapi.EvaluationExecutionStateRunning:
 				return
 			}
 			if execution.RunStatus == nil || *execution.RunStatus != gatewayapi.WorkflowRunStatusSucceeded {
@@ -943,7 +948,10 @@ func scoreEvaluation(evaluation *gatewayapi.WorkflowEvaluation) {
 			continue
 		}
 		values := [3]float64{*execution.Tokens, float64(*execution.ToolCalls), *execution.DurationSeconds}
-		if slices.ContainsFunc(values[:], func(value float64) bool { return value < 0 || math.IsNaN(value) || math.IsInf(value, 0) }) {
+		invalid := slices.ContainsFunc(values[:], func(value float64) bool {
+			return value < 0 || math.IsNaN(value) || math.IsInf(value, 0)
+		})
+		if invalid {
 			continue
 		}
 		if evaluation.References != nil {
@@ -962,7 +970,9 @@ func scoreEvaluation(evaluation *gatewayapi.WorkflowEvaluation) {
 		if execution.Judgment == nil || execution.RunStatus == nil {
 			continue
 		}
-		if *execution.RunStatus != gatewayapi.WorkflowRunStatusSucceeded || execution.Judgment.Correctness < 3 {
+		failed := *execution.RunStatus != gatewayapi.WorkflowRunStatusSucceeded ||
+			execution.Judgment.Correctness < 3
+		if failed {
 			execution.Score = new(0.0)
 			continue
 		}

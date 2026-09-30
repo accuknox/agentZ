@@ -467,11 +467,58 @@ func (s *Service) advanceEvaluation(ctx context.Context, job workflowdb.Workflow
 		result.Message = new("Access to this agent was revoked.")
 		return nil
 	}
-	// Finish all executions before freezing metric references and starting judgment.
+	err = s.advanceEvaluationRuns(ctx, job, result)
+	if err != nil {
+		return err
+	}
+	// Finish every execution before freezing references and starting judgment.
+	for _, execution := range result.Executions {
+		switch execution.State {
+		case gatewayapi.EvaluationExecutionStateQueued, gatewayapi.EvaluationExecutionStateRunning:
+			return nil
+		}
+	}
+	scoreEvaluation(result)
+	for i := range result.Executions {
+		execution := &result.Executions[i]
+		if execution.State != gatewayapi.EvaluationExecutionStateJudging {
+			continue
+		}
+		if err := s.judgeEvaluation(ctx, job.TenantNamespace, result, execution); err != nil {
+			if ctx.Err() != nil && !errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				return err
+			}
+			slog.WarnContext(ctx, "judge workflow execution", "run", execution.RunName, "error", err)
+			execution.State = gatewayapi.EvaluationExecutionStateError
+			execution.Message = new("Judging failed. Retry with a judge that supports the full transcript.")
+			return nil
+		}
+		execution.State = gatewayapi.EvaluationExecutionStateCompleted
+		scoreEvaluation(result)
+		return nil
+	}
+	result.State = gatewayapi.WorkflowEvaluationStateCompleted
+	return nil
+}
+
+// advanceEvaluationRuns admits runs up to the saved concurrency limit and collects
+// finished executions. Kubernetes owns execution; no worker goroutines are needed.
+func (s *Service) advanceEvaluationRuns(ctx context.Context, job workflowdb.WorkflowRunEvaluation, result *gatewayapi.WorkflowEvaluation) error {
+	active := 0
+	for _, execution := range result.Executions {
+		if execution.State == gatewayapi.EvaluationExecutionStateRunning {
+			active++
+		}
+	}
 	for i := range result.Executions {
 		execution := &result.Executions[i]
 		switch execution.State {
-		case gatewayapi.EvaluationExecutionStateQueued, gatewayapi.EvaluationExecutionStateRunning:
+		case gatewayapi.EvaluationExecutionStateQueued:
+			if active >= result.Request.Concurrency {
+				continue
+			}
+			active++
+		case gatewayapi.EvaluationExecutionStateRunning:
 		default:
 			continue
 		}
@@ -498,19 +545,20 @@ func (s *Service) advanceEvaluation(ctx context.Context, job workflowdb.Workflow
 				Spec: agentzv1alpha1.WorkflowRunSpec{
 					AgentName: job.AgentName, WorkflowName: job.WorkflowName,
 					Model: model, Definition: &apiextensionsv1.JSON{Raw: definition},
-					Inputs: apiextensionsv1.JSON{Raw: inputs}, TimeoutSeconds: 900,
+					Inputs: apiextensionsv1.JSON{Raw: inputs}, TimeoutSeconds: result.Request.TimeoutSeconds,
 				},
 			}
 			if err = s.k8sClient.Create(ctx, &run); err != nil && !apierrors.IsAlreadyExists(err) {
 				return err
 			}
 			execution.State = gatewayapi.EvaluationExecutionStateRunning
-			return nil
+			continue
 		}
 		if apierrors.IsNotFound(err) {
 			execution.State = gatewayapi.EvaluationExecutionStateError
+			active--
 			execution.Message = new("Workflow run is no longer available.")
-			return nil
+			continue
 		}
 		if err != nil {
 			return err
@@ -519,18 +567,20 @@ func (s *Service) advanceEvaluation(ctx context.Context, job workflowdb.Workflow
 		matches := run.Spec.AgentName == job.AgentName && run.Spec.WorkflowName == job.WorkflowName
 		if !owned || !matches {
 			execution.State = gatewayapi.EvaluationExecutionStateError
+			active--
 			execution.Message = new("Workflow run does not belong to this evaluation.")
-			return nil
+			continue
 		}
 		execution.State = gatewayapi.EvaluationExecutionStateRunning
 		execution.RunStatus = new(gatewayapi.WorkflowRunStatus(run.Status.Phase))
 		if !run.Status.Phase.Terminal() {
-			return nil
+			continue
 		}
 		if run.Status.SessionID == "" {
 			execution.State = gatewayapi.EvaluationExecutionStateError
+			active--
 			execution.Message = new("The run ended before a transcript was recorded.")
-			return nil
+			continue
 		}
 		detail, err := workflow.GetRun(ctx, s.k8sClient, job.TenantNamespace, job.AgentName, job.WorkflowName, run.Name)
 		if err != nil {
@@ -544,36 +594,17 @@ func (s *Service) advanceEvaluation(ctx context.Context, job workflowdb.Workflow
 				return err
 			}
 			if run.Status.CompletedAt != nil && time.Since(run.Status.CompletedAt.Time) < 2*time.Minute {
-				return nil
+				continue
 			}
 			slog.WarnContext(ctx, "collect evaluation transcript", "run", run.Name, "error", err)
 			execution.State = gatewayapi.EvaluationExecutionStateError
+			active--
 			execution.Message = new("The complete execution transcript is unavailable.")
-			return nil
-		}
-		execution.State = gatewayapi.EvaluationExecutionStateJudging
-		return nil
-	}
-	scoreEvaluation(result)
-	for i := range result.Executions {
-		execution := &result.Executions[i]
-		if execution.State != gatewayapi.EvaluationExecutionStateJudging {
 			continue
 		}
-		if err := s.judgeEvaluation(ctx, job.TenantNamespace, result, execution); err != nil {
-			if ctx.Err() != nil && !errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				return err
-			}
-			slog.WarnContext(ctx, "judge workflow execution", "run", execution.RunName, "error", err)
-			execution.State = gatewayapi.EvaluationExecutionStateError
-			execution.Message = new("Judging failed. Retry with a judge that supports the full transcript.")
-			return nil
-		}
-		execution.State = gatewayapi.EvaluationExecutionStateCompleted
-		scoreEvaluation(result)
-		return nil
+		execution.State = gatewayapi.EvaluationExecutionStateJudging
+		active--
 	}
-	result.State = gatewayapi.WorkflowEvaluationStateCompleted
 	return nil
 }
 
@@ -584,7 +615,7 @@ func (s *Service) cancelEvaluation(ctx context.Context, job workflowdb.WorkflowR
 		switch execution.State {
 		case gatewayapi.EvaluationExecutionStateCompleted, gatewayapi.EvaluationExecutionStateError, gatewayapi.EvaluationExecutionStateCancelled:
 			continue
-		case gatewayapi.EvaluationExecutionStateJudging, gatewayapi.EvaluationExecutionStateQueued:
+		case gatewayapi.EvaluationExecutionStateJudging:
 			execution.State = gatewayapi.EvaluationExecutionStateCancelled
 			continue
 		}
@@ -904,7 +935,7 @@ func (s *Service) judgeEvaluation(ctx context.Context, namespace string, evaluat
 
 func scoreEvaluation(evaluation *gatewayapi.WorkflowEvaluation) {
 	if evaluation.References == nil {
-		var metrics [3][]float64
+		var metrics [2][]float64
 		for _, execution := range evaluation.Executions {
 			switch execution.State {
 			case gatewayapi.EvaluationExecutionStateQueued, gatewayapi.EvaluationExecutionStateRunning:
@@ -913,10 +944,10 @@ func scoreEvaluation(evaluation *gatewayapi.WorkflowEvaluation) {
 			if execution.RunStatus == nil || *execution.RunStatus != gatewayapi.WorkflowRunStatusSucceeded {
 				continue
 			}
-			if execution.Tokens == nil || execution.ToolCalls == nil || execution.DurationSeconds == nil {
+			if execution.Tokens == nil || execution.ToolCalls == nil {
 				continue
 			}
-			values := []float64{*execution.Tokens, float64(*execution.ToolCalls), *execution.DurationSeconds}
+			values := []float64{*execution.Tokens, float64(*execution.ToolCalls)}
 			invalid := slices.ContainsFunc(values, func(value float64) bool {
 				return value < 0 || math.IsNaN(value) || math.IsInf(value, 0)
 			})
@@ -925,10 +956,9 @@ func scoreEvaluation(evaluation *gatewayapi.WorkflowEvaluation) {
 			}
 			metrics[0] = append(metrics[0], *execution.Tokens)
 			metrics[1] = append(metrics[1], float64(*execution.ToolCalls))
-			metrics[2] = append(metrics[2], *execution.DurationSeconds)
 		}
 		if len(metrics[0]) > 0 {
-			var medians [3]float64
+			var medians [2]float64
 			for i, values := range metrics {
 				slices.Sort(values)
 				middle := len(values) / 2
@@ -937,17 +967,17 @@ func scoreEvaluation(evaluation *gatewayapi.WorkflowEvaluation) {
 					medians[i] = (values[middle-1] + values[middle]) / 2
 				}
 			}
-			evaluation.References = &gatewayapi.EvaluationReferences{Tokens: medians[0], ToolCalls: medians[1], DurationSeconds: medians[2]}
+			evaluation.References = &gatewayapi.EvaluationReferences{Tokens: medians[0], ToolCalls: medians[1]}
 		}
 	}
 	for i := range evaluation.Executions {
 		execution := &evaluation.Executions[i]
 		execution.Score = nil
 		execution.MeasuredEfficiency = nil
-		if execution.Tokens == nil || execution.ToolCalls == nil || execution.DurationSeconds == nil {
+		if execution.Tokens == nil || execution.ToolCalls == nil {
 			continue
 		}
-		values := [3]float64{*execution.Tokens, float64(*execution.ToolCalls), *execution.DurationSeconds}
+		values := [2]float64{*execution.Tokens, float64(*execution.ToolCalls)}
 		invalid := slices.ContainsFunc(values[:], func(value float64) bool {
 			return value < 0 || math.IsNaN(value) || math.IsInf(value, 0)
 		})
@@ -956,14 +986,14 @@ func scoreEvaluation(evaluation *gatewayapi.WorkflowEvaluation) {
 		}
 		if evaluation.References != nil {
 			ref := evaluation.References
-			references := [3]float64{ref.Tokens, ref.ToolCalls, ref.DurationSeconds}
+			references := [2]float64{ref.Tokens, ref.ToolCalls}
 			efficiency := 0.0
 			for j, value := range values {
 				ratio := 0.5
 				if references[j]+value > 0 {
 					ratio = references[j] / (references[j] + value)
 				}
-				efficiency += ratio / 3
+				efficiency += ratio / 2
 			}
 			execution.MeasuredEfficiency = &efficiency
 		}

@@ -815,7 +815,6 @@ export const zWorkflowEvaluationState = z.enum([
 export const zEvaluationReferences = z.object({
   tokens: z.number().gte(0),
   tool_calls: z.number().gte(0),
-  duration_seconds: z.number().gte(0),
 })
 
 export const zEvaluationEvidenceReference = z.object({
@@ -1337,6 +1336,8 @@ export const zWorkflowEvaluationRequest = z.object({
   inputs: zJsonValue,
   models: z.array(zEvaluationModel).min(1).max(8),
   judge: zEvaluationModel,
+  timeout_seconds: z.int().gte(1).lte(604800).default(900),
+  concurrency: z.int().gte(1).lte(5).default(1),
 })
 
 export const zWorkflowRunInputs = zJsonValue

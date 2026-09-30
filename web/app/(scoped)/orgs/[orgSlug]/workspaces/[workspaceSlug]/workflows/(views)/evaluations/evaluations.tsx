@@ -2,7 +2,17 @@
 
 import { useRef, useState } from "react"
 import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Scale, CalendarClock, CircleAlert, Plus, Play, RefreshCw, Square } from "lucide-react"
+import {
+  Scale,
+  CalendarClock,
+  CircleAlert,
+  Plus,
+  Play,
+  RefreshCw,
+  Square,
+  Timer,
+  Layers,
+} from "lucide-react"
 import {
   createWorkflowEvaluation,
   updateWorkflowEvaluation,
@@ -27,6 +37,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Field, FieldLabel, FieldError, FieldDescription, FieldGroup } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Slider } from "@/components/ui/slider"
 import { Textarea } from "@/components/ui/textarea"
 import { MultiSelectDropdown } from "@/components/ui/multi-select-dropdown"
 import {
@@ -316,6 +327,18 @@ export function Evaluations({
                     <Skeleton className="h-8 w-full" />
                     <FieldDescription>Use your strongest model.</FieldDescription>
                   </Field>
+                  {!retrying ? (
+                    <>
+                      <Field>
+                        <FieldLabel>Parallel runs</FieldLabel>
+                        <Skeleton className="h-3 w-full" />
+                      </Field>
+                      <Field>
+                        <FieldLabel>Run timeout (seconds)</FieldLabel>
+                        <Skeleton className="h-8 w-full" />
+                      </Field>
+                    </>
+                  ) : null}
                   {!retrying && workflow.arbitrary_json ? (
                     <Field>
                       <FieldLabel>Inputs</FieldLabel>
@@ -387,6 +410,8 @@ function EvaluationForm({
   onComplete: (result: WorkflowEvaluation) => Promise<void>
 }) {
   const [selection, setSelection] = useState<string[]>([])
+  const [concurrency, setConcurrency] = useState(1)
+  const timeout = useRef<HTMLInputElement>(null)
   const [judgeKey, setJudgeKey] = useState(
     () =>
       models.find(
@@ -410,6 +435,15 @@ function EvaluationForm({
     if (busy.current) return
     const form = event.currentTarget
     const issues: APIFieldError[] = []
+    const timeoutSeconds = timeout.current?.valueAsNumber
+    if (
+      !retry &&
+      (timeoutSeconds === undefined ||
+        !Number.isInteger(timeoutSeconds) ||
+        timeoutSeconds < 1 ||
+        timeoutSeconds > 604800)
+    )
+      issues.push({ field: "timeout_seconds", message: "Enter 1–604800 whole seconds" })
     const judge = models.find((item) => item.key === judgeKey)?.model
     const chosen = models.filter((item) => selection.includes(item.key)).map((item) => item.model)
     if (!judge) issues.push({ field: "judge", message: "Select a judge" })
@@ -456,8 +490,14 @@ function EvaluationForm({
         await onComplete(data)
         return
       }
-      if (!parsed.success) return
-      const body = { inputs: parsed.data ?? null, models: chosen, judge }
+      if (!parsed.success || timeoutSeconds === undefined) return
+      const body = {
+        inputs: parsed.data ?? null,
+        models: chosen,
+        judge,
+        timeout_seconds: timeoutSeconds,
+        concurrency,
+      }
       const identity = JSON.stringify(body)
       if (request.current?.body !== identity) {
         request.current = { id: crypto.randomUUID(), body: identity }
@@ -560,6 +600,58 @@ function EvaluationForm({
             <FieldDescription>Use your strongest model.</FieldDescription>
             <FieldError errors={errors.filter((error) => error.field === "judge")} />
           </Field>
+          {!retry ? (
+            <>
+              <Field data-invalid={errors.some((error) => error.field === "concurrency")}>
+                <div className="flex items-center justify-between gap-2">
+                  <FieldLabel id="evaluation-concurrency-label" htmlFor="evaluation-concurrency">
+                    <Layers className="text-muted-foreground size-4" />
+                    Parallel runs
+                  </FieldLabel>
+                  <output className="text-muted-foreground text-sm tabular-nums">
+                    {concurrency}
+                  </output>
+                </div>
+                <Slider
+                  id="evaluation-concurrency"
+                  aria-labelledby="evaluation-concurrency-label"
+                  min={1}
+                  max={5}
+                  step={1}
+                  value={[concurrency]}
+                  onValueChange={([value]) => {
+                    setConcurrency(value ?? 1)
+                    setErrors((errors) => errors.filter((error) => error.field !== "concurrency"))
+                  }}
+                  aria-invalid={errors.some((error) => error.field === "concurrency")}
+                />
+                <FieldError errors={errors.filter((error) => error.field === "concurrency")} />
+              </Field>
+              <Field data-invalid={errors.some((error) => error.field === "timeout_seconds")}>
+                <FieldLabel htmlFor="evaluation-timeout">
+                  <Timer className="text-muted-foreground size-4" />
+                  Run timeout (seconds)
+                </FieldLabel>
+                <Input
+                  ref={timeout}
+                  id="evaluation-timeout"
+                  type="number"
+                  defaultValue={900}
+                  min={1}
+                  max={604800}
+                  step={1}
+                  required
+                  onChange={() =>
+                    setErrors((errors) =>
+                      errors.filter((error) => error.field !== "timeout_seconds")
+                    )
+                  }
+                  aria-invalid={errors.some((error) => error.field === "timeout_seconds")}
+                />
+                <FieldError errors={errors.filter((error) => error.field === "timeout_seconds")} />
+              </Field>
+            </>
+          ) : null}
           {!retry && workflow.arbitrary_json ? (
             <Field data-invalid={errors.some((error) => error.field === "inputs")}>
               <FieldLabel htmlFor="evaluation-inputs">Inputs</FieldLabel>

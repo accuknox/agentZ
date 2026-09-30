@@ -796,6 +796,14 @@ export type WorkflowEvaluationRequest = {
   inputs: JsonValue
   models: Array<EvaluationModel>
   judge: EvaluationModel
+  /**
+   * Maximum execution time for each workflow run, in seconds.
+   */
+  timeout_seconds: number
+  /**
+   * Maximum number of active workflow executions in this evaluation.
+   */
+  concurrency: number
 }
 
 export type WorkflowEvaluationState =
@@ -858,7 +866,6 @@ export type EvaluationTranscriptSession = {
 export type EvaluationReferences = {
   tokens: number
   tool_calls: number
-  duration_seconds: number
 }
 
 export type EvaluationJudgment = {

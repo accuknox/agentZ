@@ -3169,10 +3169,6 @@ components:
       type: object
     EvaluationReferences:
       properties:
-        duration_seconds:
-          format: double
-          minimum: 0
-          type: number
         tokens:
           format: double
           minimum: 0
@@ -3184,7 +3180,6 @@ components:
       required:
       - tokens
       - tool_calls
-      - duration_seconds
       type: object
     EvaluationTranscriptSession:
       properties:
@@ -25590,6 +25585,12 @@ components:
     WorkflowEvaluationRequest:
       additionalProperties: false
       properties:
+        concurrency:
+          default: 1
+          description: Maximum number of active workflow executions in this evaluation.
+          maximum: 5
+          minimum: 1
+          type: integer
         id:
           format: uuid
           type: string
@@ -25603,11 +25604,20 @@ components:
           maxItems: 8
           minItems: 1
           type: array
+        timeout_seconds:
+          default: 900
+          description: Maximum execution time for each workflow run, in seconds.
+          format: int32
+          maximum: 604800
+          minimum: 1
+          type: integer
       required:
       - id
       - inputs
       - models
       - judge
+      - timeout_seconds
+      - concurrency
       type: object
     WorkflowEvaluationState:
       enum:

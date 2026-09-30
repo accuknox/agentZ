@@ -6738,12 +6738,25 @@ components:
     WorkflowEvaluationRequest:
       type: object
       additionalProperties: false
-      required: [id, inputs, models, judge]
+      required: [id, inputs, models, judge, timeout_seconds, concurrency]
       properties:
         id: {type: string, format: uuid}
         inputs: {$ref: '#/components/schemas/JSONValue'}
         models: {type: array, minItems: 1, maxItems: 8, items: {$ref: '#/components/schemas/EvaluationModel'}}
         judge: {$ref: '#/components/schemas/EvaluationModel'}
+        timeout_seconds:
+          description: Maximum execution time for each workflow run, in seconds.
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 604800
+          default: 900
+        concurrency:
+          description: Maximum number of active workflow executions in this evaluation.
+          type: integer
+          minimum: 1
+          maximum: 5
+          default: 1
     WorkflowEvaluationState:
       type: string
       enum: [queued, running, cancelling, completed, cancelled]
@@ -6812,11 +6825,10 @@ components:
                 items: {$ref: 'https://raw.githubusercontent.com/anomalyco/opencode/a3647eb025c7615159d417dcc49fc39fdaeba65b/packages/sdk/openapi.json#/components/schemas/Part'}
     EvaluationReferences:
       type: object
-      required: [tokens, tool_calls, duration_seconds]
+      required: [tokens, tool_calls]
       properties:
         tokens: {type: number, format: double, minimum: 0}
         tool_calls: {type: number, format: double, minimum: 0}
-        duration_seconds: {type: number, format: double, minimum: 0}
     EvaluationJudgment:
       type: object
       additionalProperties: false

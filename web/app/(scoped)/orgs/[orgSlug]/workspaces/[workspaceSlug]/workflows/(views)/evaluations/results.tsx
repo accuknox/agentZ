@@ -268,7 +268,7 @@ export function Results({
                 </TableRow>
                 <TableRow>
                   <TableCell>D</TableCell>
-                  <TableCell>Mean token, tool-call, and duration ratios</TableCell>
+                  <TableCell>Mean token and tool-call ratios</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
@@ -279,7 +279,6 @@ export function Results({
               <div className="text-muted-foreground flex flex-wrap gap-4 text-xs">
                 <span>{evaluation.references.tokens.toLocaleString()} tokens</span>
                 <span>{evaluation.references.tool_calls.toLocaleString()} calls</span>
-                <span>{formatDurationSeconds(evaluation.references.duration_seconds)}</span>
               </div>
             ) : null}
             <p className="text-sm">

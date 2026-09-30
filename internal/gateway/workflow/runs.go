@@ -312,7 +312,6 @@ func PatchRunStatus(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 
 // PatchRunNodeStatus updates one workflow run node phase.
 func PatchRunNodeStatus(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, runName string, nodeName string, req gatewayapi.PatchWorkflowRunNodeStatusRequest, msg string) error {
-
 	key := types.NamespacedName{Namespace: ns, Name: strings.TrimSpace(runName)}
 	phase := agentzv1alpha1.WorkflowRunNodePhase(req.Phase)
 	var resultErr error

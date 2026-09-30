@@ -787,10 +787,8 @@ func (r *Reconciler) sessionIdle(ctx context.Context, run *agentzv1alpha1.Workfl
 		// means "not busy anymore" rather than "unknown session".
 		return true, nil
 	}
-	if idle, err := status.AsOpencodeSessionStatus0(); err == nil && idle.Type == gatewayapi.Idle {
-		return true, nil
-	}
-	return false, nil
+	kind, err := status.Discriminator()
+	return err == nil && kind == "idle", nil
 }
 
 func (r *Reconciler) sessionTerminalMessage(ctx context.Context, run *agentzv1alpha1.WorkflowRun) (string, error) {
@@ -819,6 +817,10 @@ func (r *Reconciler) sessionTerminalMessage(ctx context.Context, run *agentzv1al
 	}
 
 	for _, msg := range slices.Backward(*resp.JSON200) {
+		role, err := msg.Info.Discriminator()
+		if err != nil || role != "assistant" {
+			continue
+		}
 		assistant, err := msg.Info.AsOpencodeAssistantMessage()
 		if err != nil {
 			continue

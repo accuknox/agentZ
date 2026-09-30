@@ -28,6 +28,7 @@ import {
   listWorkflowEvaluationsOptions,
   getWorkflowEvaluationOptions,
 } from "@/lib/gateway/client/@tanstack/react-query.gen"
+import { zWorkflowEvaluationRequest } from "@/lib/gateway/client/zod.gen"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import {
   buildWorkflowInputObjectSchema,
@@ -540,14 +541,10 @@ function EvaluationForm({
     if (busy.current) return
     const form = event.currentTarget
     const issues: APIFieldError[] = []
-    const timeoutSeconds = timeout.current?.valueAsNumber
-    if (
-      !retry &&
-      (timeoutSeconds === undefined ||
-        !Number.isInteger(timeoutSeconds) ||
-        timeoutSeconds < 1 ||
-        timeoutSeconds > 604800)
-    )
+    const timeoutSeconds = zWorkflowEvaluationRequest.shape.timeout_seconds
+      .unwrap()
+      .safeParse(timeout.current?.valueAsNumber)
+    if (!retry && !timeoutSeconds.success)
       issues.push({ field: "timeout_seconds", message: "Enter 1–604800 whole seconds" })
     const judge = models.find((item) => item.key === judgeKey)?.model
     const chosen = models.filter((item) => selection.includes(item.key)).map((item) => item.model)
@@ -595,12 +592,12 @@ function EvaluationForm({
         await onComplete(data)
         return
       }
-      if (!parsed.success || timeoutSeconds === undefined) return
+      if (!parsed.success || !timeoutSeconds.success) return
       const body = {
         inputs: parsed.data ?? null,
         models: chosen,
         judge,
-        timeout_seconds: timeoutSeconds,
+        timeout_seconds: timeoutSeconds.data,
         concurrency,
       }
       const identity = JSON.stringify(body)

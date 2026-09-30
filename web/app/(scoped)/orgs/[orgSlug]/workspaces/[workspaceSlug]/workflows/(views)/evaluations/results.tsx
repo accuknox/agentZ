@@ -404,12 +404,9 @@ export function Results({
                 setReference(undefined)
               }}
               onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault()
-                  setSelected(row.run_name)
-                  setTab("judgment")
-                  setReference(undefined)
-                }
+                if (event.key !== "Enter" && event.key !== " ") return
+                event.preventDefault()
+                event.currentTarget.click()
               }}
             >
               <TableCell>

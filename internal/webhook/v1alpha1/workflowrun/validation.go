@@ -49,29 +49,22 @@ func NewValidator(gatewayClient *gatewayapi.ClientWithResponses, tokenPath strin
 
 // ValidateCreate validates WorkflowRun creation.
 func (v *Validator) ValidateCreate(ctx context.Context, run *agentzv1alpha1.WorkflowRun) (admission.Warnings, error) {
-	var fields field.ErrorList
 	if run.Spec.ScheduleRef != nil && run.Spec.ScheduleRef.Name == "" {
-		fields = append(
-			fields,
+		return nil, apierrors.NewInvalid(run.GroupVersionKind().GroupKind(), run.Name, field.ErrorList{
 			field.Invalid(
-				field.NewPath("spec").Child("scheduleRef").Child("name"),
+				field.NewPath("spec", "scheduleRef", "name"),
 				run.Spec.ScheduleRef.Name,
 				"must not be empty",
 			),
-		)
-	}
-	if len(fields) != 0 {
-		return nil, apierrors.NewInvalid(run.GroupVersionKind().GroupKind(), run.Name, fields)
+		})
 	}
 	if run.Spec.Definition != nil {
 		var definition gatewayapi.Workflow
 		err := json.Unmarshal(run.Spec.Definition.Raw, &definition)
 		if err != nil {
-			fields = append(fields, field.Invalid(
-				field.NewPath("spec", "definition"), nil,
-				"invalid frozen workflow: "+err.Error(),
-			))
-			return nil, apierrors.NewInvalid(run.GroupVersionKind().GroupKind(), run.Name, fields)
+			return nil, apierrors.NewInvalid(run.GroupVersionKind().GroupKind(), run.Name, field.ErrorList{
+				field.Invalid(field.NewPath("spec", "definition"), nil, "invalid frozen workflow: "+err.Error()),
+			})
 		}
 		return nil, workflow.ValidateWorkflowInputs(
 			&definition, run.GroupVersionKind().GroupKind(), run.Name,

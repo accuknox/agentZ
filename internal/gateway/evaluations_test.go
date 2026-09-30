@@ -386,7 +386,7 @@ func TestEvaluationJudgeSchema(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := &Service{openAPI: doc, resolver: &resolver{
+	service := &Service{openAPI: doc, outboundHTTP: upstream.Client(), resolver: &resolver{
 		agents: listersv1alpha1.NewAgentLister(index), targetOverride: upstream.URL,
 	}}
 	evaluation := gatewayapi.WorkflowEvaluation{

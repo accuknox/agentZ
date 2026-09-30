@@ -186,13 +186,10 @@ func (s *Service) validateEvaluationModels(ctx context.Context, namespace, agent
 				"Could not load the agent's model variants; try again", err)
 		}
 		catalog, err := upstream.ConfigProvidersWithResponse(ctx, agentName, nil)
-		if err != nil {
+		unavailable := err != nil || catalog.JSON200 == nil || catalog.JSON200.Providers == nil
+		if unavailable {
 			return nil, apiutil.NewError(503, "model_catalog_unavailable",
 				"Could not load the agent's model variants; try again", err)
-		}
-		if catalog.JSON200 == nil || catalog.JSON200.Providers == nil {
-			return nil, apiutil.NewError(503, "model_catalog_unavailable",
-				"Could not load the agent's model variants; try again", nil)
 		}
 		providers = catalog.JSON200.Providers
 	}
@@ -202,13 +199,9 @@ func (s *Service) validateEvaluationModels(ctx context.Context, namespace, agent
 		if i == len(models) {
 			field = "judge"
 		}
-		available := false
-		for _, candidate := range sandbox.Spec.Inference.Models {
-			if candidate.Provider == model.ProviderId && candidate.Model == model.ModelId {
-				available = true
-				break
-			}
-		}
+		available := slices.ContainsFunc(sandbox.Spec.Inference.Models, func(candidate agentzv1alpha1.InferenceModelRef) bool {
+			return candidate.Provider == model.ProviderId && candidate.Model == model.ModelId
+		})
 		if !available {
 			fields = append(fields, gatewayapi.FieldError{
 				Field: field, Message: model.Label + " is not available to this agent",
@@ -699,7 +692,9 @@ type evaluationTaskMetadata struct {
 }
 
 func (s *Service) collectEvaluationTranscript(ctx context.Context, namespace, agent string, execution *gatewayapi.EvaluationExecution) error {
-	upstream, err := s.agentClient(ctx, namespace, agent, &http.Client{Timeout: 30 * time.Second})
+	httpClient := *s.outboundHTTP
+	httpClient.Timeout = 30 * time.Second
+	upstream, err := s.agentClient(ctx, namespace, agent, &httpClient)
 	if err != nil {
 		return err
 	}
@@ -864,7 +859,9 @@ type evaluationJudgeInput struct {
 }
 
 func (s *Service) judgeEvaluation(ctx context.Context, namespace string, evaluation *gatewayapi.WorkflowEvaluation, execution *gatewayapi.EvaluationExecution) error {
-	upstream, err := s.agentClient(ctx, namespace, evaluation.Workflow.AgentName, &http.Client{Timeout: 110 * time.Second})
+	httpClient := *s.outboundHTTP
+	httpClient.Timeout = 110 * time.Second
+	upstream, err := s.agentClient(ctx, namespace, evaluation.Workflow.AgentName, &httpClient)
 	if err != nil {
 		return err
 	}
@@ -1064,6 +1061,7 @@ func scoreEvaluation(evaluation *gatewayapi.WorkflowEvaluation) {
 		}
 		quality := float64(execution.Judgment.Correctness) / 4
 		efficiency := float64(execution.Judgment.Efficiency) / 4
-		execution.Score = new(100 * quality * (0.8 + 0.1*efficiency + 0.1**execution.MeasuredEfficiency))
+		measured := *execution.MeasuredEfficiency
+		execution.Score = new(100 * quality * (0.8 + 0.1*efficiency + 0.1*measured))
 	}
 }

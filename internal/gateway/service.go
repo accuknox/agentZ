@@ -386,10 +386,10 @@ func Serve(ctx context.Context, cfg Config) error {
 		defer close(codingEventsDone)
 		svc.listenCoding(runCtx)
 	}()
-	// Reserve a worker for cancellation so judge requests cannot delay it.
+	// Reserve a cleanup worker so judge requests cannot delay deletion.
 	var evaluations sync.WaitGroup
-	for _, cancelled := range []bool{false, true} {
-		evaluations.Go(func() { svc.runEvaluations(runCtx, cancelled) })
+	for _, cleanup := range []bool{false, true} {
+		evaluations.Go(func() { svc.runEvaluations(runCtx, cleanup) })
 	}
 	cleanupDone := make(chan struct{})
 	go func() {

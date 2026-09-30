@@ -11,14 +11,16 @@ import (
 )
 
 type Querier interface {
-	RunEvaluationCancel(ctx context.Context, arg RunEvaluationCancelParams) (int64, error)
-	RunEvaluationCancelled(ctx context.Context, id uuid.UUID) (bool, error)
 	RunEvaluationClaim(ctx context.Context, arg RunEvaluationClaimParams) (WorkflowRunEvaluation, error)
 	RunEvaluationCreate(ctx context.Context, arg RunEvaluationCreateParams) (WorkflowRunEvaluation, error)
+	RunEvaluationDelete(ctx context.Context, arg RunEvaluationDeleteParams) (int64, error)
 	RunEvaluationGet(ctx context.Context, arg RunEvaluationGetParams) (WorkflowRunEvaluation, error)
 	RunEvaluationList(ctx context.Context, arg RunEvaluationListParams) ([][]byte, error)
+	RunEvaluationRelease(ctx context.Context, arg RunEvaluationReleaseParams) error
+	RunEvaluationRequestDeletion(ctx context.Context, arg RunEvaluationRequestDeletionParams) error
 	RunEvaluationRetryJudge(ctx context.Context, arg RunEvaluationRetryJudgeParams) (int64, error)
 	RunEvaluationSave(ctx context.Context, arg RunEvaluationSaveParams) (int64, error)
+	RunEvaluationStopped(ctx context.Context, id uuid.UUID) (RunEvaluationStoppedRow, error)
 	RunEvaluationView(ctx context.Context, arg RunEvaluationViewParams) (RunEvaluationViewRow, error)
 	WorkflowCreate(ctx context.Context, arg WorkflowCreateParams) (Workflow, error)
 	WorkflowCreateEdges(ctx context.Context, arg WorkflowCreateEdgesParams) error

@@ -3684,6 +3684,14 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/WorkflowEvaluation'}
         default: {$ref: '#/components/responses/InternalError'}
+    delete:
+      operationId: deleteWorkflowEvaluation
+      tags: [workflows]
+      summary: Permanently delete an evaluation and stop its work.
+      responses:
+        '202':
+          description: Evaluation removed from history; resource cleanup is queued.
+        default: {$ref: '#/components/responses/InternalError'}
     patch:
       operationId: updateWorkflowEvaluation
       tags: [workflows]
@@ -3696,7 +3704,7 @@ paths:
               additionalProperties: false
               required: [action]
               properties:
-                action: {type: string, enum: [cancel, judge]}
+                action: {type: string, enum: [judge]}
                 judge: {$ref: '#/components/schemas/EvaluationModel'}
       responses:
         '200':

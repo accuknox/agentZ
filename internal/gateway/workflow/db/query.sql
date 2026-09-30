@@ -236,7 +236,7 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
 ON CONFLICT (id) DO NOTHING RETURNING *;
 
 -- name: RunEvaluationGet :one
-SELECT * FROM workflow_run_evaluations WHERE id=$1 AND tenant_namespace=$2 AND agent_name=$3 AND workflow_name=$4;
+SELECT * FROM workflow_run_evaluations WHERE id=$1 AND tenant_namespace=$2 AND agent_name=$3 AND workflow_name=$4 AND NOT delete_requested;
 
 -- name: RunEvaluationView :one
 SELECT state, cancel_requested,
@@ -246,12 +246,13 @@ SELECT state, cancel_requested,
      FROM jsonb_array_elements(result->'executions') AS e))::jsonb AS result
 FROM workflow_run_evaluations
 WHERE id=sqlc.arg(id) AND tenant_namespace=sqlc.arg(tenant_namespace)
-  AND agent_name=sqlc.arg(agent_name) AND workflow_name=sqlc.arg(workflow_name);
+  AND agent_name=sqlc.arg(agent_name) AND workflow_name=sqlc.arg(workflow_name)
+  AND NOT delete_requested;
 
 -- name: RunEvaluationList :many
 SELECT (result - ARRAY['workflow', 'request', 'executions'] || jsonb_build_object('judge', result->'request'->'judge', 'state', CASE WHEN cancel_requested AND state <> 'cancelled' THEN 'cancelling' ELSE state END, 'executions',
   (SELECT jsonb_agg(e - ARRAY['transcript', 'run']) FROM jsonb_array_elements(result->'executions') AS e)))::jsonb AS summary
-FROM workflow_run_evaluations WHERE tenant_namespace=$1 AND agent_name=$2 AND workflow_name=$3
+FROM workflow_run_evaluations WHERE tenant_namespace=$1 AND agent_name=$2 AND workflow_name=$3 AND NOT delete_requested
 ORDER BY created_at DESC LIMIT 50;
 
 -- name: RunEvaluationClaim :one
@@ -260,9 +261,9 @@ UPDATE workflow_run_evaluations SET
   lease_until=now()+interval '3 minutes'
 WHERE id=(
   SELECT e.id FROM workflow_run_evaluations e
-  WHERE e.state IN ('queued','running')
+  WHERE (e.state IN ('queued','running') OR e.delete_requested)
     AND e.lease_until < now()
-    AND e.cancel_requested=sqlc.arg(cancel_requested)
+    AND (e.cancel_requested OR e.delete_requested)=sqlc.arg(cleanup)::boolean
   ORDER BY e.lease_until FOR UPDATE SKIP LOCKED LIMIT 1
 ) RETURNING *;
 
@@ -273,13 +274,24 @@ UPDATE workflow_run_evaluations SET
   updated_at=now(), lease_until=now()+interval '1 second', lease_token=''
 WHERE id=sqlc.arg(id) AND lease_token=sqlc.arg(lease_token);
 
--- name: RunEvaluationCancel :execrows
-UPDATE workflow_run_evaluations SET cancel_requested=true, updated_at=now()
-WHERE id=$1 AND tenant_namespace=$2 AND agent_name=$3 AND workflow_name=$4 AND state IN ('queued','running');
+-- name: RunEvaluationRequestDeletion :exec
+UPDATE workflow_run_evaluations SET delete_requested=true, updated_at=now()
+WHERE id=$1 AND tenant_namespace=$2 AND agent_name=$3 AND workflow_name=$4
+  AND NOT delete_requested;
 
--- name: RunEvaluationCancelled :one
-SELECT cancel_requested FROM workflow_run_evaluations WHERE id=$1;
+-- name: RunEvaluationDelete :execrows
+DELETE FROM workflow_run_evaluations
+WHERE id=$1 AND lease_token=$2 AND delete_requested;
+
+-- name: RunEvaluationRelease :exec
+UPDATE workflow_run_evaluations
+SET lease_token='', lease_until=now()+interval '1 second'
+WHERE id=$1 AND lease_token=$2;
+
+-- name: RunEvaluationStopped :one
+SELECT cancel_requested, delete_requested
+FROM workflow_run_evaluations WHERE id=$1;
 
 -- name: RunEvaluationRetryJudge :execrows
 UPDATE workflow_run_evaluations SET result=$5, state='queued', lease_until=now(), updated_at=now()
-WHERE id=$1 AND tenant_namespace=$2 AND agent_name=$3 AND workflow_name=$4 AND state='completed' AND updated_at=$6;
+WHERE id=$1 AND tenant_namespace=$2 AND agent_name=$3 AND workflow_name=$4 AND state='completed' AND updated_at=$6 AND NOT delete_requested;

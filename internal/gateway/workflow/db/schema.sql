@@ -189,6 +189,7 @@ CREATE TABLE workflow_run_evaluations (
   request JSONB NOT NULL,
   result JSONB NOT NULL,
   cancel_requested BOOLEAN NOT NULL DEFAULT false,
+  delete_requested BOOLEAN NOT NULL DEFAULT false,
   lease_token TEXT NOT NULL DEFAULT '',
   lease_until TIMESTAMPTZ NOT NULL DEFAULT now(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -198,3 +199,6 @@ CREATE INDEX workflow_run_evaluations_scope ON workflow_run_evaluations
   (tenant_namespace, agent_name, workflow_name, created_at DESC);
 CREATE INDEX workflow_run_evaluations_pending ON workflow_run_evaluations (lease_until)
   WHERE state IN ('queued', 'running');
+
+CREATE INDEX workflow_run_evaluations_deleting ON workflow_run_evaluations (lease_until)
+  WHERE delete_requested;

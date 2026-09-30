@@ -78,7 +78,7 @@ var baseOperationCapabilities = map[string][]string{
 		"createWorkflow",
 		"listAgentModelCatalog",
 		"createWorkflowEvaluation", "listWorkflowEvaluations",
-		"getWorkflowEvaluation", "updateWorkflowEvaluation",
+		"getWorkflowEvaluation", "updateWorkflowEvaluation", "deleteWorkflowEvaluation",
 		"createWorkflowRun",
 		"createWorkflowSchedule",
 		"deleteAgent",

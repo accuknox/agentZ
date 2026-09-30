@@ -293,7 +293,25 @@ func (s *Service) GetWorkflowEvaluation(w http.ResponseWriter, r *http.Request, 
 	apiutil.WriteJSON(w, 200, result)
 }
 
-// UpdateWorkflowEvaluation cancels work or judges retained executions with a selected model.
+// DeleteWorkflowEvaluation hides the evaluation while its worker removes owned resources.
+func (s *Service) DeleteWorkflowEvaluation(w http.ResponseWriter, r *http.Request, agentName, workflowName string, id uuid.UUID) {
+	access, apiErr := s.resolveAgentAccess(r.Context(), agentName, authorization.OperationUseSharedAgent)
+	if apiErr != nil {
+		apiutil.WriteError(w, r, apiErr)
+		return
+	}
+	err := workflowdb.New(s.db).RunEvaluationRequestDeletion(r.Context(), workflowdb.RunEvaluationRequestDeletionParams{
+		ID: id, TenantNamespace: access.namespace,
+		AgentName: agentName, WorkflowName: workflowName,
+	})
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusAccepted)
+}
+
+// UpdateWorkflowEvaluation judges retained executions with a selected model.
 func (s *Service) UpdateWorkflowEvaluation(w http.ResponseWriter, r *http.Request, agentName, workflowName string, id uuid.UUID) {
 	var input gatewayapi.UpdateWorkflowEvaluationJSONRequestBody
 	if !decodeJSONBody(w, r, &input, false) {
@@ -318,29 +336,6 @@ func (s *Service) UpdateWorkflowEvaluation(w http.ResponseWriter, r *http.Reques
 	var result gatewayapi.WorkflowEvaluation
 	if err = json.Unmarshal(row.Result, &result); err != nil {
 		apiutil.WriteInternalError(w, r, err)
-		return
-	}
-	if input.Action == gatewayapi.Cancel {
-		affected, err := q.RunEvaluationCancel(r.Context(), workflowdb.RunEvaluationCancelParams{
-			ID:              id,
-			TenantNamespace: access.namespace,
-			AgentName:       agentName,
-			WorkflowName:    workflowName,
-		})
-		if err != nil {
-			apiutil.WriteInternalError(w, r, err)
-			return
-		}
-		if affected == 0 {
-			apiutil.WriteError(w, r, apiutil.NewError(409, "conflict", "This evaluation is no longer running", nil))
-			return
-		}
-		result.State = gatewayapi.WorkflowEvaluationStateCancelling
-		for i := range result.Executions {
-			result.Executions[i].Transcript = nil
-			result.Executions[i].Run = nil
-		}
-		apiutil.WriteJSON(w, 200, result)
 		return
 	}
 	if input.Judge == nil || row.State != "completed" {
@@ -405,7 +400,7 @@ func (s *Service) UpdateWorkflowEvaluation(w http.ResponseWriter, r *http.Reques
 	apiutil.WriteJSON(w, 200, result)
 }
 
-func (s *Service) runEvaluations(ctx context.Context, cancelled bool) {
+func (s *Service) runEvaluations(ctx context.Context, cleanup bool) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	q := workflowdb.New(s.db)
@@ -416,13 +411,28 @@ func (s *Service) runEvaluations(ctx context.Context, cancelled bool) {
 		case <-ticker.C:
 		}
 		job, err := q.RunEvaluationClaim(ctx, workflowdb.RunEvaluationClaimParams{
-			LeaseToken: uuid.NewString(), CancelRequested: cancelled,
+			LeaseToken: uuid.NewString(), Cleanup: cleanup,
 		})
 		if errors.Is(err, pgx.ErrNoRows) {
 			continue
 		}
 		if err != nil {
 			slog.ErrorContext(ctx, "claim workflow evaluation", "error", err)
+			continue
+		}
+		if job.DeleteRequested {
+			step, cancel := context.WithTimeout(ctx, 2*time.Minute)
+			err = s.deleteEvaluation(step, job)
+			cancel()
+			if err != nil {
+				slog.ErrorContext(ctx, "delete workflow evaluation", "id", job.ID, "error", err)
+			}
+			err = q.RunEvaluationRelease(ctx, workflowdb.RunEvaluationReleaseParams{
+				ID: job.ID, LeaseToken: job.LeaseToken,
+			})
+			if err != nil {
+				slog.ErrorContext(ctx, "release evaluation cleanup", "id", job.ID, "error", err)
+			}
 			continue
 		}
 		var result gatewayapi.WorkflowEvaluation
@@ -434,7 +444,7 @@ func (s *Service) runEvaluations(ctx context.Context, cancelled bool) {
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
-			if job.CancelRequested {
+			if cleanup {
 				return
 			}
 			poll := time.NewTicker(time.Second)
@@ -444,8 +454,8 @@ func (s *Service) runEvaluations(ctx context.Context, cancelled bool) {
 				case <-step.Done():
 					return
 				case <-poll.C:
-					requested, err := q.RunEvaluationCancelled(step, job.ID)
-					if err == nil && requested {
+					requested, err := q.RunEvaluationStopped(step, job.ID)
+					if err != nil || requested.CancelRequested || requested.DeleteRequested {
 						cancel()
 						return
 					}
@@ -458,7 +468,7 @@ func (s *Service) runEvaluations(ctx context.Context, cancelled bool) {
 		if ctx.Err() != nil {
 			return
 		}
-		if err != nil {
+		if err != nil && !errors.Is(err, context.Canceled) {
 			slog.ErrorContext(ctx, "advance workflow evaluation", "id", job.ID, "error", err)
 			result.Message = new("Could not reach the agent. Retrying…")
 		}
@@ -645,6 +655,85 @@ func (s *Service) advanceEvaluationRuns(ctx context.Context, job workflowdb.Work
 		active--
 	}
 	return nil
+}
+
+// deleteEvaluation runs after the execution worker releases its lease. Keep the
+// cleanup record until every owned resource is gone so retries survive crashes.
+func (s *Service) deleteEvaluation(ctx context.Context, job workflowdb.WorkflowRunEvaluation) error {
+	var runs agentzv1alpha1.WorkflowRunList
+	err := s.k8sClient.List(ctx, &runs, client.InNamespace(job.TenantNamespace), client.MatchingLabels{
+		"agentz.accuknox.com/evaluation": job.ID.String(),
+	})
+	if err != nil {
+		return err
+	}
+	for i := range runs.Items {
+		run := &runs.Items[i]
+		if run.Spec.AgentName != job.AgentName || run.Spec.WorkflowName != job.WorkflowName {
+			return fmt.Errorf("evaluation run %q has a different owner", run.Name)
+		}
+		if err := s.k8sClient.Delete(ctx, run); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+	}
+	// Finalizers abort run sessions before removing them. Wait for them before
+	// sweeping judge sessions, including any left by a crashed worker.
+	if len(runs.Items) > 0 {
+		return nil
+	}
+	upstream, err := s.agentClient(ctx, job.TenantNamespace, job.AgentName, s.outboundHTTP)
+	if err != nil {
+		return err
+	}
+	params := gatewayapi.V2SessionListParams{
+		Limit: new(float32(100)), Search: new("Judge workflow execution"),
+	}
+	for {
+		page, err := upstream.V2SessionListWithResponse(ctx, job.AgentName, &params)
+		if err != nil {
+			return err
+		}
+		if page.JSON200 == nil {
+			return fmt.Errorf("list evaluation sessions: HTTP %d", page.StatusCode())
+		}
+		for _, item := range page.JSON200.Data {
+			session, err := upstream.SessionGetWithResponse(ctx, job.AgentName, item.Id, nil)
+			if err != nil {
+				return err
+			}
+			if session.StatusCode() == http.StatusNotFound {
+				continue
+			}
+			if session.JSON200 == nil {
+				return fmt.Errorf("read evaluation session: HTTP %d", session.StatusCode())
+			}
+			if session.JSON200.Metadata == nil || (*session.JSON200.Metadata)["agentz.evaluation_id"] != job.ID.String() {
+				continue
+			}
+			stopped, err := upstream.SessionAbortWithResponse(ctx, job.AgentName, item.Id, nil)
+			if err != nil {
+				return err
+			}
+			if stopped.StatusCode() != http.StatusOK && stopped.StatusCode() != http.StatusNotFound {
+				return fmt.Errorf("abort evaluation session: HTTP %d", stopped.StatusCode())
+			}
+			deleted, err := upstream.SessionDeleteWithResponse(ctx, job.AgentName, item.Id, nil)
+			if err != nil {
+				return err
+			}
+			if deleted.StatusCode() != http.StatusOK && deleted.StatusCode() != http.StatusNotFound {
+				return fmt.Errorf("delete evaluation session: HTTP %d", deleted.StatusCode())
+			}
+		}
+		params.Cursor = page.JSON200.Cursor.Next
+		if params.Cursor == nil {
+			break
+		}
+	}
+	_, err = workflowdb.New(s.db).RunEvaluationDelete(ctx, workflowdb.RunEvaluationDeleteParams{
+		ID: job.ID, LeaseToken: job.LeaseToken,
+	})
+	return err
 }
 
 func (s *Service) cancelEvaluation(ctx context.Context, job workflowdb.WorkflowRunEvaluation, result *gatewayapi.WorkflowEvaluation) error {

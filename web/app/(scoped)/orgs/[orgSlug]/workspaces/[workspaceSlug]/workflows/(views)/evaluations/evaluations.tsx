@@ -9,13 +9,14 @@ import {
   Plus,
   Play,
   RefreshCw,
-  Square,
+  Trash2,
   Timer,
   Layers,
 } from "lucide-react"
 import {
   createWorkflowEvaluation,
   updateWorkflowEvaluation,
+  deleteWorkflowEvaluation,
   type EvaluationModel,
   type JsonValue,
   type Workflow,
@@ -27,6 +28,7 @@ import {
   listAgentModelCatalogOptions,
   listWorkflowEvaluationsOptions,
   getWorkflowEvaluationOptions,
+  getWorkflowEvaluationQueryKey,
 } from "@/lib/gateway/client/@tanstack/react-query.gen"
 import { zWorkflowEvaluationRequest } from "@/lib/gateway/client/zod.gen"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
@@ -35,6 +37,14 @@ import {
   workflowInputDefaultValues,
   workflowScheduleArbitraryJSONSchema,
 } from "@/data/workflow-schedule.schema"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Field, FieldLabel, FieldError, FieldDescription, FieldGroup } from "@/components/ui/field"
@@ -98,6 +108,7 @@ export function Evaluations({
   const [hint, setHint] = useState<string>()
   const [creating, setCreating] = useState(false)
   const [retrying, setRetrying] = useState(false)
+  const [deleting, setDeleting] = useState<string>()
   const [actionPending, setActionPending] = useState(false)
   const [actionError, setActionError] = useState<string>()
   const headers = { "X-AgentZ-Workspace-ID": workspaceId }
@@ -120,7 +131,7 @@ export function Evaluations({
         ? 5000
         : false,
   })
-  const id = selected ?? history.data?.[0]?.id
+  const id = history.data?.find((item) => item.id === selected)?.id ?? history.data?.[0]?.id
   const selectedEvaluation = history.data?.find((item) => item.id === id)
   const detailOptions = getWorkflowEvaluationOptions({
     headers,
@@ -135,7 +146,6 @@ export function Evaluations({
         : false,
   })
   const evaluation = detail.data
-  const active = evaluation && ["queued", "running", "cancelling"].includes(evaluation.state)
   const catalog = useQuery(
     queryOptions({
       queryKey: ["evaluation-models", workspaceId, workflow.agent_name],
@@ -181,23 +191,37 @@ export function Evaluations({
     await queryClient.invalidateQueries({ queryKey: historyOptions.queryKey })
   }
 
-  async function cancel() {
-    if (!id) return
+  async function remove() {
+    if (!deleting) return
     setActionPending(true)
     setActionError(undefined)
     try {
-      const { data, error } = await updateWorkflowEvaluation({
+      const { error } = await deleteWorkflowEvaluation({
         headers,
-        path: { ...path, evaluationId: id },
-        body: { action: "cancel" },
+        path: { ...path, evaluationId: deleting },
       })
       if (error) {
         setActionError(error.message)
         return
       }
-      await refresh(data)
+      const queryKey = getWorkflowEvaluationQueryKey({
+        headers,
+        path: { ...path, evaluationId: deleting },
+      })
+      // Stop older responses from restoring the removed evaluation or evidence.
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: historyOptions.queryKey }),
+        queryClient.cancelQueries({ queryKey }),
+      ])
+      queryClient.setQueryData(historyOptions.queryKey, (items) =>
+        items?.filter((item) => item.id !== deleting)
+      )
+      queryClient.removeQueries({ queryKey })
+      setSelected(undefined)
+      setDeleting(undefined)
+      void queryClient.invalidateQueries({ queryKey: historyOptions.queryKey })
     } catch {
-      setActionError("Could not cancel. Try again.")
+      setActionError("Could not delete the evaluation. Try again.")
     } finally {
       setActionPending(false)
     }
@@ -291,17 +315,20 @@ export function Evaluations({
           </Badge>
         ) : null}
         <div className="ml-auto flex items-center gap-2">
-          {active ? (
+          {evaluation ? (
             <Button
               variant="destructive"
               size="sm"
-              disabled={actionPending || evaluation.state === "cancelling"}
-              onClick={cancel}
+              onClick={() => {
+                setActionError(undefined)
+                setDeleting(evaluation.id)
+              }}
             >
-              <Square />
-              Cancel
+              <Trash2 />
+              Delete
             </Button>
-          ) : evaluation?.state === "completed" ? (
+          ) : null}
+          {evaluation?.state === "completed" ? (
             <Button size="sm" variant="outline" onClick={() => setRetrying(true)}>
               <RefreshCw />
               Judge again
@@ -313,7 +340,7 @@ export function Evaluations({
           </Button>
         </div>
       </div>
-      {history.error || detail.error || actionError ? (
+      {history.error || detail.error || (actionError && !deleting) ? (
         <Alert variant="destructive" className="m-4 w-auto">
           <CircleAlert />
           <AlertDescription>{actionError ?? "Could not load evaluations."}</AlertDescription>
@@ -344,6 +371,47 @@ export function Evaluations({
           No evaluations yet
         </div>
       ) : null}
+      <Dialog
+        open={!!deleting}
+        onOpenChange={(open) => {
+          if (!open && !actionPending) {
+            setDeleting(undefined)
+            setActionError(undefined)
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete evaluation?</DialogTitle>
+            <DialogDescription>
+              This permanently removes the results and workflow runs, and stops any unfinished work.
+              This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {actionError ? (
+            <Alert variant="destructive">
+              <CircleAlert />
+              <AlertDescription>{actionError}</AlertDescription>
+            </Alert>
+          ) : null}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={actionPending}
+              onClick={() => {
+                setDeleting(undefined)
+                setActionError(undefined)
+              }}
+            >
+              Keep evaluation
+            </Button>
+            <Button variant="destructive" disabled={actionPending} onClick={remove}>
+              {actionPending ? <Spinner /> : <Trash2 />}
+              {actionPending ? "Deleting…" : "Delete evaluation"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Sheet
         open={creating || retrying}
         onOpenChange={(open) => {

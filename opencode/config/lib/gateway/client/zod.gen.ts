@@ -5350,6 +5350,12 @@ export const zCreateWorkflowEvaluationPath = z.object({
  */
 export const zCreateWorkflowEvaluationResponse = zWorkflowEvaluation
 
+export const zDeleteWorkflowEvaluationPath = z.object({
+  agentName: zAgentName,
+  workflowName: zWorkflowName,
+  evaluationId: z.uuid(),
+})
+
 export const zGetWorkflowEvaluationPath = z.object({
   agentName: zAgentName,
   workflowName: zWorkflowName,
@@ -5366,7 +5372,7 @@ export const zGetWorkflowEvaluationQuery = z.object({
 export const zGetWorkflowEvaluationResponse = zWorkflowEvaluation
 
 export const zUpdateWorkflowEvaluationBody = z.object({
-  action: z.enum(["cancel", "judge"]),
+  action: z.enum(["judge"]),
   judge: zEvaluationModel.optional(),
 })
 

@@ -9634,6 +9634,37 @@ export type CreateWorkflowEvaluationResponses = {
 export type CreateWorkflowEvaluationResponse =
   CreateWorkflowEvaluationResponses[keyof CreateWorkflowEvaluationResponses]
 
+export type DeleteWorkflowEvaluationData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    workflowName: WorkflowName
+    evaluationId: string
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/evaluation/{evaluationId}"
+}
+
+export type DeleteWorkflowEvaluationErrors = {
+  /**
+   * Unexpected server error.
+   */
+  default: Error
+}
+
+export type DeleteWorkflowEvaluationError =
+  DeleteWorkflowEvaluationErrors[keyof DeleteWorkflowEvaluationErrors]
+
+export type DeleteWorkflowEvaluationResponses = {
+  /**
+   * Evaluation removed from history; resource cleanup is queued.
+   */
+  202: unknown
+}
+
 export type GetWorkflowEvaluationData = {
   body?: never
   path: {
@@ -9675,7 +9706,7 @@ export type GetWorkflowEvaluationResponse =
 
 export type UpdateWorkflowEvaluationData = {
   body: {
-    action: "cancel" | "judge"
+    action: "judge"
     judge?: EvaluationModel
   }
   path: {

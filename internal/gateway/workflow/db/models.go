@@ -77,6 +77,7 @@ type WorkflowRunEvaluation struct {
 	Request         []byte    `json:"request"`
 	Result          []byte    `json:"result"`
 	CancelRequested bool      `json:"cancel_requested"`
+	DeleteRequested bool      `json:"delete_requested"`
 	LeaseToken      string    `json:"lease_token"`
 	LeaseUntil      time.Time `json:"lease_until"`
 	CreatedAt       time.Time `json:"created_at"`

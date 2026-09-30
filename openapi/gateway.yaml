@@ -42801,6 +42801,19 @@ paths:
       tags:
       - workflows
   /api/workflow/{agentName}/{workflowName}/evaluation/{evaluationId}:
+    delete:
+      operationId: deleteWorkflowEvaluation
+      responses:
+        "202":
+          description: Evaluation removed from history; resource cleanup is queued.
+        default:
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Permanently delete an evaluation and stop its work.
+      tags:
+      - workflows
     get:
       operationId: getWorkflowEvaluation
       parameters:
@@ -42847,7 +42860,6 @@ paths:
               properties:
                 action:
                   enum:
-                  - cancel
                   - judge
                   type: string
                 judge:

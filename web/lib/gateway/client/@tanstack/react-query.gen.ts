@@ -39,6 +39,7 @@ import {
   deleteSandbox,
   deleteSecret,
   deleteSkill,
+  deleteWorkflowEvaluation,
   deleteWorkflowRun,
   deleteWorkflows,
   deleteWorkflowSchedule,
@@ -240,6 +241,8 @@ import type {
   DeleteSkillData,
   DeleteSkillError,
   DeleteSkillResponse,
+  DeleteWorkflowEvaluationData,
+  DeleteWorkflowEvaluationError,
   DeleteWorkflowRunData,
   DeleteWorkflowRunError,
   DeleteWorkflowRunResponse,
@@ -3922,6 +3925,33 @@ export const createWorkflowEvaluationMutation = (
   > = {
     mutationFn: async (fnOptions) => {
       const { data } = await createWorkflowEvaluation({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Permanently delete an evaluation and stop its work.
+ */
+export const deleteWorkflowEvaluationMutation = (
+  options?: Partial<Options<DeleteWorkflowEvaluationData>>
+): UseMutationOptions<
+  unknown,
+  DeleteWorkflowEvaluationError,
+  Options<DeleteWorkflowEvaluationData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    unknown,
+    DeleteWorkflowEvaluationError,
+    Options<DeleteWorkflowEvaluationData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteWorkflowEvaluation({
         ...options,
         ...fnOptions,
         throwOnError: true,

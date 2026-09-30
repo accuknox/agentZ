@@ -215,6 +215,62 @@ func TestEvaluationParallelRuns(t *testing.T) {
 	}
 }
 
+// TestEvaluationDeletion waits for finalizers on all owned runs, including runs
+// whose completion or creation was never saved by the evaluation worker.
+func TestEvaluationDeletion(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	k8s := fake.NewClientBuilder().WithScheme(scheme).Build()
+	service := &Service{k8sClient: k8s}
+	job := workflowdb.WorkflowRunEvaluation{
+		ID: uuid.New(), TenantNamespace: "test",
+		AgentName: "agent", WorkflowName: "workflow",
+	}
+	for _, name := range []string{"running", "completed", "unrelated"} {
+		id := job.ID.String()
+		if name == "unrelated" {
+			id = uuid.NewString()
+		}
+		run := &agentzv1alpha1.WorkflowRun{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "test", Name: name,
+				Labels:     map[string]string{"agentz.accuknox.com/evaluation": id},
+				Finalizers: []string{"test/session-cleanup"},
+			},
+			Spec: agentzv1alpha1.WorkflowRunSpec{
+				AgentName: "agent", WorkflowName: "workflow",
+			},
+		}
+		if name == "completed" {
+			run.Status.Phase = agentzv1alpha1.WorkflowRunPhaseSucceeded
+		}
+		if err := k8s.Create(t.Context(), run); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for range 2 {
+		if err := service.deleteEvaluation(t.Context(), job); err != nil {
+			t.Fatal(err)
+		}
+		var runs agentzv1alpha1.WorkflowRunList
+		if err := k8s.List(t.Context(), &runs); err != nil {
+			t.Fatal(err)
+		}
+		for _, run := range runs.Items {
+			deleting := !run.DeletionTimestamp.IsZero()
+			if deleting != (run.Name != "unrelated") {
+				t.Fatalf("run %s: deleting = %v", run.Name, deleting)
+			}
+		}
+	}
+	job.WorkflowName = "other-workflow"
+	if err := service.deleteEvaluation(t.Context(), job); err == nil {
+		t.Fatal("cleanup accepted runs belonging to another workflow")
+	}
+}
+
 type evaluationVariantCase struct {
 	name, body, model, judge, field string
 	status, calls                   int

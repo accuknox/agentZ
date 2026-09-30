@@ -98,6 +98,9 @@ import type {
   DeleteSkillData,
   DeleteSkillErrors,
   DeleteSkillResponses,
+  DeleteWorkflowEvaluationData,
+  DeleteWorkflowEvaluationErrors,
+  DeleteWorkflowEvaluationResponses,
   DeleteWorkflowRunData,
   DeleteWorkflowRunErrors,
   DeleteWorkflowRunResponses,
@@ -2624,6 +2627,22 @@ export const createWorkflowEvaluation = <ThrowOnError extends boolean = false>(
       "Content-Type": "application/json",
       ...options.headers,
     },
+  })
+
+/**
+ * Permanently delete an evaluation and stop its work.
+ */
+export const deleteWorkflowEvaluation = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteWorkflowEvaluationData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<
+    DeleteWorkflowEvaluationResponses,
+    DeleteWorkflowEvaluationErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workflow/{agentName}/{workflowName}/evaluation/{evaluationId}",
+    ...options,
   })
 
 export const getWorkflowEvaluation = <ThrowOnError extends boolean = false>(

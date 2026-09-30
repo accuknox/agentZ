@@ -36,7 +36,7 @@ func TestEvaluationScore(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			execution := gatewayapi.EvaluationExecution{
 				State: gatewayapi.EvaluationExecutionStateCompleted, RunStatus: &tt.status,
-				Tokens: new(100.0), ToolCalls: new(0), DurationSeconds: new(10.0),
+				Tokens: new(100.0), ToolCalls: new(0),
 				Judgment: &gatewayapi.EvaluationJudgment{Correctness: tt.correctness, Efficiency: tt.efficiency},
 			}
 			if tt.missing {
@@ -65,7 +65,7 @@ func TestEvaluationReferencesFreezeBeforeJudgment(t *testing.T) {
 		evaluation.Executions = append(evaluation.Executions, gatewayapi.EvaluationExecution{
 			State:     gatewayapi.EvaluationExecutionStateJudging,
 			RunStatus: new(gatewayapi.WorkflowRunStatusSucceeded),
-			Tokens:    &tokens, ToolCalls: new(4), DurationSeconds: new(20.0),
+			Tokens:    &tokens, ToolCalls: new(4),
 		})
 	}
 	scoreEvaluation(&evaluation)
@@ -95,7 +95,7 @@ func TestEvaluationReferencesFreezeBeforeJudgment(t *testing.T) {
 // TestEvaluationReferencesWaitForExecution prevents partial cohort scoring.
 func TestEvaluationReferencesWaitForExecution(t *testing.T) {
 	evaluation := gatewayapi.WorkflowEvaluation{Executions: []gatewayapi.EvaluationExecution{
-		{State: gatewayapi.EvaluationExecutionStateJudging, RunStatus: new(gatewayapi.WorkflowRunStatusSucceeded), Tokens: new(100.0), ToolCalls: new(2), DurationSeconds: new(10.0)},
+		{State: gatewayapi.EvaluationExecutionStateJudging, RunStatus: new(gatewayapi.WorkflowRunStatusSucceeded), Tokens: new(100.0), ToolCalls: new(2)},
 		{State: gatewayapi.EvaluationExecutionStateRunning},
 	}}
 	scoreEvaluation(&evaluation)
@@ -186,10 +186,6 @@ func TestEvaluationParallelRuns(t *testing.T) {
 			}
 			if evaluation.Executions[concurrency].State != gatewayapi.EvaluationExecutionStateRunning {
 				t.Fatal("available slot was not filled")
-			}
-			scoreEvaluation(&evaluation)
-			if evaluation.References != nil {
-				t.Fatal("references froze before all runs finished")
 			}
 			// Cancellation must also discover runs whose admission was not saved.
 			evaluation.Executions[concurrency].State = gatewayapi.EvaluationExecutionStateQueued

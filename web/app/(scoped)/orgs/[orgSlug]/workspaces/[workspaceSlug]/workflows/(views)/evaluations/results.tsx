@@ -1,6 +1,6 @@
 "use client"
 
-import { useId, useState } from "react"
+import { useState } from "react"
 import dynamic from "next/dynamic"
 import { useQuery } from "@tanstack/react-query"
 import { getWorkflowEvaluationOptions } from "@/lib/gateway/client/@tanstack/react-query.gen"
@@ -14,13 +14,7 @@ import {
   Play,
   ScanSearch,
 } from "lucide-react"
-import type {
-  WorkflowEvaluation,
-  EvaluationEvidenceReference,
-  JsonValue,
-} from "@/lib/gateway/client"
-import { Field, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
-import { Textarea } from "@/components/ui/textarea"
+import type { WorkflowEvaluation, EvaluationEvidenceReference } from "@/lib/gateway/client"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
@@ -248,7 +242,9 @@ export function Results({
               <DialogTitle>Evaluation inputs</DialogTitle>
             </DialogHeader>
             <div className="min-w-0 overflow-y-auto p-1">
-              <EvaluationInput value={evaluation.request.inputs} />
+              <pre className="bg-muted overflow-auto rounded-md p-3 font-mono text-sm">
+                <code>{JSON.stringify(evaluation.request.inputs, null, 2)}</code>
+              </pre>
             </div>
           </DialogContent>
         </Dialog>
@@ -326,7 +322,9 @@ export function Results({
                   ? "Running workflows"
                   : rows.some((row) => row.state === "judging")
                     ? "Judging executions"
-                    : "Waiting to start"}
+                    : rows.length > 0 && completed === rows.length
+                      ? "Finalizing evaluation"
+                      : "Waiting to start"}
             </span>
             <span className="text-muted-foreground text-xs tabular-nums">
               {completed}/{rows.length} finished
@@ -621,23 +619,25 @@ export function Results({
                   className="m-0 min-h-0 lg:h-full lg:overflow-hidden"
                 >
                   {!evidenceReady ? (
-                    <p className="text-muted-foreground py-6 text-sm">
+                    <p className="text-muted-foreground p-6 text-sm">
                       Transcript available after execution.
                     </p>
                   ) : evidence.isPending ? (
                     <TraceInspectorSkeleton />
                   ) : evidence.isError ? (
-                    <Alert variant="destructive">
-                      <CircleAlert />
-                      <AlertDescription className="flex flex-col items-start gap-3">
-                        Could not load transcript.
-                        <Button size="sm" variant="outline" onClick={() => evidence.refetch()}>
-                          Retry
-                        </Button>
-                      </AlertDescription>
-                    </Alert>
+                    <div className="p-6">
+                      <Alert variant="destructive">
+                        <CircleAlert />
+                        <AlertDescription className="flex flex-col items-start gap-3">
+                          Could not load transcript.
+                          <Button size="sm" variant="outline" onClick={() => evidence.refetch()}>
+                            Retry
+                          </Button>
+                        </AlertDescription>
+                      </Alert>
+                    </div>
                   ) : !recordedExecution?.transcript?.length ? (
-                    <p className="text-muted-foreground py-6 text-sm">No transcript available</p>
+                    <p className="text-muted-foreground p-6 text-sm">No transcript available</p>
                   ) : (
                     <Transcript sessions={recordedExecution.transcript} reference={reference} />
                   )}
@@ -648,49 +648,5 @@ export function Results({
         </Tabs>
       </Sheet>
     </div>
-  )
-}
-
-function EvaluationInput({ label, value }: { label?: string; value: JsonValue }) {
-  const id = useId()
-  if (value !== null && typeof value === "object") {
-    const entries = Array.isArray(value)
-      ? value.map((item, index): [string, JsonValue] => [`Item ${index + 1}`, item])
-      : Object.entries(value)
-    return (
-      <FieldSet className="min-w-0">
-        {label ? (
-          <FieldLegend variant="label" className="wrap-anywhere">
-            {label}
-          </FieldLegend>
-        ) : null}
-        {entries.length ? (
-          <FieldGroup className={label ? "border-l pl-4" : undefined}>
-            {entries.map(([name, item]) => (
-              <EvaluationInput key={name} label={name} value={item} />
-            ))}
-          </FieldGroup>
-        ) : (
-          <p className="text-muted-foreground text-sm">
-            {label ? (Array.isArray(value) ? "No items" : "No fields") : "No inputs"}
-          </p>
-        )}
-      </FieldSet>
-    )
-  }
-  return (
-    <Field>
-      <FieldLabel htmlFor={id} className="wrap-anywhere">
-        {label ?? "Input"}
-      </FieldLabel>
-      <Textarea
-        id={id}
-        readOnly
-        value={typeof value === "boolean" ? (value ? "true" : "false") : (value ?? "")}
-        placeholder={value === null ? "Not provided" : "Empty"}
-        rows={1}
-        className="bg-muted dark:bg-muted field-sizing-content min-h-0 resize-none rounded-md border-0 p-3 font-mono text-sm focus-visible:ring-0"
-      />
-    </Field>
   )
 }

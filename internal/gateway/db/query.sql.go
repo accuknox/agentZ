@@ -89,6 +89,25 @@ func (q *Queries) GatewayAdoptCodingWorktree(ctx context.Context, arg GatewayAdo
 	return i, err
 }
 
+const gatewayRehashAPIKey = `-- name: GatewayRehashAPIKey :execrows
+UPDATE apikeys
+SET key = $1, updated_at = now()
+WHERE id = $2
+`
+
+type GatewayRehashAPIKeyParams struct {
+	Key string `json:"key"`
+	ID  string `json:"id"`
+}
+
+func (q *Queries) GatewayRehashAPIKey(ctx context.Context, arg GatewayRehashAPIKeyParams) (int64, error) {
+	res, err := q.db.Exec(ctx, gatewayRehashAPIKey, arg.Key, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected(), nil
+}
+
 const gatewayAgentExists = `-- name: GatewayAgentExists :one
 SELECT EXISTS(
   SELECT 1

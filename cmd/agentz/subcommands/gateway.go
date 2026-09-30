@@ -171,6 +171,13 @@ var gatewayServeCmd = &cli.Command{
 			Config:   cli.StringConfig{TrimSpace: true},
 		},
 		&cli.StringFlag{
+			Name: "api-key-pepper",
+			Usage: "Server-side HMAC pepper for API key hashing (shared with the web app AGENTZ_API_KEY_PEPPER)",
+			Sources: cli.EnvVars("AGENTZ_API_KEY_PEPPER"),
+			Required: true,
+			Config:  cli.StringConfig{TrimSpace: true},
+		},
+		&cli.StringFlag{
 			Name:   "skills-s3-region",
 			Usage:  "S3 region for immutable skill storage",
 			Value:  "us-east-1",
@@ -207,6 +214,7 @@ var gatewayServeCmd = &cli.Command{
 				OpenBaoK8sAuthTokenPath:   c.String("openbao-k8s-auth-token-path"),
 				MCPProbeStaleAfter:        c.Duration("mcp-probe-stale-after"),
 				AllowedWebOrigins:         c.StringSlice("allowed-web-origin"),
+				APIKeyPepper:              c.String("api-key-pepper"),
 				SkillStore: skill.Config{
 					Endpoint:        c.String("skills-s3-endpoint"),
 					Region:          c.String("skills-s3-region"),

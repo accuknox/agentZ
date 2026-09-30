@@ -1,7 +1,6 @@
 "use server"
 
 import { randomUUID } from "node:crypto"
-import { defaultKeyHasher } from "@better-auth/api-key"
 import { generateRandomString } from "better-auth/crypto"
 import { and, eq, inArray, isNull } from "drizzle-orm"
 import { updateTag } from "next/cache"
@@ -14,6 +13,7 @@ import { apiKeysTag } from "@/data/cache"
 import type { CreateAPIKeyFormState, DeleteAPIKeyFormState } from "@/data/types"
 import { getDB, schema } from "@/db"
 import { agentAPIKeyConfigID, webhookAPIKeyConfigID } from "@/lib/api-key-config"
+import { hashAPIKey } from "@/lib/api-key-hash"
 import { getAuth } from "@/lib/auth"
 import { currentGatewayAuthContext } from "@/lib/gateway/auth"
 import { listAgents, listWorkflowSummaries } from "@/lib/gateway/client"
@@ -157,7 +157,7 @@ export async function createAPIKeyFormAction(
         )
 
   try {
-    const hash = await defaultKeyHasher(secret)
+    const hash = hashAPIKey(secret)
     await getDB().transaction(async (tx) => {
       const [workspace] = await tx
         .select({ id: schema.workspaces.id })

@@ -17,6 +17,11 @@ WHERE key = sqlc.arg(key)
     OR expires_at > sqlc.arg(now_at)
   );
 
+-- name: GatewayRehashAPIKey :execrows
+UPDATE apikeys
+SET key = sqlc.arg(key), updated_at = now()
+WHERE id = sqlc.arg(id):
+
 -- name: GatewayCreateAgent :one
 INSERT INTO agents(tenant_namespace, agent_name)
 VALUES ($1, $2)

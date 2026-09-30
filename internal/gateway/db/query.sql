@@ -2629,6 +2629,10 @@ ORDER BY workspace_id, agent_name, session_id,
 SELECT EXISTS (SELECT 1 FROM chat_input_sessions WHERE workspace_id = @workspace_id
   AND agent_name = @agent_name AND session_id = @session_id AND stopping)::boolean;
 
+-- name: GatewayChatSessionExists :one
+SELECT EXISTS (SELECT 1 FROM chat_sessions WHERE workspace_id = @workspace_id
+  AND agent_name = @agent_name AND session_id = @session_id)::boolean;
+
 -- name: GatewayStopChatInputs :exec
 INSERT INTO chat_input_sessions (workspace_id, agent_name, session_id, stopping)
 VALUES (@workspace_id, @agent_name, @session_id, @stopping)

@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -385,6 +386,11 @@ func Serve(ctx context.Context, cfg Config) error {
 		defer close(codingEventsDone)
 		svc.listenCoding(runCtx)
 	}()
+	// Reserve a worker for cancellation so judge requests cannot delay it.
+	var evaluations sync.WaitGroup
+	for _, cancelled := range []bool{false, true} {
+		evaluations.Go(func() { svc.runEvaluations(runCtx, cancelled) })
+	}
 	cleanupDone := make(chan struct{})
 	go func() {
 		defer close(cleanupDone)
@@ -448,6 +454,7 @@ func Serve(ctx context.Context, cfg Config) error {
 	<-chatInputsDone
 	<-codingDone
 	<-codingEventsDone
+	evaluations.Wait()
 	<-cleanupDone
 	<-eventTrailRetentionDone
 

@@ -64,9 +64,29 @@ spec:
                 minLength: 1
                 pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                 type: string
+              definition:
+                description: Definition freezes the workflow graph for evaluation
+                  executions.
+                x-kubernetes-preserve-unknown-fields: true
               inputs:
                 description: Inputs contains execution inputs copied into this run.
                 x-kubernetes-preserve-unknown-fields: true
+              model:
+                description: Model overrides the model for this execution only.
+                properties:
+                  modelID:
+                    description: ModelID identifies the provider model.
+                    type: string
+                  providerID:
+                    description: ProviderID identifies the configured provider.
+                    type: string
+                  variant:
+                    description: Variant selects the reasoning configuration.
+                    type: string
+                required:
+                - modelID
+                - providerID
+                type: object
               scheduleRef:
                 description: ScheduleRef points back to the owning WorkflowSchedule
                   when created by cron.

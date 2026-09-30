@@ -217,6 +217,24 @@ func (q *Queries) GatewayChatInputsStopping(ctx context.Context, arg GatewayChat
 	return column_1, err
 }
 
+const gatewayChatSessionExists = `-- name: GatewayChatSessionExists :one
+SELECT EXISTS (SELECT 1 FROM chat_sessions WHERE workspace_id = $1
+  AND agent_name = $2 AND session_id = $3)::boolean
+`
+
+type GatewayChatSessionExistsParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	SessionID   string `json:"session_id"`
+}
+
+func (q *Queries) GatewayChatSessionExists(ctx context.Context, arg GatewayChatSessionExistsParams) (bool, error) {
+	row := q.db.QueryRow(ctx, gatewayChatSessionExists, arg.WorkspaceID, arg.AgentName, arg.SessionID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const gatewayClaimCleanupJob = `-- name: GatewayClaimCleanupJob :one
 WITH next_job AS (
   SELECT id

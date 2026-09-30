@@ -415,7 +415,8 @@ func ValidateProvider(spec agentzv1alpha1.InferenceProviderSpec) []Issue {
 			)
 		}
 		if cfg.AuthHeader != "" {
-			if cfg.AuthHeader != strings.ToLower(cfg.AuthHeader) || !headerNamePattern.MatchString(cfg.AuthHeader) {
+			invalidHeader := cfg.AuthHeader != strings.ToLower(cfg.AuthHeader) || !headerNamePattern.MatchString(cfg.AuthHeader)
+			if invalidHeader {
 				issues = append(
 					issues,
 					Issue{

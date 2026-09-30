@@ -1139,7 +1139,7 @@ var managerCmd = &cli.Command{
 		if defaults.CPU.Cmp(quota.CPU) > 0 || defaults.Memory.Cmp(quota.Memory) > 0 {
 			return fmt.Errorf("tenant Agent defaults must not exceed aggregate quota")
 		}
-		if defDashboardQuota.DashboardsPerAgent < 1 || defDashboardQuota.WidgetsPerDashboard < 1 ||
+		invalidCounts := defDashboardQuota.DashboardsPerAgent < 1 || defDashboardQuota.WidgetsPerDashboard < 1 ||
 			defDashboardQuota.Publish.RecordsPerRequest < 1 ||
 			defDashboardQuota.Publish.RequestsPerMinutePerAgent < 1 ||
 			defDashboardQuota.Publish.TemporalRecordsPerDay < 1 ||
@@ -1148,14 +1148,16 @@ var managerCmd = &cli.Command{
 			defDashboardQuota.Query.ReturnedCellsPerHour < 1 ||
 			defDashboardQuota.Query.ConcurrentRequests < 1 ||
 			defDashboardQuota.Query.CellsPerRequest < 1 ||
-			defDashboardQuota.Query.PointsPerSeries < 1 {
+			defDashboardQuota.Query.PointsPerSeries < 1
+		if invalidCounts {
 			return fmt.Errorf("tenant dashboard count quotas must be positive")
 		}
-		if defDashboardQuota.Publish.RequestBytes.Sign() <= 0 ||
+		invalidLimits := defDashboardQuota.Publish.RequestBytes.Sign() <= 0 ||
 			defDashboardQuota.Publish.AcceptedBytesPerDay.Sign() <= 0 ||
 			defDashboardQuota.Publish.LatestBytesPerAgent.Sign() <= 0 ||
 			defDashboardQuota.Query.ResponseBytes.Sign() <= 0 ||
-			defDashboardQuota.Query.Timeout.Duration <= 0 {
+			defDashboardQuota.Query.Timeout.Duration <= 0
+		if invalidLimits {
 			return fmt.Errorf("tenant dashboard size and timeout quotas must be positive")
 		}
 		nixPVCAccessModes := make(

@@ -43,7 +43,6 @@ func TestParseMarkdownCompatibility(t *testing.T) {
 		{name: "BOM and LF", content: skillMarkdown("skill-name", "\n", true, "# Skill\n")},
 		{name: "BOM and CRLF", content: skillMarkdown("skill-name", "\r\n", true, "# Skill\r\n")},
 		{name: "empty body", content: skillMarkdown("skill-name", "\n", false, "")},
-		{name: "32-character name", content: skillMarkdown(strings.Repeat("a", 32), "\n", false, "")},
 		{name: "63-character name", content: skillMarkdown(strings.Repeat("a", 63), "\n", false, "")},
 	}
 

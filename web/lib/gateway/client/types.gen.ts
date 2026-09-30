@@ -784,6 +784,122 @@ export type WorkflowSchedule = {
  */
 export type ApiKeyId = string
 
+export type AgentModelCatalogEntry = {
+  provider_id: string
+  model_id: string
+  providers: Array<string>
+}
+
+export type EvaluationModel = {
+  provider_id: string
+  model_id: string
+  label: string
+  variant?: string
+}
+
+export type WorkflowEvaluationRequest = {
+  id: string
+  inputs: JsonValue
+  models: Array<EvaluationModel>
+  judge: EvaluationModel
+  /**
+   * Maximum execution time for each workflow run, in seconds.
+   */
+  timeout_seconds: number
+  /**
+   * Maximum number of active workflow executions in this evaluation.
+   */
+  concurrency: number
+}
+
+export type WorkflowEvaluationState =
+  | "queued"
+  | "running"
+  | "cancelling"
+  | "completed"
+  | "cancelled"
+
+export type WorkflowEvaluation = {
+  id: string
+  request: WorkflowEvaluationRequest
+  workflow: Workflow
+  executions: Array<EvaluationExecution>
+  state: WorkflowEvaluationState
+  message?: string
+  created_at: string
+  updated_at: string
+  scoring_version: "trace-v1"
+  references?: EvaluationReferences
+}
+
+export type WorkflowEvaluationSummary = {
+  id: string
+  judge: EvaluationModel
+  executions: Array<EvaluationExecution>
+  state: WorkflowEvaluationState
+  created_at: string
+}
+
+export type EvaluationExecution = {
+  model: EvaluationModel
+  run_name: string
+  state: "queued" | "running" | "judging" | "completed" | "error" | "cancelled"
+  run_status?: WorkflowRunStatus
+  run?: WorkflowRunDetail
+  message?: string
+  session_id?: string
+  /**
+   * Complete native session messages and metadata, including delegated sessions. Never truncated or summarized.
+   */
+  transcript?: Array<EvaluationTranscriptSession>
+  measured_efficiency?: number
+  tokens?: number
+  tool_calls?: number
+  duration_seconds?: number
+  judgment?: EvaluationJudgment
+  /**
+   * The judge continued after native context compaction. Informational only; does not affect scoring.
+   */
+  judge_context_compacted?: boolean
+  score?: number
+}
+
+export type EvaluationTranscriptSession = {
+  session_id: string
+  session: Session
+  messages: Array<{
+    info: Message
+    parts: Array<Part>
+  }>
+}
+
+export type EvaluationReferences = {
+  tokens: number
+  tool_calls: number
+}
+
+export type EvaluationJudgment = {
+  correctness: number
+  efficiency: number
+  summary: string
+  evidence: Array<string>
+  limitations: Array<string>
+  references?: Array<EvaluationEvidenceReference>
+}
+
+export type EvaluationEvidenceReference = {
+  /**
+   * Zero-based index into the evidence findings.
+   */
+  evidence_index: number
+  session_id: string
+  message_id: string
+  /**
+   * The native part ID, when citing a tool call.
+   */
+  part_id?: string
+}
+
 export type WorkflowRunInputs = JsonValue
 
 export type WorkflowRunTriggerType = "Schedule" | "Webhook"
@@ -2465,6 +2581,495 @@ export type CodingRepositoryItem = {
   id: number
   name: string
   private: boolean
+}
+
+export type ApiError = {
+  name: "APIError"
+  data: {
+    message: string
+    statusCode?: number
+    isRetryable: boolean
+    responseHeaders?: {
+      [key: string]: string
+    }
+    responseBody?: string
+    metadata?: {
+      [key: string]: string
+    }
+  }
+}
+
+export type AgentPart = {
+  id: string
+  sessionID: string
+  messageID: string
+  type: "agent"
+  name: string
+  source?: {
+    value: string
+    start: number
+    end: number
+  }
+}
+
+export type AssistantMessage = {
+  id: string
+  sessionID: string
+  role: "assistant"
+  time: {
+    created: number
+    completed?: number
+  }
+  error?:
+    | ProviderAuthError
+    | UnknownError
+    | MessageOutputLengthError
+    | MessageAbortedError
+    | StructuredOutputError
+    | ContextOverflowError
+    | ContentFilterError
+    | ApiError
+  parentID: string
+  modelID: string
+  providerID: string
+  mode: string
+  agent: string
+  path: {
+    cwd: string
+    root: string
+  }
+  summary?: boolean
+  cost: number
+  tokens: {
+    total?: number
+    input: number
+    output: number
+    reasoning: number
+    cache: {
+      read: number
+      write: number
+    }
+  }
+  structured?: unknown
+  variant?: string
+  finish?: string
+}
+
+export type CompactionPart = {
+  id: string
+  sessionID: string
+  messageID: string
+  type: "compaction"
+  auto: boolean
+  overflow?: boolean
+  tail_start_id?: string
+}
+
+export type ContentFilterError = {
+  name: "ContentFilterError"
+  data: {
+    message: string
+  }
+}
+
+export type ContextOverflowError = {
+  name: "ContextOverflowError"
+  data: {
+    message: string
+    responseBody?: string
+  }
+}
+
+export type FilePart = {
+  id: string
+  sessionID: string
+  messageID: string
+  type: "file"
+  mime: string
+  filename?: string
+  url: string
+  source?: FilePartSource
+}
+
+export type FilePartSource = FileSource | SymbolSource | ResourceSource
+
+export type FilePartSourceText = {
+  value: string
+  start: number
+  end: number
+}
+
+export type FileSource = {
+  text: FilePartSourceText
+  type: "file"
+  path: string
+}
+
+export type JsonSchema = {
+  [key: string]: unknown
+}
+
+export type Message = UserMessage | AssistantMessage
+
+export type MessageAbortedError = {
+  name: "MessageAbortedError"
+  data: {
+    message: string
+  }
+}
+
+export type MessageOutputLengthError = {
+  name: "MessageOutputLengthError"
+  data: {
+    [key: string]: unknown
+  }
+}
+
+export type OutputFormat = OutputFormatText | OutputFormatJsonSchema
+
+export type OutputFormatJsonSchema = {
+  type: "json_schema"
+  schema: JsonSchema
+  retryCount?: number
+}
+
+export type OutputFormatText = {
+  type: "text"
+}
+
+export type Part =
+  | TextPart
+  | SubtaskPart
+  | ReasoningPart
+  | FilePart
+  | ToolPart
+  | StepStartPart
+  | StepFinishPart
+  | SnapshotPart
+  | PatchPart
+  | AgentPart
+  | RetryPart
+  | CompactionPart
+
+export type PatchPart = {
+  id: string
+  sessionID: string
+  messageID: string
+  type: "patch"
+  hash: string
+  files: Array<string>
+}
+
+export type PermissionAction = "allow" | "deny" | "ask"
+
+export type PermissionRule = {
+  permission: string
+  pattern: string
+  action: PermissionAction
+}
+
+export type PermissionRuleset = Array<PermissionRule>
+
+export type ProviderAuthError = {
+  name: "ProviderAuthError"
+  data: {
+    providerID: string
+    message: string
+  }
+}
+
+export type Range = {
+  start: {
+    line: number
+    character: number
+  }
+  end: {
+    line: number
+    character: number
+  }
+}
+
+export type ReasoningPart = {
+  id: string
+  sessionID: string
+  messageID: string
+  type: "reasoning"
+  text: string
+  metadata?: {
+    [key: string]: unknown
+  }
+  time: {
+    start: number
+    end?: number
+  }
+}
+
+export type ResourceSource = {
+  text: FilePartSourceText
+  type: "resource"
+  clientName: string
+  uri: string
+}
+
+export type RetryPart = {
+  id: string
+  sessionID: string
+  messageID: string
+  type: "retry"
+  attempt: number
+  error: ApiError
+  time: {
+    created: number
+  }
+}
+
+export type Session = {
+  id: string
+  slug: string
+  projectID: string
+  workspaceID?: string
+  directory: string
+  path?: string
+  parentID?: string
+  summary?: {
+    additions: number
+    deletions: number
+    files: number
+    diffs?: Array<SnapshotFileDiff>
+  }
+  cost?: number
+  tokens?: {
+    input: number
+    output: number
+    reasoning: number
+    cache: {
+      read: number
+      write: number
+    }
+  }
+  share?: {
+    url: string
+  }
+  title: string
+  agent?: string
+  model?: {
+    id: string
+    providerID: string
+    variant?: string
+  }
+  version: string
+  metadata?: {
+    [key: string]: unknown
+  }
+  time: {
+    created: number
+    updated: number
+    compacting?: number
+    archived?: number
+  }
+  permission?: PermissionRuleset
+  revert?: {
+    messageID: string
+    partID?: string
+    snapshot?: string
+    diff?: string
+  }
+}
+
+export type SnapshotFileDiff = {
+  file?: string
+  patch?: string
+  additions: number
+  deletions: number
+  status?: "added" | "deleted" | "modified"
+}
+
+export type SnapshotPart = {
+  id: string
+  sessionID: string
+  messageID: string
+  type: "snapshot"
+  snapshot: string
+}
+
+export type StepFinishPart = {
+  id: string
+  sessionID: string
+  messageID: string
+  type: "step-finish"
+  reason: string
+  snapshot?: string
+  cost: number
+  tokens: {
+    total?: number
+    input: number
+    output: number
+    reasoning: number
+    cache: {
+      read: number
+      write: number
+    }
+  }
+}
+
+export type StepStartPart = {
+  id: string
+  sessionID: string
+  messageID: string
+  type: "step-start"
+  snapshot?: string
+}
+
+export type StructuredOutputError = {
+  name: "StructuredOutputError"
+  data: {
+    message: string
+    retries: number
+  }
+}
+
+export type SubtaskPart = {
+  id: string
+  sessionID: string
+  messageID: string
+  type: "subtask"
+  prompt: string
+  description: string
+  agent: string
+  model?: {
+    providerID: string
+    modelID: string
+  }
+  command?: string
+}
+
+export type SymbolSource = {
+  text: FilePartSourceText
+  type: "symbol"
+  path: string
+  range: Range
+  name: string
+  kind: number
+}
+
+export type TextPart = {
+  id: string
+  sessionID: string
+  messageID: string
+  type: "text"
+  text: string
+  synthetic?: boolean
+  ignored?: boolean
+  time?: {
+    start: number
+    end?: number
+  }
+  metadata?: {
+    [key: string]: unknown
+  }
+}
+
+export type ToolPart = {
+  id: string
+  sessionID: string
+  messageID: string
+  type: "tool"
+  callID: string
+  tool: string
+  state: ToolState
+  metadata?: {
+    [key: string]: unknown
+  }
+}
+
+export type ToolState = ToolStatePending | ToolStateRunning | ToolStateCompleted | ToolStateError
+
+export type ToolStateCompleted = {
+  status: "completed"
+  input: {
+    [key: string]: unknown
+  }
+  output: string
+  title: string
+  metadata: {
+    [key: string]: unknown
+  }
+  time: {
+    start: number
+    end: number
+    compacted?: number
+  }
+  attachments?: Array<FilePart>
+}
+
+export type ToolStateError = {
+  status: "error"
+  input: {
+    [key: string]: unknown
+  }
+  error: string
+  metadata?: {
+    [key: string]: unknown
+  }
+  time: {
+    start: number
+    end: number
+  }
+}
+
+export type ToolStatePending = {
+  status: "pending"
+  input: {
+    [key: string]: unknown
+  }
+  raw: string
+}
+
+export type ToolStateRunning = {
+  status: "running"
+  input: {
+    [key: string]: unknown
+  }
+  title?: string
+  metadata?: {
+    [key: string]: unknown
+  }
+  time: {
+    start: number
+  }
+}
+
+export type UnknownError = {
+  name: "UnknownError"
+  data: {
+    message: string
+    ref?: string
+  }
+}
+
+export type UserMessage = {
+  id: string
+  sessionID: string
+  role: "user"
+  time: {
+    created: number
+  }
+  format?: OutputFormat
+  summary?: {
+    title?: string
+    body?: string
+    diffs: Array<SnapshotFileDiff>
+  }
+  agent: string
+  model: {
+    providerID: string
+    modelID: string
+    variant?: string
+  }
+  system?: string
+  tools?: {
+    [key: string]: boolean
+  }
 }
 
 export type WorkflowRunInputsWritable = JsonValueWritable
@@ -8930,6 +9535,180 @@ export type ListWorkflowWebhookTriggersResponses = {
 
 export type ListWorkflowWebhookTriggersResponse2 =
   ListWorkflowWebhookTriggersResponses[keyof ListWorkflowWebhookTriggersResponses]
+
+export type ListAgentModelCatalogData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/model-catalog"
+}
+
+export type ListAgentModelCatalogErrors = {
+  /**
+   * Unexpected server error.
+   */
+  default: Error
+}
+
+export type ListAgentModelCatalogError =
+  ListAgentModelCatalogErrors[keyof ListAgentModelCatalogErrors]
+
+export type ListAgentModelCatalogResponses = {
+  /**
+   * Provider branding for the agent's configured models, including pools and inherited providers.
+   */
+  200: Array<AgentModelCatalogEntry>
+}
+
+export type ListAgentModelCatalogResponse =
+  ListAgentModelCatalogResponses[keyof ListAgentModelCatalogResponses]
+
+export type ListWorkflowEvaluationsData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    workflowName: WorkflowName
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/evaluation"
+}
+
+export type ListWorkflowEvaluationsErrors = {
+  /**
+   * Unexpected server error.
+   */
+  default: Error
+}
+
+export type ListWorkflowEvaluationsError =
+  ListWorkflowEvaluationsErrors[keyof ListWorkflowEvaluationsErrors]
+
+export type ListWorkflowEvaluationsResponses = {
+  /**
+   * Recent model comparisons without full transcripts.
+   */
+  200: Array<WorkflowEvaluationSummary>
+}
+
+export type ListWorkflowEvaluationsResponse =
+  ListWorkflowEvaluationsResponses[keyof ListWorkflowEvaluationsResponses]
+
+export type CreateWorkflowEvaluationData = {
+  body: WorkflowEvaluationRequest
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    workflowName: WorkflowName
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/evaluation"
+}
+
+export type CreateWorkflowEvaluationErrors = {
+  /**
+   * Unexpected server error.
+   */
+  default: Error
+}
+
+export type CreateWorkflowEvaluationError =
+  CreateWorkflowEvaluationErrors[keyof CreateWorkflowEvaluationErrors]
+
+export type CreateWorkflowEvaluationResponses = {
+  /**
+   * Workflow executions queued for evaluation.
+   */
+  202: WorkflowEvaluation
+}
+
+export type CreateWorkflowEvaluationResponse =
+  CreateWorkflowEvaluationResponses[keyof CreateWorkflowEvaluationResponses]
+
+export type GetWorkflowEvaluationData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    workflowName: WorkflowName
+    evaluationId: string
+  }
+  query?: {
+    /**
+     * Include native transcripts and the workflow run record for this execution only.
+     */
+    transcript_run?: string
+  }
+  url: "/api/workflow/{agentName}/{workflowName}/evaluation/{evaluationId}"
+}
+
+export type GetWorkflowEvaluationErrors = {
+  /**
+   * Unexpected server error.
+   */
+  default: Error
+}
+
+export type GetWorkflowEvaluationError =
+  GetWorkflowEvaluationErrors[keyof GetWorkflowEvaluationErrors]
+
+export type GetWorkflowEvaluationResponses = {
+  /**
+   * Execution results, optionally including complete transcripts.
+   */
+  200: WorkflowEvaluation
+}
+
+export type GetWorkflowEvaluationResponse =
+  GetWorkflowEvaluationResponses[keyof GetWorkflowEvaluationResponses]
+
+export type UpdateWorkflowEvaluationData = {
+  body: {
+    action: "cancel" | "judge"
+    judge?: EvaluationModel
+  }
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    workflowName: WorkflowName
+    evaluationId: string
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/evaluation/{evaluationId}"
+}
+
+export type UpdateWorkflowEvaluationErrors = {
+  /**
+   * Unexpected server error.
+   */
+  default: Error
+}
+
+export type UpdateWorkflowEvaluationError =
+  UpdateWorkflowEvaluationErrors[keyof UpdateWorkflowEvaluationErrors]
+
+export type UpdateWorkflowEvaluationResponses = {
+  /**
+   * Updated evaluation.
+   */
+  200: WorkflowEvaluation
+}
+
+export type UpdateWorkflowEvaluationResponse =
+  UpdateWorkflowEvaluationResponses[keyof UpdateWorkflowEvaluationResponses]
 
 export type ListWorkflowRunsData = {
   body?: never

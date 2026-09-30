@@ -2,6 +2,7 @@
 
 import {
   Fragment,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -86,6 +87,7 @@ function MultiSelectDropdown({
   searchPlaceholder?: string
   value: string[]
 }) {
+  const listId = useId()
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState("")
   const selectedValues = new Set(value)
@@ -142,6 +144,10 @@ function MultiSelectDropdown({
           id={id}
           type="button"
           disabled={disabled}
+          role="combobox"
+          aria-controls={open ? listId : undefined}
+          aria-expanded={open}
+          aria-invalid={invalid || undefined}
           className={cn(
             "border-input focus-visible:border-ring focus-visible:ring-ring/50 data-placeholder:text-muted-foreground dark:bg-input/30 dark:hover:bg-input/50 flex h-8 w-full items-center justify-between gap-1.5 rounded-lg border bg-transparent py-2 pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors outline-none select-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50",
             value.length === 0 && "text-muted-foreground",
@@ -168,7 +174,7 @@ function MultiSelectDropdown({
       >
         <Command>
           <CommandInput placeholder={searchPlaceholder} value={search} onValueChange={setSearch} />
-          <CommandList>
+          <CommandList id={listId}>
             <CommandEmpty>{emptyMessage}</CommandEmpty>
             {canCreate ? (
               <CommandGroup>

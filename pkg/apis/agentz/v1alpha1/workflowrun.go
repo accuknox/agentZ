@@ -96,8 +96,27 @@ func (p WorkflowRunNodePhase) Terminal() bool {
 	return p == WorkflowRunNodePhaseSucceeded || p == WorkflowRunNodePhaseFailed
 }
 
+// WorkflowRunModel selects a model without changing the agent default.
+type WorkflowRunModel struct {
+	// ProviderID identifies the configured provider.
+	ProviderID string `json:"providerID"`
+	// ModelID identifies the provider model.
+	ModelID string `json:"modelID"`
+	// Variant selects the reasoning configuration.
+	// +optional
+	Variant string `json:"variant,omitempty"`
+}
+
 // WorkflowRunSpec defines the desired state of WorkflowRun.
 type WorkflowRunSpec struct {
+	// Model overrides the model for this execution only.
+	// +optional
+	Model *WorkflowRunModel `json:"model,omitempty"`
+
+	// Definition freezes the workflow graph for evaluation executions.
+	// +optional
+	Definition *apiextensionsv1.JSON `json:"definition,omitempty"`
+
 	// AgentName identifies the target AgentZ Agent.
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=32

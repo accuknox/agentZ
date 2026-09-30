@@ -6,6 +6,8 @@ package workflowdb
 
 import (
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type Workflow struct {
@@ -61,4 +63,22 @@ type WorkflowNodePreferredTool struct {
 	NodeName        string `json:"node_name"`
 	Ordinal         int32  `json:"ordinal"`
 	ToolName        string `json:"tool_name"`
+}
+
+type WorkflowRunEvaluation struct {
+	ID              uuid.UUID `json:"id"`
+	TenantNamespace string    `json:"tenant_namespace"`
+	WorkspaceID     string    `json:"workspace_id"`
+	OrganizationID  string    `json:"organization_id"`
+	OwnerID         string    `json:"owner_id"`
+	AgentName       string    `json:"agent_name"`
+	WorkflowName    string    `json:"workflow_name"`
+	State           string    `json:"state"`
+	Request         []byte    `json:"request"`
+	Result          []byte    `json:"result"`
+	CancelRequested bool      `json:"cancel_requested"`
+	LeaseToken      string    `json:"lease_token"`
+	LeaseUntil      time.Time `json:"lease_until"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }

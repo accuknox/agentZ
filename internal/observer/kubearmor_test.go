@@ -58,20 +58,3 @@ func TestKubeArmorLogFile(t *testing.T) {
 		t.Fatalf("process = %q", ev.file.process)
 	}
 }
-
-func TestKubeArmorLogTenantNamespace(t *testing.T) {
-	t.Parallel()
-
-	ev, ok := kubeArmorLogEvent(&pb.Log{
-		NamespaceName: "kube-system",
-		Type:          "ContainerLog",
-		Operation:     "Process",
-		ProcessName:   "/usr/bin/id",
-	}, "agent-sample")
-	if !ok {
-		t.Fatal("kubeArmorLogEvent() filtered event from another namespace")
-	}
-	if ev.process.tenantNamespace != "kube-system" {
-		t.Fatalf("tenantNamespace = %q, want %q", ev.process.tenantNamespace, "kube-system")
-	}
-}

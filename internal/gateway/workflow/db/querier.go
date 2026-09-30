@@ -6,9 +6,20 @@ package workflowdb
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 type Querier interface {
+	RunEvaluationCancel(ctx context.Context, arg RunEvaluationCancelParams) (int64, error)
+	RunEvaluationCancelled(ctx context.Context, id uuid.UUID) (bool, error)
+	RunEvaluationClaim(ctx context.Context, arg RunEvaluationClaimParams) (WorkflowRunEvaluation, error)
+	RunEvaluationCreate(ctx context.Context, arg RunEvaluationCreateParams) (WorkflowRunEvaluation, error)
+	RunEvaluationGet(ctx context.Context, arg RunEvaluationGetParams) (WorkflowRunEvaluation, error)
+	RunEvaluationList(ctx context.Context, arg RunEvaluationListParams) ([][]byte, error)
+	RunEvaluationRetryJudge(ctx context.Context, arg RunEvaluationRetryJudgeParams) (int64, error)
+	RunEvaluationSave(ctx context.Context, arg RunEvaluationSaveParams) (int64, error)
+	RunEvaluationView(ctx context.Context, arg RunEvaluationViewParams) (RunEvaluationViewRow, error)
 	WorkflowCreate(ctx context.Context, arg WorkflowCreateParams) (Workflow, error)
 	WorkflowCreateEdges(ctx context.Context, arg WorkflowCreateEdgesParams) error
 	WorkflowCreateNodes(ctx context.Context, arg WorkflowCreateNodesParams) error

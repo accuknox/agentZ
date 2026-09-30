@@ -229,3 +229,57 @@ WHERE tenant_namespace = sqlc.arg(tenant_namespace)
   AND agent_name = sqlc.arg(agent_name)
   AND workflow_name = sqlc.arg(workflow_name)
 ORDER BY ordinal ASC, id ASC;
+
+-- name: RunEvaluationCreate :one
+INSERT INTO workflow_run_evaluations (id, tenant_namespace, workspace_id, organization_id, owner_id, agent_name, workflow_name, request, result)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+ON CONFLICT (id) DO NOTHING RETURNING *;
+
+-- name: RunEvaluationGet :one
+SELECT * FROM workflow_run_evaluations WHERE id=$1 AND tenant_namespace=$2 AND agent_name=$3 AND workflow_name=$4;
+
+-- name: RunEvaluationView :one
+SELECT state, cancel_requested,
+  jsonb_set(result, '{executions}',
+    (SELECT jsonb_agg(CASE WHEN e->>'run_name' = sqlc.arg(transcript_run)::text
+      THEN e ELSE e - ARRAY['transcript', 'run'] END)
+     FROM jsonb_array_elements(result->'executions') AS e))::jsonb AS result
+FROM workflow_run_evaluations
+WHERE id=sqlc.arg(id) AND tenant_namespace=sqlc.arg(tenant_namespace)
+  AND agent_name=sqlc.arg(agent_name) AND workflow_name=sqlc.arg(workflow_name);
+
+-- name: RunEvaluationList :many
+SELECT (result - ARRAY['workflow', 'request', 'executions'] || jsonb_build_object('judge', result->'request'->'judge', 'state', CASE WHEN cancel_requested AND state <> 'cancelled' THEN 'cancelling' ELSE state END, 'executions',
+  (SELECT jsonb_agg(e - ARRAY['transcript', 'run']) FROM jsonb_array_elements(result->'executions') AS e)))::jsonb AS summary
+FROM workflow_run_evaluations WHERE tenant_namespace=$1 AND agent_name=$2 AND workflow_name=$3
+ORDER BY created_at DESC LIMIT 50;
+
+-- name: RunEvaluationClaim :one
+UPDATE workflow_run_evaluations SET
+  lease_token=sqlc.arg(lease_token),
+  lease_until=now()+interval '3 minutes'
+WHERE id=(
+  SELECT e.id FROM workflow_run_evaluations e
+  WHERE e.state IN ('queued','running')
+    AND e.lease_until < now()
+    AND e.cancel_requested=sqlc.arg(cancel_requested)
+  ORDER BY e.lease_until FOR UPDATE SKIP LOCKED LIMIT 1
+) RETURNING *;
+
+-- name: RunEvaluationSave :execrows
+UPDATE workflow_run_evaluations SET
+  result=sqlc.arg(result),
+  state=CASE WHEN cancel_requested AND sqlc.arg(state)::text <> 'cancelled' THEN 'running' ELSE sqlc.arg(state)::text END,
+  updated_at=now(), lease_until=now()+interval '1 second', lease_token=''
+WHERE id=sqlc.arg(id) AND lease_token=sqlc.arg(lease_token);
+
+-- name: RunEvaluationCancel :execrows
+UPDATE workflow_run_evaluations SET cancel_requested=true, updated_at=now()
+WHERE id=$1 AND tenant_namespace=$2 AND agent_name=$3 AND workflow_name=$4 AND state IN ('queued','running');
+
+-- name: RunEvaluationCancelled :one
+SELECT cancel_requested FROM workflow_run_evaluations WHERE id=$1;
+
+-- name: RunEvaluationRetryJudge :execrows
+UPDATE workflow_run_evaluations SET result=$5, state='queued', lease_until=now(), updated_at=now()
+WHERE id=$1 AND tenant_namespace=$2 AND agent_name=$3 AND workflow_name=$4 AND state='completed' AND updated_at=$6;

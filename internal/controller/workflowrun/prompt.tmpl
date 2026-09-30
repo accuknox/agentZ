@@ -1,7 +1,7 @@
 Execute the workflow {{printf "%q" .WorkflowName}} for agent {{printf "%q" .AgentName}}.
 
 Requirements:
-1. Load the workflow definition with the get_workflow tool.
+1. {{if .Definition}}Use the frozen workflow definition below. Do not load a different definition.{{else}}Load the workflow definition with the get_workflow tool.{{end}}
 2. If a workflow node declares preferred skills, load each one with the skill tool before executing that node. Skip any skill that fails to load.
 3. Use list_skills only when you need to inspect available skills before loading one.
 4. Treat preferred skills as the verified reusable logic extracted during workflow authoring, and follow them when available.
@@ -18,3 +18,7 @@ Requirements:
 WorkflowRun name: {{.RunName}}
 Inputs JSON:
 {{.InputsJSON}}
+
+{{if .Definition}}Frozen workflow JSON:
+{{.Definition}}
+{{end}}

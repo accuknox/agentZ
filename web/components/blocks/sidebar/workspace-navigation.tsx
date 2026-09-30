@@ -234,6 +234,11 @@ export function WorkspaceNavigation({
                       <SidebarMenuItem data-tour="workflows">
                         <SidebarNavigationLink
                           href={`${root}/workflows/graphs`}
+                          match={
+                            pathname.startsWith(`${root}/workflows/evaluations`)
+                              ? `${root}/workflows/evaluations`
+                              : undefined
+                          }
                           label={resourceLabels.workflow.collection}
                         >
                           <Workflow aria-hidden="true" />

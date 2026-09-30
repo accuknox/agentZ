@@ -3620,6 +3620,92 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /api/agent/{agentName}/model-catalog:
+    parameters:
+    - $ref: '#/components/parameters/AgentNamePath'
+    get:
+      operationId: listAgentModelCatalog
+      tags: [agents]
+      responses:
+        '200':
+          description: Provider branding for the agent's configured models, including pools and inherited providers.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/AgentModelCatalogEntry'}
+        default: {$ref: '#/components/responses/InternalError'}
+  /api/workflow/{agentName}/{workflowName}/evaluation:
+    parameters:
+    - $ref: '#/components/parameters/AgentNamePath'
+    - {name: workflowName, in: path, required: true, schema: {$ref: '#/components/schemas/WorkflowName'}}
+    get:
+      operationId: listWorkflowEvaluations
+      tags: [workflows]
+      responses:
+        '200':
+          description: Recent model comparisons without full transcripts.
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/WorkflowEvaluationSummary'}}
+        default: {$ref: '#/components/responses/InternalError'}
+    post:
+      operationId: createWorkflowEvaluation
+      tags: [workflows]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/WorkflowEvaluationRequest'}
+      responses:
+        '202':
+          description: Workflow executions queued for evaluation.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/WorkflowEvaluation'}
+        default: {$ref: '#/components/responses/InternalError'}
+  /api/workflow/{agentName}/{workflowName}/evaluation/{evaluationId}:
+    parameters:
+    - $ref: '#/components/parameters/AgentNamePath'
+    - {name: workflowName, in: path, required: true, schema: {$ref: '#/components/schemas/WorkflowName'}}
+    - {name: evaluationId, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      operationId: getWorkflowEvaluation
+      tags: [workflows]
+      parameters:
+      - name: transcript_run
+        in: query
+        description: Include native transcripts and the workflow run record for this execution only.
+        schema: {type: string, minLength: 1}
+      responses:
+        '200':
+          description: Execution results, optionally including complete transcripts.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/WorkflowEvaluation'}
+        default: {$ref: '#/components/responses/InternalError'}
+    patch:
+      operationId: updateWorkflowEvaluation
+      tags: [workflows]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [action]
+              properties:
+                action: {type: string, enum: [cancel, judge]}
+                judge: {$ref: '#/components/schemas/EvaluationModel'}
+      responses:
+        '200':
+          description: Updated evaluation.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/WorkflowEvaluation'}
+        default: {$ref: '#/components/responses/InternalError'}
+
   /api/workflow/{agentName}/{workflowName}/run:
     get:
       operationId: listWorkflowRuns
@@ -6629,6 +6715,144 @@ components:
       type: string
       minLength: 1
       description: Better Auth API key identifier.
+
+    AgentModelCatalogEntry:
+      type: object
+      required: [provider_id, model_id, providers]
+      properties:
+        provider_id: {type: string}
+        model_id: {type: string}
+        providers:
+          type: array
+          uniqueItems: true
+          items: {type: string}
+    EvaluationModel:
+      type: object
+      additionalProperties: false
+      required: [provider_id, model_id, label]
+      properties:
+        provider_id: {type: string, minLength: 1}
+        model_id: {type: string, minLength: 1}
+        label: {type: string, minLength: 1, maxLength: 200}
+        variant: {type: string}
+    WorkflowEvaluationRequest:
+      type: object
+      additionalProperties: false
+      required: [id, inputs, models, judge, timeout_seconds, concurrency]
+      properties:
+        id: {type: string, format: uuid}
+        inputs: {$ref: '#/components/schemas/JSONValue'}
+        models: {type: array, minItems: 1, maxItems: 8, items: {$ref: '#/components/schemas/EvaluationModel'}}
+        judge: {$ref: '#/components/schemas/EvaluationModel'}
+        timeout_seconds:
+          description: Maximum execution time for each workflow run, in seconds.
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 604800
+          default: 900
+        concurrency:
+          description: Maximum number of active workflow executions in this evaluation.
+          type: integer
+          minimum: 1
+          maximum: 5
+          default: 1
+    WorkflowEvaluationState:
+      type: string
+      enum: [queued, running, cancelling, completed, cancelled]
+    WorkflowEvaluation:
+      type: object
+      required: [id, request, workflow, executions, state, created_at, updated_at, scoring_version]
+      properties:
+        id: {type: string, format: uuid}
+        request: {$ref: '#/components/schemas/WorkflowEvaluationRequest'}
+        workflow: {$ref: '#/components/schemas/Workflow'}
+        executions: {type: array, items: {$ref: '#/components/schemas/EvaluationExecution'}}
+        state: {$ref: '#/components/schemas/WorkflowEvaluationState'}
+        message: {type: string}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        scoring_version: {type: string, enum: [trace-v1]}
+        references: {$ref: '#/components/schemas/EvaluationReferences'}
+    WorkflowEvaluationSummary:
+      type: object
+      required: [id, judge, executions, state, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        judge: {$ref: '#/components/schemas/EvaluationModel'}
+        executions: {type: array, items: {$ref: '#/components/schemas/EvaluationExecution'}}
+        state: {$ref: '#/components/schemas/WorkflowEvaluationState'}
+        created_at: {type: string, format: date-time}
+    EvaluationExecution:
+      type: object
+      required: [model, run_name, state]
+      properties:
+        model: {$ref: '#/components/schemas/EvaluationModel'}
+        run_name: {type: string}
+        state: {type: string, enum: [queued, running, judging, completed, error, cancelled]}
+        run_status: {$ref: '#/components/schemas/WorkflowRunStatus'}
+        run: {$ref: '#/components/schemas/WorkflowRunDetail'}
+        message: {type: string}
+        session_id: {type: string}
+        transcript:
+          description: Complete native session messages and metadata, including delegated sessions. Never truncated or summarized.
+          type: array
+          items: {$ref: '#/components/schemas/EvaluationTranscriptSession'}
+        measured_efficiency: {type: number, format: double, minimum: 0, maximum: 1}
+        tokens: {type: number, format: double, minimum: 0}
+        tool_calls: {type: integer, minimum: 0}
+        duration_seconds: {type: number, format: double, minimum: 0}
+        judgment: {$ref: '#/components/schemas/EvaluationJudgment'}
+        judge_context_compacted:
+          type: boolean
+          description: The judge continued after native context compaction. Informational only; does not affect scoring.
+        score: {type: number, format: double, minimum: 0, maximum: 100}
+    EvaluationTranscriptSession:
+      type: object
+      required: [session_id, session, messages]
+      properties:
+        session_id: {type: string}
+        session: {$ref: 'https://raw.githubusercontent.com/anomalyco/opencode/a3647eb025c7615159d417dcc49fc39fdaeba65b/packages/sdk/openapi.json#/components/schemas/Session'}
+        messages:
+          type: array
+          items:
+            type: object
+            required: [info, parts]
+            properties:
+              info: {$ref: 'https://raw.githubusercontent.com/anomalyco/opencode/a3647eb025c7615159d417dcc49fc39fdaeba65b/packages/sdk/openapi.json#/components/schemas/Message'}
+              parts:
+                type: array
+                items: {$ref: 'https://raw.githubusercontent.com/anomalyco/opencode/a3647eb025c7615159d417dcc49fc39fdaeba65b/packages/sdk/openapi.json#/components/schemas/Part'}
+    EvaluationReferences:
+      type: object
+      required: [tokens, tool_calls]
+      properties:
+        tokens: {type: number, format: double, minimum: 0}
+        tool_calls: {type: number, format: double, minimum: 0}
+    EvaluationJudgment:
+      type: object
+      additionalProperties: false
+      required: [correctness, efficiency, summary, evidence, limitations]
+      properties:
+        correctness: {type: integer, minimum: 0, maximum: 4}
+        efficiency: {type: integer, minimum: 0, maximum: 4}
+        summary: {type: string, minLength: 1, maxLength: 2000}
+        evidence: {type: array, minItems: 1, maxItems: 8, items: {type: string, minLength: 1, maxLength: 1000}}
+        limitations: {type: array, maxItems: 8, items: {type: string, minLength: 1, maxLength: 1000}}
+        references:
+          type: array
+          maxItems: 16
+          items: {$ref: '#/components/schemas/EvaluationEvidenceReference'}
+
+    EvaluationEvidenceReference:
+      type: object
+      additionalProperties: false
+      required: [evidence_index, session_id, message_id]
+      properties:
+        evidence_index: {type: integer, minimum: 0, description: Zero-based index into the evidence findings.}
+        session_id: {type: string, minLength: 1}
+        message_id: {type: string, minLength: 1}
+        part_id: {type: string, minLength: 1, description: 'The native part ID, when citing a tool call.'}
 
     WorkflowRunInputs:
       $ref: '#/components/schemas/JSONValue'

@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -267,12 +268,11 @@ func PatchRunStatus(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 				return ErrWorkflowRunScopeMismatch
 			}
 
-			if current.Status.Phase.Terminal() && current.Status.Phase == phase && current.Status.Message == msg {
-				resultErr = nil
-				return nil
-			}
 			if current.Status.Phase.Terminal() {
 				resultErr = ErrWorkflowRunTerminal
+				if current.Status.Phase == phase && current.Status.Message == msg {
+					resultErr = nil
+				}
 				return nil
 			}
 			if current.Status.Phase != agentzv1alpha1.WorkflowRunPhaseRunning {
@@ -312,16 +312,11 @@ func PatchRunStatus(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 
 // PatchRunNodeStatus updates one workflow run node phase.
 func PatchRunNodeStatus(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, runName string, nodeName string, req gatewayapi.PatchWorkflowRunNodeStatusRequest, msg string) error {
-	workflow, err := Get(ctx, pool, ns, agtName, wfName)
-	if err != nil {
-		return err
-	}
-
 	key := types.NamespacedName{Namespace: ns, Name: strings.TrimSpace(runName)}
 	phase := agentzv1alpha1.WorkflowRunNodePhase(req.Phase)
 	var resultErr error
 
-	err = retry.RetryOnConflict(
+	err := retry.RetryOnConflict(
 		retry.DefaultRetry,
 		func() error {
 			current := &agentzv1alpha1.WorkflowRun{}
@@ -344,6 +339,20 @@ func PatchRunNodeStatus(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlc
 					Target:  agentzv1alpha1.WorkflowRunPhaseRunning,
 				}
 				return nil
+			}
+
+			var workflow gatewayapi.Workflow
+			switch {
+			case current.Spec.Definition != nil:
+				if err := json.Unmarshal(current.Spec.Definition.Raw, &workflow); err != nil {
+					return fmt.Errorf("decode frozen workflow: %w", err)
+				}
+			default:
+				var err error
+				workflow, err = Get(ctx, pool, ns, agtName, wfName)
+				if err != nil {
+					return err
+				}
 			}
 
 			nodes := make([]agentzv1alpha1.WorkflowRunNodeStatus, 0, len(workflow.Nodes))
@@ -669,10 +678,11 @@ func ListRuns(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtNa
 		if params.Status != nil && string(*params.Status) != string(run.Status.Phase) {
 			continue
 		}
-		if params.TriggerType != nil && *params.TriggerType == gatewayapi.Schedule && run.Spec.ScheduleRef == nil {
+		trigger := params.TriggerType
+		if trigger != nil && *trigger == gatewayapi.Schedule && run.Spec.ScheduleRef == nil {
 			continue
 		}
-		if params.TriggerType != nil && *params.TriggerType == gatewayapi.Webhook && run.Spec.ScheduleRef != nil {
+		if trigger != nil && *trigger == gatewayapi.Webhook && run.Spec.ScheduleRef != nil {
 			continue
 		}
 		if scheduleName != "" && (run.Spec.ScheduleRef == nil || run.Spec.ScheduleRef.Name != scheduleName) {

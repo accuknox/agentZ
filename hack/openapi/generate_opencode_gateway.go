@@ -76,6 +76,9 @@ var baseOperationCapabilities = map[string][]string{
 		"createAgentDirectory",
 		"createAgentFile",
 		"createWorkflow",
+		"listAgentModelCatalog",
+		"createWorkflowEvaluation", "listWorkflowEvaluations",
+		"getWorkflowEvaluation", "updateWorkflowEvaluation",
 		"createWorkflowRun",
 		"createWorkflowSchedule",
 		"deleteAgent",
@@ -271,6 +274,12 @@ func run() error {
 		return err
 	}
 
+	// Evaluation evidence shares the pinned native session contract with the SDK.
+	externalRefs := make(map[string]string)
+	for _, name := range []string{"Session", "Message", "Part"} {
+		externalRefs[upstreamSpecURL+"#/components/schemas/"+name] = "#/components/schemas/Opencode" + name
+	}
+	rewriteRefs(base, externalRefs)
 	mergeSpec(base, rewritten)
 
 	if err := writeYAML(outputSpecPath, base); err != nil {
@@ -879,6 +888,35 @@ func applyOAPICodegenFixups(doc map[string]any) error {
 			"compaction":  "#/components/schemas/CompactionPart",
 		},
 	}
+	// Message roles and tool states are mutually exclusive wire discriminators.
+	for name, field := range map[string]string{"Message": "role", "ToolState": "status"} {
+		schema := schemas[name].(map[string]any)
+		mapping := make(map[string]any)
+		for _, variant := range schema["anyOf"].([]any) {
+			ref := variant.(map[string]any)["$ref"].(string)
+			variantSchema := schemas[strings.TrimPrefix(ref, "#/components/schemas/")].(map[string]any)
+			properties := variantSchema["properties"].(map[string]any)
+			tag := properties[field].(map[string]any)["enum"].([]any)[0].(string)
+			mapping[tag] = ref
+		}
+		schema["oneOf"] = schema["anyOf"]
+		delete(schema, "anyOf")
+		schema["discriminator"] = map[string]any{"propertyName": field, "mapping": mapping}
+	}
+	// Assistant errors have explicit names; do not decode them by trial.
+	assistant := schemas["AssistantMessage"].(map[string]any)["properties"].(map[string]any)
+	failure := assistant["error"].(map[string]any)
+	errorMapping := make(map[string]any)
+	for _, variant := range failure["anyOf"].([]any) {
+		ref := variant.(map[string]any)["$ref"].(string)
+		variantSchema := schemas[strings.TrimPrefix(ref, "#/components/schemas/")].(map[string]any)
+		properties := variantSchema["properties"].(map[string]any)
+		name := properties["name"].(map[string]any)["enum"].([]any)[0].(string)
+		errorMapping[name] = ref
+	}
+	failure["oneOf"] = failure["anyOf"]
+	delete(failure, "anyOf")
+	failure["discriminator"] = map[string]any{"propertyName": "name", "mapping": errorMapping}
 	// Event variants already carry a unique type. Generate discriminator access
 	// instead of making proxy consumers probe each possible JSON shape.
 	event := schemas["Event"].(map[string]any)
@@ -939,6 +977,18 @@ func applyOAPICodegenFixups(doc map[string]any) error {
 	body["properties"].(map[string]any)["model"] = map[string]any{
 		"$ref": "#/components/schemas/ModelRef",
 	}
+	// Native message timestamps are Unix milliseconds; float32 loses minutes.
+	user := schemas["UserMessage"].(map[string]any)["properties"].(map[string]any)
+	userTime := user["time"].(map[string]any)["properties"].(map[string]any)
+	userTime["created"] = map[string]any{"type": "integer", "format": "int64"}
+
+	schemas["PromptModel"] = map[string]any{
+		"type": "object", "required": []any{"providerID", "modelID"},
+		"properties": map[string]any{
+			"providerID": map[string]any{"type": "string"},
+			"modelID":    map[string]any{"type": "string"},
+		},
+	}
 	for _, path := range []string{
 		"/session/{sessionID}/message",
 		"/session/{sessionID}/prompt_async",
@@ -971,6 +1021,7 @@ func applyOAPICodegenFixups(doc map[string]any) error {
 		if !ok {
 			return fmt.Errorf("upstream POST %s request has no properties", path)
 		}
+		properties["model"] = map[string]any{"$ref": "#/components/schemas/PromptModel"}
 		parts, ok := properties["parts"].(map[string]any)
 		if !ok {
 			return fmt.Errorf("upstream POST %s request has no parts", path)

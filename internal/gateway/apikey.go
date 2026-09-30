@@ -135,10 +135,11 @@ func (s *Service) resolveWebhookAPIKeyAuth(r *http.Request) (requestAuth, error)
 }
 
 func (s *Service) getAPIKeyByHash(ctx context.Context, rawKey string, configID string) (gatewaydb.GatewayGetAPIKeyByHashRow, error) {
+	sum := sha256.Sum256([]byte(rawKey))
 	return s.queries.GatewayGetAPIKeyByHash(
 		ctx,
 		gatewaydb.GatewayGetAPIKeyByHashParams{
-			Key:      hashAPIKey(rawKey),
+			Key:      base64.RawURLEncoding.EncodeToString(sum[:]),
 			ConfigID: configID,
 			NowAt: pgtype.Timestamp{
 				Time:  time.Now().UTC(),
@@ -336,9 +337,4 @@ func invalidAPIKeyAuthError(err error) *apiutil.APIError {
 		"missing or invalid credentials",
 		err,
 	)
-}
-
-func hashAPIKey(key string) string {
-	sum := sha256.Sum256([]byte(key))
-	return base64.RawURLEncoding.EncodeToString(sum[:])
 }

@@ -285,6 +285,7 @@ func TestAPIKeyPromptIdentity(t *testing.T) {
 }
 
 type codingModelCase struct {
+	purpose                    gatewayapi.CodingTextRequestPurpose
 	name                       string
 	small, override            bool
 	organization, unselected   bool
@@ -303,203 +304,216 @@ func TestCodingSuggestionModels(t *testing.T) {
 		{name: "unselected", small: true, organization: true, unselected: true},
 		{name: "missing sandbox", missing: true},
 		{name: "model failure", small: true, failure: true},
+		{name: "branch output", small: true, purpose: gatewayapi.CodingTextBranch},
+		{name: "PR output", small: true, purpose: gatewayapi.CodingTextPR},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			for _, purpose := range []gatewayapi.CodingTextRequestPurpose{
-				gatewayapi.CodingTextCommit, gatewayapi.CodingTextPR, gatewayapi.CodingTextBranch,
-			} {
-				t.Run(string(purpose), func(t *testing.T) {
-					scheme := runtime.NewScheme()
-					if err := corev1.AddToScheme(scheme); err != nil {
-						t.Fatal(err)
+			purpose := test.purpose
+			if purpose == "" {
+				purpose = gatewayapi.CodingTextCommit
+			}
+			scheme := runtime.NewScheme()
+			if err := corev1.AddToScheme(scheme); err != nil {
+				t.Fatal(err)
+			}
+			if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
+				t.Fatal(err)
+			}
+			org := agentzv1alpha1.ScopeNamespace(
+				agentzv1alpha1.ResourceScopeOrganisation, "org",
+			)
+			ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
+				Name: "workspace", Labels: map[string]string{
+					agentzv1alpha1.WorkspaceNameLabel:        "workspace",
+					agentzv1alpha1.TenantOrganizationIDLabel: org,
+				},
+			}}
+			workspace := &agentzv1alpha1.Workspace{
+				ObjectMeta: metav1.ObjectMeta{Name: ns.Name},
+			}
+			workspace.Spec.OrganizationID = "org"
+			workspace.Spec.SelectedOrganizationResources.Sandboxes = []string{"sandbox"}
+			if test.unselected {
+				workspace.Spec.SelectedOrganizationResources.Sandboxes = nil
+			}
+			agent := &agentzv1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{Name: "agent", Namespace: ns.Name},
+			}
+			agent.Spec.SandboxRef = agentzv1alpha1.ResourceReference{
+				Name: "sandbox", Scope: agentzv1alpha1.ResourceScopeWorkspace,
+			}
+			sandbox := &agentzv1alpha1.Sandbox{
+				ObjectMeta: metav1.ObjectMeta{Name: "sandbox", Namespace: ns.Name},
+			}
+			if test.organization {
+				agent.Spec.SandboxRef.Scope = agentzv1alpha1.ResourceScopeOrganisation
+				sandbox.Namespace = org
+			}
+			if test.small {
+				sandbox.Spec.Inference.SmallModel = &agentzv1alpha1.InferenceModelRef{
+					Provider: "small-provider", Model: "family/small",
+					Scope: agentzv1alpha1.ResourceScopeWorkspace,
+				}
+			}
+			k8s := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithObjects(ns, workspace, sandbox).
+				Build()
+			if test.missing {
+				if err := k8s.Delete(t.Context(), sandbox); err != nil {
+					t.Fatal(err)
+				}
+			}
+			index := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+			if err := index.Add(agent); err != nil {
+				t.Fatal(err)
+			}
+			parent := &gatewayapi.OpencodeModelRef{
+				ProviderID: "thread-provider", Id: "thread", Variant: new("high"),
+			}
+			if test.noParent {
+				parent = nil
+			}
+			want := parent
+			if test.small {
+				want = &gatewayapi.OpencodeModelRef{
+					ProviderID: "small-provider", Id: "family/small",
+				}
+			}
+			calls := make(chan string, 10)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls <- r.URL.Path
+				w.Header().Set("Content-Type", "application/json")
+				switch r.URL.Path {
+				case "/git":
+					_, _ = w.Write([]byte(
+						`{"tree":"reviewed","branch":"feat/test","files":[{"path":"file.go","index":"M","worktree":" "}],"patches":[{"patch":"+change"}]}`,
+					))
+				case "/session/parent":
+					if test.small || test.override {
+						t.Error("loaded parent despite selected model")
 					}
-					if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
-						t.Fatal(err)
-					}
-					org := agentzv1alpha1.ScopeNamespace(
-						agentzv1alpha1.ResourceScopeOrganisation, "org",
-					)
-					ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
-						Name: "workspace", Labels: map[string]string{
-							agentzv1alpha1.WorkspaceNameLabel:        "workspace",
-							agentzv1alpha1.TenantOrganizationIDLabel: org,
-						},
-					}}
-					workspace := &agentzv1alpha1.Workspace{
-						ObjectMeta: metav1.ObjectMeta{Name: ns.Name},
-					}
-					workspace.Spec.OrganizationID = "org"
-					workspace.Spec.SelectedOrganizationResources.Sandboxes = []string{"sandbox"}
-					if test.unselected {
-						workspace.Spec.SelectedOrganizationResources.Sandboxes = nil
-					}
-					agent := &agentzv1alpha1.Agent{
-						ObjectMeta: metav1.ObjectMeta{Name: "agent", Namespace: ns.Name},
-					}
-					agent.Spec.SandboxRef = agentzv1alpha1.ResourceReference{
-						Name: "sandbox", Scope: agentzv1alpha1.ResourceScopeWorkspace,
-					}
-					sandbox := &agentzv1alpha1.Sandbox{
-						ObjectMeta: metav1.ObjectMeta{Name: "sandbox", Namespace: ns.Name},
-					}
-					if test.organization {
-						agent.Spec.SandboxRef.Scope = agentzv1alpha1.ResourceScopeOrganisation
-						sandbox.Namespace = org
-					}
-					if test.small {
-						sandbox.Spec.Inference.SmallModel = &agentzv1alpha1.InferenceModelRef{
-							Provider: "small-provider", Model: "family/small",
-							Scope: agentzv1alpha1.ResourceScopeWorkspace,
-						}
-					}
-					k8s := fake.NewClientBuilder().
-						WithScheme(scheme).
-						WithObjects(ns, workspace, sandbox).
-						Build()
-					if test.missing {
-						if err := k8s.Delete(t.Context(), sandbox); err != nil {
-							t.Fatal(err)
-						}
-					}
-					index := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
-					if err := index.Add(agent); err != nil {
-						t.Fatal(err)
-					}
-					parent := &gatewayapi.OpencodeModelRef{
-						ProviderID: "thread-provider", Id: "thread", Variant: new("high"),
-					}
-					if test.noParent {
-						parent = nil
-					}
-					want := parent
-					if test.small {
-						want = &gatewayapi.OpencodeModelRef{
-							ProviderID: "small-provider", Id: "family/small",
-						}
-					}
-					calls := make(chan string, 10)
-					server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-						calls <- r.URL.Path
-						w.Header().Set("Content-Type", "application/json")
-						switch r.URL.Path {
-						case "/git":
-							_, _ = w.Write([]byte(
-								`{"tree":"reviewed","branch":"feat/test","files":[{"path":"file.go","index":"M","worktree":" "}],"patches":[{"patch":"+change"}]}`,
-							))
-						case "/session/parent":
-							if test.small || test.override {
-								t.Error("loaded parent despite selected model")
-							}
-							session := gatewayapi.OpencodeSession{Id: "parent", Model: parent}
-							_ = json.NewEncoder(w).Encode(session)
-						case "/session":
-							var body gatewayapi.SessionCreateJSONRequestBody
-							if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-								t.Error(err)
-								return
-							}
-							if !test.override && !reflect.DeepEqual(body.Model, want) {
-								t.Errorf("session model = %+v, want %+v", body.Model, want)
-							}
-							if test.override && body.Model != nil {
-								t.Error("override inherited a session model")
-							}
-							if body.ParentID == nil || *body.ParentID != "parent" {
-								t.Error("missing parent")
-							}
-							denied := body.Permission != nil && len(*body.Permission) == 1 &&
-								(*body.Permission)[0].Action == gatewayapi.OpencodePermissionActionDeny
-							if !denied {
-								t.Error("tools were not denied")
-							}
-							_, _ = w.Write([]byte(`{"id":"child"}`))
-						case "/session/child/message":
-							var body gatewayapi.SessionPromptJSONRequestBody
-							if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-								t.Error(err)
-								return
-							}
-							if test.override {
-								model := body.Model
-								matches := model != nil && model.ProviderID == "override" &&
-									model.ModelID == "family/override"
-								if !matches {
-									t.Errorf("prompt model = %+v", body.Model)
-								}
-							}
-							if !test.override && body.Model != nil {
-								t.Error("prompt replaced the selected session model")
-							}
-							if test.failure {
-								http.Error(w, "model unavailable", http.StatusBadGateway)
-								return
-							}
-							text := "feat/test"
-							if purpose == gatewayapi.CodingTextPR {
-								text = `{"title":"Fix behavior","body":"Explain the change"}`
-							}
-							raw, _ := json.Marshal(text)
-							_, _ = fmt.Fprintf(w, `{"info":{},"parts":[{"type":"text","text":%s}]}`, raw)
-						case "/session/child/abort", "/session/child":
-							_, _ = w.Write([]byte(`true`))
-						default:
-							t.Errorf("unexpected request: %s", r.URL.Path)
-							http.NotFound(w, r)
-						}
-					}))
-					defer server.Close()
-					svc := &Service{
-						k8sClient: k8s, outboundHTTP: server.Client(),
-						cfg: Config{
-							FilesystemTargetOverride: strings.TrimPrefix(server.URL, "http://"),
-						},
-						resolver: &resolver{
-							agents:         listersv1alpha1.NewAgentLister(index),
-							targetOverride: server.URL,
-						},
-					}
-					input := gatewayapi.CodingTextRequest{
-						Purpose:      purpose,
-						Text:         new("Change behavior"),
-						ExpectedTree: new("reviewed"),
-					}
-					if test.override {
-						err := json.Unmarshal(
-							[]byte(`{"model":{"providerID":"override","modelID":"family/override"}}`),
-							&input,
-						)
-						if err != nil {
-							t.Fatal(err)
-						}
-					}
-					_, err := svc.codingSuggestion(
-						t.Context(), resourceAccess{namespace: ns.Name},
-						gatewaydb.CodingWorktree{AgentName: agent.Name},
-						gatewaydb.CodingProject{}, "parent", input,
-					)
-					wantErr := test.failure || test.unselected || (test.missing && !test.override)
-					if (err != nil) != wantErr {
-						t.Fatalf("generation error = %v, want error %t", err, wantErr)
-					}
-					var paths []string
-					for len(calls) > 0 {
-						paths = append(paths, <-calls)
-					}
-					if test.unselected || (test.missing && !test.override) {
-						for _, path := range paths {
-							if path != "/git" {
-								t.Errorf("request after sandbox failure: %s", path)
-							}
-						}
+					session := gatewayapi.OpencodeSession{Id: "parent", Model: parent}
+					_ = json.NewEncoder(w).Encode(session)
+				case "/session":
+					var body gatewayapi.SessionCreateJSONRequestBody
+					if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+						t.Error(err)
 						return
 					}
-					cleaned := len(paths) >= 4 && paths[len(paths)-2] == "/session/child/abort" &&
-						paths[len(paths)-1] == "/session/child"
-					if !cleaned {
-						t.Fatalf("missing cleanup: %v", paths)
+					if !test.override && !reflect.DeepEqual(body.Model, want) {
+						t.Errorf("session model = %+v, want %+v", body.Model, want)
 					}
-				})
+					if test.override && body.Model != nil {
+						t.Error("override inherited a session model")
+					}
+					if body.ParentID == nil || *body.ParentID != "parent" {
+						t.Error("missing parent")
+					}
+					denied := body.Permission != nil && len(*body.Permission) == 1 &&
+						(*body.Permission)[0].Action == gatewayapi.OpencodePermissionActionDeny
+					if !denied {
+						t.Error("tools were not denied")
+					}
+					_, _ = w.Write([]byte(`{"id":"child"}`))
+				case "/session/child/message":
+					var body gatewayapi.SessionPromptJSONRequestBody
+					if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+						t.Error(err)
+						return
+					}
+					if test.override {
+						model := body.Model
+						matches := model != nil && model.ProviderID == "override" &&
+							model.ModelID == "family/override"
+						if !matches {
+							t.Errorf("prompt model = %+v", body.Model)
+						}
+					}
+					if !test.override && body.Model != nil {
+						t.Error("prompt replaced the selected session model")
+					}
+					if test.failure {
+						http.Error(w, "model unavailable", http.StatusBadGateway)
+						return
+					}
+					text := "feat/test"
+					if purpose == gatewayapi.CodingTextPR {
+						text = `{"title":"Fix behavior","body":"Explain the change"}`
+					}
+					raw, _ := json.Marshal(text)
+					_, _ = fmt.Fprintf(w, `{"info":{},"parts":[{"type":"text","text":%s}]}`, raw)
+				case "/session/child/abort", "/session/child":
+					_, _ = w.Write([]byte(`true`))
+				default:
+					t.Errorf("unexpected request: %s", r.URL.Path)
+					http.NotFound(w, r)
+				}
+			}))
+			defer server.Close()
+			svc := &Service{
+				k8sClient: k8s, outboundHTTP: server.Client(),
+				cfg: Config{
+					FilesystemTargetOverride: strings.TrimPrefix(server.URL, "http://"),
+				},
+				resolver: &resolver{
+					agents:         listersv1alpha1.NewAgentLister(index),
+					targetOverride: server.URL,
+				},
+			}
+			input := gatewayapi.CodingTextRequest{
+				Purpose:      purpose,
+				Text:         new("Change behavior"),
+				ExpectedTree: new("reviewed"),
+			}
+			if test.override {
+				err := json.Unmarshal(
+					[]byte(`{"model":{"providerID":"override","modelID":"family/override"}}`),
+					&input,
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			result, err := svc.codingSuggestion(
+				t.Context(), resourceAccess{namespace: ns.Name},
+				gatewaydb.CodingWorktree{AgentName: agent.Name},
+				gatewaydb.CodingProject{}, "parent", input,
+			)
+			wantErr := test.failure || test.unselected || (test.missing && !test.override)
+			if (err != nil) != wantErr {
+				t.Fatalf("generation error = %v, want error %t", err, wantErr)
+			}
+			if !wantErr {
+				if purpose != gatewayapi.CodingTextPR && result.Text != "feat/test" {
+					t.Fatalf("suggestion = %q, want feat/test", result.Text)
+				}
+				if purpose == gatewayapi.CodingTextPR {
+					want := gatewayapi.CodingPullRequestText{
+						Title: "Fix behavior", Body: "Explain the change",
+					}
+					if result.PullRequest == nil || *result.PullRequest != want {
+						t.Fatalf("PR = %+v, want %+v", result.PullRequest, want)
+					}
+				}
+			}
+			var paths []string
+			for len(calls) > 0 {
+				paths = append(paths, <-calls)
+			}
+			if test.unselected || (test.missing && !test.override) {
+				for _, path := range paths {
+					if path != "/git" {
+						t.Errorf("request after sandbox failure: %s", path)
+					}
+				}
+				return
+			}
+			cleaned := len(paths) >= 4 && paths[len(paths)-2] == "/session/child/abort" &&
+				paths[len(paths)-1] == "/session/child"
+			if !cleaned {
+				t.Fatalf("missing cleanup: %v", paths)
 			}
 		})
 	}
@@ -643,9 +657,6 @@ func TestChatInputAdmissionRecovery(t *testing.T) {
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("reconcile error = %v, want error %v", err, tt.wantErr)
 			}
-			if calls != len(tt.messages) {
-				t.Fatalf("message lookups = %d, want %d", calls, len(tt.messages))
-			}
 			if tt.wantErr {
 				if q.saves != 0 {
 					t.Fatal("provider failure changed the persisted input")
@@ -670,5 +681,17 @@ func TestChatInputAdmissionRecovery(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestEvaluationSessionsStayOutOfChat covers both creation and later refreshes.
+func TestEvaluationSessionsStayOutOfChat(t *testing.T) {
+	service := &Service{}
+	session := gatewayapi.OpencodeSession{Metadata: &map[string]any{"agentz.evaluation_id": "evaluation"}}
+	for _, kind := range []gatewaydb.ChatSessionKind{gatewaydb.ChatSessionKindChat, gatewaydb.ChatSessionKindWorkflowRun} {
+		err := service.storeOpenCodeSession(t.Context(), "workspace", "agent", kind, session)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 }

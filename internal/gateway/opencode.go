@@ -795,6 +795,11 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 			return nil
 		}
 		err := s.refreshOpenCodeSession(ctx, &target, workspaceID, agentName, sessionID)
+		// Interrupting an already removed native session is successful. Do not
+		// turn that idempotent cleanup into a persistence failure.
+		if errors.Is(err, pgx.ErrNoRows) && (route.ID == "session.abort" || route.ID == "v2.session.interrupt") {
+			return nil
+		}
 		if err != nil {
 			message := fmt.Sprintf(
 				"Could not save the workspace record for session %s. Read this session to retry persistence before creating another.",
@@ -954,6 +959,12 @@ func (s *Service) refreshOpenCodeSession(ctx context.Context, target *url.URL, w
 }
 
 func (s *Service) storeOpenCodeSession(ctx context.Context, workspaceID, agentName string, kind gatewaydb.ChatSessionKind, session gatewayapi.OpencodeSession) error {
+	if session.Metadata != nil {
+		if _, evaluation := (*session.Metadata)["agentz.evaluation_id"]; evaluation {
+			// Evaluation evidence belongs to the comparison, not chat history.
+			return nil
+		}
+	}
 	var parentID pgtype.Text
 	if session.ParentID != nil {
 		parentID = pgtype.Text{String: *session.ParentID, Valid: true}

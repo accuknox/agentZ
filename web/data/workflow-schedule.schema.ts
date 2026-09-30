@@ -161,7 +161,7 @@ const arbitraryJSONTextSchema = z
     "Input must be valid JSON"
   )
 
-function buildWorkflowInputObjectSchema(inputSchema: WorkflowInputs) {
+export function buildWorkflowInputObjectSchema(inputSchema: WorkflowInputs) {
   return workflowScheduleInputsSchema.superRefine((values, ctx) => {
     for (const name of Object.keys(values)) {
       if (name in inputSchema) {

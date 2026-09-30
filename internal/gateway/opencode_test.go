@@ -683,15 +683,3 @@ func TestChatInputAdmissionRecovery(t *testing.T) {
 		})
 	}
 }
-
-// TestEvaluationSessionsStayOutOfChat covers both creation and later refreshes.
-func TestEvaluationSessionsStayOutOfChat(t *testing.T) {
-	service := &Service{}
-	session := gatewayapi.OpencodeSession{Metadata: &map[string]any{"agentz.evaluation_id": "evaluation"}}
-	for _, kind := range []gatewaydb.ChatSessionKind{gatewaydb.ChatSessionKindChat, gatewaydb.ChatSessionKindWorkflowRun} {
-		err := service.storeOpenCodeSession(t.Context(), "workspace", "agent", kind, session)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-}

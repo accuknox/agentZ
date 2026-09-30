@@ -20,6 +20,7 @@ import (
 
 	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	"github.com/accuknox/agentz/internal/gateway/workflow"
 	workflowdb "github.com/accuknox/agentz/internal/gateway/workflow/db"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 	listersv1alpha1 "github.com/accuknox/agentz/pkg/controller/listers/agentz/v1alpha1"
@@ -166,6 +167,22 @@ func TestEvaluationParallelRuns(t *testing.T) {
 				}
 				if len(runs.Items) != concurrency {
 					t.Fatalf("attempt %d: created %d runs, limit %d", attempt, len(runs.Items), concurrency)
+				}
+				listed, next, err := workflow.ListRuns(
+					ctx, k8s, "test", "agent", "workflow",
+					gatewayapi.ListWorkflowRunsParams{}, 1, 0,
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(listed) != 0 || next != 0 {
+					t.Fatal("evaluation runs appeared in trigger history")
+				}
+				_, err = workflow.GetRun(
+					ctx, k8s, "test", "agent", "workflow", runs.Items[0].Name,
+				)
+				if err != nil {
+					t.Fatalf("evaluation run detail unavailable: %v", err)
 				}
 				for _, run := range runs.Items {
 					if run.Spec.TimeoutSeconds != 37 || run.Spec.Definition == nil || run.Spec.Model == nil {

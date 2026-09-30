@@ -649,7 +649,7 @@ func ListWebhookTriggers(ctx context.Context, k8sClient ctrlclient.Client, ns st
 	return items[start:end], nextOffset, nil
 }
 
-// ListRuns lists workflow runs for one workflow.
+// ListRuns lists non-evaluation runs for a workflow's trigger history.
 func ListRuns(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, params gatewayapi.ListWorkflowRunsParams, limit int, offset int) ([]gatewayapi.WorkflowRunSummary, int, error) {
 	list := &agentzv1alpha1.WorkflowRunList{}
 	if err := k8sClient.List(ctx, list, ctrlclient.InNamespace(ns)); err != nil {
@@ -673,6 +673,9 @@ func ListRuns(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtNa
 			continue
 		}
 		if run.Spec.WorkflowName != wfName {
+			continue
+		}
+		if _, evaluation := run.Labels["agentz.accuknox.com/evaluation"]; evaluation {
 			continue
 		}
 		if params.Status != nil && string(*params.Status) != string(run.Status.Phase) {

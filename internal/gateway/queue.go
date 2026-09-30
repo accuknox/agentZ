@@ -327,7 +327,6 @@ func (s *Service) stopOpenCodeSession(w http.ResponseWriter, r *http.Request, ro
 		return
 	}
 	defer release()
-	// Evaluation sessions stay out of chat history and have no queue rows.
 	indexed, err := s.queries.GatewayChatSessionExists(r.Context(), gatewaydb.GatewayChatSessionExistsParams{
 		WorkspaceID: access.workspaceID, AgentName: agent, SessionID: session,
 	})

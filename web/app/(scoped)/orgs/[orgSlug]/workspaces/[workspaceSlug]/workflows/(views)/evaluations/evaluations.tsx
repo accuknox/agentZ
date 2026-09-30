@@ -47,6 +47,7 @@ import {
   SelectContent,
   SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
@@ -682,21 +683,27 @@ function EvaluationForm({
                 <SelectValue placeholder="Select a judge" />
               </SelectTrigger>
               <SelectContent>
-                <SelectGroup>
-                  {models.map((item) => (
-                    <SelectItem value={item.key} key={item.key}>
-                      <ProviderIcons
-                        className="size-4 shrink-0"
-                        providers={
-                          providerBrands[
-                            JSON.stringify([item.model.provider_id, item.model.model_id])
-                          ] ?? []
-                        }
-                      />
-                      {item.model.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
+                {Array.from(
+                  Map.groupBy(models, (item) => item.group),
+                  ([group, items]) => (
+                    <SelectGroup key={group}>
+                      <SelectLabel>{group}</SelectLabel>
+                      {items.map((item) => (
+                        <SelectItem value={item.key} key={item.key}>
+                          <ProviderIcons
+                            className="size-4 shrink-0"
+                            providers={
+                              providerBrands[
+                                JSON.stringify([item.model.provider_id, item.model.model_id])
+                              ] ?? []
+                            }
+                          />
+                          {item.model.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )
+                )}
               </SelectContent>
             </Select>
             <FieldDescription>Use your strongest model.</FieldDescription>

@@ -24,6 +24,16 @@ function SelectValue({ ...props }: React.ComponentProps<typeof SelectPrimitive.V
   return <SelectPrimitive.Value data-slot="select-value" {...props} />
 }
 
+function SelectLabel({ className, ...props }: React.ComponentProps<typeof SelectPrimitive.Label>) {
+  return (
+    <SelectPrimitive.Label
+      data-slot="select-label"
+      className={cn("text-muted-foreground px-1.5 py-1 text-xs font-medium", className)}
+      {...props}
+    />
+  )
+}
+
 function SelectTrigger({
   className,
   size = "default",
@@ -153,4 +163,4 @@ function SelectScrollDownButton({
   )
 }
 
-export { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue }
+export { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue }

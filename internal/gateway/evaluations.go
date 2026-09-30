@@ -8,11 +8,13 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"math"
 	"net/http"
 	"slices"
 	"time"
 
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -48,7 +50,7 @@ func (s *Service) CreateWorkflowEvaluation(w http.ResponseWriter, r *http.Reques
 	}
 	fields, err := s.validateEvaluationModels(r.Context(), access.namespace, agentName, input.Models, input.Judge)
 	if err != nil {
-		apiutil.WriteInternalError(w, r, err)
+		apiutil.WriteError(w, r, mapGatewayStoreError("validate evaluation models", err))
 		return
 	}
 	raw, err := json.Marshal(input.Inputs)
@@ -172,8 +174,34 @@ func (s *Service) validateEvaluationModels(ctx context.Context, namespace, agent
 	if err != nil {
 		return nil, err
 	}
+	configs := append(slices.Clone(models), judge)
+	var providers []gatewayapi.OpencodeProvider
+	variants := slices.ContainsFunc(configs, func(model gatewayapi.EvaluationModel) bool {
+		return model.Variant != nil && *model.Variant != ""
+	})
+	if variants {
+		upstream, err := s.agentClient(ctx, namespace, agentName, s.outboundHTTP)
+		if err != nil {
+			return nil, apiutil.NewError(503, "model_catalog_unavailable",
+				"Could not load the agent's model variants; try again", err)
+		}
+		catalog, err := upstream.ConfigProvidersWithResponse(ctx, agentName, nil)
+		if err != nil {
+			return nil, apiutil.NewError(503, "model_catalog_unavailable",
+				"Could not load the agent's model variants; try again", err)
+		}
+		if catalog.JSON200 == nil || catalog.JSON200.Providers == nil {
+			return nil, apiutil.NewError(503, "model_catalog_unavailable",
+				"Could not load the agent's model variants; try again", nil)
+		}
+		providers = catalog.JSON200.Providers
+	}
 	var fields []gatewayapi.FieldError
-	for i, model := range append(slices.Clone(models), judge) {
+	for i, model := range configs {
+		field := "models"
+		if i == len(models) {
+			field = "judge"
+		}
 		available := false
 		for _, candidate := range sandbox.Spec.Inference.Models {
 			if candidate.Provider == model.ProviderId && candidate.Model == model.ModelId {
@@ -182,12 +210,28 @@ func (s *Service) validateEvaluationModels(ctx context.Context, namespace, agent
 			}
 		}
 		if !available {
-			field := "models"
-			if i == len(models) {
-				field = "judge"
-			}
 			fields = append(fields, gatewayapi.FieldError{
 				Field: field, Message: model.Label + " is not available to this agent",
+			})
+			continue
+		}
+		if model.Variant == nil || *model.Variant == "" {
+			continue
+		}
+		available = false
+		for _, provider := range providers {
+			if provider.Id != model.ProviderId {
+				continue
+			}
+			candidate := provider.Models[model.ModelId]
+			if candidate.Variants != nil {
+				_, available = (*candidate.Variants)[*model.Variant]
+			}
+			break
+		}
+		if !available {
+			fields = append(fields, gatewayapi.FieldError{
+				Field: field, Message: model.Label + " does not offer variant " + *model.Variant,
 			})
 		}
 	}
@@ -312,7 +356,7 @@ func (s *Service) UpdateWorkflowEvaluation(w http.ResponseWriter, r *http.Reques
 	}
 	fields, err := s.validateEvaluationModels(r.Context(), access.namespace, agentName, nil, *input.Judge)
 	if err != nil {
-		apiutil.WriteInternalError(w, r, err)
+		apiutil.WriteError(w, r, mapGatewayStoreError("validate evaluation models", err))
 		return
 	}
 	if len(fields) > 0 {
@@ -368,7 +412,7 @@ func (s *Service) UpdateWorkflowEvaluation(w http.ResponseWriter, r *http.Reques
 	apiutil.WriteJSON(w, 200, result)
 }
 
-func (s *Service) runEvaluations(ctx context.Context) {
+func (s *Service) runEvaluations(ctx context.Context, cancelled bool) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	q := workflowdb.New(s.db)
@@ -378,7 +422,9 @@ func (s *Service) runEvaluations(ctx context.Context) {
 			return
 		case <-ticker.C:
 		}
-		job, err := q.RunEvaluationClaim(ctx, uuid.NewString())
+		job, err := q.RunEvaluationClaim(ctx, workflowdb.RunEvaluationClaimParams{
+			LeaseToken: uuid.NewString(), CancelRequested: cancelled,
+		})
 		if errors.Is(err, pgx.ErrNoRows) {
 			continue
 		}
@@ -852,7 +898,14 @@ func (s *Service) judgeEvaluation(ctx context.Context, namespace string, evaluat
 		}
 	}()
 	schema := s.openAPI.Components.Schemas["EvaluationJudgment"].Value
-	raw, err := json.Marshal(schema)
+	// The judge receives a standalone schema. Inline its evidence reference
+	// without modifying the OpenAPI document shared with request validation.
+	output := *schema
+	output.Properties = maps.Clone(schema.Properties)
+	references := *schema.Properties["references"].Value
+	references.Items = &openapi3.SchemaRef{Value: references.Items.Value}
+	output.Properties["references"] = &openapi3.SchemaRef{Value: &references}
+	raw, err := json.Marshal(&output)
 	if err != nil {
 		return err
 	}

@@ -49,13 +49,25 @@ func (q *Queries) RunEvaluationCancelled(ctx context.Context, id uuid.UUID) (boo
 }
 
 const runEvaluationClaim = `-- name: RunEvaluationClaim :one
-UPDATE workflow_run_evaluations SET lease_token=$1, lease_until=now()+interval '3 minutes'
-WHERE id=(SELECT id FROM workflow_run_evaluations WHERE state IN ('queued','running') AND lease_until < now()
-ORDER BY lease_until FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING id, tenant_namespace, workspace_id, organization_id, owner_id, agent_name, workflow_name, state, request, result, cancel_requested, lease_token, lease_until, created_at, updated_at
+UPDATE workflow_run_evaluations SET
+  lease_token=$1,
+  lease_until=now()+interval '3 minutes'
+WHERE id=(
+  SELECT e.id FROM workflow_run_evaluations e
+  WHERE e.state IN ('queued','running')
+    AND e.lease_until < now()
+    AND e.cancel_requested=$2
+  ORDER BY e.lease_until FOR UPDATE SKIP LOCKED LIMIT 1
+) RETURNING id, tenant_namespace, workspace_id, organization_id, owner_id, agent_name, workflow_name, state, request, result, cancel_requested, lease_token, lease_until, created_at, updated_at
 `
 
-func (q *Queries) RunEvaluationClaim(ctx context.Context, leaseToken string) (WorkflowRunEvaluation, error) {
-	row := q.db.QueryRow(ctx, runEvaluationClaim, leaseToken)
+type RunEvaluationClaimParams struct {
+	LeaseToken      string `json:"lease_token"`
+	CancelRequested bool   `json:"cancel_requested"`
+}
+
+func (q *Queries) RunEvaluationClaim(ctx context.Context, arg RunEvaluationClaimParams) (WorkflowRunEvaluation, error) {
+	row := q.db.QueryRow(ctx, runEvaluationClaim, arg.LeaseToken, arg.CancelRequested)
 	var i WorkflowRunEvaluation
 	err := row.Scan(
 		&i.ID,

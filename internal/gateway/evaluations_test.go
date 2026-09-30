@@ -1,18 +1,28 @@
 package gateway
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/santhosh-tekuri/jsonschema/v6"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	workflowdb "github.com/accuknox/agentz/internal/gateway/workflow/db"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
+	listersv1alpha1 "github.com/accuknox/agentz/pkg/controller/listers/agentz/v1alpha1"
 )
 
 type evaluationScoreCase struct {
@@ -202,5 +212,199 @@ func TestEvaluationParallelRuns(t *testing.T) {
 				t.Fatal("cancellation left admitted runs behind")
 			}
 		})
+	}
+}
+
+type evaluationVariantCase struct {
+	name, body, model, judge, field string
+	status, calls                   int
+	unavailable                     bool
+}
+
+// TestEvaluationVariants checks exact runtime membership and catalog failures
+// before execution or judge retry can create work.
+func TestEvaluationVariants(t *testing.T) {
+	catalog := `{"providers":[{"id":"provider","models":{"model":{"variants":{"low":{}}}}}]}`
+	tests := []evaluationVariantCase{
+		{name: "base needs no catalog", status: 503},
+		{name: "fetch once for executions and judge", body: catalog, model: "low", judge: "low", status: 200, calls: 1},
+		{name: "unknown execution variant", body: catalog, model: "LOW", field: "models", status: 200, calls: 1},
+		{name: "unknown judge variant", body: catalog, judge: "imaginary", field: "judge", status: 200, calls: 1},
+		{name: "catalog without model", body: `{"providers":[]}`, model: "low", field: "models", status: 200, calls: 1},
+		{name: "catalog unavailable", status: 503, model: "low", calls: 1, unavailable: true},
+		{name: "catalog malformed", body: `{`, status: 200, model: "low", calls: 1, unavailable: true},
+		{name: "catalog missing providers", body: `{}`, status: 200, model: "low", calls: 1, unavailable: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			calls := 0
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				if r.URL.Path != "/config/providers" {
+					t.Errorf("unexpected catalog path %s", r.URL.Path)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(tt.status)
+				_, _ = w.Write([]byte(tt.body))
+			}))
+			defer upstream.Close()
+			svc := sandboxTestService(t, nil)
+			var sandbox agentzv1alpha1.Sandbox
+			key := client.ObjectKey{Namespace: testWorkspaceNS, Name: "workspace-sandbox"}
+			err := svc.k8sClient.Get(t.Context(), key, &sandbox)
+			if err != nil {
+				t.Fatal(err)
+			}
+			sandbox.Spec.Inference.Models = []agentzv1alpha1.InferenceModelRef{{Provider: "provider", Model: "model"}}
+			err = svc.k8sClient.Update(t.Context(), &sandbox)
+			if err != nil {
+				t.Fatal(err)
+			}
+			agent := &agentzv1alpha1.Agent{ObjectMeta: metav1.ObjectMeta{
+				Name: "agent", Namespace: testWorkspaceNS,
+			}}
+			agent.Spec.SandboxRef = agentzv1alpha1.ResourceReference{
+				Name: sandbox.Name, Scope: agentzv1alpha1.ResourceScopeWorkspace,
+			}
+			index := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+			if err := index.Add(agent); err != nil {
+				t.Fatal(err)
+			}
+			svc.resolver = &resolver{
+				agents: listersv1alpha1.NewAgentLister(index), targetOverride: upstream.URL,
+			}
+			svc.outboundHTTP = upstream.Client()
+			model := gatewayapi.EvaluationModel{ProviderId: "provider", ModelId: "model", Variant: &tt.model}
+			judge := gatewayapi.EvaluationModel{ProviderId: "provider", ModelId: "model", Variant: &tt.judge}
+			fields, err := svc.validateEvaluationModels(
+				t.Context(), testWorkspaceNS, agent.Name,
+				[]gatewayapi.EvaluationModel{model, model}, judge,
+			)
+			if calls != tt.calls {
+				t.Fatalf("catalog requests = %d, want %d", calls, tt.calls)
+			}
+			if tt.unavailable {
+				var apiErr *apiutil.APIError
+				unavailable := errors.As(err, &apiErr) &&
+					apiErr.Status == http.StatusServiceUnavailable &&
+					apiErr.Code == "model_catalog_unavailable"
+				if !unavailable {
+					t.Fatalf("catalog error = %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tt.field == "" && len(fields) != 0 {
+				t.Fatalf("unexpected errors: %+v", fields)
+			}
+			if tt.field != "" && (len(fields) == 0 || fields[0].Field != tt.field) {
+				t.Fatalf("field errors = %+v, want %s", fields, tt.field)
+			}
+		})
+	}
+}
+
+// TestEvaluationJudgeSchema compiles the format actually sent to the judge and
+// checks evidence constraints without changing shared request validation.
+func TestEvaluationJudgeSchema(t *testing.T) {
+	doc, err := gatewayapi.GetSwagger()
+	if err != nil {
+		t.Fatal(err)
+	}
+	original, err := json.Marshal(doc.Components.Schemas["EvaluationJudgment"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	judgment := gatewayapi.EvaluationJudgment{
+		Correctness: 4, Efficiency: 4, Summary: "Complete",
+		Evidence: []string{"Correct result"}, Limitations: []string{},
+		References: &[]gatewayapi.EvaluationEvidenceReference{{
+			EvidenceIndex: 0, SessionId: "execution", MessageId: "answer",
+		}},
+	}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/session":
+			_, _ = w.Write([]byte(`{"id":"judge"}`))
+		case "/session/judge/message":
+			var input gatewayapi.SessionPromptJSONRequestBody
+			err := json.NewDecoder(r.Body).Decode(&input)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			format, err := input.Format.AsOpencodeOutputFormatJsonSchema()
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			compiler := jsonschema.NewCompiler()
+			err = compiler.AddResource("judgment.json", format.Schema)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			schema, err := compiler.Compile("judgment.json")
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			for _, session := range []string{"execution", ""} {
+				(*judgment.References)[0].SessionId = session
+				raw, err := json.Marshal(judgment)
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				value, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				err = schema.Validate(value)
+				if (err == nil) != (session != "") {
+					t.Errorf("evidence session %q: validation error = %v", session, err)
+				}
+				if session != "" {
+					_, _ = fmt.Fprintf(w, `{"info":{"parentID":%q,"structured":%s},"parts":[]}`, *input.MessageID, raw)
+				}
+			}
+		case "/session/judge/abort", "/session/judge":
+			_, _ = w.Write([]byte(`true`))
+		default:
+			t.Errorf("unexpected judge request %s", r.URL.Path)
+		}
+	}))
+	defer upstream.Close()
+	index := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+	err = index.Add(&agentzv1alpha1.Agent{ObjectMeta: metav1.ObjectMeta{
+		Name: "agent", Namespace: "test",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := &Service{openAPI: doc, resolver: &resolver{
+		agents: listersv1alpha1.NewAgentLister(index), targetOverride: upstream.URL,
+	}}
+	evaluation := gatewayapi.WorkflowEvaluation{
+		Id: uuid.New(), Workflow: gatewayapi.Workflow{AgentName: "agent"},
+	}
+	execution := gatewayapi.EvaluationExecution{}
+	err = service.judgeEvaluation(t.Context(), "test", &evaluation, &execution)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if execution.Judgment == nil {
+		t.Fatal("judge response was not retained")
+	}
+	after, err := json.Marshal(doc.Components.Schemas["EvaluationJudgment"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(original, after) {
+		t.Fatal("judge serialization changed the shared OpenAPI schema")
 	}
 }

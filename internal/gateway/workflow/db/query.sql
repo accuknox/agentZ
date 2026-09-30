@@ -255,9 +255,16 @@ FROM workflow_run_evaluations WHERE tenant_namespace=$1 AND agent_name=$2 AND wo
 ORDER BY created_at DESC LIMIT 50;
 
 -- name: RunEvaluationClaim :one
-UPDATE workflow_run_evaluations SET lease_token=$1, lease_until=now()+interval '3 minutes'
-WHERE id=(SELECT id FROM workflow_run_evaluations WHERE state IN ('queued','running') AND lease_until < now()
-ORDER BY lease_until FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *;
+UPDATE workflow_run_evaluations SET
+  lease_token=sqlc.arg(lease_token),
+  lease_until=now()+interval '3 minutes'
+WHERE id=(
+  SELECT e.id FROM workflow_run_evaluations e
+  WHERE e.state IN ('queued','running')
+    AND e.lease_until < now()
+    AND e.cancel_requested=sqlc.arg(cancel_requested)
+  ORDER BY e.lease_until FOR UPDATE SKIP LOCKED LIMIT 1
+) RETURNING *;
 
 -- name: RunEvaluationSave :execrows
 UPDATE workflow_run_evaluations SET

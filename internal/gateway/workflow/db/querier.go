@@ -13,7 +13,7 @@ import (
 type Querier interface {
 	RunEvaluationCancel(ctx context.Context, arg RunEvaluationCancelParams) (int64, error)
 	RunEvaluationCancelled(ctx context.Context, id uuid.UUID) (bool, error)
-	RunEvaluationClaim(ctx context.Context, leaseToken string) (WorkflowRunEvaluation, error)
+	RunEvaluationClaim(ctx context.Context, arg RunEvaluationClaimParams) (WorkflowRunEvaluation, error)
 	RunEvaluationCreate(ctx context.Context, arg RunEvaluationCreateParams) (WorkflowRunEvaluation, error)
 	RunEvaluationGet(ctx context.Context, arg RunEvaluationGetParams) (WorkflowRunEvaluation, error)
 	RunEvaluationList(ctx context.Context, arg RunEvaluationListParams) ([][]byte, error)

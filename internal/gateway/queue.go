@@ -327,31 +327,40 @@ func (s *Service) stopOpenCodeSession(w http.ResponseWriter, r *http.Request, ro
 		return
 	}
 	defer release()
-	params := gatewaydb.GatewayStopChatInputsParams{
-		WorkspaceID: access.workspaceID,
-		AgentName:   agent,
-		SessionID:   session,
-		Stopping:    true,
-	}
-	err = s.queries.GatewayStopChatInputs(r.Context(), params)
+	// Evaluation sessions stay out of chat history and have no queue rows.
+	indexed, err := s.queries.GatewayChatSessionExists(r.Context(), gatewaydb.GatewayChatSessionExistsParams{
+		WorkspaceID: access.workspaceID, AgentName: agent, SessionID: session,
+	})
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
+	}
+	params := gatewaydb.GatewayStopChatInputsParams{
+		WorkspaceID: access.workspaceID, AgentName: agent, SessionID: session,
+		Stopping: true,
+	}
+	if indexed {
+		err = s.queries.GatewayStopChatInputs(r.Context(), params)
+		if err != nil {
+			apiutil.WriteInternalError(w, r, err)
+			return
+		}
 	}
 	client, err := s.agentClient(r.Context(), access.namespace, agent, s.outboundHTTP)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	rows, err := s.queries.GatewayListChatInputs(r.Context(), gatewaydb.GatewayListChatInputsParams{
-		WorkspaceID: access.workspaceID,
-		AgentName:   agent,
-		SessionID:   session,
-		AuthorID:    access.userID,
-	})
-	if err != nil {
-		apiutil.WriteInternalError(w, r, err)
-		return
+	var rows []gatewaydb.ChatInput
+	if indexed {
+		rows, err = s.queries.GatewayListChatInputs(r.Context(), gatewaydb.GatewayListChatInputsParams{
+			WorkspaceID: access.workspaceID, AgentName: agent, SessionID: session,
+			AuthorID: access.userID,
+		})
+		if err != nil {
+			apiutil.WriteInternalError(w, r, err)
+			return
+		}
 	}
 	deadline := time.Now().Add(10 * time.Second)
 	settled := false
@@ -373,21 +382,19 @@ func (s *Service) stopOpenCodeSession(w http.ResponseWriter, r *http.Request, ro
 				break
 			}
 		}
-		var cancelled bool
-		switch {
-		case interrupt:
+		if interrupt {
 			response, err := client.V2SessionInterruptWithResponse(r.Context(), agent, session)
-			cancelled = err == nil && response.StatusCode() == http.StatusNoContent
-		default:
-			response, err := client.SessionAbortWithResponse(
-				r.Context(),
-				agent,
-				session,
-				&gatewayapi.SessionAbortParams{Directory: &directory},
-			)
-			cancelled = err == nil && response.JSON200 != nil && *response.JSON200
+			if err != nil || response.StatusCode() != http.StatusNoContent {
+				break
+			}
 		}
-		if !cancelled {
+		// The v2 coordinator does not own legacy prompt executions. Its
+		// interrupt must also cancel those through the directory-scoped API.
+		response, err := client.SessionAbortWithResponse(
+			r.Context(), agent, session,
+			&gatewayapi.SessionAbortParams{Directory: &directory},
+		)
+		if err != nil || response.JSON200 == nil || !*response.JSON200 {
 			break
 		}
 		status, err := client.SessionStatusWithResponse(
@@ -425,30 +432,36 @@ func (s *Service) stopOpenCodeSession(w http.ResponseWriter, r *http.Request, ro
 		}
 	}
 	if !stopped {
+		message := "Could not confirm the agent stopped; retry Stop."
+		if indexed {
+			message = "Could not confirm the agent stopped. Queued messages are held; retry Stop."
+		}
 		apiutil.WriteError(
 			w, r,
 			apiutil.NewError(
 				http.StatusBadGateway,
 				"stop_failed",
-				"Could not confirm the agent stopped. Queued messages are held; retry Stop.",
+				message,
 				nil,
 			),
 		)
 		return
 	}
 
-	err = s.queries.GatewayRecoverChatInputs(r.Context(), gatewaydb.GatewayRecoverChatInputsParams{
-		WorkspaceID: access.workspaceID, AgentName: agent, SessionID: session,
-	})
-	if err != nil {
-		apiutil.WriteInternalError(w, r, err)
-		return
-	}
-	params.Stopping = false
-	err = s.queries.GatewayStopChatInputs(r.Context(), params)
-	if err != nil {
-		apiutil.WriteInternalError(w, r, err)
-		return
+	if indexed {
+		err = s.queries.GatewayRecoverChatInputs(r.Context(), gatewaydb.GatewayRecoverChatInputsParams{
+			WorkspaceID: access.workspaceID, AgentName: agent, SessionID: session,
+		})
+		if err != nil {
+			apiutil.WriteInternalError(w, r, err)
+			return
+		}
+		params.Stopping = false
+		err = s.queries.GatewayStopChatInputs(r.Context(), params)
+		if err != nil {
+			apiutil.WriteInternalError(w, r, err)
+			return
+		}
 	}
 	resolved, err := s.resolver.resolveAgent(r.Context(), access.namespace, agent)
 	if err != nil {
@@ -468,14 +481,16 @@ func (s *Service) stopOpenCodeSession(w http.ResponseWriter, r *http.Request, ro
 		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	s.notifyChatInput(
-		r.Context(),
-		gatewaydb.ChatInput{
-			WorkspaceID: access.workspaceID,
-			AgentName:   agent,
-			SessionID:   session,
-		},
-	)
+	if indexed {
+		s.notifyChatInput(
+			r.Context(),
+			gatewaydb.ChatInput{
+				WorkspaceID: access.workspaceID,
+				AgentName:   agent,
+				SessionID:   session,
+			},
+		)
+	}
 	if interrupt {
 		w.WriteHeader(http.StatusNoContent)
 		return

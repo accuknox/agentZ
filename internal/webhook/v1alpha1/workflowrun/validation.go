@@ -18,6 +18,7 @@ package workflowrun
 
 import (
 	"context"
+	"encoding/json"
 	"reflect"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -48,7 +49,41 @@ func NewValidator(gatewayClient *gatewayapi.ClientWithResponses, tokenPath strin
 
 // ValidateCreate validates WorkflowRun creation.
 func (v *Validator) ValidateCreate(ctx context.Context, run *agentzv1alpha1.WorkflowRun) (admission.Warnings, error) {
-	return nil, v.validateRun(ctx, run)
+	var fields field.ErrorList
+	if run.Spec.ScheduleRef != nil && run.Spec.ScheduleRef.Name == "" {
+		fields = append(
+			fields,
+			field.Invalid(
+				field.NewPath("spec").Child("scheduleRef").Child("name"),
+				run.Spec.ScheduleRef.Name,
+				"must not be empty",
+			),
+		)
+	}
+	if len(fields) != 0 {
+		return nil, apierrors.NewInvalid(run.GroupVersionKind().GroupKind(), run.Name, fields)
+	}
+	if run.Spec.Definition != nil {
+		var definition gatewayapi.Workflow
+		err := json.Unmarshal(run.Spec.Definition.Raw, &definition)
+		if err != nil {
+			fields = append(fields, field.Invalid(
+				field.NewPath("spec", "definition"), nil,
+				"invalid frozen workflow: "+err.Error(),
+			))
+			return nil, apierrors.NewInvalid(run.GroupVersionKind().GroupKind(), run.Name, fields)
+		}
+		return nil, workflow.ValidateWorkflowInputs(
+			&definition, run.GroupVersionKind().GroupKind(), run.Name,
+			run.Spec.Inputs.Raw, field.NewPath("spec", "inputs"),
+		)
+	}
+	return nil, workflow.ValidateInputs(
+		ctx, v.gatewayClient, v.tokenPath, run.Namespace,
+		run.GroupVersionKind().GroupKind(), run.Name,
+		run.Spec.AgentName, run.Spec.WorkflowName,
+		run.Spec.Inputs.Raw, field.NewPath("spec", "inputs"),
+	)
 }
 
 // ValidateUpdate validates WorkflowRun updates.
@@ -71,37 +106,4 @@ func (v *Validator) ValidateUpdate(_ context.Context, oldRun, newRun *agentzv1al
 // ValidateDelete validates WorkflowRun deletion.
 func (v *Validator) ValidateDelete(_ context.Context, _ *agentzv1alpha1.WorkflowRun) (admission.Warnings, error) {
 	return nil, nil
-}
-
-func (v *Validator) validateRun(ctx context.Context, run *agentzv1alpha1.WorkflowRun) error {
-	var fields field.ErrorList
-	if run.Spec.ScheduleRef != nil && run.Spec.ScheduleRef.Name == "" {
-		fields = append(
-			fields,
-			field.Invalid(
-				field.NewPath("spec").Child("scheduleRef").Child("name"),
-				run.Spec.ScheduleRef.Name,
-				"must not be empty",
-			),
-		)
-	}
-	if len(fields) == 0 {
-		err := workflow.ValidateInputs(
-			ctx,
-			v.gatewayClient,
-			v.tokenPath,
-			run.Namespace,
-			run.GroupVersionKind().GroupKind(),
-			run.Name,
-			run.Spec.AgentName,
-			run.Spec.WorkflowName,
-			run.Spec.Inputs.Raw,
-			field.NewPath("spec").Child("inputs"),
-		)
-		if err != nil {
-			return err
-		}
-		return nil
-	}
-	return apierrors.NewInvalid(run.GroupVersionKind().GroupKind(), run.Name, fields)
 }

@@ -86,12 +86,13 @@ func ValidateInputs(ctx context.Context, c *gatewayapi.ClientWithResponses, tknP
 		return apierrors.NewInvalid(gk, name, fields)
 	}
 
-	issues, err := ValidateValues(
-		raw,
-		resp.JSON200.Inputs,
-		resp.JSON200.ArbitraryJson,
-		path.String(),
-	)
+	return ValidateWorkflowInputs(resp.JSON200, gk, name, raw, path)
+}
+
+// ValidateWorkflowInputs checks inputs against the supplied definition so frozen
+// runs and live workflow callers share the same admission errors.
+func ValidateWorkflowInputs(definition *gatewayapi.Workflow, gk schema.GroupKind, name string, raw []byte, path *field.Path) error {
+	issues, err := ValidateValues(raw, definition.Inputs, definition.ArbitraryJson, path.String())
 	if err != nil {
 		fields := field.ErrorList{field.InternalError(
 			path,

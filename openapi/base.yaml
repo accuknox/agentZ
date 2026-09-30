@@ -6799,6 +6799,7 @@ components:
         run_name: {type: string}
         state: {type: string, enum: [queued, running, judging, completed, error, cancelled]}
         run_status: {$ref: '#/components/schemas/WorkflowRunStatus'}
+        run_reason: {type: string}
         run: {$ref: '#/components/schemas/WorkflowRunDetail'}
         message: {type: string}
         session_id: {type: string}

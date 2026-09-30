@@ -166,7 +166,9 @@ func (q *Queries) RunEvaluationGet(ctx context.Context, arg RunEvaluationGetPara
 
 const runEvaluationList = `-- name: RunEvaluationList :many
 SELECT (result - ARRAY['workflow', 'request', 'executions'] || jsonb_build_object('judge', result->'request'->'judge', 'state', CASE WHEN cancel_requested AND state <> 'cancelled' THEN 'cancelling' ELSE state END, 'executions',
-  (SELECT jsonb_agg(e - ARRAY['transcript', 'run']) FROM jsonb_array_elements(result->'executions') AS e)))::jsonb AS summary
+  (SELECT jsonb_agg(e - ARRAY['transcript', 'run']
+    || jsonb_strip_nulls(jsonb_build_object('run_reason',
+      COALESCE(e->>'run_reason', e->'run'->>'reason')))) FROM jsonb_array_elements(result->'executions') AS e)))::jsonb AS summary
 FROM workflow_run_evaluations WHERE tenant_namespace=$1 AND agent_name=$2 AND workflow_name=$3 AND NOT delete_requested
 ORDER BY created_at DESC LIMIT 50
 `
@@ -314,7 +316,9 @@ const runEvaluationView = `-- name: RunEvaluationView :one
 SELECT state, cancel_requested,
   jsonb_set(result, '{executions}',
     (SELECT jsonb_agg(CASE WHEN e->>'run_name' = $1::text
-      THEN e ELSE e - ARRAY['transcript', 'run'] END)
+      THEN e ELSE e - ARRAY['transcript', 'run'] END
+      || jsonb_strip_nulls(jsonb_build_object('run_reason',
+        COALESCE(e->>'run_reason', e->'run'->>'reason'))))
      FROM jsonb_array_elements(result->'executions') AS e))::jsonb AS result
 FROM workflow_run_evaluations
 WHERE id=$2 AND tenant_namespace=$3

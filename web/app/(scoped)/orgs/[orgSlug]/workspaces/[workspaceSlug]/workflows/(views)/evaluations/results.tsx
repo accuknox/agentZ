@@ -18,6 +18,7 @@ import type { WorkflowEvaluation, EvaluationEvidenceReference } from "@/lib/gate
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import {
   Table,
@@ -390,105 +391,121 @@ export function Results({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((row) => (
-            <TableRow
-              key={row.run_name}
-              tabIndex={0}
-              aria-label={`View ${row.model.label} execution`}
-              className="focus-visible:outline-ring cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
-              onClick={() => {
-                setSelected(row.run_name)
-                setTab("judgment")
-                setReference(undefined)
-              }}
-              onKeyDown={(event) => {
-                if (event.key !== "Enter" && event.key !== " ") return
-                event.preventDefault()
-                event.currentTarget.click()
-              }}
-            >
-              <TableCell>
-                <span className="flex items-center gap-2 font-medium">
-                  <ProviderIcons
-                    className="size-4 shrink-0"
-                    providers={
-                      providerBrands[JSON.stringify([row.model.provider_id, row.model.model_id])] ??
-                      []
-                    }
-                  />
-                  <span className="truncate">{row.model.label}</span>
-                </span>
-              </TableCell>
-              <TableCell>
-                <Badge
-                  className="gap-1.5 capitalize"
-                  variant={
-                    row.state === "error" ||
-                    row.run_status === "Failed" ||
-                    row.run_status === "Unacked"
-                      ? "destructive"
-                      : row.state === "completed"
-                        ? "success"
-                        : row.state === "running" || row.state === "judging"
-                          ? "running"
-                          : "pending"
-                  }
-                >
-                  {row.state === "running" || row.state === "judging" ? (
-                    <Spinner className="motion-reduce:animate-none" />
-                  ) : row.state === "completed" ? (
-                    <Check />
-                  ) : null}
-                  {row.run_status === "Failed" || row.run_status === "Unacked"
-                    ? row.run_status
-                    : row.state === "error" && row.run_status === "Succeeded"
-                      ? "Judge failed"
-                      : row.state}
-                </Badge>
-              </TableCell>
-              <TableCell className="bg-primary/5 border-primary/10 border-x text-right tabular-nums">
-                {row.state === "judging" || row.state === "running" ? (
-                  <Skeleton className="ml-auto h-7 w-14 rounded-md motion-reduce:animate-none" />
-                ) : row.score !== undefined ? (
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "h-7 min-w-14 rounded-md border-transparent text-sm font-semibold",
-                      row.score >= 90
-                        ? "text-background bg-[color-mix(in_oklab,var(--success)_80%,var(--foreground))]"
-                        : row.score >= 70
-                          ? "bg-success/10 text-[color-mix(in_oklab,var(--success)_75%,var(--foreground))]"
-                          : row.score >= 50
-                            ? "bg-warning/10 text-warning-foreground"
-                            : "bg-destructive/10 text-[color-mix(in_oklab,var(--destructive)_95%,var(--foreground))]"
-                    )}
-                  >
-                    {row.score.toFixed(1)}
-                  </Badge>
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </TableCell>
-              <TableCell className="text-right tabular-nums">
-                {row.judgment ? `${row.judgment.correctness}/4` : "—"}
-              </TableCell>
-              <TableCell className="text-right tabular-nums">
-                {row.judgment ? `${row.judgment.efficiency}/4` : "—"}
-              </TableCell>
-              <TableCell className="text-right tabular-nums">
-                {row.measured_efficiency?.toFixed(3) ?? "—"}
-              </TableCell>
-              <TableCell className="text-right tabular-nums">
-                {row.tokens?.toLocaleString() ?? "—"}
-              </TableCell>
-              <TableCell className="text-right tabular-nums">{row.tool_calls ?? "—"}</TableCell>
-              <TableCell className="text-right tabular-nums">
-                {row.duration_seconds === undefined
-                  ? "—"
-                  : formatDurationSeconds(row.duration_seconds)}
-              </TableCell>
-            </TableRow>
-          ))}
+          {rows.map((row) => {
+            const failed = row.run_status === "Failed" || row.run_status === "Unacked"
+            const reason = failed ? row.run_reason || row.message : row.message || row.run_reason
+            const badge = (
+              <Badge
+                className="gap-1.5 capitalize"
+                tabIndex={reason ? 0 : undefined}
+                variant={
+                  row.state === "error" || failed
+                    ? "destructive"
+                    : row.state === "completed"
+                      ? "success"
+                      : row.state === "running" || row.state === "judging"
+                        ? "running"
+                        : "pending"
+                }
+              >
+                {row.state === "running" || row.state === "judging" ? (
+                  <Spinner className="motion-reduce:animate-none" />
+                ) : row.state === "completed" ? (
+                  <Check />
+                ) : null}
+                {failed
+                  ? row.run_status
+                  : row.state === "error" && row.run_status === "Succeeded"
+                    ? "Judge failed"
+                    : row.state}
+              </Badge>
+            )
+            return (
+              <TableRow
+                key={row.run_name}
+                tabIndex={0}
+                aria-label={`View ${row.model.label} execution`}
+                className="focus-visible:outline-ring cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
+                onClick={() => {
+                  setSelected(row.run_name)
+                  setTab("judgment")
+                  setReference(undefined)
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" && event.key !== " ") return
+                  event.preventDefault()
+                  event.currentTarget.click()
+                }}
+              >
+                <TableCell>
+                  <span className="flex items-center gap-2 font-medium">
+                    <ProviderIcons
+                      className="size-4 shrink-0"
+                      providers={
+                        providerBrands[
+                          JSON.stringify([row.model.provider_id, row.model.model_id])
+                        ] ?? []
+                      }
+                    />
+                    <span className="truncate">{row.model.label}</span>
+                  </span>
+                </TableCell>
+                <TableCell>
+                  {reason ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>{badge}</TooltipTrigger>
+                      <TooltipContent className="block break-words whitespace-pre-wrap">
+                        {reason}
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    badge
+                  )}
+                </TableCell>
+                <TableCell className="bg-primary/5 border-primary/10 border-x text-right tabular-nums">
+                  {row.state === "judging" || row.state === "running" ? (
+                    <Skeleton className="ml-auto h-7 w-14 rounded-md motion-reduce:animate-none" />
+                  ) : row.score !== undefined ? (
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "h-7 min-w-14 rounded-md border-transparent text-sm font-semibold",
+                        row.score >= 90
+                          ? "text-background bg-[color-mix(in_oklab,var(--success)_80%,var(--foreground))]"
+                          : row.score >= 70
+                            ? "bg-success/10 text-[color-mix(in_oklab,var(--success)_75%,var(--foreground))]"
+                            : row.score >= 50
+                              ? "bg-warning/10 text-warning-foreground"
+                              : "bg-destructive/10 text-[color-mix(in_oklab,var(--destructive)_95%,var(--foreground))]"
+                      )}
+                    >
+                      {row.score.toFixed(1)}
+                    </Badge>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {row.judgment ? `${row.judgment.correctness}/4` : "—"}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {row.judgment ? `${row.judgment.efficiency}/4` : "—"}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {row.measured_efficiency?.toFixed(3) ?? "—"}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {row.tokens?.toLocaleString() ?? "—"}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">{row.tool_calls ?? "—"}</TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {row.duration_seconds === undefined
+                    ? "—"
+                    : formatDurationSeconds(row.duration_seconds)}
+                </TableCell>
+              </TableRow>
+            )
+          })}
         </TableBody>
       </Table>
       <Charts executions={evaluation.executions} pending={pending} />

@@ -3323,6 +3323,7 @@ export const zEvaluationExecution = z.object({
   run_name: z.string(),
   state: z.enum(["queued", "running", "judging", "completed", "error", "cancelled"]),
   run_status: zWorkflowRunStatus.optional(),
+  run_reason: z.string().optional(),
   run: zWorkflowRunDetail.optional(),
   message: z.string().optional(),
   session_id: z.string().optional(),

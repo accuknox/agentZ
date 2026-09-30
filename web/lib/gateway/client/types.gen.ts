@@ -845,6 +845,7 @@ export type EvaluationExecution = {
   run_name: string
   state: "queued" | "running" | "judging" | "completed" | "error" | "cancelled"
   run_status?: WorkflowRunStatus
+  run_reason?: string
   run?: WorkflowRunDetail
   message?: string
   session_id?: string

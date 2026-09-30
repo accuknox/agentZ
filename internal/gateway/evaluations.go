@@ -151,6 +151,9 @@ func (s *Service) CreateWorkflowEvaluation(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	for i := range result.Executions {
+		if run := result.Executions[i].Run; run != nil {
+			result.Executions[i].RunReason = new(run.Reason)
+		}
 		result.Executions[i].Transcript = nil
 		result.Executions[i].Run = nil
 	}
@@ -394,6 +397,9 @@ func (s *Service) UpdateWorkflowEvaluation(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	for i := range result.Executions {
+		if run := result.Executions[i].Run; run != nil {
+			result.Executions[i].RunReason = new(run.Reason)
+		}
 		result.Executions[i].Transcript = nil
 		result.Executions[i].Run = nil
 	}
@@ -625,17 +631,18 @@ func (s *Service) advanceEvaluationRuns(ctx context.Context, job workflowdb.Work
 		if !run.Status.Phase.Terminal() {
 			continue
 		}
+		detail, err := workflow.GetRun(ctx, s.k8sClient, job.TenantNamespace, job.AgentName, job.WorkflowName, run.Name)
+		if err != nil {
+			return err
+		}
+		execution.Run = &detail
+		execution.RunReason = new(detail.Reason)
 		if run.Status.SessionID == "" {
 			execution.State = gatewayapi.EvaluationExecutionStateError
 			active--
 			execution.Message = new("The run ended before a transcript was recorded.")
 			continue
 		}
-		detail, err := workflow.GetRun(ctx, s.k8sClient, job.TenantNamespace, job.AgentName, job.WorkflowName, run.Name)
-		if err != nil {
-			return err
-		}
-		execution.Run = &detail
 		execution.SessionId = &run.Status.SessionID
 		err = s.collectEvaluationTranscript(ctx, job.TenantNamespace, job.AgentName, execution)
 		if err != nil {

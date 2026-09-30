@@ -3070,6 +3070,8 @@ components:
           $ref: '#/components/schemas/WorkflowRunDetail'
         run_name:
           type: string
+        run_reason:
+          type: string
         run_status:
           $ref: '#/components/schemas/WorkflowRunStatus'
         score:

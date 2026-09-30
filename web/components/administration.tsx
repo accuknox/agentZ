@@ -189,7 +189,7 @@ export function AdministrationState({
         illustrated
           ? "min-h-80 gap-5 rounded-none border-0 py-10"
           : welcoming
-            ? "border-primary mx-3 min-h-80 w-auto flex-none border border-dashed py-12 sm:min-h-96 md:mx-6"
+            ? "border-primary mx-3 min-h-80 w-auto flex-none border-2 border-dashed py-12 sm:min-h-96 md:mx-6"
             : "min-h-48 rounded-none border-0"
       }
       role={pending ? "status" : urgent ? "alert" : undefined}

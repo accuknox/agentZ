@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useId, useLayoutEffect, useRef, useState } from "react"
 import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   Scale,
@@ -20,6 +20,7 @@ import {
   type JsonValue,
   type Workflow,
   type WorkflowEvaluation,
+  type WorkflowEvaluationSummary,
   type FieldError as APIFieldError,
 } from "@/lib/gateway/client"
 import {
@@ -59,6 +60,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { dayjs } from "@/lib/format"
 
 import { ProviderIcons } from "@/app/(app)/inference/providers/provider-shared"
@@ -71,7 +73,7 @@ export function EvaluationsSkeleton() {
         aria-hidden
         className="flex flex-wrap items-center gap-2 px-4 pt-4 pb-1 sm:px-6 motion-reduce:[&_[data-slot=skeleton]]:animate-none"
       >
-        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-11 w-full sm:h-8 sm:w-[28rem]" />
         <Skeleton className="h-5 w-20 rounded-full" />
         <Skeleton className="ml-auto h-8 w-32" />
       </div>
@@ -88,7 +90,10 @@ export function Evaluations({
   workspaceId: string
 }) {
   const queryClient = useQueryClient()
+  const pickerLabelId = useId()
   const [selected, setSelected] = useState<string>()
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [hint, setHint] = useState<string>()
   const [creating, setCreating] = useState(false)
   const [retrying, setRetrying] = useState(false)
   const [actionPending, setActionPending] = useState(false)
@@ -114,6 +119,7 @@ export function Evaluations({
         : false,
   })
   const id = selected ?? history.data?.[0]?.id
+  const selectedEvaluation = history.data?.find((item) => item.id === id)
   const detailOptions = getWorkflowEvaluationOptions({
     headers,
     path: { ...path, evaluationId: id ?? "" },
@@ -199,22 +205,67 @@ export function Evaluations({
     <>
       <div className="flex flex-wrap items-center gap-2 px-4 pt-4 pb-1 sm:px-6">
         {history.data?.length ? (
-          <Select value={id} onValueChange={setSelected}>
+          <Select
+            value={id}
+            onValueChange={setSelected}
+            open={pickerOpen}
+            onOpenChange={(open) => {
+              setPickerOpen(open)
+              setHint(undefined)
+            }}
+          >
             <SelectTrigger
-              className="h-8 w-full min-w-0 rounded-md sm:w-64 sm:min-w-52"
-              aria-label="Evaluation"
+              aria-labelledby={pickerLabelId}
+              className="w-full min-w-0 rounded-md data-[size=default]:h-11 *:data-[slot=select-value]:min-w-0 *:data-[slot=select-value]:flex-1 sm:w-[28rem] sm:data-[size=default]:h-8"
             >
-              <SelectValue placeholder="Evaluation" />
+              <SelectValue id={pickerLabelId} placeholder="Evaluation">
+                <span className="sr-only">Evaluation: </span>
+                {selectedEvaluation ? <EvaluationLabel evaluation={selectedEvaluation} /> : null}
+              </SelectValue>
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent
+              position="popper"
+              align="start"
+              collisionPadding={16}
+              className="w-[min(40rem,calc(100vw-2rem))] max-w-(--radix-select-content-available-width)"
+            >
               <SelectGroup>
-                {history.data.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    <CalendarClock />
-                    {dayjs(item.created_at).format("MMM D, h:mm A")} · {item.executions.length}{" "}
-                    {item.executions.length === 1 ? "model" : "models"}
-                  </SelectItem>
-                ))}
+                {history.data.map((item) => {
+                  const label = `${dayjs(item.created_at).format("MMM D, h:mm A")} · ${
+                    item.executions.map(({ model }) => model.label || model.model_id).join(", ") ||
+                    "No models"
+                  }`
+                  return (
+                    <Tooltip
+                      key={item.id}
+                      delayDuration={500}
+                      open={hint === item.id}
+                      onOpenChange={(open) => setHint(open ? item.id : undefined)}
+                    >
+                      <SelectItem
+                        value={item.id}
+                        textValue={label}
+                        className="min-h-11 py-2 *:last:min-w-0 *:last:flex-1 sm:min-h-8 sm:py-1.5"
+                        onFocus={(event) => {
+                          if (event.currentTarget.matches(":focus-visible")) setHint(item.id)
+                        }}
+                        onBlur={() => setHint(undefined)}
+                      >
+                        <TooltipTrigger asChild>
+                          <span className="flex min-w-0 flex-1">
+                            <EvaluationLabel evaluation={item} />
+                          </span>
+                        </TooltipTrigger>
+                      </SelectItem>
+                      <TooltipContent
+                        className="max-w-[min(32rem,calc(100vw-2rem))] wrap-anywhere whitespace-normal"
+                        onEscapeKeyDown={() => setPickerOpen(false)}
+                      >
+                        {label}
+                      </TooltipContent>
+                    </Tooltip>
+                  )
+                })}
               </SelectGroup>
             </SelectContent>
           </Select>
@@ -278,7 +329,7 @@ export function Evaluations({
         </Alert>
       ) : null}
       {history.isPending || (id && detail.isPending) ? (
-        <ResultsSkeleton rows={history.data?.find((item) => item.id === id)?.executions.length} />
+        <ResultsSkeleton rows={selectedEvaluation?.executions.length} />
       ) : evaluation ? (
         <Results
           key={evaluation.id}
@@ -391,6 +442,60 @@ export function Evaluations({
         </SheetContent>
       </Sheet>
     </>
+  )
+}
+
+function EvaluationLabel({ evaluation }: { evaluation: WorkflowEvaluationSummary }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const [count, setCount] = useState(1)
+  const date = dayjs(evaluation.created_at).format("MMM D, h:mm A")
+  const names = evaluation.executions.map(({ model }) => model.label || model.model_id)
+
+  useLayoutEffect(() => {
+    const node = ref.current
+    if (!node) return
+    const candidates = Array.from(node.querySelectorAll<HTMLSpanElement>("[data-fit]"))
+    const observer = new ResizeObserver(() => {
+      const width = node.getBoundingClientRect().width
+      const last = candidates.findLastIndex(
+        (candidate) => candidate.getBoundingClientRect().width <= width
+      )
+      setCount(Math.max(1, last + 1))
+    })
+    // Observe the text too so fitting stays correct after fonts load.
+    observer.observe(node)
+    candidates.forEach((candidate) => observer.observe(candidate))
+    return () => observer.disconnect()
+  }, [evaluation.executions])
+
+  const remaining = Math.max(0, names.length - count)
+  return (
+    <span className="flex w-full min-w-0 items-center gap-1.5 whitespace-nowrap">
+      <span className="sr-only">
+        {date} · {names.join(", ") || "No models"}
+      </span>
+      <CalendarClock aria-hidden className="text-muted-foreground" />
+      <span aria-hidden className="text-muted-foreground shrink-0">
+        {date}
+      </span>
+      <span aria-hidden className="text-muted-foreground shrink-0">
+        ·
+      </span>
+      <span ref={ref} aria-hidden className="relative flex min-w-0 flex-1 overflow-hidden">
+        <span className="truncate">{names.slice(0, count).join(", ") || "No models"}</span>
+        {remaining > 0 ? (
+          <span className="text-muted-foreground shrink-0">, … +{remaining}</span>
+        ) : null}
+        <span className="pointer-events-none invisible absolute top-0 left-0 flex flex-col items-start">
+          {names.map((_, index) => (
+            <span key={index} data-fit className="w-max">
+              {names.slice(0, index + 1).join(", ")}
+              {index < names.length - 1 ? `, … +${names.length - index - 1}` : ""}
+            </span>
+          ))}
+        </span>
+      </span>
+    </span>
   )
 }
 

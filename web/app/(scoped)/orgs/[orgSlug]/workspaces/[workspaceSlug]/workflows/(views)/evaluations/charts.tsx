@@ -79,7 +79,7 @@ export function Charts({
                 color: `var(${chartColorProperty(0)})`,
               },
             }}
-            className="h-[calc(20rem-3rem)] w-full p-3"
+            className="h-[17rem] w-full p-3"
           >
             <BarChart
               data={ranked}
@@ -103,7 +103,7 @@ export function Charts({
             </BarChart>
           </ChartContainer>
         ) : (
-          <div className="text-muted-foreground flex h-[calc(20rem-3rem)] flex-col items-center justify-center gap-3 text-sm">
+          <div className="text-muted-foreground flex h-[17rem] flex-col items-center justify-center gap-3 text-sm">
             {pending ? (
               <ScanSearch className="text-primary/40 size-7 motion-safe:animate-pulse" />
             ) : null}
@@ -132,7 +132,7 @@ export function Charts({
               <ChartContainer
                 resizeDebounce={250}
                 config={{ score: { label: "Score" } }}
-                className="h-[calc(20rem-3rem)] w-full p-3"
+                className="h-[17rem] w-full p-3"
               >
                 <ScatterChart
                   margin={{ left: 0, right: 20, bottom: 20, top: 8 }}
@@ -173,7 +173,7 @@ export function Charts({
                 </ScatterChart>
               </ChartContainer>
             ) : (
-              <div className="text-muted-foreground flex h-[calc(20rem-3rem)] flex-col items-center justify-center gap-3 text-sm">
+              <div className="text-muted-foreground flex h-[17rem] flex-col items-center justify-center gap-3 text-sm">
                 No scored measurements
               </div>
             )}
@@ -195,14 +195,14 @@ export function Charts({
           <TabsContent value="scores">
             <ChartContainer
               resizeDebounce={250}
-              className="h-[calc(20rem-3rem)] w-full p-3"
+              className="h-[17rem] w-full p-3"
               config={{
                 correctness: {
                   label: "Correctness",
                   color: `var(${chartColorProperty(0)})`,
                 },
                 efficiency: {
-                  label: "Judge efficiency",
+                  label: "Judged efficiency",
                   color: `var(${chartColorProperty(1)})`,
                 },
                 measured: {
@@ -227,7 +227,7 @@ export function Charts({
                 />
                 <Bar
                   dataKey="efficiency"
-                  name="Judge efficiency (%)"
+                  name="Judged efficiency (%)"
                   fill="var(--color-efficiency)"
                   maxBarSize={24}
                   radius={[3, 3, 0, 0]}

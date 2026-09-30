@@ -142,7 +142,7 @@ export function TraceContentSkeleton() {
   return (
     <div
       aria-hidden
-      className="flex flex-col gap-5 motion-reduce:[&_[data-slot=skeleton]]:animate-none"
+      className="flex flex-col gap-5 motion-reduce:**:data-[slot=skeleton]:animate-none"
     >
       {[4, 3].map((lines) => (
         <div key={lines} className="flex flex-col gap-3">

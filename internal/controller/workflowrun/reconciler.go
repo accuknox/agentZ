@@ -394,8 +394,11 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 	}
 	sandbox := &agentzv1alpha1.Sandbox{}
 	ref := agt.Spec.SandboxRef
-	sandboxNamespace, err := scope.SelectedNamespace(ctx, r.Client, run.Namespace,
-		scope.Selection{Scope: ref.Scope, Kind: agentzv1alpha1.OrganizationResourceKindSandbox, Name: ref.Name})
+	sandboxNamespace, err := scope.SelectedNamespace(ctx, r.Client, run.Namespace, scope.Selection{
+		Scope: ref.Scope,
+		Kind:  agentzv1alpha1.OrganizationResourceKindSandbox,
+		Name:  ref.Name,
+	})
 	if err != nil {
 		return fmt.Errorf("resolve workflow sandbox: %w", err)
 	}
@@ -466,9 +469,7 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 		if err := r.Get(ctx, client.ObjectKeyFromObject(run), current); err != nil {
 			return err
 		}
-		noLongerPending := !current.DeletionTimestamp.IsZero() ||
-			current.Status.Phase != agentzv1alpha1.WorkflowRunPhasePending
-		if noLongerPending {
+		if !current.DeletionTimestamp.IsZero() || current.Status.Phase != agentzv1alpha1.WorkflowRunPhasePending {
 			return errors.New("workflow run is no longer pending")
 		}
 		patch := client.MergeFromWithOptions(current.DeepCopy(), client.MergeFromWithOptimisticLock{})
@@ -477,8 +478,12 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 		current.Status.SessionID = sessionID
 		current.Status.StartedAt = &now
 		current.Status.Message = ""
-		r.setActiveConditions(&current.Status, run.Generation,
-			agentzv1alpha1.WorkflowRunReasonSessionRunning, "workflow run is executing")
+		r.setActiveConditions(
+			&current.Status,
+			run.Generation,
+			agentzv1alpha1.WorkflowRunReasonSessionRunning,
+			"workflow run is executing",
+		)
 		if err := r.Status().Patch(ctx, current, patch); err != nil {
 			return err
 		}
@@ -611,8 +616,12 @@ func (r *Reconciler) markPending(ctx context.Context, run *agentzv1alpha1.Workfl
 			return fmt.Errorf("decode frozen workflow: %w", err)
 		}
 	default:
-		resp, err := r.GatewayClient.GetWorkflowWithResponse(ctx, run.Spec.AgentName,
-			run.Spec.WorkflowName, gwreq.RequestEditor(r.TokenPath, run.Namespace))
+		resp, err := r.GatewayClient.GetWorkflowWithResponse(
+			ctx,
+			run.Spec.AgentName,
+			run.Spec.WorkflowName,
+			gwreq.RequestEditor(r.TokenPath, run.Namespace),
+		)
 		if err != nil {
 			return fmt.Errorf("get workflow: %w", err)
 		}

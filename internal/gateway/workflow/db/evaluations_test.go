@@ -34,7 +34,7 @@ func evaluationQueries(tb testing.TB, history, messages int) (*Queries, uuid.UUI
 	}
 	message := `{"info":{"id":"message"},"parts":[{"type":"text","text":"` + strings.Repeat("x", 2000) + `"}]}`
 	transcript := `[{"session_id":"session","session":{},"messages":[` + strings.TrimSuffix(strings.Repeat(message+",", messages), ",") + `]}]`
-	result := []byte(fmt.Sprintf(`{
+	result := fmt.Appendf(nil, `{
   "request": {
     "inputs": {"report": "original", "nested": [true, null, 3]},
     "judge": {"model_id": "judge"}
@@ -44,7 +44,7 @@ func evaluationQueries(tb testing.TB, history, messages int) (*Queries, uuid.UUI
     {"run_name": "first", "run": {}, "transcript": %s},
     {"run_name": "second", "run": {}, "transcript": %s}
   ]
-}`, transcript, transcript))
+}`, transcript, transcript)
 	q := New(conn)
 	var id uuid.UUID
 	for range history {

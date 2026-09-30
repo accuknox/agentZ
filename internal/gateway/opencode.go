@@ -797,10 +797,7 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 		err := s.refreshOpenCodeSession(ctx, &target, workspaceID, agentName, sessionID)
 		// Interrupting an already removed native session is successful. Do not
 		// turn that idempotent cleanup into a persistence failure.
-		alreadyInterrupted := errors.Is(err, pgx.ErrNoRows) &&
-			(route.ID == "session.abort" ||
-				route.ID == "v2.session.interrupt")
-		if alreadyInterrupted {
+		if errors.Is(err, pgx.ErrNoRows) && (route.ID == "session.abort" || route.ID == "v2.session.interrupt") {
 			return nil
 		}
 		if err != nil {

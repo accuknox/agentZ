@@ -728,11 +728,7 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 		Operation:    gatewayapi.CodingGitExport,
 		ExpectedHead: &current.Head,
 	})
-	uncommitted := err != nil ||
-		exported.Bundle == nil ||
-		len(exported.Files) > 0 ||
-		exported.Branch != current.Branch
-	if uncommitted {
+	if err != nil || exported.Bundle == nil || len(exported.Files) > 0 || exported.Branch != current.Branch {
 		return errors.New("commit changes before creating a PR")
 	}
 	if err := repo.importBundle(ctx, *exported.Bundle); err != nil {

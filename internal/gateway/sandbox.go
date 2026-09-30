@@ -1250,9 +1250,7 @@ func validateSandboxInferenceScopes(inference gatewayapi.SandboxInference, works
 			},
 		)
 	}
-	workspaceSmallModel := inference.SmallModel != nil &&
-		inference.SmallModel.Scope != gatewayapi.ResourceScopeOrganisation
-	if workspaceSmallModel {
+	if inference.SmallModel != nil && inference.SmallModel.Scope != gatewayapi.ResourceScopeOrganisation {
 		fields = append(
 			fields,
 			gatewayapi.FieldError{
@@ -1261,9 +1259,7 @@ func validateSandboxInferenceScopes(inference gatewayapi.SandboxInference, works
 			},
 		)
 	}
-	workspaceAttachmentModel := inference.AttachmentModel != nil &&
-		inference.AttachmentModel.Scope != gatewayapi.ResourceScopeOrganisation
-	if workspaceAttachmentModel {
+	if inference.AttachmentModel != nil && inference.AttachmentModel.Scope != gatewayapi.ResourceScopeOrganisation {
 		fields = append(
 			fields,
 			gatewayapi.FieldError{

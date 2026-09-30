@@ -39,7 +39,6 @@ import { TraceInspectorSheet, TraceInspectorSkeleton } from "@/components/trace-
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -64,7 +63,7 @@ const resultColumns = [
   "Status",
   "Score",
   "Correctness",
-  "Judge efficiency",
+  "Judged efficiency",
   "Measured efficiency",
   "Tokens",
   "Calls",
@@ -76,7 +75,7 @@ export function ResultsSkeleton({ rows = 2 }: { rows?: number }) {
     <div
       role="status"
       aria-label="Loading evaluation"
-      className="motion-reduce:[&_[data-slot=skeleton]]:animate-none"
+      className="motion-reduce:**:data-[slot=skeleton]:animate-none"
     >
       <div aria-hidden className="flex items-center gap-3 px-4 py-3 sm:px-6">
         <Skeleton className="size-4" />
@@ -87,7 +86,14 @@ export function ResultsSkeleton({ rows = 2 }: { rows?: number }) {
         <TableHeader>
           <TableRow>
             {resultColumns.map((name, index) => (
-              <TableHead key={name} className={index > 1 ? "text-right" : undefined}>
+              <TableHead
+                key={name}
+                className={cn(
+                  index > 1 && "text-right",
+                  name === "Score" &&
+                    "bg-primary/5 border-primary/10 text-primary border-x font-semibold"
+                )}
+              >
                 {name}
               </TableHead>
             ))}
@@ -97,14 +103,21 @@ export function ResultsSkeleton({ rows = 2 }: { rows?: number }) {
           {Array.from({ length: rows }, (_, row) => (
             <TableRow key={row}>
               {resultColumns.map((name, index) => (
-                <TableCell key={name}>
+                <TableCell
+                  key={name}
+                  className={
+                    name === "Score" ? "bg-primary/5 border-primary/10 border-x" : undefined
+                  }
+                >
                   <Skeleton
                     className={
                       index === 0
                         ? "h-4 w-36"
                         : index === 1
                           ? "h-5 w-20 rounded-full"
-                          : "ml-auto h-4 w-12"
+                          : index === 2
+                            ? "ml-auto h-7 w-14 rounded-md"
+                            : "ml-auto h-4 w-12"
                     }
                   />
                 </TableCell>
@@ -138,7 +151,7 @@ function ChartsSkeleton() {
             <h2 className="text-sm font-semibold">{title}</h2>
             {index > 0 ? <Skeleton className="ml-auto h-7 w-32" /> : null}
           </header>
-          <div className="flex h-[calc(20rem-3rem)] flex-col gap-3 p-6">
+          <div className="flex h-[17rem] flex-col gap-3 p-6">
             <div className="relative min-h-0 flex-1 border-b border-l">
               {index === 0 ? (
                 <div className="flex h-full flex-col justify-around py-4">
@@ -246,50 +259,61 @@ export function Results({
               Scoring
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent aria-describedby={undefined}>
             <DialogHeader>
-              <DialogTitle>Scoring</DialogTitle>
-              <DialogDescription>
-                {evaluation.scoring_version} · Scores within this evaluation
-              </DialogDescription>
+              <DialogTitle>Mathematical Formula</DialogTitle>
             </DialogHeader>
-            <code className="bg-muted rounded-md p-3 text-sm">
-              100 × Q × (0.80 + 0.10J + 0.10D)
+            <code className="border-success/40 to-muted from-success/5 rounded-md border-2 border-dotted bg-linear-to-br p-3 text-sm leading-relaxed">
+              Score = 100 x{" "}
+              <span className="font-semibold text-[color-mix(in_oklab,var(--success)_80%,var(--foreground))]">
+                Q
+              </span>{" "}
+              x{" "}
+              <span className="whitespace-nowrap">
+                (0.80 + 0.10
+                <span className="text-warning-foreground font-semibold">J</span>
+                {" + "}0.10
+                <span className="font-semibold text-[color-mix(in_oklab,var(--info)_80%,var(--foreground))]">
+                  D
+                </span>
+                )
+              </span>
             </code>
-            <Table>
-              <TableBody>
-                <TableRow>
-                  <TableCell>Q</TableCell>
-                  <TableCell>Judge correctness ÷ 4</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell>J</TableCell>
-                  <TableCell>Judge efficiency ÷ 4</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell>D</TableCell>
-                  <TableCell>Mean token and tool-call ratios</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-            <p className="text-sm">
-              Ratio = median ÷ (median + usage). Medians are fixed before judging. Both zero → 0.5.
-            </p>
-            {evaluation.references ? (
-              <div className="text-muted-foreground flex flex-wrap gap-4 text-xs">
-                <span>{evaluation.references.tokens.toLocaleString()} tokens</span>
-                <span>{evaluation.references.tool_calls.toLocaleString()} calls</span>
-              </div>
-            ) : null}
-            <p className="text-sm">
-              Failed runs or correctness below 3/4 → 0. Missing evidence or metrics → unscored.
-            </p>
+            <div className="flex flex-col gap-3">
+              <p className="text-muted-foreground text-xs">Where,</p>
+              <dl className="flex flex-col gap-3">
+                <div className="flex items-center gap-3">
+                  <dt className="bg-success/10 flex size-7 shrink-0 items-center justify-center rounded-md font-mono font-semibold text-[color-mix(in_oklab,var(--success)_80%,var(--foreground))]">
+                    Q
+                  </dt>
+                  <dd>
+                    <span className="text-muted-foreground mr-3">=</span>Judged correctness
+                  </dd>
+                </div>
+                <div className="flex items-center gap-3">
+                  <dt className="bg-warning/10 text-warning-foreground flex size-7 shrink-0 items-center justify-center rounded-md font-mono font-semibold">
+                    J
+                  </dt>
+                  <dd>
+                    <span className="text-muted-foreground mr-3">=</span>Judged efficiency
+                  </dd>
+                </div>
+                <div className="flex items-center gap-3">
+                  <dt className="bg-info/10 flex size-7 shrink-0 items-center justify-center rounded-md font-mono font-semibold text-[color-mix(in_oklab,var(--info)_80%,var(--foreground))]">
+                    D
+                  </dt>
+                  <dd>
+                    <span className="text-muted-foreground mr-3">=</span>Measured efficiency
+                  </dd>
+                </div>
+              </dl>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
       {pending ? (
         <div
-          className="bg-muted/40 border-primary/50 motion-safe:animate-in motion-safe:fade-in mx-4 mb-4 rounded-lg border border-dotted p-4 sm:mx-6"
+          className="bg-muted/40 border-primary/50 motion-safe:animate-in motion-safe:fade-in mx-4 mb-4 rounded-lg border-2 border-dashed p-4 sm:mx-6"
           role="status"
           aria-live="polite"
         >
@@ -340,7 +364,7 @@ export function Results({
           <Progress
             value={rows.length ? (completed / rows.length) * 100 : 0}
             aria-label="Completed models"
-            className="mt-3 [&_[data-slot=progress-indicator]]:duration-700 motion-reduce:[&_[data-slot=progress-indicator]]:transition-none"
+            className="mt-3 **:data-[slot=progress-indicator]:duration-700 motion-reduce:**:data-[slot=progress-indicator]:transition-none"
           />
         </div>
       ) : null}
@@ -354,7 +378,14 @@ export function Results({
         <TableHeader>
           <TableRow>
             {resultColumns.map((name, index) => (
-              <TableHead key={name} className={index > 1 ? "text-right" : undefined}>
+              <TableHead
+                key={name}
+                className={cn(
+                  index > 1 && "text-right",
+                  name === "Score" &&
+                    "bg-primary/5 border-primary/10 text-primary border-x font-semibold"
+                )}
+              >
                 {name}
               </TableHead>
             ))}
@@ -420,11 +451,27 @@ export function Results({
                       : row.state}
                 </Badge>
               </TableCell>
-              <TableCell className="text-right font-medium tabular-nums">
+              <TableCell className="bg-primary/5 border-primary/10 border-x text-right tabular-nums">
                 {row.state === "judging" || row.state === "running" ? (
-                  <Skeleton className="ml-auto h-4 w-10 motion-reduce:animate-none" />
+                  <Skeleton className="ml-auto h-7 w-14 rounded-md motion-reduce:animate-none" />
+                ) : row.score !== undefined ? (
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "h-7 min-w-14 rounded-md border-transparent text-sm font-semibold",
+                      row.score >= 90
+                        ? "text-background bg-[color-mix(in_oklab,var(--success)_80%,var(--foreground))]"
+                        : row.score >= 70
+                          ? "bg-success/10 text-[color-mix(in_oklab,var(--success)_75%,var(--foreground))]"
+                          : row.score >= 50
+                            ? "bg-warning/10 text-warning-foreground"
+                            : "bg-destructive/10 text-[color-mix(in_oklab,var(--destructive)_95%,var(--foreground))]"
+                    )}
+                  >
+                    {row.score.toFixed(1)}
+                  </Badge>
                 ) : (
-                  (row.score?.toFixed(1) ?? "—")
+                  <span className="text-muted-foreground">—</span>
                 )}
               </TableCell>
               <TableCell className="text-right tabular-nums">

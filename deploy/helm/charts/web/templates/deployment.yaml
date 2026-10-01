@@ -83,6 +83,8 @@ spec:
                   key: MCP_OAUTH_COOKIE_SECRET
             - name: ENABLE_EMAIL_PASSWORD_AUTH
               value: {{ .Values.env.enableEmailPasswordAuth | quote }}
+            - name: ENABLE_ENTERPRISE_UPGRADE
+              value: {{ .Values.env.enableEnterpriseUpgrade | quote }}
             - name: ORGANIZATION_ASSETS_S3_REGION
               value: {{ required "web.env.organizationAssetsS3Region is required" .Values.env.organizationAssetsS3Region | quote }}
             - name: ORGANIZATION_ASSETS_S3_BUCKET

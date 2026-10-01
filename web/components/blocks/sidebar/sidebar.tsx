@@ -24,6 +24,8 @@ import { WorkspaceNavigation } from "./workspace-navigation"
 import { SidebarNavigationLink } from "./navigation-link"
 import { NavUser } from "./user"
 import { WorkspaceSwitcher } from "./workspace-switcher"
+import { SidebarLinks } from "./links"
+import { getEnv } from "@/lib/env"
 import {
   Sidebar,
   SidebarContent,
@@ -104,7 +106,7 @@ export function AppSidebar({
 
   return (
     <Sidebar collapsible="icon" data-app-sidebar {...sidebarProps}>
-      <SidebarHeader className="h-[var(--workspace-topbar-height)] justify-center p-2">
+      <SidebarHeader className="min-h-[var(--workspace-topbar-height)] flex-row items-center p-2">
         {scope.kind === "settings" && scope.hasAppDestination ? (
           <SidebarMenu>
             <SidebarMenuItem>
@@ -124,6 +126,7 @@ export function AppSidebar({
         ) : (
           <WorkspaceSwitcher scope={scope} />
         )}
+        <SidebarLinks showEnterpriseUpgrade={getEnv().ENABLE_ENTERPRISE_UPGRADE} />
       </SidebarHeader>
       <SidebarContent className="gap-0">
         {scope.kind === "settings" ? <SettingsNavigation /> : null}
@@ -239,6 +242,7 @@ async function WorkspaceSidebar({
 
   return (
     <WorkspaceNavigation
+      headerActions={<SidebarLinks showEnterpriseUpgrade={getEnv().ENABLE_ENTERPRISE_UPGRADE} />}
       scope={scope}
       showAgents={showAgents}
       showSecrets={showSecrets}

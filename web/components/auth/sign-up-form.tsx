@@ -1,6 +1,5 @@
 "use client"
 
-import Image from "next/image"
 import Link from "next/link"
 import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -45,13 +44,7 @@ type SignUpFormProps = {
   returnTo?: string
   routeError?: AuthError
   routeProvider?: SocialProvider
-  showPasswordAuth?: boolean
 }
-
-const genericSignUpError = "Sign-up could not be completed. Try again."
-const emailInUseMessage = authErrorMessages.user_exists
-const emailPasswordNotAllowedMessage = authErrorMessages.email_password_auth_not_allowed
-const emailPasswordDisabledMessage = "Email/password sign-up is not available."
 
 export function SignUpForm({
   actions,
@@ -59,7 +52,6 @@ export function SignUpForm({
   returnTo,
   routeError,
   routeProvider,
-  showPasswordAuth = true,
 }: SignUpFormProps) {
   const [, startTransition] = React.useTransition()
   const [pendingAction, setPendingAction] = React.useState<"password" | SocialProvider>()
@@ -95,7 +87,7 @@ export function SignUpForm({
         if (result.error.code === "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL") {
           setError("email", {
             type: "server",
-            message: emailInUseMessage,
+            message: authErrorMessages.user_exists,
           })
           return
         }
@@ -103,17 +95,17 @@ export function SignUpForm({
         if (result.error.code === "EMAIL_PASSWORD_AUTH_NOT_ALLOWED") {
           setError("email", {
             type: "server",
-            message: emailPasswordNotAllowedMessage,
+            message: authErrorMessages.email_password_auth_not_allowed,
           })
           return
         }
 
         if (result.error.code === "EMAIL_PASSWORD_SIGN_UP_DISABLED") {
-          setPasswordActionError(emailPasswordDisabledMessage)
+          setPasswordActionError("Email/password sign-up is not available.")
           return
         }
 
-        setPasswordActionError(result.error.message ?? genericSignUpError)
+        setPasswordActionError(result.error.message ?? "Sign-up could not be completed. Try again.")
         return
       }
 
@@ -121,8 +113,7 @@ export function SignUpForm({
     })
   }
 
-  const pendingProvider =
-    pendingAction === "github" || pendingAction === "google" ? pendingAction : undefined
+  const pendingProvider = pendingAction === "password" ? undefined : pendingAction
   const locked = pendingAction !== undefined
   const providerErrors =
     routeErrorVisible && routeError && routeProvider && providers.includes(routeProvider)
@@ -132,16 +123,12 @@ export function SignUpForm({
     routeErrorVisible && routeError && !providerErrors ? authErrorMessages[routeError] : undefined
 
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col gap-8">
-      <div className="flex items-center justify-center gap-3">
-        <Image
-          src="/agentz-logo.svg"
-          alt="AgentZ logo"
-          width={46}
-          height={40}
-          className="h-10 w-auto"
-        />
-        <span className="text-foreground text-3xl font-semibold tracking-tight">AgentZ</span>
+    <div className="flex flex-col gap-7">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-3xl font-semibold tracking-tight">Create your account</h1>
+        <p className="text-muted-foreground text-sm text-pretty">
+          A workspace for you and your agents.
+        </p>
       </div>
       {pageError ? (
         <Alert variant="destructive">
@@ -149,130 +136,128 @@ export function SignUpForm({
           <AlertDescription>{pageError}</AlertDescription>
         </Alert>
       ) : null}
-      {showPasswordAuth ? (
-        <form
-          className="flex flex-col gap-5"
-          method="post"
-          onSubmit={handleSubmit(submit)}
-          noValidate
-        >
-          <FieldGroup>
-            <Controller
-              name="name"
-              control={control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="signup-name" required>
-                    Name
-                  </FieldLabel>
-                  <Input
-                    {...field}
-                    id="signup-name"
-                    autoComplete="name"
-                    aria-invalid={fieldState.invalid}
-                    disabled={locked}
-                  />
-                  <FieldError errors={[fieldState.error]} />
-                </Field>
-              )}
-            />
-            <Controller
-              name="email"
-              control={control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="signup-email" required>
-                    Email
-                  </FieldLabel>
-                  <Input
-                    {...field}
-                    id="signup-email"
-                    type="email"
-                    autoComplete="email"
-                    suppressHydrationWarning
-                    aria-invalid={fieldState.invalid}
-                    disabled={locked}
-                    onBlur={() => {
-                      if (fieldState.error?.type === "server") {
-                        clearErrors("email")
-                      }
-                      field.onBlur()
-                    }}
-                  />
-                  <FieldError errors={[fieldState.error]} />
-                </Field>
-              )}
-            />
-            <Controller
-              name="password"
-              control={control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="signup-password" required>
-                    Password
-                  </FieldLabel>
-                  <Input
-                    {...field}
-                    id="signup-password"
-                    type="password"
-                    autoComplete="new-password"
-                    suppressHydrationWarning
-                    aria-invalid={fieldState.invalid}
-                    disabled={locked}
-                  />
-                  <FieldDescription>{passwordFieldDescription}</FieldDescription>
-                  <FieldError errors={[fieldState.error]} />
-                </Field>
-              )}
-            />
-            <Controller
-              name="confirmPassword"
-              control={control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="signup-confirm-password" required>
-                    Confirm password
-                  </FieldLabel>
-                  <Input
-                    {...field}
-                    id="signup-confirm-password"
-                    type="password"
-                    autoComplete="new-password"
-                    suppressHydrationWarning
-                    aria-invalid={fieldState.invalid}
-                    disabled={locked}
-                  />
-                  <FieldError errors={[fieldState.error]} />
-                </Field>
-              )}
-            />
-          </FieldGroup>
-          <div className="flex flex-col gap-3">
-            <Button
-              type="submit"
-              size="lg"
-              aria-invalid={passwordActionError ? "true" : undefined}
-              disabled={locked}
-            >
-              {pendingAction === "password" ? (
-                <Spinner data-icon="inline-start" />
-              ) : (
-                <UserPlus data-icon="inline-start" />
-              )}
-              Sign up
-            </Button>
-            {passwordActionError ? (
-              <Alert variant="destructive">
-                <CircleAlert aria-hidden="true" />
-                <AlertDescription>{passwordActionError}</AlertDescription>
-              </Alert>
-            ) : null}
-          </div>
-        </form>
-      ) : null}
+      <form
+        className="flex flex-col gap-5"
+        method="post"
+        onSubmit={handleSubmit(submit)}
+        noValidate
+      >
+        <FieldGroup>
+          <Controller
+            name="name"
+            control={control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="signup-name" required>
+                  Name
+                </FieldLabel>
+                <Input
+                  {...field}
+                  id="signup-name"
+                  autoComplete="name"
+                  aria-invalid={fieldState.invalid}
+                  disabled={locked}
+                />
+                <FieldError errors={[fieldState.error]} />
+              </Field>
+            )}
+          />
+          <Controller
+            name="email"
+            control={control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="signup-email" required>
+                  Email
+                </FieldLabel>
+                <Input
+                  {...field}
+                  id="signup-email"
+                  type="email"
+                  autoComplete="email"
+                  suppressHydrationWarning
+                  aria-invalid={fieldState.invalid}
+                  disabled={locked}
+                  onBlur={() => {
+                    if (fieldState.error?.type === "server") {
+                      clearErrors("email")
+                    }
+                    field.onBlur()
+                  }}
+                />
+                <FieldError errors={[fieldState.error]} />
+              </Field>
+            )}
+          />
+          <Controller
+            name="password"
+            control={control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="signup-password" required>
+                  Password
+                </FieldLabel>
+                <Input
+                  {...field}
+                  id="signup-password"
+                  type="password"
+                  autoComplete="new-password"
+                  suppressHydrationWarning
+                  aria-invalid={fieldState.invalid}
+                  disabled={locked}
+                />
+                <FieldDescription>{passwordFieldDescription}</FieldDescription>
+                <FieldError errors={[fieldState.error]} />
+              </Field>
+            )}
+          />
+          <Controller
+            name="confirmPassword"
+            control={control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="signup-confirm-password" required>
+                  Confirm password
+                </FieldLabel>
+                <Input
+                  {...field}
+                  id="signup-confirm-password"
+                  type="password"
+                  autoComplete="new-password"
+                  suppressHydrationWarning
+                  aria-invalid={fieldState.invalid}
+                  disabled={locked}
+                />
+                <FieldError errors={[fieldState.error]} />
+              </Field>
+            )}
+          />
+        </FieldGroup>
+        <div className="flex flex-col gap-3">
+          <Button
+            type="submit"
+            size="lg"
+            aria-invalid={passwordActionError ? "true" : undefined}
+            disabled={locked}
+          >
+            {pendingAction === "password" ? (
+              <Spinner data-icon="inline-start" />
+            ) : (
+              <UserPlus data-icon="inline-start" />
+            )}
+            Sign up
+          </Button>
+          {passwordActionError ? (
+            <Alert variant="destructive">
+              <CircleAlert aria-hidden="true" />
+              <AlertDescription>{passwordActionError}</AlertDescription>
+            </Alert>
+          ) : null}
+        </div>
+      </form>
       {providers.length > 0 ? (
-        <div className={showPasswordAuth ? "flex flex-col gap-5" : "flex flex-col gap-3"}>
-          {showPasswordAuth ? <FieldSeparator>or</FieldSeparator> : null}
+        <div className="flex flex-col gap-5">
+          <FieldSeparator>or continue with</FieldSeparator>
           <SocialAuthButtons
             actions={actions}
             authPath="/signup"

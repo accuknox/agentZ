@@ -40,6 +40,7 @@ import { WorkspaceSwitcher } from "./workspace-switcher"
 
 export function WorkspaceNavigation({
   children,
+  headerActions,
   scope,
   showAgents,
   showSecrets,
@@ -48,6 +49,7 @@ export function WorkspaceNavigation({
   userMenu,
 }: {
   children: ReactNode
+  headerActions: ReactNode
   scope: Extract<SidebarScope, { kind: "workspace" }>
   showAgents: boolean
   showSecrets: boolean
@@ -127,7 +129,7 @@ export function WorkspaceNavigation({
 
   return (
     <>
-      <SidebarHeader className="h-[var(--workspace-topbar-height)] justify-center p-2">
+      <SidebarHeader className="min-h-[var(--workspace-topbar-height)] flex-row items-center p-2">
         {settings ? (
           <SidebarMenu>
             <SidebarMenuItem>
@@ -147,6 +149,7 @@ export function WorkspaceNavigation({
         ) : (
           <WorkspaceSwitcher scope={scope} />
         )}
+        {headerActions}
       </SidebarHeader>
       <SidebarContent className="gap-0 overflow-hidden" data-tour="navigation">
         {settings ? (

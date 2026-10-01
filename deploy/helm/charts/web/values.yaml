@@ -74,6 +74,8 @@ env:
   gatewayJWTAudience: agentz-gateway
   # Enable Better Auth email/password sign-in and sign-up.
   enableEmailPasswordAuth: false
+  # Show the optional Enterprise demo link in the sidebar header popover.
+  enableEnterpriseUpgrade: false
   # Optional comma-separated allowlist for email/password auth.
   emailPasswordAuthAllowedUser: ""
   # Optional GitHub OAuth client ID.

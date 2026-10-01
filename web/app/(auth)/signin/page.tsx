@@ -1,9 +1,9 @@
 import type { Metadata } from "next"
-import { Suspense } from "react"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { signInWithGithub, signInWithGoogle } from "@/app/(auth)/actions"
 import { SignInForm } from "@/components/auth/sign-in-form"
+import { AuthPage } from "@/components/auth/auth-page"
 import { getAuth } from "@/lib/auth"
 import { getEnv } from "@/lib/env"
 import { signInReturnTo } from "@/lib/sign-in-redirect"
@@ -25,25 +25,9 @@ const providerActions = {
 
 export default function SignInPage({ searchParams }: { searchParams: Promise<AuthSearchParams> }) {
   return (
-    <main
-      className="flex min-h-svh w-full items-center justify-center px-4 py-6 md:px-6"
-      id="main-content"
-    >
-      <div className="w-full max-w-md">
-        <Suspense
-          fallback={
-            <SignInForm
-              actions={providerActions}
-              providers={[]}
-              showPasswordAuth={false}
-              showSignUpLink={false}
-            />
-          }
-        >
-          <SignInGate searchParams={searchParams} />
-        </Suspense>
-      </div>
-    </main>
+    <AuthPage>
+      <SignInGate searchParams={searchParams} />
+    </AuthPage>
   )
 }
 
@@ -60,19 +44,15 @@ async function SignInGate({ searchParams }: { searchParams: Promise<AuthSearchPa
     redirect(returnTo ?? "/")
   }
 
-  const showPasswordAuth = getEnv().ENABLE_EMAIL_PASSWORD_AUTH
-  const providers = socialProviders()
-
   return (
     <SignInForm
       key={`${params.error ?? ""}:${params.provider ?? ""}:${returnTo ?? ""}`}
       actions={providerActions}
-      providers={providers}
+      providers={socialProviders()}
       routeError={params.error}
       routeProvider={params.provider}
       returnTo={returnTo}
-      showPasswordAuth={showPasswordAuth}
-      showSignUpLink={showPasswordAuth || providers.length > 0}
+      showPasswordAuth={getEnv().ENABLE_EMAIL_PASSWORD_AUTH}
     />
   )
 }

@@ -1,6 +1,5 @@
 "use client"
 
-import Image from "next/image"
 import Link from "next/link"
 import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -34,14 +33,10 @@ type SignInFormProps = {
   returnTo?: string
   routeError?: AuthError
   routeProvider?: SocialProvider
-  showPasswordAuth?: boolean
-  showSignUpLink?: boolean
+  showPasswordAuth: boolean
 }
 
 const invalidCredentialsMessage = authErrorMessages.invalid_email_or_password
-const genericSignInError = "Sign-in could not be completed. Try again."
-const emailNotVerifiedMessage = "Your email is not verified."
-const emailPasswordDisabledMessage = "Email/password sign-in is not available."
 
 export function SignInForm({
   actions,
@@ -49,14 +44,13 @@ export function SignInForm({
   returnTo,
   routeError,
   routeProvider,
-  showPasswordAuth = true,
-  showSignUpLink = true,
+  showPasswordAuth,
 }: SignInFormProps) {
   const [, startTransition] = React.useTransition()
   const [pendingAction, setPendingAction] = React.useState<"password" | SocialProvider>()
   const [passwordActionError, setPasswordActionError] = React.useState<string>()
   const [routeErrorVisible, setRouteErrorVisible] = React.useState(true)
-  const { control, clearErrors, formState, handleSubmit, setError } = useForm<SignInValues>({
+  const { control, clearErrors, handleSubmit, setError } = useForm<SignInValues>({
     resolver: zodResolver(signInSchema),
     defaultValues: {
       email: "",
@@ -65,15 +59,6 @@ export function SignInForm({
     mode: "onSubmit",
     reValidateMode: "onBlur",
   })
-
-  function clearCredentialFieldErrors(): void {
-    if (!formState.errors.email && !formState.errors.password && !routeCredentialErrorVisible) {
-      return
-    }
-
-    clearErrors(["email", "password"])
-    setRouteErrorVisible(false)
-  }
 
   function submit(values: SignInValues): void {
     setPendingAction("password")
@@ -101,21 +86,20 @@ export function SignInForm({
         }
 
         if (result.error.code === "EMAIL_NOT_VERIFIED") {
-          setPasswordActionError(emailNotVerifiedMessage)
+          setPasswordActionError("Your email is not verified.")
           return
         }
 
         if (result.error.code === "EMAIL_PASSWORD_DISABLED") {
-          setPasswordActionError(emailPasswordDisabledMessage)
+          setPasswordActionError("Email/password sign-in is not available.")
           return
         }
 
-        setPasswordActionError(result.error.message ?? genericSignInError)
+        setPasswordActionError(result.error.message ?? "Sign-in could not be completed. Try again.")
         return
       }
 
-      const data = result.data
-      if (twoFactorRedirectResponseSchema.safeParse(data).success) {
+      if (twoFactorRedirectResponseSchema.safeParse(result.data).success) {
         const search = new URLSearchParams()
         if (returnTo) {
           search.set("returnTo", returnTo)
@@ -130,8 +114,7 @@ export function SignInForm({
     })
   }
 
-  const pendingProvider =
-    pendingAction === "github" || pendingAction === "google" ? pendingAction : undefined
+  const pendingProvider = pendingAction === "password" ? undefined : pendingAction
   const locked = pendingAction !== undefined
   const routeCredentialErrorVisible =
     routeErrorVisible && showPasswordAuth && routeError === "invalid_email_or_password"
@@ -145,16 +128,10 @@ export function SignInForm({
       : undefined
 
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col gap-8">
-      <div className="flex items-center justify-center gap-3">
-        <Image
-          src="/agentz-logo.svg"
-          alt="AgentZ logo"
-          width={46}
-          height={40}
-          className="h-10 w-auto"
-        />
-        <span className="text-foreground text-3xl font-semibold tracking-tight">AgentZ</span>
+    <div className="flex flex-col gap-7">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-3xl font-semibold tracking-tight">Welcome</h1>
+        <p className="text-muted-foreground text-sm text-pretty">Sign in to your workspace.</p>
       </div>
       {pageError ? (
         <Alert variant="destructive">
@@ -188,7 +165,8 @@ export function SignInForm({
                     disabled={locked}
                     onBlur={() => {
                       if (fieldState.error?.type === "server" || routeCredentialErrorVisible) {
-                        clearCredentialFieldErrors()
+                        clearErrors(["email", "password"])
+                        setRouteErrorVisible(false)
                       }
                       field.onBlur()
                     }}
@@ -218,7 +196,8 @@ export function SignInForm({
                     disabled={locked}
                     onBlur={() => {
                       if (fieldState.error?.type === "server" || routeCredentialErrorVisible) {
-                        clearCredentialFieldErrors()
+                        clearErrors(["email", "password"])
+                        setRouteErrorVisible(false)
                       }
                       field.onBlur()
                     }}
@@ -255,8 +234,8 @@ export function SignInForm({
         </form>
       ) : null}
       {providers.length > 0 ? (
-        <div className={showPasswordAuth ? "flex flex-col gap-5" : "flex flex-col gap-3"}>
-          {showPasswordAuth ? <FieldSeparator>or</FieldSeparator> : null}
+        <div className="flex flex-col gap-5">
+          {showPasswordAuth ? <FieldSeparator>or continue with</FieldSeparator> : null}
           <SocialAuthButtons
             actions={actions}
             authPath="/signin"
@@ -274,9 +253,9 @@ export function SignInForm({
           />
         </div>
       ) : null}
-      {showSignUpLink ? (
+      {showPasswordAuth ? (
         <p className="text-muted-foreground text-center text-sm">
-          Need an account?{" "}
+          Don&apos;t have an account?{" "}
           <Link
             className="text-foreground underline underline-offset-4"
             href={returnTo ? `/signup?returnTo=${encodeURIComponent(returnTo)}` : "/signup"}

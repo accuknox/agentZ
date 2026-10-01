@@ -42,6 +42,7 @@
         "internalGatewayBaseURL": { "type": "string", "pattern": "^$|^https?://" },
         "gatewayJWTAudience": { "type": "string", "minLength": 1 },
         "enableEmailPasswordAuth": { "type": "boolean" },
+        "enableEnterpriseUpgrade": { "type": "boolean" },
         "emailPasswordAuthAllowedUser": { "type": "string" },
         "codingGithubClientID": { "type": "string" },
         "githubClientID": { "type": "string" },

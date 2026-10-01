@@ -558,3 +558,19 @@ kubectl get deployments,pods,ingress -n agentz-system
 ```
 
 Open `https://agentz.example.com/signup` and register with `ADMIN_EMAIL`.
+
+### Optional Enterprise demo link
+
+To show **Upgrade to enterprise** in the sidebar header's links popover, add this
+to your Helm values:
+
+```yaml
+web:
+  env:
+    enableEnterpriseUpgrade: true
+```
+
+The default is `false`. This controls the demo booking link only; it does not
+enable Enterprise features. The GitHub star link remains available either way.
+For deployments without Helm, set `ENABLE_ENTERPRISE_UPGRADE=true` on the web
+server. The links remain available whenever you open the popover.

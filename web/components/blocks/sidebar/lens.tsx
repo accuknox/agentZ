@@ -1,72 +1,30 @@
 "use client"
 
-import type { Route } from "next"
-import { SelectionLink } from "@/components/page-selection"
 import { usePathname } from "next/navigation"
-import { Cable, ChevronRightIcon, RouteIcon, Search, Server } from "lucide-react"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import {
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
-} from "@/components/ui/sidebar"
+import { Cable, RouteIcon, Search, Server } from "lucide-react"
+import type { WorkspacePath } from "@/data/types"
 import { resourceLabels } from "@/lib/resource-labels"
+import { SidebarNavigationGroup } from "./navigation-link"
 
-export function NavLens({ rootPath }: { rootPath: string }) {
+export function NavLens({ rootPath }: { rootPath: WorkspacePath }) {
   const path = usePathname()
-  const lensPath = `${rootPath}/lens`
+  const lensPath = `${rootPath}/lens` as const
   const items = [
-    { href: `${lensPath}/traces` as Route, icon: RouteIcon, label: "Traces" },
-    {
-      href: `${lensPath}/runtime-telemetry` as Route,
-      icon: Server,
-      label: "Runtime telemetry",
-    },
-    {
-      href: `${lensPath}/mcp` as Route,
-      icon: Cable,
-      label: resourceLabels.mcpActivity.collection,
-    },
-  ]
+    { href: `${lensPath}/traces`, icon: RouteIcon, label: "Traces" },
+    { href: `${lensPath}/runtime-telemetry`, icon: Server, label: "Runtime telemetry" },
+    { href: `${lensPath}/mcp`, icon: Cable, label: resourceLabels.mcpActivity.collection },
+  ] as const
 
   return (
-    <Collapsible asChild defaultOpen={path.startsWith(lensPath)} className="group/lens">
-      <SidebarMenuItem>
-        {/* Driver replaces its target's ARIA attributes. Preserve the trigger's. */}
-        <div data-tour="lens">
-          <CollapsibleTrigger asChild>
-            <SidebarMenuButton tooltip="Lens">
-              <Search aria-hidden="true" />
-              <span>Lens</span>
-              <ChevronRightIcon
-                aria-hidden="true"
-                className="ml-auto transition-transform duration-200 group-data-[state=open]/lens:rotate-90"
-              />
-            </SidebarMenuButton>
-          </CollapsibleTrigger>
-        </div>
-        <CollapsibleContent>
-          <SidebarMenuSub>
-            {items.map((item) => {
-              const active = path === item.href || path.startsWith(`${item.href}/`)
-              const Icon = item.icon
-
-              return (
-                <SidebarMenuSubItem key={item.href}>
-                  <SidebarMenuSubButton asChild isActive={active}>
-                    <SelectionLink aria-current={active ? "page" : undefined} href={item.href}>
-                      <Icon aria-hidden="true" />
-                      <span>{item.label}</span>
-                    </SelectionLink>
-                  </SidebarMenuSubButton>
-                </SidebarMenuSubItem>
-              )
-            })}
-          </SidebarMenuSub>
-        </CollapsibleContent>
-      </SidebarMenuItem>
-    </Collapsible>
+    <SidebarNavigationGroup
+      label="Lens"
+      icon={Search}
+      tour="lens"
+      defaultOpen={path.startsWith(lensPath)}
+      items={items.map((item) => ({
+        ...item,
+        active: path === item.href || path.startsWith(`${item.href}/`),
+      }))}
+    />
   )
 }

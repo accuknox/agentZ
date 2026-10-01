@@ -15,7 +15,13 @@ const sidebarStyle: CSSProperties & { "--sidebar-width": string } = {
   "--sidebar-width": "20rem",
 }
 
-export default function Providers({ children }: { children: ReactNode }) {
+export default function Providers({
+  children,
+  sidebarDefaultOpen,
+}: {
+  children: ReactNode
+  sidebarDefaultOpen: boolean
+}) {
   return (
     <QueryClientProvider client={getQueryClient()}>
       <ProgressProvider
@@ -33,7 +39,9 @@ export default function Providers({ children }: { children: ReactNode }) {
         >
           <ScopeTransitionProvider>
             <TooltipProvider delayDuration={450}>
-              <SidebarProvider style={sidebarStyle}>{children}</SidebarProvider>
+              <SidebarProvider defaultOpen={sidebarDefaultOpen} style={sidebarStyle}>
+                {children}
+              </SidebarProvider>
             </TooltipProvider>
           </ScopeTransitionProvider>
           <Toaster />

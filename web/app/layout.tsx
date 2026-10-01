@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { Archivo } from "next/font/google"
+import { cookies } from "next/headers"
 import { connection } from "next/server"
 import { Suspense } from "react"
 import { AgentZTransition } from "@/components/scope-transition"
@@ -65,10 +66,20 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         >
           Skip to content
         </a>
-        <Providers>
-          <Suspense fallback={<AgentZTransition />}>{children}</Suspense>
-        </Providers>
+        <Suspense fallback={<AgentZTransition />}>
+          <RequestProviders>{children}</RequestProviders>
+        </Suspense>
       </body>
     </html>
+  )
+}
+
+async function RequestProviders({ children }: { children: React.ReactNode }) {
+  const store = await cookies()
+
+  return (
+    <Providers sidebarDefaultOpen={store.get("sidebar_state")?.value !== "false"}>
+      <Suspense fallback={<AgentZTransition />}>{children}</Suspense>
+    </Providers>
   )
 }

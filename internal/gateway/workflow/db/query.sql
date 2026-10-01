@@ -275,7 +275,9 @@ WHERE id=(
 UPDATE workflow_run_evaluations SET
   result=sqlc.arg(result),
   state=CASE WHEN cancel_requested AND sqlc.arg(state)::text <> 'cancelled' THEN 'running' ELSE sqlc.arg(state)::text END,
-  updated_at=now(), lease_until=now()+interval '1 second', lease_token=''
+  updated_at=now(),
+  lease_until=now()+CASE WHEN sqlc.arg(release)::boolean THEN interval '1 second' ELSE interval '3 minutes' END,
+  lease_token=CASE WHEN sqlc.arg(release)::boolean THEN '' ELSE lease_token END
 WHERE id=sqlc.arg(id) AND lease_token=sqlc.arg(lease_token);
 
 -- name: RunEvaluationRequestDeletion :exec

@@ -8,6 +8,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -195,6 +196,25 @@ func TestEvaluationParallelRuns(t *testing.T) {
 						evaluation.Executions[i].State = gatewayapi.EvaluationExecutionStateQueued
 					}
 				}
+			}
+			// Judging keeps the slot across worker steps, including recovery.
+			for i := range concurrency {
+				evaluation.Executions[i].State = gatewayapi.EvaluationExecutionStateJudging
+			}
+			for range 2 {
+				if err := service.advanceEvaluationRuns(ctx, job, &evaluation); err != nil {
+					t.Fatal(err)
+				}
+				var runs agentzv1alpha1.WorkflowRunList
+				if err := k8s.List(ctx, &runs); err != nil {
+					t.Fatal(err)
+				}
+				if len(runs.Items) != concurrency {
+					t.Fatal("a run started before judging released its slot")
+				}
+			}
+			for i := range concurrency {
+				evaluation.Executions[i].State = gatewayapi.EvaluationExecutionStateRunning
 			}
 			// Losing a later run must release its slot even while the first run is active.
 			var finished agentzv1alpha1.WorkflowRun
@@ -397,17 +417,40 @@ func TestEvaluationJudgeSchema(t *testing.T) {
 			EvidenceIndex: 0, SessionId: "execution", MessageId: "answer",
 		}},
 	}
+	instructions := "Expect a concise incident report.\nCheck the recommended remediation."
+	var prompts int
+	var compact bool
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/session":
 			_, _ = w.Write([]byte(`{"id":"judge"}`))
 		case "/session/judge/message":
+			prompts++
 			var input gatewayapi.SessionPromptJSONRequestBody
 			err := json.NewDecoder(r.Body).Decode(&input)
 			if err != nil {
 				t.Error(err)
 				return
+			}
+			part, err := input.Parts[0].AsOpencodeTextPartInput()
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			guidance, evidence, found := strings.Cut(part.Text, "\nEVIDENCE:")
+			want := strings.TrimSpace(instructions)
+			if found != (prompts == 1) {
+				t.Error("execution evidence was missing or repeated on continuation")
+			}
+			if !strings.Contains(guidance, want) {
+				t.Error("judge instructions were missing")
+			}
+			if want != "" && strings.Contains(evidence, want) {
+				t.Error("judge instructions were mixed with execution evidence")
+			}
+			if want == "" && strings.Contains(part.Text, "ADDITIONAL JUDGE INSTRUCTIONS:") {
+				t.Error("empty instructions added a prompt section")
 			}
 			format, err := input.Format.AsOpencodeOutputFormatJsonSchema()
 			if err != nil {
@@ -423,6 +466,10 @@ func TestEvaluationJudgeSchema(t *testing.T) {
 			schema, err := compiler.Compile("judgment.json")
 			if err != nil {
 				t.Error(err)
+				return
+			}
+			if compact && prompts == 1 {
+				_, _ = w.Write([]byte(`{"info":{"parentID":"compacted"},"parts":[]}`))
 				return
 			}
 			for _, session := range []string{"execution", ""} {
@@ -462,16 +509,35 @@ func TestEvaluationJudgeSchema(t *testing.T) {
 	service := &Service{openAPI: doc, outboundHTTP: upstream.Client(), resolver: &resolver{
 		agents: listersv1alpha1.NewAgentLister(index), targetOverride: upstream.URL,
 	}}
-	evaluation := gatewayapi.WorkflowEvaluation{
-		Id: uuid.New(), Workflow: gatewayapi.Workflow{AgentName: "agent"},
-	}
-	execution := gatewayapi.EvaluationExecution{}
-	err = service.judgeEvaluation(t.Context(), "test", &evaluation, &execution)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if execution.Judgment == nil {
-		t.Fatal("judge response was not retained")
+	for _, mode := range []string{"instructions", "compaction", "empty", "whitespace", "omitted"} {
+		t.Run(mode, func(t *testing.T) {
+			prompts = 0
+			compact = mode == "compaction"
+			if mode == "empty" {
+				instructions = ""
+			}
+			if mode == "whitespace" {
+				instructions = " \n\t "
+			}
+			evaluation := gatewayapi.WorkflowEvaluation{
+				Id: uuid.New(), Workflow: gatewayapi.Workflow{AgentName: "agent"},
+				Request: gatewayapi.WorkflowEvaluationRequest{JudgeInstructions: &instructions},
+			}
+			if mode == "omitted" {
+				evaluation.Request.JudgeInstructions = nil
+			}
+			execution := gatewayapi.EvaluationExecution{}
+			err := service.judgeEvaluation(t.Context(), "test", &evaluation, &execution)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if execution.Judgment == nil {
+				t.Fatal("judge response was not retained")
+			}
+			if execution.JudgeContextCompacted == nil || *execution.JudgeContextCompacted != compact {
+				t.Fatal("judge compaction status was not retained")
+			}
+		})
 	}
 	after, err := json.Marshal(doc.Components.Schemas["EvaluationJudgment"])
 	if err != nil {

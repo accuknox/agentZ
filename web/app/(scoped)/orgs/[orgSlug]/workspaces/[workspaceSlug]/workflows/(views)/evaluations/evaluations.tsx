@@ -599,6 +599,7 @@ function EvaluationForm({
   )
   const [inputs, setInputs] = useState(() => workflowInputDefaultValues(workflow.inputs ?? {}))
   const [json, setJSON] = useState("{}")
+  const [instructions, setInstructions] = useState(retry?.request.judge_instructions ?? "")
   const [errors, setErrors] = useState<APIFieldError[]>([])
   const [failure, setFailure] = useState<string>()
   const [pending, setPending] = useState(false)
@@ -652,7 +653,7 @@ function EvaluationForm({
         const { data, error } = await updateWorkflowEvaluation({
           headers,
           path: { ...path, evaluationId: retry.id },
-          body: { action: "judge", judge },
+          body: { action: "judge", judge, judge_instructions: instructions },
         })
         if (error) {
           setFailure(error.message)
@@ -666,6 +667,7 @@ function EvaluationForm({
         inputs: parsed.data ?? null,
         models: chosen,
         judge,
+        judge_instructions: instructions,
         timeout_seconds: timeoutSeconds.data,
         concurrency,
       }
@@ -803,6 +805,14 @@ function EvaluationForm({
                   aria-invalid={errors.some((error) => error.field === "concurrency")}
                 />
                 <FieldError errors={errors.filter((error) => error.field === "concurrency")} />
+                {concurrency > 1 ? (
+                  <Alert variant="warning">
+                    <CircleAlert />
+                    <AlertDescription>
+                      Parallel runs can modify the same files or services and affect judging.
+                    </AlertDescription>
+                  </Alert>
+                ) : null}
               </Field>
               <Field data-invalid={errors.some((error) => error.field === "timeout_seconds")}>
                 <FieldLabel htmlFor="evaluation-timeout">
@@ -926,6 +936,18 @@ function EvaluationForm({
                 )
               })
             : null}
+          <Field>
+            <FieldLabel htmlFor="evaluation-judge-instructions">
+              Additional judge instructions
+            </FieldLabel>
+            <Textarea
+              id="evaluation-judge-instructions"
+              value={instructions}
+              onChange={(event) => setInstructions(event.target.value)}
+              rows={4}
+              placeholder="Add judging instructions or describe the expected output..."
+            />
+          </Field>
           {failure ? (
             <Alert variant="destructive">
               <CircleAlert />

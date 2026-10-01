@@ -271,13 +271,16 @@ const runEvaluationSave = `-- name: RunEvaluationSave :execrows
 UPDATE workflow_run_evaluations SET
   result=$1,
   state=CASE WHEN cancel_requested AND $2::text <> 'cancelled' THEN 'running' ELSE $2::text END,
-  updated_at=now(), lease_until=now()+interval '1 second', lease_token=''
-WHERE id=$3 AND lease_token=$4
+  updated_at=now(),
+  lease_until=now()+CASE WHEN $3::boolean THEN interval '1 second' ELSE interval '3 minutes' END,
+  lease_token=CASE WHEN $3::boolean THEN '' ELSE lease_token END
+WHERE id=$4 AND lease_token=$5
 `
 
 type RunEvaluationSaveParams struct {
 	Result     []byte    `json:"result"`
 	State      string    `json:"state"`
+	Release    bool      `json:"release"`
 	ID         uuid.UUID `json:"id"`
 	LeaseToken string    `json:"lease_token"`
 }
@@ -286,6 +289,7 @@ func (q *Queries) RunEvaluationSave(ctx context.Context, arg RunEvaluationSavePa
 	result, err := q.db.Exec(ctx, runEvaluationSave,
 		arg.Result,
 		arg.State,
+		arg.Release,
 		arg.ID,
 		arg.LeaseToken,
 	)

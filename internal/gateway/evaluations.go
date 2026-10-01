@@ -12,6 +12,8 @@ import (
 	"math"
 	"net/http"
 	"slices"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -372,6 +374,9 @@ func (s *Service) UpdateWorkflowEvaluation(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	result.Request.Judge = *input.Judge
+	if input.JudgeInstructions != nil {
+		result.Request.JudgeInstructions = input.JudgeInstructions
+	}
 	result.State = gatewayapi.WorkflowEvaluationStateQueued
 	result.UpdatedAt = time.Now().UTC()
 	result.Message = nil
@@ -446,7 +451,7 @@ func (s *Service) runEvaluations(ctx context.Context, cleanup bool) {
 			slog.ErrorContext(ctx, "decode workflow evaluation", "error", err)
 			continue
 		}
-		step, cancel := context.WithTimeout(ctx, 2*time.Minute)
+		step, cancel := context.WithCancel(ctx)
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
@@ -489,6 +494,7 @@ func (s *Service) runEvaluations(ctx context.Context, cleanup bool) {
 			LeaseToken: job.LeaseToken,
 			Result:     body,
 			State:      string(result.State),
+			Release:    true,
 		})
 		if err != nil {
 			slog.ErrorContext(ctx, "save workflow evaluation", "error", err)
@@ -522,46 +528,125 @@ func (s *Service) advanceEvaluation(ctx context.Context, job workflowdb.Workflow
 		result.Message = new("Access to this agent was revoked.")
 		return nil
 	}
-	err = s.advanceEvaluationRuns(ctx, job, result)
-	if err != nil {
-		return err
+	ctx, cancel := context.WithCancel(ctx)
+	var judges sync.WaitGroup
+	defer func() {
+		cancel()
+		judges.Wait()
+	}()
+	// Only this coordinator changes the evaluation. Judges own execution copies
+	// and return them after their sessions have been stopped and deleted.
+	finished := make(chan evaluationJudgeResult, result.Request.Concurrency)
+	active := make(map[int]bool)
+	evaluation := gatewayapi.WorkflowEvaluation{
+		Id: result.Id, Workflow: result.Workflow, Request: result.Request,
 	}
-	// Finish every execution before freezing references and starting judgment.
-	for _, execution := range result.Executions {
-		switch execution.State {
-		case gatewayapi.EvaluationExecutionStateQueued, gatewayapi.EvaluationExecutionStateRunning:
-			return nil
+	poll := time.NewTicker(time.Second)
+	defer poll.Stop()
+	q := workflowdb.New(s.db)
+	// Keep completed judgments durable before admitting another workflow. The
+	// same checkpoint publishes live progress without releasing the lease.
+	checkpoint := func() error {
+		result.UpdatedAt = time.Now().UTC()
+		body, err := json.Marshal(result)
+		if err != nil {
+			return err
 		}
-	}
-	scoreEvaluation(result)
-	for i := range result.Executions {
-		execution := &result.Executions[i]
-		if execution.State != gatewayapi.EvaluationExecutionStateJudging {
-			continue
+		saved, err := q.RunEvaluationSave(ctx, workflowdb.RunEvaluationSaveParams{
+			ID: job.ID, LeaseToken: job.LeaseToken,
+			Result: body, State: string(result.State), Release: false,
+		})
+		if err != nil {
+			return err
 		}
-		if err := s.judgeEvaluation(ctx, job.TenantNamespace, result, execution); err != nil {
-			if ctx.Err() != nil && !errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				return err
-			}
-			slog.WarnContext(ctx, "judge workflow execution", "run", execution.RunName, "error", err)
-			execution.State = gatewayapi.EvaluationExecutionStateError
-			execution.Message = new("Judging failed. Retry with a judge that supports the full transcript.")
-			return nil
+		if saved == 0 {
+			return errors.New("evaluation lease was lost")
 		}
-		execution.State = gatewayapi.EvaluationExecutionStateCompleted
-		scoreEvaluation(result)
 		return nil
 	}
-	result.State = gatewayapi.WorkflowEvaluationStateCompleted
-	return nil
+	for {
+		if err := s.advanceEvaluationRuns(ctx, job, result); err != nil {
+			return err
+		}
+		// Judgments can finish before the cohort; scores wait for all run metrics.
+		scoreEvaluation(result)
+		var pending, ready bool
+		for _, execution := range result.Executions {
+			switch execution.State {
+			case gatewayapi.EvaluationExecutionStateQueued, gatewayapi.EvaluationExecutionStateRunning:
+				pending = true
+			case gatewayapi.EvaluationExecutionStateJudging:
+				pending, ready = true, true
+			}
+		}
+		if !pending {
+			result.State = gatewayapi.WorkflowEvaluationStateCompleted
+			return nil
+		}
+		if !ready {
+			return nil
+		}
+		if err := checkpoint(); err != nil {
+			return err
+		}
+		for i, execution := range result.Executions {
+			if execution.State != gatewayapi.EvaluationExecutionStateJudging || active[i] {
+				continue
+			}
+			if len(active) >= result.Request.Concurrency {
+				break
+			}
+			active[i] = true
+			judges.Go(func() {
+				step, cancel := context.WithTimeout(ctx, 2*time.Minute)
+				defer cancel()
+				err := s.judgeEvaluation(step, job.TenantNamespace, &evaluation, &execution)
+				finished <- evaluationJudgeResult{index: i, execution: execution, err: err}
+			})
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-poll.C:
+		case judgment := <-finished:
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			delete(active, judgment.index)
+			execution := judgment.execution
+			execution.State = gatewayapi.EvaluationExecutionStateCompleted
+			if judgment.err != nil {
+				slog.WarnContext(
+					ctx,
+					"judge workflow execution",
+					"run", execution.RunName,
+					"error", judgment.err,
+				)
+				execution.State = gatewayapi.EvaluationExecutionStateError
+				execution.Message = new("Judging failed. Retry with a judge that supports the full transcript.")
+			}
+			result.Executions[judgment.index] = execution
+			scoreEvaluation(result)
+			if err := checkpoint(); err != nil {
+				return err
+			}
+		}
+	}
 }
 
-// advanceEvaluationRuns admits runs up to the saved concurrency limit and collects
-// finished executions. Kubernetes owns execution; no worker goroutines are needed.
+type evaluationJudgeResult struct {
+	index     int
+	execution gatewayapi.EvaluationExecution
+	err       error
+}
+
+// advanceEvaluationRuns holds each slot through transcript collection and judging.
+// At concurrency one, later runs cannot change resources before judgment.
 func (s *Service) advanceEvaluationRuns(ctx context.Context, job workflowdb.WorkflowRunEvaluation, result *gatewayapi.WorkflowEvaluation) error {
 	active := 0
 	for _, execution := range result.Executions {
-		if execution.State == gatewayapi.EvaluationExecutionStateRunning {
+		switch execution.State {
+		case gatewayapi.EvaluationExecutionStateRunning, gatewayapi.EvaluationExecutionStateJudging:
 			active++
 		}
 	}
@@ -659,7 +744,6 @@ func (s *Service) advanceEvaluationRuns(ctx context.Context, job workflowdb.Work
 			continue
 		}
 		execution.State = gatewayapi.EvaluationExecutionStateJudging
-		active--
 	}
 	return nil
 }
@@ -954,6 +1038,11 @@ type evaluationJudgeInput struct {
 	Execution *gatewayapi.EvaluationExecution `json:"execution"`
 }
 
+type evaluationJudgePrompt struct {
+	Instructions string
+	Evidence     string
+}
+
 func (s *Service) judgeEvaluation(ctx context.Context, namespace string, evaluation *gatewayapi.WorkflowEvaluation, execution *gatewayapi.EvaluationExecution) error {
 	httpClient := *s.outboundHTTP
 	httpClient.Timeout = 110 * time.Second
@@ -1021,7 +1110,11 @@ func (s *Service) judgeEvaluation(ctx context.Context, namespace string, evaluat
 		return err
 	}
 	var prompt bytes.Buffer
-	err = gatewayPrompts.ExecuteTemplate(&prompt, "workflow-evaluation.tmpl", string(raw))
+	data := evaluationJudgePrompt{Evidence: string(raw)}
+	if evaluation.Request.JudgeInstructions != nil {
+		data.Instructions = strings.TrimSpace(*evaluation.Request.JudgeInstructions)
+	}
+	err = gatewayPrompts.ExecuteTemplate(&prompt, "workflow-evaluation.tmpl", data)
 	if err != nil {
 		return err
 	}
@@ -1057,7 +1150,8 @@ func (s *Service) judgeEvaluation(ctx context.Context, namespace string, evaluat
 			// Native continuation drops the structured-output format. Restore it in
 			// the same session so the judge can finish using its compacted context.
 			prompt.Reset()
-			if err = gatewayPrompts.ExecuteTemplate(&prompt, "workflow-evaluation-resume", nil); err != nil {
+			err = gatewayPrompts.ExecuteTemplate(&prompt, "workflow-evaluation-resume", data)
+			if err != nil {
 				return err
 			}
 			continue

@@ -1336,6 +1336,7 @@ export const zWorkflowEvaluationRequest = z.object({
   inputs: zJsonValue,
   models: z.array(zEvaluationModel).min(1).max(8),
   judge: zEvaluationModel,
+  judge_instructions: z.string().optional(),
   timeout_seconds: z.int().gte(1).lte(604800).default(900),
   concurrency: z.int().gte(1).lte(5).default(1),
 })
@@ -5375,6 +5376,7 @@ export const zGetWorkflowEvaluationResponse = zWorkflowEvaluation
 export const zUpdateWorkflowEvaluationBody = z.object({
   action: z.enum(["judge"]),
   judge: zEvaluationModel.optional(),
+  judge_instructions: z.string().optional(),
 })
 
 export const zUpdateWorkflowEvaluationPath = z.object({

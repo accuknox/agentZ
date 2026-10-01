@@ -209,6 +209,16 @@ export function Results({
     ["completed", "error", "cancelled"].includes(row.state)
   ).length
   const pending = ["queued", "running", "cancelling"].includes(evaluation.state)
+  const queued = rows.filter((row) => row.state === "queued").length
+  const running = rows.filter((row) => row.state === "running").length
+  const judging = rows.filter((row) => row.state === "judging").length
+  const waitingForMetrics = queued + running > 0
+  let progressLabel = "Waiting to start"
+  if (evaluation.state === "cancelling") progressLabel = "Cancelling"
+  else if (running && judging) progressLabel = "Running and judging"
+  else if (running) progressLabel = "Running workflows"
+  else if (judging) progressLabel = "Judging executions"
+  else if (rows.length > 0 && completed === rows.length) progressLabel = "Finalizing evaluation"
   return (
     <div className="flex min-w-0 flex-col">
       <div className="flex flex-wrap items-center gap-3 px-4 py-3 text-xs sm:px-6">
@@ -317,15 +327,7 @@ export function Results({
           <div className="mb-3 flex items-center justify-between gap-3 text-sm">
             <span className="flex items-center gap-2 font-medium">
               <Spinner className="text-primary motion-reduce:animate-none" />
-              {evaluation.state === "cancelling"
-                ? "Cancelling"
-                : rows.some((row) => row.state === "running")
-                  ? "Running workflows"
-                  : rows.some((row) => row.state === "judging")
-                    ? "Judging executions"
-                    : rows.length > 0 && completed === rows.length
-                      ? "Finalizing evaluation"
-                      : "Waiting to start"}
+              {progressLabel}
             </span>
             <span className="text-muted-foreground text-xs tabular-nums">
               {completed}/{rows.length} finished
@@ -336,17 +338,17 @@ export function Results({
               {
                 label: "Queued",
                 icon: Clock3,
-                count: rows.filter((row) => row.state === "queued").length,
+                count: queued,
               },
               {
                 label: "Running",
                 icon: Play,
-                count: rows.filter((row) => row.state === "running").length,
+                count: running,
               },
               {
                 label: "Judging",
                 icon: ScanSearch,
-                count: rows.filter((row) => row.state === "judging").length,
+                count: judging,
               },
             ].map(({ label, icon: Icon, count }) => (
               <div
@@ -481,6 +483,15 @@ export function Results({
                     >
                       {row.score.toFixed(1)}
                     </Badge>
+                  ) : row.judgment && waitingForMetrics ? (
+                    <Tooltip>
+                      <TooltipTrigger className="text-muted-foreground text-xs">
+                        Awaiting runs
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        Judgment is complete. The score waits for all workflow measurements.
+                      </TooltipContent>
+                    </Tooltip>
                   ) : (
                     <span className="text-muted-foreground">—</span>
                   )}
@@ -564,7 +575,9 @@ export function Results({
                     ) : null}
                     {execution.judgment && execution.score === undefined ? (
                       <p className="text-muted-foreground py-3 text-sm">
-                        Score unavailable. Measurements are incomplete.
+                        {waitingForMetrics
+                          ? "Judgment is complete. The score waits for all workflow measurements."
+                          : "Score unavailable. Measurements are incomplete."}
                       </p>
                     ) : null}
                     {execution.judgment ? (

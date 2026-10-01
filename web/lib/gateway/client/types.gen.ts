@@ -803,11 +803,15 @@ export type WorkflowEvaluationRequest = {
   models: Array<EvaluationModel>
   judge: EvaluationModel
   /**
+   * Optional judging instructions or expected workflow output. Sent only to the judge.
+   */
+  judge_instructions?: string
+  /**
    * Maximum execution time for each workflow run, in seconds.
    */
   timeout_seconds: number
   /**
-   * Maximum number of active workflow executions in this evaluation.
+   * Maximum number of executions running or awaiting judgment in this evaluation. Each slot is held until judging finishes.
    */
   concurrency: number
 }
@@ -9709,6 +9713,10 @@ export type UpdateWorkflowEvaluationData = {
   body: {
     action: "judge"
     judge?: EvaluationModel
+    /**
+     * Additional judging guidance. Omit to preserve saved instructions, or send an empty string to clear them.
+     */
+    judge_instructions?: string
   }
   path: {
     /**

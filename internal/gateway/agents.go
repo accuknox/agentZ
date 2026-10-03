@@ -556,6 +556,9 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		gatewayapi.Agent{
 			Name:    row.AgentName,
 			Sandbox: req.Sandbox,
+			Opencode: &gatewayapi.AgentOpencodeConfig{
+				Instruction: &agt.Spec.Instruction,
+			},
 			Memory: gatewayapi.AgentMemoryConfig{
 				Enabled: agt.Spec.Memory.Enabled,
 			},
@@ -570,7 +573,7 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	)
 }
 
-// UpdateAgent handles POST /api/agent/update/{agentName}.
+// UpdateAgent handles PUT /api/agent/{agentName}.
 func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath) {
 	var req gatewayapi.UpdateAgentRequest
 	if !decodeJSONBody(w, r, &req, false) {
@@ -602,16 +605,6 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 
-	if fields := validateOpenCodeRequest(req.Opencode); len(fields) > 0 {
-		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"request validation failed",
-			errBadRequest,
-			fields...,
-		))
-		return
-	}
 	if req.Sandbox != nil {
 		envFields, err := s.validateAgentSandbox(r.Context(), ns, *req.Sandbox)
 		if err != nil {
@@ -764,6 +757,9 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		gatewayapi.Agent{
 			Name:    row.AgentName,
 			Sandbox: resourceReferenceFromCRD(updated.Spec.SandboxRef),
+			Opencode: &gatewayapi.AgentOpencodeConfig{
+				Instruction: &updated.Spec.Instruction,
+			},
 			Memory: gatewayapi.AgentMemoryConfig{
 				Enabled: updated.Spec.Memory.Enabled,
 			},
@@ -1648,10 +1644,12 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 		changed := make([]gatewayapi.Agent, 0, len(items))
 		for _, item := range items {
 			prevItem, ok := prev[item.Name]
+			// List projections always include the saved instruction, even when empty.
 			unchanged := ok &&
 				prevItem.Name == item.Name &&
 				prevItem.Sandbox == item.Sandbox &&
 				prevItem.Memory == item.Memory &&
+				*prevItem.Opencode.Instruction == *item.Opencode.Instruction &&
 				prevItem.LastActivity.Equal(item.LastActivity) &&
 				prevItem.CreatedAt.Equal(item.CreatedAt) &&
 				prevItem.ModifiedAt.Equal(item.ModifiedAt) &&
@@ -2417,8 +2415,11 @@ func (s *Service) listAgentItems(ctx context.Context, q gatewaydb.GatewayListAge
 		items = append(
 			items,
 			gatewayapi.Agent{
-				Name:         row.AgentName,
-				Sandbox:      resourceReferenceFromCRD(agt.Spec.SandboxRef),
+				Name:    row.AgentName,
+				Sandbox: resourceReferenceFromCRD(agt.Spec.SandboxRef),
+				Opencode: &gatewayapi.AgentOpencodeConfig{
+					Instruction: &agt.Spec.Instruction,
+				},
 				Capabilities: caps[row.AgentName],
 				Memory: gatewayapi.AgentMemoryConfig{
 					Enabled: agt.Spec.Memory.Enabled,
@@ -2469,8 +2470,6 @@ func validateCreateAgentRequest(req gatewayapi.CreateAgentRequest) (string, []ga
 			},
 		)
 	}
-
-	fields = append(fields, validateOpenCodeRequest(req.Opencode)...)
 
 	return name, fields
 }
@@ -2663,33 +2662,6 @@ func envVarsFromMap(items map[string]string) []corev1.EnvVar {
 		sandbox = append(sandbox, corev1.EnvVar{Name: key, Value: items[key]})
 	}
 	return sandbox
-}
-
-func validateOpenCodeRequest(cfg *gatewayapi.AgentOpencodeConfig) []gatewayapi.FieldError {
-	if cfg == nil {
-		return nil
-	}
-
-	fields := []gatewayapi.FieldError{}
-	if cfg.Instruction != nil && strings.TrimSpace(*cfg.Instruction) == "" {
-		fields = append(
-			fields,
-			gatewayapi.FieldError{
-				Field:   "opencode.instruction",
-				Message: "instruction must not be empty",
-			},
-		)
-	}
-	if cfg.Instruction != nil && len(*cfg.Instruction) > 4096 {
-		fields = append(
-			fields,
-			gatewayapi.FieldError{
-				Field:   "opencode.instruction",
-				Message: "instruction must be at most 4096 characters",
-			},
-		)
-	}
-	return fields
 }
 
 func applyOpencodeRequest(spec *agentzv1alpha1.AgentSpec, cfg *gatewayapi.AgentOpencodeConfig) {

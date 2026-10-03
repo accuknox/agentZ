@@ -59,11 +59,13 @@ const agentFormDataSchema = createAgentSimpleFormSchema.extend({
 
 export async function createAgentFormAction(
   scope: AgentActionScope,
+  instruction: string,
   _: CreateAgentFormState,
   formData: FormData
 ): Promise<CreateAgentFormState> {
   const parsed = agentFormDataSchema.safeParse({
     ...Object.fromEntries(formData),
+    instruction,
     skills: { names: formData.getAll("skillNames"), scopes: formData.getAll("skillScopes") },
     memoryEnabled: formData.has("memoryEnabled"),
   })
@@ -77,6 +79,7 @@ export async function createAgentFormAction(
       sandbox: { scope: parsed.data.sandboxScope, name: parsed.data.sandboxName },
       skills: parsed.data.skills,
       memory: { enabled: parsed.data.memoryEnabled },
+      opencode: { instruction: parsed.data.instruction },
     },
     client: getGatewayServerClient(scope.workspaceId),
   })
@@ -92,11 +95,13 @@ export async function createAgentFormAction(
 export async function updateAgentFormAction(
   scope: AgentActionScope,
   agentName: string,
+  instruction: string,
   _: CreateAgentFormState,
   formData: FormData
 ): Promise<CreateAgentFormState> {
   const parsed = agentFormDataSchema.omit({ name: true }).safeParse({
     ...Object.fromEntries(formData),
+    instruction,
     skills: { names: formData.getAll("skillNames"), scopes: formData.getAll("skillScopes") },
     memoryEnabled: formData.has("memoryEnabled"),
   })
@@ -109,6 +114,7 @@ export async function updateAgentFormAction(
       sandbox: { scope: parsed.data.sandboxScope, name: parsed.data.sandboxName },
       skills: parsed.data.skills,
       memory: { enabled: parsed.data.memoryEnabled },
+      opencode: { instruction: parsed.data.instruction },
     },
     client: getGatewayServerClient(scope.workspaceId),
     path: { agentName },

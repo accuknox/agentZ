@@ -767,25 +767,6 @@ export const zUpdateSkillRequest = z.object({
 
 export const zAgentStatus = z.enum(["UNSPECIFIED", "PROGRESSING", "DEGRADED", "DELETED", "IDLE"])
 
-export const zAgent = z.object({
-  name: zAgentName,
-  sandbox: zResourceReference,
-  created_by: zResourceActor,
-  last_modified_by: zResourceActor,
-  last_activity: z.iso.datetime(),
-  memory: zAgentMemoryConfig,
-  created_at: z.iso.datetime(),
-  modified_at: z.iso.datetime(),
-  skills: z.array(zResourceReference),
-  status: zAgentStatus,
-  capabilities: zAgentCapabilities,
-})
-
-export const zListAgentsResponse = z.object({
-  agents: z.array(zAgent),
-  next_page_token: z.string(),
-})
-
 /**
  * Better Auth API key identifier.
  */
@@ -957,7 +938,32 @@ export const zUpsertAgentShareRequest = z.object({
 })
 
 export const zAgentOpencodeConfig = z.object({
-  instruction: z.string().max(4096).optional(),
+  instruction: z
+    .string()
+    .refine((value) => Array.from(value).length <= 32000, {
+      error: "Custom instructions must be at most 32000 characters",
+    })
+    .optional(),
+})
+
+export const zAgent = z.object({
+  name: zAgentName,
+  sandbox: zResourceReference,
+  created_by: zResourceActor,
+  last_modified_by: zResourceActor,
+  last_activity: z.iso.datetime(),
+  memory: zAgentMemoryConfig,
+  opencode: zAgentOpencodeConfig.optional(),
+  created_at: z.iso.datetime(),
+  modified_at: z.iso.datetime(),
+  skills: z.array(zResourceReference),
+  status: zAgentStatus,
+  capabilities: zAgentCapabilities,
+})
+
+export const zListAgentsResponse = z.object({
+  agents: z.array(zAgent),
+  next_page_token: z.string(),
 })
 
 export const zCreateAgentRequest = z.object({

@@ -12,6 +12,7 @@ import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Box, Plus, Save, Wrench, CircleAlert } from "lucide-react"
 import { useRouter } from "next/navigation"
+import dynamic from "next/dynamic"
 import { AlertDescription, Alert } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
@@ -45,9 +46,20 @@ import {
 import { listSandboxesAction } from "@/data/sandbox.actions"
 import { createAgentSimpleFormSchema } from "@/data/schema"
 import type { CreateAgentFormState } from "@/data/types"
-import type { Agent, ResourceScope, Sandbox, Skill } from "@/lib/gateway/client"
+import type {
+  Agent,
+  AgentOpencodeConfig,
+  ResourceScope,
+  Sandbox,
+  Skill,
+} from "@/lib/gateway/client"
 import type * as z from "zod"
 import { toast } from "sonner"
+
+const AgentInstructions = dynamic(() => import("./agent-instructions"), {
+  ssr: false,
+  loading: () => <div className="text-muted-foreground min-h-18 py-2">Loading editor…</div>,
+})
 
 type Mode = "create" | "update"
 
@@ -62,6 +74,7 @@ type AgentDialogProps = {
   initialSandboxName?: string
   initialMemoryEnabled?: boolean
   initialSkills?: Agent["skills"]
+  initialInstruction?: AgentOpencodeConfig["instruction"]
   open?: boolean
   onOpenChangeAction?: (open: boolean) => void
   trigger?: React.ReactNode
@@ -212,6 +225,7 @@ export function AgentDialog({
   initialSandboxName,
   initialMemoryEnabled = false,
   initialSkills = [],
+  initialInstruction = "",
   open,
   onOpenChangeAction,
   trigger,
@@ -226,19 +240,22 @@ export function AgentDialog({
     sandboxName: initialSandboxName ?? (mode === "create" ? (sandboxes[0]?.name ?? "") : ""),
     skills: initialSkills,
     memoryEnabled: actionScope.workspaceType !== "coding" && initialMemoryEnabled,
+    instruction: initialInstruction,
   }
   const form = useForm<AgentFormValues>({
     resolver: zodResolver(createAgentSimpleFormSchema),
     mode: "onSubmit",
     reValidateMode: "onBlur",
-    defaultValues,
+    values: defaultValues,
   })
   const [, action, isPending] = useActionState<CreateAgentFormState, FormData>(
     async (state, formData) => {
+      // Multipart encoding rewrites newlines; pass Markdown as an action argument.
+      const instruction = form.getValues("instruction")
       const result =
         mode === "update" && agentName
-          ? await updateAgentFormAction(actionScope, agentName, state, formData)
-          : await createAgentFormAction(actionScope, state, formData)
+          ? await updateAgentFormAction(actionScope, agentName, instruction, state, formData)
+          : await createAgentFormAction(actionScope, instruction, state, formData)
       if (result.error) {
         const messages = new Map<keyof AgentFormValues | "root", string[]>()
         const errors = result.error.errors?.length
@@ -262,6 +279,10 @@ export function AgentDialog({
             case "memoryEnabled":
               field = "memoryEnabled"
               break
+            case "opencode":
+            case "instruction":
+              field = "instruction"
+              break
             default:
               field = "root"
           }
@@ -274,6 +295,7 @@ export function AgentDialog({
         }
       }
       if (result.success) {
+        form.reset(defaultValues)
         toast.success(mode === "update" ? "Agent updated" : "Agent created")
         onOpenChangeAction?.(false)
         setInternalOpen(false)
@@ -337,13 +359,13 @@ export function AgentDialog({
           </Button>
         </DialogTrigger>
       ) : null}
-      <DialogContent className={mode === "update" ? "sm:max-w-md" : undefined}>
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{mode === "create" ? "New agent" : "Update agent"}</DialogTitle>
           <DialogDescription>
             {mode === "create"
               ? "Create an agent with a name and sandbox."
-              : "Update the sandbox and immutable skills for this agent."}
+              : "Update this agent's configuration."}
           </DialogDescription>
         </DialogHeader>
         <form id="agent-form-simple" action={submit} className="space-y-5">
@@ -457,6 +479,36 @@ export function AgentDialog({
                   {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
                 </Field>
               )}
+            />
+            <Controller
+              name="instruction"
+              control={form.control}
+              render={({ field, fieldState }) => {
+                const length = Array.from(field.value).length
+                const maxLength = 32000
+                return (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel>Custom instructions</FieldLabel>
+                    <AgentInstructions
+                      key={initialInstruction}
+                      defaultMarkdown={initialInstruction}
+                      markdown={field.value}
+                      editorRef={field.ref}
+                      onBlurAction={field.onBlur}
+                      onChangeAction={field.onChange}
+                      readOnly={isPending}
+                    />
+                    <div
+                      className="text-muted-foreground data-[over-limit=true]:text-destructive text-right text-xs tabular-nums"
+                      data-over-limit={length > maxLength}
+                      aria-label="Instruction character count"
+                    >
+                      {length.toLocaleString()} / {maxLength.toLocaleString()}
+                    </div>
+                    {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                  </Field>
+                )
+              }}
             />
             {actionScope.workspaceType !== "coding" && (
               <Controller

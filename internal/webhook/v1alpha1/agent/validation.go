@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
@@ -193,23 +194,13 @@ func (v *Validator) validateAgent(ctx context.Context, agt *agentzv1alpha1.Agent
 		}
 	}
 
-	if strings.TrimSpace(agt.Spec.Instruction) == "" && agt.Spec.Instruction != "" {
+	if utf8.RuneCountInString(agt.Spec.Instruction) > 32000 {
 		allErrs = append(
 			allErrs,
 			field.Invalid(
 				specPath.Child("instruction"),
 				agt.Spec.Instruction,
-				"instruction must not be empty",
-			),
-		)
-	}
-	if len(agt.Spec.Instruction) > 4096 {
-		allErrs = append(
-			allErrs,
-			field.Invalid(
-				specPath.Child("instruction"),
-				agt.Spec.Instruction,
-				"instruction must be at most 4096 characters",
+				"instruction must be at most 32000 characters",
 			),
 		)
 	}

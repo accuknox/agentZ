@@ -6090,6 +6090,8 @@ components:
           format: date-time
         memory:
           $ref: '#/components/schemas/AgentMemoryConfig'
+        opencode:
+          $ref: '#/components/schemas/AgentOpencodeConfig'
         created_at:
           type: string
           format: date-time
@@ -7327,7 +7329,9 @@ components:
       properties:
         instruction:
           type: string
-          maxLength: 4096
+          format: markdown
+          maxLength: 32000
+          description: Additional Markdown instructions. Omit to preserve saved instructions, or send an empty string to clear them. Limited to 32000 Unicode characters.
 
     ListTracesResponse:
       type: object

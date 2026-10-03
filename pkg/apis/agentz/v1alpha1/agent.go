@@ -91,6 +91,7 @@ type AgentSpec struct {
 	Env []corev1.EnvVar `json:"env,omitempty"`
 
 	// Instruction defines additional OpenCode instruction content.
+	// +kubebuilder:validation:MaxLength=32000
 	// +optional
 	Instruction string `json:"instruction,omitempty"`
 

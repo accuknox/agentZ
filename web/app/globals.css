@@ -1,7 +1,8 @@
-@layer theme, driver, base, components, utilities;
+@layer theme, driver, editor, base, components, utilities;
 
 @import "tailwindcss";
 @import "driver.js/dist/driver.css" layer(driver);
+@import "@mdxeditor/editor/style.css" layer(editor);
 
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -548,4 +549,106 @@
   border-radius: var(--radius-lg);
   overflow: clip;
   outline: 1px solid var(--border);
+}
+
+@layer components {
+  .agent-instructions .mdxeditor {
+    --basePageBg: var(--popover);
+    --baseBg: var(--muted);
+    --baseLine: var(--border);
+    --baseText: var(--muted-foreground);
+    --baseTextContrast: var(--foreground);
+    --font-body: var(--font-sans);
+    --spacing-3: 8px;
+    font-family: var(--font-sans);
+    font-size: inherit;
+  }
+
+  .agent-instructions .mdxeditor-root-contenteditable {
+    display: grid;
+  }
+
+  .agent-instructions .mdxeditor-contenteditable-wrapper,
+  .agent-instructions-content:not([data-lexical-editor]) {
+    grid-area: 1 / 1;
+  }
+
+  .agent-instructions-content:not([data-lexical-editor]) {
+    position: static;
+    max-height: none;
+    white-space: normal;
+    overflow: visible;
+  }
+
+  .agent-instructions .mdxeditor-contenteditable-wrapper > [data-lexical-editor] {
+    height: 100%;
+  }
+
+  .agent-instructions
+    .mdxeditor-root-contenteditable:has(> .agent-instructions-content)
+    [data-lexical-editor] {
+    max-height: none;
+  }
+
+  .agent-instructions-content {
+    min-height: 72px;
+    max-height: 280px;
+    padding: 8px;
+    overflow-y: auto;
+    overflow-wrap: anywhere;
+    outline: none;
+    line-height: 1.65;
+    font-weight: normal;
+
+    /* Code block controls are optional chrome in this text-only editor. */
+    & div:has(> span > [data-toolbar-item]) {
+      display: none;
+    }
+
+    & > * + * {
+      margin-top: 0.75em;
+    }
+
+    & :is(h1, h2, h3, h4, h5, h6) {
+      font-weight: 600;
+      line-height: 1.3;
+    }
+
+    & h1 {
+      font-size: 1.6em;
+    }
+    & h2 {
+      font-size: 1.3em;
+    }
+    & h3 {
+      font-size: 1.1em;
+    }
+    & ul {
+      list-style-type: disc;
+      padding-left: 1.5em;
+    }
+    & ol {
+      list-style-type: decimal;
+      padding-left: 1.5em;
+    }
+    & li + li {
+      margin-top: 0.25em;
+    }
+    & blockquote {
+      border-left: 2px solid var(--border);
+      padding-left: 1em;
+      color: var(--muted-foreground);
+    }
+    & a {
+      color: var(--primary);
+      text-decoration: underline;
+    }
+    & code {
+      border-radius: var(--radius-sm);
+      background: var(--muted);
+      padding: 0.1em 0.3em;
+      font-family: var(--font-mono);
+      font-size: 0.9em;
+    }
+  }
 }

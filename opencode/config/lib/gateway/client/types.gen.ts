@@ -540,6 +540,7 @@ export type Agent = {
   last_modified_by: ResourceActor
   last_activity: string
   memory: AgentMemoryConfig
+  opencode?: AgentOpencodeConfig
   created_at: string
   modified_at: string
   skills: Array<ResourceReference>
@@ -1058,6 +1059,9 @@ export type UpsertAgentShareRequest = {
 }
 
 export type AgentOpencodeConfig = {
+  /**
+   * Additional Markdown instructions. Omit to preserve saved instructions, or send an empty string to clear them. Limited to 32000 Unicode characters.
+   */
   instruction?: string
 }
 

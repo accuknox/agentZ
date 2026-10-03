@@ -204,6 +204,7 @@ function AgentActions({
           initialSandboxName={agent.sandbox.name}
           initialMemoryEnabled={agent.memory.enabled}
           initialSkills={agent.skills}
+          initialInstruction={agent.opencode?.instruction}
           immutableSkills={immutableSkills}
           sandboxes={sandboxes}
           initialHasNextSandboxPage={initialHasNextSandboxPage}

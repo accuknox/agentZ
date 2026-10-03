@@ -622,6 +622,8 @@ components:
           type: string
         name:
           $ref: '#/components/schemas/AgentName'
+        opencode:
+          $ref: '#/components/schemas/AgentOpencodeConfig'
         sandbox:
           $ref: '#/components/schemas/ResourceReference'
         skills:
@@ -803,7 +805,9 @@ components:
       additionalProperties: false
       properties:
         instruction:
-          maxLength: 4096
+          description: Additional Markdown instructions. Omit to preserve saved instructions, or send an empty string to clear them. Limited to 32000 Unicode characters.
+          format: markdown
+          maxLength: 32000
           type: string
       type: object
     AgentOwner:

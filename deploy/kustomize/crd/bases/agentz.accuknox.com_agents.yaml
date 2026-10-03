@@ -214,6 +214,7 @@ spec:
                 type: string
               instruction:
                 description: Instruction defines additional OpenCode instruction content.
+                maxLength: 32000
                 type: string
               lastModifiedByUserID:
                 description: LastModifiedByUserID is the Better Auth User ID that last changed the resource.

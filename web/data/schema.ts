@@ -2,6 +2,7 @@ import * as z from "zod"
 import ipaddr from "ipaddr.js"
 import {
   zAgentName,
+  zAgentOpencodeConfig,
   zMcpConnectionName,
   zResourceReference,
   zResourceScope,
@@ -347,6 +348,7 @@ export const createAgentSimpleFormSchema = z.object({
   sandboxName: sandboxNameSchema,
   skills: z.array(zResourceReference.extend({ name: zSkillName })),
   memoryEnabled: z.boolean(),
+  instruction: zAgentOpencodeConfig.shape.instruction.unwrap(),
 })
 
 export const createSandboxFormSchema = z.object({

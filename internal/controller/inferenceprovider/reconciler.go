@@ -29,26 +29,21 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/accuknox/agentz/internal/inference"
-	"github.com/accuknox/agentz/internal/openbao"
 	"github.com/accuknox/agentz/internal/scope"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 // ReconcilerConfig configures provider runtime and credential cleanup.
 type ReconcilerConfig struct {
-	StoreName               string
-	RefreshInterval         time.Duration
-	OpenBaoAddr             string
-	ManagerOpenBaoAddr      string
-	OpenBaoSecretMountPath  string
-	OpenBaoK8sAuthRole      string
-	OpenBaoK8sAuthMountPath string
-	OpenBaoK8sAuthTokenPath string
+	StoreName              string
+	RefreshInterval        time.Duration
+	OpenBaoSecretMountPath string
 }
 
 // Reconciler reconciles InferenceProvider runtime resources.
 type Reconciler struct {
 	client.Client
+	Bao      *baoapi.Client
 	Scheme   *runtime.Scheme
 	Config   ReconcilerConfig
 	Recorder events.EventRecorder
@@ -338,9 +333,9 @@ func (r *Reconciler) reconcileDelete(ctx context.Context, provider *agentzv1alph
 			)
 		}
 	}
-	kv, err := r.openBaoMetadata(ctx)
-	if err != nil {
-		err = fmt.Errorf("create openbao client for provider cleanup: %w", err)
+	mount := strings.TrimSpace(r.Config.OpenBaoSecretMountPath)
+	if r.Bao == nil || mount == "" {
+		err := fmt.Errorf("complete manager openbao configuration is required for provider cleanup")
 		return ctrl.Result{}, errors.Join(
 			err,
 			r.blockDeletion(ctx, provider, "FinalizerOpenBaoFailed", err),
@@ -351,7 +346,7 @@ func (r *Reconciler) reconcileDelete(ctx context.Context, provider *agentzv1alph
 		provider.Name,
 		provider.Spec.Kind,
 	)
-	err = kv.DeleteMetadata(ctx, path)
+	err = r.Bao.KVv2(mount).DeleteMetadata(ctx, path)
 	if err != nil && !errors.Is(err, baoapi.ErrSecretNotFound) {
 		err = fmt.Errorf("delete inference credential metadata: %w", err)
 		return ctrl.Result{}, errors.Join(
@@ -606,29 +601,6 @@ func setReadyCondition(conditions *[]metav1.Condition, conditionType string, rea
 			ObservedGeneration: generation,
 		},
 	)
-}
-
-func (r *Reconciler) openBaoMetadata(ctx context.Context) (*baoapi.KVv2, error) {
-	addr := strings.TrimSpace(r.Config.ManagerOpenBaoAddr)
-	if addr == "" {
-		addr = strings.TrimSpace(r.Config.OpenBaoAddr)
-	}
-	mountPath := strings.TrimSpace(r.Config.OpenBaoSecretMountPath)
-	authRole := strings.TrimSpace(r.Config.OpenBaoK8sAuthRole)
-	if addr == "" || mountPath == "" || authRole == "" {
-		return nil, fmt.Errorf("complete manager openbao configuration is required")
-	}
-	bao, err := openbao.NewClient(
-		ctx,
-		addr,
-		r.Config.OpenBaoK8sAuthRole,
-		r.Config.OpenBaoK8sAuthMountPath,
-		r.Config.OpenBaoK8sAuthTokenPath,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return bao.KVv2(r.Config.OpenBaoSecretMountPath), nil
 }
 
 // SetupWithManager registers provider and owned-resource watches.

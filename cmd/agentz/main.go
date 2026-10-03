@@ -69,6 +69,7 @@ import (
 	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/mcp"
 	"github.com/accuknox/agentz/internal/networkpolicy"
+	"github.com/accuknox/agentz/internal/openbao"
 	"github.com/accuknox/agentz/internal/sandboxutil"
 	skillpkg "github.com/accuknox/agentz/internal/skill"
 	agentwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/agent"
@@ -1181,12 +1182,9 @@ var managerCmd = &cli.Command{
 			NixCacheEndpoint:                 nixCacheEndpoint,
 			AgentInitImage:                   agentInitImage,
 			OpenBaoAddr:                      openBaoAddr,
-			ManagerOpenBaoAddr:               managerOpenBaoAddr,
 			OpenBaoSecretMountPath:           openBaoSecretMountPath,
 			OpenBaoK8sAuthMountPath:          openBaoK8sAuthMountPath,
 			SinjectorOpenBaoK8sAuthTokenPath: sinjectorOpenBaoK8sAuthTokenPath,
-			ManagerOpenBaoK8sAuthRole:        managerOpenBaoK8sAuthRole,
-			ManagerOpenBaoK8sAuthTokenPath:   managerOpenBaoK8sAuthTokenPath,
 			GatewayTokenAudience:             managerGatewayTokenAudience,
 			SkillStore:                       skillStoreConfig,
 			ControllerImage:                  controllerImage,
@@ -1199,9 +1197,27 @@ var managerCmd = &cli.Command{
 			AgentCABundlePath:                agentCABundlePath,
 		}
 
-		bao, err := agent.NewOpenBaoProvisioner(ctx, runtimeConfig)
+		baoAddr := strings.TrimSpace(managerOpenBaoAddr)
+		if baoAddr == "" {
+			baoAddr = strings.TrimSpace(openBaoAddr)
+		}
+		if baoAddr == "" {
+			return fmt.Errorf("openbao addr is required")
+		}
+		baoRole := strings.TrimSpace(managerOpenBaoK8sAuthRole)
+		if baoRole == "" {
+			return fmt.Errorf("manager openbao k8s auth role is required")
+		}
+		// Controllers share one token kept fresh for the manager's lifetime.
+		baoClient, err := openbao.NewClient(
+			ctx,
+			baoAddr,
+			baoRole,
+			openBaoK8sAuthMountPath,
+			managerOpenBaoK8sAuthTokenPath,
+		)
 		if err != nil {
-			setupLog.ErrorContext(ctx, "failed to create OpenBao provisioner", "error", err)
+			setupLog.ErrorContext(ctx, "failed to create manager OpenBao client", "error", err)
 			os.Exit(1)
 		}
 
@@ -1209,7 +1225,7 @@ var managerCmd = &cli.Command{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
 			Config: runtimeConfig,
-			Bao:    bao,
+			Bao:    agent.NewOpenBaoProvisioner(baoClient),
 		}
 		if err := reconciler.SetupWithManager(mgr); err != nil {
 			setupLog.ErrorContext(ctx,
@@ -1221,18 +1237,14 @@ var managerCmd = &cli.Command{
 		}
 
 		inferenceProviderReconciler := &inferenceprovidercontroller.Reconciler{
+			Bao:      baoClient,
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
 			Recorder: mgr.GetEventRecorder("inference-provider"),
 			Config: inferenceprovidercontroller.ReconcilerConfig{
-				StoreName:               inferenceSecretStoreName,
-				RefreshInterval:         inferenceSecretRefreshInterval,
-				OpenBaoAddr:             openBaoAddr,
-				ManagerOpenBaoAddr:      managerOpenBaoAddr,
-				OpenBaoSecretMountPath:  openBaoSecretMountPath,
-				OpenBaoK8sAuthRole:      managerOpenBaoK8sAuthRole,
-				OpenBaoK8sAuthMountPath: openBaoK8sAuthMountPath,
-				OpenBaoK8sAuthTokenPath: managerOpenBaoK8sAuthTokenPath,
+				StoreName:              inferenceSecretStoreName,
+				RefreshInterval:        inferenceSecretRefreshInterval,
+				OpenBaoSecretMountPath: openBaoSecretMountPath,
 			},
 		}
 		if err := inferenceProviderReconciler.SetupWithManager(mgr); err != nil {
@@ -1416,15 +1428,11 @@ var managerCmd = &cli.Command{
 		}
 
 		mcpConnReconciler := &mcpconn.MCPConnectionReconciler{
-			Client:                  mgr.GetClient(),
-			Scheme:                  mgr.GetScheme(),
-			AgentGateway:            agClient,
-			OpenBaoAddr:             openBaoAddr,
-			ManagerOpenBaoAddr:      managerOpenBaoAddr,
-			OpenBaoSecretMountPath:  openBaoSecretMountPath,
-			OpenBaoK8sAuthRole:      managerOpenBaoK8sAuthRole,
-			OpenBaoK8sAuthMountPath: openBaoK8sAuthMountPath,
-			OpenBaoK8sAuthTokenPath: managerOpenBaoK8sAuthTokenPath,
+			Bao:                    baoClient,
+			Client:                 mgr.GetClient(),
+			Scheme:                 mgr.GetScheme(),
+			AgentGateway:           agClient,
+			OpenBaoSecretMountPath: openBaoSecretMountPath,
 		}
 		if err := mcpConnReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.ErrorContext(ctx,
@@ -1435,15 +1443,12 @@ var managerCmd = &cli.Command{
 			os.Exit(1)
 		}
 		extAuthRuntimeReconciler := &mcpconn.ExtAuthRuntimeReconciler{
+			Bao:                     baoClient,
 			Client:                  mgr.GetClient(),
-			Scheme:                  mgr.GetScheme(),
 			ControllerImage:         controllerImage,
 			OpenBaoAddr:             openBaoAddr,
-			ManagerOpenBaoAddr:      managerOpenBaoAddr,
 			OpenBaoSecretMountPath:  openBaoSecretMountPath,
-			OpenBaoK8sAuthRole:      managerOpenBaoK8sAuthRole,
 			OpenBaoK8sAuthMountPath: openBaoK8sAuthMountPath,
-			OpenBaoK8sAuthTokenPath: managerOpenBaoK8sAuthTokenPath,
 		}
 		if err := extAuthRuntimeReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.ErrorContext(ctx,
@@ -1517,14 +1522,9 @@ var managerCmd = &cli.Command{
 		}
 
 		secretReconciler := &secret.SecretReconciler{
-			Client:                  mgr.GetClient(),
-			Scheme:                  mgr.GetScheme(),
-			OpenBaoAddr:             openBaoAddr,
-			ManagerOpenBaoAddr:      managerOpenBaoAddr,
-			OpenBaoSecretMountPath:  openBaoSecretMountPath,
-			OpenBaoK8sAuthRole:      managerOpenBaoK8sAuthRole,
-			OpenBaoK8sAuthMountPath: openBaoK8sAuthMountPath,
-			OpenBaoK8sAuthTokenPath: managerOpenBaoK8sAuthTokenPath,
+			Bao:                    baoClient,
+			Client:                 mgr.GetClient(),
+			OpenBaoSecretMountPath: openBaoSecretMountPath,
 		}
 		if err := secretReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.ErrorContext(ctx,

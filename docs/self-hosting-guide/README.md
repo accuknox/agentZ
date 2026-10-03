@@ -236,18 +236,20 @@ bao write sys/policies/acl/agentz-inference-external-secrets policy="$(cat infer
 bao write auth/kubernetes/role/manager \
   bound_service_account_names=agentz-manager \
   bound_service_account_namespaces=agentz-system \
-  token_policies=manager token_period=1h
+  token_policies=manager token_type=batch token_period=0 \
+  token_ttl=1h token_max_ttl=1h
 
 bao write auth/kubernetes/role/gateway \
   bound_service_account_names=agentz-gateway \
   bound_service_account_namespaces=agentz-system \
-  token_policies=gateway token_period=1h
+  token_policies=gateway token_type=service token_period=1h
 
 bao write auth/kubernetes/role/agentz-inference-external-secrets \
   bound_service_account_names=agentz-inference-external-secrets \
   bound_service_account_namespaces=agentz-system \
   audience=https://kubernetes.default.svc \
-  token_policies=agentz-inference-external-secrets token_ttl=1h
+  token_policies=agentz-inference-external-secrets token_type=service \
+  token_ttl=1h token_max_ttl=1h token_period=0
 
 rm bao-token
 unset -f bao
@@ -274,7 +276,7 @@ export AGENTZ_HOST=agentz.example.com
 export S3_HOST=s3.agentz.example.com
 export ACME_EMAIL=ops@example.com
 export ADMIN_EMAIL=you@example.com
-export AGENTZ_VERSION=v0.21.0
+export AGENTZ_VERSION=v0.27.1
 
 kubectl rollout status deployment/cert-manager-webhook -n cert-manager --timeout=180s
 
@@ -503,7 +505,6 @@ manager:
     limits:
       memory: 512Mi
   config:
-    controllerImage: public.ecr.aws/k9v9d5v2/agentz:${AGENTZ_VERSION}
     agentImage: public.ecr.aws/k9v9d5v2/agentz/agent:${AGENTZ_VERSION}
     agentInitImage: public.ecr.aws/k9v9d5v2/agentz/init:${AGENTZ_VERSION}
     skillsS3Endpoint: http://rustfs-svc.rustfs.svc.cluster.local:9000

@@ -187,9 +187,9 @@ manager:
     # Enable HTTP/2.
     enableHTTP2: false
 
-    # Image used for controller-managed workloads and agent filesystem
-    # sidecars.
-    controllerImage: public.ecr.aws/k9v9d5v2/agentz:latest
+    # Empty inherits manager.image, including its digest, for extauth,
+    # sinjector and agent filesystem sidecars. Set to override.
+    controllerImage: ""
 
     # Default image used for Agent resources created by the system.
     agentImage: ""

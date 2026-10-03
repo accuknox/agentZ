@@ -64,7 +64,11 @@ spec:
       {{- end }}
       containers:
         - name: manager
-          image: "{{ .Values.image.repository }}{{ if .Values.image.digest }}@{{ .Values.image.digest }}{{ else }}:{{ .Values.image.tag }}{{ end }}"
+          {{- $image := printf "%s:%s" .Values.image.repository .Values.image.tag }}
+          {{- if .Values.image.digest }}
+          {{- $image = printf "%s@%s" .Values.image.repository .Values.image.digest }}
+          {{- end }}
+          image: {{ $image | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["/agentz"]
           args:
@@ -76,7 +80,7 @@ spec:
             - --metrics-secure={{ .Values.config.metricsSecure }}
             - --enable-http2={{ .Values.config.enableHTTP2 }}
             - --workflowrun-orphan-retention={{ .Values.config.workflowRunOrphanRetention }}
-            - --controller-image={{ .Values.config.controllerImage }}
+            - --controller-image={{ default $image .Values.config.controllerImage }}
             - --gateway-url={{ required "manager.config.gatewayURL is required for standalone installs" $gatewayURL }}
             - --agentgateway-trace-mode={{ required "manager.config.agentgatewayTraceMode is required" .Values.config.agentgatewayTraceMode }}
             {{- if eq .Values.config.agentgatewayTraceMode "service" }}

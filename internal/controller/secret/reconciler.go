@@ -25,13 +25,11 @@ import (
 	baoapi "github.com/openbao/openbao/api/v2"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	"github.com/accuknox/agentz/internal/openbao"
 	secretstore "github.com/accuknox/agentz/internal/secret"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
@@ -41,13 +39,8 @@ const secretFinalizer = "agentz.accuknox.com/secret"
 // SecretReconciler reconciles Secret lifecycle and runtime status.
 type SecretReconciler struct {
 	client.Client
-	Scheme                  *runtime.Scheme
-	OpenBaoAddr             string
-	ManagerOpenBaoAddr      string
-	OpenBaoSecretMountPath  string
-	OpenBaoK8sAuthRole      string
-	OpenBaoK8sAuthMountPath string
-	OpenBaoK8sAuthTokenPath string
+	Bao                    *baoapi.Client
+	OpenBaoSecretMountPath string
 }
 
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=secrets,verbs=get;list;watch;patch
@@ -144,43 +137,17 @@ func (r *SecretReconciler) reconcileActive(ctx context.Context, secret *agentzv1
 }
 
 func (r *SecretReconciler) deleteRuntime(ctx context.Context, secret *agentzv1alpha1.Secret) error {
-	kv, err := r.openBaoMetadata(ctx)
-	if err != nil {
-		return fmt.Errorf("create openbao client for secret cleanup: %w", err)
+	if r.Bao == nil {
+		return fmt.Errorf("manager openbao client is required for secret cleanup")
+	}
+	if strings.TrimSpace(r.OpenBaoSecretMountPath) == "" {
+		return fmt.Errorf("openbao secret mount path is required for secret cleanup")
 	}
 
 	path := secretstore.SecretPath(secret.Namespace, secret.Spec.AgentRef.Name, secret.Spec.Key)
-	err = kv.DeleteMetadata(ctx, path)
+	err := r.Bao.KVv2(r.OpenBaoSecretMountPath).DeleteMetadata(ctx, path)
 	if err != nil && !errors.Is(err, baoapi.ErrSecretNotFound) {
 		return fmt.Errorf("delete secret runtime metadata %q: %w", path, err)
 	}
 	return nil
-}
-
-func (r *SecretReconciler) openBaoMetadata(ctx context.Context) (*baoapi.KVv2, error) {
-	addr := strings.TrimSpace(r.ManagerOpenBaoAddr)
-	if addr == "" {
-		addr = strings.TrimSpace(r.OpenBaoAddr)
-	}
-	if addr == "" {
-		return nil, fmt.Errorf("openbao addr is required")
-	}
-	if strings.TrimSpace(r.OpenBaoSecretMountPath) == "" {
-		return nil, fmt.Errorf("openbao secret mount path is required")
-	}
-	if strings.TrimSpace(r.OpenBaoK8sAuthRole) == "" {
-		return nil, fmt.Errorf("openbao k8s auth role is required")
-	}
-
-	client, err := openbao.NewClient(
-		ctx,
-		addr,
-		r.OpenBaoK8sAuthRole,
-		r.OpenBaoK8sAuthMountPath,
-		r.OpenBaoK8sAuthTokenPath,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return client.KVv2(r.OpenBaoSecretMountPath), nil
 }

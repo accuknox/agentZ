@@ -14,12 +14,12 @@ import (
 	slimv1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	ciliumlabels "github.com/cilium/cilium/pkg/labels"
 	ciliumapi "github.com/cilium/cilium/pkg/policy/api"
+	baoapi "github.com/openbao/openbao/api/v2"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -31,7 +31,6 @@ import (
 	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/mcp"
 	"github.com/accuknox/agentz/internal/networkpolicy"
-	"github.com/accuknox/agentz/internal/openbao"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -78,14 +77,11 @@ type extAuthScope struct {
 // namespace that has MCP or subscription-inference consumers.
 type ExtAuthRuntimeReconciler struct {
 	client.Client
-	Scheme                  *runtime.Scheme
+	Bao                     *baoapi.Client
 	ControllerImage         string
 	OpenBaoAddr             string
-	ManagerOpenBaoAddr      string
 	OpenBaoSecretMountPath  string
-	OpenBaoK8sAuthRole      string
 	OpenBaoK8sAuthMountPath string
-	OpenBaoK8sAuthTokenPath string
 }
 
 // The runtime controller deletes obsolete scope-reader RBAC objects explicitly
@@ -181,8 +177,8 @@ func (r *ExtAuthRuntimeReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	if strings.TrimSpace(r.OpenBaoSecretMountPath) == "" {
 		return ctrl.Result{}, fmt.Errorf("openbao secret mount path is required for ext auth runtime")
 	}
-	if strings.TrimSpace(r.OpenBaoK8sAuthRole) == "" {
-		return ctrl.Result{}, fmt.Errorf("openbao kubernetes auth role is required for ext auth runtime")
+	if r.Bao == nil {
+		return ctrl.Result{}, fmt.Errorf("manager openbao client is required for ext auth runtime")
 	}
 	ownerRefs := []metav1.OwnerReference{*metav1.NewControllerRef(ns, corev1.SchemeGroupVersion.WithKind("Namespace"))}
 
@@ -951,34 +947,23 @@ func extAuthPolicySpec(ns string, workspaces []workspaceAccess) *ciliumapi.Rule 
 }
 
 func (r *ExtAuthRuntimeReconciler) reconcileExtAuthOpenBao(ctx context.Context, ns string) error {
-	baoClient, err := openbao.NewClient(
-		ctx,
-		r.managerOpenBaoAddr(),
-		r.OpenBaoK8sAuthRole,
-		r.OpenBaoK8sAuthMountPath,
-		r.OpenBaoK8sAuthTokenPath,
-	)
-	if err != nil {
-		return fmt.Errorf("create openbao client for ext auth: %w", err)
-	}
-
 	name := mcp.ExtAuthOpenBaoName(ns)
 	policy, err := renderExtAuthPolicy(r.OpenBaoSecretMountPath, ns)
 	if err != nil {
 		return err
 	}
-	if err := baoClient.Sys().PutPolicyWithContext(ctx, name, policy); err != nil {
+	if err := r.Bao.Sys().PutPolicyWithContext(ctx, name, policy); err != nil {
 		return fmt.Errorf("put ext auth openbao policy: %w", err)
 	}
 
 	path := fmt.Sprintf("auth/%s/role/%s", strings.Trim(r.OpenBaoK8sAuthMountPath, "/"), name)
-	_, err = baoClient.Logical().WriteWithContext(
+	_, err = r.Bao.Logical().WriteWithContext(
 		ctx,
 		path,
 		map[string]any{
 			"bound_service_account_names":      mcp.ExtAuthServiceName,
 			"bound_service_account_namespaces": ns,
-			"policies":                         name,
+			"token_policies":                   name,
 			"token_period":                     "1h",
 			"token_type":                       "service",
 		},
@@ -1141,37 +1126,18 @@ func (r *ExtAuthRuntimeReconciler) deleteExtAuthRuntime(ctx context.Context, ns 
 		return fmt.Errorf("delete ext auth service account: %w", err)
 	}
 
-	if strings.TrimSpace(r.managerOpenBaoAddr()) == "" || strings.TrimSpace(r.OpenBaoK8sAuthRole) == "" {
+	if r.Bao == nil {
 		return nil
-	}
-
-	baoClient, err := openbao.NewClient(
-		ctx,
-		r.managerOpenBaoAddr(),
-		r.OpenBaoK8sAuthRole,
-		r.OpenBaoK8sAuthMountPath,
-		r.OpenBaoK8sAuthTokenPath,
-	)
-	if err != nil {
-		return fmt.Errorf("create openbao client for ext auth cleanup: %w", err)
 	}
 
 	name := mcp.ExtAuthOpenBaoName(ns)
 	path := fmt.Sprintf("auth/%s/role/%s", strings.Trim(r.OpenBaoK8sAuthMountPath, "/"), name)
-	if _, err := baoClient.Logical().DeleteWithContext(ctx, path); err != nil {
+	if _, err := r.Bao.Logical().DeleteWithContext(ctx, path); err != nil {
 		return fmt.Errorf("delete ext auth openbao role: %w", err)
 	}
-	if err := baoClient.Sys().DeletePolicyWithContext(ctx, name); err != nil {
+	if err := r.Bao.Sys().DeletePolicyWithContext(ctx, name); err != nil {
 		return fmt.Errorf("delete ext auth openbao policy: %w", err)
 	}
 
 	return nil
-}
-
-func (r *ExtAuthRuntimeReconciler) managerOpenBaoAddr() string {
-	addr := strings.TrimSpace(r.ManagerOpenBaoAddr)
-	if addr != "" {
-		return addr
-	}
-	return strings.TrimSpace(r.OpenBaoAddr)
 }

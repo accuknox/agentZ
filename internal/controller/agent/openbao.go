@@ -10,8 +10,6 @@ import (
 	"text/template"
 
 	baoapi "github.com/openbao/openbao/api/v2"
-
-	baoclient "github.com/accuknox/agentz/internal/openbao"
 )
 
 //go:embed policies/sinjector-readonly.hcl
@@ -43,31 +41,10 @@ type sinjectorPolicyData struct {
 	MetadataPath string
 }
 
-// NewOpenBaoProvisioner creates an OpenBao provisioner for controller use.
-func NewOpenBaoProvisioner(ctx context.Context, cfg RuntimeConfig) (OpenBaoProvisioner, error) {
-	addr := strings.TrimSpace(cfg.ManagerOpenBaoAddr)
-	if addr == "" {
-		addr = strings.TrimSpace(cfg.OpenBaoAddr)
-	}
-	if addr == "" {
-		return nil, fmt.Errorf("openbao addr is required")
-	}
-	role := strings.TrimSpace(cfg.ManagerOpenBaoK8sAuthRole)
-	if role == "" {
-		return nil, fmt.Errorf("manager openbao k8s auth role is required")
-	}
-
-	client, err := baoclient.NewClient(
-		ctx,
-		addr,
-		role,
-		cfg.OpenBaoK8sAuthMountPath,
-		cfg.ManagerOpenBaoK8sAuthTokenPath,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return &openBaoProvisioner{client: client}, nil
+// NewOpenBaoProvisioner shares the manager's authenticated client so repeated
+// provisioning does not create additional tokens or renewal goroutines.
+func NewOpenBaoProvisioner(client *baoapi.Client) OpenBaoProvisioner {
+	return &openBaoProvisioner{client: client}
 }
 
 // ProvisionSinjector binds the service account to its Agent's secret policy.

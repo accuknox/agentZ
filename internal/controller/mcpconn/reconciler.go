@@ -43,7 +43,6 @@ import (
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/accuknox/agentz/internal/mcp"
-	"github.com/accuknox/agentz/internal/openbao"
 	"github.com/accuknox/agentz/internal/scope"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
@@ -62,22 +61,10 @@ const (
 // MCPConnectionReconciler reconciles one MCPConnection object.
 type MCPConnectionReconciler struct {
 	client.Client
-	Scheme                  *runtime.Scheme
-	AgentGateway            agentgatewayclientset.Interface
-	OpenBaoAddr             string
-	ManagerOpenBaoAddr      string
-	OpenBaoSecretMountPath  string
-	OpenBaoK8sAuthRole      string
-	OpenBaoK8sAuthMountPath string
-	OpenBaoK8sAuthTokenPath string
-}
-
-func (r *MCPConnectionReconciler) managerOpenBaoAddr() string {
-	addr := strings.TrimSpace(r.ManagerOpenBaoAddr)
-	if addr != "" {
-		return addr
-	}
-	return strings.TrimSpace(r.OpenBaoAddr)
+	Bao                    *baoapi.Client
+	Scheme                 *runtime.Scheme
+	AgentGateway           agentgatewayclientset.Interface
+	OpenBaoSecretMountPath string
 }
 
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=mcpconnections,verbs=get;list;watch;patch
@@ -637,26 +624,12 @@ func (r *MCPConnectionReconciler) deleteRuntime(ctx context.Context, conn *agent
 		return err
 	}
 
-	openBaoAddr := strings.TrimSpace(r.managerOpenBaoAddr())
-	openBaoSecretMntPath := strings.TrimSpace(r.OpenBaoSecretMountPath)
-	openBaoK8sAuthRole := strings.TrimSpace(r.OpenBaoK8sAuthRole)
-	if openBaoAddr == "" || openBaoSecretMntPath == "" || openBaoK8sAuthRole == "" {
+	if r.Bao == nil || strings.TrimSpace(r.OpenBaoSecretMountPath) == "" {
 		return nil
 	}
 
-	baoClient, err := openbao.NewClient(
-		ctx,
-		openBaoAddr,
-		openBaoK8sAuthRole,
-		r.OpenBaoK8sAuthMountPath,
-		r.OpenBaoK8sAuthTokenPath,
-	)
-	if err != nil {
-		return fmt.Errorf("create openbao client for mcp cleanup: %w", err)
-	}
-
 	path := mcp.SecretPath(conn.Namespace, conn.Name)
-	err = baoClient.KVv2(r.OpenBaoSecretMountPath).DeleteMetadata(ctx, path)
+	err := r.Bao.KVv2(r.OpenBaoSecretMountPath).DeleteMetadata(ctx, path)
 	if err != nil && !errors.Is(err, baoapi.ErrSecretNotFound) {
 		return fmt.Errorf("delete mcp connection secret metadata %q: %w", path, err)
 	}

@@ -81,7 +81,7 @@
         "metricsSecure": { "type": "boolean" },
         "enableHTTP2": { "type": "boolean" },
         "workflowRunOrphanRetention": { "type": "string" },
-        "controllerImage": { "type": "string", "minLength": 1 },
+        "controllerImage": { "type": "string" },
         "agentImage": { "type": "string" },
         "agentInitImage": { "type": "string" },
         "gatewayURL": { "type": "string" },

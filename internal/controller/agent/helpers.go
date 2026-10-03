@@ -100,7 +100,6 @@ type RuntimeConfig struct {
 	NixCacheEndpoint                 string
 	AgentInitImage                   string
 	OpenBaoAddr                      string
-	ManagerOpenBaoAddr               string
 	OpenBaoSecretMountPath           string
 	ControllerImage                  string
 	SinjectorCASecretName            string
@@ -112,8 +111,6 @@ type RuntimeConfig struct {
 	AgentCABundlePath                string
 	OpenBaoK8sAuthMountPath          string
 	SinjectorOpenBaoK8sAuthTokenPath string
-	ManagerOpenBaoK8sAuthRole        string
-	ManagerOpenBaoK8sAuthTokenPath   string
 	GatewayTokenAudience             string
 	SkillStore                       skill.Config
 }

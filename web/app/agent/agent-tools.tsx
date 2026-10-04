@@ -261,7 +261,7 @@ export function AgentTools({
         <div className="flex flex-col gap-1">
           <h2 className="text-lg font-medium">Custom tools</h2>
           <p className="text-sm text-muted-foreground">
-            Convert your existing bash/python/node scripts into tools your agent can invoke.
+            Convert your existing bash/python/node scripts into tools your agent can call.
           </p>
         </div>
         <Button
@@ -354,23 +354,25 @@ export function AgentTools({
           if (!open && !pending) setDeleting(undefined)
         }}
       >
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Delete {deleting?.tool.name}?</DialogTitle>
+        <DialogContent className="gap-5 sm:max-w-lg">
+          <DialogHeader className="pr-6">
+            <DialogTitle className="leading-snug wrap-anywhere">
+              Delete {deleting?.tool.name}?
+            </DialogTitle>
             <DialogDescription>
               The agent will stop offering this tool after its runtime updates. This restarts the
               runtime and can interrupt active work.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-1 text-sm">
+          <div className="flex min-w-0 flex-col gap-1 text-sm wrap-anywhere">
             <p className="font-mono">{deleting?.tool.filename}</p>
             <p className="text-muted-foreground">{deleting?.tool.description}</p>
           </div>
           {deleteError ? (
-            <Alert variant="destructive">
+            <Alert variant="destructive" className="gap-x-3">
               <CircleAlert aria-hidden="true" />
-              <AlertDescription>
-                {deleteError}
+              <AlertDescription className="flex flex-col items-start gap-3">
+                <span>{deleteError}</span>
                 <Button
                   disabled={pending}
                   size="sm"
@@ -392,7 +394,7 @@ export function AgentTools({
                     })
                   }}
                 >
-                  <RefreshCw aria-hidden="true" /> Reload tool
+                  <RefreshCw aria-hidden="true" data-icon="inline-start" /> Reload tool
                 </Button>
               </AlertDescription>
             </Alert>
@@ -429,7 +431,12 @@ export function AgentTools({
                 })
               }}
             >
-              {pending ? <Spinner aria-hidden="true" /> : <Trash2 aria-hidden="true" />} Delete tool
+              {pending ? (
+                <Spinner aria-hidden="true" data-icon="inline-start" />
+              ) : (
+                <Trash2 aria-hidden="true" data-icon="inline-start" />
+              )}{" "}
+              Delete tool
             </Button>
           </DialogFooter>
         </DialogContent>

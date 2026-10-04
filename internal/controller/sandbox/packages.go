@@ -31,6 +31,8 @@ var DefaultPackages = []string{
 	"yq-go",
 	"curl",
 	"mcporter",
+	"python3",
+	"nodejs",
 }
 
 // DefaultPackagesForWebhook adds required packages and removes duplicate names.

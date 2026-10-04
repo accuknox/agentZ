@@ -156,8 +156,6 @@
                 pkgs.cacert
                 pkgs.stdenv.cc.cc.lib
                 pkgs.bashInteractive
-                pkgs.python3
-                pkgs.nodejs
                 pkgs.coreutils-full
                 pkgs.git
                 cli

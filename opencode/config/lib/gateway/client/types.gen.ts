@@ -548,6 +548,44 @@ export type Agent = {
   capabilities: AgentCapabilities
 }
 
+export type ToolName = string
+
+export type ToolLanguage = "bash" | "python" | "node"
+
+export type ToolInputType = "string" | "number" | "integer" | "boolean" | "json"
+
+export type ToolInput = {
+  name: ToolName
+  description: string
+  type: ToolInputType
+  required: boolean
+}
+
+export type AgentTool = {
+  name: ToolName
+  description: string
+  language: ToolLanguage
+  filename: string
+  script: string
+  inputs: Array<ToolInput>
+}
+
+export type WriteAgentToolRequest = {
+  resource_version: string
+  tool: AgentTool
+}
+
+export type AgentTools = {
+  tools: Array<AgentTool>
+  resource_version: string
+  /**
+   * The current generation has rolled out and the agent is ready.
+   */
+  applied: boolean
+  status: AgentStatus
+  message: string
+}
+
 export type AgentCapabilities = {
   use: boolean
   modify: boolean
@@ -5044,6 +5082,291 @@ export type UpdateAgentResponses = {
 }
 
 export type UpdateAgentResponse = UpdateAgentResponses[keyof UpdateAgentResponses]
+
+export type ListAgentToolsData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/tools"
+}
+
+export type ListAgentToolsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListAgentToolsError = ListAgentToolsErrors[keyof ListAgentToolsErrors]
+
+export type ListAgentToolsResponses = {
+  /**
+   * Agent tool configuration.
+   */
+  200: AgentTools
+}
+
+export type ListAgentToolsResponse = ListAgentToolsResponses[keyof ListAgentToolsResponses]
+
+export type CreateAgentToolData = {
+  body: WriteAgentToolRequest
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/tools"
+}
+
+export type CreateAgentToolErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type CreateAgentToolError = CreateAgentToolErrors[keyof CreateAgentToolErrors]
+
+export type CreateAgentToolResponses = {
+  /**
+   * Agent tool configuration.
+   */
+  201: AgentTools
+}
+
+export type CreateAgentToolResponse = CreateAgentToolResponses[keyof CreateAgentToolResponses]
+
+export type DeleteAgentToolData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    toolName: ToolName
+  }
+  query: {
+    resource_version: string
+  }
+  url: "/api/agent/{agentName}/tools/{toolName}"
+}
+
+export type DeleteAgentToolErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type DeleteAgentToolError = DeleteAgentToolErrors[keyof DeleteAgentToolErrors]
+
+export type DeleteAgentToolResponses = {
+  /**
+   * Agent tool configuration.
+   */
+  200: AgentTools
+}
+
+export type DeleteAgentToolResponse = DeleteAgentToolResponses[keyof DeleteAgentToolResponses]
+
+export type GetAgentToolData = {
+  body?: never
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    toolName: ToolName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/tools/{toolName}"
+}
+
+export type GetAgentToolErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetAgentToolError = GetAgentToolErrors[keyof GetAgentToolErrors]
+
+export type GetAgentToolResponses = {
+  /**
+   * Agent tool configuration.
+   */
+  200: AgentTool
+}
+
+export type GetAgentToolResponse = GetAgentToolResponses[keyof GetAgentToolResponses]
+
+export type UpdateAgentToolData = {
+  body: WriteAgentToolRequest
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    toolName: ToolName
+  }
+  query?: never
+  url: "/api/agent/{agentName}/tools/{toolName}"
+}
+
+export type UpdateAgentToolErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type UpdateAgentToolError = UpdateAgentToolErrors[keyof UpdateAgentToolErrors]
+
+export type UpdateAgentToolResponses = {
+  /**
+   * Agent tool configuration.
+   */
+  200: AgentTools
+}
+
+export type UpdateAgentToolResponse = UpdateAgentToolResponses[keyof UpdateAgentToolResponses]
 
 export type WatchAgentsData = {
   body?: WatchAgentsRequest

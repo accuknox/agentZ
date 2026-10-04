@@ -80,6 +80,15 @@ func (r *Reconciler) reconcileConfigMap(ctx context.Context, agt *agentzv1alpha1
 				return fmt.Errorf("marshal immutable skills manifest: %w", err)
 			}
 			current.Data[immutableSkillsManifestKey] = string(append(raw, '\n'))
+			tools := agt.Spec.Tools
+			if tools == nil {
+				tools = []agentzv1alpha1.AgentTool{}
+			}
+			raw, err = json.Marshal(tools)
+			if err != nil {
+				return fmt.Errorf("marshal tools manifest: %w", err)
+			}
+			current.Data[toolsManifestKey] = string(raw)
 			return ctrl.SetControllerReference(agt, current, r.Scheme)
 		},
 	)
@@ -644,6 +653,7 @@ func (r *Reconciler) agentEnv(agt *agentzv1alpha1.Agent, envCfg sandboxConfig, m
 		corev1.EnvVar{Name: "NODE_EXTRA_CA_CERTS", Value: r.Config.AgentCABundlePath},
 		corev1.EnvVar{Name: "OPENCODE_DISABLE_SHARE", Value: "1"},
 		corev1.EnvVar{Name: "AGENTZ_IMMUTABLE_SKILLS_PATH", Value: opencodeImmutableSkillsPath},
+		corev1.EnvVar{Name: "AGENTZ_TOOLS_PATH", Value: opencodeConfigDir + "/" + toolsManifestKey},
 	)
 	var telemetryURL string
 	if telemetryEndpoint != "" {

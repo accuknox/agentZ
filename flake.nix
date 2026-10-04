@@ -80,7 +80,8 @@
               "plugin": [
                 "./plugins/opencode-plugin-otel",
                 "./plugins/file-analysis.ts",
-                "./plugins/sender-context.ts"
+                "./plugins/sender-context.ts",
+                "./plugins/script-tools.ts"
               ],
               "share": "disabled",
               "tools": {
@@ -155,6 +156,8 @@
                 pkgs.cacert
                 pkgs.stdenv.cc.cc.lib
                 pkgs.bashInteractive
+                pkgs.python3
+                pkgs.nodejs
                 pkgs.coreutils-full
                 pkgs.git
                 cli

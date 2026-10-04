@@ -885,6 +885,65 @@ components:
       - DELETED
       - IDLE
       type: string
+    AgentTool:
+      additionalProperties: false
+      properties:
+        description:
+          maxLength: 4096
+          minLength: 1
+          type: string
+        filename:
+          maxLength: 255
+          minLength: 1
+          type: string
+        inputs:
+          items:
+            $ref: '#/components/schemas/ToolInput'
+          maxItems: 32
+          type: array
+        language:
+          $ref: '#/components/schemas/ToolLanguage'
+        name:
+          $ref: '#/components/schemas/ToolName'
+        script:
+          maxLength: 65536
+          minLength: 1
+          type: string
+      required:
+      - name
+      - description
+      - language
+      - filename
+      - script
+      - inputs
+      type: object
+      x-go-type: agentzv1alpha1.AgentTool
+      x-go-type-import:
+        name: agentzv1alpha1
+        path: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1
+    AgentTools:
+      additionalProperties: false
+      properties:
+        applied:
+          description: The current generation has rolled out and the agent is ready.
+          type: boolean
+        message:
+          type: string
+        resource_version:
+          type: string
+        status:
+          $ref: '#/components/schemas/AgentStatus'
+        tools:
+          items:
+            $ref: '#/components/schemas/AgentTool'
+          type: array
+      required:
+      - tools
+      - resource_version
+      - applied
+      - status
+      - message
+      type: object
     AgentWorkspaceCapabilities:
       additionalProperties: false
       properties:
@@ -24951,6 +25010,55 @@ components:
       - READY
       - FAILED
       type: string
+    ToolInput:
+      additionalProperties: false
+      properties:
+        description:
+          maxLength: 1024
+          type: string
+        name:
+          $ref: '#/components/schemas/ToolName'
+        required:
+          type: boolean
+        type:
+          $ref: '#/components/schemas/ToolInputType'
+      required:
+      - name
+      - description
+      - type
+      - required
+      type: object
+      x-go-type: agentzv1alpha1.ToolInput
+      x-go-type-import:
+        name: agentzv1alpha1
+        path: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1
+    ToolInputType:
+      enum:
+      - string
+      - number
+      - integer
+      - boolean
+      - json
+      type: string
+      x-go-type: agentzv1alpha1.ToolInputType
+      x-go-type-import:
+        name: agentzv1alpha1
+        path: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1
+    ToolLanguage:
+      enum:
+      - bash
+      - python
+      - node
+      type: string
+      x-go-type: agentzv1alpha1.ToolLanguage
+      x-go-type-import:
+        name: agentzv1alpha1
+        path: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1
+    ToolName:
+      maxLength: 64
+      minLength: 1
+      pattern: ^[a-z][a-z0-9_]*$
+      type: string
     Trace:
       additionalProperties: false
       properties:
@@ -26208,6 +26316,18 @@ components:
       - content
       - expected_version
       type: object
+    WriteAgentToolRequest:
+      additionalProperties: false
+      properties:
+        resource_version:
+          minLength: 1
+          type: string
+        tool:
+          $ref: '#/components/schemas/AgentTool'
+      required:
+      - resource_version
+      - tool
+      type: object
   securitySchemes:
     GatewayAPIKey:
       in: header
@@ -27151,6 +27271,196 @@ paths:
       summary: Stream mutable Agent skills as a ZIP archive.
       tags:
       - skills
+  /api/agent/{agentName}/tools:
+    get:
+      operationId: listAgentTools
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentTools'
+          description: Agent tool configuration.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: List agent tools.
+      tags:
+      - agents
+    post:
+      operationId: createAgentTool
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WriteAgentToolRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentTools'
+          description: Agent tool configuration.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Create agent tool.
+      tags:
+      - agents
+  /api/agent/{agentName}/tools/{toolName}:
+    delete:
+      operationId: deleteAgentTool
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - in: path
+        name: toolName
+        required: true
+        schema:
+          $ref: '#/components/schemas/ToolName'
+      - in: query
+        name: resource_version
+        required: true
+        schema:
+          minLength: 1
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentTools'
+          description: Agent tool configuration.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Delete agent tool.
+      tags:
+      - agents
+    get:
+      operationId: getAgentTool
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - in: path
+        name: toolName
+        required: true
+        schema:
+          $ref: '#/components/schemas/ToolName'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentTool'
+          description: Agent tool configuration.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Get agent tool.
+      tags:
+      - agents
+    put:
+      operationId: updateAgentTool
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - in: path
+        name: toolName
+        required: true
+        schema:
+          $ref: '#/components/schemas/ToolName'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WriteAgentToolRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentTools'
+          description: Agent tool configuration.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Update agent tool.
+      tags:
+      - agents
   /api/agent/skill/import:
     post:
       operationId: importMutableSkills

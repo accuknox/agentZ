@@ -33,6 +33,7 @@ import (
 	"github.com/accuknox/agentz/internal/agentquota"
 	"github.com/accuknox/agentz/internal/scope"
 	"github.com/accuknox/agentz/internal/skill"
+	"github.com/accuknox/agentz/internal/tool"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -106,6 +107,7 @@ func (v *Validator) ValidateDelete(_ context.Context, _ *agentzv1alpha1.Agent) (
 func (v *Validator) validateAgent(ctx context.Context, agt *agentzv1alpha1.Agent) field.ErrorList {
 	var allErrs field.ErrorList
 	specPath := field.NewPath("spec")
+	allErrs = append(allErrs, tool.Validate(agt.Spec.Tools, specPath.Child("tools"))...)
 
 	if agt.Spec.Memory.Enabled {
 		var workspace agentzv1alpha1.Workspace

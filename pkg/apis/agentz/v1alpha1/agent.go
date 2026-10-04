@@ -114,6 +114,13 @@ type AgentSpec struct {
 	// +kubebuilder:validation:MaxItems=200
 	Skills []ResourceReference `json:"skills,omitempty"`
 
+	// Tools registers uploaded scripts as callable tools in this Agent runtime.
+	// +optional
+	// +listType=map
+	// +listMapKey=name
+	// +kubebuilder:validation:MaxItems=32
+	Tools []AgentTool `json:"tools,omitempty"`
+
 	// NixStoreSize sets the size of the agent-specific nix store PVC.
 	// +kubebuilder:default="5Gi"
 	// +optional

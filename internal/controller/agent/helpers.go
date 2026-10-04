@@ -36,6 +36,7 @@ import (
 const (
 	opencodeConfigKey           = "opencode.json"
 	immutableSkillsManifestKey  = "immutable-skills.json"
+	toolsManifestKey            = "tools.json"
 	configVolume                = "config"
 	opencodeConfigDir           = "/etc/agentz/opencode"
 	opencodePhilosophyKey       = "philosophy.md"
@@ -204,15 +205,15 @@ func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]by
 	general := envCfg.WorkspaceType != agentzv1alpha1.WorkspaceTypeCoding
 	agent := opencodeAgentFile{
 		Prompt: "{file:" + opencodePhilosophyPath + "}\n\n{file:" + opencodeUnslopPath + "}",
-		Permission: opencodeAgentPermissionFile{
-			Skill: map[string]opencodePermissionRule{
+		Permission: map[string]map[string]opencodePermissionRule{
+			"skill": {
 				"customize-opencode": "deny",
 			},
 		},
 	}
 	if !general {
-		agent.Permission.Skill["workflow-creator"] = "deny"
-		agent.Permission.Skill["dashboard-creator"] = "deny"
+		agent.Permission["skill"]["workflow-creator"] = "deny"
+		agent.Permission["skill"]["dashboard-creator"] = "deny"
 	}
 	cfg := opencodeConfigFile{
 		Schema: opencodeConfigSchema,
@@ -225,19 +226,25 @@ func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]by
 			"*": "allow",
 		},
 	}
+	// Uploaded scripts can mutate the sandbox. Keep them out of Plan even
+	// though the global runtime policy permits their use during execution.
+	plan := agent
+	plan.Permission = maps.Clone(agent.Permission)
+	for _, t := range agt.Spec.Tools {
+		plan.Permission[t.Name] = map[string]opencodePermissionRule{"*": "deny"}
+	}
 	if !general {
-		// Agent rules follow the global allow rule. Restore Plan's native
-		// restrictions while allowing its document in the Git worktree.
-		plan := agent
-		plan.Permission.Edit = map[string]opencodePermissionRule{
+		// Restore Plan's native restrictions while allowing its document in
+		// the Git worktree. Agent rules follow the global allow rule.
+		plan.Permission["edit"] = map[string]opencodePermissionRule{
 			"*":                    "deny",
 			".opencode/plans/*.md": "allow",
 		}
-		plan.Permission.Task = map[string]opencodePermissionRule{
+		plan.Permission["task"] = map[string]opencodePermissionRule{
 			"general": "deny",
 		}
-		cfg.Agent["plan"] = plan
 	}
+	cfg.Agent["plan"] = plan
 	cfg.Model = envCfg.Model
 	cfg.SmallModel = envCfg.SmallModel
 	instructionFiles, err := renderOpencodeInstructions(agt, envCfg.WorkspaceType)
@@ -331,14 +338,8 @@ type opencodeConfigFile struct {
 }
 
 type opencodeAgentFile struct {
-	Prompt     string                      `json:"prompt"`
-	Permission opencodeAgentPermissionFile `json:"permission"`
-}
-
-type opencodeAgentPermissionFile struct {
-	Skill map[string]opencodePermissionRule `json:"skill"`
-	Edit  map[string]opencodePermissionRule `json:"edit,omitempty"`
-	Task  map[string]opencodePermissionRule `json:"task,omitempty"`
+	Prompt     string                                       `json:"prompt"`
+	Permission map[string]map[string]opencodePermissionRule `json:"permission"`
 }
 
 type opencodeSkillsFile struct {
@@ -394,16 +395,17 @@ type opencodeProviderOptionsFile struct {
 }
 
 type configHashInput struct {
-	Config                  json.RawMessage       `json:"config"`
-	Instructions            []string              `json:"instructions"`
-	Env                     []corev1.EnvVar       `json:"env"`
-	Packages                []string              `json:"packages"`
-	MCPURL                  string                `json:"mcpUrl"`
-	MCPConsentPermissionIDs []string              `json:"mcpConsentPermissionIds"`
-	MCPRefs                 []mcpRefConfig        `json:"mcpRefs"`
-	Skills                  []skill.ManifestSkill `json:"skills"`
-	OpenAICodexProviderIDs  []string              `json:"openAICodexProviderIds"`
-	OpenAICodexPoolIDs      []string              `json:"openAICodexPoolIds"`
+	Config                  json.RawMessage            `json:"config"`
+	Instructions            []string                   `json:"instructions"`
+	Env                     []corev1.EnvVar            `json:"env"`
+	Packages                []string                   `json:"packages"`
+	MCPURL                  string                     `json:"mcpUrl"`
+	MCPConsentPermissionIDs []string                   `json:"mcpConsentPermissionIds"`
+	MCPRefs                 []mcpRefConfig             `json:"mcpRefs"`
+	Skills                  []skill.ManifestSkill      `json:"skills"`
+	Tools                   []agentzv1alpha1.AgentTool `json:"tools"`
+	OpenAICodexProviderIDs  []string                   `json:"openAICodexProviderIds"`
+	OpenAICodexPoolIDs      []string                   `json:"openAICodexPoolIds"`
 }
 
 type packageJobHashInput struct {
@@ -416,7 +418,7 @@ type packageJobHashInput struct {
 	Skills           []skill.ManifestSkill `json:"skills"`
 }
 
-func configHash(opencodeCfg []byte, instructionFiles []opencodeInstructionFile, env []corev1.EnvVar, envCfg sandboxConfig) (string, error) {
+func configHash(opencodeCfg []byte, instructionFiles []opencodeInstructionFile, env []corev1.EnvVar, envCfg sandboxConfig, tools []agentzv1alpha1.AgentTool) (string, error) {
 	instructions := make([]string, 0, len(instructionFiles))
 	for _, item := range instructionFiles {
 		instructions = append(instructions, item.Path+"\n"+item.Content)
@@ -431,6 +433,7 @@ func configHash(opencodeCfg []byte, instructionFiles []opencodeInstructionFile, 
 		MCPConsentPermissionIDs: envCfg.MCPConsentPermissionIDs,
 		MCPRefs:                 envCfg.MCPRefs,
 		Skills:                  envCfg.Skills,
+		Tools:                   tools,
 		OpenAICodexProviderIDs:  envCfg.OpenAICodexProviderIDs,
 		OpenAICodexPoolIDs:      envCfg.OpenAICodexPoolIDs,
 	})

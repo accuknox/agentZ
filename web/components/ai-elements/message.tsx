@@ -200,7 +200,11 @@ const MarkdownLink = ({
     : undefined
   if (!agentFile || !onAgentFileOpen) {
     return (
-      <a className={cn("wrap-anywhere", className)} href={href} {...props}>
+      <a
+        className={cn("wrap-anywhere text-primary underline underline-offset-4", className)}
+        href={href}
+        {...props}
+      >
         {children}
       </a>
     )
@@ -216,7 +220,11 @@ const MarkdownLink = ({
   const name = path.slice(path.lastIndexOf("/") + 1)
   if (!name) {
     return (
-      <a className={cn("wrap-anywhere", className)} href={href} {...props}>
+      <a
+        className={cn("wrap-anywhere text-primary underline underline-offset-4", className)}
+        href={href}
+        {...props}
+      >
         {children}
       </a>
     )
@@ -265,9 +273,7 @@ export const MessageResponse = memo(
         pre: (preProps) => <MarkdownPre {...preProps} plainCodeBlocks={plainCodeBlocks} />,
         ul: MarkdownUl,
       }}
-      plugins={{
-        ...streamdownPlugins,
-      }}
+      plugins={streamdownPlugins}
       {...props}
     />
   ),

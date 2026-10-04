@@ -41,11 +41,11 @@ const Toaster = (props: ToasterProps) => {
       theme={resolvedTheme === "dark" ? "dark" : "light"}
       className="toaster group"
       icons={{
-        success: <CircleCheckIcon className="text-chart-1 size-4" />,
-        info: <InfoIcon className="text-primary size-4" />,
-        warning: <TriangleAlertIcon className="text-warning size-4" />,
-        error: <OctagonXIcon className="text-destructive size-4" />,
-        loading: <Loader2Icon className="text-muted-foreground size-4 animate-spin" />,
+        success: <CircleCheckIcon className="size-4 text-chart-1" />,
+        info: <InfoIcon className="size-4 text-primary" />,
+        warning: <TriangleAlertIcon className="size-4 text-warning" />,
+        error: <OctagonXIcon className="size-4 text-destructive" />,
+        loading: <Loader2Icon className="size-4 animate-spin text-muted-foreground" />,
       }}
       richColors
       closeButton

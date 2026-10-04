@@ -59,9 +59,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       className={`h-full font-sans font-medium antialiased ${archivo.variable}`}
       suppressHydrationWarning
     >
-      <body className="bg-background text-foreground min-h-svh">
+      <body className="min-h-svh bg-background text-foreground">
         <a
-          className="bg-background text-foreground focus-visible:ring-ring fixed top-2 left-2 z-50 -translate-y-16 rounded-md px-3 py-2 text-sm font-medium shadow-sm transition-transform focus-visible:translate-y-0 focus-visible:ring-2"
+          className="fixed top-2 left-2 z-50 -translate-y-16 rounded-md bg-background px-3 py-2 text-sm font-medium text-foreground shadow-sm transition-transform focus-visible:translate-y-0 focus-visible:ring-2 focus-visible:ring-ring"
           href="#main-content"
         >
           Skip to content

@@ -73,5 +73,5 @@ async function NewSandboxWizard({
 }
 
 function WizardSkeleton() {
-  return <div className="bg-muted/20 h-96" />
+  return <div className="h-96 bg-muted/20" />
 }

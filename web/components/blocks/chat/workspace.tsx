@@ -96,7 +96,7 @@ export function Workspace({
       <aside
         aria-label="Workspace panel"
         className={cn(
-          "bg-background min-h-0 min-w-0 shrink-0 flex-col border-l",
+          "min-h-0 min-w-0 shrink-0 flex-col border-l bg-background",
           open
             ? "absolute inset-y-0 right-12 left-0 z-30 flex lg:relative lg:inset-auto lg:z-auto lg:w-auto lg:max-w-[calc(100%-22rem)]"
             : "hidden",
@@ -117,7 +117,7 @@ export function Workspace({
         <header className="flex h-(--workspace-topbar-height) shrink-0 items-center gap-2 border-b px-3">
           <span className="flex-1 text-sm font-semibold">{active?.label}</span>
           {active?.count !== undefined ? (
-            <span className="text-muted-foreground text-xs tabular-nums">
+            <span className="text-xs text-muted-foreground tabular-nums">
               {active.count} {active.count === 1 ? "file" : "files"}
             </span>
           ) : null}
@@ -163,7 +163,7 @@ export function Workspace({
       </aside>
       <nav
         aria-label="Workspace tools"
-        className="bg-sidebar flex w-12 shrink-0 flex-col items-center gap-1 border-l py-2"
+        className="flex w-12 shrink-0 flex-col items-center gap-1 border-l bg-sidebar py-2"
       >
         {views.map(({ id, label, icon: Icon, count }) => (
           <Tooltip key={id}>
@@ -184,7 +184,7 @@ export function Workspace({
               >
                 <Icon />
                 {count !== undefined && count > 0 ? (
-                  <span className="bg-primary text-primary-foreground absolute top-0 right-0 min-w-3.5 rounded-full px-0.5 text-[9px] leading-3.5 tabular-nums">
+                  <span className="absolute top-0 right-0 min-w-3.5 rounded-full bg-primary px-0.5 text-[9px] leading-3.5 text-primary-foreground tabular-nums">
                     {count}
                   </span>
                 ) : null}
@@ -221,7 +221,7 @@ function WorkspaceResizeHandle({
       aria-valuemin={min}
       aria-valuemax={max}
       aria-valuenow={width}
-      className="hover:bg-border focus-visible:bg-ring absolute inset-y-0 left-0 z-30 hidden w-1 cursor-col-resize touch-none transition-colors lg:block"
+      className="absolute inset-y-0 left-0 z-30 hidden w-1 cursor-col-resize touch-none transition-colors hover:bg-border focus-visible:bg-ring lg:block"
       onKeyDown={(event) => {
         if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
         event.preventDefault()

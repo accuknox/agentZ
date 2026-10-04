@@ -21,7 +21,7 @@ const GitChanges = dynamic(() => import("./git").then((module) => module.GitChan
 const CodingTerminal = dynamic(() => import("./terminal").then((module) => module.CodingTerminal), {
   ssr: false,
   loading: () => (
-    <div role="status" className="text-muted-foreground flex items-center gap-2 p-3 text-xs">
+    <div role="status" className="flex items-center gap-2 p-3 text-xs text-muted-foreground">
       <Spinner /> Opening terminal...
     </div>
   ),
@@ -90,7 +90,7 @@ export function CodingWorkspace({
         },
       ]}
       footer={
-        <footer className="bg-muted/20 text-muted-foreground flex h-9 shrink-0 items-center gap-2 border-t px-2 text-[11px]">
+        <footer className="flex h-9 shrink-0 items-center gap-2 border-t bg-muted/20 px-2 text-[11px] text-muted-foreground">
           {data ? (
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <span
@@ -101,7 +101,7 @@ export function CodingWorkspace({
                 <span className="truncate">{data.branch || "Detached HEAD"}</span>
               </span>
               <button
-                className="text-muted-foreground hover:text-foreground font-mono text-xs"
+                className="font-mono text-xs text-muted-foreground hover:text-foreground"
                 aria-label="Copy commit hash"
                 title="Copy commit hash"
                 onClick={() =>

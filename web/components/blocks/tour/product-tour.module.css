@@ -2,16 +2,16 @@
 
 @layer components {
   .popover {
-    @apply bg-popover text-popover-foreground ring-foreground/10 w-72 max-w-[calc(100vw-2rem)] min-w-0 rounded-lg p-2.5 font-sans text-sm shadow-md ring-1;
+    @apply w-72 max-w-[calc(100vw-2rem)] min-w-0 rounded-lg bg-popover p-2.5 font-sans text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10;
     font-stretch: inherit;
   }
 
   .popover :global(.driver-popover-title) {
-    @apply font-heading pr-8 text-base leading-normal font-medium;
+    @apply pr-8 font-heading text-base leading-normal font-medium;
   }
 
   .popover :global(.driver-popover-description) {
-    @apply text-muted-foreground mt-2.5 text-sm leading-relaxed;
+    @apply mt-2.5 text-sm leading-relaxed text-muted-foreground;
   }
 
   .popover :global(.driver-popover-footer) {
@@ -19,7 +19,7 @@
   }
 
   .popover :global(.driver-popover-progress-text) {
-    @apply text-muted-foreground text-xs tabular-nums;
+    @apply text-xs text-muted-foreground tabular-nums;
   }
 
   .popover :global(.driver-popover-close-btn) {

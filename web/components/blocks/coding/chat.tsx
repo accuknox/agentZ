@@ -104,7 +104,7 @@ export function CodingChat({
     return (
       <div
         role="status"
-        className="text-muted-foreground m-auto flex items-center gap-2 p-6 text-sm"
+        className="m-auto flex items-center gap-2 p-6 text-sm text-muted-foreground"
       >
         <Spinner /> Preparing chat...
       </div>

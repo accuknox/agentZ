@@ -81,7 +81,7 @@ async function ChatPageContent({ params }: ChatPageProps) {
           coding?.data ? (
             <Link
               href={`/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}/sessions/new?${new URLSearchParams({ project: coding.data.worktree.project_id, agent: agentName })}`}
-              className="hover:text-foreground transition-colors"
+              className="transition-colors hover:text-foreground"
               title={coding.data.repository}
             >
               {coding.data.repository}

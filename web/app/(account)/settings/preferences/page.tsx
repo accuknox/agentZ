@@ -36,10 +36,10 @@ function PreferencesSkeleton() {
     <section className="px-4 md:px-6">
       <div className="flex items-start justify-between gap-4 py-1">
         <div className="min-w-0 flex-1 space-y-2">
-          <div className="bg-muted/20 h-5 w-72 rounded-md" />
-          <div className="bg-muted/20 h-4 max-w-lg rounded-md" />
+          <div className="h-5 w-72 rounded-md bg-muted/20" />
+          <div className="h-4 max-w-lg rounded-md bg-muted/20" />
         </div>
-        <div className="bg-muted/20 h-6 w-11 shrink-0 rounded-full" />
+        <div className="h-6 w-11 shrink-0 rounded-full bg-muted/20" />
       </div>
     </section>
   )

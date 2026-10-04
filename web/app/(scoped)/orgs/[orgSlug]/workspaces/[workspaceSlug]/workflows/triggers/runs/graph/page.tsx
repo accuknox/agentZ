@@ -82,12 +82,12 @@ async function WorkflowRunGraphContent({
 function GraphSkeleton() {
   return (
     <>
-      <div className="bg-background flex min-h-14 flex-col gap-3 border-b px-4 py-2 sm:flex-row sm:items-center sm:px-6">
+      <div className="flex min-h-14 flex-col gap-3 border-b bg-background px-4 py-2 sm:flex-row sm:items-center sm:px-6">
         <Skeleton className="h-8 w-full min-w-0 rounded-md sm:w-64 sm:min-w-52" />
         <Skeleton className="h-8 w-full min-w-0 rounded-md sm:w-72 sm:min-w-52" />
         <Skeleton className="h-8 w-full min-w-0 rounded-md sm:w-80 sm:min-w-64" />
       </div>
-      <div className="bg-sidebar relative flex min-h-0 flex-1 overflow-hidden border-t">
+      <div className="relative flex min-h-0 flex-1 overflow-hidden border-t bg-sidebar">
         <div className="absolute top-[53%] right-10 left-9 -translate-y-1/2">
           <div className="flex min-w-max items-center gap-12">
             <Skeleton className="h-28 w-76 rounded-xl" />
@@ -111,7 +111,7 @@ function ErrorPanel({ message }: { message: string }) {
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <div className="text-muted-foreground flex h-48 items-center justify-center text-sm">
+    <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
       {message}
     </div>
   )

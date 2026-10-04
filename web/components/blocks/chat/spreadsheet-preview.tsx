@@ -68,7 +68,7 @@ export function SpreadsheetPreview({ file }: { file: Blob }): React.JSX.Element 
     return (
       <div
         aria-live="polite"
-        className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm"
+        className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground"
         role="status"
       >
         <Spinner /> Rendering spreadsheet...
@@ -133,10 +133,10 @@ function WorkbookPreview({ workbook }: { workbook: WorkBook }): React.JSX.Elemen
         <table className="w-max min-w-full border-separate border-spacing-0 text-xs">
           <thead>
             <tr>
-              <th className="bg-muted sticky top-0 left-0 z-20 h-8 min-w-12 border-r border-b" />
+              <th className="sticky top-0 left-0 z-20 h-8 min-w-12 border-r border-b bg-muted" />
               {Array.from({ length: columns }, (_, column) => (
                 <th
-                  className="bg-muted text-muted-foreground sticky top-0 z-10 h-8 min-w-32 border-r border-b px-3 text-left font-mono font-medium"
+                  className="sticky top-0 z-10 h-8 min-w-32 border-r border-b bg-muted px-3 text-left font-mono font-medium text-muted-foreground"
                   key={column}
                   scope="col"
                 >
@@ -149,7 +149,7 @@ function WorkbookPreview({ workbook }: { workbook: WorkBook }): React.JSX.Elemen
             {visibleRows.map((row, index) => (
               <tr key={index}>
                 <th
-                  className="bg-muted text-muted-foreground sticky left-0 h-8 border-r border-b px-2 text-right font-mono font-normal"
+                  className="sticky left-0 h-8 border-r border-b bg-muted px-2 text-right font-mono font-normal text-muted-foreground"
                   scope="row"
                 >
                   {index + 1}
@@ -168,7 +168,7 @@ function WorkbookPreview({ workbook }: { workbook: WorkBook }): React.JSX.Elemen
           </tbody>
         </table>
         {visibleRows.length === 0 ? (
-          <p className="text-muted-foreground p-6 text-center text-sm">This sheet is empty</p>
+          <p className="p-6 text-center text-sm text-muted-foreground">This sheet is empty</p>
         ) : null}
       </div>
       {limited ? (

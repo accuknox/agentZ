@@ -53,7 +53,7 @@ const columns: ColumnDef<CodingProject>[] = [
     header: "Repository",
     cell: ({ row }) => (
       <span
-        className="text-muted-foreground block min-w-0 truncate"
+        className="block min-w-0 truncate text-muted-foreground"
         title={row.original.repository}
       >
         {row.original.repository}
@@ -65,7 +65,7 @@ const columns: ColumnDef<CodingProject>[] = [
     header: "Default branch",
     cell: ({ row }) => (
       <span
-        className="text-muted-foreground block min-w-0 truncate"
+        className="block min-w-0 truncate text-muted-foreground"
         title={row.original.default_branch}
       >
         {row.original.default_branch}

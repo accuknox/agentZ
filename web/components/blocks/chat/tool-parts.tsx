@@ -341,7 +341,7 @@ function TriggerLine({ action, arg, href, pending, title, tone = "neutral" }: Tr
           {arg ? (
             href ? (
               <a
-                className="text-muted-foreground truncate font-mono text-sm underline-offset-2 hover:underline"
+                className="truncate font-mono text-sm text-muted-foreground underline-offset-2 hover:underline"
                 href={href}
                 onClick={(event) => event.stopPropagation()}
                 rel="noreferrer"
@@ -350,7 +350,7 @@ function TriggerLine({ action, arg, href, pending, title, tone = "neutral" }: Tr
                 {arg}
               </a>
             ) : (
-              <div className="text-muted-foreground truncate font-mono text-sm">{arg}</div>
+              <div className="truncate font-mono text-sm text-muted-foreground">{arg}</div>
             )
           ) : null}
           {pending && Icon ? <Icon aria-hidden className="size-3 shrink-0" /> : null}
@@ -383,7 +383,7 @@ function ToolCard({
               <div className="min-w-0 flex-1">
                 <TriggerLine {...{ ...trigger, action: undefined }} />
               </div>
-              <span className="text-muted-foreground flex size-6 shrink-0 items-center justify-center">
+              <span className="flex size-6 shrink-0 items-center justify-center text-muted-foreground">
                 {open ? (
                   <ChevronDownIcon className="size-3.5" />
                 ) : (
@@ -414,7 +414,7 @@ function ToolDescription({ children }: { children: React.ReactNode }) {
   if (!children) return null
 
   return (
-    <div className="text-muted-foreground text-sm wrap-break-word whitespace-pre-wrap">
+    <div className="text-sm wrap-break-word whitespace-pre-wrap text-muted-foreground">
       {children}
     </div>
   )
@@ -432,7 +432,7 @@ function LoadedFiles({ files }: { files: string[] }) {
   if (files.length === 0) return null
 
   return (
-    <div className="text-muted-foreground space-y-1 text-sm">
+    <div className="space-y-1 text-sm text-muted-foreground">
       {files.map((path) => (
         <div className="flex min-w-0 items-center gap-1.5" key={path}>
           <ChevronRightIcon className="size-3 shrink-0" />
@@ -560,7 +560,7 @@ function WebfetchTool({ part }: ToolProps) {
 
   return (
     <ToolCard
-      action={url ? <ExternalLinkIcon className="text-muted-foreground size-3.5" /> : null}
+      action={url ? <ExternalLinkIcon className="size-3.5 text-muted-foreground" /> : null}
       hideDetails
       href={url}
       pending={part.state.status === "pending" || part.state.status === "running"}
@@ -588,7 +588,7 @@ function WebsearchTool({ part }: ToolProps) {
       <div className="space-y-1">
         {links.map((url) => (
           <a
-            className="text-primary block truncate text-sm underline-offset-2 hover:underline"
+            className="block truncate text-sm text-primary underline-offset-2 hover:underline"
             href={url}
             key={url}
             rel="noreferrer"
@@ -709,7 +709,7 @@ function PatchFileCard({ file }: { file: ToolFile }) {
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium">{baseName(file.relativePath)}</div>
           {file.relativePath.includes("/") ? (
-            <div className="text-muted-foreground truncate text-xs">
+            <div className="truncate text-xs text-muted-foreground">
               {directoryPath(file.relativePath)}
             </div>
           ) : null}
@@ -771,7 +771,7 @@ function QuestionsTool({ part }: ToolProps) {
         {inputQuestions.map((question, index) => (
           <div className="space-y-0.5" key={`${question.header}-${index}`}>
             <div className="text-sm font-medium wrap-break-word">{question.question}</div>
-            <div className="text-muted-foreground text-sm wrap-break-word">
+            <div className="text-sm wrap-break-word text-muted-foreground">
               {(answers[index] ?? []).join(", ") || "No answer"}
             </div>
           </div>
@@ -882,7 +882,7 @@ function ContextToolGroup({ parts }: { parts: ToolPart[] }) {
                 tone={pending ? "active" : "neutral"}
               />
             </div>
-            <span className="text-muted-foreground flex size-6 shrink-0 items-center justify-center">
+            <span className="flex size-6 shrink-0 items-center justify-center text-muted-foreground">
               {open ? (
                 <ChevronDownIcon className="size-3.5" />
               ) : (
@@ -913,7 +913,7 @@ function ContextToolGroup({ parts }: { parts: ToolPart[] }) {
 
             return (
               <div className="flex min-w-0 items-center gap-2 text-sm" key={part.id}>
-                <Icon className="text-muted-foreground size-3 shrink-0" />
+                <Icon className="size-3 shrink-0 text-muted-foreground" />
                 <div className="min-w-0">
                   <div className="flex min-w-0 items-baseline gap-2">
                     <div
@@ -925,7 +925,7 @@ function ContextToolGroup({ parts }: { parts: ToolPart[] }) {
                       {title}
                     </div>
                     {arg ? (
-                      <div className="text-muted-foreground min-w-0 truncate font-mono text-sm">
+                      <div className="min-w-0 truncate font-mono text-sm text-muted-foreground">
                         {shortLabel(arg)}
                       </div>
                     ) : null}
@@ -942,7 +942,7 @@ function ContextToolGroup({ parts }: { parts: ToolPart[] }) {
 
 function ToolView({ agentName, part, workspacePath }: ToolProps & { workspacePath: string }) {
   if (isQuestionDismissed(part)) {
-    return <div className="text-muted-foreground text-sm">Question dismissed</div>
+    return <div className="text-sm text-muted-foreground">Question dismissed</div>
   }
 
   if (part.state.status === "error") {

@@ -63,7 +63,7 @@ async function AgentSharingContent({
     <section className="flex min-w-0 flex-col gap-3">
       <div className="flex items-center justify-between gap-4 px-4 md:px-6">
         <h2 className="flex items-center gap-2 text-lg font-medium">
-          <UsersRound aria-hidden className="text-muted-foreground size-4" />
+          <UsersRound aria-hidden className="size-4 text-muted-foreground" />
           Current shares
         </h2>
         <AgentShareDialog

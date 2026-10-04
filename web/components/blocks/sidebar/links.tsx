@@ -33,7 +33,7 @@ export function SidebarLinks({ showEnterpriseUpgrade }: { showEnterpriseUpgrade:
         align={isMobile ? "end" : "start"}
         sideOffset={8}
         collisionPadding={16}
-        className="bg-sidebar-control-surface border-muted-foreground/30 w-64 max-w-[calc(100vw-2rem)] gap-0 rounded-md border border-dashed p-0 shadow-sm ring-0"
+        className="w-64 max-w-[calc(100vw-2rem)] gap-0 rounded-md border border-dashed border-muted-foreground/30 bg-sidebar-control-surface p-0 shadow-sm ring-0"
       >
         <div className="flex flex-col gap-2 p-3.5">
           <h2 className="font-medium">Star on GitHub</h2>
@@ -53,7 +53,7 @@ export function SidebarLinks({ showEnterpriseUpgrade }: { showEnterpriseUpgrade:
         </div>
         {showEnterpriseUpgrade ? (
           <>
-            <Separator className="border-muted-foreground/30 border-t border-dashed bg-transparent" />
+            <Separator className="border-t border-dashed border-muted-foreground/30 bg-transparent" />
             <div className="flex flex-col gap-2 p-3.5">
               <h2 className="font-medium">Upgrade to enterprise</h2>
               <Button asChild variant="outline" size="sm">

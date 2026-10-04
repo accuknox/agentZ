@@ -80,10 +80,10 @@ export function PlanDock({
   )
 
   return (
-    <section aria-label="Plan review" className="bg-card overflow-hidden rounded-xl border">
+    <section aria-label="Plan review" className="overflow-hidden rounded-xl border bg-card">
       <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
         <h3 className="flex items-center gap-2 text-sm font-medium">
-          <PencilRulerIcon className="text-muted-foreground size-4" />
+          <PencilRulerIcon className="size-4 text-muted-foreground" />
           Review plan
         </h3>
         {plan.data ? <CopyButton content={plan.data} label="Copy plan" /> : null}
@@ -95,7 +95,7 @@ export function PlanDock({
         tabIndex={0}
       >
         {plan.isPending ? (
-          <div className="text-muted-foreground flex items-center gap-2 text-sm" role="status">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
             <Spinner className="size-4" />
             Loading plan...
           </div>
@@ -239,7 +239,7 @@ export function QuestionDock({
     <Collapsible
       open={open}
       onOpenChange={setOpen}
-      className="bg-card mx-auto mb-2 w-full max-w-3xl overflow-clip rounded-xl border shadow-xs"
+      className="mx-auto mb-2 w-full max-w-3xl overflow-clip rounded-xl border bg-card shadow-xs"
     >
       <section
         aria-label="Agent questions"
@@ -266,7 +266,7 @@ export function QuestionDock({
           }
         }}
       >
-        <CollapsibleTrigger className="text-muted-foreground hover:bg-muted/40 focus-visible:ring-ring/50 flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-xs outline-none focus-visible:ring-2 focus-visible:ring-inset">
+        <CollapsibleTrigger className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-xs text-muted-foreground outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset">
           <MessageCircleQuestionIcon aria-hidden="true" className="size-3.5 shrink-0" />
           <span className="mr-auto min-w-0 truncate font-medium">{question.header}</span>
           {!open ? <span className="min-w-0 flex-1 truncate">{question.question}</span> : null}
@@ -287,9 +287,9 @@ export function QuestionDock({
                 <button
                   aria-current={index === tab ? "step" : undefined}
                   className={cn(
-                    "focus-visible:ring-ring/50 flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs outline-none focus-visible:ring-2 disabled:opacity-50",
+                    "flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50",
                     index === tab
-                      ? "bg-muted text-foreground font-medium"
+                      ? "bg-muted font-medium text-foreground"
                       : "text-muted-foreground hover:bg-muted/50"
                   )}
                   disabled={pending}
@@ -312,7 +312,7 @@ export function QuestionDock({
               {question.question}
             </p>
             {question.multiple ? (
-              <p className="text-muted-foreground px-0.5 pb-2 text-xs">Select all that apply.</p>
+              <p className="px-0.5 pb-2 text-xs text-muted-foreground">Select all that apply.</p>
             ) : null}
             <fieldset
               aria-labelledby={`${id}-question`}
@@ -326,7 +326,7 @@ export function QuestionDock({
                   <div
                     key={`${tab}:${option.label}`}
                     className={cn(
-                      "has-[:focus-visible]:ring-primary/30 rounded-lg transition-colors has-[:focus-visible]:ring-1 has-[:focus-visible]:ring-inset",
+                      "rounded-lg transition-colors has-[:focus-visible]:ring-1 has-[:focus-visible]:ring-primary/30 has-[:focus-visible]:ring-inset",
                       checked ? "bg-primary/5" : "hover:bg-muted/50",
                       pending && "opacity-50"
                     )}
@@ -351,22 +351,22 @@ export function QuestionDock({
                           {custom ? "Write your own answer" : option.label}
                         </span>
                         {!custom && option.description && option.description !== option.label ? (
-                          <span className="text-muted-foreground mt-0.5 block text-xs leading-relaxed break-words">
+                          <span className="mt-0.5 block text-xs leading-relaxed break-words text-muted-foreground">
                             {option.description}
                           </span>
                         ) : null}
                       </span>
                       {checked ? (
-                        <CheckIcon aria-hidden="true" className="text-primary size-4 shrink-0" />
+                        <CheckIcon aria-hidden="true" className="size-4 shrink-0 text-primary" />
                       ) : custom ? (
                         <PencilIcon
                           aria-hidden="true"
-                          className="text-muted-foreground size-3.5 shrink-0"
+                          className="size-3.5 shrink-0 text-muted-foreground"
                         />
                       ) : index < 9 ? (
                         <kbd
                           aria-hidden="true"
-                          className="text-muted-foreground w-4 shrink-0 text-center font-sans text-[11px] tabular-nums"
+                          className="w-4 shrink-0 text-center font-sans text-[11px] text-muted-foreground tabular-nums"
                         >
                           {index + 1}
                         </kbd>
@@ -517,11 +517,11 @@ export function PermissionDock({
 
   return (
     <div className="mx-auto w-full px-4 @xl/chat:w-4/5 @xl/chat:px-0">
-      <div className="border-primary border-l-2">
+      <div className="border-l-2 border-primary">
         <div className="flex flex-col gap-4 px-4 py-3">
           <div className="flex flex-col gap-1">
-            <div className="text-foreground text-sm font-medium">{permissionTitle(request)}</div>
-            <div className="text-muted-foreground text-sm">{permissionDescription(request)}</div>
+            <div className="text-sm font-medium text-foreground">{permissionTitle(request)}</div>
+            <div className="text-sm text-muted-foreground">{permissionDescription(request)}</div>
           </div>
           {request.patterns.length > 0 ? (
             <FieldSet>
@@ -529,7 +529,7 @@ export function PermissionDock({
               <div className="flex flex-col gap-1">
                 {request.patterns.map((pattern) => (
                   <code
-                    className="border-border bg-muted/40 w-fit max-w-full rounded px-1.5 py-0.5 font-mono text-xs wrap-break-word"
+                    className="w-fit max-w-full rounded border-border bg-muted/40 px-1.5 py-0.5 font-mono text-xs wrap-break-word"
                     key={pattern}
                   >
                     {pattern}
@@ -590,25 +590,25 @@ export function RevertDock({
   return (
     <div className="mx-auto w-full px-4 pb-1 @xl/chat:w-4/5 @xl/chat:px-0">
       <button
-        className="border-destructive/30 bg-destructive/5 hover:bg-destructive/10 flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left transition-colors"
+        className="flex w-full items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-left transition-colors hover:bg-destructive/10"
         onClick={() => setOpen((value) => !value)}
         type="button"
       >
         {open ? (
-          <ChevronDownIcon className="text-muted-foreground size-3.5 shrink-0" />
+          <ChevronDownIcon className="size-3.5 shrink-0 text-muted-foreground" />
         ) : (
-          <ChevronRightIcon className="text-muted-foreground size-3.5 shrink-0" />
+          <ChevronRightIcon className="size-3.5 shrink-0 text-muted-foreground" />
         )}
-        <span className="text-foreground shrink-0 text-sm font-medium">
+        <span className="shrink-0 text-sm font-medium text-foreground">
           {items.length} reverted
         </span>
         {preview && !open ? (
-          <span className="text-muted-foreground ml-1 min-w-0 truncate text-sm">
+          <span className="ml-1 min-w-0 truncate text-sm text-muted-foreground">
             {preview || "[attachment]"}
           </span>
         ) : null}
         {hasDiff ? (
-          <span className="text-muted-foreground ml-auto shrink-0 font-mono text-xs">
+          <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground">
             {summary.files} {summary.files === 1 ? "file" : "files"}
             {summary.additions > 0 ? (
               <span className="text-emerald-600 dark:text-emerald-400"> +{summary.additions}</span>
@@ -620,10 +620,10 @@ export function RevertDock({
         ) : null}
       </button>
       {open ? (
-        <div className="border-muted-foreground/15 mt-1 flex flex-col gap-1.5 border-l pl-3">
+        <div className="mt-1 flex flex-col gap-1.5 border-l border-muted-foreground/15 pl-3">
           {items.map((item) => (
             <div className="flex items-center gap-2" key={item.id}>
-              <span className="text-foreground min-w-0 flex-1 truncate text-sm">
+              <span className="min-w-0 flex-1 truncate text-sm text-foreground">
                 {item.text || "[attachment]"}
               </span>
               <Button
@@ -662,24 +662,24 @@ export function TodoDock({ todos }: { todos: Todo[] }) {
   return (
     <div className="mx-auto w-full px-4 pb-1 @xl/chat:w-4/5 @xl/chat:px-0">
       <button
-        className="border-border bg-muted/30 hover:bg-muted/60 flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left transition-colors"
+        className="flex w-full items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-left transition-colors hover:bg-muted/60"
         onClick={() => setOpen((value) => !value)}
         type="button"
       >
         {open ? (
-          <ChevronDownIcon className="text-muted-foreground size-3.5 shrink-0" />
+          <ChevronDownIcon className="size-3.5 shrink-0 text-muted-foreground" />
         ) : (
-          <ChevronRightIcon className="text-muted-foreground size-3.5 shrink-0" />
+          <ChevronRightIcon className="size-3.5 shrink-0 text-muted-foreground" />
         )}
-        <span className="text-foreground shrink-0 text-sm font-medium">
+        <span className="shrink-0 text-sm font-medium text-foreground">
           {done}/{todos.length}
         </span>
         {preview && !open ? (
-          <span className="text-muted-foreground ml-1 min-w-0 truncate text-sm">{preview}</span>
+          <span className="ml-1 min-w-0 truncate text-sm text-muted-foreground">{preview}</span>
         ) : null}
       </button>
       {open ? (
-        <div className="border-border border-muted-foreground/15 mt-1 flex flex-col gap-1 border-l pl-3">
+        <div className="mt-1 flex flex-col gap-1 border-l border-border border-muted-foreground/15 pl-3">
           {todos.map((todo, index) => {
             const terminal = todo.status === "completed" || todo.status === "cancelled"
             return (
@@ -690,13 +690,13 @@ export function TodoDock({ todos }: { todos: Todo[] }) {
                     terminal
                       ? "border-primary bg-primary"
                       : todo.status === "in_progress"
-                        ? "border-primary animate-pulse"
+                        ? "animate-pulse border-primary"
                         : "border-muted-foreground"
                   )}
                 />
                 <span
                   className={cn(
-                    "text-foreground min-w-0 wrap-break-word",
+                    "min-w-0 wrap-break-word text-foreground",
                     terminal ? "text-muted-foreground line-through" : undefined
                   )}
                 >

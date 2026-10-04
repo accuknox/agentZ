@@ -20,7 +20,7 @@ export function EventsChart({ data, label = "Events" }: { data: EventsChartData;
   return (
     <section className="flex min-w-0 flex-col gap-2 px-4 py-3 sm:px-6">
       <div className="flex items-center justify-end">
-        <span className="text-muted-foreground text-xs">
+        <span className="text-xs text-muted-foreground">
           {data.total} {label.toLowerCase()}
         </span>
       </div>
@@ -79,11 +79,11 @@ function EventsChartTooltip({
   }
 
   return (
-    <div className="border-border/50 bg-background grid min-w-32 gap-2 rounded-lg border px-2.5 py-1.5 text-xs shadow-xl">
+    <div className="grid min-w-32 gap-2 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl">
       <div className="font-medium">{point.label}</div>
       <div className="flex items-center justify-between gap-4">
         <span className="text-muted-foreground">{name}</span>
-        <span className="text-foreground font-mono font-medium tabular-nums">
+        <span className="font-mono font-medium text-foreground tabular-nums">
           {point.count.toLocaleString()}
         </span>
       </div>

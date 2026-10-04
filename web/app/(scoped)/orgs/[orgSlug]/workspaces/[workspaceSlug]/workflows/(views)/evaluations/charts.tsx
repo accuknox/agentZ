@@ -61,13 +61,13 @@ export function Charts({
     .toSorted((a, b) => (b.score ?? 0) - (a.score ?? 0))
   const usage = ranked.filter((row) => row[resource.key] !== undefined)
   return (
-    <div className="bg-muted/30 grid min-w-0 grid-cols-1 gap-2 p-2 xl:grid-cols-2">
+    <div className="grid min-w-0 grid-cols-1 gap-2 bg-muted/30 p-2 xl:grid-cols-2">
       <section
-        className="bg-card min-w-0 overflow-hidden rounded-lg border shadow-[0_1px_2px_color-mix(in_oklab,var(--foreground)_5%,transparent)]"
+        className="min-w-0 overflow-hidden rounded-lg border bg-card shadow-[0_1px_2px_color-mix(in_oklab,var(--foreground)_5%,transparent)]"
         aria-label="Score ranking"
       >
-        <header className="from-card to-muted/20 flex h-12 items-center gap-2.5 border-b bg-gradient-to-r px-3.5">
-          <BarChart3 className="text-muted-foreground size-4" />
+        <header className="flex h-12 items-center gap-2.5 border-b bg-gradient-to-r from-card to-muted/20 px-3.5">
+          <BarChart3 className="size-4 text-muted-foreground" />
           <h2 className="text-sm font-semibold">Score</h2>
         </header>
         {ranked.length ? (
@@ -103,22 +103,22 @@ export function Charts({
             </BarChart>
           </ChartContainer>
         ) : (
-          <div className="text-muted-foreground flex h-[17rem] flex-col items-center justify-center gap-3 text-sm">
+          <div className="flex h-[17rem] flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
             {pending ? (
-              <ScanSearch className="text-primary/40 size-7 motion-safe:animate-pulse" />
+              <ScanSearch className="size-7 text-primary/40 motion-safe:animate-pulse" />
             ) : null}
             {pending ? "Waiting for judgments" : "No scores available"}
           </div>
         )}
       </section>
       <section
-        className="bg-card min-w-0 overflow-hidden rounded-lg border shadow-[0_1px_2px_color-mix(in_oklab,var(--foreground)_5%,transparent)]"
+        className="min-w-0 overflow-hidden rounded-lg border bg-card shadow-[0_1px_2px_color-mix(in_oklab,var(--foreground)_5%,transparent)]"
         aria-label="Score and resource tradeoffs"
       >
         <Tabs value={resourceKey} onValueChange={setResourceKey} className="gap-0">
-          <div className="from-card to-muted/20 flex h-12 items-center justify-between gap-2 border-b bg-gradient-to-r px-3.5">
+          <div className="flex h-12 items-center justify-between gap-2 border-b bg-gradient-to-r from-card to-muted/20 px-3.5">
             <h2 className="flex items-center gap-2 text-sm font-semibold">
-              <ScatterIcon className="text-muted-foreground size-4" />
+              <ScatterIcon className="size-4 text-muted-foreground" />
               Score vs. usage
             </h2>
             <TabsList aria-label="Resource">
@@ -173,18 +173,18 @@ export function Charts({
                 </ScatterChart>
               </ChartContainer>
             ) : (
-              <div className="text-muted-foreground flex h-[17rem] flex-col items-center justify-center gap-3 text-sm">
+              <div className="flex h-[17rem] flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
                 No scored measurements
               </div>
             )}
           </TabsContent>
         </Tabs>
       </section>
-      <section className="bg-card min-w-0 overflow-hidden rounded-lg border shadow-[0_1px_2px_color-mix(in_oklab,var(--foreground)_5%,transparent)] xl:col-span-2">
+      <section className="min-w-0 overflow-hidden rounded-lg border bg-card shadow-[0_1px_2px_color-mix(in_oklab,var(--foreground)_5%,transparent)] xl:col-span-2">
         <Tabs defaultValue="scores" className="gap-0">
-          <header className="from-card to-muted/20 flex h-12 items-center justify-between gap-2 border-b bg-gradient-to-r px-3.5">
+          <header className="flex h-12 items-center justify-between gap-2 border-b bg-gradient-to-r from-card to-muted/20 px-3.5">
             <h2 className="flex items-center gap-2 text-sm font-semibold">
-              <Gauge className="text-muted-foreground size-4" />
+              <Gauge className="size-4 text-muted-foreground" />
               Model comparison
             </h2>
             <TabsList aria-label="Model comparison charts">

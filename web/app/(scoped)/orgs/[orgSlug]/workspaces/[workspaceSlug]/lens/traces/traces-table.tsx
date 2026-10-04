@@ -72,10 +72,10 @@ const columns: ColumnDef<TraceListItem>[] = [
 
       return (
         <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="text-foreground font-mono text-xs font-medium">
+          <span className="font-mono text-xs font-medium text-foreground">
             {trace.traceId.slice(0, 8)}
           </span>
-          <span className="text-muted-foreground text-xs">
+          <span className="text-xs text-muted-foreground">
             {trace.startedDate} · {trace.startedTime}
           </span>
         </div>
@@ -92,7 +92,7 @@ const columns: ColumnDef<TraceListItem>[] = [
         <div className="flex flex-col gap-1.5">
           <div className="flex items-baseline gap-4">
             <span className="text-sm font-medium">{trace.duration}</span>
-            <span className="text-muted-foreground text-xs">Ended {trace.endedTime}</span>
+            <span className="text-xs text-muted-foreground">Ended {trace.endedTime}</span>
           </div>
           <WaterfallProgress trace={trace} />
         </div>
@@ -130,13 +130,13 @@ const columns: ColumnDef<TraceListItem>[] = [
 
       return (
         <div className="flex min-w-0 flex-col gap-2">
-          <div className="text-muted-foreground flex items-center justify-between gap-3 text-xs">
+          <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
             <span>{formatCompactNumber(trace.inputTokens)} in</span>
             <span>{formatCompactNumber(trace.outputTokens)} out</span>
           </div>
-          <div className="bg-muted flex h-1.5 overflow-hidden rounded-full">
-            <span className="bg-chart-1 h-full" style={{ width: `${inputWidth}%` }} />
-            <span className="bg-chart-4 h-full" style={{ width: `${outputWidth}%` }} />
+          <div className="flex h-1.5 overflow-hidden rounded-full bg-muted">
+            <span className="h-full bg-chart-1" style={{ width: `${inputWidth}%` }} />
+            <span className="h-full bg-chart-4" style={{ width: `${outputWidth}%` }} />
           </div>
           <span className="sr-only">{formatCompactNumber(trace.totalTokens)} tokens</span>
         </div>
@@ -287,7 +287,7 @@ export function TracesTable({
 
   if (!data) {
     return (
-      <div className="text-muted-foreground flex h-48 items-center justify-center text-sm">
+      <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
         No traces
       </div>
     )
@@ -298,13 +298,13 @@ export function TracesTable({
       <div className="flex flex-col">
         <AdminDataGrid
           ariaLabel="Traces"
-          emptyState={<p className="text-muted-foreground py-8 text-center">No traces found.</p>}
+          emptyState={<p className="py-8 text-center text-muted-foreground">No traces found.</p>}
           layout={layout}
           onRowActivate={selectTrace}
           pagination={
             data.traces.length > 0 ? (
               <div className="flex h-12 w-full items-center gap-3 px-6">
-                <span className="text-muted-foreground text-xs">{data.traces.length} rows</span>
+                <span className="text-xs text-muted-foreground">{data.traces.length} rows</span>
                 <TokenTablePagination
                   hasNextPage={data.hasNextPage}
                   nextPageToken={data.nextPageToken}
@@ -564,7 +564,7 @@ function SpansInspectorContent({
             />
           ))
         ) : (
-          <div className="text-muted-foreground px-4 py-10 text-sm lg:px-5">No spans</div>
+          <div className="px-4 py-10 text-sm text-muted-foreground lg:px-5">No spans</div>
         )
       }
     >
@@ -1085,7 +1085,7 @@ function NetworkTelemetryTable({
 }
 
 function TelemetryTimestamp({ value }: { value: string }) {
-  return <span className="text-muted-foreground text-sm">{value}</span>
+  return <span className="text-sm text-muted-foreground">{value}</span>
 }
 
 function networkDestinationDomain(event: RuntimeTelemetryEventItem) {
@@ -1148,7 +1148,7 @@ function WaterfallProgress({ trace }: { trace: TraceListItem }) {
   return (
     <Progress
       value={trace.cumulativeDurationPercent}
-      className="trace-waterfall-progress **:data-[slot=progress-indicator]:bg-foreground h-1.5"
+      className="trace-waterfall-progress h-1.5 **:data-[slot=progress-indicator]:bg-foreground"
       style={style}
     />
   )

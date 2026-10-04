@@ -289,11 +289,11 @@ export function FilesWorkspace({
   )
 
   return (
-    <div ref={workspace} className="bg-background relative h-full min-h-0 w-full overflow-hidden">
+    <div ref={workspace} className="relative h-full min-h-0 w-full overflow-hidden bg-background">
       {rootQuery.isPending ? (
         <div
           aria-live="polite"
-          className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm"
+          className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground"
           role="status"
         >
           <Spinner /> Loading workspace...
@@ -661,16 +661,16 @@ function WorkspaceBody({
             }}
           >
             <section
-              className="bg-background flex h-full min-w-0 flex-col"
+              className="flex h-full min-w-0 flex-col bg-background"
               style={{ width: editorWidth }}
             >
               <div className="flex h-9 shrink-0 items-stretch overflow-hidden border-b border-transparent">
                 <div className="relative flex min-w-0 flex-1 overflow-hidden">
                   {tabOverflow.left ? (
-                    <div className="from-background pointer-events-none absolute inset-y-0 left-0 z-20 w-6 bg-linear-to-r to-transparent" />
+                    <div className="pointer-events-none absolute inset-y-0 left-0 z-20 w-6 bg-linear-to-r from-background to-transparent" />
                   ) : null}
                   {tabOverflow.right ? (
-                    <div className="from-background pointer-events-none absolute inset-y-0 right-0 z-20 w-6 bg-linear-to-l to-transparent" />
+                    <div className="pointer-events-none absolute inset-y-0 right-0 z-20 w-6 bg-linear-to-l from-background to-transparent" />
                   ) : null}
                   <div
                     ref={tabsRef}
@@ -705,14 +705,14 @@ function WorkspaceBody({
                   >
                     {tabs.map((tab) => (
                       <div
-                        className="text-muted-foreground hover:text-foreground data-[active=true]:text-foreground group after:bg-primary relative flex max-w-56 min-w-32 shrink-0 items-center text-sm transition-colors after:absolute after:inset-x-0 after:bottom-0 after:h-[3px] after:rounded-t-sm after:opacity-0 after:content-[''] data-[active=true]:after:opacity-100"
+                        className="group relative flex max-w-56 min-w-32 shrink-0 items-center text-sm text-muted-foreground transition-colors after:absolute after:inset-x-0 after:bottom-0 after:h-[3px] after:rounded-t-sm after:bg-primary after:opacity-0 after:content-[''] hover:text-foreground data-[active=true]:text-foreground data-[active=true]:after:opacity-100"
                         data-active={selected === tab.path}
                         data-file-tab={tab.path}
                         key={tab.path}
                       >
                         <button
                           aria-selected={selected === tab.path}
-                          className="focus-visible:ring-ring flex h-full min-w-0 flex-1 items-center gap-1.5 px-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset"
+                          className="flex h-full min-w-0 flex-1 items-center gap-1.5 px-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                           onClick={() => setSelected(workspaceKey, tab.path)}
                           role="tab"
                           type="button"
@@ -724,13 +724,13 @@ function WorkspaceBody({
                           {drafts[tab.path]?.dirty ? (
                             <span
                               aria-hidden="true"
-                              className="bg-primary size-1.5 shrink-0 rounded-full"
+                              className="size-1.5 shrink-0 rounded-full bg-primary"
                             />
                           ) : null}
                         </button>
                         <Button
                           aria-label={`Close ${tab.name}`}
-                          className="text-muted-foreground hover:text-foreground absolute left-1.5 z-10 size-7 shrink-0 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100"
+                          className="absolute left-1.5 z-10 size-7 shrink-0 text-muted-foreground opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100"
                           onClick={() => {
                             const close = () => {
                               setDrafts((current) => {
@@ -790,8 +790,8 @@ function WorkspaceBody({
                     workspaceId={workspaceId}
                   />
                 ) : (
-                  <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-3 text-sm">
-                    <div className="bg-muted flex size-12 items-center justify-center rounded-2xl">
+                  <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+                    <div className="flex size-12 items-center justify-center rounded-2xl bg-muted">
                       <Code2 className="size-5" />
                     </div>
                     Select a file to start editing
@@ -860,7 +860,7 @@ function WorkspaceBody({
         {moveOperation ? (
           <div
             aria-live="polite"
-            className="bg-muted/50 text-muted-foreground flex items-center gap-2 border-t px-3 py-2 text-xs"
+            className="flex items-center gap-2 border-t bg-muted/50 px-3 py-2 text-xs text-muted-foreground"
             role="status"
           >
             <Spinner aria-hidden="true" className="size-3" />
@@ -874,7 +874,7 @@ function WorkspaceBody({
           </div>
         ) : null}
         <div className="relative h-10 shrink-0 border-b px-2">
-          <Search className="text-muted-foreground pointer-events-none absolute top-2.5 left-4.5 size-3.5" />
+          <Search className="pointer-events-none absolute top-2.5 left-4.5 size-3.5 text-muted-foreground" />
           <Input
             aria-label="Find a file"
             placeholder="Find a file..."
@@ -903,7 +903,7 @@ function WorkspaceBody({
               {results.isFetching || search.trim() !== searchQuery ? (
                 <div
                   role="status"
-                  className="text-muted-foreground flex items-center gap-2 p-3 text-xs"
+                  className="flex items-center gap-2 p-3 text-xs text-muted-foreground"
                 >
                   <Spinner /> Searching files...
                 </div>
@@ -916,12 +916,12 @@ function WorkspaceBody({
                   </Button>
                 </Alert>
               ) : results.data?.length === 0 ? (
-                <p className="text-muted-foreground p-3 text-xs">No matching files.</p>
+                <p className="p-3 text-xs text-muted-foreground">No matching files.</p>
               ) : (
                 results.data?.map((path) => (
                   <button
                     key={path}
-                    className="hover:bg-accent flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs"
+                    className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-accent"
                     onClick={() =>
                       openFile({
                         name: path.slice(path.lastIndexOf("/") + 1),
@@ -937,7 +937,7 @@ function WorkspaceBody({
                 ))
               )}
               {results.data?.length === 100 ? (
-                <p className="text-muted-foreground p-3 text-xs">
+                <p className="p-3 text-xs text-muted-foreground">
                   First 100 matches. Refine your search to find more.
                 </p>
               ) : null}
@@ -1050,7 +1050,7 @@ function DirectoryTree({
     return (
       <div
         aria-live="polite"
-        className="text-muted-foreground flex items-center gap-2 px-3 py-2 text-sm"
+        className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground"
         role="status"
       >
         <Spinner className="size-3" /> Loading...
@@ -1416,7 +1416,7 @@ function EditorPane({
     return (
       <div
         aria-live="polite"
-        className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm"
+        className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground"
         role="status"
       >
         <Spinner /> Loading {filename}...
@@ -1442,7 +1442,7 @@ function EditorPane({
     return (
       <div
         aria-live="polite"
-        className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm"
+        className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground"
         role="status"
       >
         <Spinner /> Loading {filename}...
@@ -1453,7 +1453,7 @@ function EditorPane({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex h-10 shrink-0 items-center gap-1 border-b px-2">
-        <span className="text-muted-foreground min-w-0 flex-1 truncate px-1 font-mono text-xs">
+        <span className="min-w-0 flex-1 truncate px-1 font-mono text-xs text-muted-foreground">
           {path}
         </span>
         {canPreview ? (
@@ -1651,7 +1651,7 @@ function BinaryPane({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex h-10 shrink-0 items-center gap-1 border-b px-2">
-        <span className="text-muted-foreground min-w-0 flex-1 truncate px-1 font-mono text-xs">
+        <span className="min-w-0 flex-1 truncate px-1 font-mono text-xs text-muted-foreground">
           {path}
         </span>
         <Tooltip>
@@ -1678,7 +1678,7 @@ function BinaryPane({
             workspaceId={workspaceId}
           />
         ) : (
-          <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-3 text-sm">
+          <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
             {presentation ? <Presentation className="size-8" /> : <File className="size-8" />}
             {tooLarge
               ? "Preview is limited to files smaller than 8 MB"
@@ -1703,7 +1703,7 @@ function JSONPreview({ content }: { content: string }) {
 
   return (
     <pre className="min-h-full overflow-auto p-6 font-mono text-xs leading-5">
-      <Braces className="text-muted-foreground mb-4 size-5" />
+      <Braces className="mb-4 size-5 text-muted-foreground" />
       {formatted}
     </pre>
   )
@@ -1752,7 +1752,7 @@ function RawPreview({
     return (
       <div
         aria-live="polite"
-        className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm"
+        className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground"
         role="status"
       >
         <Spinner /> Loading preview...

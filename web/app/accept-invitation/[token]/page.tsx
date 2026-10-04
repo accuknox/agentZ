@@ -28,7 +28,7 @@ export default async function AcceptInvitationPage({
           id="main-content"
         >
           <div className="flex w-full max-w-md animate-pulse flex-col items-center text-center">
-            <div className="bg-muted h-5 w-32 rounded-md" />
+            <div className="h-5 w-32 rounded-md bg-muted" />
             <Image
               src="/invitation.svg"
               alt=""
@@ -37,9 +37,9 @@ export default async function AcceptInvitationPage({
               className="mt-10 size-44 opacity-60"
               priority
             />
-            <div className="bg-muted mt-8 h-8 w-56 rounded-md" />
-            <div className="bg-muted mt-4 h-5 w-72 max-w-full rounded-md" />
-            <div className="bg-muted mt-8 h-10 w-full rounded-lg" />
+            <div className="mt-8 h-8 w-56 rounded-md bg-muted" />
+            <div className="mt-4 h-5 w-72 max-w-full rounded-md bg-muted" />
+            <div className="mt-8 h-10 w-full rounded-lg bg-muted" />
           </div>
         </main>
       }
@@ -106,14 +106,14 @@ async function AcceptInvitationContent({
         <p
           className={
             ready
-              ? "text-primary mt-8 text-sm font-semibold"
-              : "text-muted-foreground mt-8 text-sm font-semibold"
+              ? "mt-8 text-sm font-semibold text-primary"
+              : "mt-8 text-sm font-semibold text-muted-foreground"
           }
         >
           {eyebrow}
         </p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight text-balance">{title}</h1>
-        <p className="text-muted-foreground mt-4 max-w-sm leading-6 text-balance">{description}</p>
+        <p className="mt-4 max-w-sm leading-6 text-balance text-muted-foreground">{description}</p>
         {errorMessage ? (
           <Alert variant="destructive" className="mt-6">
             <CircleAlert aria-hidden="true" />

@@ -189,7 +189,7 @@ export function EventTrailFilters({
         if (filter.field === activeField) {
           return (
             <ButtonGroup key={filter.field}>
-              <ButtonGroupText className="border-primary/20 bg-primary/5 text-primary h-7 text-xs">
+              <ButtonGroupText className="h-7 border-primary/20 bg-primary/5 text-xs text-primary">
                 {field.label}
               </ButtonGroupText>
               <DropdownMenu
@@ -201,7 +201,7 @@ export function EventTrailFilters({
               >
                 <DropdownMenuTrigger asChild>
                   <Button
-                    className="border-primary/20 bg-primary/5 hover:bg-primary/10 min-w-32 justify-between font-normal"
+                    className="min-w-32 justify-between border-primary/20 bg-primary/5 font-normal hover:bg-primary/10"
                     size="sm"
                     variant="outline"
                   >
@@ -248,7 +248,7 @@ export function EventTrailFilters({
           <ButtonGroup key={filter.field}>
             <Button
               aria-label={`Edit ${field.label} filter`}
-              className="border-primary/20 bg-primary/5 hover:bg-primary/10 max-w-72 font-normal"
+              className="max-w-72 border-primary/20 bg-primary/5 font-normal hover:bg-primary/10"
               onClick={() => {
                 setActiveField(filter.field)
                 setEditorOpen(true)

@@ -51,7 +51,7 @@ const columns: TelemetryTableColumn<NetworkTelemetryRow>[] = [
     key: "lastSeen",
     header: "Last seen",
     layout: { minWidth: 160, width: 160 },
-    render: (row) => <span className="text-muted-foreground text-sm">{row.lastSeen}</span>,
+    render: (row) => <span className="text-sm text-muted-foreground">{row.lastSeen}</span>,
   },
 ]
 

@@ -61,24 +61,24 @@ function TwoFactorChallengeFallback() {
     <div className="flex min-h-svh w-full justify-center px-6 py-10 md:px-10 md:py-14">
       <div className="mx-auto flex w-full max-w-sm flex-col gap-8 pt-10">
         <div className="flex items-center justify-center gap-3">
-          <div className="bg-muted/20 size-10 rounded-xl" />
-          <div className="bg-muted/20 h-8 w-36 rounded-md" />
+          <div className="size-10 rounded-xl bg-muted/20" />
+          <div className="h-8 w-36 rounded-md bg-muted/20" />
         </div>
         <div className="flex flex-col gap-5">
-          <div className="bg-muted/20 h-9 w-full rounded-lg" />
+          <div className="h-9 w-full rounded-lg bg-muted/20" />
           <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-2">
-              <div className="bg-muted/20 h-4 w-24 rounded-md" />
-              <div className="bg-muted/20 h-8 w-full rounded-lg" />
+              <div className="h-4 w-24 rounded-md bg-muted/20" />
+              <div className="h-8 w-full rounded-lg bg-muted/20" />
             </div>
             <div className="flex items-start gap-3">
-              <div className="bg-muted/20 mt-0.5 size-4 rounded-sm" />
+              <div className="mt-0.5 size-4 rounded-sm bg-muted/20" />
               <div className="flex flex-1 flex-col gap-2">
-                <div className="bg-muted/20 h-4 w-44 rounded-md" />
-                <div className="bg-muted/20 h-4 w-full rounded-md" />
+                <div className="h-4 w-44 rounded-md bg-muted/20" />
+                <div className="h-4 w-full rounded-md bg-muted/20" />
               </div>
             </div>
-            <div className="bg-muted/20 h-9 w-full rounded-lg" />
+            <div className="h-9 w-full rounded-lg bg-muted/20" />
           </div>
         </div>
       </div>

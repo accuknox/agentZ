@@ -182,7 +182,7 @@ function RunsTableSkeleton() {
 
 function FiltersSkeleton() {
   return (
-    <div className="bg-background border-b px-4 py-2 sm:px-6">
+    <div className="border-b bg-background px-4 py-2 sm:px-6">
       <div className="flex min-h-14 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Skeleton className="h-8 w-full min-w-0 rounded-md sm:w-64 sm:min-w-52" />
@@ -205,7 +205,7 @@ function ErrorPanel({ message }: { message: string }) {
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <div className="text-muted-foreground flex h-48 items-center justify-center text-sm">
+    <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
       {message}
     </div>
   )

@@ -180,7 +180,7 @@ export function DashboardView({
 
   return (
     <div className="flex min-w-0 flex-1 flex-col">
-      <div className="bg-background flex min-h-14 flex-wrap items-center gap-2 border-b px-4 py-2 sm:px-6">
+      <div className="flex min-h-14 flex-wrap items-center gap-2 border-b bg-background px-4 py-2 sm:px-6">
         <Select
           disabled={navigationPending}
           value={dashboard.agent_name}
@@ -252,7 +252,7 @@ export function DashboardView({
           <AlertDescription>{widgetsQuery.error.message}</AlertDescription>
         </Alert>
       ) : null}
-      <div className="bg-muted/30 grid grid-cols-12 gap-2 p-2">
+      <div className="grid grid-cols-12 gap-2 bg-muted/30 p-2">
         {dashboard.widgets.map((widget) => (
           <Widget
             key={widget.name}
@@ -296,13 +296,13 @@ function Widget({
     <section
       aria-busy={pending}
       className={cn(
-        "bg-card h-80 min-w-0 overflow-hidden rounded-lg border shadow-[0_1px_2px_color-mix(in_oklab,var(--foreground)_5%,transparent)] transition-shadow duration-200 hover:shadow-[0_8px_24px_color-mix(in_oklab,var(--foreground)_8%,transparent)]",
+        "h-80 min-w-0 overflow-hidden rounded-lg border bg-card shadow-[0_1px_2px_color-mix(in_oklab,var(--foreground)_5%,transparent)] transition-shadow duration-200 hover:shadow-[0_8px_24px_color-mix(in_oklab,var(--foreground)_8%,transparent)]",
         widget.kind !== "scatter" && "[content-visibility:auto]",
         dashboardWidgetWidthClasses[widget.width]
       )}
     >
-      <header className="from-card to-muted/20 flex h-12 items-center gap-2.5 border-b bg-gradient-to-r px-3.5">
-        <span className="bg-primary/8 text-primary ring-primary/10 flex size-7 shrink-0 items-center justify-center rounded-md ring-1">
+      <header className="flex h-12 items-center gap-2.5 border-b bg-gradient-to-r from-card to-muted/20 px-3.5">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/8 text-primary ring-1 ring-primary/10">
           <Icon className="size-3.5" strokeWidth={2.25} />
         </span>
         <h2 className="min-w-0 flex-1 truncate text-sm font-semibold tracking-[-0.01em]">
@@ -329,7 +329,7 @@ function Widget({
         ) : pending ? (
           <DashboardWidgetBodySkeleton />
         ) : !result || result.status === "empty" ? (
-          <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             No data
           </div>
         ) : (
@@ -509,7 +509,7 @@ function DashboardTable({
       ariaLabel={widget.title}
       className="h-full gap-0 [&_[data-slot=table-head]]:h-8 [&_[data-slot=table-head]]:px-4 [&>nav]:h-14 [&>nav]:shrink-0"
       emptyState={
-        <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
           {query.error || data?.error ? (
             <Alert variant="destructive" className="p-4">
               <CircleAlert aria-hidden="true" />

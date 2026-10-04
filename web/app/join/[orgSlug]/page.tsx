@@ -35,7 +35,7 @@ export default function JoinOrganizationPage({
         <main className="flex min-h-svh w-full flex-1 items-center justify-center" role="status">
           <LoaderCircle
             aria-label="Preparing organisation invitation"
-            className="text-muted-foreground size-5 animate-spin"
+            className="size-5 animate-spin text-muted-foreground"
           />
         </main>
       }
@@ -203,7 +203,7 @@ async function JoinOrganizationContent({
     <main className="relative flex min-h-svh w-full flex-1 items-center justify-center overflow-hidden px-6 py-6">
       <div
         aria-hidden="true"
-        className="bg-primary/5 absolute inset-x-0 top-0 h-72 [mask-image:linear-gradient(to_bottom,black,transparent)]"
+        className="absolute inset-x-0 top-0 h-72 bg-primary/5 [mask-image:linear-gradient(to_bottom,black,transparent)]"
       />
       <section className="relative flex w-full max-w-md flex-col items-center text-center">
         <div className="flex items-center gap-2.5">
@@ -221,14 +221,14 @@ async function JoinOrganizationContent({
         />
 
         <OrganizationAvatar
-          className="bg-background ring-background -mt-2 size-14 shadow-md ring-4"
+          className="-mt-2 size-14 bg-background shadow-md ring-4 ring-background"
           logo={org.logo}
           name={org.name}
         />
 
-        <p className="text-primary mt-4 text-sm font-semibold">Organisation invitation</p>
+        <p className="mt-4 text-sm font-semibold text-primary">Organisation invitation</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight text-balance">Join {org.name}</h1>
-        <p className="text-muted-foreground mt-2 max-w-sm leading-6 text-balance">
+        <p className="mt-2 max-w-sm leading-6 text-balance text-muted-foreground">
           Choose an account to verify your eligibility. We grant access only after the check
           succeeds.
         </p>
@@ -261,7 +261,7 @@ async function JoinOrganizationContent({
                 </Button>
               </form>
             ) : null}
-            <p className="text-muted-foreground mt-1 flex items-center justify-center gap-1.5 text-xs">
+            <p className="mt-1 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
               <ShieldCheck aria-hidden="true" className="size-3.5" />
               You will choose an account again before joining.
             </p>
@@ -269,7 +269,7 @@ async function JoinOrganizationContent({
         ) : (
           <div className="mt-5 w-full rounded-xl border px-4 py-4 text-sm">
             <p className="font-medium">Social sign up is not available</p>
-            <p className="text-muted-foreground mt-1">
+            <p className="mt-1 text-muted-foreground">
               Ask an Organisation administrator for another way to join.
             </p>
           </div>

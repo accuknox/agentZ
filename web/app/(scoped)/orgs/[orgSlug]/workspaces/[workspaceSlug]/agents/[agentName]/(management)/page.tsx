@@ -113,7 +113,7 @@ async function WorkspaceAgentContent({
 function SummaryRow({ children, label }: { children: React.ReactNode; label: string }) {
   return (
     <TableRow>
-      <TableCell className="text-muted-foreground w-40">{label}</TableCell>
+      <TableCell className="w-40 text-muted-foreground">{label}</TableCell>
       <TableCell>
         <span className="flex flex-wrap items-center gap-2 break-words">{children}</span>
       </TableCell>

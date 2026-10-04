@@ -63,7 +63,7 @@ export function PreferencesForm({
       <div className="flex items-start justify-between gap-6 py-2">
         <div className="min-w-0 space-y-1">
           <h2 className="text-base font-semibold tracking-normal">Theme</h2>
-          <p className="text-muted-foreground text-sm">We save this choice to your account.</p>
+          <p className="text-sm text-muted-foreground">We save this choice to your account.</p>
         </div>
         <Select disabled={pending} onValueChange={onThemeChange} value={preferences.theme}>
           <SelectTrigger aria-label="Theme" className="w-32 shrink-0">
@@ -90,7 +90,7 @@ export function PreferencesForm({
           <h2 className="text-base font-semibold tracking-normal">
             Auto-accept allowed host suggestions
           </h2>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             Automatically add secret hosts to the agent sandbox when creating a secret.
           </p>
         </div>
@@ -106,7 +106,7 @@ export function PreferencesForm({
           <label className="text-base font-semibold tracking-normal" htmlFor="show-tour-button">
             Show tour button
           </label>
-          <p className="text-muted-foreground text-sm" id="show-tour-description">
+          <p className="text-sm text-muted-foreground" id="show-tour-description">
             Show the &quot;Take a tour&quot; button in the sidebar.
           </p>
         </div>

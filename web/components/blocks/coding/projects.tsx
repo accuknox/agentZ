@@ -121,7 +121,7 @@ export function ProjectPicker({
               >
                 <FolderGit2 />
                 <span className="flex-1 truncate">{project.name}</span>
-                <span className="text-muted-foreground truncate text-xs">{project.repository}</span>
+                <span className="truncate text-xs text-muted-foreground">{project.repository}</span>
               </CommandItem>
             ))}
           </CommandList>
@@ -397,7 +397,7 @@ export function Projects({
                         {searching ? (
                           <div
                             role="status"
-                            className="text-muted-foreground flex items-center justify-center gap-2 p-4 text-sm"
+                            className="flex items-center justify-center gap-2 p-4 text-sm text-muted-foreground"
                           >
                             <Spinner />
                             Searching repositories...
@@ -744,30 +744,30 @@ export function CheckoutPicker({
                 <>
                   {index === 0 ||
                   (item.kind === "branch" && items[index - 1]?.kind !== "branch") ? (
-                    <div className="text-muted-foreground px-2 py-1.5 text-[11px]">
+                    <div className="px-2 py-1.5 text-[11px] text-muted-foreground">
                       {item.kind === "branch" ? "New worktree from" : "Worktrees"}
                     </div>
                   ) : null}
                   {item.kind === "main" ? (
                     <CommandItem
                       value={item.key}
-                      className="data-[checked=true]:bg-muted h-8 text-xs"
+                      className="h-8 text-xs data-[checked=true]:bg-muted"
                       data-checked={checkout === "main"}
                       onSelect={() => {
                         onChange("main")
                         setOpen(false)
                       }}
                     >
-                      <FolderGit2 className="text-muted-foreground size-3.5" />
+                      <FolderGit2 className="size-3.5 text-muted-foreground" />
                       <span className="flex-1">Main checkout</span>
-                      <span className="text-muted-foreground/60 text-[10px]">
+                      <span className="text-[10px] text-muted-foreground/60">
                         {project.default_branch}
                       </span>
                     </CommandItem>
                   ) : item.kind === "branch" ? (
                     <CommandItem
                       value={item.key}
-                      className="data-[checked=true]:bg-muted h-8 text-xs"
+                      className="h-8 text-xs data-[checked=true]:bg-muted"
                       data-checked={
                         checkout === "new" &&
                         (baseRef ?? `refs/heads/${project.default_branch}`) === item.branch.ref
@@ -778,9 +778,9 @@ export function CheckoutPicker({
                         setOpen(false)
                       }}
                     >
-                      <GitBranch className="text-muted-foreground size-3.5" />
+                      <GitBranch className="size-3.5 text-muted-foreground" />
                       <span className="min-w-0 flex-1 truncate">{item.branch.name}</span>
-                      <span className="text-muted-foreground/60 text-[10px]">
+                      <span className="text-[10px] text-muted-foreground/60">
                         {item.branch.current
                           ? "current"
                           : item.branch.remote
@@ -793,7 +793,7 @@ export function CheckoutPicker({
                   ) : (
                     <CommandItem
                       value={item.key}
-                      className="data-[checked=true]:bg-muted h-8 text-xs"
+                      className="h-8 text-xs data-[checked=true]:bg-muted"
                       disabled={!item.tree.available || pending}
                       data-checked={checkout === item.tree.managed_id}
                       title={item.tree.reason ?? item.tree.directory}
@@ -821,12 +821,12 @@ export function CheckoutPicker({
                         })
                       }}
                     >
-                      <FolderGit2 className="text-muted-foreground size-3.5" />
+                      <FolderGit2 className="size-3.5 text-muted-foreground" />
                       <span className="min-w-0 flex-1 truncate">
                         {item.tree.branch || item.tree.directory.split("/").at(-1)}
                       </span>
-                      {item.tree.locked ? <Lock className="text-muted-foreground size-3" /> : null}
-                      <span className="text-muted-foreground/60 text-[10px]">
+                      {item.tree.locked ? <Lock className="size-3 text-muted-foreground" /> : null}
+                      <span className="text-[10px] text-muted-foreground/60">
                         {!item.tree.available
                           ? "unavailable"
                           : !item.tree.branch
@@ -840,7 +840,7 @@ export function CheckoutPicker({
                 </>
               )}
               ListEmptyComponent={
-                <div className="text-muted-foreground py-6 text-center text-xs">
+                <div className="py-6 text-center text-xs text-muted-foreground">
                   {refs.isPending || snapshot?.refreshing
                     ? "Loading branches..."
                     : "No branches or worktrees found"}
@@ -855,7 +855,7 @@ export function CheckoutPicker({
                 <AlertDescription>{refs.error?.message ?? snapshot?.error}</AlertDescription>
               </Alert>
             ) : (
-              <span className="text-muted-foreground min-w-0 flex-1">
+              <span className="min-w-0 flex-1 text-muted-foreground">
                 {snapshot?.total_count ?? 0} {snapshot?.total_count === 1 ? "branch" : "branches"}
               </span>
             )}

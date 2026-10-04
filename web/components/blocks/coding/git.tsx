@@ -554,7 +554,7 @@ export function GitChanges({
         ) : null}
         {stash ? (
           <div className="flex min-w-0 items-center gap-2">
-            <Archive className="text-muted-foreground size-4 shrink-0" />
+            <Archive className="size-4 shrink-0 text-muted-foreground" />
             <span className="max-w-48 truncate text-sm" title={stash.message}>
               {stash.message}
             </span>
@@ -984,7 +984,7 @@ export function GitChanges({
                     </Alert>
                   ) : null}
                   <div className="flex shrink-0 items-center gap-2 border-t p-3">
-                    <span className="text-muted-foreground mr-auto text-xs tabular-nums">
+                    <span className="mr-auto text-xs text-muted-foreground tabular-nums">
                       {stagedFiles.length} staged
                     </span>
                     <Tooltip>
@@ -1049,7 +1049,7 @@ export function GitChanges({
           )}
         >
           <div className="relative m-3">
-            <Search className="text-muted-foreground pointer-events-none absolute top-2 left-2 size-4" />
+            <Search className="pointer-events-none absolute top-2 left-2 size-4 text-muted-foreground" />
             <Input
               aria-label="Filter changed files"
               placeholder="Filter files..."
@@ -1139,7 +1139,7 @@ export function GitChanges({
                         }}
                       />
                       <button
-                        className="focus-visible:outline-ring flex min-w-0 flex-1 items-center gap-2 self-stretch text-left text-sm"
+                        className="flex min-w-0 flex-1 items-center gap-2 self-stretch text-left text-sm focus-visible:outline-ring"
                         title={
                           file.previous_path ? `${file.previous_path} → ${file.path}` : file.path
                         }
@@ -1161,9 +1161,9 @@ export function GitChanges({
                             aria-label={`${pending.operation === "stage" ? "Staging" : "Unstaging"} ${file.path}`}
                           />
                         ) : file.conflict ? (
-                          <GitMerge className="text-warning size-3.5 shrink-0" />
+                          <GitMerge className="size-3.5 shrink-0 text-warning" />
                         ) : (
-                          <FileCode2 className="text-muted-foreground size-3.5 shrink-0" />
+                          <FileCode2 className="size-3.5 shrink-0 text-muted-foreground" />
                         )}
                         <span className="truncate">{file.path}</span>
                         <span
@@ -1212,7 +1212,7 @@ export function GitChanges({
           >
             {stash ? (
               <div className="flex items-center gap-2 border-b px-3 py-2">
-                <span className="text-muted-foreground flex-1 text-xs">
+                <span className="flex-1 text-xs text-muted-foreground">
                   Saved {new Date(stash.created_at).toLocaleString()}
                 </span>
                 <Button
@@ -1299,7 +1299,7 @@ export function GitChanges({
                   renderCustomHeader={(item) => (
                     <div
                       data-collapsed={collapsed.has(item.id)}
-                      className="border-border bg-muted/50 flex h-11 items-center gap-2 border-b px-3 text-sm data-[collapsed=true]:border-b-0"
+                      className="flex h-11 items-center gap-2 border-b border-border bg-muted/50 px-3 text-sm data-[collapsed=true]:border-b-0"
                     >
                       <Button
                         size="icon-xs"
@@ -1337,7 +1337,7 @@ export function GitChanges({
                         <Copy />
                       </Button>
                       {item.type === "diff" && !item.fileDiff.hunks.length ? (
-                        <span className="text-muted-foreground text-xs">
+                        <span className="text-xs text-muted-foreground">
                           {parsed.find((file) => file.path === item.id)?.binary
                             ? "Binary file"
                             : item.fileDiff.type === "rename-pure"
@@ -1347,7 +1347,7 @@ export function GitChanges({
                                 : "Empty file"}
                         </span>
                       ) : item.type === "diff" ? (
-                        <span className="text-muted-foreground text-xs tabular-nums">
+                        <span className="text-xs text-muted-foreground tabular-nums">
                           <span className="text-success">
                             +
                             {item.fileDiff.hunks.reduce((sum, hunk) => sum + hunk.additionLines, 0)}
@@ -1445,7 +1445,7 @@ export function GitChanges({
                     <Archive />
                     <span className="flex min-w-0 flex-1 flex-col items-start gap-1">
                       <span className="w-full truncate text-left">{item.message}</span>
-                      <span className="text-muted-foreground text-xs" title={item.created_at}>
+                      <span className="text-xs text-muted-foreground" title={item.created_at}>
                         {item.reference} · {new Date(item.created_at).toLocaleString()}
                       </span>
                     </span>

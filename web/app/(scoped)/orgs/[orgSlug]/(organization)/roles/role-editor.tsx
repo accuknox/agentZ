@@ -366,7 +366,7 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
         ) : null}
 
         <Card className="gap-0 py-0">
-          <CardHeader className="bg-muted/20 border-b py-3">
+          <CardHeader className="border-b bg-muted/20 py-3">
             <CardTitle>
               <h2 className="flex items-center gap-2">
                 Permissions
@@ -404,7 +404,7 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
                               >
                                 <span className="flex min-w-0 flex-col gap-0.5">
                                   <span>{resource.label}</span>
-                                  <span className="text-muted-foreground truncate text-xs">
+                                  <span className="truncate text-xs text-muted-foreground">
                                     {resourceDescriptions[resource.resource]}
                                   </span>
                                 </span>
@@ -430,7 +430,7 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
                                 >
                                   <span className="flex min-w-0 flex-col gap-0.5">
                                     <span>{capability.label}</span>
-                                    <span className="text-muted-foreground truncate text-xs">
+                                    <span className="truncate text-xs text-muted-foreground">
                                       {capabilityDescriptions[capability.action]}
                                     </span>
                                   </span>
@@ -450,7 +450,7 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
             {selectedCount === 0 ? (
               <div className="flex flex-col items-center gap-1 px-4 py-8 text-center">
                 <p className="font-medium">No permissions selected</p>
-                <p className="text-muted-foreground max-w-md text-sm">
+                <p className="max-w-md text-sm text-muted-foreground">
                   Choose only the permissions this Role needs. We will add their required
                   dependencies.
                 </p>
@@ -475,7 +475,7 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
                           </Badge>
                         ) : null}
                       </div>
-                      <p className="text-muted-foreground text-sm">
+                      <p className="text-sm text-muted-foreground">
                         {resourceDescriptions[resource.resource]}
                       </p>
                     </div>
@@ -549,7 +549,7 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
                           </Badge>
                         ) : null}
                       </div>
-                      <p className="text-muted-foreground text-sm">
+                      <p className="text-sm text-muted-foreground">
                         {capabilityDescriptions[capability.action]}
                       </p>
                     </div>
@@ -628,8 +628,8 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
         </Dialog>
       ) : null}
 
-      <footer className="bg-background/95 sticky bottom-0 z-20 flex flex-wrap items-center justify-end gap-2 border-t px-4 py-3 backdrop-blur md:px-6">
-        <span className="text-muted-foreground mr-auto text-sm tabular-nums">
+      <footer className="sticky bottom-0 z-20 flex flex-wrap items-center justify-end gap-2 border-t bg-background/95 px-4 py-3 backdrop-blur md:px-6">
+        <span className="mr-auto text-sm text-muted-foreground tabular-nums">
           {immutable ? "Read-only built-in Role" : `${changed} unsaved changes`}
         </span>
         <Button asChild variant="outline">

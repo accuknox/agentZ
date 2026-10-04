@@ -40,7 +40,7 @@ export function RoleDelete({
 
   return (
     <section className="flex flex-wrap items-center justify-between gap-3">
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         Last updated <time dateTime={updatedAt}>{formatTimestamp(updatedAt)}</time>.
       </p>
       <Button onClick={() => setOpen(true)} variant="destructive">

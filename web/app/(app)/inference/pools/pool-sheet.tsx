@@ -350,7 +350,7 @@ export function PoolSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent size="half" className="h-full overflow-hidden">
-        <SheetHeader className="shrink-0">
+        <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <Layers3 className="size-4" />
             {pool ? "Edit Pool" : "New Pool"}

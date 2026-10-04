@@ -81,7 +81,7 @@ export function McpViewSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChangeAction}>
       <SheetContent size="lg" className="h-full overflow-y-auto">
-        <SheetHeader className="shrink-0">
+        <SheetHeader>
           <SheetTitle>MCP connection</SheetTitle>
           <SheetDescription className="sr-only">View MCP connection</SheetDescription>
         </SheetHeader>

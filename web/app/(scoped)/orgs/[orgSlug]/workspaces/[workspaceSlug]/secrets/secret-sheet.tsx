@@ -126,7 +126,7 @@ export function SecretSheet({
       }}
     >
       <SheetContent size="half" className="h-full overflow-y-auto">
-        <SheetHeader className="shrink-0">
+        <SheetHeader>
           <SheetTitle>New secret</SheetTitle>
           <SheetDescription>
             Create a static secret. Its value becomes write-only after you save it.

@@ -1,17 +1,59 @@
 "use client"
 
-import { useState, useTransition } from "react"
-import { Copy, KeyRound, Plus, ShieldCheck, Trash2, Pencil, AppWindow } from "lucide-react"
+import { useActionState, useMemo, useState, useTransition } from "react"
+import {
+  Copy,
+  KeyRound,
+  Plus,
+  Trash2,
+  Pencil,
+  AppWindow,
+  MoreHorizontal,
+  CirclePause,
+  CirclePlay,
+  CircleCheck,
+  Server,
+  Monitor,
+  Smartphone,
+  type LucideIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 import { AdministrationPageHeader } from "@/components/administration"
-import type { OrganizationSummary } from "@/data/organizations"
 import type { oauthClients } from "@/db/auth-schema"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { CopyButton } from "@/components/ui/copy-button"
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from "@/components/ui/field"
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from "@/components/ui/empty"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetFooter,
+} from "@/components/ui/sheet"
 import { Checkbox } from "@/components/ui/checkbox"
+import { type ColumnDef, getCoreRowModel, useReactTable } from "@tanstack/react-table"
+import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
@@ -28,6 +70,7 @@ import {
   SelectValue,
   SelectContent,
   SelectItem,
+  SelectGroup,
 } from "@/components/ui/select"
 import { changeApplicationAction, delegationSettingAction, saveApplicationAction } from "./actions"
 
@@ -56,6 +99,40 @@ const scopes = [
   },
 ] as const
 
+const clientTypes = {
+  confidential: {
+    icon: Server,
+    label: "Confidential backend",
+    description:
+      "For server-side apps that can securely store a client secret. Keep the secret on your server.",
+  },
+  browser: {
+    icon: Monitor,
+    label: "Public browser application",
+    description: "For apps that run in a browser. Uses PKCE without a client secret.",
+  },
+  native: {
+    icon: Smartphone,
+    label: "Public native application",
+    description:
+      "For mobile and desktop apps. Uses PKCE without a client secret and supports native callback URLs.",
+  },
+} satisfies Record<
+  Parameters<typeof saveApplicationAction>[1]["type"],
+  { label: string; description: string; icon: LucideIcon }
+>
+
+const columnLayout = {
+  name: { minWidth: 224, contentMaxWidth: 256 },
+  type: { minWidth: 176, width: 176, contentMaxWidth: 144 },
+  disabled: { minWidth: 112, width: 112 },
+  scopes: { minWidth: 128, width: 128, contentMaxWidth: 96 },
+  redirectUris: { minWidth: 200, contentMaxWidth: 240 },
+  actions: { minWidth: 64, width: 64, align: "end" },
+} satisfies Record<string, AdminColumnLayout>
+
+type Credential = { clientId: string; secret: string }
+
 type Application = Pick<
   typeof oauthClients.$inferSelect,
   | "clientId"
@@ -68,38 +145,169 @@ type Application = Pick<
 >
 
 export function Applications({
-  organization,
+  organizationId,
   clients,
   delegationEnabled,
 }: {
-  organization: OrganizationSummary
+  organizationId: string
   clients: Application[]
   delegationEnabled: boolean
 }) {
+  "use no memo"
+
   const [pending, startTransition] = useTransition()
   const [editor, setEditor] = useState<Application | "new">()
-  const [name, setName] = useState("")
-  const [type, setType] = useState<"confidential" | "browser" | "native">("confidential")
-  const [redirects, setRedirects] = useState("")
-  const [selectedScopes, setSelectedScopes] = useState<string[]>(["openid", "profile", "email"])
-  const [error, setError] = useState<string>()
-  const [credential, setCredential] = useState<{ clientId: string; secret: string }>()
+  const [credential, setCredential] = useState<Credential>()
   const [confirmation, setConfirmation] = useState<
     { client: Application; operation: "delete" | "rotate" | "disable" } | "delegation"
   >()
 
-  function openEditor(client: Application | "new") {
-    setEditor(client)
-    setName(client === "new" ? "" : (client.name ?? ""))
-    let clientType: "confidential" | "browser" | "native" = "confidential"
-    if (client !== "new" && client.tokenEndpointAuthMethod === "none") {
-      clientType = client.applicationType === "native" ? "native" : "browser"
-    }
-    setType(clientType)
-    setRedirects(client === "new" ? "" : client.redirectUris.join("\n"))
-    setSelectedScopes(client === "new" ? ["openid", "profile", "email"] : (client.scopes ?? []))
-    setError(undefined)
-  }
+  const columns = useMemo<ColumnDef<Application>[]>(
+    () => [
+      {
+        accessorKey: "name",
+        header: "Name",
+        cell: ({ row: { original: client } }) => (
+          <div className="flex min-w-0 items-center gap-2">
+            <AppWindow aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+            <span className="truncate font-medium" title={client.name ?? undefined}>
+              {client.name}
+            </span>
+          </div>
+        ),
+      },
+      {
+        id: "type",
+        header: "Client type",
+        cell: ({ row: { original: client } }) => {
+          let type: keyof typeof clientTypes = "confidential"
+          if (client.tokenEndpointAuthMethod === "none") {
+            type = client.applicationType === "native" ? "native" : "browser"
+          }
+          const Icon = clientTypes[type].icon
+          return (
+            <span
+              className="flex min-w-0 items-center gap-2"
+              title={`${clientTypes[type].label}. S256 PKCE required.`}
+            >
+              <Icon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+              <span className="truncate">{clientTypes[type].label}</span>
+            </span>
+          )
+        },
+      },
+      {
+        accessorKey: "disabled",
+        header: "Status",
+        cell: ({ row }) => (
+          <Badge variant={row.original.disabled ? "pending" : "success"}>
+            {row.original.disabled ? (
+              <CirclePause aria-hidden="true" data-icon="inline-start" />
+            ) : (
+              <CircleCheck aria-hidden="true" data-icon="inline-start" />
+            )}
+            {row.original.disabled ? "Disabled" : "Active"}
+          </Badge>
+        ),
+      },
+      {
+        accessorKey: "scopes",
+        header: "Scopes",
+        cell: ({ row }) => <ApplicationValues values={row.original.scopes ?? []} />,
+      },
+      {
+        accessorKey: "redirectUris",
+        header: "Callback URLs",
+        cell: ({ row }) => <ApplicationValues values={row.original.redirectUris} />,
+      },
+      {
+        id: "actions",
+        header: () => <span className="sr-only">Actions</span>,
+        cell: ({ row: { original: client } }) => (
+          <div
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
+          >
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  disabled={pending}
+                  aria-label={`Actions for ${client.name}`}
+                >
+                  <MoreHorizontal aria-hidden="true" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-48">
+                <DropdownMenuGroup>
+                  <DropdownMenuItem onSelect={() => setEditor(client)}>
+                    <Pencil aria-hidden="true" />
+                    Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={async () => {
+                      try {
+                        await navigator.clipboard.writeText(client.clientId)
+                        toast.success("Client ID copied")
+                      } catch {
+                        toast.error("Client ID could not be copied. Try again.")
+                      }
+                    }}
+                  >
+                    <Copy aria-hidden="true" />
+                    Copy client ID
+                  </DropdownMenuItem>
+                  {client.tokenEndpointAuthMethod !== "none" ? (
+                    <DropdownMenuItem
+                      onSelect={() => setConfirmation({ client, operation: "rotate" })}
+                    >
+                      <KeyRound aria-hidden="true" />
+                      Rotate secret
+                    </DropdownMenuItem>
+                  ) : null}
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      if (!client.disabled) {
+                        setConfirmation({ client, operation: "disable" })
+                        return
+                      }
+                      startTransition(async () => {
+                        const result = await changeApplicationAction(
+                          organizationId,
+                          client.clientId,
+                          "enable"
+                        )
+                        if ("error" in result) toast.error(result.error)
+                        else toast.success("Application enabled")
+                      })
+                    }}
+                  >
+                    {client.disabled ? (
+                      <CirclePlay aria-hidden="true" />
+                    ) : (
+                      <CirclePause aria-hidden="true" />
+                    )}
+                    {client.disabled ? "Enable" : "Disable"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onSelect={() => setConfirmation({ client, operation: "delete" })}
+                  >
+                    <Trash2 aria-hidden="true" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        ),
+      },
+    ],
+    [organizationId, pending]
+  )
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
+  const table = useReactTable({ columns, data: clients, getCoreRowModel: getCoreRowModel() })
 
   let confirmationTitle = "Disable application?"
   let confirmationDescription =
@@ -118,36 +326,20 @@ export function Applications({
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-6">
-      <AdministrationPageHeader
-        title="Applications"
-        description="Let other applications sign in with AgentZ and request access to user-selected resources."
-        scope={{ kind: "organization", organizationName: organization.name }}
-        actions={
-          <Button onClick={() => openEditor("new")}>
-            <Plus aria-hidden="true" />
-            Create application
-          </Button>
-        }
-      />
-      <div className="space-y-6 px-4 pb-8 md:px-6">
-        <section className="flex items-start justify-between gap-6 rounded-lg border p-4">
-          <div className="space-y-1">
-            <h2 className="flex items-center gap-2 font-semibold">
-              <ShieldCheck className="size-4" aria-hidden="true" />
-              Resource delegation
-            </h2>
-            <p className="text-muted-foreground max-w-2xl text-sm">
-              Allow members to grant external applications access to this organization’s models and
-              MCP capabilities. Members also need Use and Delegate permissions. Sign-in and profile
-              sharing remain available.
-            </p>
-            <p className="text-muted-foreground text-sm">
-              Turning this off revokes existing resource access. Turning it back on requires fresh
-              consent.
-            </p>
-          </div>
+      <AdministrationPageHeader title="Applications" />
+      <div className="flex min-w-0 flex-col gap-8 px-4 pb-6 md:px-6">
+        <Field orientation="horizontal" className="max-w-4xl">
+          <FieldContent>
+            <FieldLabel htmlFor="resource-delegation">Resource delegation</FieldLabel>
+            <FieldDescription id="resource-delegation-description">
+              Allow members to grant external apps access to this organization&apos;s models and MCP
+              capabilities. Members require Use and Delegate permissions. Turning this off revokes
+              existing resource access. Turning it back on requires fresh consent.
+            </FieldDescription>
+          </FieldContent>
           <Switch
-            aria-label="Allow resource delegation"
+            id="resource-delegation"
+            aria-describedby="resource-delegation-description"
             checked={delegationEnabled}
             disabled={pending}
             onCheckedChange={(enabled) => {
@@ -156,271 +348,66 @@ export function Applications({
                 return
               }
               startTransition(async () => {
-                const result = await delegationSettingAction(organization.id, true)
+                const result = await delegationSettingAction(organizationId, true)
                 if ("error" in result) toast.error(result.error)
                 else toast.success("Resource delegation enabled")
               })
             }}
           />
-        </section>
-        {clients.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed p-12 text-center">
-            <AppWindow className="text-muted-foreground size-8" aria-hidden="true" />
-            <h2 className="font-semibold">Your first application</h2>
-            <p className="text-muted-foreground max-w-md text-sm">
-              Register an application to offer Sign in with AgentZ. Users choose which resources it
-              can use.
-            </p>
-            <Button variant="outline" onClick={() => openEditor("new")}>
+        </Field>
+        <section className="flex min-w-0 flex-col gap-5" aria-labelledby="registered-applications">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex flex-col gap-1">
+              <h2 id="registered-applications" className="text-base font-semibold">
+                Registered applications
+              </h2>
+              <p className="max-w-lg text-sm text-muted-foreground">
+                Let other applications sign in with AgentZ and request access to user-selected
+                resources.
+              </p>
+            </div>
+            <Button variant="outline" disabled={pending} onClick={() => setEditor("new")}>
+              <Plus aria-hidden="true" data-icon="inline-start" />
               Create application
             </Button>
           </div>
-        ) : (
-          <div className="divide-y rounded-lg border">
-            {clients.map((client) => {
-              let clientLabel = "Confidential backend"
-              if (client.tokenEndpointAuthMethod === "none") {
-                clientLabel =
-                  client.applicationType === "native" ? "Native application" : "Browser application"
-              }
-              return (
-                <article key={client.clientId} className="space-y-3 p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <h2 className="flex items-center gap-2 font-semibold">
-                        {client.name}
-                        <Badge variant={client.disabled ? "secondary" : "success"}>
-                          {client.disabled ? "Disabled" : "Active"}
-                        </Badge>
-                      </h2>
-                      <div className="flex items-center gap-2">
-                        <code className="text-muted-foreground text-xs break-all">
-                          {client.clientId}
-                        </code>
-                        <Button
-                          size="icon-sm"
-                          variant="ghost"
-                          aria-label={`Copy client ID for ${client.name}`}
-                          onClick={async () => {
-                            await navigator.clipboard.writeText(client.clientId)
-                            toast.success("Client ID copied")
-                          }}
-                        >
-                          <Copy aria-hidden="true" />
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={pending}
-                        onClick={() => openEditor(client)}
-                      >
-                        <Pencil aria-hidden="true" />
-                        Edit
-                      </Button>
-                      {client.tokenEndpointAuthMethod !== "none" ? (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={pending}
-                          onClick={() => setConfirmation({ client, operation: "rotate" })}
-                        >
-                          <KeyRound aria-hidden="true" />
-                          Rotate secret
-                        </Button>
-                      ) : null}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={pending}
-                        onClick={() => {
-                          if (!client.disabled) {
-                            setConfirmation({ client, operation: "disable" })
-                            return
-                          }
-                          startTransition(async () => {
-                            const result = await changeApplicationAction(
-                              organization.id,
-                              client.clientId,
-                              "enable"
-                            )
-                            if ("error" in result) toast.error(result.error)
-                            else toast.success("Application enabled")
-                          })
-                        }}
-                      >
-                        {client.disabled ? "Enable" : "Disable"}
-                      </Button>
-                      <Button
-                        size="icon-sm"
-                        variant="ghost"
-                        aria-label={`Delete ${client.name}`}
-                        disabled={pending}
-                        onClick={() => setConfirmation({ client, operation: "delete" })}
-                      >
-                        <Trash2 aria-hidden="true" />
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {client.scopes?.map((scope) => (
-                      <Badge key={scope} variant="outline">
-                        {scope}
-                      </Badge>
-                    ))}
-                  </div>
-                  <p className="text-muted-foreground text-xs">
-                    {clientLabel} · S256 PKCE required
-                  </p>
-                  <ul className="text-muted-foreground space-y-1 text-xs break-all">
-                    {client.redirectUris.map((uri) => (
-                      <li key={uri}>{uri}</li>
-                    ))}
-                  </ul>
-                </article>
-              )
-            })}
-          </div>
-        )}
+          <AdminDataGrid
+            ariaLabel="Registered applications"
+            className={clients.length ? "-mx-4 md:-mx-6" : undefined}
+            rows={clients}
+            onRowActivate={setEditor}
+            rowAriaLabel={(client) => `Edit ${client.name}`}
+            rowCanActivate={() => !pending}
+            table={table}
+            layout={columnLayout}
+            emptyState={
+              <Empty className="border-2 border-dashed border-border/70 bg-card/40 py-12">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <AppWindow aria-hidden="true" />
+                  </EmptyMedia>
+                  <EmptyTitle>Your first application</EmptyTitle>
+                  <EmptyDescription>
+                    Register an application to offer Sign in with AgentZ. Users choose which
+                    resources it can use.
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            }
+          />
+        </section>
       </div>
-      <Dialog
-        open={editor !== undefined}
-        onOpenChange={(open) => {
-          if (!pending && !open) setEditor(undefined)
-        }}
-      >
-        <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle>
-              {editor === "new" ? "Create application" : "Edit application"}
-            </DialogTitle>
-            <DialogDescription>
-              Register exact callback URLs and the scopes this application may request.
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            className="space-y-5"
-            onSubmit={(event) => {
-              event.preventDefault()
-              setError(undefined)
-              startTransition(async () => {
-                const result = await saveApplicationAction(
-                  organization.id,
-                  {
-                    name,
-                    type,
-                    redirectUris: redirects
-                      .split("\n")
-                      .map((uri) => uri.trim())
-                      .filter(Boolean),
-                    scopes: selectedScopes,
-                  },
-                  editor === "new" ? undefined : editor?.clientId
-                )
-                if ("error" in result) {
-                  setError(result.error)
-                  return
-                }
-                setEditor(undefined)
-                if ("secret" in result && result.secret)
-                  setCredential({ clientId: result.clientId, secret: result.secret })
-                toast.success("Application saved")
-              })
-            }}
-          >
-            <div className="space-y-2">
-              <Label htmlFor="application-name">Name</Label>
-              <Input
-                id="application-name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                required
-                maxLength={100}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="application-type">Client type</Label>
-              <Select
-                value={type}
-                disabled={editor !== "new"}
-                onValueChange={(value: "confidential" | "browser" | "native") => setType(value)}
-              >
-                <SelectTrigger id="application-type" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="confidential">Confidential backend</SelectItem>
-                  <SelectItem value="browser">Public browser application</SelectItem>
-                  <SelectItem value="native">Public native application</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-muted-foreground text-xs">
-                Public clients use PKCE without a client secret. Keep backend secrets on your
-                server.
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="application-redirects">Callback URLs</Label>
-              <Textarea
-                id="application-redirects"
-                value={redirects}
-                onChange={(event) => setRedirects(event.target.value)}
-                required
-                placeholder="https://app.example.com/auth/agentz/callback"
-              />
-              <p className="text-muted-foreground text-xs">
-                One URL per line. Web clients need HTTPS on a public hostname. Native clients can
-                use HTTP loopback URLs or a reverse-domain URI scheme.
-              </p>
-            </div>
-            <fieldset className="space-y-3">
-              <legend className="mb-2 text-sm font-medium">Allowed scopes</legend>
-              {scopes.map((scope) => (
-                <label key={scope.value} className="flex cursor-pointer items-start gap-3">
-                  <Checkbox
-                    className="mt-0.5"
-                    checked={selectedScopes.includes(scope.value)}
-                    onCheckedChange={(checked) =>
-                      setSelectedScopes((current) =>
-                        checked === true
-                          ? [...current, scope.value]
-                          : current.filter((value) => value !== scope.value)
-                      )
-                    }
-                  />
-                  <span>
-                    <span className="text-sm font-medium">
-                      {scope.label}{" "}
-                      <code className="text-muted-foreground text-xs">{scope.value}</code>
-                    </span>
-                    <span className="text-muted-foreground block text-xs">{scope.description}</span>
-                  </span>
-                </label>
-              ))}
-            </fieldset>
-            {error ? (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            ) : null}
-            <DialogFooter>
-              <Button
-                variant="outline"
-                type="button"
-                disabled={pending}
-                onClick={() => setEditor(undefined)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={pending || !selectedScopes.length}>
-                {pending ? "Saving…" : "Save application"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {editor !== undefined ? (
+        <ApplicationEditor
+          organizationId={organizationId}
+          client={editor === "new" ? undefined : editor}
+          onClose={() => setEditor(undefined)}
+          onSaved={(credential) => {
+            setEditor(undefined)
+            setCredential(credential)
+          }}
+        />
+      ) : null}
       <Dialog
         open={credential !== undefined}
         onOpenChange={(open) => {
@@ -434,29 +421,28 @@ export function Applications({
               Copy the secret now. AgentZ stores its hash and cannot show it again.
             </DialogDescription>
           </DialogHeader>
-          <Label htmlFor="application-client-id">Client ID</Label>
-          <Input id="application-client-id" readOnly value={credential?.clientId ?? ""} />
-          <Label htmlFor="application-client-secret">Client secret</Label>
-          <div className="flex gap-2">
-            <Input
-              id="application-client-secret"
-              readOnly
-              type="password"
-              value={credential?.secret ?? ""}
-              autoComplete="off"
-            />
-            <Button
-              variant="outline"
-              aria-label="Copy client secret"
-              onClick={async () => {
-                if (!credential) return
-                await navigator.clipboard.writeText(credential.secret)
-                toast.success("Client secret copied")
-              }}
-            >
-              <Copy aria-hidden="true" />
-            </Button>
-          </div>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="application-client-id">Client ID</FieldLabel>
+              <div className="flex items-center gap-2">
+                <Input id="application-client-id" readOnly value={credential?.clientId ?? ""} />
+                <CopyButton content={credential?.clientId ?? ""} label="Copy client ID" />
+              </div>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="application-client-secret">Client secret</FieldLabel>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="application-client-secret"
+                  readOnly
+                  type="password"
+                  value={credential?.secret ?? ""}
+                  autoComplete="off"
+                />
+                <CopyButton content={credential?.secret ?? ""} label="Copy client secret" />
+              </div>
+            </Field>
+          </FieldGroup>
           <DialogFooter>
             <Button onClick={() => setCredential(undefined)}>Done</Button>
           </DialogFooter>
@@ -484,14 +470,14 @@ export function Applications({
                 startTransition(async () => {
                   if (!confirmation) return
                   if (confirmation === "delegation") {
-                    const result = await delegationSettingAction(organization.id, false)
+                    const result = await delegationSettingAction(organizationId, false)
                     if ("error" in result) {
                       toast.error(result.error)
                       return
                     }
                   } else {
                     const result = await changeApplicationAction(
-                      organization.id,
+                      organizationId,
                       confirmation.client.clientId,
                       confirmation.operation
                     )
@@ -499,7 +485,7 @@ export function Applications({
                       toast.error(result.error)
                       return
                     }
-                    if ("secret" in result && result.secret)
+                    if (result.secret)
                       setCredential({
                         clientId: confirmation.client.clientId,
                         secret: result.secret,
@@ -516,5 +502,197 @@ export function Applications({
         </DialogContent>
       </Dialog>
     </main>
+  )
+}
+
+function ApplicationValues({ values }: { values: string[] }) {
+  if (!values.length) return null
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span tabIndex={0} className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-muted-foreground">{values[0]}</span>
+          {values.length > 1 ? <Badge variant="secondary">+{values.length - 1}</Badge> : null}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-96 break-all whitespace-pre-line">
+        {values.join("\n")}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+function ApplicationEditor({
+  organizationId,
+  client,
+  onClose,
+  onSaved,
+}: {
+  organizationId: string
+  client?: Application
+  onClose: () => void
+  onSaved: (credential?: Credential) => void
+}) {
+  const [name, setName] = useState(client?.name ?? "")
+  const [redirects, setRedirects] = useState(client?.redirectUris.join("\n") ?? "")
+  const [type, setType] = useState<keyof typeof clientTypes>(
+    client?.tokenEndpointAuthMethod === "none"
+      ? client.applicationType === "native"
+        ? "native"
+        : "browser"
+      : "confidential"
+  )
+  const [selectedScopes, setSelectedScopes] = useState<string[]>(
+    client ? (client.scopes ?? []) : ["openid", "profile", "email"]
+  )
+
+  const [error, save, pending] = useActionState(async () => {
+    const result = await saveApplicationAction(
+      organizationId,
+      {
+        name,
+        type,
+        redirectUris: redirects
+          .split("\n")
+          .map((uri) => uri.trim())
+          .filter(Boolean),
+        scopes: selectedScopes,
+      },
+      client?.clientId
+    )
+    if ("error" in result) return result.error
+    onSaved(result.secret ? { clientId: result.clientId, secret: result.secret } : undefined)
+    toast.success("Application saved")
+    return undefined
+  }, undefined)
+
+  return (
+    <Sheet
+      open
+      onOpenChange={(open) => {
+        if (!pending && !open) onClose()
+      }}
+    >
+      <SheetContent size="md" className="gap-0" showCloseButton={!pending}>
+        <SheetHeader>
+          <SheetTitle>{client ? "Edit application" : "Create application"}</SheetTitle>
+          <SheetDescription>
+            Register callback URLs and the scopes this application may request.
+          </SheetDescription>
+        </SheetHeader>
+        <form className="flex min-h-0 flex-1 flex-col" action={save}>
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="application-name">Name</FieldLabel>
+                <Input
+                  id="application-name"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  required
+                  maxLength={100}
+                  disabled={pending}
+                />
+              </Field>
+              <Field data-disabled={!!client || pending}>
+                <FieldLabel htmlFor="application-type">Client type</FieldLabel>
+                <Select
+                  value={type}
+                  disabled={!!client || pending}
+                  onValueChange={(value: keyof typeof clientTypes) => setType(value)}
+                >
+                  <SelectTrigger
+                    id="application-type"
+                    className="w-full"
+                    aria-describedby="application-type-description"
+                  >
+                    <SelectValue>{clientTypes[type].label}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent position="popper" className="w-(--radix-select-trigger-width)">
+                    <SelectGroup>
+                      {Object.entries(clientTypes).map(([value, option]) => (
+                        <SelectItem key={value} value={value} textValue={option.label}>
+                          <span className="flex flex-col gap-1 py-1">
+                            <span>{option.label}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {option.description}
+                            </span>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <FieldDescription id="application-type-description">
+                  {clientTypes[type].description}
+                </FieldDescription>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="application-redirects">Callback URLs</FieldLabel>
+                <Textarea
+                  id="application-redirects"
+                  value={redirects}
+                  onChange={(event) => setRedirects(event.target.value)}
+                  required
+                  disabled={pending}
+                  aria-describedby="application-redirects-description"
+                  placeholder="https://app.example.com/auth/agentz/callback"
+                />
+                <FieldDescription id="application-redirects-description">
+                  One URL per line. Web clients need HTTPS on a public hostname. Native clients can
+                  use HTTP loopback URLs or a reverse-domain URI scheme.
+                </FieldDescription>
+              </Field>
+              <FieldSet disabled={pending}>
+                <FieldLegend variant="label">Allowed scopes</FieldLegend>
+                <FieldGroup data-slot="checkbox-group">
+                  {scopes.map((scope) => (
+                    <Field key={scope.value} orientation="horizontal">
+                      <Checkbox
+                        id={`application-scope-${scope.value}`}
+                        checked={selectedScopes.includes(scope.value)}
+                        disabled={pending}
+                        aria-describedby={`application-scope-${scope.value}-description`}
+                        onCheckedChange={(checked) =>
+                          setSelectedScopes((current) =>
+                            checked === true
+                              ? [...current, scope.value]
+                              : current.filter((value) => value !== scope.value)
+                          )
+                        }
+                      />
+                      <FieldContent>
+                        <FieldLabel htmlFor={`application-scope-${scope.value}`}>
+                          {scope.label}{" "}
+                          <code className="text-xs font-normal text-muted-foreground">
+                            {scope.value}
+                          </code>
+                        </FieldLabel>
+                        <FieldDescription id={`application-scope-${scope.value}-description`}>
+                          {scope.description}
+                        </FieldDescription>
+                      </FieldContent>
+                    </Field>
+                  ))}
+                </FieldGroup>
+              </FieldSet>
+              {error && !pending ? (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              ) : null}
+            </FieldGroup>
+          </div>
+          <SheetFooter className="shrink-0 flex-row justify-end border-t">
+            <Button variant="outline" type="button" disabled={pending} onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={pending || !selectedScopes.length}>
+              {pending ? "Saving…" : "Save application"}
+            </Button>
+          </SheetFooter>
+        </form>
+      </SheetContent>
+    </Sheet>
   )
 }

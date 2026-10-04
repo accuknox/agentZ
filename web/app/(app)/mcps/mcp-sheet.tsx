@@ -1153,7 +1153,7 @@ export function McpSheet({
         }}
         showCloseButton={oauthPopupFlowId === undefined}
       >
-        <SheetHeader className="shrink-0">
+        <SheetHeader>
           <SheetTitle>{title}</SheetTitle>
           <SheetDescription className="sr-only">{title}</SheetDescription>
         </SheetHeader>

@@ -44,7 +44,7 @@ async function AuthorizeContent({ searchParams }: PageProps<"/oauth/authorize">)
   const expiredRequest = (
     <div role="alert" className="space-y-2 rounded-lg border p-6">
       <h1 className="text-xl font-semibold">This request has expired</h1>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         Return to the application and start Sign in with AgentZ again.
       </p>
     </div>

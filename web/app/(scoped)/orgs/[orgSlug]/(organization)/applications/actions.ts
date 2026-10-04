@@ -20,6 +20,9 @@ export async function saveApplicationAction(
     revalidatePath("/orgs", "layout")
     return result
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return { error: error.issues.map((issue) => issue.message).join("\n") }
+    }
     let message = "The application could not be saved."
     if (error instanceof Error && error.message) message = error.message
     if (isAPIError(error)) {

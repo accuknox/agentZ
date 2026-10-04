@@ -38,9 +38,9 @@ export function ConnectedApplications({
     <div className="px-4 pb-8 md:px-6">
       {applications.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed p-12 text-center">
-          <AppWindow aria-hidden="true" className="text-muted-foreground size-8" />
+          <AppWindow aria-hidden="true" className="size-8 text-muted-foreground" />
           <h2 className="font-semibold">No connected applications</h2>
-          <p className="text-muted-foreground max-w-md text-sm">
+          <p className="max-w-md text-sm text-muted-foreground">
             Applications appear here after you allow them to sign in with AgentZ.
           </p>
         </div>
@@ -51,7 +51,7 @@ export function ConnectedApplications({
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="font-semibold">{application.name}</h2>
-                  <p className="text-muted-foreground text-sm">{application.owner}</p>
+                  <p className="text-sm text-muted-foreground">{application.owner}</p>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => setSelected(application)}>
                   <Unplug aria-hidden="true" />
@@ -87,7 +87,7 @@ export function ConnectedApplications({
                           {grant.selection.models
                             .filter((model) => model.workspace_id === workspaceId)
                             .map((model) => (
-                              <p key={model.id} className="text-muted-foreground break-all">
+                              <p key={model.id} className="break-all text-muted-foreground">
                                 {model.provider} / {model.model}
                               </p>
                             ))}
@@ -96,12 +96,12 @@ export function ConnectedApplications({
                             .map((connection) => (
                               <div
                                 key={connection.id}
-                                className="bg-muted/30 space-y-1 rounded-md p-3"
+                                className="space-y-1 rounded-md bg-muted/30 p-3"
                               >
                                 <h4 className="font-medium">{connection.connection}</h4>
                                 {(["tools", "prompts", "resources"] as const).map((capability) =>
                                   connection[capability].length ? (
-                                    <p key={capability} className="text-muted-foreground break-all">
+                                    <p key={capability} className="break-all text-muted-foreground">
                                       <span className="capitalize">{capability}</span>:{" "}
                                       {connection[capability].join(", ")}
                                     </p>
@@ -115,7 +115,7 @@ export function ConnectedApplications({
                   </details>
                 ) : null
               )}
-              <p className="text-muted-foreground text-xs">
+              <p className="text-xs text-muted-foreground">
                 Connected {new Date(application.createdAt).toLocaleDateString()}
               </p>
             </article>

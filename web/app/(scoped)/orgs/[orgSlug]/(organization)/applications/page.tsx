@@ -35,13 +35,13 @@ async function ApplicationsContent({ params }: PageProps<"/orgs/[orgSlug]/applic
       .where(eq(schema.oauthClients.referenceId, result.organization.id))
       .orderBy(asc(schema.oauthClients.createdAt)),
     getDB()
-      .select()
+      .select({ enabled: schema.organizationDelegation.enabled })
       .from(schema.organizationDelegation)
       .where(eq(schema.organizationDelegation.organizationId, result.organization.id)),
   ])
   return (
     <Applications
-      organization={result.organization}
+      organizationId={result.organization.id}
       clients={clients}
       delegationEnabled={setting?.enabled ?? false}
     />

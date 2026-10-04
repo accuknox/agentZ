@@ -659,7 +659,7 @@ export function OAuthSecretSheet({
         }}
         showCloseButton={oauthPopupFlowId === undefined}
       >
-        <SheetHeader className="shrink-0">
+        <SheetHeader>
           <SheetTitle>New OAuth secret</SheetTitle>
           <SheetDescription className="sr-only">New OAuth secret</SheetDescription>
         </SheetHeader>

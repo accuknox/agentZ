@@ -1087,7 +1087,7 @@ export function ProviderSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent size="half" className="h-full overflow-y-auto">
-        <SheetHeader className="shrink-0">
+        <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             {provider ? (
               <ProviderIcon provider={provider.catalog_provider} className="size-4" />

@@ -405,12 +405,12 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
 
   return (
     <Sheet open={open} onOpenChange={onSheetOpenChange}>
-      <SheetContent size="half" className="h-full overflow-y-auto px-4 pt-3 pb-4">
-        <SheetHeader className="shrink-0 gap-0 px-0 py-0">
+      <SheetContent size="half" className="h-full overflow-y-auto">
+        <SheetHeader>
           <SheetTitle>{title}</SheetTitle>
           <SheetDescription>{description}</SheetDescription>
         </SheetHeader>
-        <form action={submitAction} className="flex flex-1 flex-col gap-4 px-0 pt-1 pb-0">
+        <form action={submitAction} className="flex flex-1 flex-col gap-4 px-4 pb-4">
           <FieldGroup>
             <Controller
               name="name"

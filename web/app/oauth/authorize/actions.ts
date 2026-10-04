@@ -54,8 +54,8 @@ export async function approveConsentAction(
   } catch (error) {
     return {
       error:
-        error instanceof Error
-          ? error.message || "Access could not be granted. Start again from the application."
+        error instanceof Error && error.message
+          ? error.message
           : "Access could not be granted. Start again from the application.",
     }
   }

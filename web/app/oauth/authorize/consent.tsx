@@ -88,17 +88,17 @@ export function Consent({
   return (
     <div className="space-y-6">
       <header className="space-y-3">
-        <div className="bg-primary/5 text-primary flex size-12 items-center justify-center rounded-xl">
+        <div className="flex size-12 items-center justify-center rounded-xl bg-primary/5 text-primary">
           <LockKeyhole aria-hidden="true" className="size-6" />
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">Connect to {client.name}</h1>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           {client.owner ? `${client.owner}'s application` : "This application"} wants to connect to
           your AgentZ account.
         </p>
-        <div className="bg-muted/30 rounded-lg border px-3 py-2 text-sm">
+        <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm">
           <span className="font-medium">{user.name}</span>
-          <span className="text-muted-foreground ml-2 break-all">{user.email}</span>
+          <span className="ml-2 break-all text-muted-foreground">{user.email}</span>
         </div>
       </header>
       <section aria-label="Requested account access" className="space-y-3">
@@ -107,7 +107,7 @@ export function Consent({
           .filter((scope) => scopes.includes(scope.value))
           .map((scope) => (
             <div key={scope.value} className="flex items-start gap-2 text-sm">
-              <Check aria-hidden="true" className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+              <Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
               <span>{scope.label}</span>
             </div>
           ))}
@@ -119,7 +119,7 @@ export function Consent({
               <Layers3 aria-hidden="true" className="size-4" />
               Choose resource access
             </h2>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               Only the capabilities you select below will be available to {client.name}. Usage is
               charged to the resource owner.
             </p>
@@ -210,14 +210,14 @@ export function Consent({
                     {workspaces.find((workspace) => workspace.id === id)?.name}
                   </h3>
                   {(!inference || !catalog.models.length) && (!mcp || !catalog.mcp.length) ? (
-                    <p className="text-muted-foreground text-sm">
+                    <p className="text-sm text-muted-foreground">
                       No capabilities are available for delegation in this workspace. You need both
                       Use and Delegate permissions.
                     </p>
                   ) : null}
                   {inference && catalog.models.length ? (
                     <fieldset className="space-y-2">
-                      <legend className="text-muted-foreground mb-2 text-xs font-medium tracking-wider uppercase">
+                      <legend className="mb-2 text-xs font-medium tracking-wider text-muted-foreground uppercase">
                         Models
                       </legend>
                       {catalog.models.map((model) => (
@@ -243,7 +243,7 @@ export function Consent({
                             <span className="block text-sm font-medium break-all">
                               {model.model}
                             </span>
-                            <span className="text-muted-foreground text-xs">{model.provider}</span>
+                            <span className="text-xs text-muted-foreground">{model.provider}</span>
                           </span>
                         </label>
                       ))}
@@ -254,13 +254,13 @@ export function Consent({
                         <details key={connection.id} className="rounded-md border" open>
                           <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
                             {connection.connection}{" "}
-                            <span className="text-muted-foreground font-normal">MCP</span>
+                            <span className="font-normal text-muted-foreground">MCP</span>
                           </summary>
                           <div className="space-y-4 border-t p-3">
                             {(["tools", "prompts", "resources"] as const).map((capability) =>
                               connection[capability].length ? (
                                 <fieldset key={capability} className="space-y-2">
-                                  <legend className="text-muted-foreground mb-2 text-xs capitalize">
+                                  <legend className="mb-2 text-xs text-muted-foreground capitalize">
                                     {capability}
                                   </legend>
                                   {connection[capability].map((name) => (
@@ -295,7 +295,7 @@ export function Consent({
             </>
           )}
           {selectedCount > 0 ? (
-            <div className="bg-muted/30 space-y-2 rounded-lg p-3">
+            <div className="space-y-2 rounded-lg bg-muted/30 p-3">
               <p className="text-sm font-medium">
                 {selectedCount} selected {selectedCount === 1 ? "capability" : "capabilities"}
               </p>
@@ -318,7 +318,7 @@ export function Consent({
           ) : null}
         </section>
       ) : null}
-      <div className="text-muted-foreground flex items-start gap-2 text-sm">
+      <div className="flex items-start gap-2 text-sm text-muted-foreground">
         <ShieldCheck aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
         <p>You can disconnect this application at any time in Settings → Connected applications.</p>
       </div>
@@ -397,7 +397,7 @@ export function Consent({
           <ArrowRight aria-hidden="true" />
         </Button>
       </div>
-      <p className="text-muted-foreground text-center text-xs break-all">
+      <p className="text-center text-xs break-all text-muted-foreground">
         You’ll return to {client.callback || "your application"}.
       </p>
     </div>
@@ -438,7 +438,7 @@ export function ResumeAuthorization({
     }
   }, [oauthQuery, consent])
   return (
-    <p role={error ? "alert" : "status"} className="text-muted-foreground text-sm">
+    <p role={error ? "alert" : "status"} className="text-sm text-muted-foreground">
       {error ?? "Continuing authorization…"}
     </p>
   )

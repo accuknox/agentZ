@@ -189,7 +189,7 @@ export function SessionsTable({
   return (
     <AdminDataGrid
       ariaLabel="Account sessions"
-      emptyState={<p className="text-muted-foreground py-8 text-center">No sessions found.</p>}
+      emptyState={<p className="py-8 text-center text-muted-foreground">No sessions found.</p>}
       layout={layout}
       rows={sessions}
       table={table}

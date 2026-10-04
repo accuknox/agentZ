@@ -347,20 +347,20 @@ export function NavSessionsSkeleton({
     <div className="flex min-h-0 flex-1 flex-col" data-tour="loading-chats">
       <div
         aria-hidden="true"
-        className="flex h-9 items-center gap-1 px-[var(--sidebar-content-inset)] pb-1"
+        className="flex h-9 items-center gap-1 px-(--sidebar-content-inset) pb-1"
       >
         <div className="flex h-8 min-w-0 flex-1 items-center gap-2 px-2">
-          <Skeleton className="bg-sidebar-border size-4 shrink-0 rounded-sm" />
-          <Skeleton className="bg-sidebar-border h-4 w-20" />
+          <Skeleton className="size-4 shrink-0 rounded-sm bg-sidebar-border" />
+          <Skeleton className="h-4 w-20 bg-sidebar-border" />
         </div>
         <div className="grid size-8 shrink-0 place-items-center">
-          <Skeleton className="bg-sidebar-border size-4 rounded-sm" />
+          <Skeleton className="size-4 rounded-sm bg-sidebar-border" />
         </div>
         <div className="grid size-8 shrink-0 place-items-center">
-          <Skeleton className="bg-sidebar-border size-4 rounded-sm" />
+          <Skeleton className="size-4 rounded-sm bg-sidebar-border" />
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-hidden px-[var(--sidebar-content-inset)] pb-2">
+      <div className="min-h-0 flex-1 overflow-hidden px-(--sidebar-content-inset) pb-2">
         <SessionListSkeleton groupBy={groupBy} coding={coding} />
       </div>
     </div>
@@ -732,9 +732,9 @@ function NavSessionsContent({
   )
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center gap-1 px-[var(--sidebar-content-inset)] pb-1">
+      <div className="flex items-center gap-1 px-(--sidebar-content-inset) pb-1">
         <Button
-          className="text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground h-8 min-w-0 flex-1 justify-start gap-2 rounded-md px-2 text-sm font-medium shadow-none"
+          className="h-8 min-w-0 flex-1 justify-start gap-2 rounded-md px-2 text-sm font-medium text-sidebar-muted-foreground shadow-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground"
           data-tour="new-chat"
           onClick={async (event) => {
             if (projectActions) {
@@ -793,7 +793,7 @@ function NavSessionsContent({
           aria-label="Search chats"
           data-tour="search-chats"
           aria-pressed={searchOpen}
-          className="text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground aria-pressed:bg-sidebar-accent aria-pressed:text-sidebar-accent-foreground size-8 rounded-md border-0 bg-transparent shadow-none"
+          className="size-8 rounded-md border-0 bg-transparent text-sidebar-muted-foreground shadow-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground aria-pressed:bg-sidebar-accent aria-pressed:text-sidebar-accent-foreground"
           onClick={() => setSearchOpen(true)}
           size="icon-sm"
           variant="ghost"
@@ -808,7 +808,7 @@ function NavSessionsContent({
                   ? "Chat list options"
                   : `Chat list options, ${activeFilterCount} active filters`
               }
-              className="text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground aria-expanded:bg-sidebar-accent aria-expanded:text-sidebar-accent-foreground relative size-8 rounded-md border-0 bg-transparent shadow-none"
+              className="relative size-8 rounded-md border-0 bg-transparent text-sidebar-muted-foreground shadow-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground aria-expanded:bg-sidebar-accent aria-expanded:text-sidebar-accent-foreground"
               size="icon-sm"
               variant="ghost"
             >
@@ -816,7 +816,7 @@ function NavSessionsContent({
               {activeFilterCount > 0 ? (
                 <span
                   aria-hidden="true"
-                  className="bg-primary text-primary-foreground pointer-events-none absolute -top-1 -right-1 z-10 grid h-4 min-w-4 place-items-center rounded-full px-1 text-[10px] font-semibold"
+                  className="pointer-events-none absolute -top-1 -right-1 z-10 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground"
                 >
                   {activeFilterCount}
                 </span>
@@ -843,7 +843,7 @@ function NavSessionsContent({
                   <DropdownMenuSubTrigger>
                     <Layers3 aria-hidden="true" className="text-muted-foreground" />
                     <span className="min-w-0 flex-1">Group by</span>
-                    <span className="text-muted-foreground truncate capitalize">
+                    <span className="truncate text-muted-foreground capitalize">
                       {preferences.group_by === "status" ? "State" : preferences.group_by}
                     </span>
                   </DropdownMenuSubTrigger>
@@ -857,7 +857,7 @@ function NavSessionsContent({
                     <span className="flex min-w-0 flex-1 items-center gap-1.5">
                       Filters
                       {activeFilterCount > 0 ? (
-                        <span className="bg-foreground/10 text-muted-foreground grid h-4 min-w-4 place-items-center rounded px-1 text-[10px] font-medium tabular-nums">
+                        <span className="grid h-4 min-w-4 place-items-center rounded bg-foreground/10 px-1 text-[10px] font-medium text-muted-foreground tabular-nums">
                           {activeFilterCount}
                         </span>
                       ) : null}
@@ -880,15 +880,15 @@ function NavSessionsContent({
       </div>
 
       {searchOpen ? (
-        <div className="relative px-[var(--sidebar-content-inset)] pb-1">
+        <div className="relative px-(--sidebar-content-inset) pb-1">
           <Search
             aria-hidden="true"
-            className="text-sidebar-muted-foreground absolute top-2 left-[calc(var(--sidebar-content-inset)+0.625rem)] size-4"
+            className="absolute top-2 left-[calc(var(--sidebar-content-inset)+0.625rem)] size-4 text-sidebar-muted-foreground"
           />
           <Input
             aria-controls="chat-session-results"
             aria-label="Search chat titles"
-            className="border-sidebar-border bg-sidebar-control-surface h-8 pr-8 pl-8"
+            className="h-8 border-sidebar-border bg-sidebar-control-surface pr-8 pl-8"
             onChange={(event) => setSearchText(event.target.value)}
             onKeyDown={(event) => {
               if (event.key !== "Escape") return
@@ -902,7 +902,7 @@ function NavSessionsContent({
           />
           <Button
             aria-label="Clear search"
-            className="text-sidebar-muted-foreground hover:text-sidebar-accent-foreground absolute top-0 right-[var(--sidebar-content-inset)] size-8"
+            className="absolute top-0 right-(--sidebar-content-inset) size-8 text-sidebar-muted-foreground hover:text-sidebar-accent-foreground"
             onClick={() => {
               setSearchOpen(false)
               setSearchText("")
@@ -920,16 +920,16 @@ function NavSessionsContent({
         aria-busy={
           !searchInvalid && (sessions.isPending || searchSettling || sessions.isFetchingNextPage)
         }
-        className="min-h-0 flex-1 overflow-y-auto px-[var(--sidebar-content-inset)] pb-2"
+        className="min-h-0 flex-1 overflow-y-auto px-(--sidebar-content-inset) pb-2"
         id="chat-session-results"
       >
         {searchTooShort ? (
-          <p className="text-sidebar-muted-foreground px-2 py-3 text-sm">
+          <p className="px-2 py-3 text-sm text-sidebar-muted-foreground">
             Type at least 3 characters
           </p>
         ) : null}
         {searchTooLong ? (
-          <p className="text-sidebar-muted-foreground px-2 py-3 text-sm">
+          <p className="px-2 py-3 text-sm text-sidebar-muted-foreground">
             Search cannot exceed 200 characters
           </p>
         ) : null}
@@ -951,7 +951,7 @@ function NavSessionsContent({
         !searchSettling &&
         preferences.group_by === "none" &&
         rows.length === 0 ? (
-          <div className="text-sidebar-muted-foreground px-2 py-8 text-center text-sm">
+          <div className="px-2 py-8 text-center text-sm text-sidebar-muted-foreground">
             <Users className="mx-auto mb-2 size-5 opacity-60" aria-hidden="true" />
             No chats found
           </div>
@@ -1041,7 +1041,7 @@ function NavSessionsContent({
         !searchSettling &&
         preferences.group_by !== "none" &&
         groups.length === 0 ? (
-          <div className="text-sidebar-muted-foreground px-2 py-8 text-center text-sm">
+          <div className="px-2 py-8 text-center text-sm text-sidebar-muted-foreground">
             <Users className="mx-auto mb-2 size-5 opacity-60" aria-hidden="true" />
             No chats found
           </div>
@@ -1051,7 +1051,7 @@ function NavSessionsContent({
         !searchSettling &&
         sessions.hasNextPage ? (
           <Button
-            className="text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground mt-2 w-full"
+            className="mt-2 w-full text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground"
             disabled={sessions.isFetchingNextPage}
             onClick={() => void sessions.fetchNextPage()}
             size="sm"
@@ -1168,11 +1168,11 @@ function SessionGroup({
 
   return (
     <Collapsible className="group/chat-group" onOpenChange={onOpenChange} open={expanded}>
-      <div className="hover:bg-sidebar-accent relative flex h-8 items-center rounded-md transition-colors">
+      <div className="relative flex h-8 items-center rounded-md transition-colors hover:bg-sidebar-accent">
         <CollapsibleTrigger asChild>
           <button
             aria-label={`${expanded ? "Collapse" : "Expand"} ${group.label}`}
-            className="focus-visible:ring-sidebar-ring text-sidebar-muted-foreground hover:text-sidebar-accent-foreground flex h-full min-w-0 flex-1 items-center gap-2 rounded-md px-[var(--sidebar-row-content-inset)] text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset"
+            className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-md px-(--sidebar-row-content-inset) text-sm font-medium text-sidebar-muted-foreground outline-none hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-inset"
             type="button"
           >
             {group.project ? (
@@ -1188,14 +1188,14 @@ function SessionGroup({
             {group.status === "busy" ? (
               <LoaderCircle
                 aria-hidden="true"
-                className="text-primary size-4 shrink-0 motion-safe:animate-spin"
+                className="size-4 shrink-0 text-primary motion-safe:animate-spin"
               />
             ) : null}
             {group.status === "retry" ? (
-              <RotateCcw aria-hidden="true" className="text-destructive size-4 shrink-0" />
+              <RotateCcw aria-hidden="true" className="size-4 shrink-0 text-destructive" />
             ) : null}
             {group.status === "idle" ? (
-              <CirclePause aria-hidden="true" className="text-primary size-4 shrink-0" />
+              <CirclePause aria-hidden="true" className="size-4 shrink-0 text-primary" />
             ) : null}
             <span className="min-w-0 flex-1 truncate text-left">{group.label}</span>
             <ChevronRight
@@ -1255,7 +1255,7 @@ function SessionGroup({
         {agentName ? (
           <Button
             aria-label={`New chat with ${agentName}`}
-            className="text-sidebar-muted-foreground hover:text-sidebar-accent-foreground mr-1 size-7 shrink-0"
+            className="mr-1 size-7 shrink-0 text-sidebar-muted-foreground hover:text-sidebar-accent-foreground"
             onClick={() => {
               const query = new URLSearchParams({ agent: agentName, draft: nanoid() })
               window.history.pushState(null, "", `${workspacePath}/sessions/new?${query}`)
@@ -1274,7 +1274,7 @@ function SessionGroup({
             Loading chats in {group.label}
           </span>
         ) : null}
-        <SidebarMenuSub className="[&>li]:before:border-sidebar-border [&>li:last-child]:after:bg-sidebar mx-1.5 translate-x-0 gap-0.5 px-1.5 py-0 [&>li]:relative [&>li]:before:absolute [&>li]:before:top-1/2 [&>li]:before:right-full [&>li]:before:w-1.5 [&>li]:before:border-t [&>li:last-child]:after:absolute [&>li:last-child]:after:top-1/2 [&>li:last-child]:after:right-[calc(100%+0.375rem)] [&>li:last-child]:after:bottom-0 [&>li:last-child]:after:w-px">
+        <SidebarMenuSub className="mx-1.5 translate-x-0 gap-0.5 px-1.5 py-0 [&>li]:relative [&>li]:before:absolute [&>li]:before:top-1/2 [&>li]:before:right-full [&>li]:before:w-1.5 [&>li]:before:border-t [&>li]:before:border-sidebar-border [&>li:last-child]:after:absolute [&>li:last-child]:after:top-1/2 [&>li:last-child]:after:right-[calc(100%+0.375rem)] [&>li:last-child]:after:bottom-0 [&>li:last-child]:after:w-px [&>li:last-child]:after:bg-sidebar">
           {pages.isError ? (
             <SidebarMenuSubItem>
               <Alert variant="destructive" className="px-2 py-3">
@@ -1285,7 +1285,7 @@ function SessionGroup({
           ) : null}
           {!pages.isPending && !pages.isError && sessions.length === 0 ? (
             <SidebarMenuSubItem>
-              <p className="text-sidebar-muted-foreground px-2 py-3 text-sm">
+              <p className="px-2 py-3 text-sm text-sidebar-muted-foreground">
                 {search ? "No matching chats" : "No chats yet"}
               </p>
             </SidebarMenuSubItem>
@@ -1322,7 +1322,7 @@ function SessionGroup({
           {pages.hasNextPage ? (
             <SidebarMenuSubItem>
               <Button
-                className="text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground w-full"
+                className="w-full text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground"
                 disabled={pages.isFetchingNextPage}
                 onClick={() => void pages.fetchNextPage()}
                 size="sm"
@@ -1377,21 +1377,21 @@ function SessionListSkeleton({
         {Array.from({ length: searching ? 2 : 3 }, (_, groupIndex) => (
           <div key={`group-${groupIndex}`}>
             <div className="flex h-8 items-center rounded-md">
-              <div className="flex h-full min-w-0 flex-1 items-center gap-2 px-[var(--sidebar-row-content-inset)]">
-                <Skeleton className="bg-sidebar-border size-4 shrink-0 rounded-sm" />
+              <div className="flex h-full min-w-0 flex-1 items-center gap-2 px-(--sidebar-row-content-inset)">
+                <Skeleton className="size-4 shrink-0 rounded-sm bg-sidebar-border" />
                 <div className="min-w-0 flex-1">
-                  <Skeleton className="bg-sidebar-border h-4 w-24" />
+                  <Skeleton className="h-4 w-24 bg-sidebar-border" />
                 </div>
-                <Skeleton className="bg-sidebar-border size-4 shrink-0 rounded-sm" />
+                <Skeleton className="size-4 shrink-0 rounded-sm bg-sidebar-border" />
               </div>
               {groupBy === "agent" ? (
                 <div className="mr-1 grid size-7 shrink-0 place-items-center">
-                  <Skeleton className="bg-sidebar-border size-4 rounded-sm" />
+                  <Skeleton className="size-4 rounded-sm bg-sidebar-border" />
                 </div>
               ) : null}
             </div>
             {searching ? (
-              <SidebarMenuSub className="[&>li]:before:border-sidebar-border [&>li:last-child]:after:bg-sidebar mx-1.5 translate-x-0 gap-0.5 px-1.5 py-0 [&>li]:relative [&>li]:before:absolute [&>li]:before:top-1/2 [&>li]:before:right-full [&>li]:before:w-1.5 [&>li]:before:border-t [&>li:last-child]:after:absolute [&>li:last-child]:after:top-1/2 [&>li:last-child]:after:right-[calc(100%+0.375rem)] [&>li:last-child]:after:bottom-0 [&>li:last-child]:after:w-px">
+              <SidebarMenuSub className="mx-1.5 translate-x-0 gap-0.5 px-1.5 py-0 [&>li]:relative [&>li]:before:absolute [&>li]:before:top-1/2 [&>li]:before:right-full [&>li]:before:w-1.5 [&>li]:before:border-t [&>li]:before:border-sidebar-border [&>li:last-child]:after:absolute [&>li:last-child]:after:top-1/2 [&>li:last-child]:after:right-[calc(100%+0.375rem)] [&>li:last-child]:after:bottom-0 [&>li:last-child]:after:w-px [&>li:last-child]:after:bg-sidebar">
                 <SessionCardSkeleton showAgent={groupBy !== "agent"} coding={coding} />
               </SidebarMenuSub>
             ) : null}
@@ -1409,44 +1409,44 @@ function SessionCardSkeleton({ showAgent, coding }: { showAgent: boolean; coding
     <li aria-hidden="true" className="list-none rounded-md py-0.5">
       <div
         className={cn(
-          "px-[var(--sidebar-row-content-inset)] py-[var(--sidebar-content-inset)]",
+          "px-(--sidebar-row-content-inset) py-(--sidebar-content-inset)",
           coding ? "h-20" : "h-16"
         )}
       >
         {groupedByAgent ? (
           <div className="grid h-full min-w-0 grid-cols-[minmax(0,1fr)_max-content] grid-rows-[1.25rem_1.5rem] gap-x-2 gap-y-1">
             <div className="row-span-2 min-w-0 space-y-1">
-              <Skeleton className="bg-sidebar-border h-4 w-full" />
-              <Skeleton className="bg-sidebar-border h-4 w-2/3" />
+              <Skeleton className="h-4 w-full bg-sidebar-border" />
+              <Skeleton className="h-4 w-2/3 bg-sidebar-border" />
             </div>
-            <Skeleton className="bg-sidebar-border h-3 w-8 self-center justify-self-end" />
-            <Skeleton className="bg-sidebar-border ring-sidebar size-6 rounded-full ring-2" />
+            <Skeleton className="h-3 w-8 self-center justify-self-end bg-sidebar-border" />
+            <Skeleton className="size-6 rounded-full bg-sidebar-border ring-2 ring-sidebar" />
           </div>
         ) : (
           <>
             <div className="flex h-5 min-w-0 items-center gap-1.5">
-              <Skeleton className="bg-sidebar-border size-3.5 shrink-0 rounded-sm" />
+              <Skeleton className="size-3.5 shrink-0 rounded-sm bg-sidebar-border" />
               <div className="min-w-0 flex-1">
-                <Skeleton className="bg-sidebar-border h-3 w-20" />
+                <Skeleton className="h-3 w-20 bg-sidebar-border" />
               </div>
-              <Skeleton className="bg-sidebar-border h-3 w-8 shrink-0" />
+              <Skeleton className="h-3 w-8 shrink-0 bg-sidebar-border" />
             </div>
             <div className={cn("mt-1 flex min-w-0 items-center gap-2", coding ? "h-5" : "h-6")}>
               <div className="min-w-0 flex-1">
-                <Skeleton className="bg-sidebar-border h-4 w-3/4" />
+                <Skeleton className="h-4 w-3/4 bg-sidebar-border" />
               </div>
               {!coding ? (
                 <div className="flex shrink-0 -space-x-[7px]">
-                  <Skeleton className="bg-sidebar-border ring-sidebar size-6 rounded-full ring-2" />
+                  <Skeleton className="size-6 rounded-full bg-sidebar-border ring-2 ring-sidebar" />
                 </div>
               ) : null}
             </div>
             {coding ? (
               <div className="flex h-5 min-w-0 items-center gap-2">
                 <div className="min-w-0 flex-1">
-                  <Skeleton className="bg-sidebar-border h-3 w-2/3" />
+                  <Skeleton className="h-3 w-2/3 bg-sidebar-border" />
                 </div>
-                <Skeleton className="bg-sidebar-border h-3 w-[7ch] shrink-0" />
+                <Skeleton className="h-3 w-[7ch] shrink-0 bg-sidebar-border" />
               </div>
             ) : null}
           </>
@@ -1459,15 +1459,15 @@ function SessionCardSkeleton({ showAgent, coding }: { showAgent: boolean; coding
 function AgentBadge({ status }: { status: AgentStatus | undefined }) {
   if (status && agentIsGettingReady(status)) {
     return (
-      <span className={status === "DEGRADED" ? "text-destructive shrink-0" : "shrink-0"}>
+      <span className={status === "DEGRADED" ? "shrink-0 text-destructive" : "shrink-0"}>
         <Spinner aria-label="Getting ready" className="size-3" />
       </span>
     )
   }
   if (status === "IDLE") {
-    return <Bot aria-label="Idle" className="text-primary size-4 shrink-0" role="status" />
+    return <Bot aria-label="Idle" className="size-4 shrink-0 text-primary" role="status" />
   }
-  return <Bot aria-label="Unavailable" className="text-destructive size-4 shrink-0" role="status" />
+  return <Bot aria-label="Unavailable" className="size-4 shrink-0 text-destructive" role="status" />
 }
 
 function SessionCheckout({ session, workspaceId }: { session: ChatSession; workspaceId: string }) {
@@ -1494,11 +1494,11 @@ function SessionCheckout({ session, workspaceId }: { session: ChatSession; works
 
   return (
     <div className="flex h-5 min-w-0 items-center gap-2 text-xs">
-      <div className="text-sidebar-muted-foreground min-w-0 flex-1 truncate">
+      <div className="min-w-0 flex-1 truncate text-sidebar-muted-foreground">
         {threadPending ? (
           <Skeleton
             aria-label="Loading branch"
-            className="bg-sidebar-border h-3 w-2/3 motion-reduce:animate-none"
+            className="h-3 w-2/3 bg-sidebar-border motion-reduce:animate-none"
             role="status"
           />
         ) : (
@@ -1508,7 +1508,7 @@ function SessionCheckout({ session, workspaceId }: { session: ChatSession; works
       {diffPending ? (
         <Skeleton
           aria-label="Loading diff stats"
-          className="bg-sidebar-border h-3 w-[7ch] shrink-0 motion-reduce:animate-none"
+          className="h-3 w-[7ch] shrink-0 bg-sidebar-border motion-reduce:animate-none"
           role="status"
         />
       ) : diff ? (
@@ -1591,7 +1591,7 @@ function SessionCard({
     session.status === "idle" ? (
       formatShortAge(new Date(session.updated_at).getTime())
     ) : (
-      <span className="text-info flex items-center gap-1 font-medium" role="status">
+      <span className="flex items-center gap-1 font-medium text-info" role="status">
         <LoaderCircle aria-hidden="true" className="size-3 motion-safe:animate-spin" />
         Working
       </span>
@@ -1610,7 +1610,7 @@ function SessionCard({
           />
         ))}
         {session.participants.length > 3 ? (
-          <span className="bg-sidebar-control-surface text-sidebar-muted-foreground ring-sidebar grid size-6 place-items-center rounded-full text-[10px] ring-2">
+          <span className="grid size-6 place-items-center rounded-full bg-sidebar-control-surface text-[10px] text-sidebar-muted-foreground ring-2 ring-sidebar">
             +{session.participants.length - 3}
           </span>
         ) : null}
@@ -1634,7 +1634,7 @@ function SessionCard({
       <ContextMenuTrigger asChild>
         <li
           className={cn(
-            "group/session text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-within:bg-sidebar-accent focus-within:text-sidebar-accent-foreground data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground relative list-none rounded-lg py-0.5 transition-colors",
+            "group/session relative list-none rounded-lg py-0.5 text-sidebar-muted-foreground transition-colors focus-within:bg-sidebar-accent focus-within:text-sidebar-accent-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground",
             active && "bg-sidebar-accent text-sidebar-accent-foreground"
           )}
         >
@@ -1642,12 +1642,12 @@ function SessionCard({
             onClick={() => setOpenMobile(false)}
             aria-label={`Open ${session.title}`}
             aria-current={active ? "page" : undefined}
-            className="focus-visible:ring-sidebar-ring absolute inset-0 rounded-[inherit] outline-none focus-visible:ring-2 focus-visible:ring-inset"
+            className="absolute inset-0 rounded-[inherit] outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-inset"
             href={href}
           />
           <div
             className={cn(
-              "pointer-events-none relative px-[var(--sidebar-row-content-inset)] py-[var(--sidebar-content-inset)]",
+              "pointer-events-none relative px-(--sidebar-row-content-inset) py-(--sidebar-content-inset)",
               coding ? "h-20" : "h-16"
             )}
           >
@@ -1655,13 +1655,13 @@ function SessionCard({
               <div className="grid h-full min-w-0 grid-cols-[minmax(0,1fr)_max-content] grid-rows-[1.25rem_1.5rem] gap-x-2 gap-y-1">
                 <h3
                   className={cn(
-                    "text-sidebar-foreground/80 row-span-2 min-w-0 overflow-hidden text-sm leading-5 font-semibold",
+                    "row-span-2 min-w-0 overflow-hidden text-sm leading-5 font-semibold text-sidebar-foreground/80",
                     active && "text-sidebar-foreground"
                   )}
                 >
                   <span className="line-clamp-2">{session.title}</span>
                 </h3>
-                <div className="text-sidebar-muted-foreground self-center justify-self-end text-xs tabular-nums">
+                <div className="self-center justify-self-end text-xs text-sidebar-muted-foreground tabular-nums">
                   {status}
                 </div>
                 <div className="self-center justify-self-end">{avatars}</div>
@@ -1669,18 +1669,18 @@ function SessionCard({
             ) : (
               <>
                 <div className="flex h-5 min-w-0 items-center gap-1.5 text-xs">
-                  <Bot aria-hidden="true" className="text-primary size-3.5 shrink-0" />
-                  <span className="text-sidebar-muted-foreground min-w-0 flex-1 truncate font-semibold">
+                  <Bot aria-hidden="true" className="size-3.5 shrink-0 text-primary" />
+                  <span className="min-w-0 flex-1 truncate font-semibold text-sidebar-muted-foreground">
                     {session.agent_name}
                   </span>
-                  <div className="text-sidebar-muted-foreground shrink-0 tabular-nums">
+                  <div className="shrink-0 text-sidebar-muted-foreground tabular-nums">
                     {status}
                   </div>
                 </div>
                 <div className={cn("mt-1 flex min-w-0 items-center gap-2", coding ? "h-5" : "h-6")}>
                   <h3
                     className={cn(
-                      "text-sidebar-foreground/80 relative min-w-0 flex-1 overflow-hidden text-sm leading-5 font-semibold",
+                      "relative min-w-0 flex-1 overflow-hidden text-sm leading-5 font-semibold text-sidebar-foreground/80",
                       active && "text-sidebar-foreground"
                     )}
                   >
@@ -1698,7 +1698,7 @@ function SessionCard({
                         aria-hidden="true"
                         className="absolute inset-y-0 left-0 hidden w-max items-center motion-safe:group-hover/session:flex"
                       >
-                        <span className="animate-session-title-marquee flex w-max items-center gap-8 whitespace-nowrap">
+                        <span className="flex w-max animate-session-title-marquee items-center gap-8 whitespace-nowrap">
                           <span>{session.title}</span>
                           <span>{session.title}</span>
                         </span>

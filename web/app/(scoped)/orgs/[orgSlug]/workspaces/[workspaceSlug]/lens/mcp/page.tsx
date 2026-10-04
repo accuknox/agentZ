@@ -181,7 +181,7 @@ function ErrorPanel({ message }: { message: string }) {
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <div className="text-muted-foreground flex h-48 items-center justify-center text-sm">
+    <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
       {message}
     </div>
   )

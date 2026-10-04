@@ -49,7 +49,7 @@ export function WebhookTriggersTable({
               <span className="font-medium">{row.original.apiKeyName || "Deleted key"}</span>
               {row.original.deleted ? <Badge variant="outline">Deleted</Badge> : null}
             </div>
-            <code className="text-muted-foreground text-xs">{row.original.apiKeyDisplay}</code>
+            <code className="text-xs text-muted-foreground">{row.original.apiKeyDisplay}</code>
           </div>
         ),
       },
@@ -79,7 +79,7 @@ export function WebhookTriggersTable({
   return (
     <AdminDataGrid
       ariaLabel="Webhook triggers"
-      emptyState={<p className="text-muted-foreground py-8 text-center">No webhooks found.</p>}
+      emptyState={<p className="py-8 text-center text-muted-foreground">No webhooks found.</p>}
       layout={layout}
       pagination={<TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />}
       rowHref={(row) =>

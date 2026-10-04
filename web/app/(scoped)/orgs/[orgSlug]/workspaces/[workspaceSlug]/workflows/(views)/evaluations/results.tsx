@@ -86,7 +86,7 @@ export function ResultsSkeleton({ rows = 2 }: { rows?: number }) {
                 className={cn(
                   index > 1 && "text-right",
                   name === "Score" &&
-                    "bg-primary/5 border-primary/10 text-primary border-x font-semibold"
+                    "border-x border-primary/10 bg-primary/5 font-semibold text-primary"
                 )}
               >
                 {name}
@@ -101,7 +101,7 @@ export function ResultsSkeleton({ rows = 2 }: { rows?: number }) {
                 <TableCell
                   key={name}
                   className={
-                    name === "Score" ? "bg-primary/5 border-primary/10 border-x" : undefined
+                    name === "Score" ? "border-x border-primary/10 bg-primary/5" : undefined
                   }
                 >
                   <Skeleton
@@ -130,18 +130,18 @@ function ChartsSkeleton() {
   return (
     <div
       aria-hidden
-      className="bg-muted/30 grid min-w-0 grid-cols-1 gap-2 p-2 xl:grid-cols-2 motion-reduce:[&_[data-slot=skeleton]]:animate-none"
+      className="grid min-w-0 grid-cols-1 gap-2 bg-muted/30 p-2 xl:grid-cols-2 motion-reduce:[&_[data-slot=skeleton]]:animate-none"
     >
       {["Score", "Score vs. usage", "Model comparison"].map((title, index) => (
         <section
           key={title}
           className={
             index === 2
-              ? "bg-card h-80 overflow-hidden rounded-lg border xl:col-span-2"
-              : "bg-card h-80 overflow-hidden rounded-lg border"
+              ? "h-80 overflow-hidden rounded-lg border bg-card xl:col-span-2"
+              : "h-80 overflow-hidden rounded-lg border bg-card"
           }
         >
-          <header className="from-card to-muted/20 flex h-12 items-center gap-2.5 border-b bg-gradient-to-r px-3.5">
+          <header className="flex h-12 items-center gap-2.5 border-b bg-gradient-to-r from-card to-muted/20 px-3.5">
             <Skeleton className="size-4" />
             <h2 className="text-sm font-semibold">{title}</h2>
             {index > 0 ? <Skeleton className="ml-auto h-7 w-32" /> : null}
@@ -222,11 +222,11 @@ export function Results({
   return (
     <div className="flex min-w-0 flex-col">
       <div className="flex flex-wrap items-center gap-3 px-4 py-3 text-xs sm:px-6">
-        <span className="text-muted-foreground inline-flex items-center gap-2">
+        <span className="inline-flex items-center gap-2 text-muted-foreground">
           <Scale aria-hidden className="size-4" />
           Judge
           <ProviderIcons
-            className="text-foreground size-4 shrink-0"
+            className="size-4 shrink-0 text-foreground"
             providers={
               providerBrands[
                 JSON.stringify([
@@ -253,7 +253,7 @@ export function Results({
               <DialogTitle>Evaluation inputs</DialogTitle>
             </DialogHeader>
             <div className="min-w-0 overflow-y-auto p-1">
-              <pre className="bg-muted overflow-auto rounded-md p-3 font-mono text-sm">
+              <pre className="overflow-auto rounded-md bg-muted p-3 font-mono text-sm">
                 <code>{JSON.stringify(evaluation.request.inputs, null, 2)}</code>
               </pre>
             </div>
@@ -270,7 +270,7 @@ export function Results({
             <DialogHeader>
               <DialogTitle>Mathematical Formula</DialogTitle>
             </DialogHeader>
-            <code className="border-success/40 to-muted from-success/5 rounded-md border-2 border-dotted bg-linear-to-br p-3 text-sm leading-relaxed">
+            <code className="rounded-md border-2 border-dotted border-success/40 bg-linear-to-br from-success/5 to-muted p-3 text-sm leading-relaxed">
               Score = 100 x{" "}
               <span className="font-semibold text-[color-mix(in_oklab,var(--success)_80%,var(--foreground))]">
                 Q
@@ -278,7 +278,7 @@ export function Results({
               x{" "}
               <span className="whitespace-nowrap">
                 (0.80 + 0.10
-                <span className="text-warning-foreground font-semibold">J</span>
+                <span className="font-semibold text-warning-foreground">J</span>
                 {" + "}0.10
                 <span className="font-semibold text-[color-mix(in_oklab,var(--info)_80%,var(--foreground))]">
                   D
@@ -287,30 +287,30 @@ export function Results({
               </span>
             </code>
             <div className="flex flex-col gap-3">
-              <p className="text-muted-foreground text-xs">Where,</p>
+              <p className="text-xs text-muted-foreground">Where,</p>
               <dl className="flex flex-col gap-3">
                 <div className="flex items-center gap-3">
-                  <dt className="bg-success/10 flex size-7 shrink-0 items-center justify-center rounded-md font-mono font-semibold text-[color-mix(in_oklab,var(--success)_80%,var(--foreground))]">
+                  <dt className="flex size-7 shrink-0 items-center justify-center rounded-md bg-success/10 font-mono font-semibold text-[color-mix(in_oklab,var(--success)_80%,var(--foreground))]">
                     Q
                   </dt>
                   <dd>
-                    <span className="text-muted-foreground mr-3">=</span>Judged correctness
+                    <span className="mr-3 text-muted-foreground">=</span>Judged correctness
                   </dd>
                 </div>
                 <div className="flex items-center gap-3">
-                  <dt className="bg-warning/10 text-warning-foreground flex size-7 shrink-0 items-center justify-center rounded-md font-mono font-semibold">
+                  <dt className="flex size-7 shrink-0 items-center justify-center rounded-md bg-warning/10 font-mono font-semibold text-warning-foreground">
                     J
                   </dt>
                   <dd>
-                    <span className="text-muted-foreground mr-3">=</span>Judged efficiency
+                    <span className="mr-3 text-muted-foreground">=</span>Judged efficiency
                   </dd>
                 </div>
                 <div className="flex items-center gap-3">
-                  <dt className="bg-info/10 flex size-7 shrink-0 items-center justify-center rounded-md font-mono font-semibold text-[color-mix(in_oklab,var(--info)_80%,var(--foreground))]">
+                  <dt className="flex size-7 shrink-0 items-center justify-center rounded-md bg-info/10 font-mono font-semibold text-[color-mix(in_oklab,var(--info)_80%,var(--foreground))]">
                     D
                   </dt>
                   <dd>
-                    <span className="text-muted-foreground mr-3">=</span>Measured efficiency
+                    <span className="mr-3 text-muted-foreground">=</span>Measured efficiency
                   </dd>
                 </div>
               </dl>
@@ -320,7 +320,7 @@ export function Results({
       </div>
       {pending ? (
         <div
-          className="bg-muted/40 border-primary/50 motion-safe:animate-in motion-safe:fade-in mx-4 mb-4 rounded-lg border-2 border-dashed p-4 sm:mx-6"
+          className="mx-4 mb-4 rounded-lg border-2 border-dashed border-primary/50 bg-muted/40 p-4 motion-safe:animate-in motion-safe:fade-in sm:mx-6"
           role="status"
           aria-live="polite"
         >
@@ -329,7 +329,7 @@ export function Results({
               <Spinner className="text-primary motion-reduce:animate-none" />
               {progressLabel}
             </span>
-            <span className="text-muted-foreground text-xs tabular-nums">
+            <span className="text-xs text-muted-foreground tabular-nums">
               {completed}/{rows.length} finished
             </span>
           </div>
@@ -354,9 +354,9 @@ export function Results({
               <div
                 key={label}
                 data-active={count > 0}
-                className="group text-muted-foreground data-[active=true]:text-foreground flex items-center gap-2 text-xs"
+                className="group flex items-center gap-2 text-xs text-muted-foreground data-[active=true]:text-foreground"
               >
-                <Icon className="group-data-[active=true]:text-primary size-3.5 shrink-0 motion-safe:group-data-[active=true]:animate-pulse" />
+                <Icon className="size-3.5 shrink-0 group-data-[active=true]:text-primary motion-safe:group-data-[active=true]:animate-pulse" />
                 <span>{label}</span>
                 <span className="tabular-nums">{count}</span>
               </div>
@@ -384,7 +384,7 @@ export function Results({
                 className={cn(
                   index > 1 && "text-right",
                   name === "Score" &&
-                    "bg-primary/5 border-primary/10 text-primary border-x font-semibold"
+                    "border-x border-primary/10 bg-primary/5 font-semibold text-primary"
                 )}
               >
                 {name}
@@ -427,7 +427,7 @@ export function Results({
                 key={row.run_name}
                 tabIndex={0}
                 aria-label={`View ${row.model.label} execution`}
-                className="focus-visible:outline-ring cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
+                className="cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
                 onClick={() => {
                   setSelected(row.run_name)
                   setTab("judgment")
@@ -464,7 +464,7 @@ export function Results({
                     badge
                   )}
                 </TableCell>
-                <TableCell className="bg-primary/5 border-primary/10 border-x text-right tabular-nums">
+                <TableCell className="border-x border-primary/10 bg-primary/5 text-right tabular-nums">
                   {row.state === "judging" || row.state === "running" ? (
                     <Skeleton className="ml-auto h-7 w-14 rounded-md motion-reduce:animate-none" />
                   ) : row.score !== undefined ? (
@@ -473,7 +473,7 @@ export function Results({
                       className={cn(
                         "h-7 min-w-14 rounded-md border-transparent text-sm font-semibold",
                         row.score >= 90
-                          ? "text-background bg-[color-mix(in_oklab,var(--success)_80%,var(--foreground))]"
+                          ? "bg-[color-mix(in_oklab,var(--success)_80%,var(--foreground))] text-background"
                           : row.score >= 70
                             ? "bg-success/10 text-[color-mix(in_oklab,var(--success)_75%,var(--foreground))]"
                             : row.score >= 50
@@ -485,7 +485,7 @@ export function Results({
                     </Badge>
                   ) : row.judgment && waitingForMetrics ? (
                     <Tooltip>
-                      <TooltipTrigger className="text-muted-foreground text-xs">
+                      <TooltipTrigger className="text-xs text-muted-foreground">
                         Awaiting runs
                       </TooltipTrigger>
                       <TooltipContent>
@@ -574,7 +574,7 @@ export function Results({
                       </Alert>
                     ) : null}
                     {execution.judgment && execution.score === undefined ? (
-                      <p className="text-muted-foreground py-3 text-sm">
+                      <p className="py-3 text-sm text-muted-foreground">
                         {waitingForMetrics
                           ? "Judgment is complete. The score waits for all workflow measurements."
                           : "Score unavailable. Measurements are incomplete."}
@@ -587,17 +587,17 @@ export function Results({
                         ) : null}
                         <div className="flex flex-wrap gap-6">
                           <div>
-                            <p className="text-muted-foreground text-xs">Correctness</p>
+                            <p className="text-xs text-muted-foreground">Correctness</p>
                             <p className="text-2xl tabular-nums">
                               {execution.judgment.correctness}
-                              <span className="text-muted-foreground text-sm">/4</span>
+                              <span className="text-sm text-muted-foreground">/4</span>
                             </p>
                           </div>
                           <div>
-                            <p className="text-muted-foreground text-xs">Efficiency</p>
+                            <p className="text-xs text-muted-foreground">Efficiency</p>
                             <p className="text-2xl tabular-nums">
                               {execution.judgment.efficiency}
-                              <span className="text-muted-foreground text-sm">/4</span>
+                              <span className="text-sm text-muted-foreground">/4</span>
                             </p>
                           </div>
                         </div>
@@ -631,7 +631,7 @@ export function Results({
                         {execution.judgment.limitations.length ? (
                           <section>
                             <h3 className="mb-2 text-sm font-medium">Limitations</h3>
-                            <ul className="text-muted-foreground flex list-disc flex-col gap-2 pl-5 text-sm">
+                            <ul className="flex list-disc flex-col gap-2 pl-5 text-sm text-muted-foreground">
                               {execution.judgment.limitations.map((item, index) => (
                                 <li key={index}>{item}</li>
                               ))}
@@ -640,7 +640,7 @@ export function Results({
                         ) : null}
                       </div>
                     ) : (
-                      <p className="text-muted-foreground py-6 text-sm">No judgment available</p>
+                      <p className="py-6 text-sm text-muted-foreground">No judgment available</p>
                     )}
                   </div>
                 </TabsContent>
@@ -649,7 +649,7 @@ export function Results({
                   className="m-0 min-h-0 lg:h-full lg:overflow-hidden"
                 >
                   {!evidenceReady ? (
-                    <p className="text-muted-foreground p-6 text-sm">
+                    <p className="p-6 text-sm text-muted-foreground">
                       Transcript available after execution.
                     </p>
                   ) : evidence.isPending ? (
@@ -667,7 +667,7 @@ export function Results({
                       </Alert>
                     </div>
                   ) : !recordedExecution?.transcript?.length ? (
-                    <p className="text-muted-foreground p-6 text-sm">No transcript available</p>
+                    <p className="p-6 text-sm text-muted-foreground">No transcript available</p>
                   ) : (
                     <Transcript sessions={recordedExecution.transcript} reference={reference} />
                   )}

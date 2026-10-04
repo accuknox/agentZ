@@ -125,7 +125,7 @@ export function SecretSheet({
         onOpenChangeAction(nextOpen)
       }}
     >
-      <SheetContent className="h-full overflow-y-auto sm:w-[50vw]! sm:max-w-none!">
+      <SheetContent size="half" className="h-full overflow-y-auto">
         <SheetHeader className="shrink-0">
           <SheetTitle>New secret</SheetTitle>
           <SheetDescription>

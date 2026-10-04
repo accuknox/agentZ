@@ -129,7 +129,7 @@ export function WorkspaceNavigation({
 
   return (
     <>
-      <SidebarHeader className="min-h-[var(--workspace-topbar-height)] flex-row items-center p-2">
+      <SidebarHeader className="min-h-(--workspace-topbar-height) flex-row items-center p-2">
         {settings ? (
           <SidebarMenu>
             <SidebarMenuItem>
@@ -164,7 +164,7 @@ export function WorkspaceNavigation({
                 <p className="truncate font-medium" title={workspace.name}>
                   {workspace.name}
                 </p>
-                <p className="text-muted-foreground truncate text-xs">Workspace settings</p>
+                <p className="truncate text-xs text-muted-foreground">Workspace settings</p>
               </div>
             </div>
             <SidebarGroup className="px-2 py-2">

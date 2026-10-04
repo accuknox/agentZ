@@ -97,7 +97,7 @@ export function createSecretColumns(
 
         return (
           <span
-            className="text-muted-foreground block min-w-0 truncate font-mono text-xs"
+            className="block min-w-0 truncate font-mono text-xs text-muted-foreground"
             title={hosts}
           >
             {hosts}

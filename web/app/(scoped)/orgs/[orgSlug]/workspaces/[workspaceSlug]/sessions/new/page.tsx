@@ -52,7 +52,7 @@ export default async function NewChatPage({
       <main className="grid h-full flex-1 place-items-center px-6">
         <div className="max-w-sm text-center">
           <h1 className="text-xl font-semibold">No agent is ready for chat</h1>
-          <p className="text-muted-foreground mt-2 text-sm">
+          <p className="mt-2 text-sm text-muted-foreground">
             Create an agent or ask a workspace administrator for access.
           </p>
         </div>

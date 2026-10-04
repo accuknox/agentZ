@@ -69,7 +69,7 @@ function TableSkeleton() {
         Loading providers...
       </span>
       <div aria-hidden className="flex flex-1 flex-col">
-        <div className="bg-muted/25 flex h-9 items-center gap-6 border-b px-4">
+        <div className="flex h-9 items-center gap-6 border-b bg-muted/25 px-4">
           {["w-32", "w-24", "w-20", "w-16", "w-20", "w-16"].map((width, index) => (
             <Skeleton key={index} className={`h-3 ${width}`} />
           ))}

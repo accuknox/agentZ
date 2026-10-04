@@ -367,7 +367,7 @@ export function Evaluations({
           providerBrands={providerBrands}
         />
       ) : !history.error && !detail.error ? (
-        <div className="text-muted-foreground flex h-48 items-center justify-center text-sm">
+        <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
           No evaluations yet
         </div>
       ) : null}
@@ -421,7 +421,7 @@ export function Evaluations({
           }
         }}
       >
-        <SheetContent className="flex w-full flex-col data-[side=right]:sm:max-w-xl">
+        <SheetContent className="flex w-full flex-col sm:max-w-xl">
           <SheetHeader>
             <SheetTitle>{retrying ? "Judge again" : "New evaluation"}</SheetTitle>
             <SheetDescription>{workflow.title}</SheetDescription>
@@ -442,7 +442,7 @@ export function Evaluations({
                   ) : null}
                   <Field>
                     <FieldLabel>
-                      <Scale className="text-muted-foreground size-4" />
+                      <Scale className="size-4 text-muted-foreground" />
                       Judge
                     </FieldLabel>
                     <Skeleton className="h-8 w-full" />
@@ -493,7 +493,7 @@ export function Evaluations({
               </Button>
             </Alert>
           ) : !catalog.data?.length ? (
-            <p className="text-muted-foreground p-4 text-sm">No models available for this agent.</p>
+            <p className="p-4 text-sm text-muted-foreground">No models available for this agent.</p>
           ) : (
             <EvaluationForm
               key={retrying ? `judge-${id}` : "new"}
@@ -545,16 +545,16 @@ function EvaluationLabel({ evaluation }: { evaluation: WorkflowEvaluationSummary
         {date} · {names.join(", ") || "No models"}
       </span>
       <CalendarClock aria-hidden className="text-muted-foreground" />
-      <span aria-hidden className="text-muted-foreground shrink-0">
+      <span aria-hidden className="shrink-0 text-muted-foreground">
         {date}
       </span>
-      <span aria-hidden className="text-muted-foreground shrink-0">
+      <span aria-hidden className="shrink-0 text-muted-foreground">
         ·
       </span>
       <span ref={ref} aria-hidden className="relative flex min-w-0 flex-1 overflow-hidden">
         <span className="truncate">{names.slice(0, count).join(", ") || "No models"}</span>
         {remaining > 0 ? (
-          <span className="text-muted-foreground shrink-0">, … +{remaining}</span>
+          <span className="shrink-0 text-muted-foreground">, … +{remaining}</span>
         ) : null}
         <span className="pointer-events-none invisible absolute top-0 left-0 flex flex-col items-start">
           {names.map((_, index) => (
@@ -735,7 +735,7 @@ function EvaluationForm({
           ) : null}
           <Field data-invalid={errors.some((error) => error.field === "judge")}>
             <FieldLabel htmlFor="evaluation-judge">
-              <Scale className="text-muted-foreground size-4" />
+              <Scale className="size-4 text-muted-foreground" />
               Judge
             </FieldLabel>
             <Select
@@ -784,10 +784,10 @@ function EvaluationForm({
               <Field data-invalid={errors.some((error) => error.field === "concurrency")}>
                 <div className="flex items-center justify-between gap-2">
                   <FieldLabel id="evaluation-concurrency-label" htmlFor="evaluation-concurrency">
-                    <Layers className="text-muted-foreground size-4" />
+                    <Layers className="size-4 text-muted-foreground" />
                     Parallel runs
                   </FieldLabel>
-                  <output className="text-muted-foreground text-sm tabular-nums">
+                  <output className="text-sm text-muted-foreground tabular-nums">
                     {concurrency}
                   </output>
                 </div>
@@ -816,7 +816,7 @@ function EvaluationForm({
               </Field>
               <Field data-invalid={errors.some((error) => error.field === "timeout_seconds")}>
                 <FieldLabel htmlFor="evaluation-timeout">
-                  <Timer className="text-muted-foreground size-4" />
+                  <Timer className="size-4 text-muted-foreground" />
                   Run timeout (seconds)
                 </FieldLabel>
                 <Input
@@ -957,7 +957,7 @@ function EvaluationForm({
         </FieldGroup>
       </div>
       <SheetFooter className="border-t">
-        <p className="text-muted-foreground text-xs">
+        <p className="text-xs text-muted-foreground">
           {retry
             ? "Uses saved transcripts. Workflows will not run again."
             : "Runs can change shared files and services."}

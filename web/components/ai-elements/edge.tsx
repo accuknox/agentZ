@@ -176,7 +176,7 @@ function EdgeLabel({ label, x, y }: { label: ReactNode; x: number; y: number }) 
   return (
     <EdgeLabelRenderer>
       <div
-        className="bg-background/95 text-muted-foreground ring-border pointer-events-none absolute rounded px-2 py-1 text-xs shadow-sm ring-1"
+        className="pointer-events-none absolute rounded bg-background/95 px-2 py-1 text-xs text-muted-foreground shadow-sm ring-1 ring-border"
         style={{
           transform: `translate(-50%, -50%) translate(${x}px, ${y}px)`,
         }}

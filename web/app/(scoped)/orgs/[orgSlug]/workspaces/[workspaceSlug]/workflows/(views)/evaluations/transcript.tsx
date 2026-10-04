@@ -48,7 +48,7 @@ export function Transcript({
     stepId: reference?.part_id ?? reference?.message_id,
   }))
   const session = sessions.find((item) => item.session_id === selection.sessionId) ?? sessions[0]
-  if (!session) return <p className="text-muted-foreground p-6 text-sm">No transcript available.</p>
+  if (!session) return <p className="p-6 text-sm text-muted-foreground">No transcript available.</p>
 
   const steps = session.messages.flatMap<TranscriptStep>((message) => {
     const assistant = message.info.role === "assistant" ? message.info : undefined
@@ -183,7 +183,7 @@ export function Transcript({
               />
             ))
         ) : (
-          <p className="text-muted-foreground px-5 py-10 text-sm">No messages recorded.</p>
+          <p className="px-5 py-10 text-sm text-muted-foreground">No messages recorded.</p>
         )
       }
     >
@@ -307,7 +307,7 @@ function TranscriptPart({ part, role }: { part: Part; role: "user" | "assistant"
           ) : part.state.status === "error" ? (
             <TraceContentPanel title="Error" text={part.state.error} />
           ) : (
-            <p className="text-muted-foreground text-sm">Tool {part.state.status} when recorded.</p>
+            <p className="text-sm text-muted-foreground">Tool {part.state.status} when recorded.</p>
           )}
         </>
       )
@@ -322,7 +322,7 @@ function TranscriptPart({ part, role }: { part: Part; role: "user" | "assistant"
     case "retry":
       return <TraceContentPanel title={`Retry ${part.attempt}`} text={part.error.data.message} />
     case "compaction":
-      return <p className="text-muted-foreground text-xs">Context compacted</p>
+      return <p className="text-xs text-muted-foreground">Context compacted</p>
     case "step-start":
     case "step-finish":
       return null

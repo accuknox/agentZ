@@ -148,7 +148,7 @@ export function ScheduleTriggersTable({
   return (
     <AdminDataGrid
       ariaLabel="Workflow schedules"
-      emptyState={<p className="text-muted-foreground py-8 text-center">No schedules found.</p>}
+      emptyState={<p className="py-8 text-center text-muted-foreground">No schedules found.</p>}
       layout={layout}
       pagination={<TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />}
       rowHref={(schedule) =>

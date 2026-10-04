@@ -95,7 +95,7 @@ export default function AgentInstructions({
   const [source, setSource] = useState(false)
 
   return (
-    <div className="agent-instructions focus-within:border-border group-data-[invalid=true]/field:border-destructive border-b border-transparent transition-colors">
+    <div className="agent-instructions border-b border-transparent transition-colors group-data-[invalid=true]/field:border-destructive focus-within:border-border">
       {source ? (
         <Textarea
           ref={editorRef}
@@ -114,7 +114,7 @@ export default function AgentInstructions({
           suppressHtmlProcessing
           readOnly={readOnly}
           placeholder={
-            <span className="text-muted-foreground block space-y-3">
+            <span className="block space-y-3 text-muted-foreground">
               For example:
               <br />
               You help our product team turn customer interviews into research notes. Group

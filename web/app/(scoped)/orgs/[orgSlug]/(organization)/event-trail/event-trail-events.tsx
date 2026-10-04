@@ -73,7 +73,7 @@ export function EventTrailEvents({
         cell: ({ row }) => (
           <>
             <span className="font-mono text-sm font-medium">{row.original.action}</span>
-            <span className="text-muted-foreground mt-1 block text-xs md:hidden">
+            <span className="mt-1 block text-xs text-muted-foreground md:hidden">
               {row.original.actor.name ??
                 row.original.actor.email ??
                 row.original.actor.id ??
@@ -93,7 +93,7 @@ export function EventTrailEvents({
             >
               {row.original.target.name ?? row.original.target.id}
             </span>
-            <span className="text-muted-foreground text-xs">{row.original.target.type}</span>
+            <span className="text-xs text-muted-foreground">{row.original.target.type}</span>
           </>
         ),
       },
@@ -144,7 +144,7 @@ export function EventTrailEvents({
           ariaLabel={
             workspace ? `${workspace.name} event trail events` : "Organization event trail events"
           }
-          emptyState={<p className="text-muted-foreground py-8 text-center">No events found.</p>}
+          emptyState={<p className="py-8 text-center text-muted-foreground">No events found.</p>}
           layout={layout}
           onRowActivate={setSelected}
           pagination={
@@ -158,7 +158,7 @@ export function EventTrailEvents({
           table={table}
         />
       </div>
-      <SheetContent className="gap-0 overflow-hidden p-0 sm:w-[35rem]! sm:max-w-none!">
+      <SheetContent size="md" className="gap-0 overflow-hidden p-0">
         <SheetTitle className="sr-only">Event trail event</SheetTitle>
         <div className="min-h-0 flex-1 overflow-y-auto">
           {selected ? (

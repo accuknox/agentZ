@@ -57,23 +57,23 @@ export function EffectiveAccessNode({ data }: NodeProps<Node<EffectiveAccessNode
     <div
       aria-label={`${data.kind}: ${data.label}`}
       className={cn(
-        "bg-card text-card-foreground relative grid min-h-20 w-[220px] gap-1 rounded-xl border p-3 text-left shadow-sm transition-opacity motion-reduce:transition-none",
+        "relative grid min-h-20 w-[220px] gap-1 rounded-xl border bg-card p-3 text-left text-card-foreground shadow-sm transition-opacity motion-reduce:transition-none",
         data.kind === "permission" && "border-primary/30",
-        data.selected && "ring-primary ring-2",
+        data.selected && "ring-2 ring-primary",
         data.muted && "opacity-25"
       )}
       role="group"
     >
       <Handle position={Position.Left} type="target" />
       <Handle position={Position.Right} type="source" />
-      <div className="text-muted-foreground flex min-w-0 items-center gap-2 text-xs font-medium tracking-normal">
+      <div className="flex min-w-0 items-center gap-2 text-xs font-medium tracking-normal text-muted-foreground">
         {icon}
         {data.kind}
       </div>
       <div className="truncate text-sm font-semibold" title={data.label}>
         {data.label}
       </div>
-      <div className="text-muted-foreground truncate text-xs" title={data.detail}>
+      <div className="truncate text-xs text-muted-foreground" title={data.detail}>
         {data.detail}
       </div>
     </div>
@@ -177,7 +177,7 @@ export function EffectiveAccessGraph<
     <EffectiveAccessFrame
       canvas={
         <div className="flex h-full min-h-[34rem] min-w-0 flex-col">
-          <div className="bg-background/95 flex items-center gap-3 border-b p-3">
+          <div className="flex items-center gap-3 border-b bg-background/95 p-3">
             <Select
               onValueChange={(value) => {
                 setScope(value)
@@ -204,7 +204,7 @@ export function EffectiveAccessGraph<
               </SelectContent>
             </Select>
           </div>
-          <div className="bg-sidebar relative min-h-0 flex-1 overflow-hidden">
+          <div className="relative min-h-0 flex-1 overflow-hidden bg-sidebar">
             <Canvas
               className="bg-transparent"
               edges={edges}

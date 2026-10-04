@@ -97,7 +97,7 @@ export function AssignmentForm(props: AssignmentFormProps) {
 
       <div>
         <h2 className="text-lg font-medium">Assignments</h2>
-        <p className="text-muted-foreground mt-1 text-sm">
+        <p className="mt-1 text-sm text-muted-foreground">
           {props.kind === "member"
             ? `Manage the direct Roles and Teams assigned to ${props.name}.`
             : `Manage the Roles granted through ${props.name}.`}

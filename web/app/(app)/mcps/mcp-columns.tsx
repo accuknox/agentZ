@@ -100,7 +100,7 @@ export function createMcpColumns(actions: {
       accessorFn: (row) => row.endpoint_url,
       cell: ({ row }) => (
         <span
-          className="text-muted-foreground block min-w-0 truncate"
+          className="block min-w-0 truncate text-muted-foreground"
           title={row.original.endpoint_url}
         >
           {row.original.endpoint_url}

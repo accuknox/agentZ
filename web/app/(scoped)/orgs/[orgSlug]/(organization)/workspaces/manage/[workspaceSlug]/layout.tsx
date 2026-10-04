@@ -72,7 +72,7 @@ async function ManageWorkspaceContent({
                 </h1>
                 <StatusBadge status={scope.workspace.state} />
               </div>
-              <p className="text-muted-foreground mt-1 text-sm">Workspace administration</p>
+              <p className="mt-1 text-sm text-muted-foreground">Workspace administration</p>
             </div>
           </div>
           {scope.workspace.state === "ready" ? (

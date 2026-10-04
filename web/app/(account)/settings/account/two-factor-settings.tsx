@@ -297,7 +297,7 @@ export function TwoFactorSettings({
         <div className="flex min-h-20 items-center justify-between gap-4 py-3 text-sm">
           <div className="min-w-0">
             <div className="font-medium">Authenticator app</div>
-            <div className="text-muted-foreground mt-1">
+            <div className="mt-1 text-muted-foreground">
               Use one-time codes from an authenticator app.
             </div>
           </div>
@@ -402,7 +402,7 @@ function SetupDialog({
 
   return (
     <>
-      <div className="bg-popover flex shrink-0 items-start justify-between gap-4 p-4">
+      <div className="flex shrink-0 items-start justify-between gap-4 bg-popover p-4">
         <DialogHeader className="min-w-0 pt-1">
           <DialogTitle>Connect your authenticator app</DialogTitle>
           <DialogDescription className="sr-only">
@@ -431,8 +431,8 @@ function SetupDialog({
               {secretMode ? (
                 <div className="flex flex-col gap-4">
                   <p className="font-medium">First, add this secret to your authenticator app.</p>
-                  <div className="border-border flex min-h-44 flex-col items-center justify-center gap-4 rounded-lg border p-6">
-                    <div className="border-border bg-background w-full rounded-md border px-4 py-3 text-center font-mono text-lg break-all">
+                  <div className="flex min-h-44 flex-col items-center justify-center gap-4 rounded-lg border border-border p-6">
+                    <div className="w-full rounded-md border border-border bg-background px-4 py-3 text-center font-mono text-lg break-all">
                       {secret}
                     </div>
                     <CopyButton content={secret} label="Copy code" />
@@ -446,7 +446,7 @@ function SetupDialog({
                   <p className="font-medium">
                     First, scan this QR code with your authenticator app.
                   </p>
-                  <div className="border-border flex min-h-80 flex-col items-center justify-center gap-3 rounded-lg border p-6">
+                  <div className="flex min-h-80 flex-col items-center justify-center gap-3 rounded-lg border border-border p-6">
                     <div className="bg-background p-3 text-black">
                       <QRCode value={setup.totpURI} className="size-56" />
                     </div>
@@ -669,7 +669,7 @@ function BackupCodes({ codes }: { codes: string[] }) {
           Download
         </Button>
       </div>
-      <div className="border-border bg-muted/30 grid grid-cols-2 gap-2 rounded-md border p-3 font-mono text-xs sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-2 rounded-md border border-border bg-muted/30 p-3 font-mono text-xs sm:grid-cols-3">
         {codes.map((code) => (
           <span key={code}>{code}</span>
         ))}

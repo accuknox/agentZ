@@ -266,7 +266,7 @@ export function CodingTerminal({
   }, [visible])
   return (
     <Tabs value={active?.id ?? ""} onValueChange={setSelected} className="h-full min-h-0 gap-0">
-      <div className="bg-muted/20 flex h-9 shrink-0 items-center gap-1 border-b pr-1">
+      <div className="flex h-9 shrink-0 items-center gap-1 border-b bg-muted/20 pr-1">
         <TabsPrimitive.List
           aria-label="Terminals"
           className="flex h-full min-w-0 flex-1 scrollbar-none items-stretch overflow-x-auto overflow-y-hidden"
@@ -278,11 +278,11 @@ export function CodingTerminal({
               <div
                 key={pty.id}
                 data-active={active?.id === pty.id}
-                className="group/terminal text-muted-foreground hover:text-foreground data-[active=true]:bg-background data-[active=true]:text-foreground after:bg-primary border-border/60 relative flex max-w-48 min-w-32 shrink-0 items-center border-r pr-1 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:opacity-0 data-[active=true]:after:opacity-100"
+                className="group/terminal relative flex max-w-48 min-w-32 shrink-0 items-center border-r border-border/60 pr-1 text-muted-foreground after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary after:opacity-0 hover:text-foreground data-[active=true]:bg-background data-[active=true]:text-foreground data-[active=true]:after:opacity-100"
               >
                 <TabsPrimitive.Trigger
                   value={pty.id}
-                  className="focus-visible:ring-ring flex h-full min-w-0 flex-1 items-center gap-2 px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-inset"
+                  className="flex h-full min-w-0 flex-1 items-center gap-2 px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                   onFocus={(event) =>
                     event.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" })
                   }
@@ -316,7 +316,7 @@ export function CodingTerminal({
         </Button>
       </div>
       {pending && sessions.length === 0 ? (
-        <div role="status" className="text-muted-foreground flex items-center gap-2 p-3 text-xs">
+        <div role="status" className="flex items-center gap-2 p-3 text-xs text-muted-foreground">
           <Spinner /> Opening terminal...
         </div>
       ) : null}
@@ -545,11 +545,11 @@ function TerminalSession({
     }
   }, [agentName, directory, workspaceId, ptyID, attempt])
   return (
-    <div className="bg-background flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 flex-col bg-background">
       {status === "Connecting..." ? (
         <div
           role="status"
-          className="text-muted-foreground flex shrink-0 items-center gap-2 px-3 py-1 text-xs"
+          className="flex shrink-0 items-center gap-2 px-3 py-1 text-xs text-muted-foreground"
         >
           <Spinner /> {status}
         </div>
@@ -564,7 +564,7 @@ function TerminalSession({
       ) : null}
       <div
         ref={element}
-        className="bg-background text-foreground min-h-0 flex-1 overflow-hidden p-2 font-mono [font-stretch:normal]"
+        className="min-h-0 flex-1 overflow-hidden bg-background p-2 font-mono text-foreground [font-stretch:normal]"
       />
     </div>
   )

@@ -126,7 +126,7 @@ export function SignUpForm({
     <div className="flex flex-col gap-7">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold tracking-tight">Create your account</h1>
-        <p className="text-muted-foreground text-sm text-pretty">
+        <p className="text-sm text-pretty text-muted-foreground">
           A workspace for you and your agents.
         </p>
       </div>
@@ -275,7 +275,7 @@ export function SignUpForm({
           />
         </div>
       ) : null}
-      <p className="text-muted-foreground text-center text-sm">
+      <p className="text-center text-sm text-muted-foreground">
         Already have an account?{" "}
         <Link
           className="text-foreground underline underline-offset-4"

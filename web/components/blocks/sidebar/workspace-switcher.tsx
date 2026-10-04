@@ -49,7 +49,7 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
               <span className="truncate font-medium" title={scope.organization.name}>
                 {scope.organization.name}
               </span>
-              <span className="text-muted-foreground truncate text-xs">No workspace access</span>
+              <span className="truncate text-xs text-muted-foreground">No workspace access</span>
             </span>
           </SidebarMenuButton>
         </SidebarMenuItem>
@@ -77,7 +77,7 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
           <span className="block truncate text-sm font-medium" title={scope.organization.name}>
             {scope.organization.name}
           </span>
-          <span className="text-muted-foreground block text-xs">Organization</span>
+          <span className="block text-xs text-muted-foreground">Organization</span>
         </span>
       </>
     )
@@ -112,7 +112,7 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
                   >
                     {active?.name ?? scope.organization.name}
                   </span>
-                  <span className="text-muted-foreground truncate text-xs">
+                  <span className="truncate text-xs text-muted-foreground">
                     {active ? "Workspace" : "Organization"}
                   </span>
                 </span>
@@ -130,7 +130,7 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
               {scope.canEnterOrganization ? (
                 <button
                   aria-current={scope.kind === "organization" ? "page" : undefined}
-                  className="hover:bg-muted/60 focus-visible:ring-ring/50 aria-[current=page]:bg-muted/60 mx-1 mt-1 flex w-[calc(100%-0.5rem)] min-w-0 items-center gap-2.5 rounded-lg px-2 py-2 text-left outline-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mx-1 mt-1 flex w-[calc(100%-0.5rem)] min-w-0 items-center gap-2.5 rounded-lg px-2 py-2 text-left outline-none hover:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-[current=page]:bg-muted/60"
                   disabled={isPending}
                   onClick={() => {
                     close()
@@ -148,7 +148,7 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
                 </div>
               )}
               <Command
-                className="border-border/60 rounded-none! border-t [&_[data-slot=command-input-wrapper]]:pt-0"
+                className="rounded-none! border-t border-border/60 [&_[data-slot=command-input-wrapper]]:pt-0"
                 onValueChange={setSelected}
                 value={selected}
               >
@@ -158,7 +158,7 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
                   <CommandGroup heading="Workspaces">
                     {scope.workspaces.map((workspace) => (
                       <CommandItem
-                        className="data-[checked=true]:bg-muted/70 h-auto cursor-pointer gap-2.5 rounded-lg px-2 py-2"
+                        className="h-auto cursor-pointer gap-2.5 rounded-lg px-2 py-2 data-[checked=true]:bg-muted/70"
                         key={workspace.id}
                         data-checked={workspace.id === active?.id}
                         disabled={isPending || workspace.id === active?.id}
@@ -174,14 +174,14 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
                           )
                         }}
                       >
-                        <span className="bg-muted text-muted-foreground flex size-7 shrink-0 items-center justify-center rounded-md">
+                        <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
                           <PanelsTopLeft aria-hidden="true" className="size-3.5" />
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate font-medium" title={workspace.name}>
                             {workspace.name}
                           </span>
-                          <span className="text-muted-foreground block text-xs capitalize">
+                          <span className="block text-xs text-muted-foreground capitalize">
                             {workspace.state}
                           </span>
                         </span>
@@ -191,10 +191,10 @@ export function WorkspaceSwitcher({ scope }: { scope: SidebarScope }) {
                 </CommandList>
               </Command>
               {scope.canCreateWorkspace ? (
-                <div className="border-border/60 border-t p-1">
+                <div className="border-t border-border/60 p-1">
                   <Button asChild className="h-9 w-full justify-start gap-2.5 px-2" variant="ghost">
                     <Link href={`${root}/workspaces/new` as Route} onClick={close}>
-                      <Plus aria-hidden="true" className="text-muted-foreground size-4" />
+                      <Plus aria-hidden="true" className="size-4 text-muted-foreground" />
                       Create Workspace
                     </Link>
                   </Button>

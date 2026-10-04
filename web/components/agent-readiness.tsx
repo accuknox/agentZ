@@ -90,7 +90,7 @@ export function useAgentReadiness(
 
 export function AgentGettingReady({ className }: { className?: string }): ReactElement {
   return (
-    <span className={className ?? "text-muted-foreground flex min-w-0 items-center gap-2 text-sm"}>
+    <span className={className ?? "flex min-w-0 items-center gap-2 text-sm text-muted-foreground"}>
       <Spinner aria-hidden="true" className="size-3.5" />
       <span className="truncate">Your agent is getting ready</span>
     </span>

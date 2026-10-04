@@ -446,7 +446,7 @@ export function AgentSharesTable({
               </div>
               {row.original.target_email ? (
                 <div
-                  className="text-muted-foreground truncate text-xs"
+                  className="truncate text-xs text-muted-foreground"
                   title={row.original.target_email}
                 >
                   {row.original.target_email}
@@ -514,7 +514,7 @@ export function AgentSharesTable({
   return (
     <AdminDataGrid
       ariaLabel={`${agentName} shares`}
-      emptyState={<p className="text-muted-foreground py-8 text-center">No shares found.</p>}
+      emptyState={<p className="py-8 text-center text-muted-foreground">No shares found.</p>}
       layout={shareLayout}
       pagination={
         <TokenTablePagination hasNextPage={Boolean(nextPageToken)} nextPageToken={nextPageToken} />

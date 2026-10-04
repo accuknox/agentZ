@@ -11,7 +11,7 @@ import {
 export function TracesSkeleton() {
   return (
     <div className="flex flex-col">
-      <div className="bg-background border-b">
+      <div className="border-b bg-background">
         <Table>
           <TableHeader>
             <TableRow>

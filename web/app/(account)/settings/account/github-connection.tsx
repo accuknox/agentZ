@@ -30,7 +30,7 @@ export async function GitHubConnection({
     <section className="flex flex-col gap-4 px-4 md:px-6">
       <div>
         <h2 className="text-lg font-semibold">GitHub</h2>
-        <p className="text-muted-foreground mt-1 text-sm">
+        <p className="mt-1 text-sm text-muted-foreground">
           Connect GitHub to browse repositories, push commits, and open pull requests.
         </p>
       </div>
@@ -45,8 +45,8 @@ export async function GitHubConnection({
         </Alert>
       ) : null}
       {connection ? (
-        <div className="bg-card flex w-full max-w-2xl items-center gap-3 rounded-lg p-4">
-          <div className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg">
+        <div className="flex w-full max-w-2xl items-center gap-3 rounded-lg bg-card p-4">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
             <GitHubLight className="size-5 dark:hidden" aria-hidden="true" />
             <GitHubDark className="hidden size-5 dark:block" aria-hidden="true" />
           </div>
@@ -77,7 +77,7 @@ export async function GitHubConnection({
         </form>
       )}
       {!getEnv().CODING_GITHUB_CLIENT_ID ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           GitHub connections are not available yet. Contact your administrator to enable them.
         </p>
       ) : null}

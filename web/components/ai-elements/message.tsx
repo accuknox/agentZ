@@ -42,7 +42,7 @@ export const MessageContent = ({ children, className, ...props }: MessageContent
     className={cn(
       "is-user:dark flex w-full max-w-full min-w-0 flex-col text-sm",
       "group-[.is-user]:w-fit",
-      "group-[.is-user]:border-primary group-[.is-user]:bg-secondary group-[.is-user]:text-foreground group-[.is-user]:ml-auto group-[.is-user]:rounded-lg group-[.is-user]:rounded-r-none group-[.is-user]:border-r-2 group-[.is-user]:px-4 group-[.is-user]:py-3",
+      "group-[.is-user]:ml-auto group-[.is-user]:rounded-lg group-[.is-user]:rounded-r-none group-[.is-user]:border-r-2 group-[.is-user]:border-primary group-[.is-user]:bg-secondary group-[.is-user]:px-4 group-[.is-user]:py-3 group-[.is-user]:text-foreground",
       "group-[.is-assistant]:text-foreground",
       "group-[.is-assistant]:gap-1",
       className
@@ -118,7 +118,7 @@ const MarkdownCode = ({
   return (
     <code
       className={cn(
-        "border-border bg-muted text-foreground rounded-md border px-[0.35rem] py-[0.1rem] font-mono text-sm",
+        "rounded-md border border-border bg-muted px-[0.35rem] py-[0.1rem] font-mono text-sm text-foreground",
         className
       )}
       {...props}
@@ -226,7 +226,7 @@ const MarkdownLink = ({
     <button
       aria-label={`Preview ${name}`}
       className={cn(
-        "focus-visible:ring-ring my-2 block w-full max-w-full cursor-pointer touch-manipulation rounded-xl text-left no-underline focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
+        "my-2 block w-full max-w-full cursor-pointer touch-manipulation rounded-xl text-left no-underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none",
         className
       )}
       onClick={() => onAgentFileOpen(path, name)}
@@ -253,7 +253,7 @@ export const MessageResponse = memo(
   ({ className, onAgentFileOpen, plainCodeBlocks = false, ...props }: MessageResponseProps) => (
     <Streamdown
       className={cn(
-        "text-foreground/80 w-full min-w-0 space-y-[0.65rem] text-base leading-relaxed wrap-break-word [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
+        "w-full min-w-0 space-y-[0.65rem] text-base leading-relaxed wrap-break-word text-foreground/80 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
         className
       )}
       components={{

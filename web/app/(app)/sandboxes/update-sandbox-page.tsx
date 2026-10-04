@@ -151,9 +151,9 @@ function UpdateSandboxSkeleton() {
   return (
     <main className="flex min-h-0 flex-1 flex-col gap-6 pb-4 sm:pb-6">
       <div className="min-w-0 px-4 pt-4 sm:px-6">
-        <div className="bg-muted/20 h-8 w-56 rounded-md" />
+        <div className="h-8 w-56 rounded-md bg-muted/20" />
       </div>
-      <div className="bg-muted/20 h-96" />
+      <div className="h-96 bg-muted/20" />
     </main>
   )
 }

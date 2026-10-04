@@ -40,12 +40,12 @@ export function DocumentPreview({ file }: { file: Blob }): React.JSX.Element {
   }, [file])
 
   return (
-    <div className="bg-muted/40 relative h-full overflow-auto">
+    <div className="relative h-full overflow-auto bg-muted/40">
       <div ref={container} className="[&_.docx-wrapper]:min-h-full [&_.docx-wrapper]:p-6" />
       {status === "loading" ? (
         <div
           aria-live="polite"
-          className="bg-muted/80 text-muted-foreground absolute inset-0 flex items-center justify-center gap-2 text-sm"
+          className="absolute inset-0 flex items-center justify-center gap-2 bg-muted/80 text-sm text-muted-foreground"
           role="status"
         >
           <Spinner /> Rendering document...

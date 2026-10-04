@@ -179,7 +179,7 @@ export function McpGraph({ graph }: McpGraphProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
 
   return (
-    <div className="bg-sidebar relative flex min-h-0 flex-1 overflow-hidden border-y">
+    <div className="relative flex min-h-0 flex-1 overflow-hidden border-y bg-sidebar">
       <div className="absolute inset-0 bg-[radial-gradient(circle,var(--color-sidebar-border)_1px,transparent_1px)] bg-size-[10px_10px] opacity-35" />
       <Canvas
         className="bg-transparent"
@@ -205,7 +205,7 @@ export function McpGraph({ graph }: McpGraphProps) {
  */
 export function McpGraphSkeleton() {
   return (
-    <div className="bg-sidebar relative flex min-h-0 flex-1 overflow-hidden border-y">
+    <div className="relative flex min-h-0 flex-1 overflow-hidden border-y bg-sidebar">
       <div className="absolute inset-0 bg-[radial-gradient(circle,var(--color-sidebar-border)_1px,transparent_1px)] bg-size-[10px_10px] opacity-35" />
       <div className="relative flex flex-1 items-center justify-center overflow-hidden px-8">
         <div className="flex min-w-max items-center gap-8 sm:gap-14 lg:gap-24">
@@ -239,7 +239,7 @@ export function McpGraphSkeleton() {
  */
 export function McpEmptyState({ agentName }: { agentName: string }) {
   return (
-    <div className="bg-sidebar text-muted-foreground relative flex min-h-0 flex-1 items-center justify-center overflow-hidden border-y text-sm">
+    <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden border-y bg-sidebar text-sm text-muted-foreground">
       <div className="absolute inset-0 bg-[radial-gradient(circle,var(--color-sidebar-border)_1px,transparent_1px)] bg-size-[10px_10px] opacity-35" />
       <p className="relative">No MCP traffic for {agentName}</p>
     </div>
@@ -334,7 +334,7 @@ function McpNodeCircle({ data }: FlowNodeProps<McpCanvasNode>) {
           >
             {icon}
           </div>
-          <p className="text-foreground max-w-28 text-xs leading-tight font-medium wrap-break-word">
+          <p className="max-w-28 text-xs leading-tight font-medium wrap-break-word text-foreground">
             {data.label}
           </p>
         </div>
@@ -350,7 +350,7 @@ function ToolMetricsView({ metrics }: { metrics: ToolMetrics }) {
   }
 
   return (
-    <div className="text-muted-foreground absolute top-1/2 left-31 flex -translate-y-1/2 flex-col gap-1 text-[11px] font-medium">
+    <div className="absolute top-1/2 left-31 flex -translate-y-1/2 flex-col gap-1 text-[11px] font-medium text-muted-foreground">
       {metrics.latencyMs !== undefined ? (
         <Tooltip>
           <TooltipTrigger asChild>

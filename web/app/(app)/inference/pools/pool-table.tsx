@@ -208,7 +208,7 @@ export function InferencePoolTable({
                       key={`${member.provider}\u0000${member.model}`}
                       className="flex min-w-0 items-center gap-2"
                     >
-                      <span className="text-background/70 w-4 shrink-0 text-right tabular-nums">
+                      <span className="w-4 shrink-0 text-right text-background/70 tabular-nums">
                         {index + 1}
                       </span>
                       {itemProvider ? (
@@ -218,7 +218,7 @@ export function InferencePoolTable({
                           inverted
                         />
                       ) : (
-                        <Layers3 className="text-background/70 size-4 shrink-0" />
+                        <Layers3 className="size-4 shrink-0 text-background/70" />
                       )}
                       <span className="min-w-0">
                         <span className="font-medium">
@@ -495,7 +495,7 @@ function PoolViewSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="h-full overflow-y-auto sm:w-[45rem]! sm:max-w-none!">
+      <SheetContent size="lg" className="h-full overflow-y-auto">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <Layers3 className="size-4" />
@@ -579,7 +579,7 @@ function PoolViewSheet({
                   />
                 </>
               ) : (
-                <p className="text-muted-foreground text-sm">
+                <p className="text-sm text-muted-foreground">
                   We are still calculating the Pool Contract.
                 </p>
               )}
@@ -594,7 +594,7 @@ function PoolViewSheet({
                       key={`${member.provider}\u0000${member.model}`}
                       className="flex min-w-0 items-center gap-2.5 px-3 py-2.5"
                     >
-                      <span className="text-muted-foreground w-4 shrink-0 text-right text-sm tabular-nums">
+                      <span className="w-4 shrink-0 text-right text-sm text-muted-foreground tabular-nums">
                         {index + 1}
                       </span>
                       {provider ? (
@@ -603,7 +603,7 @@ function PoolViewSheet({
                           className="size-4 shrink-0"
                         />
                       ) : (
-                        <Layers3 className="text-muted-foreground size-4 shrink-0" />
+                        <Layers3 className="size-4 shrink-0 text-muted-foreground" />
                       )}
                       <span className="min-w-0 flex-1 truncate text-sm">
                         <span className="font-medium">
@@ -612,7 +612,7 @@ function PoolViewSheet({
                         <span className="text-muted-foreground"> / {member.model}</span>
                       </span>
                       {status ? (
-                        <span className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs">
+                        <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
                           <ProviderIcon
                             provider={status.protocol === "Anthropic" ? "anthropic" : "openai"}
                             className="size-3.5"
@@ -648,7 +648,7 @@ function PoolViewSheet({
                   </Alert>
                 ))
               ) : (
-                <p className="text-muted-foreground text-sm">
+                <p className="text-sm text-muted-foreground">
                   All members use compatible request formats.
                 </p>
               )}
@@ -662,15 +662,15 @@ function PoolViewSheet({
                       href={
                         `${scope.basePath}/sandboxes/update/${encodeURIComponent(sandbox)}` as Route
                       }
-                      className="hover:bg-accent focus-visible:ring-ring flex min-w-0 items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm transition-colors outline-none focus-visible:ring-2"
+                      className="flex min-w-0 items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm transition-colors outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       <span className="break-anywhere min-w-0">{sandbox}</span>
-                      <ArrowUpRight className="text-muted-foreground size-4 shrink-0" />
+                      <ArrowUpRight className="size-4 shrink-0 text-muted-foreground" />
                     </Link>
                   ))}
                 </div>
               ) : (
-                <p className="text-muted-foreground text-sm">No Sandboxes use this Pool.</p>
+                <p className="text-sm text-muted-foreground">No Sandboxes use this Pool.</p>
               )}
             </DetailSection>
           </div>
@@ -692,7 +692,7 @@ function DetailSection({ title, children }: { title: string; children: React.Rea
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="grid gap-1 sm:grid-cols-[11rem_minmax(0,1fr)] sm:gap-3">
-      <div className="text-muted-foreground text-sm">{label}</div>
+      <div className="text-sm text-muted-foreground">{label}</div>
       <div className="break-anywhere min-w-0 text-sm">{value}</div>
     </div>
   )

@@ -28,7 +28,7 @@ export function WizardPanel({
   stepKey: string | number
 }) {
   return (
-    <div className="bg-card relative w-full min-w-0 flex-1">
+    <div className="relative w-full min-w-0 flex-1 bg-card">
       <div className="flex h-full min-w-0 flex-col px-4 pb-4 sm:px-6 sm:pb-6">
         <AnimatePresence custom={direction} mode="wait" initial={false}>
           <motion.div

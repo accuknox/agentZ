@@ -142,10 +142,10 @@ export function ChatShell({
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <header className="@container/header-actions flex h-(--workspace-topbar-height) min-w-0 shrink-0 items-center gap-1.5 px-3">
           <SidebarTrigger className="shrink-0" />
-          <div className="text-muted-foreground max-w-1/3 min-w-0 truncate text-sm font-medium">
+          <div className="max-w-1/3 min-w-0 truncate text-sm font-medium text-muted-foreground">
             {headerContext ?? agentName}
           </div>
-          <span aria-hidden="true" className="text-muted-foreground/70 text-sm">
+          <span aria-hidden="true" className="text-sm text-muted-foreground/70">
             /
           </span>
           <h1 className="min-w-0 truncate text-sm font-semibold">{sessionTitle.data ?? title}</h1>
@@ -175,7 +175,7 @@ export function ChatShell({
               codingThread
                 ? () => (
                     <span
-                      className="text-muted-foreground flex h-7 max-w-60 min-w-0 items-center gap-1.5 text-xs"
+                      className="flex h-7 max-w-60 min-w-0 items-center gap-1.5 text-xs text-muted-foreground"
                       title={`${branch || "Detached HEAD"}\n${codingThread.worktree.directory}`}
                     >
                       <GitBranchIcon aria-hidden="true" className="size-3.5 shrink-0" />

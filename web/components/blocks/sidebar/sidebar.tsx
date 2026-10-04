@@ -106,7 +106,7 @@ export function AppSidebar({
 
   return (
     <Sidebar collapsible="icon" data-app-sidebar {...sidebarProps}>
-      <SidebarHeader className="min-h-[var(--workspace-topbar-height)] flex-row items-center p-2">
+      <SidebarHeader className="min-h-(--workspace-topbar-height) flex-row items-center p-2">
         {scope.kind === "settings" && scope.hasAppDestination ? (
           <SidebarMenu>
             <SidebarMenuItem>

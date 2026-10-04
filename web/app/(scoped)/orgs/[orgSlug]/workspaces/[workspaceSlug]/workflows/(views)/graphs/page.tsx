@@ -71,19 +71,19 @@ function CanvasSkeleton() {
     <div
       role="status"
       aria-label="Loading workflow"
-      className="bg-sidebar relative flex min-h-0 flex-1 overflow-hidden border-t motion-reduce:[&_[data-slot=skeleton]]:animate-none"
+      className="relative flex min-h-0 flex-1 overflow-hidden border-t bg-sidebar motion-reduce:[&_[data-slot=skeleton]]:animate-none"
     >
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle,var(--color-sidebar-border)_1px,transparent_1px)] bg-size-[14px_14px] opacity-35" />
-        <div className="from-background/22 absolute inset-x-0 top-0 h-32 bg-linear-to-b to-transparent" />
+        <div className="absolute inset-x-0 top-0 h-32 bg-linear-to-b from-background/22 to-transparent" />
       </div>
-      <div className="bg-card/88 border-border/70 absolute top-4 left-4 z-10 w-[calc(100vw-2rem)] max-w-sm rounded-lg border p-1 shadow-lg shadow-black/5 backdrop-blur-md sm:w-sm">
+      <div className="absolute top-4 left-4 z-10 w-[calc(100vw-2rem)] max-w-sm rounded-lg border border-border/70 bg-card/88 p-1 shadow-lg shadow-black/5 backdrop-blur-md sm:w-sm">
         <div className="flex items-start gap-2 rounded-md px-3 py-2.5">
           <Skeleton className="h-4 w-56 max-w-full" />
           <Skeleton className="mt-0.5 size-4 rounded-sm" />
         </div>
       </div>
-      <div className="bg-card absolute bottom-4 left-4 z-10 flex flex-col gap-px overflow-hidden rounded-md border p-1">
+      <div className="absolute bottom-4 left-4 z-10 flex flex-col gap-px overflow-hidden rounded-md border bg-card p-1">
         <Skeleton className="size-6.5 rounded-sm" />
         <Skeleton className="size-6.5 rounded-sm" />
         <Skeleton className="size-6.5 rounded-sm" />
@@ -106,9 +106,9 @@ function WorkflowNodeSkeleton({ isLast = false }: { isLast?: boolean }) {
   return (
     <div className="relative shrink-0">
       {isLast ? null : (
-        <div className="bg-sidebar-ring/45 absolute top-1/2 left-full ml-2.5 h-px w-9 -translate-y-1/2" />
+        <div className="absolute top-1/2 left-full ml-2.5 h-px w-9 -translate-y-1/2 bg-sidebar-ring/45" />
       )}
-      <div className="bg-background/94 border-border/70 dark:bg-accent/82 w-[20rem] rounded-xl border p-4 shadow-[0_16px_40px_-30px_rgb(15_23_42/0.45)]">
+      <div className="w-[20rem] rounded-xl border border-border/70 bg-background/94 p-4 shadow-[0_16px_40px_-30px_rgb(15_23_42/0.45)] dark:bg-accent/82">
         <div className="flex items-center justify-between gap-5">
           <Skeleton className="h-4 w-32" />
           <div className="flex items-center gap-4">
@@ -138,7 +138,7 @@ function ErrorPanel({ message }: { message: string }) {
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <div className="text-muted-foreground flex h-48 items-center justify-center text-sm">
+    <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
       {message}
     </div>
   )

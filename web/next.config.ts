@@ -27,6 +27,8 @@ const nextConfig: NextConfig = {
   reactCompiler: true,
   typedRoutes: true,
   experimental: {
+    proxyTimeout: 600_000,
+    proxyClientMaxBodySize: "32mb",
     turbopackFileSystemCacheForDev: false,
     serverActions: {
       bodySizeLimit: "11mb",

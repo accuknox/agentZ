@@ -6,7 +6,7 @@ CREATE TYPE "public"."destructive_target" AS ENUM('organization_membership', 'te
 CREATE TYPE "public"."event_trail_actor" AS ENUM('user', 'api_key', 'system');
 CREATE TYPE "public"."event_trail_result" AS ENUM('succeeded', 'denied', 'failed');
 CREATE TYPE "public"."event_trail_target" AS ENUM('organization', 'organization_membership', 'team', 'mcp_connection', 'inference_provider', 'inference_pool', 'role', 'sandbox', 'skill', 'agent', 'api_key', 'workspace_access', 'workspace');
-CREATE TYPE "public"."permission_action" AS ENUM('read', 'create', 'modify', 'delete', 'author', 'share_authored', 'share_non_authored', 'use_shared', 'read_shared_secret', 'write_shared_secret', 'delete_shared_secret');
+CREATE TYPE "public"."permission_action" AS ENUM('read', 'create', 'modify', 'delete', 'use', 'delegate', 'author', 'share_authored', 'share_non_authored', 'use_shared', 'read_shared_secret', 'write_shared_secret', 'delete_shared_secret');
 CREATE TYPE "public"."permission_resource" AS ENUM('mcp_connection', 'skill', 'sandbox', 'inference_provider', 'inference_pool', 'agent', 'api_key', 'observability');
 CREATE TYPE "public"."system_role" AS ENUM('superadmin', 'workspace_admin');
 CREATE TYPE "public"."theme_preference" AS ENUM('system', 'light', 'dark');
@@ -131,6 +131,37 @@ CREATE TABLE "coding_worktrees" (
 	CONSTRAINT "coding_worktrees_directory_uidx" UNIQUE("workspace_id","agent_name","directory")
 );
 
+CREATE TABLE "delegation_grants" (
+	"id" text PRIMARY KEY NOT NULL,
+	"client_id" text NOT NULL,
+	"user_id" text NOT NULL,
+	"organization_id" text,
+	"scopes" text[] NOT NULL,
+	"resources" text[] NOT NULL,
+	"selection" jsonb NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"approved_at" timestamp with time zone,
+	"revoked_at" timestamp with time zone
+);
+
+CREATE TABLE "delegation_mcp_sessions" (
+	"id" text PRIMARY KEY NOT NULL,
+	"grant_id" text NOT NULL,
+	"expires_at" timestamp with time zone NOT NULL
+);
+
+CREATE TABLE "delegation_transactions" (
+	"id" text PRIMARY KEY NOT NULL,
+	"client_id" text NOT NULL,
+	"user_id" text NOT NULL,
+	"session_id" text NOT NULL,
+	"authorization_query" text NOT NULL,
+	"grant_id" text,
+	"scopes" text[] NOT NULL,
+	"resources" text[] NOT NULL,
+	"expires_at" timestamp with time zone NOT NULL
+);
+
 CREATE TABLE "event_trail_events" (
 	"id" text PRIMARY KEY NOT NULL,
 	"organization_id" text NOT NULL,
@@ -203,6 +234,11 @@ CREATE TABLE "member_roles" (
 	CONSTRAINT "member_roles_member_id_role_id_pk" PRIMARY KEY("member_id","role_id")
 );
 
+CREATE TABLE "organization_delegation" (
+	"organization_id" text PRIMARY KEY NOT NULL,
+	"enabled" boolean DEFAULT false NOT NULL
+);
+
 CREATE TABLE "permission_grants" (
 	"role_id" text NOT NULL,
 	"organization_id" text NOT NULL,
@@ -215,7 +251,8 @@ CREATE TABLE "permission_grants" (
 	CONSTRAINT "permission_grants_resource_action_ck" CHECK (("permission_grants"."resource" = 'agent' AND "permission_grants"."action" IN (
           'author', 'share_authored', 'share_non_authored', 'use_shared',
           'read_shared_secret', 'write_shared_secret', 'delete_shared_secret'
-        )) OR ("permission_grants"."resource" <> 'agent' AND "permission_grants"."action" IN (
+        )) OR ("permission_grants"."resource" IN ('mcp_connection', 'inference_provider') AND "permission_grants"."action"::text IN ('use', 'delegate'))
+        OR ("permission_grants"."resource" <> 'agent' AND "permission_grants"."action" IN (
           'read', 'create', 'modify', 'delete'
         )))
 );
@@ -384,7 +421,9 @@ CREATE TABLE "jwks" (
 	"public_key" text NOT NULL,
 	"private_key" text NOT NULL,
 	"created_at" timestamp NOT NULL,
-	"expires_at" timestamp
+	"expires_at" timestamp,
+	"alg" text,
+	"crv" text
 );
 
 CREATE TABLE "members" (
@@ -396,6 +435,131 @@ CREATE TABLE "members" (
 	"disabled_at" timestamp
 );
 
+CREATE TABLE "oauth_access_tokens" (
+	"id" text PRIMARY KEY NOT NULL,
+	"token" text NOT NULL,
+	"client_id" text NOT NULL,
+	"session_id" text,
+	"user_id" text,
+	"reference_id" text,
+	"authorization_code_id" text,
+	"resources" text[],
+	"requested_user_info_claims" text[],
+	"refresh_id" text,
+	"expires_at" timestamp NOT NULL,
+	"created_at" timestamp NOT NULL,
+	"revoked" timestamp,
+	"confirmation" jsonb,
+	"scopes" text[] NOT NULL,
+	CONSTRAINT "oauth_access_tokens_token_unique" UNIQUE("token")
+);
+
+CREATE TABLE "oauth_client_assertions" (
+	"id" text PRIMARY KEY NOT NULL,
+	"expires_at" timestamp NOT NULL
+);
+
+CREATE TABLE "oauth_client_resources" (
+	"id" text PRIMARY KEY NOT NULL,
+	"client_id" text NOT NULL,
+	"resource_id" text NOT NULL,
+	"metadata" jsonb,
+	"created_at" timestamp
+);
+
+CREATE TABLE "oauth_clients" (
+	"id" text PRIMARY KEY NOT NULL,
+	"client_id" text NOT NULL,
+	"client_secret" text,
+	"client_discovery_id" text,
+	"disabled" boolean DEFAULT false,
+	"skip_consent" boolean,
+	"enable_end_session" boolean,
+	"subject_type" text,
+	"scopes" text[],
+	"client_credentials_scopes" text[] DEFAULT '{}',
+	"user_id" text,
+	"created_at" timestamp,
+	"updated_at" timestamp,
+	"name" text,
+	"uri" text,
+	"icon" text,
+	"contacts" text[],
+	"tos" text,
+	"policy" text,
+	"software_id" text,
+	"software_version" text,
+	"software_statement" text,
+	"redirect_uris" text[] NOT NULL,
+	"post_logout_redirect_uris" text[],
+	"backchannel_logout_uri" text,
+	"backchannel_logout_session_required" boolean,
+	"token_endpoint_auth_method" text,
+	"application_type" text,
+	"jwks" text,
+	"jwks_uri" text,
+	"grant_types" text[],
+	"response_types" text[],
+	"require_pkce" boolean,
+	"dpop_bound_access_tokens" boolean DEFAULT false,
+	"reference_id" text,
+	"metadata" jsonb,
+	CONSTRAINT "oauth_clients_client_id_unique" UNIQUE("client_id")
+);
+
+CREATE TABLE "oauth_consents" (
+	"id" text PRIMARY KEY NOT NULL,
+	"client_id" text NOT NULL,
+	"user_id" text,
+	"reference_id" text,
+	"resources" text[],
+	"requested_user_info_claims" text[],
+	"scopes" text[] NOT NULL,
+	"created_at" timestamp NOT NULL,
+	"updated_at" timestamp NOT NULL
+);
+
+CREATE TABLE "oauth_refresh_tokens" (
+	"id" text PRIMARY KEY NOT NULL,
+	"token" text NOT NULL,
+	"client_id" text NOT NULL,
+	"session_id" text,
+	"user_id" text NOT NULL,
+	"reference_id" text,
+	"authorization_code_id" text,
+	"resources" text[],
+	"requested_user_info_claims" text[],
+	"expires_at" timestamp NOT NULL,
+	"created_at" timestamp NOT NULL,
+	"revoked" timestamp,
+	"rotated_at" timestamp,
+	"rotation_replay_response" text,
+	"rotation_replay_expires_at" timestamp,
+	"auth_time" timestamp,
+	"confirmation" jsonb,
+	"scopes" text[] NOT NULL,
+	CONSTRAINT "oauth_refresh_tokens_token_unique" UNIQUE("token")
+);
+
+CREATE TABLE "oauth_resources" (
+	"id" text PRIMARY KEY NOT NULL,
+	"identifier" text NOT NULL,
+	"name" text NOT NULL,
+	"access_token_ttl" integer,
+	"refresh_token_ttl" integer,
+	"signing_algorithm" text,
+	"signing_key_id" text,
+	"allowed_scopes" text[],
+	"custom_claims" jsonb,
+	"dpop_bound_access_tokens_required" boolean DEFAULT false,
+	"disabled" boolean DEFAULT false,
+	"created_at" timestamp,
+	"updated_at" timestamp,
+	"policy_version" integer DEFAULT 1,
+	"metadata" jsonb,
+	CONSTRAINT "oauth_resources_identifier_unique" UNIQUE("identifier")
+);
+
 CREATE TABLE "organization_invitations" (
 	"id" text PRIMARY KEY NOT NULL,
 	"organization_id" text NOT NULL,
@@ -405,7 +569,7 @@ CREATE TABLE "organization_invitations" (
 	"inviter_id" text NOT NULL,
 	"accepted_by" text,
 	"accepted_at" timestamp,
-	"created_at" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp NOT NULL,
 	CONSTRAINT "organization_invitations_token_hash_unique" UNIQUE("token_hash")
 );
 
@@ -454,12 +618,15 @@ CREATE TABLE "team_members" (
 	"id" text PRIMARY KEY NOT NULL,
 	"team_id" text NOT NULL,
 	"user_id" text NOT NULL,
-	"created_at" timestamp
+	"membership_key" text,
+	"created_at" timestamp,
+	CONSTRAINT "team_members_membership_key_unique" UNIQUE("membership_key")
 );
 
 CREATE TABLE "teams" (
 	"id" text PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
+	"member_count" integer DEFAULT 0 NOT NULL,
 	"organization_id" text NOT NULL,
 	"created_at" timestamp NOT NULL,
 	"updated_at" timestamp
@@ -520,6 +687,14 @@ ALTER TABLE "coding_projects" ADD CONSTRAINT "coding_projects_workspace_id_works
 ALTER TABLE "coding_projects" ADD CONSTRAINT "coding_projects_owner_id_users_id_fk" FOREIGN KEY ("owner_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;
 ALTER TABLE "coding_threads" ADD CONSTRAINT "coding_threads_workspace_id_agent_name_worktree_id_coding_worktrees_workspace_id_agent_name_id_fk" FOREIGN KEY ("workspace_id","agent_name","worktree_id") REFERENCES "public"."coding_worktrees"("workspace_id","agent_name","id") ON DELETE restrict ON UPDATE no action;
 ALTER TABLE "coding_worktrees" ADD CONSTRAINT "coding_worktrees_workspace_id_project_id_coding_projects_workspace_id_id_fk" FOREIGN KEY ("workspace_id","project_id") REFERENCES "public"."coding_projects"("workspace_id","id") ON DELETE restrict ON UPDATE no action;
+ALTER TABLE "delegation_grants" ADD CONSTRAINT "delegation_grants_client_id_oauth_clients_client_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."oauth_clients"("client_id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "delegation_grants" ADD CONSTRAINT "delegation_grants_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "delegation_grants" ADD CONSTRAINT "delegation_grants_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "delegation_mcp_sessions" ADD CONSTRAINT "delegation_mcp_sessions_grant_id_delegation_grants_id_fk" FOREIGN KEY ("grant_id") REFERENCES "public"."delegation_grants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "delegation_transactions" ADD CONSTRAINT "delegation_transactions_client_id_oauth_clients_client_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."oauth_clients"("client_id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "delegation_transactions" ADD CONSTRAINT "delegation_transactions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "delegation_transactions" ADD CONSTRAINT "delegation_transactions_session_id_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."sessions"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "delegation_transactions" ADD CONSTRAINT "delegation_transactions_grant_id_delegation_grants_id_fk" FOREIGN KEY ("grant_id") REFERENCES "public"."delegation_grants"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "event_trail_events" ADD CONSTRAINT "event_trail_events_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE restrict ON UPDATE no action;
 ALTER TABLE "github_authorizations" ADD CONSTRAINT "github_authorizations_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "github_authorizations" ADD CONSTRAINT "github_authorizations_session_id_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."sessions"("id") ON DELETE cascade ON UPDATE no action;
@@ -534,6 +709,7 @@ ALTER TABLE "last_accessible_contexts" ADD CONSTRAINT "last_accessible_contexts_
 ALTER TABLE "last_accessible_contexts" ADD CONSTRAINT "last_accessible_contexts_workspace_organization_fk" FOREIGN KEY ("workspace_id","organization_id") REFERENCES "public"."workspaces"("id","organization_id") ON DELETE restrict ON UPDATE no action;
 ALTER TABLE "member_roles" ADD CONSTRAINT "member_roles_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "member_roles" ADD CONSTRAINT "member_roles_role_organization_fk" FOREIGN KEY ("role_id","organization_id") REFERENCES "public"."role_scopes"("role_id","organization_id") ON DELETE restrict ON UPDATE no action;
+ALTER TABLE "organization_delegation" ADD CONSTRAINT "organization_delegation_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "permission_grants" ADD CONSTRAINT "permission_grants_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE restrict ON UPDATE no action;
 ALTER TABLE "permission_grants" ADD CONSTRAINT "permission_grants_role_organization_fk" FOREIGN KEY ("role_id","organization_id") REFERENCES "public"."role_scopes"("role_id","organization_id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "permission_grants" ADD CONSTRAINT "permission_grants_workspace_organization_fk" FOREIGN KEY ("workspace_id","organization_id") REFERENCES "public"."workspaces"("id","organization_id") ON DELETE restrict ON UPDATE no action;
@@ -560,6 +736,18 @@ ALTER TABLE "invitations" ADD CONSTRAINT "invitations_organization_id_organizati
 ALTER TABLE "invitations" ADD CONSTRAINT "invitations_inviter_id_users_id_fk" FOREIGN KEY ("inviter_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "members" ADD CONSTRAINT "members_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "members" ADD CONSTRAINT "members_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "oauth_access_tokens" ADD CONSTRAINT "oauth_access_tokens_client_id_oauth_clients_client_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."oauth_clients"("client_id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "oauth_access_tokens" ADD CONSTRAINT "oauth_access_tokens_session_id_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."sessions"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "oauth_access_tokens" ADD CONSTRAINT "oauth_access_tokens_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "oauth_access_tokens" ADD CONSTRAINT "oauth_access_tokens_refresh_id_oauth_refresh_tokens_id_fk" FOREIGN KEY ("refresh_id") REFERENCES "public"."oauth_refresh_tokens"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "oauth_client_resources" ADD CONSTRAINT "oauth_client_resources_client_id_oauth_clients_client_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."oauth_clients"("client_id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "oauth_client_resources" ADD CONSTRAINT "oauth_client_resources_resource_id_oauth_resources_identifier_fk" FOREIGN KEY ("resource_id") REFERENCES "public"."oauth_resources"("identifier") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "oauth_clients" ADD CONSTRAINT "oauth_clients_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "oauth_consents" ADD CONSTRAINT "oauth_consents_client_id_oauth_clients_client_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."oauth_clients"("client_id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "oauth_consents" ADD CONSTRAINT "oauth_consents_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "oauth_refresh_tokens" ADD CONSTRAINT "oauth_refresh_tokens_client_id_oauth_clients_client_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."oauth_clients"("client_id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "oauth_refresh_tokens" ADD CONSTRAINT "oauth_refresh_tokens_session_id_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."sessions"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "oauth_refresh_tokens" ADD CONSTRAINT "oauth_refresh_tokens_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "organization_invitations" ADD CONSTRAINT "organization_invitations_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "organization_invitations" ADD CONSTRAINT "organization_invitations_inviter_id_users_id_fk" FOREIGN KEY ("inviter_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "organization_invitations" ADD CONSTRAINT "organization_invitations_accepted_by_users_id_fk" FOREIGN KEY ("accepted_by") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
@@ -578,6 +766,8 @@ CREATE INDEX "api_key_scopes_revoked_idx" ON "api_key_scopes" USING btree ("orga
 CREATE INDEX "api_key_targets_agent_idx" ON "api_key_targets" USING btree ("agent_name");
 CREATE INDEX "cleanup_jobs_due_idx" ON "cleanup_jobs" USING btree ("state","next_attempt_at");
 CREATE INDEX "coding_projects_owner_idx" ON "coding_projects" USING btree ("workspace_id","owner_id");
+CREATE INDEX "delegation_grants_user_client_idx" ON "delegation_grants" USING btree ("user_id","client_id");
+CREATE INDEX "delegation_transactions_user_client_idx" ON "delegation_transactions" USING btree ("user_id","client_id");
 CREATE INDEX "event_trail_events_organization_created_idx" ON "event_trail_events" USING btree ("organization_id","created_at","id");
 CREATE INDEX "event_trail_events_workspace_created_idx" ON "event_trail_events" USING btree ("workspace_id","created_at");
 CREATE INDEX "event_trail_events_created_idx" ON "event_trail_events" USING btree ("created_at");
@@ -599,10 +789,24 @@ CREATE INDEX "invitations_organizationId_idx" ON "invitations" USING btree ("org
 CREATE INDEX "invitations_email_idx" ON "invitations" USING btree ("email");
 CREATE INDEX "members_organizationId_idx" ON "members" USING btree ("organization_id");
 CREATE INDEX "members_userId_idx" ON "members" USING btree ("user_id");
+CREATE INDEX "oauthAccessTokens_clientId_idx" ON "oauth_access_tokens" USING btree ("client_id");
+CREATE INDEX "oauthAccessTokens_sessionId_idx" ON "oauth_access_tokens" USING btree ("session_id");
+CREATE INDEX "oauthAccessTokens_userId_idx" ON "oauth_access_tokens" USING btree ("user_id");
+CREATE INDEX "oauthAccessTokens_authorizationCodeId_idx" ON "oauth_access_tokens" USING btree ("authorization_code_id");
+CREATE INDEX "oauthAccessTokens_refreshId_idx" ON "oauth_access_tokens" USING btree ("refresh_id");
+CREATE UNIQUE INDEX "oauthClientResources_clientId_resourceId_uidx" ON "oauth_client_resources" USING btree ("client_id","resource_id");
+CREATE INDEX "oauthClientResources_clientId_idx" ON "oauth_client_resources" USING btree ("client_id");
+CREATE INDEX "oauthClientResources_resourceId_idx" ON "oauth_client_resources" USING btree ("resource_id");
+CREATE INDEX "oauthClients_userId_idx" ON "oauth_clients" USING btree ("user_id");
+CREATE INDEX "oauthConsents_clientId_idx" ON "oauth_consents" USING btree ("client_id");
+CREATE INDEX "oauthConsents_userId_idx" ON "oauth_consents" USING btree ("user_id");
+CREATE INDEX "oauthRefreshTokens_clientId_idx" ON "oauth_refresh_tokens" USING btree ("client_id");
+CREATE INDEX "oauthRefreshTokens_sessionId_idx" ON "oauth_refresh_tokens" USING btree ("session_id");
+CREATE INDEX "oauthRefreshTokens_userId_idx" ON "oauth_refresh_tokens" USING btree ("user_id");
+CREATE INDEX "oauthRefreshTokens_authorizationCodeId_idx" ON "oauth_refresh_tokens" USING btree ("authorization_code_id");
 CREATE INDEX "organizationInvitations_organizationId_idx" ON "organization_invitations" USING btree ("organization_id");
 CREATE INDEX "organizationRoles_organizationId_idx" ON "organization_roles" USING btree ("organization_id");
 CREATE INDEX "organizationRoles_role_idx" ON "organization_roles" USING btree ("role");
-CREATE UNIQUE INDEX "organizations_slug_uidx" ON "organizations" USING btree ("slug");
 CREATE INDEX "sessions_userId_idx" ON "sessions" USING btree ("user_id");
 CREATE INDEX "teamMembers_teamId_idx" ON "team_members" USING btree ("team_id");
 CREATE INDEX "teamMembers_userId_idx" ON "team_members" USING btree ("user_id");

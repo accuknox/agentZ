@@ -1,0 +1,157 @@
+{{- if and .Values.enabled .Values.delegation.enabled }}
+{{- $namespace := printf "%s-delegations" (include "gateway.fullname" .) | trunc 63 | trimSuffix "-" }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentz
+---
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayParameters
+metadata:
+  name: delegations
+  namespace: {{ $namespace }}
+spec:
+  deployment:
+    spec:
+      template:
+        spec:
+          dnsConfig:
+            options: [{name: ndots, value: "1"}]
+  service:
+    spec:
+      type: ClusterIP
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: delegations
+  namespace: {{ $namespace }}
+spec:
+  gatewayClassName: agentgateway
+  infrastructure:
+    parametersRef:
+      group: agentgateway.dev
+      kind: AgentgatewayParameters
+      name: delegations
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+---
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: delegation-credentials
+  namespace: {{ $namespace }}
+spec:
+  static:
+    host: {{ include "gateway.fullname" . }}-credentials.{{ .Release.Namespace }}.svc.cluster.local
+    port: 18083
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: private-delegations
+  namespace: {{ $namespace }}
+spec:
+  endpointSelector: {}
+  enableDefaultDeny:
+    ingress: true
+    egress: true
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: {{ .Release.Namespace }}
+            k8s:io.cilium.k8s.policy.serviceaccount: {{ include "gateway.serviceAccountName" . }}
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+  egress:
+    - toServices:
+        - k8sService:
+            serviceName: {{ include "gateway.fullname" . }}-credentials
+            namespace: {{ .Release.Namespace }}
+      toPorts:
+        - ports: [{port: "18083", protocol: TCP}]
+    - toServices:
+        - k8sService:
+            serviceName: agentgateway
+            namespace: agentgateway-system
+      toPorts:
+        - ports: [{port: "9978", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports: [{port: "53", protocol: UDP}, {port: "53", protocol: TCP}]
+          rules:
+            dns:
+              - matchName: agentgateway.agentgateway-system.svc.cluster.local
+              - matchName: {{ include "gateway.fullname" . }}-credentials.{{ .Release.Namespace }}.svc.cluster.local
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "gateway.fullname" . }}-listeners
+  namespace: {{ .Release.Namespace }}
+spec:
+  endpointSelector:
+    matchLabels:
+      {{- include "gateway.selectorLabels" . | nindent 6 }}
+  enableDefaultDeny:
+    ingress: true
+    egress: false
+  ingress:
+    - fromEntities: [all]
+      toPorts:
+        - ports:
+            - port: {{ .Values.service.port | quote }}
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: {{ $namespace }}
+            k8s:gateway.networking.k8s.io/gateway-name: delegations
+      toPorts:
+        - ports:
+            - port: "18083"
+              protocol: TCP
+{{- if .Values.rbac.create }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: delegation-runtime
+  namespace: {{ $namespace }}
+rules:
+  - apiGroups: [gateway.networking.k8s.io]
+    resources: [httproutes]
+    verbs: [get, list, create, update, patch, delete]
+  - apiGroups: [agentgateway.dev]
+    resources: [agentgatewaybackends, agentgatewaypolicies]
+    verbs: [get, list, create, update, patch, delete]
+  - apiGroups: [cilium.io]
+    resources: [ciliumnetworkpolicies]
+    verbs: [get, list, create, update, patch, delete]
+  - apiGroups: [external-secrets.io]
+    resources: [externalsecrets]
+    verbs: [get, list, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: delegation-runtime
+  namespace: {{ $namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: delegation-runtime
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "gateway.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
+{{- end }}

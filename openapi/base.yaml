@@ -45,6 +45,24 @@ tags:
   description: Workspace chat inbox and preference APIs.
 
 paths:
+  /api/delegations/catalog:
+    get:
+      operationId: getDelegationCatalog
+      tags: [mcp-connections]
+      summary: Discover resources the user may delegate in the selected workspace.
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
+      security:
+      - GatewayBearer: []
+      responses:
+        '200':
+          description: Exact selectable capabilities.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DelegationCatalog'
+        default:
+          $ref: '#/components/responses/BadRequest'
   /api/coding/project:
     get:
       operationId: listCodingProjects
@@ -4845,6 +4863,41 @@ components:
             $ref: '#/components/schemas/Error'
 
   schemas:
+    DelegationModel:
+      type: object
+      additionalProperties: false
+      required: [id, workspace_id, namespace, provider, uid, model]
+      properties:
+        id: {type: string, minLength: 1}
+        workspace_id: {type: string, minLength: 1}
+        namespace: {type: string, minLength: 1}
+        provider: {type: string, minLength: 1}
+        uid: {type: string, minLength: 1}
+        model: {type: string, minLength: 1}
+    DelegationMCP:
+      type: object
+      additionalProperties: false
+      required: [id, workspace_id, namespace, connection, uid, tools, prompts, resources]
+      properties:
+        id: {type: string, minLength: 1}
+        workspace_id: {type: string, minLength: 1}
+        namespace: {type: string, minLength: 1}
+        connection: {type: string, minLength: 1}
+        uid: {type: string, minLength: 1}
+        tools: {type: array, uniqueItems: true, items: {type: string, minLength: 1}}
+        prompts: {type: array, uniqueItems: true, items: {type: string, minLength: 1}}
+        resources: {type: array, uniqueItems: true, items: {type: string, minLength: 1}}
+    DelegationCatalog:
+      type: object
+      additionalProperties: false
+      required: [models, mcp]
+      properties:
+        models:
+          type: array
+          items: {$ref: '#/components/schemas/DelegationModel'}
+        mcp:
+          type: array
+          items: {$ref: '#/components/schemas/DelegationMCP'}
     ChatSessionKind:
       type: string
       enum: [chat, workflow_run]

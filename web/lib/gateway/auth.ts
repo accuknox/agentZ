@@ -62,7 +62,8 @@ export async function currentGatewayAuthToken(workspaceId?: string): Promise<str
   return getGatewayAuthToken(state.organizationId, state.userId, state.userName, workspaceId)
 }
 
-const getGatewayAuthToken = cache(signGatewayAuthToken)
+/** getGatewayAuthToken signs server-selected scope without changing browser context. */
+export const getGatewayAuthToken = cache(signGatewayAuthToken)
 
 async function signGatewayAuthToken(
   organizationId: string,

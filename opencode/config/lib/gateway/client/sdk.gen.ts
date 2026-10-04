@@ -137,6 +137,9 @@ import type {
   GetDashboardData,
   GetDashboardErrors,
   GetDashboardResponses,
+  GetDelegationCatalogData,
+  GetDelegationCatalogErrors,
+  GetDelegationCatalogResponses,
   GetEventTrailEventData,
   GetEventTrailEventErrors,
   GetEventTrailEventResponses,
@@ -476,6 +479,22 @@ export type Options<
    */
   meta?: Record<string, unknown>
 }
+
+/**
+ * Discover resources the user may delegate in the selected workspace.
+ */
+export const getDelegationCatalog = <ThrowOnError extends boolean = false>(
+  options?: Options<GetDelegationCatalogData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    GetDelegationCatalogResponses,
+    GetDelegationCatalogErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/delegations/catalog",
+    ...options,
+  })
 
 export const listCodingProjects = <ThrowOnError extends boolean = false>(
   options?: Options<ListCodingProjectsData, ThrowOnError>

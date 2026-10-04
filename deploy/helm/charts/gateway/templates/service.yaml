@@ -15,4 +15,21 @@ spec:
       protocol: TCP
   selector:
     {{- include "gateway.selectorLabels" . | nindent 4 }}
+{{- if .Values.delegation.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "gateway.fullname" . }}-credentials
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: credentials
+      port: 18083
+      targetPort: credentials
+      protocol: TCP
+  selector:
+    {{- include "gateway.selectorLabels" . | nindent 4 }}
+{{- end }}
 {{- end }}

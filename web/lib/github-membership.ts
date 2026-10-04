@@ -7,7 +7,9 @@ import * as z from "zod"
 import { getDB, schema } from "@/db"
 import { getEnv } from "@/lib/env"
 
-type GithubProfile = Awaited<ReturnType<Octokit["rest"]["users"]["getAuthenticated"]>>["data"]
+export type GithubProfile = Awaited<
+  ReturnType<Octokit["rest"]["users"]["getAuthenticated"]>
+>["data"]
 type GithubEmail = Awaited<
   ReturnType<Octokit["rest"]["users"]["listEmailsForAuthenticatedUser"]>
 >["data"][number]
@@ -166,13 +168,12 @@ export async function getGithubUserInfo(token: OAuth2Tokens) {
 
     return {
       user: {
-        id: profile.id.toString(),
         name: profile.name || profile.login,
         email,
         emailVerified,
         image: profile.avatar_url,
       },
-      data: profile satisfies GithubProfile,
+      data: profile,
     }
   } catch {
     console.error("github sign-in rejected: provider gate failed")

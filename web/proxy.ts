@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { getSessionCookie } from "better-auth/cookies"
 import { signInURL } from "@/lib/sign-in-redirect"
+import { serverGatewayBaseURL } from "@/lib/gateway/server-base-url"
 
 /**
  * proxy is the Next.js 16 request gate. Checks for a session cookie on
@@ -15,6 +16,14 @@ import { signInURL } from "@/lib/sign-in-redirect"
  * the data boundary, while malformed action requests are rejected here.
  */
 export function proxy(request: NextRequest) {
+  const path = request.nextUrl.pathname
+  if (
+    path === "/api/mcp" ||
+    path === "/api/inference/v1" ||
+    path.startsWith("/api/inference/v1/")
+  ) {
+    return NextResponse.rewrite(new URL(`${path}${request.nextUrl.search}`, serverGatewayBaseURL()))
+  }
   const actionId = request.headers.get("next-action")
   if (actionId !== null) {
     if (request.method !== "POST" || actionId.length !== 42) {
@@ -35,10 +44,12 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/api/mcp",
+    "/api/inference/v1/:path*",
     {
       source: "/((?!_next/static|_next/image|.*\\..*).*)",
       has: [{ type: "header", key: "next-action" }],
     },
-    "/((?!join|signin|signup|api/auth|_next/static|_next/image|.*\\..*).*)",
+    "/((?!join|signin|signup|oauth/authorize|api/auth|api/mcp|api/inference|_next/static|_next/image|.*\\..*).*)",
   ],
 }

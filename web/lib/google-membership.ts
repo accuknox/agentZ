@@ -98,7 +98,6 @@ export async function getGoogleUserInfo(token: OAuth2Tokens) {
 
   return {
     user: {
-      id: profile.sub,
       name: profile.name ?? profile.email,
       email: profile.email,
       image: profile.picture,

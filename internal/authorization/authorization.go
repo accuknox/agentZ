@@ -449,6 +449,24 @@ func (e Effective) Allows(scope Scope, operation Operation) bool {
 	return allowed
 }
 
+// CanDelegate requires both use and delegate authority for an inference provider
+// or MCP connection in the selected scope.
+func (e Effective) CanDelegate(scope Scope, resource gatewaydb.PermissionResource) bool {
+	if !e.active || scope.OrganizationID != e.organizationID {
+		return false
+	}
+	if e.CanAdminister(scope) {
+		return true
+	}
+	for _, action := range []gatewaydb.PermissionAction{gatewaydb.PermissionActionUse, gatewaydb.PermissionActionDelegate} {
+		_, allowed := e.grants[grantKey{workspaceID: scope.WorkspaceID, resource: resource, action: action}]
+		if !allowed {
+			return false
+		}
+	}
+	return true
+}
+
 // CanAdminister reports whether a built-in role bypass applies to the exact scope.
 func (e Effective) CanAdminister(scope Scope) bool {
 	if scope.OrganizationID != e.organizationID {

@@ -192,6 +192,14 @@ type MCPConnectionStatus struct {
 	// +optional
 	Tools []MCPConnectionTool `json:"tools,omitempty"`
 
+	// Prompts contains the discovered prompt names, without their arguments.
+	// +optional
+	Prompts []string `json:"prompts,omitempty"`
+
+	// Resources contains concrete resource URIs. Templates grant no URI access.
+	// +optional
+	Resources []string `json:"resources,omitempty"`
+
 	// Conditions represent the current state of the MCPConnection resource.
 	// +listType=map
 	// +listMapKey=type

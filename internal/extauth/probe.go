@@ -31,6 +31,8 @@ type mcpProbeOutcome struct {
 	reason        string
 	message       string
 	tools         []agentzv1alpha1.MCPConnectionTool
+	prompts       []string
+	resources     []string
 }
 
 const (
@@ -38,6 +40,8 @@ const (
 	mcpProbeBackoffStart  = 100 * time.Millisecond
 	mcpProbeBackoffFactor = 2.0
 	maxProbeHTTPBodyBytes = 1 << 20
+	maxProbeCatalogItems  = 4096
+	maxProbeCatalogBytes  = 256 << 10
 )
 
 type probeRoundTripper struct {
@@ -260,26 +264,87 @@ func (s *Service) probeMCPConnectionOnce(ctx context.Context, conn *agentzv1alph
 		}
 	}()
 
-	tools, err := session.ListTools(reqCtx, nil)
-	if err != nil {
-		outcome.reason = classifyProbeError(err, rt.lastStatus)
-		outcome.message = "MCP tools request failed"
-		rt.logHTTPExchange(
-			ctx,
-			slog.LevelWarn,
-			"mcp list_tools http exchange",
-			slog.String("probe_reason", outcome.reason),
-		)
-		return outcome
+	catalogBytes := 0
+	capabilities := session.InitializeResult().Capabilities
+	if capabilities.Tools != nil {
+		params := &mcpsdk.ListToolsParams{}
+		for {
+			page, err := session.ListTools(reqCtx, params)
+			if err != nil {
+				outcome.reason = classifyProbeError(err, rt.lastStatus)
+				outcome.message = "MCP tool discovery failed"
+				rt.logHTTPExchange(ctx, slog.LevelWarn, "mcp list_tools http exchange", slog.String("probe_reason", outcome.reason))
+				return outcome
+			}
+			if len(outcome.tools)+len(page.Tools) > maxProbeCatalogItems {
+				outcome.message = "MCP tool catalog exceeds the discovery limit"
+				return outcome
+			}
+			for _, tool := range page.Tools {
+				catalogBytes += len(tool.Name)
+				if catalogBytes > maxProbeCatalogBytes {
+					outcome.message = "MCP catalog exceeds the discovery size limit"
+					return outcome
+				}
+				outcome.tools = append(outcome.tools, agentzv1alpha1.MCPConnectionTool{Name: tool.Name})
+			}
+			if page.NextCursor == "" {
+				break
+			}
+			params.Cursor = page.NextCursor
+		}
 	}
-	outcome.tools = make([]agentzv1alpha1.MCPConnectionTool, 0, len(tools.Tools))
-	for _, tool := range tools.Tools {
-		outcome.tools = append(
-			outcome.tools,
-			agentzv1alpha1.MCPConnectionTool{
-				Name: strings.TrimSpace(tool.Name),
-			},
-		)
+	if capabilities.Prompts != nil {
+		params := &mcpsdk.ListPromptsParams{}
+		for {
+			page, err := session.ListPrompts(reqCtx, params)
+			if err != nil {
+				outcome.message = "MCP prompt discovery failed"
+				return outcome
+			}
+			if len(outcome.prompts)+len(page.Prompts) > maxProbeCatalogItems {
+				outcome.message = "MCP prompt catalog exceeds the discovery limit"
+				return outcome
+			}
+			for _, prompt := range page.Prompts {
+				catalogBytes += len(prompt.Name)
+				if catalogBytes > maxProbeCatalogBytes {
+					outcome.message = "MCP catalog exceeds the discovery size limit"
+					return outcome
+				}
+				outcome.prompts = append(outcome.prompts, prompt.Name)
+			}
+			if page.NextCursor == "" {
+				break
+			}
+			params.Cursor = page.NextCursor
+		}
+	}
+	if capabilities.Resources != nil {
+		params := &mcpsdk.ListResourcesParams{}
+		for {
+			page, err := session.ListResources(reqCtx, params)
+			if err != nil {
+				outcome.message = "MCP resource discovery failed"
+				return outcome
+			}
+			if len(outcome.resources)+len(page.Resources) > maxProbeCatalogItems {
+				outcome.message = "MCP resource catalog exceeds the discovery limit"
+				return outcome
+			}
+			for _, resource := range page.Resources {
+				catalogBytes += len(resource.URI)
+				if catalogBytes > maxProbeCatalogBytes {
+					outcome.message = "MCP catalog exceeds the discovery size limit"
+					return outcome
+				}
+				outcome.resources = append(outcome.resources, resource.URI)
+			}
+			if page.NextCursor == "" {
+				break
+			}
+			params.Cursor = page.NextCursor
+		}
 	}
 
 	outcome.healthy = true
@@ -403,6 +468,8 @@ func (s *Service) writeMCPProbeStatus(ctx context.Context, namespace, name strin
 			conn.Status.LastProbeTime = &outcome.lastProbeTime
 			conn.Status.ToolCatalogReady = outcome.healthy
 			conn.Status.Tools = outcome.tools
+			conn.Status.Prompts = outcome.prompts
+			conn.Status.Resources = outcome.resources
 			status := metav1.ConditionFalse
 			if outcome.healthy {
 				status = metav1.ConditionTrue

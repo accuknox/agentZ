@@ -2974,6 +2974,96 @@ components:
       - half
       - third
       type: string
+    DelegationCatalog:
+      additionalProperties: false
+      properties:
+        mcp:
+          items:
+            $ref: '#/components/schemas/DelegationMCP'
+          type: array
+        models:
+          items:
+            $ref: '#/components/schemas/DelegationModel'
+          type: array
+      required:
+      - models
+      - mcp
+      type: object
+    DelegationMCP:
+      additionalProperties: false
+      properties:
+        connection:
+          minLength: 1
+          type: string
+        id:
+          minLength: 1
+          type: string
+        namespace:
+          minLength: 1
+          type: string
+        prompts:
+          items:
+            minLength: 1
+            type: string
+          type: array
+          uniqueItems: true
+        resources:
+          items:
+            minLength: 1
+            type: string
+          type: array
+          uniqueItems: true
+        tools:
+          items:
+            minLength: 1
+            type: string
+          type: array
+          uniqueItems: true
+        uid:
+          minLength: 1
+          type: string
+        workspace_id:
+          minLength: 1
+          type: string
+      required:
+      - id
+      - workspace_id
+      - namespace
+      - connection
+      - uid
+      - tools
+      - prompts
+      - resources
+      type: object
+    DelegationModel:
+      additionalProperties: false
+      properties:
+        id:
+          minLength: 1
+          type: string
+        model:
+          minLength: 1
+          type: string
+        namespace:
+          minLength: 1
+          type: string
+        provider:
+          minLength: 1
+          type: string
+        uid:
+          minLength: 1
+          type: string
+        workspace_id:
+          minLength: 1
+          type: string
+      required:
+      - id
+      - workspace_id
+      - namespace
+      - provider
+      - uid
+      - model
+      type: object
     DeleteSecretsRequest:
       additionalProperties: false
       properties:
@@ -28075,6 +28165,26 @@ paths:
       summary: List accessible dashboards in the current Workspace.
       tags:
       - dashboards
+  /api/delegations/catalog:
+    get:
+      operationId: getDelegationCatalog
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DelegationCatalog'
+          description: Exact selectable capabilities.
+        default:
+          $ref: '#/components/responses/BadRequest'
+      security:
+      - GatewayBearer:
+        - organization.member
+      summary: Discover resources the user may delegate in the selected workspace.
+      tags:
+      - mcp-connections
   /api/event-trail-event:
     post:
       description: |

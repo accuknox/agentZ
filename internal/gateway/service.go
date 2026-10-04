@@ -18,6 +18,10 @@ import (
 	"time"
 
 	keyfunc "github.com/MicahParks/keyfunc/v3"
+	agw "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
+	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	authv3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
+	esv1 "github.com/external-secrets/external-secrets/apis/externalsecrets/v1"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/go-chi/chi/v5"
@@ -28,6 +32,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	nethttpmiddleware "github.com/oapi-codegen/nethttp-middleware"
 	baoapi "github.com/openbao/openbao/api/v2"
+	"google.golang.org/grpc"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,7 +41,9 @@ import (
 	ctrlcache "sigs.k8s.io/controller-runtime/pkg/cache"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
+	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	"github.com/accuknox/agentz/internal/extauth"
 	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	dashboarddb "github.com/accuknox/agentz/internal/gateway/dashboard/db"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
@@ -76,55 +83,63 @@ const cleanupMaxAttempts = 8
 
 // Config describes how to start the gateway.
 type Config struct {
-	CodingGitHubClientID      string
-	CodingGitHubClientSecret  string
-	CodingGitHubEncryptionKey string
-	Addr                      string
-	PostgresDSN               string
-	ExternalJWTJWKSURL        string
-	ExternalJWTIssuer         string
-	ExternalJWTAudience       string
-	InternalK8sTokenAudience  string
-	TargetOverride            string
-	FilesystemTargetOverride  string
-	AgentImage                string
-	AgentTraceEndpoint        string
-	OpenBaoAddr               string
-	OpenBaoSecretMountPath    string
-	OpenBaoK8sAuthRole        string
-	OpenBaoK8sAuthMountPath   string
-	OpenBaoK8sAuthTokenPath   string
-	MCPProbeStaleAfter        time.Duration
-	AllowedWebOrigins         []string
-	SkillStore                skill.Config
+	CodingGitHubClientID        string
+	CodingGitHubClientSecret    string
+	CodingGitHubEncryptionKey   string
+	DelegationNamespace         string
+	DelegationGatewayURL        string
+	DelegationCredentialAddr    string
+	DelegationCredentialService string
+	DelegationSecretStore       string
+	Addr                        string
+	PostgresDSN                 string
+	ExternalJWTJWKSURL          string
+	ExternalJWTIssuer           string
+	ExternalJWTAudience         string
+	InternalK8sTokenAudience    string
+	TargetOverride              string
+	FilesystemTargetOverride    string
+	AgentImage                  string
+	AgentTraceEndpoint          string
+	OpenBaoAddr                 string
+	OpenBaoSecretMountPath      string
+	OpenBaoK8sAuthRole          string
+	OpenBaoK8sAuthMountPath     string
+	OpenBaoK8sAuthTokenPath     string
+	MCPProbeStaleAfter          time.Duration
+	AllowedWebOrigins           []string
+	SkillStore                  skill.Config
 }
 
 // Service implements the agent gateway HTTP API.
 type Service struct {
 	gatewayapi.Unimplemented
-	ctx                context.Context
-	resolver           *resolver
-	queries            gatewaydb.Querier
-	dashboards         dashboarddb.Querier
-	db                 *pgxpool.Pool
-	lockDB             *pgxpool.Pool
-	controlDB          *pgxpool.Pool
-	cfg                Config
-	bao                *baoapi.Client
-	baoKV              *baoapi.KVv2
-	k8sClient          ctrlclient.Client
-	usageReader        ctrlclient.Reader
-	k8s                kubernetes.Interface
-	agentz             agentzclient.Interface
-	externalJWTKeyfunc jwt.Keyfunc
-	skillStore         *skill.Client
-	skillImports       chan struct{}
-	chatSessionEvents  chatSessionEvents
-	chatInputWake      chan struct{}
-	codingEvents       chatSessionEvents
-	catalog            *inference.Catalog
-	openAPI            *openapi3.T
-	outboundHTTP       *http.Client
+	authv3.UnimplementedAuthorizationServer
+	delegationRequests    chan struct{}
+	delegationCredentials *extauth.Service
+	ctx                   context.Context
+	resolver              *resolver
+	queries               gatewaydb.Querier
+	dashboards            dashboarddb.Querier
+	db                    *pgxpool.Pool
+	lockDB                *pgxpool.Pool
+	controlDB             *pgxpool.Pool
+	cfg                   Config
+	bao                   *baoapi.Client
+	baoKV                 *baoapi.KVv2
+	k8sClient             ctrlclient.Client
+	usageReader           ctrlclient.Reader
+	k8s                   kubernetes.Interface
+	agentz                agentzclient.Interface
+	externalJWTKeyfunc    jwt.Keyfunc
+	skillStore            *skill.Client
+	skillImports          chan struct{}
+	chatSessionEvents     chatSessionEvents
+	chatInputWake         chan struct{}
+	codingEvents          chatSessionEvents
+	catalog               *inference.Catalog
+	openAPI               *openapi3.T
+	outboundHTTP          *http.Client
 }
 
 type statusRecorder struct {
@@ -212,6 +227,15 @@ func Serve(ctx context.Context, cfg Config) error {
 	if cfg.MCPProbeStaleAfter <= 0 {
 		return fmt.Errorf("mcp probe stale after is required")
 	}
+	if cfg.DelegationNamespace != "" {
+		target, err := url.Parse(cfg.DelegationGatewayURL)
+		if err != nil || target.Host == "" || (target.Scheme != "http" && target.Scheme != "https") {
+			return errors.New("delegation gateway URL must be an HTTP URL")
+		}
+		if cfg.DelegationCredentialAddr == "" || cfg.DelegationCredentialService == "" || cfg.DelegationSecretStore == "" {
+			return errors.New("delegation credential listener, backend, and secret store are required")
+		}
+	}
 	allowedWebOrigins, err := validateWebOrigins(cfg.AllowedWebOrigins)
 	if err != nil {
 		return err
@@ -233,6 +257,18 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 	if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
 		return fmt.Errorf("add agentz scheme: %w", err)
+	}
+	if err := agw.Install(scheme); err != nil {
+		return fmt.Errorf("add agentgateway scheme: %w", err)
+	}
+	if err := gwv1.Install(scheme); err != nil {
+		return fmt.Errorf("add gateway API scheme: %w", err)
+	}
+	if err := esv1.AddToScheme(scheme); err != nil {
+		return fmt.Errorf("add external secrets scheme: %w", err)
+	}
+	if err := ciliumv2.AddToScheme(scheme); err != nil {
+		return fmt.Errorf("add Cilium scheme: %w", err)
 	}
 	kubeCfg, err := ctrlconfig.GetConfig()
 	if err != nil {
@@ -336,27 +372,29 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 
 	svc := &Service{
-		ctx:                ctx,
-		resolver:           resolver,
-		queries:            gatewaydb.New(db),
-		dashboards:         dashboarddb.New(db),
-		db:                 db,
-		lockDB:             lockDB,
-		controlDB:          controlDB,
-		cfg:                cfg,
-		bao:                baoClient,
-		baoKV:              baoClient.KVv2(cfg.OpenBaoSecretMountPath),
-		k8sClient:          k8sClient,
-		usageReader:        usageCache,
-		k8s:                k8s,
-		agentz:             agentz,
-		externalJWTKeyfunc: externalJWTKeyfunc,
-		skillStore:         skillStore,
-		skillImports:       make(chan struct{}, 4),
-		chatInputWake:      make(chan struct{}, 1),
-		catalog:            inference.NewCatalog(nil),
-		openAPI:            openAPISpec,
-		outboundHTTP:       &http.Client{Timeout: 10 * time.Second},
+		delegationRequests:    make(chan struct{}, 64),
+		delegationCredentials: extauth.NewCredentialService(k8sClient, baoClient.KVv2(cfg.OpenBaoSecretMountPath)),
+		ctx:                   ctx,
+		resolver:              resolver,
+		queries:               gatewaydb.New(db),
+		dashboards:            dashboarddb.New(db),
+		db:                    db,
+		lockDB:                lockDB,
+		controlDB:             controlDB,
+		cfg:                   cfg,
+		bao:                   baoClient,
+		baoKV:                 baoClient.KVv2(cfg.OpenBaoSecretMountPath),
+		k8sClient:             k8sClient,
+		usageReader:           usageCache,
+		k8s:                   k8s,
+		agentz:                agentz,
+		externalJWTKeyfunc:    externalJWTKeyfunc,
+		skillStore:            skillStore,
+		skillImports:          make(chan struct{}, 4),
+		chatInputWake:         make(chan struct{}, 1),
+		catalog:               inference.NewCatalog(nil),
+		openAPI:               openAPISpec,
+		outboundHTTP:          &http.Client{Timeout: 10 * time.Second},
 	}
 	if err := svc.recoverWorkspaceProvisioning(ctx); err != nil {
 		return err
@@ -401,6 +439,27 @@ func Serve(ctx context.Context, cfg Config) error {
 		defer close(chatSessionNotificationsDone)
 		svc.runChatSessionNotifications(runCtx)
 	}()
+
+	var delegationWorkers sync.WaitGroup
+	if cfg.DelegationNamespace != "" {
+		listener, err := net.Listen("tcp", cfg.DelegationCredentialAddr)
+		if err != nil {
+			return fmt.Errorf("listen delegated credential service: %w", err)
+		}
+		credentials := grpc.NewServer()
+		authv3.RegisterAuthorizationServer(credentials, svc)
+		delegationWorkers.Go(func() {
+			if err := credentials.Serve(listener); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
+				slog.ErrorContext(runCtx, "serve delegated credentials", slog.Any("error", err))
+				stopRun()
+			}
+		})
+		delegationWorkers.Go(func() {
+			<-runCtx.Done()
+			credentials.Stop()
+		})
+		delegationWorkers.Go(func() { svc.runDelegationRuntime(runCtx) })
+	}
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
@@ -457,6 +516,7 @@ func Serve(ctx context.Context, cfg Config) error {
 	evaluations.Wait()
 	<-cleanupDone
 	<-eventTrailRetentionDone
+	delegationWorkers.Wait()
 
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("serve http: %w", err)
@@ -790,24 +850,41 @@ func (s *Service) routes() http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	})
-	r.Use(cors.Handler(cors.Options{
+	r.Route("/api/inference/v1", func(r chi.Router) {
+		r.Use(s.delegationCORS)
+		r.Get("/models", s.handleDelegatedRequest)
+		r.Post("/chat/completions", s.handleDelegatedRequest)
+		r.Post("/responses", s.handleDelegatedRequest)
+		for _, path := range []string{"/models", "/chat/completions", "/responses"} {
+			r.Options(path, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+		}
+		r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+			s.delegationError(w, r, http.StatusNotFound, "not_found", "This inference endpoint is unavailable.")
+		})
+		r.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) {
+			s.delegationError(w, r, http.StatusMethodNotAllowed, "method_not_allowed", "Use the supported HTTP method for this endpoint.")
+		})
+	})
+	r.With(s.delegationCORS).HandleFunc("/api/mcp", s.handleDelegatedRequest)
+	managementCORS := cors.Handler(cors.Options{
 		AllowedOrigins:   s.cfg.AllowedWebOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"*"},
 		ExposedHeaders:   []string{"X-Next-Cursor"},
 		AllowCredentials: false,
 		MaxAge:           300,
-	}))
-	r.With(s.ptyWebsocketAuth, requireTenantRequest(s)).HandleFunc(
+	})
+	r.With(managementCORS, s.ptyWebsocketAuth, requireTenantRequest(s)).HandleFunc(
 		opencodePrefix+"/{agentName}",
 		s.handleOpenCodeProxy,
 	)
-	r.With(s.ptyWebsocketAuth, requireTenantRequest(s)).HandleFunc(
+	r.With(managementCORS, s.ptyWebsocketAuth, requireTenantRequest(s)).HandleFunc(
 		opencodePrefix+"/{agentName}/*",
 		s.handleOpenCodeProxy,
 	)
 
 	apiRouter := chi.NewRouter()
+	apiRouter.Use(managementCORS)
 	apiRouter.Use(nethttpmiddleware.OapiRequestValidatorWithOptions(
 		s.openAPI,
 		&nethttpmiddleware.Options{

@@ -512,6 +512,8 @@ const (
 	PermissionActionCreate             PermissionAction = "create"
 	PermissionActionModify             PermissionAction = "modify"
 	PermissionActionDelete             PermissionAction = "delete"
+	PermissionActionUse                PermissionAction = "use"
+	PermissionActionDelegate           PermissionAction = "delegate"
 	PermissionActionAuthor             PermissionAction = "author"
 	PermissionActionShareAuthored      PermissionAction = "share_authored"
 	PermissionActionShareNonAuthored   PermissionAction = "share_non_authored"
@@ -1092,6 +1094,37 @@ type DashboardWidget struct {
 	CreatedAt       time.Time `json:"created_at"`
 }
 
+type DelegationGrant struct {
+	ID             string             `json:"id"`
+	ClientID       string             `json:"client_id"`
+	UserID         string             `json:"user_id"`
+	OrganizationID pgtype.Text        `json:"organization_id"`
+	Scopes         []string           `json:"scopes"`
+	Resources      []string           `json:"resources"`
+	Selection      []byte             `json:"selection"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	ApprovedAt     pgtype.Timestamptz `json:"approved_at"`
+	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
+}
+
+type DelegationMcpSession struct {
+	ID        string             `json:"id"`
+	GrantID   string             `json:"grant_id"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+}
+
+type DelegationTransaction struct {
+	ID                 string             `json:"id"`
+	ClientID           string             `json:"client_id"`
+	UserID             string             `json:"user_id"`
+	SessionID          string             `json:"session_id"`
+	AuthorizationQuery string             `json:"authorization_query"`
+	GrantID            pgtype.Text        `json:"grant_id"`
+	Scopes             []string           `json:"scopes"`
+	Resources          []string           `json:"resources"`
+	ExpiresAt          pgtype.Timestamptz `json:"expires_at"`
+}
+
 type EventTrailEvent struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`
@@ -1159,6 +1192,8 @@ type Jwk struct {
 	PrivateKey string           `json:"private_key"`
 	CreatedAt  pgtype.Timestamp `json:"created_at"`
 	ExpiresAt  pgtype.Timestamp `json:"expires_at"`
+	Alg        pgtype.Text      `json:"alg"`
+	Crv        pgtype.Text      `json:"crv"`
 }
 
 type LastAccessibleContext struct {
@@ -1193,6 +1228,127 @@ type MemberRoleAssignment struct {
 	TeamID         pgtype.Text `json:"team_id"`
 }
 
+type OauthAccessToken struct {
+	ID                      string           `json:"id"`
+	Token                   string           `json:"token"`
+	ClientID                string           `json:"client_id"`
+	SessionID               pgtype.Text      `json:"session_id"`
+	UserID                  pgtype.Text      `json:"user_id"`
+	ReferenceID             pgtype.Text      `json:"reference_id"`
+	AuthorizationCodeID     pgtype.Text      `json:"authorization_code_id"`
+	Resources               []string         `json:"resources"`
+	RequestedUserInfoClaims []string         `json:"requested_user_info_claims"`
+	RefreshID               pgtype.Text      `json:"refresh_id"`
+	ExpiresAt               pgtype.Timestamp `json:"expires_at"`
+	CreatedAt               pgtype.Timestamp `json:"created_at"`
+	Revoked                 pgtype.Timestamp `json:"revoked"`
+	Confirmation            []byte           `json:"confirmation"`
+	Scopes                  []string         `json:"scopes"`
+}
+
+type OauthClient struct {
+	ID                               string           `json:"id"`
+	ClientID                         string           `json:"client_id"`
+	ClientSecret                     pgtype.Text      `json:"client_secret"`
+	ClientDiscoveryID                pgtype.Text      `json:"client_discovery_id"`
+	Disabled                         pgtype.Bool      `json:"disabled"`
+	SkipConsent                      pgtype.Bool      `json:"skip_consent"`
+	EnableEndSession                 pgtype.Bool      `json:"enable_end_session"`
+	SubjectType                      pgtype.Text      `json:"subject_type"`
+	Scopes                           []string         `json:"scopes"`
+	ClientCredentialsScopes          []string         `json:"client_credentials_scopes"`
+	UserID                           pgtype.Text      `json:"user_id"`
+	CreatedAt                        pgtype.Timestamp `json:"created_at"`
+	UpdatedAt                        pgtype.Timestamp `json:"updated_at"`
+	Name                             pgtype.Text      `json:"name"`
+	Uri                              pgtype.Text      `json:"uri"`
+	Icon                             pgtype.Text      `json:"icon"`
+	Contacts                         []string         `json:"contacts"`
+	Tos                              pgtype.Text      `json:"tos"`
+	Policy                           pgtype.Text      `json:"policy"`
+	SoftwareID                       pgtype.Text      `json:"software_id"`
+	SoftwareVersion                  pgtype.Text      `json:"software_version"`
+	SoftwareStatement                pgtype.Text      `json:"software_statement"`
+	RedirectUris                     []string         `json:"redirect_uris"`
+	PostLogoutRedirectUris           []string         `json:"post_logout_redirect_uris"`
+	BackchannelLogoutUri             pgtype.Text      `json:"backchannel_logout_uri"`
+	BackchannelLogoutSessionRequired pgtype.Bool      `json:"backchannel_logout_session_required"`
+	TokenEndpointAuthMethod          pgtype.Text      `json:"token_endpoint_auth_method"`
+	ApplicationType                  pgtype.Text      `json:"application_type"`
+	Jwks                             pgtype.Text      `json:"jwks"`
+	JwksUri                          pgtype.Text      `json:"jwks_uri"`
+	GrantTypes                       []string         `json:"grant_types"`
+	ResponseTypes                    []string         `json:"response_types"`
+	RequirePkce                      pgtype.Bool      `json:"require_pkce"`
+	DpopBoundAccessTokens            pgtype.Bool      `json:"dpop_bound_access_tokens"`
+	ReferenceID                      pgtype.Text      `json:"reference_id"`
+	Metadata                         []byte           `json:"metadata"`
+}
+
+type OauthClientAssertion struct {
+	ID        string           `json:"id"`
+	ExpiresAt pgtype.Timestamp `json:"expires_at"`
+}
+
+type OauthClientResource struct {
+	ID         string           `json:"id"`
+	ClientID   string           `json:"client_id"`
+	ResourceID string           `json:"resource_id"`
+	Metadata   []byte           `json:"metadata"`
+	CreatedAt  pgtype.Timestamp `json:"created_at"`
+}
+
+type OauthConsent struct {
+	ID                      string           `json:"id"`
+	ClientID                string           `json:"client_id"`
+	UserID                  pgtype.Text      `json:"user_id"`
+	ReferenceID             pgtype.Text      `json:"reference_id"`
+	Resources               []string         `json:"resources"`
+	RequestedUserInfoClaims []string         `json:"requested_user_info_claims"`
+	Scopes                  []string         `json:"scopes"`
+	CreatedAt               pgtype.Timestamp `json:"created_at"`
+	UpdatedAt               pgtype.Timestamp `json:"updated_at"`
+}
+
+type OauthRefreshToken struct {
+	ID                      string           `json:"id"`
+	Token                   string           `json:"token"`
+	ClientID                string           `json:"client_id"`
+	SessionID               pgtype.Text      `json:"session_id"`
+	UserID                  string           `json:"user_id"`
+	ReferenceID             pgtype.Text      `json:"reference_id"`
+	AuthorizationCodeID     pgtype.Text      `json:"authorization_code_id"`
+	Resources               []string         `json:"resources"`
+	RequestedUserInfoClaims []string         `json:"requested_user_info_claims"`
+	ExpiresAt               pgtype.Timestamp `json:"expires_at"`
+	CreatedAt               pgtype.Timestamp `json:"created_at"`
+	Revoked                 pgtype.Timestamp `json:"revoked"`
+	RotatedAt               pgtype.Timestamp `json:"rotated_at"`
+	RotationReplayResponse  pgtype.Text      `json:"rotation_replay_response"`
+	RotationReplayExpiresAt pgtype.Timestamp `json:"rotation_replay_expires_at"`
+	AuthTime                pgtype.Timestamp `json:"auth_time"`
+	Confirmation            []byte           `json:"confirmation"`
+	Scopes                  []string         `json:"scopes"`
+}
+
+type OauthResource struct {
+	ID                            string           `json:"id"`
+	Identifier                    string           `json:"identifier"`
+	Name                          string           `json:"name"`
+	AccessTokenTtl                pgtype.Int4      `json:"access_token_ttl"`
+	RefreshTokenTtl               pgtype.Int4      `json:"refresh_token_ttl"`
+	SigningAlgorithm              pgtype.Text      `json:"signing_algorithm"`
+	SigningKeyID                  pgtype.Text      `json:"signing_key_id"`
+	AllowedScopes                 []string         `json:"allowed_scopes"`
+	CustomClaims                  []byte           `json:"custom_claims"`
+	DpopBoundAccessTokensRequired pgtype.Bool      `json:"dpop_bound_access_tokens_required"`
+	Disabled                      pgtype.Bool      `json:"disabled"`
+	CreatedAt                     pgtype.Timestamp `json:"created_at"`
+	UpdatedAt                     pgtype.Timestamp `json:"updated_at"`
+	PolicyVersion                 pgtype.Int4      `json:"policy_version"`
+	Metadata                      []byte           `json:"metadata"`
+}
+
 type Organization struct {
 	ID        string           `json:"id"`
 	Name      string           `json:"name"`
@@ -1200,6 +1356,11 @@ type Organization struct {
 	Logo      pgtype.Text      `json:"logo"`
 	CreatedAt pgtype.Timestamp `json:"created_at"`
 	Metadata  pgtype.Text      `json:"metadata"`
+}
+
+type OrganizationDelegation struct {
+	OrganizationID string `json:"organization_id"`
+	Enabled        bool   `json:"enabled"`
 }
 
 type OrganizationInvitation struct {
@@ -1298,16 +1459,18 @@ type SocialAdmissionPolicy struct {
 type Team struct {
 	ID             string           `json:"id"`
 	Name           string           `json:"name"`
+	MemberCount    int32            `json:"member_count"`
 	OrganizationID string           `json:"organization_id"`
 	CreatedAt      pgtype.Timestamp `json:"created_at"`
 	UpdatedAt      pgtype.Timestamp `json:"updated_at"`
 }
 
 type TeamMember struct {
-	ID        string           `json:"id"`
-	TeamID    string           `json:"team_id"`
-	UserID    string           `json:"user_id"`
-	CreatedAt pgtype.Timestamp `json:"created_at"`
+	ID            string           `json:"id"`
+	TeamID        string           `json:"team_id"`
+	UserID        string           `json:"user_id"`
+	MembershipKey pgtype.Text      `json:"membership_key"`
+	CreatedAt     pgtype.Timestamp `json:"created_at"`
 }
 
 type TeamRole struct {

@@ -179,6 +179,11 @@ function SettingsNavigation() {
           </SidebarNavigationLink>
         </SidebarMenuItem>
         <SidebarMenuItem>
+          <SidebarNavigationLink href="/settings/applications" label="Connected applications">
+            <KeyRound aria-hidden="true" />
+          </SidebarNavigationLink>
+        </SidebarMenuItem>
+        <SidebarMenuItem>
           <SidebarNavigationLink href="/settings/preferences" label="Preferences">
             <SlidersHorizontal aria-hidden="true" />
           </SidebarNavigationLink>
@@ -416,6 +421,11 @@ function OrganizationNavigation({
             <SidebarMenuItem data-tour="event-trail">
               <SidebarNavigationLink href={`${root}/event-trail`} label="Event trail">
                 <Activity aria-hidden="true" />
+              </SidebarNavigationLink>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarNavigationLink href={`${root}/applications`} label="Applications">
+                <KeyRound aria-hidden="true" />
               </SidebarNavigationLink>
             </SidebarMenuItem>
             <SidebarMenuItem data-tour="general">

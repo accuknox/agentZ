@@ -17,8 +17,10 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core"
 import type { EventTrailField } from "@/lib/gateway/client/types.gen"
+import type { DelegationCatalog } from "@/lib/gateway/client/types.gen"
 import { dayjs } from "@/lib/format"
 import {
+  oauthClients,
   apikeys,
   members,
   organizationInvitations,
@@ -30,6 +32,66 @@ import {
 } from "./auth-schema"
 
 export * from "./auth-schema"
+
+export const organizationDelegation = pgTable("organization_delegation", {
+  organizationId: text("organization_id")
+    .primaryKey()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  enabled: boolean("enabled").default(false).notNull(),
+})
+
+export const delegationGrants = pgTable(
+  "delegation_grants",
+  {
+    id: text("id").primaryKey(),
+    clientId: text("client_id")
+      .notNull()
+      .references(() => oauthClients.clientId, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id").references(() => organizations.id, {
+      onDelete: "cascade",
+    }),
+    scopes: text("scopes").array().notNull(),
+    resources: text("resources").array().notNull(),
+    selection: jsonb("selection").$type<DelegationCatalog>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (table) => [index("delegation_grants_user_client_idx").on(table.userId, table.clientId)]
+)
+
+export const delegationTransactions = pgTable(
+  "delegation_transactions",
+  {
+    id: text("id").primaryKey(),
+    clientId: text("client_id")
+      .notNull()
+      .references(() => oauthClients.clientId, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => sessions.id, { onDelete: "cascade" }),
+    authorizationQuery: text("authorization_query").notNull(),
+    grantId: text("grant_id").references(() => delegationGrants.id, { onDelete: "cascade" }),
+    scopes: text("scopes").array().notNull(),
+    resources: text("resources").array().notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [index("delegation_transactions_user_client_idx").on(table.userId, table.clientId)]
+)
+
+export const delegationMCPSessions = pgTable("delegation_mcp_sessions", {
+  id: text("id").primaryKey(),
+  grantId: text("grant_id")
+    .notNull()
+    .references(() => delegationGrants.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+})
 
 export const themePreference = pgEnum("theme_preference", ["system", "light", "dark"])
 export const workspaceType = pgEnum("workspace_type", ["general", "coding"])
@@ -55,6 +117,8 @@ export const permissionAction = pgEnum("permission_action", [
   "create",
   "modify",
   "delete",
+  "use",
+  "delegate",
   "author",
   "share_authored",
   "share_non_authored",
@@ -396,7 +460,8 @@ export const permissionGrants = pgTable(
       sql`(${table.resource} = 'agent' AND ${table.action} IN (
           'author', 'share_authored', 'share_non_authored', 'use_shared',
           'read_shared_secret', 'write_shared_secret', 'delete_shared_secret'
-        )) OR (${table.resource} <> 'agent' AND ${table.action} IN (
+        )) OR (${table.resource} IN ('mcp_connection', 'inference_provider') AND ${table.action}::text IN ('use', 'delegate'))
+        OR (${table.resource} <> 'agent' AND ${table.action} IN (
           'read', 'create', 'modify', 'delete'
         ))`
     ),

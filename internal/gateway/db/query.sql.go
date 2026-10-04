@@ -235,6 +235,25 @@ func (q *Queries) GatewayChatSessionExists(ctx context.Context, arg GatewayChatS
 	return column_1, err
 }
 
+const gatewayCheckDelegationMCPSession = `-- name: GatewayCheckDelegationMCPSession :one
+SELECT EXISTS (
+  SELECT 1 FROM delegation_mcp_sessions
+  WHERE id = $1 AND grant_id = $2 AND expires_at > now()
+)
+`
+
+type GatewayCheckDelegationMCPSessionParams struct {
+	ID      string `json:"id"`
+	GrantID string `json:"grant_id"`
+}
+
+func (q *Queries) GatewayCheckDelegationMCPSession(ctx context.Context, arg GatewayCheckDelegationMCPSessionParams) (bool, error) {
+	row := q.db.QueryRow(ctx, gatewayCheckDelegationMCPSession, arg.ID, arg.GrantID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const gatewayClaimCleanupJob = `-- name: GatewayClaimCleanupJob :one
 WITH next_job AS (
   SELECT id
@@ -1888,6 +1907,51 @@ func (q *Queries) GatewayGetCodingWorktree(ctx context.Context, arg GatewayGetCo
 		&i.CodingProject.Deleting,
 		&i.CodingProject.DefaultBranch,
 		&i.CodingProject.CreatedAt,
+	)
+	return i, err
+}
+
+const gatewayGetDelegationGrant = `-- name: GatewayGetDelegationGrant :one
+SELECT g.id, g.client_id, g.user_id, g.organization_id, g.scopes,
+       g.resources, g.selection, g.created_at
+FROM delegation_grants g
+JOIN oauth_clients c ON c.client_id = g.client_id AND c.disabled IS NOT TRUE AND g.scopes <@ c.scopes
+JOIN organization_delegation d ON d.organization_id = g.organization_id AND d.enabled
+JOIN members m ON m.organization_id = g.organization_id AND m.user_id = g.user_id AND m.disabled_at IS NULL
+WHERE g.id = $1 AND g.client_id = $2
+  AND g.user_id = $3
+  AND g.approved_at IS NOT NULL AND g.revoked_at IS NULL
+`
+
+type GatewayGetDelegationGrantParams struct {
+	ID       string `json:"id"`
+	ClientID string `json:"client_id"`
+	UserID   string `json:"user_id"`
+}
+
+type GatewayGetDelegationGrantRow struct {
+	ID             string             `json:"id"`
+	ClientID       string             `json:"client_id"`
+	UserID         string             `json:"user_id"`
+	OrganizationID pgtype.Text        `json:"organization_id"`
+	Scopes         []string           `json:"scopes"`
+	Resources      []string           `json:"resources"`
+	Selection      []byte             `json:"selection"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+func (q *Queries) GatewayGetDelegationGrant(ctx context.Context, arg GatewayGetDelegationGrantParams) (GatewayGetDelegationGrantRow, error) {
+	row := q.db.QueryRow(ctx, gatewayGetDelegationGrant, arg.ID, arg.ClientID, arg.UserID)
+	var i GatewayGetDelegationGrantRow
+	err := row.Scan(
+		&i.ID,
+		&i.ClientID,
+		&i.UserID,
+		&i.OrganizationID,
+		&i.Scopes,
+		&i.Resources,
+		&i.Selection,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -3616,6 +3680,80 @@ func (q *Queries) GatewayListCodingWorktrees(ctx context.Context, arg GatewayLis
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListDelegationGrants = `-- name: GatewayListDelegationGrants :many
+SELECT g.id, g.client_id, g.user_id, g.organization_id, g.scopes,
+       g.resources, g.selection, g.created_at
+FROM delegation_grants g
+JOIN oauth_clients c ON c.client_id = g.client_id AND c.disabled IS NOT TRUE AND g.scopes <@ c.scopes
+JOIN organization_delegation d ON d.organization_id = g.organization_id AND d.enabled
+JOIN members m ON m.organization_id = g.organization_id AND m.user_id = g.user_id AND m.disabled_at IS NULL
+WHERE g.approved_at IS NOT NULL AND g.revoked_at IS NULL
+`
+
+type GatewayListDelegationGrantsRow struct {
+	ID             string             `json:"id"`
+	ClientID       string             `json:"client_id"`
+	UserID         string             `json:"user_id"`
+	OrganizationID pgtype.Text        `json:"organization_id"`
+	Scopes         []string           `json:"scopes"`
+	Resources      []string           `json:"resources"`
+	Selection      []byte             `json:"selection"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+func (q *Queries) GatewayListDelegationGrants(ctx context.Context) ([]GatewayListDelegationGrantsRow, error) {
+	rows, err := q.db.Query(ctx, gatewayListDelegationGrants)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayListDelegationGrantsRow{}
+	for rows.Next() {
+		var i GatewayListDelegationGrantsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ClientID,
+			&i.UserID,
+			&i.OrganizationID,
+			&i.Scopes,
+			&i.Resources,
+			&i.Selection,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListDelegationRedirects = `-- name: GatewayListDelegationRedirects :many
+SELECT redirect_uris FROM oauth_clients WHERE disabled IS NOT TRUE AND application_type = 'web'
+`
+
+func (q *Queries) GatewayListDelegationRedirects(ctx context.Context) ([][]string, error) {
+	rows, err := q.db.Query(ctx, gatewayListDelegationRedirects)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := [][]string{}
+	for rows.Next() {
+		var redirect_uris []string
+		if err := rows.Scan(&redirect_uris); err != nil {
+			return nil, err
+		}
+		items = append(items, redirect_uris)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -5574,6 +5712,24 @@ func (q *Queries) GatewayPruneCodingSnapshots(ctx context.Context) error {
 	return err
 }
 
+const gatewayPruneDelegationSessions = `-- name: GatewayPruneDelegationSessions :exec
+DELETE FROM delegation_mcp_sessions WHERE expires_at <= now()
+`
+
+func (q *Queries) GatewayPruneDelegationSessions(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, gatewayPruneDelegationSessions)
+	return err
+}
+
+const gatewayPruneDelegationTransactions = `-- name: GatewayPruneDelegationTransactions :exec
+DELETE FROM delegation_transactions WHERE expires_at <= now()
+`
+
+func (q *Queries) GatewayPruneDelegationTransactions(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, gatewayPruneDelegationTransactions)
+	return err
+}
+
 const gatewayReadyCodingWorktree = `-- name: GatewayReadyCodingWorktree :exec
 UPDATE coding_worktrees SET ready = true, branch = $1 WHERE id = $2
 `
@@ -6125,6 +6281,27 @@ func (q *Queries) GatewaySaveCodingSnapshot(ctx context.Context, arg GatewaySave
 		arg.WorktreeID,
 		arg.LeaseUntil,
 	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const gatewaySaveDelegationMCPSession = `-- name: GatewaySaveDelegationMCPSession :execrows
+INSERT INTO delegation_mcp_sessions (id, grant_id, expires_at)
+VALUES ($1, $2, $3)
+ON CONFLICT (id) DO UPDATE SET expires_at = EXCLUDED.expires_at
+WHERE delegation_mcp_sessions.grant_id = EXCLUDED.grant_id
+`
+
+type GatewaySaveDelegationMCPSessionParams struct {
+	ID        string             `json:"id"`
+	GrantID   string             `json:"grant_id"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+}
+
+func (q *Queries) GatewaySaveDelegationMCPSession(ctx context.Context, arg GatewaySaveDelegationMCPSessionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, gatewaySaveDelegationMCPSession, arg.ID, arg.GrantID, arg.ExpiresAt)
 	if err != nil {
 		return 0, err
 	}

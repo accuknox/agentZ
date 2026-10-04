@@ -84,6 +84,13 @@ spec:
             - --log-format={{ .Values.config.logFormat }}
             - "--addr=0.0.0.0:{{ .Values.service.port }}"
             - "--postgres-dsn=$(AGENTZ_POSTGRES_DSN)"
+            {{- if .Values.delegation.enabled }}
+            - --delegation-namespace={{ printf "%s-delegations" (include "gateway.fullname" .) | trunc 63 | trimSuffix "-" }}
+            - --delegation-gateway-url=http://delegations.{{ printf "%s-delegations" (include "gateway.fullname" .) | trunc 63 | trimSuffix "-" }}.svc.cluster.local
+            - --delegation-credential-addr=:18083
+            - --delegation-credential-service=delegation-credentials
+            - --delegation-secret-store={{ required "delegation.secretStore is required" .Values.delegation.secretStore }}
+            {{- end }}
             - --external-jwt-jwks-url={{ required "gateway.config.externalJWTJWKSURL is required for standalone installs" $jwksURL }}
             - --external-jwt-issuer={{ required "gateway.config.externalJWTIssuer is required" .Values.config.externalJWTIssuer }}
             - --external-jwt-audience={{ required "gateway.config.externalJWTAudience is required" .Values.config.externalJWTAudience }}
@@ -117,6 +124,11 @@ spec:
             - {{ . | quote }}
             {{- end }}
           ports:
+            {{- if .Values.delegation.enabled }}
+            - name: credentials
+              containerPort: 18083
+              protocol: TCP
+            {{- end }}
             - name: http
               containerPort: {{ .Values.service.port }}
               protocol: TCP

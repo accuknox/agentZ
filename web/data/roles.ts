@@ -65,14 +65,14 @@ const roleResourceCatalog: RoleResourceDefinition[] = [
     label: "MCP connections",
     organisation: true,
     workspace: true,
-    actions: ["read", "create", "delete"],
+    actions: ["read", "create", "delete", "use", "delegate"],
   },
   {
     resource: "inference_provider",
     label: "Inference providers",
     organisation: true,
     workspace: true,
-    actions: ["read", "create", "modify", "delete"],
+    actions: ["read", "create", "modify", "delete", "use", "delegate"],
   },
   {
     resource: "inference_pool",
@@ -184,7 +184,10 @@ function available(resource: RoleResourceDefinition, workspaceId: string | null)
 function requiredGrants(grant: RoleGrantInput): RoleGrantInput[] {
   const resource = roleResourceCatalog.find((candidate) => candidate.resource === grant.resource)
   const requirements: RoleGrantInput[] = []
-  if (resource) {
+  if (grant.action === "use" || grant.action === "delegate") {
+    requirements.push({ ...grant, action: "read" })
+    if (grant.action === "delegate") requirements.push({ ...grant, action: "use" })
+  } else if (resource) {
     const index = resource.actions.indexOf(grant.action)
     if (index > 0) {
       for (const action of resource.actions.slice(0, index)) {

@@ -201,6 +201,7 @@ var baseOperationCapabilities = map[string][]string{
 		"updateWorkspaceLifecycle",
 	},
 	"organization.member": {
+		"getDelegationCatalog",
 		"ensureTenant",
 		"getTenant",
 		"getWorkspace",

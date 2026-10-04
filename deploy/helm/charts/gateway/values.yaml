@@ -114,3 +114,8 @@ config:
   skillsS3Bucket: ""
 
 extraArgs: []
+
+# Organization delegation remains opt-in even when the private runtime is enabled.
+delegation:
+  enabled: true
+  secretStore: agentz-inference

@@ -5,6 +5,15 @@
   "properties": {
     "global": { "type": "object", "properties": { "secretName": { "type": "string" } } },
     "enabled": { "type": "boolean" },
+    "delegation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "secretStore": { "type": "string", "minLength": 1 }
+      },
+      "required": ["enabled", "secretStore"]
+    },
     "nameOverride": { "type": "string" },
     "fullnameOverride": { "type": "string" },
     "replicaCount": { "type": "integer", "minimum": 1 },

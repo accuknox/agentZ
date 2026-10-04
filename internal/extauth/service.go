@@ -352,6 +352,53 @@ type Service struct {
 
 var _ authv3.AuthorizationServer = (*Service)(nil)
 
+// NewCredentialService shares native credential resolution with another trusted
+// gateway. Callers must authorize the target before resolving its credentials.
+func NewCredentialService(kube ctrlclient.Client, kv *baoapi.KVv2) *Service {
+	return &Service{
+		kube: kube,
+		kv:   kv,
+		http: &http.Client{Timeout: httpClientTimeout},
+	}
+}
+
+// MCPCredentials resolves configured upstream authentication, including refresh.
+func (s *Service) MCPCredentials(ctx context.Context, connection *agentzv1alpha1.MCPConnection) (*authv3.OkHttpResponse, error) {
+	var injection injectedRequest
+	if connection.Spec.Auth != nil {
+		var err error
+		injection, err = s.resolveInjectedRequest(ctx, connection, &requestAttrs{})
+		if err != nil {
+			return nil, err
+		}
+	}
+	headers := make([]*corev3.HeaderValueOption, 0, len(connection.Spec.Endpoint.Headers)+len(injection.headers))
+	for name, value := range connection.Spec.Endpoint.Headers {
+		headers = append(headers, overwriteHeader(name, value))
+	}
+	headers = append(headers, injection.headers...)
+	return &authv3.OkHttpResponse{
+		Headers: headers, HeadersToRemove: injection.headersToRemove,
+		QueryParametersToSet: injection.queryParameters,
+	}, nil
+}
+
+// InferenceCredentials resolves subscription authentication. API-key providers
+// use their native ExternalSecret-backed backend authentication instead.
+func (s *Service) InferenceCredentials(ctx context.Context, provider *agentzv1alpha1.InferenceProvider) (*authv3.OkHttpResponse, error) {
+	if provider.Spec.Kind != agentzv1alpha1.InferenceProviderKindOpenAICodex {
+		return &authv3.OkHttpResponse{}, nil
+	}
+	record, _, err := s.resolveInferenceSubscription(ctx, provider)
+	if err != nil {
+		return nil, err
+	}
+	return &authv3.OkHttpResponse{Headers: []*corev3.HeaderValueOption{
+		overwriteHeader("authorization", "Bearer "+record.Token.AccessToken),
+		overwriteHeader("chatgpt-account-id", record.AccountID),
+	}}, nil
+}
+
 // Check authorizes one gateway request and supplies upstream credentials.
 func (s *Service) Check(ctx context.Context, req *authv3.CheckRequest) (*authv3.CheckResponse, error) {
 	decision, attrs := s.evaluate(ctx, req)

@@ -2658,3 +2658,44 @@ WHERE workspace_id = @workspace_id AND agent_name = @agent_name AND session_id =
 ORDER BY CASE WHEN state = 'sending' OR message_id <> '' AND state = 'failed' THEN 0
   WHEN delivery = 'steer' AND state = 'queued' THEN 1 ELSE 2 END, sequence
 LIMIT 1;
+
+-- name: GatewayGetDelegationGrant :one
+SELECT g.id, g.client_id, g.user_id, g.organization_id, g.scopes,
+       g.resources, g.selection, g.created_at
+FROM delegation_grants g
+JOIN oauth_clients c ON c.client_id = g.client_id AND c.disabled IS NOT TRUE AND g.scopes <@ c.scopes
+JOIN organization_delegation d ON d.organization_id = g.organization_id AND d.enabled
+JOIN members m ON m.organization_id = g.organization_id AND m.user_id = g.user_id AND m.disabled_at IS NULL
+WHERE g.id = sqlc.arg(id) AND g.client_id = sqlc.arg(client_id)
+  AND g.user_id = sqlc.arg(user_id)
+  AND g.approved_at IS NOT NULL AND g.revoked_at IS NULL;
+
+-- name: GatewayListDelegationGrants :many
+SELECT g.id, g.client_id, g.user_id, g.organization_id, g.scopes,
+       g.resources, g.selection, g.created_at
+FROM delegation_grants g
+JOIN oauth_clients c ON c.client_id = g.client_id AND c.disabled IS NOT TRUE AND g.scopes <@ c.scopes
+JOIN organization_delegation d ON d.organization_id = g.organization_id AND d.enabled
+JOIN members m ON m.organization_id = g.organization_id AND m.user_id = g.user_id AND m.disabled_at IS NULL
+WHERE g.approved_at IS NOT NULL AND g.revoked_at IS NULL;
+
+-- name: GatewayCheckDelegationMCPSession :one
+SELECT EXISTS (
+  SELECT 1 FROM delegation_mcp_sessions
+  WHERE id = sqlc.arg(id) AND grant_id = sqlc.arg(grant_id) AND expires_at > now()
+);
+
+-- name: GatewaySaveDelegationMCPSession :execrows
+INSERT INTO delegation_mcp_sessions (id, grant_id, expires_at)
+VALUES (sqlc.arg(id), sqlc.arg(grant_id), sqlc.arg(expires_at))
+ON CONFLICT (id) DO UPDATE SET expires_at = EXCLUDED.expires_at
+WHERE delegation_mcp_sessions.grant_id = EXCLUDED.grant_id;
+
+-- name: GatewayListDelegationRedirects :many
+SELECT redirect_uris FROM oauth_clients WHERE disabled IS NOT TRUE AND application_type = 'web';
+
+-- name: GatewayPruneDelegationSessions :exec
+DELETE FROM delegation_mcp_sessions WHERE expires_at <= now();
+
+-- name: GatewayPruneDelegationTransactions :exec
+DELETE FROM delegation_transactions WHERE expires_at <= now();

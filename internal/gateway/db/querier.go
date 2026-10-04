@@ -20,6 +20,7 @@ type Querier interface {
 	GatewayBindCodingSession(ctx context.Context, arg GatewayBindCodingSessionParams) error
 	GatewayChatInputsStopping(ctx context.Context, arg GatewayChatInputsStoppingParams) (bool, error)
 	GatewayChatSessionExists(ctx context.Context, arg GatewayChatSessionExistsParams) (bool, error)
+	GatewayCheckDelegationMCPSession(ctx context.Context, arg GatewayCheckDelegationMCPSessionParams) (bool, error)
 	GatewayClaimCleanupJob(ctx context.Context, arg GatewayClaimCleanupJobParams) (CleanupJob, error)
 	GatewayClaimCodingOperation(ctx context.Context, leaseToken string) (CodingOperation, error)
 	GatewayClaimCodingSnapshot(ctx context.Context) (CodingSnapshot, error)
@@ -68,6 +69,7 @@ type Querier interface {
 	GatewayGetCodingProject(ctx context.Context, arg GatewayGetCodingProjectParams) (CodingProject, error)
 	GatewayGetCodingThread(ctx context.Context, arg GatewayGetCodingThreadParams) (GatewayGetCodingThreadRow, error)
 	GatewayGetCodingWorktree(ctx context.Context, arg GatewayGetCodingWorktreeParams) (GatewayGetCodingWorktreeRow, error)
+	GatewayGetDelegationGrant(ctx context.Context, arg GatewayGetDelegationGrantParams) (GatewayGetDelegationGrantRow, error)
 	GatewayGetMCPGraph(ctx context.Context, arg GatewayGetMCPGraphParams) ([]GatewayGetMCPGraphRow, error)
 	GatewayGetSpanDetail(ctx context.Context, arg GatewayGetSpanDetailParams) (GatewayGetSpanDetailRow, error)
 	GatewayGetWorkspace(ctx context.Context, arg GatewayGetWorkspaceParams) (Workspace, error)
@@ -97,6 +99,8 @@ type Querier interface {
 	GatewayListCodingThreads(ctx context.Context, arg GatewayListCodingThreadsParams) ([]GatewayListCodingThreadsRow, error)
 	GatewayListCodingWorktreeThreads(ctx context.Context, worktreeID string) ([]CodingThread, error)
 	GatewayListCodingWorktrees(ctx context.Context, arg GatewayListCodingWorktreesParams) ([]CodingWorktree, error)
+	GatewayListDelegationGrants(ctx context.Context) ([]GatewayListDelegationGrantsRow, error)
+	GatewayListDelegationRedirects(ctx context.Context) ([][]string, error)
 	GatewayListEventTrailActors(ctx context.Context, arg GatewayListEventTrailActorsParams) ([]GatewayListEventTrailActorsRow, error)
 	GatewayListEventTrailCategories(ctx context.Context, arg GatewayListEventTrailCategoriesParams) ([]string, error)
 	GatewayListEventTrailEvents(ctx context.Context, arg GatewayListEventTrailEventsParams) ([]GatewayListEventTrailEventsRow, error)
@@ -133,6 +137,8 @@ type Querier interface {
 	GatewayPendingChatInputs(ctx context.Context) ([]ChatInput, error)
 	GatewayProjectMemberRoleTransports(ctx context.Context, arg GatewayProjectMemberRoleTransportsParams) (int64, error)
 	GatewayPruneCodingSnapshots(ctx context.Context) error
+	GatewayPruneDelegationSessions(ctx context.Context) error
+	GatewayPruneDelegationTransactions(ctx context.Context) error
 	GatewayReadyCodingWorktree(ctx context.Context, arg GatewayReadyCodingWorktreeParams) error
 	GatewayRecordCodingMainCheckout(ctx context.Context, arg GatewayRecordCodingMainCheckoutParams) error
 	GatewayRecoverChatInputs(ctx context.Context, arg GatewayRecoverChatInputsParams) error
@@ -146,6 +152,7 @@ type Querier interface {
 	GatewayRetryWorkspaceProvisioning(ctx context.Context, arg GatewayRetryWorkspaceProvisioningParams) (int64, error)
 	GatewayRevokeScopedAPIKey(ctx context.Context, arg GatewayRevokeScopedAPIKeyParams) (int64, error)
 	GatewaySaveCodingSnapshot(ctx context.Context, arg GatewaySaveCodingSnapshotParams) (int64, error)
+	GatewaySaveDelegationMCPSession(ctx context.Context, arg GatewaySaveDelegationMCPSessionParams) (int64, error)
 	GatewaySearchGroupedChatSessions(ctx context.Context, arg GatewaySearchGroupedChatSessionsParams) ([]GatewaySearchGroupedChatSessionsRow, error)
 	GatewaySeedCodingSnapshots(ctx context.Context) error
 	GatewayStopChatInputs(ctx context.Context, arg GatewayStopChatInputsParams) error

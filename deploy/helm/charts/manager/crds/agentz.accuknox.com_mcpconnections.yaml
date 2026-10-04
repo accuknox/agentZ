@@ -374,6 +374,18 @@ spec:
                 description: ObservedGeneration is the latest reconciled generation.
                 format: int64
                 type: integer
+              prompts:
+                description: Prompts contains the discovered prompt names, without
+                  their arguments.
+                items:
+                  type: string
+                type: array
+              resources:
+                description: Resources contains concrete resource URIs. Templates
+                  grant no URI access.
+                items:
+                  type: string
+                type: array
               serviceRef:
                 description: |-
                   ServiceRef identifies the managed Service that fronts the upstream

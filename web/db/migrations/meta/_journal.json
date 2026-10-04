@@ -22,6 +22,20 @@
       "when": 1789569013094,
       "tag": "0002_coding_workspaces",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791108790533,
+      "tag": "0003_oauth_delegation",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791110483555,
+      "tag": "0004_better_auth_team_membership",
+      "breakpoints": true
     }
   ]
 }

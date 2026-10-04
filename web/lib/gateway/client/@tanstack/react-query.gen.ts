@@ -52,6 +52,7 @@ import {
   getCodingProject,
   getCodingThread,
   getDashboard,
+  getDelegationCatalog,
   getEventTrailEvent,
   getInferencePool,
   getInferencePoolUsage,
@@ -279,6 +280,9 @@ import type {
   GetDashboardData,
   GetDashboardError,
   GetDashboardResponse,
+  GetDelegationCatalogData,
+  GetDelegationCatalogError,
+  GetDelegationCatalogResponse,
   GetEventTrailEventData,
   GetEventTrailEventError,
   GetEventTrailEventResponse,
@@ -607,6 +611,31 @@ const createQueryKey = <TOptions extends Options>(
   }
   return [params]
 }
+
+export const getDelegationCatalogQueryKey = (options?: Options<GetDelegationCatalogData>) =>
+  createQueryKey("getDelegationCatalog", options)
+
+/**
+ * Discover resources the user may delegate in the selected workspace.
+ */
+export const getDelegationCatalogOptions = (options?: Options<GetDelegationCatalogData>) =>
+  queryOptions<
+    GetDelegationCatalogResponse,
+    GetDelegationCatalogError,
+    GetDelegationCatalogResponse,
+    ReturnType<typeof getDelegationCatalogQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getDelegationCatalog({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getDelegationCatalogQueryKey(options),
+  })
 
 export const listCodingProjectsQueryKey = (options?: Options<ListCodingProjectsData>) =>
   createQueryKey("listCodingProjects", options)

@@ -214,6 +214,10 @@ path "kv/data/+/inference-subscriptions/*" {
   capabilities = ["create", "read", "update", "delete"]
 }
 
+path "kv/data/+/mcp-connections/+" {
+  capabilities = ["read", "update"]
+}
+
 path "kv/metadata/+/inference-provider-oauth-tickets/*" {
   capabilities = ["create", "update", "delete"]
 }

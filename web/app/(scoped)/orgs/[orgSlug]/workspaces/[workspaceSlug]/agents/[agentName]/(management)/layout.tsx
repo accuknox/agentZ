@@ -84,7 +84,7 @@ async function WorkspaceAgentContent({
           {detail.agent.capabilities.use || canViewTraces ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button aria-label="Agent actions" size="icon" variant="outline">
+                <Button aria-label="Agent actions" size="icon" variant="ghost">
                   <MoreHorizontal aria-hidden="true" />
                 </Button>
               </DropdownMenuTrigger>

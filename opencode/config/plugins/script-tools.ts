@@ -12,6 +12,14 @@ const interpreters = {
   node: { command: "node", filename: "tool.js" },
 }
 
+const inputSchemas = {
+  string: tool.schema.string(),
+  number: tool.schema.number(),
+  integer: tool.schema.int(),
+  boolean: tool.schema.boolean(),
+  json: tool.schema.json(),
+}
+
 export default (async () => {
   const manifest = process.env.AGENTZ_TOOLS_PATH
   if (!manifest) return { tool: {} }
@@ -20,28 +28,13 @@ export default (async () => {
   // contract rather than importing uploaded source into the plugin process.
   const definitions = z.array(zAgentTool).parse(JSON.parse(await readFile(manifest, "utf8")))
   const tools = definitions.map((def) => {
-    const args: z.ZodRawShape = Object.fromEntries(
+    const args = Object.fromEntries(
       def.inputs.map((input) => {
-        let schema: z.ZodType
-        switch (input.type) {
-          case "string":
-            schema = tool.schema.string()
-            break
-          case "number":
-            schema = tool.schema.number()
-            break
-          case "integer":
-            schema = tool.schema.int()
-            break
-          case "boolean":
-            schema = tool.schema.boolean()
-            break
-          case "json":
-            schema = tool.schema.json()
-            break
-        }
-        if (!input.required) schema = schema.optional()
-        return [input.name, schema.describe(input.description)]
+        const schema = inputSchemas[input.type]
+        return [
+          input.name,
+          (input.required ? schema : schema.optional()).describe(input.description),
+        ]
       })
     )
     const parameters = tool.schema.strictObject(args)
@@ -71,7 +64,6 @@ export default (async () => {
             context.abort.throwIfAborted()
             const child = spawn(runtime.command, [file], {
               cwd: context.directory,
-              env: process.env,
               detached: true,
               stdio: ["pipe", "pipe", "pipe"],
             })

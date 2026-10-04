@@ -270,7 +270,7 @@ export function Results({
             <DialogHeader>
               <DialogTitle>Mathematical Formula</DialogTitle>
             </DialogHeader>
-            <code className="border-success/40 to-muted from-success/5 rounded-md border-2 border-dotted bg-linear-to-br p-3 text-sm leading-relaxed">
+            <code className="border-success/60 to-muted from-success/5 rounded-md border-2 border-dotted bg-linear-to-br p-3 text-sm leading-relaxed">
               Score = 100 x{" "}
               <span className="font-semibold text-[color-mix(in_oklab,var(--success)_80%,var(--foreground))]">
                 Q
@@ -320,7 +320,7 @@ export function Results({
       </div>
       {pending ? (
         <div
-          className="bg-muted/40 border-primary/50 motion-safe:animate-in motion-safe:fade-in mx-4 mb-4 rounded-lg border-2 border-dashed p-4 sm:mx-6"
+          className="bg-muted/40 border-primary/60 motion-safe:animate-in motion-safe:fade-in mx-4 mb-4 rounded-lg border-2 border-dashed p-4 sm:mx-6"
           role="status"
           aria-live="polite"
         >

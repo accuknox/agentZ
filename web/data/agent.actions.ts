@@ -11,7 +11,6 @@ import {
   transferAgentOwner,
   updateAgent,
   updateAgentTool,
-  listAgentTools,
   type AgentTool,
   upsertAgentShare,
   type Workspace,
@@ -27,12 +26,6 @@ import {
   zWriteAgentToolRequest,
 } from "@/lib/gateway/client/zod.gen"
 
-/** AgentToolActionResult carries the generated SDK's tool configuration or error. */
-export type AgentToolActionResult = Pick<
-  Awaited<ReturnType<typeof listAgentTools<false>>>,
-  "data" | "error"
->
-
 /** saveAgentToolAction preserves uploaded source as a structured action argument. */
 export async function saveAgentToolAction(
   workspaceId: string,
@@ -40,11 +33,10 @@ export async function saveAgentToolAction(
   resourceVersion: string,
   tool: AgentTool,
   replacing: boolean
-): Promise<AgentToolActionResult> {
+) {
   const parsed = zWriteAgentToolRequest.safeParse({ resource_version: resourceVersion, tool })
   if (!parsed.success) {
     return {
-      data: undefined,
       error: {
         code: "invalid_request",
         message: "Check the tool fields before uploading.",
@@ -63,8 +55,9 @@ export async function saveAgentToolAction(
         body: parsed.data,
       })
     : await createAgentTool({ client, path: { agentName }, body: parsed.data })
-  if (result.data) updateTag(agentsTag)
-  return { data: result.data, error: result.error }
+  if (result.error) return { error: result.error }
+  updateTag(agentsTag)
+  return { data: result.data }
 }
 
 /** deleteAgentToolAction removes the resource version reviewed in the confirmation. */
@@ -73,14 +66,15 @@ export async function deleteAgentToolAction(
   agentName: string,
   toolName: string,
   resourceVersion: string
-): Promise<AgentToolActionResult> {
+) {
   const result = await deleteAgentTool({
     client: getGatewayServerClient(workspaceId),
     path: { agentName, toolName },
     query: { resource_version: resourceVersion },
   })
-  if (result.data) updateTag(agentsTag)
-  return { data: result.data, error: result.error }
+  if (result.error) return { error: result.error }
+  updateTag(agentsTag)
+  return { data: result.data }
 }
 
 export type AgentActionScope = {

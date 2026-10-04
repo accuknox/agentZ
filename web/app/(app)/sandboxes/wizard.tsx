@@ -1664,7 +1664,7 @@ function ModelsStep({
               </div>
               <div className="space-y-4 p-4">
                 {selected.length === 0 ? (
-                  <p className="text-muted-foreground rounded-md border-2 border-dashed p-4 text-center text-sm">
+                  <p className="border-muted-foreground/50 text-muted-foreground rounded-md border-2 border-dashed p-4 text-center text-sm">
                     Expand a provider to start adding models.
                   </p>
                 ) : (

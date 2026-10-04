@@ -65,7 +65,7 @@ export function TelemetryTable<T extends { [key: string]: unknown }>({
     <section className="flex w-full flex-1 flex-col">
       <AdminDataGrid
         ariaLabel="Runtime telemetry"
-        emptyState={<p className="text-muted-foreground py-8 text-center">{emptyText}</p>}
+        emptyState={<p className="py-8 text-center text-muted-foreground">{emptyText}</p>}
         layout={layout}
         pagination={
           <div className="bg-muted/10 py-3">
@@ -99,7 +99,7 @@ export function ActionBadge({ action }: { action: string }) {
 
 export function TruncateCell({ value, className }: { value: string; className?: string }) {
   if (!value) {
-    return <span className={cn("text-muted-foreground font-mono text-xs", className)}>_</span>
+    return <span className={cn("font-mono text-xs text-muted-foreground", className)}>_</span>
   }
 
   return (

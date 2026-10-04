@@ -11,7 +11,7 @@ export function DashboardSkeleton({ dashboard }: { dashboard?: Dashboard }) {
   return (
     <div className="flex min-w-0 flex-1 flex-col" role="status">
       <span className="sr-only">Loading dashboard</span>
-      <div className="bg-background flex min-h-14 flex-wrap items-center gap-2 border-b px-4 py-2 sm:px-6">
+      <div className="flex min-h-14 flex-wrap items-center gap-2 border-b bg-background px-4 py-2 sm:px-6">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-8 w-56" />
         <div className="ml-auto flex items-center gap-2">
@@ -19,7 +19,7 @@ export function DashboardSkeleton({ dashboard }: { dashboard?: Dashboard }) {
           <Skeleton className="size-7" />
         </div>
       </div>
-      <div className="bg-muted/30 grid grid-cols-12 gap-2 p-2">
+      <div className="grid grid-cols-12 gap-2 bg-muted/30 p-2">
         {dashboard ? (
           dashboard.widgets.map((widget) => (
             <DashboardWidgetSkeleton
@@ -55,9 +55,9 @@ function DashboardWidgetSkeleton({
 }) {
   return (
     <section
-      className={`bg-card h-80 min-w-0 overflow-hidden rounded-lg border shadow-[0_1px_2px_color-mix(in_oklab,var(--foreground)_5%,transparent)] ${dashboardWidgetWidthClasses[width]}`}
+      className={`h-80 min-w-0 overflow-hidden rounded-lg border bg-card shadow-[0_1px_2px_color-mix(in_oklab,var(--foreground)_5%,transparent)] ${dashboardWidgetWidthClasses[width]}`}
     >
-      <header className="from-card to-muted/20 flex h-12 items-center gap-2.5 border-b bg-gradient-to-r px-3.5">
+      <header className="flex h-12 items-center gap-2.5 border-b bg-gradient-to-r from-card to-muted/20 px-3.5">
         <Skeleton className="size-7 rounded-md" />
         {title ? (
           <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{title}</h2>
@@ -81,12 +81,12 @@ function DashboardWidgetSkeleton({
 export function DashboardWidgetBodySkeleton() {
   return (
     <div aria-hidden="true" className="flex h-full flex-col gap-3">
-      <div className="border-border/60 relative min-h-0 flex-1 overflow-hidden border-b border-l">
-        <div className="border-border/45 absolute inset-x-0 top-1/4 border-t" />
-        <div className="border-border/45 absolute inset-x-0 top-1/2 border-t" />
-        <div className="border-border/45 absolute inset-x-0 top-3/4 border-t" />
+      <div className="relative min-h-0 flex-1 overflow-hidden border-b border-l border-border/60">
+        <div className="absolute inset-x-0 top-1/4 border-t border-border/45" />
+        <div className="absolute inset-x-0 top-1/2 border-t border-border/45" />
+        <div className="absolute inset-x-0 top-3/4 border-t border-border/45" />
         <svg
-          className="text-muted absolute inset-0 h-full w-full animate-pulse"
+          className="absolute inset-0 h-full w-full animate-pulse text-muted"
           preserveAspectRatio="none"
           viewBox="0 0 100 100"
         >

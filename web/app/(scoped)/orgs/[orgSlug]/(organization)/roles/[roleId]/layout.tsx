@@ -57,7 +57,7 @@ async function RoleContent({ children, params }: LayoutProps<"/orgs/[orgSlug]/ro
               >
                 {data.role.name}
               </h1>
-              <span className="text-muted-foreground shrink-0 text-sm">
+              <span className="shrink-0 text-sm text-muted-foreground">
                 {data.role.immutable ? "System · Read-only" : "Custom"}
               </span>
             </div>

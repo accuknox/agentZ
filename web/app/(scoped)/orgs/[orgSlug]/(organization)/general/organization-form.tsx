@@ -242,7 +242,7 @@ export function OrganizationForm({ organization }: { organization: OrganizationS
         <div className="flex max-w-3xl flex-col gap-8 px-4 py-6 md:px-6 md:py-8">
           <FieldSet>
             <div
-              className="border-muted-foreground/50 bg-card/40 data-[dragging=true]:border-primary data-[dragging=true]:bg-primary/10 flex flex-col gap-5 rounded-xl border-2 border-dashed p-5 transition-colors sm:flex-row sm:items-center"
+              className="flex flex-col gap-5 rounded-xl border-2 border-dashed border-muted-foreground/50 bg-card/40 p-5 transition-colors data-[dragging=true]:border-primary data-[dragging=true]:bg-primary/10 sm:flex-row sm:items-center"
               data-dragging={dragging}
               onDragEnter={(event) => {
                 if (busy || !event.dataTransfer.types.includes("Files")) {
@@ -274,7 +274,7 @@ export function OrganizationForm({ organization }: { organization: OrganizationS
             >
               <div className="relative shrink-0">
                 <OrganizationAvatar
-                  className="ring-background size-24 shadow-sm ring-4"
+                  className="size-24 shadow-sm ring-4 ring-background"
                   logo={logo}
                   name={name || organization.name}
                 />
@@ -311,7 +311,7 @@ export function OrganizationForm({ organization }: { organization: OrganizationS
               <div className="flex min-w-0 flex-1 flex-col gap-3">
                 <div>
                   <p className="font-medium">{organization.name}</p>
-                  <p className="text-muted-foreground mt-0.5 text-sm">
+                  <p className="mt-0.5 text-sm text-muted-foreground">
                     JPEG, PNG, or WebP · 5 MB maximum · Drop anywhere here
                   </p>
                 </div>
@@ -406,7 +406,7 @@ export function OrganizationForm({ organization }: { organization: OrganizationS
               Drag the image inside the circle and use the slider to adjust its size.
             </DialogDescription>
           </DialogHeader>
-          <div className="bg-muted relative h-80 overflow-hidden rounded-lg">
+          <div className="relative h-80 overflow-hidden rounded-lg bg-muted">
             {sourceURL ? (
               <Cropper
                 aspect={1}

@@ -37,7 +37,7 @@ function locationLabel(location?: McpConnectionAuthLocation) {
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="grid gap-1 sm:grid-cols-[11rem_minmax(0,1fr)] sm:gap-3">
-      <dt className="text-muted-foreground text-sm">{label}</dt>
+      <dt className="text-sm text-muted-foreground">{label}</dt>
       <dd className="break-anywhere min-w-0 text-sm">{value}</dd>
     </div>
   )
@@ -80,7 +80,7 @@ export function McpViewSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChangeAction}>
-      <SheetContent className="h-full overflow-y-auto sm:w-[45rem]! sm:max-w-none!">
+      <SheetContent size="lg" className="h-full overflow-y-auto">
         <SheetHeader className="shrink-0">
           <SheetTitle>MCP connection</SheetTitle>
           <SheetDescription className="sr-only">View MCP connection</SheetDescription>
@@ -113,7 +113,7 @@ export function McpViewSheet({
                   ))}
                 </dl>
               ) : (
-                <p className="text-muted-foreground text-sm">No custom endpoint headers.</p>
+                <p className="text-sm text-muted-foreground">No custom endpoint headers.</p>
               )}
             </section>
 
@@ -158,7 +158,7 @@ export function McpViewSheet({
                   />
                 </dl>
               ) : (
-                <p className="text-muted-foreground text-sm">No authentication metadata.</p>
+                <p className="text-sm text-muted-foreground">No authentication metadata.</p>
               )}
             </section>
 
@@ -169,14 +169,14 @@ export function McpViewSheet({
                   {query.data.tools.map((tool) => (
                     <span
                       key={tool.name}
-                      className="bg-secondary text-secondary-foreground inline-flex items-center rounded-md px-2 py-1 text-xs"
+                      className="inline-flex items-center rounded-md bg-secondary px-2 py-1 text-xs text-secondary-foreground"
                     >
                       {tool.name}
                     </span>
                   ))}
                 </div>
               ) : (
-                <p className="text-muted-foreground text-sm">No tools discovered yet.</p>
+                <p className="text-sm text-muted-foreground">No tools discovered yet.</p>
               )}
             </section>
           </div>

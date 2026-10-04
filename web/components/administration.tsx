@@ -22,10 +22,7 @@ type AdministrationStatus = "ready" | "provisioning" | "deleting" | "failed"
 
 export function AdministrationLayout({ children }: { children: ReactNode }) {
   return (
-    <div
-      className="@container flex min-h-0 min-w-0 flex-1 flex-col [&_[data-slot=table-head]]:h-8 [&_[data-slot=table-head]]:px-4 [&_[data-slot=table-head]]:align-middle [&_[data-slot=table]]:w-full"
-      data-administration
-    >
+    <div className="@container flex min-h-0 min-w-0 flex-1 flex-col [&_[data-slot=table-head]]:h-8 [&_[data-slot=table-head]]:px-4 [&_[data-slot=table-head]]:align-middle [&_[data-slot=table]]:w-full">
       {children}
     </div>
   )
@@ -50,7 +47,7 @@ export function AdministrationPageHeader({
           <h1 className="truncate text-2xl font-semibold tracking-normal" title={title}>
             {title}
           </h1>
-          {description ? <p className="text-muted-foreground mt-1 text-sm">{description}</p> : null}
+          {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
           {scope ? (
             <Badge className="mt-1.5 max-w-full font-normal" variant="secondary">
               <span className="shrink-0">
@@ -189,7 +186,7 @@ export function AdministrationState({
         illustrated
           ? "min-h-80 gap-5 rounded-none border-0 py-10"
           : welcoming
-            ? "border-primary mx-3 min-h-80 w-auto flex-none border-2 border-dashed py-12 sm:min-h-96 md:mx-6"
+            ? "mx-3 min-h-80 w-auto flex-none border-2 border-dashed border-primary py-12 sm:min-h-96 md:mx-6"
             : "min-h-48 rounded-none border-0"
       }
       role={pending ? "status" : urgent ? "alert" : undefined}
@@ -251,10 +248,10 @@ export function EffectiveAccessFrame({
       <section className="min-w-0 space-y-3">
         <div className="px-4 md:px-6">
           <h2 className="text-lg font-medium">Effective access</h2>
-          {summary ? <p className="text-muted-foreground text-sm">{summary}</p> : null}
+          {summary ? <p className="text-sm text-muted-foreground">{summary}</p> : null}
         </div>
         <div className="grid min-h-96 min-w-0">
-          <div className="bg-muted/20 min-h-80 min-w-0 overflow-hidden">{canvas}</div>
+          <div className="min-h-80 min-w-0 overflow-hidden bg-muted/20">{canvas}</div>
         </div>
       </section>
       {table}
@@ -293,9 +290,9 @@ export function ImpactReviewFrame({
       <div className="flex items-start justify-between gap-4 px-4 md:px-6">
         <div>
           <h2 className="text-lg font-medium">{title}</h2>
-          <p className="text-muted-foreground text-sm">{description}</p>
+          <p className="text-sm text-muted-foreground">{description}</p>
         </div>
-        <span className="text-muted-foreground shrink-0 text-sm tabular-nums">
+        <span className="shrink-0 text-sm text-muted-foreground tabular-nums">
           {items.length} affected
         </span>
       </div>
@@ -304,7 +301,7 @@ export function ImpactReviewFrame({
           <div className="grid gap-5">
             {[...groups].map(([group, groupItems]) => (
               <section aria-labelledby={`impact-${group}`} className="grid gap-2" key={group}>
-                <h3 className="text-muted-foreground text-xs font-medium" id={`impact-${group}`}>
+                <h3 className="text-xs font-medium text-muted-foreground" id={`impact-${group}`}>
                   {group}
                 </h3>
                 <ul className="flex flex-col gap-3">
@@ -323,7 +320,7 @@ export function ImpactReviewFrame({
                             <span className="font-medium break-words">{item.label}</span>
                           )}
                           {item.detail ? (
-                            <span className="text-muted-foreground text-sm break-words">
+                            <span className="text-sm break-words text-muted-foreground">
                               {item.detail}
                             </span>
                           ) : null}
@@ -332,10 +329,10 @@ export function ImpactReviewFrame({
                           <span
                             className={
                               item.severity === "critical"
-                                ? "text-destructive text-sm"
+                                ? "text-sm text-destructive"
                                 : item.severity === "warning"
-                                  ? "text-warning text-sm"
-                                  : "text-muted-foreground text-sm"
+                                  ? "text-sm text-warning"
+                                  : "text-sm text-muted-foreground"
                             }
                           >
                             {item.severity}

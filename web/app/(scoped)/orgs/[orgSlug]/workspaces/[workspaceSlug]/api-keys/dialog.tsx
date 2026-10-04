@@ -430,14 +430,14 @@ function WorkflowTargetInput({
           id="api-key-target-workflows"
           type="button"
           className={cn(
-            "border-input focus-visible:border-ring focus-visible:ring-ring/50 data-placeholder:text-muted-foreground dark:bg-input/30 dark:hover:bg-input/50 flex h-8 w-full items-center justify-between gap-1.5 rounded-lg border bg-transparent py-2 pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors outline-none select-none focus-visible:ring-3",
+            "flex h-8 w-full items-center justify-between gap-1.5 rounded-lg border border-input bg-transparent py-2 pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-placeholder:text-muted-foreground dark:bg-input/30 dark:hover:bg-input/50",
             targets.length === 0 && "text-muted-foreground",
             invalid &&
-              "border-destructive ring-destructive/20 dark:border-destructive/50 focus-visible:ring-destructive/20"
+              "border-destructive ring-destructive/20 focus-visible:ring-destructive/20 dark:border-destructive/50"
           )}
         >
           <span className="line-clamp-1 text-left">{triggerLabel}</span>
-          <span className="text-muted-foreground text-xs">{targets.length || ""}</span>
+          <span className="text-xs text-muted-foreground">{targets.length || ""}</span>
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -457,8 +457,8 @@ function WorkflowTargetInput({
               .toSorted((left, right) => left.agentName.localeCompare(right.agentName))
               .map((group) => (
                 <CommandGroup key={group.agentName} className="pt-2">
-                  <div className="text-foreground flex items-center gap-2 px-2 pb-1 text-xs font-medium">
-                    <BotIcon className="text-primary size-3.5" />
+                  <div className="flex items-center gap-2 px-2 pb-1 text-xs font-medium text-foreground">
+                    <BotIcon className="size-3.5 text-primary" />
                     <span>{group.agentName}</span>
                   </div>
                   {group.workflows
@@ -508,7 +508,7 @@ function WorkflowTargetInput({
                             <span className="block truncate font-medium">
                               {workflow.title || workflow.workflow_name}
                             </span>
-                            <span className="text-muted-foreground block truncate text-xs">
+                            <span className="block truncate text-xs text-muted-foreground">
                               {workflow.workflow_name}
                             </span>
                           </span>
@@ -530,8 +530,8 @@ function SelectionIndicator({ checked }: { checked: boolean }) {
       aria-hidden="true"
       className={
         checked
-          ? "bg-primary text-primary-foreground flex size-4 shrink-0 items-center justify-center rounded-xs border border-transparent"
-          : "border-input bg-input/30 flex size-4 shrink-0 items-center justify-center rounded-xs border"
+          ? "flex size-4 shrink-0 items-center justify-center rounded-xs border border-transparent bg-primary text-primary-foreground"
+          : "flex size-4 shrink-0 items-center justify-center rounded-xs border border-input bg-input/30"
       }
     >
       {checked ? <CheckIcon className="size-3.5" /> : null}

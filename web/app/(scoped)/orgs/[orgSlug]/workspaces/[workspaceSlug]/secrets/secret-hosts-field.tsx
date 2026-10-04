@@ -104,7 +104,7 @@ export function SecretHostsField({
               <span className="truncate font-mono text-sm">{host}</span>
               <button
                 type="button"
-                className="text-muted-foreground hover:text-foreground shrink-0 rounded-sm transition-colors"
+                className="shrink-0 rounded-sm text-muted-foreground transition-colors hover:text-foreground"
                 onClick={() => removeHost(host)}
                 aria-label={`Remove ${host}`}
               >

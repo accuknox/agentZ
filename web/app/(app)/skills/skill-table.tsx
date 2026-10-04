@@ -160,9 +160,9 @@ export function SkillTable({
   }
 
   const emptyState = disabled ? (
-    <AgentGettingReady className="text-muted-foreground flex justify-center py-8 text-sm" />
+    <AgentGettingReady className="flex justify-center py-8 text-sm text-muted-foreground" />
   ) : loading ? (
-    <p aria-busy="true" className="text-muted-foreground py-8 text-center">
+    <p aria-busy="true" className="py-8 text-center text-muted-foreground">
       Loading skills...
     </p>
   ) : error ? (
@@ -171,7 +171,7 @@ export function SkillTable({
       <AlertDescription>{error.message}</AlertDescription>
     </Alert>
   ) : (
-    <p className="text-muted-foreground py-8 text-center">No skills found.</p>
+    <p className="py-8 text-center text-muted-foreground">No skills found.</p>
   )
 
   return (
@@ -290,7 +290,7 @@ function createSkillColumns({
         cell: ({ row }) => {
           const skill = row.original
           return skill.type === "immutable" ? (
-            <span className="text-muted-foreground whitespace-nowrap">v{skill.version}</span>
+            <span className="whitespace-nowrap text-muted-foreground">v{skill.version}</span>
           ) : null
         },
       },
@@ -317,7 +317,7 @@ function createSkillColumns({
       enableSorting: true,
       header: "Files",
       cell: ({ row }) => (
-        <span className="text-muted-foreground whitespace-nowrap">{row.original.file_count}</span>
+        <span className="whitespace-nowrap text-muted-foreground">{row.original.file_count}</span>
       ),
     },
     {
@@ -325,7 +325,7 @@ function createSkillColumns({
       enableSorting: true,
       header: "Size",
       cell: ({ row }) => (
-        <span className="text-muted-foreground whitespace-nowrap">
+        <span className="whitespace-nowrap text-muted-foreground">
           {formatByteSize(row.original.size_bytes)}
         </span>
       ),
@@ -348,7 +348,7 @@ function createSkillColumns({
       enableSorting: true,
       header: "Modified at",
       cell: ({ row }) => (
-        <span className="text-muted-foreground whitespace-nowrap">
+        <span className="whitespace-nowrap text-muted-foreground">
           {row.original.modified_at ? (
             <RelativeDateTime value={row.original.modified_at} />
           ) : (

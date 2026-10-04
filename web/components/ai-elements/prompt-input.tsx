@@ -417,8 +417,8 @@ export const PromptInput = ({
         >
           <div
             className={cn(
-              "relative h-auto w-full min-w-0 overflow-hidden rounded-[22px]",
-              isDraggingFiles && "ring-primary/30 ring-2"
+              "relative flex min-h-32 w-full min-w-0 flex-col overflow-hidden rounded-[22px] sm:min-h-41",
+              isDraggingFiles && "ring-2 ring-primary/30"
             )}
             data-multiline={isMultiline}
             data-slot="prompt-input-surface"
@@ -426,7 +426,7 @@ export const PromptInput = ({
           >
             {children}
             {isDraggingFiles ? (
-              <div className="border-primary bg-background/90 text-primary pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[inherit] border-2 border-dashed text-sm font-medium backdrop-blur-sm">
+              <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[inherit] border-2 border-dashed border-primary bg-background/90 text-sm font-medium text-primary backdrop-blur-sm">
                 Drop files to attach
               </div>
             ) : null}
@@ -680,7 +680,7 @@ export const PromptInputButton = ({
   const button = (
     <InputGroupButton
       className={cn(
-        "data-[variant=ghost]:hover:bg-foreground/6 dark:data-[variant=ghost]:hover:bg-foreground/10 data-[variant=ghost]:aria-expanded:bg-foreground/8 dark:data-[variant=ghost]:aria-expanded:bg-foreground/12 data-[variant=ghost]:data-[state=open]:bg-foreground/8 dark:data-[variant=ghost]:data-[state=open]:bg-foreground/12 rounded-full",
+        "rounded-full data-[variant=ghost]:hover:bg-foreground/6 data-[variant=ghost]:aria-expanded:bg-foreground/8 data-[variant=ghost]:data-[state=open]:bg-foreground/8 dark:data-[variant=ghost]:hover:bg-foreground/10 dark:data-[variant=ghost]:aria-expanded:bg-foreground/12 dark:data-[variant=ghost]:data-[state=open]:bg-foreground/12",
         className
       )}
       size={newSize}
@@ -703,7 +703,7 @@ export const PromptInputButton = ({
       <TooltipTrigger asChild>{button}</TooltipTrigger>
       <TooltipContent side={side}>
         {tooltipContent}
-        {shortcut && <span className="text-muted-foreground ml-2">{shortcut}</span>}
+        {shortcut && <span className="ml-2 text-muted-foreground">{shortcut}</span>}
       </TooltipContent>
     </Tooltip>
   )

@@ -129,7 +129,7 @@ export function TwoFactorChallenge({ returnTo }: TwoFactorChallengeProps) {
           height={40}
           className="h-10 w-auto"
         />
-        <span className="text-foreground text-3xl font-semibold tracking-tight">AgentZ</span>
+        <span className="text-3xl font-semibold tracking-tight text-foreground">AgentZ</span>
       </div>
 
       <section className="flex flex-col gap-5">

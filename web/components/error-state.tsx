@@ -85,7 +85,7 @@ export function ErrorState({
         </EmptyTitle>
         <EmptyDescription>{description ?? content.description}</EmptyDescription>
         {error?.digest ? (
-          <p className="text-muted-foreground font-mono text-xs">Reference: {error.digest}</p>
+          <p className="font-mono text-xs text-muted-foreground">Reference: {error.digest}</p>
         ) : null}
       </EmptyHeader>
       <EmptyContent className="flex-row justify-center">

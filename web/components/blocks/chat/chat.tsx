@@ -1,5 +1,6 @@
 "use client"
 
+import styles from "./composer.module.css"
 import { LegendList, type LegendListRef } from "@legendapp/list/react"
 import { getImageProps } from "next/image"
 import {
@@ -294,7 +295,7 @@ function PromptAttachmentDialog({
             Preview or download {attachment.filename}
           </DialogDescription>
         </DialogHeader>
-        <div className="bg-muted/20 flex min-h-0 flex-1 items-center justify-center overflow-auto p-5">
+        <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-muted/20 p-5">
           {isImage ? (
             // eslint-disable-next-line @next/next/no-img-element -- local blob URL cannot use Next Image
             <img
@@ -329,7 +330,7 @@ function PromptAttachmentDialog({
             />
           ) : null}
           {!canPreview ? (
-            <div className="text-muted-foreground flex flex-col items-center gap-4 text-center">
+            <div className="flex flex-col items-center gap-4 text-center text-muted-foreground">
               <p>
                 Preview is not available for{" "}
                 <span className="break-all" translate="no">
@@ -1321,7 +1322,7 @@ function ChatInner({
               hasEarlierMessages ? (
                 <div className="mx-auto w-[calc(100%-2rem)] max-w-3xl pt-4 pb-2">
                   <button
-                    className="text-muted-foreground/70 hover:text-foreground w-full py-1.5 text-xs disabled:cursor-default"
+                    className="w-full py-1.5 text-xs text-muted-foreground/70 hover:text-foreground disabled:cursor-default"
                     disabled={isLoadingEarlier}
                     onClick={() => void loadEarlier()}
                     type="button"
@@ -1344,14 +1345,14 @@ function ChatInner({
                     className="flex flex-col items-end gap-2"
                     aria-label="Pending message"
                   >
-                    <div className="bg-message text-message-foreground max-w-[80%] rounded-2xl p-3 text-sm">
+                    <div className="max-w-[80%] rounded-2xl bg-message p-3 text-sm text-message-foreground">
                       {!coding && author ? (
-                        <div className="text-muted-foreground mb-1 text-xs">{author}</div>
+                        <div className="mb-1 text-xs text-muted-foreground">{author}</div>
                       ) : null}
                       {files.map((file, index) => (
                         <div
                           key={index}
-                          className="text-muted-foreground flex items-center gap-1.5 text-xs"
+                          className="flex items-center gap-1.5 text-xs text-muted-foreground"
                         >
                           <PaperclipIcon className="size-3.5" />
                           {file.filename}
@@ -1361,7 +1362,7 @@ function ChatInner({
                     </div>
                     <div
                       role="status"
-                      className="text-muted-foreground flex items-center gap-1.5 text-xs"
+                      className="flex items-center gap-1.5 text-xs text-muted-foreground"
                     >
                       <Spinner className="size-3" />
                       {status}
@@ -1432,7 +1433,7 @@ function ChatInner({
         {!timelineAtEnd && !showStarter ? (
           <Button
             aria-label="Scroll to latest message"
-            className="bg-background/80 absolute left-1/2 z-20 -translate-x-1/2 rounded-full shadow-sm backdrop-blur-md"
+            className="absolute left-1/2 z-20 -translate-x-1/2 rounded-full bg-background/80 shadow-sm backdrop-blur-md"
             style={{ bottom: composerHeight + 8 }}
             onClick={() => timelineRef.current?.scrollToEnd({ animated: true })}
             size="icon"
@@ -1447,7 +1448,7 @@ function ChatInner({
         ref={composerDock}
         className={cn(
           "pointer-events-none absolute inset-x-0 z-30 grid gap-4 px-3 sm:px-5",
-          showStarter ? "top-1/2 -translate-y-1/2" : "bg-background bottom-0 pb-4"
+          showStarter ? "top-1/2 -translate-y-1/2" : "bottom-0 bg-background pb-4"
         )}
         layout
         transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
@@ -1483,14 +1484,14 @@ function ChatInner({
             onUpdate={updateInput}
             onRestore={restoreInput}
           />
-          <div className="chat-composer-glass-shell relative w-full pb-9">
+          <div className={cn(styles.shell, "relative w-full pb-9")}>
             <PromptInput
               initialMessage={draftMessage}
               onMessageChange={(message) => {
                 if (sessionId) queryClient.setQueryData(draftKey, message)
                 else onDraftChange?.(message)
               }}
-              className="agentz-chat-composer chat-composer-glass-host relative z-10 rounded-[22px]"
+              className={cn(styles.host, "relative z-10 rounded-[22px]")}
               controllerRef={composerRef}
               disabled={inputDisabled}
               globalDrop
@@ -1505,7 +1506,7 @@ function ChatInner({
               onQueue={(message) => handleSubmit(message, "queue")}
             >
               <PromptInputAttachmentsDisplay agentName={agentName} />
-              <PromptInputBody className="grid min-h-[10.25rem] grid-cols-[auto_minmax(0,1fr)_auto] grid-rows-[minmax(5.5rem,auto)_auto] items-end gap-x-2 gap-y-2 px-3 pt-3.5 pb-3 sm:px-4 sm:pt-4 sm:pb-4">
+              <PromptInputBody className="grid min-h-41 grid-cols-[auto_minmax(0,1fr)_auto] grid-rows-[minmax(5.5rem,auto)_auto] items-end gap-x-2 gap-y-2 px-3 pt-3.5 pb-3 sm:px-4 sm:pt-4 sm:pb-4">
                 <motion.div
                   className="col-start-1 row-start-2 flex items-center gap-1"
                   layout="position"
@@ -1539,7 +1540,7 @@ function ChatInner({
                 </motion.div>
                 <PromptInputTextarea
                   defaultValue={draftMessage?.text}
-                  className="placeholder:text-muted-foreground/80 col-span-full col-start-1 row-start-1 max-h-48 min-h-[5.5rem] self-stretch px-1 py-0 text-[15px] leading-6"
+                  className="col-span-full col-start-1 row-start-1 max-h-48 min-h-22 self-stretch px-1 py-0 text-[15px] leading-6 placeholder:text-muted-foreground/80"
                   disabled={inputDisabled}
                   onKeyDown={(event) => {
                     if (
@@ -1602,7 +1603,7 @@ function ChatInner({
                             {agentReadiness.isGettingReady ? (
                               <AgentGettingReady />
                             ) : (
-                              <BrainIcon className="text-muted-foreground size-4" />
+                              <BrainIcon className="size-4 text-muted-foreground" />
                             )}
                             {agentReadiness.isGettingReady ? null : selectedModel?.name ? (
                               <ModelSelectorName>{selectedModel.name}</ModelSelectorName>
@@ -1623,7 +1624,7 @@ function ChatInner({
                             usage={contextUsage.usage}
                             usedTokens={contextUsage.usedTokens}
                           >
-                            <ContextTrigger className="hover:bg-foreground/6 dark:hover:bg-foreground/10 aria-expanded:bg-foreground/8 dark:aria-expanded:bg-foreground/12 data-[state=open]:bg-foreground/8 dark:data-[state=open]:bg-foreground/12 gap-1 rounded-full px-2" />
+                            <ContextTrigger className="gap-1 rounded-full px-2 hover:bg-foreground/6 aria-expanded:bg-foreground/8 data-[state=open]:bg-foreground/8 dark:hover:bg-foreground/10 dark:aria-expanded:bg-foreground/12 dark:data-[state=open]:bg-foreground/12" />
                             <ContextContent>
                               <ContextContentHeader />
                               <ContextContentBody className="flex flex-col gap-2">
@@ -1644,7 +1645,7 @@ function ChatInner({
                           >
                             <ReasoningSelectTrigger
                               aria-label="Reasoning level"
-                              className="data-[variant=ghost]:hover:bg-foreground/6 dark:data-[variant=ghost]:hover:bg-foreground/10 data-[variant=ghost]:aria-expanded:bg-foreground/8 dark:data-[variant=ghost]:aria-expanded:bg-foreground/12 data-[variant=ghost]:data-[state=open]:bg-foreground/8 dark:data-[variant=ghost]:data-[state=open]:bg-foreground/12 h-8 min-w-16 gap-1.5 px-2 data-[size=sm]:rounded-full"
+                              className="h-8 min-w-16 gap-1.5 px-2 data-[size=sm]:rounded-full data-[variant=ghost]:hover:bg-foreground/6 data-[variant=ghost]:aria-expanded:bg-foreground/8 data-[variant=ghost]:data-[state=open]:bg-foreground/8 dark:data-[variant=ghost]:hover:bg-foreground/10 dark:data-[variant=ghost]:aria-expanded:bg-foreground/12 dark:data-[variant=ghost]:data-[state=open]:bg-foreground/12"
                               size="sm"
                               variant="ghost"
                             >
@@ -1817,7 +1818,12 @@ function ChatInner({
                 </div>
               </PromptInputBody>
             </PromptInput>
-            <div className="chat-composer-context-strip absolute inset-x-[1.375rem] bottom-0 z-0 flex h-10 items-end gap-2 px-3 pb-1">
+            <div
+              className={cn(
+                styles.context,
+                "absolute inset-x-5.5 bottom-0 z-0 flex h-10 items-end gap-2 px-3 pb-1"
+              )}
+            >
               <Select
                 disabled={hasSession || sendState === "submitted" || agentNames.length < 2}
                 onValueChange={(name) => {
@@ -1834,7 +1840,7 @@ function ChatInner({
               >
                 <ReasoningSelectTrigger
                   aria-label={sessionId ? "Agent locked for this chat" : "Choose agent"}
-                  className="hover:bg-foreground/5 h-7 max-w-64 min-w-0 border-0 bg-transparent px-1.5 text-xs shadow-none"
+                  className="h-7 max-w-64 min-w-0 border-0 bg-transparent px-1.5 text-xs shadow-none hover:bg-foreground/5"
                   size="sm"
                 >
                   <SelectValue />
@@ -1932,7 +1938,7 @@ function QuickTurnNav({
       <button
         aria-label={`Jump to message: ${selected?.text || "Attachment"}`}
         className={cn(
-          "focus-visible:ring-ring/70 absolute top-1/2 left-3 -translate-y-1/2 cursor-pointer bg-transparent focus-visible:ring-2 focus-visible:outline-none",
+          "absolute top-1/2 left-3 -translate-y-1/2 cursor-pointer bg-transparent focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:outline-none",
           hitWidth > 0 ? "pointer-events-auto" : "pointer-events-none"
         )}
         onBlur={() => setActive(undefined)}
@@ -1982,14 +1988,14 @@ function QuickTurnNav({
         }}
         type="button"
       >
-        <div className="bg-border/15 absolute top-0 left-3 h-full w-px" />
+        <div className="absolute top-0 left-3 h-full w-px bg-border/15" />
         {turns.map((turn, index) => (
           <span
             aria-hidden="true"
             className={cn(
-              "bg-muted-foreground/35 absolute left-0 h-0.5 -translate-y-1/2 rounded-full transition-[background-color,width] duration-150",
+              "absolute left-0 h-0.5 -translate-y-1/2 rounded-full bg-muted-foreground/35 transition-[background-color,width] duration-150",
               active === index
-                ? "bg-muted-foreground/75 w-6"
+                ? "w-6 bg-muted-foreground/75"
                 : active !== undefined && Math.abs(active - index) === 1
                   ? "w-4"
                   : active !== undefined && Math.abs(active - index) === 2
@@ -2008,12 +2014,12 @@ function QuickTurnNav({
             onMouseMove={(event) => event.stopPropagation()}
             style={{ top: `${selectedTop}%`, transform: `translateY(${previewOffset})` }}
           >
-            <span className="bg-popover/90 text-popover-foreground ring-foreground/10 block rounded-xl p-3 text-left shadow-xl ring-1 backdrop-blur-xl">
+            <span className="block rounded-xl bg-popover/90 p-3 text-left text-popover-foreground shadow-xl ring-1 ring-foreground/10 backdrop-blur-xl">
               <span className="block truncate text-sm leading-5 font-medium">
                 {selected.text || "Attachment"}
               </span>
               {previewWords?.length ? (
-                <span className="text-muted-foreground mt-1 block text-sm leading-5">
+                <span className="mt-1 block text-sm leading-5 text-muted-foreground">
                   {previewWords.slice(0, 30).join(" ")}
                   {previewWords.length > 30 ? "..." : null}
                 </span>
@@ -2111,7 +2117,7 @@ function TimelineRowView({
       return (
         <div className="group flex flex-col items-end gap-1">
           <div className="flex w-full items-end justify-end gap-2">
-            <div className="bg-message text-message-foreground relative max-w-[80%] rounded-2xl p-3 text-sm">
+            <div className="relative max-w-[80%] rounded-2xl bg-message p-3 text-sm text-message-foreground">
               {row.attachments.length > 0 ? (
                 <StoredAttachments
                   agentName={agentName}
@@ -2127,7 +2133,7 @@ function TimelineRowView({
             ) : null}
           </div>
           {row.isWaiting ? (
-            <div role="status" className="text-muted-foreground pe-11 text-xs">
+            <div role="status" className="pe-11 text-xs text-muted-foreground">
               Waiting for the current step...
             </div>
           ) : null}
@@ -2190,7 +2196,7 @@ function TimelineRowView({
                 case "tool-group":
                   return (
                     <div className={spacing} key={group.key}>
-                      <div className="border-border/60 ml-1 max-w-full min-w-0 space-y-px overflow-hidden border-l py-0.5 pl-3">
+                      <div className="ml-1 max-w-full min-w-0 space-y-px overflow-hidden border-l border-border/60 py-0.5 pl-3">
                         {group.entries.map((entry) => {
                           const toolEntry = entry.toolEntries[0]
                           if (!toolEntry) return null
@@ -2227,7 +2233,7 @@ function TimelineRowView({
 
     case "thinking": {
       return (
-        <div className="text-muted-foreground text-sm">
+        <div className="text-sm text-muted-foreground">
           <span className="inline-flex items-center gap-2">
             <Spinner className="size-3.5" />
             <span className="animate-pulse">Thinking...</span>

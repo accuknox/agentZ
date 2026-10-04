@@ -69,7 +69,7 @@ export function WizardStepNav<TStep extends WizardStep>({
               <div
                 aria-hidden="true"
                 data-status={status}
-                className="bg-muted data-[status=success]:bg-primary ml-3 hidden h-0.5 min-w-8 flex-1 transition-colors duration-300 ease-in-out sm:block"
+                className="ml-3 hidden h-0.5 min-w-8 flex-1 bg-muted transition-colors duration-300 ease-in-out data-[status=success]:bg-primary sm:block"
               />
             )}
           </li>

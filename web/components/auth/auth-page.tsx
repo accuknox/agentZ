@@ -47,7 +47,7 @@ export function AuthPage({ children }: { children: ReactNode }) {
         </div>
       </div>
       <aside
-        className="bg-primary/5 relative hidden min-h-0 min-w-0 items-center justify-center overflow-hidden lg:flex"
+        className="relative hidden min-h-0 min-w-0 items-center justify-center overflow-hidden bg-primary/5 lg:flex"
         aria-label="Explore AgentZ"
       >
         <div className="w-full max-w-xl scale-[min(1,var(--carousel-scale))] px-6 py-6 [--carousel-scale:1.75] xl:scale-[min(1.25,var(--carousel-scale))] xl:px-8 min-[87.5rem]:scale-[min(1.5625,var(--carousel-scale))] min-[112.5rem]:scale-[min(1.75,var(--carousel-scale))] [@media(1000px<height<=1120px)]:[--carousel-scale:1.6] [@media(420px<height<=560px)]:[--carousel-scale:0.65] [@media(560px<height<=620px)]:[--carousel-scale:0.9] [@media(620px<height<=700px)]:[--carousel-scale:1] [@media(700px<height<=760px)]:[--carousel-scale:1.1] [@media(760px<height<=860px)]:[--carousel-scale:1.2] [@media(860px<height<=1000px)]:[--carousel-scale:1.35] [@media(height<=420px)]:[--carousel-scale:0.5]">

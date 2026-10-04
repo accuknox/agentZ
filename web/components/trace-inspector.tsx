@@ -16,7 +16,7 @@ const CodeBlock = dynamic(
       <div
         aria-label="Loading code"
         role="status"
-        className="bg-muted/20 flex flex-col gap-3 p-4 motion-reduce:[&_[data-slot=skeleton]]:animate-none"
+        className="flex flex-col gap-3 bg-muted/20 p-4 motion-reduce:[&_[data-slot=skeleton]]:animate-none"
       >
         {["w-4/5", "w-2/3", "w-3/4", "w-1/2"].map((width) => (
           <Skeleton key={width} className={cn("h-3", width)} />
@@ -40,14 +40,15 @@ export function TraceInspectorSheet({
   const descriptionId = useId()
   return (
     <SheetContent
+      size="full"
       aria-describedby={description ? descriptionId : undefined}
-      className="bg-background gap-0 overflow-x-hidden overflow-y-auto border-l p-0 text-sm shadow-2xl data-[side=right]:w-full data-[side=right]:max-w-full sm:max-w-none! md:w-[89vw]! lg:w-[84vw]! lg:overflow-hidden [&_svg]:size-4"
+      className="gap-0 overflow-x-hidden overflow-y-auto border-l bg-background p-0 text-sm shadow-2xl md:w-[89vw] lg:w-[84vw] lg:overflow-hidden [&_svg]:size-4"
     >
       <SheetHeader>
         <SheetTitle className="text-md truncate">{title}</SheetTitle>
         {description ? <SheetDescription id={descriptionId}>{description}</SheetDescription> : null}
       </SheetHeader>
-      <div className="bg-background flex flex-col lg:grid lg:min-h-0 lg:flex-1 lg:grid-rows-[auto_1fr]">
+      <div className="flex flex-col bg-background lg:grid lg:min-h-0 lg:flex-1 lg:grid-rows-[auto_1fr]">
         <div className="bg-muted/50 px-4 py-2">{tabs}</div>
         <div className="lg:min-h-0 lg:overflow-hidden">{children}</div>
       </div>
@@ -69,8 +70,8 @@ export function TraceInspectorLayout({
   return (
     <div className="bg-background lg:h-full lg:overflow-hidden">
       <div className="flex flex-col lg:grid lg:h-full lg:min-h-0 lg:grid-cols-[34%_66%]">
-        <aside className="bg-background flex min-h-0 flex-col border-b lg:border-r lg:border-b-0">
-          <div className="bg-muted/10 flex h-10 shrink-0 items-center justify-between px-4 lg:px-5">
+        <aside className="flex min-h-0 flex-col border-b bg-background lg:border-r lg:border-b-0">
+          <div className="flex h-10 shrink-0 items-center justify-between bg-muted/10 px-4 lg:px-5">
             <div className="min-w-0 text-sm font-medium">{title}</div>
             {pagination}
           </div>
@@ -78,7 +79,7 @@ export function TraceInspectorLayout({
             {navigation}
           </div>
         </aside>
-        <section className="bg-background min-h-0 min-w-0">{children}</section>
+        <section className="min-h-0 min-w-0 bg-background">{children}</section>
       </div>
     </div>
   )
@@ -111,7 +112,7 @@ export function TraceInspectorSkeleton() {
         ))}
       >
         <div aria-hidden className="flex flex-col lg:h-full">
-          <div className="bg-muted/10 flex h-10 shrink-0 items-center gap-3 px-4 lg:px-5">
+          <div className="flex h-10 shrink-0 items-center gap-3 bg-muted/10 px-4 lg:px-5">
             <Skeleton className="h-4 w-12" />
             <Skeleton className="h-4 w-28" />
           </div>
@@ -121,7 +122,7 @@ export function TraceInspectorSkeleton() {
               <Skeleton className="h-4 w-16" />
               <Skeleton className="h-4 w-20" />
             </div>
-            <div className="bg-muted/10 mb-5 flex flex-col gap-3 rounded-md p-4">
+            <div className="mb-5 flex flex-col gap-3 rounded-md bg-muted/10 p-4">
               <Skeleton className="h-3 w-20" />
               <Skeleton className="h-1.5 w-full" />
               <div className="flex flex-wrap gap-6">
@@ -147,7 +148,7 @@ export function TraceContentSkeleton() {
       {[4, 3].map((lines) => (
         <div key={lines} className="flex flex-col gap-3">
           <Skeleton className="my-2 h-4 w-20" />
-          <div className="bg-muted/20 flex flex-col gap-3 rounded-md p-4">
+          <div className="flex flex-col gap-3 rounded-md bg-muted/20 p-4">
             {Array.from({ length: lines }, (_, index) => (
               <Skeleton key={index} className={index === lines - 1 ? "h-3 w-2/3" : "h-3 w-full"} />
             ))}
@@ -190,20 +191,20 @@ export function TraceInspectorRow({
       type="button"
       aria-pressed={selected}
       className={cn(
-        "hover:bg-muted/35 relative flex w-full flex-col border-l-4 border-transparent py-2 pr-4 text-left lg:pr-5",
+        "relative flex w-full flex-col border-l-4 border-transparent py-2 pr-4 text-left hover:bg-muted/35 lg:pr-5",
         selected && "border-primary/55 bg-muted/55"
       )}
       style={{ paddingLeft: depth * 22 + 28 }}
       onClick={onClick}
     >
       <div className="flex min-w-0 items-center gap-2">
-        <span className="text-muted-foreground flex size-4 shrink-0 items-center justify-center">
+        <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
           {icon}
         </span>
         <span className="truncate text-sm font-medium">{label}</span>
         {hasError ? <CircleAlert className="text-destructive" /> : null}
       </div>
-      <div className="text-muted-foreground mt-0.5 ml-6 flex flex-wrap items-center gap-2 text-xs lg:gap-3 [&_svg]:size-3.5">
+      <div className="mt-0.5 ml-6 flex flex-wrap items-center gap-2 text-xs text-muted-foreground lg:gap-3 [&_svg]:size-3.5">
         <span className="inline-flex items-center gap-1">
           <Clock />
           {duration}
@@ -211,7 +212,7 @@ export function TraceInspectorRow({
         {tokens > 0 ? <span>{formatCompactNumber(tokens)} tokens</span> : null}
         <span className="font-mono">{id.slice(0, 8)}</span>
       </div>
-      <div className="bg-border mt-1.5 ml-6 h-0.5 rounded-full">
+      <div className="mt-1.5 ml-6 h-0.5 rounded-full bg-border">
         <div
           className={cn("h-full rounded-full", timelineClass)}
           style={{ width: `${durationPercent}%`, marginLeft: `${offsetPercent}%` }}
@@ -236,14 +237,14 @@ export function TraceInspectorDetail({
 }) {
   return (
     <div className="flex flex-col lg:h-full">
-      <div className="bg-muted/10 flex h-10 shrink-0 items-center justify-between px-4 lg:px-5 [&_svg]:size-4">
+      <div className="flex h-10 shrink-0 items-center justify-between bg-muted/10 px-4 lg:px-5 [&_svg]:size-4">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="text-muted-foreground text-sm">Inspect:</span>
+          <span className="text-sm text-muted-foreground">Inspect:</span>
           <span className="truncate text-sm font-medium">{title}</span>
         </div>
       </div>
       <div className="overflow-auto px-4 py-4 lg:min-h-0 lg:flex-1 lg:px-6">
-        <div className="text-muted-foreground mb-5 flex flex-wrap items-center gap-3 text-sm lg:gap-4 [&_svg]:size-4">
+        <div className="mb-5 flex flex-wrap items-center gap-3 text-sm text-muted-foreground lg:gap-4 [&_svg]:size-4">
           {started ? (
             <span className="inline-flex items-center gap-1">
               <Calendar />
@@ -272,11 +273,11 @@ export function TraceTokenMeter({
   const total = segments.reduce((sum, segment) => sum + segment.value, 0)
   if (total === 0) return null
   return (
-    <section className="bg-muted/10 mb-5 rounded-md p-4">
+    <section className="mb-5 rounded-md bg-muted/10 p-4">
       <div className="mb-3 flex items-center justify-between gap-3 text-xs">
-        <span className="text-foreground font-medium">{formatCompactNumber(total)} total</span>
+        <span className="font-medium text-foreground">{formatCompactNumber(total)} total</span>
       </div>
-      <div className="bg-muted flex h-1.5 overflow-hidden rounded-full">
+      <div className="flex h-1.5 overflow-hidden rounded-full bg-muted">
         {segments.map((segment) => (
           <span
             key={segment.label}
@@ -285,7 +286,7 @@ export function TraceTokenMeter({
           />
         ))}
       </div>
-      <div className="text-muted-foreground mt-3 flex flex-wrap gap-x-6 gap-y-2 text-xs">
+      <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-xs text-muted-foreground">
         {segments.map((segment) => (
           <span key={segment.label} className="flex min-w-0 items-center gap-1.5">
             <span className={cn("size-2 shrink-0 rounded-full", segment.colorClass)} />
@@ -310,7 +311,7 @@ export function TraceContentPanel({
     <section>
       <div className="my-2 flex items-center justify-between">
         {title === "Error" ? (
-          <div className="text-destructive text-sm font-medium">
+          <div className="text-sm font-medium text-destructive">
             <ServerCrash className="mr-1.5 inline-block" />
             <span>{title}</span>
           </div>
@@ -320,7 +321,7 @@ export function TraceContentPanel({
       </div>
       <div className="max-h-100 overflow-auto rounded-md">
         {code !== undefined ? (
-          <CodeBlock code={code} language="json" showLineNumbers className="bg-muted/20 border-0" />
+          <CodeBlock code={code} language="json" showLineNumbers className="border-0 bg-muted/20" />
         ) : (
           <pre className="bg-muted/20 p-4 font-mono text-xs leading-relaxed wrap-break-word whitespace-pre-wrap">
             {text}

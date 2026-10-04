@@ -332,7 +332,7 @@ export function SkillImportDialog({
             aria-label="Skill file"
             className={cn(
               "flex min-h-36 w-full flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-6 text-center transition-colors outline-none",
-              "border-muted-foreground/50 text-muted-foreground hover:bg-muted/30 hover:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-3",
+              "border-muted-foreground/50 text-muted-foreground hover:bg-muted/30 hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
               dragging && "border-primary bg-primary/10 text-primary",
               Boolean(error) &&
                 !dragging &&
@@ -477,7 +477,7 @@ export function SkillImportDialog({
                   />
                 ))}
               </div>
-              <div className="text-muted-foreground flex items-center justify-between text-sm">
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
                 <span>{preview.length} ready</span>
                 <span>
                   {conflicts} conflict{conflicts === 1 ? "" : "s"}
@@ -556,9 +556,9 @@ function ImportPreviewRow({
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           {conflict ? (
-            <TriangleAlert className="text-warning size-4 shrink-0" />
+            <TriangleAlert className="size-4 shrink-0 text-warning" />
           ) : (
-            <Check className="text-primary size-4 shrink-0" />
+            <Check className="size-4 shrink-0 text-primary" />
           )}
           <span className="truncate font-medium" title={skill.name}>
             {skill.name}
@@ -611,7 +611,7 @@ function ImportPreviewRow({
               )}
             />
           ) : (
-            <div className="text-muted-foreground flex items-center justify-end gap-2 text-sm">
+            <div className="flex items-center justify-end gap-2 text-sm text-muted-foreground">
               <Replace className="size-4" />
               <span>Will overwrite</span>
             </div>

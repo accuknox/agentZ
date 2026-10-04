@@ -378,7 +378,7 @@ export function SkillsClient({
         scope={pageScope}
         title={resourceLabels.skill.collection}
       />
-      <div className="bg-background flex min-h-14 flex-col gap-3 px-4 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <div className="flex min-h-14 flex-col gap-3 bg-background px-4 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <div className="grid w-full gap-2 sm:flex sm:w-auto sm:items-center">
           {workspaceId ? (
             <Select

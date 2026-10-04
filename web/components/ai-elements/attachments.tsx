@@ -315,14 +315,14 @@ export const Attachment = ({
           "group relative",
           variant === "grid" && "size-24 overflow-hidden rounded-lg",
           variant === "composer" && [
-            "border-border/80 bg-background flex h-[120px] w-[132px] max-w-full min-w-0 flex-col items-start",
+            "flex h-[120px] w-[132px] max-w-full min-w-0 flex-col items-start border-border/80 bg-background",
             "rounded-xl border p-2.5 shadow-[0_2px_8px_rgb(0_0_0/0.05)] select-none",
             onOpen &&
-              "hover:bg-accent/40 cursor-pointer transition-colors motion-reduce:transition-none",
+              "cursor-pointer transition-colors hover:bg-accent/40 motion-reduce:transition-none",
           ],
           variant === "inline" && [
             "flex h-10 max-w-72 cursor-pointer items-center gap-2 select-none",
-            "border-border bg-background rounded-lg border px-2",
+            "rounded-lg border border-border bg-background px-2",
             "text-sm font-medium transition-[background-color,border-color,color] motion-reduce:transition-none",
             "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
           ],
@@ -331,7 +331,7 @@ export const Attachment = ({
             "hover:bg-accent/50",
           ],
           variant === "wide" && [
-            "border-border bg-background flex h-[72px] w-full items-center gap-3 rounded-xl border px-3",
+            "flex h-[72px] w-full items-center gap-3 rounded-xl border border-border bg-background px-3",
             "shadow-[0_1px_2px_rgb(0_0_0/0.03)] transition-[background-color,border-color] motion-reduce:transition-none",
             "hover:border-foreground/20 hover:bg-accent/40",
           ],
@@ -342,7 +342,7 @@ export const Attachment = ({
         {onOpen ? (
           <button
             aria-label={data.type === "file" ? `Preview ${data.filename}` : "Preview attachment"}
-            className="focus-visible:ring-ring absolute inset-0 z-[1] cursor-pointer touch-manipulation rounded-[inherit] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+            className="absolute inset-0 z-[1] cursor-pointer touch-manipulation rounded-[inherit] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
             onClick={onOpen}
             type="button"
           />
@@ -364,7 +364,7 @@ export const Attachment = ({
         {variant === "wide" && data.type === "file" ? (
           <span className="min-w-0 flex-1" translate="no">
             <span className="block truncate text-sm leading-5 font-semibold">{data.filename}</span>
-            <span className="text-muted-foreground mt-0.5 block text-xs leading-4">
+            <span className="mt-0.5 block text-xs leading-4 text-muted-foreground">
               {getFileTypeLabel(data)}
             </span>
           </span>
@@ -390,7 +390,7 @@ export const AttachmentPreview = ({
   const { data, mediaCategory, variant } = useAttachmentContext()
 
   const renderIcon = (Icon: typeof ImageIcon) => (
-    <Icon aria-hidden="true" className="text-muted-foreground size-4" />
+    <Icon aria-hidden="true" className="size-4 text-muted-foreground" />
   )
 
   const renderContent = () => {
@@ -418,15 +418,15 @@ export const AttachmentPreview = ({
     <Root
       className={cn(
         "flex shrink-0 items-center justify-center overflow-hidden",
-        variant === "grid" && "bg-muted size-full",
+        variant === "grid" && "size-full bg-muted",
         variant === "composer" && [
           "rounded-lg text-white",
           mediaCategory === "image" || mediaCategory === "video"
-            ? "bg-muted h-12 w-full"
+            ? "h-12 w-full bg-muted"
             : cn("size-9", presentation.color),
         ],
-        variant === "inline" && "bg-muted size-7 rounded-md",
-        variant === "list" && "bg-muted size-12 rounded",
+        variant === "inline" && "size-7 rounded-md bg-muted",
+        variant === "list" && "size-12 rounded bg-muted",
         variant === "wide" && ["size-11 rounded-lg text-white", presentation.color],
         className
       )}
@@ -475,7 +475,7 @@ export const AttachmentRemove = ({
         ],
         variant === "composer" && [
           "absolute -top-[5px] -right-[5px] z-10 size-[22px] rounded-full p-0",
-          "border-border bg-background text-muted-foreground border opacity-100 shadow-sm",
+          "border border-border bg-background text-muted-foreground opacity-100 shadow-sm",
           "hover:bg-accent hover:text-foreground [&>svg]:size-[13px]",
         ],
         variant === "list" && ["size-8 shrink-0 rounded p-0", "[&>svg]:size-4"],

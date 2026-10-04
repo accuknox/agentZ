@@ -103,9 +103,9 @@ async function PersonalAPIKeys() {
 function TableSkeleton() {
   return (
     <div className="flex flex-col gap-3 px-4 md:px-6">
-      <div className="bg-muted/20 h-10 rounded-md" />
-      <div className="bg-muted/20 h-10 rounded-md" />
-      <div className="bg-muted/20 h-10 rounded-md" />
+      <div className="h-10 rounded-md bg-muted/20" />
+      <div className="h-10 rounded-md bg-muted/20" />
+      <div className="h-10 rounded-md bg-muted/20" />
     </div>
   )
 }

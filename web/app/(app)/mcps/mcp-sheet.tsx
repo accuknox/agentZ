@@ -598,12 +598,12 @@ function ServerURLField({
                           selectServer(result)
                         }}
                       >
-                        <span className="bg-background flex size-8 shrink-0 items-center justify-center rounded-md border">
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-background">
                           <Icon />
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate font-medium">{result.server.name}</span>
-                          <span className="text-muted-foreground block truncate text-xs">
+                          <span className="block truncate text-xs text-muted-foreground">
                             {result.server.mcpUrl}
                           </span>
                         </span>
@@ -623,12 +623,12 @@ function ServerURLField({
                         selectServer(result)
                       }}
                     >
-                      <span className="bg-background flex size-8 shrink-0 items-center justify-center rounded-md border">
+                      <span className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-background">
                         <Settings2 />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-medium">Custom Server</span>
-                        <span className="text-muted-foreground block truncate text-xs">
+                        <span className="block truncate text-xs text-muted-foreground">
                           {result.mcpUrl}
                         </span>
                       </span>
@@ -1137,7 +1137,8 @@ export function McpSheet({
     <Sheet open={open} onOpenChange={onSheetOpenChange}>
       {children}
       <SheetContent
-        className="h-full overflow-y-auto sm:w-[50vw]! sm:max-w-none!"
+        size="half"
+        className="h-full overflow-y-auto"
         onPointerDownOutside={(event) => {
           if (!oauthPopupFlowId) {
             return

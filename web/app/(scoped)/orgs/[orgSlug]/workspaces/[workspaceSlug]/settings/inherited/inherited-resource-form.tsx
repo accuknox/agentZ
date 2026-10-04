@@ -182,7 +182,7 @@ export function InheritedResourceForm({
                 <div className="font-medium break-all">{displayName}</div>
               </div>
               {description ? (
-                <p className="text-muted-foreground mt-1 text-xs">{description}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{description}</p>
               ) : null}
             </>
           )
@@ -275,7 +275,7 @@ export function InheritedResourceForm({
       <AdminDataGrid
         ariaLabel={`Inherited organization ${label}`}
         emptyState={
-          <p className="text-muted-foreground py-8 text-center">No inherited {label} found.</p>
+          <p className="py-8 text-center text-muted-foreground">No inherited {label} found.</p>
         }
         layout={layout}
         rows={resources}

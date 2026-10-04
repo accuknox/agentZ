@@ -176,7 +176,7 @@ export function AgentTools({
         accessorKey: "description",
         header: "Description",
         cell: ({ row }) => (
-          <span className="text-muted-foreground block truncate" title={row.original.description}>
+          <span className="block truncate text-muted-foreground" title={row.original.description}>
             {row.original.description}
           </span>
         ),
@@ -260,7 +260,7 @@ export function AgentTools({
       <div className="flex flex-wrap items-start justify-between gap-3 px-4 md:px-6">
         <div className="flex flex-col gap-1">
           <h2 className="text-lg font-medium">Custom tools</h2>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             Convert your existing bash/python/node scripts into tools your agent can invoke.
           </p>
         </div>
@@ -584,7 +584,8 @@ function ToolUpload({
       }}
     >
       <SheetContent
-        className="h-full overflow-hidden sm:w-[50vw]! sm:max-w-none!"
+        size="half"
+        className="h-full overflow-hidden"
         onEscapeKeyDown={(event) => {
           if (discard) event.preventDefault()
         }}
@@ -628,7 +629,7 @@ function ToolUpload({
                   Script file
                 </FieldLabel>
                 <label
-                  className="border-muted-foreground/50 bg-muted/10 hover:border-muted-foreground focus-within:border-ring focus-within:ring-ring/50 data-[dragging=true]:border-primary data-[dragging=true]:bg-primary/10 flex min-h-28 cursor-pointer items-center gap-4 rounded-xl border-2 border-dashed p-5 transition-colors focus-within:ring-3 in-disabled:cursor-default in-disabled:opacity-50"
+                  className="flex min-h-28 cursor-pointer items-center gap-4 rounded-xl border-2 border-dashed border-muted-foreground/50 bg-muted/10 p-5 transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 hover:border-muted-foreground in-disabled:cursor-default in-disabled:opacity-50 data-[dragging=true]:border-primary data-[dragging=true]:bg-primary/10"
                   data-dragging={dragging}
                   onDragEnter={(event) => {
                     if (pending || !event.dataTransfer.types.includes("Files")) return
@@ -657,13 +658,13 @@ function ToolUpload({
                   {reading ? (
                     <Spinner aria-hidden="true" />
                   ) : (
-                    <Upload className="text-muted-foreground size-6 shrink-0" aria-hidden="true" />
+                    <Upload className="size-6 shrink-0 text-muted-foreground" aria-hidden="true" />
                   )}
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-medium">
                       {reading ? "Reading script…" : file || "Choose or drop a script"}
                     </span>
-                    <span className="text-muted-foreground mt-1 block text-xs">
+                    <span className="mt-1 block text-xs text-muted-foreground">
                       .sh, .py, .js · up to 64 KiB
                     </span>
                   </span>
@@ -712,7 +713,7 @@ function ToolUpload({
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className="font-medium">Inputs</h3>
-                  <p className="text-muted-foreground text-xs">
+                  <p className="text-xs text-muted-foreground">
                     Arguments the agent provides to your script.
                   </p>
                 </div>
@@ -729,7 +730,7 @@ function ToolUpload({
                 </Button>
               </div>
               {fields.map((field, index) => (
-                <FieldGroup key={field.id} className="bg-primary/3 gap-3 rounded-lg p-3">
+                <FieldGroup key={field.id} className="gap-3 rounded-lg bg-primary/3 p-3">
                   <div className="grid grid-cols-[minmax(0,1fr)_8rem_2rem] items-start gap-2">
                     <Field
                       className="min-w-0"
@@ -737,7 +738,7 @@ function ToolUpload({
                     >
                       <FieldLabel
                         htmlFor={`input-${field.id}`}
-                        className="text-muted-foreground text-xs"
+                        className="text-xs text-muted-foreground"
                       >
                         Name<span className="sr-only"> for input {index + 1}</span>
                       </FieldLabel>
@@ -760,14 +761,14 @@ function ToolUpload({
                         <Field>
                           <FieldLabel
                             htmlFor={`type-${field.id}`}
-                            className="text-muted-foreground text-xs"
+                            className="text-xs text-muted-foreground"
                           >
                             Type
                           </FieldLabel>
                           <Select value={input.value} onValueChange={input.onChange}>
                             <SelectTrigger
                               id={`type-${field.id}`}
-                              className="text-primary bg-primary/5 dark:bg-primary/10 w-full"
+                              className="w-full"
                               aria-label={`Input ${index + 1} type`}
                               onBlur={input.onBlur}
                             >
@@ -801,7 +802,7 @@ function ToolUpload({
                   <Field>
                     <div className="flex items-center justify-between gap-3">
                       <FieldLabel
-                        className="text-muted-foreground text-xs"
+                        className="text-xs text-muted-foreground"
                         htmlFor={`description-${field.id}`}
                       >
                         Description<span className="sr-only"> for input {index + 1}</span>
@@ -843,18 +844,18 @@ function ToolUpload({
           </FieldSet>
           <details className="text-xs">
             <summary className="cursor-pointer font-medium">Script input and output</summary>
-            <p className="text-muted-foreground mt-3">
+            <p className="mt-3 text-muted-foreground">
               Your script receives input through stdin as JSON. With no inputs, stdin contains{" "}
               {"{}"}.
             </p>
-            <p className="text-muted-foreground mt-3">
+            <p className="mt-3 text-muted-foreground">
               For e.g., a weather tool with a Text input named city receives:
             </p>
-            <pre className="bg-muted mt-2 overflow-auto rounded-md p-3">
+            <pre className="mt-2 overflow-auto rounded-md bg-muted p-3">
               <code>{'{"city":"Mumbai"}'}</code>
             </pre>
-            <p className="text-muted-foreground mt-3">Print the tool result to stdout.</p>
-            <pre className="bg-muted mt-3 overflow-auto rounded-md p-3">
+            <p className="mt-3 text-muted-foreground">Print the tool result to stdout.</p>
+            <pre className="mt-3 overflow-auto rounded-md bg-muted p-3">
               <code>{examples[language]}</code>
             </pre>
           </details>

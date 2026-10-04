@@ -10,7 +10,7 @@ export type CheckpointProps = HTMLAttributes<HTMLDivElement>
 
 export const Checkpoint = ({ className, children, ...props }: CheckpointProps) => (
   <div
-    className={cn("text-muted-foreground flex items-center gap-0.5 overflow-hidden", className)}
+    className={cn("flex items-center gap-0.5 overflow-hidden text-muted-foreground", className)}
     {...props}
   >
     {children}

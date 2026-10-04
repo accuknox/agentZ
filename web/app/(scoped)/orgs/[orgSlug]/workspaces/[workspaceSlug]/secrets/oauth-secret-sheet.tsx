@@ -643,7 +643,8 @@ export function OAuthSecretSheet({
   return (
     <Sheet open={open} onOpenChange={onSheetOpenChange}>
       <SheetContent
-        className="h-full overflow-y-auto sm:w-[50vw]! sm:max-w-none!"
+        size="half"
+        className="h-full overflow-y-auto"
         onPointerDownOutside={(event) => {
           if (!oauthPopupFlowId) {
             return
@@ -689,7 +690,7 @@ export function OAuthSecretSheet({
               <Popover open={catalogPickerOpen} onOpenChange={setCatalogPickerOpen}>
                 <PopoverAnchor asChild>
                   <div ref={catalogFieldRef} className="relative">
-                    <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+                    <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="oauth-secret-catalog"
                       value={catalogQuery || provider?.name || ""}
@@ -722,7 +723,7 @@ export function OAuthSecretSheet({
                       aria-controls="oauth-secret-catalog-suggestions"
                       role="combobox"
                     />
-                    <ChevronDown className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2" />
+                    <ChevronDown className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground" />
                   </div>
                 </PopoverAnchor>
                 <PopoverContent
@@ -765,12 +766,12 @@ export function OAuthSecretSheet({
                                 selectCatalogItem(item)
                               }}
                             >
-                              <span className="bg-background flex size-8 shrink-0 items-center justify-center rounded-md border">
+                              <span className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-background">
                                 <ItemIcon />
                               </span>
                               <span className="min-w-0 flex-1">
                                 <span className="block truncate font-medium">{item.name}</span>
-                                <span className="text-muted-foreground block truncate text-xs">
+                                <span className="block truncate text-xs text-muted-foreground">
                                   {item.serverUrl}
                                 </span>
                               </span>
@@ -801,7 +802,7 @@ export function OAuthSecretSheet({
                 OAuth Server
               </FieldLabel>
               <div className="relative">
-                <Icon className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+                <Icon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Controller
                   name="endpoint_url"
                   control={control}

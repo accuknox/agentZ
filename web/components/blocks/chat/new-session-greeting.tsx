@@ -40,7 +40,7 @@ export function NewSessionGreeting({
   const greeting = projectName ? (
     <>
       {template}{" "}
-      <span className="decoration-foreground/60 underline decoration-dotted decoration-1 underline-offset-4">
+      <span className="underline decoration-foreground/60 decoration-dotted decoration-1 underline-offset-4">
         {projectName}
       </span>
       ?
@@ -53,7 +53,7 @@ export function NewSessionGreeting({
 
   return (
     <div className="pointer-events-none flex justify-center px-4 text-center">
-      <h1 className="text-foreground min-w-0 text-2xl font-semibold tracking-tight text-balance wrap-anywhere @xl/chat:text-3xl">
+      <h1 className="min-w-0 text-2xl font-semibold tracking-tight text-balance wrap-anywhere text-foreground @xl/chat:text-3xl">
         {greeting}
       </h1>
     </div>

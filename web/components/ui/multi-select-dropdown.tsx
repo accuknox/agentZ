@@ -126,7 +126,7 @@ function MultiSelectDropdown({
                 {index > 0 ? ", " : null}
                 <TruncatedOptionText className="min-w-0 flex-1" value={option.label} />
                 {option.badge ? (
-                  <span className="text-muted-foreground inline-flex max-w-40 min-w-0 shrink-[10] items-center gap-1 truncate">
+                  <span className="inline-flex max-w-40 min-w-0 shrink-[10] items-center gap-1 truncate text-muted-foreground">
                     <span aria-hidden="true">·</span>
                     {BadgeIcon ? <BadgeIcon aria-hidden="true" className="size-3.5" /> : null}
                     <span className="truncate">{option.badge}</span>
@@ -149,21 +149,19 @@ function MultiSelectDropdown({
           aria-expanded={open}
           aria-invalid={invalid || undefined}
           className={cn(
-            "border-input focus-visible:border-ring focus-visible:ring-ring/50 data-placeholder:text-muted-foreground dark:bg-input/30 dark:hover:bg-input/50 flex h-8 w-full items-center justify-between gap-1.5 rounded-lg border bg-transparent py-2 pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors outline-none select-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50",
+            "form-control group/multi-select flex h-8 w-full items-center justify-between gap-1.5 rounded-lg border py-2 pr-2 pl-2.5 text-sm whitespace-nowrap outline-none select-none disabled:cursor-not-allowed disabled:opacity-50 data-placeholder:text-muted-foreground",
             value.length === 0 && "text-muted-foreground",
-            invalid &&
-              "border-destructive ring-destructive/20 dark:border-destructive/50 focus-visible:ring-destructive/20",
             className
           )}
         >
           <span className="flex min-w-0 items-center gap-1 truncate text-left">{triggerLabel}</span>
-          <ChevronDownIcon className="text-muted-foreground pointer-events-none size-4 shrink-0" />
+          <ChevronDownIcon className="pointer-events-none size-4 shrink-0 text-muted-foreground transition-transform group-aria-expanded/multi-select:rotate-180" />
         </button>
       </PopoverTrigger>
       <PopoverContent
         align="start"
         className={cn(
-          "w-[max(var(--radix-popover-trigger-width),24rem)] max-w-[calc(100vw-2rem)] p-0",
+          "w-[max(var(--radix-popover-trigger-width),24rem)] max-w-[calc(100vw-2rem)] bg-popover p-0 shadow-sm ring-border",
           contentClassName
         )}
         onCloseAutoFocus={(event) => {

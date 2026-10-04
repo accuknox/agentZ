@@ -45,7 +45,7 @@ export function RoutedTableRow<T extends string>({
       {...props}
       aria-label={ariaLabel}
       className={cn(
-        "focus-visible:ring-ring cursor-pointer touch-manipulation focus-visible:ring-2 focus-visible:ring-inset",
+        "cursor-pointer touch-manipulation focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
         className
       )}
       onAuxClick={(event) => {

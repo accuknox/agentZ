@@ -37,7 +37,7 @@ const slides = [
       <>
         <Card className="absolute top-[12%] left-[9%] w-[65%] -rotate-6 shadow-lg">
           <CardHeader>
-            <div className="bg-chart-3/20 text-warning mb-3 flex h-24 items-center justify-center rounded-lg">
+            <div className="mb-3 flex h-24 items-center justify-center rounded-lg bg-chart-3/20 text-warning">
               <Bot className="size-12 stroke-1" />
               <Sparkles className="absolute top-8 right-12 size-5" />
             </div>
@@ -46,7 +46,7 @@ const slides = [
           <CardContent className="flex flex-col gap-3">
             {["Model connected", "Tools selected", "Sandbox ready"].map((label) => (
               <div key={label} className="flex items-center gap-2 text-xs">
-                <CircleCheck className="text-success size-4" />
+                <CircleCheck className="size-4 text-success" />
                 {label}
               </div>
             ))}
@@ -57,7 +57,7 @@ const slides = [
             <CardTitle>Start a session</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <p className="bg-muted text-muted-foreground rounded-lg p-3 text-xs">
+            <p className="rounded-lg bg-muted p-3 text-xs text-muted-foreground">
               Summarize this week’s activity
             </p>
             <div className="flex items-center justify-between">
@@ -91,7 +91,7 @@ const slides = [
               { provider: "anthropic", name: "Anthropic", label: "Fallback 1" },
               { provider: "google", name: "Google Gemini", label: "Fallback 2" },
             ].map(({ provider, name, label }) => (
-              <div key={provider} className="bg-muted/60 flex items-center gap-3 rounded-lg p-3">
+              <div key={provider} className="flex items-center gap-3 rounded-lg bg-muted/60 p-3">
                 <ProviderIcon provider={provider} className="size-6" />
                 <span className="flex-1 text-xs">{name}</span>
                 <Badge variant="secondary">{label}</Badge>
@@ -102,11 +102,11 @@ const slides = [
         <Card size="sm" className="absolute right-[2%] bottom-[8%] w-[49%] rotate-6 shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <KeyRound className="text-warning size-4" /> Custom endpoints
+              <KeyRound className="size-4 text-warning" /> Custom endpoints
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground text-xs">OpenAI / Anthropic compatible</p>
+            <p className="text-xs text-muted-foreground">OpenAI / Anthropic compatible</p>
           </CardContent>
         </Card>
       </>
@@ -120,7 +120,7 @@ const slides = [
       <>
         <Card className="absolute top-[13%] left-[10%] w-[65%] -rotate-5 shadow-lg">
           <CardHeader>
-            <div className="bg-chart-1/15 text-success mb-3 flex h-20 items-center justify-center rounded-lg">
+            <div className="mb-3 flex h-20 items-center justify-center rounded-lg bg-chart-1/15 text-success">
               <Users className="size-10 stroke-1" />
             </div>
             <CardTitle>Workspaces by team</CardTitle>
@@ -152,9 +152,9 @@ const slides = [
                 </span>
                 <div className="flex-1">
                   <p className="text-xs">{team}</p>
-                  <p className="text-muted-foreground text-xs">{task}</p>
+                  <p className="text-xs text-muted-foreground">{task}</p>
                 </div>
-                <Check className="text-muted-foreground size-4" />
+                <Check className="size-4 text-muted-foreground" />
               </div>
             ))}
           </CardContent>
@@ -162,7 +162,7 @@ const slides = [
         <Card size="sm" className="absolute right-[2%] bottom-[5%] w-[47%] rotate-6 shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <ShieldCheck className="text-primary size-4" /> Role assignments
+              <ShieldCheck className="size-4 text-primary" /> Role assignments
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -178,8 +178,8 @@ const slides = [
     alt: "Example HTTP/1.1 request: the agent sends agentz:resolve:env:GITHUB_TOKEN. The proxy reads the credential from Vault and replaces the placeholder only if api.github.com matches the secret's allowed hosts. Other destinations keep the placeholder.",
     artwork: (
       <div className="absolute inset-x-[9%] top-[12%] flex flex-col items-center gap-3">
-        <div className="bg-card ring-foreground/10 w-full -rotate-3 overflow-hidden rounded-xl shadow-lg ring-1">
-          <div className="border-border flex items-center justify-between border-b px-4 py-3 text-xs">
+        <div className="w-full -rotate-3 overflow-hidden rounded-xl bg-card shadow-lg ring-1 ring-foreground/10">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3 text-xs">
             <span className="flex items-center gap-2">
               <Terminal className="size-4" /> Agent request
             </span>
@@ -190,26 +190,26 @@ const slides = [
             <span className="text-primary">agentz:resolve:env:GITHUB_TOKEN</span>
           </div>
         </div>
-        <ArrowDown className="text-muted-foreground size-5" />
+        <ArrowDown className="size-5 text-muted-foreground" />
         <div className="flex w-full items-center justify-center gap-3">
-          <div className="bg-primary/10 text-primary ring-primary/20 flex size-16 shrink-0 items-center justify-center rounded-full ring-1">
+          <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary ring-1 ring-primary/20">
             <ShieldCheck className="size-8 stroke-1" />
           </div>
           <div className="flex flex-col gap-1">
             <p className="text-sm font-medium">Injection proxy</p>
-            <p className="text-muted-foreground text-xs">Match host, resolve key</p>
+            <p className="text-xs text-muted-foreground">Match host, resolve key</p>
           </div>
-          <span className="border-muted-foreground/50 w-6 border-t-2 border-dashed" />
+          <span className="w-6 border-t-2 border-dashed border-muted-foreground/50" />
           <div className="flex flex-col items-center gap-1 text-xs">
-            <LockKeyhole className="text-warning size-6" /> Vault
+            <LockKeyhole className="size-6 text-warning" /> Vault
           </div>
         </div>
-        <ArrowDown className="text-muted-foreground size-5" />
-        <div className="bg-card ring-foreground/10 flex w-4/5 rotate-3 items-center gap-3 rounded-xl p-4 shadow-lg ring-1">
-          <CircleCheck className="text-success size-6 shrink-0" />
+        <ArrowDown className="size-5 text-muted-foreground" />
+        <div className="flex w-4/5 rotate-3 items-center gap-3 rounded-xl bg-card p-4 shadow-lg ring-1 ring-foreground/10">
+          <CircleCheck className="size-6 shrink-0 text-success" />
           <div className="flex flex-col gap-1">
             <p className="font-mono text-xs">api.github.com</p>
-            <p className="text-muted-foreground text-xs">Receives the real credential</p>
+            <p className="text-xs text-muted-foreground">Receives the real credential</p>
           </div>
         </div>
         <Badge variant="outline">Example request</Badge>
@@ -223,11 +223,11 @@ const slides = [
     artwork: (
       <div className="absolute inset-x-[6%] top-[12%] bottom-[6%]">
         <div className="flex items-center justify-center gap-2">
-          <ShieldCheck className="text-primary size-4" />
+          <ShieldCheck className="size-4 text-primary" />
           <span className="text-sm font-medium">Sandbox egress</span>
         </div>
-        <div className="border-primary/60 bg-primary/5 absolute top-[22%] bottom-[10%] left-0 flex w-[37%] flex-col items-center justify-center gap-3 rounded-[2rem] border-2 border-dashed">
-          <span className="bg-card text-primary ring-foreground/10 flex size-16 items-center justify-center rounded-2xl shadow-sm ring-1">
+        <div className="absolute top-[22%] bottom-[10%] left-0 flex w-[37%] flex-col items-center justify-center gap-3 rounded-[2rem] border-2 border-dashed border-primary/60 bg-primary/5">
+          <span className="flex size-16 items-center justify-center rounded-2xl bg-card text-primary shadow-sm ring-1 ring-foreground/10">
             <Bot className="size-9 stroke-1" />
           </span>
           <p className="text-sm font-medium">Agent pod</p>
@@ -262,7 +262,7 @@ const slides = [
               <Icon className={cn("size-6 shrink-0", color)} />
               <div className="flex flex-col gap-1">
                 <p className="text-xs font-medium">{label}</p>
-                <p className="text-muted-foreground text-xs">{detail}</p>
+                <p className="text-xs text-muted-foreground">{detail}</p>
               </div>
             </div>
           ))}
@@ -279,12 +279,12 @@ const slides = [
         <div className="flex items-center justify-between">
           <div className="flex flex-col gap-1">
             <p className="text-base font-medium">Execution timeline</p>
-            <p className="text-muted-foreground text-xs">Agent → model → tool</p>
+            <p className="text-xs text-muted-foreground">Agent → model → tool</p>
           </div>
         </div>
         <div className="grid grid-cols-[5rem_1fr] gap-x-3 gap-y-5">
-          <span className="text-muted-foreground text-xs">Span</span>
-          <div className="text-muted-foreground flex justify-between font-mono text-xs">
+          <span className="text-xs text-muted-foreground">Span</span>
+          <div className="flex justify-between font-mono text-xs text-muted-foreground">
             <span>0s</span>
             <span>2s</span>
             <span>4s</span>
@@ -321,8 +321,8 @@ const slides = [
           ].map(({ label, start, width, duration, color }, index) => (
             <div key={index} className="col-span-2 grid grid-cols-subgrid items-center">
               <span className="text-xs">{label}</span>
-              <div className="border-border relative border-x">
-                <span className="border-muted-foreground/50 absolute inset-y-0 left-1/2 border-l-2 border-dashed" />
+              <div className="relative border-x border-border">
+                <span className="absolute inset-y-0 left-1/2 border-l-2 border-dashed border-muted-foreground/50" />
                 <div
                   className={cn(
                     "relative rounded-md px-2 py-2 text-center font-mono text-xs",
@@ -336,10 +336,10 @@ const slides = [
             </div>
           ))}
         </div>
-        <div className="border-border flex items-center justify-between border-t pt-4 text-xs">
+        <div className="flex items-center justify-between border-t border-border pt-4 text-xs">
           <span className="text-muted-foreground">Per-span detail</span>
           <span className="flex items-center gap-2">
-            Timing · Tokens · Errors <ArrowRight className="text-primary size-4" />
+            Timing · Tokens · Errors <ArrowRight className="size-4 text-primary" />
           </span>
         </div>
       </div>
@@ -417,15 +417,15 @@ export function AuthCarousel() {
           >
             <div role="img" aria-label={slide.alt} className="relative aspect-[6/5]">
               <div aria-hidden="true" inert className="absolute inset-0 select-none">
-                <span className="bg-chart-3/40 absolute top-[7%] right-[18%] h-5 w-3 -rotate-30 rounded-full" />
-                <span className="bg-chart-1/35 absolute top-[43%] right-[4%] size-3 rounded-full" />
-                <span className="bg-chart-5/30 absolute bottom-[9%] left-[8%] h-2 w-5 rotate-35 rounded-full" />
+                <span className="absolute top-[7%] right-[18%] h-5 w-3 -rotate-30 rounded-full bg-chart-3/40" />
+                <span className="absolute top-[43%] right-[4%] size-3 rounded-full bg-chart-1/35" />
+                <span className="absolute bottom-[9%] left-[8%] h-2 w-5 rotate-35 rounded-full bg-chart-5/30" />
                 {slide.artwork}
               </div>
             </div>
             <div className="mx-auto mt-8 flex max-w-sm flex-col gap-3 px-4 text-center">
               <h2 className="text-xl font-medium tracking-tight">{slide.title}</h2>
-              <p className="text-muted-foreground min-h-10 text-sm text-pretty">
+              <p className="min-h-10 text-sm text-pretty text-muted-foreground">
                 {slide.description}
               </p>
             </div>

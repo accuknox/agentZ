@@ -7,6 +7,8 @@ const config = {
   tabWidth: 2,
   semi: false,
   printWidth: 100,
+  tailwindStylesheet: "./app/globals.css",
+  tailwindFunctions: ["cn", "cva"],
   plugins: ["prettier-plugin-tailwindcss"],
 }
 

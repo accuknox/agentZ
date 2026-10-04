@@ -50,13 +50,13 @@ export function ChatQueue({ items, submissions, error, ...props }: ChatQueueProp
   return (
     <section
       aria-label="Message queue"
-      className="bg-muted/20 border-border/60 mx-3 mb-2 min-w-0 rounded-lg border px-2 py-1"
+      className="mx-3 mb-2 min-w-0 rounded-lg border border-border/60 bg-muted/20 px-2 py-1"
     >
       <button
         ref={heading}
         type="button"
         aria-expanded={expanded}
-        className="text-muted-foreground hover:text-foreground focus-visible:outline-ring flex h-7 items-center gap-1.5 rounded-md px-1 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
+        className="flex h-7 items-center gap-1.5 rounded-md px-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         onClick={() => setExpanded(!expanded)}
       >
         <ChevronDownIcon
@@ -67,7 +67,7 @@ export function ChatQueue({ items, submissions, error, ...props }: ChatQueueProp
         />
         <span className="font-medium" aria-live="polite" aria-atomic="true">
           {recoveredOnly ? "Unsent drafts" : "Queued"}
-          <span className="text-muted-foreground/70 ml-1.5 tabular-nums">{count}</span>
+          <span className="ml-1.5 text-muted-foreground/70 tabular-nums">{count}</span>
         </span>
       </button>
       <div hidden={!expanded} ref={list} className="max-h-44 overflow-y-auto overscroll-contain">
@@ -92,27 +92,27 @@ export function ChatQueue({ items, submissions, error, ...props }: ChatQueueProp
           return (
             <div key={id} className="flex min-h-8 items-center gap-2 px-1" aria-busy="true">
               <Spinner
-                className="text-muted-foreground/60 size-3 shrink-0"
+                className="size-3 shrink-0 text-muted-foreground/60"
                 aria-label="Queuing message"
               />
               {!props.coding ? (
-                <span className="text-muted-foreground max-w-20 shrink-0 truncate text-xs">
+                <span className="max-w-20 shrink-0 truncate text-xs text-muted-foreground">
                   You
                 </span>
               ) : null}
               <p className="min-w-0 flex-1 truncate text-[13px] leading-5" title={text || preview}>
                 {!text && input.files.length ? (
-                  <PaperclipIcon className="text-muted-foreground mr-1.5 inline size-3 align-[-2px]" />
+                  <PaperclipIcon className="mr-1.5 inline size-3 align-[-2px] text-muted-foreground" />
                 ) : null}
                 {preview}
               </p>
               {text && input.files.length ? (
-                <span className="text-muted-foreground flex shrink-0 items-center gap-1 text-[11px]">
+                <span className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
                   <PaperclipIcon className="size-3" />
                   {input.files.length}
                 </span>
               ) : null}
-              <span className="text-muted-foreground shrink-0 text-[11px]">Queuing...</span>
+              <span className="shrink-0 text-[11px] text-muted-foreground">Queuing...</span>
             </div>
           )
         })}
@@ -177,14 +177,14 @@ function QueueRow({
     <div
       ref={rowRef}
       tabIndex={-1}
-      className="hover:bg-muted/50 focus-visible:ring-ring/50 rounded-lg px-1 outline-none focus-visible:ring-2"
+      className="rounded-lg px-1 outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring/50"
     >
       <div className="flex min-h-8 items-center gap-2">
-        <span className="text-muted-foreground/60 w-3 shrink-0 text-center text-[10px] tabular-nums">
+        <span className="w-3 shrink-0 text-center text-[10px] text-muted-foreground/60 tabular-nums">
           {item.state === "sending" ? <Spinner className="size-3" /> : index + 1}
         </span>
         {!coding ? (
-          <span className="text-muted-foreground max-w-20 shrink-0 truncate text-xs">
+          <span className="max-w-20 shrink-0 truncate text-xs text-muted-foreground">
             {owned ? "You" : (item.author.name ?? "Participant")}
           </span>
         ) : null}
@@ -193,21 +193,21 @@ function QueueRow({
           title={`${item.content.text || filenames}\n${model}${agent}`}
         >
           {!item.content.text && item.content.attachments.length ? (
-            <PaperclipIcon className="text-muted-foreground mr-1.5 inline size-3 align-[-2px]" />
+            <PaperclipIcon className="mr-1.5 inline size-3 align-[-2px] text-muted-foreground" />
           ) : null}
           {preview}
         </p>
         {item.content.text && item.content.attachments.length ? (
-          <span className="text-muted-foreground flex shrink-0 items-center gap-1 text-[11px]">
+          <span className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
             <PaperclipIcon className="size-3" />
             {item.content.attachments.length}
           </span>
         ) : null}
         {status ? (
-          <span className="text-muted-foreground shrink-0 text-[11px]">{status}</span>
+          <span className="shrink-0 text-[11px] text-muted-foreground">{status}</span>
         ) : null}
         {owned && !locked ? (
-          <div className="text-muted-foreground flex shrink-0 items-center">
+          <div className="flex shrink-0 items-center text-muted-foreground">
             {item.state === "recovered" ? (
               <Button
                 type="button"

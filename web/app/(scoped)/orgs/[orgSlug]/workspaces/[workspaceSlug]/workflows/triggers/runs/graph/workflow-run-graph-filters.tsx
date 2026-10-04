@@ -30,7 +30,7 @@ export function WorkflowRunGraphFilters({
   const { pending, select } = useSelectResource()
 
   return (
-    <div className="bg-background flex min-h-14 flex-col gap-3 border-b px-4 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+    <div className="flex min-h-14 flex-col gap-3 border-b bg-background px-4 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-6">
       <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
         <Select
           value={selectedAgentName ?? ""}

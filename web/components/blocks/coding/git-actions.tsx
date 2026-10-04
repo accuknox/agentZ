@@ -353,11 +353,11 @@ export function GitActions({ thread, workspaceId }: { thread: CodingThread; work
               Review and confirm your commit. Leave the message blank to auto-generate one.
             </DialogDescription>
           </DialogHeader>
-          <div className="bg-muted/30 ring-border flex flex-col gap-3 rounded-xl p-3 text-sm ring-1">
+          <div className="flex flex-col gap-3 rounded-xl bg-muted/30 p-3 text-sm ring-1 ring-border">
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">Branch</span>
               <span className="font-medium">{data?.branch || "(detached HEAD)"}</span>
-              {isDefault ? <span className="text-warning ml-auto">Default branch</span> : null}
+              {isDefault ? <span className="ml-auto text-warning">Default branch</span> : null}
             </div>
             <div className="flex items-center gap-2">
               {editing && files.length ? (
@@ -394,12 +394,12 @@ export function GitActions({ thread, workspaceId }: { thread: CodingThread; work
                 {editing ? "Done" : "Edit"}
               </Button>
             </div>
-            <div className="bg-card ring-border h-44 overflow-auto rounded-lg ring-1">
+            <div className="h-44 overflow-auto rounded-lg bg-card ring-1 ring-border">
               <div className="flex flex-col gap-1 p-1">
                 {files.map((file) => (
                   <div
                     key={file.path}
-                    className="hover:bg-accent/50 flex items-center gap-2 rounded-md px-2 py-1 font-mono"
+                    className="flex items-center gap-2 rounded-md px-2 py-1 font-mono hover:bg-accent/50"
                   >
                     {editing ? (
                       <Checkbox

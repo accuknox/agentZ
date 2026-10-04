@@ -97,7 +97,7 @@ async function UserDetailContent({
                 </Badge>
                 {data.member.superadmin ? <Badge variant="plain">Superadmin</Badge> : null}
               </div>
-              <p className="text-muted-foreground mt-1 truncate text-sm" title={data.member.email}>
+              <p className="mt-1 truncate text-sm text-muted-foreground" title={data.member.email}>
                 {data.member.email}
               </p>
             </div>
@@ -179,7 +179,7 @@ async function Summary({ data, orgSlug }: { data: MemberAdministration; orgSlug:
         <section className="flex max-w-3xl flex-col gap-4 px-4 pt-3 pb-6 sm:flex-row sm:items-center sm:justify-between md:px-6">
           <div>
             <h2 className="font-medium">Membership actions</h2>
-            <p className="text-muted-foreground mt-1 text-sm">
+            <p className="mt-1 text-sm text-muted-foreground">
               Revoke access temporarily or remove this Membership permanently.
             </p>
           </div>

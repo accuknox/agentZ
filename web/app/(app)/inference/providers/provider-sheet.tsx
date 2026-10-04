@@ -1086,7 +1086,7 @@ export function ProviderSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="h-full overflow-y-auto sm:w-[50vw]! sm:max-w-none!">
+      <SheetContent size="half" className="h-full overflow-y-auto">
         <SheetHeader className="shrink-0">
           <SheetTitle className="flex items-center gap-2">
             {provider ? (
@@ -1098,7 +1098,7 @@ export function ProviderSheet({
             {provider ? "Edit inference provider" : "Add inference provider"}
           </SheetDescription>
           {provider ? (
-            <div className="text-muted-foreground flex items-center gap-1 pt-1 text-xs">
+            <div className="flex items-center gap-1 pt-1 text-xs text-muted-foreground">
               <code className="font-mono">{provider.id}</code>
               <CopyButton content={provider.id} />
             </div>
@@ -1152,11 +1152,11 @@ export function ProviderSheet({
                             <span className="truncate">
                               {selectedCatalogEntry?.name ?? provider?.display_name ?? field.value}
                             </span>
-                            <span className="text-muted-foreground shrink-0 text-xs">
+                            <span className="shrink-0 text-xs text-muted-foreground">
                               {providerKindLabels[kind]}
                             </span>
                           </span>
-                          <ChevronsUpDown className="text-muted-foreground size-4 shrink-0" />
+                          <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent
@@ -1271,7 +1271,7 @@ export function ProviderSheet({
                                 >
                                   <ProviderIcon provider={entry.provider_id} className="size-4" />
                                   <span className="min-w-0 flex-1 truncate">{entry.name}</span>
-                                  <span className="text-muted-foreground text-xs">
+                                  <span className="text-xs text-muted-foreground">
                                     {providerKindLabels[entry.provider_kind]}
                                   </span>
                                   <Check
@@ -1568,7 +1568,7 @@ export function ProviderSheet({
                 isCompatibleKind) && (
                 <Accordion type="single" collapsible className="rounded-lg border">
                   <AccordionItem value="advanced" className="border-none">
-                    <AccordionTrigger className="focus-visible:bg-muted/60 px-4 py-3 hover:no-underline focus-visible:border-transparent focus-visible:ring-0 data-[state=open]:rounded-b-none">
+                    <AccordionTrigger className="px-4 py-3 hover:no-underline focus-visible:border-transparent focus-visible:bg-muted/60 focus-visible:ring-0 data-[state=open]:rounded-b-none">
                       Advanced
                     </AccordionTrigger>
                     <AccordionContent className="px-4 pt-1 pb-4 [&>div]:h-auto">
@@ -1832,14 +1832,14 @@ export function ProviderSheet({
                 <div className="flex flex-col gap-4 rounded-lg border p-4">
                   {provider || subscriptionOAuth.status === "connected" ? (
                     <div role="status" className="flex items-start gap-3">
-                      <div className="bg-success/10 text-success flex size-8 shrink-0 items-center justify-center rounded-full">
+                      <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-success/10 text-success">
                         <Check aria-hidden className="size-4" />
                       </div>
                       <div className="flex flex-col gap-1">
-                        <p className="text-success text-sm font-medium">
+                        <p className="text-sm font-medium text-success">
                           Connected to {providerKindLabels[kind]}
                         </p>
-                        <p className="text-muted-foreground text-sm">
+                        <p className="text-sm text-muted-foreground">
                           {provider
                             ? "Your subscription is ready to use."
                             : "Choose which models Agents may use, then add the provider."}
@@ -1851,7 +1851,7 @@ export function ProviderSheet({
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="flex flex-col gap-1">
                           <p className="text-sm font-medium">Connect {providerKindLabels[kind]}</p>
-                          <p className="text-muted-foreground text-sm">
+                          <p className="text-sm text-muted-foreground">
                             Complete sign-in in a new tab. We will detect when it finishes.
                           </p>
                         </div>
@@ -1872,10 +1872,10 @@ export function ProviderSheet({
                       </div>
                       {subscriptionOAuth.status === "challenge" ? (
                         <div className="flex flex-col items-start gap-3">
-                          <p className="text-muted-foreground text-sm">
+                          <p className="text-sm text-muted-foreground">
                             Enter this one-time code on the provider sign-in page.
                           </p>
-                          <div className="bg-muted/50 flex items-center gap-3 rounded-md px-3 py-2">
+                          <div className="flex items-center gap-3 rounded-md bg-muted/50 px-3 py-2">
                             <code className="text-lg font-semibold tracking-widest">
                               {subscriptionOAuth.userCode}
                             </code>
@@ -1895,7 +1895,7 @@ export function ProviderSheet({
                           </Button>
                           <p
                             role="status"
-                            className="text-muted-foreground flex items-center gap-2 text-xs"
+                            className="flex items-center gap-2 text-xs text-muted-foreground"
                           >
                             <Spinner aria-hidden className="size-3" /> Waiting for you to finish
                             signing in...
@@ -2019,7 +2019,7 @@ export function ProviderSheet({
                 </>
               )}
               {isCompatibleKind && customAuthMode === "None" && (
-                <p className="text-muted-foreground text-sm">No credentials required.</p>
+                <p className="text-sm text-muted-foreground">No credentials required.</p>
               )}
             </FormSection>
 
@@ -2078,7 +2078,7 @@ export function ProviderSheet({
               {modelCatalogState === "loading" && (
                 <p
                   aria-live="polite"
-                  className="text-muted-foreground flex items-center gap-2 text-sm"
+                  className="flex items-center gap-2 text-sm text-muted-foreground"
                 >
                   <Spinner />
                   Loading model catalog...
@@ -2099,11 +2099,11 @@ export function ProviderSheet({
                 {models.fields.map((model, index) => (
                   <div
                     key={model.key}
-                    className="hover:bg-muted/50 flex items-center gap-1 rounded-md px-2 py-1.5"
+                    className="flex items-center gap-1 rounded-md px-2 py-1.5 hover:bg-muted/50"
                   >
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium">{model.display_name}</div>
-                      <div className="text-muted-foreground truncate text-xs">
+                      <div className="truncate text-xs text-muted-foreground">
                         <span className="font-mono">{model.id}</span>
                         <span aria-hidden> · </span>
                         <span className="tabular-nums">
@@ -2140,7 +2140,7 @@ export function ProviderSheet({
                   </div>
                 ))}
                 {models.fields.length === 0 && (
-                  <p className="text-muted-foreground px-2 py-1.5 text-sm">
+                  <p className="px-2 py-1.5 text-sm text-muted-foreground">
                     At least one model is required.
                   </p>
                 )}
@@ -2248,10 +2248,10 @@ function FormSection({
   return (
     <section className="space-y-4">
       <div className="flex items-start gap-2.5">
-        <Icon aria-hidden className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+        <Icon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         <div className="min-w-0 space-y-0.5">
           <h2 className="text-sm leading-5 font-medium">{title}</h2>
-          {description ? <p className="text-muted-foreground text-sm">{description}</p> : null}
+          {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
         </div>
       </div>
       {children}
@@ -2410,7 +2410,7 @@ function ModelMetadataDialog({
                     control={form.control}
                     name={`models.${editingModel}.capabilities.${capability}`}
                     render={({ field, fieldState }) => (
-                      <label className="hover:bg-muted/50 has-data-checked:border-primary/40 has-data-checked:bg-primary/5 flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm capitalize transition-colors">
+                      <label className="flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm capitalize transition-colors hover:bg-muted/50 has-data-checked:border-primary/40 has-data-checked:bg-primary/5">
                         <Checkbox
                           checked={field.value}
                           aria-invalid={fieldState.invalid}
@@ -2441,7 +2441,7 @@ function ModelMetadataDialog({
                       {modalities.map((modality) => (
                         <label
                           key={modality}
-                          className="hover:bg-muted/50 has-data-checked:border-primary/40 has-data-checked:bg-primary/5 flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm capitalize transition-colors"
+                          className="flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm capitalize transition-colors hover:bg-muted/50 has-data-checked:border-primary/40 has-data-checked:bg-primary/5"
                         >
                           <Checkbox
                             checked={field.value.includes(modality)}

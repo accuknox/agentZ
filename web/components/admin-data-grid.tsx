@@ -166,7 +166,7 @@ export function AdminDataGrid<T>({
                         {header.isPlaceholder ? null : header.column.columnDef.enableSorting ===
                           true ? (
                           <button
-                            className="hover:text-foreground inline-flex h-8 max-w-full items-center gap-1.5"
+                            className="inline-flex h-8 max-w-full items-center gap-1.5 hover:text-foreground"
                             onClick={header.column.getToggleSortingHandler()}
                             type="button"
                           >

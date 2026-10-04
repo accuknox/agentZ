@@ -226,7 +226,7 @@ export function RunsTable({
   return (
     <AdminDataGrid
       ariaLabel="Workflow runs"
-      emptyState={<p className="text-muted-foreground py-8 text-center">No runs found.</p>}
+      emptyState={<p className="py-8 text-center text-muted-foreground">No runs found.</p>}
       layout={layout}
       pagination={<TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />}
       rowHref={(run) => runGraphHref(basePath, agentName, workflowName, run.name)}

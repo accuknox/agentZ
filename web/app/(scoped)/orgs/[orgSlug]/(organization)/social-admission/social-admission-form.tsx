@@ -220,7 +220,7 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
           <section className="flex flex-col gap-5">
             <div className="flex flex-col gap-1">
               <h3 className="text-base font-semibold">Default access</h3>
-              <p className="text-muted-foreground text-sm">
+              <p className="text-sm text-muted-foreground">
                 New members receive these roles and teams once, when they join.
               </p>
             </div>
@@ -281,7 +281,7 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
             <div className="flex flex-col gap-3 pt-2">
               <div className="flex flex-col gap-1">
                 <h4 className="text-sm font-medium">Qualified workspaces</h4>
-                <p className="text-muted-foreground text-sm">
+                <p className="text-sm text-muted-foreground">
                   The selected default roles and teams grant access to these Workspaces.
                 </p>
               </div>
@@ -301,10 +301,10 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
                             {workspace.name}
                           </TableCell>
                           <TableCell className="whitespace-normal">
-                            <div className="text-muted-foreground flex flex-wrap gap-x-3 gap-y-1">
+                            <div className="flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
                               {workspace.sources.map((source) => (
                                 <span key={`${source.kind}:${source.name}`}>
-                                  <span className="text-foreground font-medium">{source.kind}</span>
+                                  <span className="font-medium text-foreground">{source.kind}</span>
                                   {" · "}
                                   {source.name}
                                 </span>
@@ -316,7 +316,7 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
                     ) : (
                       <TableRow>
                         <TableCell
-                          className="text-muted-foreground h-24 text-center whitespace-normal"
+                          className="h-24 text-center whitespace-normal text-muted-foreground"
                           colSpan={2}
                         >
                           <span className="text-muted-foreground">_</span>
@@ -332,7 +332,7 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
           <section className="flex flex-col gap-6">
             <div className="flex flex-col gap-1">
               <h3 className="text-base font-semibold">External rules</h3>
-              <p className="text-muted-foreground text-sm">
+              <p className="text-sm text-muted-foreground">
                 Set the Google email domains and GitHub organizations or teams that may join.
               </p>
             </div>
@@ -616,14 +616,14 @@ function ProviderHeading({
 }) {
   return (
     <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-4">
-      <span className="bg-muted flex size-10 shrink-0 items-center justify-center rounded-lg">
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">
         {icon}
       </span>
       <div className="flex min-w-0 flex-col gap-1 pt-0.5">
         <label className="text-sm leading-5 font-medium" htmlFor={id}>
           {title}
         </label>
-        <p className="text-muted-foreground text-sm leading-5">
+        <p className="text-sm leading-5 text-muted-foreground">
           {configured ? description : `${title} sign-in is not configured.`}
         </p>
       </div>

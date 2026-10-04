@@ -572,7 +572,7 @@ function createMcpSelectionColumns({
       accessorFn: (row) => row.endpoint_url,
       cell: ({ row }) => (
         <span
-          className="text-muted-foreground block min-w-0 truncate"
+          className="block min-w-0 truncate text-muted-foreground"
           title={row.original.endpoint_url}
         >
           {row.original.endpoint_url}
@@ -697,7 +697,7 @@ function McpToolsPanel({
 
   if (query.isPending) {
     return (
-      <div className="text-muted-foreground flex items-center gap-2 text-sm">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Spinner />
         Loading tools...
       </div>
@@ -716,19 +716,19 @@ function McpToolsPanel({
   const detail = query.data
   if (!detail.tool_catalog_ready) {
     return (
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         We have not finished loading the tool catalog. {detail.message}
       </p>
     )
   }
   if (detail.tools.length === 0) {
-    return <p className="text-muted-foreground text-sm">This MCP connection exposes no tools.</p>
+    return <p className="text-sm text-muted-foreground">This MCP connection exposes no tools.</p>
   }
 
   const toolsByName = new Map(selectedRef?.tools.map((tool) => [tool.name, tool]) ?? [])
   return (
     <div className="space-y-3">
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         Choose which tools from <em>{connection.name}</em> this Sandbox may expose to Agents.
       </p>
 
@@ -1024,7 +1024,7 @@ function McpStep({
         <AdminDataGrid
           ariaLabel="MCP connections"
           emptyState={
-            <p className="text-muted-foreground py-8 text-center">No MCP connections found.</p>
+            <p className="py-8 text-center text-muted-foreground">No MCP connections found.</p>
           }
           layout={mcpLayout}
           pagination={
@@ -1195,7 +1195,7 @@ function SkillsStep({
       <div className="-mx-4 w-[calc(100%+2rem)] min-w-0 space-y-4 sm:-mx-6 sm:w-[calc(100%+3rem)]">
         <AdminDataGrid
           ariaLabel="Skills"
-          emptyState={<p className="text-muted-foreground py-8 text-center">No skills found.</p>}
+          emptyState={<p className="py-8 text-center text-muted-foreground">No skills found.</p>}
           layout={skillLayout}
           pagination={
             <div className="space-y-2">
@@ -1364,7 +1364,7 @@ function ModelsStep({
       <SelectItem key={key} value={key}>
         {pool ? <Layers3 /> : <Brain />}
         <span className="truncate">{pool?.display_name ?? model?.display_name ?? ref.model}</span>
-        <span className="text-muted-foreground truncate">
+        <span className="truncate text-muted-foreground">
           {pool ? "Inference Pool" : (provider?.display_name ?? ref.provider)}
         </span>
       </SelectItem>
@@ -1384,7 +1384,7 @@ function ModelsStep({
       <SelectItem key={key} value={key}>
         {pool ? <Layers3 /> : <Brain />}
         <span className="truncate">{pool?.display_name ?? model?.display_name ?? ref.model}</span>
-        <span className="text-muted-foreground truncate">
+        <span className="truncate text-muted-foreground">
           {pool ? "Inference Pool" : (provider?.display_name ?? ref.provider)}
         </span>
       </SelectItem>,
@@ -1409,7 +1409,7 @@ function ModelsStep({
         <Empty className="gap-3 p-8">
           <EmptyHeader>
             <EmptyMedia>
-              <Brain className="text-muted-foreground size-8" aria-hidden="true" />
+              <Brain className="size-8 text-muted-foreground" aria-hidden="true" />
             </EmptyMedia>
             <EmptyTitle>No inference providers are configured</EmptyTitle>
             <EmptyDescription>
@@ -1467,12 +1467,12 @@ function ModelsStep({
           <div className="order-2 min-w-0 lg:order-1">
             {pools.length > 0 ? (
               <section className="mb-5 overflow-hidden rounded-lg border">
-                <div className="bg-muted/30 border-b px-3 py-2.5">
+                <div className="border-b bg-muted/30 px-3 py-2.5">
                   <h2 className="flex items-center gap-2 text-sm font-medium">
                     <Layers3 className="size-4" />
                     Pools
                   </h2>
-                  <p className="text-muted-foreground text-xs">
+                  <p className="text-xs text-muted-foreground">
                     A Pool routes one model name through an ordered list of models.
                   </p>
                 </div>
@@ -1489,9 +1489,9 @@ function ModelsStep({
                     return (
                       <label
                         key={pool.id}
-                        className={`flex items-start gap-3 px-3 py-3 transition-colors ${available || active ? "hover:bg-muted/50 cursor-pointer" : "cursor-not-allowed opacity-65"} ${active ? "bg-primary/5" : ""}`}
+                        className={`flex items-start gap-3 px-3 py-3 transition-colors ${available || active ? "cursor-pointer hover:bg-muted/50" : "cursor-not-allowed opacity-65"} ${active ? "bg-primary/5" : ""}`}
                       >
-                        <Layers3 className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+                        <Layers3 className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="truncate text-sm font-medium">
@@ -1511,7 +1511,7 @@ function ModelsStep({
                               {pool.state === "PartiallyDegraded" ? "Partial" : pool.state}
                             </Badge>
                           </div>
-                          <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                             <span>
                               {pool.members.length} {pool.members.length === 1 ? "model" : "models"}
                             </span>
@@ -1574,7 +1574,7 @@ function ModelsStep({
                 const selectedCount = selectedCountByProvider.get(providerReference) ?? 0
                 return (
                   <AccordionItem key={providerReference} value={providerReference}>
-                    <AccordionTrigger className="hover:bg-muted/50 px-3 hover:no-underline **:data-[slot=accordion-trigger-icon]:ml-0!">
+                    <AccordionTrigger className="px-3 hover:bg-muted/50 hover:no-underline **:data-[slot=accordion-trigger-icon]:ml-0!">
                       <div className="flex min-w-0 items-center gap-2.5">
                         <ProviderIcon
                           provider={provider.catalog_provider}
@@ -1582,7 +1582,7 @@ function ModelsStep({
                         />
                         <span className="truncate font-medium">{provider.display_name}</span>
                         <Badge variant="outline">{provider.scope}</Badge>
-                        <span className="text-muted-foreground hidden truncate text-xs md:inline">
+                        <span className="hidden truncate text-xs text-muted-foreground md:inline">
                           {providerKindLabels[provider.kind]}
                         </span>
                       </div>
@@ -1601,7 +1601,7 @@ function ModelsStep({
                     </AccordionTrigger>
                     <AccordionContent className="p-0">
                       {provider.models.length === 0 ? (
-                        <p className="text-muted-foreground border-t px-3 py-4 text-sm">
+                        <p className="border-t px-3 py-4 text-sm text-muted-foreground">
                           This provider has no models.
                         </p>
                       ) : (
@@ -1618,13 +1618,13 @@ function ModelsStep({
                             return (
                               <label
                                 key={JSON.stringify([provider.scope, provider.id, model.id])}
-                                className={`hover:bg-muted/50 flex cursor-pointer items-center gap-3 px-3 py-2.5 transition-colors ${active ? "bg-primary/5" : ""}`}
+                                className={`flex cursor-pointer items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/50 ${active ? "bg-primary/5" : ""}`}
                               >
                                 <div className="min-w-0 flex-1">
                                   <span className="block truncate text-sm font-medium">
                                     {model.display_name}
                                   </span>
-                                  <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
+                                  <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
                                     <span className="truncate font-mono">{model.id}</span>
                                     <span aria-hidden="true">·</span>
                                     <span className="shrink-0 tabular-nums">
@@ -1658,13 +1658,13 @@ function ModelsStep({
           </div>
           <aside className="order-1 min-w-0 lg:sticky lg:top-0 lg:order-2 lg:self-start">
             <div className="overflow-hidden rounded-lg border">
-              <div className="bg-muted/30 flex items-center justify-between border-b px-4 py-2.5">
+              <div className="flex items-center justify-between border-b bg-muted/30 px-4 py-2.5">
                 <h2 className="text-sm font-medium">Selected models</h2>
                 <Badge variant="secondary">{selected.length}</Badge>
               </div>
               <div className="space-y-4 p-4">
                 {selected.length === 0 ? (
-                  <p className="border-muted-foreground/50 text-muted-foreground rounded-md border-2 border-dashed p-4 text-center text-sm">
+                  <p className="rounded-md border-2 border-dashed border-muted-foreground/50 p-4 text-center text-sm text-muted-foreground">
                     Expand a provider to start adding models.
                   </p>
                 ) : (
@@ -1681,18 +1681,18 @@ function ModelsStep({
                       return (
                         <li key={key} className="flex items-center gap-2.5 px-3 py-2">
                           {pool ? (
-                            <Layers3 className="text-muted-foreground size-4 shrink-0" />
+                            <Layers3 className="size-4 shrink-0 text-muted-foreground" />
                           ) : provider ? (
                             <ProviderIcon
                               provider={provider.catalog_provider}
                               className="size-4 shrink-0"
                             />
                           ) : (
-                            <Brain className="text-muted-foreground size-4 shrink-0" />
+                            <Brain className="size-4 shrink-0 text-muted-foreground" />
                           )}
                           <div className="min-w-0 flex-1">
                             <div className="truncate text-sm font-medium">{displayName}</div>
-                            <div className="text-muted-foreground truncate text-xs">
+                            <div className="truncate text-xs text-muted-foreground">
                               {pool ? "Inference Pool" : (provider?.display_name ?? ref.provider)}
                             </div>
                           </div>
@@ -2110,7 +2110,7 @@ function AllowedHostsStep({
 
 function AllowedHostSuggestionsLoading() {
   return (
-    <div className="text-muted-foreground flex items-center gap-2 pt-1 text-sm" aria-live="polite">
+    <div className="flex items-center gap-2 pt-1 text-sm text-muted-foreground" aria-live="polite">
       <Spinner />
       <span>Loading host suggestions...</span>
     </div>
@@ -2142,7 +2142,7 @@ function AllowedHostSuggestions({
         <button
           key={host}
           type="button"
-          className="text-muted-foreground hover:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 max-w-full rounded-sm text-left text-sm underline underline-offset-4 transition-[color,box-shadow] outline-none focus-visible:ring-3"
+          className="max-w-full rounded-sm text-left text-sm text-muted-foreground underline underline-offset-4 transition-[color,box-shadow] outline-none hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           onClick={() => onSuggestionAction(host)}
         >
           <span className="block truncate">{host}</span>

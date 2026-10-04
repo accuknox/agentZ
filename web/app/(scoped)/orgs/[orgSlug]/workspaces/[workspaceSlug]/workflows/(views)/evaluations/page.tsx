@@ -48,7 +48,7 @@ async function Content({
           workspaceId={scope.workspace.id}
         />
       ) : (
-        <div className="text-muted-foreground flex h-48 items-center justify-center text-sm">
+        <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
           {agents.length ? "No workflows available" : "No agents available"}
         </div>
       )}

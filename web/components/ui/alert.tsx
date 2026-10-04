@@ -7,8 +7,8 @@ const alertVariants = cva(
   [
     "grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2 gap-y-0.5 text-left text-sm leading-5 wrap-anywhere has-data-[slot=alert-action]:grid-cols-[auto_minmax(0,1fr)_auto]",
     "[&>svg]:col-start-1 [&>svg]:row-span-2 [&>svg]:row-start-1 [&>svg]:mt-0.5 [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-current",
-    "[&>:not(svg,[data-slot=alert-action])]:col-start-2 [&>:not(svg)]:min-w-0 [&>[data-slot=button]]:justify-self-start",
-    "[&_[data-slot=button]:not([data-size^=icon])]:h-auto [&_[data-slot=button]:not([data-size^=icon])]:min-h-7 [&_[data-slot=button]:not([data-size^=icon])]:min-w-0 [&_[data-slot=button]:not([data-size^=icon])]:max-w-full [&_[data-slot=button]:not([data-size^=icon])]:whitespace-normal",
+    "[&>:not(svg)]:min-w-0 [&>:not(svg,[data-slot=alert-action])]:col-start-2 [&>[data-slot=button]]:justify-self-start",
+    "[&_[data-slot=button]:not([data-size^=icon])]:h-auto [&_[data-slot=button]:not([data-size^=icon])]:min-h-7 [&_[data-slot=button]:not([data-size^=icon])]:max-w-full [&_[data-slot=button]:not([data-size^=icon])]:min-w-0 [&_[data-slot=button]:not([data-size^=icon])]:whitespace-normal",
   ],
   {
     variants: {

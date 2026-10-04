@@ -82,7 +82,7 @@ async function IdentityProviders() {
         {providers.map((provider) => (
           <div
             key={provider}
-            className="border-border bg-card text-card-foreground flex h-12 min-w-36 items-center gap-3 rounded-md border px-4 text-sm font-medium"
+            className="flex h-12 min-w-36 items-center gap-3 rounded-md border border-border bg-card px-4 text-sm font-medium text-card-foreground"
           >
             {provider === "github" ? (
               <>
@@ -199,8 +199,8 @@ async function AccountSecurity({ searchParams }: { searchParams: Promise<Account
 function ProviderSkeleton() {
   return (
     <div className="flex flex-col gap-4 px-4 md:px-6">
-      <div className="bg-muted/20 h-7 w-44 rounded-md" />
-      <div className="bg-muted/20 h-14 w-36 rounded-md" />
+      <div className="h-7 w-44 rounded-md bg-muted/20" />
+      <div className="h-14 w-36 rounded-md bg-muted/20" />
     </div>
   )
 }
@@ -208,8 +208,8 @@ function ProviderSkeleton() {
 function TwoFactorSkeleton() {
   return (
     <div className="flex flex-col gap-4 px-4 md:px-6">
-      <div className="bg-muted/20 h-7 w-48 rounded-md" />
-      <div className="bg-muted/20 h-24 rounded-md" />
+      <div className="h-7 w-48 rounded-md bg-muted/20" />
+      <div className="h-24 rounded-md bg-muted/20" />
     </div>
   )
 }

@@ -118,10 +118,10 @@ export default function Workflow({ run, workflow }: WorkflowProps) {
   const selectedStatus = selectedNode?.data.status
 
   return (
-    <div className="bg-sidebar relative flex min-h-0 flex-1 overflow-hidden border-t">
+    <div className="relative flex min-h-0 flex-1 overflow-hidden border-t bg-sidebar">
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle,var(--color-sidebar-border)_1px,transparent_1px)] bg-size-[14px_14px] opacity-35" />
-        <div className="from-background/22 absolute inset-x-0 top-0 h-32 bg-linear-to-b to-transparent" />
+        <div className="absolute inset-x-0 top-0 h-32 bg-linear-to-b from-background/22 to-transparent" />
       </div>
       <Canvas
         className="bg-transparent"
@@ -147,20 +147,20 @@ export default function Workflow({ run, workflow }: WorkflowProps) {
         <Controls position="bottom-left" showInteractive={false} />
         <Panel
           position="top-left"
-          className="bg-card/88 supports-[backdrop-filter]:bg-card/72 border-border/70 w-[calc(100vw-2rem)] max-w-sm overflow-hidden border p-0 shadow-lg shadow-black/5 backdrop-blur-md sm:w-sm"
+          className="w-[calc(100vw-2rem)] max-w-sm overflow-hidden border border-border/70 bg-card/88 p-0 shadow-lg shadow-black/5 backdrop-blur-md supports-[backdrop-filter]:bg-card/72 sm:w-sm"
         >
           <Collapsible defaultOpen={false} className="group/workflow-summary">
             <CollapsibleTrigger asChild>
               <button
                 type="button"
-                className="hover:bg-muted/35 focus-visible:ring-ring/60 flex w-full items-center gap-2 px-3 py-2.5 text-left outline-hidden transition-colors focus-visible:ring-2"
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-left outline-hidden transition-colors hover:bg-muted/35 focus-visible:ring-2 focus-visible:ring-ring/60"
                 aria-label="Toggle workflow summary"
               >
                 {run ? <WorkflowRunStatusIcon status={run.status} /> : null}
                 <div className="min-w-0 flex-1">
                   <h2 className="truncate text-sm font-medium">{workflow.title}</h2>
                 </div>
-                <CornerDownLeftIcon className="text-muted-foreground size-4 shrink-0" />
+                <CornerDownLeftIcon className="size-4 shrink-0 text-muted-foreground" />
               </button>
             </CollapsibleTrigger>
             {run ? (
@@ -179,8 +179,8 @@ export default function Workflow({ run, workflow }: WorkflowProps) {
             ) : null}
             <CollapsibleContent className="border-t px-3 py-2">
               <div className="flex flex-col gap-2">
-                <p className="text-muted-foreground text-sm">{workflow.summary}</p>
-                <p className="text-muted-foreground text-xs tracking-wide">
+                <p className="text-sm text-muted-foreground">{workflow.summary}</p>
+                <p className="text-xs tracking-wide text-muted-foreground">
                   Inputs: {workflowInputSummary(workflow)}
                 </p>
               </div>
@@ -190,13 +190,13 @@ export default function Workflow({ run, workflow }: WorkflowProps) {
         {selectedWorkflowNode ? (
           <Panel
             position="top-right"
-            className="bg-card/90 supports-[backdrop-filter]:bg-card/76 animate-in fade-in slide-in-from-right-2 border-border/70 max-h-[calc(100%-2rem)] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-lg border p-4 shadow-xl shadow-black/10 backdrop-blur-md duration-200"
+            className="max-h-[calc(100%-2rem)] w-[min(24rem,calc(100vw-2rem))] animate-in overflow-y-auto rounded-lg border border-border/70 bg-card/90 p-4 shadow-xl shadow-black/10 backdrop-blur-md duration-200 fade-in slide-in-from-right-2 supports-[backdrop-filter]:bg-card/76"
           >
             <div className="flex flex-col gap-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-col gap-1">
                   <h3 className="text-sm font-medium">{selectedWorkflowNode.name}</h3>
-                  <p className="text-muted-foreground text-sm">{selectedWorkflowNode.goal}</p>
+                  <p className="text-sm text-muted-foreground">{selectedWorkflowNode.goal}</p>
                 </div>
                 <Button
                   aria-label="Close workflow node details"
@@ -302,20 +302,20 @@ function WorkflowCanvasNodeCard({ data, selected }: FlowNodeProps<WorkflowCanvas
           <p className="truncate text-sm font-semibold tracking-normal">{data.node.name}</p>
           {data.status ? <NodeStatusBadge status={data.status} /> : null}
         </div>
-        <div className="text-muted-foreground flex items-center gap-4 text-sm font-medium">
+        <div className="flex items-center gap-4 text-sm font-medium text-muted-foreground">
           <span
             className="inline-flex items-center gap-1.5"
             aria-label={`Preferred skills: ${skillCount}`}
           >
-            <ScrollTextIcon className="text-chart-1 size-4" />
-            <span className="text-foreground/90 font-mono">x{skillCount}</span>
+            <ScrollTextIcon className="size-4 text-chart-1" />
+            <span className="font-mono text-foreground/90">x{skillCount}</span>
           </span>
           <span
             className="inline-flex items-center gap-1.5"
             aria-label={`Preferred tools: ${toolCount}`}
           >
-            <HammerIcon className="text-chart-2 size-4" />
-            <span className="text-foreground/90 font-mono">x{toolCount}</span>
+            <HammerIcon className="size-4 text-chart-2" />
+            <span className="font-mono text-foreground/90">x{toolCount}</span>
           </span>
         </div>
       </NodeContent>
@@ -445,12 +445,12 @@ function NodeExecutionSummary({ status }: { status?: WorkflowRunNodeStatus }) {
   }
 
   return (
-    <div className="border-border/70 flex flex-col gap-2 border-b pb-4">
+    <div className="flex flex-col gap-2 border-b border-border/70 pb-4">
       <div className="mb-2 flex items-center justify-end">
         <NodeStatusBadge status={status} />
       </div>
       {status.message ? <p className="text-sm">{status.message}</p> : null}
-      <div className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-xs">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
         {status.started_at ? <span>Started {dayjs(status.started_at).format("lll")}</span> : null}
         {status.completed_at ? (
           <span>Completed {dayjs(status.completed_at).format("lll")}</span>
@@ -471,7 +471,7 @@ function Section({
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <p className="text-muted-foreground text-xs font-medium tracking-wide">{title}</p>
+      <p className="text-xs font-medium tracking-wide text-muted-foreground">{title}</p>
       <p className={clamp ? "line-clamp-3 text-sm" : "text-sm"}>{value}</p>
     </div>
   )
@@ -492,11 +492,11 @@ function PreferenceList({
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-muted-foreground text-xs font-medium tracking-wide">{title}</p>
+      <p className="text-xs font-medium tracking-wide text-muted-foreground">{title}</p>
       <div className="flex flex-wrap gap-2">
         {totalItems > 0 ? (
           <>
-            <span className="text-muted-foreground inline-flex h-5 items-center" aria-hidden="true">
+            <span className="inline-flex h-5 items-center text-muted-foreground" aria-hidden="true">
               {icon}
             </span>
             {(items ?? []).map((item) => (
@@ -506,7 +506,7 @@ function PreferenceList({
             ))}
           </>
         ) : (
-          <span className="text-muted-foreground text-sm">{emptyLabel}</span>
+          <span className="text-sm text-muted-foreground">{emptyLabel}</span>
         )}
       </div>
     </div>

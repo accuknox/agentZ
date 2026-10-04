@@ -108,7 +108,7 @@ export function NavUser({
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">{user.name}</span>
                   {user.email ? (
-                    <span className="text-muted-foreground truncate text-xs">{user.email}</span>
+                    <span className="truncate text-xs text-muted-foreground">{user.email}</span>
                   ) : null}
                 </div>
               </div>
@@ -152,7 +152,7 @@ export function NavUser({
                         <span className="truncate font-medium" title={organization.name}>
                           {organization.name}
                         </span>
-                        <span className="text-muted-foreground truncate text-xs">
+                        <span className="truncate text-xs text-muted-foreground">
                           {organization.slug}
                         </span>
                       </span>

@@ -349,7 +349,7 @@ export function PoolSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="h-full overflow-hidden sm:w-[50vw]! sm:max-w-none!">
+      <SheetContent size="half" className="h-full overflow-hidden">
         <SheetHeader className="shrink-0">
           <SheetTitle className="flex items-center gap-2">
             <Layers3 className="size-4" />
@@ -401,7 +401,7 @@ export function PoolSheet({
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-sm font-medium">Members</h2>
-                  <p className="text-muted-foreground text-sm">
+                  <p className="text-sm text-muted-foreground">
                     The first model is primary. Drag the others into fallback order.
                   </p>
                 </div>
@@ -474,12 +474,12 @@ export function PoolSheet({
             <section className="space-y-3">
               <div>
                 <h2 className="text-sm font-medium">Pool Contract</h2>
-                <p className="text-muted-foreground text-sm">
+                <p className="text-sm text-muted-foreground">
                   Capabilities, data types, and token limits supported by every model in this Pool.
                 </p>
               </div>
               {contract ? (
-                <div className="bg-muted/30 grid gap-4 rounded-lg border p-4 sm:grid-cols-2">
+                <div className="grid gap-4 rounded-lg border bg-muted/30 p-4 sm:grid-cols-2">
                   <ContractDetail
                     label="Capabilities"
                     value={
@@ -503,7 +503,7 @@ export function PoolSheet({
                   />
                 </div>
               ) : (
-                <p className="border-muted-foreground/50 text-muted-foreground rounded-lg border-2 border-dashed p-4 text-sm">
+                <p className="rounded-lg border-2 border-dashed border-muted-foreground/50 p-4 text-sm text-muted-foreground">
                   Choose a provider and model in every row to calculate the Pool Contract.
                 </p>
               )}
@@ -595,7 +595,7 @@ function SortableMember({
         transform: CSS.Transform.toString(sortable.transform),
         transition: sortable.transition,
       }}
-      className="bg-background grid grid-cols-[auto_minmax(0,1fr)_auto] gap-2 rounded-lg border p-3 shadow-xs"
+      className="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-2 rounded-lg border bg-background p-3 shadow-xs"
     >
       <Button
         type="button"
@@ -772,7 +772,7 @@ function MemberPicker({
                   {item.icon}
                   <span className="min-w-0 flex-1">
                     <span className="block truncate">{item.label}</span>
-                    <span className="text-muted-foreground block truncate text-xs">
+                    <span className="block truncate text-xs text-muted-foreground">
                       {item.detail}
                     </span>
                   </span>
@@ -790,7 +790,7 @@ function MemberPicker({
 function ContractDetail({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="space-y-1">
-      <p className="text-muted-foreground text-xs">{label}</p>
+      <p className="text-xs text-muted-foreground">{label}</p>
       <p className="text-sm">{value}</p>
     </div>
   )

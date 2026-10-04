@@ -405,7 +405,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
 
   return (
     <Sheet open={open} onOpenChange={onSheetOpenChange}>
-      <SheetContent className="h-full overflow-y-auto px-4 pt-3 pb-4 sm:w-[50vw]! sm:max-w-none!">
+      <SheetContent size="half" className="h-full overflow-y-auto px-4 pt-3 pb-4">
         <SheetHeader className="shrink-0 gap-0 px-0 py-0">
           <SheetTitle>{title}</SheetTitle>
           <SheetDescription>{description}</SheetDescription>
@@ -533,7 +533,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
                         className="w-full justify-between font-normal"
                       >
                         <span className="truncate">{field.value}</span>
-                        <ChevronsUpDown className="text-muted-foreground size-4 shrink-0" />
+                        <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent align="start" className="w-(--radix-popover-trigger-width) p-0">
@@ -611,7 +611,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
                     ref={field.ref}
                   />
                   <div className="flex flex-col gap-3">
-                    <div className="text-muted-foreground text-sm">{field.value}</div>
+                    <div className="text-sm text-muted-foreground">{field.value}</div>
                     <Slider
                       id="successful-runs-history-limit"
                       min={1}
@@ -644,7 +644,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
                     ref={field.ref}
                   />
                   <div className="flex flex-col gap-3">
-                    <div className="text-muted-foreground text-sm">{field.value}</div>
+                    <div className="text-sm text-muted-foreground">{field.value}</div>
                     <Slider
                       id="failed-runs-history-limit"
                       min={1}
@@ -716,7 +716,7 @@ function WorkflowInputsSection({
     return (
       <Field>
         <FieldLabel>Inputs</FieldLabel>
-        <div className="text-muted-foreground text-sm">No runtime inputs</div>
+        <div className="text-sm text-muted-foreground">No runtime inputs</div>
       </Field>
     )
   }
@@ -794,12 +794,12 @@ function WorkflowInputField({
             />
             <div className="flex flex-col gap-2">
               <div className="flex flex-col gap-0.5">
-                <div className="text-foreground flex items-center gap-1 font-mono text-sm">
+                <div className="flex items-center gap-1 font-mono text-sm text-foreground">
                   <span>{name}</span>
                   {input.required ? <RequiredIndicator className="text-xs" /> : null}
                 </div>
                 {input.description ? (
-                  <div className="text-muted-foreground text-sm">{input.description}</div>
+                  <div className="text-sm text-muted-foreground">{input.description}</div>
                 ) : null}
               </div>
               <Select
@@ -862,12 +862,12 @@ function WorkflowInputField({
             />
             <div className="flex flex-col gap-2">
               <div className="flex flex-col gap-0.5">
-                <div className="text-foreground flex items-center gap-1 font-mono text-sm">
+                <div className="flex items-center gap-1 font-mono text-sm text-foreground">
                   <span>{name}</span>
                   {input.required ? <RequiredIndicator className="text-xs" /> : null}
                 </div>
                 {input.description ? (
-                  <div className="text-muted-foreground text-sm">{input.description}</div>
+                  <div className="text-sm text-muted-foreground">{input.description}</div>
                 ) : null}
               </div>
               <InputGroup className="h-9">
@@ -879,7 +879,7 @@ function WorkflowInputField({
                     aria-invalid={fieldState.invalid}
                     aria-required={input.required}
                   />
-                  <span className="text-muted-foreground text-sm">
+                  <span className="text-sm text-muted-foreground">
                     {input.required ? "Required" : "Optional"}
                   </span>
                 </div>
@@ -903,12 +903,12 @@ function WorkflowInputField({
         <Field data-invalid={fieldState.invalid}>
           <div className="flex flex-col gap-2">
             <div className="flex flex-col gap-0.5">
-              <div className="text-foreground flex items-center gap-1 font-mono text-sm">
+              <div className="flex items-center gap-1 font-mono text-sm text-foreground">
                 <span>{name}</span>
                 {input.required ? <RequiredIndicator className="text-xs" /> : null}
               </div>
               {input.description ? (
-                <div className="text-muted-foreground text-sm">{input.description}</div>
+                <div className="text-sm text-muted-foreground">{input.description}</div>
               ) : null}
             </div>
             <InputGroup>

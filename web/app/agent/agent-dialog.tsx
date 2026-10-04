@@ -58,7 +58,7 @@ import { toast } from "sonner"
 
 const AgentInstructions = dynamic(() => import("./agent-instructions"), {
   ssr: false,
-  loading: () => <div className="text-muted-foreground min-h-18 py-2">Loading editor…</div>,
+  loading: () => <div className="min-h-18 py-2 text-muted-foreground">Loading editor…</div>,
 })
 
 type Mode = "create" | "update"
@@ -197,7 +197,7 @@ function SandboxSelect({
         {hasNextPage ? (
           <div
             ref={setSentinel}
-            className="text-muted-foreground flex items-center gap-2 px-2 py-1.5 text-xs"
+            className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground"
           >
             {loading ? <Spinner aria-hidden="true" /> : null}
             {loading ? "Loading sandboxes..." : "Scroll for more sandboxes"}
@@ -499,7 +499,7 @@ export function AgentDialog({
                       readOnly={isPending}
                     />
                     <div
-                      className="text-muted-foreground data-[over-limit=true]:text-destructive text-right text-xs tabular-nums"
+                      className="text-right text-xs text-muted-foreground tabular-nums data-[over-limit=true]:text-destructive"
                       data-over-limit={length > maxLength}
                       aria-label="Instruction character count"
                     >

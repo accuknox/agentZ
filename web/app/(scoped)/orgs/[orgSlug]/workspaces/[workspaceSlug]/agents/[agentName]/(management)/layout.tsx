@@ -63,6 +63,9 @@ async function WorkspaceAgentContent({
   if (detail.agent.capabilities.share) {
     tabs.push({ href: `${root}/sharing` as Route, label: "Sharing" })
   }
+  if (detail.agent.capabilities.use) {
+    tabs.push({ href: `${root}/tools` as Route, label: "Tools" })
+  }
   const canViewTraces = scope.workspace.capabilities.observability.read
 
   return (
@@ -81,7 +84,7 @@ async function WorkspaceAgentContent({
           {detail.agent.capabilities.use || canViewTraces ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button aria-label="Agent actions" size="icon" variant="outline">
+                <Button aria-label="Agent actions" size="icon" variant="ghost">
                   <MoreHorizontal aria-hidden="true" />
                 </Button>
               </DropdownMenuTrigger>

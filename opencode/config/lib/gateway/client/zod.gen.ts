@@ -564,6 +564,37 @@ export const zPatchWorkflowRunNodeStatusRequest = z.object({
   message: z.string().max(4096).optional(),
 })
 
+export const zToolName = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z][a-z0-9_]*$/)
+
+export const zToolLanguage = z.enum(["bash", "python", "node"])
+
+export const zToolInputType = z.enum(["string", "number", "integer", "boolean", "json"])
+
+export const zToolInput = z.object({
+  name: zToolName,
+  description: z.string().max(1024),
+  type: zToolInputType,
+  required: z.boolean(),
+})
+
+export const zAgentTool = z.object({
+  name: zToolName,
+  description: z.string().min(1).max(4096),
+  language: zToolLanguage,
+  filename: z.string().min(1).max(255),
+  script: z.string().min(1).max(65536),
+  inputs: z.array(zToolInput).max(32),
+})
+
+export const zWriteAgentToolRequest = z.object({
+  resource_version: z.string().min(1),
+  tool: zAgentTool,
+})
+
 export const zAgentCapabilities = z.object({
   use: z.boolean(),
   modify: z.boolean(),
@@ -766,6 +797,14 @@ export const zUpdateSkillRequest = z.object({
 })
 
 export const zAgentStatus = z.enum(["UNSPECIFIED", "PROGRESSING", "DEGRADED", "DELETED", "IDLE"])
+
+export const zAgentTools = z.object({
+  tools: z.array(zAgentTool),
+  resource_version: z.string(),
+  applied: z.boolean(),
+  status: zAgentStatus,
+  message: z.string(),
+})
 
 /**
  * Better Auth API key identifier.
@@ -4168,6 +4207,62 @@ export const zUpdateAgentPath = z.object({
  * Agent resource updated.
  */
 export const zUpdateAgentResponse = zAgent
+
+export const zListAgentToolsPath = z.object({
+  agentName: zAgentName,
+})
+
+/**
+ * Agent tool configuration.
+ */
+export const zListAgentToolsResponse = zAgentTools
+
+export const zCreateAgentToolBody = zWriteAgentToolRequest
+
+export const zCreateAgentToolPath = z.object({
+  agentName: zAgentName,
+})
+
+/**
+ * Agent tool configuration.
+ */
+export const zCreateAgentToolResponse = zAgentTools
+
+export const zDeleteAgentToolPath = z.object({
+  agentName: zAgentName,
+  toolName: zToolName,
+})
+
+export const zDeleteAgentToolQuery = z.object({
+  resource_version: z.string().min(1),
+})
+
+/**
+ * Agent tool configuration.
+ */
+export const zDeleteAgentToolResponse = zAgentTools
+
+export const zGetAgentToolPath = z.object({
+  agentName: zAgentName,
+  toolName: zToolName,
+})
+
+/**
+ * Agent tool configuration.
+ */
+export const zGetAgentToolResponse = zAgentTool
+
+export const zUpdateAgentToolBody = zWriteAgentToolRequest
+
+export const zUpdateAgentToolPath = z.object({
+  agentName: zAgentName,
+  toolName: zToolName,
+})
+
+/**
+ * Agent tool configuration.
+ */
+export const zUpdateAgentToolResponse = zAgentTools
 
 export const zWatchAgentsBody = zWatchAgentsRequest
 

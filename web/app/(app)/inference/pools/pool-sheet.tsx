@@ -503,7 +503,7 @@ export function PoolSheet({
                   />
                 </div>
               ) : (
-                <p className="rounded-lg border-2 border-dashed p-4 text-sm text-muted-foreground">
+                <p className="rounded-lg border-2 border-dashed border-muted-foreground/50 p-4 text-sm text-muted-foreground">
                   Choose a provider and model in every row to calculate the Pool Contract.
                 </p>
               )}

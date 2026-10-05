@@ -7,6 +7,8 @@ export const defaultSandboxPackages = [
   "yq-go",
   "curl",
   "mcporter",
+  "python3",
+  "nodejs",
 ] as const
 
 export const defaultSandboxPackageSet = new Set<string>(defaultSandboxPackages)

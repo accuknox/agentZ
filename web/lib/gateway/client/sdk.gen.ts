@@ -20,6 +20,9 @@ import type {
   CreateAgentFileErrors,
   CreateAgentFileResponses,
   CreateAgentResponses,
+  CreateAgentToolData,
+  CreateAgentToolErrors,
+  CreateAgentToolResponses,
   CreateCodingProjectData,
   CreateCodingProjectErrors,
   CreateCodingProjectResponses,
@@ -71,6 +74,9 @@ import type {
   DeleteAgentShareData,
   DeleteAgentShareErrors,
   DeleteAgentShareResponses,
+  DeleteAgentToolData,
+  DeleteAgentToolErrors,
+  DeleteAgentToolResponses,
   DeleteCodingProjectData,
   DeleteCodingProjectErrors,
   DeleteCodingProjectResponses,
@@ -122,6 +128,9 @@ import type {
   GetAgentOwnerData,
   GetAgentOwnerErrors,
   GetAgentOwnerResponses,
+  GetAgentToolData,
+  GetAgentToolErrors,
+  GetAgentToolResponses,
   GetChatSessionPreferenceData,
   GetChatSessionPreferenceErrors,
   GetChatSessionPreferenceResponses,
@@ -206,6 +215,9 @@ import type {
   ListAgentSharesErrors,
   ListAgentSharesResponses,
   ListAgentsResponses,
+  ListAgentToolsData,
+  ListAgentToolsErrors,
+  ListAgentToolsResponses,
   ListAgentWorkflowSchedulesData,
   ListAgentWorkflowSchedulesErrors,
   ListAgentWorkflowSchedulesResponses,
@@ -386,6 +398,9 @@ import type {
   UpdateAgentData,
   UpdateAgentErrors,
   UpdateAgentResponses,
+  UpdateAgentToolData,
+  UpdateAgentToolErrors,
+  UpdateAgentToolResponses,
   UpdateChatInputData,
   UpdateChatInputErrors,
   UpdateChatInputResponses,
@@ -1121,6 +1136,74 @@ export const updateAgent = <ThrowOnError extends boolean = false>(
   (options.client ?? client).put<UpdateAgentResponses, UpdateAgentErrors, ThrowOnError>({
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/agent/{agentName}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * List agent tools.
+ */
+export const listAgentTools = <ThrowOnError extends boolean = false>(
+  options: Options<ListAgentToolsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ListAgentToolsResponses, ListAgentToolsErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/tools",
+    ...options,
+  })
+
+/**
+ * Create agent tool.
+ */
+export const createAgentTool = <ThrowOnError extends boolean = false>(
+  options: Options<CreateAgentToolData, ThrowOnError>
+) =>
+  (options.client ?? client).post<CreateAgentToolResponses, CreateAgentToolErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/tools",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Delete agent tool.
+ */
+export const deleteAgentTool = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteAgentToolData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<DeleteAgentToolResponses, DeleteAgentToolErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/tools/{toolName}",
+    ...options,
+  })
+
+/**
+ * Get agent tool.
+ */
+export const getAgentTool = <ThrowOnError extends boolean = false>(
+  options: Options<GetAgentToolData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetAgentToolResponses, GetAgentToolErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/tools/{toolName}",
+    ...options,
+  })
+
+/**
+ * Update agent tool.
+ */
+export const updateAgentTool = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateAgentToolData, ThrowOnError>
+) =>
+  (options.client ?? client).put<UpdateAgentToolResponses, UpdateAgentToolErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/tools/{toolName}",
     ...options,
     headers: {
       "Content-Type": "application/json",

@@ -1007,6 +1007,181 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /api/agent/{agentName}/tools:
+    get:
+      operationId: listAgentTools
+      summary: List agent tools.
+      tags: [agents]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      responses:
+        '200':
+          description: Agent tool configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentTools'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      operationId: createAgentTool
+      summary: Create agent tool.
+      tags: [agents]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WriteAgentToolRequest'
+      responses:
+        '201':
+          description: Agent tool configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentTools'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/agent/{agentName}/tools/{toolName}:
+    get:
+      operationId: getAgentTool
+      summary: Get agent tool.
+      tags: [agents]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - name: toolName
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/ToolName'
+      responses:
+        '200':
+          description: Agent tool configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentTool'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    put:
+      operationId: updateAgentTool
+      summary: Update agent tool.
+      tags: [agents]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - name: toolName
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/ToolName'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WriteAgentToolRequest'
+      responses:
+        '200':
+          description: Agent tool configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentTools'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      operationId: deleteAgentTool
+      summary: Delete agent tool.
+      tags: [agents]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - name: toolName
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/ToolName'
+      - name: resource_version
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      responses:
+        '200':
+          description: Agent tool configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentTools'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /api/agent/watch:
     post:
       operationId: watchAgents
@@ -6118,6 +6293,108 @@ components:
       - skills
       - status
       - capabilities
+
+    ToolName:
+      type: string
+      minLength: 1
+      maxLength: 64
+      pattern: '^[a-z][a-z0-9_]*$'
+
+    ToolLanguage:
+      type: string
+      enum: [bash, python, node]
+      x-go-type: agentzv1alpha1.ToolLanguage
+      x-go-type-import:
+        path: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1
+        name: agentzv1alpha1
+
+    ToolInputType:
+      type: string
+      enum: [string, number, integer, boolean, json]
+      x-go-type: agentzv1alpha1.ToolInputType
+      x-go-type-import:
+        path: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1
+        name: agentzv1alpha1
+
+    ToolInput:
+      type: object
+      additionalProperties: false
+      x-go-type: agentzv1alpha1.ToolInput
+      x-go-type-import:
+        path: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1
+        name: agentzv1alpha1
+      properties:
+        name:
+          $ref: '#/components/schemas/ToolName'
+        description:
+          type: string
+          maxLength: 1024
+        type:
+          $ref: '#/components/schemas/ToolInputType'
+        required:
+          type: boolean
+      required: [name, description, type, required]
+
+    AgentTool:
+      type: object
+      additionalProperties: false
+      x-go-type: agentzv1alpha1.AgentTool
+      x-go-type-import:
+        path: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1
+        name: agentzv1alpha1
+      properties:
+        name:
+          $ref: '#/components/schemas/ToolName'
+        description:
+          type: string
+          minLength: 1
+          maxLength: 4096
+        language:
+          $ref: '#/components/schemas/ToolLanguage'
+        filename:
+          type: string
+          minLength: 1
+          maxLength: 255
+        script:
+          type: string
+          minLength: 1
+          maxLength: 65536
+        inputs:
+          type: array
+          maxItems: 32
+          items:
+            $ref: '#/components/schemas/ToolInput'
+      required: [name, description, language, filename, script, inputs]
+
+    WriteAgentToolRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        resource_version:
+          type: string
+          minLength: 1
+        tool:
+          $ref: '#/components/schemas/AgentTool'
+      required: [resource_version, tool]
+
+    AgentTools:
+      type: object
+      additionalProperties: false
+      properties:
+        tools:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentTool'
+        resource_version:
+          type: string
+        applied:
+          type: boolean
+          description: The current generation has rolled out and the agent is ready.
+        status:
+          $ref: '#/components/schemas/AgentStatus'
+        message:
+          type: string
+      required: [tools, resource_version, applied, status, message]
 
     AgentCapabilities:
       type: object

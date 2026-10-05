@@ -199,7 +199,7 @@ const slides = [
             <p className="text-sm font-medium">Injection proxy</p>
             <p className="text-xs text-muted-foreground">Match host, resolve key</p>
           </div>
-          <span className="w-6 border-t border-dashed border-border" />
+          <span className="w-6 border-t-2 border-dashed border-muted-foreground/50" />
           <div className="flex flex-col items-center gap-1 text-xs">
             <LockKeyhole className="size-6 text-warning" /> Vault
           </div>
@@ -226,7 +226,7 @@ const slides = [
           <ShieldCheck className="size-4 text-primary" />
           <span className="text-sm font-medium">Sandbox egress</span>
         </div>
-        <div className="absolute top-[22%] bottom-[10%] left-0 flex w-[37%] flex-col items-center justify-center gap-3 rounded-[2rem] border border-dashed border-primary/30 bg-primary/5">
+        <div className="absolute top-[22%] bottom-[10%] left-0 flex w-[37%] flex-col items-center justify-center gap-3 rounded-[2rem] border-2 border-dashed border-primary/60 bg-primary/5">
           <span className="flex size-16 items-center justify-center rounded-2xl bg-card text-primary shadow-sm ring-1 ring-foreground/10">
             <Bot className="size-9 stroke-1" />
           </span>
@@ -254,7 +254,7 @@ const slides = [
               detail: "Denied",
               icon: CircleX,
               color: "text-destructive",
-              line: "border-destructive/40 border-dashed",
+              line: "border-destructive/60 border-t-2 border-dashed",
             },
           ].map(({ label, detail, icon: Icon, color, line }) => (
             <div key={label} className="flex items-center gap-3">
@@ -322,7 +322,7 @@ const slides = [
             <div key={index} className="col-span-2 grid grid-cols-subgrid items-center">
               <span className="text-xs">{label}</span>
               <div className="relative border-x border-border">
-                <span className="absolute inset-y-0 left-1/2 border-l border-dashed border-border" />
+                <span className="absolute inset-y-0 left-1/2 border-l-2 border-dashed border-muted-foreground/50" />
                 <div
                   className={cn(
                     "relative rounded-md px-2 py-2 text-center font-mono text-xs",

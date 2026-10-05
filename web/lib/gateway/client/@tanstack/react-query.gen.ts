@@ -13,6 +13,7 @@ import {
   createAgent,
   createAgentDirectory,
   createAgentFile,
+  createAgentTool,
   createCodingProject,
   createDashboard,
   createInferencePool,
@@ -30,6 +31,7 @@ import {
   deleteAgentEntry,
   deleteAgentMutableSkills,
   deleteAgentShare,
+  deleteAgentTool,
   deleteCodingProject,
   deleteDashboard,
   deleteImmutableSkills,
@@ -47,6 +49,7 @@ import {
   exportAgentMutableSkills,
   exportImmutableSkills,
   getAgentOwner,
+  getAgentTool,
   getChatSessionPreference,
   getCodingOperation,
   getCodingProject,
@@ -75,6 +78,7 @@ import {
   listAgentMutableSkills,
   listAgents,
   listAgentShares,
+  listAgentTools,
   listAgentWorkflowSchedules,
   listChatInputs,
   listChatSessions,
@@ -136,6 +140,7 @@ import {
   suggestCodingText,
   transferAgentOwner,
   updateAgent,
+  updateAgentTool,
   updateChatInput,
   updateChatSessionPreference,
   updateCodingProjectPreference,
@@ -163,6 +168,9 @@ import type {
   CreateAgentFileError,
   CreateAgentFileResponse,
   CreateAgentResponse,
+  CreateAgentToolData,
+  CreateAgentToolError,
+  CreateAgentToolResponse,
   CreateCodingProjectData,
   CreateCodingProjectError,
   CreateCodingProjectResponse,
@@ -214,6 +222,9 @@ import type {
   DeleteAgentShareData,
   DeleteAgentShareError,
   DeleteAgentShareResponse,
+  DeleteAgentToolData,
+  DeleteAgentToolError,
+  DeleteAgentToolResponse,
   DeleteCodingProjectData,
   DeleteCodingProjectError,
   DeleteCodingProjectResponse,
@@ -264,6 +275,9 @@ import type {
   GetAgentOwnerData,
   GetAgentOwnerError,
   GetAgentOwnerResponse,
+  GetAgentToolData,
+  GetAgentToolError,
+  GetAgentToolResponse,
   GetChatSessionPreferenceData,
   GetChatSessionPreferenceError,
   GetChatSessionPreferenceResponse,
@@ -348,6 +362,9 @@ import type {
   ListAgentSharesError,
   ListAgentSharesResponse2,
   ListAgentsResponse2,
+  ListAgentToolsData,
+  ListAgentToolsError,
+  ListAgentToolsResponse,
   ListAgentWorkflowSchedulesData,
   ListAgentWorkflowSchedulesError,
   ListAgentWorkflowSchedulesResponse,
@@ -528,6 +545,9 @@ import type {
   UpdateAgentData,
   UpdateAgentError,
   UpdateAgentResponse,
+  UpdateAgentToolData,
+  UpdateAgentToolError,
+  UpdateAgentToolResponse,
   UpdateChatInputData,
   UpdateChatInputError,
   UpdateChatInputResponse,
@@ -1730,6 +1750,137 @@ export const updateAgentMutation = (
   > = {
     mutationFn: async (fnOptions) => {
       const { data } = await updateAgent({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const listAgentToolsQueryKey = (options: Options<ListAgentToolsData>) =>
+  createQueryKey("listAgentTools", options)
+
+/**
+ * List agent tools.
+ */
+export const listAgentToolsOptions = (options: Options<ListAgentToolsData>) =>
+  queryOptions<
+    ListAgentToolsResponse,
+    ListAgentToolsError,
+    ListAgentToolsResponse,
+    ReturnType<typeof listAgentToolsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listAgentTools({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listAgentToolsQueryKey(options),
+  })
+
+/**
+ * Create agent tool.
+ */
+export const createAgentToolMutation = (
+  options?: Partial<Options<CreateAgentToolData>>
+): UseMutationOptions<
+  CreateAgentToolResponse,
+  CreateAgentToolError,
+  Options<CreateAgentToolData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    CreateAgentToolResponse,
+    CreateAgentToolError,
+    Options<CreateAgentToolData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createAgentTool({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Delete agent tool.
+ */
+export const deleteAgentToolMutation = (
+  options?: Partial<Options<DeleteAgentToolData>>
+): UseMutationOptions<
+  DeleteAgentToolResponse,
+  DeleteAgentToolError,
+  Options<DeleteAgentToolData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteAgentToolResponse,
+    DeleteAgentToolError,
+    Options<DeleteAgentToolData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteAgentTool({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const getAgentToolQueryKey = (options: Options<GetAgentToolData>) =>
+  createQueryKey("getAgentTool", options)
+
+/**
+ * Get agent tool.
+ */
+export const getAgentToolOptions = (options: Options<GetAgentToolData>) =>
+  queryOptions<
+    GetAgentToolResponse,
+    GetAgentToolError,
+    GetAgentToolResponse,
+    ReturnType<typeof getAgentToolQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getAgentTool({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getAgentToolQueryKey(options),
+  })
+
+/**
+ * Update agent tool.
+ */
+export const updateAgentToolMutation = (
+  options?: Partial<Options<UpdateAgentToolData>>
+): UseMutationOptions<
+  UpdateAgentToolResponse,
+  UpdateAgentToolError,
+  Options<UpdateAgentToolData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UpdateAgentToolResponse,
+    UpdateAgentToolError,
+    Options<UpdateAgentToolData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await updateAgentTool({
         ...options,
         ...fnOptions,
         throwOnError: true,

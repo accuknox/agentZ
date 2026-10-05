@@ -351,6 +351,88 @@ spec:
                     description: TraceEndpoint is the OTLP/gRPC trace endpoint in host:port form.
                     type: string
                 type: object
+              tools:
+                description: Tools registers uploaded scripts as callable tools in this Agent runtime.
+                items:
+                  description: AgentTool stores trusted script source separately from the runtime plugin.
+                  properties:
+                    description:
+                      description: Description explains when the agent should invoke this tool.
+                      maxLength: 4096
+                      minLength: 1
+                      type: string
+                    filename:
+                      description: Filename records the original upload name, never an execution path.
+                      maxLength: 255
+                      minLength: 1
+                      type: string
+                    inputs:
+                      description: Inputs define the model's arguments; no inputs produces an empty JSON object.
+                      items:
+                        description: ToolInput describes one named argument passed to the script through JSON stdin.
+                        properties:
+                          description:
+                            description: Description explains how the model should choose this argument.
+                            maxLength: 1024
+                            type: string
+                          name:
+                            description: Name identifies the property in the input JSON object.
+                            maxLength: 64
+                            pattern: ^[a-z][a-z0-9_]*$
+                            type: string
+                          required:
+                            description: Required rejects invocations that omit this argument.
+                            type: boolean
+                          type:
+                            description: Type defines the values accepted before the script starts.
+                            enum:
+                            - string
+                            - number
+                            - integer
+                            - boolean
+                            - json
+                            type: string
+                        required:
+                        - description
+                        - name
+                        - required
+                        - type
+                        type: object
+                      maxItems: 32
+                      type: array
+                      x-kubernetes-list-map-keys:
+                      - name
+                      x-kubernetes-list-type: map
+                    language:
+                      description: Language selects the interpreter for Script.
+                      enum:
+                      - bash
+                      - python
+                      - node
+                      type: string
+                    name:
+                      description: Name is the immutable identifier exposed to the model.
+                      maxLength: 64
+                      pattern: ^[a-z][a-z0-9_]*$
+                      type: string
+                    script:
+                      description: Script preserves the uploaded source exactly, including its newlines.
+                      maxLength: 65536
+                      minLength: 1
+                      type: string
+                  required:
+                  - description
+                  - filename
+                  - inputs
+                  - language
+                  - name
+                  - script
+                  type: object
+                maxItems: 32
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
             required:
             - createdByUserID
             - lastModifiedByUserID

@@ -4,10 +4,14 @@ import * as z from "zod"
 import { revalidatePath, updateTag } from "next/cache"
 import {
   createAgent,
+  createAgentTool,
   deleteAgent,
+  deleteAgentTool,
   deleteAgentShare,
   transferAgentOwner,
   updateAgent,
+  updateAgentTool,
+  type AgentTool,
   upsertAgentShare,
   type Workspace,
 } from "@/lib/gateway/client"
@@ -15,7 +19,63 @@ import type { CreateAgentFormState, DeleteAgentFormState, WorkspacePath } from "
 import { createAgentSimpleFormSchema } from "@/data/schema"
 import { agentsTag, skillsTag } from "@/data/cache"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
-import { zAgentShareCapability, zResourceScope, zSkillName } from "@/lib/gateway/client/zod.gen"
+import {
+  zAgentShareCapability,
+  zResourceScope,
+  zSkillName,
+  zWriteAgentToolRequest,
+} from "@/lib/gateway/client/zod.gen"
+
+/** saveAgentToolAction preserves uploaded source as a structured action argument. */
+export async function saveAgentToolAction(
+  workspaceId: string,
+  agentName: string,
+  resourceVersion: string,
+  tool: AgentTool,
+  replacing: boolean
+) {
+  const parsed = zWriteAgentToolRequest.safeParse({ resource_version: resourceVersion, tool })
+  if (!parsed.success) {
+    return {
+      error: {
+        code: "invalid_request",
+        message: "Check the tool fields before uploading.",
+        errors: parsed.error.issues.map((issue) => ({
+          field: issue.path.join("."),
+          message: issue.message,
+        })),
+      },
+    }
+  }
+  const client = getGatewayServerClient(workspaceId)
+  const result = replacing
+    ? await updateAgentTool({
+        client,
+        path: { agentName, toolName: tool.name },
+        body: parsed.data,
+      })
+    : await createAgentTool({ client, path: { agentName }, body: parsed.data })
+  if (result.error) return { error: result.error }
+  updateTag(agentsTag)
+  return { data: result.data }
+}
+
+/** deleteAgentToolAction removes the resource version reviewed in the confirmation. */
+export async function deleteAgentToolAction(
+  workspaceId: string,
+  agentName: string,
+  toolName: string,
+  resourceVersion: string
+) {
+  const result = await deleteAgentTool({
+    client: getGatewayServerClient(workspaceId),
+    path: { agentName, toolName },
+    query: { resource_version: resourceVersion },
+  })
+  if (result.error) return { error: result.error }
+  updateTag(agentsTag)
+  return { data: result.data }
+}
 
 export type AgentActionScope = {
   workspaceType: Workspace["type"]

@@ -242,7 +242,7 @@ export function OrganizationForm({ organization }: { organization: OrganizationS
         <div className="flex max-w-3xl flex-col gap-8 px-4 py-6 md:px-6 md:py-8">
           <FieldSet>
             <div
-              className="flex flex-col gap-5 rounded-xl border-2 border-dashed border-border/70 bg-card/40 p-5 transition-colors data-[dragging=true]:border-primary data-[dragging=true]:bg-primary/10 sm:flex-row sm:items-center"
+              className="flex flex-col gap-5 rounded-xl border-2 border-dashed border-muted-foreground/50 bg-card/40 p-5 transition-colors data-[dragging=true]:border-primary data-[dragging=true]:bg-primary/10 sm:flex-row sm:items-center"
               data-dragging={dragging}
               onDragEnter={(event) => {
                 if (busy || !event.dataTransfer.types.includes("Files")) {

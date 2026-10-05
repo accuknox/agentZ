@@ -80,7 +80,8 @@
               "plugin": [
                 "./plugins/opencode-plugin-otel",
                 "./plugins/file-analysis.ts",
-                "./plugins/sender-context.ts"
+                "./plugins/sender-context.ts",
+                "./plugins/script-tools.ts"
               ],
               "share": "disabled",
               "tools": {

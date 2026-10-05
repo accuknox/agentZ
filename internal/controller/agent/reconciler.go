@@ -246,7 +246,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
 	}
 
-	hash, err := configHash(opencodeCfg, instructionFiles, agt.Spec.Env, envCfg)
+	hash, err := configHash(opencodeCfg, instructionFiles, agt.Spec.Env, envCfg, agt.Spec.Tools)
 	if err != nil {
 		return ctrl.Result{}, err
 	}

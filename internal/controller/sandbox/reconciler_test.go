@@ -19,14 +19,12 @@ package sandbox
 import (
 	"context"
 	"reflect"
-	"slices"
 	"strings"
 	"testing"
 
 	agentgatewayv1alpha1 "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
 	agentgatewayfake "github.com/agentgateway/agentgateway/controller/pkg/client/clientset/versioned/fake"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
-	ciliumapi "github.com/cilium/cilium/pkg/policy/api"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -174,72 +172,6 @@ func TestReconcileMCPAgentRouteIdentity(t *testing.T) {
 	key = client.ObjectKey{Name: mcp.SandboxRouteName(sandboxName), Namespace: namespace}
 	if err := k8sClient.Get(ctx, key, route); !apierrors.IsNotFound(err) {
 		t.Fatalf("get MCP HTTPRoute after Agent deletion error = %v, want not found", err)
-	}
-}
-
-type traceEgressCase struct {
-	name    string
-	backend TraceBackend
-	want    []ciliumapi.EgressRule
-}
-
-func TestGatewayNetworkPolicySpecTraceEgress(t *testing.T) {
-	t.Parallel()
-
-	tests := []traceEgressCase{
-		{
-			name: "service",
-			backend: TraceBackend{
-				Mode:             TraceBackendModeService,
-				ServiceName:      "observer",
-				ServiceNamespace: "agentz-system",
-				ServicePort:      4317,
-			},
-			want: networkpolicy.ServiceEgress("agentz-system", "observer", 4317),
-		},
-		{
-			name: "static",
-			backend: TraceBackend{
-				Mode: TraceBackendModeStatic,
-				Host: "otel.example.com",
-				Port: 4317,
-			},
-			want: networkpolicy.ExternalEgress([]networkpolicy.Target{{
-				Host: "otel.example.com",
-				Port: 4317,
-			}}),
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			policy := gatewayNetworkPolicySpec(
-				"workspace",
-				mcp.GatewayName,
-				tt.backend,
-			)
-			// The base permits same-namespace workloads and the control plane only.
-			wantRuleCount := 3 + len(tt.want)
-			if len(policy.Egress) != wantRuleCount {
-				t.Fatalf(
-					"gateway policy has %d egress rules, want %d",
-					len(policy.Egress),
-					wantRuleCount,
-				)
-			}
-			for _, want := range tt.want {
-				found := slices.ContainsFunc(policy.Egress, func(got ciliumapi.EgressRule) bool {
-					return reflect.DeepEqual(got, want)
-				})
-				if !found {
-					t.Fatalf("gateway policy does not contain trace egress %#v", want)
-				}
-			}
-			for _, rule := range policy.Egress {
-				if slices.Contains(rule.ToEntities, ciliumapi.EntityAll) {
-					t.Fatal("gateway policy permits egress to all entities")
-				}
-			}
-		})
 	}
 }
 

@@ -13,6 +13,7 @@ import (
 
 	agentgatewayv1alpha1 "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
 	externalsecretsv1 "github.com/external-secrets/external-secrets/apis/externalsecrets/v1"
+	esmeta "github.com/external-secrets/external-secrets/apis/meta/v1"
 	baoapi "github.com/openbao/openbao/api/v2"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -35,9 +36,11 @@ import (
 
 // ReconcilerConfig configures provider runtime and credential cleanup.
 type ReconcilerConfig struct {
-	StoreName              string
-	RefreshInterval        time.Duration
-	OpenBaoSecretMountPath string
+	StoreName               string
+	RefreshInterval         time.Duration
+	OpenBaoSecretMountPath  string
+	OpenBaoAddr             string
+	OpenBaoK8sAuthMountPath string
 }
 
 // Reconciler reconciles InferenceProvider runtime resources.
@@ -55,7 +58,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=sandboxes,verbs=get;list;watch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=inferencepools,verbs=get;list;watch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=workspaces,verbs=get;list;watch
-// +kubebuilder:rbac:groups=external-secrets.io,resources=externalsecrets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=external-secrets.io,resources=externalsecrets;secretstores,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=agentgateway.dev,resources=agentgatewaybackends,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=agentgateway.dev,resources=agentgatewaypolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;delete
@@ -160,6 +163,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 	}
 	if runtime.ExternalSecret != nil {
+		if err := r.reconcileSecretStore(ctx, provider.Namespace); err != nil {
+			return ctrl.Result{}, err
+		}
 		err := ctrlutil.SetControllerReference(provider, runtime.ExternalSecret, r.Scheme)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("own provider external secret: %w", err)
@@ -656,4 +662,55 @@ func (r *Reconciler) providerForSecret(ctx context.Context, obj client.Object) [
 		return nil
 	}
 	return []reconcile.Request{{NamespacedName: key}}
+}
+
+// reconcileSecretStore binds ESO to this owner's API-key directory. Referencing
+// another owner's path in an ExternalSecret cannot widen the Bao role's policy.
+func (r *Reconciler) reconcileSecretStore(ctx context.Context, namespace string) error {
+	if r.Bao == nil || r.Config.OpenBaoAddr == "" || r.Config.OpenBaoSecretMountPath == "" || r.Config.OpenBaoK8sAuthMountPath == "" {
+		return errors.New("owner inference SecretStore requires complete OpenBao configuration")
+	}
+	ns := &corev1.Namespace{}
+	if err := r.Get(ctx, client.ObjectKey{Name: namespace}, ns); err != nil {
+		return err
+	}
+	name := "inference-secrets"
+	roleName := "inference-secrets-" + namespace
+	account := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}}
+	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, account, func() error {
+		account.OwnerReferences = []metav1.OwnerReference{*metav1.NewControllerRef(ns, corev1.SchemeGroupVersion.WithKind("Namespace"))}
+		account.AutomountServiceAccountToken = new(false)
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	policy := fmt.Sprintf(`path "%s/data/%s/inference-providers/*" {
+ capabilities = ["read"]
+}
+`, r.Config.OpenBaoSecretMountPath, namespace)
+	if err := r.Bao.Sys().PutPolicyWithContext(ctx, roleName, policy); err != nil {
+		return err
+	}
+	_, err = r.Bao.Logical().WriteWithContext(ctx, "auth/"+r.Config.OpenBaoK8sAuthMountPath+"/role/"+roleName, map[string]any{
+		"bound_service_account_names": name, "bound_service_account_namespaces": namespace,
+		"token_policies": roleName, "token_ttl": "15m", "token_max_ttl": "15m",
+	})
+	if err != nil {
+		return err
+	}
+	store := &externalsecretsv1.SecretStore{ObjectMeta: metav1.ObjectMeta{Name: r.Config.StoreName, Namespace: namespace}}
+	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, store, func() error {
+		store.OwnerReferences = account.OwnerReferences
+		store.Spec = externalsecretsv1.SecretStoreSpec{Provider: &externalsecretsv1.SecretStoreProvider{
+			Vault: &externalsecretsv1.VaultProvider{
+				Server: r.Config.OpenBaoAddr, Path: &r.Config.OpenBaoSecretMountPath, Version: externalsecretsv1.VaultKVStoreV2,
+				Auth: &externalsecretsv1.VaultAuth{Kubernetes: &externalsecretsv1.VaultKubernetesAuth{
+					Path: r.Config.OpenBaoK8sAuthMountPath, Role: roleName, ServiceAccountRef: &esmeta.ServiceAccountSelector{Name: name},
+				}},
+			},
+		}}
+		return nil
+	})
+	return err
 }

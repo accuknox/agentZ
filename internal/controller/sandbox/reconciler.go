@@ -523,6 +523,16 @@ func (r *Reconciler) reconcileGateway(ctx context.Context, namespace string) err
 	if err != nil {
 		return err
 	}
+	grants := &gwv1.HTTPRouteList{}
+	if err := r.List(ctx, grants, client.InNamespace(namespace), client.HasLabels{"agentz.accuknox.com/delegation"}); err != nil {
+		return err
+	}
+	delegated := slices.ContainsFunc(grants.Items, func(route gwv1.HTTPRoute) bool {
+		return slices.ContainsFunc(route.Spec.ParentRefs, func(parent gwv1.ParentReference) bool { return parent.Name == gwv1.ObjectName(mcp.GatewayName) })
+	})
+	if len(owners) == 0 && delegated {
+		return nil
+	}
 	if len(owners) == 0 {
 		if err := r.deleteTracePolicy(ctx, namespace); err != nil {
 			return err
@@ -570,8 +580,15 @@ func (r *Reconciler) reconcileGateway(ctx context.Context, namespace string) err
 		gw,
 		func() error {
 			desired := mcp.Gateway(namespace)
+			for _, listener := range gw.Spec.Listeners {
+				if listener.Name == "delegation" {
+					desired.Spec.Listeners = append(desired.Spec.Listeners, listener)
+				}
+			}
 			gw.Spec = desired.Spec
-			gw.OwnerReferences = sandboxOwnerReferences(owners)
+			if !delegated {
+				gw.OwnerReferences = sandboxOwnerReferences(owners)
+			}
 			return nil
 		},
 	)
@@ -888,7 +905,7 @@ func (r *Reconciler) reconcileRoute(ctx context.Context, sandbox *agentzv1alpha1
 			route.Spec = gwv1.HTTPRouteSpec{
 				CommonRouteSpec: gwv1.CommonRouteSpec{
 					ParentRefs: []gwv1.ParentReference{{
-						Name: gwv1.ObjectName(mcp.GatewayName),
+						Name: gwv1.ObjectName(mcp.GatewayName), SectionName: new(gwv1.SectionName("http")),
 					}},
 				},
 				Rules: rules,

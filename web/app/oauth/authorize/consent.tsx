@@ -1,6 +1,8 @@
 "use client"
 
 import { useEffect, useState, useTransition } from "react"
+import { createAuthClient } from "better-auth/react"
+import { oauthProviderClient } from "@better-auth/oauth-provider/client"
 import { ArrowRight, Check, Layers3, LockKeyhole, ShieldCheck, Unplug } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -16,7 +18,13 @@ import {
 } from "@/components/ui/select"
 import type { DelegationCatalog, DelegationMcp } from "@/lib/gateway/client"
 import { approveConsentAction, delegationWorkspaceAction } from "./actions"
-import { authClient } from "@/lib/auth-client"
+
+// Only the current continuation may navigate. Automatic redirects would also
+// send discarded effect responses to the callback.
+const authClient = createAuthClient({
+  disableDefaultFetchPlugins: true,
+  plugins: [oauthProviderClient()],
+})
 
 const identityScopes = [
   { value: "openid", label: "Sign you in with your AgentZ identity" },

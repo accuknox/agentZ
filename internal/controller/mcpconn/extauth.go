@@ -77,11 +77,13 @@ type extAuthScope struct {
 // namespace that has MCP or subscription-inference consumers.
 type ExtAuthRuntimeReconciler struct {
 	client.Client
-	Bao                     *baoapi.Client
-	ControllerImage         string
-	OpenBaoAddr             string
-	OpenBaoSecretMountPath  string
-	OpenBaoK8sAuthMountPath string
+	Bao                       *baoapi.Client
+	ControllerImage           string
+	OpenBaoAddr               string
+	OpenBaoSecretMountPath    string
+	OpenBaoK8sAuthMountPath   string
+	DelegationAuthorityTarget string
+	DelegationIssuerName      string
 }
 
 // The runtime controller deletes obsolete scope-reader RBAC objects explicitly
@@ -101,6 +103,8 @@ func (r *ExtAuthRuntimeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			&agentzv1alpha1.InferenceProvider{},
 			handler.EnqueueRequestsFromMapFunc(r.namespaceForObject),
 		).
+		Watches(&gwv1.HTTPRoute{}, handler.EnqueueRequestsFromMapFunc(r.namespaceForObject)).
+		Watches(&corev1.Secret{}, handler.EnqueueRequestsFromMapFunc(r.namespaceForObject)).
 		Watches(
 			&agentzv1alpha1.Workspace{},
 			handler.EnqueueRequestsFromMapFunc(r.namespaceForWorkspace),
@@ -145,7 +149,7 @@ func (r *ExtAuthRuntimeReconciler) runtimeNeeded(ctx context.Context, ns string)
 		if !provider.DeletionTimestamp.IsZero() {
 			continue
 		}
-		if provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICodex {
+		if provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICodex || r.DelegationAuthorityTarget != "" {
 			return true, nil
 		}
 	}
@@ -195,6 +199,11 @@ func (r *ExtAuthRuntimeReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		namespace: ns.Name, workspaces: workspaces, labels: labels, ownerRefs: ownerRefs,
 	}
 
+	if r.DelegationAuthorityTarget != "" {
+		if err := r.reconcileDelegationRuntime(ctx, ns, scope); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
 	if err := r.reconcileExtAuthServiceAccount(ctx, scope); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -615,6 +624,9 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthService(ctx context.Context, 
 					},
 				},
 			}
+			if r.DelegationAuthorityTarget != "" {
+				svc.Spec.Ports = append(svc.Spec.Ports, corev1.ServicePort{Name: "delegation", Port: 18084, Protocol: corev1.ProtocolTCP})
+			}
 			return nil
 		},
 	)
@@ -660,6 +672,9 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthDeployment(ctx context.Contex
 		extAuthTokenPath,
 	}
 
+	if r.DelegationAuthorityTarget != "" {
+		args = append(args, "--delegation-authority-target="+r.DelegationAuthorityTarget, "--delegation-tls-dir=/var/run/agentz/delegation")
+	}
 	_, err := ctrlutil.CreateOrPatch(
 		ctx,
 		r.Client,
@@ -714,6 +729,12 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthDeployment(ctx context.Contex
 						}},
 					},
 				},
+			}
+			if r.DelegationAuthorityTarget != "" {
+				spec := &deployment.Spec.Template.Spec
+				spec.Volumes = []corev1.Volume{{Name: "delegation-tls", VolumeSource: corev1.VolumeSource{Secret: &corev1.SecretVolumeSource{SecretName: "delegation-extauth-tls"}}}}
+				spec.Containers[0].VolumeMounts = []corev1.VolumeMount{{Name: "delegation-tls", MountPath: "/var/run/agentz/delegation", ReadOnly: true}}
+				spec.Containers[0].Ports = append(spec.Containers[0].Ports, corev1.ContainerPort{Name: "delegation", ContainerPort: 18084})
 			}
 			return nil
 		},
@@ -793,6 +814,25 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthPolicy(ctx context.Context, s
 			policy.Labels = maps.Clone(labels)
 			policy.OwnerReferences = ownerRefs
 			policy.Spec = extAuthPolicySpec(ns, workspaces)
+			if r.DelegationAuthorityTarget != "" {
+				policy.Spec.Ingress = append(policy.Spec.Ingress, ciliumapi.IngressRule{
+					IngressCommonRule: ciliumapi.IngressCommonRule{FromEndpoints: []ciliumapi.EndpointSelector{
+						ciliumapi.NewESFromLabels(ciliumlabels.NewLabel("gateway.networking.k8s.io/gateway-name", mcp.GatewayName, ciliumlabels.LabelSourceK8s)),
+						ciliumapi.NewESFromLabels(ciliumlabels.NewLabel("gateway.networking.k8s.io/gateway-name", inference.GatewayName, ciliumlabels.LabelSourceK8s)),
+					}}, ToPorts: []ciliumapi.PortRule{{Ports: []ciliumapi.PortProtocol{{Port: "18084", Protocol: ciliumapi.ProtoTCP}}}},
+				})
+				authority, err := networkpolicy.URLTarget("https://" + r.DelegationAuthorityTarget)
+				if err != nil {
+					return err
+				}
+				parts := strings.Split(authority.Host, ".")
+				switch {
+				case len(parts) >= 3 && parts[2] == "svc":
+					policy.Spec.Egress = append(policy.Spec.Egress, networkpolicy.ServiceEgress(parts[1], parts[0], authority.Port)...)
+				default:
+					policy.Spec.Egress = append(policy.Spec.Egress, networkpolicy.ExternalEgress([]networkpolicy.Target{authority})...)
+				}
+			}
 			policy.Spec.Egress = append(
 				policy.Spec.Egress,
 				networkpolicy.ExternalEgress(targets)...,

@@ -235,6 +235,39 @@ func (q *Queries) GatewayChatSessionExists(ctx context.Context, arg GatewayChatS
 	return column_1, err
 }
 
+const gatewayCheckDelegationDatabasePrivileges = `-- name: GatewayCheckDelegationDatabasePrivileges :one
+SELECT NOT (
+ has_any_column_privilege(current_user, 'public.jwks', 'SELECT')
+ OR has_any_column_privilege(current_user, 'public.oauth_refresh_tokens', 'SELECT')
+ OR has_any_column_privilege(current_user, 'public.oauth_access_tokens', 'SELECT')
+ OR has_any_column_privilege(current_user, 'public.accounts', 'SELECT')
+ OR has_column_privilege(current_user, 'public.sessions', 'token', 'SELECT')
+ OR has_column_privilege(current_user, 'public.oauth_clients', 'client_secret', 'SELECT')
+ OR has_column_privilege(current_user, 'public.delegation_mcp_sessions', 'id', 'UPDATE')
+ OR has_column_privilege(current_user, 'public.delegation_mcp_sessions', 'grant_id', 'UPDATE')
+ OR has_table_privilege(current_user, 'public.delegation_mcp_sessions', 'DELETE,TRUNCATE')
+ OR EXISTS (
+   SELECT 1
+   FROM unnest(ARRAY[
+     'public.delegation_grants', 'public.oauth_clients', 'public.members',
+     'public.organization_delegation', 'public.organization_roles',
+     'public.role_scopes', 'public.member_roles', 'public.team_roles',
+     'public.team_members', 'public.permission_grants', 'public.workspaces',
+     'public.oauth_client_resources', 'public.sessions'
+   ]) AS authority(table_name)
+   WHERE has_any_column_privilege(current_user, table_name, 'INSERT,UPDATE')
+      OR has_table_privilege(current_user, table_name, 'DELETE,TRUNCATE')
+ )
+)
+`
+
+func (q *Queries) GatewayCheckDelegationDatabasePrivileges(ctx context.Context) (pgtype.Bool, error) {
+	row := q.db.QueryRow(ctx, gatewayCheckDelegationDatabasePrivileges)
+	var column_1 pgtype.Bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const gatewayCheckDelegationMCPSession = `-- name: GatewayCheckDelegationMCPSession :one
 SELECT EXISTS (
   SELECT 1 FROM delegation_mcp_sessions
@@ -249,6 +282,22 @@ type GatewayCheckDelegationMCPSessionParams struct {
 
 func (q *Queries) GatewayCheckDelegationMCPSession(ctx context.Context, arg GatewayCheckDelegationMCPSessionParams) (bool, error) {
 	row := q.db.QueryRow(ctx, gatewayCheckDelegationMCPSession, arg.ID, arg.GrantID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const gatewayCheckDelegationSession = `-- name: GatewayCheckDelegationSession :one
+SELECT EXISTS(SELECT 1 FROM sessions WHERE id = $1 AND user_id = $2 AND expires_at > now())
+`
+
+type GatewayCheckDelegationSessionParams struct {
+	ID     string `json:"id"`
+	UserID string `json:"user_id"`
+}
+
+func (q *Queries) GatewayCheckDelegationSession(ctx context.Context, arg GatewayCheckDelegationSessionParams) (bool, error) {
+	row := q.db.QueryRow(ctx, gatewayCheckDelegationSession, arg.ID, arg.UserID)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err

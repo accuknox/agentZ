@@ -6,6 +6,8 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -16,9 +18,14 @@ import (
 	"time"
 
 	agw "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
+	authv3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"golang.org/x/sync/semaphore"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/peer"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -26,8 +33,10 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	"github.com/accuknox/agentz/internal/authorization"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	"github.com/accuknox/agentz/internal/inference"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -52,9 +61,17 @@ func (q *delegationQueries) GatewayCheckDelegationMCPSession(context.Context, ga
 	return false, nil
 }
 
+type delegationAuthorityClient struct{ service *Service }
+
+func (c delegationAuthorityClient) Check(ctx context.Context, request *authv3.CheckRequest, _ ...grpc.CallOption) (*authv3.CheckResponse, error) {
+	identity := &x509.Certificate{DNSNames: []string{c.service.cfg.DelegationPublicPeer}}
+	ctx = peer.NewContext(ctx, &peer.Peer{AuthInfo: credentials.TLSInfo{State: tls.ConnectionState{PeerCertificates: []*x509.Certificate{identity}, VerifiedChains: [][]*x509.Certificate{{identity}}}}})
+	return c.service.Check(ctx, request)
+}
+
 type delegationTokenCase struct {
 	name   string
-	mutate func(*delegationClaims)
+	mutate func(*authorization.DelegationClaims)
 	typ    string
 	want   int
 }
@@ -73,25 +90,30 @@ func TestDelegatedAccessRequiresLiveGrantAndAccessToken(t *testing.T) {
 	}}
 	service := sandboxTestService(t, queries)
 	service.cfg.ExternalJWTIssuer = issuer
+	service.cfg.DelegationPublicPeer = "public.agentz.svc"
+	service.delegationAuthority = delegationAuthorityClient{service: service}
+	service.delegationBodies = semaphore.NewWeighted(128 << 20)
 	service.delegationRequests = make(chan struct{}, 64)
 	service.externalJWTKeyfunc = func(*jwt.Token) (any, error) { return &key.PublicKey, nil }
 	cases := []delegationTokenCase{
 		{name: "access token", typ: "at+jwt", want: http.StatusOK},
 		{name: "ID token", typ: "JWT", want: http.StatusUnauthorized},
-		{name: "wrong issuer", typ: "at+jwt", mutate: func(c *delegationClaims) { c.Issuer = "https://other.example" }, want: http.StatusUnauthorized},
-		{name: "MCP audience", typ: "at+jwt", mutate: func(c *delegationClaims) { c.Audience = jwt.ClaimStrings{issuer + "/api/mcp"} }, want: http.StatusUnauthorized},
-		{name: "expired", typ: "at+jwt", mutate: func(c *delegationClaims) { c.ExpiresAt = jwt.NewNumericDate(time.Now().Add(-time.Minute)) }, want: http.StatusUnauthorized},
-		{name: "no expiry", typ: "at+jwt", mutate: func(c *delegationClaims) { c.ExpiresAt = nil }, want: http.StatusUnauthorized},
-		{name: "future issued", typ: "at+jwt", mutate: func(c *delegationClaims) { c.IssuedAt = jwt.NewNumericDate(time.Now().Add(time.Hour)) }, want: http.StatusUnauthorized},
-		{name: "no grant", typ: "at+jwt", mutate: func(c *delegationClaims) { c.GrantID = "" }, want: http.StatusUnauthorized},
-		{name: "other client", typ: "at+jwt", mutate: func(c *delegationClaims) { c.ClientID = "client-2" }, want: http.StatusForbidden},
-		{name: "other user", typ: "at+jwt", mutate: func(c *delegationClaims) { c.Subject = "user-2" }, want: http.StatusForbidden},
-		{name: "scope widening", typ: "at+jwt", mutate: func(c *delegationClaims) { c.Scope += " admin" }, want: http.StatusForbidden},
-		{name: "missing scope", typ: "at+jwt", mutate: func(c *delegationClaims) { c.Scope = "openid" }, want: http.StatusForbidden},
+		{name: "wrong issuer", typ: "at+jwt", mutate: func(c *authorization.DelegationClaims) { c.Issuer = "https://other.example" }, want: http.StatusUnauthorized},
+		{name: "MCP audience", typ: "at+jwt", mutate: func(c *authorization.DelegationClaims) { c.Audience = jwt.ClaimStrings{issuer + "/api/mcp"} }, want: http.StatusUnauthorized},
+		{name: "expired", typ: "at+jwt", mutate: func(c *authorization.DelegationClaims) {
+			c.ExpiresAt = jwt.NewNumericDate(time.Now().Add(-time.Minute))
+		}, want: http.StatusUnauthorized},
+		{name: "no expiry", typ: "at+jwt", mutate: func(c *authorization.DelegationClaims) { c.ExpiresAt = nil }, want: http.StatusUnauthorized},
+		{name: "future issued", typ: "at+jwt", mutate: func(c *authorization.DelegationClaims) { c.IssuedAt = jwt.NewNumericDate(time.Now().Add(time.Hour)) }, want: http.StatusUnauthorized},
+		{name: "no grant", typ: "at+jwt", mutate: func(c *authorization.DelegationClaims) { c.GrantID = "" }, want: http.StatusUnauthorized},
+		{name: "other client", typ: "at+jwt", mutate: func(c *authorization.DelegationClaims) { c.ClientID = "client-2" }, want: http.StatusForbidden},
+		{name: "other user", typ: "at+jwt", mutate: func(c *authorization.DelegationClaims) { c.Subject = "user-2" }, want: http.StatusForbidden},
+		{name: "scope widening", typ: "at+jwt", mutate: func(c *authorization.DelegationClaims) { c.Scope += " admin" }, want: http.StatusForbidden},
+		{name: "missing scope", typ: "at+jwt", mutate: func(c *authorization.DelegationClaims) { c.Scope = "openid" }, want: http.StatusForbidden},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			claims := delegationClaims{
+			claims := authorization.DelegationClaims{
 				RegisteredClaims: jwt.RegisteredClaims{
 					Issuer: issuer, Subject: testUserID, Audience: jwt.ClaimStrings{issuer + "/api/inference/v1"},
 					ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)), IssuedAt: jwt.NewNumericDate(time.Now()),
@@ -125,6 +147,12 @@ func TestDelegatedAccessRequiresLiveGrantAndAccessToken(t *testing.T) {
 				if response.Code != http.StatusUnauthorized {
 					t.Fatalf("noncanonical token admitted: %d", response.Code)
 				}
+				request.Header.Set("Authorization", "bearer "+signed)
+				response = httptest.NewRecorder()
+				service.handleDelegatedRequest(response, request)
+				if response.Code != http.StatusOK {
+					t.Fatalf("case-insensitive bearer scheme rejected: %d", response.Code)
+				}
 				request.Header.Set("Authorization", "Bearer "+signed)
 				queries.revoked = true
 				response = httptest.NewRecorder()
@@ -154,7 +182,7 @@ func TestDelegationRechecksResourceIdentityAndPermissions(t *testing.T) {
 	service := sandboxTestService(t, queries)
 	provider := &agentzv1alpha1.InferenceProvider{
 		ObjectMeta: metav1.ObjectMeta{Name: "selected", Namespace: namespace, UID: types.UID("provider-original")},
-		Spec:       agentzv1alpha1.InferenceProviderSpec{Models: []agentzv1alpha1.InferenceModel{{ID: "model"}}},
+		Spec:       agentzv1alpha1.InferenceProviderSpec{Kind: agentzv1alpha1.InferenceProviderKindOpenAI, OpenAI: &agentzv1alpha1.OpenAIProviderConfig{}, Models: []agentzv1alpha1.InferenceModel{{ID: "model"}}},
 		Status:     agentzv1alpha1.InferenceProviderStatus{State: agentzv1alpha1.InferenceProviderStateReady},
 	}
 	objects := []ctrlclient.Object{
@@ -166,7 +194,7 @@ func TestDelegationRechecksResourceIdentityAndPermissions(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	catalog, err := service.delegationCatalog(ctx, testUserID, testOrganizationID, testWorkspaceID)
+	catalog, err := service.delegationCatalog(ctx, testUserID, testOrganizationID, testWorkspaceID, false)
 	if err != nil || len(catalog.Models) != 1 {
 		t.Fatalf("catalog: %#v, %v", catalog, err)
 	}
@@ -178,13 +206,13 @@ func TestDelegationRechecksResourceIdentityAndPermissions(t *testing.T) {
 		ID: "grant-1", ClientID: "client-1", UserID: testUserID,
 		OrganizationID: pgtype.Text{String: testOrganizationID, Valid: true}, Selection: selection,
 	}
-	claims := delegationClaims{ClientID: "client-1", GrantID: "grant-1"}
+	claims := authorization.DelegationClaims{ClientID: "client-1", GrantID: "grant-1"}
 	claims.Subject = testUserID
-	if _, _, err := service.checkDelegation(ctx, claims); err != nil {
+	if _, _, err := service.checkDelegation(ctx, claims, ""); err != nil {
 		t.Fatal(err)
 	}
 	queries.permissions[0].Superadmin = false
-	if _, _, err := service.checkDelegation(ctx, claims); err == nil {
+	if _, _, err := service.checkDelegation(ctx, claims, ""); err == nil {
 		t.Fatal("permission removal did not invalidate the grant")
 	}
 	queries.permissions[0].Superadmin = true
@@ -196,7 +224,7 @@ func TestDelegationRechecksResourceIdentityAndPermissions(t *testing.T) {
 	if err := service.k8sClient.Create(ctx, provider); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := service.checkDelegation(ctx, claims); err == nil {
+	if _, _, err := service.checkDelegation(ctx, claims, ""); err == nil {
 		t.Fatal("replacement provider inherited old consent")
 	}
 }
@@ -223,18 +251,18 @@ func TestDelegationReadinessRequiresCurrentAcceptedProjection(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := service.delegationReady(ctx, grant, route.Name, false, 0); err == nil {
+	if err := service.delegationReady(ctx, grant, "private", "delegations", route.Name); err == nil {
 		t.Fatal("stale backend status was accepted")
 	}
 	backend.Status.Conditions[0].ObservedGeneration = 2
 	if err := service.k8sClient.Update(ctx, backend); err != nil {
 		t.Fatal(err)
 	}
-	if err := service.delegationReady(ctx, grant, route.Name, false, 0); err != nil {
+	if err := service.delegationReady(ctx, grant, "private", "delegations", route.Name); err != nil {
 		t.Fatal(err)
 	}
 	grant.Selection = []byte(`{"models":[{}],"mcp":[]}`)
-	if err := service.delegationReady(ctx, grant, route.Name, false, 0); err == nil {
+	if err := service.delegationReady(ctx, grant, "private", "delegations", route.Name); err == nil {
 		t.Fatal("different selection was accepted")
 	}
 }
@@ -254,7 +282,9 @@ func TestDelegationCORSRejectsUnregisteredOrigins(t *testing.T) {
 			if response.Code != http.StatusNoContent || response.Header().Get("Access-Control-Allow-Origin") != origin || response.Header().Get("Access-Control-Allow-Credentials") != "" {
 				t.Fatalf("invalid browser CORS response: %#v", response.Result())
 			}
-		} else if response.Code != http.StatusForbidden || called {
+			continue
+		}
+		if response.Code != http.StatusForbidden || called {
 			t.Fatalf("unregistered origin admitted: %q", origin)
 		}
 	}
@@ -295,7 +325,7 @@ func TestDelegatedInferenceRejectsProviderResourceBypasses(t *testing.T) {
 		{"duplicate response input", `{"model":"selected","store":false,"input":[{"type":"item_reference","id":"msg-private"}],"input":[]}`, true, false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			model, err := delegatedInferenceModel([]byte(test.body), test.responses)
+			model, err := inference.ValidateDelegatedRequest([]byte(test.body), test.responses)
 			if (err == nil) != test.allowed {
 				t.Fatalf("allowed %v, want %v: %v", err == nil, test.allowed, err)
 			}
@@ -374,8 +404,11 @@ func TestDelegatedMCPUsesExactMethodAndRejectsDuplicates(t *testing.T) {
 	}}
 	service := sandboxTestService(t, queries)
 	service.cfg.ExternalJWTIssuer = issuer
+	service.cfg.DelegationPublicPeer = "public.agentz.svc"
+	service.delegationAuthority = delegationAuthorityClient{service: service}
+	service.delegationBodies = semaphore.NewWeighted(128 << 20)
 	service.externalJWTKeyfunc = func(*jwt.Token) (any, error) { return &key.PublicKey, nil }
-	claims := delegationClaims{
+	claims := authorization.DelegationClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer: issuer, Subject: testUserID, Audience: jwt.ClaimStrings{issuer + "/api/mcp"},
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)), IssuedAt: jwt.NewNumericDate(time.Now()),
@@ -387,6 +420,14 @@ func TestDelegatedMCPUsesExactMethodAndRejectsDuplicates(t *testing.T) {
 	signed, err := token.SignedString(key)
 	if err != nil {
 		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/mcp", strings.NewReader(strings.Repeat("x", (4<<20)+1)))
+	request.ContentLength = -1
+	request.Header.Set("Authorization", "Bearer "+signed)
+	response := httptest.NewRecorder()
+	service.handleDelegatedRequest(response, request)
+	if response.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("oversized chunked body status %d", response.Code)
 	}
 	for _, body := range []string{
 		`{"jsonrpc":"2.0","id":1,"method":"resources/subscribe","METHOD":"ping"}`,
@@ -402,7 +443,9 @@ func TestDelegatedMCPUsesExactMethodAndRejectsDuplicates(t *testing.T) {
 			if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"code":-32601`) {
 				t.Fatalf("restricted method passed: %d %s", response.Code, response.Body.String())
 			}
-		} else if response.Code != http.StatusBadRequest {
+			continue
+		}
+		if response.Code != http.StatusBadRequest {
 			t.Fatalf("duplicate method passed: %d %s", response.Code, response.Body.String())
 		}
 	}

@@ -30,7 +30,8 @@ export const delegationScopes = [
 export async function delegationCatalog(
   organizationId: string,
   workspaceId: string,
-  user: { id: string; name: string }
+  user: { id: string; name: string },
+  includeUnavailable = false
 ) {
   const { getGatewayAuthToken } = await import("@/lib/gateway/auth")
   const { serverGatewayBaseURL } = await import("@/lib/gateway/server-base-url")
@@ -47,6 +48,7 @@ export async function delegationCatalog(
   const result = await getDelegationCatalog({
     client: createClient(createConfig({ baseUrl: serverGatewayBaseURL(), auth: token })),
     headers: { "X-AgentZ-Workspace-ID": workspaceId },
+    query: { include_unavailable: includeUnavailable },
   })
   if (result.error) {
     if (result.response?.status === 401 || result.response?.status === 403)
@@ -59,11 +61,12 @@ export async function delegationCatalog(
   return result.data
 }
 
-/** checkDelegationSelection checks every selection against current authoritative discovery. */
+/** checkDelegationSelection rechecks ownership and permissions, including capability availability for new consent. */
 export async function checkDelegationSelection(
   organizationId: string,
   selection: DelegationCatalog,
-  user: { id: string; name: string }
+  user: { id: string; name: string },
+  includeUnavailable = false
 ) {
   if (selection.models.length > 256 || selection.mcp.length > 32) {
     throw new Error("Select at most 256 models and 32 MCP connections.")
@@ -116,7 +119,7 @@ export async function checkDelegationSelection(
     [...selection.models, ...selection.mcp].map((item) => item.workspace_id)
   )
   for (const workspaceId of workspaceIds) {
-    const catalog = await delegationCatalog(organizationId, workspaceId, user)
+    const catalog = await delegationCatalog(organizationId, workspaceId, user, includeUnavailable)
     for (const model of selection.models.filter((item) => item.workspace_id === workspaceId)) {
       const current = catalog.models.find((item) => item.id === model.id)
       if (
@@ -139,9 +142,10 @@ export async function checkDelegationSelection(
         current.uid !== connection.uid ||
         current.namespace !== connection.namespace ||
         current.connection !== connection.connection ||
-        !connection.tools.every((name) => current.tools.includes(name)) ||
-        !connection.prompts.every((name) => current.prompts.includes(name)) ||
-        !connection.resources.every((uri) => current.resources.includes(uri))
+        (!includeUnavailable &&
+          (!connection.tools.every((name) => current.tools.includes(name)) ||
+            !connection.prompts.every((name) => current.prompts.includes(name)) ||
+            !connection.resources.every((uri) => current.resources.includes(uri))))
       ) {
         throw new APIError("FORBIDDEN", {
           error: "access_denied",
@@ -231,7 +235,7 @@ export function agentZOAuthProvider() {
     }
     if (grant.organizationId) {
       try {
-        await checkDelegationSelection(grant.organizationId, grant.selection, user)
+        await checkDelegationSelection(grant.organizationId, grant.selection, user, true)
       } catch (error) {
         if (error instanceof APIError && error.body?.error === "access_denied")
           throw new APIError("BAD_REQUEST", { error: "invalid_grant" })
@@ -306,7 +310,7 @@ export function agentZOAuthProvider() {
             )
           if (!grant) throw new APIError("FORBIDDEN", { error: "access_denied" })
           if (grant.organizationId)
-            await checkDelegationSelection(grant.organizationId, grant.selection, user)
+            await checkDelegationSelection(grant.organizationId, grant.selection, user, true)
           return false
         }
 
@@ -348,7 +352,7 @@ export function agentZOAuthProvider() {
             : undefined
         if (reusable?.organizationId) {
           try {
-            await checkDelegationSelection(reusable.organizationId, reusable.selection, user)
+            await checkDelegationSelection(reusable.organizationId, reusable.selection, user, true)
           } catch {
             reusable = undefined
           }
@@ -422,7 +426,7 @@ export function agentZOAuthProvider() {
           throw new APIError("FORBIDDEN", { error: "access_denied" })
         }
         if (grant.organizationId)
-          await checkDelegationSelection(grant.organizationId, grant.selection, user)
+          await checkDelegationSelection(grant.organizationId, grant.selection, user, true)
         return grant.id
       },
     },
@@ -449,7 +453,7 @@ export function agentZOAuthProvider() {
             if (!grant) throw new APIError("UNAUTHORIZED", { error: "invalid_token" })
             if (grant.organizationId) {
               try {
-                await checkDelegationSelection(grant.organizationId, grant.selection, user)
+                await checkDelegationSelection(grant.organizationId, grant.selection, user, true)
               } catch (error) {
                 if (error instanceof APIError && error.body?.error === "access_denied")
                   throw new APIError("UNAUTHORIZED", { error: "invalid_token" })
@@ -520,7 +524,8 @@ export function agentZOAuthProvider() {
                 await checkDelegationSelection(
                   current.grant.organizationId,
                   current.grant.selection,
-                  current.user
+                  current.user,
+                  true
                 )
               } catch {
                 return ctx.json({ active: false })

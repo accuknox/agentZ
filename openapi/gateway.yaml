@@ -28170,6 +28170,12 @@ paths:
       operationId: getDelegationCatalog
       parameters:
       - $ref: '#/components/parameters/WorkspaceIDHeader'
+      - description: Include unhealthy resources when rechecking an existing grant's permissions. New consent must use the healthy catalog.
+        in: query
+        name: include_unavailable
+        schema:
+          default: false
+          type: boolean
       responses:
         "200":
           content:

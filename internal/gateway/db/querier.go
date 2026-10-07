@@ -20,7 +20,9 @@ type Querier interface {
 	GatewayBindCodingSession(ctx context.Context, arg GatewayBindCodingSessionParams) error
 	GatewayChatInputsStopping(ctx context.Context, arg GatewayChatInputsStoppingParams) (bool, error)
 	GatewayChatSessionExists(ctx context.Context, arg GatewayChatSessionExistsParams) (bool, error)
+	GatewayCheckDelegationDatabasePrivileges(ctx context.Context) (pgtype.Bool, error)
 	GatewayCheckDelegationMCPSession(ctx context.Context, arg GatewayCheckDelegationMCPSessionParams) (bool, error)
+	GatewayCheckDelegationSession(ctx context.Context, arg GatewayCheckDelegationSessionParams) (bool, error)
 	GatewayClaimCleanupJob(ctx context.Context, arg GatewayClaimCleanupJobParams) (CleanupJob, error)
 	GatewayClaimCodingOperation(ctx context.Context, leaseToken string) (CodingOperation, error)
 	GatewayClaimCodingSnapshot(ctx context.Context) (CodingSnapshot, error)

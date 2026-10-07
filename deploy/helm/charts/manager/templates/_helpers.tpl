@@ -61,7 +61,3 @@ control-plane: controller-manager
 {{- define "manager.inferenceSecretStoreName" -}}
 {{- default (printf "%s-inference" .Release.Name) .Values.inference.externalSecrets.storeName | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
-
-{{- define "manager.inferenceExternalSecretsServiceAccountName" -}}
-{{- default (printf "%s-inference-external-secrets" .Release.Name) .Values.inference.externalSecrets.serviceAccount.name | trunc 63 | trimSuffix "-" -}}
-{{- end -}}

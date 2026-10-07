@@ -245,7 +245,7 @@ func RenderRuntime(provider *agentzv1alpha1.InferenceProvider, storeName string,
 		Spec: externalsecretsv1.ExternalSecretSpec{
 			SecretStoreRef: externalsecretsv1.SecretStoreRef{
 				Name: storeName,
-				Kind: externalsecretsv1.ClusterSecretStoreKind,
+				Kind: externalsecretsv1.SecretStoreKind,
 			},
 			Target: externalsecretsv1.ExternalSecretTarget{
 				Name:           provider.Name,

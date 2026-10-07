@@ -3,16 +3,32 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "global": { "type": "object", "properties": { "secretName": { "type": "string" } } },
+    "global": {
+      "type": "object",
+      "properties": {
+        "secretName": { "type": "string" },
+        "agentz": {
+          "type": "object",
+          "properties": {
+            "delegationEnabled": { "type": "boolean" },
+            "umbrella": { "type": "boolean" }
+          }
+        }
+      }
+    },
     "enabled": { "type": "boolean" },
     "delegation": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "enabled": { "type": "boolean" },
-        "secretStore": { "type": "string", "minLength": 1 }
+        "issuerName": { "type": "string" },
+        "createIssuer": { "type": "boolean" },
+        "caNamespace": { "type": "string", "minLength": 1 },
+        "databaseSecretName": { "type": "string" },
+        "egress": { "type": "array", "items": { "type": "object" } },
+        "dnsNames": { "type": "array", "items": { "type": "string", "minLength": 1 } }
       },
-      "required": ["enabled", "secretStore"]
+      "required": ["createIssuer", "caNamespace"]
     },
     "nameOverride": { "type": "string" },
     "fullnameOverride": { "type": "string" },

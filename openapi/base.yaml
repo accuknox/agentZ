@@ -52,6 +52,12 @@ paths:
       summary: Discover resources the user may delegate in the selected workspace.
       parameters:
       - $ref: '#/components/parameters/WorkspaceIDHeader'
+      - name: include_unavailable
+        in: query
+        description: Include unhealthy resources when rechecking an existing grant's permissions. New consent must use the healthy catalog.
+        schema:
+          type: boolean
+          default: false
       security:
       - GatewayBearer: []
       responses:

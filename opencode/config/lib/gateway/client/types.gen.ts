@@ -3501,7 +3501,12 @@ export type GetDelegationCatalogData = {
     "X-AgentZ-Workspace-ID"?: string
   }
   path?: never
-  query?: never
+  query?: {
+    /**
+     * Include unhealthy resources when rechecking an existing grant's permissions. New consent must use the healthy catalog.
+     */
+    include_unavailable?: boolean
+  }
   url: "/api/delegations/catalog"
 }
 

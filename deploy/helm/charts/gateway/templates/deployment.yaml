@@ -84,12 +84,13 @@ spec:
             - --log-format={{ .Values.config.logFormat }}
             - "--addr=0.0.0.0:{{ .Values.service.port }}"
             - "--postgres-dsn=$(AGENTZ_POSTGRES_DSN)"
-            {{- if .Values.delegation.enabled }}
+            {{- if (dig "agentz" "delegationEnabled" false (.Values.global | default dict)) }}
             - --delegation-namespace={{ printf "%s-delegations" (include "gateway.fullname" .) | trunc 63 | trimSuffix "-" }}
-            - --delegation-gateway-url=http://delegations.{{ printf "%s-delegations" (include "gateway.fullname" .) | trunc 63 | trimSuffix "-" }}.svc.cluster.local
-            - --delegation-credential-addr=:18083
-            - --delegation-credential-service=delegation-credentials
-            - --delegation-secret-store={{ required "delegation.secretStore is required" .Values.delegation.secretStore }}
+            - --delegation-gateway-url=https://delegations.{{ printf "%s-delegations" (include "gateway.fullname" .) | trunc 63 | trimSuffix "-" }}.svc.cluster.local:8443
+            - --delegation-authority-addr=:18085
+            - --delegation-authority-target={{ include "gateway.fullname" . }}-authority.{{ .Release.Namespace }}.svc.cluster.local:18085
+            - --delegation-public-peer={{ printf "%s-delegation" (include "gateway.fullname" .) | trunc 63 | trimSuffix "-" }}.{{ .Release.Namespace }}.svc
+            - --delegation-tls-dir=/var/run/agentz/delegation
             {{- end }}
             - --external-jwt-jwks-url={{ required "gateway.config.externalJWTJWKSURL is required for standalone installs" $jwksURL }}
             - --external-jwt-issuer={{ required "gateway.config.externalJWTIssuer is required" .Values.config.externalJWTIssuer }}
@@ -124,9 +125,9 @@ spec:
             - {{ . | quote }}
             {{- end }}
           ports:
-            {{- if .Values.delegation.enabled }}
-            - name: credentials
-              containerPort: 18083
+            {{- if (dig "agentz" "delegationEnabled" false (.Values.global | default dict)) }}
+            - name: authority
+              containerPort: 18085
               protocol: TCP
             {{- end }}
             - name: http
@@ -177,9 +178,19 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
+            {{- if (dig "agentz" "delegationEnabled" false (.Values.global | default dict)) }}
+            - name: delegation-tls
+              mountPath: /var/run/agentz/delegation
+              readOnly: true
+            {{- end }}
             - name: tmp
               mountPath: /tmp
       volumes:
+        {{- if (dig "agentz" "delegationEnabled" false (.Values.global | default dict)) }}
+        - name: delegation-tls
+          secret:
+            secretName: {{ include "gateway.fullname" . }}-authority-tls
+        {{- end }}
         - name: tmp
           emptyDir: {}
       {{- with .Values.nodeSelector }}

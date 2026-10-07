@@ -2,12 +2,14 @@ package extauth
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -22,8 +24,10 @@ import (
 	statuspb "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	health "google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/peer"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -32,6 +36,8 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	"github.com/accuknox/agentz/internal/authorization"
+	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/mcp"
 	baoclient "github.com/accuknox/agentz/internal/openbao"
 	mcpconnwebhook "github.com/accuknox/agentz/internal/webhook/v1alpha1/mcpconn"
@@ -71,15 +77,17 @@ var (
 
 // Config describes how to start the ext-auth gRPC service.
 type Config struct {
-	Addr                    string
-	Namespace               string
-	OpenBaoAddr             string
-	OpenBaoSecretMountPath  string
-	OpenBaoK8sAuthRole      string
-	OpenBaoK8sAuthMountPath string
-	OpenBaoK8sAuthTokenPath string
-	MCPProbeInterval        time.Duration
-	MCPProbeTimeout         time.Duration
+	Addr                      string
+	Namespace                 string
+	OpenBaoAddr               string
+	OpenBaoSecretMountPath    string
+	OpenBaoK8sAuthRole        string
+	OpenBaoK8sAuthMountPath   string
+	OpenBaoK8sAuthTokenPath   string
+	MCPProbeInterval          time.Duration
+	MCPProbeTimeout           time.Duration
+	DelegationAuthorityTarget string
+	DelegationTLSDir          string
 }
 
 // Serve starts the Envoy-compatible ext-auth gRPC service.
@@ -232,6 +240,27 @@ func Serve(ctx context.Context, cfg Config) error {
 		return fmt.Errorf("sync mcpconnection informer cache")
 	}
 
+	var delegatedServer *grpc.Server
+	var delegatedListener net.Listener
+	if cfg.DelegationAuthorityTarget != "" {
+		identity, err := authorization.DelegationTLS(cfg.DelegationTLSDir)
+		if err != nil {
+			return err
+		}
+		authority, err := grpc.NewClient(cfg.DelegationAuthorityTarget, grpc.WithTransportCredentials(credentials.NewTLS(identity)))
+		if err != nil {
+			return fmt.Errorf("create delegation authority client: %w", err)
+		}
+		defer authority.Close()
+		svc.delegationAuthority = authv3.NewAuthorizationClient(authority)
+		identity.ClientAuth = tls.RequireAndVerifyClientCert
+		delegatedListener, err = net.Listen("tcp", ":18084")
+		if err != nil {
+			return err
+		}
+		delegatedServer = grpc.NewServer(grpc.Creds(credentials.NewTLS(identity)), grpc.MaxRecvMsgSize(34<<20))
+		authv3.RegisterAuthorizationServer(delegatedServer, svc)
+	}
 	srv := grpc.NewServer()
 	authv3.RegisterAuthorizationServer(srv, svc)
 
@@ -247,6 +276,9 @@ func Serve(ctx context.Context, cfg Config) error {
 	var bg sync.WaitGroup
 	serveCtx, stopServers := context.WithCancel(ctx)
 	serverGroup, serverCtx := errgroup.WithContext(serveCtx)
+	if delegatedServer != nil {
+		serverGroup.Go(func() error { return delegatedServer.Serve(delegatedListener) })
+	}
 	serverGroup.Go(func() error {
 		slog.InfoContext(
 			serverCtx,
@@ -282,6 +314,9 @@ func Serve(ctx context.Context, cfg Config) error {
 
 	shutdownServers := func() error {
 		stopServers()
+		if delegatedServer != nil {
+			delegatedServer.Stop()
+		}
 
 		shutdownCtx, cancel := context.WithTimeout(
 			context.Background(),
@@ -336,34 +371,24 @@ func Serve(ctx context.Context, cfg Config) error {
 type Service struct {
 	authv3.UnimplementedAuthorizationServer
 
-	namespace          string
-	probeInterval      time.Duration
-	probeTimeout       time.Duration
-	kube               ctrlclient.Client
-	kv                 *baoapi.KVv2
-	http               *http.Client
-	sf                 singleflight.Group
-	inferenceRefreshMu sync.Mutex
-	mcpConnections     agentzlisters.MCPConnectionNamespaceLister
-	probeQueue         workqueue.TypedInterface[string]
-	probeTimes         map[string]time.Time
-	probeTimesMu       sync.Mutex
+	namespace           string
+	probeInterval       time.Duration
+	probeTimeout        time.Duration
+	kube                ctrlclient.Client
+	kv                  *baoapi.KVv2
+	http                *http.Client
+	sf                  singleflight.Group
+	inferenceRefreshMu  sync.Mutex
+	mcpConnections      agentzlisters.MCPConnectionNamespaceLister
+	probeQueue          workqueue.TypedInterface[string]
+	probeTimes          map[string]time.Time
+	probeTimesMu        sync.Mutex
+	delegationAuthority authv3.AuthorizationClient
 }
 
 var _ authv3.AuthorizationServer = (*Service)(nil)
 
-// NewCredentialService shares native credential resolution with another trusted
-// gateway. Callers must authorize the target before resolving its credentials.
-func NewCredentialService(kube ctrlclient.Client, kv *baoapi.KVv2) *Service {
-	return &Service{
-		kube: kube,
-		kv:   kv,
-		http: &http.Client{Timeout: httpClientTimeout},
-	}
-}
-
-// MCPCredentials resolves configured upstream authentication, including refresh.
-func (s *Service) MCPCredentials(ctx context.Context, connection *agentzv1alpha1.MCPConnection) (*authv3.OkHttpResponse, error) {
+func (s *Service) mcpCredentials(ctx context.Context, connection *agentzv1alpha1.MCPConnection) (*authv3.OkHttpResponse, error) {
 	var injection injectedRequest
 	if connection.Spec.Auth != nil {
 		var err error
@@ -378,29 +403,34 @@ func (s *Service) MCPCredentials(ctx context.Context, connection *agentzv1alpha1
 	}
 	headers = append(headers, injection.headers...)
 	return &authv3.OkHttpResponse{
-		Headers: headers, HeadersToRemove: injection.headersToRemove,
+		Headers: headers, HeadersToRemove: append(injection.headersToRemove, "authorization", "cookie", "api-key", "x-api-key", "openai-organization", "openai-project", "chatgpt-account-id"),
 		QueryParametersToSet: injection.queryParameters,
 	}, nil
 }
 
-// InferenceCredentials resolves subscription authentication. API-key providers
-// use their native ExternalSecret-backed backend authentication instead.
-func (s *Service) InferenceCredentials(ctx context.Context, provider *agentzv1alpha1.InferenceProvider) (*authv3.OkHttpResponse, error) {
+func (s *Service) inferenceCredentials(ctx context.Context, provider *agentzv1alpha1.InferenceProvider) (*authv3.OkHttpResponse, error) {
+	response := &authv3.OkHttpResponse{
+		HeadersToRemove: []string{"authorization", "cookie", "api-key", "x-api-key", "openai-organization", "openai-project", "chatgpt-account-id"},
+	}
 	if provider.Spec.Kind != agentzv1alpha1.InferenceProviderKindOpenAICodex {
-		return &authv3.OkHttpResponse{}, nil
+		return response, nil
 	}
 	record, _, err := s.resolveInferenceSubscription(ctx, provider)
 	if err != nil {
 		return nil, err
 	}
-	return &authv3.OkHttpResponse{Headers: []*corev3.HeaderValueOption{
+	response.Headers = []*corev3.HeaderValueOption{
 		overwriteHeader("authorization", "Bearer "+record.Token.AccessToken),
 		overwriteHeader("chatgpt-account-id", record.AccountID),
-	}}, nil
+	}
+	return response, nil
 }
 
 // Check authorizes one gateway request and supplies upstream credentials.
 func (s *Service) Check(ctx context.Context, req *authv3.CheckRequest) (*authv3.CheckResponse, error) {
+	if req.GetAttributes().GetContextExtensions()["agentz.grant"] != "" {
+		return s.checkDelegation(ctx, req)
+	}
 	decision, attrs := s.evaluate(ctx, req)
 
 	logAttrs := []slog.Attr{
@@ -832,4 +862,95 @@ func denyDecision(code codes.Code, httpCode typev3.StatusCode, message string, r
 		reason:  reason,
 		level:   level,
 	}
+}
+
+// checkDelegation admits only an authenticated namespace-local native gateway.
+// The authority decides access before this service resolves its owner's secrets.
+func (s *Service) checkDelegation(ctx context.Context, request *authv3.CheckRequest) (*authv3.CheckResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	extensions := request.GetAttributes().GetContextExtensions()
+	remote, ok := peer.FromContext(ctx)
+	authenticated := false
+	if ok {
+		identity, valid := remote.AuthInfo.(credentials.TLSInfo)
+		if valid && len(identity.State.VerifiedChains) > 0 {
+			for _, name := range identity.State.PeerCertificates[0].DNSNames {
+				authenticated = authenticated || name == "mcp."+s.namespace+".svc" || name == "inference."+s.namespace+".svc"
+			}
+		}
+	}
+	if !authenticated || extensions["agentz.namespace"] != s.namespace || s.delegationAuthority == nil {
+		return denyDecision(codes.PermissionDenied, typev3.StatusCode_Forbidden, "delegation owner mismatch", "delegation_owner", slog.LevelWarn).response, nil
+	}
+	httpRequest := request.GetAttributes().GetRequest().GetHttp()
+	if httpRequest == nil {
+		return denyDecision(codes.PermissionDenied, typev3.StatusCode_Forbidden, "delegation HTTP request missing", "delegation_request", slog.LevelWarn).response, nil
+	}
+	operation := extensions["agentz.operation"]
+	if operation == "inference" {
+		path := httpRequest.GetPath()
+		responses := strings.HasSuffix(path, "/responses")
+		if httpRequest.GetMethod() != "POST" || (!responses && !strings.HasSuffix(path, "/chat/completions")) {
+			return denyDecision(codes.PermissionDenied, typev3.StatusCode_Forbidden, "inference endpoint is not delegated", "delegation_endpoint", slog.LevelWarn).response, nil
+		}
+		body := httpRequest.GetRawBody()
+		if len(body) == 0 {
+			body = []byte(httpRequest.GetBody())
+		}
+		model, err := inference.ValidateDelegatedRequest(body, responses)
+		if err != nil || model != extensions["agentz.target"] {
+			return denyDecision(codes.PermissionDenied, typev3.StatusCode_Forbidden, "invalid delegated inference request", "delegation_body", slog.LevelWarn).response, nil
+		}
+	}
+	decisionRequest := &authv3.CheckRequest{Attributes: &authv3.AttributeContext{
+		ContextExtensions: extensions,
+		Request: &authv3.AttributeContext_Request{Http: &authv3.AttributeContext_HttpRequest{
+			Path:    httpRequest.GetPath(),
+			Headers: map[string]string{"authorization": httpRequest.GetHeaders()["authorization"]},
+		}},
+	}}
+	decision, err := s.delegationAuthority.Check(ctx, decisionRequest)
+	if err != nil {
+		slog.ErrorContext(ctx, "delegation authority unavailable", slog.Any("error", err))
+		return denyDecision(codes.Unavailable, typev3.StatusCode_ServiceUnavailable, "delegation authority unavailable", "delegation_authority", slog.LevelError).response, nil
+	}
+	if decision.GetStatus().GetCode() != int32(codes.OK) || operation == "mcp-admission" {
+		return decision, nil
+	}
+	// A spec change must reach the native route before it can receive current
+	// credentials. UIDs alone do not bind credentials to an upstream endpoint.
+	var injection *authv3.OkHttpResponse
+	key := ctrlclient.ObjectKey{Namespace: s.namespace, Name: extensions["agentz.name"]}
+	switch operation {
+	case "inference":
+		provider := &agentzv1alpha1.InferenceProvider{}
+		err = s.kube.Get(ctx, key, provider)
+		changed := string(provider.UID) != extensions["agentz.uid"] ||
+			strconv.FormatInt(provider.Generation, 10) != extensions["agentz.generation"]
+		if err == nil && changed {
+			err = errors.New("provider changed; waiting for its delegated route")
+		}
+		if err == nil {
+			injection, err = s.inferenceCredentials(ctx, provider)
+		}
+	case "mcp":
+		connection := &agentzv1alpha1.MCPConnection{}
+		err = s.kube.Get(ctx, key, connection)
+		changed := string(connection.UID) != extensions["agentz.uid"] ||
+			strconv.FormatInt(connection.Generation, 10) != extensions["agentz.generation"]
+		if err == nil && changed {
+			err = errors.New("MCP connection changed; waiting for its delegated route")
+		}
+		if err == nil {
+			injection, err = s.mcpCredentials(ctx, connection)
+		}
+	default:
+		err = errors.New("invalid delegation operation")
+	}
+	if err != nil {
+		slog.ErrorContext(ctx, "owner delegation credentials unavailable", slog.Any("error", err))
+		return denyDecision(codes.Unavailable, typev3.StatusCode_ServiceUnavailable, "delegated credentials unavailable", "delegation_credentials", slog.LevelError).response, nil
+	}
+	return &authv3.CheckResponse{Status: &statuspb.Status{Code: int32(codes.OK)}, HttpResponse: &authv3.CheckResponse_OkResponse{OkResponse: injection}}, nil
 }

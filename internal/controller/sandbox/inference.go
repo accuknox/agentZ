@@ -306,6 +306,16 @@ func (r *Reconciler) reconcileInferenceGateway(ctx context.Context, namespace st
 			return strings.Compare(a.Name, b.Name)
 		},
 	)
+	grants := &gwv1.HTTPRouteList{}
+	if err := r.List(ctx, grants, client.InNamespace(namespace), client.HasLabels{"agentz.accuknox.com/delegation"}); err != nil {
+		return err
+	}
+	delegated := slices.ContainsFunc(grants.Items, func(route gwv1.HTTPRoute) bool {
+		return slices.ContainsFunc(route.Spec.ParentRefs, func(parent gwv1.ParentReference) bool { return parent.Name == gwv1.ObjectName(inference.GatewayName) })
+	})
+	if len(owners) == 0 && delegated {
+		return nil
+	}
 	if len(owners) == 0 {
 		gateway := &gwv1.Gateway{
 			ObjectMeta: metav1.ObjectMeta{Name: inference.GatewayName, Namespace: namespace},
@@ -370,8 +380,15 @@ func (r *Reconciler) reconcileInferenceGateway(ctx context.Context, namespace st
 		gateway,
 		func() error {
 			desired := inference.Gateway(namespace)
+			for _, listener := range gateway.Spec.Listeners {
+				if listener.Name == "delegation" {
+					desired.Spec.Listeners = append(desired.Spec.Listeners, listener)
+				}
+			}
 			gateway.Spec = desired.Spec
-			gateway.OwnerReferences = sandboxOwnerReferences(owners)
+			if !delegated {
+				gateway.OwnerReferences = sandboxOwnerReferences(owners)
+			}
 			return nil
 		},
 	)

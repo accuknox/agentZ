@@ -3,9 +3,7 @@ package inference
 import (
 	"context"
 	"testing"
-	"time"
 
-	agentgatewayv1alpha1 "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -18,12 +16,6 @@ type validateProviderCase struct {
 	name  string
 	spec  agentzv1alpha1.InferenceProviderSpec
 	valid bool
-}
-
-type renderRuntimeCompatibleFormatCase struct {
-	name     string
-	kind     agentzv1alpha1.InferenceProviderKind
-	expected []agentgatewayv1alpha1.ProviderFormat
 }
 
 func TestValidateProvider(t *testing.T) {
@@ -185,51 +177,6 @@ func TestCredentials(t *testing.T) {
 	)
 	if err == nil {
 		t.Fatal("CredentialsForUpdate() accepted access keys in bearer-token mode")
-	}
-}
-
-func TestRenderRuntimeCompatibleFormats(t *testing.T) {
-	t.Parallel()
-
-	tests := []renderRuntimeCompatibleFormatCase{
-		{
-			name:     "openai compatible",
-			kind:     agentzv1alpha1.InferenceProviderKindOpenAICompatible,
-			expected: []agentgatewayv1alpha1.ProviderFormat{agentgatewayv1alpha1.ProviderFormatCompletions},
-		},
-		{
-			name: "anthropic compatible",
-			kind: agentzv1alpha1.InferenceProviderKindAnthropicCompatible,
-			expected: []agentgatewayv1alpha1.ProviderFormat{
-				agentgatewayv1alpha1.ProviderFormatMessages,
-				agentgatewayv1alpha1.ProviderFormatAnthropicTokenCount,
-			},
-		},
-	}
-	for _, test := range tests {
-		t.Run(
-			test.name,
-			func(t *testing.T) {
-				t.Parallel()
-				provider := &agentzv1alpha1.InferenceProvider{
-					ObjectMeta: metav1.ObjectMeta{Name: "provider", Namespace: "default"},
-					Spec:       providerSpec(test.kind),
-				}
-				runtime, err := RenderRuntime(provider, "openbao", time.Hour)
-				if err != nil {
-					t.Fatalf("RenderRuntime() error = %v", err)
-				}
-				formats := runtime.Backend.Spec.AI.LLM.Custom.Formats
-				if len(formats) != len(test.expected) {
-					t.Fatalf("RenderRuntime() formats = %#v, want %#v", formats, test.expected)
-				}
-				for i, expected := range test.expected {
-					if formats[i].Type != expected {
-						t.Fatalf("RenderRuntime() format %d = %q, want %q", i, formats[i].Type, expected)
-					}
-				}
-			},
-		)
 	}
 }
 

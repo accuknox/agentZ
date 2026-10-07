@@ -17,30 +17,7 @@
           "properties": {
             "enabled": { "type": "boolean" },
             "storeName": { "type": "string" },
-            "refreshInterval": { "type": "string", "minLength": 1 },
-            "serviceAccount": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "name": { "type": "string" },
-                "namespace": { "type": "string" },
-                "annotations": { "type": "object" },
-                "audiences": { "type": "array", "items": { "type": "string" } }
-              }
-            },
-            "openBao": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "server": { "type": "string" },
-                "kvMount": { "type": "string" },
-                "kubernetesAuthMount": { "type": "string" },
-                "role": { "type": "string" },
-                "caBundle": { "type": "string" },
-                "caProvider": { "type": "object" }
-              }
-            },
-            "managedNamespaceSelector": { "type": "object" }
+            "refreshInterval": { "type": "string", "minLength": 1 }
           }
         }
       }
@@ -225,7 +202,15 @@
         "webhookSecretName": { "type": "string" }
       }
     },
-    "extraArgs": { "type": "array", "items": { "type": "string" } }
+    "extraArgs": { "type": "array", "items": { "type": "string" } },
+    "delegation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "authorityTarget": { "type": "string" },
+        "issuerName": { "type": "string" }
+      }
+    }
   },
   "definitions": {
     "image": {

@@ -102,7 +102,7 @@ func RenderSandboxTarget(namespace, sandboxName string, target SandboxTarget) Sa
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, Labels: labels},
 		Spec: gwv1.HTTPRouteSpec{
 			CommonRouteSpec: gwv1.CommonRouteSpec{
-				ParentRefs: []gwv1.ParentReference{{Name: gwv1.ObjectName(GatewayName)}},
+				ParentRefs: []gwv1.ParentReference{{Name: gwv1.ObjectName(GatewayName), SectionName: new(gwv1.SectionName("inference-http"))}},
 			},
 			Rules: []gwv1.HTTPRouteRule{{
 				Matches: []gwv1.HTTPRouteMatch{{

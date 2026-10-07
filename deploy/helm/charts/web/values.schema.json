@@ -59,7 +59,8 @@
         "nixosSearchESURL": { "type": "string" },
         "nixosSearchESUsername": { "type": "string" },
         "nixosSearchESSchemaVersion": { "type": "string" },
-        "nixosSearchESBranch": { "type": "string" }
+        "nixosSearchESBranch": { "type": "string" },
+        "delegationGatewayBaseURL": { "type": "string" }
       }
     }
   },

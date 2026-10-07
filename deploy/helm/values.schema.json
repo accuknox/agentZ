@@ -11,7 +11,10 @@
         "agentz": {
           "type": "object",
           "additionalProperties": false,
-          "properties": { "umbrella": { "type": "boolean" } }
+          "properties": {
+            "umbrella": { "type": "boolean" },
+            "delegationEnabled": { "type": "boolean" }
+          }
         }
       }
     },

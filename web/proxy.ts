@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { getSessionCookie } from "better-auth/cookies"
 import { signInURL } from "@/lib/sign-in-redirect"
-import { serverGatewayBaseURL } from "@/lib/gateway/server-base-url"
 
 /**
  * proxy is the Next.js 16 request gate. Checks for a session cookie on
@@ -22,7 +21,21 @@ export function proxy(request: NextRequest) {
     path === "/api/inference/v1" ||
     path.startsWith("/api/inference/v1/")
   ) {
-    return NextResponse.rewrite(new URL(`${path}${request.nextUrl.search}`, serverGatewayBaseURL()))
+    const gatewayURL = process.env.DELEGATION_GATEWAY_BASE_URL
+    if (!gatewayURL) {
+      return NextResponse.json(
+        {
+          error: {
+            message: "Delegated access is unavailable.",
+            type: "service_unavailable",
+            param: null,
+            code: "service_unavailable",
+          },
+        },
+        { status: 503 }
+      )
+    }
+    return NextResponse.rewrite(new URL(`${path}${request.nextUrl.search}`, gatewayURL))
   }
   const actionId = request.headers.get("next-action")
   if (actionId !== null) {

@@ -1,11 +1,178 @@
-{{- if and .Values.enabled .Values.delegation.enabled }}
-{{- $namespace := printf "%s-delegations" (include "gateway.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- if and .Values.enabled (dig "agentz" "delegationEnabled" false (.Values.global | default dict)) }}
+{{- $name := include "gateway.fullname" . }}
+{{- $public := printf "%s-delegation" $name | trunc 63 | trimSuffix "-" }}
+{{- $namespace := printf "%s-delegations" $name | trunc 63 | trimSuffix "-" }}
+{{- $issuer := default $public .Values.delegation.issuerName }}
+{{- $jwksURL := .Values.config.externalJWTJWKSURL }}
+{{- if and (dig "agentz" "umbrella" false (.Values.global | default dict)) (not $jwksURL) }}
+{{- $jwksURL = printf "http://%s-web.%s.svc.cluster.local:3000/api/auth/.well-known/jwks.json" .Release.Name .Release.Namespace }}
+{{- end }}
+{{- if .Values.delegation.createIssuer }}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ $issuer }}-root
+  namespace: {{ .Values.delegation.caNamespace }}
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ $issuer }}-ca
+  namespace: {{ .Values.delegation.caNamespace }}
+spec:
+  secretName: {{ $issuer }}-ca
+  commonName: {{ $issuer }}
+  isCA: true
+  duration: 87600h
+  renewBefore: 8760h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: {{ $issuer }}-root
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: {{ $issuer }}
+spec:
+  ca:
+    secretName: {{ $issuer }}-ca
+---
+{{- end }}
 apiVersion: v1
 kind: Namespace
 metadata:
   name: {{ $namespace }}
   labels:
     app.kubernetes.io/managed-by: agentz
+---
+{{- range $certificate := list (dict "name" (printf "%s-authority-tls" $name) "dns" (printf "%s-authority.%s.svc" $name $.Release.Namespace) "namespace" $.Release.Namespace) (dict "name" (printf "%s-tls" $public) "dns" (printf "%s.%s.svc" $public $.Release.Namespace) "namespace" $.Release.Namespace) (dict "name" "delegation-gateway-tls" "dns" (printf "delegations.%s.svc" $namespace) "namespace" $namespace) }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ $certificate.name }}
+  namespace: {{ $certificate.namespace }}
+spec:
+  secretName: {{ $certificate.name }}
+  dnsNames: [{{ $certificate.dns | quote }}, {{ printf "%s.cluster.local" $certificate.dns | quote }}]
+  usages: [server auth, client auth]
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  issuerRef:
+    name: {{ $issuer }}
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+{{- end }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $public }}
+  namespace: {{ .Release.Namespace }}
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $public }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $public }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ $public }}
+    spec:
+      serviceAccountName: {{ $public }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: delegation
+          image: "{{ .Values.image.repository }}{{ if .Values.image.digest }}@{{ .Values.image.digest }}{{ else }}:{{ .Values.image.tag }}{{ end }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [/agentz]
+          args:
+            - gateway
+            - serve
+            - --delegation-only
+            - --addr=:8090
+            - --postgres-dsn=$(AGENTZ_DELEGATION_POSTGRES_DSN)
+            - --external-jwt-jwks-url={{ required "delegation requires a JWKS URL" $jwksURL }}
+            - --external-jwt-issuer={{ required "delegation requires an issuer URL" .Values.config.externalJWTIssuer }}
+            - --delegation-authority-target={{ $name }}-authority.{{ .Release.Namespace }}.svc.cluster.local:18085
+            - --delegation-tls-dir=/var/run/agentz/delegation
+            - --delegation-gateway-url=https://delegations.{{ $namespace }}.svc.cluster.local:8443
+          env:
+            - name: AGENTZ_DELEGATION_POSTGRES_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default .Values.global.secretName .Values.delegation.databaseSecretName }}
+                  key: AGENTZ_DELEGATION_POSTGRES_DSN
+          ports:
+            - name: http
+              containerPort: 8090
+          startupProbe:
+            tcpSocket: {port: http}
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket: {port: http}
+          livenessProbe:
+            tcpSocket: {port: http}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: delegation-tls
+              mountPath: /var/run/agentz/delegation
+              readOnly: true
+      volumes:
+        - name: delegation-tls
+          secret:
+            secretName: {{ $public }}-tls
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $public }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: {{ $public }}
+  ports:
+    - name: http
+      port: 8090
+      targetPort: http
 ---
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayParameters
@@ -17,6 +184,7 @@ spec:
     spec:
       template:
         spec:
+          automountServiceAccountToken: false
           dnsConfig:
             options: [{name: ndots, value: "1"}]
   service:
@@ -36,19 +204,63 @@ spec:
       kind: AgentgatewayParameters
       name: delegations
   listeners:
-    - name: http
-      protocol: HTTP
-      port: 80
+    - name: delegation
+      protocol: HTTPS
+      port: 8443
+      tls:
+        mode: Terminate
+        certificateRefs: [{name: delegation-gateway-tls}]
 ---
-apiVersion: agentgateway.dev/v1alpha1
-kind: AgentgatewayBackend
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
 metadata:
-  name: delegation-credentials
-  namespace: {{ $namespace }}
+  name: {{ $public }}
+  namespace: {{ .Release.Namespace }}
 spec:
-  static:
-    host: {{ include "gateway.fullname" . }}-credentials.{{ .Release.Namespace }}.svc.cluster.local
-    port: 18083
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $public }}
+  enableDefaultDeny: {ingress: false, egress: true}
+  egress:
+    - toServices:
+        - k8sService:
+            serviceName: {{ $name }}-authority
+            namespace: {{ .Release.Namespace }}
+      toPorts:
+        - ports: [{port: "18085", protocol: TCP}]
+    - toServices:
+        - k8sService:
+            serviceName: delegations
+            namespace: {{ $namespace }}
+      toPorts:
+        - ports: [{port: "8443", protocol: TCP}]
+    {{- if (dig "agentz" "umbrella" false (.Values.global | default dict)) }}
+    - toServices:
+        - k8sService:
+            serviceName: {{ .Release.Name }}-web
+            namespace: {{ .Release.Namespace }}
+      toPorts:
+        - ports: [{port: "3000", protocol: TCP}]
+    {{- end }}
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports: [{port: "53", protocol: UDP}, {port: "53", protocol: TCP}]
+          rules:
+            dns:
+              - matchName: {{ $name }}-authority.{{ .Release.Namespace }}.svc.cluster.local
+              - matchName: delegations.{{ $namespace }}.svc.cluster.local
+              {{- if (dig "agentz" "umbrella" false (.Values.global | default dict)) }}
+              - matchName: {{ .Release.Name }}-web.{{ .Release.Namespace }}.svc.cluster.local
+              {{- end }}
+              {{- range .Values.delegation.dnsNames }}
+              - matchName: {{ . | quote }}
+              {{- end }}
+    {{- with .Values.delegation.egress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -57,25 +269,21 @@ metadata:
   namespace: {{ $namespace }}
 spec:
   endpointSelector: {}
-  enableDefaultDeny:
-    ingress: true
-    egress: true
+  enableDefaultDeny: {ingress: true, egress: true}
   ingress:
     - fromEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: {{ .Release.Namespace }}
-            k8s:io.cilium.k8s.policy.serviceaccount: {{ include "gateway.serviceAccountName" . }}
+            k8s:io.cilium.k8s.policy.serviceaccount: {{ $public }}
       toPorts:
-        - ports:
-            - port: "80"
-              protocol: TCP
+        - ports: [{port: "8443", protocol: TCP}]
   egress:
     - toServices:
         - k8sService:
-            serviceName: {{ include "gateway.fullname" . }}-credentials
+            serviceName: {{ $name }}-authority
             namespace: {{ .Release.Namespace }}
       toPorts:
-        - ports: [{port: "18083", protocol: TCP}]
+        - ports: [{port: "18085", protocol: TCP}]
     - toServices:
         - k8sService:
             serviceName: agentgateway
@@ -91,67 +299,31 @@ spec:
           rules:
             dns:
               - matchName: agentgateway.agentgateway-system.svc.cluster.local
-              - matchName: {{ include "gateway.fullname" . }}-credentials.{{ .Release.Namespace }}.svc.cluster.local
+              - matchName: {{ $name }}-authority.{{ .Release.Namespace }}.svc.cluster.local
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: {{ include "gateway.fullname" . }}-listeners
+  name: {{ $name }}-listeners
   namespace: {{ .Release.Namespace }}
 spec:
   endpointSelector:
     matchLabels:
       {{- include "gateway.selectorLabels" . | nindent 6 }}
-  enableDefaultDeny:
-    ingress: true
-    egress: false
+  enableDefaultDeny: {ingress: true, egress: false}
   ingress:
-    - fromEntities: [all]
+    - fromEntities: [cluster, host, remote-node]
       toPorts:
-        - ports:
-            - port: {{ .Values.service.port | quote }}
-              protocol: TCP
+        - ports: [{port: {{ .Values.service.port | quote }}, protocol: TCP}]
     - fromEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: {{ $namespace }}
             k8s:gateway.networking.k8s.io/gateway-name: delegations
+        - matchLabels:
+            k8s:io.cilium.k8s.policy.serviceaccount: extauth
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: {{ .Release.Namespace }}
+            k8s:io.cilium.k8s.policy.serviceaccount: {{ $public }}
       toPorts:
-        - ports:
-            - port: "18083"
-              protocol: TCP
-{{- if .Values.rbac.create }}
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: delegation-runtime
-  namespace: {{ $namespace }}
-rules:
-  - apiGroups: [gateway.networking.k8s.io]
-    resources: [httproutes]
-    verbs: [get, list, create, update, patch, delete]
-  - apiGroups: [agentgateway.dev]
-    resources: [agentgatewaybackends, agentgatewaypolicies]
-    verbs: [get, list, create, update, patch, delete]
-  - apiGroups: [cilium.io]
-    resources: [ciliumnetworkpolicies]
-    verbs: [get, list, create, update, patch, delete]
-  - apiGroups: [external-secrets.io]
-    resources: [externalsecrets]
-    verbs: [get, list, create, update, patch, delete]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: delegation-runtime
-  namespace: {{ $namespace }}
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: delegation-runtime
-subjects:
-  - kind: ServiceAccount
-    name: {{ include "gateway.serviceAccountName" . }}
-    namespace: {{ .Release.Namespace }}
-{{- end }}
+        - ports: [{port: "18085", protocol: TCP}]
 {{- end }}

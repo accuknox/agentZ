@@ -16,7 +16,7 @@ rules:
     resources: ["namespaces"]
     verbs: ["create", "get", "list", "patch", "update", "watch"]
   - apiGroups: ["external-secrets.io"]
-    resources: ["externalsecrets"]
+    resources: ["externalsecrets", "secretstores"]
     verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
   - apiGroups: ["discovery.k8s.io"]
     resources: ["endpointslices"]

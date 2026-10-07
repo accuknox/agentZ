@@ -236,6 +236,7 @@ rules:
   - external-secrets.io
   resources:
   - externalsecrets
+  - secretstores
   verbs:
   - create
   - delete

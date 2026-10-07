@@ -162,6 +162,8 @@ var (
 	enableWebhooks                                   bool
 	workflowRunOrphanRetention                       time.Duration
 	inferenceSecretStoreName                         string
+	delegationAuthorityTarget                        string
+	delegationIssuerName                             string
 	inferenceSecretRefreshInterval                   time.Duration
 )
 
@@ -205,6 +207,8 @@ var cmd = &cli.Command{
 		cli.HandleExitCoder(err)
 	},
 	Flags: []cli.Flag{
+		&cli.StringFlag{Name: "delegation-authority-target", Destination: &delegationAuthorityTarget, Usage: "Private decision-only delegation authority endpoint"},
+		&cli.StringFlag{Name: "delegation-issuer-name", Destination: &delegationIssuerName, Usage: "ClusterIssuer for private delegation workload certificates"},
 		&cli.StringFlag{
 			Name:  "log-level",
 			Usage: "Set log level: debug, info, warn, error",
@@ -539,7 +543,7 @@ var managerCmd = &cli.Command{
 		},
 		&cli.StringFlag{
 			Name:        "inference-secret-store-name",
-			Usage:       "ClusterSecretStore used for inference provider credentials",
+			Usage:       "Namespace SecretStore used for inference provider credentials",
 			Value:       "agentz-inference",
 			Destination: &inferenceSecretStoreName,
 			Config: cli.StringConfig{
@@ -1245,6 +1249,7 @@ var managerCmd = &cli.Command{
 				StoreName:              inferenceSecretStoreName,
 				RefreshInterval:        inferenceSecretRefreshInterval,
 				OpenBaoSecretMountPath: openBaoSecretMountPath,
+				OpenBaoAddr:            openBaoAddr, OpenBaoK8sAuthMountPath: openBaoK8sAuthMountPath,
 			},
 		}
 		if err := inferenceProviderReconciler.SetupWithManager(mgr); err != nil {
@@ -1443,12 +1448,13 @@ var managerCmd = &cli.Command{
 			os.Exit(1)
 		}
 		extAuthRuntimeReconciler := &mcpconn.ExtAuthRuntimeReconciler{
-			Bao:                     baoClient,
-			Client:                  mgr.GetClient(),
-			ControllerImage:         controllerImage,
-			OpenBaoAddr:             openBaoAddr,
-			OpenBaoSecretMountPath:  openBaoSecretMountPath,
-			OpenBaoK8sAuthMountPath: openBaoK8sAuthMountPath,
+			Bao:                       baoClient,
+			Client:                    mgr.GetClient(),
+			ControllerImage:           controllerImage,
+			OpenBaoAddr:               openBaoAddr,
+			OpenBaoSecretMountPath:    openBaoSecretMountPath,
+			OpenBaoK8sAuthMountPath:   openBaoK8sAuthMountPath,
+			DelegationAuthorityTarget: delegationAuthorityTarget, DelegationIssuerName: delegationIssuerName,
 		}
 		if err := extAuthRuntimeReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.ErrorContext(ctx,

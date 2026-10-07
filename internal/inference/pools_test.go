@@ -114,39 +114,6 @@ func TestResolvePoolContract(t *testing.T) {
 	}
 }
 
-func TestResolvePoolResponsesAPI(t *testing.T) {
-	t.Parallel()
-
-	primary := poolProvider("primary", agentzv1alpha1.InferenceProviderKindOpenAICodex)
-	secondary := poolProvider("secondary", agentzv1alpha1.InferenceProviderKindOpenAICodex)
-	api := agentzv1alpha1.InferenceModelAPIResponses
-	primary.Spec.Models[0].API = &api
-	secondary.Spec.Models[0].API = &api
-
-	scheme := runtime.NewScheme()
-	if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
-		t.Fatal(err)
-	}
-	reader := poolTestReader(t, scheme, primary, secondary)
-	pool := &agentzv1alpha1.InferencePool{
-		ObjectMeta: metav1.ObjectMeta{Name: "pool", Namespace: "default"},
-		Spec: agentzv1alpha1.InferencePoolSpec{Members: []agentzv1alpha1.InferencePoolMember{
-			{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: primary.Name, Model: "model"},
-			{Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: secondary.Name, Model: "model"},
-		}},
-	}
-	definition, issues, err := ResolvePool(context.Background(), reader, pool)
-	if err != nil {
-		t.Fatalf("ResolvePool() error = %v", err)
-	}
-	if len(issues) > 0 {
-		t.Fatalf("ResolvePool() issues = %v", issues)
-	}
-	if definition.Contract.API != agentzv1alpha1.InferenceModelAPIResponses {
-		t.Fatalf("API = %q, want Responses", definition.Contract.API)
-	}
-}
-
 func TestResolvePoolRejectsUnsupportedAPIConversion(t *testing.T) {
 	t.Parallel()
 

@@ -3789,6 +3789,10 @@ export const zGetDelegationCatalogHeaders = z.object({
   "X-AgentZ-Workspace-ID": z.string().min(1).max(128).optional(),
 })
 
+export const zGetDelegationCatalogQuery = z.object({
+  include_unavailable: z.boolean().optional().default(false),
+})
+
 /**
  * Exact selectable capabilities.
  */

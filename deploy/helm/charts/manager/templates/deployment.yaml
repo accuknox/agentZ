@@ -17,6 +17,12 @@
 {{- if and $umbrella (not $traceServiceNamespace) }}
 {{- $traceServiceNamespace = .Release.Namespace }}
 {{- end }}
+{{- $delegationTarget := .Values.delegation.authorityTarget }}
+{{- $delegationIssuer := .Values.delegation.issuerName }}
+{{- if and $umbrella (dig "agentz" "delegationEnabled" false (.Values.global | default dict)) }}
+{{- $delegationTarget = default (printf "%s-gateway-authority.%s.svc.cluster.local:18085" .Release.Name .Release.Namespace) $delegationTarget }}
+{{- $delegationIssuer = default (printf "%s-gateway-delegation" .Release.Name) $delegationIssuer }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -98,6 +104,10 @@ spec:
             - --sinjector-openbao-k8s-auth-token-path={{ .Values.config.sinjectorOpenBaoK8sAuthTokenPath }}
             - --manager-openbao-k8s-auth-role={{ .Values.config.managerOpenBaoK8sAuthRole }}
             - --manager-openbao-k8s-auth-token-path={{ .Values.config.managerOpenBaoK8sAuthTokenPath }}
+            {{- if $delegationTarget }}
+            - --delegation-authority-target={{ $delegationTarget }}
+            - --delegation-issuer-name={{ required "manager.delegation.issuerName is required" $delegationIssuer }}
+            {{- end }}
             - --inference-secret-store-name={{ include "manager.inferenceSecretStoreName" . }}
             - --inference-secret-refresh-interval={{ required "manager.inference.externalSecrets.refreshInterval is required" .Values.inference.externalSecrets.refreshInterval }}
             - --manager-gateway-token-path={{ .Values.config.managerGatewayTokenPath }}

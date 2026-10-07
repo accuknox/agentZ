@@ -287,6 +287,19 @@ function CreateInvitationForm({
             <FieldLabel htmlFor={`${formId}-roles`}>Direct roles</FieldLabel>
             <MultiSelectDropdown
               emptyMessage="No roles available."
+              footer={
+                roles.length === 1 ? (
+                  <p className="px-3 pt-2 pb-3 text-xs leading-relaxed text-muted-foreground">
+                    See only one role? You can create additional roles{" "}
+                    <Link
+                      className="rounded-sm text-primary underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                      href={`/orgs/${orgSlug}/roles/new`}
+                    >
+                      here
+                    </Link>
+                  </p>
+                ) : null
+              }
               id={`${formId}-roles`}
               onValueChangeAction={setRoleIds}
               options={roles.map((role) => ({

@@ -667,7 +667,9 @@ func (r *Reconciler) providerForSecret(ctx context.Context, obj client.Object) [
 // reconcileSecretStore binds ESO to this owner's API-key directory. Referencing
 // another owner's path in an ExternalSecret cannot widen the Bao role's policy.
 func (r *Reconciler) reconcileSecretStore(ctx context.Context, namespace string) error {
-	if r.Bao == nil || r.Config.OpenBaoAddr == "" || r.Config.OpenBaoSecretMountPath == "" || r.Config.OpenBaoK8sAuthMountPath == "" {
+	configured := r.Bao != nil && r.Config.OpenBaoAddr != "" &&
+		r.Config.OpenBaoSecretMountPath != "" && r.Config.OpenBaoK8sAuthMountPath != ""
+	if !configured {
 		return errors.New("owner inference SecretStore requires complete OpenBao configuration")
 	}
 	ns := &corev1.Namespace{}

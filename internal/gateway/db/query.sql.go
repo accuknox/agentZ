@@ -235,39 +235,6 @@ func (q *Queries) GatewayChatSessionExists(ctx context.Context, arg GatewayChatS
 	return column_1, err
 }
 
-const gatewayCheckDelegationDatabasePrivileges = `-- name: GatewayCheckDelegationDatabasePrivileges :one
-SELECT NOT (
- has_any_column_privilege(current_user, 'public.jwks', 'SELECT')
- OR has_any_column_privilege(current_user, 'public.oauth_refresh_tokens', 'SELECT')
- OR has_any_column_privilege(current_user, 'public.oauth_access_tokens', 'SELECT')
- OR has_any_column_privilege(current_user, 'public.accounts', 'SELECT')
- OR has_column_privilege(current_user, 'public.sessions', 'token', 'SELECT')
- OR has_column_privilege(current_user, 'public.oauth_clients', 'client_secret', 'SELECT')
- OR has_column_privilege(current_user, 'public.delegation_mcp_sessions', 'id', 'UPDATE')
- OR has_column_privilege(current_user, 'public.delegation_mcp_sessions', 'grant_id', 'UPDATE')
- OR has_table_privilege(current_user, 'public.delegation_mcp_sessions', 'DELETE,TRUNCATE')
- OR EXISTS (
-   SELECT 1
-   FROM unnest(ARRAY[
-     'public.delegation_grants', 'public.oauth_clients', 'public.members',
-     'public.organization_delegation', 'public.organization_roles',
-     'public.role_scopes', 'public.member_roles', 'public.team_roles',
-     'public.team_members', 'public.permission_grants', 'public.workspaces',
-     'public.oauth_client_resources', 'public.sessions'
-   ]) AS authority(table_name)
-   WHERE has_any_column_privilege(current_user, table_name, 'INSERT,UPDATE')
-      OR has_table_privilege(current_user, table_name, 'DELETE,TRUNCATE')
- )
-)
-`
-
-func (q *Queries) GatewayCheckDelegationDatabasePrivileges(ctx context.Context) (pgtype.Bool, error) {
-	row := q.db.QueryRow(ctx, gatewayCheckDelegationDatabasePrivileges)
-	var column_1 pgtype.Bool
-	err := row.Scan(&column_1)
-	return column_1, err
-}
-
 const gatewayCheckDelegationMCPSession = `-- name: GatewayCheckDelegationMCPSession :one
 SELECT EXISTS (
   SELECT 1 FROM delegation_mcp_sessions
@@ -1961,8 +1928,7 @@ func (q *Queries) GatewayGetCodingWorktree(ctx context.Context, arg GatewayGetCo
 }
 
 const gatewayGetDelegationGrant = `-- name: GatewayGetDelegationGrant :one
-SELECT g.id, g.client_id, g.user_id, g.organization_id, g.scopes,
-       g.resources, g.selection, g.created_at
+SELECT g.id, g.client_id, g.user_id, g.organization_id, g.scopes, g.resources, g.selection, g.created_at, g.approved_at, g.revoked_at
 FROM delegation_grants g
 JOIN oauth_clients c ON c.client_id = g.client_id AND c.disabled IS NOT TRUE AND g.scopes <@ c.scopes
 JOIN organization_delegation d ON d.organization_id = g.organization_id AND d.enabled
@@ -1978,20 +1944,9 @@ type GatewayGetDelegationGrantParams struct {
 	UserID   string `json:"user_id"`
 }
 
-type GatewayGetDelegationGrantRow struct {
-	ID             string             `json:"id"`
-	ClientID       string             `json:"client_id"`
-	UserID         string             `json:"user_id"`
-	OrganizationID pgtype.Text        `json:"organization_id"`
-	Scopes         []string           `json:"scopes"`
-	Resources      []string           `json:"resources"`
-	Selection      []byte             `json:"selection"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-}
-
-func (q *Queries) GatewayGetDelegationGrant(ctx context.Context, arg GatewayGetDelegationGrantParams) (GatewayGetDelegationGrantRow, error) {
+func (q *Queries) GatewayGetDelegationGrant(ctx context.Context, arg GatewayGetDelegationGrantParams) (DelegationGrant, error) {
 	row := q.db.QueryRow(ctx, gatewayGetDelegationGrant, arg.ID, arg.ClientID, arg.UserID)
-	var i GatewayGetDelegationGrantRow
+	var i DelegationGrant
 	err := row.Scan(
 		&i.ID,
 		&i.ClientID,
@@ -2001,6 +1956,8 @@ func (q *Queries) GatewayGetDelegationGrant(ctx context.Context, arg GatewayGetD
 		&i.Resources,
 		&i.Selection,
 		&i.CreatedAt,
+		&i.ApprovedAt,
+		&i.RevokedAt,
 	)
 	return i, err
 }
@@ -3737,8 +3694,7 @@ func (q *Queries) GatewayListCodingWorktrees(ctx context.Context, arg GatewayLis
 }
 
 const gatewayListDelegationGrants = `-- name: GatewayListDelegationGrants :many
-SELECT g.id, g.client_id, g.user_id, g.organization_id, g.scopes,
-       g.resources, g.selection, g.created_at
+SELECT g.id, g.client_id, g.user_id, g.organization_id, g.scopes, g.resources, g.selection, g.created_at, g.approved_at, g.revoked_at
 FROM delegation_grants g
 JOIN oauth_clients c ON c.client_id = g.client_id AND c.disabled IS NOT TRUE AND g.scopes <@ c.scopes
 JOIN organization_delegation d ON d.organization_id = g.organization_id AND d.enabled
@@ -3746,26 +3702,15 @@ JOIN members m ON m.organization_id = g.organization_id AND m.user_id = g.user_i
 WHERE g.approved_at IS NOT NULL AND g.revoked_at IS NULL
 `
 
-type GatewayListDelegationGrantsRow struct {
-	ID             string             `json:"id"`
-	ClientID       string             `json:"client_id"`
-	UserID         string             `json:"user_id"`
-	OrganizationID pgtype.Text        `json:"organization_id"`
-	Scopes         []string           `json:"scopes"`
-	Resources      []string           `json:"resources"`
-	Selection      []byte             `json:"selection"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-}
-
-func (q *Queries) GatewayListDelegationGrants(ctx context.Context) ([]GatewayListDelegationGrantsRow, error) {
+func (q *Queries) GatewayListDelegationGrants(ctx context.Context) ([]DelegationGrant, error) {
 	rows, err := q.db.Query(ctx, gatewayListDelegationGrants)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []GatewayListDelegationGrantsRow{}
+	items := []DelegationGrant{}
 	for rows.Next() {
-		var i GatewayListDelegationGrantsRow
+		var i DelegationGrant
 		if err := rows.Scan(
 			&i.ID,
 			&i.ClientID,
@@ -3775,6 +3720,8 @@ func (q *Queries) GatewayListDelegationGrants(ctx context.Context) ([]GatewayLis
 			&i.Resources,
 			&i.Selection,
 			&i.CreatedAt,
+			&i.ApprovedAt,
+			&i.RevokedAt,
 		); err != nil {
 			return nil, err
 		}

@@ -2,7 +2,6 @@ package extauth
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -20,14 +19,11 @@ import (
 	typev3 "github.com/envoyproxy/go-control-plane/envoy/type/v3"
 	baoapi "github.com/openbao/openbao/api/v2"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/singleflight"
 	statuspb "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials"
 	health "google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
-	"google.golang.org/grpc/peer"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -36,7 +32,6 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	"github.com/accuknox/agentz/internal/authorization"
 	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/mcp"
 	baoclient "github.com/accuknox/agentz/internal/openbao"
@@ -77,17 +72,16 @@ var (
 
 // Config describes how to start the ext-auth gRPC service.
 type Config struct {
-	Addr                      string
-	Namespace                 string
-	OpenBaoAddr               string
-	OpenBaoSecretMountPath    string
-	OpenBaoK8sAuthRole        string
-	OpenBaoK8sAuthMountPath   string
-	OpenBaoK8sAuthTokenPath   string
-	MCPProbeInterval          time.Duration
-	MCPProbeTimeout           time.Duration
-	DelegationAuthorityTarget string
-	DelegationTLSDir          string
+	Addr                    string
+	Namespace               string
+	OpenBaoAddr             string
+	OpenBaoSecretMountPath  string
+	OpenBaoK8sAuthRole      string
+	OpenBaoK8sAuthMountPath string
+	OpenBaoK8sAuthTokenPath string
+	MCPProbeInterval        time.Duration
+	MCPProbeTimeout         time.Duration
+	DelegationEnabled       bool
 }
 
 // Serve starts the Envoy-compatible ext-auth gRPC service.
@@ -163,11 +157,14 @@ func Serve(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return fmt.Errorf("listen ext auth grpc %s: %w", addr, err)
 	}
+	defer lis.Close()
 	mcpAddr := fmt.Sprintf(":%d", mcp.ExtAuthMCPPort)
 	mcpListener, err := net.Listen("tcp", mcpAddr)
 	if err != nil {
 		return fmt.Errorf("listen ext auth mcp %s: %w", mcpAddr, err)
 	}
+
+	defer mcpListener.Close()
 
 	svc := &Service{
 		namespace:     namespace,
@@ -242,24 +239,14 @@ func Serve(ctx context.Context, cfg Config) error {
 
 	var delegatedServer *grpc.Server
 	var delegatedListener net.Listener
-	if cfg.DelegationAuthorityTarget != "" {
-		identity, err := authorization.DelegationTLS(cfg.DelegationTLSDir)
-		if err != nil {
-			return err
-		}
-		authority, err := grpc.NewClient(cfg.DelegationAuthorityTarget, grpc.WithTransportCredentials(credentials.NewTLS(identity)))
-		if err != nil {
-			return fmt.Errorf("create delegation authority client: %w", err)
-		}
-		defer authority.Close()
-		svc.delegationAuthority = authv3.NewAuthorizationClient(authority)
-		identity.ClientAuth = tls.RequireAndVerifyClientCert
+	if cfg.DelegationEnabled {
 		delegatedListener, err = net.Listen("tcp", ":18084")
 		if err != nil {
 			return err
 		}
-		delegatedServer = grpc.NewServer(grpc.Creds(credentials.NewTLS(identity)), grpc.MaxRecvMsgSize(34<<20))
-		authv3.RegisterAuthorizationServer(delegatedServer, svc)
+		defer delegatedListener.Close()
+		delegatedServer = grpc.NewServer(grpc.MaxRecvMsgSize(34 << 20))
+		authv3.RegisterAuthorizationServer(delegatedServer, &delegationServer{Service: svc})
 	}
 	srv := grpc.NewServer()
 	authv3.RegisterAuthorizationServer(srv, svc)
@@ -274,8 +261,7 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 
 	var bg sync.WaitGroup
-	serveCtx, stopServers := context.WithCancel(ctx)
-	serverGroup, serverCtx := errgroup.WithContext(serveCtx)
+	serverGroup, serverCtx := errgroup.WithContext(ctx)
 	if delegatedServer != nil {
 		serverGroup.Go(func() error { return delegatedServer.Serve(delegatedListener) })
 	}
@@ -312,78 +298,49 @@ func Serve(ctx context.Context, cfg Config) error {
 		svc.runProbeQueue(ctx)
 	})
 
-	shutdownServers := func() error {
-		stopServers()
-		if delegatedServer != nil {
-			delegatedServer.Stop()
-		}
-
-		shutdownCtx, cancel := context.WithTimeout(
-			context.Background(),
-			grpcShutdownTimeout,
-		)
-		defer cancel()
-
-		doneCh := make(chan struct{})
-		go func() {
-			srv.GracefulStop()
-			close(doneCh)
-		}()
-
-		select {
-		case <-doneCh:
-		case <-shutdownCtx.Done():
-			srv.Stop()
-		}
-
-		err := mcpServer.Shutdown(shutdownCtx)
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			return fmt.Errorf("shutdown ext auth mcp helper: %w", err)
-		}
-
-		return nil
-	}
-
-	var serveErr error
-	select {
-	case <-ctx.Done():
-		if err := shutdownServers(); err != nil {
-			return err
-		}
-	case <-serverCtx.Done():
-		serveErr = serverGroup.Wait()
-		if err := shutdownServers(); err != nil {
-			return err
-		}
-	}
-
+	// Stop sibling listeners before waiting for Serve calls to finish.
+	<-serverCtx.Done()
 	cancel()
 	svc.probeQueue.ShutDown()
-	bg.Wait()
-
-	if serveErr == nil {
-		serveErr = serverGroup.Wait()
+	if delegatedServer != nil {
+		delegatedServer.Stop()
 	}
-	return serveErr
+	shutdownCtx, stopShutdown := context.WithTimeout(context.Background(), grpcShutdownTimeout)
+	defer stopShutdown()
+	doneCh := make(chan struct{})
+	go func() {
+		srv.GracefulStop()
+		close(doneCh)
+	}()
+	select {
+	case <-doneCh:
+	case <-shutdownCtx.Done():
+		srv.Stop()
+	}
+	shutdownErr := mcpServer.Shutdown(shutdownCtx)
+	if shutdownErr != nil {
+		shutdownErr = errors.Join(shutdownErr, mcpServer.Close())
+	}
+	bg.Wait()
+	return errors.Join(serverGroup.Wait(), shutdownErr)
 }
 
 // Service implements Envoy ext_authz for workload authorization and credential injection.
 type Service struct {
 	authv3.UnimplementedAuthorizationServer
 
-	namespace           string
-	probeInterval       time.Duration
-	probeTimeout        time.Duration
-	kube                ctrlclient.Client
-	kv                  *baoapi.KVv2
-	http                *http.Client
-	sf                  singleflight.Group
-	inferenceRefreshMu  sync.Mutex
-	mcpConnections      agentzlisters.MCPConnectionNamespaceLister
-	probeQueue          workqueue.TypedInterface[string]
-	probeTimes          map[string]time.Time
-	probeTimesMu        sync.Mutex
-	delegationAuthority authv3.AuthorizationClient
+	namespace          string
+	probeInterval      time.Duration
+	probeTimeout       time.Duration
+	kube               ctrlclient.Client
+	kv                 *baoapi.KVv2
+	http               *http.Client
+	oauthRefreshMu     sync.Mutex
+	inferenceRefreshMu sync.Mutex
+	mcpConnections     agentzlisters.MCPConnectionNamespaceLister
+	probeQueue         workqueue.TypedInterface[string]
+	probeTimes         map[string]time.Time
+	probeTimesMu       sync.Mutex
 }
 
 var _ authv3.AuthorizationServer = (*Service)(nil)
@@ -428,8 +385,8 @@ func (s *Service) inferenceCredentials(ctx context.Context, provider *agentzv1al
 
 // Check authorizes one gateway request and supplies upstream credentials.
 func (s *Service) Check(ctx context.Context, req *authv3.CheckRequest) (*authv3.CheckResponse, error) {
-	if req.GetAttributes().GetContextExtensions()["agentz.grant"] != "" {
-		return s.checkDelegation(ctx, req)
+	if req.GetAttributes().GetContextExtensions()["agentz.operation"] != "" {
+		return denyDecision(codes.PermissionDenied, typev3.StatusCode_Forbidden, "delegation requires the private authorization listener", "delegation_listener", slog.LevelWarn).response, nil
 	}
 	decision, attrs := s.evaluate(ctx, req)
 
@@ -864,23 +821,17 @@ func denyDecision(code codes.Code, httpCode typev3.StatusCode, message string, r
 	}
 }
 
-// checkDelegation admits only an authenticated namespace-local native gateway.
-// The authority decides access before this service resolves its owner's secrets.
-func (s *Service) checkDelegation(ctx context.Context, request *authv3.CheckRequest) (*authv3.CheckResponse, error) {
+// delegationServer binds credentials to owner-local resource revisions. Its
+// separate listener admits only local native gateways through Cilium policy.
+type delegationServer struct {
+	*Service
+}
+
+func (s *delegationServer) Check(ctx context.Context, request *authv3.CheckRequest) (*authv3.CheckResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	extensions := request.GetAttributes().GetContextExtensions()
-	remote, ok := peer.FromContext(ctx)
-	authenticated := false
-	if ok {
-		identity, valid := remote.AuthInfo.(credentials.TLSInfo)
-		if valid && len(identity.State.VerifiedChains) > 0 {
-			for _, name := range identity.State.PeerCertificates[0].DNSNames {
-				authenticated = authenticated || name == "mcp."+s.namespace+".svc" || name == "inference."+s.namespace+".svc"
-			}
-		}
-	}
-	if !authenticated || extensions["agentz.namespace"] != s.namespace || s.delegationAuthority == nil {
+	if extensions["agentz.namespace"] != s.namespace {
 		return denyDecision(codes.PermissionDenied, typev3.StatusCode_Forbidden, "delegation owner mismatch", "delegation_owner", slog.LevelWarn).response, nil
 	}
 	httpRequest := request.GetAttributes().GetRequest().GetHttp()
@@ -903,24 +854,10 @@ func (s *Service) checkDelegation(ctx context.Context, request *authv3.CheckRequ
 			return denyDecision(codes.PermissionDenied, typev3.StatusCode_Forbidden, "invalid delegated inference request", "delegation_body", slog.LevelWarn).response, nil
 		}
 	}
-	decisionRequest := &authv3.CheckRequest{Attributes: &authv3.AttributeContext{
-		ContextExtensions: extensions,
-		Request: &authv3.AttributeContext_Request{Http: &authv3.AttributeContext_HttpRequest{
-			Path:    httpRequest.GetPath(),
-			Headers: map[string]string{"authorization": httpRequest.GetHeaders()["authorization"]},
-		}},
-	}}
-	decision, err := s.delegationAuthority.Check(ctx, decisionRequest)
-	if err != nil {
-		slog.ErrorContext(ctx, "delegation authority unavailable", slog.Any("error", err))
-		return denyDecision(codes.Unavailable, typev3.StatusCode_ServiceUnavailable, "delegation authority unavailable", "delegation_authority", slog.LevelError).response, nil
-	}
-	if decision.GetStatus().GetCode() != int32(codes.OK) || operation == "mcp-admission" {
-		return decision, nil
-	}
 	// A spec change must reach the native route before it can receive current
 	// credentials. UIDs alone do not bind credentials to an upstream endpoint.
 	var injection *authv3.OkHttpResponse
+	var err error
 	key := ctrlclient.ObjectKey{Namespace: s.namespace, Name: extensions["agentz.name"]}
 	switch operation {
 	case "inference":

@@ -116,14 +116,3 @@ config:
   skillsS3Bucket: ""
 
 extraArgs: []
-
-# Organization delegation remains opt-in even when the private runtime is enabled.
-delegation:
-  issuerName: ""
-  createIssuer: true
-  caNamespace: cert-manager
-  databaseSecretName: ""
-  # Exact Cilium egress rules for the delegated database and an external JWKS endpoint.
-  # Owner gateway destinations are projected from live grants. Umbrella web JWKS is automatic.
-  egress: []
-  dnsNames: []

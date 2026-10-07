@@ -6,10 +6,9 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -18,14 +17,10 @@ import (
 	"time"
 
 	agw "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
-	authv3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/sync/semaphore"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/peer"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -36,21 +31,24 @@ import (
 	"github.com/accuknox/agentz/internal/authorization"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
-	"github.com/accuknox/agentz/internal/inference"
+	"github.com/accuknox/agentz/internal/mcp"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 type delegationQueries struct {
 	sandboxQueries
-	grant   gatewaydb.GatewayGetDelegationGrantRow
-	revoked bool
+	grant          gatewaydb.DelegationGrant
+	revoked        bool
+	err            error
+	sessionErr     error
+	permissionsErr error
 }
 
-func (q *delegationQueries) GatewayGetDelegationGrant(_ context.Context, arg gatewaydb.GatewayGetDelegationGrantParams) (gatewaydb.GatewayGetDelegationGrantRow, error) {
+func (q *delegationQueries) GatewayGetDelegationGrant(_ context.Context, arg gatewaydb.GatewayGetDelegationGrantParams) (gatewaydb.DelegationGrant, error) {
 	if q.revoked || arg.ID != q.grant.ID || arg.ClientID != q.grant.ClientID || arg.UserID != q.grant.UserID {
-		return gatewaydb.GatewayGetDelegationGrantRow{}, pgx.ErrNoRows
+		return gatewaydb.DelegationGrant{}, pgx.ErrNoRows
 	}
-	return q.grant, nil
+	return q.grant, q.err
 }
 
 func (q *delegationQueries) GatewayListDelegationRedirects(context.Context) ([][]string, error) {
@@ -58,15 +56,21 @@ func (q *delegationQueries) GatewayListDelegationRedirects(context.Context) ([][
 }
 
 func (q *delegationQueries) GatewayCheckDelegationMCPSession(context.Context, gatewaydb.GatewayCheckDelegationMCPSessionParams) (bool, error) {
-	return false, nil
+	return false, q.sessionErr
 }
 
-type delegationAuthorityClient struct{ service *Service }
+func (q *delegationQueries) GatewayResolvePermissions(context.Context, gatewaydb.GatewayResolvePermissionsParams) ([]gatewaydb.GatewayResolvePermissionsRow, error) {
+	return q.permissions, q.permissionsErr
+}
 
-func (c delegationAuthorityClient) Check(ctx context.Context, request *authv3.CheckRequest, _ ...grpc.CallOption) (*authv3.CheckResponse, error) {
-	identity := &x509.Certificate{DNSNames: []string{c.service.cfg.DelegationPublicPeer}}
-	ctx = peer.NewContext(ctx, &peer.Peer{AuthInfo: credentials.TLSInfo{State: tls.ConnectionState{PeerCertificates: []*x509.Certificate{identity}, VerifiedChains: [][]*x509.Certificate{{identity}}}}})
-	return c.service.Check(ctx, request)
+type delegationUpstream struct {
+	response *http.Response
+	request  *http.Request
+}
+
+func (u *delegationUpstream) RoundTrip(r *http.Request) (*http.Response, error) {
+	u.request = r
+	return u.response, nil
 }
 
 type delegationTokenCase struct {
@@ -82,7 +86,7 @@ func TestDelegatedAccessRequiresLiveGrantAndAccessToken(t *testing.T) {
 		t.Fatal(err)
 	}
 	issuer := "https://agentz.example"
-	queries := &delegationQueries{grant: gatewaydb.GatewayGetDelegationGrantRow{
+	queries := &delegationQueries{grant: gatewaydb.DelegationGrant{
 		ID: "grant-1", ClientID: "client-1", UserID: testUserID,
 		Scopes:    []string{"inference:use", "mcp:use"},
 		Resources: []string{issuer + "/api/inference/v1", issuer + "/api/mcp"},
@@ -90,8 +94,6 @@ func TestDelegatedAccessRequiresLiveGrantAndAccessToken(t *testing.T) {
 	}}
 	service := sandboxTestService(t, queries)
 	service.cfg.ExternalJWTIssuer = issuer
-	service.cfg.DelegationPublicPeer = "public.agentz.svc"
-	service.delegationAuthority = delegationAuthorityClient{service: service}
 	service.delegationBodies = semaphore.NewWeighted(128 << 20)
 	service.delegationRequests = make(chan struct{}, 64)
 	service.externalJWTKeyfunc = func(*jwt.Token) (any, error) { return &key.PublicKey, nil }
@@ -161,6 +163,21 @@ func TestDelegatedAccessRequiresLiveGrantAndAccessToken(t *testing.T) {
 				if response.Code != http.StatusForbidden {
 					t.Fatalf("revoked JWT admitted: %d", response.Code)
 				}
+				// A dropped database connection is retryable, not revoked consent.
+				queries.err = io.ErrUnexpectedEOF
+				response = httptest.NewRecorder()
+				service.handleDelegatedRequest(response, request)
+				queries.err = nil
+				if response.Code != http.StatusServiceUnavailable {
+					t.Fatalf("database outage reported as %d", response.Code)
+				}
+				queries.permissionsErr = io.ErrUnexpectedEOF
+				response = httptest.NewRecorder()
+				service.handleDelegatedRequest(response, request)
+				queries.permissionsErr = nil
+				if response.Code != http.StatusServiceUnavailable {
+					t.Fatalf("permission lookup outage reported as %d", response.Code)
+				}
 			}
 			if test.want != http.StatusOK {
 				var body openAIError
@@ -198,21 +215,48 @@ func TestDelegationRechecksResourceIdentityAndPermissions(t *testing.T) {
 	if err != nil || len(catalog.Models) != 1 {
 		t.Fatalf("catalog: %#v, %v", catalog, err)
 	}
+	connection := &agentzv1alpha1.MCPConnection{
+		ObjectMeta: metav1.ObjectMeta{Name: "selected", Namespace: namespace, UID: "mcp-original", Generation: 2},
+		Spec:       agentzv1alpha1.MCPConnectionSpec{Endpoint: agentzv1alpha1.MCPConnectionEndpoint{URL: "https://mcp.example/mcp"}},
+		Status: agentzv1alpha1.MCPConnectionStatus{
+			ToolCatalogReady: true,
+			Tools:            []agentzv1alpha1.MCPConnectionTool{{Name: "echo"}},
+			Conditions:       []metav1.Condition{{Type: mcp.ConditionProbeHealthy, Status: metav1.ConditionTrue, ObservedGeneration: 1}},
+		},
+	}
+	if err := service.k8sClient.Create(ctx, connection); err != nil {
+		t.Fatal(err)
+	}
+	for _, includeUnavailable := range []bool{false, true} {
+		stale, err := service.delegationCatalog(ctx, testUserID, testOrganizationID, testWorkspaceID, includeUnavailable)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if (len(stale.Mcp) == 1) != includeUnavailable {
+			t.Fatalf("stale catalog included for new consent: includeUnavailable=%v, targets=%d", includeUnavailable, len(stale.Mcp))
+		}
+	}
+	connection.Status.Conditions[0].ObservedGeneration = connection.Generation
+	if err := service.k8sClient.Update(ctx, connection); err != nil {
+		t.Fatal(err)
+	}
+	current, err := service.delegationCatalog(ctx, testUserID, testOrganizationID, testWorkspaceID, false)
+	if err != nil || len(current.Mcp) != 1 {
+		t.Fatalf("current MCP catalog: %v, %v", current.Mcp, err)
+	}
 	selection, err := json.Marshal(catalog)
 	if err != nil {
 		t.Fatal(err)
 	}
-	queries.grant = gatewaydb.GatewayGetDelegationGrantRow{
+	queries.grant = gatewaydb.DelegationGrant{
 		ID: "grant-1", ClientID: "client-1", UserID: testUserID,
 		OrganizationID: pgtype.Text{String: testOrganizationID, Valid: true}, Selection: selection,
 	}
-	claims := authorization.DelegationClaims{ClientID: "client-1", GrantID: "grant-1"}
-	claims.Subject = testUserID
-	if _, _, err := service.checkDelegation(ctx, claims, ""); err != nil {
+	if err := service.checkDelegation(ctx, queries.grant, catalog); err != nil {
 		t.Fatal(err)
 	}
 	queries.permissions[0].Superadmin = false
-	if _, _, err := service.checkDelegation(ctx, claims, ""); err == nil {
+	if err := service.checkDelegation(ctx, queries.grant, catalog); err == nil {
 		t.Fatal("permission removal did not invalidate the grant")
 	}
 	queries.permissions[0].Superadmin = true
@@ -224,7 +268,7 @@ func TestDelegationRechecksResourceIdentityAndPermissions(t *testing.T) {
 	if err := service.k8sClient.Create(ctx, provider); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := service.checkDelegation(ctx, claims, ""); err == nil {
+	if err := service.checkDelegation(ctx, queries.grant, catalog); err == nil {
 		t.Fatal("replacement provider inherited old consent")
 	}
 }
@@ -238,7 +282,7 @@ func TestDelegationReadinessRequiresCurrentAcceptedProjection(t *testing.T) {
 		}
 	}
 	service.cfg.DelegationNamespace = "private"
-	grant := gatewaydb.GatewayGetDelegationGrantRow{ID: "grant-1", Selection: []byte(`{"models":[],"mcp":[]}`)}
+	grant := gatewaydb.DelegationGrant{ID: "grant-1", Selection: []byte(`{"models":[],"mcp":[]}`)}
 	hash := sha256.Sum256(grant.Selection)
 	metadata := metav1.ObjectMeta{Name: "d-grant-1-model-0", Namespace: "private", Generation: 2, Annotations: map[string]string{"agentz.accuknox.com/selection": fmt.Sprintf("%x", hash)}}
 	route := &gwv1.HTTPRoute{ObjectMeta: metadata, Status: gwv1.HTTPRouteStatus{RouteStatus: gwv1.RouteStatus{Parents: []gwv1.RouteParentStatus{{
@@ -279,7 +323,10 @@ func TestDelegationCORSRejectsUnregisteredOrigins(t *testing.T) {
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(response, request)
 		if origin == "https://app.example" {
-			if response.Code != http.StatusNoContent || response.Header().Get("Access-Control-Allow-Origin") != origin || response.Header().Get("Access-Control-Allow-Credentials") != "" {
+			valid := response.Code == http.StatusNoContent &&
+				response.Header().Get("Access-Control-Allow-Origin") == origin &&
+				response.Header().Get("Access-Control-Allow-Credentials") == ""
+			if !valid {
 				t.Fatalf("invalid browser CORS response: %#v", response.Result())
 			}
 			continue
@@ -287,52 +334,6 @@ func TestDelegationCORSRejectsUnregisteredOrigins(t *testing.T) {
 		if response.Code != http.StatusForbidden || called {
 			t.Fatalf("unregistered origin admitted: %q", origin)
 		}
-	}
-}
-
-type delegationInferenceCase struct {
-	name, body string
-	responses  bool
-	allowed    bool
-}
-
-func TestDelegatedInferenceRejectsProviderResourceBypasses(t *testing.T) {
-	for _, test := range []delegationInferenceCase{
-		{"chat", `{"model":"selected","messages":[{"role":"user","content":"hi"}]}`, false, true},
-		{"responses", `{"model":"selected","store":false,"input":"hi"}`, true, true},
-		{"explicit previous message", `{"model":"selected","store":false,"input":[{"type":"message","id":"msg-inline","role":"assistant","content":[{"type":"output_text","text":"hi"}]}]}`, true, true},
-		{"implicit item reference", `{"model":"selected","store":false,"input":[{"id":"msg-private"}]}`, true, false},
-		{"case sensitive implicit reference", `{"model":"selected","store":false,"input":[{"id":"msg-private","ID":""}]}`, true, false},
-		{"inline audio", `{"model":"selected","messages":[{"role":"user","content":[{"type":"input_audio","input_audio":{"data":"YQ==","format":"wav"}}]}],"audio":{"voice":"alloy","format":"wav"}}`, false, true},
-		{"hosted chat search", `{"model":"selected","web_search_options":{}}`, false, false},
-		{"case sensitive hosted search", `{"model":"selected","web_search_options":{},"WEB_SEARCH_OPTIONS":null}`, false, false},
-		{"stored chat audio", `{"model":"selected","messages":[{"role":"assistant","audio":{"id":"audio-private"}}]}`, false, false},
-		{"case sensitive stored audio", `{"model":"selected","messages":[{"role":"assistant","audio":{"id":"audio-private"},"AUDIO":null}]}`, false, false},
-		{"inline function file", `{"model":"selected","store":false,"input":[{"type":"function_call_output","call_id":"call","output":[{"type":"input_file","file_data":"data:application/pdf;base64,YQ=="}]}]}`, true, true},
-		{"case sensitive store", `{"model":"selected","store":true,"STORE":false}`, false, false},
-		{"case sensitive background", `{"model":"selected","store":false,"background":true,"BACKGROUND":false}`, true, false},
-		{"duplicate store", `{"model":"selected","store":true,"store":false}`, false, false},
-		{"escaped duplicate store", `{"model":"selected","store":true,"\u0073tore":false}`, false, false},
-		{"case sensitive hosted tool", `{"model":"selected","tools":[{"type":"file_search","TYPE":"function"}]}`, false, false},
-		{"chat unrelated input", `{"model":"selected","messages":[{"content":[{"type":"file","file":{"file_id":"file-private"}}]}],"input":[]}`, false, false},
-		{"case sensitive message content", `{"model":"selected","messages":[{"content":[{"file":{"file_id":"file-private","FILE_ID":""}}],"CONTENT":"ignored"}]}`, false, false},
-		{"duplicate nested file", `{"model":"selected","messages":[{"content":[{"file":{"file_id":"file-private","file_id":""}}]}]}`, false, false},
-		{"duplicate response content", `{"model":"selected","store":false,"input":[{"content":[{"file_id":"file-private"}],"content":[]}]}`, true, false},
-		{"response function file", `{"model":"selected","store":false,"input":[{"type":"function_call_output","call_id":"call","output":[{"type":"input_file","file_id":"file-private"}]}]}`, true, false},
-		{"response function image", `{"model":"selected","store":false,"input":[{"type":"function_call_output","call_id":"call","output":[{"type":"input_image","file_id":"file-private"}]}]}`, true, false},
-		{"response screenshot", `{"model":"selected","store":false,"input":[{"type":"computer_call_output","output":{"type":"computer_screenshot","file_id":"file-private"}}]}`, true, false},
-		{"case sensitive reference", `{"model":"selected","store":false,"input":[{"type":"item_reference","TYPE":"message","id":"msg-private"}]}`, true, false},
-		{"duplicate response input", `{"model":"selected","store":false,"input":[{"type":"item_reference","id":"msg-private"}],"input":[]}`, true, false},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			model, err := inference.ValidateDelegatedRequest([]byte(test.body), test.responses)
-			if (err == nil) != test.allowed {
-				t.Fatalf("allowed %v, want %v: %v", err == nil, test.allowed, err)
-			}
-			if test.allowed && model != "selected" {
-				t.Fatalf("model %q", model)
-			}
-		})
 	}
 }
 
@@ -391,21 +392,19 @@ func TestDelegationCORSIsBoundedBeforeOriginLookup(t *testing.T) {
 	}
 }
 
-func TestDelegatedMCPUsesExactMethodAndRejectsDuplicates(t *testing.T) {
+func TestDelegatedMCPTransportBoundary(t *testing.T) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
 	issuer := "https://agentz.example"
-	queries := &delegationQueries{grant: gatewaydb.GatewayGetDelegationGrantRow{
+	queries := &delegationQueries{grant: gatewaydb.DelegationGrant{
 		ID: "grant-1", ClientID: "client-1", UserID: testUserID,
 		Scopes: []string{"mcp:use"}, Resources: []string{issuer + "/api/mcp"},
 		Selection: []byte(`{"models":[],"mcp":[]}`),
 	}}
 	service := sandboxTestService(t, queries)
 	service.cfg.ExternalJWTIssuer = issuer
-	service.cfg.DelegationPublicPeer = "public.agentz.svc"
-	service.delegationAuthority = delegationAuthorityClient{service: service}
 	service.delegationBodies = semaphore.NewWeighted(128 << 20)
 	service.externalJWTKeyfunc = func(*jwt.Token) (any, error) { return &key.PublicKey, nil }
 	claims := authorization.DelegationClaims{
@@ -448,5 +447,86 @@ func TestDelegatedMCPUsesExactMethodAndRejectsDuplicates(t *testing.T) {
 		if response.Code != http.StatusBadRequest {
 			t.Fatalf("duplicate method passed: %d %s", response.Code, response.Body.String())
 		}
+	}
+	t.Run("session lookup failure is retryable", func(t *testing.T) {
+		request := httptest.NewRequest(http.MethodPost, "/api/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"ping"}`))
+		request.Header.Set("Authorization", "Bearer "+signed)
+		request.Header.Set("Mcp-Session-Id", "session")
+		response := httptest.NewRecorder()
+		service.handleDelegatedRequest(response, request)
+		if response.Code != http.StatusNotFound {
+			t.Fatalf("unknown session returned %d", response.Code)
+		}
+		queries.sessionErr = io.ErrUnexpectedEOF
+		defer func() { queries.sessionErr = nil }()
+		request.Body = io.NopCloser(strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"ping"}`))
+		response = httptest.NewRecorder()
+		service.handleDelegatedRequest(response, request)
+		if response.Code != http.StatusServiceUnavailable {
+			t.Fatalf("session database outage returned %d", response.Code)
+		}
+	})
+	for _, add := range []func(*runtime.Scheme) error{gwv1.Install, agw.Install} {
+		if err := add(service.k8sClient.Scheme()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	service.cfg.DelegationNamespace = "private"
+	service.cfg.DelegationGatewayURL = "https://private.example"
+	hash := sha256.Sum256(queries.grant.Selection)
+	metadata := metav1.ObjectMeta{
+		Name: "d-grant-1-mcp", Namespace: "private", Generation: 1,
+		Annotations: map[string]string{"agentz.accuknox.com/selection": fmt.Sprintf("%x", hash)},
+	}
+	conditions := []metav1.Condition{
+		{Type: "Accepted", Status: metav1.ConditionTrue, ObservedGeneration: 1},
+		{Type: "ResolvedRefs", Status: metav1.ConditionTrue, ObservedGeneration: 1},
+	}
+	for _, object := range []ctrlclient.Object{
+		&gwv1.HTTPRoute{ObjectMeta: metadata, Status: gwv1.HTTPRouteStatus{RouteStatus: gwv1.RouteStatus{Parents: []gwv1.RouteParentStatus{{
+			ParentRef: gwv1.ParentReference{Name: "delegations"}, ControllerName: "agentgateway.dev/agentgateway", Conditions: conditions,
+		}}}}},
+		&agw.AgentgatewayBackend{ObjectMeta: metadata, Status: agw.AgentgatewayBackendStatus{Conditions: conditions}},
+	} {
+		if err := service.k8sClient.Create(t.Context(), object); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, status := range []int{http.StatusUnauthorized, http.StatusTooManyRequests, http.StatusFound} {
+		t.Run(fmt.Sprintf("upstream status %d keeps credentials private", status), func(t *testing.T) {
+			upstream := &delegationUpstream{response: &http.Response{
+				StatusCode: status, Body: io.NopCloser(strings.NewReader("private-credential")),
+				Header:  http.Header{"X-Diagnostic": {"private-credential"}, "Location": {"https://other.example"}},
+				Trailer: http.Header{"X-Diagnostic": {"private-credential"}},
+			}}
+			service.delegationTransport = upstream
+			request := httptest.NewRequest(http.MethodPost, "/api/mcp?api_key=private-credential", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"ping"}`))
+			request.Header.Set("Authorization", "Bearer "+signed)
+			request.Header.Set("Cookie", "private-credential")
+			request.Header.Set("X-Api-Key", "private-credential")
+			request.Header.Set("X-AgentZ-User-ID", "spoofed")
+			response := httptest.NewRecorder()
+			service.handleDelegatedRequest(response, request)
+			want := status
+			if status == http.StatusFound {
+				want = http.StatusBadGateway
+			}
+			if response.Code != want || upstream.request == nil {
+				t.Fatalf("upstream status %d returned %d", status, response.Code)
+			}
+			result := response.Result()
+			wire := fmt.Sprint(result.Header, result.Trailer, response.Body.String())
+			if strings.Contains(wire, "private-credential") || result.Header.Get("Location") != "" {
+				t.Fatal("upstream diagnostics or redirect escaped to the app")
+			}
+			if upstream.request.URL.RawQuery != "" {
+				t.Fatal("app query parameters reached the native gateway")
+			}
+			for _, header := range []string{"Authorization", "Cookie", "X-Api-Key", "X-AgentZ-User-ID"} {
+				if upstream.request.Header.Get(header) != "" {
+					t.Fatalf("app %s reached the native gateway", header)
+				}
+			}
+		})
 	}
 }

@@ -4,6 +4,11 @@ import (
 	"context"
 	"testing"
 
+	slimv1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+
+	corev1 "k8s.io/api/core/v1"
+
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -15,13 +20,15 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
-func TestReconcileIsolationPolicyUsesManagerNamespace(t *testing.T) {
+func TestTenantIsolationExcludesPrivateRuntimes(t *testing.T) {
 	t.Parallel()
 
 	scheme := runtime.NewScheme()
+	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(ciliumv2.AddToScheme(scheme))
 	utilruntime.Must(agentzv1alpha1.AddToScheme(scheme))
-	c := fake.NewClientBuilder().WithScheme(scheme).Build()
+	namespace := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "org-05d3f392d8021c42b0434f9f5f20eac6", UID: "namespace-uid"}}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(namespace).Build()
 	r := &Reconciler{
 		Client:                         c,
 		Scheme:                         scheme,
@@ -41,6 +48,34 @@ func TestReconcileIsolationPolicyUsesManagerNamespace(t *testing.T) {
 	if err := c.Get(context.Background(), key, policy); err != nil {
 		t.Fatalf("get CiliumNetworkPolicy: %v", err)
 	}
+	if err := policy.Spec.EndpointSelector.Sanitize(); err != nil {
+		t.Fatal(err)
+	}
+	selector, err := slimv1.LabelSelectorAsSelector(policy.Spec.EndpointSelector.LabelSelector)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, account := range []string{"inference", "mcp", "extauth", "agent", "infrastructure"} {
+		t.Run(account, func(t *testing.T) {
+			selected := selector.Matches(labels.Set{"k8s.io.cilium.k8s.policy.serviceaccount": account})
+			protected := account == "inference" || account == "mcp" || account == "extauth"
+			if selected == protected {
+				t.Fatalf("broad infrastructure policy selects %s: %v", account, selected)
+			}
+		})
+	}
+	baseline := &ciliumv2.CiliumNetworkPolicy{}
+	if err := c.Get(t.Context(), client.ObjectKey{Name: "runtime-isolation", Namespace: tenant.Name}, baseline); err != nil {
+		t.Fatal(err)
+	}
+	if !*baseline.Spec.EnableDefaultDeny.Ingress {
+		t.Fatal("private runtime ingress is not isolated without grants")
+	}
+	owner := baseline.OwnerReferences[0]
+	if owner.Kind != "Namespace" || owner.UID != namespace.UID {
+		t.Fatalf("runtime isolation must outlive runtime pods; owner=%v", owner)
+	}
+
 	got := policy.Spec.Ingress[1].FromEndpoints[0].MatchLabels["k8s:io.kubernetes.pod.namespace"]
 	if got != r.ManagerServiceAccountNamespace {
 		t.Fatalf("manager namespace selector = %q, want %q", got, r.ManagerServiceAccountNamespace)

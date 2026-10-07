@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	baoapi "github.com/openbao/openbao/api/v2"
@@ -45,22 +44,13 @@ func (s *Service) resolveOAuthAccessToken(ctx context.Context, conn *agentzv1alp
 		return record.Token.AccessToken, auth.Location, false, nil
 	}
 
-	result, err, _ := s.sf.Do(
-		conn.Namespace+"/"+conn.Name,
-		func() (any, error) {
-			return s.refreshOAuthToken(ctx, conn)
-		},
-	)
+	// Each caller rereads its own credential reference after the preceding
+	// refresh. Sharing a result by connection name could cross a spec change.
+	s.oauthRefreshMu.Lock()
+	defer s.oauthRefreshMu.Unlock()
+	refreshed, err := s.refreshOAuthToken(ctx, conn)
 	if err != nil {
 		return "", nil, true, err
-	}
-
-	refreshed := result.(*mcp.OAuthSecretRecord)
-	if refreshed.Token == nil || strings.TrimSpace(refreshed.Token.AccessToken) == "" {
-		return "", nil, true, fmt.Errorf(
-			"refreshed oauth token is missing access token: %w",
-			errCredentialUnavailable,
-		)
 	}
 
 	return refreshed.Token.AccessToken, auth.Location, true, nil

@@ -524,7 +524,8 @@ func (r *Reconciler) reconcileGateway(ctx context.Context, namespace string) err
 		return err
 	}
 	grants := &gwv1.HTTPRouteList{}
-	if err := r.List(ctx, grants, client.InNamespace(namespace), client.HasLabels{"agentz.accuknox.com/delegation"}); err != nil {
+	err = r.List(ctx, grants, client.InNamespace(namespace), client.HasLabels{"agentz.accuknox.com/delegation"})
+	if err != nil {
 		return err
 	}
 	delegated := slices.ContainsFunc(grants.Items, func(route gwv1.HTTPRoute) bool {

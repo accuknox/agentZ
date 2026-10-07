@@ -7,16 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net"
 	"strconv"
-	"strings"
 	"time"
 
 	agw "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	ciliumlabels "github.com/cilium/cilium/pkg/labels"
 	ciliumapi "github.com/cilium/cilium/pkg/policy/api"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,7 +30,7 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
-func (s *Service) delegationReady(ctx context.Context, grant gatewaydb.GatewayGetDelegationGrantRow, namespace, gateway, name string, policyNames ...string) error {
+func (s *Service) delegationReady(ctx context.Context, grant gatewaydb.DelegationGrant, namespace, gateway, name string, policyNames ...string) error {
 	conditionsReady := func(conditions []metav1.Condition, generation int64, names ...string) bool {
 		for _, name := range names {
 			condition := meta.FindStatusCondition(conditions, name)
@@ -83,7 +80,9 @@ func (s *Service) delegationReady(ctx context.Context, grant gatewaydb.GatewayGe
 		}
 		ready = false
 		for _, ancestor := range policy.Status.Ancestors {
-			if ancestor.AncestorRef.Name != gwv1.ObjectName(gateway) || ancestor.ControllerName != "agentgateway.dev/agentgateway" {
+			matchingGateway := ancestor.AncestorRef.Name == gwv1.ObjectName(gateway) &&
+				ancestor.ControllerName == "agentgateway.dev/agentgateway"
+			if !matchingGateway {
 				continue
 			}
 			ready = ready || conditionsReady(ancestor.Conditions, policy.Generation, "Accepted", "Attached")
@@ -111,72 +110,40 @@ func (s *Service) runDelegationRuntime(ctx context.Context) {
 }
 
 func (s *Service) reconcileDelegations(ctx context.Context) error {
-	root := &corev1.Secret{}
-	if err := s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Namespace: s.cfg.DelegationNamespace, Name: "delegation-gateway-tls"}, root); err != nil {
-		return err
-	}
-	if len(root.Data["ca.crt"]) == 0 {
-		return errors.New("delegation CA is not ready")
-	}
-	ca := &corev1.ConfigMap{
-		TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
-		ObjectMeta: metav1.ObjectMeta{Name: "delegation-ca", Namespace: s.cfg.DelegationNamespace},
-		Data:       map[string]string{"ca.crt": string(root.Data["ca.crt"])},
-	}
-	data, err := json.Marshal(ca)
+	// One replica owns the snapshot, projection and cleanup cycle. Otherwise
+	// an older snapshot can delete routes another replica just created.
+	ctx, release, err := gatewayLocks(ctx, s.lockDB)
 	if err != nil {
 		return err
 	}
-	if err := s.k8sClient.Patch(ctx, ca, ctrlclient.RawPatch(types.ApplyPatchType, data), ctrlclient.FieldOwner("agentz-delegation")); err != nil {
+	defer release()
+	queries := ctx.Value(gatewayLockKey{}).(*gatewaydb.Queries)
+	locked, err := queries.GatewayTryLockResource(ctx, "delegation-runtime")
+	if err != nil || !locked {
 		return err
 	}
-
-	host, portValue, err := net.SplitHostPort(s.cfg.DelegationAuthorityTarget)
-	if err != nil {
-		return err
-	}
-	port, err := strconv.ParseInt(portValue, 10, 32)
-	if err != nil {
-		return err
-	}
-	authority := &agw.AgentgatewayBackend{
-		TypeMeta:   metav1.TypeMeta{APIVersion: agw.GroupVersion.String(), Kind: "AgentgatewayBackend"},
-		ObjectMeta: metav1.ObjectMeta{Name: "delegation-authority", Namespace: s.cfg.DelegationNamespace},
-		Spec: agw.AgentgatewayBackendSpec{Static: &agw.StaticBackend{Host: host, Port: int32(port)}, Policies: &agw.BackendFull{BackendSimple: agw.BackendSimple{TLS: &agw.BackendTLS{
-			CACertificateRefs:  []corev1.LocalObjectReference{{Name: "delegation-ca"}},
-			MtlsCertificateRef: []agw.LocalSecretObjectRef{{Name: "delegation-gateway-tls"}},
-		}}}},
-	}
-	data, err = json.Marshal(authority)
-	if err != nil {
-		return err
-	}
-	if err := s.k8sClient.Patch(ctx, authority, ctrlclient.RawPatch(types.ApplyPatchType, data), ctrlclient.FieldOwner("agentz-delegation")); err != nil {
-		return err
-	}
-
 	grants, err := s.queries.GatewayListDelegationGrants(ctx)
 	if err != nil {
 		return err
 	}
 	active := make(map[string]bool, len(grants))
 	for _, row := range grants {
-		claims := authorization.DelegationClaims{ClientID: row.ClientID, GrantID: row.ID, Scope: strings.Join(row.Scopes, " ")}
-		claims.Subject = row.UserID
-		// Keep the projection during dependency outages. Every request still
-		// checks live authority; revoked grants disappear from this SQL result.
 		active[row.ID] = true
-		grant, selection, err := s.checkDelegation(ctx, claims, "")
-		if err != nil {
+		selection := gatewayapi.DelegationCatalog{}
+		if err := json.Unmarshal(row.Selection, &selection); err != nil {
 			continue
 		}
-		if err := s.projectDelegation(ctx, grant, selection); err != nil {
+		if err := s.checkDelegation(ctx, row, selection); err != nil {
+			continue
+		}
+		if err := s.projectDelegation(ctx, row, selection); err != nil {
 			slog.ErrorContext(ctx, "project delegation", slog.String("grant", row.ID), slog.Any("error", err))
 		}
 	}
-	// Only the private management identity can project or delete grant routes.
+	// Grant routes are written by the gateway, never by external applications.
 	for _, list := range []ctrlclient.ObjectList{&gwv1.HTTPRouteList{}, &agw.AgentgatewayBackendList{}, &agw.AgentgatewayPolicyList{}, &ciliumv2.CiliumNetworkPolicyList{}} {
-		if err := s.k8sClient.List(ctx, list, ctrlclient.HasLabels{authorization.DelegationLabel}); err != nil {
+		err := s.k8sClient.List(ctx, list, ctrlclient.HasLabels{authorization.DelegationLabel})
+		if err != nil {
 			return err
 		}
 		objects, err := meta.ExtractList(list)
@@ -199,15 +166,16 @@ func (s *Service) reconcileDelegations(ctx context.Context) error {
 	return s.queries.GatewayPruneDelegationTransactions(ctx)
 }
 
-func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.GatewayGetDelegationGrantRow, selection gatewayapi.DelegationCatalog) error {
+func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.DelegationGrant, selection gatewayapi.DelegationCatalog) error {
 	objects := make([]ctrlclient.Object, 0)
 	ownerNamespaces := make(map[string]bool)
 	ownerEgress := make(map[string][]networkpolicy.Target)
 	aggregationEgress := []ciliumapi.EgressRule{}
-	publicEgress := []ciliumapi.EgressRule{}
 	for index, selected := range selection.Models {
 		provider := &agentzv1alpha1.InferenceProvider{}
-		if err := s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Namespace: selected.Namespace, Name: selected.Provider}, provider); err != nil {
+		key := ctrlclient.ObjectKey{Namespace: selected.Namespace, Name: selected.Provider}
+		err := s.k8sClient.Get(ctx, key, provider)
+		if err != nil {
 			return err
 		}
 		if string(provider.UID) != selected.Uid {
@@ -217,7 +185,8 @@ func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.Gateway
 		if err != nil {
 			return err
 		}
-		publicEgress = append(publicEgress, networkpolicy.ServiceEgress(selected.Namespace, inference.GatewayName, 8443)...)
+		// Plaintext HTTP/2 must not dictate the external provider's protocol.
+		target.Policies.HTTP = &agw.BackendHTTP{Version: new(agw.HTTPVersion1)}
 		name := fmt.Sprintf("d-%s-model-%d", grant.ID, index)
 		ownerEgress[selected.Namespace] = append(ownerEgress[selected.Namespace], networkpolicy.Target{Host: target.LLM.Host, Port: target.LLM.Port})
 		backend := &agw.AgentgatewayBackend{
@@ -225,7 +194,7 @@ func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.Gateway
 			ObjectMeta: metav1.ObjectMeta{Namespace: selected.Namespace, Name: name},
 			Spec: agw.AgentgatewayBackendSpec{AI: &agw.AIBackend{LLM: &target.LLM}, Policies: &agw.BackendFull{
 				BackendSimple: target.Policies.BackendSimple, AI: target.Policies.AI, Transformation: target.Policies.Transformation,
-				ExtAuth: s.delegatedExtAuth(grant, selected.Id, provider, true),
+				ExtAuth: s.delegatedExtAuth(selected.Id, provider, true),
 			}},
 		}
 		route := s.delegationRoute(selected.Namespace, inference.GatewayName, name, fmt.Sprintf("/delegations/%s/models/%d", grant.ID, index), false)
@@ -241,7 +210,9 @@ func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.Gateway
 		}
 		for index, selected := range selection.Mcp {
 			connection := &agentzv1alpha1.MCPConnection{}
-			if err := s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Namespace: selected.Namespace, Name: selected.Connection}, connection); err != nil {
+			key := ctrlclient.ObjectKey{Namespace: selected.Namespace, Name: selected.Connection}
+			err := s.k8sClient.Get(ctx, key, connection)
+			if err != nil {
 				return err
 			}
 			if string(connection.UID) != selected.Uid {
@@ -252,16 +223,13 @@ func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.Gateway
 				return err
 			}
 			ownerEgress[selected.Namespace] = append(ownerEgress[selected.Namespace], networkpolicy.Target{Host: target.Host, Port: target.Port})
-			aggregationEgress = append(aggregationEgress, networkpolicy.ServiceEgress(selected.Namespace, mcp.GatewayName, 8443)...)
-			transport := &agw.BackendSimple{}
-			if target.Secure {
-				transport.TLS = &agw.BackendTLS{Sni: &target.Host}
-			}
+			aggregationEgress = append(aggregationEgress, networkpolicy.ServiceEgress(selected.Namespace, mcp.GatewayName, 8080)...)
 			if !target.Secure || connection.Spec.Endpoint.InsecureSkipVerify {
 				return errors.New("delegation requires verified upstream TLS")
 			}
-			if connection.Spec.Endpoint.Timeout != nil {
-				transport.HTTP = &agw.BackendHTTP{RequestTimeout: connection.Spec.Endpoint.Timeout}
+			transport := &agw.BackendSimple{
+				TLS:  &agw.BackendTLS{Sni: &target.Host},
+				HTTP: &agw.BackendHTTP{Version: new(agw.HTTPVersion1), RequestTimeout: connection.Spec.Endpoint.Timeout},
 			}
 			innerName := fmt.Sprintf("d-%s-mcp-%d", grant.ID, index)
 			section := gwv1.SectionName(selected.Id)
@@ -291,26 +259,14 @@ func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.Gateway
 				ObjectMeta: metav1.ObjectMeta{Namespace: selected.Namespace, Name: innerName + "-auth"},
 				Spec: agw.AgentgatewayPolicySpec{
 					TargetRefs: []agw.LocalPolicyTargetReferenceWithSectionName{{LocalPolicyTargetReference: agw.LocalPolicyTargetReference{Group: "agentgateway.dev", Kind: "AgentgatewayBackend", Name: gwv1.ObjectName(innerName)}, SectionName: &section}},
-					Backend:    &agw.BackendFull{ExtAuth: s.delegatedExtAuth(grant, selected.Id, connection, false)},
+					Backend:    &agw.BackendFull{ExtAuth: s.delegatedExtAuth(selected.Id, connection, false)},
 				},
 			}
-			admission := s.delegatedExtAuth(grant, selected.Id, connection, false)
-			admission.GRPC.ContextExtensions["agentz.operation"] = "mcp-admission"
-			objects = append(objects, &agw.AgentgatewayPolicy{
-				TypeMeta:   metav1.TypeMeta{APIVersion: agw.GroupVersion.String(), Kind: "AgentgatewayPolicy"},
-				ObjectMeta: metav1.ObjectMeta{Name: innerName + "-admission", Namespace: selected.Namespace},
-				Spec: agw.AgentgatewayPolicySpec{
-					TargetRefs: []agw.LocalPolicyTargetReferenceWithSectionName{{LocalPolicyTargetReference: agw.LocalPolicyTargetReference{Group: "gateway.networking.k8s.io", Kind: "HTTPRoute", Name: gwv1.ObjectName(innerName)}}},
-					Traffic:    &agw.Traffic{ExtAuth: &agw.ExtAuthOrConditional{ExtAuth: *admission}},
-				},
-			})
-
 			path := "/delegations/" + grant.ID + "/mcp/" + selected.Id
 			objects = append(objects, inner, policy, s.delegationRoute(selected.Namespace, mcp.GatewayName, innerName, path, true))
 			host := mcp.GatewayName + "." + selected.Namespace + ".svc.cluster.local"
 			outer.Spec.MCP.Targets = append(outer.Spec.MCP.Targets, agw.McpTargetSelector{Name: section, Static: &agw.McpTarget{
-				Host: &host, Port: 8443, Path: &path, Protocol: new(agw.MCPProtocolStreamableHTTP),
-				Policies: &agw.BackendSimple{TLS: &agw.BackendTLS{CACertificateRefs: []corev1.LocalObjectReference{{Name: "delegation-ca"}}}},
+				Host: &host, Port: 8080, Path: &path, Protocol: new(agw.MCPProtocolStreamableHTTP),
 			}})
 			ownerNamespaces[selected.Namespace] = true
 		}
@@ -319,32 +275,8 @@ func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.Gateway
 			ObjectMeta: metav1.ObjectMeta{Name: "d-" + grant.ID, Namespace: s.cfg.DelegationNamespace},
 			Spec:       &ciliumapi.Rule{EndpointSelector: ciliumapi.NewESFromLabels(ciliumlabels.NewLabel("gateway.networking.k8s.io/gateway-name", "delegations", ciliumlabels.LabelSourceK8s)), Egress: aggregationEgress},
 		})
-		objects = append(objects, &agw.AgentgatewayPolicy{
-			TypeMeta:   metav1.TypeMeta{APIVersion: agw.GroupVersion.String(), Kind: "AgentgatewayPolicy"},
-			ObjectMeta: metav1.ObjectMeta{Name: name + "-admission", Namespace: s.cfg.DelegationNamespace},
-			Spec: agw.AgentgatewayPolicySpec{
-				TargetRefs: []agw.LocalPolicyTargetReferenceWithSectionName{{LocalPolicyTargetReference: agw.LocalPolicyTargetReference{Group: "gateway.networking.k8s.io", Kind: "HTTPRoute", Name: gwv1.ObjectName(name)}}},
-				Traffic: &agw.Traffic{ExtAuth: &agw.ExtAuthOrConditional{ExtAuth: agw.ExtAuth{
-					BackendRef:  &gwv1.BackendObjectReference{Group: new(gwv1.Group("agentgateway.dev")), Kind: new(gwv1.Kind("AgentgatewayBackend")), Name: "delegation-authority"},
-					FailureMode: agw.FailClosed, GRPC: &agw.AgentExtAuthGRPC{ContextExtensions: map[string]string{
-						"agentz.operation": "aggregation", "agentz.grant": grant.ID, "agentz.client": grant.ClientID, "agentz.user": grant.UserID,
-					}},
-				}}},
-			},
-		})
 
 		objects = append(objects, outer, s.delegationRoute(s.cfg.DelegationNamespace, "delegations", name, "/delegations/"+grant.ID+"/mcp", true))
-	}
-	publicIdentity := strings.Split(s.cfg.DelegationPublicPeer, ".")
-	if len(publicEgress) > 0 {
-		objects = append(objects, &ciliumv2.CiliumNetworkPolicy{
-			TypeMeta:   metav1.TypeMeta{APIVersion: "cilium.io/v2", Kind: "CiliumNetworkPolicy"},
-			ObjectMeta: metav1.ObjectMeta{Name: "d-" + grant.ID + "-public", Namespace: publicIdentity[1]},
-			Spec: &ciliumapi.Rule{
-				EndpointSelector: ciliumapi.NewESFromLabels(ciliumlabels.NewLabel("io.cilium.k8s.policy.serviceaccount", publicIdentity[0], ciliumlabels.LabelSourceK8s)),
-				Egress:           publicEgress,
-			},
-		})
 	}
 
 	for namespace := range ownerNamespaces {
@@ -355,14 +287,15 @@ func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.Gateway
 				EndpointSelector: ciliumapi.NewESFromLabels(ciliumlabels.NewLabel("gateway.networking.k8s.io/gateway-name", inference.GatewayName, ciliumlabels.LabelSourceK8s)),
 				Ingress: []ciliumapi.IngressRule{{IngressCommonRule: ciliumapi.IngressCommonRule{FromEndpoints: []ciliumapi.EndpointSelector{
 					ciliumapi.NewESFromLabels(
-						ciliumlabels.NewLabel("io.cilium.k8s.policy.serviceaccount", publicIdentity[0], ciliumlabels.LabelSourceK8s),
-						ciliumlabels.NewLabel("io.kubernetes.pod.namespace", publicIdentity[1], ciliumlabels.LabelSourceK8s),
+						ciliumlabels.NewLabel("io.cilium.k8s.policy.serviceaccount", s.cfg.GatewayServiceAccountName, ciliumlabels.LabelSourceK8s),
+						ciliumlabels.NewLabel("io.kubernetes.pod.namespace", s.cfg.GatewayServiceAccountNamespace, ciliumlabels.LabelSourceK8s),
 					),
 					ciliumapi.NewESFromLabels(
 						ciliumlabels.NewLabel("gateway.networking.k8s.io/gateway-name", "delegations", ciliumlabels.LabelSourceK8s),
+						ciliumlabels.NewLabel("io.cilium.k8s.policy.serviceaccount", "delegations", ciliumlabels.LabelSourceK8s),
 						ciliumlabels.NewLabel("io.kubernetes.pod.namespace", s.cfg.DelegationNamespace, ciliumlabels.LabelSourceK8s),
 					),
-				}}, ToPorts: []ciliumapi.PortRule{{Ports: []ciliumapi.PortProtocol{{Port: "8443", Protocol: ciliumapi.ProtoTCP}}}}}},
+				}}, ToPorts: []ciliumapi.PortRule{{Ports: []ciliumapi.PortProtocol{{Port: "8080", Protocol: ciliumapi.ProtoTCP}}}}}},
 			},
 		}
 		policy.Spec.Egress = networkpolicy.ExternalEgress(ownerEgress[namespace])
@@ -383,7 +316,9 @@ func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.Gateway
 		if err != nil {
 			return err
 		}
-		if err := s.k8sClient.Patch(ctx, object, ctrlclient.RawPatch(types.ApplyPatchType, data), ctrlclient.FieldOwner("agentz-delegation"), ctrlclient.ForceOwnership); err != nil {
+		err = s.k8sClient.Patch(ctx, object, ctrlclient.RawPatch(types.ApplyPatchType, data),
+			ctrlclient.FieldOwner("agentz-delegation"), ctrlclient.ForceOwnership)
+		if err != nil {
 			return err
 		}
 	}
@@ -427,14 +362,13 @@ func delegationMCPExpressions(selected gatewayapi.DelegationMCP) ([]agw.CELExpre
 	return expressions, nil
 }
 
-func (s *Service) delegatedExtAuth(grant gatewaydb.GatewayGetDelegationGrantRow, target string, owner ctrlclient.Object, inferenceTarget bool) *agw.ExtAuth {
+func (s *Service) delegatedExtAuth(target string, owner ctrlclient.Object, inferenceTarget bool) *agw.ExtAuth {
 	policy := &agw.ExtAuth{
 		BackendRef: &gwv1.BackendObjectReference{
 			Group: new(gwv1.Group("agentgateway.dev")), Kind: new(gwv1.Kind("AgentgatewayBackend")), Name: "delegation-extauth",
 		},
 		FailureMode: agw.FailClosed,
 		GRPC: &agw.AgentExtAuthGRPC{ContextExtensions: map[string]string{
-			"agentz.grant": grant.ID, "agentz.client": grant.ClientID, "agentz.user": grant.UserID,
 			"agentz.target": target, "agentz.uid": string(owner.GetUID()), "agentz.namespace": owner.GetNamespace(),
 			"agentz.name": owner.GetName(), "agentz.generation": strconv.FormatInt(owner.GetGeneration(), 10), "agentz.operation": "mcp",
 		}},

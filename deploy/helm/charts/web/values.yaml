@@ -64,7 +64,6 @@ service:
   port: 3000
 
 env:
-  delegationGatewayBaseURL: ""
   # Required public Better Auth issuer URL.
   betterAuthURL: ""
   # Required public gateway base URL used by browser clients.

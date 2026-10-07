@@ -3,12 +3,9 @@ package mcpconn
 import (
 	"context"
 	"errors"
-	"fmt"
 	"slices"
 
 	agw "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
-	cmapi "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
-	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -23,63 +20,16 @@ import (
 )
 
 func (r *ExtAuthRuntimeReconciler) reconcileDelegationRuntime(ctx context.Context, namespace *corev1.Namespace, scope extAuthScope) error {
-	if r.DelegationIssuerName == "" {
-		return errors.New("delegation workload ClusterIssuer is required")
+	missingIdentity := r.GatewayServiceAccountName == "" || r.GatewayServiceAccountNamespace == ""
+	if missingIdentity {
+		return errors.New("delegation requires gateway service account identity")
 	}
 	ns := namespace.Name
-	for _, name := range []string{"delegation-extauth-tls", "delegation-gateway-tls"} {
-		dnsNames := []string{"extauth." + ns + ".svc"}
-		if name == "delegation-gateway-tls" {
-			dnsNames = []string{"mcp." + ns + ".svc", "inference." + ns + ".svc"}
-		}
-		for _, name := range dnsNames {
-			dnsNames = append(dnsNames, name+".cluster.local")
-		}
-		certificate := &cmapi.Certificate{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns}}
-		_, err := ctrlutil.CreateOrPatch(ctx, r.Client, certificate, func() error {
-			certificate.OwnerReferences = scope.ownerRefs
-			certificate.Spec = cmapi.CertificateSpec{
-				SecretName: name, DNSNames: dnsNames,
-				IssuerRef:  cmmeta.IssuerReference{Group: "cert-manager.io", Kind: "ClusterIssuer", Name: r.DelegationIssuerName},
-				Usages:     []cmapi.KeyUsage{cmapi.UsageServerAuth, cmapi.UsageClientAuth},
-				PrivateKey: &cmapi.CertificatePrivateKey{Algorithm: cmapi.ECDSAKeyAlgorithm, Size: 256, RotationPolicy: cmapi.RotationPolicyAlways},
-			}
-			return nil
-		})
-		if err != nil {
-			return fmt.Errorf("reconcile owner delegation certificate: %w", err)
-		}
-	}
-	secret := &corev1.Secret{}
-	err := r.Get(ctx, client.ObjectKey{Namespace: ns, Name: "delegation-gateway-tls"}, secret)
-	if apierrors.IsNotFound(err) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	ca := secret.Data["ca.crt"]
-	if len(ca) == 0 {
-		return errors.New("delegation certificate CA is not ready")
-	}
-	config := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "delegation-ca", Namespace: ns}}
-	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, config, func() error {
-		config.OwnerReferences = scope.ownerRefs
-		config.Data = map[string]string{"ca.crt": string(ca)}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
 	backend := &agw.AgentgatewayBackend{ObjectMeta: metav1.ObjectMeta{Name: "delegation-extauth", Namespace: ns}}
-	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, backend, func() error {
+	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, backend, func() error {
 		backend.OwnerReferences = scope.ownerRefs
 		backend.Spec = agw.AgentgatewayBackendSpec{
 			Static: &agw.StaticBackend{Host: "extauth." + ns + ".svc.cluster.local", Port: 18084},
-			Policies: &agw.BackendFull{BackendSimple: agw.BackendSimple{TLS: &agw.BackendTLS{
-				CACertificateRefs:  []corev1.LocalObjectReference{{Name: "delegation-ca"}},
-				MtlsCertificateRef: []agw.LocalSecretObjectRef{{Name: "delegation-gateway-tls"}},
-			}}},
 		}
 		return nil
 	})
@@ -87,7 +37,8 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationRuntime(ctx context.Contex
 		return err
 	}
 	routes := &gwv1.HTTPRouteList{}
-	if err := r.List(ctx, routes, client.InNamespace(ns), client.HasLabels{authorization.DelegationLabel}); err != nil {
+	err = r.List(ctx, routes, client.InNamespace(ns), client.HasLabels{authorization.DelegationLabel})
+	if err != nil {
 		return err
 	}
 	for _, desired := range []*gwv1.Gateway{inference.Gateway(ns), mcp.Gateway(ns)} {
@@ -145,8 +96,7 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationRuntime(ctx context.Contex
 			gateway.OwnerReferences = scope.ownerRefs
 			gateway.Spec.Listeners = slices.DeleteFunc(gateway.Spec.Listeners, func(listener gwv1.Listener) bool { return listener.Name == "delegation" })
 			gateway.Spec.Listeners = append(gateway.Spec.Listeners, gwv1.Listener{
-				Name: "delegation", Port: 8443, Protocol: gwv1.HTTPSProtocolType,
-				TLS: &gwv1.ListenerTLSConfig{Mode: new(gwv1.TLSModeTerminate), CertificateRefs: []gwv1.SecretObjectReference{{Name: "delegation-gateway-tls"}}},
+				Name: "delegation", Port: 8080, Protocol: gwv1.HTTPProtocolType,
 			})
 			return nil
 		})

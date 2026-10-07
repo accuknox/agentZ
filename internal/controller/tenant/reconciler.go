@@ -49,6 +49,7 @@ import (
 	"github.com/accuknox/agentz/internal/agentquota"
 	"github.com/accuknox/agentz/internal/controller/gatewayrbac"
 	"github.com/accuknox/agentz/internal/controller/sinjectorca"
+	"github.com/accuknox/agentz/internal/networkpolicy"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -434,6 +435,13 @@ func (r *Reconciler) reconcileNixStorePVC(ctx context.Context, tenant *agentzv1a
 }
 
 func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, tenant *agentzv1alpha1.Tenant, nsName string) error {
+	namespace := &corev1.Namespace{}
+	if err := r.directClient().Get(ctx, client.ObjectKey{Name: nsName}, namespace); err != nil {
+		return err
+	}
+	if err := networkpolicy.ReconcileRuntimeIsolation(ctx, r.directClient(), namespace); err != nil {
+		return err
+	}
 	policy := &ciliumv2.CiliumNetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      agentzv1alpha1.TenantIsolationPolicyName,
@@ -453,7 +461,10 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, tenant *agent
 			selector := ciliumpolicyapi.NewESFromK8sLabelSelector(
 				ciliumlabels.LabelSourceK8sKeyPrefix,
 				&slimv1.LabelSelector{
-					MatchExpressions: []slimv1.LabelSelectorRequirement{
+					MatchExpressions: []slimv1.LabelSelectorRequirement{{
+						Key: "io.cilium.k8s.policy.serviceaccount", Operator: slimv1.LabelSelectorOpNotIn,
+						Values: []string{"inference", "mcp", "extauth"},
+					},
 						{
 							Key:      agentzv1alpha1.AgentPackageJobLabel,
 							Operator: slimv1.LabelSelectorOpDoesNotExist,

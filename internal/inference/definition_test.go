@@ -350,3 +350,49 @@ func providerSpec(providerKind agentzv1alpha1.InferenceProviderKind) agentzv1alp
 	}
 	return spec
 }
+
+type delegationInferenceCase struct {
+	name, body string
+	responses  bool
+	allowed    bool
+}
+
+func TestDelegatedInferenceRejectsProviderResourceBypasses(t *testing.T) {
+	for _, test := range []delegationInferenceCase{
+		{"chat", `{"model":"selected","messages":[{"role":"user","content":"hi"}]}`, false, true},
+		{"responses", `{"model":"selected","store":false,"input":"hi"}`, true, true},
+		{"explicit previous message", `{"model":"selected","store":false,"input":[{"type":"message","id":"msg-inline","role":"assistant","content":[{"type":"output_text","text":"hi"}]}]}`, true, true},
+		{"implicit item reference", `{"model":"selected","store":false,"input":[{"id":"msg-private"}]}`, true, false},
+		{"case sensitive implicit reference", `{"model":"selected","store":false,"input":[{"id":"msg-private","ID":""}]}`, true, false},
+		{"inline audio", `{"model":"selected","messages":[{"role":"user","content":[{"type":"input_audio","input_audio":{"data":"YQ==","format":"wav"}}]}],"audio":{"voice":"alloy","format":"wav"}}`, false, true},
+		{"hosted chat search", `{"model":"selected","web_search_options":{}}`, false, false},
+		{"case sensitive hosted search", `{"model":"selected","web_search_options":{},"WEB_SEARCH_OPTIONS":null}`, false, false},
+		{"stored chat audio", `{"model":"selected","messages":[{"role":"assistant","audio":{"id":"audio-private"}}]}`, false, false},
+		{"case sensitive stored audio", `{"model":"selected","messages":[{"role":"assistant","audio":{"id":"audio-private"},"AUDIO":null}]}`, false, false},
+		{"inline function file", `{"model":"selected","store":false,"input":[{"type":"function_call_output","call_id":"call","output":[{"type":"input_file","file_data":"data:application/pdf;base64,YQ=="}]}]}`, true, true},
+		{"case sensitive store", `{"model":"selected","store":true,"STORE":false}`, false, false},
+		{"case sensitive background", `{"model":"selected","store":false,"background":true,"BACKGROUND":false}`, true, false},
+		{"duplicate store", `{"model":"selected","store":true,"store":false}`, false, false},
+		{"escaped duplicate store", `{"model":"selected","store":true,"\u0073tore":false}`, false, false},
+		{"case sensitive hosted tool", `{"model":"selected","tools":[{"type":"file_search","TYPE":"function"}]}`, false, false},
+		{"chat unrelated input", `{"model":"selected","messages":[{"content":[{"type":"file","file":{"file_id":"file-private"}}]}],"input":[]}`, false, false},
+		{"case sensitive message content", `{"model":"selected","messages":[{"content":[{"file":{"file_id":"file-private","FILE_ID":""}}],"CONTENT":"ignored"}]}`, false, false},
+		{"duplicate nested file", `{"model":"selected","messages":[{"content":[{"file":{"file_id":"file-private","file_id":""}}]}]}`, false, false},
+		{"duplicate response content", `{"model":"selected","store":false,"input":[{"content":[{"file_id":"file-private"}],"content":[]}]}`, true, false},
+		{"response function file", `{"model":"selected","store":false,"input":[{"type":"function_call_output","call_id":"call","output":[{"type":"input_file","file_id":"file-private"}]}]}`, true, false},
+		{"response function image", `{"model":"selected","store":false,"input":[{"type":"function_call_output","call_id":"call","output":[{"type":"input_image","file_id":"file-private"}]}]}`, true, false},
+		{"response screenshot", `{"model":"selected","store":false,"input":[{"type":"computer_call_output","output":{"type":"computer_screenshot","file_id":"file-private"}}]}`, true, false},
+		{"case sensitive reference", `{"model":"selected","store":false,"input":[{"type":"item_reference","TYPE":"message","id":"msg-private"}]}`, true, false},
+		{"duplicate response input", `{"model":"selected","store":false,"input":[{"type":"item_reference","id":"msg-private"}],"input":[]}`, true, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			model, err := ValidateDelegatedRequest([]byte(test.body), test.responses)
+			if (err == nil) != test.allowed {
+				t.Fatalf("allowed %v, want %v: %v", err == nil, test.allowed, err)
+			}
+			if test.allowed && model != "selected" {
+				t.Fatalf("model %q", model)
+			}
+		})
+	}
+}

@@ -3,7 +3,6 @@ package gateway
 import (
 	"bufio"
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,7 +20,6 @@ import (
 	keyfunc "github.com/MicahParks/keyfunc/v3"
 	agw "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
-	authv3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	esv1 "github.com/external-secrets/external-secrets/apis/externalsecrets/v1"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3filter"
@@ -33,8 +31,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	nethttpmiddleware "github.com/oapi-codegen/nethttp-middleware"
 	baoapi "github.com/openbao/openbao/api/v2"
-	"google.golang.org/grpc"
-	grpccredentials "google.golang.org/grpc/credentials"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -47,7 +43,6 @@ import (
 
 	"golang.org/x/sync/semaphore"
 
-	"github.com/accuknox/agentz/internal/authorization"
 	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	dashboarddb "github.com/accuknox/agentz/internal/gateway/dashboard/db"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
@@ -87,44 +82,39 @@ const cleanupMaxAttempts = 8
 
 // Config describes how to start the gateway.
 type Config struct {
-	CodingGitHubClientID      string
-	CodingGitHubClientSecret  string
-	CodingGitHubEncryptionKey string
-	DelegationNamespace       string
-	DelegationGatewayURL      string
-	DelegationOnly            bool
-	DelegationAuthorityAddr   string
-	DelegationAuthorityTarget string
-	DelegationTLSDir          string
-	DelegationPublicPeer      string
-	Addr                      string
-	PostgresDSN               string
-	ExternalJWTJWKSURL        string
-	ExternalJWTIssuer         string
-	ExternalJWTAudience       string
-	InternalK8sTokenAudience  string
-	TargetOverride            string
-	FilesystemTargetOverride  string
-	AgentImage                string
-	AgentTraceEndpoint        string
-	OpenBaoAddr               string
-	OpenBaoSecretMountPath    string
-	OpenBaoK8sAuthRole        string
-	OpenBaoK8sAuthMountPath   string
-	OpenBaoK8sAuthTokenPath   string
-	MCPProbeStaleAfter        time.Duration
-	AllowedWebOrigins         []string
-	SkillStore                skill.Config
+	CodingGitHubClientID           string
+	CodingGitHubClientSecret       string
+	CodingGitHubEncryptionKey      string
+	DelegationNamespace            string
+	GatewayServiceAccountName      string
+	GatewayServiceAccountNamespace string
+	DelegationGatewayURL           string
+	Addr                           string
+	PostgresDSN                    string
+	ExternalJWTJWKSURL             string
+	ExternalJWTIssuer              string
+	ExternalJWTAudience            string
+	InternalK8sTokenAudience       string
+	TargetOverride                 string
+	FilesystemTargetOverride       string
+	AgentImage                     string
+	AgentTraceEndpoint             string
+	OpenBaoAddr                    string
+	OpenBaoSecretMountPath         string
+	OpenBaoK8sAuthRole             string
+	OpenBaoK8sAuthMountPath        string
+	OpenBaoK8sAuthTokenPath        string
+	MCPProbeStaleAfter             time.Duration
+	AllowedWebOrigins              []string
+	SkillStore                     skill.Config
 }
 
 // Service implements the agent gateway HTTP API.
 type Service struct {
 	gatewayapi.Unimplemented
-	authv3.UnimplementedAuthorizationServer
 	delegationRequests  chan struct{}
 	delegationBodies    *semaphore.Weighted
-	delegationAuthority authv3.AuthorizationClient
-	delegationTransport *http.Transport
+	delegationTransport http.RoundTripper
 	ctx                 context.Context
 	resolver            *resolver
 	queries             gatewaydb.Querier
@@ -204,9 +194,6 @@ func (r *statusRecorder) Unwrap() http.ResponseWriter {
 func Serve(ctx context.Context, cfg Config) error {
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	if cfg.DelegationOnly {
-		return serveDelegation(ctx, cfg)
-	}
 
 	if strings.TrimSpace(cfg.PostgresDSN) == "" {
 		return fmt.Errorf("postgres dsn is required")
@@ -239,13 +226,16 @@ func Serve(ctx context.Context, cfg Config) error {
 		return fmt.Errorf("mcp probe stale after is required")
 	}
 	if cfg.DelegationNamespace != "" {
-		target, err := url.Parse(cfg.DelegationGatewayURL)
-		if err != nil || target.Host == "" || target.Scheme != "https" {
-			return errors.New("delegation gateway URL must use HTTPS")
+		if cfg.DelegationGatewayURL == "" {
+			cfg.DelegationGatewayURL = "http://delegations." + cfg.DelegationNamespace + ".svc.cluster.local:8080"
 		}
-		identity := strings.Split(cfg.DelegationPublicPeer, ".")
-		if cfg.DelegationAuthorityAddr == "" || cfg.DelegationAuthorityTarget == "" || cfg.DelegationTLSDir == "" || len(identity) != 3 || identity[0] == "" || identity[1] == "" || identity[2] != "svc" {
-			return errors.New("delegation authority listener, workload TLS and public peer are required")
+		target, err := url.Parse(cfg.DelegationGatewayURL)
+		if err != nil || target.Host == "" || target.Scheme != "http" {
+			return errors.New("delegation gateway URL must use internal HTTP")
+		}
+		missingIdentity := cfg.GatewayServiceAccountName == "" || cfg.GatewayServiceAccountNamespace == ""
+		if missingIdentity {
+			return errors.New("delegation requires gateway service account identity")
 		}
 	}
 	allowedWebOrigins, err := validateWebOrigins(cfg.AllowedWebOrigins)
@@ -452,27 +442,14 @@ func Serve(ctx context.Context, cfg Config) error {
 
 	var delegationWorkers sync.WaitGroup
 	if cfg.DelegationNamespace != "" {
-		listener, err := net.Listen("tcp", cfg.DelegationAuthorityAddr)
-		if err != nil {
-			return fmt.Errorf("listen delegation authority: %w", err)
-		}
-		tlsConfig, err := authorization.DelegationTLS(cfg.DelegationTLSDir)
-		if err != nil {
-			return err
-		}
-		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
-		authority := grpc.NewServer(grpc.Creds(grpccredentials.NewTLS(tlsConfig)))
-		authv3.RegisterAuthorizationServer(authority, svc)
-		delegationWorkers.Go(func() {
-			if err := authority.Serve(listener); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
-				slog.ErrorContext(runCtx, "serve delegation authority", slog.Any("error", err))
-				stopRun()
-			}
-		})
-		delegationWorkers.Go(func() {
-			<-runCtx.Done()
-			authority.Stop()
-		})
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.Proxy = nil
+		transport.Protocols = new(http.Protocols)
+		transport.Protocols.SetUnencryptedHTTP2(true)
+		defer transport.CloseIdleConnections()
+		svc.delegationTransport = transport
+		svc.delegationRequests = make(chan struct{}, 64)
+		svc.delegationBodies = semaphore.NewWeighted(128 << 20)
 		delegationWorkers.Go(func() { svc.runDelegationRuntime(runCtx) })
 	}
 
@@ -881,6 +858,25 @@ func (s *Service) routes() http.Handler {
 		opencodePrefix+"/{agentName}/*",
 		s.handleOpenCodeProxy,
 	)
+
+	if s.cfg.DelegationNamespace != "" {
+		r.Route("/api/inference/v1", func(r chi.Router) {
+			r.Use(s.delegationCORS)
+			r.Get("/models", s.handleDelegatedRequest)
+			r.Post("/chat/completions", s.handleDelegatedRequest)
+			r.Post("/responses", s.handleDelegatedRequest)
+			for _, path := range []string{"/models", "/chat/completions", "/responses"} {
+				r.Options(path, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+			}
+			r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+				s.delegationError(w, r, http.StatusNotFound, "not_found", "This inference endpoint is unavailable.")
+			})
+			r.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) {
+				s.delegationError(w, r, http.StatusMethodNotAllowed, "method_not_allowed", "Use the supported HTTP method for this endpoint.")
+			})
+		})
+		r.With(s.delegationCORS).HandleFunc("/api/mcp", s.handleDelegatedRequest)
+	}
 
 	apiRouter := chi.NewRouter()
 	apiRouter.Use(managementCORS)

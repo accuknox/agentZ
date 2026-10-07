@@ -14,20 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package networkpolicy builds exact Cilium rules for controlled destinations.
+// Package networkpolicy builds Cilium isolation and controlled egress policies.
 package networkpolicy
 
 import (
 	"cmp"
+	"context"
 	"errors"
+	"fmt"
 	"net/netip"
 	"net/url"
 	"slices"
 	"strconv"
 	"strings"
 
+	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	slimv1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	ciliumapi "github.com/cilium/cilium/pkg/policy/api"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // Target is one admitted TCP destination.
@@ -181,4 +188,33 @@ func dnsPorts() []ciliumapi.PortProtocol {
 		{Port: "53", Protocol: ciliumapi.ProtoUDP},
 		{Port: "53", Protocol: ciliumapi.ProtoTCP},
 	}
+}
+
+// ReconcileRuntimeIsolation keeps private runtime ingress denied independently of
+// grants and Sandboxes. Namespace ownership keeps it in place during pod teardown.
+func ReconcileRuntimeIsolation(ctx context.Context, c client.Client, namespace *corev1.Namespace) error {
+	policy := &ciliumv2.CiliumNetworkPolicy{ObjectMeta: metav1.ObjectMeta{
+		Name: "runtime-isolation", Namespace: namespace.Name,
+	}}
+	_, err := ctrlutil.CreateOrPatch(ctx, c, policy, func() error {
+		policy.OwnerReferences = []metav1.OwnerReference{*metav1.NewControllerRef(namespace, corev1.SchemeGroupVersion.WithKind("Namespace"))}
+		policy.Spec = (&ciliumapi.Rule{
+			EndpointSelector: ciliumapi.EndpointSelector{LabelSelector: &slimv1.LabelSelector{
+				MatchExpressions: []slimv1.LabelSelectorRequirement{{
+					Key: "k8s:io.cilium.k8s.policy.serviceaccount", Operator: slimv1.LabelSelectorOpIn,
+					Values: []string{"inference", "mcp", "extauth"},
+				}},
+			}},
+			Ingress: []ciliumapi.IngressRule{{
+				IngressCommonRule: ciliumapi.IngressCommonRule{FromEntities: ciliumapi.EntitySlice{ciliumapi.EntityHost}},
+				ToPorts:           ciliumapi.PortRules{{Ports: []ciliumapi.PortProtocol{{Port: "15021", Protocol: ciliumapi.ProtoTCP}}}},
+			}},
+		}).WithEnableDefaultDeny(true, false)
+		policy.Specs = nil
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("reconcile runtime isolation: %w", err)
+	}
+	return nil
 }

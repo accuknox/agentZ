@@ -2660,8 +2660,7 @@ ORDER BY CASE WHEN state = 'sending' OR message_id <> '' AND state = 'failed' TH
 LIMIT 1;
 
 -- name: GatewayGetDelegationGrant :one
-SELECT g.id, g.client_id, g.user_id, g.organization_id, g.scopes,
-       g.resources, g.selection, g.created_at
+SELECT g.*
 FROM delegation_grants g
 JOIN oauth_clients c ON c.client_id = g.client_id AND c.disabled IS NOT TRUE AND g.scopes <@ c.scopes
 JOIN organization_delegation d ON d.organization_id = g.organization_id AND d.enabled
@@ -2671,8 +2670,7 @@ WHERE g.id = sqlc.arg(id) AND g.client_id = sqlc.arg(client_id)
   AND g.approved_at IS NOT NULL AND g.revoked_at IS NULL;
 
 -- name: GatewayListDelegationGrants :many
-SELECT g.id, g.client_id, g.user_id, g.organization_id, g.scopes,
-       g.resources, g.selection, g.created_at
+SELECT g.*
 FROM delegation_grants g
 JOIN oauth_clients c ON c.client_id = g.client_id AND c.disabled IS NOT TRUE AND g.scopes <@ c.scopes
 JOIN organization_delegation d ON d.organization_id = g.organization_id AND d.enabled
@@ -2702,28 +2700,3 @@ DELETE FROM delegation_transactions WHERE expires_at <= now();
 
 -- name: GatewayCheckDelegationSession :one
 SELECT EXISTS(SELECT 1 FROM sessions WHERE id = sqlc.arg(id) AND user_id = sqlc.arg(user_id) AND expires_at > now());
-
--- name: GatewayCheckDelegationDatabasePrivileges :one
-SELECT NOT (
- has_any_column_privilege(current_user, 'public.jwks', 'SELECT')
- OR has_any_column_privilege(current_user, 'public.oauth_refresh_tokens', 'SELECT')
- OR has_any_column_privilege(current_user, 'public.oauth_access_tokens', 'SELECT')
- OR has_any_column_privilege(current_user, 'public.accounts', 'SELECT')
- OR has_column_privilege(current_user, 'public.sessions', 'token', 'SELECT')
- OR has_column_privilege(current_user, 'public.oauth_clients', 'client_secret', 'SELECT')
- OR has_column_privilege(current_user, 'public.delegation_mcp_sessions', 'id', 'UPDATE')
- OR has_column_privilege(current_user, 'public.delegation_mcp_sessions', 'grant_id', 'UPDATE')
- OR has_table_privilege(current_user, 'public.delegation_mcp_sessions', 'DELETE,TRUNCATE')
- OR EXISTS (
-   SELECT 1
-   FROM unnest(ARRAY[
-     'public.delegation_grants', 'public.oauth_clients', 'public.members',
-     'public.organization_delegation', 'public.organization_roles',
-     'public.role_scopes', 'public.member_roles', 'public.team_roles',
-     'public.team_members', 'public.permission_grants', 'public.workspaces',
-     'public.oauth_client_resources', 'public.sessions'
-   ]) AS authority(table_name)
-   WHERE has_any_column_privilege(current_user, table_name, 'INSERT,UPDATE')
-      OR has_table_privilege(current_user, table_name, 'DELETE,TRUNCATE')
- )
-);

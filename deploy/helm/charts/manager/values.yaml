@@ -14,8 +14,7 @@ inference:
     refreshInterval: 1m
 
 delegation:
-  authorityTarget: ""
-  issuerName: ""
+  namespace: ""
 
 replicaCount: 1
 revisionHistoryLimit: 10

@@ -162,8 +162,7 @@ var (
 	enableWebhooks                                   bool
 	workflowRunOrphanRetention                       time.Duration
 	inferenceSecretStoreName                         string
-	delegationAuthorityTarget                        string
-	delegationIssuerName                             string
+	delegationNamespace                              string
 	inferenceSecretRefreshInterval                   time.Duration
 )
 
@@ -207,8 +206,7 @@ var cmd = &cli.Command{
 		cli.HandleExitCoder(err)
 	},
 	Flags: []cli.Flag{
-		&cli.StringFlag{Name: "delegation-authority-target", Destination: &delegationAuthorityTarget, Usage: "Private decision-only delegation authority endpoint"},
-		&cli.StringFlag{Name: "delegation-issuer-name", Destination: &delegationIssuerName, Usage: "ClusterIssuer for private delegation workload certificates"},
+		&cli.StringFlag{Name: "delegation-namespace", Destination: &delegationNamespace, Usage: "Private native MCP aggregator namespace"},
 		&cli.StringFlag{
 			Name:  "log-level",
 			Usage: "Set log level: debug, info, warn, error",
@@ -1454,7 +1452,8 @@ var managerCmd = &cli.Command{
 			OpenBaoAddr:               openBaoAddr,
 			OpenBaoSecretMountPath:    openBaoSecretMountPath,
 			OpenBaoK8sAuthMountPath:   openBaoK8sAuthMountPath,
-			DelegationAuthorityTarget: delegationAuthorityTarget, DelegationIssuerName: delegationIssuerName,
+			DelegationNamespace:       delegationNamespace,
+			GatewayServiceAccountName: gatewayServiceAccountName, GatewayServiceAccountNamespace: gatewayServiceAccountNamespace,
 		}
 		if err := extAuthRuntimeReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.ErrorContext(ctx,

@@ -9,10 +9,6 @@
 {{- $gatewayName := printf "%s-gateway" .Release.Name | trunc 63 | trimSuffix "-" }}
 {{- $internalGatewayBaseURL = printf "http://%s.%s.svc.cluster.local:8090" $gatewayName .Release.Namespace }}
 {{- end }}
-{{- $delegationGatewayBaseURL := .Values.env.delegationGatewayBaseURL }}
-{{- if and $umbrella (dig "agentz" "delegationEnabled" false (.Values.global | default dict)) (not $delegationGatewayBaseURL) }}
-{{- $delegationGatewayBaseURL = printf "http://%s-gateway-delegation.%s.svc.cluster.local:8090" .Release.Name .Release.Namespace }}
-{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -98,8 +94,6 @@ spec:
             - name: ORGANIZATION_ASSETS_S3_FORCE_PATH_STYLE
               value: {{ .Values.env.organizationAssetsS3ForcePathStyle | quote }}
             {{- if $internalGatewayBaseURL }}
-            - name: DELEGATION_GATEWAY_BASE_URL
-              value: {{ $delegationGatewayBaseURL | quote }}
             - name: INTERNAL_GATEWAY_BASE_URL
               value: {{ $internalGatewayBaseURL | quote }}
             {{- end }}

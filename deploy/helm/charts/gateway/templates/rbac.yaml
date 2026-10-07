@@ -28,9 +28,6 @@ rules:
   - apiGroups: [cilium.io]
     resources: [ciliumnetworkpolicies]
     verbs: [get, list, create, update, patch, delete]
-  - apiGroups: [""]
-    resources: [configmaps]
-    verbs: [get, create, update, patch]
   {{- end }}
   - apiGroups: ["authentication.k8s.io"]
     resources: ["tokenreviews"]
@@ -53,31 +50,4 @@ subjects:
   - kind: ServiceAccount
     name: {{ include "gateway.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
-{{- if (dig "agentz" "delegationEnabled" false (.Values.global | default dict)) }}
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: delegation-ca
-  namespace: {{ printf "%s-delegations" (include "gateway.fullname" .) | trunc 63 | trimSuffix "-" }}
-rules:
-  - apiGroups: [""]
-    resources: [secrets]
-    resourceNames: [delegation-gateway-tls]
-    verbs: [get]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: delegation-ca
-  namespace: {{ printf "%s-delegations" (include "gateway.fullname" .) | trunc 63 | trimSuffix "-" }}
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: delegation-ca
-subjects:
-  - kind: ServiceAccount
-    name: {{ include "gateway.serviceAccountName" . }}
-    namespace: {{ .Release.Namespace }}
-{{- end }}
 {{- end }}

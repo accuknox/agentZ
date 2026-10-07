@@ -20,15 +20,9 @@ SKILLS_S3_BUCKET ?= agentz
 SKILLS_S3_ACCESS_KEY_ID ?= admin
 SKILLS_S3_SECRET_ACCESS_KEY ?= admin
 
-# Host development with the private authority and public delegation entrypoint.
+# Host development uses the same gateway for management and delegated requests.
 DELEGATION_NAMESPACE ?=
 DELEGATION_GATEWAY_URL ?=
-DELEGATION_AUTHORITY_TARGET ?=
-DELEGATION_PUBLIC_PEER ?=
-DELEGATION_ISSUER_NAME ?=
-DELEGATION_AUTHORITY_TLS_DIR ?=
-DELEGATION_PUBLIC_TLS_DIR ?=
-DELEGATION_POSTGRES_DSN ?=
 
 KUBECTL ?= kubectl
 KUSTOMIZE ?= kustomize
@@ -89,6 +83,8 @@ run-gateway:
 	@AGENTZ_SKILLS_S3_ACCESS_KEY_ID=$(SKILLS_S3_ACCESS_KEY_ID) \
 	AGENTZ_SKILLS_S3_SECRET_ACCESS_KEY=$(SKILLS_S3_SECRET_ACCESS_KEY) \
 		go run ./cmd/agentz gateway serve \
+		--gateway-service-account-name=default \
+		--gateway-service-account-namespace=$(K8S_NAMESPACE) \
 		--coding-github-client-id=$(CODING_GITHUB_CLIENT_ID) \
 		--coding-github-client-secret=$(CODING_GITHUB_CLIENT_SECRET) \
 		--coding-github-encryption-key=$(CODING_GITHUB_ENCRYPTION_KEY) \
@@ -98,9 +94,6 @@ run-gateway:
 		--filesystem-target-override=localhost:4097 \
 		--delegation-namespace="$(DELEGATION_NAMESPACE)" \
 		--delegation-gateway-url="$(DELEGATION_GATEWAY_URL)" \
-		--delegation-authority-target="$(DELEGATION_AUTHORITY_TARGET)" \
-		--delegation-public-peer="$(DELEGATION_PUBLIC_PEER)" \
-		--delegation-tls-dir="$(DELEGATION_AUTHORITY_TLS_DIR)" \
 		--postgres-dsn="$(POSTGRES_DSN)" \
 		--external-jwt-jwks-url=$(BETTER_AUTH_URL)/api/auth/.well-known/jwks.json \
 		--external-jwt-issuer=$(BETTER_AUTH_URL) \
@@ -117,18 +110,6 @@ run-gateway:
 		--skills-s3-region=$(SKILLS_S3_REGION) \
 		--skills-s3-bucket=$(SKILLS_S3_BUCKET)
 
-.PHONY: run-delegation
-run-delegation:
-	go run ./cmd/agentz gateway serve \
-		--delegation-only \
-		--addr=0.0.0.0:8091 \
-		--postgres-dsn="$(DELEGATION_POSTGRES_DSN)" \
-		--external-jwt-jwks-url=$(BETTER_AUTH_URL)/api/auth/.well-known/jwks.json \
-		--external-jwt-issuer=$(BETTER_AUTH_URL) \
-		--delegation-gateway-url="$(DELEGATION_GATEWAY_URL)" \
-		--delegation-authority-target="$(DELEGATION_AUTHORITY_TARGET)" \
-		--delegation-tls-dir="$(DELEGATION_PUBLIC_TLS_DIR)"
-
 .PHONY: run-manager
 run-manager:
 	umask 077; \
@@ -140,8 +121,7 @@ run-manager:
 		--health-probe-bind-address=:8888 \
 		--enable-webhooks=false \
 		--workflowrun-orphan-retention=168h \
-		--delegation-authority-target="$(DELEGATION_AUTHORITY_TARGET)" \
-		--delegation-issuer-name="$(DELEGATION_ISSUER_NAME)" \
+		--delegation-namespace="$(DELEGATION_NAMESPACE)" \
 		--controller-image=$(IMAGE) \
 		--agent-image=$(AGENT_IMAGE) \
 		--openbao-addr=http://openbao.openbao.svc.cluster.local:8200 \

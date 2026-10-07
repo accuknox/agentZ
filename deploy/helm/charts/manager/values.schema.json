@@ -207,8 +207,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "authorityTarget": { "type": "string" },
-        "issuerName": { "type": "string" }
+        "namespace": { "type": "string" }
       }
     }
   },

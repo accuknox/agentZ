@@ -84,30 +84,16 @@ func (s *Service) runProbeQueue(ctx context.Context) {
 			return
 		}
 
-		_, err, _ := s.sf.Do(
-			"probe:"+name,
-			func() (any, error) {
-				conn, getErr := s.mcpConnections.Get(name)
-				if getErr != nil {
-					return nil, ctrlclient.IgnoreNotFound(getErr)
-				}
-				if !conn.DeletionTimestamp.IsZero() {
-					return nil, nil
-				}
-				outcome := s.probeMCPConnection(ctx, conn)
-				s.probeTimesMu.Lock()
-				s.probeTimes[name] = outcome.lastProbeTime.Time
-				s.probeTimesMu.Unlock()
-				return nil, s.writeMCPProbeStatus(
-					ctx,
-					conn.Namespace,
-					conn.Name,
-					outcome,
-				)
-			},
-		)
+		conn, err := s.mcpConnections.Get(name)
+		if err == nil && conn.DeletionTimestamp.IsZero() {
+			outcome := s.probeMCPConnection(ctx, conn)
+			s.probeTimesMu.Lock()
+			s.probeTimes[name] = outcome.lastProbeTime.Time
+			s.probeTimesMu.Unlock()
+			err = s.writeMCPProbeStatus(ctx, conn, outcome)
+		}
 		s.probeQueue.Done(name)
-		if err == nil {
+		if ctrlclient.IgnoreNotFound(err) == nil {
 			continue
 		}
 
@@ -147,7 +133,7 @@ func (s *Service) probeMCPConnections(ctx context.Context) error {
 		s.probeTimesMu.Lock()
 		s.probeTimes[conn.Name] = outcome.lastProbeTime.Time
 		s.probeTimesMu.Unlock()
-		if err := s.writeMCPProbeStatus(ctx, conn.Namespace, conn.Name, outcome); err != nil {
+		if err := s.writeMCPProbeStatus(ctx, &conn, outcome); err != nil {
 			slog.ErrorContext(
 				ctx,
 				"write mcp probe status failed",
@@ -455,16 +441,23 @@ func isReachabilityError(err error) bool {
 	return ok
 }
 
-func (s *Service) writeMCPProbeStatus(ctx context.Context, namespace, name string, outcome mcpProbeOutcome) error {
+func (s *Service) writeMCPProbeStatus(ctx context.Context, probed *agentzv1alpha1.MCPConnection, outcome mcpProbeOutcome) error {
 	return retry.RetryOnConflict(
 		retry.DefaultRetry,
 		func() error {
 			conn := &agentzv1alpha1.MCPConnection{}
-			key := ctrlclient.ObjectKey{Namespace: namespace, Name: name}
+			key := ctrlclient.ObjectKeyFromObject(probed)
 			if err := s.kube.Get(ctx, key, conn); err != nil {
 				return ctrlclient.IgnoreNotFound(err)
 			}
 
+			changed := conn.UID != probed.UID || conn.Generation != probed.Generation
+			if changed || !conn.DeletionTimestamp.IsZero() {
+				return nil
+			}
+			if conn.Status.LastProbeTime != nil && conn.Status.LastProbeTime.After(outcome.lastProbeTime.Time) {
+				return nil
+			}
 			conn.Status.LastProbeTime = &outcome.lastProbeTime
 			conn.Status.ToolCatalogReady = outcome.healthy
 			conn.Status.Tools = outcome.tools

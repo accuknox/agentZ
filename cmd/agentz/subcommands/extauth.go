@@ -21,8 +21,7 @@ var extAuthServeCmd = &cli.Command{
 	Name:  "serve",
 	Usage: "Run the MCP ext-auth gRPC service",
 	Flags: []cli.Flag{
-		&cli.StringFlag{Name: "delegation-authority-target", Usage: "Private delegation authority TLS endpoint"},
-		&cli.StringFlag{Name: "delegation-tls-dir", Usage: "Mounted owner workload identity"},
+		&cli.BoolFlag{Name: "delegation-enabled", Usage: "Enable owner-local delegated authorization on port 18084"},
 		&cli.StringFlag{
 			Name:  "addr",
 			Usage: "Listen address",
@@ -94,17 +93,16 @@ var extAuthServeCmd = &cli.Command{
 		return extauth.Serve(
 			ctx,
 			extauth.Config{
-				Addr:                      c.String("addr"),
-				DelegationAuthorityTarget: c.String("delegation-authority-target"),
-				DelegationTLSDir:          c.String("delegation-tls-dir"),
-				Namespace:                 c.String("namespace"),
-				OpenBaoAddr:               c.String("openbao-addr"),
-				OpenBaoSecretMountPath:    c.String("openbao-secret-mount-path"),
-				OpenBaoK8sAuthRole:        c.String("openbao-k8s-auth-role"),
-				OpenBaoK8sAuthMountPath:   c.String("openbao-k8s-auth-mount-path"),
-				OpenBaoK8sAuthTokenPath:   c.String("openbao-k8s-auth-token-path"),
-				MCPProbeInterval:          c.Duration("mcp-probe-interval"),
-				MCPProbeTimeout:           c.Duration("mcp-probe-timeout"),
+				Addr:                    c.String("addr"),
+				DelegationEnabled:       c.Bool("delegation-enabled"),
+				Namespace:               c.String("namespace"),
+				OpenBaoAddr:             c.String("openbao-addr"),
+				OpenBaoSecretMountPath:  c.String("openbao-secret-mount-path"),
+				OpenBaoK8sAuthRole:      c.String("openbao-k8s-auth-role"),
+				OpenBaoK8sAuthMountPath: c.String("openbao-k8s-auth-mount-path"),
+				OpenBaoK8sAuthTokenPath: c.String("openbao-k8s-auth-token-path"),
+				MCPProbeInterval:        c.Duration("mcp-probe-interval"),
+				MCPProbeTimeout:         c.Duration("mcp-probe-timeout"),
 			},
 		)
 	},

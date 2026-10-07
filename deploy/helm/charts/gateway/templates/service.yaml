@@ -15,21 +15,4 @@ spec:
       protocol: TCP
   selector:
     {{- include "gateway.selectorLabels" . | nindent 4 }}
-{{- if (dig "agentz" "delegationEnabled" false (.Values.global | default dict)) }}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ include "gateway.fullname" . }}-authority
-  namespace: {{ .Release.Namespace }}
-spec:
-  type: ClusterIP
-  ports:
-    - name: authority
-      port: 18085
-      targetPort: authority
-      protocol: TCP
-  selector:
-    {{- include "gateway.selectorLabels" . | nindent 4 }}
-{{- end }}
 {{- end }}

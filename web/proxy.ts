@@ -21,7 +21,7 @@ export function proxy(request: NextRequest) {
     path === "/api/inference/v1" ||
     path.startsWith("/api/inference/v1/")
   ) {
-    const gatewayURL = process.env.DELEGATION_GATEWAY_BASE_URL
+    const gatewayURL = process.env.INTERNAL_GATEWAY_BASE_URL ?? process.env.GATEWAY_BASE_URL
     if (!gatewayURL) {
       return NextResponse.json(
         {

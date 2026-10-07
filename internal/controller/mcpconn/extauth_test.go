@@ -5,6 +5,10 @@ import (
 	"slices"
 	"testing"
 
+	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	slimv1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -102,5 +106,74 @@ func workspaceForExtAuth(id, organizationID string) *agentzv1alpha1.Workspace {
 			WorkspaceID:    id,
 			OrganizationID: organizationID,
 		},
+	}
+}
+
+type extAuthCallerCase struct {
+	name, namespace, account, gateway string
+	ordinary, delegated, helper       bool
+}
+
+func TestExtAuthCallerIdentities(t *testing.T) {
+	scheme := runtime.NewScheme()
+	for _, add := range []func(*runtime.Scheme) error{agentzv1alpha1.AddToScheme, ciliumv2.AddToScheme} {
+		if err := add(scheme); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).Build()
+	r := &ExtAuthRuntimeReconciler{Client: c, DelegationNamespace: "private", OpenBaoAddr: "http://openbao.bao.svc.cluster.local:8200"}
+	scope := extAuthScope{namespace: "owner", workspaces: []workspaceAccess{{namespace: "related", mcp: true, inference: true}}}
+	if err := r.reconcileExtAuthPolicy(t.Context(), scope); err != nil {
+		t.Fatal(err)
+	}
+	policy := &ciliumv2.CiliumNetworkPolicy{}
+	if err := c.Get(t.Context(), client.ObjectKey{Namespace: "owner", Name: mcp.ExtAuthServiceName}, policy); err != nil {
+		t.Fatal(err)
+	}
+	if err := policy.Spec.Sanitize(); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []extAuthCallerCase{
+		{"local inference", "owner", "inference", "inference", true, true, false},
+		{"local MCP", "owner", "mcp", "mcp", true, true, true},
+		{"related inference", "related", "inference", "inference", true, false, false},
+		{"related MCP", "related", "mcp", "mcp", true, false, true},
+		{"unrelated inference", "foreign", "inference", "inference", false, false, false},
+		{"forged local gateway labels", "owner", "untrusted", "inference", false, false, false},
+		{"forged related gateway labels", "related", "untrusted", "mcp", false, false, false},
+		{"aggregator", "private", "delegations", "delegations", false, false, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			identity := labels.Set{
+				"k8s.io.kubernetes.pod.namespace":            test.namespace,
+				"k8s.io.cilium.k8s.policy.serviceaccount":    test.account,
+				"k8s.gateway.networking.k8s.io/gateway-name": test.gateway,
+				"k8s.app.kubernetes.io/name":                 test.gateway,
+			}
+			expected := map[string]bool{"18081": test.ordinary, "18084": test.delegated, "18082": test.helper}
+			for port, want := range expected {
+				admitted := false
+				for _, rule := range policy.Spec.Ingress {
+					for _, source := range rule.FromEndpoints {
+						selector, err := slimv1.LabelSelectorAsSelector(source.LabelSelector)
+						if err != nil {
+							t.Fatal(err)
+						}
+						if !selector.Matches(identity) {
+							continue
+						}
+						for _, ports := range rule.ToPorts {
+							for _, destination := range ports.Ports {
+								admitted = admitted || destination.Port == port
+							}
+						}
+					}
+				}
+				if admitted != want {
+					t.Fatalf("credential admission on %s = %v, want %v", port, admitted, want)
+				}
+			}
+		})
 	}
 }

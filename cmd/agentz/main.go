@@ -1412,9 +1412,18 @@ var managerCmd = &cli.Command{
 			os.Exit(1)
 		}
 
+		// Workflow control requests must finish even when an agent stops
+		// responding. The timeout also covers reading the response body.
+		runClient, err := gatewayapi.NewClientWithResponses(
+			gatewayURL,
+			gatewayapi.WithHTTPClient(&http.Client{Timeout: 15 * time.Second}),
+		)
+		if err != nil {
+			return fmt.Errorf("create workflow run gateway client: %w", err)
+		}
 		workflowRunReconciler := &workflowruncontroller.Reconciler{
 			Client:          mgr.GetClient(),
-			GatewayClient:   gwClient,
+			GatewayClient:   runClient,
 			OrphanRetention: workflowRunOrphanRetention,
 			TokenPath:       managerGatewayTokenPath,
 		}

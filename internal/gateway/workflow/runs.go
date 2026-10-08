@@ -283,7 +283,7 @@ func PatchRunStatus(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 				return nil
 			}
 
-			patch := ctrlclient.MergeFrom(current.DeepCopy())
+			patch := ctrlclient.MergeFromWithOptions(current.DeepCopy(), ctrlclient.MergeFromWithOptimisticLock{})
 			now := metav1.Now()
 			current.Status.Phase = phase
 			current.Status.Message = msg
@@ -395,7 +395,7 @@ func PatchRunNodeStatus(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlc
 				return nil
 			}
 
-			patch := ctrlclient.MergeFrom(current.DeepCopy())
+			patch := ctrlclient.MergeFromWithOptions(current.DeepCopy(), ctrlclient.MergeFromWithOptimisticLock{})
 			current.Status.Nodes = nodes
 
 			if err := k8sClient.Status().Patch(ctx, current, patch); err != nil {

@@ -30,10 +30,12 @@ import (
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
@@ -114,13 +116,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{RequeueAfter: time.Millisecond}, nil
 	}
 
-	if run.Status.Phase == agentzv1alpha1.WorkflowRunPhaseUnknown && run.Status.CompletedAt != nil {
+	terminal := run.Status.Phase.Terminal()
+	if run.Status.Phase == agentzv1alpha1.WorkflowRunPhaseUnknown {
+		terminal = run.Status.CompletedAt != nil
+	}
+	if terminal {
 		err = r.syncTerminalStatus(ctx, run)
 		if err != nil {
-			return ctrl.Result{}, fmt.Errorf(
-				"sync zero-value workflow run status: %w",
-				err,
-			)
+			return ctrl.Result{}, fmt.Errorf("sync terminal workflow run status: %w", err)
 		}
 		err = r.pruneOrphanRuns(ctx, run)
 		if err != nil {
@@ -139,30 +142,20 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{RequeueAfter: time.Millisecond}, nil
 	}
 
-	if run.Status.Phase.Terminal() {
-		err = r.syncTerminalStatus(ctx, run)
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("sync terminal workflow run status: %w", err)
+	if run.Status.StartedAt != nil && run.Spec.TimeoutSeconds > 0 {
+		deadline := run.Status.StartedAt.Add(time.Duration(run.Spec.TimeoutSeconds) * time.Second)
+		if time.Now().After(deadline) {
+			err = r.failRun(
+				ctx,
+				run,
+				agentzv1alpha1.WorkflowRunReasonTimedOut,
+				"workflow run timed out",
+			)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{}, nil
 		}
-		err = r.pruneOrphanRuns(ctx, run)
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("prune orphan workflow runs: %w", err)
-		}
-		return ctrl.Result{}, nil
-	}
-
-	if timedOut(run) {
-		err = r.failRun(
-			ctx,
-			run,
-			agentzv1alpha1.WorkflowRunReasonTimedOut,
-			"workflow run timed out",
-			true,
-		)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{}, nil
 	}
 
 	switch run.Status.Phase {
@@ -180,6 +173,10 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&agentzv1alpha1.WorkflowRun{}).
 		Named("workflowrun").
+		WithOptions(controller.Options{
+			MaxConcurrentReconciles: 2,
+			ReconciliationTimeout:   time.Minute,
+		}).
 		Complete(r)
 }
 
@@ -244,19 +241,10 @@ func (r *Reconciler) finalizeRun(ctx context.Context, run *agentzv1alpha1.Workfl
 	if !ctrlutil.ContainsFinalizer(run, workflowRunFinalizer) {
 		return nil
 	}
-	if run.Status.SessionID != "" && r.GatewayClient == nil {
-		return fmt.Errorf("gateway client is not configured")
-	}
 	if run.Status.SessionID != "" {
-		abortResp, err := r.GatewayClient.SessionAbortWithResponse(
-			ctx, run.Spec.AgentName, run.Status.SessionID, nil,
-			gwreq.RequestEditor(r.TokenPath, run.Namespace),
-		)
+		err := r.abortRun(ctx, run)
 		if err != nil {
-			return fmt.Errorf("abort workflow session: %w", err)
-		}
-		if abortResp.StatusCode() != http.StatusOK && abortResp.StatusCode() != http.StatusNotFound {
-			return fmt.Errorf("abort workflow session returned status %d", abortResp.StatusCode())
+			return err
 		}
 		resp, err := r.GatewayClient.SessionDeleteWithResponse(
 			ctx,
@@ -311,7 +299,6 @@ func (r *Reconciler) reconcilePending(ctx context.Context, run *agentzv1alpha1.W
 		run,
 		agentzv1alpha1.WorkflowRunReasonGatewayError,
 		err.Error(),
-		true,
 	)
 	if failErr != nil {
 		return ctrl.Result{}, fmt.Errorf("mark workflow run failed: %w", failErr)
@@ -335,7 +322,7 @@ func (r *Reconciler) reconcileRunning(ctx context.Context, run *agentzv1alpha1.W
 	if message == "" {
 		// on a fresh agent pod, OpenCode may briefly show no terminal message
 		// while the first async prompt is still starting up.
-		if sessionMayStillStart(run) {
+		if run.Status.StartedAt != nil && time.Since(run.Status.StartedAt.Time) < sessionStartupGrace {
 			return ctrl.Result{RequeueAfter: runRequeueInterval}, nil
 		}
 		message = "workflow session completed without terminal status update"
@@ -346,6 +333,9 @@ func (r *Reconciler) reconcileRunning(ctx context.Context, run *agentzv1alpha1.W
 		ctx,
 		run,
 		func(status *agentzv1alpha1.WorkflowRunStatus) {
+			if status.Phase.Terminal() || status.CompletedAt != nil {
+				return
+			}
 			status.Phase = agentzv1alpha1.WorkflowRunPhaseUnacked
 			status.Message = message
 			r.setTerminalStatus(
@@ -516,33 +506,35 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 	return nil
 }
 
-func (r *Reconciler) failRun(ctx context.Context, run *agentzv1alpha1.WorkflowRun, reason string, message string, abort bool) error {
-	if abort && run.Status.SessionID != "" && r.GatewayClient != nil {
-		resp, err := r.GatewayClient.SessionAbortWithResponse(
-			ctx,
-			run.Spec.AgentName,
-			run.Status.SessionID,
-			nil,
-			gwreq.RequestEditor(r.TokenPath, run.Namespace),
-		)
-		switch {
-		case err != nil:
-			return fmt.Errorf("abort workflow session: %w", err)
-		case resp.StatusCode() != http.StatusOK && resp.StatusCode() != http.StatusNotFound:
-			return fmt.Errorf("abort workflow session returned status %d", resp.StatusCode())
-		}
-	}
-
+func (r *Reconciler) failRun(ctx context.Context, run *agentzv1alpha1.WorkflowRun, reason, message string) error {
+	// Record the failure and cancellation intent together before contacting the
+	// agent. An unavailable agent must not hide an expired execution deadline.
 	now := metav1.Now()
-	return r.patchStatus(
+	err := r.patchStatus(
 		ctx,
 		run,
 		func(status *agentzv1alpha1.WorkflowRunStatus) {
+			if status.Phase.Terminal() || status.CompletedAt != nil {
+				return
+			}
 			status.Phase = agentzv1alpha1.WorkflowRunPhaseFailed
 			status.Message = message
 			r.setTerminalStatus(status, run.Generation, reason, message, &now)
+			if status.SessionID != "" {
+				status.SetCondition(metav1.Condition{
+					Type:               agentzv1alpha1.WorkflowRunConditionSessionAborted,
+					Status:             metav1.ConditionFalse,
+					ObservedGeneration: run.Generation,
+					Reason:             reason,
+					Message:            "workflow session cancellation is pending",
+				})
+			}
 		},
 	)
+	if err != nil {
+		return err
+	}
+	return r.syncTerminalStatus(ctx, run)
 }
 
 func (r *Reconciler) patchStatus(ctx context.Context, run *agentzv1alpha1.WorkflowRun, mutate func(*agentzv1alpha1.WorkflowRunStatus)) error {
@@ -554,54 +546,91 @@ func (r *Reconciler) patchStatus(ctx context.Context, run *agentzv1alpha1.Workfl
 			if err != nil {
 				return err
 			}
-			patch := client.MergeFrom(current.DeepCopy())
+			patch := client.MergeFromWithOptions(current.DeepCopy(), client.MergeFromWithOptimisticLock{})
 			mutate(&current.Status)
-			return r.Status().Patch(ctx, current, patch)
+			if err := r.Status().Patch(ctx, current, patch); err != nil {
+				return err
+			}
+			run.Status = current.Status
+			return nil
 		},
 	)
-}
-
-func timedOut(run *agentzv1alpha1.WorkflowRun) bool {
-	if run.Status.StartedAt == nil || run.Spec.TimeoutSeconds == 0 {
-		return false
-	}
-	deadline := run.Status.StartedAt.Add(time.Duration(run.Spec.TimeoutSeconds) * time.Second)
-	return time.Now().After(deadline)
-}
-
-func sessionMayStillStart(run *agentzv1alpha1.WorkflowRun) bool {
-	if run.Status.StartedAt == nil {
-		return false
-	}
-	return time.Since(run.Status.StartedAt.Time) < sessionStartupGrace
 }
 
 func (r *Reconciler) syncTerminalStatus(ctx context.Context, run *agentzv1alpha1.WorkflowRun) error {
-	reason := agentzv1alpha1.WorkflowRunReasonSucceeded
-	switch run.Status.Phase {
-	case agentzv1alpha1.WorkflowRunPhaseFailed:
-		reason = agentzv1alpha1.WorkflowRunReasonFailed
-	case agentzv1alpha1.WorkflowRunPhaseUnacked:
-		reason = agentzv1alpha1.WorkflowRunReasonUnacked
-	}
-	message := run.Status.Message
-	if message == "" {
-		message = "workflow run completed"
-	}
-	completedAt := run.Status.CompletedAt
-	if completedAt == nil {
-		now := metav1.Now()
-		completedAt = &now
-	}
-
-	return r.patchStatus(
+	err := r.patchStatus(
 		ctx,
 		run,
 		func(status *agentzv1alpha1.WorkflowRunStatus) {
-			status.Message = message
-			r.setTerminalStatus(status, run.Generation, reason, message, completedAt)
+			reason := agentzv1alpha1.WorkflowRunReasonSucceeded
+			switch status.Phase {
+			case agentzv1alpha1.WorkflowRunPhaseFailed:
+				reason = agentzv1alpha1.WorkflowRunReasonFailed
+				ready := apimeta.FindStatusCondition(
+					status.Conditions,
+					agentzv1alpha1.WorkflowRunConditionReady,
+				)
+				if ready != nil && ready.Status == metav1.ConditionTrue {
+					reason = ready.Reason
+				}
+			case agentzv1alpha1.WorkflowRunPhaseUnacked:
+				reason = agentzv1alpha1.WorkflowRunReasonUnacked
+			}
+			if status.Message == "" {
+				status.Message = "workflow run completed"
+			}
+			completedAt := status.CompletedAt
+			if completedAt == nil {
+				now := metav1.Now()
+				completedAt = &now
+			}
+			r.setTerminalStatus(status, run.Generation, reason, status.Message, completedAt)
 		},
 	)
+	if err != nil {
+		return err
+	}
+	if !apimeta.IsStatusConditionFalse(run.Status.Conditions, agentzv1alpha1.WorkflowRunConditionSessionAborted) {
+		return nil
+	}
+
+	err = r.abortRun(ctx, run)
+	cond := metav1.Condition{
+		Type:               agentzv1alpha1.WorkflowRunConditionSessionAborted,
+		Status:             metav1.ConditionTrue,
+		ObservedGeneration: run.Generation,
+		Reason:             agentzv1alpha1.WorkflowRunConditionSessionAborted,
+		Message:            "workflow session cancellation is confirmed",
+	}
+	if err != nil {
+		cond.Status = metav1.ConditionFalse
+		cond.Reason = agentzv1alpha1.WorkflowRunReasonGatewayError
+		cond.Message = err.Error()
+	}
+	patchErr := r.patchStatus(ctx, run, func(status *agentzv1alpha1.WorkflowRunStatus) {
+		status.SetCondition(cond)
+	})
+	return errors.Join(err, patchErr)
+}
+
+func (r *Reconciler) abortRun(ctx context.Context, run *agentzv1alpha1.WorkflowRun) error {
+	if run.Status.SessionID == "" {
+		return nil
+	}
+	if r.GatewayClient == nil {
+		return errors.New("gateway client is not configured")
+	}
+	resp, err := r.GatewayClient.SessionAbortWithResponse(
+		ctx, run.Spec.AgentName, run.Status.SessionID, nil,
+		gwreq.RequestEditor(r.TokenPath, run.Namespace),
+	)
+	if err != nil {
+		return fmt.Errorf("abort workflow session: %w", err)
+	}
+	if resp.StatusCode() != http.StatusOK && resp.StatusCode() != http.StatusNotFound {
+		return fmt.Errorf("abort workflow session returned status %d", resp.StatusCode())
+	}
+	return nil
 }
 
 func (r *Reconciler) markPending(ctx context.Context, run *agentzv1alpha1.WorkflowRun) error {

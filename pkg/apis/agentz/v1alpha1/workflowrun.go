@@ -57,6 +57,9 @@ const (
 	WorkflowRunConditionReady = "Ready"
 	// WorkflowRunConditionProgressing reflects whether the run is active.
 	WorkflowRunConditionProgressing = "Progressing"
+	// WorkflowRunConditionSessionAborted tracks cancellation independently of
+	// execution status so failed abort requests can be retried after a restart.
+	WorkflowRunConditionSessionAborted = "SessionAborted"
 )
 
 const (

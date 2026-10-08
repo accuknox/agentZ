@@ -20,6 +20,7 @@ import (
 	jwtrequest "github.com/golang-jwt/jwt/v5/request"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -37,6 +38,21 @@ import (
 
 var errDelegationLookup = errors.New("delegation lookup failed")
 
+// Empty grants have no upstream routes or MCP session state. The SDK still
+// handles initialization, empty discovery, and rejected execution requests.
+var emptyDelegationMCP = func() http.Handler {
+	server := mcpsdk.NewServer(&mcpsdk.Implementation{Name: "agentz", Version: "v0.0.1"}, &mcpsdk.ServerOptions{
+		Capabilities: &mcpsdk.ServerCapabilities{
+			Tools: &mcpsdk.ToolCapabilities{}, Prompts: &mcpsdk.PromptCapabilities{},
+			Resources: &mcpsdk.ResourceCapabilities{},
+		},
+		GetSessionID: func() string { return "" },
+	})
+	return mcpsdk.NewStreamableHTTPHandler(func(*http.Request) *mcpsdk.Server {
+		return server
+	}, &mcpsdk.StreamableHTTPOptions{Stateless: true, JSONResponse: true})
+}()
+
 type delegatedMCPMessage struct {
 	JSONRPC string          `json:"jsonrpc"`
 	ID      json.RawMessage `json:"id"`
@@ -44,10 +60,12 @@ type delegatedMCPMessage struct {
 }
 
 type openAIModel struct {
-	ID      string `json:"id"`
-	Object  string `json:"object"`
-	Created int64  `json:"created"`
-	OwnedBy string `json:"owned_by"`
+	ID                 string   `json:"id"`
+	Object             string   `json:"object"`
+	Created            int64    `json:"created"`
+	OwnedBy            string   `json:"owned_by"`
+	SupportedEndpoints []string `json:"supported_endpoints,omitempty"`
+	StreamingOnly      bool     `json:"streaming_only,omitempty"`
 }
 
 type openAIModels struct {
@@ -130,9 +148,14 @@ func (s *Service) delegationCatalog(ctx context.Context, userID, organizationID,
 						continue
 					}
 					catalog.Models = append(catalog.Models, gatewayapi.DelegationModel{
-						Id:          workspaceID + "/" + string(provider.UID) + "/" + model.ID,
-						WorkspaceId: workspaceID, Namespace: namespace, Provider: provider.Name,
-						Uid: string(provider.UID), Model: model.ID,
+						Id:                  workspaceID + "/" + string(provider.UID) + "/" + model.ID,
+						WorkspaceId:         workspaceID,
+						Namespace:           namespace,
+						Provider:            provider.Name,
+						ProviderDisplayName: provider.Spec.DisplayName,
+						Uid:                 string(provider.UID),
+						Model:               model.ID,
+						ModelDisplayName:    model.DisplayName,
 					})
 				}
 			}
@@ -178,6 +201,9 @@ func (s *Service) delegationCatalog(ctx context.Context, userID, organizationID,
 }
 
 func (s *Service) checkDelegation(ctx context.Context, grant gatewaydb.DelegationGrant, selection gatewayapi.DelegationCatalog) error {
+	if len(selection.Models) == 0 && len(selection.Mcp) == 0 {
+		return nil
+	}
 	effective, err := authorization.New(s.queries).Resolve(ctx, authorization.Subject{
 		UserID: grant.UserID, OrganizationID: grant.OrganizationID.String,
 	})
@@ -310,7 +336,8 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 		s.delegationError(w, r, http.StatusUnauthorized, "invalid_token", "A valid AgentZ access token is required.")
 		return
 	}
-	if !slices.Contains(strings.Fields(claims.Scope), requiredScope) {
+	claimedScopes := strings.Fields(claims.Scope)
+	if !slices.Contains(claimedScopes, requiredScope) {
 		w.Header().Set("WWW-Authenticate", fmt.Sprintf(`Bearer error="insufficient_scope", scope=%q`, requiredScope))
 		s.delegationError(w, r, http.StatusForbidden, "insufficient_scope", "The required scope was not granted.")
 		return
@@ -327,7 +354,7 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 		slog.WarnContext(r.Context(), "delegated request denied", slog.String("grant", claims.GrantID), slog.Any("error", err))
 		s.delegationError(w, r, status, code, message)
 	}
-	if claims.SessionID != "" {
+	if claims.SessionID != "" && !slices.Contains(claimedScopes, "offline_access") {
 		active, err := s.queries.GatewayCheckDelegationSession(r.Context(), gatewaydb.GatewayCheckDelegationSessionParams{ID: claims.SessionID, UserID: claims.Subject})
 		if err != nil {
 			deny(err, true)
@@ -348,7 +375,7 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 		deny(err, true)
 		return
 	}
-	for _, scope := range strings.Fields(claims.Scope) {
+	for _, scope := range claimedScopes {
 		if !slices.Contains(grant.Scopes, scope) {
 			s.delegationError(w, r, http.StatusForbidden, "access_denied", "The requested scope is not granted.")
 			return
@@ -366,10 +393,21 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 		}
 		models := openAIModels{Object: "list", Data: []openAIModel{}}
 		for _, model := range selection.Models {
-			models.Data = append(models.Data, openAIModel{
+			provider := &agentzv1alpha1.InferenceProvider{}
+			err := s.k8sClient.Get(r.Context(), ctrlclient.ObjectKey{Namespace: model.Namespace, Name: model.Provider}, provider)
+			if err != nil {
+				deny(err, false)
+				return
+			}
+			item := openAIModel{
 				ID: model.Id, Object: "model",
 				Created: grant.CreatedAt.Time.Unix(), OwnedBy: model.Provider,
-			})
+			}
+			if provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICodex {
+				item.SupportedEndpoints = []string{"/responses"}
+				item.StreamingOnly = true
+			}
+			models.Data = append(models.Data, item)
 		}
 		apiutil.WriteJSON(w, http.StatusOK, models)
 		return
@@ -419,10 +457,12 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 		r.Body = io.NopCloser(bytes.NewReader(body))
 	}
 
+	initializingMCP := false
 	targetURL := s.cfg.DelegationGatewayURL
 	path := "/delegations/" + claims.GrantID + "/mcp"
 	if !mcpRequest {
-		model, err := inference.ValidateDelegatedRequest(body, strings.HasSuffix(r.URL.Path, "/responses"))
+		responses := strings.HasSuffix(r.URL.Path, "/responses")
+		model, err := inference.ValidateDelegatedRequest(body, responses)
 		if err != nil {
 			s.delegationError(w, r, http.StatusBadRequest, "invalid_request_error", err.Error())
 			return
@@ -440,14 +480,28 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 			deny(err, false)
 			return
 		}
+		provider := &agentzv1alpha1.InferenceProvider{}
+		err = s.k8sClient.Get(r.Context(), ctrlclient.ObjectKey{Namespace: selected.Namespace, Name: selected.Provider}, provider)
+		if err != nil {
+			deny(err, false)
+			return
+		}
+		if err := inference.ValidateDelegatedProviderRequest(provider.Spec.Kind, body, responses); err != nil {
+			s.delegationError(w, r, http.StatusBadRequest, "invalid_request_error", err.Error())
+			return
+		}
 		name := fmt.Sprintf("d-%s-model-%d", grant.ID, index)
 		err = s.delegationReady(r.Context(), grant, selected.Namespace, inference.GatewayName, name)
 		if err != nil {
 			s.delegationError(w, r, http.StatusServiceUnavailable, "service_unavailable", "The delegated inference route is not ready.")
 			return
 		}
+		err = s.delegationReady(r.Context(), grant, s.cfg.DelegationNamespace, "delegations", name)
+		if err != nil {
+			s.delegationError(w, r, http.StatusServiceUnavailable, "service_unavailable", "The delegated inference route is not ready.")
+			return
+		}
 		path = fmt.Sprintf("/delegations/%s/models/%d%s", claims.GrantID, index, strings.TrimPrefix(r.URL.Path, resourcePath))
-		targetURL = "http://inference." + selection.Models[index].Namespace + ".svc.cluster.local:8080"
 	}
 	if mcpRequest {
 		if r.Method != http.MethodPost {
@@ -466,6 +520,7 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 				s.delegationError(w, r, http.StatusBadRequest, "invalid_request", "Provide a valid MCP JSON-RPC message.")
 				return
 			}
+			initializingMCP = message.Method == "initialize"
 			switch message.Method {
 			case "initialize", "ping", "notifications/initialized", "notifications/cancelled",
 				"tools/list", "tools/call", "prompts/list", "prompts/get",
@@ -482,6 +537,10 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 				return
 			}
 		}
+		if len(selection.Mcp) == 0 {
+			emptyDelegationMCP.ServeHTTP(w, r)
+			return
+		}
 		if session := r.Header.Get("Mcp-Session-Id"); session != "" {
 			valid, err := s.queries.GatewayCheckDelegationMCPSession(r.Context(), gatewaydb.GatewayCheckDelegationMCPSessionParams{
 				ID: session, GrantID: grant.ID,
@@ -495,8 +554,6 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 				return
 			}
 		}
-	}
-	if mcpRequest {
 		for index, selected := range selection.Mcp {
 			name := fmt.Sprintf("d-%s-mcp-%d", grant.ID, index)
 			err := s.delegationReady(r.Context(), grant, selected.Namespace, mcp.GatewayName, name, name+"-auth")
@@ -585,6 +642,15 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 			if !mcpRequest {
 				return nil
 			}
+			if r.Method == http.MethodDelete {
+				response.Header.Del("Mcp-Session-Id")
+				return s.queries.GatewayDeleteDelegationMCPSession(ctx, gatewaydb.GatewayDeleteDelegationMCPSessionParams{
+					ID: r.Header.Get("Mcp-Session-Id"), GrantID: grant.ID,
+				})
+			}
+			if !initializingMCP {
+				return nil
+			}
 			session := response.Header.Get("Mcp-Session-Id")
 			if session == "" {
 				return nil
@@ -600,7 +666,8 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 			}
 			return nil
 		},
-		ErrorHandler: func(w http.ResponseWriter, r *http.Request, _ error) {
+		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			slog.ErrorContext(r.Context(), "proxy delegated request", slog.String("grant", grant.ID), slog.String("target", target.Host), slog.Any("error", err))
 			s.delegationError(w, r, http.StatusServiceUnavailable, "service_unavailable", "The delegated gateway is unavailable.")
 		},
 	}

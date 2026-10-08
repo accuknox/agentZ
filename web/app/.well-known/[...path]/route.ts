@@ -17,14 +17,14 @@ export async function GET(request: Request) {
       claims_parameter_supported: false,
     })
   else {
-    const resources = {
-      "/.well-known/oauth-protected-resource/api/inference/v1": {
-        path: "/api/inference/v1",
-        scopes: ["inference:use"],
-      },
-      "/.well-known/oauth-protected-resource/api/mcp": { path: "/api/mcp", scopes: ["mcp:use"] },
-    }
-    const resource = Object.entries(resources).find(([key]) => key === path)?.[1]
+    const resources = new Map([
+      [
+        "/.well-known/oauth-protected-resource/api/inference/v1",
+        { path: "/api/inference/v1", scopes: ["inference:use"] },
+      ],
+      ["/.well-known/oauth-protected-resource/api/mcp", { path: "/api/mcp", scopes: ["mcp:use"] }],
+    ])
+    const resource = resources.get(path)
     if (!resource) return new Response(null, { status: 404 })
     const issuer = getEnv().BETTER_AUTH_URL
     response = metadataResponse({

@@ -2663,19 +2663,33 @@ LIMIT 1;
 SELECT g.*
 FROM delegation_grants g
 JOIN oauth_clients c ON c.client_id = g.client_id AND c.disabled IS NOT TRUE AND g.scopes <@ c.scopes
-JOIN organization_delegation d ON d.organization_id = g.organization_id AND d.enabled
-JOIN members m ON m.organization_id = g.organization_id AND m.user_id = g.user_id AND m.disabled_at IS NULL
 WHERE g.id = sqlc.arg(id) AND g.client_id = sqlc.arg(client_id)
   AND g.user_id = sqlc.arg(user_id)
-  AND g.approved_at IS NOT NULL AND g.revoked_at IS NULL;
+  AND g.approved_at IS NOT NULL AND g.revoked_at IS NULL
+  AND (
+    (g.selection->'models' = '[]'::jsonb AND g.selection->'mcp' = '[]'::jsonb)
+    OR EXISTS (
+      SELECT 1 FROM organization_delegation d
+      JOIN members m ON m.organization_id = d.organization_id
+      WHERE d.organization_id = g.organization_id AND d.enabled
+        AND m.user_id = g.user_id AND m.disabled_at IS NULL
+    )
+  );
 
 -- name: GatewayListDelegationGrants :many
 SELECT g.*
 FROM delegation_grants g
 JOIN oauth_clients c ON c.client_id = g.client_id AND c.disabled IS NOT TRUE AND g.scopes <@ c.scopes
-JOIN organization_delegation d ON d.organization_id = g.organization_id AND d.enabled
-JOIN members m ON m.organization_id = g.organization_id AND m.user_id = g.user_id AND m.disabled_at IS NULL
-WHERE g.approved_at IS NOT NULL AND g.revoked_at IS NULL;
+WHERE g.approved_at IS NOT NULL AND g.revoked_at IS NULL
+  AND (
+    (g.selection->'models' = '[]'::jsonb AND g.selection->'mcp' = '[]'::jsonb)
+    OR EXISTS (
+      SELECT 1 FROM organization_delegation d
+      JOIN members m ON m.organization_id = d.organization_id
+      WHERE d.organization_id = g.organization_id AND d.enabled
+        AND m.user_id = g.user_id AND m.disabled_at IS NULL
+    )
+  );
 
 -- name: GatewayCheckDelegationMCPSession :one
 SELECT EXISTS (
@@ -2688,6 +2702,10 @@ INSERT INTO delegation_mcp_sessions (id, grant_id, expires_at)
 VALUES (sqlc.arg(id), sqlc.arg(grant_id), sqlc.arg(expires_at))
 ON CONFLICT (id) DO UPDATE SET expires_at = EXCLUDED.expires_at
 WHERE delegation_mcp_sessions.grant_id = EXCLUDED.grant_id;
+
+-- name: GatewayDeleteDelegationMCPSession :exec
+DELETE FROM delegation_mcp_sessions
+WHERE id = sqlc.arg(id) AND grant_id = sqlc.arg(grant_id);
 
 -- name: GatewayListDelegationRedirects :many
 SELECT redirect_uris FROM oauth_clients WHERE disabled IS NOT TRUE AND application_type = 'web';

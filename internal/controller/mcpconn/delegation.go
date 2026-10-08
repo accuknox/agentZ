@@ -37,14 +37,23 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationRuntime(ctx context.Contex
 		return err
 	}
 	routes := &gwv1.HTTPRouteList{}
-	err = r.List(ctx, routes, client.InNamespace(ns), client.HasLabels{authorization.DelegationLabel})
+	err = r.List(ctx, routes, client.InNamespace(ns))
 	if err != nil {
 		return err
 	}
 	for _, desired := range []*gwv1.Gateway{inference.Gateway(ns), mcp.Gateway(ns)} {
-		needed := slices.ContainsFunc(routes.Items, func(route gwv1.HTTPRoute) bool {
-			return slices.ContainsFunc(route.Spec.ParentRefs, func(parent gwv1.ParentReference) bool { return parent.Name == gwv1.ObjectName(desired.Name) })
-		})
+		var needed, consumed bool
+		for _, route := range routes.Items {
+			attached := slices.ContainsFunc(route.Spec.ParentRefs, func(parent gwv1.ParentReference) bool {
+				return parent.Name == gwv1.ObjectName(desired.Name)
+			})
+			if !attached {
+				continue
+			}
+			consumed = true
+			_, delegated := route.Labels[authorization.DelegationLabel]
+			needed = needed || delegated
+		}
 		gateway := &gwv1.Gateway{ObjectMeta: metav1.ObjectMeta{Name: desired.Name, Namespace: ns}}
 		err := r.Get(ctx, client.ObjectKeyFromObject(gateway), gateway)
 		if apierrors.IsNotFound(err) && !needed {
@@ -56,13 +65,6 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationRuntime(ctx context.Contex
 		if !needed {
 			patch := client.MergeFrom(gateway.DeepCopy())
 			gateway.Spec.Listeners = slices.DeleteFunc(gateway.Spec.Listeners, func(listener gwv1.Listener) bool { return listener.Name == "delegation" })
-			sandboxes := &gwv1.HTTPRouteList{}
-			if err := r.List(ctx, sandboxes, client.InNamespace(ns)); err != nil {
-				return err
-			}
-			consumed := slices.ContainsFunc(sandboxes.Items, func(route gwv1.HTTPRoute) bool {
-				return slices.ContainsFunc(route.Spec.ParentRefs, func(parent gwv1.ParentReference) bool { return parent.Name == gwv1.ObjectName(desired.Name) })
-			})
 			if !consumed {
 				if err := client.IgnoreNotFound(r.Delete(ctx, gateway)); err != nil {
 					return err

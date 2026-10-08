@@ -51,6 +51,7 @@ export type MultiSelectDropdownOption = MultiSelectDropdownOptionIdentity & {
   badgeIcon?: ComponentType<SVGProps<SVGSVGElement>>
   group?: string
   label: string
+  description?: string
   value: string
   disabled?: boolean
 }
@@ -205,7 +206,8 @@ function MultiSelectDropdown({
                   return (
                     <CommandItem
                       key={option.value}
-                      value={`${option.label} ${option.badge ?? ""} ${option.value}`}
+                      value={option.value}
+                      keywords={[option.label, option.badge ?? "", option.description ?? ""]}
                       disabled={option.disabled}
                       onSelect={() => {
                         if (option.disabled) return
@@ -224,7 +226,14 @@ function MultiSelectDropdown({
                       ) : Icon ? (
                         <Icon aria-hidden="true" />
                       ) : null}
-                      <TruncatedOptionText className="min-w-0 flex-1" value={option.label} />
+                      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <TruncatedOptionText value={option.label} />
+                        {option.description ? (
+                          <span className="text-xs wrap-anywhere whitespace-normal text-muted-foreground">
+                            {option.description}
+                          </span>
+                        ) : null}
+                      </span>
                       {option.badge ? (
                         <Badge
                           className="max-w-40 min-w-0 shrink-[10] truncate"

@@ -49,6 +49,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	"github.com/accuknox/agentz/internal/authorization"
 	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/mcp"
 	"github.com/accuknox/agentz/internal/networkpolicy"
@@ -524,7 +525,7 @@ func (r *Reconciler) reconcileGateway(ctx context.Context, namespace string) err
 		return err
 	}
 	grants := &gwv1.HTTPRouteList{}
-	err = r.List(ctx, grants, client.InNamespace(namespace), client.HasLabels{"agentz.accuknox.com/delegation"})
+	err = r.List(ctx, grants, client.InNamespace(namespace), client.HasLabels{authorization.DelegationLabel})
 	if err != nil {
 		return err
 	}

@@ -167,10 +167,9 @@ func (s *Service) reconcileDelegations(ctx context.Context) error {
 }
 
 func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.DelegationGrant, selection gatewayapi.DelegationCatalog) error {
-	objects := make([]ctrlclient.Object, 0)
-	ownerNamespaces := make(map[string]bool)
+	var objects []ctrlclient.Object
 	ownerEgress := make(map[string][]networkpolicy.Target)
-	aggregationEgress := []ciliumapi.EgressRule{}
+	var aggregationEgress []ciliumapi.EgressRule
 	for index, selected := range selection.Models {
 		provider := &agentzv1alpha1.InferenceProvider{}
 		key := ctrlclient.ObjectKey{Namespace: selected.Namespace, Name: selected.Provider}
@@ -199,7 +198,20 @@ func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.Delegat
 		}
 		route := s.delegationRoute(selected.Namespace, inference.GatewayName, name, fmt.Sprintf("/delegations/%s/models/%d", grant.ID, index), false)
 		objects = append(objects, backend, route)
-		ownerNamespaces[selected.Namespace] = true
+		// Keep the owner route intact through the shared private ingress. Only the
+		// owner gateway rewrites it to the provider's API and injects credentials.
+		forward := &agw.AgentgatewayBackend{
+			TypeMeta:   metav1.TypeMeta{APIVersion: agw.GroupVersion.String(), Kind: "AgentgatewayBackend"},
+			ObjectMeta: metav1.ObjectMeta{Namespace: s.cfg.DelegationNamespace, Name: name},
+			Spec: agw.AgentgatewayBackendSpec{
+				Static:   &agw.StaticBackend{Host: "inference." + selected.Namespace + ".svc.cluster.local", Port: 8080},
+				Policies: &agw.BackendFull{BackendSimple: agw.BackendSimple{HTTP: &agw.BackendHTTP{Version: new(agw.HTTPVersion2)}}},
+			},
+		}
+		entry := s.delegationRoute(s.cfg.DelegationNamespace, "delegations", name, fmt.Sprintf("/delegations/%s/models/%d", grant.ID, index), false)
+		entry.Spec.Rules[0].Filters = nil
+		objects = append(objects, forward, entry)
+		aggregationEgress = append(aggregationEgress, networkpolicy.ServiceEgress(selected.Namespace, inference.GatewayName, 8080)...)
 	}
 	if len(selection.Mcp) > 0 {
 		name := "d-" + grant.ID + "-mcp"
@@ -258,8 +270,13 @@ func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.Delegat
 				TypeMeta:   metav1.TypeMeta{APIVersion: agw.GroupVersion.String(), Kind: "AgentgatewayPolicy"},
 				ObjectMeta: metav1.ObjectMeta{Namespace: selected.Namespace, Name: innerName + "-auth"},
 				Spec: agw.AgentgatewayPolicySpec{
-					TargetRefs: []agw.LocalPolicyTargetReferenceWithSectionName{{LocalPolicyTargetReference: agw.LocalPolicyTargetReference{Group: "agentgateway.dev", Kind: "AgentgatewayBackend", Name: gwv1.ObjectName(innerName)}, SectionName: &section}},
-					Backend:    &agw.BackendFull{ExtAuth: s.delegatedExtAuth(selected.Id, connection, false)},
+					TargetRefs: []agw.LocalPolicyTargetReferenceWithSectionName{{
+						LocalPolicyTargetReference: agw.LocalPolicyTargetReference{
+							Group: "agentgateway.dev", Kind: "AgentgatewayBackend", Name: gwv1.ObjectName(innerName),
+						},
+						SectionName: &section,
+					}},
+					Backend: &agw.BackendFull{ExtAuth: s.delegatedExtAuth(selected.Id, connection, false)},
 				},
 			}
 			path := "/delegations/" + grant.ID + "/mcp/" + selected.Id
@@ -268,18 +285,18 @@ func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.Delegat
 			outer.Spec.MCP.Targets = append(outer.Spec.MCP.Targets, agw.McpTargetSelector{Name: section, Static: &agw.McpTarget{
 				Host: &host, Port: 8080, Path: &path, Protocol: new(agw.MCPProtocolStreamableHTTP),
 			}})
-			ownerNamespaces[selected.Namespace] = true
 		}
+		objects = append(objects, outer, s.delegationRoute(s.cfg.DelegationNamespace, "delegations", name, "/delegations/"+grant.ID+"/mcp", true))
+	}
+	if len(aggregationEgress) > 0 {
 		objects = append(objects, &ciliumv2.CiliumNetworkPolicy{
 			TypeMeta:   metav1.TypeMeta{APIVersion: "cilium.io/v2", Kind: "CiliumNetworkPolicy"},
 			ObjectMeta: metav1.ObjectMeta{Name: "d-" + grant.ID, Namespace: s.cfg.DelegationNamespace},
 			Spec:       &ciliumapi.Rule{EndpointSelector: ciliumapi.NewESFromLabels(ciliumlabels.NewLabel("gateway.networking.k8s.io/gateway-name", "delegations", ciliumlabels.LabelSourceK8s)), Egress: aggregationEgress},
 		})
-
-		objects = append(objects, outer, s.delegationRoute(s.cfg.DelegationNamespace, "delegations", name, "/delegations/"+grant.ID+"/mcp", true))
 	}
 
-	for namespace := range ownerNamespaces {
+	for namespace, targets := range ownerEgress {
 		policy := &ciliumv2.CiliumNetworkPolicy{
 			TypeMeta:   metav1.TypeMeta{APIVersion: "cilium.io/v2", Kind: "CiliumNetworkPolicy"},
 			ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: "d-" + grant.ID},
@@ -298,20 +315,19 @@ func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.Delegat
 				}}, ToPorts: []ciliumapi.PortRule{{Ports: []ciliumapi.PortProtocol{{Port: "8080", Protocol: ciliumapi.ProtoTCP}}}}}},
 			},
 		}
-		policy.Spec.Egress = networkpolicy.ExternalEgress(ownerEgress[namespace])
+		policy.Spec.Egress = networkpolicy.ExternalEgress(targets)
 		policy.Spec.Egress = append(policy.Spec.Egress, networkpolicy.ServiceEgress(namespace, mcp.ExtAuthServiceName, 18084)...)
 		policy.Spec.Egress = append(policy.Spec.Egress, networkpolicy.ServiceEgress("agentgateway-system", "agentgateway", 9978)...)
 		mcpPolicy := policy.DeepCopy()
 		mcpPolicy.Name += "-mcp"
 		mcpPolicy.Spec.EndpointSelector = ciliumapi.NewESFromLabels(ciliumlabels.NewLabel("gateway.networking.k8s.io/gateway-name", mcp.GatewayName, ciliumlabels.LabelSourceK8s))
-		policy.Spec.Ingress[0].FromEndpoints = policy.Spec.Ingress[0].FromEndpoints[:1]
 		mcpPolicy.Spec.Ingress[0].FromEndpoints = mcpPolicy.Spec.Ingress[0].FromEndpoints[1:]
 		objects = append(objects, policy, mcpPolicy)
 	}
-	hash := sha256.Sum256(grant.Selection)
+	selectionHash := fmt.Sprintf("%x", sha256.Sum256(grant.Selection))
 	for _, object := range objects {
 		object.SetLabels(map[string]string{authorization.DelegationLabel: grant.ID})
-		object.SetAnnotations(map[string]string{"agentz.accuknox.com/selection": fmt.Sprintf("%x", hash)})
+		object.SetAnnotations(map[string]string{"agentz.accuknox.com/selection": selectionHash})
 		data, err := json.Marshal(object)
 		if err != nil {
 			return err

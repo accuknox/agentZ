@@ -11,10 +11,7 @@ export const metadata = { title: "Connected applications" }
 export default function ConnectedApplicationsPage() {
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-6">
-      <AdministrationPageHeader
-        title="Connected applications"
-        description="Review the applications you've connected to AgentZ and revoke their access."
-      />
+      <AdministrationPageHeader title="Connected applications" />
       <Suspense fallback={<AdministrationLoadingState />}>
         <ConnectedApplicationsContent />
       </Suspense>

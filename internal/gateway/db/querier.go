@@ -52,6 +52,7 @@ type Querier interface {
 	GatewayDeleteCodingConversations(ctx context.Context, arg GatewayDeleteCodingConversationsParams) error
 	GatewayDeleteCodingProject(ctx context.Context, arg GatewayDeleteCodingProjectParams) (int64, error)
 	GatewayDeleteCodingWorktree(ctx context.Context, id string) error
+	GatewayDeleteDelegationMCPSession(ctx context.Context, arg GatewayDeleteDelegationMCPSessionParams) error
 	GatewayDeleteExpiredEventTrailEvents(ctx context.Context, expiresBefore pgtype.Timestamptz) (int64, error)
 	GatewayDeleteOldCodingOperations(ctx context.Context) error
 	GatewayDeleteSessionTraces(ctx context.Context, arg GatewayDeleteSessionTracesParams) (int64, error)

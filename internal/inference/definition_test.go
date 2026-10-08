@@ -357,6 +357,27 @@ type delegationInferenceCase struct {
 	allowed    bool
 }
 
+func TestDelegatedCodexRequiresResponsesStreaming(t *testing.T) {
+	for _, test := range []delegationInferenceCase{
+		{"chat completions", `{"model":"selected","stream":true}`, false, false},
+		{"non-streaming responses", `{"model":"selected","instructions":"Be helpful","stream":false}`, true, false},
+		{"missing instructions", `{"model":"selected","stream":true}`, true, false},
+		{"valid responses", `{"model":"selected","instructions":"Be helpful","stream":true}`, true, true},
+		{"case sensitive stream", `{"model":"selected","instructions":"Be helpful","stream":false,"STREAM":true}`, true, false},
+		{"case sensitive instructions", `{"model":"selected","INSTRUCTIONS":"Be helpful","stream":true}`, true, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			err := ValidateDelegatedProviderRequest(agentzv1alpha1.InferenceProviderKindOpenAICodex, []byte(test.body), test.responses)
+			if (err == nil) != test.allowed {
+				t.Fatalf("allowed %v, want %v: %v", err == nil, test.allowed, err)
+			}
+			if err := ValidateDelegatedProviderRequest(agentzv1alpha1.InferenceProviderKindOpenAI, []byte(test.body), test.responses); err != nil {
+				t.Fatalf("Codex constraints applied to an API-key provider: %v", err)
+			}
+		})
+	}
+}
+
 func TestDelegatedInferenceRejectsProviderResourceBypasses(t *testing.T) {
 	for _, test := range []delegationInferenceCase{
 		{"chat", `{"model":"selected","messages":[{"role":"user","content":"hi"}]}`, false, true},

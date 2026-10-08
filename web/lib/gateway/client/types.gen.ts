@@ -9,8 +9,10 @@ export type DelegationModel = {
   workspace_id: string
   namespace: string
   provider: string
+  provider_display_name: string
   uid: string
   model: string
+  model_display_name: string
 }
 
 export type DelegationMcp = {

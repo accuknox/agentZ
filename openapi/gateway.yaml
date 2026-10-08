@@ -3044,11 +3044,15 @@ components:
         model:
           minLength: 1
           type: string
+        model_display_name:
+          type: string
         namespace:
           minLength: 1
           type: string
         provider:
           minLength: 1
+          type: string
+        provider_display_name:
           type: string
         uid:
           minLength: 1
@@ -3061,8 +3065,10 @@ components:
       - workspace_id
       - namespace
       - provider
+      - provider_display_name
       - uid
       - model
+      - model_display_name
       type: object
     DeleteSecretsRequest:
       additionalProperties: false

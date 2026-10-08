@@ -58,7 +58,7 @@ const slides = [
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <p className="rounded-lg bg-muted p-3 text-xs text-muted-foreground">
-              Summarize this week’s activity
+              Summarize this week&apos;s activity
             </p>
             <div className="flex items-center justify-between">
               <Badge variant="secondary">

@@ -20,6 +20,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"golang.org/x/sync/semaphore"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,6 +32,7 @@ import (
 	"github.com/accuknox/agentz/internal/authorization"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/mcp"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
@@ -41,6 +43,7 @@ type delegationQueries struct {
 	revoked        bool
 	err            error
 	sessionErr     error
+	mcpSession     string
 	permissionsErr error
 }
 
@@ -55,8 +58,24 @@ func (q *delegationQueries) GatewayListDelegationRedirects(context.Context) ([][
 	return [][]string{{"https://app.example/callback"}}, nil
 }
 
-func (q *delegationQueries) GatewayCheckDelegationMCPSession(context.Context, gatewaydb.GatewayCheckDelegationMCPSessionParams) (bool, error) {
+func (q *delegationQueries) GatewayCheckDelegationSession(context.Context, gatewaydb.GatewayCheckDelegationSessionParams) (bool, error) {
 	return false, q.sessionErr
+}
+
+func (q *delegationQueries) GatewayCheckDelegationMCPSession(_ context.Context, arg gatewaydb.GatewayCheckDelegationMCPSessionParams) (bool, error) {
+	return q.mcpSession != "" && q.mcpSession == arg.ID && arg.GrantID == q.grant.ID, q.sessionErr
+}
+
+func (q *delegationQueries) GatewaySaveDelegationMCPSession(_ context.Context, arg gatewaydb.GatewaySaveDelegationMCPSessionParams) (int64, error) {
+	q.mcpSession = arg.ID
+	return 1, nil
+}
+
+func (q *delegationQueries) GatewayDeleteDelegationMCPSession(_ context.Context, arg gatewaydb.GatewayDeleteDelegationMCPSessionParams) error {
+	if q.mcpSession == arg.ID && arg.GrantID == q.grant.ID {
+		q.mcpSession = ""
+	}
+	return nil
 }
 
 func (q *delegationQueries) GatewayResolvePermissions(context.Context, gatewaydb.GatewayResolvePermissionsParams) ([]gatewaydb.GatewayResolvePermissionsRow, error) {
@@ -88,7 +107,7 @@ func TestDelegatedAccessRequiresLiveGrantAndAccessToken(t *testing.T) {
 	issuer := "https://agentz.example"
 	queries := &delegationQueries{grant: gatewaydb.DelegationGrant{
 		ID: "grant-1", ClientID: "client-1", UserID: testUserID,
-		Scopes:    []string{"inference:use", "mcp:use"},
+		Scopes:    []string{"inference:use", "mcp:use", "offline_access"},
 		Resources: []string{issuer + "/api/inference/v1", issuer + "/api/mcp"},
 		Selection: []byte(`{"models":[],"mcp":[]}`),
 	}}
@@ -99,6 +118,8 @@ func TestDelegatedAccessRequiresLiveGrantAndAccessToken(t *testing.T) {
 	service.externalJWTKeyfunc = func(*jwt.Token) (any, error) { return &key.PublicKey, nil }
 	cases := []delegationTokenCase{
 		{name: "access token", typ: "at+jwt", want: http.StatusOK},
+		{name: "expired online session", typ: "at+jwt", mutate: func(c *authorization.DelegationClaims) { c.SessionID = "expired" }, want: http.StatusForbidden},
+		{name: "offline access survives browser expiry", typ: "at+jwt", mutate: func(c *authorization.DelegationClaims) { c.SessionID = "expired"; c.Scope += " offline_access" }, want: http.StatusOK},
 		{name: "ID token", typ: "JWT", want: http.StatusUnauthorized},
 		{name: "wrong issuer", typ: "at+jwt", mutate: func(c *authorization.DelegationClaims) { c.Issuer = "https://other.example" }, want: http.StatusUnauthorized},
 		{name: "MCP audience", typ: "at+jwt", mutate: func(c *authorization.DelegationClaims) { c.Audience = jwt.ClaimStrings{issuer + "/api/mcp"} }, want: http.StatusUnauthorized},
@@ -175,8 +196,8 @@ func TestDelegatedAccessRequiresLiveGrantAndAccessToken(t *testing.T) {
 				response = httptest.NewRecorder()
 				service.handleDelegatedRequest(response, request)
 				queries.permissionsErr = nil
-				if response.Code != http.StatusServiceUnavailable {
-					t.Fatalf("permission lookup outage reported as %d", response.Code)
+				if response.Code != http.StatusOK {
+					t.Fatalf("empty grant depended on resource permissions: %d", response.Code)
 				}
 			}
 			if test.want != http.StatusOK {
@@ -311,6 +332,117 @@ func TestDelegationReadinessRequiresCurrentAcceptedProjection(t *testing.T) {
 	}
 }
 
+func TestDelegatedInferenceUsesPrivateGateway(t *testing.T) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	issuer := "https://agentz.example"
+	queries := &delegationQueries{sandboxQueries: sandboxQueries{
+		workspace:   gatewaydb.Workspace{ID: testWorkspaceID, OrganizationID: testOrganizationID, State: gatewaydb.WorkspaceStateReady},
+		permissions: []gatewaydb.GatewayResolvePermissionsRow{{Active: true, Superadmin: true}},
+	}}
+	service := sandboxTestService(t, queries)
+	for _, add := range []func(*runtime.Scheme) error{gwv1.Install, agw.Install} {
+		if err := add(service.k8sClient.Scheme()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	namespace := agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeWorkspace, testWorkspaceID)
+	provider := &agentzv1alpha1.InferenceProvider{
+		ObjectMeta: metav1.ObjectMeta{Name: "selected", Namespace: namespace, UID: "original"},
+		Spec: agentzv1alpha1.InferenceProviderSpec{
+			Kind: agentzv1alpha1.InferenceProviderKindOpenAI, OpenAI: &agentzv1alpha1.OpenAIProviderConfig{},
+			Models: []agentzv1alpha1.InferenceModel{{ID: "model"}},
+		},
+		Status: agentzv1alpha1.InferenceProviderStatus{State: agentzv1alpha1.InferenceProviderStateReady},
+	}
+	for _, object := range []ctrlclient.Object{
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace, Labels: map[string]string{agentzv1alpha1.WorkspaceNameLabel: namespace}}},
+		provider,
+	} {
+		if err := service.k8sClient.Create(t.Context(), object); err != nil {
+			t.Fatal(err)
+		}
+	}
+	selection, err := service.delegationCatalog(t.Context(), testUserID, testOrganizationID, testWorkspaceID, false)
+	if err != nil || len(selection.Models) != 1 {
+		t.Fatalf("catalog: %v, %v", selection, err)
+	}
+	encoded, err := json.Marshal(selection)
+	if err != nil {
+		t.Fatal(err)
+	}
+	queries.grant = gatewaydb.DelegationGrant{
+		ID: "grant-1", ClientID: "client-1", UserID: testUserID,
+		OrganizationID: pgtype.Text{String: testOrganizationID, Valid: true},
+		Scopes:         []string{"inference:use"}, Resources: []string{issuer + "/api/inference/v1"}, Selection: encoded,
+	}
+	service.cfg.ExternalJWTIssuer = issuer
+	service.cfg.DelegationNamespace = "private"
+	service.cfg.DelegationGatewayURL = "http://private.example:8080"
+	service.delegationBodies = semaphore.NewWeighted(128 << 20)
+	service.externalJWTKeyfunc = func(*jwt.Token) (any, error) { return &key.PublicKey, nil }
+	claims := authorization.DelegationClaims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer: issuer, Subject: testUserID, Audience: jwt.ClaimStrings{issuer + "/api/inference/v1"},
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)), IssuedAt: jwt.NewNumericDate(time.Now()),
+		},
+		ClientID: "client-1", GrantID: "grant-1", Scope: "inference:use",
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
+	token.Header["typ"] = "at+jwt"
+	signed, err := token.SignedString(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ns := range []string{namespace, "private"} {
+		gateway := inference.GatewayName
+		if ns == "private" {
+			gateway = "delegations"
+		}
+		metadata := metav1.ObjectMeta{Name: "d-grant-1-model-0", Namespace: ns, Generation: 1,
+			Annotations: map[string]string{"agentz.accuknox.com/selection": fmt.Sprintf("%x", sha256.Sum256(encoded))}}
+		conditions := []metav1.Condition{
+			{Type: "Accepted", Status: metav1.ConditionTrue, ObservedGeneration: 1},
+			{Type: "ResolvedRefs", Status: metav1.ConditionTrue, ObservedGeneration: 1},
+		}
+		for _, object := range []ctrlclient.Object{
+			&gwv1.HTTPRoute{ObjectMeta: metadata, Status: gwv1.HTTPRouteStatus{RouteStatus: gwv1.RouteStatus{Parents: []gwv1.RouteParentStatus{{
+				ParentRef: gwv1.ParentReference{Name: gwv1.ObjectName(gateway)}, ControllerName: "agentgateway.dev/agentgateway", Conditions: conditions,
+			}}}}},
+			&agw.AgentgatewayBackend{ObjectMeta: metadata, Status: agw.AgentgatewayBackendStatus{Conditions: conditions}},
+		} {
+			if err := service.k8sClient.Create(t.Context(), object); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	upstream := &delegationUpstream{response: &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{"choices":[]}`))}}
+	service.delegationTransport = upstream
+	body := fmt.Sprintf(`{"model":%q,"messages":[{"role":"user","content":"Hello!"}]}`, selection.Models[0].Id)
+	request := httptest.NewRequest(http.MethodPost, "/api/inference/v1/chat/completions", strings.NewReader(body))
+	request.Header.Set("Authorization", "Bearer "+signed)
+	response := httptest.NewRecorder()
+	service.handleDelegatedRequest(response, request)
+	if response.Code != http.StatusOK || upstream.request == nil {
+		t.Fatalf("inference returned %d: %s", response.Code, response.Body.String())
+	}
+	if upstream.request.URL.Host != "private.example:8080" || upstream.request.URL.Path != "/delegations/grant-1/models/0/chat/completions" {
+		t.Fatalf("inference bypassed the configured private gateway: %s", upstream.request.URL)
+	}
+	if err := service.k8sClient.Delete(t.Context(), &gwv1.HTTPRoute{ObjectMeta: metav1.ObjectMeta{Name: "d-grant-1-model-0", Namespace: "private"}}); err != nil {
+		t.Fatal(err)
+	}
+	upstream.request = nil
+	request.Body = io.NopCloser(strings.NewReader(body))
+	response = httptest.NewRecorder()
+	service.handleDelegatedRequest(response, request)
+	if response.Code != http.StatusServiceUnavailable || upstream.request != nil {
+		t.Fatal("inference was forwarded before the private route was ready")
+	}
+}
+
 func TestDelegationCORSRejectsUnregisteredOrigins(t *testing.T) {
 	service := sandboxTestService(t, &delegationQueries{})
 	service.delegationRequests = make(chan struct{}, 64)
@@ -392,6 +524,75 @@ func TestDelegationCORSIsBoundedBeforeOriginLookup(t *testing.T) {
 	}
 }
 
+func TestEmptyDelegatedMCPDiscoveryAndRevocation(t *testing.T) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	issuer := "https://agentz.example"
+	queries := &delegationQueries{grant: gatewaydb.DelegationGrant{
+		ID: "empty-grant", ClientID: "client", UserID: testUserID,
+		Scopes: []string{"mcp:use"}, Resources: []string{issuer + "/api/mcp"},
+		Selection: []byte(`{"models":[],"mcp":[]}`),
+	}}
+	service := sandboxTestService(t, queries)
+	service.cfg.ExternalJWTIssuer = issuer
+	service.delegationBodies = semaphore.NewWeighted(128 << 20)
+	service.externalJWTKeyfunc = func(*jwt.Token) (any, error) { return &key.PublicKey, nil }
+	token := jwt.NewWithClaims(jwt.SigningMethodES256, authorization.DelegationClaims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer: issuer, Subject: testUserID, Audience: jwt.ClaimStrings{issuer + "/api/mcp"},
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)), IssuedAt: jwt.NewNumericDate(time.Now()),
+		}, ClientID: "client", GrantID: "empty-grant", Scope: "mcp:use",
+	})
+	token.Header["typ"] = "at+jwt"
+	signed, err := token.SignedString(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Header.Set("Authorization", "Bearer "+signed)
+		service.handleDelegatedRequest(w, r)
+	}))
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	client := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "empty-grant-test", Version: "test"}, nil)
+	session, err := client.Connect(ctx, &mcpsdk.StreamableClientTransport{Endpoint: server.URL + "/api/mcp"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+	if session.ID() != "" {
+		t.Fatal("empty grant created MCP session state")
+	}
+	tools, err := session.ListTools(ctx, nil)
+	if err != nil || tools == nil || len(tools.Tools) != 0 {
+		t.Fatalf("tools: %v, %v", tools, err)
+	}
+	prompts, err := session.ListPrompts(ctx, nil)
+	if err != nil || prompts == nil || len(prompts.Prompts) != 0 {
+		t.Fatalf("prompts: %v, %v", prompts, err)
+	}
+	resources, err := session.ListResources(ctx, nil)
+	if err != nil || resources == nil || len(resources.Resources) != 0 {
+		t.Fatalf("resources: %v, %v", resources, err)
+	}
+	templates, err := session.ListResourceTemplates(ctx, nil)
+	if err != nil || templates == nil || len(templates.ResourceTemplates) != 0 {
+		t.Fatalf("templates: %v, %v", templates, err)
+	}
+	_, err = session.CallTool(ctx, &mcpsdk.CallToolParams{Name: "unselected", Arguments: map[string]any{}})
+	if err == nil {
+		t.Fatal("empty grant executed an unselected tool")
+	}
+	queries.revoked = true
+	_, err = session.ListTools(ctx, nil)
+	if err == nil || !strings.Contains(err.Error(), "Forbidden") {
+		t.Fatalf("revoked discovery: %v", err)
+	}
+}
+
 func TestDelegatedMCPTransportBoundary(t *testing.T) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -403,7 +604,31 @@ func TestDelegatedMCPTransportBoundary(t *testing.T) {
 		Scopes: []string{"mcp:use"}, Resources: []string{issuer + "/api/mcp"},
 		Selection: []byte(`{"models":[],"mcp":[]}`),
 	}}
+	queries.workspace = gatewaydb.Workspace{ID: testWorkspaceID, OrganizationID: testOrganizationID, State: gatewaydb.WorkspaceStateReady}
+	queries.permissions = []gatewaydb.GatewayResolvePermissionsRow{{Active: true, Superadmin: true}}
+	queries.grant.OrganizationID = pgtype.Text{String: testOrganizationID, Valid: true}
 	service := sandboxTestService(t, queries)
+	namespace := agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeWorkspace, testWorkspaceID)
+	connection := &agentzv1alpha1.MCPConnection{
+		ObjectMeta: metav1.ObjectMeta{Name: "selected", Namespace: namespace, UID: "mcp-original"},
+		Spec:       agentzv1alpha1.MCPConnectionSpec{Endpoint: agentzv1alpha1.MCPConnectionEndpoint{URL: "https://mcp.example/mcp"}},
+	}
+	for _, object := range []ctrlclient.Object{
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace, Labels: map[string]string{agentzv1alpha1.WorkspaceNameLabel: namespace}}},
+		connection,
+	} {
+		if err := service.k8sClient.Create(t.Context(), object); err != nil {
+			t.Fatal(err)
+		}
+	}
+	identity := sha256.Sum256([]byte(testWorkspaceID + "/" + string(connection.UID)))
+	queries.grant.Selection, err = json.Marshal(gatewayapi.DelegationCatalog{Models: []gatewayapi.DelegationModel{}, Mcp: []gatewayapi.DelegationMCP{{
+		Id: fmt.Sprintf("mcp-%x", identity[:16]), WorkspaceId: testWorkspaceID, Namespace: namespace,
+		Connection: connection.Name, Uid: string(connection.UID), Tools: []string{"echo"}, Prompts: []string{}, Resources: []string{},
+	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	service.cfg.ExternalJWTIssuer = issuer
 	service.delegationBodies = semaphore.NewWeighted(128 << 20)
 	service.externalJWTKeyfunc = func(*jwt.Token) (any, error) { return &key.PublicKey, nil }
@@ -481,12 +706,26 @@ func TestDelegatedMCPTransportBoundary(t *testing.T) {
 	conditions := []metav1.Condition{
 		{Type: "Accepted", Status: metav1.ConditionTrue, ObservedGeneration: 1},
 		{Type: "ResolvedRefs", Status: metav1.ConditionTrue, ObservedGeneration: 1},
+		{Type: "Attached", Status: metav1.ConditionTrue, ObservedGeneration: 1},
 	}
 	for _, object := range []ctrlclient.Object{
 		&gwv1.HTTPRoute{ObjectMeta: metadata, Status: gwv1.HTTPRouteStatus{RouteStatus: gwv1.RouteStatus{Parents: []gwv1.RouteParentStatus{{
 			ParentRef: gwv1.ParentReference{Name: "delegations"}, ControllerName: "agentgateway.dev/agentgateway", Conditions: conditions,
 		}}}}},
 		&agw.AgentgatewayBackend{ObjectMeta: metadata, Status: agw.AgentgatewayBackendStatus{Conditions: conditions}},
+		&gwv1.HTTPRoute{ObjectMeta: metav1.ObjectMeta{
+			Name: "d-grant-1-mcp-0", Namespace: namespace, Generation: 1, Annotations: metadata.Annotations,
+		}, Status: gwv1.HTTPRouteStatus{RouteStatus: gwv1.RouteStatus{Parents: []gwv1.RouteParentStatus{{
+			ParentRef: gwv1.ParentReference{Name: gwv1.ObjectName(mcp.GatewayName)}, ControllerName: "agentgateway.dev/agentgateway", Conditions: conditions,
+		}}}}},
+		&agw.AgentgatewayBackend{ObjectMeta: metav1.ObjectMeta{
+			Name: "d-grant-1-mcp-0", Namespace: namespace, Generation: 1, Annotations: metadata.Annotations,
+		}, Status: agw.AgentgatewayBackendStatus{Conditions: conditions}},
+		&agw.AgentgatewayPolicy{ObjectMeta: metav1.ObjectMeta{
+			Name: "d-grant-1-mcp-0-auth", Namespace: namespace, Generation: 1, Annotations: metadata.Annotations,
+		}, Status: gwv1.PolicyStatus{Ancestors: []gwv1.PolicyAncestorStatus{{
+			AncestorRef: gwv1.ParentReference{Name: gwv1.ObjectName(mcp.GatewayName)}, ControllerName: "agentgateway.dev/agentgateway", Conditions: conditions,
+		}}}},
 	} {
 		if err := service.k8sClient.Create(t.Context(), object); err != nil {
 			t.Fatal(err)
@@ -529,4 +768,29 @@ func TestDelegatedMCPTransportBoundary(t *testing.T) {
 			}
 		})
 	}
+	t.Run("deleted session cannot be revived by upstream headers", func(t *testing.T) {
+		for _, step := range []struct {
+			method, body, session string
+			upstreamStatus, want  int
+		}{
+			{http.MethodPost, `{"jsonrpc":"2.0","id":1,"method":"initialize"}`, "", http.StatusOK, http.StatusOK},
+			{http.MethodDelete, "", "session", http.StatusAccepted, http.StatusAccepted},
+			{http.MethodPost, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`, "", http.StatusOK, http.StatusOK},
+			{http.MethodPost, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`, "session", http.StatusOK, http.StatusNotFound},
+		} {
+			service.delegationTransport = &delegationUpstream{response: &http.Response{
+				StatusCode: step.upstreamStatus, Body: io.NopCloser(strings.NewReader(`{}`)),
+				Header: http.Header{"Mcp-Session-Id": {"session"}},
+			}}
+			request := httptest.NewRequest(step.method, "/api/mcp", strings.NewReader(step.body))
+			request.Header.Set("Authorization", "Bearer "+signed)
+			request.Header.Set("Mcp-Session-Id", step.session)
+			response := httptest.NewRecorder()
+			service.handleDelegatedRequest(response, request)
+			if response.Code != step.want {
+				t.Fatalf("%s with session %q: status %d, want %d", step.method, step.session, response.Code, step.want)
+			}
+		}
+	})
+
 }

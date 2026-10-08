@@ -44,32 +44,46 @@ func (s *Service) resolveOAuthAccessToken(ctx context.Context, conn *agentzv1alp
 		return record.Token.AccessToken, auth.Location, false, nil
 	}
 
-	// Each caller rereads its own credential reference after the preceding
-	// refresh. Sharing a result by connection name could cross a spec change.
-	s.oauthRefreshMu.Lock()
-	defer s.oauthRefreshMu.Unlock()
-	refreshed, err := s.refreshOAuthToken(ctx, conn)
+	// Coordinate rotation of the persisted credential, not a connection name
+	// whose secret reference may have changed. Callers read their own record.
+	refresh := s.oauthRefresh.DoChan(auth.SecretRef.Path, func() (any, error) {
+		return nil, s.refreshOAuthToken(ctx, conn)
+	})
+	select {
+	case <-ctx.Done():
+		return "", nil, true, ctx.Err()
+	case result := <-refresh:
+		if result.Err != nil {
+			return "", nil, true, result.Err
+		}
+	}
+	record, err = s.readOAuthRecord(ctx, *auth.SecretRef)
 	if err != nil {
 		return "", nil, true, err
 	}
-
-	return refreshed.Token.AccessToken, auth.Location, true, nil
+	if record.Token == nil || record.Token.AccessToken == "" {
+		return "", nil, true, errCredentialUnavailable
+	}
+	if !record.Token.Expiry.IsZero() && !record.Token.Expiry.After(time.Now()) {
+		return "", nil, true, errCredentialUnavailable
+	}
+	return record.Token.AccessToken, auth.Location, true, nil
 }
 
-func (s *Service) refreshOAuthToken(ctx context.Context, conn *agentzv1alpha1.MCPConnection) (*mcp.OAuthSecretRecord, error) {
+func (s *Service) refreshOAuthToken(ctx context.Context, conn *agentzv1alpha1.MCPConnection) error {
 	auth := conn.Spec.Auth.OAuth
 	if auth == nil || auth.SecretRef == nil {
-		return nil, fmt.Errorf("oauth secret ref is missing: %w", errCredentialUnavailable)
+		return fmt.Errorf("oauth secret ref is missing: %w", errCredentialUnavailable)
 	}
 
 	record, err := s.readOAuthRecord(ctx, *auth.SecretRef)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	now := time.Now().UTC()
 	if oauth.TokenUsable(record.Token, now) {
-		return &record, nil
+		return nil
 	}
 
 	refreshedToken, scopes, err := oauth.Refresh(
@@ -83,7 +97,7 @@ func (s *Service) refreshOAuthToken(ctx context.Context, conn *agentzv1alpha1.MC
 		record.Record,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("%v: %w", err, errCredentialUnavailable)
+		return fmt.Errorf("%v: %w", err, errCredentialUnavailable)
 	}
 
 	record.Token = refreshedToken
@@ -92,11 +106,7 @@ func (s *Service) refreshOAuthToken(ctx context.Context, conn *agentzv1alpha1.MC
 	}
 	record.UpdatedAt = now
 
-	err = s.writeSecretRecord(ctx, auth.SecretRef.Path, auth.SecretRef.Key, record)
-	if err != nil {
-		return nil, err
-	}
-	return &record, nil
+	return s.writeSecretRecord(ctx, auth.SecretRef.Path, auth.SecretRef.Key, record)
 }
 
 func (s *Service) readBearerRecord(ctx context.Context, ref agentzv1alpha1.MCPConnectionSecretRef) (mcp.BearerSecretRecord, error) {

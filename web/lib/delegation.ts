@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
-import { and, desc, eq, gt, isNotNull, isNull } from "drizzle-orm"
-import { getCurrentAuthEndpointContext } from "@better-auth/core/context"
+import { and, arrayContains, desc, eq, gt, inArray, isNotNull, isNull, lte } from "drizzle-orm"
+import { defineRequestState, getCurrentAuthEndpointContext } from "@better-auth/core/context"
 import type { BetterAuthPlugin } from "better-auth"
 import { APIError, createAuthMiddleware } from "better-auth/api"
 import {
@@ -202,6 +202,7 @@ export async function delegationTransaction(oauthQuery: string, userId: string, 
 /** agentZOAuthProvider uses native OAuth flows with immutable AgentZ resource grants. */
 export function agentZOAuthProvider() {
   const env = getEnv()
+  const refreshTokenHash = defineRequestState(() => "")
   const inferenceResource = `${env.BETTER_AUTH_URL}/api/inference/v1`
   const mcpResource = `${env.BETTER_AUTH_URL}/api/mcp`
   const delegationTokenClaims = async ({
@@ -260,15 +261,31 @@ export function agentZOAuthProvider() {
     resourceSeedMode: "overwrite",
     clientRegistrationDefaultResources: [inferenceResource, mcpResource],
     resourcePrivileges: () => false,
-    customTokenResponseFields: async ({ verificationValue, user, scopes }) => {
+    customTokenResponseFields: async ({ grantType, verificationValue, user, scopes }) => {
       // Opaque OAuth grants without openid do not run either JWT claim hook.
-      if (verificationValue && !scopes.includes("openid") && !verificationValue.resource?.length) {
+      if (scopes.includes("openid")) return {}
+      if (verificationValue && !verificationValue.resource?.length) {
         await delegationTokenClaims({
           user,
           client: { clientId: verificationValue.query.client_id },
           referenceId: verificationValue.referenceId,
           scopes,
         })
+      }
+      if (grantType === "refresh_token") {
+        const token = await refreshTokenHash.get()
+        const [refresh] = await getDB()
+          .select()
+          .from(schema.oauthRefreshTokens)
+          .where(eq(schema.oauthRefreshTokens.token, token))
+        if (!refresh) throw new APIError("BAD_REQUEST", { error: "invalid_grant" })
+        if (!refresh.resources?.length)
+          await delegationTokenClaims({
+            user,
+            client: { clientId: refresh.clientId },
+            referenceId: refresh.referenceId ?? undefined,
+            scopes,
+          })
       }
       return {}
     },
@@ -466,17 +483,54 @@ export function agentZOAuthProvider() {
       },
     ],
   })
-  // Native JWT/refresh introspection validates the token, but does not run
-  // claim extensions. Its answer must also reflect the live AgentZ grant.
   return {
     ...provider,
     hooks: {
       ...provider.hooks,
+      before: [
+        ...provider.hooks.before,
+        {
+          matcher: (ctx) => ctx.path === "/oauth2/token",
+          handler: createAuthMiddleware(async (ctx) => {
+            const request = provider.endpoints.oauth2Token.options.body.safeParse(ctx.body)
+            if (
+              !request.success ||
+              request.data.grant_type !== "refresh_token" ||
+              !request.data.refresh_token
+            )
+              return
+            const token = await getOAuthProviderApi(ctx, provider.options).hashToken(
+              request.data.refresh_token,
+              "refresh_token"
+            )
+            await refreshTokenHash.set(token)
+            // Expired browser sessions must not bind newly issued offline tokens.
+            // The provider still authenticates the client and validates the refresh.
+            await getDB()
+              .update(schema.oauthRefreshTokens)
+              .set({ sessionId: null })
+              .where(
+                and(
+                  eq(schema.oauthRefreshTokens.token, token),
+                  arrayContains(schema.oauthRefreshTokens.scopes, ["offline_access"]),
+                  inArray(
+                    schema.oauthRefreshTokens.sessionId,
+                    getDB()
+                      .select({ id: schema.sessions.id })
+                      .from(schema.sessions)
+                      .where(lte(schema.sessions.expiresAt, new Date()))
+                  )
+                )
+              )
+          }),
+        },
+      ],
       after: [
         ...provider.hooks.after,
         {
           matcher: (ctx) => ctx.path === "/oauth2/introspect",
           handler: createAuthMiddleware(async (ctx) => {
+            // Native introspection skips claim extensions; check the live grant too.
             const result = z
               .object({
                 active: z.boolean(),

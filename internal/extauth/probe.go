@@ -253,83 +253,59 @@ func (s *Service) probeMCPConnectionOnce(ctx context.Context, conn *agentzv1alph
 	catalogBytes := 0
 	capabilities := session.InitializeResult().Capabilities
 	if capabilities.Tools != nil {
-		params := &mcpsdk.ListToolsParams{}
-		for {
-			page, err := session.ListTools(reqCtx, params)
+		for tool, err := range session.Tools(reqCtx, nil) {
 			if err != nil {
 				outcome.reason = classifyProbeError(err, rt.lastStatus)
 				outcome.message = "MCP tool discovery failed"
 				rt.logHTTPExchange(ctx, slog.LevelWarn, "mcp list_tools http exchange", slog.String("probe_reason", outcome.reason))
 				return outcome
 			}
-			if len(outcome.tools)+len(page.Tools) > maxProbeCatalogItems {
+			if len(outcome.tools) == maxProbeCatalogItems {
 				outcome.message = "MCP tool catalog exceeds the discovery limit"
 				return outcome
 			}
-			for _, tool := range page.Tools {
-				catalogBytes += len(tool.Name)
-				if catalogBytes > maxProbeCatalogBytes {
-					outcome.message = "MCP catalog exceeds the discovery size limit"
-					return outcome
-				}
-				outcome.tools = append(outcome.tools, agentzv1alpha1.MCPConnectionTool{Name: tool.Name})
+			catalogBytes += len(tool.Name)
+			if catalogBytes > maxProbeCatalogBytes {
+				outcome.message = "MCP catalog exceeds the discovery size limit"
+				return outcome
 			}
-			if page.NextCursor == "" {
-				break
-			}
-			params.Cursor = page.NextCursor
+			outcome.tools = append(outcome.tools, agentzv1alpha1.MCPConnectionTool{Name: tool.Name})
 		}
 	}
 	if capabilities.Prompts != nil {
-		params := &mcpsdk.ListPromptsParams{}
-		for {
-			page, err := session.ListPrompts(reqCtx, params)
+		for prompt, err := range session.Prompts(reqCtx, nil) {
 			if err != nil {
 				outcome.message = "MCP prompt discovery failed"
 				return outcome
 			}
-			if len(outcome.prompts)+len(page.Prompts) > maxProbeCatalogItems {
+			if len(outcome.prompts) == maxProbeCatalogItems {
 				outcome.message = "MCP prompt catalog exceeds the discovery limit"
 				return outcome
 			}
-			for _, prompt := range page.Prompts {
-				catalogBytes += len(prompt.Name)
-				if catalogBytes > maxProbeCatalogBytes {
-					outcome.message = "MCP catalog exceeds the discovery size limit"
-					return outcome
-				}
-				outcome.prompts = append(outcome.prompts, prompt.Name)
+			catalogBytes += len(prompt.Name)
+			if catalogBytes > maxProbeCatalogBytes {
+				outcome.message = "MCP catalog exceeds the discovery size limit"
+				return outcome
 			}
-			if page.NextCursor == "" {
-				break
-			}
-			params.Cursor = page.NextCursor
+			outcome.prompts = append(outcome.prompts, prompt.Name)
 		}
 	}
 	if capabilities.Resources != nil {
-		params := &mcpsdk.ListResourcesParams{}
-		for {
-			page, err := session.ListResources(reqCtx, params)
+		for resource, err := range session.Resources(reqCtx, nil) {
 			if err != nil {
 				outcome.message = "MCP resource discovery failed"
 				return outcome
 			}
-			if len(outcome.resources)+len(page.Resources) > maxProbeCatalogItems {
+			if len(outcome.resources) == maxProbeCatalogItems {
 				outcome.message = "MCP resource catalog exceeds the discovery limit"
 				return outcome
 			}
-			for _, resource := range page.Resources {
-				catalogBytes += len(resource.URI)
-				if catalogBytes > maxProbeCatalogBytes {
-					outcome.message = "MCP catalog exceeds the discovery size limit"
-					return outcome
-				}
-				outcome.resources = append(outcome.resources, resource.URI)
+			catalogBytes += len(resource.URI)
+			if catalogBytes > maxProbeCatalogBytes {
+				outcome.message = "MCP catalog exceeds the discovery size limit"
+				return outcome
 			}
-			if page.NextCursor == "" {
-				break
-			}
-			params.Cursor = page.NextCursor
+			outcome.resources = append(outcome.resources, resource.URI)
 		}
 	}
 

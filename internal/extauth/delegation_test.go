@@ -2,18 +2,21 @@ package extauth
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/accuknox/agentz/internal/mcp"
 	"github.com/accuknox/agentz/internal/oauth"
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	baoapi "github.com/openbao/openbao/api/v2"
 	"golang.org/x/oauth2"
 	"k8s.io/apimachinery/pkg/types"
@@ -102,20 +105,27 @@ func (f credentialTransport) RoundTrip(r *http.Request) (*http.Response, error) 
 }
 
 func TestOAuthRefreshKeepsConcurrentConnectionCredentialsSeparate(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		oldRefresh := make(chan struct{})
-		currentRead := make(chan struct{}, 1)
-		transport := credentialTransport(func(r *http.Request) (*http.Response, error) {
-			var payload any
-			switch r.URL.Host {
-			case "bao.invalid":
-				path := strings.TrimPrefix(r.URL.Path, "/v1/secrets/data/")
-				if path == "current" {
-					select {
-					case currentRead <- struct{}{}:
-					default:
-					}
+	oldRefresh := make(chan struct{})
+	oldStarted := make(chan struct{})
+	var release sync.Once
+	defer release.Do(func() { close(oldRefresh) })
+	var secretsMu sync.Mutex
+	secrets := make(map[string]json.RawMessage)
+	transport := credentialTransport(func(r *http.Request) (*http.Response, error) {
+		var payload any
+		switch r.URL.Host {
+		case "bao.invalid":
+			path := strings.TrimPrefix(r.URL.Path, "/v1/secrets/data/")
+			secretsMu.Lock()
+			defer secretsMu.Unlock()
+			if r.Method == http.MethodPut {
+				var update map[string]json.RawMessage
+				if err := json.NewDecoder(r.Body).Decode(&update); err != nil {
+					return nil, err
 				}
+				secrets[path] = update["data"]
+			}
+			if secrets[path] == nil {
 				record := mcp.OAuthSecretRecord{Record: oauth.Record{
 					ClientID: path,
 					Token:    &oauth2.Token{AccessToken: "expired", RefreshToken: path, Expiry: time.Unix(1, 0)},
@@ -124,57 +134,103 @@ func TestOAuthRefreshKeepsConcurrentConnectionCredentialsSeparate(t *testing.T) 
 				if err != nil {
 					return nil, err
 				}
-				payload = baoapi.Secret{Data: map[string]any{"data": map[string]any{"credentials": string(data)}}}
-			case "8.8.8.8":
-				if err := r.ParseForm(); err != nil {
+				secrets[path], err = json.Marshal(map[string]string{"credentials": string(data)})
+				if err != nil {
 					return nil, err
 				}
-				identity := r.Form.Get("refresh_token")
-				if identity == "old" {
-					<-oldRefresh
-				}
-				payload = map[string]any{"access_token": identity + "-access", "token_type": "Bearer", "expires_in": 3600}
-			default:
-				return nil, fmt.Errorf("unexpected request: %s", r.URL)
 			}
-			data, err := json.Marshal(payload)
-			if err != nil {
+			payload = baoapi.Secret{Data: map[string]any{"data": secrets[path]}}
+		case "8.8.8.8":
+			if err := r.ParseForm(); err != nil {
 				return nil, err
 			}
-			return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(bytes.NewReader(data))}, nil
-		})
-		bao, err := baoapi.NewClient(&baoapi.Config{Address: "http://bao.invalid", HttpClient: &http.Client{Transport: transport}})
+			identity := r.Form.Get("refresh_token")
+			if identity == "old" {
+				close(oldStarted)
+				<-oldRefresh
+			}
+			payload = map[string]any{"access_token": identity + "-access", "token_type": "Bearer", "expires_in": 30}
+		default:
+			return nil, fmt.Errorf("unexpected request: %s", r.URL)
+		}
+		data, err := json.Marshal(payload)
 		if err != nil {
-			t.Fatal(err)
+			return nil, err
 		}
-		service := &Service{kv: bao.KVv2("secrets"), http: &http.Client{Transport: transport}}
-		old := &agentzv1alpha1.MCPConnection{
-			ObjectMeta: metav1.ObjectMeta{Name: "selected", Namespace: "owner", UID: "original", Generation: 1},
-			Spec: agentzv1alpha1.MCPConnectionSpec{Auth: &agentzv1alpha1.MCPConnectionAuth{
-				OAuth: &agentzv1alpha1.MCPConnectionOAuthAuth{
-					TokenEndpoint: "https://8.8.8.8/token",
-					SecretRef:     &agentzv1alpha1.MCPConnectionSecretRef{Path: "old", Key: "credentials"},
-				},
-			}},
-		}
-		current := old.DeepCopy()
-		current.Generation++
-		current.Spec.Auth.OAuth.SecretRef.Path = "current"
-		var oldToken, currentToken string
-		var oldErr, currentErr error
-		go func() { oldToken, _, _, oldErr = service.resolveOAuthAccessToken(t.Context(), old) }()
-		synctest.Wait()
-		go func() { currentToken, _, _, currentErr = service.resolveOAuthAccessToken(t.Context(), current) }()
-		<-currentRead
-		close(oldRefresh)
-		synctest.Wait()
-		if oldErr != nil || currentErr != nil {
-			t.Fatalf("refresh errors: old=%v current=%v", oldErr, currentErr)
-		}
-		if oldToken != "old-access" || currentToken != "current-access" {
-			t.Fatalf("credentials crossed resource revisions: old=%q current=%q", oldToken, currentToken)
-		}
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(bytes.NewReader(data))}, nil
 	})
+	bao, err := baoapi.NewClient(&baoapi.Config{Address: "http://bao.invalid", HttpClient: &http.Client{Transport: transport}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := &Service{kv: bao.KVv2("secrets"), http: &http.Client{Transport: transport}}
+	old := &agentzv1alpha1.MCPConnection{
+		ObjectMeta: metav1.ObjectMeta{Name: "selected", Namespace: "owner", UID: "original", Generation: 1},
+		Spec: agentzv1alpha1.MCPConnectionSpec{Auth: &agentzv1alpha1.MCPConnectionAuth{
+			OAuth: &agentzv1alpha1.MCPConnectionOAuthAuth{
+				TokenEndpoint: "https://8.8.8.8/token",
+				SecretRef:     &agentzv1alpha1.MCPConnectionSecretRef{Path: "old", Key: "credentials"},
+			},
+		}},
+	}
+	current := old.DeepCopy()
+	current.Generation++
+	current.Spec.Auth.OAuth.SecretRef.Path = "current"
+	var oldToken, currentToken string
+	var oldErr, currentErr error
+	oldDone := make(chan struct{})
+	go func() {
+		oldToken, _, _, oldErr = service.resolveOAuthAccessToken(t.Context(), old)
+		close(oldDone)
+	}()
+	select {
+	case <-oldStarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("old credential never reached the token endpoint")
+	}
+	currentDone := make(chan struct{})
+	go func() {
+		currentToken, _, _, currentErr = service.resolveOAuthAccessToken(t.Context(), current)
+		close(currentDone)
+	}()
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	canceled := make(chan error, 1)
+	go func() {
+		_, _, _, err := service.resolveOAuthAccessToken(ctx, old)
+		canceled <- err
+	}()
+	cancel()
+	select {
+	case <-currentDone:
+	case <-time.After(5 * time.Second):
+		t.Error("an unrelated credential waited for the blocked refresh")
+	}
+	select {
+	case err := <-canceled:
+		if err == nil {
+			t.Error("canceled refresh waiter succeeded")
+		}
+	case <-time.After(5 * time.Second):
+		t.Error("a canceled waiter remained blocked by the refresh")
+	}
+	release.Do(func() { close(oldRefresh) })
+	select {
+	case <-oldDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("old refresh did not finish after release")
+	}
+	select {
+	case <-currentDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("current refresh did not finish after release")
+	}
+	if oldErr != nil || currentErr != nil {
+		t.Fatalf("refresh errors: old=%v current=%v", oldErr, currentErr)
+	}
+	if oldToken != "old-access" || currentToken != "current-access" {
+		t.Fatalf("credentials crossed resource revisions: old=%q current=%q", oldToken, currentToken)
+	}
 }
 
 type probeRevisionCase struct {
@@ -183,6 +239,66 @@ type probeRevisionCase struct {
 	generation int64
 	probeTime  time.Time
 	updated    bool
+}
+
+type probeCatalogCase struct {
+	name    string
+	count   int
+	uriSize int
+	healthy bool
+}
+
+func TestMCPProbeDiscoversBoundedPaginatedCatalog(t *testing.T) {
+	for _, test := range []probeCatalogCase{
+		{name: "empty", healthy: true},
+		{name: "multiple pages", count: 5, healthy: true},
+		{name: "item limit", count: maxProbeCatalogItems + 1},
+		{name: "byte limit", count: 2, uriSize: maxProbeCatalogBytes / 2},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			server := mcpsdk.NewServer(&mcpsdk.Implementation{Name: "probe-test"}, &mcpsdk.ServerOptions{
+				PageSize: 2,
+				Capabilities: &mcpsdk.ServerCapabilities{
+					Tools: &mcpsdk.ToolCapabilities{}, Prompts: &mcpsdk.PromptCapabilities{},
+					Resources: &mcpsdk.ResourceCapabilities{},
+				},
+			})
+			for i := range test.count {
+				name := fmt.Sprintf("item-%04d", i)
+				server.AddTool(&mcpsdk.Tool{Name: name, InputSchema: json.RawMessage(`{"type":"object"}`)}, nil)
+				server.AddPrompt(&mcpsdk.Prompt{Name: name}, nil)
+				server.AddResource(&mcpsdk.Resource{URI: "test:///" + name + strings.Repeat("x", test.uriSize)}, nil)
+			}
+			upstream := httptest.NewServer(mcpsdk.NewStreamableHTTPHandler(
+				func(*http.Request) *mcpsdk.Server { return server },
+				&mcpsdk.StreamableHTTPOptions{JSONResponse: true},
+			))
+			defer upstream.Close()
+			service := &Service{probeTimeout: 10 * time.Second}
+			connection := &agentzv1alpha1.MCPConnection{Spec: agentzv1alpha1.MCPConnectionSpec{
+				Endpoint: agentzv1alpha1.MCPConnectionEndpoint{URL: upstream.URL},
+			}}
+			outcome := service.probeMCPConnectionOnce(t.Context(), connection)
+			if outcome.healthy != test.healthy {
+				t.Fatalf("healthy = %v, want %v: %s", outcome.healthy, test.healthy, outcome.message)
+			}
+			if !test.healthy {
+				if !strings.Contains(outcome.message, "limit") {
+					t.Fatalf("expected catalog limit rejection, got %s", outcome.message)
+				}
+				return
+			}
+			if len(outcome.tools) != test.count || len(outcome.prompts) != test.count || len(outcome.resources) != test.count {
+				t.Fatalf("incomplete catalog: tools=%d prompts=%d resources=%d", len(outcome.tools), len(outcome.prompts), len(outcome.resources))
+			}
+			for i := range test.count {
+				name := fmt.Sprintf("item-%04d", i)
+				if outcome.tools[i].Name != name || outcome.prompts[i] != name || outcome.resources[i] != "test:///"+name {
+					t.Fatalf("catalog identifiers changed: tool=%q prompt=%q resource=%q", outcome.tools[i].Name, outcome.prompts[i], outcome.resources[i])
+				}
+			}
+		})
+	}
 }
 
 func TestMCPProbeCatalogRequiresCurrentResourceRevision(t *testing.T) {

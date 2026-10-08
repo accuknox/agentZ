@@ -1,13 +1,31 @@
 "use client"
 
 import { useEffect, useState, useTransition } from "react"
+import Image from "next/image"
 import { createAuthClient } from "better-auth/react"
 import { oauthProviderClient } from "@better-auth/oauth-provider/client"
-import { ArrowRight, Check, Layers3, LockKeyhole, ShieldCheck, Unplug } from "lucide-react"
+import {
+  AppWindow,
+  ArrowRight,
+  Check,
+  ChevronDown,
+  Cpu,
+  Layers3,
+  Plug,
+  ShieldCheck,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from "@/components/ui/field"
+import { UserIdentity } from "@/components/ui/avatar"
+import { MultiSelectDropdown } from "@/components/ui/multi-select-dropdown"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   Select,
@@ -15,9 +33,11 @@ import {
   SelectValue,
   SelectContent,
   SelectItem,
+  SelectGroup,
 } from "@/components/ui/select"
-import type { DelegationCatalog, DelegationMcp } from "@/lib/gateway/client"
+import type { DelegationCatalog } from "@/lib/gateway/client"
 import { approveConsentAction, delegationWorkspaceAction } from "./actions"
+import { AuthorizationState } from "./authorization-state"
 
 // Only the current continuation may navigate. Automatic redirects would also
 // send discarded effect responses to the callback.
@@ -29,14 +49,16 @@ const authClient = createAuthClient({
 const identityScopes = [
   { value: "openid", label: "Sign you in with your AgentZ identity" },
   { value: "profile", label: "Read your name and profile image" },
-  { value: "email", label: "Read your email address and verification status" },
+  { value: "email", label: "Read your email address" },
   { value: "offline_access", label: "Keep access when you are away, until you disconnect" },
 ]
+
+const mcpKinds = ["tools", "prompts", "resources"] as const
 
 type ConsentProps = {
   oauthQuery: string
   client: { name: string; owner: string | null; callback: string }
-  user: { name: string; email: string }
+  user: { name: string; email: string; image?: string | null }
   scopes: string[]
   organizations: { id: string; name: string }[]
   workspaces: { id: string; name: string; organizationId: string }[]
@@ -59,79 +81,114 @@ export function Consent({
   const [selection, setSelection] = useState<DelegationCatalog>({ models: [], mcp: [] })
   const [error, setError] = useState<string>()
   const [pending, startTransition] = useTransition()
-  const selectedCount =
-    selection.models.length +
-    selection.mcp.reduce(
-      (count, connection) =>
-        count + connection.tools.length + connection.prompts.length + connection.resources.length,
-      0
-    )
+  const [loadError, setLoadError] = useState<string>()
+  const [loading, startLoading] = useTransition()
+  const selectedMcp = selection.mcp.reduce(
+    (counts, connection) => ({
+      tools: counts.tools + connection.tools.length,
+      prompts: counts.prompts + connection.prompts.length,
+      resources: counts.resources + connection.resources.length,
+    }),
+    { tools: 0, prompts: 0, resources: 0 }
+  )
+  const selectedSummary = [
+    [selection.models.length, "model"],
+    [selectedMcp.tools, "MCP tool"],
+    [selectedMcp.prompts, "MCP prompt"],
+    [selectedMcp.resources, "MCP resource"],
+  ] as const
+  const visibleCatalogs = Object.entries(catalogs).filter(
+    ([id]) =>
+      id === workspaceId ||
+      selection.models.some((model) => model.workspace_id === id) ||
+      selection.mcp.some((connection) => connection.workspace_id === id)
+  )
 
-  function selectMCP(
-    connection: DelegationMcp,
-    capability: "tools" | "prompts" | "resources",
-    name: string,
-    checked: boolean
-  ) {
-    setSelection((current) => {
-      const selected = current.mcp.find((item) => item.id === connection.id) ?? {
-        ...connection,
-        tools: [],
-        prompts: [],
-        resources: [],
+  function loadWorkspace(id: string) {
+    setWorkspaceId(id)
+    setLoadError(undefined)
+    setError(undefined)
+    if (catalogs[id]) return
+    startLoading(async () => {
+      try {
+        const catalog = await delegationWorkspaceAction(oauthQuery, organizationId, id)
+        setCatalogs((current) => ({ ...current, [id]: catalog }))
+      } catch (error) {
+        setLoadError(
+          error instanceof Error ? error.message : "Could not load resources from this workspace."
+        )
       }
-      const updated = {
-        ...selected,
-        [capability]: checked
-          ? [...selected[capability], name]
-          : selected[capability].filter((value) => value !== name),
-      }
-      const remaining = current.mcp.filter((item) => item.id !== connection.id)
-      if (updated.tools.length || updated.prompts.length || updated.resources.length)
-        remaining.push(updated)
-      return { ...current, mcp: remaining }
     })
   }
 
   return (
-    <div className="space-y-6">
-      <header className="space-y-3">
-        <div className="flex size-12 items-center justify-center rounded-xl bg-primary/5 text-primary">
-          <LockKeyhole aria-hidden="true" className="size-6" />
+    <div className="flex flex-col gap-8">
+      <header className="flex flex-col items-center gap-6 text-center">
+        <div className="flex items-center gap-5">
+          <Image
+            src="/agentz-logo.svg"
+            alt="AgentZ"
+            width={46}
+            height={40}
+            className="h-10 w-auto"
+          />
+          <div aria-hidden="true" className="flex gap-2">
+            <span className="size-1.5 rounded-full bg-border" />
+            <span className="size-1.5 rounded-full bg-border" />
+            <span className="size-1.5 rounded-full bg-border" />
+          </div>
+          <div className="flex size-10 items-center justify-center rounded-lg bg-primary/5 text-primary">
+            <AppWindow aria-hidden="true" className="size-5" />
+          </div>
         </div>
-        <h1 className="text-2xl font-semibold tracking-tight">Connect to {client.name}</h1>
-        <p className="text-sm text-muted-foreground">
-          {client.owner ? `${client.owner}'s application` : "This application"} wants to connect to
-          your AgentZ account.
-        </p>
-        <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm">
-          <span className="font-medium">{user.name}</span>
-          <span className="ml-2 break-all text-muted-foreground">{user.email}</span>
+        <div className="flex flex-col gap-3">
+          <h1 className="text-3xl font-semibold tracking-tight">
+            Authorize <span className="wrap-anywhere text-primary">{client.name}</span>
+          </h1>
+          <p className="text-sm text-pretty text-muted-foreground">
+            {client.owner ? `An app from the ${client.owner} organization` : "This app"} wants
+            access to your AgentZ account.
+          </p>
         </div>
       </header>
-      <section aria-label="Requested account access" className="space-y-3">
-        <h2 className="text-sm font-semibold">Account access</h2>
-        {identityScopes
-          .filter((scope) => scopes.includes(scope.value))
-          .map((scope) => (
-            <div key={scope.value} className="flex items-start gap-2 text-sm">
-              <Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-              <span>{scope.label}</span>
-            </div>
-          ))}
-      </section>
-      {resourceAccess ? (
-        <section className="space-y-4 rounded-xl border p-4 sm:p-5">
-          <div className="space-y-1">
-            <h2 className="flex items-center gap-2 font-semibold">
-              <Layers3 aria-hidden="true" className="size-4" />
-              Choose resource access
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Only the capabilities you select below will be available to {client.name}. Usage is
-              charged to the resource owner.
-            </p>
+      <div className="rounded-xl border-2 border-dashed border-border/70 bg-card/40 p-5 text-sm">
+        <UserIdentity name={user.name} email={user.email} image={user.image} size="default" />
+      </div>
+      {identityScopes.some((scope) => scopes.includes(scope.value)) ? (
+        <section aria-labelledby="account-access-heading" className="flex flex-col gap-4">
+          <h2 id="account-access-heading" className="text-sm font-semibold wrap-anywhere">
+            {client.name} is requesting access to:
+          </h2>
+          <div className="min-w-0">
+            <details className="group" open>
+              <summary className="flex cursor-pointer list-none items-center gap-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+                <Check aria-hidden="true" className="size-5 shrink-0 text-success" />
+                Your account information
+                <ChevronDown
+                  aria-hidden="true"
+                  className="ml-auto size-4 shrink-0 text-muted-foreground group-open:rotate-180"
+                />
+              </summary>
+              <ul className="mt-3 flex list-disc flex-col gap-2 pl-8 text-sm leading-relaxed text-muted-foreground">
+                {identityScopes
+                  .filter((scope) => scopes.includes(scope.value))
+                  .map((scope) => (
+                    <li key={scope.value}>{scope.label}</li>
+                  ))}
+              </ul>
+            </details>
           </div>
+        </section>
+      ) : null}
+      {resourceAccess ? (
+        <section aria-labelledby="resource-access-heading" className="flex flex-col gap-5">
+          <h2
+            id="resource-access-heading"
+            className="flex items-center gap-2 text-sm font-semibold"
+          >
+            <Layers3 aria-hidden="true" className="size-4 text-primary" />
+            Choose resource access
+          </h2>
           {organizations.length === 0 ? (
             <Alert>
               <AlertDescription>
@@ -141,40 +198,47 @@ export function Consent({
             </Alert>
           ) : (
             <>
-              <div className="space-y-2">
-                <Label htmlFor="consent-organization">Organization</Label>
-                <Select
-                  value={organizationId}
-                  disabled={pending}
-                  onValueChange={(value) => {
-                    setOrganizationId(value)
-                    setWorkspaceId("")
-                    setCatalogs({})
-                    setSelection({ models: [], mcp: [] })
-                    setError(undefined)
-                  }}
-                >
-                  <SelectTrigger id="consent-organization" className="w-full">
-                    <SelectValue placeholder="Select an organization" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {organizations.map((organization) => (
-                      <SelectItem key={organization.id} value={organization.id}>
-                        {organization.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {organizationId ? (
-                <div className="flex items-end gap-2">
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <Label htmlFor="consent-workspace">Workspace</Label>
-                    <Select value={workspaceId} disabled={pending} onValueChange={setWorkspaceId}>
-                      <SelectTrigger id="consent-workspace" className="w-full">
-                        <SelectValue placeholder="Select a workspace" />
-                      </SelectTrigger>
-                      <SelectContent>
+              <FieldGroup className="sm:grid sm:grid-cols-2 sm:items-end">
+                <Field>
+                  <FieldLabel htmlFor="consent-organization">Organization</FieldLabel>
+                  <Select
+                    value={organizationId}
+                    disabled={pending || loading}
+                    onValueChange={(value) => {
+                      setOrganizationId(value)
+                      setWorkspaceId("")
+                      setCatalogs({})
+                      setSelection({ models: [], mcp: [] })
+                      setError(undefined)
+                      setLoadError(undefined)
+                    }}
+                  >
+                    <SelectTrigger id="consent-organization" className="w-full">
+                      <SelectValue placeholder="Select an organization" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {organizations.map((organization) => (
+                          <SelectItem key={organization.id} value={organization.id}>
+                            {organization.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="consent-workspace">Workspace</FieldLabel>
+                  <Select
+                    value={workspaceId}
+                    disabled={pending || loading || !organizationId}
+                    onValueChange={loadWorkspace}
+                  >
+                    <SelectTrigger id="consent-workspace" className="w-full">
+                      <SelectValue placeholder="Select a workspace" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
                         {workspaces
                           .filter((workspace) => workspace.organizationId === organizationId)
                           .map((workspace) => (
@@ -182,163 +246,198 @@ export function Consent({
                               {workspace.name}
                             </SelectItem>
                           ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button
-                    variant="outline"
-                    disabled={pending || !workspaceId}
-                    onClick={() =>
-                      startTransition(async () => {
-                        setError(undefined)
-                        try {
-                          const catalog = await delegationWorkspaceAction(
-                            oauthQuery,
-                            organizationId,
-                            workspaceId
-                          )
-                          setCatalogs((current) => ({ ...current, [workspaceId]: catalog }))
-                        } catch (error) {
-                          setError(
-                            error instanceof Error
-                              ? error.message
-                              : "Capabilities could not be loaded."
-                          )
-                        }
-                      })
-                    }
-                  >
-                    Browse
-                  </Button>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  {organizationId &&
+                  !workspaces.some((workspace) => workspace.organizationId === organizationId) ? (
+                    <FieldDescription>
+                      No workspaces are available in this organization.
+                    </FieldDescription>
+                  ) : null}
+                </Field>
+              </FieldGroup>
+              {loading ? (
+                <div role="status" className="flex flex-col gap-4">
+                  <span className="sr-only">Loading workspace resources…</span>
+                  {[inference ? "Models" : null, mcp ? "MCP connections" : null]
+                    .filter((label) => label !== null)
+                    .map((label) => (
+                      <div key={label} aria-hidden="true" className="flex flex-col gap-2">
+                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-8 w-full" />
+                      </div>
+                    ))}
                 </div>
               ) : null}
-              {Object.entries(catalogs).map(([id, catalog]) => (
-                <div key={id} className="space-y-4 border-t pt-4">
-                  <h3 className="text-sm font-semibold">
-                    {workspaces.find((workspace) => workspace.id === id)?.name}
-                  </h3>
-                  {(!inference || !catalog.models.length) && (!mcp || !catalog.mcp.length) ? (
-                    <p className="text-sm text-muted-foreground">
-                      No capabilities are available for delegation in this workspace. You need both
-                      Use and Delegate permissions.
-                    </p>
-                  ) : null}
-                  {inference && catalog.models.length ? (
-                    <fieldset className="space-y-2">
-                      <legend className="mb-2 text-xs font-medium tracking-wider text-muted-foreground uppercase">
-                        Models
-                      </legend>
-                      {catalog.models.map((model) => (
-                        <label
-                          key={model.id}
-                          className="flex cursor-pointer items-start gap-3 rounded-md border p-3"
-                        >
-                          <Checkbox
-                            className="mt-0.5"
-                            disabled={pending}
-                            checked={selection.models.some((selected) => selected.id === model.id)}
-                            onCheckedChange={(checked) =>
-                              setSelection((current) => ({
-                                ...current,
-                                models:
-                                  checked === true
-                                    ? [...current.models, model]
-                                    : current.models.filter((selected) => selected.id !== model.id),
-                              }))
-                            }
-                          />
-                          <span className="min-w-0">
-                            <span className="block text-sm font-medium break-all">
-                              {model.model}
-                            </span>
-                            <span className="text-xs text-muted-foreground">{model.provider}</span>
-                          </span>
-                        </label>
-                      ))}
-                    </fieldset>
-                  ) : null}
-                  {mcp
-                    ? catalog.mcp.map((connection) => (
-                        <details key={connection.id} className="rounded-md border" open>
-                          <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
-                            {connection.connection}{" "}
-                            <span className="font-normal text-muted-foreground">MCP</span>
-                          </summary>
-                          <div className="space-y-4 border-t p-3">
-                            {(["tools", "prompts", "resources"] as const).map((capability) =>
-                              connection[capability].length ? (
-                                <fieldset key={capability} className="space-y-2">
-                                  <legend className="mb-2 text-xs text-muted-foreground capitalize">
-                                    {capability}
-                                  </legend>
-                                  {connection[capability].map((name) => (
-                                    <label
-                                      key={name}
-                                      className="flex cursor-pointer items-start gap-3 text-sm"
-                                    >
-                                      <Checkbox
-                                        className="mt-0.5"
-                                        disabled={pending}
-                                        checked={
-                                          selection.mcp
-                                            .find((selected) => selected.id === connection.id)
-                                            ?.[capability].includes(name) ?? false
-                                        }
-                                        onCheckedChange={(checked) =>
-                                          selectMCP(connection, capability, name, checked === true)
-                                        }
-                                      />
-                                      <span className="min-w-0 break-all">{name}</span>
-                                    </label>
-                                  ))}
-                                </fieldset>
-                              ) : null
-                            )}
-                          </div>
-                        </details>
-                      ))
-                    : null}
-                </div>
-              ))}
+              {loadError ? (
+                <Alert variant="destructive">
+                  <AlertDescription>{loadError}</AlertDescription>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={pending || loading}
+                    onClick={() => loadWorkspace(workspaceId)}
+                  >
+                    Try again
+                  </Button>
+                </Alert>
+              ) : null}
+              {visibleCatalogs.map(([id, catalog]) => {
+                const modelIds = new Set(catalog.models.map((model) => model.id))
+                const connections = catalog.mcp.filter((connection) =>
+                  mcpKinds.some((kind) => connection[kind].length)
+                )
+                return (
+                  <FieldSet key={id}>
+                    {visibleCatalogs.length > 1 || id !== workspaceId ? (
+                      <FieldLegend variant="label">
+                        Workspace: {workspaces.find((workspace) => workspace.id === id)?.name}
+                      </FieldLegend>
+                    ) : null}
+                    {inference ? (
+                      <Field data-disabled={!catalog.models.length || undefined}>
+                        <FieldLabel htmlFor={`models-${id}`}>Models</FieldLabel>
+                        <MultiSelectDropdown
+                          id={`models-${id}`}
+                          disabled={pending || loading || !catalog.models.length}
+                          className={
+                            !catalog.models.length
+                              ? "border-2 border-dashed border-border/70"
+                              : undefined
+                          }
+                          placeholder={
+                            catalog.models.length ? "Select models" : "No models available"
+                          }
+                          searchPlaceholder="Search models or providers…"
+                          emptyMessage="No matching models."
+                          options={catalog.models.map((model) => ({
+                            value: model.id,
+                            label: model.model_display_name || model.model,
+                            description: `${model.model} · Provider ID: ${model.provider}`,
+                            badge: model.provider_display_name || model.provider,
+                            icon: Cpu,
+                          }))}
+                          value={selection.models
+                            .filter((model) => modelIds.has(model.id))
+                            .map((model) => model.id)}
+                          onValueChangeAction={(ids) =>
+                            setSelection((current) => ({
+                              ...current,
+                              models: [
+                                ...current.models.filter((model) => !modelIds.has(model.id)),
+                                ...catalog.models.filter((model) => ids.includes(model.id)),
+                              ],
+                            }))
+                          }
+                        />
+                      </Field>
+                    ) : null}
+                    {mcp && !connections.length ? (
+                      <Field data-disabled>
+                        <FieldLabel htmlFor={`mcp-empty-${id}`}>MCP connections</FieldLabel>
+                        <Select disabled>
+                          <SelectTrigger
+                            id={`mcp-empty-${id}`}
+                            className="w-full border-2 border-dashed border-border/70"
+                          >
+                            <SelectValue placeholder="No MCP connections available" />
+                          </SelectTrigger>
+                        </Select>
+                      </Field>
+                    ) : null}
+                    {mcp
+                      ? connections.map((connection) => (
+                          <Field key={connection.id}>
+                            <FieldLabel htmlFor={`mcp-${connection.id}`}>
+                              <Plug aria-hidden="true" className="size-4 text-muted-foreground" />
+                              MCP: {connection.connection}
+                            </FieldLabel>
+                            <FieldDescription>ID: {connection.id}</FieldDescription>
+                            <MultiSelectDropdown
+                              id={`mcp-${connection.id}`}
+                              disabled={pending || loading}
+                              placeholder="Select tools, prompts, and resources"
+                              searchPlaceholder="Search tools, prompts, and resources…"
+                              emptyMessage="No matching tools, prompts, or resources."
+                              options={mcpKinds.flatMap((capability) =>
+                                connection[capability].map((name) => ({
+                                  value: JSON.stringify([capability, name]),
+                                  label: name,
+                                  group: capability,
+                                  badge: capability,
+                                  icon: Plug,
+                                }))
+                              )}
+                              value={mcpKinds.flatMap((capability) =>
+                                (
+                                  selection.mcp.find((item) => item.id === connection.id)?.[
+                                    capability
+                                  ] ?? []
+                                ).map((name) => JSON.stringify([capability, name]))
+                              )}
+                              onValueChangeAction={(values) =>
+                                setSelection((current) => {
+                                  const updated = {
+                                    ...connection,
+                                    tools: connection.tools.filter((name) =>
+                                      values.includes(JSON.stringify(["tools", name]))
+                                    ),
+                                    prompts: connection.prompts.filter((name) =>
+                                      values.includes(JSON.stringify(["prompts", name]))
+                                    ),
+                                    resources: connection.resources.filter((name) =>
+                                      values.includes(JSON.stringify(["resources", name]))
+                                    ),
+                                  }
+                                  const remaining = current.mcp.filter(
+                                    (item) => item.id !== connection.id
+                                  )
+                                  if (mcpKinds.some((kind) => updated[kind].length))
+                                    remaining.push(updated)
+                                  return { ...current, mcp: remaining }
+                                })
+                              }
+                            />
+                          </Field>
+                        ))
+                      : null}
+                  </FieldSet>
+                )
+              })}
             </>
           )}
-          {selectedCount > 0 ? (
-            <div className="space-y-2 rounded-lg bg-muted/30 p-3">
-              <p className="text-sm font-medium">
-                {selectedCount} selected {selectedCount === 1 ? "capability" : "capabilities"}
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {selection.models.map((model) => (
-                  <Badge key={model.id} variant="outline">
-                    {model.model}
-                  </Badge>
-                ))}
-                {selection.mcp.map((connection) => (
-                  <Badge key={connection.id} variant="outline">
-                    {connection.connection} ·{" "}
-                    {connection.tools.length +
-                      connection.prompts.length +
-                      connection.resources.length}
-                  </Badge>
-                ))}
-              </div>
-            </div>
+          {selectedSummary.some(([count]) => count > 0) ? (
+            <p role="status" className="text-sm text-muted-foreground">
+              {selectedSummary
+                .filter(([count]) => count > 0)
+                .map(([count, label]) => `${count} ${label}${count === 1 ? "" : "s"}`)
+                .join(", ")}{" "}
+              selected
+            </p>
           ) : null}
         </section>
       ) : null}
-      <div className="flex items-start gap-2 text-sm text-muted-foreground">
+      <div className="flex items-start gap-2.5 text-sm leading-relaxed text-muted-foreground">
         <ShieldCheck aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-        <p>You can disconnect this application at any time in Settings → Connected applications.</p>
+        <p>
+          You can disconnect this application at any time in{" "}
+          <span className="inline-flex items-center gap-1 align-middle">
+            Settings <ArrowRight aria-hidden="true" className="size-3" />
+            <span className="sr-only">then</span> Connected applications.
+          </span>
+        </p>
       </div>
       {error ? (
         <Alert variant="destructive" role="alert">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
-      <div className="flex items-center justify-between gap-3 border-t pt-5">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
         <Button
           variant="outline"
-          disabled={pending}
+          size="lg"
+          disabled={pending || loading}
           onClick={() =>
             startTransition(async () => {
               try {
@@ -359,24 +458,18 @@ export function Consent({
             })
           }
         >
-          <Unplug aria-hidden="true" />
-          Deny
+          Cancel
         </Button>
         <Button
-          disabled={
-            pending ||
-            (resourceAccess &&
-              (!organizationId ||
-                (inference && !selection.models.length) ||
-                (mcp && !selection.mcp.length)))
-          }
+          size="lg"
+          disabled={pending || loading}
           onClick={() =>
             startTransition(async () => {
               setError(undefined)
               try {
                 const result = await approveConsentAction(
                   oauthQuery,
-                  resourceAccess ? organizationId : null,
+                  resourceAccess ? organizationId || null : null,
                   selection
                 )
                 if ("error" in result) {
@@ -401,12 +494,14 @@ export function Consent({
             })
           }
         >
-          {pending ? "Connecting…" : "Allow access"}
-          <ArrowRight aria-hidden="true" />
+          {pending ? "Connecting…" : "Authorize"}
         </Button>
       </div>
-      <p className="text-center text-xs break-all text-muted-foreground">
-        You’ll return to {client.callback || "your application"}.
+      <p className="text-center text-sm leading-relaxed text-muted-foreground">
+        You will be redirected to
+        <strong className="block font-bold wrap-anywhere text-foreground">
+          {client.callback || "your application"}
+        </strong>
       </p>
     </div>
   )
@@ -446,8 +541,10 @@ export function ResumeAuthorization({
     }
   }, [oauthQuery, consent])
   return (
-    <p role={error ? "alert" : "status"} className="text-sm text-muted-foreground">
-      {error ?? "Continuing authorization…"}
-    </p>
+    <AuthorizationState
+      title={error ? "We couldn't connect this app" : "Connecting to your app"}
+      description={error ?? "Finishing authorization. You'll be redirected shortly."}
+      pending={!error}
+    />
   )
 }

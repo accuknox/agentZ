@@ -4872,14 +4872,16 @@ components:
     DelegationModel:
       type: object
       additionalProperties: false
-      required: [id, workspace_id, namespace, provider, uid, model]
+      required: [id, workspace_id, namespace, provider, provider_display_name, uid, model, model_display_name]
       properties:
         id: {type: string, minLength: 1}
         workspace_id: {type: string, minLength: 1}
         namespace: {type: string, minLength: 1}
         provider: {type: string, minLength: 1}
+        provider_display_name: {type: string}
         uid: {type: string, minLength: 1}
         model: {type: string, minLength: 1}
+        model_display_name: {type: string}
     DelegationMCP:
       type: object
       additionalProperties: false

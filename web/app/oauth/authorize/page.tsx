@@ -1,5 +1,4 @@
 import { Suspense } from "react"
-import Image from "next/image"
 import { redirect } from "next/navigation"
 import { and, asc, eq, isNull } from "drizzle-orm"
 import { verifyOAuthQueryParams } from "@better-auth/oauth-provider"
@@ -8,6 +7,7 @@ import { getAuthSession } from "@/lib/auth"
 import { getEnv } from "@/lib/env"
 import { delegationTransaction } from "@/lib/delegation"
 import { Consent, ResumeAuthorization } from "./consent"
+import { AuthorizationState } from "./authorization-state"
 
 export const metadata = { title: "Authorize application", robots: { index: false, follow: false } }
 
@@ -15,17 +15,15 @@ export default function AuthorizePage(props: PageProps<"/oauth/authorize">) {
   return (
     <main
       id="main-content"
-      className="mx-auto flex min-h-svh w-full max-w-2xl flex-col gap-8 px-5 py-10 sm:px-8"
+      className="mx-auto flex min-h-svh w-full max-w-2xl flex-col justify-center px-6 py-10 md:px-10 md:py-14"
     >
-      <div className="flex items-center gap-2.5">
-        <Image src="/agentz-logo.svg" alt="" width={35} height={30} />
-        <span className="text-2xl font-semibold tracking-tight">AgentZ</span>
-      </div>
       <Suspense
         fallback={
-          <p role="status" className="text-muted-foreground">
-            Loading authorization request…
-          </p>
+          <AuthorizationState
+            title="Connecting to AgentZ"
+            description="Loading the application's access request…"
+            pending
+          />
         }
       >
         <AuthorizeContent {...props} />
@@ -42,12 +40,10 @@ async function AuthorizeContent({ searchParams }: PageProps<"/oauth/authorize">)
   }
   const oauthQuery = params.toString()
   const expiredRequest = (
-    <div role="alert" className="space-y-2 rounded-lg border p-6">
-      <h1 className="text-xl font-semibold">This request has expired</h1>
-      <p className="text-sm text-muted-foreground">
-        Return to the application and start Sign in with AgentZ again.
-      </p>
-    </div>
+    <AuthorizationState
+      title="This connection request expired"
+      description="Return to the app you were connecting and reattempt sign in."
+    />
   )
   if (!(await verifyOAuthQueryParams(oauthQuery, getEnv().BETTER_AUTH_SECRET)))
     return expiredRequest
@@ -73,7 +69,10 @@ async function AuthorizeContent({ searchParams }: PageProps<"/oauth/authorize">)
     .where(eq(schema.oauthClients.clientId, transaction.clientId))
   if (!client || client.disabled)
     return (
-      <p role="alert">This application is unavailable. Return to the application to continue.</p>
+      <AuthorizationState
+        title="This app is unavailable"
+        description="This application can no longer connect to AgentZ. Contact the app owner for help."
+      />
     )
   if (transaction.grantId) return <ResumeAuthorization oauthQuery={oauthQuery} consent />
   const organizations = await getDB()
@@ -114,10 +113,13 @@ async function AuthorizeContent({ searchParams }: PageProps<"/oauth/authorize">)
       client={{
         name: client.name ?? "Application",
         owner: client.owner,
-        callback:
-          new URL(params.get("redirect_uri") ?? "").host || params.get("redirect_uri") || "",
+        callback: params.get("redirect_uri") ?? "",
       }}
-      user={{ name: session.session.user.name, email: session.session.user.email }}
+      user={{
+        name: session.session.user.name,
+        email: session.session.user.email,
+        image: session.session.user.image,
+      }}
       scopes={transaction.scopes}
       organizations={organizations}
       workspaces={workspaces}

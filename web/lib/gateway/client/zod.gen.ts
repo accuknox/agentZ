@@ -7,8 +7,10 @@ export const zDelegationModel = z.object({
   workspace_id: z.string().min(1),
   namespace: z.string().min(1),
   provider: z.string().min(1),
+  provider_display_name: z.string(),
   uid: z.string().min(1),
   model: z.string().min(1),
+  model_display_name: z.string(),
 })
 
 export const zDelegationMcp = z.object({

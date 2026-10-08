@@ -186,11 +186,19 @@ path "sys/policies/acl/extauth-*" {
   capabilities = ["create", "read", "update", "delete"]
 }
 
+path "sys/policies/acl/inference-secrets-*" {
+  capabilities = ["create", "read", "update", "delete"]
+}
+
 path "auth/kubernetes/role/sinjector-*" {
   capabilities = ["create", "read", "update", "delete"]
 }
 
 path "auth/kubernetes/role/extauth-*" {
+  capabilities = ["create", "read", "update", "delete"]
+}
+
+path "auth/kubernetes/role/inference-secrets-*" {
   capabilities = ["create", "read", "update", "delete"]
 }
 
@@ -225,19 +233,8 @@ path "kv/metadata/+/inference-provider-oauth-tickets/*" {
 }
 HCL
 
-cat > inference-policy.hcl <<'HCL'
-path "kv/data/+/inference-providers/+" {
-  capabilities = ["read"]
-}
-
-path "kv/metadata/+/inference-providers/+" {
-  capabilities = ["read"]
-}
-HCL
-
 bao write sys/policies/acl/manager policy="$(cat manager-policy.hcl)"
 bao write sys/policies/acl/gateway policy="$(cat gateway-policy.hcl)"
-bao write sys/policies/acl/agentz-inference-external-secrets policy="$(cat inference-policy.hcl)"
 
 bao write auth/kubernetes/role/manager \
   bound_service_account_names=agentz-manager \
@@ -250,16 +247,12 @@ bao write auth/kubernetes/role/gateway \
   bound_service_account_namespaces=agentz-system \
   token_policies=gateway token_type=service token_period=1h
 
-bao write auth/kubernetes/role/agentz-inference-external-secrets \
-  bound_service_account_names=agentz-inference-external-secrets \
-  bound_service_account_namespaces=agentz-system \
-  audience=https://kubernetes.default.svc \
-  token_policies=agentz-inference-external-secrets token_type=service \
-  token_ttl=1h token_max_ttl=1h token_period=0
-
 rm bao-token
 unset -f bao
 ```
+
+The manager creates an OpenBao role and SecretStore for each inference owner.
+Each role can read only that namespace's provider credentials.
 
 Read more: <https://openbao.org/docs/auth/kubernetes/>
 

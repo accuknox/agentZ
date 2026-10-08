@@ -292,33 +292,28 @@ export async function approveDelegation(
     throw new Error("The application did not request those resources.")
   if (!inference && !mcp && organizationId)
     throw new Error("Identity access does not require an organization.")
-  if ((inference || mcp) && !organizationId) throw new Error("Select an organization.")
-  if ((inference && !selection.models.length) || (mcp && !selection.mcp.length))
-    throw new Error("Select at least one capability for each requested gateway.")
+  if (!selection.models.length && !selection.mcp.length) organizationId = null
+  if ((selection.models.length || selection.mcp.length) && !organizationId)
+    throw new Error("Select an organization.")
   if (organizationId) await checkDelegationSelection(organizationId, selection, user)
-  // Selection order reflects clicks, not authority. Reuse an identical grant
-  // without changing its stored order, which also identifies projected routes.
+  // Display names and click order do not change authority. Preserve the stored
+  // order when reusing a grant because it identifies the projected routes.
   function matchesSelection(previous: DelegationCatalog) {
     if (
-      !isDeepStrictEqual(new Set(previous.models), new Set(selection.models)) ||
+      !isDeepStrictEqual(
+        new Set(previous.models.map((model) => model.id)),
+        new Set(selection.models.map((model) => model.id))
+      ) ||
       previous.mcp.length !== selection.mcp.length
     )
       return false
     return previous.mcp.every((connection) => {
       const selected = selection.mcp.find((item) => item.id === connection.id)
       if (!selected) return false
-      const { tools, prompts, resources, ...target } = connection
-      const {
-        tools: selectedTools,
-        prompts: selectedPrompts,
-        resources: selectedResources,
-        ...selectedTarget
-      } = selected
       return (
-        isDeepStrictEqual(target, selectedTarget) &&
-        isDeepStrictEqual(new Set(tools), new Set(selectedTools)) &&
-        isDeepStrictEqual(new Set(prompts), new Set(selectedPrompts)) &&
-        isDeepStrictEqual(new Set(resources), new Set(selectedResources))
+        isDeepStrictEqual(new Set(connection.tools), new Set(selected.tools)) &&
+        isDeepStrictEqual(new Set(connection.prompts), new Set(selected.prompts)) &&
+        isDeepStrictEqual(new Set(connection.resources), new Set(selected.resources))
       )
     })
   }

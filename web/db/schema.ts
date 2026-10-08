@@ -16,8 +16,7 @@ import {
   unique,
   uniqueIndex,
 } from "drizzle-orm/pg-core"
-import type { EventTrailField } from "@/lib/gateway/client/types.gen"
-import type { DelegationCatalog } from "@/lib/gateway/client/types.gen"
+import type { DelegationCatalog, EventTrailField } from "@/lib/gateway/client"
 import { dayjs } from "@/lib/format"
 import {
   oauthClients,

@@ -19,6 +19,7 @@ import (
 	typev3 "github.com/envoyproxy/go-control-plane/envoy/type/v3"
 	baoapi "github.com/openbao/openbao/api/v2"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 	statuspb "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -335,7 +336,7 @@ type Service struct {
 	kube               ctrlclient.Client
 	kv                 *baoapi.KVv2
 	http               *http.Client
-	oauthRefreshMu     sync.Mutex
+	oauthRefresh       singleflight.Group
 	inferenceRefreshMu sync.Mutex
 	mcpConnections     agentzlisters.MCPConnectionNamespaceLister
 	probeQueue         workqueue.TypedInterface[string]

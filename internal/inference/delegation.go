@@ -6,10 +6,14 @@ import (
 	"slices"
 
 	kjson "sigs.k8s.io/json"
+
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 type inferenceRequest struct {
 	Model              string               `json:"model"`
+	Instructions       string               `json:"instructions"`
+	Stream             bool                 `json:"stream"`
 	Store              *bool                `json:"store"`
 	Background         bool                 `json:"background"`
 	PreviousResponseID string               `json:"previous_response_id"`
@@ -19,6 +23,29 @@ type inferenceRequest struct {
 	Tools              []inferenceTool      `json:"tools"`
 	Input              json.RawMessage      `json:"input"`
 	Messages           []inferenceInputItem `json:"messages"`
+}
+
+// ValidateDelegatedProviderRequest checks constraints of the selected provider
+// before forwarding a request to an upstream whose errors must remain private.
+func ValidateDelegatedProviderRequest(kind agentzv1alpha1.InferenceProviderKind, body []byte, responses bool) error {
+	if kind != agentzv1alpha1.InferenceProviderKindOpenAICodex {
+		return nil
+	}
+	if !responses {
+		return errors.New("this Codex model uses the Responses API; send requests to /responses with store:false and stream:true")
+	}
+	var input inferenceRequest
+	strictErrors, err := kjson.UnmarshalStrict(body, &input, kjson.DisallowDuplicateFields)
+	if err != nil || len(strictErrors) != 0 {
+		return errors.New("provide a valid inference request with no duplicate fields")
+	}
+	if !input.Stream {
+		return errors.New("this Codex model requires stream:true")
+	}
+	if input.Instructions == "" {
+		return errors.New("this Codex model requires an instructions string")
+	}
+	return nil
 }
 
 type inferenceTool struct {

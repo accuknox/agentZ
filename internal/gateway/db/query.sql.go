@@ -1363,6 +1363,21 @@ func (q *Queries) GatewayDeleteCodingWorktree(ctx context.Context, id string) er
 	return err
 }
 
+const gatewayDeleteDelegationMCPSession = `-- name: GatewayDeleteDelegationMCPSession :exec
+DELETE FROM delegation_mcp_sessions
+WHERE id = $1 AND grant_id = $2
+`
+
+type GatewayDeleteDelegationMCPSessionParams struct {
+	ID      string `json:"id"`
+	GrantID string `json:"grant_id"`
+}
+
+func (q *Queries) GatewayDeleteDelegationMCPSession(ctx context.Context, arg GatewayDeleteDelegationMCPSessionParams) error {
+	_, err := q.db.Exec(ctx, gatewayDeleteDelegationMCPSession, arg.ID, arg.GrantID)
+	return err
+}
+
 const gatewayDeleteExpiredEventTrailEvents = `-- name: GatewayDeleteExpiredEventTrailEvents :execrows
 DELETE FROM event_trail_events
 WHERE created_at < $1
@@ -1931,11 +1946,18 @@ const gatewayGetDelegationGrant = `-- name: GatewayGetDelegationGrant :one
 SELECT g.id, g.client_id, g.user_id, g.organization_id, g.scopes, g.resources, g.selection, g.created_at, g.approved_at, g.revoked_at
 FROM delegation_grants g
 JOIN oauth_clients c ON c.client_id = g.client_id AND c.disabled IS NOT TRUE AND g.scopes <@ c.scopes
-JOIN organization_delegation d ON d.organization_id = g.organization_id AND d.enabled
-JOIN members m ON m.organization_id = g.organization_id AND m.user_id = g.user_id AND m.disabled_at IS NULL
 WHERE g.id = $1 AND g.client_id = $2
   AND g.user_id = $3
   AND g.approved_at IS NOT NULL AND g.revoked_at IS NULL
+  AND (
+    (g.selection->'models' = '[]'::jsonb AND g.selection->'mcp' = '[]'::jsonb)
+    OR EXISTS (
+      SELECT 1 FROM organization_delegation d
+      JOIN members m ON m.organization_id = d.organization_id
+      WHERE d.organization_id = g.organization_id AND d.enabled
+        AND m.user_id = g.user_id AND m.disabled_at IS NULL
+    )
+  )
 `
 
 type GatewayGetDelegationGrantParams struct {
@@ -3697,9 +3719,16 @@ const gatewayListDelegationGrants = `-- name: GatewayListDelegationGrants :many
 SELECT g.id, g.client_id, g.user_id, g.organization_id, g.scopes, g.resources, g.selection, g.created_at, g.approved_at, g.revoked_at
 FROM delegation_grants g
 JOIN oauth_clients c ON c.client_id = g.client_id AND c.disabled IS NOT TRUE AND g.scopes <@ c.scopes
-JOIN organization_delegation d ON d.organization_id = g.organization_id AND d.enabled
-JOIN members m ON m.organization_id = g.organization_id AND m.user_id = g.user_id AND m.disabled_at IS NULL
 WHERE g.approved_at IS NOT NULL AND g.revoked_at IS NULL
+  AND (
+    (g.selection->'models' = '[]'::jsonb AND g.selection->'mcp' = '[]'::jsonb)
+    OR EXISTS (
+      SELECT 1 FROM organization_delegation d
+      JOIN members m ON m.organization_id = d.organization_id
+      WHERE d.organization_id = g.organization_id AND d.enabled
+        AND m.user_id = g.user_id AND m.disabled_at IS NULL
+    )
+  )
 `
 
 func (q *Queries) GatewayListDelegationGrants(ctx context.Context) ([]DelegationGrant, error) {

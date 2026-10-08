@@ -21,8 +21,8 @@ SKILLS_S3_ACCESS_KEY_ID ?= admin
 SKILLS_S3_SECRET_ACCESS_KEY ?= admin
 
 # Host development uses the same gateway for management and delegated requests.
-DELEGATION_NAMESPACE ?=
-DELEGATION_GATEWAY_URL ?=
+DELEGATION_NAMESPACE ?= agentz-delegations
+DELEGATION_GATEWAY_URL ?= http://localhost:8080
 
 KUBECTL ?= kubectl
 KUSTOMIZE ?= kustomize

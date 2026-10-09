@@ -417,6 +417,7 @@ function IdentityForm({
       id="sandbox-form-identity"
       onSubmit={form.handleSubmit(onNext)}
       className="flex min-h-full w-full min-w-0 flex-col gap-5"
+      noValidate
     >
       <FieldGroup>
         <Controller
@@ -441,13 +442,16 @@ function IdentityForm({
                 placeholder="my-sandbox"
                 aria-invalid={fieldState.invalid}
                 aria-required="true"
+                aria-describedby="sandbox-form-name-error"
               />
               <FieldDescription>
                 {lockName
                   ? "Sandbox name cannot be changed."
                   : "Lowercase letters, numbers, and hyphens only. Max 32 characters."}
               </FieldDescription>
-              {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+              {fieldState.invalid && (
+                <FieldError errors={[fieldState.error]} id="sandbox-form-name-error" />
+              )}
             </Field>
           )}
         />
@@ -490,6 +494,7 @@ function PackageStep({
       id={formIdByStep.packages}
       onSubmit={form.handleSubmit((data) => onNext(data.packages))}
       className="flex min-h-full w-full min-w-0 flex-col gap-5"
+      noValidate
     >
       <PackageSearch
         installed={installedPackages}
@@ -1019,6 +1024,7 @@ function McpStep({
         onNext(data.mcpConnectionRefs.toSorted((a, b) => a.name.localeCompare(b.name)))
       )}
       className="flex min-h-full w-full min-w-0 flex-col gap-5"
+      noValidate
     >
       <div className="-mx-4 w-[calc(100%+2rem)] min-w-0 space-y-4 sm:-mx-6 sm:w-[calc(100%+3rem)]">
         <AdminDataGrid
@@ -1191,6 +1197,7 @@ function SkillsStep({
       id={formIdByStep.skills}
       onSubmit={form.handleSubmit((data) => onNext(data.skills.toSorted()))}
       className="flex min-h-full w-full min-w-0 flex-col gap-5"
+      noValidate
     >
       <div className="-mx-4 w-[calc(100%+2rem)] min-w-0 space-y-4 sm:-mx-6 sm:w-[calc(100%+3rem)]">
         <AdminDataGrid
@@ -1404,6 +1411,7 @@ function ModelsStep({
         setSubmitting(true)
         onNext()
       }}
+      noValidate
     >
       {providers.length === 0 && pools.length === 0 ? (
         <Empty className="gap-3 p-8">
@@ -1728,7 +1736,11 @@ function ModelsStep({
                     }}
                     disabled={selected.length === 0}
                   >
-                    <SelectTrigger className="w-full" aria-label="Default model">
+                    <SelectTrigger
+                      className="w-full"
+                      aria-label="Default model"
+                      aria-required="true"
+                    >
                       <SelectValue placeholder="Choose a default model" />
                     </SelectTrigger>
                     <SelectContent>{modelOptions}</SelectContent>
@@ -1924,6 +1936,7 @@ function AllowedHostsStep({
       id={formIdByStep.allowedHosts}
       action={submitAction}
       className="flex min-h-full w-full min-w-0 flex-col gap-5"
+      noValidate
     >
       <input type="hidden" name="name" value={identity.name} />
       {packages.map((pkg) => (

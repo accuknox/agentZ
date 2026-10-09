@@ -2665,6 +2665,16 @@ FROM delegation_grants g
 JOIN oauth_clients c ON c.client_id = g.client_id AND c.disabled IS NOT TRUE AND g.scopes <@ c.scopes
 WHERE g.id = sqlc.arg(id) AND g.client_id = sqlc.arg(client_id)
   AND g.user_id = sqlc.arg(user_id)
+  AND (
+    sqlc.arg(origin)::text = ''
+    OR (
+      c.application_type = 'web' AND c.token_endpoint_auth_method = 'none'
+      AND EXISTS (
+        SELECT 1 FROM oauth_client_origins o
+        WHERE o.client_id = c.client_id AND o.origin = sqlc.arg(origin)
+      )
+    )
+  )
   AND g.approved_at IS NOT NULL AND g.revoked_at IS NULL
   AND (
     (g.selection->'models' = '[]'::jsonb AND g.selection->'mcp' = '[]'::jsonb)
@@ -2707,8 +2717,13 @@ WHERE delegation_mcp_sessions.grant_id = EXCLUDED.grant_id;
 DELETE FROM delegation_mcp_sessions
 WHERE id = sqlc.arg(id) AND grant_id = sqlc.arg(grant_id);
 
--- name: GatewayListDelegationRedirects :many
-SELECT redirect_uris FROM oauth_clients WHERE disabled IS NOT TRUE AND application_type = 'web';
+-- name: GatewayCheckDelegationOrigin :one
+SELECT EXISTS (
+  SELECT 1 FROM oauth_client_origins o
+  JOIN oauth_clients c ON c.client_id = o.client_id
+  WHERE o.origin = sqlc.arg(origin) AND c.disabled IS NOT TRUE
+    AND c.application_type = 'web' AND c.token_endpoint_auth_method = 'none'
+);
 
 -- name: GatewayPruneDelegationSessions :exec
 DELETE FROM delegation_mcp_sessions WHERE expires_at <= now();

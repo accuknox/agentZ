@@ -254,6 +254,22 @@ func (q *Queries) GatewayCheckDelegationMCPSession(ctx context.Context, arg Gate
 	return exists, err
 }
 
+const gatewayCheckDelegationOrigin = `-- name: GatewayCheckDelegationOrigin :one
+SELECT EXISTS (
+  SELECT 1 FROM oauth_client_origins o
+  JOIN oauth_clients c ON c.client_id = o.client_id
+  WHERE o.origin = $1 AND c.disabled IS NOT TRUE
+    AND c.application_type = 'web' AND c.token_endpoint_auth_method = 'none'
+)
+`
+
+func (q *Queries) GatewayCheckDelegationOrigin(ctx context.Context, origin string) (bool, error) {
+	row := q.db.QueryRow(ctx, gatewayCheckDelegationOrigin, origin)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const gatewayCheckDelegationSession = `-- name: GatewayCheckDelegationSession :one
 SELECT EXISTS(SELECT 1 FROM sessions WHERE id = $1 AND user_id = $2 AND expires_at > now())
 `
@@ -1948,6 +1964,16 @@ FROM delegation_grants g
 JOIN oauth_clients c ON c.client_id = g.client_id AND c.disabled IS NOT TRUE AND g.scopes <@ c.scopes
 WHERE g.id = $1 AND g.client_id = $2
   AND g.user_id = $3
+  AND (
+    $4::text = ''
+    OR (
+      c.application_type = 'web' AND c.token_endpoint_auth_method = 'none'
+      AND EXISTS (
+        SELECT 1 FROM oauth_client_origins o
+        WHERE o.client_id = c.client_id AND o.origin = $4
+      )
+    )
+  )
   AND g.approved_at IS NOT NULL AND g.revoked_at IS NULL
   AND (
     (g.selection->'models' = '[]'::jsonb AND g.selection->'mcp' = '[]'::jsonb)
@@ -1964,10 +1990,16 @@ type GatewayGetDelegationGrantParams struct {
 	ID       string `json:"id"`
 	ClientID string `json:"client_id"`
 	UserID   string `json:"user_id"`
+	Origin   string `json:"origin"`
 }
 
 func (q *Queries) GatewayGetDelegationGrant(ctx context.Context, arg GatewayGetDelegationGrantParams) (DelegationGrant, error) {
-	row := q.db.QueryRow(ctx, gatewayGetDelegationGrant, arg.ID, arg.ClientID, arg.UserID)
+	row := q.db.QueryRow(ctx, gatewayGetDelegationGrant,
+		arg.ID,
+		arg.ClientID,
+		arg.UserID,
+		arg.Origin,
+	)
 	var i DelegationGrant
 	err := row.Scan(
 		&i.ID,
@@ -3755,30 +3787,6 @@ func (q *Queries) GatewayListDelegationGrants(ctx context.Context) ([]Delegation
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const gatewayListDelegationRedirects = `-- name: GatewayListDelegationRedirects :many
-SELECT redirect_uris FROM oauth_clients WHERE disabled IS NOT TRUE AND application_type = 'web'
-`
-
-func (q *Queries) GatewayListDelegationRedirects(ctx context.Context) ([][]string, error) {
-	rows, err := q.db.Query(ctx, gatewayListDelegationRedirects)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := [][]string{}
-	for rows.Next() {
-		var redirect_uris []string
-		if err := rows.Scan(&redirect_uris); err != nil {
-			return nil, err
-		}
-		items = append(items, redirect_uris)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

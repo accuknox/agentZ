@@ -528,7 +528,7 @@ function buildAuthOptions() {
           },
         }),
       } satisfies BetterAuthPlugin,
-      agentZOAuthProvider(),
+      agentZOAuthProvider(env.BETTER_AUTH_URL),
       organization({
         ac: organizationAccessControl,
         allowUserToCreateOrganization: false,

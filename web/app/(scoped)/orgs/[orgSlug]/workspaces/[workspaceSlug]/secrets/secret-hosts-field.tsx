@@ -86,6 +86,7 @@ export function SecretHostsField({
           placeholder="api.example.com, *.example.com, **.example.com, 10.0.0.0/24"
           className="font-mono"
           aria-invalid={invalid || Boolean(draftError)}
+          aria-required="true"
         />
         <InputGroupAddon align="inline-end">
           <InputGroupButton onClick={addHost} aria-label="Add host">

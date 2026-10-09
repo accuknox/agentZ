@@ -102,7 +102,8 @@ func (s *service) git(w http.ResponseWriter, r *http.Request) {
 
 func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.CodingGitResult, error) {
 	result := gatewayapi.CodingGitResult{Files: []gatewayapi.CodingGitFile{}}
-	for _, name := range []string{req.Root, req.Directory} {
+	names := []string{req.Root, req.Directory}
+	for _, name := range names {
 		if !filepath.IsLocal(name) || !strings.HasPrefix(name, "Projects/") {
 			return result, errors.New("git directory must be a managed project path")
 		}

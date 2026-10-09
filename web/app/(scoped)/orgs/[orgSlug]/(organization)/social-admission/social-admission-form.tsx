@@ -1,7 +1,19 @@
 "use client"
 
 import Link from "next/link"
-import { Fragment, useActionState, useEffect, useMemo, useState } from "react"
+import { Controller, useForm, useWatch } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
+import { socialAdmissionFormSchema } from "@/data/schema"
+import {
+  Fragment,
+  startTransition,
+  useActionState,
+  useEffect,
+  useMemo,
+  useState,
+  type ComponentProps,
+} from "react"
 import { toast } from "sonner"
 import { GitHubDark, GitHubLight, Google } from "@ridemountainpig/svgl-react"
 import {
@@ -29,6 +41,7 @@ import {
   FieldError,
   FieldGroup,
   FieldLabel,
+  RequiredIndicator,
 } from "@/components/ui/field"
 import {
   InputGroup,
@@ -50,48 +63,81 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-const googleDomainPattern =
-  /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/
-const githubOrganizationPattern = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/
-const githubTeamPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
-
 export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; orgSlug: string }) {
-  const [dirty, setDirty] = useState(false)
+  const policySchema = useMemo(
+    () =>
+      z
+        .object({
+          ...socialAdmissionFormSchema.shape,
+          githubOrganizations: z.array(z.string()),
+          githubTeams: z.array(z.string()),
+          googleDomains: z.array(z.string()),
+        })
+        .transform((values) => ({
+          ...values,
+          googleDomains: values.googleEnabled ? values.googleDomains : data.googleDomains,
+          githubOrganizations: values.githubEnabled
+            ? values.githubOrganizations
+            : data.githubRules.map((rule) => rule.organization),
+          githubTeams: values.githubEnabled
+            ? values.githubTeams
+            : data.githubRules.map((rule) => rule.team ?? ""),
+        }))
+        .pipe(socialAdmissionFormSchema),
+    [data.googleDomains, data.githubRules]
+  )
+  const form = useForm<z.input<typeof policySchema>, undefined, z.output<typeof policySchema>>({
+    resolver: zodResolver(policySchema),
+    defaultValues: {
+      enabled: data.enabled,
+      googleEnabled: data.googleEnabled,
+      githubEnabled: data.githubEnabled,
+      googleDomains: data.googleDomains,
+      githubOrganizations: data.githubRules.map((rule) => rule.organization),
+      githubTeams: data.githubRules.map((rule) => rule.team ?? ""),
+      roleIds: data.defaultRoleIds,
+      teamIds: data.defaultTeamIds,
+    },
+  })
+  const [enabled, googleEnabled, githubEnabled, domains, organizations, teams, roleIds, teamIds] =
+    useWatch({
+      control: form.control,
+      name: [
+        "enabled",
+        "googleEnabled",
+        "githubEnabled",
+        "googleDomains",
+        "githubOrganizations",
+        "githubTeams",
+        "roleIds",
+        "teamIds",
+      ],
+    })
+  const [ruleIds, setRuleIds] = useState(data.githubRules.map((rule) => rule.id))
+  const rules = ruleIds.map((id, index) => ({
+    id,
+    organization: organizations[index],
+    team: teams[index],
+  }))
+  const dirty = form.formState.isDirty
+  const validationVisible = form.formState.submitCount > 0
   const [state, action, pending] = useActionState<SocialAdmissionFormState, FormData>(
     async (state, formData) => {
       const result = await socialAdmissionAction(orgSlug, state, formData)
       if (result.saved) {
-        setDirty(false)
+        form.reset(form.getValues())
         toast.success("Sign-up settings updated")
       }
       return result
     },
     {}
   )
-  const [domains, setDomains] = useState(data.googleDomains)
   const [domain, setDomain] = useState("")
   const [domainError, setDomainError] = useState<string>()
-  const [rules, setRules] = useState(data.githubRules)
-  const [enabled, setEnabled] = useState(data.enabled)
-  const [googleEnabled, setGoogleEnabled] = useState(data.googleEnabled)
-  const [githubEnabled, setGithubEnabled] = useState(data.githubEnabled)
-  const [roleIds, setRoleIds] = useState(data.defaultRoleIds)
-  const [teamIds, setTeamIds] = useState(data.defaultTeamIds)
-  const [validationVisible, setValidationVisible] = useState(false)
-
-  const githubInvalid = rules.some(
-    (rule) =>
-      !githubOrganizationPattern.test(rule.organization.trim()) ||
-      (rule.team !== null && rule.team !== "" && !githubTeamPattern.test(rule.team.trim()))
-  )
   const hasDefaultAccess = roleIds.length + teamIds.length > 0
   const hasProvider = googleEnabled || githubEnabled
   const googleInvalid =
     googleEnabled && (domains.length === 0 || !data.googleConfigured || domainError !== undefined)
-  const githubProviderInvalid =
-    githubEnabled && (rules.length === 0 || !data.githubConfigured || githubInvalid)
-  const formInvalid =
-    enabled && (!hasDefaultAccess || !hasProvider || googleInvalid || githubProviderInvalid)
   const googleError =
     domainError ??
     (validationVisible && googleInvalid
@@ -99,8 +145,6 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
         ? "Google sign-in is not configured for this deployment."
         : "Add at least one Google email domain."
       : undefined)
-  const submittedDomains = googleEnabled ? domains : data.googleDomains
-  const submittedRules = githubEnabled ? rules : data.githubRules
   const qualifiedWorkspaces = useMemo(
     () =>
       data.workspaces.flatMap((workspace) => {
@@ -125,7 +169,7 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
 
   function addDomain() {
     const value = domain.trim().toLowerCase()
-    if (!googleDomainPattern.test(value)) {
+    if (!socialAdmissionFormSchema.shape.googleDomains.element.safeParse(value).success) {
       setDomainError("Enter an exact email domain such as example.com.")
       return
     }
@@ -134,40 +178,32 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
       setDomain("")
       return
     }
-    setDomains((current) => [...current, value])
+    form.setValue("googleDomains", [...domains, value], {
+      shouldDirty: true,
+      shouldValidate: validationVisible,
+    })
     setDomain("")
-    setDirty(true)
   }
 
+  const submit = form.handleSubmit((values) => {
+    const formData = new FormData()
+    if (values.enabled) formData.set("enabled", "on")
+    if (values.googleEnabled) formData.set("google_enabled", "on")
+    if (values.githubEnabled) formData.set("github_enabled", "on")
+    for (const id of values.roleIds) formData.append("role_ids", id)
+    for (const id of values.teamIds) formData.append("team_ids", id)
+    for (const domain of values.googleDomains) formData.append("google_domains", domain)
+    for (const organization of values.githubOrganizations)
+      formData.append("github_organization", organization)
+    for (const team of values.githubTeams) formData.append("github_team", team)
+    startTransition(() => action(formData))
+  })
   return (
     <form
-      action={action}
+      noValidate
+      onSubmit={submit}
       className="flex max-w-4xl min-w-0 flex-col gap-8 px-4 pb-6 md:px-6"
-      onChange={() => setDirty(true)}
-      onSubmit={(event) => {
-        if (!enabled || !formInvalid) return
-        event.preventDefault()
-        setValidationVisible(true)
-      }}
     >
-      {roleIds.map((id) => (
-        <input key={id} name="role_ids" type="hidden" value={id} />
-      ))}
-      {teamIds.map((id) => (
-        <input key={id} name="team_ids" type="hidden" value={id} />
-      ))}
-      {!enabled && googleEnabled ? <input name="google_enabled" type="hidden" value="on" /> : null}
-      {!enabled && githubEnabled ? <input name="github_enabled" type="hidden" value="on" /> : null}
-      {submittedDomains.map((value) => (
-        <input key={value} name="google_domains" type="hidden" value={value} />
-      ))}
-      {submittedRules.map((rule) => (
-        <Fragment key={rule.id}>
-          <input name="github_organization" type="hidden" value={rule.organization} />
-          <input name="github_team" type="hidden" value={rule.team ?? ""} />
-        </Fragment>
-      ))}
-
       <section className="flex flex-col gap-5">
         <Field orientation="horizontal">
           <FieldContent>
@@ -177,17 +213,22 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
               rule below.
             </FieldDescription>
           </FieldContent>
-          <Switch
-            aria-label="Enable Social Sign Up"
-            checked={enabled}
-            id="social-admission-enabled"
+          <Controller
             name="enabled"
-            onCheckedChange={(checked) => {
-              setEnabled(checked)
-              setValidationVisible(false)
-              setDomainError(undefined)
-              setDirty(true)
-            }}
+            control={form.control}
+            render={({ field }) => (
+              <Switch
+                ref={field.ref}
+                onBlur={field.onBlur}
+                aria-label="Enable Social Sign Up"
+                checked={field.value}
+                id="social-admission-enabled"
+                onCheckedChange={(checked) => {
+                  field.onChange(checked)
+                  setDomainError(undefined)
+                }}
+              />
+            )}
           />
         </Field>
         {state.error ? (
@@ -219,7 +260,9 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
         <>
           <section className="flex flex-col gap-5">
             <div className="flex flex-col gap-1">
-              <h3 className="text-base font-semibold">Default access</h3>
+              <h3 className="flex items-center gap-2 text-base font-semibold">
+                Default access <RequiredIndicator />
+              </h3>
               <p className="text-sm text-muted-foreground">
                 New members receive these roles and teams once, when they join.
               </p>
@@ -230,49 +273,61 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
             >
               <Field data-invalid={validationVisible && !hasDefaultAccess}>
                 <FieldLabel htmlFor="default-roles">Default roles</FieldLabel>
-                <MultiSelectDropdown
-                  emptyMessage="No roles available."
-                  id="default-roles"
-                  invalid={validationVisible && !hasDefaultAccess}
-                  onValueChangeAction={(value) => {
-                    setRoleIds(value)
-                    setDirty(true)
-                  }}
-                  options={data.roles.map((role) => ({
-                    badge: role.workspace ?? role.scope,
-                    badgeIcon: role.workspace ? PanelsTopLeft : undefined,
-                    group: role.scope,
-                    icon: Shield,
-                    label: role.name,
-                    value: role.id,
-                  }))}
-                  placeholder="Select default roles"
-                  searchPlaceholder="Search roles..."
-                  value={roleIds}
+                <Controller
+                  name="roleIds"
+                  control={form.control}
+                  render={({ field }) => (
+                    <MultiSelectDropdown
+                      emptyMessage="No roles available."
+                      id="default-roles"
+                      invalid={validationVisible && !hasDefaultAccess}
+                      ref={field.ref}
+                      onBlurAction={field.onBlur}
+                      onValueChangeAction={field.onChange}
+                      aria-describedby="default-access-error"
+                      options={data.roles.map((role) => ({
+                        badge: role.workspace ?? role.scope,
+                        badgeIcon: role.workspace ? PanelsTopLeft : undefined,
+                        group: role.scope,
+                        icon: Shield,
+                        label: role.name,
+                        value: role.id,
+                      }))}
+                      placeholder="Select default roles"
+                      searchPlaceholder="Search roles..."
+                      value={field.value}
+                    />
+                  )}
                 />
               </Field>
               <Field data-invalid={validationVisible && !hasDefaultAccess}>
                 <FieldLabel htmlFor="default-teams">Default teams</FieldLabel>
-                <MultiSelectDropdown
-                  emptyMessage="No teams available."
-                  id="default-teams"
-                  invalid={validationVisible && !hasDefaultAccess}
-                  onValueChangeAction={(value) => {
-                    setTeamIds(value)
-                    setDirty(true)
-                  }}
-                  options={data.teams.map((team) => ({
-                    icon: UsersRound,
-                    label: team.name,
-                    value: team.id,
-                  }))}
-                  placeholder="Select default teams"
-                  searchPlaceholder="Search teams..."
-                  value={teamIds}
+                <Controller
+                  name="teamIds"
+                  control={form.control}
+                  render={({ field }) => (
+                    <MultiSelectDropdown
+                      emptyMessage="No teams available."
+                      id="default-teams"
+                      invalid={validationVisible && !hasDefaultAccess}
+                      ref={field.ref}
+                      onBlurAction={field.onBlur}
+                      onValueChangeAction={field.onChange}
+                      aria-describedby="default-access-error"
+                      options={data.teams.map((team) => ({
+                        icon: UsersRound,
+                        label: team.name,
+                        value: team.id,
+                      }))}
+                      placeholder="Select default teams"
+                      searchPlaceholder="Search teams..."
+                      value={field.value}
+                    />
+                  )}
                 />
               </Field>
               {validationVisible && !hasDefaultAccess ? (
-                <FieldError className="md:col-span-2">
+                <FieldError id="default-access-error" className="md:col-span-2">
                   Select at least one default role or team.
                 </FieldError>
               ) : null}
@@ -338,28 +393,38 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
             </div>
 
             <div className="grid gap-8 @2xl:grid-cols-[21rem_minmax(0,1fr)]">
-              <ProviderHeading
-                checked={googleEnabled}
-                configured={data.googleConfigured}
-                description="Permit Google accounts with one of the listed email domains."
-                icon={<Google aria-hidden className="size-5" />}
-                id="google-enabled"
-                onCheckedChange={(checked) => {
-                  setGoogleEnabled(checked)
-                  setDomainError(undefined)
-                  setDirty(true)
-                }}
-                title="Google"
+              <Controller
+                name="googleEnabled"
+                control={form.control}
+                render={({ field }) => (
+                  <ProviderHeading
+                    ref={field.ref}
+                    onBlur={field.onBlur}
+                    checked={googleEnabled}
+                    configured={data.googleConfigured}
+                    description="Permit Google accounts with one of the listed email domains."
+                    icon={<Google aria-hidden className="size-5" />}
+                    id="google-enabled"
+                    onCheckedChange={(checked) => {
+                      field.onChange(checked)
+                      setDomainError(undefined)
+                    }}
+                    title="Google"
+                  />
+                )}
               />
               {googleEnabled ? (
                 <Field data-invalid={googleError !== undefined}>
-                  <FieldLabel htmlFor="google-domains">Email domain</FieldLabel>
+                  <FieldLabel htmlFor="google-domains" required>
+                    Email domains
+                  </FieldLabel>
                   <InputGroup>
                     <InputGroupInput
                       aria-describedby={googleError ? "google-domains-error" : undefined}
                       aria-invalid={googleError !== undefined}
                       autoComplete="off"
                       id="google-domains"
+                      aria-required={domains.length === 0}
                       onChange={(event) => setDomain(event.target.value)}
                       onKeyDown={(event) => {
                         if (event.key !== "Enter") return
@@ -389,10 +454,11 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
                             <Button
                               aria-label={`Remove ${value}`}
                               onClick={() => {
-                                setDomains((current) =>
-                                  current.filter((candidate) => candidate !== value)
+                                form.setValue(
+                                  "googleDomains",
+                                  domains.filter((candidate) => candidate !== value),
+                                  { shouldDirty: true, shouldValidate: validationVisible }
                                 )
-                                setDirty(true)
                               }}
                               size="icon-sm"
                               type="button"
@@ -412,34 +478,39 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
             </div>
 
             <div className="grid gap-8 @2xl:grid-cols-[21rem_minmax(0,1fr)]">
-              <ProviderHeading
-                checked={githubEnabled}
-                configured={data.githubConfigured}
-                description="Permit members of a listed GitHub organization or team."
-                icon={
-                  <>
-                    <GitHubLight aria-hidden className="size-5 dark:hidden" />
-                    <GitHubDark aria-hidden className="hidden size-5 dark:block" />
-                  </>
-                }
-                id="github-enabled"
-                onCheckedChange={(checked) => {
-                  setGithubEnabled(checked)
-                  setDirty(true)
-                }}
-                title="GitHub"
+              <Controller
+                name="githubEnabled"
+                control={form.control}
+                render={({ field }) => (
+                  <ProviderHeading
+                    ref={field.ref}
+                    onBlur={field.onBlur}
+                    checked={githubEnabled}
+                    configured={data.githubConfigured}
+                    description="Permit members of a listed GitHub organization or team."
+                    icon={
+                      <>
+                        <GitHubLight aria-hidden className="size-5 dark:hidden" />
+                        <GitHubDark aria-hidden className="hidden size-5 dark:block" />
+                      </>
+                    }
+                    id="github-enabled"
+                    onCheckedChange={(checked) => {
+                      field.onChange(checked)
+                      setDomainError(undefined)
+                    }}
+                    title="GitHub"
+                  />
+                )}
               />
               {githubEnabled ? (
                 <FieldGroup>
                   {rules.length ? (
                     rules.map((rule, index) => {
-                      const organizationInvalid = !githubOrganizationPattern.test(
-                        rule.organization.trim()
+                      const organizationInvalid = Boolean(
+                        form.formState.errors.githubOrganizations?.[index]
                       )
-                      const teamInvalid =
-                        rule.team !== null &&
-                        rule.team !== "" &&
-                        !githubTeamPattern.test(rule.team.trim())
+                      const teamInvalid = Boolean(form.formState.errors.githubTeams?.[index])
                       const errorId = `github-rule-${rule.id}-error`
                       return (
                         <Field
@@ -451,58 +522,59 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
                               <FieldLabel htmlFor={`github-organization-${rule.id}`} required>
                                 Organization
                               </FieldLabel>
-                              <Input
-                                aria-describedby={
-                                  validationVisible && organizationInvalid ? errorId : undefined
-                                }
-                                aria-invalid={validationVisible && organizationInvalid}
-                                autoComplete="off"
-                                id={`github-organization-${rule.id}`}
-                                onChange={(event) =>
-                                  setRules((current) =>
-                                    current.map((candidate, candidateIndex) =>
-                                      candidateIndex === index
-                                        ? { ...candidate, organization: event.target.value }
-                                        : candidate
-                                    )
-                                  )
-                                }
-                                placeholder="acme"
-                                required
-                                value={rule.organization}
+                              <Controller
+                                name={`githubOrganizations.${index}`}
+                                control={form.control}
+                                render={({ field, fieldState }) => (
+                                  <Input
+                                    {...field}
+                                    id={`github-organization-${rule.id}`}
+                                    autoComplete="off"
+                                    placeholder="acme"
+                                    required
+                                    aria-invalid={fieldState.invalid}
+                                    aria-describedby={fieldState.invalid ? errorId : undefined}
+                                  />
+                                )}
                               />
                             </Field>
                             <Field>
                               <FieldLabel htmlFor={`github-team-${rule.id}`}>
                                 Team slug <span className="text-muted-foreground">(optional)</span>
                               </FieldLabel>
-                              <Input
-                                aria-describedby={
-                                  validationVisible && teamInvalid ? errorId : undefined
-                                }
-                                aria-invalid={validationVisible && teamInvalid}
-                                autoComplete="off"
-                                id={`github-team-${rule.id}`}
-                                onChange={(event) =>
-                                  setRules((current) =>
-                                    current.map((candidate, candidateIndex) =>
-                                      candidateIndex === index
-                                        ? { ...candidate, team: event.target.value || null }
-                                        : candidate
-                                    )
-                                  )
-                                }
-                                placeholder="platform"
-                                value={rule.team ?? ""}
+                              <Controller
+                                name={`githubTeams.${index}`}
+                                control={form.control}
+                                render={({ field, fieldState }) => (
+                                  <Input
+                                    {...field}
+                                    id={`github-team-${rule.id}`}
+                                    autoComplete="off"
+                                    placeholder="platform"
+                                    aria-invalid={fieldState.invalid}
+                                    aria-describedby={fieldState.invalid ? errorId : undefined}
+                                  />
+                                )}
                               />
                             </Field>
                             <Button
                               aria-label={`Remove GitHub rule ${index + 1}`}
                               onClick={() => {
-                                setRules((current) =>
+                                setRuleIds((current) =>
                                   current.filter((_, candidateIndex) => candidateIndex !== index)
                                 )
-                                setDirty(true)
+                                form.setValue(
+                                  "githubOrganizations",
+                                  organizations.filter(
+                                    (_, candidateIndex) => candidateIndex !== index
+                                  ),
+                                  { shouldDirty: true, shouldValidate: validationVisible }
+                                )
+                                form.setValue(
+                                  "githubTeams",
+                                  teams.filter((_, candidateIndex) => candidateIndex !== index),
+                                  { shouldDirty: true, shouldValidate: validationVisible }
+                                )
                               }}
                               size="icon"
                               type="button"
@@ -533,8 +605,11 @@ export function SocialAdmissionForm({ data, orgSlug }: { data: SocialAdmission; 
                     className="w-fit"
                     onClick={() => {
                       const id = crypto.randomUUID()
-                      setRules((current) => [...current, { id, organization: "", team: null }])
-                      setDirty(true)
+                      setRuleIds((current) => [...current, id])
+                      form.setValue("githubOrganizations", [...organizations, ""], {
+                        shouldDirty: true,
+                      })
+                      form.setValue("githubTeams", [...teams, ""], { shouldDirty: true })
                     }}
                     type="button"
                     variant="outline"
@@ -605,6 +680,7 @@ function ProviderHeading({
   id,
   onCheckedChange,
   title,
+  ...switchProps
 }: {
   checked: boolean
   configured: boolean
@@ -613,7 +689,7 @@ function ProviderHeading({
   id: string
   onCheckedChange: (checked: boolean) => void
   title: string
-}) {
+} & Pick<ComponentProps<typeof Switch>, "ref" | "onBlur">) {
   return (
     <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-4">
       <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">
@@ -628,6 +704,7 @@ function ProviderHeading({
         </p>
       </div>
       <Switch
+        {...switchProps}
         aria-label={`Enable ${title}`}
         checked={checked}
         className="mt-2 self-start"

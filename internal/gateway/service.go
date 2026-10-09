@@ -426,7 +426,8 @@ func Serve(ctx context.Context, cfg Config) error {
 	}()
 	// Reserve a cleanup worker so judge requests cannot delay deletion.
 	var evaluations sync.WaitGroup
-	for _, cleanup := range []bool{false, true} {
+	cleanupModes := []bool{false, true}
+	for _, cleanup := range cleanupModes {
 		evaluations.Go(func() { svc.runEvaluations(runCtx, cleanup) })
 	}
 	cleanupDone := make(chan struct{})
@@ -865,7 +866,8 @@ func (s *Service) routes() http.Handler {
 			r.Get("/models", s.handleDelegatedRequest)
 			r.Post("/chat/completions", s.handleDelegatedRequest)
 			r.Post("/responses", s.handleDelegatedRequest)
-			for _, path := range []string{"/models", "/chat/completions", "/responses"} {
+			paths := []string{"/models", "/chat/completions", "/responses"}
+			for _, path := range paths {
 				r.Options(path, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 			}
 			r.NotFound(func(w http.ResponseWriter, r *http.Request) {

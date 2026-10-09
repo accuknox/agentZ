@@ -170,8 +170,10 @@ export function SignInForm({
                       }
                       field.onBlur()
                     }}
+                    aria-describedby="signin-email-error"
+                    aria-required="true"
                   />
-                  <FieldError errors={[fieldState.error]}>
+                  <FieldError errors={[fieldState.error]} id="signin-email-error">
                     {fieldState.error?.message ??
                       (routeCredentialErrorVisible ? invalidCredentialsMessage : undefined)}
                   </FieldError>
@@ -201,8 +203,10 @@ export function SignInForm({
                       }
                       field.onBlur()
                     }}
+                    aria-describedby="signin-password-error"
+                    aria-required="true"
                   />
-                  <FieldError errors={[fieldState.error]}>
+                  <FieldError errors={[fieldState.error]} id="signin-password-error">
                     {fieldState.error?.message ??
                       (routeCredentialErrorVisible ? invalidCredentialsMessage : undefined)}
                   </FieldError>

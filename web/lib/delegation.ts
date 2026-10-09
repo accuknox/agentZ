@@ -9,22 +9,42 @@ import {
   oauthProvider,
   verifyOAuthQueryParams,
   type OAuthClaimExtensionInput,
+  type OAuthRefreshToken,
 } from "@better-auth/oauth-provider"
 import { z } from "zod"
+import { delegationScopes } from "@/data/schema"
 import { getDB, schema } from "@/db"
 import { getEnv } from "@/lib/env"
 import { getDelegationCatalog, type DelegationCatalog } from "@/lib/gateway/client"
 import { createClient, createConfig } from "@/lib/gateway/client/client"
 import { GatewayUnauthorizedError } from "@/lib/gateway/errors"
 
-export const delegationScopes = [
-  "openid",
-  "profile",
-  "email",
-  "offline_access",
-  "inference:use",
-  "mcp:use",
-]
+/** assertOAuthOrigin binds browser requests to the registered public client's origins. */
+async function assertOAuthOrigin(origin: string | null, clientId: string) {
+  if (origin === null) return
+  const [registered] = await getDB()
+    .select({ origin: schema.oauthClientOrigins.origin })
+    .from(schema.oauthClientOrigins)
+    .innerJoin(
+      schema.oauthClients,
+      eq(schema.oauthClients.clientId, schema.oauthClientOrigins.clientId)
+    )
+    .where(
+      and(
+        eq(schema.oauthClientOrigins.clientId, clientId),
+        eq(schema.oauthClientOrigins.origin, origin),
+        eq(schema.oauthClients.applicationType, "web"),
+        eq(schema.oauthClients.tokenEndpointAuthMethod, "none"),
+        eq(schema.oauthClients.disabled, false)
+      )
+    )
+    .limit(1)
+  if (!registered)
+    throw new APIError("FORBIDDEN", {
+      error: "access_denied",
+      error_description: "This origin is not authorized for this application.",
+    })
+}
 
 /** delegationCatalog reads current resource permissions without changing the user's active organization. */
 export async function delegationCatalog(
@@ -200,11 +220,10 @@ export async function delegationTransaction(oauthQuery: string, userId: string, 
 }
 
 /** agentZOAuthProvider uses native OAuth flows with immutable AgentZ resource grants. */
-export function agentZOAuthProvider() {
-  const env = getEnv()
+export function agentZOAuthProvider(issuer: string) {
   const refreshTokenHash = defineRequestState(() => "")
-  const inferenceResource = `${env.BETTER_AUTH_URL}/api/inference/v1`
-  const mcpResource = `${env.BETTER_AUTH_URL}/api/mcp`
+  const inferenceResource = `${issuer}/api/inference/v1`
+  const mcpResource = `${issuer}/api/mcp`
   const delegationTokenClaims = async ({
     user,
     client,
@@ -214,18 +233,25 @@ export function agentZOAuthProvider() {
   }: Pick<OAuthClaimExtensionInput, "user" | "referenceId" | "scopes" | "resources"> & {
     client: Pick<OAuthClaimExtensionInput["client"], "clientId">
   }) => {
-    const [grant] = await getDB()
-      .select()
+    const [current] = await getDB()
+      .select({ grant: schema.delegationGrants })
       .from(schema.delegationGrants)
+      .innerJoin(
+        schema.oauthClients,
+        eq(schema.oauthClients.clientId, schema.delegationGrants.clientId)
+      )
       .where(
         and(
           eq(schema.delegationGrants.id, referenceId ?? ""),
           eq(schema.delegationGrants.clientId, client.clientId),
           eq(schema.delegationGrants.userId, user?.id ?? ""),
+          eq(schema.oauthClients.disabled, false),
+          arrayContains(schema.oauthClients.scopes, schema.delegationGrants.scopes),
           isNull(schema.delegationGrants.revokedAt),
           isNotNull(schema.delegationGrants.approvedAt)
         )
       )
+    const grant = current?.grant
     if (
       !grant ||
       !user ||
@@ -452,17 +478,27 @@ export function agentZOAuthProvider() {
         claims: {
           accessToken: delegationTokenClaims,
           idToken: delegationTokenClaims,
-          userInfo: async ({ jwt, user }) => {
+          userInfo: async ({ ctx, jwt, user }) => {
             const grantId = z.string().parse(jwt.agentz_grant_id)
             const clientId = z.string().parse(jwt.client_id)
+            await assertOAuthOrigin(ctx.headers?.get("origin") ?? null, clientId)
             const [grant] = await getDB()
-              .select()
+              .select({
+                organizationId: schema.delegationGrants.organizationId,
+                selection: schema.delegationGrants.selection,
+              })
               .from(schema.delegationGrants)
+              .innerJoin(
+                schema.oauthClients,
+                eq(schema.oauthClients.clientId, schema.delegationGrants.clientId)
+              )
               .where(
                 and(
                   eq(schema.delegationGrants.id, grantId),
                   eq(schema.delegationGrants.userId, user.id),
                   eq(schema.delegationGrants.clientId, clientId),
+                  eq(schema.oauthClients.disabled, false),
+                  arrayContains(schema.oauthClients.scopes, schema.delegationGrants.scopes),
                   isNotNull(schema.delegationGrants.approvedAt),
                   isNull(schema.delegationGrants.revokedAt)
                 )
@@ -490,19 +526,35 @@ export function agentZOAuthProvider() {
       before: [
         ...provider.hooks.before,
         {
-          matcher: (ctx) => ctx.path === "/oauth2/token",
+          matcher: (ctx) => ctx.path === "/oauth2/token" || ctx.path === "/oauth2/revoke",
           handler: createAuthMiddleware(async (ctx) => {
+            const api = getOAuthProviderApi(ctx, provider.options)
+            const { clientId } = await api.authenticateClient({
+              requireCredentials: false,
+            })
+            await assertOAuthOrigin(ctx.headers?.get("origin") ?? null, clientId)
+            if (ctx.path === "/oauth2/revoke") {
+              const request = provider.endpoints.oauth2Revoke.options.body.safeParse(ctx.body)
+              if (!request.success) return undefined
+              // Revocation accepts the token itself, without an Authorization scheme.
+              if (/\s/.test(request.data.token)) return ctx.json(null)
+              const token = await api.hashToken(request.data.token, "refresh_token")
+              const refresh = await ctx.context.adapter.findOne<OAuthRefreshToken>({
+                model: "oauthRefreshToken",
+                where: [{ field: "token", value: token }],
+              })
+              // The provider invalidates a revoked token's family before checking its owner.
+              if (refresh && refresh.clientId !== clientId) return ctx.json(null)
+              return undefined
+            }
             const request = provider.endpoints.oauth2Token.options.body.safeParse(ctx.body)
             if (
               !request.success ||
               request.data.grant_type !== "refresh_token" ||
               !request.data.refresh_token
             )
-              return
-            const token = await getOAuthProviderApi(ctx, provider.options).hashToken(
-              request.data.refresh_token,
-              "refresh_token"
-            )
+              return undefined
+            const token = await api.hashToken(request.data.refresh_token, "refresh_token")
             await refreshTokenHash.set(token)
             // Expired browser sessions must not bind newly issued offline tokens.
             // The provider still authenticates the client and validates the refresh.
@@ -512,6 +564,7 @@ export function agentZOAuthProvider() {
               .where(
                 and(
                   eq(schema.oauthRefreshTokens.token, token),
+                  eq(schema.oauthRefreshTokens.clientId, clientId),
                   arrayContains(schema.oauthRefreshTokens.scopes, ["offline_access"]),
                   inArray(
                     schema.oauthRefreshTokens.sessionId,
@@ -522,6 +575,7 @@ export function agentZOAuthProvider() {
                   )
                 )
               )
+            return undefined
           }),
         },
       ],
@@ -559,11 +613,17 @@ export function agentZOAuthProvider() {
               .select({ grant: schema.delegationGrants, user: schema.users })
               .from(schema.delegationGrants)
               .innerJoin(schema.users, eq(schema.users.id, schema.delegationGrants.userId))
+              .innerJoin(
+                schema.oauthClients,
+                eq(schema.oauthClients.clientId, schema.delegationGrants.clientId)
+              )
               .where(
                 and(
                   eq(schema.delegationGrants.id, grantId ?? ""),
                   eq(schema.delegationGrants.clientId, payload.client_id ?? ""),
                   eq(schema.delegationGrants.userId, payload.sub ?? ""),
+                  eq(schema.oauthClients.disabled, false),
+                  arrayContains(schema.oauthClients.scopes, schema.delegationGrants.scopes),
                   isNotNull(schema.delegationGrants.approvedAt),
                   isNull(schema.delegationGrants.revokedAt)
                 )

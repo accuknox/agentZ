@@ -124,7 +124,8 @@ func (q *skillDeleteQueries) GatewayCreateEventTrailEvent(_ context.Context, arg
 }
 
 func TestSkillDeleteRequiresDetachment(t *testing.T) {
-	for _, path := range []string{"/api/skill/used", "/api/skill"} {
+	paths := []string{"/api/skill/used", "/api/skill"}
+	for _, path := range paths {
 		t.Run(path, func(t *testing.T) {
 			t.Parallel()
 			queries := &skillDeleteQueries{sandboxQueries: sandboxQueries{
@@ -144,7 +145,8 @@ func TestSkillDeleteRequiresDetachment(t *testing.T) {
 				},
 			}}
 			svc := sandboxTestService(t, queries)
-			for _, name := range []string{"free", "used"} {
+			names := []string{"free", "used"}
+			for _, name := range names {
 				item := &agentzv1alpha1.Skill{ObjectMeta: metav1.ObjectMeta{
 					Name: name, Namespace: testWorkspaceNS,
 					Finalizers: []string{"agentz.accuknox.com/immutable-skill"},
@@ -166,7 +168,8 @@ func TestSkillDeleteRequiresDetachment(t *testing.T) {
 			gatewayapi.HandlerWithOptions(svc, gatewayapi.ChiServerOptions{
 				BaseRouter: router, Middlewares: []gatewayapi.MiddlewareFunc{sandboxTestAuth},
 			})
-			for _, status := range []int{http.StatusConflict, http.StatusNoContent} {
+			statuses := []int{http.StatusConflict, http.StatusNoContent}
+			for _, status := range statuses {
 				req := httptest.NewRequest(http.MethodDelete, path,
 					strings.NewReader(`{"skill_names":["free","used"]}`))
 				req.Header.Set("X-AgentZ-Workspace-ID", testWorkspaceID)
@@ -186,7 +189,8 @@ func TestSkillDeleteRequiresDetachment(t *testing.T) {
 				if response.Code != "skill_in_use" || !strings.Contains(response.Message, "consumer") {
 					t.Fatalf("conflict does not identify the consumer: %+v", response)
 				}
-				for _, name := range []string{"free", "used"} {
+				names := []string{"free", "used"}
+				for _, name := range names {
 					var item agentzv1alpha1.Skill
 					key := ctrlclient.ObjectKey{Namespace: testWorkspaceNS, Name: name}
 					if err := svc.k8sClient.Get(t.Context(), key, &item); err != nil {

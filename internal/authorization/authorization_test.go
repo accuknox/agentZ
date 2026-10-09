@@ -60,6 +60,13 @@ type agentCapabilitiesCase struct {
 	wantCoversShare bool
 }
 
+type delegationPermissionCase struct {
+	name  string
+	rows  []gatewaydb.GatewayResolvePermissionsRow
+	scope authorization.Scope
+	want  bool
+}
+
 func (q *permissionQueries) GatewayResolvePermissions(_ context.Context, params gatewaydb.GatewayResolvePermissionsParams) ([]gatewaydb.GatewayResolvePermissionsRow, error) {
 	q.params = params
 	return q.rows, q.err
@@ -267,6 +274,90 @@ func TestResolverFailClosedAndSuperadminBypass(t *testing.T) {
 				}
 			},
 		)
+	}
+}
+
+func TestDelegationRequiresUseAndDelegateInSameScope(t *testing.T) {
+	t.Parallel()
+
+	resources := []gatewaydb.PermissionResource{
+		gatewaydb.PermissionResourceInferenceProvider, gatewaydb.PermissionResourceMcpConnection,
+	}
+	for _, resource := range resources {
+		t.Run(string(resource), func(t *testing.T) {
+			t.Parallel()
+			scope := authorization.Scope{OrganizationID: "organization-a", WorkspaceID: "workspace-a"}
+			foreignWorkspace := authorization.Scope{OrganizationID: "organization-a", WorkspaceID: "workspace-b"}
+			foreignOrganization := authorization.Scope{OrganizationID: "organization-b", WorkspaceID: "workspace-a"}
+			use := permissionRow(resource, "workspace-a", gatewaydb.PermissionActionUse)
+			delegate := permissionRow(resource, "workspace-a", gatewaydb.PermissionActionDelegate)
+			both := []gatewaydb.GatewayResolvePermissionsRow{use, delegate}
+			workspaceAdmin := []gatewaydb.GatewayResolvePermissionsRow{{
+				Active:         true,
+				WorkspaceAdmin: true,
+				WorkspaceID:    pgtype.Text{String: "workspace-a", Valid: true},
+			}}
+			superadmin := []gatewaydb.GatewayResolvePermissionsRow{{Active: true, Superadmin: true}}
+			cases := []delegationPermissionCase{
+				{name: "no grants", scope: scope},
+				{name: "use alone", rows: []gatewaydb.GatewayResolvePermissionsRow{use}, scope: scope},
+				{name: "delegate alone", rows: []gatewaydb.GatewayResolvePermissionsRow{delegate}, scope: scope},
+				{name: "role union", rows: both, scope: scope, want: true},
+				{name: "other workspace", rows: both, scope: foreignWorkspace},
+				{name: "other organization", rows: both, scope: foreignOrganization},
+				{
+					name: "actions split across workspaces",
+					rows: []gatewaydb.GatewayResolvePermissionsRow{
+						use,
+						permissionRow(resource, "workspace-b", gatewaydb.PermissionActionDelegate),
+					},
+					scope: scope,
+				},
+				{
+					name: "other resource",
+					rows: []gatewaydb.GatewayResolvePermissionsRow{
+						permissionRow(gatewaydb.PermissionResourceAgent, "workspace-a", gatewaydb.PermissionActionUse),
+						permissionRow(gatewaydb.PermissionResourceAgent, "workspace-a", gatewaydb.PermissionActionDelegate),
+					},
+					scope: scope,
+				},
+				{
+					name: "organization grants do not imply workspace grants",
+					rows: []gatewaydb.GatewayResolvePermissionsRow{
+						permissionRow(resource, "", gatewaydb.PermissionActionUse),
+						permissionRow(resource, "", gatewaydb.PermissionActionDelegate),
+					},
+					scope: scope,
+				},
+				{name: "workspace admin", rows: workspaceAdmin, scope: scope, want: true},
+				{name: "workspace admin cannot cross workspace", rows: workspaceAdmin, scope: foreignWorkspace},
+				{name: "superadmin", rows: superadmin, scope: scope, want: true},
+				{name: "superadmin cannot cross organization", rows: superadmin, scope: foreignOrganization},
+				{
+					name:  "inactive superadmin",
+					rows:  []gatewaydb.GatewayResolvePermissionsRow{{Superadmin: true}},
+					scope: scope,
+				},
+			}
+			for _, test := range cases {
+				t.Run(test.name, func(t *testing.T) {
+					t.Parallel()
+					effective, err := authorization.New(&permissionQueries{rows: test.rows}).Resolve(
+						t.Context(),
+						authorization.Subject{
+							UserID:         "user-a",
+							OrganizationID: "organization-a",
+						},
+					)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if got := effective.CanDelegate(test.scope, resource); got != test.want {
+						t.Fatalf("CanDelegate() = %v, want %v", got, test.want)
+					}
+				})
+			}
+		})
 	}
 }
 

@@ -20,7 +20,7 @@ async function ApplicationsContent({ params }: PageProps<"/orgs/[orgSlug]/applic
   const result = await resolveOrganizationSlug(orgSlug)
   if (result.kind !== "ready") return null
   if (!result.organization.superadmin) return <AdministrationState kind="forbidden" />
-  const [clients, [setting]] = await Promise.all([
+  const [clients, [setting], origins] = await Promise.all([
     getDB()
       .select({
         clientId: schema.oauthClients.clientId,
@@ -38,11 +38,28 @@ async function ApplicationsContent({ params }: PageProps<"/orgs/[orgSlug]/applic
       .select({ enabled: schema.organizationDelegation.enabled })
       .from(schema.organizationDelegation)
       .where(eq(schema.organizationDelegation.organizationId, result.organization.id)),
+    getDB()
+      .select({
+        clientId: schema.oauthClientOrigins.clientId,
+        origin: schema.oauthClientOrigins.origin,
+      })
+      .from(schema.oauthClientOrigins)
+      .innerJoin(
+        schema.oauthClients,
+        eq(schema.oauthClients.clientId, schema.oauthClientOrigins.clientId)
+      )
+      .where(eq(schema.oauthClients.referenceId, result.organization.id))
+      .orderBy(asc(schema.oauthClientOrigins.origin)),
   ])
   return (
     <Applications
       organizationId={result.organization.id}
-      clients={clients}
+      clients={clients.map((client) => ({
+        ...client,
+        authorizedOrigins: origins
+          .filter((entry) => entry.clientId === client.clientId)
+          .map((entry) => entry.origin),
+      }))}
       delegationEnabled={setting?.enabled ?? false}
     />
   )

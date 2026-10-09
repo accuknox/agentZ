@@ -116,7 +116,8 @@ type extAuthCallerCase struct {
 
 func TestExtAuthCallerIdentities(t *testing.T) {
 	scheme := runtime.NewScheme()
-	for _, add := range []func(*runtime.Scheme) error{agentzv1alpha1.AddToScheme, ciliumv2.AddToScheme} {
+	registrations := []func(*runtime.Scheme) error{agentzv1alpha1.AddToScheme, ciliumv2.AddToScheme}
+	for _, add := range registrations {
 		if err := add(scheme); err != nil {
 			t.Fatal(err)
 		}
@@ -134,7 +135,7 @@ func TestExtAuthCallerIdentities(t *testing.T) {
 	if err := policy.Spec.Sanitize(); err != nil {
 		t.Fatal(err)
 	}
-	for _, test := range []extAuthCallerCase{
+	cases := []extAuthCallerCase{
 		{"local inference", "owner", "inference", "inference", true, true, false},
 		{"local MCP", "owner", "mcp", "mcp", true, true, true},
 		{"related inference", "related", "inference", "inference", true, false, false},
@@ -143,7 +144,8 @@ func TestExtAuthCallerIdentities(t *testing.T) {
 		{"forged local gateway labels", "owner", "untrusted", "inference", false, false, false},
 		{"forged related gateway labels", "related", "untrusted", "mcp", false, false, false},
 		{"aggregator", "private", "delegations", "delegations", false, false, false},
-	} {
+	}
+	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			identity := labels.Set{
 				"k8s.io.kubernetes.pod.namespace":            test.namespace,

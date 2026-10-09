@@ -212,7 +212,7 @@ function CreateAPIKeyDialog({
         </>
       ) : (
         <>
-          <form id="api-key-form" onSubmit={submit} className="space-y-5">
+          <form id="api-key-form" onSubmit={submit} className="space-y-5" noValidate>
             <FieldGroup>
               <Controller
                 name="type"
@@ -238,6 +238,8 @@ function CreateAPIKeyDialog({
                         onBlur={field.onBlur}
                         aria-invalid={fieldState.invalid}
                         className="w-full"
+                        aria-describedby="api-key-type-error"
+                        aria-required="true"
                       >
                         <SelectValue />
                       </SelectTrigger>
@@ -254,7 +256,9 @@ function CreateAPIKeyDialog({
                         </SelectGroup>
                       </SelectContent>
                     </Select>
-                    {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
+                    {fieldState.invalid ? (
+                      <FieldError errors={[fieldState.error]} id="api-key-type-error" />
+                    ) : null}
                   </Field>
                 )}
               />
@@ -273,8 +277,11 @@ function CreateAPIKeyDialog({
                       aria-required="true"
                       maxLength={32}
                       placeholder="CI"
+                      aria-describedby="api-key-name-error"
                     />
-                    {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
+                    {fieldState.invalid ? (
+                      <FieldError errors={[fieldState.error]} id="api-key-name-error" />
+                    ) : null}
                   </Field>
                 )}
               />
@@ -290,6 +297,7 @@ function CreateAPIKeyDialog({
                         onBlur={field.onBlur}
                         aria-invalid={fieldState.invalid}
                         className="w-full"
+                        aria-describedby="api-key-expiry-error"
                       >
                         <SelectValue />
                       </SelectTrigger>
@@ -304,7 +312,9 @@ function CreateAPIKeyDialog({
                         </SelectGroup>
                       </SelectContent>
                     </Select>
-                    {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
+                    {fieldState.invalid ? (
+                      <FieldError errors={[fieldState.error]} id="api-key-expiry-error" />
+                    ) : null}
                   </Field>
                 )}
               />
@@ -332,11 +342,15 @@ function CreateAPIKeyDialog({
                         placeholder="Select Agents"
                         searchPlaceholder="Search Agents..."
                         value={field.value}
+                        aria-describedby="api-key-target-agents-error"
+                        aria-required="true"
                       />
                       {field.value.map((agentName) => (
                         <input key={agentName} type="hidden" name="agentNames" value={agentName} />
                       ))}
-                      {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
+                      {fieldState.invalid ? (
+                        <FieldError errors={[fieldState.error]} id="api-key-target-agents-error" />
+                      ) : null}
                     </Field>
                   )}
                 />

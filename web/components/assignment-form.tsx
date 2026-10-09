@@ -10,7 +10,7 @@ import {
 } from "@/app/(scoped)/orgs/actions"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldError, FieldGroup, FieldLabel, RequiredIndicator } from "@/components/ui/field"
 import { MultiSelectDropdown } from "@/components/ui/multi-select-dropdown"
 import { Spinner } from "@/components/ui/spinner"
 import type { AssignmentOption, ScopedAssignmentOption } from "@/data/members"
@@ -96,7 +96,9 @@ export function AssignmentForm(props: AssignmentFormProps) {
       )}
 
       <div>
-        <h2 className="text-lg font-medium">Assignments</h2>
+        <h2 className="text-lg font-medium">
+          Assignments {props.kind === "member" ? <RequiredIndicator /> : null}
+        </h2>
         <p className="mt-1 text-sm text-muted-foreground">
           {props.kind === "member"
             ? `Manage the direct Roles and Teams assigned to ${props.name}.`

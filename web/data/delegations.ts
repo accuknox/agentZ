@@ -7,30 +7,9 @@ import { z } from "zod"
 import { getDB, schema } from "@/db"
 import { getAuth, getAuthSession } from "@/lib/auth"
 import { activateOrganization, isActiveSuperadmin } from "@/data/organizations"
-import { checkDelegationSelection, delegationScopes, delegationTransaction } from "@/lib/delegation"
+import { checkDelegationSelection, delegationTransaction } from "@/lib/delegation"
+import { oauthApplicationInput } from "@/data/schema"
 import type { DelegationCatalog } from "@/lib/gateway/client"
-
-export const oauthApplicationInput = z
-  .object({
-    name: z.string().trim().min(1).max(100),
-    type: z.enum(["confidential", "browser", "native"]),
-    redirectUris: z.array(z.url()).min(1).max(10),
-    scopes: z
-      .array(z.string().refine((scope) => delegationScopes.includes(scope), "Unsupported scope"))
-      .min(1),
-  })
-  .superRefine((input, ctx) => {
-    for (const uri of input.redirectUris) {
-      const parsed = new URL(uri)
-      if (parsed.hash || parsed.username || parsed.password || uri.includes("*")) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["redirectUris"],
-          message: "Callback URLs must be exact and omit fragments, credentials, and wildcards.",
-        })
-      }
-    }
-  })
 
 /** saveOAuthApplication delegates protocol metadata and secret generation to Better Auth. */
 export async function saveOAuthApplication(
@@ -44,6 +23,8 @@ export async function saveOAuthApplication(
     throw new Error("Only an organization superadmin can manage applications.")
   await activateOrganization(organizationId)
   const auth = getAuth()
+  let savedClientId: string
+  let secret: string | undefined
   if (clientId) {
     const [client] = await getDB()
       .select()
@@ -73,45 +54,75 @@ export async function saveOAuthApplication(
         },
       },
     })
-    // A reduced scope ceiling immediately invalidates grants that exceed it.
-    const grants = await getDB()
-      .select()
-      .from(schema.delegationGrants)
-      .where(
-        and(
-          eq(schema.delegationGrants.clientId, clientId),
-          isNull(schema.delegationGrants.revokedAt)
-        )
-      )
-    const revoked = grants
-      .filter((grant) => !grant.scopes.every((scope) => data.scopes.includes(scope)))
-      .map((grant) => grant.id)
-    if (revoked.length)
-      await getDB()
-        .update(schema.delegationGrants)
-        .set({ revokedAt: new Date() })
-        .where(inArray(schema.delegationGrants.id, revoked))
-    return { clientId }
+    savedClientId = clientId
+  } else {
+    const client = await auth.api.adminCreateOAuthClient({
+      headers: session.requestHeaders,
+      body: {
+        client_name: data.name,
+        redirect_uris: data.redirectUris,
+        scope: data.scopes.join(" "),
+        application_type: data.type === "native" ? "native" : "web",
+        token_endpoint_auth_method: data.type === "confidential" ? "client_secret_basic" : "none",
+        grant_types: ["authorization_code", "refresh_token"],
+        response_types: ["code"],
+        require_pkce: true,
+        skip_consent: false,
+      },
+    })
+    savedClientId = client.client_id
+    secret = client.client_secret
   }
-  const client = await auth.api.adminCreateOAuthClient({
-    headers: session.requestHeaders,
-    body: {
-      client_name: data.name,
-      redirect_uris: data.redirectUris,
-      scope: data.scopes.join(" "),
-      application_type: data.type === "native" ? "native" : "web",
-      token_endpoint_auth_method: data.type === "confidential" ? "client_secret_basic" : "none",
-      grant_types: ["authorization_code", "refresh_token"],
-      response_types: ["code"],
-      require_pkce: true,
-      skip_consent: false,
-    },
-  })
-  await getDB()
-    .update(schema.oauthClients)
-    .set({ referenceId: organizationId, userId: null })
-    .where(eq(schema.oauthClients.clientId, client.client_id))
-  return { clientId: client.client_id, secret: client.client_secret }
+  try {
+    await getDB().transaction(async (tx) => {
+      // Keep validated metadata and origins from the same save under the client lock.
+      await tx
+        .update(schema.oauthClients)
+        .set({
+          referenceId: organizationId,
+          userId: null,
+          name: data.name,
+          redirectUris: data.redirectUris,
+          scopes: data.scopes,
+          skipConsent: false,
+        })
+        .where(eq(schema.oauthClients.clientId, savedClientId))
+      await tx
+        .delete(schema.oauthClientOrigins)
+        .where(eq(schema.oauthClientOrigins.clientId, savedClientId))
+      if (data.authorizedOrigins.length)
+        await tx
+          .insert(schema.oauthClientOrigins)
+          .values(data.authorizedOrigins.map((origin) => ({ clientId: savedClientId, origin })))
+      if (!clientId) return
+      // A reduced scope ceiling immediately invalidates grants that exceed it.
+      const grants = await tx
+        .select()
+        .from(schema.delegationGrants)
+        .where(
+          and(
+            eq(schema.delegationGrants.clientId, savedClientId),
+            isNull(schema.delegationGrants.revokedAt)
+          )
+        )
+      const revoked = grants
+        .filter((grant) => !grant.scopes.every((scope) => data.scopes.includes(scope)))
+        .map((grant) => grant.id)
+      if (revoked.length)
+        await tx
+          .update(schema.delegationGrants)
+          .set({ revokedAt: new Date() })
+          .where(inArray(schema.delegationGrants.id, revoked))
+    })
+  } catch (error) {
+    if (!clientId)
+      await auth.api.deleteOAuthClient({
+        headers: session.requestHeaders,
+        body: { client_id: savedClientId },
+      })
+    throw error
+  }
+  return { clientId: savedClientId, secret }
 }
 
 /** changeOAuthApplication governs ownership before native deletion or rotation. */

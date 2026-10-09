@@ -123,7 +123,7 @@ export function AgentOwnerForm({
                 New owner
               </FieldLabel>
               <Select name="owner_user_id" value={owner} onValueChange={setOwner}>
-                <SelectTrigger id="owner-user-id" className="w-full">
+                <SelectTrigger id="owner-user-id" className="w-full" aria-required="true">
                   <SelectValue placeholder="Choose a new owner" />
                 </SelectTrigger>
                 <SelectContent>
@@ -285,7 +285,7 @@ function AgentShareDialogForm({
                 setSelectedCapabilities([])
               }}
             >
-              <SelectTrigger id={`${formId}-target-kind`} className="w-full">
+              <SelectTrigger id={`${formId}-target-kind`} className="w-full" aria-required="true">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -314,7 +314,7 @@ function AgentShareDialogForm({
                 setSelectedCapabilities([])
               }}
             >
-              <SelectTrigger id={`${formId}-target-id`} className="w-full">
+              <SelectTrigger id={`${formId}-target-id`} className="w-full" aria-required="true">
                 <SelectValue placeholder={`Choose a ${targetKind}`} />
               </SelectTrigger>
               <SelectContent>
@@ -358,6 +358,7 @@ function AgentShareDialogForm({
                   placeholder="Select capabilities"
                   searchPlaceholder="Search capabilities..."
                   value={selectedCapabilities}
+                  aria-required="true"
                 />
               </DisabledReason>
             ) : (

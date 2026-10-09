@@ -683,7 +683,7 @@ export function OAuthSecretSheet({
             </AlertAction>
           </Alert>
         ) : null}
-        <form onSubmit={onSubmit} className="flex flex-1 flex-col gap-5 px-4 pb-2">
+        <form onSubmit={onSubmit} className="flex flex-1 flex-col gap-5 px-4 pb-2" noValidate>
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="oauth-secret-catalog">Catalog</FieldLabel>
@@ -794,8 +794,9 @@ export function OAuthSecretSheet({
                 aria-invalid={Boolean(errors.key)}
                 aria-required="true"
                 {...register("key")}
+                aria-describedby="oauth-secret-key-error"
               />
-              {errors.key ? <FieldError errors={[errors.key]} /> : null}
+              {errors.key ? <FieldError errors={[errors.key]} id="oauth-secret-key-error" /> : null}
             </Field>
             <Field data-invalid={Boolean(errors.endpoint_url)}>
               <FieldLabel htmlFor="oauth-secret-endpoint-url" required>
@@ -829,6 +830,7 @@ export function OAuthSecretSheet({
                       className="pr-25 pl-9"
                       aria-invalid={Boolean(errors.endpoint_url)}
                       aria-required="true"
+                      aria-describedby="oauth-secret-endpoint-url-error"
                     />
                   )}
                 />
@@ -856,7 +858,9 @@ export function OAuthSecretSheet({
                   )}
                 </Button>
               </div>
-              {errors.endpoint_url ? <FieldError errors={[errors.endpoint_url]} /> : null}
+              {errors.endpoint_url ? (
+                <FieldError errors={[errors.endpoint_url]} id="oauth-secret-endpoint-url-error" />
+              ) : null}
             </Field>
             <Controller
               name="hosts"
@@ -899,8 +903,11 @@ export function OAuthSecretSheet({
                         aria-invalid={Boolean(errors.client_id)}
                         aria-required={oauthClientCredentialsRequired}
                         {...register("client_id")}
+                        aria-describedby="oauth-secret-client-id-error"
                       />
-                      {errors.client_id ? <FieldError errors={[errors.client_id]} /> : null}
+                      {errors.client_id ? (
+                        <FieldError errors={[errors.client_id]} id="oauth-secret-client-id-error" />
+                      ) : null}
                     </Field>
                     <Field data-invalid={Boolean(errors.client_secret)}>
                       <FieldLabel
@@ -916,8 +923,14 @@ export function OAuthSecretSheet({
                         aria-invalid={Boolean(errors.client_secret)}
                         aria-required={oauthClientCredentialsRequired}
                         {...register("client_secret")}
+                        aria-describedby="oauth-secret-client-secret-error"
                       />
-                      {errors.client_secret ? <FieldError errors={[errors.client_secret]} /> : null}
+                      {errors.client_secret ? (
+                        <FieldError
+                          errors={[errors.client_secret]}
+                          id="oauth-secret-client-secret-error"
+                        />
+                      ) : null}
                     </Field>
                   </FieldGroup>
                 </AccordionContent>

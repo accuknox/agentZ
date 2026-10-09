@@ -1,6 +1,10 @@
 "use client"
 
 import dynamic from "next/dynamic"
+import { Controller, useForm, useWatch } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import type { z } from "zod"
+import { organizationNameInputSchema } from "@/data/schema"
 import { useActionState, useEffect, useRef, useState, useTransition } from "react"
 import type { Area, Point } from "react-easy-crop"
 import { ImagePlus, Pencil, Save, Trash2, ZoomIn, CircleAlert } from "lucide-react"
@@ -73,7 +77,11 @@ async function renderProfileImage(imageURL: string, crop: Area): Promise<Blob> {
 
 export function OrganizationForm({ organization }: { organization: OrganizationSummary }) {
   const fileInput = useRef<HTMLInputElement>(null)
-  const [name, setName] = useState(organization.name)
+  const form = useForm<z.infer<typeof organizationNameInputSchema>>({
+    defaultValues: { name: organization.name },
+    resolver: zodResolver(organizationNameInputSchema),
+  })
+  const name = useWatch({ control: form.control, name: "name" })
   const [logo, setLogo] = useState(organization.logo)
   const [sourceURL, setSourceURL] = useState<string>()
   const [crop, setCrop] = useState<Point>({ x: 0, y: 0 })
@@ -85,12 +93,18 @@ export function OrganizationForm({ organization }: { organization: OrganizationS
     "idle" | "preparing" | "removing" | "saving" | "uploading"
   >("idle")
   const [photoPending, startPhotoTransition] = useTransition()
-  const [state, action, pending] = useActionState<OrganizationNameFormState, FormData>(
-    async (previousState) => {
+  const [, startNameTransition] = useTransition()
+  const [state, action, pending] = useActionState<
+    OrganizationNameFormState,
+    z.infer<typeof organizationNameInputSchema>
+  >(
+    async (previousState, { name }) => {
       try {
         const result = await updateOrganizationNameAction(organization.id, previousState, {
           name,
         })
+        if (result.errors?.name)
+          form.setError("name", { type: "server", message: result.errors.name[0] })
         if (result.saved) {
           toast.success("Organization updated")
         }
@@ -236,7 +250,12 @@ export function OrganizationForm({ organization }: { organization: OrganizationS
 
   return (
     <>
-      <form action={action} aria-label="Organization details" className="flex min-w-0 flex-col">
+      <form
+        onSubmit={form.handleSubmit((values) => startNameTransition(() => action(values)))}
+        noValidate
+        aria-label="Organization details"
+        className="flex min-w-0 flex-col"
+      >
         <AdministrationPageHeader title="General" />
 
         <div className="flex max-w-3xl flex-col gap-8 px-4 py-6 md:px-6 md:py-8">
@@ -334,23 +353,27 @@ export function OrganizationForm({ organization }: { organization: OrganizationS
           </FieldSet>
 
           <FieldGroup>
-            <Field data-invalid={Boolean(state.errors?.name)}>
-              <FieldLabel htmlFor="organization-name" required>
-                Name
-              </FieldLabel>
-              <Input
-                aria-invalid={Boolean(state.errors?.name)}
-                disabled={busy}
-                id="organization-name"
-                maxLength={100}
-                onChange={(event) => setName(event.currentTarget.value)}
-                required
-                value={name}
-              />
-              {state.errors?.name ? (
-                <FieldError errors={state.errors.name.map((message) => ({ message }))} />
-              ) : null}
-            </Field>
+            <Controller
+              name="name"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="organization-name" required>
+                    Name
+                  </FieldLabel>
+                  <Input
+                    {...field}
+                    disabled={busy}
+                    id="organization-name"
+                    maxLength={100}
+                    required
+                    aria-invalid={fieldState.invalid}
+                    aria-describedby={fieldState.invalid ? "organization-name-error" : undefined}
+                  />
+                  <FieldError id="organization-name-error" errors={[fieldState.error]} />
+                </Field>
+              )}
+            />
             <Field data-disabled>
               <FieldLabel htmlFor="organization-slug">Slug</FieldLabel>
               <Input

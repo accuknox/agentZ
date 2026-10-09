@@ -59,6 +59,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Field, FieldLabel } from "@/components/ui/field"
 import { Spinner } from "@/components/ui/spinner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
@@ -1802,6 +1803,7 @@ function EntryDialog({
   workspaceId: string
 }) {
   const queryClient = useQueryClient()
+  const nameId = React.useId()
   const [name, setName] = React.useState("entry" in action ? action.entry.name : "")
   const searchQueryKey = agentFileSearchQueryOptions(
     agentName,
@@ -1845,22 +1847,29 @@ function EntryDialog({
           </DialogDescription>
         </DialogHeader>
         {action.kind !== "delete" ? (
-          <Input
-            aria-label={
-              action.kind === "directory" ||
-              (action.kind === "rename" && action.entry.type === "directory")
-                ? "Folder name"
-                : "File name"
-            }
-            autoFocus
-            autoComplete="off"
-            disabled={pending}
-            name="entry-name"
-            onChange={(event) => setName(event.target.value)}
-            placeholder={action.kind === "directory" ? "folder-name..." : "filename.md..."}
-            spellCheck={false}
-            value={name}
-          />
+          <Field>
+            <FieldLabel htmlFor={nameId} required>
+              Name
+            </FieldLabel>
+            <Input
+              id={nameId}
+              required
+              aria-label={
+                action.kind === "directory" ||
+                (action.kind === "rename" && action.entry.type === "directory")
+                  ? "Folder name"
+                  : "File name"
+              }
+              autoFocus
+              autoComplete="off"
+              disabled={pending}
+              name="entry-name"
+              onChange={(event) => setName(event.target.value)}
+              placeholder={action.kind === "directory" ? "folder-name..." : "filename.md..."}
+              spellCheck={false}
+              value={name}
+            />
+          </Field>
         ) : null}
         <DialogFooter>
           <Button disabled={pending} onClick={onClose} variant="outline">

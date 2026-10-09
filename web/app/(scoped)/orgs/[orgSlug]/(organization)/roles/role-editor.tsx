@@ -1,5 +1,9 @@
 "use client"
 
+import { Controller, useForm, useWatch } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
+import { roleNameSchema } from "@/data/schema"
 import type { Route } from "next"
 import Link from "next/link"
 import { useRouter } from "@bprogress/next/app"
@@ -65,6 +69,8 @@ import type {
   RoleResource,
   WorkspaceRoleEditorData,
 } from "@/data/roles"
+
+const roleNameInputSchema = z.object({ name: roleNameSchema })
 
 const resourceDescriptions: Partial<Record<RoleResource, string>> = {
   inference_pool: "Pools that route requests through an ordered list of models.",
@@ -150,7 +156,11 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
         .map(({ workspaceId, resource, action }) => ({ workspaceId, resource, action })) ?? [],
     [role?.grants]
   )
-  const [name, setName] = useState(role?.name ?? "")
+  const form = useForm<z.infer<typeof roleNameInputSchema>>({
+    defaultValues: { name: role?.name ?? "" },
+    resolver: zodResolver(roleNameInputSchema),
+  })
+  const name = useWatch({ control: form.control, name: "name" })
   const [direct, setDirect] = useState(baseline)
   const [activeScope, setActiveScope] = useState(workspace?.id ?? "organisation")
   const [dismissedPreview, setDismissedPreview] = useState<RoleFormState["preview"]>()
@@ -178,6 +188,8 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
             formData
           )
         : await organizationRoleFormAction(data.organization.slug, role?.id, state, formData)
+      if (result.errors?.name)
+        form.setError("name", { type: "server", message: result.errors.name[0] })
       if (result.href) {
         toast.success(role ? "Role updated" : "Role created")
         router.push(result.href)
@@ -275,24 +287,22 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
     })
   }
 
+  const submit = (values: z.infer<typeof roleNameInputSchema>, intent: "preview" | "save") => {
+    const formData = new FormData()
+    formData.set("name", values.name)
+    formData.set("grants", JSON.stringify(directGrants))
+    if (updatedAt) formData.set("updated_at", updatedAt)
+    formData.set("preview_fingerprint", previewValid ? (state.preview?.fingerprint ?? "") : "")
+    formData.set("intent", intent)
+    startTransition(() => formAction(formData))
+  }
   return (
     <form
       className="flex min-w-0 flex-col gap-6"
       id="role-form"
-      onSubmit={(event) => {
-        event.preventDefault()
-        const submitter = (event.nativeEvent as SubmitEvent).submitter
-        startTransition(() => formAction(new FormData(event.currentTarget, submitter)))
-      }}
+      noValidate
+      onSubmit={form.handleSubmit((values) => submit(values, role ? "preview" : "save"))}
     >
-      <input name="grants" type="hidden" value={JSON.stringify(directGrants)} />
-      {updatedAt ? <input name="updated_at" type="hidden" value={updatedAt} /> : null}
-      <input
-        name="preview_fingerprint"
-        type="hidden"
-        value={previewValid ? state.preview?.fingerprint : ""}
-      />
-
       {!role ? (
         <AdministrationPageHeader
           title={`Create ${workspace ? "workspace" : "organization"} role`}
@@ -300,22 +310,27 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
       ) : null}
       <div className="flex w-full flex-col gap-6 px-4 md:px-6">
         <FieldGroup className={workspace ? "max-w-2xl" : "md:grid md:grid-cols-2"}>
-          <Field data-invalid={Boolean(state.errors?.name)}>
-            <FieldLabel htmlFor="role-name" required>
-              Role name
-            </FieldLabel>
-            <Input
-              aria-invalid={Boolean(state.errors?.name)}
-              disabled={immutable}
-              id="role-name"
-              maxLength={80}
-              name="name"
-              onChange={(event) => setName(event.target.value)}
-              required
-              value={name}
-            />
-            <FieldError>{state.errors?.name?.[0]}</FieldError>
-          </Field>
+          <Controller
+            name="name"
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="role-name" required>
+                  Role name
+                </FieldLabel>
+                <Input
+                  {...field}
+                  required
+                  disabled={immutable || pending}
+                  id="role-name"
+                  maxLength={80}
+                  aria-invalid={fieldState.invalid}
+                  aria-describedby={fieldState.invalid ? "role-name-error" : undefined}
+                />
+                <FieldError id="role-name-error" errors={[fieldState.error]} />
+              </Field>
+            )}
+          />
           {!workspace ? (
             <Field>
               <FieldLabel htmlFor="permission-scope">Permission scope</FieldLabel>
@@ -615,10 +630,8 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
               <Button
                 data-dialog-submit
                 disabled={pending}
-                form="role-form"
-                name="intent"
-                type="submit"
-                value="save"
+                type="button"
+                onClick={form.handleSubmit((values) => submit(values, "save"))}
               >
                 {pending ? <Spinner data-icon="inline-start" /> : <Save data-icon="inline-start" />}
                 Confirm update

@@ -703,9 +703,12 @@ function EvaluationForm({
         <FieldGroup>
           {!retry ? (
             <Field data-invalid={errors.some((error) => error.field === "models")}>
-              <FieldLabel htmlFor="evaluation-models">Models</FieldLabel>
+              <FieldLabel htmlFor="evaluation-models" required>
+                Models
+              </FieldLabel>
               <MultiSelectDropdown
                 id="evaluation-models"
+                aria-required="true"
                 options={models.map((item) => ({
                   value: item.key,
                   label: item.model.label,
@@ -729,12 +732,16 @@ function EvaluationForm({
                 }}
                 invalid={errors.some((error) => error.field === "models")}
                 placeholder="Select models"
+                aria-describedby="evaluation-models-error"
               />
-              <FieldError errors={errors.filter((error) => error.field === "models")} />
+              <FieldError
+                errors={errors.filter((error) => error.field === "models")}
+                id="evaluation-models-error"
+              />
             </Field>
           ) : null}
           <Field data-invalid={errors.some((error) => error.field === "judge")}>
-            <FieldLabel htmlFor="evaluation-judge">
+            <FieldLabel htmlFor="evaluation-judge" required>
               <Scale className="size-4 text-muted-foreground" />
               Judge
             </FieldLabel>
@@ -747,8 +754,10 @@ function EvaluationForm({
             >
               <SelectTrigger
                 id="evaluation-judge"
+                aria-required="true"
                 className="w-full"
                 aria-invalid={errors.some((error) => error.field === "judge")}
+                aria-describedby="evaluation-judge-error"
               >
                 <SelectValue placeholder="Select a judge" />
               </SelectTrigger>
@@ -777,13 +786,20 @@ function EvaluationForm({
               </SelectContent>
             </Select>
             <FieldDescription>Use your strongest model.</FieldDescription>
-            <FieldError errors={errors.filter((error) => error.field === "judge")} />
+            <FieldError
+              errors={errors.filter((error) => error.field === "judge")}
+              id="evaluation-judge-error"
+            />
           </Field>
           {!retry ? (
             <>
               <Field data-invalid={errors.some((error) => error.field === "concurrency")}>
                 <div className="flex items-center justify-between gap-2">
-                  <FieldLabel id="evaluation-concurrency-label" htmlFor="evaluation-concurrency">
+                  <FieldLabel
+                    id="evaluation-concurrency-label"
+                    htmlFor="evaluation-concurrency"
+                    required
+                  >
                     <Layers className="size-4 text-muted-foreground" />
                     Parallel runs
                   </FieldLabel>
@@ -815,7 +831,7 @@ function EvaluationForm({
                 ) : null}
               </Field>
               <Field data-invalid={errors.some((error) => error.field === "timeout_seconds")}>
-                <FieldLabel htmlFor="evaluation-timeout">
+                <FieldLabel htmlFor="evaluation-timeout" required>
                   <Timer className="size-4 text-muted-foreground" />
                   Run timeout (seconds)
                 </FieldLabel>
@@ -834,8 +850,12 @@ function EvaluationForm({
                     )
                   }
                   aria-invalid={errors.some((error) => error.field === "timeout_seconds")}
+                  aria-describedby="evaluation-timeout-error"
                 />
-                <FieldError errors={errors.filter((error) => error.field === "timeout_seconds")} />
+                <FieldError
+                  errors={errors.filter((error) => error.field === "timeout_seconds")}
+                  id="evaluation-timeout-error"
+                />
               </Field>
             </>
           ) : null}
@@ -851,8 +871,12 @@ function EvaluationForm({
                 }}
                 rows={6}
                 aria-invalid={errors.some((error) => error.field === "inputs")}
+                aria-describedby="evaluation-inputs-error"
               />
-              <FieldError errors={errors.filter((error) => error.field === "inputs")} />
+              <FieldError
+                errors={errors.filter((error) => error.field === "inputs")}
+                id="evaluation-inputs-error"
+              />
             </Field>
           ) : null}
           {!retry && !workflow.arbitrary_json
@@ -883,6 +907,7 @@ function EvaluationForm({
                           id={`evaluation-${name}`}
                           className="w-full"
                           aria-invalid={!!fieldErrors.length}
+                          aria-required={input.required}
                         >
                           <SelectValue placeholder="Select a value" />
                         </SelectTrigger>

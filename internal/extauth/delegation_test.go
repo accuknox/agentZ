@@ -51,15 +51,17 @@ func TestDelegationCredentialsRequireProjectedResourceRevision(t *testing.T) {
 		namespace: "owner",
 		kube:      fake.NewClientBuilder().WithScheme(scheme).WithObjects(provider, connection).Build(),
 	}
-	for _, operation := range []string{"inference", "mcp"} {
+	operations := []string{"inference", "mcp"}
+	for _, operation := range operations {
 		t.Run(operation, func(t *testing.T) {
-			for _, test := range []ownerRevisionCase{
+			cases := []ownerRevisionCase{
 				{name: "current", uid: "original", generation: strconv.FormatInt(metadata.Generation, 10), want: codes.OK},
 				{name: "stale spec", uid: "original", generation: "1", want: codes.Unavailable},
 				{name: "missing revision", uid: "original", want: codes.Unavailable},
 				{name: "wrong owner", uid: "original", generation: "2", namespace: "foreign", want: codes.PermissionDenied},
 				{name: "replaced resource", uid: "replacement", generation: "2", want: codes.Unavailable},
-			} {
+			}
+			for _, test := range cases {
 				t.Run(test.name, func(t *testing.T) {
 					owner := "owner"
 					if test.namespace != "" {
@@ -249,12 +251,13 @@ type probeCatalogCase struct {
 }
 
 func TestMCPProbeDiscoversBoundedPaginatedCatalog(t *testing.T) {
-	for _, test := range []probeCatalogCase{
+	cases := []probeCatalogCase{
 		{name: "empty", healthy: true},
 		{name: "multiple pages", count: 5, healthy: true},
 		{name: "item limit", count: maxProbeCatalogItems + 1},
 		{name: "byte limit", count: 2, uriSize: maxProbeCatalogBytes / 2},
-	} {
+	}
+	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			server := mcpsdk.NewServer(&mcpsdk.Implementation{Name: "probe-test"}, &mcpsdk.ServerOptions{
 				PageSize: 2,
@@ -302,12 +305,13 @@ func TestMCPProbeDiscoversBoundedPaginatedCatalog(t *testing.T) {
 }
 
 func TestMCPProbeCatalogRequiresCurrentResourceRevision(t *testing.T) {
-	for _, test := range []probeRevisionCase{
+	cases := []probeRevisionCase{
 		{name: "current", uid: "original", generation: 2, probeTime: time.Unix(3, 0), updated: true},
 		{name: "replaced connection", uid: "replacement", generation: 2, probeTime: time.Unix(3, 0)},
 		{name: "changed endpoint", uid: "original", generation: 1, probeTime: time.Unix(3, 0)},
 		{name: "older result", uid: "original", generation: 2, probeTime: time.Unix(1, 0)},
-	} {
+	}
+	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			scheme := runtime.NewScheme()
 			if err := agentzv1alpha1.AddToScheme(scheme); err != nil {

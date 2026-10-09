@@ -410,7 +410,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
           <SheetTitle>{title}</SheetTitle>
           <SheetDescription>{description}</SheetDescription>
         </SheetHeader>
-        <form action={submitAction} className="flex flex-1 flex-col gap-4 px-4 pb-4">
+        <form action={submitAction} className="flex flex-1 flex-col gap-4 px-4 pb-4" noValidate>
           <FieldGroup>
             <Controller
               name="name"
@@ -430,10 +430,13 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
                     aria-required="true"
                     disabled={isUpdate}
                     readOnly={isUpdate}
+                    aria-describedby="schedule-name-error"
                   />
                   <input type="hidden" name={field.name} value={field.value} ref={field.ref} />
                   <FieldDescription>Use lowercase letters, numbers, and hyphens.</FieldDescription>
-                  {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
+                  {fieldState.invalid ? (
+                    <FieldError errors={[fieldState.error]} id="schedule-name-error" />
+                  ) : null}
                 </Field>
               )}
             />
@@ -456,6 +459,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
                       className="w-full"
                       aria-invalid={fieldState.invalid}
                       aria-required="true"
+                      aria-describedby="schedule-workflow-error"
                     >
                       <SelectValue placeholder="Select a workflow" />
                     </SelectTrigger>
@@ -473,7 +477,9 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
                   <FieldDescription>
                     Choose the saved Workflow this schedule will run.
                   </FieldDescription>
-                  {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
+                  {fieldState.invalid ? (
+                    <FieldError errors={[fieldState.error]} id="schedule-workflow-error" />
+                  ) : null}
                 </Field>
               )}
             />
@@ -496,9 +502,12 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
                     className="font-mono"
                     aria-invalid={fieldState.invalid}
                     aria-required="true"
+                    aria-describedby="schedule-cron-error"
                   />
                   <FieldDescription>Enter a 5-field cron expression.</FieldDescription>
-                  {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
+                  {fieldState.invalid ? (
+                    <FieldError errors={[fieldState.error]} id="schedule-cron-error" />
+                  ) : null}
                 </Field>
               )}
             />
@@ -588,11 +597,14 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
                     }}
                     aria-invalid={fieldState.invalid}
                     aria-required="true"
+                    aria-describedby="schedule-timeout-error"
                   />
                   <FieldDescription>
                     Stop a scheduled Workflow run after this many seconds.
                   </FieldDescription>
-                  {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
+                  {fieldState.invalid ? (
+                    <FieldError errors={[fieldState.error]} id="schedule-timeout-error" />
+                  ) : null}
                 </Field>
               )}
             />
@@ -758,8 +770,11 @@ function WorkflowArbitraryJSONField({
             className="min-h-48 resize-y font-mono"
             spellCheck={false}
             aria-invalid={fieldState.invalid}
+            aria-describedby="input-arbitrary-json-error"
           />
-          {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
+          {fieldState.invalid ? (
+            <FieldError errors={[fieldState.error]} id="input-arbitrary-json-error" />
+          ) : null}
         </Field>
       )}
     />

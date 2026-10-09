@@ -34,7 +34,7 @@ type ptyWebSocketCase struct {
 // TestPTYWebSocketAuthentication keeps browser bearers out of upstream protocols.
 func TestPTYWebSocketAuthentication(t *testing.T) {
 	service := &Service{cfg: Config{AllowedWebOrigins: []string{"https://app.example.com"}}}
-	for _, test := range []ptyWebSocketCase{
+	cases := []ptyWebSocketCase{
 		{
 			"allowed origin",
 			"https://app.example.com",
@@ -48,7 +48,8 @@ func TestPTYWebSocketAuthentication(t *testing.T) {
 			http.StatusForbidden,
 		},
 		{"missing origin", "", "agentz.pty, agentz.bearer.test-token", http.StatusForbidden},
-	} {
+	}
+	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodGet, "/api/opencode/test/pty/pty_test/connect", nil)
 			request.Header.Set("Upgrade", "websocket")
@@ -115,7 +116,8 @@ func TestPTYProxyOrigins(t *testing.T) {
 		"null",
 		"https://app.example.com.attacker.example",
 	}
-	for _, prefix := range []string{"/pty", "/api/pty"} {
+	prefixes := []string{"/pty", "/api/pty"}
+	for _, prefix := range prefixes {
 		for _, origin := range origins {
 			t.Run(prefix+"/"+origin, func(t *testing.T) {
 				req := httptest.NewRequest(http.MethodPost,
@@ -147,11 +149,12 @@ type openCodeStreamCase struct {
 
 // TestOpenCodeEventTransport exercises native envelopes and large multiline frames.
 func TestOpenCodeEventTransport(t *testing.T) {
-	for _, test := range []openCodeStreamCase{
+	cases := []openCodeStreamCase{
 		{name: "coding global", coding: true, global: true, upstream: "/event"},
 		{name: "coding scoped", coding: true, upstream: "/event"},
 		{name: "general global", global: true, upstream: "/global/event"},
-	} {
+	}
+	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			delta := gatewayapi.OpencodeEventMessagePartDelta{
 				Id:   "evt_test",
@@ -295,7 +298,7 @@ type codingModelCase struct {
 // TestCodingSuggestionModels exercises model precedence across the OpenCode
 // boundary, including scoped sandbox access and session cleanup on failure.
 func TestCodingSuggestionModels(t *testing.T) {
-	for _, test := range []codingModelCase{
+	cases := []codingModelCase{
 		{name: "small", small: true},
 		{name: "thread"},
 		{name: "default", noParent: true},
@@ -306,7 +309,8 @@ func TestCodingSuggestionModels(t *testing.T) {
 		{name: "model failure", small: true, failure: true},
 		{name: "branch output", small: true, purpose: gatewayapi.CodingTextBranch},
 		{name: "PR output", small: true, purpose: gatewayapi.CodingTextPR},
-	} {
+	}
+	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			purpose := test.purpose
@@ -559,7 +563,7 @@ type admissionCase struct {
 // TestChatInputAdmissionRecovery checks that retry cannot release an uncertain
 // provider request, while a confirmed missing input becomes editable again.
 func TestChatInputAdmissionRecovery(t *testing.T) {
-	for _, tt := range []admissionCase{
+	cases := []admissionCase{
 		{
 			name: "admitted", messages: []int{http.StatusOK},
 			want: gatewayapi.ChatInputStateDelivered,
@@ -605,7 +609,8 @@ func TestChatInputAdmissionRecovery(t *testing.T) {
 			name: "invalid status", messages: []int{http.StatusNotFound},
 			status: `invalid`, wantErr: true,
 		},
-	} {
+	}
+	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			row := gatewaydb.ChatInput{
 				WorkspaceID: "workspace", AgentName: "agent",

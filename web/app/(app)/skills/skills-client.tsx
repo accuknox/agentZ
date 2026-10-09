@@ -640,7 +640,11 @@ function EditSkillDialog({
                   setVersion(versionsByValue.get(value))
                 }}
               >
-                <SelectTrigger id="skill-edit-version" aria-invalid={error !== undefined}>
+                <SelectTrigger
+                  id="skill-edit-version"
+                  aria-invalid={error !== undefined}
+                  aria-required="true"
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

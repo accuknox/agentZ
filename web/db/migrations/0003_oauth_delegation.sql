@@ -31,6 +31,12 @@ CREATE TABLE "delegation_transactions" (
 	"expires_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "oauth_client_origins" (
+	"client_id" text NOT NULL,
+	"origin" text NOT NULL,
+	CONSTRAINT "oauth_client_origins_client_id_origin_pk" PRIMARY KEY("client_id","origin")
+);
+--> statement-breakpoint
 CREATE TABLE "organization_delegation" (
 	"organization_id" text PRIMARY KEY NOT NULL,
 	"enabled" boolean DEFAULT false NOT NULL
@@ -176,6 +182,7 @@ ALTER TABLE "delegation_transactions" ADD CONSTRAINT "delegation_transactions_cl
 ALTER TABLE "delegation_transactions" ADD CONSTRAINT "delegation_transactions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "delegation_transactions" ADD CONSTRAINT "delegation_transactions_session_id_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."sessions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "delegation_transactions" ADD CONSTRAINT "delegation_transactions_grant_id_delegation_grants_id_fk" FOREIGN KEY ("grant_id") REFERENCES "public"."delegation_grants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "oauth_client_origins" ADD CONSTRAINT "oauth_client_origins_client_id_oauth_clients_client_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."oauth_clients"("client_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "organization_delegation" ADD CONSTRAINT "organization_delegation_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "oauth_access_tokens" ADD CONSTRAINT "oauth_access_tokens_client_id_oauth_clients_client_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."oauth_clients"("client_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "oauth_access_tokens" ADD CONSTRAINT "oauth_access_tokens_session_id_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."sessions"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -191,6 +198,7 @@ ALTER TABLE "oauth_refresh_tokens" ADD CONSTRAINT "oauth_refresh_tokens_session_
 ALTER TABLE "oauth_refresh_tokens" ADD CONSTRAINT "oauth_refresh_tokens_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "delegation_grants_user_client_idx" ON "delegation_grants" USING btree ("user_id","client_id");--> statement-breakpoint
 CREATE INDEX "delegation_transactions_user_client_idx" ON "delegation_transactions" USING btree ("user_id","client_id");--> statement-breakpoint
+CREATE INDEX "oauth_client_origins_origin_index" ON "oauth_client_origins" USING btree ("origin");--> statement-breakpoint
 CREATE INDEX "oauthAccessTokens_clientId_idx" ON "oauth_access_tokens" USING btree ("client_id");--> statement-breakpoint
 CREATE INDEX "oauthAccessTokens_sessionId_idx" ON "oauth_access_tokens" USING btree ("session_id");--> statement-breakpoint
 CREATE INDEX "oauthAccessTokens_userId_idx" ON "oauth_access_tokens" USING btree ("user_id");--> statement-breakpoint
@@ -214,3 +222,14 @@ ALTER TABLE "permission_grants" ADD CONSTRAINT "permission_grants_resource_actio
         OR ("permission_grants"."resource" <> 'agent' AND "permission_grants"."action" IN (
           'read', 'create', 'modify', 'delete'
         )));
+--> statement-breakpoint
+-- Better Auth 1.7 uses a SHA-256 key of the JSON [team ID, user ID] pair.
+-- PostgreSQL's compact JSON construction must match JSON.stringify exactly.
+UPDATE team_members
+SET membership_key = translate(rtrim(encode(sha256(convert_to(
+  '[' || to_json(team_id)::text || ',' || to_json(user_id)::text || ']', 'UTF8'
+)), 'base64'), '='), '+/', '-_')
+WHERE membership_key IS NULL;
+--> statement-breakpoint
+UPDATE teams
+SET member_count = (SELECT count(*) FROM team_members WHERE team_members.team_id = teams.id);

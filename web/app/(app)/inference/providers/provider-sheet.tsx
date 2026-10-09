@@ -1112,6 +1112,7 @@ export function ProviderSheet({
             setSubmitError("")
             setSubmitErrors([])
           })}
+          noValidate
         >
           <FieldGroup>
             <FormSection icon={Tag} title="Identity">
@@ -1125,8 +1126,13 @@ export function ProviderSheet({
                   autoComplete="off"
                   aria-invalid={Boolean(form.formState.errors.display_name)}
                   {...form.register("display_name")}
+                  aria-describedby="provider-display-name-error"
+                  aria-required="true"
                 />
-                <FieldError errors={[form.formState.errors.display_name]} />
+                <FieldError
+                  errors={[form.formState.errors.display_name]}
+                  id="provider-display-name-error"
+                />
               </Field>
               <Field data-invalid={Boolean(form.formState.errors.catalog_provider)}>
                 <FieldLabel required>Provider</FieldLabel>
@@ -1317,6 +1323,7 @@ export function ProviderSheet({
                       autoComplete="off"
                       aria-invalid={form.getFieldState("vertex_ai.project").invalid}
                       {...form.register("vertex_ai.project")}
+                      aria-required="true"
                     />
                     <FieldError errors={[form.getFieldState("vertex_ai.project").error]} />
                   </Field>
@@ -1327,6 +1334,7 @@ export function ProviderSheet({
                       autoComplete="off"
                       aria-invalid={form.getFieldState("vertex_ai.region").invalid}
                       {...form.register("vertex_ai.region")}
+                      aria-required="true"
                     />
                     <FieldError errors={[form.getFieldState("vertex_ai.region").error]} />
                   </Field>
@@ -1341,6 +1349,7 @@ export function ProviderSheet({
                       autoComplete="off"
                       aria-invalid={form.getFieldState("bedrock.region").invalid}
                       {...form.register("bedrock.region")}
+                      aria-required="true"
                     />
                     <FieldError errors={[form.getFieldState("bedrock.region").error]} />
                   </Field>
@@ -1365,7 +1374,11 @@ export function ProviderSheet({
                             )
                           }}
                         >
-                          <SelectTrigger className="w-full" aria-invalid={fieldState.invalid}>
+                          <SelectTrigger
+                            className="w-full"
+                            aria-invalid={fieldState.invalid}
+                            aria-required="true"
+                          >
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1404,7 +1417,11 @@ export function ProviderSheet({
                             }
                           }}
                         >
-                          <SelectTrigger className="w-full" aria-invalid={fieldState.invalid}>
+                          <SelectTrigger
+                            className="w-full"
+                            aria-invalid={fieldState.invalid}
+                            aria-required="true"
+                          >
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1426,6 +1443,7 @@ export function ProviderSheet({
                       autoComplete="off"
                       aria-invalid={form.getFieldState("azure.resource_name").invalid}
                       {...form.register("azure.resource_name")}
+                      aria-required="true"
                     />
                     <FieldError errors={[form.getFieldState("azure.resource_name").error]} />
                   </Field>
@@ -1436,6 +1454,7 @@ export function ProviderSheet({
                         autoComplete="off"
                         aria-invalid={form.getFieldState("azure.project").invalid}
                         {...form.register("azure.project")}
+                        aria-required="true"
                       />
                       <FieldError errors={[form.getFieldState("azure.project").error]} />
                     </Field>
@@ -1447,6 +1466,7 @@ export function ProviderSheet({
                       autoComplete="off"
                       aria-invalid={form.getFieldState("azure.api_version").invalid}
                       {...form.register("azure.api_version")}
+                      aria-required="true"
                     />
                     <FieldError errors={[form.getFieldState("azure.api_version").error]} />
                   </Field>
@@ -1471,7 +1491,11 @@ export function ProviderSheet({
                             )
                           }}
                         >
-                          <SelectTrigger className="w-full" aria-invalid={fieldState.invalid}>
+                          <SelectTrigger
+                            className="w-full"
+                            aria-invalid={fieldState.invalid}
+                            aria-required="true"
+                          >
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1502,6 +1526,7 @@ export function ProviderSheet({
                       spellCheck={false}
                       aria-invalid={form.getFieldState(`${compatibleField}.base_url`).invalid}
                       {...form.register(`${compatibleField}.base_url`)}
+                      aria-required="true"
                     />
                     <FieldError
                       errors={[form.getFieldState(`${compatibleField}.base_url`).error]}
@@ -1542,7 +1567,11 @@ export function ProviderSheet({
                             })
                           }}
                         >
-                          <SelectTrigger className="w-full" aria-invalid={fieldState.invalid}>
+                          <SelectTrigger
+                            className="w-full"
+                            aria-invalid={fieldState.invalid}
+                            aria-required="true"
+                          >
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1661,6 +1690,7 @@ export function ProviderSheet({
                                       form.getFieldState(`${compatibleField}.auth_header`).invalid
                                     }
                                     {...form.register(`${compatibleField}.auth_header`)}
+                                    aria-required="true"
                                   />
                                   <FieldError
                                     errors={[
@@ -1926,6 +1956,7 @@ export function ProviderSheet({
                     autoComplete="new-password"
                     aria-invalid={form.getFieldState("credentials.api_key").invalid}
                     {...form.register("credentials.api_key")}
+                    aria-required={!provider}
                   />
                   <FieldError errors={[form.getFieldState("credentials.api_key").error]} />
                 </Field>
@@ -1943,6 +1974,7 @@ export function ProviderSheet({
                       autoComplete="new-password"
                       aria-invalid={form.getFieldState("credentials.access_key").invalid}
                       {...form.register("credentials.access_key")}
+                      aria-required={!provider}
                     />
                     <FieldError errors={[form.getFieldState("credentials.access_key").error]} />
                   </Field>
@@ -1954,6 +1986,7 @@ export function ProviderSheet({
                       autoComplete="new-password"
                       aria-invalid={form.getFieldState("credentials.secret_key").invalid}
                       {...form.register("credentials.secret_key")}
+                      aria-required={!provider}
                     />
                     <FieldError errors={[form.getFieldState("credentials.secret_key").error]} />
                   </Field>
@@ -1979,6 +2012,7 @@ export function ProviderSheet({
                     autoComplete="new-password"
                     aria-invalid={form.getFieldState("credentials.bearer_token").invalid}
                     {...form.register("credentials.bearer_token")}
+                    aria-required={!provider}
                   />
                   <FieldError errors={[form.getFieldState("credentials.bearer_token").error]} />
                 </Field>
@@ -1992,6 +2026,7 @@ export function ProviderSheet({
                       spellCheck={false}
                       aria-invalid={form.getFieldState("credentials.client_id").invalid}
                       {...form.register("credentials.client_id")}
+                      aria-required={!provider}
                     />
                     <FieldError errors={[form.getFieldState("credentials.client_id").error]} />
                   </Field>
@@ -2002,6 +2037,7 @@ export function ProviderSheet({
                       spellCheck={false}
                       aria-invalid={form.getFieldState("credentials.tenant_id").invalid}
                       {...form.register("credentials.tenant_id")}
+                      aria-required={!provider}
                     />
                     <FieldError errors={[form.getFieldState("credentials.tenant_id").error]} />
                   </Field>
@@ -2013,6 +2049,7 @@ export function ProviderSheet({
                       autoComplete="new-password"
                       aria-invalid={form.getFieldState("credentials.client_secret").invalid}
                       {...form.register("credentials.client_secret")}
+                      aria-required={!provider}
                     />
                     <FieldError errors={[form.getFieldState("credentials.client_secret").error]} />
                   </Field>
@@ -2072,8 +2109,10 @@ export function ProviderSheet({
                       )
                     )
                   }}
+                  aria-describedby="provider-models-error"
+                  aria-required="true"
                 />
-                <FieldError errors={[form.formState.errors.models]} />
+                <FieldError errors={[form.formState.errors.models]} id="provider-models-error" />
               </Field>
               {modelCatalogState === "loading" && (
                 <p
@@ -2286,6 +2325,7 @@ function ServiceAccountJsonField({
           className="min-h-36 font-mono text-xs"
           spellCheck={false}
           aria-invalid={fieldState.invalid}
+          aria-required={required}
         />
         <input
           ref={fileRef}
@@ -2342,6 +2382,7 @@ function ModelMetadataDialog({
               <Input
                 aria-invalid={form.getFieldState(`models.${editingModel}.display_name`).invalid}
                 {...form.register(`models.${editingModel}.display_name`)}
+                aria-required="true"
               />
               <FieldError
                 errors={[form.getFieldState(`models.${editingModel}.display_name`).error]}
@@ -2357,6 +2398,7 @@ function ModelMetadataDialog({
                   {...form.register(`models.${editingModel}.limits.context`, {
                     valueAsNumber: true,
                   })}
+                  aria-required="true"
                 />
                 <FieldError
                   errors={[form.getFieldState(`models.${editingModel}.limits.context`).error]}
@@ -2395,6 +2437,7 @@ function ModelMetadataDialog({
                   {...form.register(`models.${editingModel}.limits.output`, {
                     valueAsNumber: true,
                   })}
+                  aria-required="true"
                 />
                 <FieldError
                   errors={[form.getFieldState(`models.${editingModel}.limits.output`).error]}

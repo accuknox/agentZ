@@ -478,7 +478,8 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, env
 		Limits:   corev1.ResourceList{},
 		Requests: corev1.ResourceList{},
 	}
-	for _, name := range []corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory} {
+	names := []corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory}
+	for _, name := range names {
 		if quantity, ok := containerResources.Limits[name]; ok {
 			podResources.Limits[name] = quantity
 			delete(containerResources.Limits, name)

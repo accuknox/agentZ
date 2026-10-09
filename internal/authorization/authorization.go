@@ -458,7 +458,8 @@ func (e Effective) CanDelegate(scope Scope, resource gatewaydb.PermissionResourc
 	if e.CanAdminister(scope) {
 		return true
 	}
-	for _, action := range []gatewaydb.PermissionAction{gatewaydb.PermissionActionUse, gatewaydb.PermissionActionDelegate} {
+	actions := []gatewaydb.PermissionAction{gatewaydb.PermissionActionUse, gatewaydb.PermissionActionDelegate}
+	for _, action := range actions {
 		_, allowed := e.grants[grantKey{workspaceID: scope.WorkspaceID, resource: resource, action: action}]
 		if !allowed {
 			return false

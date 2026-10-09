@@ -1,5 +1,5 @@
 {
-  "id": "0b562786-e1cd-4bcd-b940-3665025f95f3",
+  "id": "09e48773-d404-4d8c-a21e-8879c8cb3002",
   "prevId": "68e94c05-4977-44c6-950c-e860cefc7a87",
   "version": "7",
   "dialect": "postgresql",
@@ -1938,6 +1938,62 @@
         "member_roles_member_id_role_id_pk": {
           "name": "member_roles_member_id_role_id_pk",
           "columns": ["member_id", "role_id"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.oauth_client_origins": {
+      "name": "oauth_client_origins",
+      "schema": "",
+      "columns": {
+        "client_id": {
+          "name": "client_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "origin": {
+          "name": "origin",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "oauth_client_origins_origin_index": {
+          "name": "oauth_client_origins_origin_index",
+          "columns": [
+            {
+              "expression": "origin",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "oauth_client_origins_client_id_oauth_clients_client_id_fk": {
+          "name": "oauth_client_origins_client_id_oauth_clients_client_id_fk",
+          "tableFrom": "oauth_client_origins",
+          "tableTo": "oauth_clients",
+          "columnsFrom": ["client_id"],
+          "columnsTo": ["client_id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "oauth_client_origins_client_id_origin_pk": {
+          "name": "oauth_client_origins_client_id_origin_pk",
+          "columns": ["client_id", "origin"]
         }
       },
       "uniqueConstraints": {},

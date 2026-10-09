@@ -41,7 +41,8 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationRuntime(ctx context.Contex
 	if err != nil {
 		return err
 	}
-	for _, desired := range []*gwv1.Gateway{inference.Gateway(ns), mcp.Gateway(ns)} {
+	gateways := []*gwv1.Gateway{inference.Gateway(ns), mcp.Gateway(ns)}
+	for _, desired := range gateways {
 		var needed, consumed bool
 		for _, route := range routes.Items {
 			attached := slices.ContainsFunc(route.Spec.ParentRefs, func(parent gwv1.ParentReference) bool {

@@ -21,6 +21,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"golang.org/x/net/http/httpguts"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -121,7 +122,8 @@ func (s *Service) delegationCatalog(ctx context.Context, userID, organizationID,
 	selectedScope := authorization.Scope{OrganizationID: organizationID, WorkspaceID: workspaceID}
 	workspaceNamespace := agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeWorkspace, workspaceID)
 	organizationNamespace := agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeOrganisation, organizationID)
-	for _, namespace := range []string{workspaceNamespace, organizationNamespace} {
+	namespaces := []string{workspaceNamespace, organizationNamespace}
+	for _, namespace := range namespaces {
 		resourceScope := agentzv1alpha1.ResourceScopeWorkspace
 		if namespace == organizationNamespace {
 			resourceScope = agentzv1alpha1.ResourceScopeOrganisation
@@ -365,7 +367,10 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 			return
 		}
 	}
-	grant, err := s.queries.GatewayGetDelegationGrant(r.Context(), gatewaydb.GatewayGetDelegationGrantParams{ID: claims.GrantID, ClientID: claims.ClientID, UserID: claims.Subject})
+	grant, err := s.queries.GatewayGetDelegationGrant(r.Context(), gatewaydb.GatewayGetDelegationGrantParams{
+		ID: claims.GrantID, ClientID: claims.ClientID, UserID: claims.Subject,
+		Origin: r.Header.Get("Origin"),
+	})
 	if err != nil {
 		deny(err, !errors.Is(err, pgx.ErrNoRows))
 		return
@@ -612,6 +617,11 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 		},
 		FlushInterval: -1,
 		ModifyResponse: func(response *http.Response) error {
+			for header := range response.Header {
+				if strings.HasPrefix(strings.ToLower(header), "access-control-") {
+					delete(response.Header, header)
+				}
+			}
 			response.Header.Del("Set-Cookie")
 			// Intermediary compression must not buffer streamed inference or MCP events.
 			response.Header.Set("Cache-Control", "no-store, no-transform")
@@ -684,6 +694,10 @@ func (s *Service) delegationError(w http.ResponseWriter, r *http.Request, status
 
 func (s *Service) delegationCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Vary", "Origin")
+		if r.Method == http.MethodOptions {
+			w.Header().Add("Vary", "Access-Control-Request-Method, Access-Control-Request-Headers")
+		}
 		select {
 		case s.delegationRequests <- struct{}{}:
 			defer func() { <-s.delegationRequests }()
@@ -692,46 +706,60 @@ func (s *Service) delegationCORS(next http.Handler) http.Handler {
 			s.delegationError(w, r, http.StatusTooManyRequests, "rate_limit_exceeded", "The gateway is busy. Retry shortly.")
 			return
 		}
-		origin := r.Header.Get("Origin")
-		if origin == "" {
+		origins, present := r.Header["Origin"]
+		if !present {
 			next.ServeHTTP(w, r)
 			return
 		}
+		if len(origins) != 1 || origins[0] == "" {
+			s.delegationError(w, r, http.StatusForbidden, "access_denied", "An exact application origin is required.")
+			return
+		}
+		origin := origins[0]
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-		redirects, err := s.queries.GatewayListDelegationRedirects(ctx)
+		allowed, err := s.queries.GatewayCheckDelegationOrigin(ctx, origin)
 		cancel()
 		if err != nil {
 			s.delegationError(w, r, http.StatusServiceUnavailable, "service_unavailable", "Application registration is unavailable.")
 			return
 		}
-		allowed := false
-		for _, uris := range redirects {
-			for _, uri := range uris {
-				registered, err := url.Parse(uri)
-				if err != nil {
-					continue
-				}
-				host := strings.ToLower(registered.Host)
-				defaultPort := registered.Scheme == "https" && registered.Port() == "443"
-				defaultPort = defaultPort || registered.Scheme == "http" && registered.Port() == "80"
-				if defaultPort {
-					host = strings.TrimSuffix(host, ":"+registered.Port())
-				}
-				if registered.Scheme+"://"+host == origin {
-					allowed = true
-				}
-			}
-		}
 		if !allowed {
 			s.delegationError(w, r, http.StatusForbidden, "access_denied", "This application origin is not registered.")
 			return
 		}
-		w.Header().Add("Vary", "Origin")
 		w.Header().Set("Access-Control-Allow-Origin", origin)
-		w.Header().Set("Access-Control-Expose-Headers", "MCP-Session-Id, MCP-Protocol-Version, WWW-Authenticate, X-Request-Id")
+		w.Header().Set("Access-Control-Expose-Headers", "MCP-Session-Id, MCP-Protocol-Version, WWW-Authenticate, Retry-After, X-Request-Id")
 		if r.Method == http.MethodOptions {
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization, "+r.Header.Get("Access-Control-Request-Headers"))
+			methods := []string{http.MethodPost}
+			switch r.URL.Path {
+			case "/api/mcp":
+				methods = []string{http.MethodGet, http.MethodPost, http.MethodDelete}
+			case "/api/inference/v1/models":
+				methods = []string{http.MethodGet}
+			case "/api/inference/v1/chat/completions", "/api/inference/v1/responses":
+			default:
+				methods = nil
+			}
+			if !slices.Contains(methods, r.Header.Get("Access-Control-Request-Method")) {
+				s.delegationError(w, r, http.StatusForbidden, "access_denied", "Unsupported CORS method.")
+				return
+			}
+			headers := []string{"Authorization"}
+			for _, header := range strings.Split(r.Header.Get("Access-Control-Request-Headers"), ",") {
+				header = strings.TrimSpace(header)
+				if header == "" && r.Header.Get("Access-Control-Request-Headers") == "" {
+					break
+				}
+				if !httpguts.ValidHeaderFieldName(header) {
+					s.delegationError(w, r, http.StatusForbidden, "access_denied", "Invalid CORS header name.")
+					return
+				}
+				if !strings.EqualFold(header, "Authorization") {
+					headers = append(headers, header)
+				}
+			}
+			w.Header().Set("Access-Control-Allow-Methods", strings.Join(methods, ", ")+", OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", strings.Join(headers, ", "))
 			w.Header().Set("Access-Control-Max-Age", "300")
 			w.WriteHeader(http.StatusNoContent)
 			return

@@ -132,7 +132,7 @@ export function SecretSheet({
             Create a static secret. Its value becomes write-only after you save it.
           </SheetDescription>
         </SheetHeader>
-        <form onSubmit={onSubmit} className="flex flex-1 flex-col gap-4 p-4">
+        <form onSubmit={onSubmit} className="flex flex-1 flex-col gap-4 p-4" noValidate>
           <FieldGroup>
             <Field data-invalid={Boolean(errors.key)}>
               <FieldLabel htmlFor="secret-key" required>
@@ -144,8 +144,9 @@ export function SecretSheet({
                 aria-invalid={Boolean(errors.key)}
                 aria-required="true"
                 {...register("key")}
+                aria-describedby="secret-key-error"
               />
-              {errors.key ? <FieldError errors={[errors.key]} /> : null}
+              {errors.key ? <FieldError errors={[errors.key]} id="secret-key-error" /> : null}
             </Field>
             <Controller
               name="hosts"
@@ -174,8 +175,9 @@ export function SecretSheet({
                 aria-invalid={Boolean(errors.value)}
                 aria-required="true"
                 {...register("value")}
+                aria-describedby="secret-value-error"
               />
-              {errors.value ? <FieldError errors={[errors.value]} /> : null}
+              {errors.value ? <FieldError errors={[errors.value]} id="secret-value-error" /> : null}
             </Field>
           </FieldGroup>
           {generalErrorMessage ? (

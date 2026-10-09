@@ -44,7 +44,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+  RequiredIndicator,
+} from "@/components/ui/field"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { MultiSelectDropdown } from "@/components/ui/multi-select-dropdown"
 import { Spinner } from "@/components/ui/spinner"
@@ -282,43 +289,49 @@ function CreateInvitationForm({
         {teamIds.map((id) => (
           <input key={id} name="team_ids" type="hidden" value={id} />
         ))}
-        <FieldGroup className="grid sm:grid-cols-2">
-          <Field>
-            <FieldLabel htmlFor={`${formId}-roles`}>Direct roles</FieldLabel>
-            <MultiSelectDropdown
-              emptyMessage="No roles available."
-              id={`${formId}-roles`}
-              onValueChangeAction={setRoleIds}
-              options={roles.map((role) => ({
-                badge: role.workspace ?? role.scope,
-                badgeIcon: role.workspace ? PanelsTopLeft : undefined,
-                group: role.scope,
-                icon: Shield,
-                label: role.name,
-                value: role.id,
-              }))}
-              placeholder="Select direct roles"
-              searchPlaceholder="Search roles..."
-              value={roleIds}
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor={`${formId}-teams`}>Teams</FieldLabel>
-            <MultiSelectDropdown
-              emptyMessage="No teams available."
-              id={`${formId}-teams`}
-              onValueChangeAction={setTeamIds}
-              options={teams.map((team) => ({
-                icon: UsersRound,
-                label: team.name,
-                value: team.id,
-              }))}
-              placeholder="Select teams"
-              searchPlaceholder="Search teams..."
-              value={teamIds}
-            />
-          </Field>
-        </FieldGroup>
+        <FieldSet>
+          <FieldLegend variant="label">
+            Initial access <RequiredIndicator />
+          </FieldLegend>
+          <p className="text-sm text-muted-foreground">Select at least one direct role or team.</p>
+          <FieldGroup className="grid sm:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor={`${formId}-roles`}>Direct roles</FieldLabel>
+              <MultiSelectDropdown
+                emptyMessage="No roles available."
+                id={`${formId}-roles`}
+                onValueChangeAction={setRoleIds}
+                options={roles.map((role) => ({
+                  badge: role.workspace ?? role.scope,
+                  badgeIcon: role.workspace ? PanelsTopLeft : undefined,
+                  group: role.scope,
+                  icon: Shield,
+                  label: role.name,
+                  value: role.id,
+                }))}
+                placeholder="Select direct roles"
+                searchPlaceholder="Search roles..."
+                value={roleIds}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor={`${formId}-teams`}>Teams</FieldLabel>
+              <MultiSelectDropdown
+                emptyMessage="No teams available."
+                id={`${formId}-teams`}
+                onValueChangeAction={setTeamIds}
+                options={teams.map((team) => ({
+                  icon: UsersRound,
+                  label: team.name,
+                  value: team.id,
+                }))}
+                placeholder="Select teams"
+                searchPlaceholder="Search teams..."
+                value={teamIds}
+              />
+            </Field>
+          </FieldGroup>
+        </FieldSet>
         {state.error ? (
           <Alert variant="destructive">
             <CircleAlert aria-hidden="true" />

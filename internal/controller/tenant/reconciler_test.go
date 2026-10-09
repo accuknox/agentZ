@@ -55,7 +55,8 @@ func TestTenantIsolationExcludesPrivateRuntimes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, account := range []string{"inference", "mcp", "extauth", "agent", "infrastructure"} {
+	serviceAccounts := []string{"inference", "mcp", "extauth", "agent", "infrastructure"}
+	for _, account := range serviceAccounts {
 		t.Run(account, func(t *testing.T) {
 			selected := selector.Matches(labels.Set{"k8s.io.cilium.k8s.policy.serviceaccount": account})
 			protected := account == "inference" || account == "mcp" || account == "extauth"

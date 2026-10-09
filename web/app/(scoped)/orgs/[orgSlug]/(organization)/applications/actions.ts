@@ -5,9 +5,9 @@ import {
   changeOAuthApplication,
   saveOAuthApplication,
   setOrganizationDelegation,
-  type oauthApplicationInput,
 } from "@/data/delegations"
 import { z } from "zod"
+import type { oauthApplicationInput } from "@/data/schema"
 import { isAPIError } from "better-auth/api"
 
 export async function saveApplicationAction(

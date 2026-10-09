@@ -51,11 +51,14 @@ func (q *delegationQueries) GatewayGetDelegationGrant(_ context.Context, arg gat
 	if q.revoked || arg.ID != q.grant.ID || arg.ClientID != q.grant.ClientID || arg.UserID != q.grant.UserID {
 		return gatewaydb.DelegationGrant{}, pgx.ErrNoRows
 	}
+	if arg.Origin != "" && arg.Origin != "https://app.example" {
+		return gatewaydb.DelegationGrant{}, pgx.ErrNoRows
+	}
 	return q.grant, q.err
 }
 
-func (q *delegationQueries) GatewayListDelegationRedirects(context.Context) ([][]string, error) {
-	return [][]string{{"https://app.example/callback"}}, nil
+func (q *delegationQueries) GatewayCheckDelegationOrigin(_ context.Context, origin string) (bool, error) {
+	return origin == "https://app.example" || origin == "https://other.example", q.err
 }
 
 func (q *delegationQueries) GatewayCheckDelegationSession(context.Context, gatewaydb.GatewayCheckDelegationSessionParams) (bool, error) {
@@ -94,9 +97,24 @@ func (u *delegationUpstream) RoundTrip(r *http.Request) (*http.Response, error) 
 
 type delegationTokenCase struct {
 	name   string
+	origin string
 	mutate func(*authorization.DelegationClaims)
 	typ    string
 	want   int
+}
+
+type delegationCORSCase struct {
+	name    string
+	path    string
+	origins []string
+	method  string
+	headers string
+	want    int
+}
+
+type delegationMCPSessionStep struct {
+	method, body, session string
+	upstreamStatus, want  int
 }
 
 func TestDelegatedAccessRequiresLiveGrantAndAccessToken(t *testing.T) {
@@ -118,6 +136,8 @@ func TestDelegatedAccessRequiresLiveGrantAndAccessToken(t *testing.T) {
 	service.externalJWTKeyfunc = func(*jwt.Token) (any, error) { return &key.PublicKey, nil }
 	cases := []delegationTokenCase{
 		{name: "access token", typ: "at+jwt", want: http.StatusOK},
+		{name: "client origin", origin: "https://app.example", typ: "at+jwt", want: http.StatusOK},
+		{name: "another registered client's origin", origin: "https://other.example", typ: "at+jwt", want: http.StatusForbidden},
 		{name: "expired online session", typ: "at+jwt", mutate: func(c *authorization.DelegationClaims) { c.SessionID = "expired" }, want: http.StatusForbidden},
 		{name: "offline access survives browser expiry", typ: "at+jwt", mutate: func(c *authorization.DelegationClaims) { c.SessionID = "expired"; c.Scope += " offline_access" }, want: http.StatusOK},
 		{name: "ID token", typ: "JWT", want: http.StatusUnauthorized},
@@ -154,6 +174,9 @@ func TestDelegatedAccessRequiresLiveGrantAndAccessToken(t *testing.T) {
 			}
 			request := httptest.NewRequest(http.MethodGet, "/api/inference/v1/models", nil)
 			request.Header.Set("Authorization", "Bearer "+signed)
+			if test.origin != "" {
+				request.Header.Set("Origin", test.origin)
+			}
 			response := httptest.NewRecorder()
 			service.handleDelegatedRequest(response, request)
 			if response.Code != test.want {
@@ -248,7 +271,8 @@ func TestDelegationRechecksResourceIdentityAndPermissions(t *testing.T) {
 	if err := service.k8sClient.Create(ctx, connection); err != nil {
 		t.Fatal(err)
 	}
-	for _, includeUnavailable := range []bool{false, true} {
+	readinessChecks := []bool{false, true}
+	for _, includeUnavailable := range readinessChecks {
 		stale, err := service.delegationCatalog(ctx, testUserID, testOrganizationID, testWorkspaceID, includeUnavailable)
 		if err != nil {
 			t.Fatal(err)
@@ -297,7 +321,8 @@ func TestDelegationRechecksResourceIdentityAndPermissions(t *testing.T) {
 func TestDelegationReadinessRequiresCurrentAcceptedProjection(t *testing.T) {
 	ctx := context.Background()
 	service := sandboxTestService(t, &delegationQueries{})
-	for _, add := range []func(*runtime.Scheme) error{gwv1.Install, agw.Install} {
+	registrations := []func(*runtime.Scheme) error{gwv1.Install, agw.Install}
+	for _, add := range registrations {
 		if err := add(service.k8sClient.Scheme()); err != nil {
 			t.Fatal(err)
 		}
@@ -311,7 +336,8 @@ func TestDelegationReadinessRequiresCurrentAcceptedProjection(t *testing.T) {
 		Conditions: []metav1.Condition{{Type: "Accepted", Status: metav1.ConditionTrue, ObservedGeneration: 2}, {Type: "ResolvedRefs", Status: metav1.ConditionTrue, ObservedGeneration: 2}},
 	}}}}}
 	backend := &agw.AgentgatewayBackend{ObjectMeta: metadata, Status: agw.AgentgatewayBackendStatus{Conditions: []metav1.Condition{{Type: "Accepted", Status: metav1.ConditionTrue, ObservedGeneration: 1}}}}
-	for _, object := range []ctrlclient.Object{route, backend} {
+	objects := []ctrlclient.Object{route, backend}
+	for _, object := range objects {
 		if err := service.k8sClient.Create(ctx, object); err != nil {
 			t.Fatal(err)
 		}
@@ -343,7 +369,8 @@ func TestDelegatedInferenceUsesPrivateGateway(t *testing.T) {
 		permissions: []gatewaydb.GatewayResolvePermissionsRow{{Active: true, Superadmin: true}},
 	}}
 	service := sandboxTestService(t, queries)
-	for _, add := range []func(*runtime.Scheme) error{gwv1.Install, agw.Install} {
+	registrations := []func(*runtime.Scheme) error{gwv1.Install, agw.Install}
+	for _, add := range registrations {
 		if err := add(service.k8sClient.Scheme()); err != nil {
 			t.Fatal(err)
 		}
@@ -357,10 +384,11 @@ func TestDelegatedInferenceUsesPrivateGateway(t *testing.T) {
 		},
 		Status: agentzv1alpha1.InferenceProviderStatus{State: agentzv1alpha1.InferenceProviderStateReady},
 	}
-	for _, object := range []ctrlclient.Object{
+	objects := []ctrlclient.Object{
 		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace, Labels: map[string]string{agentzv1alpha1.WorkspaceNameLabel: namespace}}},
 		provider,
-	} {
+	}
+	for _, object := range objects {
 		if err := service.k8sClient.Create(t.Context(), object); err != nil {
 			t.Fatal(err)
 		}
@@ -396,7 +424,8 @@ func TestDelegatedInferenceUsesPrivateGateway(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, ns := range []string{namespace, "private"} {
+	namespaces := []string{namespace, "private"}
+	for _, ns := range namespaces {
 		gateway := inference.GatewayName
 		if ns == "private" {
 			gateway = "delegations"
@@ -407,26 +436,46 @@ func TestDelegatedInferenceUsesPrivateGateway(t *testing.T) {
 			{Type: "Accepted", Status: metav1.ConditionTrue, ObservedGeneration: 1},
 			{Type: "ResolvedRefs", Status: metav1.ConditionTrue, ObservedGeneration: 1},
 		}
-		for _, object := range []ctrlclient.Object{
+		objects := []ctrlclient.Object{
 			&gwv1.HTTPRoute{ObjectMeta: metadata, Status: gwv1.HTTPRouteStatus{RouteStatus: gwv1.RouteStatus{Parents: []gwv1.RouteParentStatus{{
 				ParentRef: gwv1.ParentReference{Name: gwv1.ObjectName(gateway)}, ControllerName: "agentgateway.dev/agentgateway", Conditions: conditions,
 			}}}}},
 			&agw.AgentgatewayBackend{ObjectMeta: metadata, Status: agw.AgentgatewayBackendStatus{Conditions: conditions}},
-		} {
+		}
+		for _, object := range objects {
 			if err := service.k8sClient.Create(t.Context(), object); err != nil {
 				t.Fatal(err)
 			}
 		}
 	}
-	upstream := &delegationUpstream{response: &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{"choices":[]}`))}}
+	upstream := &delegationUpstream{response: &http.Response{
+		StatusCode: http.StatusOK,
+		Header: http.Header{
+			"Access-Control-Allow-Origin":      {"*"},
+			"Access-Control-Allow-Credentials": {"true"},
+			"Access-Control-Expose-Headers":    {"X-Private-Header"},
+		},
+		Body: io.NopCloser(strings.NewReader(`{"choices":[]}`)),
+	}}
 	service.delegationTransport = upstream
 	body := fmt.Sprintf(`{"model":%q,"messages":[{"role":"user","content":"Hello!"}]}`, selection.Models[0].Id)
 	request := httptest.NewRequest(http.MethodPost, "/api/inference/v1/chat/completions", strings.NewReader(body))
 	request.Header.Set("Authorization", "Bearer "+signed)
 	response := httptest.NewRecorder()
+	response.Header().Set("Access-Control-Allow-Origin", "https://app.example")
 	service.handleDelegatedRequest(response, request)
 	if response.Code != http.StatusOK || upstream.request == nil {
 		t.Fatalf("inference returned %d: %s", response.Code, response.Body.String())
+	}
+	expectedHeaders := map[string]string{
+		"Access-Control-Allow-Origin":      "https://app.example",
+		"Access-Control-Allow-Credentials": "",
+		"Access-Control-Expose-Headers":    "",
+	}
+	for header, want := range expectedHeaders {
+		if got := response.Header().Get(header); got != want {
+			t.Errorf("upstream CORS header %s: got %q, want %q", header, got, want)
+		}
 	}
 	if upstream.request.URL.Host != "private.example:8080" || upstream.request.URL.Path != "/delegations/grant-1/models/0/chat/completions" {
 		t.Fatalf("inference bypassed the configured private gateway: %s", upstream.request.URL)
@@ -443,29 +492,80 @@ func TestDelegatedInferenceUsesPrivateGateway(t *testing.T) {
 	}
 }
 
-func TestDelegationCORSRejectsUnregisteredOrigins(t *testing.T) {
-	service := sandboxTestService(t, &delegationQueries{})
+func TestDelegationCORSMethodsHeadersAndMissingOrigins(t *testing.T) {
+	queries := &delegationQueries{}
+	service := sandboxTestService(t, queries)
 	service.delegationRequests = make(chan struct{}, 64)
 	called := false
-	handler := service.delegationCORS(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { called = true; w.WriteHeader(http.StatusOK) }))
-	for _, origin := range []string{"https://app.example", "https://app.example.evil", "null"} {
-		called = false
-		request := httptest.NewRequest(http.MethodOptions, "/api/inference/v1/models", strings.NewReader(""))
-		request.Header.Set("Origin", origin)
-		response := httptest.NewRecorder()
-		handler.ServeHTTP(response, request)
-		if origin == "https://app.example" {
-			valid := response.Code == http.StatusNoContent &&
-				response.Header().Get("Access-Control-Allow-Origin") == origin &&
-				response.Header().Get("Access-Control-Allow-Credentials") == ""
-			if !valid {
-				t.Fatalf("invalid browser CORS response: %#v", response.Result())
+	handler := service.delegationCORS(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	cases := []delegationCORSCase{
+		{name: "native request", path: "/api/mcp", want: http.StatusUnauthorized},
+		{name: "empty origin", path: "/api/mcp", origins: []string{""}, want: http.StatusForbidden},
+		{name: "prefix spoof", path: "/api/inference/v1/models", origins: []string{"https://app.example.evil"}, method: "GET", want: http.StatusForbidden},
+		{name: "opaque origin", path: "/api/mcp", origins: []string{"null"}, method: "POST", want: http.StatusForbidden},
+		{name: "multiple origins", path: "/api/mcp", origins: []string{"https://app.example", "https://other.example"}, want: http.StatusForbidden},
+		{name: "readable auth error", path: "/api/mcp", origins: []string{"https://app.example"}, want: http.StatusUnauthorized},
+		{name: "MCP GET", path: "/api/mcp", origins: []string{"https://app.example"}, method: "GET", want: http.StatusNoContent},
+		{name: "MCP DELETE", path: "/api/mcp", origins: []string{"https://app.example"}, method: "DELETE", want: http.StatusNoContent},
+		{name: "MCP headers", path: "/api/mcp", origins: []string{"https://app.example"}, method: "POST", headers: "mcp-session-id,mcp-protocol-version,last-event-id", want: http.StatusNoContent},
+		{name: "SDK headers", path: "/api/inference/v1/responses", origins: []string{"https://app.example"}, method: "POST", headers: "authorization,content-type,x-stainless-lang", want: http.StatusNoContent},
+		{name: "models POST", path: "/api/inference/v1/models", origins: []string{"https://app.example"}, method: "POST", want: http.StatusForbidden},
+		{name: "unknown route", path: "/api/inference/v1/unknown", origins: []string{"https://app.example"}, method: "POST", want: http.StatusForbidden},
+		{name: "invalid header", path: "/api/mcp", origins: []string{"https://app.example"}, method: "POST", headers: "x bad", want: http.StatusForbidden},
+		{name: "empty header entry", path: "/api/mcp", origins: []string{"https://app.example"}, method: "POST", headers: "authorization,", want: http.StatusForbidden},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			called = false
+			method := http.MethodGet
+			if test.method != "" {
+				method = http.MethodOptions
 			}
-			continue
-		}
-		if response.Code != http.StatusForbidden || called {
-			t.Fatalf("unregistered origin admitted: %q", origin)
-		}
+			request := httptest.NewRequest(method, test.path, nil)
+			if test.origins != nil {
+				request.Header["Origin"] = test.origins
+			}
+			request.Header.Set("Access-Control-Request-Method", test.method)
+			request.Header.Set("Access-Control-Request-Headers", test.headers)
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != test.want {
+				t.Fatalf("status %d, want %d", response.Code, test.want)
+			}
+			if called != (test.want == http.StatusUnauthorized) {
+				t.Fatalf("resource handler called = %v", called)
+			}
+			if response.Header().Get("Access-Control-Allow-Credentials") != "" {
+				t.Fatal("delegated access admitted browser credentials")
+			}
+			origin := ""
+			if len(test.origins) == 1 && test.origins[0] == "https://app.example" {
+				origin = test.origins[0]
+			}
+			if got := response.Header().Get("Access-Control-Allow-Origin"); got != origin {
+				t.Fatalf("allowed origin = %q, want %q", got, origin)
+			}
+			if !strings.Contains(response.Header().Get("Vary"), "Origin") {
+				t.Fatal("dynamic response did not vary on Origin")
+			}
+			if response.Code == http.StatusNoContent {
+				allowed := response.Header().Get("Access-Control-Allow-Headers")
+				if !strings.Contains(allowed, "Authorization") || strings.Contains(allowed, "*") {
+					t.Fatalf("authorization must be explicitly allowed: %s", allowed)
+				}
+			}
+		})
+	}
+	queries.err = pgx.ErrTxClosed
+	request := httptest.NewRequest(http.MethodGet, "/api/mcp", nil)
+	request.Header.Set("Origin", "https://app.example")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusServiceUnavailable || response.Header().Get("Access-Control-Allow-Origin") != "" {
+		t.Fatal("unavailable origin registry did not fail closed")
 	}
 }
 
@@ -505,22 +605,6 @@ func TestDelegationMCPExpressionsFitNativeLimits(t *testing.T) {
 	selected.Resources = []string{strings.Repeat("x", 2501)}
 	if _, err := delegationMCPExpressions(selected); err == nil {
 		t.Fatal("unprojectable capability admitted")
-	}
-}
-
-func TestDelegationCORSIsBoundedBeforeOriginLookup(t *testing.T) {
-	service := sandboxTestService(t, &delegationQueries{})
-	service.delegationRequests = make(chan struct{}, 1)
-	service.delegationRequests <- struct{}{}
-	handler := service.delegationCORS(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		t.Fatal("request admitted while busy")
-	}))
-	request := httptest.NewRequest(http.MethodOptions, "/api/mcp", nil)
-	request.Header.Set("Origin", "https://app.example")
-	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, request)
-	if response.Code != http.StatusTooManyRequests {
-		t.Fatalf("status %d", response.Code)
 	}
 }
 
@@ -613,10 +697,11 @@ func TestDelegatedMCPTransportBoundary(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "selected", Namespace: namespace, UID: "mcp-original"},
 		Spec:       agentzv1alpha1.MCPConnectionSpec{Endpoint: agentzv1alpha1.MCPConnectionEndpoint{URL: "https://mcp.example/mcp"}},
 	}
-	for _, object := range []ctrlclient.Object{
+	objects := []ctrlclient.Object{
 		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace, Labels: map[string]string{agentzv1alpha1.WorkspaceNameLabel: namespace}}},
 		connection,
-	} {
+	}
+	for _, object := range objects {
 		if err := service.k8sClient.Create(t.Context(), object); err != nil {
 			t.Fatal(err)
 		}
@@ -653,12 +738,13 @@ func TestDelegatedMCPTransportBoundary(t *testing.T) {
 	if response.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("oversized chunked body status %d", response.Code)
 	}
-	for _, body := range []string{
+	bodies := []string{
 		`{"jsonrpc":"2.0","id":1,"method":"resources/subscribe","METHOD":"ping"}`,
 		`{"jsonrpc":"2.0","id":1,"method":"tasks/get","METHOD":"ping"}`,
 		`{"jsonrpc":"2.0","id":1,"method":"resources/subscribe","method":"ping"}`,
 		`{"jsonrpc":"2.0","id":1,"method":"resources/subscribe","\u006dethod":"ping"}`,
-	} {
+	}
+	for _, body := range bodies {
 		request := httptest.NewRequest(http.MethodPost, "/api/mcp", strings.NewReader(body))
 		request.Header.Set("Authorization", "Bearer "+signed)
 		response := httptest.NewRecorder()
@@ -691,7 +777,8 @@ func TestDelegatedMCPTransportBoundary(t *testing.T) {
 			t.Fatalf("session database outage returned %d", response.Code)
 		}
 	})
-	for _, add := range []func(*runtime.Scheme) error{gwv1.Install, agw.Install} {
+	registrations := []func(*runtime.Scheme) error{gwv1.Install, agw.Install}
+	for _, add := range registrations {
 		if err := add(service.k8sClient.Scheme()); err != nil {
 			t.Fatal(err)
 		}
@@ -708,7 +795,7 @@ func TestDelegatedMCPTransportBoundary(t *testing.T) {
 		{Type: "ResolvedRefs", Status: metav1.ConditionTrue, ObservedGeneration: 1},
 		{Type: "Attached", Status: metav1.ConditionTrue, ObservedGeneration: 1},
 	}
-	for _, object := range []ctrlclient.Object{
+	projections := []ctrlclient.Object{
 		&gwv1.HTTPRoute{ObjectMeta: metadata, Status: gwv1.HTTPRouteStatus{RouteStatus: gwv1.RouteStatus{Parents: []gwv1.RouteParentStatus{{
 			ParentRef: gwv1.ParentReference{Name: "delegations"}, ControllerName: "agentgateway.dev/agentgateway", Conditions: conditions,
 		}}}}},
@@ -726,12 +813,14 @@ func TestDelegatedMCPTransportBoundary(t *testing.T) {
 		}, Status: gwv1.PolicyStatus{Ancestors: []gwv1.PolicyAncestorStatus{{
 			AncestorRef: gwv1.ParentReference{Name: gwv1.ObjectName(mcp.GatewayName)}, ControllerName: "agentgateway.dev/agentgateway", Conditions: conditions,
 		}}}},
-	} {
+	}
+	for _, object := range projections {
 		if err := service.k8sClient.Create(t.Context(), object); err != nil {
 			t.Fatal(err)
 		}
 	}
-	for _, status := range []int{http.StatusUnauthorized, http.StatusTooManyRequests, http.StatusFound} {
+	statuses := []int{http.StatusUnauthorized, http.StatusTooManyRequests, http.StatusFound}
+	for _, status := range statuses {
 		t.Run(fmt.Sprintf("upstream status %d keeps credentials private", status), func(t *testing.T) {
 			upstream := &delegationUpstream{response: &http.Response{
 				StatusCode: status, Body: io.NopCloser(strings.NewReader("private-credential")),
@@ -761,7 +850,8 @@ func TestDelegatedMCPTransportBoundary(t *testing.T) {
 			if upstream.request.URL.RawQuery != "" {
 				t.Fatal("app query parameters reached the native gateway")
 			}
-			for _, header := range []string{"Authorization", "Cookie", "X-Api-Key", "X-AgentZ-User-ID"} {
+			headers := []string{"Authorization", "Cookie", "X-Api-Key", "X-AgentZ-User-ID"}
+			for _, header := range headers {
 				if upstream.request.Header.Get(header) != "" {
 					t.Fatalf("app %s reached the native gateway", header)
 				}
@@ -769,15 +859,13 @@ func TestDelegatedMCPTransportBoundary(t *testing.T) {
 		})
 	}
 	t.Run("deleted session cannot be revived by upstream headers", func(t *testing.T) {
-		for _, step := range []struct {
-			method, body, session string
-			upstreamStatus, want  int
-		}{
+		steps := []delegationMCPSessionStep{
 			{http.MethodPost, `{"jsonrpc":"2.0","id":1,"method":"initialize"}`, "", http.StatusOK, http.StatusOK},
 			{http.MethodDelete, "", "session", http.StatusAccepted, http.StatusAccepted},
 			{http.MethodPost, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`, "", http.StatusOK, http.StatusOK},
 			{http.MethodPost, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`, "session", http.StatusOK, http.StatusNotFound},
-		} {
+		}
+		for _, step := range steps {
 			service.delegationTransport = &delegationUpstream{response: &http.Response{
 				StatusCode: step.upstreamStatus, Body: io.NopCloser(strings.NewReader(`{}`)),
 				Header: http.Header{"Mcp-Session-Id": {"session"}},

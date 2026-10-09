@@ -358,14 +358,15 @@ type delegationInferenceCase struct {
 }
 
 func TestDelegatedCodexRequiresResponsesStreaming(t *testing.T) {
-	for _, test := range []delegationInferenceCase{
+	cases := []delegationInferenceCase{
 		{"chat completions", `{"model":"selected","stream":true}`, false, false},
 		{"non-streaming responses", `{"model":"selected","instructions":"Be helpful","stream":false}`, true, false},
 		{"missing instructions", `{"model":"selected","stream":true}`, true, false},
 		{"valid responses", `{"model":"selected","instructions":"Be helpful","stream":true}`, true, true},
 		{"case sensitive stream", `{"model":"selected","instructions":"Be helpful","stream":false,"STREAM":true}`, true, false},
 		{"case sensitive instructions", `{"model":"selected","INSTRUCTIONS":"Be helpful","stream":true}`, true, false},
-	} {
+	}
+	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			err := ValidateDelegatedProviderRequest(agentzv1alpha1.InferenceProviderKindOpenAICodex, []byte(test.body), test.responses)
 			if (err == nil) != test.allowed {
@@ -379,7 +380,7 @@ func TestDelegatedCodexRequiresResponsesStreaming(t *testing.T) {
 }
 
 func TestDelegatedInferenceRejectsProviderResourceBypasses(t *testing.T) {
-	for _, test := range []delegationInferenceCase{
+	cases := []delegationInferenceCase{
 		{"chat", `{"model":"selected","messages":[{"role":"user","content":"hi"}]}`, false, true},
 		{"responses", `{"model":"selected","store":false,"input":"hi"}`, true, true},
 		{"explicit previous message", `{"model":"selected","store":false,"input":[{"type":"message","id":"msg-inline","role":"assistant","content":[{"type":"output_text","text":"hi"}]}]}`, true, true},
@@ -405,7 +406,8 @@ func TestDelegatedInferenceRejectsProviderResourceBypasses(t *testing.T) {
 		{"response screenshot", `{"model":"selected","store":false,"input":[{"type":"computer_call_output","output":{"type":"computer_screenshot","file_id":"file-private"}}]}`, true, false},
 		{"case sensitive reference", `{"model":"selected","store":false,"input":[{"type":"item_reference","TYPE":"message","id":"msg-private"}]}`, true, false},
 		{"duplicate response input", `{"model":"selected","store":false,"input":[{"type":"item_reference","id":"msg-private"}],"input":[]}`, true, false},
-	} {
+	}
+	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			model, err := ValidateDelegatedRequest([]byte(test.body), test.responses)
 			if (err == nil) != test.allowed {

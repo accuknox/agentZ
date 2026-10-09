@@ -523,6 +523,7 @@ function ServerURLField({
               aria-autocomplete="list"
               aria-controls="mcp-endpoint-url-suggestions"
               role="combobox"
+              aria-describedby="mcp-endpoint-url-error"
             />
             <InputGroupAddon align="inline-end" className="gap-0 pl-0">
               {authMode === "oauth" ? (
@@ -640,7 +641,7 @@ function ServerURLField({
           </Command>
         </PopoverContent>
       </Popover>
-      {endpointError ? <FieldError errors={[endpointError]} /> : null}
+      {endpointError ? <FieldError errors={[endpointError]} id="mcp-endpoint-url-error" /> : null}
     </Field>
   )
 }
@@ -1185,6 +1186,7 @@ export function McpSheet({
             void form.handleSubmit(submitFormAction, invalidSubmitAction)()
           }}
           className="flex flex-1 flex-col gap-5 px-4 pb-2"
+          noValidate
         >
           <FieldGroup>
             <Field data-invalid={Boolean(errors.name)}>
@@ -1197,8 +1199,9 @@ export function McpSheet({
                 aria-invalid={Boolean(errors.name)}
                 aria-required="true"
                 {...form.register("name")}
+                aria-describedby="mcp-name-error"
               />
-              {errors.name ? <FieldError errors={[errors.name]} /> : null}
+              {errors.name ? <FieldError errors={[errors.name]} id="mcp-name-error" /> : null}
             </Field>
             <Field>
               <FieldLabel>Type</FieldLabel>
@@ -1348,8 +1351,11 @@ export function McpSheet({
                     aria-invalid={Boolean(errors.bearer_token)}
                     aria-required="true"
                     {...form.register("bearer_token")}
+                    aria-describedby="mcp-bearer-token-error"
                   />
-                  {errors.bearer_token ? <FieldError errors={[errors.bearer_token]} /> : null}
+                  {errors.bearer_token ? (
+                    <FieldError errors={[errors.bearer_token]} id="mcp-bearer-token-error" />
+                  ) : null}
                 </Field>
                 <Accordion
                   type="multiple"

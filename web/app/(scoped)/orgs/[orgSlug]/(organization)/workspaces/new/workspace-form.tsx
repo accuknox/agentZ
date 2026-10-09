@@ -1,9 +1,12 @@
 "use client"
 
+import { Controller, useForm, useWatch } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import type { z } from "zod"
 import type { Route } from "next"
 import Link from "next/link"
 import { useRouter } from "@bprogress/next/app"
-import { useActionState, useState } from "react"
+import { startTransition, useActionState, useState } from "react"
 import { Box, CircleAlert, Code2, Layers, Plus, Wrench } from "lucide-react"
 import { ProviderIcon } from "@/app/(app)/inference/providers/provider-shared"
 import { renderMcpServerIcon } from "@/app/(app)/mcps/catalog"
@@ -43,6 +46,7 @@ import type {
   WorkspaceMemberCandidate,
 } from "@/lib/gateway/client"
 import { zCreateWorkspaceRequest } from "@/lib/gateway/client/zod.gen"
+import { workspaceNameSchema } from "@/data/schema"
 import { toast } from "sonner"
 
 type WorkspaceCreationResources = {
@@ -63,16 +67,28 @@ export function WorkspaceForm({
 }) {
   const router = useRouter()
   const [confirmationOpen, setConfirmationOpen] = useState(false)
-  const [name, setName] = useState("")
-  const [workspaceType, setWorkspaceType] = useState("general")
-  const [admins, setAdmins] = useState<string[]>([])
-  const [inherited, setInherited] = useState<SelectedOrganizationResources>({
-    skills: [],
-    sandboxes: [],
-    mcp_connections: [],
-    inference_providers: [],
+  const form = useForm<z.infer<typeof zCreateWorkspaceRequest>>({
+    resolver: zodResolver(
+      zCreateWorkspaceRequest.extend({
+        name: workspaceNameSchema.pipe(zCreateWorkspaceRequest.shape.name),
+      })
+    ),
+    defaultValues: {
+      name: "",
+      type: "general",
+      admin_member_ids: [],
+      selected_organization_resources: {
+        skills: [],
+        sandboxes: [],
+        mcp_connections: [],
+        inference_providers: [],
+      },
+    },
   })
-  const [clientErrors, setClientErrors] = useState<CreateWorkspaceFormState["errors"]>()
+  const [name, workspaceType, admins, inherited] = useWatch({
+    control: form.control,
+    name: ["name", "type", "admin_member_ids", "selected_organization_resources"],
+  })
   const [state, formAction, pending] = useActionState<CreateWorkspaceFormState, FormData>(
     async (state, formData) => {
       const result = await createWorkspaceAction(orgSlug, state, formData)
@@ -110,26 +126,30 @@ export function WorkspaceForm({
       })
     ),
   } satisfies Record<keyof SelectedOrganizationResources, MultiSelectDropdownOption[]>
-  const errors = clientErrors ?? state.errors
+  const errors = state.errors
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <AdministrationPageHeader title="Create Workspace" />
       <form
-        action={formAction}
+        noValidate
+        onSubmit={form.handleSubmit((values) => {
+          if (!confirmationOpen) {
+            setConfirmationOpen(true)
+            return
+          }
+          const formData = new FormData()
+          formData.set("name", values.name)
+          formData.set("type", values.type ?? "general")
+          for (const id of values.admin_member_ids) formData.append("admin_member_ids", id)
+          for (const { field, key } of inheritanceCategories)
+            for (const name of values.selected_organization_resources[key])
+              formData.append(field, name)
+          startTransition(() => formAction(formData))
+        })}
         className="flex max-w-2xl flex-col gap-6 px-4 pb-6 md:px-6"
         id="workspace-form"
       >
-        <input name="name" type="hidden" value={name} />
-        {admins.map((memberId) => (
-          <input key={memberId} name="admin_member_ids" type="hidden" value={memberId} />
-        ))}
-        {inheritanceCategories.flatMap(({ field, key }) =>
-          inherited[key].map((name) => (
-            <input key={`${key}:${name}`} name={field} type="hidden" value={name} />
-          ))
-        )}
-
         {state.error ? (
           <Alert variant="destructive">
             <CircleAlert aria-hidden="true" />
@@ -139,82 +159,124 @@ export function WorkspaceForm({
         ) : null}
 
         <FieldGroup>
-          <Field>
-            <FieldLabel htmlFor="workspace-type">Workspace type</FieldLabel>
-            <Select name="type" value={workspaceType} onValueChange={setWorkspaceType}>
-              <SelectTrigger id="workspace-type" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="general">
-                    <Layers aria-hidden="true" />
-                    General purpose
-                  </SelectItem>
-                  <SelectItem value="coding">
-                    <Code2 aria-hidden="true" />
-                    Coding
-                    <Badge variant="secondary">Preview</Badge>
-                  </SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            <FieldDescription>
-              Coding adds GitHub projects and Git worktrees. The type cannot be changed later.
-            </FieldDescription>
-          </Field>
-          <Field data-invalid={Boolean(errors?.name)}>
-            <FieldLabel htmlFor="workspace-name" required>
-              Name
-            </FieldLabel>
-            <Input
-              aria-invalid={Boolean(errors?.name)}
-              autoComplete="off"
-              id="workspace-name"
-              maxLength={80}
-              onChange={(event) => {
-                setName(event.target.value)
-                setClientErrors(undefined)
-              }}
-              placeholder="e.g. Research lab"
-              value={name}
-            />
-            <FieldError>{errors?.name?.[0]}</FieldError>
-          </Field>
-
-          <Field data-invalid={Boolean(errors?.admin_member_ids)}>
-            <FieldLabel htmlFor="workspace-admins">Initial administrators</FieldLabel>
-            <MultiSelectDropdown
-              id="workspace-admins"
-              invalid={Boolean(errors?.admin_member_ids)}
-              onValueChangeAction={(value) => {
-                setAdmins(value)
-                setClientErrors(undefined)
-              }}
-              options={adminOptions}
-              placeholder="No initial administrators"
-              searchPlaceholder="Search active members..."
-              value={admins}
-            />
-            <FieldError>{errors?.admin_member_ids?.[0]}</FieldError>
-          </Field>
+          <Controller
+            name="type"
+            control={form.control}
+            render={({ field }) => (
+              <Field>
+                <FieldLabel htmlFor="workspace-type">Workspace type</FieldLabel>
+                <Select
+                  name={field.name}
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  disabled={pending}
+                >
+                  <SelectTrigger
+                    ref={field.ref}
+                    onBlur={field.onBlur}
+                    id="workspace-type"
+                    className="w-full"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="general">
+                        <Layers aria-hidden="true" />
+                        General purpose
+                      </SelectItem>
+                      <SelectItem value="coding">
+                        <Code2 aria-hidden="true" />
+                        Coding
+                        <Badge variant="secondary">Preview</Badge>
+                      </SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <FieldDescription>
+                  Coding adds GitHub projects and Git worktrees. The type cannot be changed later.
+                </FieldDescription>
+              </Field>
+            )}
+          />
+          <Controller
+            name="name"
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid || Boolean(errors?.name)}>
+                <FieldLabel htmlFor="workspace-name" required>
+                  Name
+                </FieldLabel>
+                <Input
+                  {...field}
+                  id="workspace-name"
+                  required
+                  autoComplete="off"
+                  maxLength={80}
+                  disabled={pending}
+                  placeholder="e.g. Research lab"
+                  aria-invalid={fieldState.invalid || Boolean(errors?.name)}
+                  aria-describedby="workspace-name-error"
+                />
+                <FieldError id="workspace-name-error" errors={[fieldState.error]}>
+                  {errors?.name?.[0]}
+                </FieldError>
+              </Field>
+            )}
+          />
+          <Controller
+            name="admin_member_ids"
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid || Boolean(errors?.admin_member_ids)}>
+                <FieldLabel htmlFor="workspace-admins">Initial administrators</FieldLabel>
+                <MultiSelectDropdown
+                  ref={field.ref}
+                  onBlurAction={field.onBlur}
+                  id="workspace-admins"
+                  disabled={pending}
+                  invalid={fieldState.invalid || Boolean(errors?.admin_member_ids)}
+                  onValueChangeAction={field.onChange}
+                  options={adminOptions}
+                  placeholder="No initial administrators"
+                  searchPlaceholder="Search active members..."
+                  value={field.value}
+                  aria-describedby="workspace-admins-error"
+                />
+                <FieldError id="workspace-admins-error" errors={[fieldState.error]}>
+                  {errors?.admin_member_ids?.[0]}
+                </FieldError>
+              </Field>
+            )}
+          />
 
           <div className="grid gap-4 pt-2">
             <h3 className="font-medium">Inherited organization resources</h3>
             {inheritanceCategories.map(({ key, label }) => (
-              <Field key={key}>
-                <FieldLabel htmlFor={`inherited-${key}`}>{label}</FieldLabel>
-                <MultiSelectDropdown
-                  id={`inherited-${key}`}
-                  onValueChangeAction={(value) =>
-                    setInherited((current) => ({ ...current, [key]: value }))
-                  }
-                  options={resourceOptions[key]}
-                  placeholder={`No ${label.toLowerCase()} selected`}
-                  searchPlaceholder={`Search ${label.toLowerCase()}...`}
-                  value={inherited[key]}
-                />
-              </Field>
+              <Controller
+                key={key}
+                name={`selected_organization_resources.${key}`}
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor={`inherited-${key}`}>{label}</FieldLabel>
+                    <MultiSelectDropdown
+                      ref={field.ref}
+                      onBlurAction={field.onBlur}
+                      id={`inherited-${key}`}
+                      disabled={pending}
+                      onValueChangeAction={field.onChange}
+                      options={resourceOptions[key]}
+                      placeholder={`No ${label.toLowerCase()} selected`}
+                      searchPlaceholder={`Search ${label.toLowerCase()}...`}
+                      value={field.value}
+                      invalid={fieldState.invalid}
+                      aria-describedby={fieldState.invalid ? `inherited-${key}-error` : undefined}
+                    />
+                    <FieldError id={`inherited-${key}-error`} errors={[fieldState.error]} />
+                  </Field>
+                )}
+              />
             ))}
           </div>
         </FieldGroup>
@@ -223,23 +285,7 @@ export function WorkspaceForm({
           <Button asChild variant="outline">
             <Link href={`/orgs/${orgSlug}/workspaces` as Route}>Cancel</Link>
           </Button>
-          <Button
-            onClick={() => {
-              const parsed = zCreateWorkspaceRequest.safeParse({
-                admin_member_ids: admins,
-                name,
-                type: workspaceType,
-                selected_organization_resources: inherited,
-              })
-              if (!parsed.success) {
-                setClientErrors(parsed.error.flatten().fieldErrors)
-                return
-              }
-              setClientErrors(undefined)
-              setConfirmationOpen(true)
-            }}
-            type="button"
-          >
+          <Button disabled={pending} type="submit">
             Create Workspace
           </Button>
         </div>

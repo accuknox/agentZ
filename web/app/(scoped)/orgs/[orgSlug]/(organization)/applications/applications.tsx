@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState, useMemo, useState, useTransition } from "react"
+import { useMemo, useState, useTransition } from "react"
 import {
   Copy,
   KeyRound,
@@ -17,6 +17,10 @@ import {
   Smartphone,
   type LucideIcon,
 } from "lucide-react"
+import { Controller, useForm, useWatch } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
+import { oauthApplicationInput } from "@/data/schema"
 import { toast } from "sonner"
 import { AdministrationPageHeader } from "@/components/administration"
 import type { oauthClients } from "@/db/auth-schema"
@@ -28,6 +32,8 @@ import { CopyButton } from "@/components/ui/copy-button"
 import {
   Field,
   FieldContent,
+  FieldError,
+  RequiredIndicator,
   FieldDescription,
   FieldGroup,
   FieldLabel,
@@ -123,11 +129,11 @@ const clientTypes = {
 >
 
 const columnLayout = {
-  name: { minWidth: 224, contentMaxWidth: 256 },
-  type: { minWidth: 176, width: 176, contentMaxWidth: 144 },
+  name: { minWidth: 224, width: 288, contentMaxWidth: 256 },
+  type: { minWidth: 248, width: 248, contentMaxWidth: 216 },
   disabled: { minWidth: 112, width: 112 },
   scopes: { minWidth: 128, width: 128, contentMaxWidth: 96 },
-  redirectUris: { minWidth: 200, contentMaxWidth: 240 },
+  redirectUris: { minWidth: 200, contentMaxWidth: 320 },
   actions: { minWidth: 64, width: 64, align: "end" },
 } satisfies Record<string, AdminColumnLayout>
 
@@ -142,7 +148,7 @@ type Application = Pick<
   | "tokenEndpointAuthMethod"
   | "applicationType"
   | "disabled"
->
+> & { authorizedOrigins: string[] }
 
 export function Applications({
   organizationId,
@@ -522,6 +528,37 @@ function ApplicationValues({ values }: { values: string[] }) {
   )
 }
 
+const applicationFormSchema = z
+  .object({
+    name: z.string(),
+    type: oauthApplicationInput.shape.type,
+    redirectUris: z.string(),
+    authorizedOrigins: z.string(),
+    scopes: z.array(z.string()),
+  })
+  .transform((input, ctx) => {
+    const parsed = oauthApplicationInput.safeParse({
+      ...input,
+      redirectUris: input.redirectUris
+        .split("\n")
+        .map((uri) => uri.trim())
+        .filter(Boolean),
+      authorizedOrigins:
+        input.type === "browser"
+          ? input.authorizedOrigins
+              .split("\n")
+              .map((origin) => origin.trim())
+              .filter(Boolean)
+          : [],
+    })
+    if (!parsed.success) {
+      for (const issue of parsed.error.issues)
+        ctx.addIssue({ ...issue, path: issue.path.slice(0, 1) })
+      return z.NEVER
+    }
+    return parsed.data
+  })
+
 function ApplicationEditor({
   organizationId,
   client,
@@ -533,39 +570,36 @@ function ApplicationEditor({
   onClose: () => void
   onSaved: (credential?: Credential) => void
 }) {
-  const [name, setName] = useState(client?.name ?? "")
-  const [redirects, setRedirects] = useState(client?.redirectUris.join("\n") ?? "")
-  const [type, setType] = useState<keyof typeof clientTypes>(
-    client?.tokenEndpointAuthMethod === "none"
-      ? client.applicationType === "native"
-        ? "native"
-        : "browser"
-      : "confidential"
-  )
-  const [selectedScopes, setSelectedScopes] = useState<string[]>(
-    client ? (client.scopes ?? []) : ["openid", "profile", "email"]
-  )
-
-  const [error, save, pending] = useActionState(async () => {
-    const result = await saveApplicationAction(
-      organizationId,
-      {
-        name,
-        type,
-        redirectUris: redirects
-          .split("\n")
-          .map((uri) => uri.trim())
-          .filter(Boolean),
-        scopes: selectedScopes,
-      },
-      client?.clientId
-    )
-    if ("error" in result) return result.error
+  let initialType: keyof typeof clientTypes = "confidential"
+  if (client?.tokenEndpointAuthMethod === "none")
+    initialType = client.applicationType === "native" ? "native" : "browser"
+  const form = useForm<
+    z.input<typeof applicationFormSchema>,
+    undefined,
+    z.output<typeof applicationFormSchema>
+  >({
+    resolver: zodResolver(applicationFormSchema),
+    defaultValues: {
+      name: client?.name ?? "",
+      type: initialType,
+      redirectUris: client?.redirectUris.join("\n") ?? "",
+      authorizedOrigins: client?.authorizedOrigins.join("\n") ?? "",
+      scopes: client ? (client.scopes ?? []) : ["openid", "profile", "email"],
+    },
+  })
+  const type = useWatch({ control: form.control, name: "type" })
+  const pending = form.formState.isSubmitting
+  const error = form.formState.errors.root?.message
+  const save = form.handleSubmit(async (input) => {
+    form.clearErrors("root")
+    const result = await saveApplicationAction(organizationId, input, client?.clientId)
+    if ("error" in result) {
+      form.setError("root", { message: result.error })
+      return
+    }
     onSaved(result.secret ? { clientId: result.clientId, secret: result.secret } : undefined)
     toast.success("Application saved")
-    return undefined
-  }, undefined)
-
+  })
   return (
     <Sheet
       open
@@ -577,105 +611,182 @@ function ApplicationEditor({
         <SheetHeader>
           <SheetTitle>{client ? "Edit application" : "Create application"}</SheetTitle>
           <SheetDescription>
-            Register callback URLs and the scopes this application may request.
+            Configure callback URLs, browser origins, and the scopes this application may request.
           </SheetDescription>
         </SheetHeader>
-        <form className="flex min-h-0 flex-1 flex-col" action={save}>
+        <form className="flex min-h-0 flex-1 flex-col" onSubmit={save} noValidate>
           <div className="min-h-0 flex-1 overflow-y-auto p-4">
             <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="application-name">Name</FieldLabel>
-                <Input
-                  id="application-name"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  required
-                  maxLength={100}
-                  disabled={pending}
-                />
-              </Field>
-              <Field data-disabled={!!client || pending}>
-                <FieldLabel htmlFor="application-type">Client type</FieldLabel>
-                <Select
-                  value={type}
-                  disabled={!!client || pending}
-                  onValueChange={(value: keyof typeof clientTypes) => setType(value)}
-                >
-                  <SelectTrigger
-                    id="application-type"
-                    className="w-full"
-                    aria-describedby="application-type-description"
-                  >
-                    <SelectValue>{clientTypes[type].label}</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent position="popper" className="w-(--radix-select-trigger-width)">
-                    <SelectGroup>
-                      {Object.entries(clientTypes).map(([value, option]) => (
-                        <SelectItem key={value} value={value} textValue={option.label}>
-                          <span className="flex flex-col gap-1 py-1">
-                            <span>{option.label}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {option.description}
-                            </span>
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-                <FieldDescription id="application-type-description">
-                  {clientTypes[type].description}
-                </FieldDescription>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="application-redirects">Callback URLs</FieldLabel>
-                <Textarea
-                  id="application-redirects"
-                  value={redirects}
-                  onChange={(event) => setRedirects(event.target.value)}
-                  required
-                  disabled={pending}
-                  aria-describedby="application-redirects-description"
-                  placeholder="https://app.example.com/auth/agentz/callback"
-                />
-                <FieldDescription id="application-redirects-description">
-                  One URL per line. Web clients need HTTPS on a public hostname. Native clients can
-                  use HTTP loopback URLs or a reverse-domain URI scheme.
-                </FieldDescription>
-              </Field>
-              <FieldSet disabled={pending}>
-                <FieldLegend variant="label">Allowed scopes</FieldLegend>
-                <FieldGroup data-slot="checkbox-group">
-                  {scopes.map((scope) => (
-                    <Field key={scope.value} orientation="horizontal">
-                      <Checkbox
-                        id={`application-scope-${scope.value}`}
-                        checked={selectedScopes.includes(scope.value)}
+              <Controller
+                name="name"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor="application-name" required>
+                      Name
+                    </FieldLabel>
+                    <Input
+                      {...field}
+                      id="application-name"
+                      required
+                      maxLength={100}
+                      disabled={pending}
+                      aria-invalid={fieldState.invalid}
+                      aria-describedby={fieldState.invalid ? "application-name-error" : undefined}
+                    />
+                    <FieldError id="application-name-error" errors={[fieldState.error]} />
+                  </Field>
+                )}
+              />
+              <Controller
+                name="type"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field data-disabled={!!client || pending} data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor="application-type" required>
+                      Client type
+                    </FieldLabel>
+                    <Select
+                      name={field.name}
+                      value={field.value}
+                      disabled={!!client || pending}
+                      onValueChange={field.onChange}
+                    >
+                      <SelectTrigger
+                        ref={field.ref}
+                        onBlur={field.onBlur}
+                        id="application-type"
+                        className="w-full"
+                        aria-required="true"
+                        aria-invalid={fieldState.invalid}
+                        aria-describedby="application-type-description application-type-error"
+                      >
+                        <SelectValue>{clientTypes[type].label}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent position="popper" className="w-(--radix-select-trigger-width)">
+                        <SelectGroup>
+                          {Object.entries(clientTypes).map(([value, option]) => (
+                            <SelectItem key={value} value={value} textValue={option.label}>
+                              <span className="flex flex-col gap-1 py-1">
+                                <span>{option.label}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {option.description}
+                                </span>
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    <FieldDescription id="application-type-description">
+                      {clientTypes[type].description}
+                    </FieldDescription>
+                    <FieldError id="application-type-error" errors={[fieldState.error]} />
+                  </Field>
+                )}
+              />
+              <Controller
+                name="redirectUris"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor="application-redirects" required>
+                      Callback URLs
+                    </FieldLabel>
+                    <Textarea
+                      {...field}
+                      id="application-redirects"
+                      required
+                      disabled={pending}
+                      aria-invalid={fieldState.invalid}
+                      aria-describedby="application-redirects-description application-redirects-error"
+                      placeholder="https://app.example.com/auth/agentz/callback"
+                    />
+                    <FieldDescription id="application-redirects-description">
+                      One URL per line. Web clients need HTTPS on a public hostname. Native clients
+                      can use HTTP loopback URLs or a reverse-domain URI scheme.
+                    </FieldDescription>
+                    <FieldError id="application-redirects-error" errors={[fieldState.error]} />
+                  </Field>
+                )}
+              />
+              {type === "browser" && (
+                <Controller
+                  name="authorizedOrigins"
+                  control={form.control}
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel htmlFor="application-origins" required>
+                        Authorized JavaScript origins
+                      </FieldLabel>
+                      <Textarea
+                        {...field}
+                        id="application-origins"
+                        required
                         disabled={pending}
-                        aria-describedby={`application-scope-${scope.value}-description`}
-                        onCheckedChange={(checked) =>
-                          setSelectedScopes((current) =>
-                            checked === true
-                              ? [...current, scope.value]
-                              : current.filter((value) => value !== scope.value)
-                          )
-                        }
+                        aria-invalid={fieldState.invalid}
+                        aria-describedby="application-origins-description application-origins-error"
+                        placeholder={"https://app.example.com\nhttp://localhost:5173"}
                       />
-                      <FieldContent>
-                        <FieldLabel htmlFor={`application-scope-${scope.value}`}>
-                          {scope.label}{" "}
-                          <code className="text-xs font-normal text-muted-foreground">
-                            {scope.value}
-                          </code>
-                        </FieldLabel>
-                        <FieldDescription id={`application-scope-${scope.value}-description`}>
-                          {scope.description}
-                        </FieldDescription>
-                      </FieldContent>
+                      <FieldDescription id="application-origins-description">
+                        One origin per line, up to 10. Include the scheme and port, without a path.
+                        HTTPS is required except for HTTP localhost, 127.0.0.1, or [::1]. These
+                        origins may call OAuth, MCP, and inference APIs from a browser.
+                      </FieldDescription>
+                      <FieldError id="application-origins-error" errors={[fieldState.error]} />
                     </Field>
-                  ))}
-                </FieldGroup>
-              </FieldSet>
+                  )}
+                />
+              )}
+              <Controller
+                name="scopes"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <FieldSet
+                    disabled={pending}
+                    data-invalid={fieldState.invalid}
+                    aria-describedby="application-scopes-error"
+                  >
+                    <FieldLegend variant="label">
+                      Allowed scopes <RequiredIndicator />
+                    </FieldLegend>
+                    <FieldGroup data-slot="checkbox-group">
+                      {scopes.map((scope, index) => (
+                        <Field key={scope.value} orientation="horizontal">
+                          <Checkbox
+                            id={`application-scope-${scope.value}`}
+                            ref={index === 0 ? field.ref : undefined}
+                            onBlur={field.onBlur}
+                            checked={field.value.includes(scope.value)}
+                            disabled={pending}
+                            aria-invalid={fieldState.invalid}
+                            aria-describedby={`application-scope-${scope.value}-description application-scopes-error`}
+                            onCheckedChange={(checked) =>
+                              field.onChange(
+                                checked === true
+                                  ? [...field.value, scope.value]
+                                  : field.value.filter((value) => value !== scope.value)
+                              )
+                            }
+                          />
+                          <FieldContent>
+                            <FieldLabel htmlFor={`application-scope-${scope.value}`}>
+                              {scope.label}{" "}
+                              <code className="text-xs font-normal text-muted-foreground">
+                                {scope.value}
+                              </code>
+                            </FieldLabel>
+                            <FieldDescription id={`application-scope-${scope.value}-description`}>
+                              {scope.description}
+                            </FieldDescription>
+                          </FieldContent>
+                        </Field>
+                      ))}
+                    </FieldGroup>
+                    <FieldError id="application-scopes-error" errors={[fieldState.error]} />
+                  </FieldSet>
+                )}
+              />
               {error && !pending ? (
                 <Alert variant="destructive">
                   <AlertDescription>{error}</AlertDescription>
@@ -687,7 +798,7 @@ function ApplicationEditor({
             <Button variant="outline" type="button" disabled={pending} onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={pending || !selectedScopes.length}>
+            <Button type="submit" disabled={pending}>
               {pending ? "Saving…" : "Save application"}
             </Button>
           </SheetFooter>

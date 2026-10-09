@@ -118,8 +118,10 @@ export function PasswordSettings() {
                       }
                       field.onBlur()
                     }}
+                    aria-describedby="account-current-password-error"
+                    aria-required="true"
                   />
-                  <FieldError errors={[fieldState.error]} />
+                  <FieldError errors={[fieldState.error]} id="account-current-password-error" />
                 </Field>
               )}
             />
@@ -139,9 +141,11 @@ export function PasswordSettings() {
                     suppressHydrationWarning
                     aria-invalid={fieldState.invalid}
                     disabled={pendingAction}
+                    aria-describedby="account-new-password-error"
+                    aria-required="true"
                   />
                   <FieldDescription>{passwordFieldDescription}</FieldDescription>
-                  <FieldError errors={[fieldState.error]} />
+                  <FieldError errors={[fieldState.error]} id="account-new-password-error" />
                 </Field>
               )}
             />
@@ -161,8 +165,10 @@ export function PasswordSettings() {
                     suppressHydrationWarning
                     aria-invalid={fieldState.invalid}
                     disabled={pendingAction}
+                    aria-describedby="account-confirm-password-error"
+                    aria-required="true"
                   />
-                  <FieldError errors={[fieldState.error]} />
+                  <FieldError errors={[fieldState.error]} id="account-confirm-password-error" />
                 </Field>
               )}
             />

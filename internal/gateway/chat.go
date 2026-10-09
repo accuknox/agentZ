@@ -658,7 +658,8 @@ func (s *Service) UpdateChatSessionPreference(w http.ResponseWriter, r *http.Req
 		))
 		return
 	}
-	for _, name := range []*gatewayapi.AgentName{body.AgentName, body.LastAgentName} {
+	names := []*gatewayapi.AgentName{body.AgentName, body.LastAgentName}
+	for _, name := range names {
 		if name == nil {
 			continue
 		}

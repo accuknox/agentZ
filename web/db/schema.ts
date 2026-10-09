@@ -32,6 +32,17 @@ import {
 
 export * from "./auth-schema"
 
+export const oauthClientOrigins = pgTable(
+  "oauth_client_origins",
+  {
+    clientId: text("client_id")
+      .notNull()
+      .references(() => oauthClients.clientId, { onDelete: "cascade" }),
+    origin: text("origin").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.clientId, table.origin] }), index().on(table.origin)]
+)
+
 export const organizationDelegation = pgTable("organization_delegation", {
   organizationId: text("organization_id")
     .primaryKey()

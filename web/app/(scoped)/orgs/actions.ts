@@ -6,6 +6,13 @@ import type { Route } from "next"
 import { revalidatePath, updateTag } from "next/cache"
 import { redirect } from "next/navigation"
 import { z } from "zod"
+import {
+  organizationNameInputSchema,
+  roleNameSchema,
+  teamFormSchema,
+  socialAdmissionFormSchema,
+  workspaceNameSchema,
+} from "@/data/schema"
 import { agentsTag, inferenceProvidersTag, mcpsTag, sandboxesTag, skillsTag } from "@/data/cache"
 import { getOrganizationSession, resolveOrganizationDestination } from "@/data/organizations"
 import { deleteWorkspace, getDestructiveImpact } from "@/data/operations"
@@ -51,13 +58,6 @@ import {
   publishOrganizationLogo,
 } from "@/lib/organization-assets"
 
-const organizationNameSchema = z
-  .string()
-  .min(1, "Enter an Organization name.")
-  .max(100, "Use 100 characters or fewer.")
-  .refine((name) => name.trim() === name, {
-    message: "Remove leading or trailing spaces.",
-  })
 const organizationLogoSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("remove") }),
   z.object({
@@ -65,9 +65,6 @@ const organizationLogoSchema = z.discriminatedUnion("kind", [
     sha256: z.string().regex(/^[a-f0-9]{64}$/),
   }),
 ])
-const organizationNameInputSchema = z.object({
-  name: organizationNameSchema,
-})
 const organizationLogoUploadSchema = z.object({
   byteLength: z
     .number()
@@ -83,25 +80,11 @@ const roleGrantSchema = z.object({
   action: z.enum(schema.permissionAction.enumValues),
 })
 const roleFormSchema = z.object({
-  name: z
-    .string()
-    .min(1, "Enter a Role name.")
-    .max(80, "Use 80 characters or fewer.")
-    .refine((name) => name.trim() === name, "Remove leading or trailing spaces."),
+  name: roleNameSchema,
   grants: z.array(roleGrantSchema).max(1_000, "This Role has too many Permission Grants."),
   updatedAt: z.string().optional(),
 })
 type RoleFormInput = z.infer<typeof roleFormSchema>
-const teamFormSchema = z.object({
-  name: z
-    .string()
-    .min(1, "Enter a Team name.")
-    .max(100, "Use 100 characters or fewer.")
-    .refine((name) => name.trim() === name, "Remove leading or trailing spaces."),
-  memberIds: z.array(z.string().min(1)).min(1, "Select at least one active Member.").max(1_000),
-  roleIds: z.array(z.string().min(1)).max(1_000),
-  updatedAt: z.string().optional(),
-})
 const invitationAccessSchema = z.object({
   roleIds: z.array(z.string().min(1)),
   teamIds: z.array(z.string().min(1)),
@@ -110,71 +93,6 @@ const memberAssignmentSchema = invitationAccessSchema.extend({
   previousRoleIds: z.array(z.string().min(1)),
   previousTeamIds: z.array(z.string().min(1)),
 })
-const socialAdmissionFormSchema = z
-  .object({
-    enabled: z.boolean(),
-    githubEnabled: z.boolean(),
-    githubOrganizations: z.array(
-      z
-        .string()
-        .trim()
-        .regex(/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/)
-        .or(z.literal(""))
-    ),
-    githubTeams: z.array(
-      z
-        .string()
-        .trim()
-        .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
-        .or(z.literal(""))
-    ),
-    googleDomains: z.array(
-      z
-        .string()
-        .trim()
-        .toLowerCase()
-        .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/)
-    ),
-    googleEnabled: z.boolean(),
-    roleIds: z.array(z.string().min(1)),
-    teamIds: z.array(z.string().min(1)),
-  })
-  .superRefine((data, ctx) => {
-    if (data.githubEnabled && data.githubOrganizations.length !== data.githubTeams.length) {
-      ctx.addIssue({ code: "custom", message: "GitHub rules are incomplete." })
-    }
-    if (data.githubEnabled) {
-      data.githubOrganizations.forEach((organization, index) => {
-        if (organization) return
-        ctx.addIssue({
-          code: "custom",
-          message: "Enter an Organization for every GitHub rule.",
-          path: ["githubOrganizations", index],
-        })
-      })
-    }
-    if (data.enabled && data.roleIds.length + data.teamIds.length === 0) {
-      ctx.addIssue({ code: "custom", message: "Select at least one default Role or Team." })
-    }
-    if (data.enabled && !data.googleEnabled && !data.githubEnabled) {
-      ctx.addIssue({ code: "custom", message: "Enable Google or GitHub." })
-    }
-    if (data.enabled && data.googleEnabled && data.googleDomains.length === 0) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Add at least one Google email domain.",
-        path: ["googleDomains"],
-      })
-    }
-    if (data.enabled && data.githubEnabled && data.githubOrganizations.length === 0) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Add at least one GitHub rule.",
-        path: ["githubOrganizations"],
-      })
-    }
-  })
-
 export async function deleteWorkspaceAction(
   orgSlug: string,
   workspaceId: string,
@@ -260,12 +178,7 @@ export async function updateWorkspaceAction(
   _state: UpdateWorkspaceFormState,
   formData: FormData
 ): Promise<UpdateWorkspaceFormState> {
-  const parsed = z
-    .string()
-    .trim()
-    .min(1, "Enter a Workspace name.")
-    .max(100, "Use 100 characters or fewer.")
-    .safeParse(formData.get("name"))
+  const parsed = workspaceNameSchema.safeParse(formData.get("name"))
   if (!parsed.success) return { error: parsed.error.issues[0]?.message }
 
   const result = await updateWorkspaceName(orgSlug, workspaceId, parsed.data)

@@ -73,7 +73,8 @@ func TestEvaluationScore(t *testing.T) {
 // TestEvaluationReferencesFreezeBeforeJudgment keeps judge retries comparable.
 func TestEvaluationReferencesFreezeBeforeJudgment(t *testing.T) {
 	evaluation := gatewayapi.WorkflowEvaluation{}
-	for _, tokens := range []float64{100, 200, 300, 10000} {
+	tokenCounts := []float64{100, 200, 300, 10000}
+	for _, tokens := range tokenCounts {
 		evaluation.Executions = append(evaluation.Executions, gatewayapi.EvaluationExecution{
 			State:     gatewayapi.EvaluationExecutionStateJudging,
 			RunStatus: new(gatewayapi.WorkflowRunStatusSucceeded),
@@ -118,7 +119,8 @@ func TestEvaluationReferencesWaitForExecution(t *testing.T) {
 
 // TestEvaluationScoreIgnoresDuration keeps infrastructure speed out of scoring.
 func TestEvaluationScoreIgnoresDuration(t *testing.T) {
-	for _, duration := range []*float64{nil, new(0.0), new(900.0), new(math.NaN())} {
+	durations := []*float64{nil, new(0.0), new(900.0), new(math.NaN())}
+	for _, duration := range durations {
 		evaluation := gatewayapi.WorkflowEvaluation{Executions: []gatewayapi.EvaluationExecution{{
 			State:     gatewayapi.EvaluationExecutionStateCompleted,
 			RunStatus: new(gatewayapi.WorkflowRunStatusSucceeded),
@@ -134,7 +136,8 @@ func TestEvaluationScoreIgnoresDuration(t *testing.T) {
 
 // TestEvaluationParallelRuns checks admission, recovery, slot refill and cancellation.
 func TestEvaluationParallelRuns(t *testing.T) {
-	for _, concurrency := range []int{1, 3, 5} {
+	concurrencyLevels := []int{1, 3, 5}
+	for _, concurrency := range concurrencyLevels {
 		t.Run(fmt.Sprint(concurrency), func(t *testing.T) {
 			scheme := runtime.NewScheme()
 			if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
@@ -265,7 +268,8 @@ func TestEvaluationDeletion(t *testing.T) {
 		ID: uuid.New(), TenantNamespace: "test",
 		AgentName: "agent", WorkflowName: "workflow",
 	}
-	for _, name := range []string{"running", "completed", "unrelated"} {
+	names := []string{"running", "completed", "unrelated"}
+	for _, name := range names {
 		id := job.ID.String()
 		if name == "unrelated" {
 			id = uuid.NewString()
@@ -472,7 +476,8 @@ func TestEvaluationJudgeSchema(t *testing.T) {
 				_, _ = w.Write([]byte(`{"info":{"parentID":"compacted"},"parts":[]}`))
 				return
 			}
-			for _, session := range []string{"execution", ""} {
+			sessionIDs := []string{"execution", ""}
+			for _, session := range sessionIDs {
 				(*judgment.References)[0].SessionId = session
 				raw, err := json.Marshal(judgment)
 				if err != nil {
@@ -509,7 +514,8 @@ func TestEvaluationJudgeSchema(t *testing.T) {
 	service := &Service{openAPI: doc, outboundHTTP: upstream.Client(), resolver: &resolver{
 		agents: listersv1alpha1.NewAgentLister(index), targetOverride: upstream.URL,
 	}}
-	for _, mode := range []string{"instructions", "compaction", "empty", "whitespace", "omitted"} {
+	modes := []string{"instructions", "compaction", "empty", "whitespace", "omitted"}
+	for _, mode := range modes {
 		t.Run(mode, func(t *testing.T) {
 			prompts = 0
 			compact = mode == "compaction"

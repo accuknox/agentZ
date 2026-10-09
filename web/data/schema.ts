@@ -12,6 +12,83 @@ import {
   zSkillName,
 } from "@/lib/gateway/client/zod.gen"
 
+export const delegationScopes = [
+  "openid",
+  "profile",
+  "email",
+  "offline_access",
+  "inference:use",
+  "mcp:use",
+]
+
+export const oauthApplicationInput = z
+  .object({
+    name: z
+      .string()
+      .trim()
+      .min(1, "Enter an application name.")
+      .max(100, "Use 100 characters or fewer."),
+    type: z.enum(["confidential", "browser", "native"]),
+    redirectUris: z
+      .array(z.url({ error: "Enter a valid callback URL." }))
+      .min(1, "Enter at least one callback URL.")
+      .max(10, "Use at most 10 callback URLs."),
+    authorizedOrigins: z
+      .array(
+        z
+          .string()
+          .refine(
+            (value) => /^https?:\/\/[^/?#\\\s]+\/?$/i.test(value) && !/[\p{Cc}\s]/u.test(value),
+            "Use an absolute HTTP(S) origin without a path, query, fragment, or whitespace."
+          )
+          .pipe(z.url({ protocol: /^https?$/ }))
+          .transform((value, ctx) => {
+            const url = new URL(value)
+            if (
+              value.includes("@") ||
+              url.hostname.includes("*") ||
+              (url.protocol === "http:" &&
+                !/^http:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?\/?$/i.test(value))
+            ) {
+              ctx.addIssue({
+                code: "custom",
+                message:
+                  "Use an HTTPS origin without a path, query, fragment, credentials, or wildcard. HTTP is allowed only for localhost, 127.0.0.1, or [::1].",
+              })
+              return z.NEVER
+            }
+            return url.origin
+          })
+      )
+      .max(10, "Use at most 10 authorized origins.")
+      .transform((origins) => [...new Set(origins)]),
+    scopes: z
+      .array(z.string().refine((scope) => delegationScopes.includes(scope), "Unsupported scope"))
+      .min(1, "Select at least one scope."),
+  })
+  .superRefine((input, ctx) => {
+    if (
+      input.type === "browser" ? !input.authorizedOrigins.length : input.authorizedOrigins.length
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["authorizedOrigins"],
+        message:
+          "Browser applications require 1–10 authorized origins. Other client types cannot register origins.",
+      })
+    }
+    for (const uri of input.redirectUris) {
+      const parsed = new URL(uri)
+      if (uri.includes("#") || parsed.username || parsed.password || uri.includes("*")) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["redirectUris"],
+          message: "Callback URLs must be exact and omit fragments, credentials, and wildcards.",
+        })
+      }
+    }
+  })
+
 export const secretKeySchema = z
   .string({ error: "Secret name is required" })
   .trim()
@@ -399,3 +476,100 @@ export const createSandboxFormSchema = z.object({
     .transform((hosts) => Array.from(new Set(hosts)).sort()),
   inference: zSandboxInference,
 })
+
+export const organizationNameSchema = z
+  .string()
+  .min(1, "Enter an Organization name.")
+  .max(100, "Use 100 characters or fewer.")
+  .refine((name) => name.trim() === name, {
+    message: "Remove leading or trailing spaces.",
+  })
+export const organizationNameInputSchema = z.object({
+  name: organizationNameSchema,
+})
+export const roleNameSchema = z
+  .string()
+  .min(1, "Enter a Role name.")
+  .max(80, "Use 80 characters or fewer.")
+  .refine((name) => name.trim() === name, "Remove leading or trailing spaces.")
+
+export const teamFormSchema = z.object({
+  name: z
+    .string()
+    .min(1, "Enter a Team name.")
+    .max(100, "Use 100 characters or fewer.")
+    .refine((name) => name.trim() === name, "Remove leading or trailing spaces."),
+  memberIds: z.array(z.string().min(1)).min(1, "Select at least one active Member.").max(1_000),
+  roleIds: z.array(z.string().min(1)).max(1_000),
+  updatedAt: z.string().optional(),
+})
+export const socialAdmissionFormSchema = z
+  .object({
+    enabled: z.boolean(),
+    githubEnabled: z.boolean(),
+    githubOrganizations: z.array(
+      z
+        .string()
+        .trim()
+        .regex(/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/)
+        .or(z.literal(""))
+    ),
+    githubTeams: z.array(
+      z
+        .string()
+        .trim()
+        .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+        .or(z.literal(""))
+    ),
+    googleDomains: z.array(
+      z
+        .string()
+        .trim()
+        .toLowerCase()
+        .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/)
+    ),
+    googleEnabled: z.boolean(),
+    roleIds: z.array(z.string().min(1)),
+    teamIds: z.array(z.string().min(1)),
+  })
+  .superRefine((data, ctx) => {
+    if (data.githubEnabled && data.githubOrganizations.length !== data.githubTeams.length) {
+      ctx.addIssue({ code: "custom", message: "GitHub rules are incomplete." })
+    }
+    if (data.githubEnabled) {
+      data.githubOrganizations.forEach((organization, index) => {
+        if (organization) return
+        ctx.addIssue({
+          code: "custom",
+          message: "Enter an Organization for every GitHub rule.",
+          path: ["githubOrganizations", index],
+        })
+      })
+    }
+    if (data.enabled && data.roleIds.length + data.teamIds.length === 0) {
+      ctx.addIssue({ code: "custom", message: "Select at least one default Role or Team." })
+    }
+    if (data.enabled && !data.googleEnabled && !data.githubEnabled) {
+      ctx.addIssue({ code: "custom", message: "Enable Google or GitHub." })
+    }
+    if (data.enabled && data.googleEnabled && data.googleDomains.length === 0) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Add at least one Google email domain.",
+        path: ["googleDomains"],
+      })
+    }
+    if (data.enabled && data.githubEnabled && data.githubOrganizations.length === 0) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Add at least one GitHub rule.",
+        path: ["githubOrganizations"],
+      })
+    }
+  })
+
+export const workspaceNameSchema = z
+  .string()
+  .trim()
+  .min(1, "Enter a Workspace name.")
+  .max(100, "Use 100 characters or fewer.")

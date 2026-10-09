@@ -1,5 +1,9 @@
 "use client"
 
+import { Controller, useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
+import { zCreateCodingProjectRequest } from "@/lib/gateway/client/zod.gen"
 import { useCallback, useEffect, useRef, useState, useTransition, type ReactNode } from "react"
 import { useRouter } from "@bprogress/next/app"
 import Link from "next/link"
@@ -27,7 +31,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Field, FieldGroup, FieldLabel, FieldDescription } from "@/components/ui/field"
+import { Field, FieldGroup, FieldLabel, FieldDescription, FieldError } from "@/components/ui/field"
 import { Spinner } from "@/components/ui/spinner"
 import { DisabledReason } from "@/components/ui/tooltip"
 import {
@@ -68,6 +72,14 @@ import {
   refreshCodingRepository,
 } from "@/lib/gateway/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
+
+const projectNameSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Enter a project name.")
+    .pipe(zCreateCodingProjectRequest.shape.name),
+})
 
 export function ProjectPicker({
   projects,
@@ -161,7 +173,10 @@ export function Projects({
   const [creatingProject, setAdding] = useState(false)
   const adding = creatingProject || (!children && search.get("new") === "true")
   const [targetProject, setTargetProject] = useState<CodingProject>()
-  const [editingName, setEditingName] = useState("")
+  const renameForm = useForm<z.infer<typeof projectNameSchema>>({
+    defaultValues: { name: "" },
+    resolver: zodResolver(projectNameSchema),
+  })
   const [dialog, setDialog] = useState<"rename" | "delete">()
   const projectId = targetProject?.id
   const projectQuery = useQuery(
@@ -215,11 +230,14 @@ export function Projects({
     })
   )
   const searching = repositorySearch.trim() !== repositoryQuery || repositories.isPending
-  const onProjectAction = useCallback<ProjectActions["manage"]>((item, action) => {
-    setTargetProject(item)
-    setEditingName(item.name)
-    setDialog(action)
-  }, [])
+  const onProjectAction = useCallback<ProjectActions["manage"]>(
+    (item, action) => {
+      setTargetProject(item)
+      renameForm.reset({ name: item.name })
+      setDialog(action)
+    },
+    [renameForm]
+  )
 
   const projectBlocker = detail?.agents
     .flatMap((agent) => (agent.delete_disabled_reason ? [agent.delete_disabled_reason] : []))
@@ -230,7 +248,7 @@ export function Projects({
   }
   if (projectQuery.isPending) confirmReason = "Checking agent availability."
   if (dialog === "rename") {
-    confirmReason = editingName.trim() ? undefined : "Enter a project name."
+    confirmReason = undefined
   }
   if (pending) confirmReason = "Please wait for the current operation to finish."
 
@@ -247,6 +265,61 @@ export function Projects({
       {confirmLabel}
     </Button>
   )
+
+  function confirmProject(values: z.infer<typeof projectNameSchema>) {
+    if (!dialog || !targetProject || confirmReason) return
+    startTransition(async () => {
+      try {
+        const options = {
+          baseUrl: await getGatewayBaseURL(),
+          headers: { "X-AgentZ-Workspace-ID": workspaceId },
+        }
+        const result =
+          dialog === "rename"
+            ? await renameCodingProject({
+                ...options,
+                path: { projectId: targetProject.id },
+                body: { name: values.name },
+              })
+            : await deleteCodingProject({
+                ...options,
+                path: { projectId: targetProject.id },
+              })
+        if (result.error) throw new Error(result.error.message)
+        await queryClient.invalidateQueries({
+          predicate: (query) =>
+            query.queryKey[0] === "chatSessions" && query.queryKey[1] === workspaceId,
+        })
+        await queryClient.invalidateQueries({
+          predicate: (query) => query.queryKey[0] === "coding",
+        })
+        const removedThreads = dialog === "delete" ? (detail?.threads ?? []) : []
+        for (const draft of drafts) {
+          if (
+            (dialog === "delete" && draft.projectId === targetProject.id) ||
+            removedThreads.some((thread) => thread.session_id === draft.sessionID)
+          ) {
+            codingDrafts.remove(draftScope, draft.id)
+          }
+        }
+        const removedRoute = removedThreads.some((thread) => {
+          const agent = encodeURIComponent(thread.worktree.agent_name)
+          const session = encodeURIComponent(thread.session_id)
+          return pathname === `${workspacePath}/agents/${agent}/sessions/${session}`
+        })
+        if (removedRoute || (dialog === "delete" && search.get("project") === targetProject.id)) {
+          router.replace(`${workspacePath}/projects`)
+        } else {
+          router.refresh()
+        }
+        setDialog(undefined)
+      } catch (error) {
+        if (dialog === "delete") await projectQuery.refetch()
+        router.refresh()
+        toast.error(error instanceof Error ? error.message : "Could not update project")
+      }
+    })
+  }
 
   const cancelButton = (
     <DialogClose asChild>
@@ -350,11 +423,14 @@ export function Projects({
           >
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="project-repository">Repository</FieldLabel>
+                <FieldLabel htmlFor="project-repository" required>
+                  Repository
+                </FieldLabel>
                 <Popover open={repositoryOpen} onOpenChange={setRepositoryOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       id="project-repository"
+                      aria-required="true"
                       type="button"
                       variant="outline"
                       role="combobox"
@@ -510,77 +586,39 @@ export function Projects({
             </DialogDescription>
           </DialogHeader>
           <form
+            noValidate
             onSubmit={(event) => {
+              if (dialog === "rename") {
+                void renameForm.handleSubmit(confirmProject)(event)
+                return
+              }
               event.preventDefault()
-              if (!dialog || !targetProject || confirmReason) return
-              startTransition(async () => {
-                try {
-                  const options = {
-                    baseUrl: await getGatewayBaseURL(),
-                    headers: { "X-AgentZ-Workspace-ID": workspaceId },
-                  }
-                  const result =
-                    dialog === "rename"
-                      ? await renameCodingProject({
-                          ...options,
-                          path: { projectId: targetProject.id },
-                          body: { name: editingName.trim() },
-                        })
-                      : await deleteCodingProject({
-                          ...options,
-                          path: { projectId: targetProject.id },
-                        })
-                  if (result.error) throw new Error(result.error.message)
-                  await queryClient.invalidateQueries({
-                    predicate: (query) =>
-                      query.queryKey[0] === "chatSessions" && query.queryKey[1] === workspaceId,
-                  })
-                  await queryClient.invalidateQueries({
-                    predicate: (query) => query.queryKey[0] === "coding",
-                  })
-                  const removedThreads = dialog === "delete" ? (detail?.threads ?? []) : []
-                  for (const draft of drafts) {
-                    if (
-                      (dialog === "delete" && draft.projectId === targetProject.id) ||
-                      removedThreads.some((thread) => thread.session_id === draft.sessionID)
-                    ) {
-                      codingDrafts.remove(draftScope, draft.id)
-                    }
-                  }
-                  const removedRoute = removedThreads.some((thread) => {
-                    const agent = encodeURIComponent(thread.worktree.agent_name)
-                    const session = encodeURIComponent(thread.session_id)
-                    return pathname === `${workspacePath}/agents/${agent}/sessions/${session}`
-                  })
-                  if (
-                    removedRoute ||
-                    (dialog === "delete" && search.get("project") === targetProject.id)
-                  ) {
-                    router.replace(`${workspacePath}/projects`)
-                  } else {
-                    router.refresh()
-                  }
-                  setDialog(undefined)
-                } catch (error) {
-                  if (dialog === "delete") await projectQuery.refetch()
-                  router.refresh()
-                  toast.error(error instanceof Error ? error.message : "Could not update project")
-                }
-              })
+              confirmProject(renameForm.getValues())
             }}
           >
             {dialog === "rename" ? (
-              <Field>
-                <FieldLabel htmlFor="rename-project">Project name</FieldLabel>
-                <Input
-                  id="rename-project"
-                  autoFocus
-                  required
-                  maxLength={80}
-                  value={editingName}
-                  onChange={(event) => setEditingName(event.target.value)}
-                />
-              </Field>
+              <Controller
+                name="name"
+                control={renameForm.control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor="rename-project" required>
+                      Project name
+                    </FieldLabel>
+                    <Input
+                      {...field}
+                      id="rename-project"
+                      autoFocus
+                      required
+                      maxLength={80}
+                      disabled={pending}
+                      aria-invalid={fieldState.invalid}
+                      aria-describedby={fieldState.invalid ? "rename-project-error" : undefined}
+                    />
+                    <FieldError id="rename-project-error" errors={[fieldState.error]} />
+                  </Field>
+                )}
+              />
             ) : null}
             <DialogFooter className="mt-4">
               {pending ? (

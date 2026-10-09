@@ -1290,6 +1290,11 @@ type OauthClientAssertion struct {
 	ExpiresAt pgtype.Timestamp `json:"expires_at"`
 }
 
+type OauthClientOrigin struct {
+	ClientID string `json:"client_id"`
+	Origin   string `json:"origin"`
+}
+
 type OauthClientResource struct {
 	ID         string           `json:"id"`
 	ClientID   string           `json:"client_id"`

@@ -277,7 +277,8 @@ func run() error {
 
 	// Evaluation evidence shares the pinned native session contract with the SDK.
 	externalRefs := make(map[string]string)
-	for _, name := range []string{"Session", "Message", "Part"} {
+	sessionContracts := []string{"Session", "Message", "Part"}
+	for _, name := range sessionContracts {
 		externalRefs[upstreamSpecURL+"#/components/schemas/"+name] = "#/components/schemas/Opencode" + name
 	}
 	rewriteRefs(base, externalRefs)
@@ -484,7 +485,7 @@ func opencodeOperation(operationID string) (string, string, error) {
 
 func buildRefMap(components map[string]any) map[string]string {
 	out := make(map[string]string)
-	for _, bucket := range []string{
+	buckets := []string{
 		"schemas",
 		"parameters",
 		"responses",
@@ -494,7 +495,8 @@ func buildRefMap(components map[string]any) map[string]string {
 		"securitySchemes",
 		"links",
 		"callbacks",
-	} {
+	}
+	for _, bucket := range buckets {
 		items := componentBucket(components, bucket)
 		for name := range items {
 			oldRef := "#/components/" + bucket + "/" + name
@@ -716,7 +718,8 @@ func rewriteOpenAPI31Keywords(value any) {
 }
 
 func rewriteNullableSchema(node map[string]any) {
-	for _, key := range []string{"anyOf", "oneOf"} {
+	keys := []string{"anyOf", "oneOf"}
+	for _, key := range keys {
 		items, ok := node[key].([]any)
 		if !ok {
 			continue
@@ -792,7 +795,8 @@ func splitNullableUnion(items []any) ([]any, bool) {
 }
 
 func rewritePrimitiveUnion(node map[string]any) {
-	for _, key := range []string{"anyOf", "oneOf"} {
+	keys := []string{"anyOf", "oneOf"}
+	for _, key := range keys {
 		items, ok := node[key].([]any)
 		if !ok {
 			continue
@@ -890,7 +894,8 @@ func applyOAPICodegenFixups(doc map[string]any) error {
 		},
 	}
 	// Message roles and tool states are mutually exclusive wire discriminators.
-	for name, field := range map[string]string{"Message": "role", "ToolState": "status"} {
+	discriminators := map[string]string{"Message": "role", "ToolState": "status"}
+	for name, field := range discriminators {
 		schema := schemas[name].(map[string]any)
 		mapping := make(map[string]any)
 		for _, variant := range schema["anyOf"].([]any) {
@@ -990,10 +995,11 @@ func applyOAPICodegenFixups(doc map[string]any) error {
 			"modelID":    map[string]any{"type": "string"},
 		},
 	}
-	for _, path := range []string{
+	promptPaths := []string{
 		"/session/{sessionID}/message",
 		"/session/{sessionID}/prompt_async",
-	} {
+	}
+	for _, path := range promptPaths {
 		item, ok := paths[path].(map[string]any)
 		if !ok {
 			return fmt.Errorf("upstream spec has no %s path", path)

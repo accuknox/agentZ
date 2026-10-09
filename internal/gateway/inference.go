@@ -2200,7 +2200,8 @@ func (s *Service) consumeInferenceOAuthTicket(ctx context.Context, namespace, ra
 func openAIAccountID(idToken, accessToken string) string {
 	// These unverified claims are used only as routing metadata for the same
 	// access token. OpenAI remains the authority that authenticates the token.
-	for _, token := range []string{idToken, accessToken} {
+	tokens := []string{idToken, accessToken}
+	for _, token := range tokens {
 		parts := strings.Split(token, ".")
 		if len(parts) != 3 {
 			continue

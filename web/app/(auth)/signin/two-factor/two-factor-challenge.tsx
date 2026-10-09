@@ -138,6 +138,7 @@ export function TwoFactorChallenge({ returnTo }: TwoFactorChallengeProps) {
           method="post"
           onSubmit={form.handleSubmit(submit)}
           aria-busy={locked}
+          noValidate
         >
           <Tabs
             value={mode}
@@ -176,9 +177,12 @@ export function TwoFactorChallenge({ returnTo }: TwoFactorChallengeProps) {
                 aria-invalid={!!form.formState.errors.code}
                 aria-required="true"
                 {...form.register("code")}
+                aria-describedby="two-factor-signin-code-error"
               />
               {form.formState.errors.code ? (
-                <FieldError>{form.formState.errors.code.message}</FieldError>
+                <FieldError id="two-factor-signin-code-error">
+                  {form.formState.errors.code.message}
+                </FieldError>
               ) : null}
             </Field>
 

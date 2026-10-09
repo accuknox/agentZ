@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type ComponentType,
+  type ComponentProps,
   type ReactElement,
   type SVGProps,
 } from "react"
@@ -71,6 +72,7 @@ function MultiSelectDropdown({
   placeholder = "Select options",
   searchPlaceholder = "Search...",
   value,
+  ...triggerProps
 }: {
   allowCustomValues?: boolean
   className?: string
@@ -87,7 +89,7 @@ function MultiSelectDropdown({
   placeholder?: string
   searchPlaceholder?: string
   value: string[]
-}) {
+} & Pick<ComponentProps<"button">, "ref" | "aria-required" | "aria-describedby" | "aria-label">) {
   const listId = useId()
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState("")
@@ -142,6 +144,7 @@ function MultiSelectDropdown({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
+          {...triggerProps}
           id={id}
           type="button"
           disabled={disabled}

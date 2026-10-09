@@ -368,7 +368,7 @@ export function AgentDialog({
               : "Update this agent's configuration."}
           </DialogDescription>
         </DialogHeader>
-        <form id="agent-form-simple" action={submit} className="space-y-5">
+        <form id="agent-form-simple" action={submit} className="space-y-5" noValidate>
           <input type="hidden" name="sandboxScope" value={sandboxScope} />
           {selectedSkills.map((skill) => (
             <Fragment key={JSON.stringify([skill.scope, skill.name])}>
@@ -396,8 +396,11 @@ export function AgentDialog({
                       aria-invalid={fieldState.invalid}
                       aria-required="true"
                       placeholder="coding-agent"
+                      aria-describedby="agent-form-name-error"
                     />
-                    {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                    {fieldState.invalid && (
+                      <FieldError errors={[fieldState.error]} id="agent-form-name-error" />
+                    )}
                   </Field>
                 )}
               />
@@ -475,8 +478,11 @@ export function AgentDialog({
                           .map(([, skill]) => skill)
                       )
                     }}
+                    aria-describedby="agent-form-skills-error"
                   />
-                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                  {fieldState.invalid && (
+                    <FieldError errors={[fieldState.error]} id="agent-form-skills-error" />
+                  )}
                 </Field>
               )}
             />

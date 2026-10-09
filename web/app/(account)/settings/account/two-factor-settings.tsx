@@ -426,6 +426,7 @@ function SetupDialog({
             className="flex flex-col gap-6"
             method="post"
             onSubmit={(event) => void submit(event)}
+            noValidate
           >
             <div className="flex flex-col gap-6">
               {secretMode ? (
@@ -478,8 +479,11 @@ function SetupDialog({
                         setCodeError(undefined)
                       }
                     }}
+                    aria-describedby="two-factor-code-error"
                   />
-                  {codeError ? <FieldError>{codeError}</FieldError> : null}
+                  {codeError ? (
+                    <FieldError id="two-factor-code-error">{codeError}</FieldError>
+                  ) : null}
                 </Field>
                 <BackupCodes codes={setup.backupCodes} />
               </FieldGroup>
@@ -571,9 +575,14 @@ function ReauthDialog({
                     }
                   },
                 })}
+                aria-describedby="two-factor-reauth-password-error"
+                aria-required="true"
               />
               {form.formState.errors.password ? (
-                <FieldError errors={[form.formState.errors.password]} />
+                <FieldError
+                  errors={[form.formState.errors.password]}
+                  id="two-factor-reauth-password-error"
+                />
               ) : null}
             </Field>
           </FieldGroup>

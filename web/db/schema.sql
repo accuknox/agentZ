@@ -234,6 +234,12 @@ CREATE TABLE "member_roles" (
 	CONSTRAINT "member_roles_member_id_role_id_pk" PRIMARY KEY("member_id","role_id")
 );
 
+CREATE TABLE "oauth_client_origins" (
+	"client_id" text NOT NULL,
+	"origin" text NOT NULL,
+	CONSTRAINT "oauth_client_origins_client_id_origin_pk" PRIMARY KEY("client_id","origin")
+);
+
 CREATE TABLE "organization_delegation" (
 	"organization_id" text PRIMARY KEY NOT NULL,
 	"enabled" boolean DEFAULT false NOT NULL
@@ -709,6 +715,7 @@ ALTER TABLE "last_accessible_contexts" ADD CONSTRAINT "last_accessible_contexts_
 ALTER TABLE "last_accessible_contexts" ADD CONSTRAINT "last_accessible_contexts_workspace_organization_fk" FOREIGN KEY ("workspace_id","organization_id") REFERENCES "public"."workspaces"("id","organization_id") ON DELETE restrict ON UPDATE no action;
 ALTER TABLE "member_roles" ADD CONSTRAINT "member_roles_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "member_roles" ADD CONSTRAINT "member_roles_role_organization_fk" FOREIGN KEY ("role_id","organization_id") REFERENCES "public"."role_scopes"("role_id","organization_id") ON DELETE restrict ON UPDATE no action;
+ALTER TABLE "oauth_client_origins" ADD CONSTRAINT "oauth_client_origins_client_id_oauth_clients_client_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."oauth_clients"("client_id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "organization_delegation" ADD CONSTRAINT "organization_delegation_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "permission_grants" ADD CONSTRAINT "permission_grants_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE restrict ON UPDATE no action;
 ALTER TABLE "permission_grants" ADD CONSTRAINT "permission_grants_role_organization_fk" FOREIGN KEY ("role_id","organization_id") REFERENCES "public"."role_scopes"("role_id","organization_id") ON DELETE cascade ON UPDATE no action;
@@ -771,6 +778,7 @@ CREATE INDEX "delegation_transactions_user_client_idx" ON "delegation_transactio
 CREATE INDEX "event_trail_events_organization_created_idx" ON "event_trail_events" USING btree ("organization_id","created_at","id");
 CREATE INDEX "event_trail_events_workspace_created_idx" ON "event_trail_events" USING btree ("workspace_id","created_at");
 CREATE INDEX "event_trail_events_created_idx" ON "event_trail_events" USING btree ("created_at");
+CREATE INDEX "oauth_client_origins_origin_index" ON "oauth_client_origins" USING btree ("origin");
 CREATE INDEX "permission_grants_scope_idx" ON "permission_grants" USING btree ("organization_id","workspace_id");
 CREATE UNIQUE INDEX "role_scopes_organization_name_uidx" ON "role_scopes" USING btree ("organization_id",lower(btrim("display_name"))) WHERE "role_scopes"."workspace_id" IS NULL;
 CREATE UNIQUE INDEX "role_scopes_workspace_name_uidx" ON "role_scopes" USING btree ("organization_id","workspace_id",lower(btrim("display_name"))) WHERE "role_scopes"."workspace_id" IS NOT NULL;

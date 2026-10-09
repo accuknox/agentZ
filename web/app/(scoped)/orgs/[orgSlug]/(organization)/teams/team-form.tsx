@@ -1,9 +1,13 @@
 "use client"
 
+import { Controller, useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import type { z } from "zod"
+import { teamFormSchema } from "@/data/schema"
 import type { Route } from "next"
 import Link from "next/link"
 import { useRouter } from "@bprogress/next/app"
-import { useActionState, useState } from "react"
+import { startTransition, useActionState } from "react"
 import { CircleAlert, PanelsTopLeft, Save, Shield } from "lucide-react"
 import { teamFormAction, type TeamFormState } from "@/app/(scoped)/orgs/actions"
 import { AdministrationPageHeader } from "@/components/administration"
@@ -31,12 +35,22 @@ export function TeamForm({
   orgSlug: string
 }) {
   const router = useRouter()
-  const [name, setName] = useState(data.team?.name ?? "")
-  const [memberIds, setMemberIds] = useState<string[]>(data.team?.memberIds ?? [])
-  const [roleIds, setRoleIds] = useState<string[]>(data.team?.roleIds ?? [])
+  const form = useForm<z.infer<typeof teamFormSchema>>({
+    defaultValues: {
+      name: data.team?.name ?? "",
+      memberIds: data.team?.memberIds ?? [],
+      roleIds: data.team?.roleIds ?? [],
+      updatedAt: data.team?.updatedAt,
+    },
+    resolver: zodResolver(teamFormSchema),
+  })
   const [state, formAction, pending] = useActionState<TeamFormState, FormData>(
     async (state, formData) => {
       const result = await teamFormAction(orgSlug, data.team?.id, state, formData)
+      for (const name of ["name", "memberIds", "roleIds"] as const) {
+        const message = result.errors?.[name]?.[0]
+        if (message) form.setError(name, { type: "server", message })
+      }
       if (result.href) {
         toast.success(data.team ? "Team updated" : "Team created")
         router.push(result.href)
@@ -60,20 +74,24 @@ export function TeamForm({
     label: role.name,
     value: role.id,
   }))
+  const submit = form.handleSubmit((values) => {
+    const formData = new FormData()
+    formData.set("name", values.name)
+    if (values.updatedAt) formData.set("updated_at", values.updatedAt)
+    for (const id of values.memberIds) formData.append("member_ids", id)
+    for (const id of values.roleIds) formData.append("role_ids", id)
+    startTransition(() => formAction(formData))
+  })
   return (
     <div className="flex min-w-0 flex-col gap-6">
       {!embedded ? (
         <AdministrationPageHeader title={data.team ? "Edit Team" : "Create Team"} />
       ) : null}
-      <form action={formAction} className="flex max-w-3xl flex-col gap-6 px-4 pb-6 md:px-6">
-        <input name="name" type="hidden" value={name} />
-        {data.team ? <input name="updated_at" type="hidden" value={data.team.updatedAt} /> : null}
-        {memberIds.map((id) => (
-          <input key={id} name="member_ids" type="hidden" value={id} />
-        ))}
-        {roleIds.map((id) => (
-          <input key={id} name="role_ids" type="hidden" value={id} />
-        ))}
+      <form
+        onSubmit={submit}
+        noValidate
+        className="flex max-w-3xl flex-col gap-6 px-4 pb-6 md:px-6"
+      >
         {state.error ? (
           <Alert variant="destructive">
             <CircleAlert aria-hidden="true" />
@@ -83,56 +101,85 @@ export function TeamForm({
         ) : null}
 
         <FieldGroup>
-          <Field data-invalid={Boolean(state.errors?.name)}>
-            <FieldLabel htmlFor="team-name" required>
-              Name
-            </FieldLabel>
-            <Input
-              aria-invalid={Boolean(state.errors?.name)}
-              autoComplete="off"
-              id="team-name"
-              maxLength={100}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="e.g. Security operations"
-              value={name}
-            />
-            <FieldError>{state.errors?.name?.[0]}</FieldError>
-          </Field>
-          <Field data-invalid={Boolean(state.errors?.memberIds)}>
-            <FieldLabel htmlFor="team-members" required>
-              Members
-            </FieldLabel>
-            <MultiSelectDropdown
-              id="team-members"
-              invalid={Boolean(state.errors?.memberIds)}
-              onValueChangeAction={setMemberIds}
-              options={memberOptions}
-              placeholder="Select active members"
-              searchPlaceholder="Search active members..."
-              value={memberIds}
-            />
-            <FieldError>{state.errors?.memberIds?.[0]}</FieldError>
-          </Field>
-          <Field data-invalid={Boolean(state.errors?.roleIds)}>
-            <FieldLabel htmlFor="team-roles">Roles</FieldLabel>
-            <MultiSelectDropdown
-              id="team-roles"
-              invalid={Boolean(state.errors?.roleIds)}
-              onValueChangeAction={setRoleIds}
-              options={roleOptions}
-              placeholder="Select Roles"
-              searchPlaceholder="Search Roles..."
-              value={roleIds}
-            />
-            <FieldError>{state.errors?.roleIds?.[0]}</FieldError>
-          </Field>
+          <Controller
+            name="name"
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="team-name" required>
+                  Name
+                </FieldLabel>
+                <Input
+                  {...field}
+                  aria-invalid={fieldState.invalid}
+                  aria-describedby={fieldState.invalid ? "team-name-error" : undefined}
+                  required
+                  autoComplete="off"
+                  id="team-name"
+                  maxLength={100}
+                  disabled={pending}
+                  placeholder="e.g. Security operations"
+                />
+                <FieldError id="team-name-error" errors={[fieldState.error]} />
+              </Field>
+            )}
+          />
+          <Controller
+            name="memberIds"
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="team-members" required>
+                  Members
+                </FieldLabel>
+                <MultiSelectDropdown
+                  ref={field.ref}
+                  id="team-members"
+                  invalid={fieldState.invalid}
+                  aria-required="true"
+                  aria-describedby={fieldState.invalid ? "team-members-error" : undefined}
+                  onBlurAction={field.onBlur}
+                  onValueChangeAction={field.onChange}
+                  options={memberOptions}
+                  placeholder="Select active members"
+                  searchPlaceholder="Search active members..."
+                  value={field.value}
+                  disabled={pending}
+                />
+                <FieldError id="team-members-error" errors={[fieldState.error]} />
+              </Field>
+            )}
+          />
+          <Controller
+            name="roleIds"
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="team-roles">Roles</FieldLabel>
+                <MultiSelectDropdown
+                  ref={field.ref}
+                  id="team-roles"
+                  invalid={fieldState.invalid}
+                  aria-describedby={fieldState.invalid ? "team-roles-error" : undefined}
+                  onBlurAction={field.onBlur}
+                  onValueChangeAction={field.onChange}
+                  options={roleOptions}
+                  placeholder="Select Roles"
+                  searchPlaceholder="Search Roles..."
+                  value={field.value}
+                  disabled={pending}
+                />
+                <FieldError id="team-roles-error" errors={[fieldState.error]} />
+              </Field>
+            )}
+          />
         </FieldGroup>
 
         <div className="flex flex-wrap justify-end gap-2">
           <Button asChild variant="outline">
             <Link href={root as Route}>Cancel</Link>
           </Button>
-          <Button disabled={pending || !name.trim() || memberIds.length === 0} type="submit">
+          <Button disabled={pending} type="submit">
             {pending ? <Spinner /> : <Save data-icon="inline-start" />}
             {pending ? "Saving..." : data.team ? "Update team" : "Create team"}
           </Button>

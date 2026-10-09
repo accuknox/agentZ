@@ -157,8 +157,10 @@ export function SignUpForm({
                   autoComplete="name"
                   aria-invalid={fieldState.invalid}
                   disabled={locked}
+                  aria-describedby="signup-name-error"
+                  aria-required="true"
                 />
-                <FieldError errors={[fieldState.error]} />
+                <FieldError errors={[fieldState.error]} id="signup-name-error" />
               </Field>
             )}
           />
@@ -184,8 +186,10 @@ export function SignUpForm({
                     }
                     field.onBlur()
                   }}
+                  aria-describedby="signup-email-error"
+                  aria-required="true"
                 />
-                <FieldError errors={[fieldState.error]} />
+                <FieldError errors={[fieldState.error]} id="signup-email-error" />
               </Field>
             )}
           />
@@ -205,9 +209,11 @@ export function SignUpForm({
                   suppressHydrationWarning
                   aria-invalid={fieldState.invalid}
                   disabled={locked}
+                  aria-describedby="signup-password-error"
+                  aria-required="true"
                 />
                 <FieldDescription>{passwordFieldDescription}</FieldDescription>
-                <FieldError errors={[fieldState.error]} />
+                <FieldError errors={[fieldState.error]} id="signup-password-error" />
               </Field>
             )}
           />
@@ -227,8 +233,10 @@ export function SignUpForm({
                   suppressHydrationWarning
                   aria-invalid={fieldState.invalid}
                   disabled={locked}
+                  aria-describedby="signup-confirm-password-error"
+                  aria-required="true"
                 />
-                <FieldError errors={[fieldState.error]} />
+                <FieldError errors={[fieldState.error]} id="signup-confirm-password-error" />
               </Field>
             )}
           />

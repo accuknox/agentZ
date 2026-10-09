@@ -1,5 +1,9 @@
 "use client"
 
+import { Controller, useForm, useWatch } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
+import { zCodingOperationRequest } from "@/lib/gateway/client/zod.gen"
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
   useIsMutating,
@@ -128,6 +132,21 @@ function wrapCommitDescription(text: string) {
     .join("\n")
 }
 
+const commitFormSchema = z
+  .object({
+    message: z.string().trim().min(1, "Enter a commit message."),
+    description: z.string(),
+  })
+  .superRefine((values, ctx) => {
+    const message = `${values.message}\n\n${values.description}`.trim()
+    if (!zCodingOperationRequest.shape.message.safeParse(message).success)
+      ctx.addIssue({
+        code: "custom",
+        path: ["description"],
+        message: "Keep the message and description within 20,000 characters combined.",
+      })
+  })
+
 export function GitChanges({
   thread,
   workspaceId,
@@ -164,8 +183,14 @@ export function GitChanges({
   const [hunk, setHunk] = useState(0)
   const [split, setSplit] = useState(false)
   const [wrap, setWrap] = useState(false)
-  const [message, setMessage] = useState("")
-  const [description, setDescription] = useState("")
+  const commitForm = useForm<z.infer<typeof commitFormSchema>>({
+    defaultValues: { message: "", description: "" },
+    resolver: zodResolver(commitFormSchema),
+  })
+  const [message, description] = useWatch({
+    control: commitForm.control,
+    name: ["message", "description"],
+  })
   const commitMessage = `${message.trim()}\n\n${description}`.trim()
   const subjectHighlight = useRef<HTMLDivElement>(null)
   const subjectInput = useRef<HTMLInputElement>(null)
@@ -350,10 +375,12 @@ export function GitChanges({
   const [handledCommit, setHandledCommit] = useState<string>()
   if (committed && committed !== handledCommit) {
     setHandledCommit(committed)
-    setMessage("")
-    setDescription("")
     setComposerOpen(false)
   }
+  const { reset } = commitForm
+  useEffect(() => {
+    if (committed) reset({ message: "", description: "" })
+  }, [committed, reset])
   const suggestion = useMutation({
     mutationFn: async () => {
       const response = await suggestCodingText({
@@ -367,8 +394,11 @@ export function GitChanges({
     },
     onSuccess: (text) => {
       const [subject = "", ...body] = text.trim().split(/\r?\n/)
-      setMessage(subject)
-      setDescription(wrapCommitDescription(body.join("\n").trim()))
+      commitForm.setValue("message", subject, { shouldDirty: true, shouldValidate: true })
+      commitForm.setValue("description", wrapCommitDescription(body.join("\n").trim()), {
+        shouldDirty: true,
+        shouldValidate: true,
+      })
     },
     onError: (error) => toast.error(error.message),
   })
@@ -883,15 +913,15 @@ export function GitChanges({
                 </div>
                 <form
                   className="flex min-h-0 flex-col"
-                  onSubmit={(event) => {
-                    event.preventDefault()
+                  noValidate
+                  onSubmit={commitForm.handleSubmit((values) => {
                     if (data.tree && !stagingDisabled)
                       sync.mutate({
                         action: "commit",
                         expected_tree: data.tree,
-                        message: commitMessage,
+                        message: `${values.message}\n\n${values.description}`.trim(),
                       })
-                  }}
+                  })}
                 >
                   <FieldGroup className="gap-4 overflow-y-auto p-4">
                     {!data.tree || !data.head || !stagedFiles.length ? (
@@ -903,79 +933,104 @@ export function GitChanges({
                             : "Stage changes to include them in this commit."}
                       </FieldDescription>
                     ) : null}
-                    <Field>
-                      <FieldLabel htmlFor={`commit-${thread.worktree.id}`}>
-                        Commit message
-                      </FieldLabel>
-                      <div className="relative font-mono text-base md:text-sm">
-                        <Input
-                          ref={subjectInput}
-                          id={`commit-${thread.worktree.id}`}
-                          placeholder="Summarize your changes"
-                          value={message}
-                          onChange={(event) => setMessage(event.target.value)}
-                          onScroll={(event) => {
-                            if (subjectHighlight.current)
-                              subjectHighlight.current.scrollLeft = event.currentTarget.scrollLeft
-                          }}
-                          required
-                          maxLength={20_000}
-                          disabled={busy || suggestion.isPending}
-                        />
-                        <div
-                          ref={subjectHighlight}
-                          aria-hidden="true"
-                          className="pointer-events-none absolute inset-px flex items-center overflow-hidden px-2.5 text-transparent"
-                        >
-                          <span className="shrink-0 whitespace-pre">
-                            {message.slice(0, 50)}
-                            <mark className="bg-warning/25 text-transparent">
-                              {message.slice(50)}
-                            </mark>
-                          </span>
-                        </div>
-                      </div>
-                    </Field>
-                    <Field data-invalid={commitMessage.length > 20_000}>
-                      <FieldLabel htmlFor={`commit-description-${thread.worktree.id}`}>
-                        Extended description
-                      </FieldLabel>
-                      <Textarea
-                        id={`commit-description-${thread.worktree.id}`}
-                        placeholder="Add an optional extended description..."
-                        value={description}
-                        onChange={(event) => {
-                          const input = event.currentTarget
-                          const value = input.value
-                          const wrapped = wrapCommitDescription(value)
-                          if (wrapped !== value) {
-                            const start = wrapCommitDescription(
-                              value.slice(0, input.selectionStart)
-                            ).length
-                            const end = wrapCommitDescription(
-                              value.slice(0, input.selectionEnd)
-                            ).length
-                            input.value = wrapped
-                            input.setSelectionRange(start, end)
-                          }
-                          setDescription(wrapped)
-                        }}
-                        maxLength={20_000}
-                        disabled={busy || suggestion.isPending}
-                        aria-invalid={commitMessage.length > 20_000}
-                        aria-describedby={
-                          commitMessage.length > 20_000
-                            ? `commit-error-${thread.worktree.id}`
-                            : undefined
-                        }
-                        className="h-32 min-h-24 resize-y font-mono"
-                      />
-                      {commitMessage.length > 20_000 ? (
-                        <FieldError id={`commit-error-${thread.worktree.id}`}>
-                          Keep the message and description within 20,000 characters combined.
-                        </FieldError>
-                      ) : null}
-                    </Field>
+                    <Controller
+                      name="message"
+                      control={commitForm.control}
+                      render={({ field, fieldState }) => (
+                        <Field data-invalid={fieldState.invalid}>
+                          <FieldLabel htmlFor={`commit-${thread.worktree.id}`} required>
+                            Commit message
+                          </FieldLabel>
+                          <div className="relative font-mono text-base md:text-sm">
+                            <Input
+                              {...field}
+                              ref={(node) => {
+                                field.ref(node)
+                                subjectInput.current = node
+                              }}
+                              aria-invalid={fieldState.invalid}
+                              aria-describedby={
+                                fieldState.invalid
+                                  ? `commit-subject-error-${thread.worktree.id}`
+                                  : undefined
+                              }
+                              id={`commit-${thread.worktree.id}`}
+                              placeholder="Summarize your changes"
+                              onScroll={(event) => {
+                                if (subjectHighlight.current)
+                                  subjectHighlight.current.scrollLeft =
+                                    event.currentTarget.scrollLeft
+                              }}
+                              required
+                              maxLength={20_000}
+                              disabled={busy || suggestion.isPending}
+                            />
+                            <div
+                              ref={subjectHighlight}
+                              aria-hidden="true"
+                              className="pointer-events-none absolute inset-px flex items-center overflow-hidden px-2.5 text-transparent"
+                            >
+                              <span className="shrink-0 whitespace-pre">
+                                {message.slice(0, 50)}
+                                <mark className="bg-warning/25 text-transparent">
+                                  {message.slice(50)}
+                                </mark>
+                              </span>
+                            </div>
+                          </div>
+                          <FieldError
+                            id={`commit-subject-error-${thread.worktree.id}`}
+                            errors={[fieldState.error]}
+                          />
+                        </Field>
+                      )}
+                    />
+                    <Controller
+                      name="description"
+                      control={commitForm.control}
+                      render={({ field, fieldState }) => (
+                        <Field data-invalid={fieldState.invalid || commitMessage.length > 20_000}>
+                          <FieldLabel htmlFor={`commit-description-${thread.worktree.id}`}>
+                            Extended description
+                          </FieldLabel>
+                          <Textarea
+                            {...field}
+                            id={`commit-description-${thread.worktree.id}`}
+                            placeholder="Add an optional extended description..."
+                            onChange={(event) => {
+                              const input = event.currentTarget
+                              const value = input.value
+                              const wrapped = wrapCommitDescription(value)
+                              if (wrapped !== value) {
+                                const start = wrapCommitDescription(
+                                  value.slice(0, input.selectionStart)
+                                ).length
+                                const end = wrapCommitDescription(
+                                  value.slice(0, input.selectionEnd)
+                                ).length
+                                input.value = wrapped
+                                input.setSelectionRange(start, end)
+                              }
+                              field.onChange(wrapped)
+                            }}
+                            maxLength={20_000}
+                            disabled={busy || suggestion.isPending}
+                            aria-invalid={fieldState.invalid || commitMessage.length > 20_000}
+                            aria-describedby={
+                              fieldState.invalid || commitMessage.length > 20_000
+                                ? `commit-error-${thread.worktree.id}`
+                                : undefined
+                            }
+                            className="h-32 min-h-24 resize-y font-mono"
+                          />
+                          {fieldState.invalid || commitMessage.length > 20_000 ? (
+                            <FieldError id={`commit-error-${thread.worktree.id}`}>
+                              Keep the message and description within 20,000 characters combined.
+                            </FieldError>
+                          ) : null}
+                        </Field>
+                      )}
+                    />
                   </FieldGroup>
                   {sync.error && sync.variables?.action === "commit" ? (
                     <Alert variant="destructive" className="mx-4 mb-4 w-auto">
@@ -1016,8 +1071,6 @@ export function GitChanges({
                       disabled={
                         stagingDisabled ||
                         suggestion.isPending ||
-                        !message.trim() ||
-                        commitMessage.length > 20_000 ||
                         !data.tree ||
                         !data.head ||
                         !stagedFiles.length

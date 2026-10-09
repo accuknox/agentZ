@@ -141,7 +141,8 @@ func (s *Service) reconcileDelegations(ctx context.Context) error {
 		}
 	}
 	// Grant routes are written by the gateway, never by external applications.
-	for _, list := range []ctrlclient.ObjectList{&gwv1.HTTPRouteList{}, &agw.AgentgatewayBackendList{}, &agw.AgentgatewayPolicyList{}, &ciliumv2.CiliumNetworkPolicyList{}} {
+	lists := []ctrlclient.ObjectList{&gwv1.HTTPRouteList{}, &agw.AgentgatewayBackendList{}, &agw.AgentgatewayPolicyList{}, &ciliumv2.CiliumNetworkPolicyList{}}
+	for _, list := range lists {
 		err := s.k8sClient.List(ctx, list, ctrlclient.HasLabels{authorization.DelegationLabel})
 		if err != nil {
 			return err
@@ -346,7 +347,8 @@ func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.Delegat
 // 256 KiB total limit and 32-target limit also bound the result below 256 rules.
 func delegationMCPExpressions(selected gatewayapi.DelegationMCP) ([]agw.CELExpression, error) {
 	expressions := make([]agw.CELExpression, 0, 3)
-	for _, kind := range []string{"tool", "prompt", "resource"} {
+	capabilityKinds := []string{"tool", "prompt", "resource"}
+	for _, kind := range capabilityKinds {
 		values := selected.Tools
 		switch kind {
 		case "prompt":

@@ -357,6 +357,23 @@ type delegationInferenceCase struct {
 	allowed    bool
 }
 
+func TestDelegatedAnthropicRequiresChatCompletions(t *testing.T) {
+	t.Parallel()
+	body := []byte(`{"model":"selected","store":false,"stream":true,"instructions":"Play chess"}`)
+	kinds := []agentzv1alpha1.InferenceProviderKind{
+		agentzv1alpha1.InferenceProviderKindAnthropic,
+		agentzv1alpha1.InferenceProviderKindAnthropicCompatible,
+	}
+	for _, kind := range kinds {
+		if err := ValidateDelegatedProviderRequest(kind, body, true); err == nil {
+			t.Errorf("%s accepted an unsupported Responses request", kind)
+		}
+		if err := ValidateDelegatedProviderRequest(kind, body, false); err != nil {
+			t.Errorf("%s rejected Chat Completions: %v", kind, err)
+		}
+	}
+}
+
 func TestDelegatedCodexRequiresResponsesStreaming(t *testing.T) {
 	cases := []delegationInferenceCase{
 		{"chat completions", `{"model":"selected","stream":true}`, false, false},

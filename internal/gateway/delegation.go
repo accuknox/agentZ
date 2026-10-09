@@ -65,8 +65,8 @@ type openAIModel struct {
 	Object             string   `json:"object"`
 	Created            int64    `json:"created"`
 	OwnedBy            string   `json:"owned_by"`
-	SupportedEndpoints []string `json:"supported_endpoints,omitempty"`
-	StreamingOnly      bool     `json:"streaming_only,omitempty"`
+	SupportedEndpoints []string `json:"supported_endpoints"`
+	StreamingOnly      bool     `json:"streaming_only"`
 }
 
 type openAIModels struct {
@@ -404,15 +404,12 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 				deny(err, false)
 				return
 			}
-			item := openAIModel{
+			models.Data = append(models.Data, openAIModel{
 				ID: model.Id, Object: "model",
 				Created: grant.CreatedAt.Time.Unix(), OwnedBy: model.Provider,
-			}
-			if provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICodex {
-				item.SupportedEndpoints = []string{"/responses"}
-				item.StreamingOnly = true
-			}
-			models.Data = append(models.Data, item)
+				SupportedEndpoints: inference.DelegatedProviderEndpoints(provider.Spec.Kind),
+				StreamingOnly:      provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICodex,
+			})
 		}
 		apiutil.WriteJSON(w, http.StatusOK, models)
 		return
@@ -491,7 +488,8 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 			deny(err, false)
 			return
 		}
-		if err := inference.ValidateDelegatedProviderRequest(provider.Spec.Kind, body, responses); err != nil {
+		err = inference.ValidateDelegatedProviderRequest(provider.Spec.Kind, body, responses)
+		if err != nil {
 			s.delegationError(w, r, http.StatusBadRequest, "invalid_request_error", err.Error())
 			return
 		}

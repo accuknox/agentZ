@@ -3,7 +3,9 @@ package inference
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
+	"strings"
 
 	kjson "sigs.k8s.io/json"
 
@@ -25,14 +27,44 @@ type inferenceRequest struct {
 	Messages           []inferenceInputItem `json:"messages"`
 }
 
+// DelegatedProviderEndpoints returns the client APIs that Agentgateway can
+// translate to the provider's configured format. Routes alone do not establish
+// support: Responses cannot be translated to Anthropic Messages or Gemini.
+func DelegatedProviderEndpoints(kind agentzv1alpha1.InferenceProviderKind) []string {
+	switch kind {
+	case agentzv1alpha1.InferenceProviderKindOpenAICodex:
+		return []string{"/responses"}
+	case agentzv1alpha1.InferenceProviderKindAnthropic,
+		agentzv1alpha1.InferenceProviderKindAnthropicCompatible,
+		agentzv1alpha1.InferenceProviderKindGemini,
+		agentzv1alpha1.InferenceProviderKindVertexAI:
+		return []string{"/chat/completions"}
+	case agentzv1alpha1.InferenceProviderKindOpenAI,
+		agentzv1alpha1.InferenceProviderKindOpenAICompatible,
+		agentzv1alpha1.InferenceProviderKindAzure,
+		agentzv1alpha1.InferenceProviderKindBedrock:
+		return []string{"/chat/completions", "/responses"}
+	default:
+		return nil
+	}
+}
+
 // ValidateDelegatedProviderRequest checks constraints of the selected provider
 // before forwarding a request to an upstream whose errors must remain private.
 func ValidateDelegatedProviderRequest(kind agentzv1alpha1.InferenceProviderKind, body []byte, responses bool) error {
+	endpoint := "/chat/completions"
+	if responses {
+		endpoint = "/responses"
+	}
+	endpoints := DelegatedProviderEndpoints(kind)
+	if len(endpoints) == 0 {
+		return errors.New("this model has no supported inference endpoint")
+	}
+	if !slices.Contains(endpoints, endpoint) {
+		return fmt.Errorf("this model supports %s; choose a supported endpoint", strings.Join(endpoints, ", "))
+	}
 	if kind != agentzv1alpha1.InferenceProviderKindOpenAICodex {
 		return nil
-	}
-	if !responses {
-		return errors.New("this Codex model uses the Responses API; send requests to /responses with store:false and stream:true")
 	}
 	var input inferenceRequest
 	strictErrors, err := kjson.UnmarshalStrict(body, &input, kjson.DisallowDuplicateFields)

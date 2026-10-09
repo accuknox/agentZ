@@ -142,6 +142,7 @@
     "undici": "7.29.0"
   },
   "patchedDependencies": {
-    "dayjs@1.11.21": "patches/dayjs@1.11.21.patch"
+    "dayjs@1.11.21": "patches/dayjs@1.11.21.patch",
+    "@better-auth/oauth-provider@1.7.7": "patches/@better-auth%2Foauth-provider@1.7.7.patch"
   }
 }

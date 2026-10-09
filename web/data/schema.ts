@@ -30,7 +30,15 @@ export const oauthApplicationInput = z
       .max(100, "Use 100 characters or fewer."),
     type: z.enum(["confidential", "browser", "native"]),
     redirectUris: z
-      .array(z.url({ error: "Enter a valid callback URL." }))
+      .array(
+        z
+          .string()
+          .refine(
+            (uri) => !/[#*\\\p{Cc}\s]/u.test(uri) && !/^[a-z][a-z\d+.-]*:\/\/[^/?#]*@/i.test(uri),
+            "Callback URLs must be exact and omit fragments, credentials, wildcards, and whitespace."
+          )
+          .pipe(z.url({ error: "Enter a valid callback URL." }))
+      )
       .min(1, "Enter at least one callback URL.")
       .max(10, "Use at most 10 callback URLs."),
     authorizedOrigins: z
@@ -77,13 +85,18 @@ export const oauthApplicationInput = z
           "Browser applications require 1–10 authorized origins. Other client types cannot register origins.",
       })
     }
+    if (input.type !== "browser") return
     for (const uri of input.redirectUris) {
-      const parsed = new URL(uri)
-      if (uri.includes("#") || parsed.username || parsed.password || uri.includes("*")) {
+      if (
+        /^http:/i.test(uri) &&
+        (process.env.NODE_ENV !== "development" ||
+          !/^http:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:[/?]|$)/i.test(uri))
+      ) {
         ctx.addIssue({
           code: "custom",
           path: ["redirectUris"],
-          message: "Callback URLs must be exact and omit fragments, credentials, and wildcards.",
+          message:
+            "HTTP browser callbacks are allowed only in development on localhost, 127.0.0.1, or [::1].",
         })
       }
     }

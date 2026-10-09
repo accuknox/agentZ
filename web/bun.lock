@@ -115,6 +115,7 @@
     "unrs-resolver",
   ],
   "patchedDependencies": {
+    "@better-auth/oauth-provider@1.7.7": "patches/@better-auth%2Foauth-provider@1.7.7.patch",
     "dayjs@1.11.21": "patches/dayjs@1.11.21.patch",
   },
   "overrides": {

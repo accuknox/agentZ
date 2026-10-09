@@ -703,8 +703,14 @@ function ApplicationEditor({
                       placeholder="https://app.example.com/auth/agentz/callback"
                     />
                     <FieldDescription id="application-redirects-description">
-                      One URL per line. Web clients need HTTPS on a public hostname. Native clients
-                      can use HTTP loopback URLs or a reverse-domain URI scheme.
+                      One URL per line. Web clients need HTTPS on a public hostname.
+                      {type === "browser" &&
+                        " Browser callbacks must match the exact port and path."}
+                      {type === "browser" &&
+                        process.env.NODE_ENV === "development" &&
+                        " In development, browser clients may also use HTTP on localhost, 127.0.0.1, or [::1]."}
+                      {type === "native" &&
+                        " Native clients can use HTTP loopback URLs or a reverse-domain URI scheme."}
                     </FieldDescription>
                     <FieldError id="application-redirects-error" errors={[fieldState.error]} />
                   </Field>

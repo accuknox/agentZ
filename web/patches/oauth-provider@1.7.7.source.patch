@@ -1,0 +1,163 @@
+diff --git a/packages/oauth-provider/src/authorize.ts b/packages/oauth-provider/src/authorize.ts
+index c23dfc6..40a36bb 100644
+--- a/packages/oauth-provider/src/authorize.ts
++++ b/packages/oauth-provider/src/authorize.ts
+@@ -27,6 +27,7 @@ import type {
+ 	OAuthAuthorizationQuery,
+ 	OAuthConsent,
+ 	OAuthOptions,
++	SchemaClient,
+ 	Scope,
+ 	VerificationValue,
+ } from "./types";
+@@ -296,17 +297,17 @@ function stripLoopbackRedirectPort(uri: string): string | undefined {
+ /**
+  * Finds the matching entry in a client's registered redirect URIs.
+  *
+- * Registration limits loopback redirects to native-compatible HTTP forms.
+- * Within that boundary, only the port may vary; every other character must
+- * match the registered URI.
++ * Web callbacks match exactly. Native loopback callbacks may vary only by port.
+  *
+  * @see https://www.rfc-editor.org/rfc/rfc9700.html#section-4.1.3
+  * @see https://www.rfc-editor.org/rfc/rfc8252.html#section-8.3
+  */
+ function findRegisteredRedirectUri(
+-	registered: readonly string[] | undefined,
++	client: SchemaClient<Scope[]>,
+ 	requested: string | undefined,
++	opts: OAuthOptions<Scope[]>,
+ ): string | undefined {
++	const registered = client.redirectUris;
+ 	if (!registered || !requested) return undefined;
+ 
+ 	let requestedUrl: URL;
+@@ -326,7 +327,22 @@ function findRegisteredRedirectUri(
+ 	if (hasFragment || hasUserinfo) {
+ 		return undefined;
+ 	}
+-	const requestedWithoutPort = stripLoopbackRedirectPort(requested);
++	if (client.applicationType === "web" && requestedUrl.protocol === "http:") {
++		if (
++			!opts.allowPublicWebHttpLoopbackRedirects ||
++			client.tokenEndpointAuthMethod !== "none" ||
++			!/^http:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:[/?]|$)/i.test(
++				requested,
++			) ||
++			/[#*\\\p{Cc}\s]/u.test(requested)
++		) {
++			return undefined;
++		}
++	}
++	const requestedWithoutPort =
++		client.applicationType === "web"
++			? undefined
++			: stripLoopbackRedirectPort(requested);
+ 
+ 	return registered.find((url) => {
+ 		if (url === requested) return true;
+@@ -365,7 +381,7 @@ async function resolveTrustedRedirectUri(
+ 	}
+ 	if (!client || client.disabled) return null;
+ 	const registeredUris = client.redirectUris ?? [];
+-	const matched = findRegisteredRedirectUri(registeredUris, redirectUri);
++	const matched = findRegisteredRedirectUri(client, redirectUri, opts);
+ 	if (opts.validateRedirectUri) {
+ 		if (!isSafeCustomRedirectUri(redirectUri)) return null;
+ 		try {
+@@ -592,7 +608,7 @@ export async function authorizeEndpoint(
+ 	if (query.redirect_uri) {
+ 		// Default validation: exact match + native loopback port variance
+ 		const defaultResult = Boolean(
+-			findRegisteredRedirectUri(registeredUris, query.redirect_uri),
++			findRegisteredRedirectUri(client, query.redirect_uri, opts),
+ 		);
+ 		if (
+ 			opts.validateRedirectUri &&
+diff --git a/packages/oauth-provider/src/register.ts b/packages/oauth-provider/src/register.ts
+index 1a9d4c8..a0b0bd5 100644
+--- a/packages/oauth-provider/src/register.ts
++++ b/packages/oauth-provider/src/register.ts
+@@ -167,6 +167,7 @@ async function resolveClientRegistrationResources(
+ function validateClientRedirectUri(
+ 	redirectUri: string,
+ 	applicationType: "web" | "native",
++	allowHttpLoopback: boolean,
+ ) {
+ 	let url: URL;
+ 	try {
+@@ -200,6 +201,16 @@ function validateClientRedirectUri(
+ 		rawHttpHostname === "[::1]";
+ 
+ 	if (applicationType === "web") {
++		if (
++			allowHttpLoopback &&
++			isHttp &&
++			/^http:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:[/?]|$)/i.test(
++				redirectUri,
++			) &&
++			!/[#*\\\p{Cc}\s]/u.test(redirectUri)
++		) {
++			return;
++		}
+ 		if (!isHttps || isRedirectLoopback) {
+ 			invalidRedirectUri(
+ 				`web clients require https redirect URIs on non-loopback hosts: ${redirectUri}`,
+@@ -402,8 +413,9 @@ export async function checkOAuthClient(
+ 		// exact loopback HTTP, or an authority-free private-use scheme.
+ 		validateClientRedirectUri(
+ 			uri,
+-			(applicationType as "web" | "native" | undefined) ??
+-				(isClientMetadataDocument ? "native" : "web"),
++			applicationType ?? (isClientMetadataDocument ? "native" : "web"),
++			opts.allowPublicWebHttpLoopbackRedirects === true &&
++				tokenEndpointAuthMethod === "none",
+ 		);
+ 	}
+ 
+diff --git a/packages/oauth-provider/src/types/index.ts b/packages/oauth-provider/src/types/index.ts
+index 96daa99..7cd983c 100644
+--- a/packages/oauth-provider/src/types/index.ts
++++ b/packages/oauth-provider/src/types/index.ts
+@@ -501,6 +501,13 @@ export interface OAuthOptions<
+ 	 * Custom schema definitions
+ 	 */
+ 	schema?: InferOptionSchema<typeof schema>;
++	/**
++	 * Allow public web clients to register HTTP callbacks on localhost,
++	 * 127.0.0.1, or [::1] for local development. Ports must match exactly.
++	 * Enable only on development authorization servers.
++	 * @default false
++	 */
++	allowPublicWebHttpLoopbackRedirects?: boolean;
+ 	/**
+ 	 * The scopes that the client is allowed to request.
+ 	 * Must contain "openid" to be considered an OIDC server,
+diff --git a/packages/oauth-provider/tsdown.config.ts b/packages/oauth-provider/tsdown.config.ts
+index 44fa05b..6a2d49a 100644
+--- a/packages/oauth-provider/tsdown.config.ts
++++ b/packages/oauth-provider/tsdown.config.ts
+@@ -11,4 +11,23 @@ export default defineConfig({
+ 	],
+ 	treeshake: true,
+ 	clean: true,
++	// Preserve published chunk paths so the generated package patch stays small.
++	outputOptions: {
++		chunkFileNames: (chunk) => {
++			const paths: Record<string, string> = {
++				authorize: "authorize-K1WHCNih.mjs",
++				introspect: "introspect-CNR06Oy3.mjs",
++				utils: "utils-D6Hp4Qd_.mjs",
++				"resource-challenge": "resource-challenge-Damwi0Or.mjs",
++				"signed-query": "signed-query-Df1MNiSH.mjs",
++				version: "version-C2j2jEFL.mjs",
++			};
++			if (chunk.name === "oauth.d") {
++				return chunk.moduleIds.some((id) => id.endsWith("/src/types/index.d.ts"))
++					? "oauth-C_7TvkRL.d.mts"
++					: "oauth-Dtt-caL2.d.mts";
++			}
++			return paths[chunk.name] ?? "[name]-[hash].mjs";
++		},
++	},
+ });

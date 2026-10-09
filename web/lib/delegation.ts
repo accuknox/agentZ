@@ -279,6 +279,7 @@ export function agentZOAuthProvider(issuer: string) {
     accessTokenExpiresIn: 300,
     refreshTokenExpiresIn: 30 * 24 * 60 * 60,
     allowDynamicClientRegistration: false,
+    allowPublicWebHttpLoopbackRedirects: process.env.NODE_ENV === "development",
     clientRegistrationAllowedScopes: delegationScopes,
     resources: [
       { identifier: inferenceResource, allowedScopes: delegationScopes, accessTokenTtl: 300 },

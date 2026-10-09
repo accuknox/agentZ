@@ -90,3 +90,31 @@ test("only browser clients register origins, with one to ten entries", () => {
     false
   )
 })
+
+test("browser callbacks reject insecure hosts and ambiguous URLs", () => {
+  for (const uri of [
+    "invalid URL",
+    "http://app.example/callback",
+    "http://localhost.evil/callback",
+    "http://localhost./callback",
+    "http://127.1/callback",
+    "http://2130706433/callback",
+    "http://0x7f000001/callback",
+    "http://%6cocalhost/callback",
+    "http://[0:0:0:0:0:0:0:1]/callback",
+    "http://user:password@localhost/callback",
+    "http://@localhost/callback",
+    "http://localhost/callback#",
+    "http://localhost/callback*",
+    "http://localhost/callback\\other",
+    "http://localhost/callback\n",
+    "http://localhost/callback\u0001",
+    "http://localhost/callback\u007f",
+  ]) {
+    assert.equal(
+      oauthApplicationInput.safeParse({ ...browser, redirectUris: [uri] }).success,
+      false,
+      uri
+    )
+  }
+})

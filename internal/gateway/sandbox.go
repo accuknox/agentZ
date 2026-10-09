@@ -39,7 +39,11 @@ func (s *Service) resolveSandboxAccess(ctx context.Context, workspaceID, sandbox
 		creatorFallback = authorization.OperationCreateSandbox
 		isCreator = func(ctx context.Context, namespace, userID string) (bool, error) {
 			sandbox := &agentzv1alpha1.Sandbox{}
-			err := s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Name: sandboxName, Namespace: namespace}, sandbox)
+			sandboxKey := ctrlclient.ObjectKey{
+				Name:      sandboxName,
+				Namespace: namespace,
+			}
+			err := s.k8sClient.Get(ctx, sandboxKey, sandbox)
 			return sandbox.Spec.CreatedByUserID == userID, err
 		}
 	}
@@ -629,7 +633,9 @@ func (s *Service) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		eventTrailErr := s.createSandboxEventTrail(
 			r.Context(),
 			sandboxEventTrail{
-				access: access, name: name, result: gatewaydb.EventTrailResultFailed,
+				access: access,
+				name:   name,
+				result: gatewaydb.EventTrailResultFailed,
 			},
 		)
 
@@ -1280,7 +1286,8 @@ func validateSandboxName(name string) []gatewayapi.FieldError {
 		fields = append(
 			fields,
 			gatewayapi.FieldError{
-				Field: "name", Message: "must be at most 32 characters",
+				Field:   "name",
+				Message: "must be at most 32 characters",
 			},
 		)
 	}
@@ -1288,7 +1295,8 @@ func validateSandboxName(name string) []gatewayapi.FieldError {
 		fields = append(
 			fields,
 			gatewayapi.FieldError{
-				Field: "name", Message: "must be a valid DNS label",
+				Field:   "name",
+				Message: "must be a valid DNS label",
 			},
 		)
 	}

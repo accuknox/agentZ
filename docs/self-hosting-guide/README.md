@@ -1,7 +1,5 @@
 # Self-hosting guide: Quick start
 
-For OAuth/OIDC applications and public inference/MCP routing, see [OAuth delegation deployment](oauth-delegation.md).
-
 ## Prerequisites
 
 - Box with minimum 4 GiB memory, 2 vCPU, 50 GiB disk

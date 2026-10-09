@@ -123,7 +123,8 @@ func (r *Reconciler) reconcileCredentialProjections(ctx context.Context, pool *a
 		}
 		source := &externalsecretsv1.ExternalSecret{}
 		key := client.ObjectKey{
-			Name: member.Provider.Name, Namespace: member.Provider.Namespace,
+			Name:      member.Provider.Name,
+			Namespace: member.Provider.Namespace,
 		}
 		err := r.Get(ctx, key, source)
 		if apierrors.IsNotFound(err) {
@@ -413,8 +414,10 @@ func (r *Reconciler) updateStatus(ctx context.Context, pool *agentzv1alpha1.Infe
 			meta.SetStatusCondition(
 				&status.Conditions,
 				metav1.Condition{
-					Type: string(agentzv1alpha1.InferencePoolConditionAccepted), Status: acceptedStatus,
-					Reason: acceptedReason, Message: acceptedMessage,
+					Type:               string(agentzv1alpha1.InferencePoolConditionAccepted),
+					Status:             acceptedStatus,
+					Reason:             acceptedReason,
+					Message:            acceptedMessage,
 					ObservedGeneration: current.Generation,
 				},
 			)
@@ -433,8 +436,10 @@ func (r *Reconciler) updateStatus(ctx context.Context, pool *agentzv1alpha1.Infe
 			meta.SetStatusCondition(
 				&status.Conditions,
 				metav1.Condition{
-					Type: string(agentzv1alpha1.InferencePoolConditionBackendReady), Status: backendStatus,
-					Reason: backendReason, Message: backendMessage,
+					Type:               string(agentzv1alpha1.InferencePoolConditionBackendReady),
+					Status:             backendStatus,
+					Reason:             backendReason,
+					Message:            backendMessage,
 					ObservedGeneration: current.Generation,
 				},
 			)
@@ -449,8 +454,10 @@ func (r *Reconciler) updateStatus(ctx context.Context, pool *agentzv1alpha1.Infe
 			meta.SetStatusCondition(
 				&status.Conditions,
 				metav1.Condition{
-					Type: string(agentzv1alpha1.InferencePoolConditionMembersReady), Status: membersStatus,
-					Reason: membersReason, Message: membersMessage,
+					Type:               string(agentzv1alpha1.InferencePoolConditionMembersReady),
+					Status:             membersStatus,
+					Reason:             membersReason,
+					Message:            membersMessage,
 					ObservedGeneration: current.Generation,
 				},
 			)
@@ -462,8 +469,10 @@ func (r *Reconciler) updateStatus(ctx context.Context, pool *agentzv1alpha1.Infe
 			meta.SetStatusCondition(
 				&status.Conditions,
 				metav1.Condition{
-					Type: string(agentzv1alpha1.InferencePoolConditionReady), Status: readyStatus,
-					Reason: string(status.State), Message: "pool state is " + string(status.State),
+					Type:               string(agentzv1alpha1.InferencePoolConditionReady),
+					Status:             readyStatus,
+					Reason:             string(status.State),
+					Message:            "pool state is " + string(status.State),
 					ObservedGeneration: current.Generation,
 				},
 			)

@@ -287,8 +287,14 @@ func TestDelegationRequiresUseAndDelegateInSameScope(t *testing.T) {
 		t.Run(string(resource), func(t *testing.T) {
 			t.Parallel()
 			scope := authorization.Scope{OrganizationID: "organization-a", WorkspaceID: "workspace-a"}
-			foreignWorkspace := authorization.Scope{OrganizationID: "organization-a", WorkspaceID: "workspace-b"}
-			foreignOrganization := authorization.Scope{OrganizationID: "organization-b", WorkspaceID: "workspace-a"}
+			foreignWorkspace := authorization.Scope{
+				OrganizationID: "organization-a",
+				WorkspaceID:    "workspace-b",
+			}
+			foreignOrganization := authorization.Scope{
+				OrganizationID: "organization-b",
+				WorkspaceID:    "workspace-a",
+			}
 			use := permissionRow(resource, "workspace-a", gatewaydb.PermissionActionUse)
 			delegate := permissionRow(resource, "workspace-a", gatewaydb.PermissionActionDelegate)
 			both := []gatewaydb.GatewayResolvePermissionsRow{use, delegate}
@@ -301,7 +307,11 @@ func TestDelegationRequiresUseAndDelegateInSameScope(t *testing.T) {
 			cases := []delegationPermissionCase{
 				{name: "no grants", scope: scope},
 				{name: "use alone", rows: []gatewaydb.GatewayResolvePermissionsRow{use}, scope: scope},
-				{name: "delegate alone", rows: []gatewaydb.GatewayResolvePermissionsRow{delegate}, scope: scope},
+				{
+					name:  "delegate alone",
+					rows:  []gatewaydb.GatewayResolvePermissionsRow{delegate},
+					scope: scope,
+				},
 				{name: "role union", rows: both, scope: scope, want: true},
 				{name: "other workspace", rows: both, scope: foreignWorkspace},
 				{name: "other organization", rows: both, scope: foreignOrganization},
@@ -380,8 +390,13 @@ func TestAgentCapabilities(t *testing.T) {
 				gatewaydb.PermissionActionRead,
 			},
 			want: authorization.AgentCapabilities{
-				Use: true, Modify: true, Delete: true, ManageOwnership: true,
-				ReadSecrets: true, WriteSecrets: true, DeleteSecrets: true,
+				Use:             true,
+				Modify:          true,
+				Delete:          true,
+				ManageOwnership: true,
+				ReadSecrets:     true,
+				WriteSecrets:    true,
+				DeleteSecrets:   true,
 			},
 		},
 		{
@@ -410,7 +425,10 @@ func TestAgentCapabilities(t *testing.T) {
 				gatewaydb.AgentShareCapabilityDeleteSharedSecret,
 			},
 			want: authorization.AgentCapabilities{
-				Use: true, ReadSecrets: true, WriteSecrets: true, DeleteSecrets: true,
+				Use:           true,
+				ReadSecrets:   true,
+				WriteSecrets:  true,
+				DeleteSecrets: true,
 			},
 			wantCoversShare: true,
 		},
@@ -456,7 +474,9 @@ func TestAgentCapabilities(t *testing.T) {
 						WorkspaceID:    "workspace-a",
 					},
 					authorization.Agent{
-						Name: "agent-a", OwnerUserID: tt.owner, ShareGrants: tt.shares,
+						Name:        "agent-a",
+						OwnerUserID: tt.owner,
+						ShareGrants: tt.shares,
 					},
 				)
 				if err != nil {

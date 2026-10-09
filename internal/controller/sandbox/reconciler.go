@@ -300,7 +300,8 @@ func (r *Reconciler) sandboxesForInferenceGateway(ctx context.Context, obj clien
 func (r *Reconciler) sandboxesForInferencePolicy(ctx context.Context, obj client.Object) []reconcile.Request {
 	if name := obj.GetLabels()[inference.SandboxLabel]; name != "" {
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{
-			Namespace: obj.GetNamespace(), Name: name,
+			Namespace: obj.GetNamespace(),
+			Name:      name,
 		}}}
 	}
 	if obj.GetName() != inferenceTracePolicyName {
@@ -323,7 +324,8 @@ func (r *Reconciler) inferenceSandboxRequests(ctx context.Context, namespace str
 		requests = append(
 			requests,
 			reconcile.Request{NamespacedName: types.NamespacedName{
-				Namespace: namespace, Name: sandboxes.Items[i].Name,
+				Namespace: namespace,
+				Name:      sandboxes.Items[i].Name,
 			}},
 		)
 	}
@@ -530,7 +532,9 @@ func (r *Reconciler) reconcileGateway(ctx context.Context, namespace string) err
 		return err
 	}
 	delegated := slices.ContainsFunc(grants.Items, func(route gwv1.HTTPRoute) bool {
-		return slices.ContainsFunc(route.Spec.ParentRefs, func(parent gwv1.ParentReference) bool { return parent.Name == gwv1.ObjectName(mcp.GatewayName) })
+		return slices.ContainsFunc(route.Spec.ParentRefs, func(parent gwv1.ParentReference) bool {
+			return parent.Name == gwv1.ObjectName(mcp.GatewayName)
+		})
 	})
 	if len(owners) == 0 && delegated {
 		return nil
@@ -907,7 +911,8 @@ func (r *Reconciler) reconcileRoute(ctx context.Context, sandbox *agentzv1alpha1
 			route.Spec = gwv1.HTTPRouteSpec{
 				CommonRouteSpec: gwv1.CommonRouteSpec{
 					ParentRefs: []gwv1.ParentReference{{
-						Name: gwv1.ObjectName(mcp.GatewayName), SectionName: new(gwv1.SectionName("http")),
+						Name:        gwv1.ObjectName(mcp.GatewayName),
+						SectionName: new(gwv1.SectionName("http")),
 					}},
 				},
 				Rules: rules,
@@ -1293,7 +1298,8 @@ func (r *Reconciler) reconcileGatewayNetworkPolicy(ctx context.Context, namespac
 							},
 							ToPorts: []ciliumapi.PortRule{{
 								Ports: []ciliumapi.PortProtocol{{
-									Port: "80", Protocol: ciliumapi.ProtoTCP,
+									Port:     "80",
+									Protocol: ciliumapi.ProtoTCP,
 								}},
 								Rules: &ciliumapi.L7Rules{HTTP: ciliumapi.PortRulesHTTP{
 									{Method: "GET", Path: path},

@@ -81,7 +81,8 @@ func TestMetadataUpdatePreservesStoredDefaults(t *testing.T) {
 	updated.Finalizers = nil
 	ctx := admission.NewContextWithRequest(t.Context(), admission.Request{
 		AdmissionRequest: admissionv1.AdmissionRequest{
-			Operation: admissionv1.Update, OldObject: runtime.RawExtension{Raw: raw},
+			Operation: admissionv1.Update,
+			OldObject: runtime.RawExtension{Raw: raw},
 		},
 	})
 	defaulter := NewDefaulter(nil, WebhookConfig{AgentDefaultImage: "agent:latest"})

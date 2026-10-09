@@ -203,7 +203,8 @@ func (r *Reconciler) reconcileInference(ctx context.Context, sandbox *agentzv1al
 		}
 		currentRoute := &gwv1.HTTPRoute{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: runtime.Route.Name, Namespace: runtime.Route.Namespace,
+				Name:      runtime.Route.Name,
+				Namespace: runtime.Route.Namespace,
 			},
 		}
 		_, err := ctrlutil.CreateOrPatch(
@@ -225,7 +226,8 @@ func (r *Reconciler) reconcileInference(ctx context.Context, sandbox *agentzv1al
 		ready = ready && inferenceRouteReady(currentRoute)
 		currentPolicy := &agentgatewayv1alpha1.AgentgatewayPolicy{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: runtime.Policy.Name, Namespace: runtime.Policy.Namespace,
+				Name:      runtime.Policy.Name,
+				Namespace: runtime.Policy.Namespace,
 			},
 		}
 		_, err = ctrlutil.CreateOrPatch(
@@ -313,7 +315,9 @@ func (r *Reconciler) reconcileInferenceGateway(ctx context.Context, namespace st
 		return err
 	}
 	delegated := slices.ContainsFunc(grants.Items, func(route gwv1.HTTPRoute) bool {
-		return slices.ContainsFunc(route.Spec.ParentRefs, func(parent gwv1.ParentReference) bool { return parent.Name == gwv1.ObjectName(inference.GatewayName) })
+		return slices.ContainsFunc(route.Spec.ParentRefs, func(parent gwv1.ParentReference) bool {
+			return parent.Name == gwv1.ObjectName(inference.GatewayName)
+		})
 	})
 	if len(owners) == 0 && delegated {
 		return nil
@@ -535,7 +539,8 @@ func (r *Reconciler) reconcileInferenceGateway(ctx context.Context, namespace st
 							},
 							ToPorts: []ciliumapi.PortRule{{
 								Ports: []ciliumapi.PortProtocol{{
-									Port: "80", Protocol: ciliumapi.ProtoTCP,
+									Port:     "80",
+									Protocol: ciliumapi.ProtoTCP,
 								}},
 								Rules: &ciliumapi.L7Rules{
 									HTTP: ciliumapi.PortRulesHTTP{

@@ -522,7 +522,8 @@ func (r *Reconciler) buildSinjectorDeployment(agt *agentzv1alpha1.Agent) *appsv1
 
 func (r *Reconciler) sinjectorReady(ctx context.Context, agt *agentzv1alpha1.Agent) (bool, error) {
 	dep := &appsv1.Deployment{}
-	err := r.Get(ctx, types.NamespacedName{Name: sinjectorName(agt), Namespace: agt.Namespace}, dep)
+	depKey := types.NamespacedName{Name: sinjectorName(agt), Namespace: agt.Namespace}
+	err := r.Get(ctx, depKey, dep)
 	if err != nil {
 		return false, client.IgnoreNotFound(err)
 	}

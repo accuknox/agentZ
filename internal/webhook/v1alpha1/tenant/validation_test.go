@@ -37,18 +37,30 @@ func TestValidatorRejectsDashboardQuotaRemovalAndDecrease(t *testing.T) {
 
 	oldTenant := tenantWithQuota("tenant", "1")
 	tests := []dashboardQuotaChange{
-		{name: "removed", change: func(tenant *agentzv1alpha1.Tenant) {
-			tenant.Spec.DashboardQuota = nil
-		}},
-		{name: "count", change: func(tenant *agentzv1alpha1.Tenant) {
-			tenant.Spec.DashboardQuota.Query.ConcurrentRequests--
-		}},
-		{name: "quantity", change: func(tenant *agentzv1alpha1.Tenant) {
-			tenant.Spec.DashboardQuota.Publish.RequestBytes = resource.MustParse("128Ki")
-		}},
-		{name: "duration", change: func(tenant *agentzv1alpha1.Tenant) {
-			tenant.Spec.DashboardQuota.Query.Timeout.Duration--
-		}},
+		{
+			name: "removed",
+			change: func(tenant *agentzv1alpha1.Tenant) {
+				tenant.Spec.DashboardQuota = nil
+			},
+		},
+		{
+			name: "count",
+			change: func(tenant *agentzv1alpha1.Tenant) {
+				tenant.Spec.DashboardQuota.Query.ConcurrentRequests--
+			},
+		},
+		{
+			name: "quantity",
+			change: func(tenant *agentzv1alpha1.Tenant) {
+				tenant.Spec.DashboardQuota.Publish.RequestBytes = resource.MustParse("128Ki")
+			},
+		},
+		{
+			name: "duration",
+			change: func(tenant *agentzv1alpha1.Tenant) {
+				tenant.Spec.DashboardQuota.Query.Timeout.Duration--
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

@@ -27,7 +27,10 @@ func TestResolvePoolContract(t *testing.T) {
 	input := int32(64000)
 	primary := poolProvider("openai", agentzv1alpha1.InferenceProviderKindOpenAI)
 	primary.Spec.Models[0].Capabilities = agentzv1alpha1.InferenceModelCapabilities{
-		Attachment: true, Reasoning: true, Temperature: true, ToolCall: true,
+		Attachment:  true,
+		Reasoning:   true,
+		Temperature: true,
+		ToolCall:    true,
 	}
 	primary.Spec.Models[0].Modalities.Input = []agentzv1alpha1.InferenceModelModality{
 		agentzv1alpha1.InferenceModelModalityText,
@@ -332,8 +335,11 @@ func TestRenderSandboxPoolTarget(t *testing.T) {
 		"default",
 		"sandbox",
 		SandboxTarget{
-			Name: "pool", Backend: "pool", Path: SandboxPoolPath("sandbox", "pool"),
-			Models: []string{"pool"}, Labels: map[string]string{PoolLabel: "pool"},
+			Name:    "pool",
+			Backend: "pool",
+			Path:    SandboxPoolPath("sandbox", "pool"),
+			Models:  []string{"pool"},
+			Labels:  map[string]string{PoolLabel: "pool"},
 			Retries: 1,
 		},
 	)

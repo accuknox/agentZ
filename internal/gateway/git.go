@@ -147,7 +147,9 @@ func (s *Service) codingIdentity(ctx context.Context, userID string) (codingIden
 		}
 		identity.token = token.AccessToken
 		err = q.GatewayRefreshCodingConnection(ctx, gatewaydb.GatewayRefreshCodingConnectionParams{
-			UserID: userID, AccessToken: seal(token.AccessToken), RefreshToken: seal(token.RefreshToken),
+			UserID:       userID,
+			AccessToken:  seal(token.AccessToken),
+			RefreshToken: seal(token.RefreshToken),
 			ExpiresAt: pgtype.Timestamptz{
 				Time:  time.Now().Add(time.Duration(token.ExpiresIn) * time.Second),
 				Valid: true,
@@ -270,7 +272,9 @@ func (s *Service) ListCodingRepositories(w http.ResponseWriter, r *http.Request,
 		}
 		seen[repo.GetID()] = true
 		result.Repositories = append(result.Repositories, gatewayapi.CodingRepositoryItem{
-			Id: repo.GetID(), Name: repo.GetFullName(), Private: repo.GetPrivate(),
+			Id:      repo.GetID(),
+			Name:    repo.GetFullName(),
+			Private: repo.GetPrivate(),
 		})
 	}
 	slices.SortFunc(result.Repositories, func(a, b gatewayapi.CodingRepositoryItem) int {

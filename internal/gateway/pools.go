@@ -106,7 +106,8 @@ func (s *Service) ListInferencePools(w http.ResponseWriter, r *http.Request, par
 		w,
 		http.StatusOK,
 		gatewayapi.ListInferencePoolsResponse{
-			Pools: items[start:end], NextPageToken: next,
+			Pools:         items[start:end],
+			NextPageToken: next,
 		},
 	)
 }
@@ -542,7 +543,10 @@ func (s *Service) GetInferencePoolUsage(w http.ResponseWriter, r *http.Request, 
 	if !ok {
 		return
 	}
-	apiutil.WriteJSON(w, http.StatusOK, gatewayapi.InferencePoolUsage{Pool: poolName, Sandboxes: usage})
+	apiutil.WriteJSON(w, http.StatusOK, gatewayapi.InferencePoolUsage{
+		Pool:      poolName,
+		Sandboxes: usage,
+	})
 }
 
 func (s *Service) poolAndUsage(w http.ResponseWriter, r *http.Request, access resourceAccess, poolName string) (*agentzv1alpha1.InferencePool, []string, bool) {
@@ -643,8 +647,10 @@ func poolToAPI(pool *agentzv1alpha1.InferencePool, usage int, access resourceAcc
 		conditions = append(
 			conditions,
 			gatewayapi.InferenceProviderCondition{
-				Type: condition.Type, Status: gatewayapi.InferenceProviderConditionStatus(condition.Status),
-				Reason: condition.Reason, Message: condition.Message,
+				Type:    condition.Type,
+				Status:  gatewayapi.InferenceProviderConditionStatus(condition.Status),
+				Reason:  condition.Reason,
+				Message: condition.Message,
 			},
 		)
 	}
@@ -653,7 +659,8 @@ func poolToAPI(pool *agentzv1alpha1.InferencePool, usage int, access resourceAcc
 		warnings = append(
 			warnings,
 			gatewayapi.InferencePoolWarning{
-				Code: gatewayapi.InferencePoolWarningCode(warning.Code), Message: warning.Message,
+				Code:    gatewayapi.InferencePoolWarningCode(warning.Code),
+				Message: warning.Message,
 			},
 		)
 	}
@@ -679,12 +686,18 @@ func poolToAPI(pool *agentzv1alpha1.InferencePool, usage int, access resourceAcc
 		}
 	}
 	out := gatewayapi.InferencePool{
-		Id: pool.Name, DisplayName: pool.Spec.DisplayName,
+		Id:                pool.Name,
+		DisplayName:       pool.Spec.DisplayName,
 		ResourceVersion:   pool.ResourceVersion,
 		AutomaticFailover: pool.Spec.AutomaticFailover,
-		Members:           members, State: state, Conditions: conditions,
-		Warnings: warnings, MemberStatuses: statuses, UsageCount: usage,
-		CreatedAt: pool.CreationTimestamp.Time, UpdatedAt: updatedAt,
+		Members:           members,
+		State:             state,
+		Conditions:        conditions,
+		Warnings:          warnings,
+		MemberStatuses:    statuses,
+		UsageCount:        usage,
+		CreatedAt:         pool.CreationTimestamp.Time,
+		UpdatedAt:         updatedAt,
 	}
 	scope := authorization.Scope{
 		OrganizationID: access.claims.OrganizationID,

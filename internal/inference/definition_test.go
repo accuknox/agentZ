@@ -54,7 +54,8 @@ func TestValidateProvider(t *testing.T) {
 				spec := providerSpec(agentzv1alpha1.InferenceProviderKindOpenAICompatible)
 				spec.OpenAICompatible.AllowPrivateEndpoint = true
 				spec.OpenAICompatible.Headers = []agentzv1alpha1.InferenceProviderHeader{{
-					Name: "x-api-key", Value: "not-secret",
+					Name:  "x-api-key",
+					Value: "not-secret",
 				}}
 				return spec
 			}(),
@@ -84,7 +85,8 @@ func TestValidateProvider(t *testing.T) {
 				spec := providerSpec(agentzv1alpha1.InferenceProviderKindOpenAICompatible)
 				spec.OpenAICompatible.AllowPrivateEndpoint = true
 				spec.OpenAICompatible.Headers = []agentzv1alpha1.InferenceProviderHeader{{
-					Name: "x-environment", Value: "safe\r\nforwarded: injected",
+					Name:  "x-environment",
+					Value: "safe\r\nforwarded: injected",
 				}}
 				return spec
 			}(),
@@ -141,7 +143,8 @@ func TestCredentials(t *testing.T) {
 	record, changed, err := CredentialsForUpdate(
 		bedrock,
 		CredentialValues{
-			AccessKey: "access", SecretKey: "secret",
+			AccessKey: "access",
+			SecretKey: "secret",
 		},
 	)
 	if err != nil || !changed {
@@ -172,7 +175,8 @@ func TestCredentials(t *testing.T) {
 	_, _, err = CredentialsForUpdate(
 		bedrock,
 		CredentialValues{
-			AccessKey: "access", SecretKey: "secret",
+			AccessKey: "access",
+			SecretKey: "secret",
 		},
 	)
 	if err == nil {
@@ -262,7 +266,9 @@ func TestValidateModelRemovalRejectsPoolReference(t *testing.T) {
 	pool := &agentzv1alpha1.InferencePool{
 		ObjectMeta: metav1.ObjectMeta{Name: "pool", Namespace: "default"},
 		Spec: agentzv1alpha1.InferencePoolSpec{Members: []agentzv1alpha1.InferencePoolMember{{
-			Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: current.Name, Model: "model",
+			Scope:    agentzv1alpha1.ResourceScopeOrganisation,
+			Provider: current.Name,
+			Model:    "model",
 		}}},
 	}
 	scheme := runtime.NewScheme()
@@ -327,7 +333,8 @@ func providerSpec(providerKind agentzv1alpha1.InferenceProviderKind) agentzv1alp
 	case agentzv1alpha1.InferenceProviderKindBedrock:
 		spec.CatalogProvider = "amazon-bedrock"
 		spec.Bedrock = &agentzv1alpha1.BedrockProviderConfig{
-			Region: "us-east-1", AuthMode: agentzv1alpha1.BedrockAuthModeAccessKey,
+			Region:   "us-east-1",
+			AuthMode: agentzv1alpha1.BedrockAuthModeAccessKey,
 		}
 	case agentzv1alpha1.InferenceProviderKindOpenAICompatible:
 		spec.CatalogProvider = "custom"

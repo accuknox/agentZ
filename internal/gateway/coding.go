@@ -103,7 +103,10 @@ func (s *Service) ListCodingProjects(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := s.queries.GatewayListCodingProjects(
 		r.Context(),
-		gatewaydb.GatewayListCodingProjectsParams{WorkspaceID: access.workspaceID, OwnerID: access.userID},
+		gatewaydb.GatewayListCodingProjectsParams{
+			WorkspaceID: access.workspaceID,
+			OwnerID:     access.userID,
+		},
 	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
@@ -339,7 +342,9 @@ func (s *Service) DeleteCodingProject(w http.ResponseWriter, r *http.Request, pr
 		return
 	}
 	project, err := s.queries.GatewayGetCodingProject(r.Context(), gatewaydb.GatewayGetCodingProjectParams{
-		ID: projectId, WorkspaceID: access.workspaceID, OwnerID: access.userID,
+		ID:          projectId,
+		WorkspaceID: access.workspaceID,
+		OwnerID:     access.userID,
 	})
 	if err != nil {
 		apiutil.WriteError(w, r, mapGatewayStoreError("get project", err))
@@ -369,7 +374,8 @@ func (s *Service) codingProjectAgents(ctx context.Context, access resourceAccess
 	for _, name := range names {
 		agent := gatewayapi.CodingProjectAgent{Name: name}
 		exists, err := s.queries.GatewayAgentExists(ctx, gatewaydb.GatewayAgentExistsParams{
-			TenantNamespace: access.namespace, AgentName: name,
+			TenantNamespace: access.namespace,
+			AgentName:       name,
 		})
 		if err != nil {
 			return nil, nil, err
@@ -429,7 +435,8 @@ func (s *Service) deleteCodingProject(ctx context.Context, access resourceAccess
 		}
 	}
 	trees, err := s.queries.GatewayListCodingWorktrees(ctx, gatewaydb.GatewayListCodingWorktreesParams{
-		ProjectID: project.ID, WorkspaceID: access.workspaceID,
+		ProjectID:   project.ID,
+		WorkspaceID: access.workspaceID,
 	})
 	if err != nil {
 		return err
@@ -475,7 +482,8 @@ func (s *Service) deleteCodingProject(ctx context.Context, access resourceAccess
 	// Preparation admitted before deletion may have completed while we stopped
 	// runs. Read its checkouts again under the lock before deleting any files.
 	trees, err = q.GatewayListCodingWorktrees(ctx, gatewaydb.GatewayListCodingWorktreesParams{
-		ProjectID: project.ID, WorkspaceID: access.workspaceID,
+		ProjectID:   project.ID,
+		WorkspaceID: access.workspaceID,
 	})
 	if err != nil {
 		return err
@@ -515,14 +523,17 @@ func (s *Service) deleteCodingProject(ctx context.Context, access resourceAccess
 			}
 		}
 		err = q.GatewayDeleteCodingAgentCheckouts(ctx, gatewaydb.GatewayDeleteCodingAgentCheckoutsParams{
-			ProjectID: project.ID, AgentName: agent.Name,
+			ProjectID: project.ID,
+			AgentName: agent.Name,
 		})
 		if err != nil {
 			return err
 		}
 	}
 	_, err = q.GatewayDeleteCodingProject(ctx, gatewaydb.GatewayDeleteCodingProjectParams{
-		ID: project.ID, WorkspaceID: access.workspaceID, OwnerID: access.userID,
+		ID:          project.ID,
+		WorkspaceID: access.workspaceID,
+		OwnerID:     access.userID,
 	})
 	return err
 }
@@ -636,7 +647,8 @@ func (s *Service) PrepareCodingCheckout(w http.ResponseWriter, r *http.Request) 
 	trees, err := q.GatewayListCodingWorktrees(
 		r.Context(),
 		gatewaydb.GatewayListCodingWorktreesParams{
-			ProjectID: project.ID, WorkspaceID: access.workspaceID,
+			ProjectID:   project.ID,
+			WorkspaceID: access.workspaceID,
 		},
 	)
 	if err != nil {
@@ -649,7 +661,8 @@ func (s *Service) PrepareCodingCheckout(w http.ResponseWriter, r *http.Request) 
 		treeID = *req.WorktreeId
 	}
 	existing, err := q.GatewayGetCodingWorktree(r.Context(), gatewaydb.GatewayGetCodingWorktreeParams{
-		ID: treeID, WorkspaceID: access.workspaceID,
+		ID:          treeID,
+		WorkspaceID: access.workspaceID,
 	})
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		apiutil.WriteInternalError(w, r, err)
@@ -949,7 +962,8 @@ func (s *Service) codingSuggestion(ctx context.Context, access resourceAccess, t
 	}
 	directory := "/home/agentz/" + tree.Directory
 	body := gatewayapi.SessionCreateJSONRequestBody{
-		ParentID: &sessionID, Title: new("Source control suggestion"),
+		ParentID: &sessionID,
+		Title:    new("Source control suggestion"),
 		Permission: &gatewayapi.OpencodePermissionRuleset{{
 			Permission: "*",
 			Pattern:    "*",
@@ -980,7 +994,8 @@ func (s *Service) codingSuggestion(ctx context.Context, access resourceAccess, t
 		}
 		if model := sandbox.Spec.Inference.SmallModel; model != nil {
 			body.Model = &gatewayapi.OpencodeModelRef{
-				ProviderID: model.Provider, Id: model.Model,
+				ProviderID: model.Provider,
+				Id:         model.Model,
 			}
 		}
 	}
@@ -1060,7 +1075,10 @@ func (s *Service) codingSuggestion(ctx context.Context, access resourceAccess, t
 	}
 	var model *gatewayapi.OpencodePromptModel
 	if input.Model != nil {
-		model = &gatewayapi.OpencodePromptModel{ProviderID: input.Model.ProviderID, ModelID: input.Model.ModelID}
+		model = &gatewayapi.OpencodePromptModel{
+			ProviderID: input.Model.ProviderID,
+			ModelID:    input.Model.ModelID,
+		}
 	}
 	reply, err := client.SessionPromptWithResponse(
 		ctx,
@@ -1468,7 +1486,10 @@ func (s *Service) resolveCodingSession(ctx context.Context, access resourceAcces
 func (s *Service) enforceCodingSession(r *http.Request, access resourceAccess, route *opencodeRouteMatch, agentName string) (func(), *apiutil.APIError) {
 	workspace, err := s.queries.GatewayGetWorkspace(
 		r.Context(),
-		gatewaydb.GatewayGetWorkspaceParams{ID: access.workspaceID, OrganizationID: access.organizationID},
+		gatewaydb.GatewayGetWorkspaceParams{
+			ID:             access.workspaceID,
+			OrganizationID: access.organizationID,
+		},
 	)
 	if err != nil {
 		return nil, mapGatewayStoreError("get workspace", err)
@@ -1844,7 +1865,10 @@ func lockGatewayResource(ctx context.Context, pool *pgxpool.Pool, identity strin
 		return nil, nil, err
 	}
 	q := ctx.Value(gatewayLockKey{}).(*gatewaydb.Queries)
-	err = q.GatewayLockResource(ctx, gatewaydb.GatewayLockResourceParams{Identity: identity, Shared: shared})
+	err = q.GatewayLockResource(ctx, gatewaydb.GatewayLockResourceParams{
+		Identity: identity,
+		Shared:   shared,
+	})
 	if err != nil {
 		if release != nil {
 			release()

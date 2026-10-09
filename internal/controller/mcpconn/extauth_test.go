@@ -66,7 +66,10 @@ func TestExtAuthAccessIsLimitedToOrganizationWorkspaces(t *testing.T) {
 	labels := map[string]string{"app.kubernetes.io/name": extAuthLabelName}
 	ownerRefs := []metav1.OwnerReference{{APIVersion: "v1", Kind: "Namespace", Name: org}}
 	scope := extAuthScope{
-		namespace: org, workspaces: access, labels: labels, ownerRefs: ownerRefs,
+		namespace:  org,
+		workspaces: access,
+		labels:     labels,
+		ownerRefs:  ownerRefs,
 	}
 	if err := r.reconcileExtAuthScopeReader(context.Background(), scope); err != nil {
 		t.Fatalf("reconcileExtAuthScopeReader() error = %v", err)
@@ -123,13 +126,25 @@ func TestExtAuthCallerIdentities(t *testing.T) {
 		}
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).Build()
-	r := &ExtAuthRuntimeReconciler{Client: c, DelegationNamespace: "private", OpenBaoAddr: "http://openbao.bao.svc.cluster.local:8200"}
-	scope := extAuthScope{namespace: "owner", workspaces: []workspaceAccess{{namespace: "related", mcp: true, inference: true}}}
+	r := &ExtAuthRuntimeReconciler{
+		Client:              c,
+		DelegationNamespace: "private",
+		OpenBaoAddr:         "http://openbao.bao.svc.cluster.local:8200",
+	}
+	scope := extAuthScope{
+		namespace: "owner",
+		workspaces: []workspaceAccess{{
+			namespace: "related",
+			mcp:       true,
+			inference: true,
+		}},
+	}
 	if err := r.reconcileExtAuthPolicy(t.Context(), scope); err != nil {
 		t.Fatal(err)
 	}
 	policy := &ciliumv2.CiliumNetworkPolicy{}
-	if err := c.Get(t.Context(), client.ObjectKey{Namespace: "owner", Name: mcp.ExtAuthServiceName}, policy); err != nil {
+	key := client.ObjectKey{Namespace: "owner", Name: mcp.ExtAuthServiceName}
+	if err := c.Get(t.Context(), key, policy); err != nil {
 		t.Fatal(err)
 	}
 	if err := policy.Spec.Sanitize(); err != nil {
@@ -153,7 +168,11 @@ func TestExtAuthCallerIdentities(t *testing.T) {
 				"k8s.gateway.networking.k8s.io/gateway-name": test.gateway,
 				"k8s.app.kubernetes.io/name":                 test.gateway,
 			}
-			expected := map[string]bool{"18081": test.ordinary, "18084": test.delegated, "18082": test.helper}
+			expected := map[string]bool{
+				"18081": test.ordinary,
+				"18084": test.delegated,
+				"18082": test.helper,
+			}
 			for port, want := range expected {
 				admitted := false
 				for _, rule := range policy.Spec.Ingress {

@@ -800,7 +800,8 @@ func (s *Service) processWorkspaceCleanup(ctx context.Context, job gatewaydb.Cle
 	workspace, err := s.queries.GatewayGetWorkspace(
 		ctx,
 		gatewaydb.GatewayGetWorkspaceParams{
-			ID: payload.WorkspaceID, OrganizationID: job.OrganizationID,
+			ID:             payload.WorkspaceID,
+			OrganizationID: job.OrganizationID,
 		},
 	)
 	if err != nil {
@@ -868,7 +869,9 @@ func (s *Service) routes() http.Handler {
 			r.Post("/responses", s.handleDelegatedRequest)
 			paths := []string{"/models", "/chat/completions", "/responses"}
 			for _, path := range paths {
-				r.Options(path, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+				r.Options(path, func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNoContent)
+				})
 			}
 			r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 				s.delegationError(w, r, http.StatusNotFound, "not_found", "This inference endpoint is unavailable.")

@@ -302,9 +302,12 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 			r.Context(),
 			q,
 			workspaceEventTrail{
-				organizationID: claims.OrganizationID, workspaceID: id,
-				actorType: gatewaydb.EventTrailActorUser, actorID: claims.UserID,
-				action: "workspace.create", result: gatewaydb.EventTrailResultFailed,
+				organizationID: claims.OrganizationID,
+				workspaceID:    id,
+				actorType:      gatewaydb.EventTrailActorUser,
+				actorID:        claims.UserID,
+				action:         "workspace.create",
+				result:         gatewaydb.EventTrailResultFailed,
 			},
 		)
 		if err != nil {

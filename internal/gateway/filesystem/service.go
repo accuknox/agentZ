@@ -666,7 +666,12 @@ func pathFailure(err error) *failure {
 	case errors.Is(err, errInvalidEntryType):
 		return invalidEntryType()
 	case errors.Is(err, os.ErrNotExist):
-		return &failure{status: http.StatusNotFound, code: "not_found", message: "entry not found", cause: err}
+		return &failure{
+			status:  http.StatusNotFound,
+			code:    "not_found",
+			message: "entry not found",
+			cause:   err,
+		}
 	case errors.Is(err, os.ErrExist):
 		return entryExists()
 	case errors.Is(err, os.ErrPermission):

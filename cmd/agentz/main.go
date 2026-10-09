@@ -206,7 +206,11 @@ var cmd = &cli.Command{
 		cli.HandleExitCoder(err)
 	},
 	Flags: []cli.Flag{
-		&cli.StringFlag{Name: "delegation-namespace", Destination: &delegationNamespace, Usage: "Private native MCP aggregator namespace"},
+		&cli.StringFlag{
+			Name:        "delegation-namespace",
+			Destination: &delegationNamespace,
+			Usage:       "Private native MCP aggregator namespace",
+		},
 		&cli.StringFlag{
 			Name:  "log-level",
 			Usage: "Set log level: debug, info, warn, error",
@@ -1244,10 +1248,11 @@ var managerCmd = &cli.Command{
 			Scheme:   mgr.GetScheme(),
 			Recorder: mgr.GetEventRecorder("inference-provider"),
 			Config: inferenceprovidercontroller.ReconcilerConfig{
-				StoreName:              inferenceSecretStoreName,
-				RefreshInterval:        inferenceSecretRefreshInterval,
-				OpenBaoSecretMountPath: openBaoSecretMountPath,
-				OpenBaoAddr:            openBaoAddr, OpenBaoK8sAuthMountPath: openBaoK8sAuthMountPath,
+				StoreName:               inferenceSecretStoreName,
+				RefreshInterval:         inferenceSecretRefreshInterval,
+				OpenBaoSecretMountPath:  openBaoSecretMountPath,
+				OpenBaoAddr:             openBaoAddr,
+				OpenBaoK8sAuthMountPath: openBaoK8sAuthMountPath,
 			},
 		}
 		if err := inferenceProviderReconciler.SetupWithManager(mgr); err != nil {
@@ -1446,14 +1451,15 @@ var managerCmd = &cli.Command{
 			os.Exit(1)
 		}
 		extAuthRuntimeReconciler := &mcpconn.ExtAuthRuntimeReconciler{
-			Bao:                       baoClient,
-			Client:                    mgr.GetClient(),
-			ControllerImage:           controllerImage,
-			OpenBaoAddr:               openBaoAddr,
-			OpenBaoSecretMountPath:    openBaoSecretMountPath,
-			OpenBaoK8sAuthMountPath:   openBaoK8sAuthMountPath,
-			DelegationNamespace:       delegationNamespace,
-			GatewayServiceAccountName: gatewayServiceAccountName, GatewayServiceAccountNamespace: gatewayServiceAccountNamespace,
+			Bao:                            baoClient,
+			Client:                         mgr.GetClient(),
+			ControllerImage:                controllerImage,
+			OpenBaoAddr:                    openBaoAddr,
+			OpenBaoSecretMountPath:         openBaoSecretMountPath,
+			OpenBaoK8sAuthMountPath:        openBaoK8sAuthMountPath,
+			DelegationNamespace:            delegationNamespace,
+			GatewayServiceAccountName:      gatewayServiceAccountName,
+			GatewayServiceAccountNamespace: gatewayServiceAccountNamespace,
 		}
 		if err := extAuthRuntimeReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.ErrorContext(ctx,

@@ -108,12 +108,15 @@ func (c *Catalog) Entries(query string) (string, []CatalogEntry) {
 	entries := make([]CatalogEntry, 0, len(catalogEntries)+2)
 	custom := []CatalogEntry{
 		{
-			ProviderID: "custom", Name: "Custom OpenAI-compatible",
+			ProviderID: "custom",
+			Name:       "Custom OpenAI-compatible",
 			Kind:       agentzv1alpha1.InferenceProviderKindOpenAICompatible,
-			AuthHeader: "authorization", AuthPrefix: "Bearer ",
+			AuthHeader: "authorization",
+			AuthPrefix: "Bearer ",
 		},
 		{
-			ProviderID: "custom", Name: "Custom Anthropic-compatible",
+			ProviderID: "custom",
+			Name:       "Custom Anthropic-compatible",
 			Kind:       agentzv1alpha1.InferenceProviderKindAnthropicCompatible,
 			AuthHeader: "x-api-key",
 		},
@@ -351,7 +354,8 @@ func modelsFromCatalog(provider catalogProvider, providerID string, providerKind
 			continue
 		}
 		value := agentzv1alpha1.InferenceModel{
-			ID: id, DisplayName: model.Name,
+			ID:          id,
+			DisplayName: model.Name,
 			Capabilities: agentzv1alpha1.InferenceModelCapabilities{
 				Attachment:  model.Attachment,
 				Reasoning:   model.Reasoning,
@@ -382,23 +386,31 @@ func modelsFromCatalog(provider catalogProvider, providerID string, providerKind
 
 var catalogSnapshot = map[string][]agentzv1alpha1.InferenceModel{
 	"openai": {{
-		ID: "gpt-5-mini", DisplayName: "GPT-5 Mini",
+		ID:          "gpt-5-mini",
+		DisplayName: "GPT-5 Mini",
 		Capabilities: agentzv1alpha1.InferenceModelCapabilities{
-			Attachment: true, Reasoning: true, ToolCall: true,
+			Attachment: true,
+			Reasoning:  true,
+			ToolCall:   true,
 		},
 		Modalities: agentzv1alpha1.InferenceModelModalities{
 			Input:  []agentzv1alpha1.InferenceModelModality{"text", "image"},
 			Output: []agentzv1alpha1.InferenceModelModality{"text"},
 		},
 		Limits: agentzv1alpha1.InferenceModelLimits{
-			Context: 400000, Output: 128000,
+			Context: 400000,
+			Output:  128000,
 		},
 		Catalog: &agentzv1alpha1.InferenceModelCatalog{Provider: "openai"},
 	}},
 	"anthropic": {{
-		ID: "claude-sonnet-4-5", DisplayName: "Claude Sonnet 4.5",
+		ID:          "claude-sonnet-4-5",
+		DisplayName: "Claude Sonnet 4.5",
 		Capabilities: agentzv1alpha1.InferenceModelCapabilities{
-			Attachment: true, Reasoning: true, Temperature: true, ToolCall: true,
+			Attachment:  true,
+			Reasoning:   true,
+			Temperature: true,
+			ToolCall:    true,
 		},
 		Modalities: agentzv1alpha1.InferenceModelModalities{
 			Input: []agentzv1alpha1.InferenceModelModality{
@@ -407,12 +419,14 @@ var catalogSnapshot = map[string][]agentzv1alpha1.InferenceModel{
 			Output: []agentzv1alpha1.InferenceModelModality{"text"},
 		},
 		Limits: agentzv1alpha1.InferenceModelLimits{
-			Context: 1000000, Output: 64000,
+			Context: 1000000,
+			Output:  64000,
 		},
 		Catalog: &agentzv1alpha1.InferenceModelCatalog{Provider: "anthropic"},
 	}},
 	"google": {{
-		ID: "gemini-2.5-pro", DisplayName: "Gemini 2.5 Pro",
+		ID:          "gemini-2.5-pro",
+		DisplayName: "Gemini 2.5 Pro",
 		Capabilities: agentzv1alpha1.InferenceModelCapabilities{
 			Attachment:  true,
 			Reasoning:   true,
@@ -432,7 +446,8 @@ var catalogSnapshot = map[string][]agentzv1alpha1.InferenceModel{
 		Catalog: &agentzv1alpha1.InferenceModelCatalog{Provider: "google"},
 	}},
 	"google-vertex": {{
-		ID: "gemini-2.5-pro", DisplayName: "Gemini 2.5 Pro",
+		ID:          "gemini-2.5-pro",
+		DisplayName: "Gemini 2.5 Pro",
 		Capabilities: agentzv1alpha1.InferenceModelCapabilities{
 			Attachment:  true,
 			Reasoning:   true,
@@ -446,7 +461,8 @@ var catalogSnapshot = map[string][]agentzv1alpha1.InferenceModel{
 			Output: []agentzv1alpha1.InferenceModelModality{"text"},
 		},
 		Limits: agentzv1alpha1.InferenceModelLimits{
-			Context: 1048576, Output: 65536,
+			Context: 1048576,
+			Output:  65536,
 		},
 		Catalog: &agentzv1alpha1.InferenceModelCatalog{Provider: "google-vertex"},
 	}},
@@ -466,14 +482,16 @@ var catalogSnapshot = map[string][]agentzv1alpha1.InferenceModel{
 			Output: []agentzv1alpha1.InferenceModelModality{"text"},
 		},
 		Limits: agentzv1alpha1.InferenceModelLimits{
-			Context: 200000, Output: 64000,
+			Context: 200000,
+			Output:  64000,
 		},
 		Catalog: &agentzv1alpha1.InferenceModelCatalog{
 			Provider: "amazon-bedrock",
 		},
 	}},
 	"azure": {{
-		ID: "gpt-5-mini", DisplayName: "GPT-5 Mini",
+		ID:          "gpt-5-mini",
+		DisplayName: "GPT-5 Mini",
 		Capabilities: agentzv1alpha1.InferenceModelCapabilities{
 			Attachment: true,
 			Reasoning:  true,
@@ -484,7 +502,8 @@ var catalogSnapshot = map[string][]agentzv1alpha1.InferenceModel{
 			Output: []agentzv1alpha1.InferenceModelModality{"text"},
 		},
 		Limits: agentzv1alpha1.InferenceModelLimits{
-			Context: 400000, Output: 128000,
+			Context: 400000,
+			Output:  128000,
 		},
 		Catalog: &agentzv1alpha1.InferenceModelCatalog{Provider: "azure"},
 	}},

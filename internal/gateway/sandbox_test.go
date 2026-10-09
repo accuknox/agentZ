@@ -85,7 +85,9 @@ func (q *sandboxQueries) GatewayListWorkspaceInheritedResources(context.Context,
 
 func (q *sandboxQueries) GatewayListUsersByID(context.Context, []string) ([]gatewaydb.GatewayListUsersByIDRow, error) {
 	return []gatewaydb.GatewayListUsersByIDRow{{
-		ID: testUserID, Name: "Test User", Email: "test@example.com",
+		ID:    testUserID,
+		Name:  "Test User",
+		Email: "test@example.com",
 	}}, nil
 }
 
@@ -411,18 +413,26 @@ func sandboxTestService(t *testing.T, queries gatewaydb.Querier) *Service {
 				agentzv1alpha1.TenantOrganizationIDLabel: organizationNamespace,
 			},
 		}},
-		&agentzv1alpha1.Sandbox{ObjectMeta: metav1.ObjectMeta{
-			Name:      "organization-sandbox",
-			Namespace: testOrgNamespace,
-		}, Spec: agentzv1alpha1.SandboxSpec{ResourceAudit: agentzv1alpha1.ResourceAudit{
-			CreatedByUserID: testUserID, LastModifiedByUserID: testUserID,
-		}}},
-		&agentzv1alpha1.Sandbox{ObjectMeta: metav1.ObjectMeta{
-			Name:      "workspace-sandbox",
-			Namespace: testWorkspaceNS,
-		}, Spec: agentzv1alpha1.SandboxSpec{ResourceAudit: agentzv1alpha1.ResourceAudit{
-			CreatedByUserID: testUserID, LastModifiedByUserID: testUserID,
-		}}},
+		&agentzv1alpha1.Sandbox{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "organization-sandbox",
+				Namespace: testOrgNamespace,
+			},
+			Spec: agentzv1alpha1.SandboxSpec{ResourceAudit: agentzv1alpha1.ResourceAudit{
+				CreatedByUserID:      testUserID,
+				LastModifiedByUserID: testUserID,
+			}},
+		},
+		&agentzv1alpha1.Sandbox{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "workspace-sandbox",
+				Namespace: testWorkspaceNS,
+			},
+			Spec: agentzv1alpha1.SandboxSpec{ResourceAudit: agentzv1alpha1.ResourceAudit{
+				CreatedByUserID:      testUserID,
+				LastModifiedByUserID: testUserID,
+			}},
+		},
 		&agentzv1alpha1.Workspace{
 			ObjectMeta: metav1.ObjectMeta{Name: testWorkspaceNS},
 			Spec: agentzv1alpha1.WorkspaceSpec{

@@ -83,9 +83,21 @@ func TestParseMarkdownDiagnostics(t *testing.T) {
 			kind:    ImportIssueInvalidName,
 		},
 		{name: "invalid UTF-8", content: []byte{0xff}, kind: ImportIssueInvalidUTF8},
-		{name: "missing frontmatter", content: []byte("# Skill\n"), kind: ImportIssueMalformedFrontmatter},
-		{name: "unclosed frontmatter", content: []byte("---\nname: skill\n"), kind: ImportIssueMalformedFrontmatter},
-		{name: "malformed frontmatter", content: []byte("---\n[\n---\n"), kind: ImportIssueMalformedFrontmatter},
+		{
+			name:    "missing frontmatter",
+			content: []byte("# Skill\n"),
+			kind:    ImportIssueMalformedFrontmatter,
+		},
+		{
+			name:    "unclosed frontmatter",
+			content: []byte("---\nname: skill\n"),
+			kind:    ImportIssueMalformedFrontmatter,
+		},
+		{
+			name:    "malformed frontmatter",
+			content: []byte("---\n[\n---\n"),
+			kind:    ImportIssueMalformedFrontmatter,
+		},
 		{
 			name:    "missing description",
 			content: []byte("---\nname: skill\n---\n"),
@@ -212,7 +224,8 @@ func TestParseZIPRejectsInvalidEntries(t *testing.T) {
 	t.Parallel()
 
 	validSkill := archiveFile{
-		name: "skill/SKILL.md", content: skillMarkdown("skill", "\n", false, ""),
+		name:    "skill/SKILL.md",
+		content: skillMarkdown("skill", "\n", false, ""),
 	}
 	tests := []zipEntryCase{
 		{

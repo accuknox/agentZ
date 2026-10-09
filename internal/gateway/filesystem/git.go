@@ -196,7 +196,8 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 	}
 	if req.Git.Operation == gatewayapi.CodingGitDiscover {
 		snapshot := gatewayapi.CodingRepositorySnapshot{
-			Refs: []gatewayapi.CodingRef{}, Worktrees: []gatewayapi.CodingDiscoveredWorktree{},
+			Refs:      []gatewayapi.CodingRef{},
+			Worktrees: []gatewayapi.CodingDiscoveredWorktree{},
 		}
 		common, err := run(repo, "", "rev-parse", "--path-format=absolute", "--git-common-dir")
 		if err != nil {

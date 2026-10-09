@@ -27,7 +27,12 @@ func TestTenantIsolationExcludesPrivateRuntimes(t *testing.T) {
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(ciliumv2.AddToScheme(scheme))
 	utilruntime.Must(agentzv1alpha1.AddToScheme(scheme))
-	namespace := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "org-05d3f392d8021c42b0434f9f5f20eac6", UID: "namespace-uid"}}
+	namespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "org-05d3f392d8021c42b0434f9f5f20eac6",
+			UID:  "namespace-uid",
+		},
+	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(namespace).Build()
 	r := &Reconciler{
 		Client:                         c,
@@ -66,7 +71,8 @@ func TestTenantIsolationExcludesPrivateRuntimes(t *testing.T) {
 		})
 	}
 	baseline := &ciliumv2.CiliumNetworkPolicy{}
-	if err := c.Get(t.Context(), client.ObjectKey{Name: "runtime-isolation", Namespace: tenant.Name}, baseline); err != nil {
+	key = client.ObjectKey{Name: "runtime-isolation", Namespace: tenant.Name}
+	if err := c.Get(t.Context(), key, baseline); err != nil {
 		t.Fatal(err)
 	}
 	if !*baseline.Spec.EnableDefaultDeny.Ingress {

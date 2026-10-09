@@ -21,7 +21,10 @@ var extAuthServeCmd = &cli.Command{
 	Name:  "serve",
 	Usage: "Run the MCP ext-auth gRPC service",
 	Flags: []cli.Flag{
-		&cli.BoolFlag{Name: "delegation-enabled", Usage: "Enable owner-local delegated authorization on port 18084"},
+		&cli.BoolFlag{
+			Name:  "delegation-enabled",
+			Usage: "Enable owner-local delegated authorization on port 18084",
+		},
 		&cli.StringFlag{
 			Name:  "addr",
 			Usage: "Listen address",

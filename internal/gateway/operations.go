@@ -164,7 +164,10 @@ func (s *Service) ListCodingOperations(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := s.queries.GatewayListCodingOperations(
 		r.Context(),
-		gatewaydb.GatewayListCodingOperationsParams{WorkspaceID: access.workspaceID, OwnerID: access.claims.UserID},
+		gatewaydb.GatewayListCodingOperationsParams{
+			WorkspaceID: access.workspaceID,
+			OwnerID:     access.claims.UserID,
+		},
 	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
@@ -335,7 +338,11 @@ func (s *Service) runCodingOperation(ctx context.Context, job gatewaydb.CodingOp
 		}
 		rows, err := s.queries.GatewayUpdateCodingOperation(
 			ctx,
-			gatewaydb.GatewayUpdateCodingOperationParams{ID: job.ID, LeaseToken: job.LeaseToken, Result: body},
+			gatewaydb.GatewayUpdateCodingOperationParams{
+				ID:         job.ID,
+				LeaseToken: job.LeaseToken,
+				Result:     body,
+			},
 		)
 		if err != nil || rows != 1 {
 			return errors.New("operation lease lost")

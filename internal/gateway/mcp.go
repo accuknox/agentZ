@@ -1119,7 +1119,10 @@ func validateMCPConnectionName(name string, fieldName string) []gatewayapi.Field
 		return append(fields, gatewayapi.FieldError{Field: fieldName, Message: "required"})
 	}
 	if len(name) > 32 {
-		fields = append(fields, gatewayapi.FieldError{Field: fieldName, Message: "must be at most 32 characters"})
+		fields = append(fields, gatewayapi.FieldError{
+			Field:   fieldName,
+			Message: "must be at most 32 characters",
+		})
 	}
 	for _, msg := range validation.IsDNS1123Label(name) {
 		fields = append(fields, gatewayapi.FieldError{Field: fieldName, Message: msg})

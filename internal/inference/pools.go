@@ -58,7 +58,8 @@ func ResolvePool(ctx context.Context, reader client.Reader, pool *agentzv1alpha1
 	issues := []Issue{}
 	if len(pool.Spec.Members) < 1 {
 		return PoolDefinition{}, []Issue{{
-			Field: "members", Message: "at least one member is required",
+			Field:   "members",
+			Message: "at least one member is required",
 		}}, nil
 	}
 	if len(pool.Spec.Members) > 8 {

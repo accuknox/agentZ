@@ -426,7 +426,8 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 			contract := pool.Status.Contract
 
 			provider.Models[pool.Name] = opencodeModelFile{
-				ID: pool.Name, Name: pool.Spec.DisplayName,
+				ID:          pool.Name,
+				Name:        pool.Spec.DisplayName,
 				Attachment:  contract.Capabilities.Attachment,
 				Reasoning:   contract.Capabilities.Reasoning,
 				Temperature: contract.Capabilities.Temperature,
@@ -548,14 +549,16 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 			)
 		}
 		cfg.Providers[modelRef.Provider].Models[modelRef.Model] = opencodeModelFile{
-			ID: modelRef.Model, Name: selected.DisplayName,
+			ID:          modelRef.Model,
+			Name:        selected.DisplayName,
 			Attachment:  selected.Capabilities.Attachment,
 			Reasoning:   selected.Capabilities.Reasoning,
 			Temperature: selected.Capabilities.Temperature,
 			ToolCall:    selected.Capabilities.ToolCall,
 			Limit: opencodeModelLimitFile{
-				Context: selected.Limits.Context, Input: selected.Limits.Input,
-				Output: selected.Limits.Output,
+				Context: selected.Limits.Context,
+				Input:   selected.Limits.Input,
+				Output:  selected.Limits.Output,
 			},
 			Modalities: opencodeModelModalitiesFile{
 				Input:  slices.Clone(selected.Modalities.Input),
@@ -894,14 +897,11 @@ func (r *Reconciler) agentsForSkill(ctx context.Context, obj client.Object) []re
 			)
 			if err == nil {
 				sandbox := &agentzv1alpha1.Sandbox{}
-				err = r.Get(
-					ctx,
-					client.ObjectKey{
-						Namespace: ns,
-						Name:      agt.Spec.SandboxRef.Name,
-					},
-					sandbox,
-				)
+				sandboxKey := client.ObjectKey{
+					Namespace: ns,
+					Name:      agt.Spec.SandboxRef.Name,
+				}
+				err = r.Get(ctx, sandboxKey, sandbox)
 				if err == nil {
 					for _, ref := range sandbox.Spec.Skills {
 						skillNamespace, err := scope.SelectedNamespace(
@@ -998,14 +998,11 @@ func (r *Reconciler) updateAgentStatus(ctx context.Context, key types.Namespaced
 			}
 
 			job := &batchv1.Job{}
-			jobErr := r.Get(
-				ctx,
-				types.NamespacedName{
-					Name:      packageJobName(agt),
-					Namespace: agt.Namespace,
-				},
-				job,
-			)
+			jobKey := types.NamespacedName{
+				Name:      packageJobName(agt),
+				Namespace: agt.Namespace,
+			}
+			jobErr := r.Get(ctx, jobKey, job)
 			if jobErr != nil && !apierr.IsNotFound(jobErr) {
 				return fmt.Errorf("get package job: %w", jobErr)
 			}

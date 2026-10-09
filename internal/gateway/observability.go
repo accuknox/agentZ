@@ -45,7 +45,8 @@ func (s *Service) authorizeObservability(w http.ResponseWriter, r *http.Request,
 		return access.namespace, true
 	}
 	workspace, err := s.queries.GatewayGetWorkspace(r.Context(), gatewaydb.GatewayGetWorkspaceParams{
-		ID: access.workspaceID, OrganizationID: access.organizationID,
+		ID:             access.workspaceID,
+		OrganizationID: access.organizationID,
 	})
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
@@ -557,7 +558,9 @@ func (s *Service) ListProcessObservability(w http.ResponseWriter, r *http.Reques
 		w,
 		r,
 		observabilityQuery{
-			after: params.EventTimeAfter, before: params.EventTimeBefore, action: params.Action,
+			after:  params.EventTimeAfter,
+			before: params.EventTimeBefore,
+			action: params.Action,
 		},
 	)
 	if !ok {
@@ -608,7 +611,9 @@ func (s *Service) ListProcessObservabilitySummary(w http.ResponseWriter, r *http
 		w,
 		r,
 		observabilityQuery{
-			after: &params.EventTimeAfter, before: &params.EventTimeBefore, action: params.Action,
+			after:  &params.EventTimeAfter,
+			before: &params.EventTimeBefore,
+			action: params.Action,
 		},
 	)
 	if !ok {
@@ -666,7 +671,9 @@ func (s *Service) ListFileObservability(w http.ResponseWriter, r *http.Request, 
 		w,
 		r,
 		observabilityQuery{
-			after: params.EventTimeAfter, before: params.EventTimeBefore, action: params.Action,
+			after:  params.EventTimeAfter,
+			before: params.EventTimeBefore,
+			action: params.Action,
 		},
 	)
 	if !ok {
@@ -717,7 +724,9 @@ func (s *Service) ListFileObservabilitySummary(w http.ResponseWriter, r *http.Re
 		w,
 		r,
 		observabilityQuery{
-			after: &params.EventTimeAfter, before: &params.EventTimeBefore, action: params.Action,
+			after:  &params.EventTimeAfter,
+			before: &params.EventTimeBefore,
+			action: params.Action,
 		},
 	)
 	if !ok {
@@ -775,7 +784,9 @@ func (s *Service) ListNetworkObservability(w http.ResponseWriter, r *http.Reques
 		w,
 		r,
 		observabilityQuery{
-			after: params.EventTimeAfter, before: params.EventTimeBefore, action: params.Action,
+			after:  params.EventTimeAfter,
+			before: params.EventTimeBefore,
+			action: params.Action,
 		},
 	)
 	if !ok {
@@ -826,7 +837,9 @@ func (s *Service) ListNetworkObservabilitySummary(w http.ResponseWriter, r *http
 		w,
 		r,
 		observabilityQuery{
-			after: &params.EventTimeAfter, before: &params.EventTimeBefore, action: params.Action,
+			after:  &params.EventTimeAfter,
+			before: &params.EventTimeBefore,
+			action: params.Action,
 		},
 	)
 	if !ok {

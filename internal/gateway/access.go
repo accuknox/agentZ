@@ -119,7 +119,8 @@ func (s *Service) resolveResourceAccess(ctx context.Context, req resourceAccessR
 	effective, err := authorization.New(s.queries).Resolve(
 		ctx,
 		authorization.Subject{
-			UserID: claims.UserID, OrganizationID: claims.OrganizationID,
+			UserID:         claims.UserID,
+			OrganizationID: claims.OrganizationID,
 		},
 	)
 	if err != nil {
@@ -187,7 +188,8 @@ func (s *Service) resolveResourceScope(ctx context.Context, claims gatewayClaims
 	row, err := s.queries.GatewayGetWorkspace(
 		ctx,
 		gatewaydb.GatewayGetWorkspaceParams{
-			ID: workspaceID, OrganizationID: claims.OrganizationID,
+			ID:             workspaceID,
+			OrganizationID: claims.OrganizationID,
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -258,7 +260,8 @@ func (s *Service) resolveResourceCapabilities(ctx context.Context, claims gatewa
 	effective, err := authorization.New(s.queries).Resolve(
 		ctx,
 		authorization.Subject{
-			UserID: claims.UserID, OrganizationID: claims.OrganizationID,
+			UserID:         claims.UserID,
+			OrganizationID: claims.OrganizationID,
 		},
 	)
 	if err != nil {
@@ -327,7 +330,8 @@ func resourceForbidden(cause error) *apiutil.APIError {
 
 func (s *Service) createResourceEventTrail(ctx context.Context, access resourceAccess, target gatewaydb.EventTrailTarget, id, category, action string, result gatewaydb.EventTrailResult) error {
 	fields, err := json.Marshal([]gatewayapi.EventTrailField{{
-		Field: gatewayapi.EventTrailFieldName, Value: id,
+		Field: gatewayapi.EventTrailFieldName,
+		Value: id,
 	}})
 	if err != nil {
 		return fmt.Errorf("encode %s event trail summary: %w", category, err)

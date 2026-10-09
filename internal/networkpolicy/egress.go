@@ -194,20 +194,25 @@ func dnsPorts() []ciliumapi.PortProtocol {
 // grants and Sandboxes. Namespace ownership keeps it in place during pod teardown.
 func ReconcileRuntimeIsolation(ctx context.Context, c client.Client, namespace *corev1.Namespace) error {
 	policy := &ciliumv2.CiliumNetworkPolicy{ObjectMeta: metav1.ObjectMeta{
-		Name: "runtime-isolation", Namespace: namespace.Name,
+		Name:      "runtime-isolation",
+		Namespace: namespace.Name,
 	}}
 	_, err := ctrlutil.CreateOrPatch(ctx, c, policy, func() error {
 		policy.OwnerReferences = []metav1.OwnerReference{*metav1.NewControllerRef(namespace, corev1.SchemeGroupVersion.WithKind("Namespace"))}
 		policy.Spec = (&ciliumapi.Rule{
 			EndpointSelector: ciliumapi.EndpointSelector{LabelSelector: &slimv1.LabelSelector{
 				MatchExpressions: []slimv1.LabelSelectorRequirement{{
-					Key: "k8s:io.cilium.k8s.policy.serviceaccount", Operator: slimv1.LabelSelectorOpIn,
-					Values: []string{"inference", "mcp", "extauth"},
+					Key:      "k8s:io.cilium.k8s.policy.serviceaccount",
+					Operator: slimv1.LabelSelectorOpIn,
+					Values:   []string{"inference", "mcp", "extauth"},
 				}},
 			}},
 			Ingress: []ciliumapi.IngressRule{{
 				IngressCommonRule: ciliumapi.IngressCommonRule{FromEntities: ciliumapi.EntitySlice{ciliumapi.EntityHost}},
-				ToPorts:           ciliumapi.PortRules{{Ports: []ciliumapi.PortProtocol{{Port: "15021", Protocol: ciliumapi.ProtoTCP}}}},
+				ToPorts: ciliumapi.PortRules{{Ports: []ciliumapi.PortProtocol{{
+					Port:     "15021",
+					Protocol: ciliumapi.ProtoTCP,
+				}}}},
 			}},
 		}).WithEnableDefaultDeny(true, false)
 		policy.Specs = nil

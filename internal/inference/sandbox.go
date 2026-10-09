@@ -39,8 +39,9 @@ func Gateway(namespace string) *gwv1.Gateway {
 				},
 			},
 			Listeners: []gwv1.Listener{{
-				Name: gwv1.SectionName("inference-http"), Protocol: gwv1.HTTPProtocolType,
-				Port: gwv1.PortNumber(80),
+				Name:     gwv1.SectionName("inference-http"),
+				Protocol: gwv1.HTTPProtocolType,
+				Port:     gwv1.PortNumber(80),
 			}},
 		},
 	}
@@ -102,7 +103,10 @@ func RenderSandboxTarget(namespace, sandboxName string, target SandboxTarget) Sa
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, Labels: labels},
 		Spec: gwv1.HTTPRouteSpec{
 			CommonRouteSpec: gwv1.CommonRouteSpec{
-				ParentRefs: []gwv1.ParentReference{{Name: gwv1.ObjectName(GatewayName), SectionName: new(gwv1.SectionName("inference-http"))}},
+				ParentRefs: []gwv1.ParentReference{{
+					Name:        gwv1.ObjectName(GatewayName),
+					SectionName: new(gwv1.SectionName("inference-http")),
+				}},
 			},
 			Rules: []gwv1.HTTPRouteRule{{
 				Matches: []gwv1.HTTPRouteMatch{{
@@ -111,7 +115,9 @@ func RenderSandboxTarget(namespace, sandboxName string, target SandboxTarget) Sa
 				BackendRefs: []gwv1.HTTPBackendRef{{
 					BackendRef: gwv1.BackendRef{
 						BackendObjectReference: gwv1.BackendObjectReference{
-							Group: &group, Kind: &kind, Name: gwv1.ObjectName(target.Backend),
+							Group: &group,
+							Kind:  &kind,
+							Name:  gwv1.ObjectName(target.Backend),
 						},
 					},
 				}},

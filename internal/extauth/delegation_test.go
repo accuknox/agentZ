@@ -55,10 +55,21 @@ func TestDelegationCredentialsRequireProjectedResourceRevision(t *testing.T) {
 	for _, operation := range operations {
 		t.Run(operation, func(t *testing.T) {
 			cases := []ownerRevisionCase{
-				{name: "current", uid: "original", generation: strconv.FormatInt(metadata.Generation, 10), want: codes.OK},
+				{
+					name:       "current",
+					uid:        "original",
+					generation: strconv.FormatInt(metadata.Generation, 10),
+					want:       codes.OK,
+				},
 				{name: "stale spec", uid: "original", generation: "1", want: codes.Unavailable},
 				{name: "missing revision", uid: "original", want: codes.Unavailable},
-				{name: "wrong owner", uid: "original", generation: "2", namespace: "foreign", want: codes.PermissionDenied},
+				{
+					name:       "wrong owner",
+					uid:        "original",
+					generation: "2",
+					namespace:  "foreign",
+					want:       codes.PermissionDenied,
+				},
 				{name: "replaced resource", uid: "replacement", generation: "2", want: codes.Unavailable},
 			}
 			for _, test := range cases {
@@ -69,11 +80,17 @@ func TestDelegationCredentialsRequireProjectedResourceRevision(t *testing.T) {
 					}
 					request := &authv3.CheckRequest{Attributes: &authv3.AttributeContext{
 						ContextExtensions: map[string]string{
-							"agentz.operation": operation, "agentz.namespace": owner, "agentz.name": "selected",
-							"agentz.uid": test.uid, "agentz.generation": test.generation, "agentz.target": "model",
+							"agentz.operation":  operation,
+							"agentz.namespace":  owner,
+							"agentz.name":       "selected",
+							"agentz.uid":        test.uid,
+							"agentz.generation": test.generation,
+							"agentz.target":     "model",
 						},
 						Request: &authv3.AttributeContext_Request{Http: &authv3.AttributeContext_HttpRequest{
-							Method: "POST", Path: "/v1/chat/completions", Body: `{"model":"model","messages":[]}`,
+							Method: "POST",
+							Path:   "/v1/chat/completions",
+							Body:   `{"model":"model","messages":[]}`,
 						}},
 					}}
 					ordinary, err := service.Check(t.Context(), request)
@@ -151,7 +168,11 @@ func TestOAuthRefreshKeepsConcurrentConnectionCredentialsSeparate(t *testing.T) 
 				close(oldStarted)
 				<-oldRefresh
 			}
-			payload = map[string]any{"access_token": identity + "-access", "token_type": "Bearer", "expires_in": 30}
+			payload = map[string]any{
+				"access_token": identity + "-access",
+				"token_type":   "Bearer",
+				"expires_in":   30,
+			}
 		default:
 			return nil, fmt.Errorf("unexpected request: %s", r.URL)
 		}
@@ -159,15 +180,27 @@ func TestOAuthRefreshKeepsConcurrentConnectionCredentialsSeparate(t *testing.T) 
 		if err != nil {
 			return nil, err
 		}
-		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(bytes.NewReader(data))}, nil
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": {"application/json"}},
+			Body:       io.NopCloser(bytes.NewReader(data)),
+		}, nil
 	})
-	bao, err := baoapi.NewClient(&baoapi.Config{Address: "http://bao.invalid", HttpClient: &http.Client{Transport: transport}})
+	bao, err := baoapi.NewClient(&baoapi.Config{
+		Address:    "http://bao.invalid",
+		HttpClient: &http.Client{Transport: transport},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	service := &Service{kv: bao.KVv2("secrets"), http: &http.Client{Transport: transport}}
 	old := &agentzv1alpha1.MCPConnection{
-		ObjectMeta: metav1.ObjectMeta{Name: "selected", Namespace: "owner", UID: "original", Generation: 1},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "selected",
+			Namespace:  "owner",
+			UID:        "original",
+			Generation: 1,
+		},
 		Spec: agentzv1alpha1.MCPConnectionSpec{Auth: &agentzv1alpha1.MCPConnectionAuth{
 			OAuth: &agentzv1alpha1.MCPConnectionOAuthAuth{
 				TokenEndpoint: "https://8.8.8.8/token",
@@ -262,7 +295,8 @@ func TestMCPProbeDiscoversBoundedPaginatedCatalog(t *testing.T) {
 			server := mcpsdk.NewServer(&mcpsdk.Implementation{Name: "probe-test"}, &mcpsdk.ServerOptions{
 				PageSize: 2,
 				Capabilities: &mcpsdk.ServerCapabilities{
-					Tools: &mcpsdk.ToolCapabilities{}, Prompts: &mcpsdk.PromptCapabilities{},
+					Tools:     &mcpsdk.ToolCapabilities{},
+					Prompts:   &mcpsdk.PromptCapabilities{},
 					Resources: &mcpsdk.ResourceCapabilities{},
 				},
 			})
@@ -318,13 +352,26 @@ func TestMCPProbeCatalogRequiresCurrentResourceRevision(t *testing.T) {
 				t.Fatal(err)
 			}
 			current := &agentzv1alpha1.MCPConnection{
-				ObjectMeta: metav1.ObjectMeta{Name: "selected", Namespace: "owner", UID: "original", Generation: 2},
-				Status:     agentzv1alpha1.MCPConnectionStatus{Tools: []agentzv1alpha1.MCPConnectionTool{{Name: "current"}}, LastProbeTime: new(metav1.NewTime(time.Unix(2, 0)))},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "selected",
+					Namespace:  "owner",
+					UID:        "original",
+					Generation: 2,
+				},
+				Status: agentzv1alpha1.MCPConnectionStatus{
+					Tools:         []agentzv1alpha1.MCPConnectionTool{{Name: "current"}},
+					LastProbeTime: new(metav1.NewTime(time.Unix(2, 0))),
+				},
 			}
 			service := &Service{kube: fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(current).WithObjects(current).Build()}
 			probed := current.DeepCopy()
 			probed.UID, probed.Generation = test.uid, test.generation
-			outcome := mcpProbeOutcome{healthy: true, reason: mcp.ReasonReady, lastProbeTime: metav1.NewTime(test.probeTime), tools: []agentzv1alpha1.MCPConnectionTool{{Name: "probed"}}}
+			outcome := mcpProbeOutcome{
+				healthy:       true,
+				reason:        mcp.ReasonReady,
+				lastProbeTime: metav1.NewTime(test.probeTime),
+				tools:         []agentzv1alpha1.MCPConnectionTool{{Name: "probed"}},
+			}
 			if err := service.writeMCPProbeStatus(t.Context(), probed, outcome); err != nil {
 				t.Fatal(err)
 			}

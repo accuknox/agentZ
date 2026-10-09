@@ -141,9 +141,10 @@ func (s *Service) EnsureTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if apierrors.IsAlreadyExists(err) {
+		createdKey := ctrlclient.ObjectKey{Name: tenantName}
 		err = s.k8sClient.Get(
 			r.Context(),
-			ctrlclient.ObjectKey{Name: tenantName},
+			createdKey,
 			&created,
 		)
 		if err != nil {
@@ -489,7 +490,8 @@ func (s *Service) resolveRequestAuth(r *http.Request) (requestAuth, error) {
 		effective, resolveErr := authorization.New(s.queries).Resolve(
 			r.Context(),
 			authorization.Subject{
-				UserID: claims.UserID, OrganizationID: claims.OrganizationID,
+				UserID:         claims.UserID,
+				OrganizationID: claims.OrganizationID,
 			},
 		)
 		if resolveErr != nil {
@@ -661,12 +663,13 @@ func (s *Service) resolveAgentRequestAuth(r *http.Request, token string) (reques
 	}
 
 	agt := &agentzv1alpha1.Agent{}
+	agtKey := ctrlclient.ObjectKey{
+		Name:      agentName,
+		Namespace: user.namespace,
+	}
 	err = s.k8sClient.Get(
 		r.Context(),
-		ctrlclient.ObjectKey{
-			Name:      agentName,
-			Namespace: user.namespace,
-		},
+		agtKey,
 		agt,
 	)
 	if err != nil {

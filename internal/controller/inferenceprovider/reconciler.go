@@ -4,6 +4,7 @@ package inferenceprovider
 
 import (
 	"context"
+	_ "embed"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -33,6 +34,9 @@ import (
 	"github.com/accuknox/agentz/internal/scope"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
+
+//go:embed policies/inference-readonly.hcl
+var inferenceReadonlyPolicyTemplate string
 
 // ReconcilerConfig configures provider runtime and credential cleanup.
 type ReconcilerConfig struct {
@@ -136,7 +140,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 		currentPolicy := &agentgatewayv1alpha1.AgentgatewayPolicy{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: runtime.AuthPolicy.Name, Namespace: provider.Namespace,
+				Name:      runtime.AuthPolicy.Name,
+				Namespace: provider.Namespace,
 			},
 		}
 		_, err = ctrlutil.CreateOrPatch(
@@ -473,8 +478,10 @@ func (r *Reconciler) updateStatus(ctx context.Context, provider *agentzv1alpha1.
 			meta.SetStatusCondition(
 				&status.Conditions,
 				metav1.Condition{
-					Type:   string(agentzv1alpha1.InferenceProviderConditionAccepted),
-					Status: acceptedStatus, Reason: acceptedReason, Message: acceptedMessage,
+					Type:               string(agentzv1alpha1.InferenceProviderConditionAccepted),
+					Status:             acceptedStatus,
+					Reason:             acceptedReason,
+					Message:            acceptedMessage,
 					ObservedGeneration: current.Generation,
 				},
 			)
@@ -491,7 +498,11 @@ func (r *Reconciler) updateStatus(ctx context.Context, provider *agentzv1alpha1.
 				credentialsReady = externalSecretReady(runtime.ExternalSecret)
 				credentialsMessage = "Authentication is still being prepared"
 				secret := &corev1.Secret{}
-				err := r.Get(ctx, types.NamespacedName{Name: current.Name, Namespace: current.Namespace}, secret)
+				secretKey := types.NamespacedName{
+					Name:      current.Name,
+					Namespace: current.Namespace,
+				}
+				err := r.Get(ctx, secretKey, secret)
 				switch {
 				case err == nil:
 					keysReady := hasKeys(secret, runtime.SecretKeys)
@@ -603,7 +614,10 @@ func setReadyCondition(conditions *[]metav1.Condition, conditionType string, rea
 	meta.SetStatusCondition(
 		conditions,
 		metav1.Condition{
-			Type: conditionType, Status: status, Reason: reason, Message: message,
+			Type:               conditionType,
+			Status:             status,
+			Reason:             reason,
+			Message:            message,
 			ObservedGeneration: generation,
 		},
 	)
@@ -687,28 +701,37 @@ func (r *Reconciler) reconcileSecretStore(ctx context.Context, namespace string)
 	if err != nil {
 		return err
 	}
-	policy := fmt.Sprintf(`path "%s/data/%s/inference-providers/*" {
- capabilities = ["read"]
-}
-`, r.Config.OpenBaoSecretMountPath, namespace)
+	policy := fmt.Sprintf(inferenceReadonlyPolicyTemplate, r.Config.OpenBaoSecretMountPath, namespace)
 	if err := r.Bao.Sys().PutPolicyWithContext(ctx, roleName, policy); err != nil {
 		return err
 	}
 	_, err = r.Bao.Logical().WriteWithContext(ctx, "auth/"+r.Config.OpenBaoK8sAuthMountPath+"/role/"+roleName, map[string]any{
-		"bound_service_account_names": name, "bound_service_account_namespaces": namespace,
-		"token_policies": roleName, "token_ttl": "15m", "token_max_ttl": "15m",
+		"bound_service_account_names":      name,
+		"bound_service_account_namespaces": namespace,
+		"token_policies":                   roleName,
+		"token_ttl":                        "15m",
+		"token_max_ttl":                    "15m",
 	})
 	if err != nil {
 		return err
 	}
-	store := &externalsecretsv1.SecretStore{ObjectMeta: metav1.ObjectMeta{Name: r.Config.StoreName, Namespace: namespace}}
+	store := &externalsecretsv1.SecretStore{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      r.Config.StoreName,
+			Namespace: namespace,
+		},
+	}
 	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, store, func() error {
 		store.OwnerReferences = account.OwnerReferences
 		store.Spec = externalsecretsv1.SecretStoreSpec{Provider: &externalsecretsv1.SecretStoreProvider{
 			Vault: &externalsecretsv1.VaultProvider{
-				Server: r.Config.OpenBaoAddr, Path: &r.Config.OpenBaoSecretMountPath, Version: externalsecretsv1.VaultKVStoreV2,
+				Server:  r.Config.OpenBaoAddr,
+				Path:    &r.Config.OpenBaoSecretMountPath,
+				Version: externalsecretsv1.VaultKVStoreV2,
 				Auth: &externalsecretsv1.VaultAuth{Kubernetes: &externalsecretsv1.VaultKubernetesAuth{
-					Path: r.Config.OpenBaoK8sAuthMountPath, Role: roleName, ServiceAccountRef: &esmeta.ServiceAccountSelector{Name: name},
+					Path:              r.Config.OpenBaoK8sAuthMountPath,
+					Role:              roleName,
+					ServiceAccountRef: &esmeta.ServiceAccountSelector{Name: name},
 				}},
 			},
 		}}

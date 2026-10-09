@@ -180,14 +180,11 @@ func (r *Reconciler) failSchedule(ctx context.Context, schedule *agentzv1alpha1.
 
 func (r *Reconciler) refreshStatus(ctx context.Context, schedule *agentzv1alpha1.WorkflowSchedule, cronJobName string) error {
 	cronJob := &batchv1.CronJob{}
-	err := r.Get(
-		ctx,
-		client.ObjectKey{
-			Namespace: schedule.Namespace,
-			Name:      cronJobName,
-		},
-		cronJob,
-	)
+	cronJobKey := client.ObjectKey{
+		Namespace: schedule.Namespace,
+		Name:      cronJobName,
+	}
+	err := r.Get(ctx, cronJobKey, cronJob)
 	if err != nil {
 		return fmt.Errorf("get cronjob: %w", err)
 	}

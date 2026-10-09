@@ -316,7 +316,10 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 				image = &row.Image.String
 			}
 			response.ParticipantFilters = append(response.ParticipantFilters, gatewayapi.ChatSessionParticipant{
-				Id: row.ID, Name: row.Name, Email: openapi_types.Email(row.Email), Image: image,
+				Id:    row.ID,
+				Name:  row.Name,
+				Email: openapi_types.Email(row.Email),
+				Image: image,
 			})
 		}
 	}
@@ -337,7 +340,10 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		}
 		projects, err := s.queries.GatewayListCodingProjects(
 			r.Context(),
-			gatewaydb.GatewayListCodingProjectsParams{WorkspaceID: access.workspaceID, OwnerID: ownerID.String},
+			gatewaydb.GatewayListCodingProjectsParams{
+				WorkspaceID: access.workspaceID,
+				OwnerID:     ownerID.String,
+			},
 		)
 		if err != nil {
 			apiutil.WriteInternalError(w, r, err)
@@ -350,9 +356,12 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 			group := chatSessionGroup(groupBy, project.ID, activeGroup)
 			group.Label = project.Name
 			group.Project = &gatewayapi.CodingProject{
-				Id: project.ID, Name: project.Name, Repository: project.Repository,
-				RepositoryId: project.RepositoryID, DefaultBranch: project.DefaultBranch,
-				CreatedAt: project.CreatedAt.Time,
+				Id:            project.ID,
+				Name:          project.Name,
+				Repository:    project.Repository,
+				RepositoryId:  project.RepositoryID,
+				DefaultBranch: project.DefaultBranch,
+				CreatedAt:     project.CreatedAt.Time,
 			}
 			if project.LastAgentName.Valid {
 				group.Project.LastAgentName = &project.LastAgentName.String
@@ -445,7 +454,8 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 				ParticipantUserIds:  participantIDs,
 				CursorSet:           params.PageToken != nil,
 				CursorUpdatedAt: pgtype.Timestamptz{
-					Time: cursor.UpdatedAt, Valid: params.PageToken != nil,
+					Time:  cursor.UpdatedAt,
+					Valid: params.PageToken != nil,
 				},
 				CursorAgentName: cursor.AgentName,
 				CursorSessionID: cursor.SessionID,
@@ -553,10 +563,13 @@ func (s *Service) searchChatSessionGroups(ctx context.Context, q gatewaydb.Gatew
 			return nil, fmt.Errorf("decode chat session participants: %w", decodeErr)
 		}
 		group.Sessions = append(group.Sessions, gatewayapi.ChatSession{
-			AgentName: row.AgentName, SessionId: row.SessionID, Title: row.Title,
-			Kind:      gatewayapi.ChatSessionKind(row.Kind),
-			Status:    gatewayapi.ChatSessionStatus(row.Status),
-			CreatedAt: row.SourceCreatedAt.Time, UpdatedAt: row.SourceUpdatedAt.Time,
+			AgentName:    row.AgentName,
+			SessionId:    row.SessionID,
+			Title:        row.Title,
+			Kind:         gatewayapi.ChatSessionKind(row.Kind),
+			Status:       gatewayapi.ChatSessionStatus(row.Status),
+			CreatedAt:    row.SourceCreatedAt.Time,
+			UpdatedAt:    row.SourceUpdatedAt.Time,
 			Participants: participants,
 		})
 	}

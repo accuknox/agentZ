@@ -42,9 +42,13 @@ var errDelegationLookup = errors.New("delegation lookup failed")
 // Empty grants have no upstream routes or MCP session state. The SDK still
 // handles initialization, empty discovery, and rejected execution requests.
 var emptyDelegationMCP = func() http.Handler {
-	server := mcpsdk.NewServer(&mcpsdk.Implementation{Name: "agentz", Version: "v0.0.1"}, &mcpsdk.ServerOptions{
+	server := mcpsdk.NewServer(&mcpsdk.Implementation{
+		Name:    "agentz",
+		Version: "v0.0.1",
+	}, &mcpsdk.ServerOptions{
 		Capabilities: &mcpsdk.ServerCapabilities{
-			Tools: &mcpsdk.ToolCapabilities{}, Prompts: &mcpsdk.PromptCapabilities{},
+			Tools:     &mcpsdk.ToolCapabilities{},
+			Prompts:   &mcpsdk.PromptCapabilities{},
 			Resources: &mcpsdk.ResourceCapabilities{},
 		},
 		GetSessionID: func() string { return "" },
@@ -103,9 +107,13 @@ func (s *Service) GetDelegationCatalog(w http.ResponseWriter, r *http.Request, p
 }
 
 func (s *Service) delegationCatalog(ctx context.Context, userID, organizationID, workspaceID string, includeUnavailable bool) (gatewayapi.DelegationCatalog, error) {
-	catalog := gatewayapi.DelegationCatalog{Models: []gatewayapi.DelegationModel{}, Mcp: []gatewayapi.DelegationMCP{}}
+	catalog := gatewayapi.DelegationCatalog{
+		Models: []gatewayapi.DelegationModel{},
+		Mcp:    []gatewayapi.DelegationMCP{},
+	}
 	workspace, err := s.queries.GatewayGetWorkspace(ctx, gatewaydb.GatewayGetWorkspaceParams{
-		ID: workspaceID, OrganizationID: organizationID,
+		ID:             workspaceID,
+		OrganizationID: organizationID,
 	})
 	if err != nil {
 		return catalog, err
@@ -114,7 +122,8 @@ func (s *Service) delegationCatalog(ctx context.Context, userID, organizationID,
 		return catalog, errors.New("workspace is unavailable")
 	}
 	effective, err := authorization.New(s.queries).Resolve(ctx, authorization.Subject{
-		UserID: userID, OrganizationID: organizationID,
+		UserID:         userID,
+		OrganizationID: organizationID,
 	})
 	if err != nil {
 		return catalog, err
@@ -139,7 +148,9 @@ func (s *Service) delegationCatalog(ctx context.Context, userID, organizationID,
 					continue
 				}
 				_, err := scope.SelectedNamespace(ctx, s.k8sClient, workspaceNamespace, scope.Selection{
-					Scope: resourceScope, Kind: agentzv1alpha1.OrganizationResourceKindInferenceProvider, Name: provider.Name,
+					Scope: resourceScope,
+					Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+					Name:  provider.Name,
 				})
 				if err != nil {
 					continue
@@ -181,7 +192,9 @@ func (s *Service) delegationCatalog(ctx context.Context, userID, organizationID,
 				continue
 			}
 			_, err = scope.SelectedNamespace(ctx, s.k8sClient, workspaceNamespace, scope.Selection{
-				Scope: resourceScope, Kind: agentzv1alpha1.OrganizationResourceKindMCPConnection, Name: connection.Name,
+				Scope: resourceScope,
+				Kind:  agentzv1alpha1.OrganizationResourceKindMCPConnection,
+				Name:  connection.Name,
 			})
 			if err != nil {
 				continue
@@ -192,10 +205,14 @@ func (s *Service) delegationCatalog(ctx context.Context, userID, organizationID,
 			}
 			targetID := sha256.Sum256([]byte(workspaceID + "/" + string(connection.UID)))
 			catalog.Mcp = append(catalog.Mcp, gatewayapi.DelegationMCP{
-				Id: fmt.Sprintf("mcp-%x", targetID[:16]), WorkspaceId: workspaceID, Namespace: namespace,
-				Connection: connection.Name, Uid: string(connection.UID), Tools: tools,
-				Prompts:   append([]string{}, connection.Status.Prompts...),
-				Resources: append([]string{}, connection.Status.Resources...),
+				Id:          fmt.Sprintf("mcp-%x", targetID[:16]),
+				WorkspaceId: workspaceID,
+				Namespace:   namespace,
+				Connection:  connection.Name,
+				Uid:         string(connection.UID),
+				Tools:       tools,
+				Prompts:     append([]string{}, connection.Status.Prompts...),
+				Resources:   append([]string{}, connection.Status.Resources...),
 			})
 		}
 	}
@@ -207,7 +224,8 @@ func (s *Service) checkDelegation(ctx context.Context, grant gatewaydb.Delegatio
 		return nil
 	}
 	effective, err := authorization.New(s.queries).Resolve(ctx, authorization.Subject{
-		UserID: grant.UserID, OrganizationID: grant.OrganizationID.String,
+		UserID:         grant.UserID,
+		OrganizationID: grant.OrganizationID.String,
 	})
 	if err != nil {
 		return errors.Join(errDelegationLookup, err)
@@ -216,13 +234,17 @@ func (s *Service) checkDelegation(ctx context.Context, grant gatewaydb.Delegatio
 	// Health affects execution, not consent. Recheck ownership and permissions
 	// without coupling a healthy target to another target's catalog probe.
 	selectedNamespace := func(workspaceID, namespace, name string, kind agentzv1alpha1.OrganizationResourceKind, resource gatewaydb.PermissionResource) error {
-		selectedScope := authorization.Scope{OrganizationID: grant.OrganizationID.String, WorkspaceID: workspaceID}
+		selectedScope := authorization.Scope{
+			OrganizationID: grant.OrganizationID.String,
+			WorkspaceID:    workspaceID,
+		}
 		if !effective.CanDelegate(selectedScope, resource) {
 			return errors.New("resource delegation is no longer allowed")
 		}
 		if !workspaces[workspaceID] {
 			workspace, err := s.queries.GatewayGetWorkspace(ctx, gatewaydb.GatewayGetWorkspaceParams{
-				ID: workspaceID, OrganizationID: grant.OrganizationID.String,
+				ID:             workspaceID,
+				OrganizationID: grant.OrganizationID.String,
 			})
 			if err != nil {
 				if errors.Is(err, pgx.ErrNoRows) {
@@ -241,7 +263,9 @@ func (s *Service) checkDelegation(ctx context.Context, grant gatewaydb.Delegatio
 			resourceScope = agentzv1alpha1.ResourceScopeOrganisation
 		}
 		current, err := scope.SelectedNamespace(ctx, s.k8sClient, workspaceNamespace, scope.Selection{
-			Scope: resourceScope, Kind: kind, Name: name,
+			Scope: resourceScope,
+			Kind:  kind,
+			Name:  name,
 		})
 		if err != nil {
 			return err
@@ -264,7 +288,9 @@ func (s *Service) checkDelegation(ctx context.Context, grant gatewaydb.Delegatio
 			return err
 		}
 		identity := model.WorkspaceId + "/" + string(provider.UID) + "/" + model.Model
-		currentModel := slices.ContainsFunc(provider.Spec.Models, func(current agentzv1alpha1.InferenceModel) bool { return current.ID == model.Model })
+		currentModel := slices.ContainsFunc(provider.Spec.Models, func(current agentzv1alpha1.InferenceModel) bool {
+			return current.ID == model.Model
+		})
 		changed := string(provider.UID) != model.Uid || model.Id != identity || !currentModel
 		if !provider.DeletionTimestamp.IsZero() || changed {
 			return errors.New("model delegation is no longer allowed")
@@ -357,7 +383,10 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 		s.delegationError(w, r, status, code, message)
 	}
 	if claims.SessionID != "" && !slices.Contains(claimedScopes, "offline_access") {
-		active, err := s.queries.GatewayCheckDelegationSession(r.Context(), gatewaydb.GatewayCheckDelegationSessionParams{ID: claims.SessionID, UserID: claims.Subject})
+		active, err := s.queries.GatewayCheckDelegationSession(r.Context(), gatewaydb.GatewayCheckDelegationSessionParams{
+			ID:     claims.SessionID,
+			UserID: claims.Subject,
+		})
 		if err != nil {
 			deny(err, true)
 			return
@@ -368,8 +397,10 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 		}
 	}
 	grant, err := s.queries.GatewayGetDelegationGrant(r.Context(), gatewaydb.GatewayGetDelegationGrantParams{
-		ID: claims.GrantID, ClientID: claims.ClientID, UserID: claims.Subject,
-		Origin: r.Header.Get("Origin"),
+		ID:       claims.GrantID,
+		ClientID: claims.ClientID,
+		UserID:   claims.Subject,
+		Origin:   r.Header.Get("Origin"),
 	})
 	if err != nil {
 		deny(err, !errors.Is(err, pgx.ErrNoRows))
@@ -399,14 +430,20 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 		models := openAIModels{Object: "list", Data: []openAIModel{}}
 		for _, model := range selection.Models {
 			provider := &agentzv1alpha1.InferenceProvider{}
-			err := s.k8sClient.Get(r.Context(), ctrlclient.ObjectKey{Namespace: model.Namespace, Name: model.Provider}, provider)
+			providerKey := ctrlclient.ObjectKey{
+				Namespace: model.Namespace,
+				Name:      model.Provider,
+			}
+			err := s.k8sClient.Get(r.Context(), providerKey, provider)
 			if err != nil {
 				deny(err, false)
 				return
 			}
 			models.Data = append(models.Data, openAIModel{
-				ID: model.Id, Object: "model",
-				Created: grant.CreatedAt.Time.Unix(), OwnedBy: model.Provider,
+				ID:                 model.Id,
+				Object:             "model",
+				Created:            grant.CreatedAt.Time.Unix(),
+				OwnedBy:            model.Provider,
 				SupportedEndpoints: inference.DelegatedProviderEndpoints(provider.Spec.Kind),
 				StreamingOnly:      provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICodex,
 			})
@@ -483,7 +520,11 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		provider := &agentzv1alpha1.InferenceProvider{}
-		err = s.k8sClient.Get(r.Context(), ctrlclient.ObjectKey{Namespace: selected.Namespace, Name: selected.Provider}, provider)
+		providerKey := ctrlclient.ObjectKey{
+			Namespace: selected.Namespace,
+			Name:      selected.Provider,
+		}
+		err = s.k8sClient.Get(r.Context(), providerKey, provider)
 		if err != nil {
 			deny(err, false)
 			return
@@ -534,8 +575,12 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 					return
 				}
 				apiutil.WriteJSON(w, http.StatusOK, map[string]any{
-					"jsonrpc": "2.0", "id": message.ID,
-					"error": map[string]any{"code": -32601, "message": "This MCP operation is unavailable through delegated access."},
+					"jsonrpc": "2.0",
+					"id":      message.ID,
+					"error": map[string]any{
+						"code":    -32601,
+						"message": "This MCP operation is unavailable through delegated access.",
+					},
 				})
 				return
 			}
@@ -546,7 +591,8 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 		}
 		if session := r.Header.Get("Mcp-Session-Id"); session != "" {
 			valid, err := s.queries.GatewayCheckDelegationMCPSession(r.Context(), gatewaydb.GatewayCheckDelegationMCPSessionParams{
-				ID: session, GrantID: grant.ID,
+				ID:      session,
+				GrantID: grant.ID,
 			})
 			if err != nil {
 				deny(err, true)
@@ -637,7 +683,8 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 				response.Trailer = nil
 				body, err := json.Marshal(openAIError{Error: openAIErrorDetail{
 					Message: "The upstream service could not complete this request.",
-					Type:    "server_error", Code: "upstream_error",
+					Type:    "server_error",
+					Code:    "upstream_error",
 				}})
 				if err != nil {
 					return err
@@ -653,7 +700,8 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 			if r.Method == http.MethodDelete {
 				response.Header.Del("Mcp-Session-Id")
 				return s.queries.GatewayDeleteDelegationMCPSession(ctx, gatewaydb.GatewayDeleteDelegationMCPSessionParams{
-					ID: r.Header.Get("Mcp-Session-Id"), GrantID: grant.ID,
+					ID:      r.Header.Get("Mcp-Session-Id"),
+					GrantID: grant.ID,
 				})
 			}
 			if !initializingMCP {
@@ -664,7 +712,12 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 				return nil
 			}
 			updated, err := s.queries.GatewaySaveDelegationMCPSession(ctx, gatewaydb.GatewaySaveDelegationMCPSessionParams{
-				ID: session, GrantID: grant.ID, ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(24 * time.Hour), Valid: true},
+				ID:      session,
+				GrantID: grant.ID,
+				ExpiresAt: pgtype.Timestamptz{
+					Time:  time.Now().Add(24 * time.Hour),
+					Valid: true,
+				},
 			})
 			if err != nil {
 				return err
@@ -687,7 +740,11 @@ func (s *Service) delegationError(w http.ResponseWriter, r *http.Request, status
 		apiutil.WriteError(w, r, apiutil.NewError(status, code, message, nil))
 		return
 	}
-	apiutil.WriteJSON(w, status, openAIError{Error: openAIErrorDetail{Message: message, Type: code, Code: code}})
+	apiutil.WriteJSON(w, status, openAIError{Error: openAIErrorDetail{
+		Message: message,
+		Type:    code,
+		Code:    code,
+	}})
 }
 
 func (s *Service) delegationCORS(next http.Handler) http.Handler {

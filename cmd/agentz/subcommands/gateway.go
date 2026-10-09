@@ -22,10 +22,24 @@ var gatewayServeCmd = &cli.Command{
 	Name:  "serve",
 	Usage: "Run the gateway HTTP server",
 	Flags: []cli.Flag{
-		&cli.StringFlag{Name: "delegation-namespace", Usage: "Private native MCP aggregator namespace"},
-		&cli.StringFlag{Name: "gateway-service-account-name", Usage: "Gateway workload ServiceAccount", Value: "gateway"},
-		&cli.StringFlag{Name: "gateway-service-account-namespace", Usage: "Gateway workload namespace", Value: "agentz-system"},
-		&cli.StringFlag{Name: "delegation-gateway-url", Usage: "Private delegated Agentgateway URL"},
+		&cli.StringFlag{
+			Name:  "delegation-namespace",
+			Usage: "Private native MCP aggregator namespace",
+		},
+		&cli.StringFlag{
+			Name:  "gateway-service-account-name",
+			Usage: "Gateway workload ServiceAccount",
+			Value: "gateway",
+		},
+		&cli.StringFlag{
+			Name:  "gateway-service-account-namespace",
+			Usage: "Gateway workload namespace",
+			Value: "agentz-system",
+		},
+		&cli.StringFlag{
+			Name:  "delegation-gateway-url",
+			Usage: "Private delegated Agentgateway URL",
+		},
 		&cli.StringFlag{
 			Name:    "coding-github-client-id",
 			Usage:   "Coding GitHub App client ID shared with the web app",

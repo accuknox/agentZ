@@ -115,7 +115,10 @@ func (s *service) listSkills(w http.ResponseWriter, r *http.Request) {
 		items = append(
 			items,
 			gatewayapi.MutableSkillSummary{
-				Name: name, FileCount: count, SizeBytes: size, ModifiedAt: modifiedAt,
+				Name:       name,
+				FileCount:  count,
+				SizeBytes:  size,
+				ModifiedAt: modifiedAt,
 			},
 		)
 	}
@@ -159,7 +162,8 @@ func (s *service) listSkills(w http.ResponseWriter, r *http.Request) {
 		w,
 		http.StatusOK,
 		gatewayapi.ListMutableSkillsResponse{
-			Skills: items[start:end], NextPageToken: next,
+			Skills:        items[start:end],
+			NextPageToken: next,
 		},
 	)
 }
@@ -380,7 +384,8 @@ func (s *service) importSkills(w http.ResponseWriter, r *http.Request) {
 				w,
 				r,
 				&failure{
-					status: http.StatusConflict, code: "decision_conflict",
+					status:  http.StatusConflict,
+					code:    "decision_conflict",
 					message: "overwrite destination does not exist",
 				},
 			)
@@ -391,7 +396,8 @@ func (s *service) importSkills(w http.ResponseWriter, r *http.Request) {
 				w,
 				r,
 				&failure{
-					status: http.StatusConflict, code: "decision_conflict",
+					status:  http.StatusConflict,
+					code:    "decision_conflict",
 					message: "create destination already exists",
 				},
 			)

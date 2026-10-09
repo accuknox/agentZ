@@ -25,7 +25,10 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationRuntime(ctx context.Contex
 		return errors.New("delegation requires gateway service account identity")
 	}
 	ns := namespace.Name
-	backend := &agw.AgentgatewayBackend{ObjectMeta: metav1.ObjectMeta{Name: "delegation-extauth", Namespace: ns}}
+	backend := &agw.AgentgatewayBackend{ObjectMeta: metav1.ObjectMeta{
+		Name:      "delegation-extauth",
+		Namespace: ns,
+	}}
 	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, backend, func() error {
 		backend.OwnerReferences = scope.ownerRefs
 		backend.Spec = agw.AgentgatewayBackendSpec{
@@ -65,12 +68,17 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationRuntime(ctx context.Contex
 		}
 		if !needed {
 			patch := client.MergeFrom(gateway.DeepCopy())
-			gateway.Spec.Listeners = slices.DeleteFunc(gateway.Spec.Listeners, func(listener gwv1.Listener) bool { return listener.Name == "delegation" })
+			gateway.Spec.Listeners = slices.DeleteFunc(gateway.Spec.Listeners, func(listener gwv1.Listener) bool {
+				return listener.Name == "delegation"
+			})
 			if !consumed {
 				if err := client.IgnoreNotFound(r.Delete(ctx, gateway)); err != nil {
 					return err
 				}
-				parameters := &agw.AgentgatewayParameters{ObjectMeta: metav1.ObjectMeta{Name: desired.Spec.Infrastructure.ParametersRef.Name, Namespace: ns}}
+				parameters := &agw.AgentgatewayParameters{ObjectMeta: metav1.ObjectMeta{
+					Name:      desired.Spec.Infrastructure.ParametersRef.Name,
+					Namespace: ns,
+				}}
 				if err := client.IgnoreNotFound(r.Delete(ctx, parameters)); err != nil {
 					return err
 				}
@@ -81,7 +89,10 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationRuntime(ctx context.Contex
 			}
 			continue
 		}
-		parameters := &agw.AgentgatewayParameters{ObjectMeta: metav1.ObjectMeta{Name: desired.Spec.Infrastructure.ParametersRef.Name, Namespace: ns}}
+		parameters := &agw.AgentgatewayParameters{ObjectMeta: metav1.ObjectMeta{
+			Name:      desired.Spec.Infrastructure.ParametersRef.Name,
+			Namespace: ns,
+		}}
 		_, err = ctrlutil.CreateOrPatch(ctx, r.Client, parameters, func() error {
 			parameters.OwnerReferences = scope.ownerRefs
 			if parameters.CreationTimestamp.IsZero() {
@@ -97,9 +108,13 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationRuntime(ctx context.Contex
 				gateway.Spec = desired.Spec
 			}
 			gateway.OwnerReferences = scope.ownerRefs
-			gateway.Spec.Listeners = slices.DeleteFunc(gateway.Spec.Listeners, func(listener gwv1.Listener) bool { return listener.Name == "delegation" })
+			gateway.Spec.Listeners = slices.DeleteFunc(gateway.Spec.Listeners, func(listener gwv1.Listener) bool {
+				return listener.Name == "delegation"
+			})
 			gateway.Spec.Listeners = append(gateway.Spec.Listeners, gwv1.Listener{
-				Name: "delegation", Port: 8080, Protocol: gwv1.HTTPProtocolType,
+				Name:     "delegation",
+				Port:     8080,
+				Protocol: gwv1.HTTPProtocolType,
 			})
 			return nil
 		})

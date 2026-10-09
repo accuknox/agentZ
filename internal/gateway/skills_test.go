@@ -133,22 +133,27 @@ func TestSkillDeleteRequiresDetachment(t *testing.T) {
 					Active:      true,
 					WorkspaceID: pgtype.Text{String: testWorkspaceID, Valid: true},
 					Resource: gatewaydb.NullPermissionResource{
-						PermissionResource: gatewaydb.PermissionResourceSkill, Valid: true,
+						PermissionResource: gatewaydb.PermissionResourceSkill,
+						Valid:              true,
 					},
 					Action: gatewaydb.NullPermissionAction{
-						PermissionAction: gatewaydb.PermissionActionDelete, Valid: true,
+						PermissionAction: gatewaydb.PermissionActionDelete,
+						Valid:            true,
 					},
 				}},
 				workspace: gatewaydb.Workspace{
-					ID: testWorkspaceID, OrganizationID: testOrganizationID,
-					Namespace: testWorkspaceNS, State: gatewaydb.WorkspaceStateReady,
+					ID:             testWorkspaceID,
+					OrganizationID: testOrganizationID,
+					Namespace:      testWorkspaceNS,
+					State:          gatewaydb.WorkspaceStateReady,
 				},
 			}}
 			svc := sandboxTestService(t, queries)
 			names := []string{"free", "used"}
 			for _, name := range names {
 				item := &agentzv1alpha1.Skill{ObjectMeta: metav1.ObjectMeta{
-					Name: name, Namespace: testWorkspaceNS,
+					Name:       name,
+					Namespace:  testWorkspaceNS,
 					Finalizers: []string{"agentz.accuknox.com/immutable-skill"},
 				}}
 				if err := svc.k8sClient.Create(t.Context(), item); err != nil {
@@ -158,7 +163,8 @@ func TestSkillDeleteRequiresDetachment(t *testing.T) {
 			agt := &agentzv1alpha1.Agent{
 				ObjectMeta: metav1.ObjectMeta{Name: "consumer", Namespace: testWorkspaceNS},
 				Spec: agentzv1alpha1.AgentSpec{Skills: []agentzv1alpha1.ResourceReference{{
-					Name: "used", Scope: agentzv1alpha1.ResourceScopeWorkspace,
+					Name:  "used",
+					Scope: agentzv1alpha1.ResourceScopeWorkspace,
 				}}},
 			}
 			if err := svc.k8sClient.Create(t.Context(), agt); err != nil {
@@ -166,7 +172,8 @@ func TestSkillDeleteRequiresDetachment(t *testing.T) {
 			}
 			router := chi.NewRouter()
 			gatewayapi.HandlerWithOptions(svc, gatewayapi.ChiServerOptions{
-				BaseRouter: router, Middlewares: []gatewayapi.MiddlewareFunc{sandboxTestAuth},
+				BaseRouter:  router,
+				Middlewares: []gatewayapi.MiddlewareFunc{sandboxTestAuth},
 			})
 			statuses := []int{http.StatusConflict, http.StatusNoContent}
 			for _, status := range statuses {

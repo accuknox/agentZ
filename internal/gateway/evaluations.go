@@ -75,7 +75,10 @@ func (s *Service) CreateWorkflowEvaluation(w http.ResponseWriter, r *http.Reques
 			key[2] = *model.Variant
 		}
 		if seen[key] {
-			fields = append(fields, gatewayapi.FieldError{Field: "models", Message: "Select each model configuration once"})
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   "models",
+				Message: "Select each model configuration once",
+			})
 		}
 		seen[key] = true
 	}
@@ -85,15 +88,20 @@ func (s *Service) CreateWorkflowEvaluation(w http.ResponseWriter, r *http.Reques
 	}
 	now := time.Now().UTC()
 	result := gatewayapi.WorkflowEvaluation{
-		Id: input.Id, Request: input, Workflow: definition,
-		State:     gatewayapi.WorkflowEvaluationStateQueued,
-		CreatedAt: now, UpdatedAt: now, ScoringVersion: gatewayapi.TraceV1,
-		Executions: []gatewayapi.EvaluationExecution{},
+		Id:             input.Id,
+		Request:        input,
+		Workflow:       definition,
+		State:          gatewayapi.WorkflowEvaluationStateQueued,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+		ScoringVersion: gatewayapi.TraceV1,
+		Executions:     []gatewayapi.EvaluationExecution{},
 	}
 	for i, model := range input.Models {
 		result.Executions = append(result.Executions, gatewayapi.EvaluationExecution{
-			Model: model, RunName: fmt.Sprintf("eval-%s-%d", input.Id, i),
-			State: gatewayapi.EvaluationExecutionStateQueued,
+			Model:   model,
+			RunName: fmt.Sprintf("eval-%s-%d", input.Id, i),
+			State:   gatewayapi.EvaluationExecutionStateQueued,
 		})
 	}
 	request, err := json.Marshal(input)
@@ -169,7 +177,9 @@ func (s *Service) validateEvaluationModels(ctx context.Context, namespace, agent
 	}
 	ref := resolved.Agent.Spec.SandboxRef
 	ns, err := scope.SelectedNamespace(ctx, s.k8sClient, namespace, scope.Selection{
-		Scope: ref.Scope, Kind: agentzv1alpha1.OrganizationResourceKindSandbox, Name: ref.Name,
+		Scope: ref.Scope,
+		Kind:  agentzv1alpha1.OrganizationResourceKindSandbox,
+		Name:  ref.Name,
 	})
 	if err != nil {
 		return nil, err
@@ -209,7 +219,8 @@ func (s *Service) validateEvaluationModels(ctx context.Context, namespace, agent
 		})
 		if !available {
 			fields = append(fields, gatewayapi.FieldError{
-				Field: field, Message: model.Label + " is not available to this agent",
+				Field:   field,
+				Message: model.Label + " is not available to this agent",
 			})
 			continue
 		}
@@ -229,7 +240,8 @@ func (s *Service) validateEvaluationModels(ctx context.Context, namespace, agent
 		}
 		if !available {
 			fields = append(fields, gatewayapi.FieldError{
-				Field: field, Message: model.Label + " does not offer variant " + *model.Variant,
+				Field:   field,
+				Message: model.Label + " does not offer variant " + *model.Variant,
 			})
 		}
 	}
@@ -306,8 +318,10 @@ func (s *Service) DeleteWorkflowEvaluation(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	err := workflowdb.New(s.db).RunEvaluationRequestDeletion(r.Context(), workflowdb.RunEvaluationRequestDeletionParams{
-		ID: id, TenantNamespace: access.namespace,
-		AgentName: agentName, WorkflowName: workflowName,
+		ID:              id,
+		TenantNamespace: access.namespace,
+		AgentName:       agentName,
+		WorkflowName:    workflowName,
 	})
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
@@ -422,7 +436,8 @@ func (s *Service) runEvaluations(ctx context.Context, cleanup bool) {
 		case <-ticker.C:
 		}
 		job, err := q.RunEvaluationClaim(ctx, workflowdb.RunEvaluationClaimParams{
-			LeaseToken: uuid.NewString(), Cleanup: cleanup,
+			LeaseToken: uuid.NewString(),
+			Cleanup:    cleanup,
 		})
 		if errors.Is(err, pgx.ErrNoRows) {
 			continue
@@ -439,7 +454,8 @@ func (s *Service) runEvaluations(ctx context.Context, cleanup bool) {
 				slog.ErrorContext(ctx, "delete workflow evaluation", "id", job.ID, "error", err)
 			}
 			err = q.RunEvaluationRelease(ctx, workflowdb.RunEvaluationReleaseParams{
-				ID: job.ID, LeaseToken: job.LeaseToken,
+				ID:         job.ID,
+				LeaseToken: job.LeaseToken,
 			})
 			if err != nil {
 				slog.ErrorContext(ctx, "release evaluation cleanup", "id", job.ID, "error", err)
@@ -509,10 +525,18 @@ func (s *Service) advanceEvaluation(ctx context.Context, job workflowdb.Workflow
 		return s.cancelEvaluation(ctx, job, result)
 	}
 	access := resourceAccess{
-		claims:      gatewayClaims{UserID: job.OwnerID, OrganizationID: job.OrganizationID, WorkspaceID: job.WorkspaceID},
-		workspaceID: job.WorkspaceID, operation: authorization.OperationUseSharedAgent,
+		claims: gatewayClaims{
+			UserID:         job.OwnerID,
+			OrganizationID: job.OrganizationID,
+			WorkspaceID:    job.WorkspaceID,
+		},
+		workspaceID: job.WorkspaceID,
+		operation:   authorization.OperationUseSharedAgent,
 	}
-	effective, err := authorization.New(s.queries).Resolve(ctx, authorization.Subject{UserID: job.OwnerID, OrganizationID: job.OrganizationID})
+	effective, err := authorization.New(s.queries).Resolve(ctx, authorization.Subject{
+		UserID:         job.OwnerID,
+		OrganizationID: job.OrganizationID,
+	})
 	if err != nil {
 		return err
 	}
@@ -539,7 +563,9 @@ func (s *Service) advanceEvaluation(ctx context.Context, job workflowdb.Workflow
 	finished := make(chan evaluationJudgeResult, result.Request.Concurrency)
 	active := make(map[int]bool)
 	evaluation := gatewayapi.WorkflowEvaluation{
-		Id: result.Id, Workflow: result.Workflow, Request: result.Request,
+		Id:       result.Id,
+		Workflow: result.Workflow,
+		Request:  result.Request,
 	}
 	poll := time.NewTicker(time.Second)
 	defer poll.Stop()
@@ -553,8 +579,11 @@ func (s *Service) advanceEvaluation(ctx context.Context, job workflowdb.Workflow
 			return err
 		}
 		saved, err := q.RunEvaluationSave(ctx, workflowdb.RunEvaluationSaveParams{
-			ID: job.ID, LeaseToken: job.LeaseToken,
-			Result: body, State: string(result.State), Release: false,
+			ID:         job.ID,
+			LeaseToken: job.LeaseToken,
+			Result:     body,
+			State:      string(result.State),
+			Release:    false,
 		})
 		if err != nil {
 			return err
@@ -663,7 +692,11 @@ func (s *Service) advanceEvaluationRuns(ctx context.Context, job workflowdb.Work
 			continue
 		}
 		var run agentzv1alpha1.WorkflowRun
-		err := s.k8sClient.Get(ctx, client.ObjectKey{Namespace: job.TenantNamespace, Name: execution.RunName}, &run)
+		runKey := client.ObjectKey{
+			Namespace: job.TenantNamespace,
+			Name:      execution.RunName,
+		}
+		err := s.k8sClient.Get(ctx, runKey, &run)
 		if apierrors.IsNotFound(err) && execution.State == gatewayapi.EvaluationExecutionStateQueued {
 			definition, err := json.Marshal(result.Workflow)
 			if err != nil {
@@ -673,19 +706,26 @@ func (s *Service) advanceEvaluationRuns(ctx context.Context, job workflowdb.Work
 			if err != nil {
 				return err
 			}
-			model := &agentzv1alpha1.WorkflowRunModel{ProviderID: execution.Model.ProviderId, ModelID: execution.Model.ModelId}
+			model := &agentzv1alpha1.WorkflowRunModel{
+				ProviderID: execution.Model.ProviderId,
+				ModelID:    execution.Model.ModelId,
+			}
 			if execution.Model.Variant != nil {
 				model.Variant = *execution.Model.Variant
 			}
 			run = agentzv1alpha1.WorkflowRun{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: execution.RunName, Namespace: job.TenantNamespace,
-					Labels: map[string]string{"agentz.accuknox.com/evaluation": result.Id.String()},
+					Name:      execution.RunName,
+					Namespace: job.TenantNamespace,
+					Labels:    map[string]string{"agentz.accuknox.com/evaluation": result.Id.String()},
 				},
 				Spec: agentzv1alpha1.WorkflowRunSpec{
-					AgentName: job.AgentName, WorkflowName: job.WorkflowName,
-					Model: model, Definition: &apiextensionsv1.JSON{Raw: definition},
-					Inputs: apiextensionsv1.JSON{Raw: inputs}, TimeoutSeconds: result.Request.TimeoutSeconds,
+					AgentName:      job.AgentName,
+					WorkflowName:   job.WorkflowName,
+					Model:          model,
+					Definition:     &apiextensionsv1.JSON{Raw: definition},
+					Inputs:         apiextensionsv1.JSON{Raw: inputs},
+					TimeoutSeconds: result.Request.TimeoutSeconds,
 				},
 			}
 			if err = s.k8sClient.Create(ctx, &run); err != nil && !apierrors.IsAlreadyExists(err) {
@@ -777,7 +817,8 @@ func (s *Service) deleteEvaluation(ctx context.Context, job workflowdb.WorkflowR
 		return err
 	}
 	params := gatewayapi.V2SessionListParams{
-		Limit: new(float32(100)), Search: new("Judge workflow execution"),
+		Limit:  new(float32(100)),
+		Search: new("Judge workflow execution"),
 	}
 	for {
 		page, err := upstream.V2SessionListWithResponse(ctx, job.AgentName, &params)
@@ -822,7 +863,8 @@ func (s *Service) deleteEvaluation(ctx context.Context, job workflowdb.WorkflowR
 		}
 	}
 	_, err = workflowdb.New(s.db).RunEvaluationDelete(ctx, workflowdb.RunEvaluationDeleteParams{
-		ID: job.ID, LeaseToken: job.LeaseToken,
+		ID:         job.ID,
+		LeaseToken: job.LeaseToken,
 	})
 	return err
 }
@@ -839,7 +881,11 @@ func (s *Service) cancelEvaluation(ctx context.Context, job workflowdb.WorkflowR
 			continue
 		}
 		var run agentzv1alpha1.WorkflowRun
-		err := s.k8sClient.Get(ctx, client.ObjectKey{Namespace: job.TenantNamespace, Name: execution.RunName}, &run)
+		runKey := client.ObjectKey{
+			Namespace: job.TenantNamespace,
+			Name:      execution.RunName,
+		}
+		err := s.k8sClient.Get(ctx, runKey, &run)
 		if apierrors.IsNotFound(err) {
 			execution.State = gatewayapi.EvaluationExecutionStateCancelled
 			continue
@@ -934,7 +980,9 @@ func (s *Service) collectEvaluationTranscript(ctx context.Context, namespace, ag
 			return fmt.Errorf("session %s has no transcript", id)
 		}
 		transcript = append(transcript, gatewayapi.EvaluationTranscriptSession{
-			SessionId: id, Session: *session.JSON200, Messages: *messages.JSON200,
+			SessionId: id,
+			Session:   *session.JSON200,
+			Messages:  *messages.JSON200,
 		})
 		answered := false
 		for _, message := range *messages.JSON200 {
@@ -1058,7 +1106,11 @@ func (s *Service) judgeEvaluation(ctx context.Context, namespace string, evaluat
 	session, err := upstream.SessionCreateWithResponse(ctx, evaluation.Workflow.AgentName, nil, gatewayapi.SessionCreateJSONRequestBody{
 		Title:    new("Judge workflow execution"),
 		Metadata: &map[string]any{"agentz.evaluation_id": evaluation.Id.String()},
-		Model:    &gatewayapi.OpencodeModelRef{ProviderID: judge.ProviderId, Id: judge.ModelId}, Permission: &permissions,
+		Model: &gatewayapi.OpencodeModelRef{
+			ProviderID: judge.ProviderId,
+			Id:         judge.ModelId,
+		},
+		Permission: &permissions,
 	})
 	if err != nil {
 		return err
@@ -1097,13 +1149,16 @@ func (s *Service) judgeEvaluation(ctx context.Context, namespace string, evaluat
 	}
 	var format gatewayapi.OpencodeOutputFormat
 	err = format.FromOpencodeOutputFormatJsonSchema(gatewayapi.OpencodeOutputFormatJsonSchema{
-		Type: gatewayapi.JsonSchema, Schema: outputSchema, RetryCount: new(1),
+		Type:       gatewayapi.JsonSchema,
+		Schema:     outputSchema,
+		RetryCount: new(1),
 	})
 	if err != nil {
 		return err
 	}
 	raw, err = json.Marshal(evaluationJudgeInput{
-		Workflow: evaluation.Workflow, Inputs: evaluation.Request.Inputs,
+		Workflow:  evaluation.Workflow,
+		Inputs:    evaluation.Request.Inputs,
 		Execution: execution,
 	})
 	if err != nil {
@@ -1123,7 +1178,8 @@ func (s *Service) judgeEvaluation(ctx context.Context, namespace string, evaluat
 	for attempt := range 2 {
 		var part gatewayapi.OpencodePromptPartInput
 		err = part.FromOpencodeTextPartInput(gatewayapi.OpencodeTextPartInput{
-			Type: gatewayapi.OpencodeTextPartInputTypeText, Text: prompt.String(),
+			Type: gatewayapi.OpencodeTextPartInputTypeText,
+			Text: prompt.String(),
 		})
 		if err != nil {
 			return err
@@ -1133,8 +1189,10 @@ func (s *Service) judgeEvaluation(ctx context.Context, namespace string, evaluat
 		)
 		response, err := upstream.SessionPromptWithResponse(ctx, evaluation.Workflow.AgentName, session.JSON200.Id, nil, gatewayapi.SessionPromptJSONRequestBody{
 			MessageID: &messageID,
-			Format:    &format, Parts: []gatewayapi.OpencodePromptPartInput{part}, Variant: judge.Variant,
-			Model: &gatewayapi.OpencodePromptModel{ProviderID: judge.ProviderId, ModelID: judge.ModelId},
+			Format:    &format,
+			Parts:     []gatewayapi.OpencodePromptPartInput{part},
+			Variant:   judge.Variant,
+			Model:     &gatewayapi.OpencodePromptModel{ProviderID: judge.ProviderId, ModelID: judge.ModelId},
 		})
 		if err != nil {
 			return err
@@ -1207,7 +1265,10 @@ func scoreEvaluation(evaluation *gatewayapi.WorkflowEvaluation) {
 					medians[i] = (values[middle-1] + values[middle]) / 2
 				}
 			}
-			evaluation.References = &gatewayapi.EvaluationReferences{Tokens: medians[0], ToolCalls: medians[1]}
+			evaluation.References = &gatewayapi.EvaluationReferences{
+				Tokens:    medians[0],
+				ToolCalls: medians[1],
+			}
 		}
 	}
 	for i := range evaluation.Executions {

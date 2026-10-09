@@ -130,8 +130,9 @@ func (r *MCPConnectionReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		err = r.updateStatus(
 			ctx,
 			mcpConnectionStatusUpdate{
-				connection: conn, state: agentzv1alpha1.MCPConnectionStateAccepted,
-				extAuth: extAuth,
+				connection: conn,
+				state:      agentzv1alpha1.MCPConnectionStateAccepted,
+				extAuth:    extAuth,
 			},
 		)
 		if err != nil {

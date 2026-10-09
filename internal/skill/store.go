@@ -234,7 +234,9 @@ func (c *Client) Versions(ctx context.Context, namespace, name string) ([]int64,
 	paginator := s3.NewListObjectsV2Paginator(
 		c.s3,
 		&s3.ListObjectsV2Input{
-			Bucket: aws.String(c.bucket), Delimiter: aws.String("/"), Prefix: aws.String(prefix),
+			Bucket:    aws.String(c.bucket),
+			Delimiter: aws.String("/"),
+			Prefix:    aws.String(prefix),
 		},
 	)
 	for paginator.HasMorePages() {
@@ -269,7 +271,8 @@ func (c *Client) VersionSummary(ctx context.Context, namespace, name string, ver
 	paginator := s3.NewListObjectsV2Paginator(
 		c.s3,
 		&s3.ListObjectsV2Input{
-			Bucket: aws.String(c.bucket), Prefix: aws.String(prefix),
+			Bucket: aws.String(c.bucket),
+			Prefix: aws.String(prefix),
 		},
 	)
 	for paginator.HasMorePages() {
@@ -319,7 +322,9 @@ func (c *Client) UploadVersion(ctx context.Context, namespace string, tree Tree,
 	for _, file := range files {
 		key := prefix + file.Path
 		input := &s3.PutObjectInput{
-			Bucket: aws.String(c.bucket), Key: aws.String(key), Body: bytes.NewReader(file.Content),
+			Bucket: aws.String(c.bucket),
+			Key:    aws.String(key),
+			Body:   bytes.NewReader(file.Content),
 		}
 		if len(uploaded) == 0 {
 			input.IfNoneMatch = aws.String("*")
@@ -362,7 +367,8 @@ func (c *Client) WriteVersionsZIP(ctx context.Context, w io.Writer, selections [
 		paginator := s3.NewListObjectsV2Paginator(
 			c.s3,
 			&s3.ListObjectsV2Input{
-				Bucket: aws.String(c.bucket), Prefix: aws.String(prefix),
+				Bucket: aws.String(c.bucket),
+				Prefix: aws.String(prefix),
 			},
 		)
 		for paginator.HasMorePages() {
@@ -381,14 +387,16 @@ func (c *Client) WriteVersionsZIP(ctx context.Context, w io.Writer, selections [
 				object, err := c.s3.GetObject(
 					ctx,
 					&s3.GetObjectInput{
-						Bucket: aws.String(c.bucket), Key: item.Key,
+						Bucket: aws.String(c.bucket),
+						Key:    item.Key,
 					},
 				)
 				if err != nil {
 					return errors.Join(fmt.Errorf("get immutable skill export object: %w", err), zw.Close())
 				}
 				h := &zip.FileHeader{
-					Name: path.Join(selection.Name, rel), Method: zip.Deflate,
+					Name:   path.Join(selection.Name, rel),
+					Method: zip.Deflate,
 				}
 				dst, err := zw.CreateHeader(h)
 				if err != nil {

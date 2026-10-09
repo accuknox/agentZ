@@ -335,7 +335,10 @@ func (s *Service) refreshCodingSnapshot(ctx context.Context, snapshot gatewaydb.
 			retry := now.Add(interval)
 			err = s.queries.GatewayDelayCodingGitHub(
 				ctx,
-				gatewaydb.GatewayDelayCodingGitHubParams{OwnerID: project.CodingProject.OwnerID, RetryAfter: retry},
+				gatewaydb.GatewayDelayCodingGitHubParams{
+					OwnerID:    project.CodingProject.OwnerID,
+					RetryAfter: retry,
+				},
 			)
 			if err != nil {
 				slog.ErrorContext(ctx, "save GitHub cooldown", "error", err)
@@ -424,7 +427,10 @@ func (s *Service) loadCodingSnapshot(ctx context.Context, access resourceAccess,
 	if snapshot.WorktreeID != "" {
 		row, err := s.queries.GatewayGetCodingWorktree(
 			ctx,
-			gatewaydb.GatewayGetCodingWorktreeParams{ID: snapshot.WorktreeID, WorkspaceID: project.WorkspaceID},
+			gatewaydb.GatewayGetCodingWorktreeParams{
+				ID:          snapshot.WorktreeID,
+				WorkspaceID: project.WorkspaceID,
+			},
 		)
 		if err != nil || row.CodingWorktree.Deleting || !row.CodingWorktree.Ready {
 			return errors.New("checkout is unavailable")
@@ -507,7 +513,10 @@ func (s *Service) loadCodingSnapshot(ctx context.Context, access resourceAccess,
 	}
 	trees, err := s.queries.GatewayListCodingWorktrees(
 		ctx,
-		gatewaydb.GatewayListCodingWorktreesParams{ProjectID: project.ID, WorkspaceID: project.WorkspaceID},
+		gatewaydb.GatewayListCodingWorktreesParams{
+			ProjectID:   project.ID,
+			WorkspaceID: project.WorkspaceID,
+		},
 	)
 	if err != nil {
 		return err

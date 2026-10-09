@@ -461,10 +461,12 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, tenant *agent
 			selector := ciliumpolicyapi.NewESFromK8sLabelSelector(
 				ciliumlabels.LabelSourceK8sKeyPrefix,
 				&slimv1.LabelSelector{
-					MatchExpressions: []slimv1.LabelSelectorRequirement{{
-						Key: "io.cilium.k8s.policy.serviceaccount", Operator: slimv1.LabelSelectorOpNotIn,
-						Values: []string{"inference", "mcp", "extauth"},
-					},
+					MatchExpressions: []slimv1.LabelSelectorRequirement{
+						{
+							Key:      "io.cilium.k8s.policy.serviceaccount",
+							Operator: slimv1.LabelSelectorOpNotIn,
+							Values:   []string{"inference", "mcp", "extauth"},
+						},
 						{
 							Key:      agentzv1alpha1.AgentPackageJobLabel,
 							Operator: slimv1.LabelSelectorOpDoesNotExist,

@@ -32,7 +32,8 @@ func (s *Service) chatInputAccess(ctx context.Context, agent, session string) (r
 		return access, "", "", apiErr
 	}
 	workspace, err := s.queries.GatewayGetWorkspace(ctx, gatewaydb.GatewayGetWorkspaceParams{
-		ID: access.workspaceID, OrganizationID: access.organizationID,
+		ID:             access.workspaceID,
+		OrganizationID: access.organizationID,
 	})
 	if err != nil {
 		return access, "", "", err
@@ -258,7 +259,10 @@ func (s *Service) UpdateChatInput(w http.ResponseWriter, r *http.Request, agent 
 	}
 	defer release()
 	row, err := s.queries.GatewayGetChatInput(r.Context(), gatewaydb.GatewayGetChatInputParams{
-		ID: inputID, WorkspaceID: access.workspaceID, AgentName: agent, SessionID: session,
+		ID:          inputID,
+		WorkspaceID: access.workspaceID,
+		AgentName:   agent,
+		SessionID:   session,
 	})
 	if err != nil || row.AuthorID != access.userID {
 		apiutil.WriteError(w, r, mapGatewayStoreError("get message", pgx.ErrNoRows))
@@ -328,15 +332,19 @@ func (s *Service) stopOpenCodeSession(w http.ResponseWriter, r *http.Request, ro
 	}
 	defer release()
 	indexed, err := s.queries.GatewayChatSessionExists(r.Context(), gatewaydb.GatewayChatSessionExistsParams{
-		WorkspaceID: access.workspaceID, AgentName: agent, SessionID: session,
+		WorkspaceID: access.workspaceID,
+		AgentName:   agent,
+		SessionID:   session,
 	})
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	params := gatewaydb.GatewayStopChatInputsParams{
-		WorkspaceID: access.workspaceID, AgentName: agent, SessionID: session,
-		Stopping: true,
+		WorkspaceID: access.workspaceID,
+		AgentName:   agent,
+		SessionID:   session,
+		Stopping:    true,
 	}
 	if indexed {
 		err = s.queries.GatewayStopChatInputs(r.Context(), params)
@@ -353,8 +361,10 @@ func (s *Service) stopOpenCodeSession(w http.ResponseWriter, r *http.Request, ro
 	var rows []gatewaydb.ChatInput
 	if indexed {
 		rows, err = s.queries.GatewayListChatInputs(r.Context(), gatewaydb.GatewayListChatInputsParams{
-			WorkspaceID: access.workspaceID, AgentName: agent, SessionID: session,
-			AuthorID: access.userID,
+			WorkspaceID: access.workspaceID,
+			AgentName:   agent,
+			SessionID:   session,
+			AuthorID:    access.userID,
 		})
 		if err != nil {
 			apiutil.WriteInternalError(w, r, err)
@@ -449,7 +459,9 @@ func (s *Service) stopOpenCodeSession(w http.ResponseWriter, r *http.Request, ro
 
 	if indexed {
 		err = s.queries.GatewayRecoverChatInputs(r.Context(), gatewaydb.GatewayRecoverChatInputsParams{
-			WorkspaceID: access.workspaceID, AgentName: agent, SessionID: session,
+			WorkspaceID: access.workspaceID,
+			AgentName:   agent,
+			SessionID:   session,
 		})
 		if err != nil {
 			apiutil.WriteInternalError(w, r, err)
@@ -705,7 +717,9 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 		return nil
 	}
 	stopping, err := s.queries.GatewayChatInputsStopping(ctx, gatewaydb.GatewayChatInputsStoppingParams{
-		WorkspaceID: row.WorkspaceID, AgentName: row.AgentName, SessionID: row.SessionID,
+		WorkspaceID: row.WorkspaceID,
+		AgentName:   row.AgentName,
+		SessionID:   row.SessionID,
 	})
 	if err != nil {
 		return err
@@ -723,7 +737,9 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 	}
 
 	head, err := s.queries.GatewayHeadChatInput(ctx, gatewaydb.GatewayHeadChatInputParams{
-		WorkspaceID: row.WorkspaceID, AgentName: row.AgentName, SessionID: row.SessionID,
+		WorkspaceID: row.WorkspaceID,
+		AgentName:   row.AgentName,
+		SessionID:   row.SessionID,
 	})
 	if err != nil {
 		return err
@@ -842,9 +858,11 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 		return err
 	}
 	body := gatewayapi.SessionPromptAsyncJSONRequestBody{
-		Agent: content.Agent, Variant: content.Variant,
+		Agent:   content.Agent,
+		Variant: content.Variant,
 		Model: &gatewayapi.OpencodePromptModel{
-			ProviderID: content.Model.ProviderID, ModelID: content.Model.ModelID,
+			ProviderID: content.Model.ProviderID,
+			ModelID:    content.Model.ModelID,
 		},
 		Parts: make([]gatewayapi.OpencodePromptPartInput, 0, len(content.Attachments)+1),
 	}
@@ -854,7 +872,8 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 		mime, _ := json.Marshal(file.MediaType)
 		synthetic := true
 		text := gatewayapi.OpencodeTextPartInput{
-			Type: gatewayapi.OpencodeTextPartInputTypeText, Synthetic: &synthetic,
+			Type:      gatewayapi.OpencodeTextPartInputTypeText,
+			Synthetic: &synthetic,
 			Metadata: &map[string]any{
 				"agentz_attachment":   file,
 				"agentz.dev/input-id": row.ID.String(),

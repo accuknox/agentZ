@@ -171,7 +171,8 @@ func (r *Reconciler) buildPackageJob(agt *agentzv1alpha1.Agent, envCfg sandboxCo
 	}
 	immutableArgs := []string{"clear-immutable-skills"}
 	immutableMounts := []corev1.VolumeMount{{
-		Name: packageJobRootVolume, MountPath: nixVolumeRootMount,
+		Name:      packageJobRootVolume,
+		MountPath: nixVolumeRootMount,
 	}}
 	if len(envCfg.Skills) > 0 {
 		immutableArgs = []string{"sync-immutable-skills"}
@@ -200,7 +201,9 @@ func (r *Reconciler) buildPackageJob(agt *agentzv1alpha1.Agent, envCfg sandboxCo
 			immutableMounts,
 			corev1.VolumeMount{Name: configVolume, MountPath: opencodeConfigDir, ReadOnly: true},
 			corev1.VolumeMount{
-				Name: immutableSkillsBucketVolume, MountPath: immutableSkillsSecretMount, ReadOnly: true,
+				Name:      immutableSkillsBucketVolume,
+				MountPath: immutableSkillsSecretMount,
+				ReadOnly:  true,
 			},
 		)
 	}

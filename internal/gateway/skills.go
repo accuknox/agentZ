@@ -410,7 +410,8 @@ func (s *Service) UpdateSkill(w http.ResponseWriter, r *http.Request, skillName 
 		fields = append(
 			fields,
 			gatewayapi.FieldError{
-				Field: "version", Message: "must be at least 1",
+				Field:   "version",
+				Message: "must be at least 1",
 			},
 		)
 	}
@@ -512,7 +513,8 @@ func (s *Service) checkSkillDeletion(ctx context.Context, access resourceAccess,
 		return conflict, err
 	}
 	refs, err := skill.ReferencingConsumers(ctx, s.k8sClient, ctrlclient.ObjectKey{
-		Namespace: access.namespace, Name: name,
+		Namespace: access.namespace,
+		Name:      name,
 	})
 	if err != nil || len(refs) == 0 {
 		return nil, err
@@ -716,7 +718,8 @@ func (s *Service) listSkillReferences(ctx context.Context, namespace string) (ma
 		}
 		slices.Sort(names)
 		refs[ref] = gatewayapi.SkillReferences{
-			Agents: names, Sandboxes: []gatewayapi.SandboxName{},
+			Agents:    names,
+			Sandboxes: []gatewayapi.SandboxName{},
 		}
 	}
 	for resource, items := range sandboxRefs {
@@ -769,7 +772,8 @@ func validateSkillSpec(namespace, name, description string, version int64, stora
 		fields = append(
 			fields,
 			gatewayapi.FieldError{
-				Field: "version", Message: "must be at least 1",
+				Field:   "version",
+				Message: "must be at least 1",
 			},
 		)
 	}
@@ -794,7 +798,8 @@ func validateSkillStoragePath(field, namespace, name string, version int64, stor
 	expected := (skill.Config{Bucket: bucket}).StoragePath(namespace, name, version)
 	if storagePath != expected {
 		return []gatewayapi.FieldError{{
-			Field: field, Message: "must match the skill namespace, name, and version",
+			Field:   field,
+			Message: "must match the skill namespace, name, and version",
 		}}
 	}
 	return nil
@@ -806,7 +811,8 @@ func validateSkillDescription(description string) []gatewayapi.FieldError {
 		fields = append(
 			fields,
 			gatewayapi.FieldError{
-				Field: "description", Message: "required",
+				Field:   "description",
+				Message: "required",
 			},
 		)
 	}
@@ -814,7 +820,8 @@ func validateSkillDescription(description string) []gatewayapi.FieldError {
 		fields = append(
 			fields,
 			gatewayapi.FieldError{
-				Field: "description", Message: "must be at most 1024 characters",
+				Field:   "description",
+				Message: "must be at most 1024 characters",
 			},
 		)
 	}
@@ -832,7 +839,8 @@ func (s *Service) validateSkillRefs(ctx context.Context, namespace string, refs 
 			fields = append(
 				fields,
 				gatewayapi.FieldError{
-					Field: field, Message: "required",
+					Field:   field,
+					Message: "required",
 				},
 			)
 			continue
@@ -880,7 +888,8 @@ func (s *Service) validateSkillRefs(ctx context.Context, namespace string, refs 
 				fields = append(
 					fields,
 					gatewayapi.FieldError{
-						Field: field, Message: "skill not found",
+						Field:   field,
+						Message: "skill not found",
 					},
 				)
 				continue
@@ -891,7 +900,8 @@ func (s *Service) validateSkillRefs(ctx context.Context, namespace string, refs 
 			fields = append(
 				fields,
 				gatewayapi.FieldError{
-					Field: field, Message: fmt.Sprintf("skill %q is being deleted", name),
+					Field:   field,
+					Message: fmt.Sprintf("skill %q is being deleted", name),
 				},
 			)
 			continue
@@ -957,7 +967,8 @@ func (s *Service) PreviewMutableSkillImport(w http.ResponseWriter, r *http.Reque
 		items = append(
 			items,
 			gatewayapi.MutableSkillImportPreviewItem{
-				Name: tree.Name, ConflictAgents: agents,
+				Name:           tree.Name,
+				ConflictAgents: agents,
 			},
 		)
 	}
@@ -1070,7 +1081,8 @@ func (s *Service) ImportMutableSkills(w http.ResponseWriter, r *http.Request, _ 
 		w,
 		http.StatusOK,
 		gatewayapi.SkillImportResponse{
-			Skills: imported, Agents: results,
+			Skills: imported,
+			Agents: results,
 		},
 	)
 }
@@ -1107,7 +1119,8 @@ func (s *Service) PreviewImmutableSkillImport(w http.ResponseWriter, r *http.Req
 		items = append(
 			items,
 			gatewayapi.ImmutableSkillImportPreviewItem{
-				Name: tree.Name, Conflict: conflict,
+				Name:     tree.Name,
+				Conflict: conflict,
 			},
 		)
 	}
@@ -1257,7 +1270,8 @@ func (s *Service) ImportImmutableSkills(w http.ResponseWriter, r *http.Request, 
 		w,
 		http.StatusOK,
 		gatewayapi.SkillImportResponse{
-			Skills: names, Agents: results,
+			Skills: names,
+			Agents: results,
 		},
 	)
 }
@@ -1348,7 +1362,9 @@ func (s *Service) importImmutableSkills(ctx context.Context, bundle skill.Bundle
 		plans = append(
 			plans,
 			immutableImportPlan{
-				tree: tree, version: version, current: current,
+				tree:    tree,
+				version: version,
+				current: current,
 			},
 		)
 	}
@@ -1379,10 +1395,12 @@ func (s *Service) importImmutableSkills(ctx context.Context, bundle skill.Bundle
 		if plan.current == nil {
 			item := &agentzv1alpha1.Skill{
 				TypeMeta: metav1.TypeMeta{
-					APIVersion: agentzv1alpha1.SchemeGroupVersion.String(), Kind: "Skill",
+					APIVersion: agentzv1alpha1.SchemeGroupVersion.String(),
+					Kind:       "Skill",
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: plan.tree.Name, Namespace: namespace,
+					Name:            plan.tree.Name,
+					Namespace:       namespace,
 					OwnerReferences: []metav1.OwnerReference{access.owner},
 				},
 				Spec: agentzv1alpha1.SkillSpec{
@@ -1494,7 +1512,8 @@ func (s *Service) rollbackImmutableImport(ctx context.Context, namespace string,
 				ctx,
 				item,
 				ctrlclient.Preconditions{
-					UID: &uid, ResourceVersion: &resourceVersion,
+					UID:             &uid,
+					ResourceVersion: &resourceVersion,
 				},
 			)
 			if apierrors.IsNotFound(err) {
@@ -1638,7 +1657,8 @@ func readSkillUpload(w http.ResponseWriter, r *http.Request) (skill.Bundle, bool
 		code := "invalid_archive"
 		message := "The skill could not be imported."
 		fields := []gatewayapi.FieldError{{
-			Field: "file:" + issue.Path, Message: issue.Message,
+			Field:   "file:" + issue.Path,
+			Message: issue.Message,
 		}}
 		switch issue.Kind {
 		case skill.ImportIssueUnsupportedFileType:
@@ -2263,7 +2283,8 @@ func (s *Service) ListImmutableSkillSummaries(w http.ResponseWriter, r *http.Req
 		w,
 		http.StatusOK,
 		gatewayapi.ListImmutableSkillSummariesResponse{
-			Skills: items[start:end], NextPageToken: next,
+			Skills:        items[start:end],
+			NextPageToken: next,
 		},
 	)
 }

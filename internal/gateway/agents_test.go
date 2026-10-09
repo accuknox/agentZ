@@ -61,14 +61,18 @@ func TestAgentModelCatalog(t *testing.T) {
 		{
 			name: "workspace provider",
 			model: agentzv1alpha1.InferenceModelRef{
-				Scope: agentzv1alpha1.ResourceScopeWorkspace, Provider: "provider", Model: "model",
+				Scope:    agentzv1alpha1.ResourceScopeWorkspace,
+				Provider: "provider",
+				Model:    "model",
 			},
 			providers: []string{"anthropic"},
 		},
 		{
 			name: "inherited provider",
 			model: agentzv1alpha1.InferenceModelRef{
-				Scope: agentzv1alpha1.ResourceScopeOrganisation, Provider: "provider", Model: "model",
+				Scope:    agentzv1alpha1.ResourceScopeOrganisation,
+				Provider: "provider",
+				Model:    "model",
 			},
 			providers: []string{"openai"},
 		},
@@ -76,7 +80,8 @@ func TestAgentModelCatalog(t *testing.T) {
 			name: "pool members retain scope and deduplicate brands",
 			model: agentzv1alpha1.InferenceModelRef{
 				Scope:    agentzv1alpha1.ResourceScopeWorkspace,
-				Provider: agentzv1alpha1.InferencePoolProvider, Model: "mixed",
+				Provider: agentzv1alpha1.InferencePoolProvider,
+				Model:    "mixed",
 			},
 			providers: []string{"openai", "anthropic"},
 		},
@@ -84,7 +89,8 @@ func TestAgentModelCatalog(t *testing.T) {
 			name: "inherited pool",
 			model: agentzv1alpha1.InferenceModelRef{
 				Scope:    agentzv1alpha1.ResourceScopeOrganisation,
-				Provider: agentzv1alpha1.InferencePoolProvider, Model: "inherited",
+				Provider: agentzv1alpha1.InferencePoolProvider,
+				Model:    "inherited",
 			},
 			providers: []string{"openai"},
 		},
@@ -104,7 +110,9 @@ func TestAgentModelCatalog(t *testing.T) {
 				t.Fatal(err)
 			}
 			want := []gatewayapi.AgentModelCatalogEntry{{
-				ProviderId: tt.model.Provider, ModelId: tt.model.Model, Providers: tt.providers,
+				ProviderId: tt.model.Provider,
+				ModelId:    tt.model.Model,
+				Providers:  tt.providers,
 			}}
 			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("catalog = %#v, want %#v", got, want)
@@ -128,7 +136,8 @@ func TestAgentModelCatalog(t *testing.T) {
 				Inference: agentzv1alpha1.SandboxInference{
 					Models: []agentzv1alpha1.InferenceModelRef{{
 						Scope:    agentzv1alpha1.ResourceScopeOrganisation,
-						Provider: "provider", Model: "model",
+						Provider: "provider",
+						Model:    "model",
 					}},
 				},
 			},

@@ -197,7 +197,10 @@ func (r *ExtAuthRuntimeReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, err
 	}
 	scope := extAuthScope{
-		namespace: ns.Name, workspaces: workspaces, labels: labels, ownerRefs: ownerRefs,
+		namespace:  ns.Name,
+		workspaces: workspaces,
+		labels:     labels,
+		ownerRefs:  ownerRefs,
 	}
 
 	if err := networkpolicy.ReconcileRuntimeIsolation(ctx, r.Client, ns); err != nil {
@@ -629,7 +632,11 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthService(ctx context.Context, 
 				},
 			}
 			if r.DelegationNamespace != "" {
-				svc.Spec.Ports = append(svc.Spec.Ports, corev1.ServicePort{Name: "delegation", Port: 18084, Protocol: corev1.ProtocolTCP})
+				svc.Spec.Ports = append(svc.Spec.Ports, corev1.ServicePort{
+					Name:     "delegation",
+					Port:     18084,
+					Protocol: corev1.ProtocolTCP,
+				})
 			}
 			return nil
 		},
@@ -736,7 +743,10 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthDeployment(ctx context.Contex
 			}
 			if r.DelegationNamespace != "" {
 				spec := &deployment.Spec.Template.Spec
-				spec.Containers[0].Ports = append(spec.Containers[0].Ports, corev1.ContainerPort{Name: "delegation", ContainerPort: 18084})
+				spec.Containers[0].Ports = append(spec.Containers[0].Ports, corev1.ContainerPort{
+					Name:          "delegation",
+					ContainerPort: 18084,
+				})
 			}
 			return nil
 		},
@@ -829,7 +839,11 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthPolicy(ctx context.Context, s
 							ciliumlabels.NewLabel("io.cilium.k8s.policy.serviceaccount", "inference", ciliumlabels.LabelSourceK8s),
 							ciliumlabels.NewLabel("gateway.networking.k8s.io/gateway-name", inference.GatewayName, ciliumlabels.LabelSourceK8s),
 						),
-					}}, ToPorts: []ciliumapi.PortRule{{Ports: []ciliumapi.PortProtocol{{Port: "18084", Protocol: ciliumapi.ProtoTCP}}}},
+					}},
+					ToPorts: []ciliumapi.PortRule{{Ports: []ciliumapi.PortProtocol{{
+						Port:     "18084",
+						Protocol: ciliumapi.ProtoTCP,
+					}}}},
 				})
 			}
 			policy.Spec.Egress = append(

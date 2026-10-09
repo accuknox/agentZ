@@ -506,7 +506,8 @@ func (r *Reconciler) reconcileNixStorePVC(ctx context.Context, workspace *agentz
 
 func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, workspace *agentzv1alpha1.Workspace, tenant *agentzv1alpha1.Tenant) error {
 	namespace := &corev1.Namespace{}
-	if err := r.Direct.Get(ctx, client.ObjectKey{Name: workspace.Name}, namespace); err != nil {
+	key := client.ObjectKey{Name: workspace.Name}
+	if err := r.Direct.Get(ctx, key, namespace); err != nil {
 		return err
 	}
 	if err := networkpolicy.ReconcileRuntimeIsolation(ctx, r.Direct, namespace); err != nil {
@@ -515,8 +516,9 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, workspace *ag
 	nonPackageJobs := ciliumpolicyapi.NewESFromK8sLabelSelector(
 		ciliumlabels.LabelSourceK8sKeyPrefix,
 		&slimv1.LabelSelector{MatchExpressions: []slimv1.LabelSelectorRequirement{{
-			Key: "io.cilium.k8s.policy.serviceaccount", Operator: slimv1.LabelSelectorOpNotIn,
-			Values: []string{"inference", "mcp", "extauth"},
+			Key:      "io.cilium.k8s.policy.serviceaccount",
+			Operator: slimv1.LabelSelectorOpNotIn,
+			Values:   []string{"inference", "mcp", "extauth"},
 		}, {
 			Key:      agentzv1alpha1.AgentPackageJobLabel,
 			Operator: slimv1.LabelSelectorOpDoesNotExist,

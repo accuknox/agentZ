@@ -74,7 +74,8 @@ func (s *Service) resolveAgentAccess(ctx context.Context, name string, operation
 	effective, err := authorization.New(s.queries).Resolve(
 		ctx,
 		authorization.Subject{
-			UserID: claims.UserID, OrganizationID: claims.OrganizationID,
+			UserID:         claims.UserID,
+			OrganizationID: claims.OrganizationID,
 		},
 	)
 	if err != nil {
@@ -393,7 +394,8 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	_, err = q.GatewayLockActiveWorkspace(
 		r.Context(),
 		gatewaydb.GatewayLockActiveWorkspaceParams{
-			ID: access.workspaceID, OrganizationID: access.claims.OrganizationID,
+			ID:             access.workspaceID,
+			OrganizationID: access.claims.OrganizationID,
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -407,7 +409,8 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	_, err = q.GatewayLockActiveOrganizationMember(
 		r.Context(),
 		gatewaydb.GatewayLockActiveOrganizationMemberParams{
-			UserID: access.claims.UserID, OrganizationID: access.claims.OrganizationID,
+			UserID:         access.claims.UserID,
+			OrganizationID: access.claims.OrganizationID,
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -421,7 +424,8 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	effective, err := authorization.New(q).Resolve(
 		r.Context(),
 		authorization.Subject{
-			UserID: access.claims.UserID, OrganizationID: access.claims.OrganizationID,
+			UserID:         access.claims.UserID,
+			OrganizationID: access.claims.OrganizationID,
 		},
 	)
 	if err != nil {
@@ -1027,7 +1031,8 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 	_, err = q.GatewayLockActiveWorkspace(
 		r.Context(),
 		gatewaydb.GatewayLockActiveWorkspaceParams{
-			ID: access.workspaceID, OrganizationID: access.claims.OrganizationID,
+			ID:             access.workspaceID,
+			OrganizationID: access.claims.OrganizationID,
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -1045,7 +1050,8 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 	_, err = q.GatewayLockActiveOrganizationMember(
 		r.Context(),
 		gatewaydb.GatewayLockActiveOrganizationMemberParams{
-			UserID: req.OwnerUserId, OrganizationID: access.claims.OrganizationID,
+			UserID:         req.OwnerUserId,
+			OrganizationID: access.claims.OrganizationID,
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -1060,7 +1066,8 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 	effective, err := authorization.New(q).Resolve(
 		r.Context(),
 		authorization.Subject{
-			UserID: req.OwnerUserId, OrganizationID: access.claims.OrganizationID,
+			UserID:         req.OwnerUserId,
+			OrganizationID: access.claims.OrganizationID,
 		},
 	)
 	if err != nil {
@@ -1102,9 +1109,11 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 	row, err := q.GatewayTransferAgentOwner(
 		r.Context(),
 		gatewaydb.GatewayTransferAgentOwnerParams{
-			UpdatedAt:   pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
-			WorkspaceID: access.workspaceID, AgentName: agentName,
-			OrganizationID: access.claims.OrganizationID, OwnerUserID: req.OwnerUserId,
+			UpdatedAt:      pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
+			WorkspaceID:    access.workspaceID,
+			AgentName:      agentName,
+			OrganizationID: access.claims.OrganizationID,
+			OwnerUserID:    req.OwnerUserId,
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -1306,8 +1315,11 @@ func (s *Service) ListAgentAccessTargets(w http.ResponseWriter, r *http.Request,
 				gatewaydb.PermissionActionAuthor,
 			))
 		target := gatewayapi.AgentAccessTarget{
-			CanOwn: canOwn, Capabilities: capabilities, Id: row.ID,
-			Kind: kind, Label: row.Label,
+			CanOwn:       canOwn,
+			Capabilities: capabilities,
+			Id:           row.ID,
+			Kind:         kind,
+			Label:        row.Label,
 		}
 		if kind == gatewayapi.AgentAccessTargetKindUser {
 			target.Email = &row.Email
@@ -1377,7 +1389,8 @@ func (s *Service) UpsertAgentShare(w http.ResponseWriter, r *http.Request, agent
 		exists, err := s.queries.GatewayTeamExists(
 			r.Context(),
 			gatewaydb.GatewayTeamExistsParams{
-				TeamID: targetTeam.String, OrganizationID: access.claims.OrganizationID,
+				TeamID:         targetTeam.String,
+				OrganizationID: access.claims.OrganizationID,
 			},
 		)
 		if err != nil {
@@ -1502,7 +1515,9 @@ func (s *Service) DeleteAgentShare(w http.ResponseWriter, r *http.Request, agent
 	rows, err := q.GatewayDeleteAgentShare(
 		r.Context(),
 		gatewaydb.GatewayDeleteAgentShareParams{
-			ID: shareID, OrganizationID: access.claims.OrganizationID, WorkspaceID: access.workspaceID,
+			ID:             shareID,
+			OrganizationID: access.claims.OrganizationID,
+			WorkspaceID:    access.workspaceID,
 		},
 	)
 	if err != nil {
@@ -1808,7 +1823,8 @@ func (s *Service) recipientCanUseAgent(ctx context.Context, recipient agentShare
 		active, err := s.queries.GatewayIsActiveOrganizationMember(
 			ctx,
 			gatewaydb.GatewayIsActiveOrganizationMemberParams{
-				UserID: recipient.user.String, OrganizationID: recipient.organizationID,
+				UserID:         recipient.user.String,
+				OrganizationID: recipient.organizationID,
 			},
 		)
 		if err != nil || !active {
@@ -1817,7 +1833,8 @@ func (s *Service) recipientCanUseAgent(ctx context.Context, recipient agentShare
 		effective, err := authorization.New(s.queries).Resolve(
 			ctx,
 			authorization.Subject{
-				UserID: recipient.user.String, OrganizationID: recipient.organizationID,
+				UserID:         recipient.user.String,
+				OrganizationID: recipient.organizationID,
 			},
 		)
 		if err != nil {
@@ -1911,7 +1928,8 @@ func validateAgentShareTarget(req gatewayapi.UpsertAgentShareRequest, actorUserI
 func agentShareCapabilities(caps []gatewayapi.AgentShareCapability) ([]gatewaydb.AgentShareCapability, []gatewayapi.FieldError) {
 	if len(caps) == 0 {
 		return nil, []gatewayapi.FieldError{{
-			Field: "capabilities", Message: "at least one capability is required",
+			Field:   "capabilities",
+			Message: "at least one capability is required",
 		}}
 	}
 
@@ -1921,7 +1939,8 @@ func agentShareCapabilities(caps []gatewayapi.AgentShareCapability) ([]gatewaydb
 		dbCap, ok := agentShareDBCapability(cap)
 		if !ok {
 			return nil, []gatewayapi.FieldError{{
-				Field: "capabilities", Message: "contains an unknown capability",
+				Field:   "capabilities",
+				Message: "contains an unknown capability",
 			}}
 		}
 		if _, ok := seen[dbCap]; ok {
@@ -1998,7 +2017,8 @@ func (s *Service) createAgentShare(ctx context.Context, request agentShareMutati
 	_, err = q.GatewayLockActiveWorkspace(
 		ctx,
 		gatewaydb.GatewayLockActiveWorkspaceParams{
-			ID: access.workspaceID, OrganizationID: access.claims.OrganizationID,
+			ID:             access.workspaceID,
+			OrganizationID: access.claims.OrganizationID,
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -2011,7 +2031,8 @@ func (s *Service) createAgentShare(ctx context.Context, request agentShareMutati
 		_, err = q.GatewayLockTeam(
 			ctx,
 			gatewaydb.GatewayLockTeamParams{
-				TeamID: targetTeam.String, OrganizationID: access.claims.OrganizationID,
+				TeamID:         targetTeam.String,
+				OrganizationID: access.claims.OrganizationID,
 			},
 		)
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -2024,7 +2045,8 @@ func (s *Service) createAgentShare(ctx context.Context, request agentShareMutati
 	_, err = q.GatewayLockActiveOrganizationMember(
 		ctx,
 		gatewaydb.GatewayLockActiveOrganizationMemberParams{
-			UserID: access.claims.UserID, OrganizationID: access.claims.OrganizationID,
+			UserID:         access.claims.UserID,
+			OrganizationID: access.claims.OrganizationID,
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -2064,7 +2086,8 @@ func (s *Service) createAgentShare(ctx context.Context, request agentShareMutati
 	effective, err := authorization.New(q).Resolve(
 		ctx,
 		authorization.Subject{
-			UserID: access.claims.UserID, OrganizationID: access.claims.OrganizationID,
+			UserID:         access.claims.UserID,
+			OrganizationID: access.claims.OrganizationID,
 		},
 	)
 	if err != nil {
@@ -2087,7 +2110,8 @@ func (s *Service) createAgentShare(ctx context.Context, request agentShareMutati
 		return gatewayapi.AgentShare{}, fmt.Errorf("recheck Agent Share relationships: %w", err)
 	}
 	relationship := authorization.Agent{
-		Name: agentName, OwnerUserID: owner.OwnerUserID,
+		Name:        agentName,
+		OwnerUserID: owner.OwnerUserID,
 	}
 	for _, row := range relationships {
 		if row.Capability.Valid {
@@ -2117,7 +2141,9 @@ func (s *Service) createAgentShare(ctx context.Context, request agentShareMutati
 			return gatewayapi.AgentShare{}, errAgentShareIssuedByOther
 		}
 		deleteShareParams := gatewaydb.GatewayDeleteAgentShareParams{
-			ID: share.ID, OrganizationID: access.claims.OrganizationID, WorkspaceID: access.workspaceID,
+			ID:             share.ID,
+			OrganizationID: access.claims.OrganizationID,
+			WorkspaceID:    access.workspaceID,
 		}
 		if _, err := q.GatewayDeleteAgentShare(ctx, deleteShareParams); err != nil {
 			return gatewayapi.AgentShare{}, fmt.Errorf("replace Agent Share: %w", err)
@@ -2127,10 +2153,13 @@ func (s *Service) createAgentShare(ctx context.Context, request agentShareMutati
 	row, err := q.GatewayCreateAgentShare(
 		ctx,
 		gatewaydb.GatewayCreateAgentShareParams{
-			ID: "agent-share-" + uuid.NewString(), CreatedBy: access.claims.UserID,
-			TargetUserID: targetUser, TargetTeamID: targetTeam,
-			OrganizationID: access.claims.OrganizationID, WorkspaceID: access.workspaceID,
-			AgentName: agentName,
+			ID:             "agent-share-" + uuid.NewString(),
+			CreatedBy:      access.claims.UserID,
+			TargetUserID:   targetUser,
+			TargetTeamID:   targetTeam,
+			OrganizationID: access.claims.OrganizationID,
+			WorkspaceID:    access.workspaceID,
+			AgentName:      agentName,
 		},
 	)
 	if err != nil {
@@ -2138,8 +2167,10 @@ func (s *Service) createAgentShare(ctx context.Context, request agentShareMutati
 	}
 	for _, cap := range caps {
 		grantParams := gatewaydb.GatewayAddAgentShareGrantParams{
-			Capability: cap, ShareID: row.ID,
-			OrganizationID: access.claims.OrganizationID, WorkspaceID: access.workspaceID,
+			Capability:     cap,
+			ShareID:        row.ID,
+			OrganizationID: access.claims.OrganizationID,
+			WorkspaceID:    access.workspaceID,
 		}
 		if _, err := q.GatewayAddAgentShareGrant(ctx, grantParams); err != nil {
 			return gatewayapi.AgentShare{}, fmt.Errorf("add Agent Share grant: %w", err)
@@ -2234,7 +2265,9 @@ func (s *Service) agentShareResponse(ctx context.Context, access resourceAccess,
 	grants, err := s.queries.GatewayListAgentShareGrants(
 		ctx,
 		gatewaydb.GatewayListAgentShareGrantsParams{
-			ShareID: row.ID, OrganizationID: access.claims.OrganizationID, WorkspaceID: access.workspaceID,
+			ShareID:        row.ID,
+			OrganizationID: access.claims.OrganizationID,
+			WorkspaceID:    access.workspaceID,
 		},
 	)
 	if err != nil {
@@ -2249,8 +2282,11 @@ func (s *Service) agentShareResponse(ctx context.Context, access resourceAccess,
 		caps = append(caps, cap)
 	}
 	item := gatewayapi.AgentShare{
-		Id: row.ID, AgentName: row.AgentName, CreatedBy: row.CreatedBy,
-		Capabilities: caps, CreatedAt: row.CreatedAt.Time,
+		Id:           row.ID,
+		AgentName:    row.AgentName,
+		CreatedBy:    row.CreatedBy,
+		Capabilities: caps,
+		CreatedAt:    row.CreatedAt.Time,
 	}
 	if row.TargetUserID.Valid {
 		item.TargetUserId = &row.TargetUserID.String
@@ -2287,16 +2323,19 @@ func createAgentEventTrail(ctx context.Context, q gatewaydb.Querier, event agent
 	params := gatewaydb.GatewayCreateEventTrailEventParams{
 		ID:             "event-trail-" + uuid.NewString(),
 		OrganizationID: event.access.claims.OrganizationID,
-		WorkspaceID:    pgtype.Text{String: event.access.workspaceID, Valid: event.access.workspaceID != ""},
-		ActorType:      gatewaydb.EventTrailActorUser,
-		ActorID:        pgtype.Text{String: event.access.claims.UserID, Valid: true},
-		TargetType:     gatewaydb.EventTrailTargetAgent,
-		TargetID:       event.name,
-		Category:       "agent",
-		Action:         event.action,
-		Result:         gatewaydb.EventTrailResultSucceeded,
-		Before:         beforeJSON,
-		After:          afterJSON,
+		WorkspaceID: pgtype.Text{
+			String: event.access.workspaceID,
+			Valid:  event.access.workspaceID != "",
+		},
+		ActorType:  gatewaydb.EventTrailActorUser,
+		ActorID:    pgtype.Text{String: event.access.claims.UserID, Valid: true},
+		TargetType: gatewaydb.EventTrailTargetAgent,
+		TargetID:   event.name,
+		Category:   "agent",
+		Action:     event.action,
+		Result:     gatewaydb.EventTrailResultSucceeded,
+		Before:     beforeJSON,
+		After:      afterJSON,
 	}
 	if _, err := q.GatewayCreateEventTrailEvent(ctx, params); err != nil {
 		return fmt.Errorf("create Agent event trail event: %w", err)
@@ -2333,7 +2372,8 @@ func agentShareEventTrailFields(agentName string, share gatewaydb.AgentShare) []
 		fields = append(
 			fields,
 			gatewayapi.EventTrailField{
-				Field: gatewayapi.EventTrailFieldUserID, Value: share.TargetUserID.String,
+				Field: gatewayapi.EventTrailFieldUserID,
+				Value: share.TargetUserID.String,
 			},
 		)
 	}
@@ -2341,7 +2381,8 @@ func agentShareEventTrailFields(agentName string, share gatewaydb.AgentShare) []
 		fields = append(
 			fields,
 			gatewayapi.EventTrailField{
-				Field: gatewayapi.EventTrailFieldName, Value: "team:" + share.TargetTeamID.String,
+				Field: gatewayapi.EventTrailFieldName,
+				Value: "team:" + share.TargetTeamID.String,
 			},
 		)
 	}
@@ -2350,9 +2391,11 @@ func agentShareEventTrailFields(agentName string, share gatewaydb.AgentShare) []
 
 func agentOwnerResponse(row gatewaydb.AgentOwner) gatewayapi.AgentOwner {
 	return gatewayapi.AgentOwner{
-		AgentName: row.AgentName, CreatorUserId: row.CreatorUserID,
-		OwnerUserId: row.OwnerUserID, CreatedAt: row.CreatedAt.Time,
-		UpdatedAt: row.UpdatedAt.Time,
+		AgentName:     row.AgentName,
+		CreatorUserId: row.CreatorUserID,
+		OwnerUserId:   row.OwnerUserID,
+		CreatedAt:     row.CreatedAt.Time,
+		UpdatedAt:     row.UpdatedAt.Time,
 	}
 }
 
@@ -2449,7 +2492,8 @@ func validateCreateAgentRequest(req gatewayapi.CreateAgentRequest) (string, []ga
 		fields = append(
 			fields,
 			gatewayapi.FieldError{
-				Field: "name", Message: "must be at most 32 characters",
+				Field:   "name",
+				Message: "must be at most 32 characters",
 			},
 		)
 	}
@@ -2457,7 +2501,8 @@ func validateCreateAgentRequest(req gatewayapi.CreateAgentRequest) (string, []ga
 		fields = append(
 			fields,
 			gatewayapi.FieldError{
-				Field: "name", Message: "must be a valid DNS label",
+				Field:   "name",
+				Message: "must be a valid DNS label",
 			},
 		)
 	}
@@ -2480,7 +2525,8 @@ func validateAgentSandboxField(fields []gatewayapi.FieldError, ref gatewayapi.Re
 		return append(
 			fields,
 			gatewayapi.FieldError{
-				Field: "sandbox", Message: "required",
+				Field:   "sandbox",
+				Message: "required",
 			},
 		)
 	}
@@ -2488,7 +2534,8 @@ func validateAgentSandboxField(fields []gatewayapi.FieldError, ref gatewayapi.Re
 		fields = append(
 			fields,
 			gatewayapi.FieldError{
-				Field: "sandbox", Message: "must be at most 32 characters",
+				Field:   "sandbox",
+				Message: "must be at most 32 characters",
 			},
 		)
 	}
@@ -2496,7 +2543,8 @@ func validateAgentSandboxField(fields []gatewayapi.FieldError, ref gatewayapi.Re
 		fields = append(
 			fields,
 			gatewayapi.FieldError{
-				Field: "sandbox", Message: "must be a valid DNS label",
+				Field:   "sandbox",
+				Message: "must be a valid DNS label",
 			},
 		)
 	}
@@ -2704,7 +2752,9 @@ func (s *Service) ListAgentModelCatalog(w http.ResponseWriter, r *http.Request, 
 	}
 	ref := resolved.Agent.Spec.SandboxRef
 	namespace, err := scope.SelectedNamespace(r.Context(), s.k8sClient, access.namespace, scope.Selection{
-		Scope: ref.Scope, Kind: agentzv1alpha1.OrganizationResourceKindSandbox, Name: ref.Name,
+		Scope: ref.Scope,
+		Kind:  agentzv1alpha1.OrganizationResourceKindSandbox,
+		Name:  ref.Name,
 	})
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
@@ -2729,7 +2779,11 @@ func agentModelCatalog(ctx context.Context, reader client.Reader, sandbox *agent
 	catalog := make([]gatewayapi.AgentModelCatalogEntry, 0, len(sandbox.Spec.Inference.Models))
 	providers := make(map[client.ObjectKey]string)
 	for _, model := range sandbox.Spec.Inference.Models {
-		members := []agentzv1alpha1.InferencePoolMember{{Scope: model.Scope, Provider: model.Provider, Model: model.Model}}
+		members := []agentzv1alpha1.InferencePoolMember{{
+			Scope:    model.Scope,
+			Provider: model.Provider,
+			Model:    model.Model,
+		}}
 		memberNamespace := sandbox.Namespace
 		if model.Provider == agentzv1alpha1.InferencePoolProvider {
 			namespace, err := scope.Namespace(ctx, reader, sandbox.Namespace, model.Scope)
@@ -2744,11 +2798,16 @@ func agentModelCatalog(ctx context.Context, reader client.Reader, sandbox *agent
 			members = pool.Spec.Members
 			memberNamespace = pool.Namespace
 		}
-		entry := gatewayapi.AgentModelCatalogEntry{ProviderId: model.Provider, ModelId: model.Model, Providers: []string{}}
+		entry := gatewayapi.AgentModelCatalogEntry{
+			ProviderId: model.Provider,
+			ModelId:    model.Model,
+			Providers:  []string{},
+		}
 		for _, member := range members {
 			namespace, err := scope.SelectedNamespace(ctx, reader, memberNamespace, scope.Selection{
-				Scope: member.Scope, Kind: agentzv1alpha1.OrganizationResourceKindInferenceProvider,
-				Name: member.Provider,
+				Scope: member.Scope,
+				Kind:  agentzv1alpha1.OrganizationResourceKindInferenceProvider,
+				Name:  member.Provider,
 			})
 			if err != nil {
 				return nil, err

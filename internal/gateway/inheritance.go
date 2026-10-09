@@ -215,7 +215,8 @@ func (s *Service) authorizeWorkspaceInheritance(w http.ResponseWriter, r *http.R
 	allowed, err := s.queries.GatewayIsActiveSuperadmin(
 		r.Context(),
 		gatewaydb.GatewayIsActiveSuperadminParams{
-			UserID: claims.UserID, OrganizationID: claims.OrganizationID,
+			UserID:         claims.UserID,
+			OrganizationID: claims.OrganizationID,
 		},
 	)
 	if err != nil {
@@ -225,7 +226,8 @@ func (s *Service) authorizeWorkspaceInheritance(w http.ResponseWriter, r *http.R
 	workspace, getErr := s.queries.GatewayGetWorkspace(
 		r.Context(),
 		gatewaydb.GatewayGetWorkspaceParams{
-			ID: workspaceID, OrganizationID: claims.OrganizationID,
+			ID:             workspaceID,
+			OrganizationID: claims.OrganizationID,
 		},
 	)
 	if !allowed || getErr != nil {
@@ -234,9 +236,12 @@ func (s *Service) authorizeWorkspaceInheritance(w http.ResponseWriter, r *http.R
 				r.Context(),
 				s.queries,
 				workspaceEventTrail{
-					organizationID: claims.OrganizationID, workspaceID: workspaceID,
-					actorType: gatewaydb.EventTrailActorUser, actorID: claims.UserID,
-					action: "workspace.inheritance.modify", result: gatewaydb.EventTrailResultDenied,
+					organizationID: claims.OrganizationID,
+					workspaceID:    workspaceID,
+					actorType:      gatewaydb.EventTrailActorUser,
+					actorID:        claims.UserID,
+					action:         "workspace.inheritance.modify",
+					result:         gatewaydb.EventTrailResultDenied,
 				},
 			)
 		}
@@ -267,7 +272,8 @@ func (s *Service) workspaceResourceSelection(ctx context.Context, workspaceID, o
 	rows, err := s.queries.GatewayListWorkspaceInheritedResources(
 		ctx,
 		gatewaydb.GatewayListWorkspaceInheritedResourcesParams{
-			WorkspaceID: workspaceID, OrganizationID: organizationID,
+			WorkspaceID:    workspaceID,
+			OrganizationID: organizationID,
 		},
 	)
 	if err != nil {
@@ -348,7 +354,8 @@ func (s *Service) persistWorkspaceResourceSelection(ctx context.Context, claims 
 	_, err = q.GatewayLockActiveWorkspace(
 		ctx,
 		gatewaydb.GatewayLockActiveWorkspaceParams{
-			ID: workspaceID, OrganizationID: claims.OrganizationID,
+			ID:             workspaceID,
+			OrganizationID: claims.OrganizationID,
 		},
 	)
 	if err != nil {
@@ -361,16 +368,19 @@ func (s *Service) persistWorkspaceResourceSelection(ctx context.Context, claims 
 	_, err = q.GatewayDeleteWorkspaceInheritedResources(
 		ctx,
 		gatewaydb.GatewayDeleteWorkspaceInheritedResourcesParams{
-			WorkspaceID: workspaceID, OrganizationID: claims.OrganizationID,
-			Resource: resource,
+			WorkspaceID:    workspaceID,
+			OrganizationID: claims.OrganizationID,
+			Resource:       resource,
 		},
 	)
 	if err == nil {
 		_, err = q.GatewayInsertWorkspaceInheritedResources(
 			ctx,
 			gatewaydb.GatewayInsertWorkspaceInheritedResourcesParams{
-				WorkspaceID: workspaceID, OrganizationID: claims.OrganizationID,
-				Resource: resource, ResourceNames: names,
+				WorkspaceID:    workspaceID,
+				OrganizationID: claims.OrganizationID,
+				Resource:       resource,
+				ResourceNames:  names,
 			},
 		)
 	}
@@ -381,10 +391,16 @@ func (s *Service) persistWorkspaceResourceSelection(ctx context.Context, claims 
 		ctx,
 		q,
 		workspaceEventTrail{
-			organizationID: claims.OrganizationID, workspaceID: workspaceID,
-			actorType: gatewaydb.EventTrailActorUser, actorID: claims.UserID,
-			action: "workspace.inheritance.modify", result: gatewaydb.EventTrailResultSucceeded,
-			after: []gatewayapi.EventTrailField{{Field: gatewayapi.EventTrailFieldName, Value: string(resourceType)}},
+			organizationID: claims.OrganizationID,
+			workspaceID:    workspaceID,
+			actorType:      gatewaydb.EventTrailActorUser,
+			actorID:        claims.UserID,
+			action:         "workspace.inheritance.modify",
+			result:         gatewaydb.EventTrailResultSucceeded,
+			after: []gatewayapi.EventTrailField{{
+				Field: gatewayapi.EventTrailFieldName,
+				Value: string(resourceType),
+			}},
 		},
 	)
 	if err != nil {
@@ -401,10 +417,16 @@ func (s *Service) recordWorkspaceInheritanceFailure(r *http.Request, claims gate
 		context.WithoutCancel(r.Context()),
 		s.queries,
 		workspaceEventTrail{
-			organizationID: claims.OrganizationID, workspaceID: workspaceID,
-			actorType: gatewaydb.EventTrailActorUser, actorID: claims.UserID,
-			action: "workspace.inheritance.modify", result: gatewaydb.EventTrailResultFailed,
-			after: []gatewayapi.EventTrailField{{Field: gatewayapi.EventTrailFieldName, Value: string(resourceType)}},
+			organizationID: claims.OrganizationID,
+			workspaceID:    workspaceID,
+			actorType:      gatewaydb.EventTrailActorUser,
+			actorID:        claims.UserID,
+			action:         "workspace.inheritance.modify",
+			result:         gatewaydb.EventTrailResultFailed,
+			after: []gatewayapi.EventTrailField{{
+				Field: gatewayapi.EventTrailFieldName,
+				Value: string(resourceType),
+			}},
 		},
 	)
 	if err != nil {
@@ -437,7 +459,8 @@ func (s *Service) validateOrganizationResourceSelection(ctx context.Context, org
 				fields = append(
 					fields,
 					gatewayapi.FieldError{
-						Field: fmt.Sprintf("%s[%d]", item.field, i), Message: "must not be blank",
+						Field:   fmt.Sprintf("%s[%d]", item.field, i),
+						Message: "must not be blank",
 					},
 				)
 				continue
@@ -446,7 +469,8 @@ func (s *Service) validateOrganizationResourceSelection(ctx context.Context, org
 				fields = append(
 					fields,
 					gatewayapi.FieldError{
-						Field: fmt.Sprintf("%s[%d]", item.field, i), Message: "must be unique",
+						Field:   fmt.Sprintf("%s[%d]", item.field, i),
+						Message: "must be unique",
 					},
 				)
 				continue
@@ -471,7 +495,8 @@ func (s *Service) validateOrganizationResourceSelection(ctx context.Context, org
 				fields = append(
 					fields,
 					gatewayapi.FieldError{
-						Field: fmt.Sprintf("%s[%d]", item.field, i), Message: "was not found",
+						Field:   fmt.Sprintf("%s[%d]", item.field, i),
+						Message: "was not found",
 					},
 				)
 			}
@@ -495,8 +520,10 @@ func insertWorkspaceResourceSelection(ctx context.Context, q gatewaydb.Querier, 
 		inserted, err := q.GatewayInsertWorkspaceInheritedResources(
 			ctx,
 			gatewaydb.GatewayInsertWorkspaceInheritedResourcesParams{
-				WorkspaceID: workspaceID, OrganizationID: organizationID,
-				Resource: item.resource, ResourceNames: names,
+				WorkspaceID:    workspaceID,
+				OrganizationID: organizationID,
+				Resource:       item.resource,
+				ResourceNames:  names,
 			},
 		)
 		if err != nil {
@@ -530,7 +557,8 @@ func (s *Service) selectedOrganizationResourceConflict(ctx context.Context, acce
 		ctx,
 		gatewaydb.GatewayListWorkspacesSelectingOrganizationResourceParams{
 			OrganizationID: access.claims.OrganizationID,
-			Resource:       resource, ResourceName: name,
+			Resource:       resource,
+			ResourceName:   name,
 		},
 	)
 	if err != nil {
@@ -549,7 +577,8 @@ func (s *Service) selectedOrganizationResourceConflict(ctx context.Context, acce
 		"Organisation resource is selected by one or more Workspaces",
 		errBadRequest,
 		gatewayapi.FieldError{
-			Field: "name", Message: "selected by Workspaces: " + strings.Join(workspaces, ", "),
+			Field:   "name",
+			Message: "selected by Workspaces: " + strings.Join(workspaces, ", "),
 		},
 	), nil
 }
@@ -571,7 +600,8 @@ func (s *Service) workspaceInheritedResources(ctx context.Context, workspace gat
 	resources := []gatewayapi.WorkspaceInheritedResource{}
 	appendResource := func(name string, status gatewayapi.ResourceLifecycle, message string) {
 		resource := gatewayapi.WorkspaceInheritedResource{
-			Name: name, Status: status,
+			Name:      name,
+			Status:    status,
 			Selected:  slices.Contains(selectedNames, name),
 			Consumers: []gatewayapi.InheritedResourceConsumer{},
 		}
@@ -679,7 +709,8 @@ func (s *Service) inheritedResourceConsumers(ctx context.Context, workspace gate
 	consumers := map[string][]gatewayapi.InheritedResourceConsumer{}
 	add := func(name, kind, consumerName string) {
 		consumer := gatewayapi.InheritedResourceConsumer{
-			Kind: kind, Name: consumerName,
+			Kind: kind,
+			Name: consumerName,
 		}
 		if !slices.Contains(consumers[name], consumer) {
 			consumers[name] = append(consumers[name], consumer)

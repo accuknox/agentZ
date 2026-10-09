@@ -972,8 +972,10 @@ func (s *Service) storeOpenCodeSession(ctx context.Context, workspaceID, agentNa
 	auth, _ := requestAuthState(ctx)
 	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding && auth.actorType != requestActorSystem {
 		tree, err := q.GatewayOwnedCodingDirectory(ctx, gatewaydb.GatewayOwnedCodingDirectoryParams{
-			WorkspaceID: workspaceID, AgentName: agentName, OwnerID: auth.userID,
-			Directory: strings.TrimPrefix(session.Directory, "/home/agentz/"),
+			WorkspaceID: workspaceID,
+			AgentName:   agentName,
+			OwnerID:     auth.userID,
+			Directory:   strings.TrimPrefix(session.Directory, "/home/agentz/"),
 		})
 		if err != nil {
 			return err
@@ -988,8 +990,11 @@ func (s *Service) storeOpenCodeSession(ctx context.Context, workspaceID, agentNa
 				return err
 			}
 			err = q.GatewayBindCodingSession(ctx, gatewaydb.GatewayBindCodingSessionParams{
-				ID: uuid.NewString(), WorkspaceID: workspaceID, AgentName: agentName,
-				WorktreeID: tree.ID, SessionID: pgtype.Text{String: session.Id, Valid: true},
+				ID:          uuid.NewString(),
+				WorkspaceID: workspaceID,
+				AgentName:   agentName,
+				WorktreeID:  tree.ID,
+				SessionID:   pgtype.Text{String: session.Id, Valid: true},
 			})
 			if err != nil {
 				return err
@@ -1007,10 +1012,12 @@ func (s *Service) storeOpenCodeSession(ctx context.Context, workspaceID, agentNa
 			Kind:            kind,
 			Status:          gatewaydb.ChatSessionStatusIdle,
 			SourceCreatedAt: pgtype.Timestamptz{
-				Time: time.UnixMilli(int64(session.Time.Created)), Valid: true,
+				Time:  time.UnixMilli(int64(session.Time.Created)),
+				Valid: true,
 			},
 			SourceUpdatedAt: pgtype.Timestamptz{
-				Time: time.UnixMilli(int64(session.Time.Updated)), Valid: true,
+				Time:  time.UnixMilli(int64(session.Time.Updated)),
+				Valid: true,
 			},
 		},
 	)

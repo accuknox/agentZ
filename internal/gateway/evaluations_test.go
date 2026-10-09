@@ -38,18 +38,53 @@ type evaluationScoreCase struct {
 // TestEvaluationScore checks quality gates and missing measurements.
 func TestEvaluationScore(t *testing.T) {
 	tests := []evaluationScoreCase{
-		{name: "complete efficient solo execution", correctness: 4, efficiency: 4, status: gatewayapi.WorkflowRunStatusSucceeded, want: 95},
-		{name: "minor issues", correctness: 3, efficiency: 4, status: gatewayapi.WorkflowRunStatusSucceeded, want: 71.25},
-		{name: "partial work fails quality gate", correctness: 2, efficiency: 4, status: gatewayapi.WorkflowRunStatusSucceeded, want: 0},
-		{name: "failed execution cannot pass", correctness: 4, efficiency: 4, status: gatewayapi.WorkflowRunStatusFailed, want: 0},
-		{name: "unavailable usage is unscored", correctness: 4, efficiency: 4, status: gatewayapi.WorkflowRunStatusSucceeded, missing: true},
+		{
+			name:        "complete efficient solo execution",
+			correctness: 4,
+			efficiency:  4,
+			status:      gatewayapi.WorkflowRunStatusSucceeded,
+			want:        95,
+		},
+		{
+			name:        "minor issues",
+			correctness: 3,
+			efficiency:  4,
+			status:      gatewayapi.WorkflowRunStatusSucceeded,
+			want:        71.25,
+		},
+		{
+			name:        "partial work fails quality gate",
+			correctness: 2,
+			efficiency:  4,
+			status:      gatewayapi.WorkflowRunStatusSucceeded,
+			want:        0,
+		},
+		{
+			name:        "failed execution cannot pass",
+			correctness: 4,
+			efficiency:  4,
+			status:      gatewayapi.WorkflowRunStatusFailed,
+			want:        0,
+		},
+		{
+			name:        "unavailable usage is unscored",
+			correctness: 4,
+			efficiency:  4,
+			status:      gatewayapi.WorkflowRunStatusSucceeded,
+			missing:     true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			execution := gatewayapi.EvaluationExecution{
-				State: gatewayapi.EvaluationExecutionStateCompleted, RunStatus: &tt.status,
-				Tokens: new(100.0), ToolCalls: new(0),
-				Judgment: &gatewayapi.EvaluationJudgment{Correctness: tt.correctness, Efficiency: tt.efficiency},
+				State:     gatewayapi.EvaluationExecutionStateCompleted,
+				RunStatus: &tt.status,
+				Tokens:    new(100.0),
+				ToolCalls: new(0),
+				Judgment: &gatewayapi.EvaluationJudgment{
+					Correctness: tt.correctness,
+					Efficiency:  tt.efficiency,
+				},
 			}
 			if tt.missing {
 				execution.Tokens = nil
@@ -78,7 +113,8 @@ func TestEvaluationReferencesFreezeBeforeJudgment(t *testing.T) {
 		evaluation.Executions = append(evaluation.Executions, gatewayapi.EvaluationExecution{
 			State:     gatewayapi.EvaluationExecutionStateJudging,
 			RunStatus: new(gatewayapi.WorkflowRunStatusSucceeded),
-			Tokens:    &tokens, ToolCalls: new(4),
+			Tokens:    &tokens,
+			ToolCalls: new(4),
 		})
 	}
 	scoreEvaluation(&evaluation)
@@ -108,7 +144,12 @@ func TestEvaluationReferencesFreezeBeforeJudgment(t *testing.T) {
 // TestEvaluationReferencesWaitForExecution prevents partial cohort scoring.
 func TestEvaluationReferencesWaitForExecution(t *testing.T) {
 	evaluation := gatewayapi.WorkflowEvaluation{Executions: []gatewayapi.EvaluationExecution{
-		{State: gatewayapi.EvaluationExecutionStateJudging, RunStatus: new(gatewayapi.WorkflowRunStatusSucceeded), Tokens: new(100.0), ToolCalls: new(2)},
+		{
+			State:     gatewayapi.EvaluationExecutionStateJudging,
+			RunStatus: new(gatewayapi.WorkflowRunStatusSucceeded),
+			Tokens:    new(100.0),
+			ToolCalls: new(2),
+		},
 		{State: gatewayapi.EvaluationExecutionStateRunning},
 	}}
 	scoreEvaluation(&evaluation)
@@ -122,10 +163,12 @@ func TestEvaluationScoreIgnoresDuration(t *testing.T) {
 	durations := []*float64{nil, new(0.0), new(900.0), new(math.NaN())}
 	for _, duration := range durations {
 		evaluation := gatewayapi.WorkflowEvaluation{Executions: []gatewayapi.EvaluationExecution{{
-			State:     gatewayapi.EvaluationExecutionStateCompleted,
-			RunStatus: new(gatewayapi.WorkflowRunStatusSucceeded),
-			Tokens:    new(100.0), ToolCalls: new(4), DurationSeconds: duration,
-			Judgment: &gatewayapi.EvaluationJudgment{Correctness: 4, Efficiency: 4},
+			State:           gatewayapi.EvaluationExecutionStateCompleted,
+			RunStatus:       new(gatewayapi.WorkflowRunStatusSucceeded),
+			Tokens:          new(100.0),
+			ToolCalls:       new(4),
+			DurationSeconds: duration,
+			Judgment:        &gatewayapi.EvaluationJudgment{Correctness: 4, Efficiency: 4},
 		}}}
 		scoreEvaluation(&evaluation)
 		if evaluation.Executions[0].Score == nil || *evaluation.Executions[0].Score != 95 {
@@ -146,11 +189,15 @@ func TestEvaluationParallelRuns(t *testing.T) {
 			k8s := fake.NewClientBuilder().WithScheme(scheme).Build()
 			service := &Service{k8sClient: k8s}
 			job := workflowdb.WorkflowRunEvaluation{
-				TenantNamespace: "test", AgentName: "agent", WorkflowName: "workflow",
+				TenantNamespace: "test",
+				AgentName:       "agent",
+				WorkflowName:    "workflow",
 			}
 			evaluation := gatewayapi.WorkflowEvaluation{
-				Id: uuid.New(), Request: gatewayapi.WorkflowEvaluationRequest{
-					Concurrency: concurrency, TimeoutSeconds: 37,
+				Id: uuid.New(),
+				Request: gatewayapi.WorkflowEvaluationRequest{
+					Concurrency:    concurrency,
+					TimeoutSeconds: 37,
 				},
 			}
 			for i := range 8 {
@@ -265,8 +312,10 @@ func TestEvaluationDeletion(t *testing.T) {
 	k8s := fake.NewClientBuilder().WithScheme(scheme).Build()
 	service := &Service{k8sClient: k8s}
 	job := workflowdb.WorkflowRunEvaluation{
-		ID: uuid.New(), TenantNamespace: "test",
-		AgentName: "agent", WorkflowName: "workflow",
+		ID:              uuid.New(),
+		TenantNamespace: "test",
+		AgentName:       "agent",
+		WorkflowName:    "workflow",
 	}
 	names := []string{"running", "completed", "unrelated"}
 	for _, name := range names {
@@ -276,12 +325,14 @@ func TestEvaluationDeletion(t *testing.T) {
 		}
 		run := &agentzv1alpha1.WorkflowRun{
 			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "test", Name: name,
+				Namespace:  "test",
+				Name:       name,
 				Labels:     map[string]string{"agentz.accuknox.com/evaluation": id},
 				Finalizers: []string{"test/session-cleanup"},
 			},
 			Spec: agentzv1alpha1.WorkflowRunSpec{
-				AgentName: "agent", WorkflowName: "workflow",
+				AgentName:    "agent",
+				WorkflowName: "workflow",
 			},
 		}
 		if name == "completed" {
@@ -324,13 +375,48 @@ func TestEvaluationVariants(t *testing.T) {
 	catalog := `{"providers":[{"id":"provider","models":{"model":{"variants":{"low":{}}}}}]}`
 	tests := []evaluationVariantCase{
 		{name: "base needs no catalog", status: 503},
-		{name: "fetch once for executions and judge", body: catalog, model: "low", judge: "low", status: 200, calls: 1},
-		{name: "unknown execution variant", body: catalog, model: "LOW", field: "models", status: 200, calls: 1},
-		{name: "unknown judge variant", body: catalog, judge: "imaginary", field: "judge", status: 200, calls: 1},
-		{name: "catalog without model", body: `{"providers":[]}`, model: "low", field: "models", status: 200, calls: 1},
+		{
+			name:   "fetch once for executions and judge",
+			body:   catalog,
+			model:  "low",
+			judge:  "low",
+			status: 200,
+			calls:  1,
+		},
+		{
+			name:   "unknown execution variant",
+			body:   catalog,
+			model:  "LOW",
+			field:  "models",
+			status: 200,
+			calls:  1,
+		},
+		{
+			name:   "unknown judge variant",
+			body:   catalog,
+			judge:  "imaginary",
+			field:  "judge",
+			status: 200,
+			calls:  1,
+		},
+		{
+			name:   "catalog without model",
+			body:   `{"providers":[]}`,
+			model:  "low",
+			field:  "models",
+			status: 200,
+			calls:  1,
+		},
 		{name: "catalog unavailable", status: 503, model: "low", calls: 1, unavailable: true},
 		{name: "catalog malformed", body: `{`, status: 200, model: "low", calls: 1, unavailable: true},
-		{name: "catalog missing providers", body: `{}`, status: 200, model: "low", calls: 1, unavailable: true},
+		{
+			name:        "catalog missing providers",
+			body:        `{}`,
+			status:      200,
+			model:       "low",
+			calls:       1,
+			unavailable: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -352,23 +438,29 @@ func TestEvaluationVariants(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			sandbox.Spec.Inference.Models = []agentzv1alpha1.InferenceModelRef{{Provider: "provider", Model: "model"}}
+			sandbox.Spec.Inference.Models = []agentzv1alpha1.InferenceModelRef{{
+				Provider: "provider",
+				Model:    "model",
+			}}
 			err = svc.k8sClient.Update(t.Context(), &sandbox)
 			if err != nil {
 				t.Fatal(err)
 			}
 			agent := &agentzv1alpha1.Agent{ObjectMeta: metav1.ObjectMeta{
-				Name: "agent", Namespace: testWorkspaceNS,
+				Name:      "agent",
+				Namespace: testWorkspaceNS,
 			}}
 			agent.Spec.SandboxRef = agentzv1alpha1.ResourceReference{
-				Name: sandbox.Name, Scope: agentzv1alpha1.ResourceScopeWorkspace,
+				Name:  sandbox.Name,
+				Scope: agentzv1alpha1.ResourceScopeWorkspace,
 			}
 			index := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
 			if err := index.Add(agent); err != nil {
 				t.Fatal(err)
 			}
 			svc.resolver = &resolver{
-				agents: listersv1alpha1.NewAgentLister(index), targetOverride: upstream.URL,
+				agents:         listersv1alpha1.NewAgentLister(index),
+				targetOverride: upstream.URL,
 			}
 			svc.outboundHTTP = upstream.Client()
 			model := gatewayapi.EvaluationModel{ProviderId: "provider", ModelId: "model", Variant: &tt.model}
@@ -415,10 +507,15 @@ func TestEvaluationJudgeSchema(t *testing.T) {
 		t.Fatal(err)
 	}
 	judgment := gatewayapi.EvaluationJudgment{
-		Correctness: 4, Efficiency: 4, Summary: "Complete",
-		Evidence: []string{"Correct result"}, Limitations: []string{},
+		Correctness: 4,
+		Efficiency:  4,
+		Summary:     "Complete",
+		Evidence:    []string{"Correct result"},
+		Limitations: []string{},
 		References: &[]gatewayapi.EvaluationEvidenceReference{{
-			EvidenceIndex: 0, SessionId: "execution", MessageId: "answer",
+			EvidenceIndex: 0,
+			SessionId:     "execution",
+			MessageId:     "answer",
 		}},
 	}
 	instructions := "Expect a concise incident report.\nCheck the recommended remediation."
@@ -506,14 +603,20 @@ func TestEvaluationJudgeSchema(t *testing.T) {
 	defer upstream.Close()
 	index := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
 	err = index.Add(&agentzv1alpha1.Agent{ObjectMeta: metav1.ObjectMeta{
-		Name: "agent", Namespace: "test",
+		Name:      "agent",
+		Namespace: "test",
 	}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := &Service{openAPI: doc, outboundHTTP: upstream.Client(), resolver: &resolver{
-		agents: listersv1alpha1.NewAgentLister(index), targetOverride: upstream.URL,
-	}}
+	service := &Service{
+		openAPI:      doc,
+		outboundHTTP: upstream.Client(),
+		resolver: &resolver{
+			agents:         listersv1alpha1.NewAgentLister(index),
+			targetOverride: upstream.URL,
+		},
+	}
 	modes := []string{"instructions", "compaction", "empty", "whitespace", "omitted"}
 	for _, mode := range modes {
 		t.Run(mode, func(t *testing.T) {
@@ -526,8 +629,9 @@ func TestEvaluationJudgeSchema(t *testing.T) {
 				instructions = " \n\t "
 			}
 			evaluation := gatewayapi.WorkflowEvaluation{
-				Id: uuid.New(), Workflow: gatewayapi.Workflow{AgentName: "agent"},
-				Request: gatewayapi.WorkflowEvaluationRequest{JudgeInstructions: &instructions},
+				Id:       uuid.New(),
+				Workflow: gatewayapi.Workflow{AgentName: "agent"},
+				Request:  gatewayapi.WorkflowEvaluationRequest{JudgeInstructions: &instructions},
 			}
 			if mode == "omitted" {
 				evaluation.Request.JudgeInstructions = nil

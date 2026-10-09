@@ -957,7 +957,8 @@ func CredentialsForUpdate(spec agentzv1alpha1.InferenceProviderSpec, values Cred
 			}
 		}
 		return map[string]any{
-			credentialClientID: values.ClientID, credentialTenantID: values.TenantID,
+			credentialClientID:     values.ClientID,
+			credentialTenantID:     values.TenantID,
 			credentialClientSecret: values.ClientSecret,
 		}, true, nil
 	case agentzv1alpha1.InferenceProviderKindOpenAICompatible,

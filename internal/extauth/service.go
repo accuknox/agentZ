@@ -361,7 +361,8 @@ func (s *Service) mcpCredentials(ctx context.Context, connection *agentzv1alpha1
 	}
 	headers = append(headers, injection.headers...)
 	return &authv3.OkHttpResponse{
-		Headers: headers, HeadersToRemove: append(injection.headersToRemove, "authorization", "cookie", "api-key", "x-api-key", "openai-organization", "openai-project", "chatgpt-account-id"),
+		Headers:              headers,
+		HeadersToRemove:      append(injection.headersToRemove, "authorization", "cookie", "api-key", "x-api-key", "openai-organization", "openai-project", "chatgpt-account-id"),
 		QueryParametersToSet: injection.queryParameters,
 	}, nil
 }
@@ -890,5 +891,8 @@ func (s *delegationServer) Check(ctx context.Context, request *authv3.CheckReque
 		slog.ErrorContext(ctx, "owner delegation credentials unavailable", slog.Any("error", err))
 		return denyDecision(codes.Unavailable, typev3.StatusCode_ServiceUnavailable, "delegated credentials unavailable", "delegation_credentials", slog.LevelError).response, nil
 	}
-	return &authv3.CheckResponse{Status: &statuspb.Status{Code: int32(codes.OK)}, HttpResponse: &authv3.CheckResponse_OkResponse{OkResponse: injection}}, nil
+	return &authv3.CheckResponse{
+		Status:       &statuspb.Status{Code: int32(codes.OK)},
+		HttpResponse: &authv3.CheckResponse_OkResponse{OkResponse: injection},
+	}, nil
 }

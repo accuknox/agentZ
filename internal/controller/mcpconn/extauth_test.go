@@ -34,12 +34,14 @@ func TestExtAuthAccessIsLimitedToOrganizationWorkspaces(t *testing.T) {
 	allowed := workspaceForExtAuth("workspace-a", organizationID)
 	allowed.Spec.SelectedOrganizationResources.MCPConnections = []string{"mcp-a"}
 	foreign := workspaceForExtAuth("workspace-b", "organization-b")
-	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
-		Name: org,
-		Annotations: map[string]string{
-			agentzv1alpha1.TenantOrganizationIDAnnotation: organizationID,
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: org,
+			Annotations: map[string]string{
+				agentzv1alpha1.TenantOrganizationIDAnnotation: organizationID,
+			},
 		},
-	}}
+	}
 
 	scheme := runtime.NewScheme()
 	adders := []func(*runtime.Scheme) error{
@@ -155,9 +157,33 @@ func TestExtAuthCallerIdentities(t *testing.T) {
 		{"local MCP", "owner", "mcp", "mcp", true, true, true},
 		{"related inference", "related", "inference", "inference", true, false, false},
 		{"related MCP", "related", "mcp", "mcp", true, false, true},
-		{"unrelated inference", "foreign", "inference", "inference", false, false, false},
-		{"forged local gateway labels", "owner", "untrusted", "inference", false, false, false},
-		{"forged related gateway labels", "related", "untrusted", "mcp", false, false, false},
+		{
+			"unrelated inference",
+			"foreign",
+			"inference",
+			"inference",
+			false,
+			false,
+			false,
+		},
+		{
+			"forged local gateway labels",
+			"owner",
+			"untrusted",
+			"inference",
+			false,
+			false,
+			false,
+		},
+		{
+			"forged related gateway labels",
+			"related",
+			"untrusted",
+			"mcp",
+			false,
+			false,
+			false,
+		},
 		{"aggregator", "private", "delegations", "delegations", false, false, false},
 	}
 	for _, test := range cases {

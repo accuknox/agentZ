@@ -2733,3 +2733,135 @@ DELETE FROM delegation_transactions WHERE expires_at <= now();
 
 -- name: GatewayCheckDelegationSession :one
 SELECT EXISTS(SELECT 1 FROM sessions WHERE id = sqlc.arg(id) AND user_id = sqlc.arg(user_id) AND expires_at > now());
+
+-- name: GatewayCreateChatExecution :one
+INSERT INTO chat_executions (id, workspace_id, agent_name, agent_uid, namespace,
+  session_id, directory, protocol, actor_id, actor_name, actor_type, user_id,
+  organization_id, workflow_run_uid, workflow_name, workflow_run_name, definition, deadline)
+VALUES (@id, @workspace_id, @agent_name, @agent_uid, @namespace,
+  @session_id, @directory, @protocol, @actor_id, @actor_name, @actor_type, @user_id,
+  @organization_id, @workflow_run_uid, @workflow_name, @workflow_run_name,
+  sqlc.narg(definition)::jsonb, sqlc.narg(deadline)::timestamptz)
+ON CONFLICT (id) DO NOTHING
+RETURNING *;
+
+-- name: GatewayGetChatExecution :one
+SELECT * FROM chat_executions WHERE id = @id AND workspace_id = @workspace_id;
+
+-- name: GatewaySessionChatExecution :one
+SELECT * FROM chat_executions WHERE workspace_id = @workspace_id
+  AND agent_name = @agent_name AND session_id = @session_id
+ORDER BY created_at DESC LIMIT 1;
+
+-- name: GatewayPendingChatExecutions :many
+SELECT * FROM chat_executions
+WHERE state IN ('admitting', 'running', 'recovering', 'blocked')
+  AND lease_until <= now()
+ORDER BY lease_until, updated_at LIMIT 100;
+
+-- name: GatewayClaimChatExecution :one
+UPDATE chat_executions SET lease_token = @lease_token,
+  lease_until = now() + interval '30 seconds'
+WHERE id = @id AND attempt = @attempt AND lease_until <= now()
+  AND state IN ('admitting', 'running', 'recovering', 'blocked')
+RETURNING *;
+
+-- name: GatewayReleaseChatExecution :exec
+UPDATE chat_executions SET lease_token = '', lease_until = now()
+WHERE id = @id AND lease_token = @lease_token;
+
+-- name: GatewayUpdateChatExecution :execrows
+UPDATE chat_executions SET state = @state, reason = @reason, message = @message,
+  waiting_on_user = @waiting_on_user OR cardinality(user_requests) > 0, updated_at = now()
+WHERE id = @id AND workspace_id = @workspace_id AND attempt = @attempt AND lease_token = @lease_token
+  AND lease_until > now()
+  AND state IN ('admitting', 'running', 'recovering', 'blocked')
+  AND (state <> @state OR reason <> @reason OR message <> @message OR waiting_on_user <> @waiting_on_user);
+
+-- name: GatewayContinueChatExecution :one
+UPDATE chat_executions SET state = 'recovering', attempt = attempt + 1,
+  continuations = continuations + 1, reason = 'agent_restarted',
+  message = 'Resuming conversation after agent restart', updated_at = now()
+WHERE id = @id AND attempt = @attempt AND lease_token = @lease_token
+  AND lease_until > now() AND continuations < 3 AND waiting_on_user = false
+  AND state IN ('admitting', 'running', 'recovering')
+RETURNING *;
+
+-- name: GatewayCancelChatExecution :execrows
+UPDATE chat_executions SET state = 'cancelled', reason = @reason,
+  message = @message, lease_token = '', lease_until = 'epoch', updated_at = now()
+WHERE workspace_id = @workspace_id AND agent_name = @agent_name AND session_id = @session_id
+  AND state IN ('admitting', 'running', 'recovering', 'blocked');
+
+-- name: GatewayFinishChatAttempts :exec
+UPDATE chat_attempts a SET state = CASE e.state
+ WHEN 'completed' THEN 'completed'::chat_attempt_state
+ WHEN 'cancelled' THEN 'cancelled'::chat_attempt_state
+ WHEN 'failed' THEN 'failed'::chat_attempt_state END, updated_at = now()
+FROM chat_executions e WHERE a.execution_id = e.id AND a.number = e.attempt
+ AND e.workspace_id = @workspace_id AND e.agent_name = @agent_name AND e.session_id = @session_id
+ AND e.state IN ('completed', 'cancelled', 'failed')
+ AND a.state NOT IN ('completed', 'cancelled', 'failed');
+
+-- name: GatewayCreateChatAttempt :exec
+INSERT INTO chat_attempts (execution_id, number, incarnation, payload, message_id, state, submissions)
+VALUES (@execution_id, @number, @incarnation, @payload, @message_id,
+  CASE WHEN @message_id = '' THEN 'pending'::chat_attempt_state ELSE 'submitting'::chat_attempt_state END,
+  CASE WHEN @message_id = '' THEN 0 ELSE 1 END);
+
+-- name: GatewayGetChatAttempt :one
+SELECT execution_id, number, incarnation, state, message_id, submissions, next_attempt_at, updated_at
+FROM chat_attempts WHERE execution_id = @execution_id AND number = @number;
+
+-- name: GatewayChatAttemptPayload :one
+SELECT payload FROM chat_attempts WHERE execution_id = @execution_id AND number = @number;
+
+-- name: GatewayAdmitChatAttempt :exec
+UPDATE chat_attempts SET state = 'submitting', message_id = @message_id, payload = @payload,
+  submissions = submissions + 1, next_attempt_at = now(), updated_at = now()
+WHERE execution_id = @execution_id AND number = @number;
+
+-- name: GatewayUpdateChatAttempt :exec
+UPDATE chat_attempts SET state = @state, message_id = @message_id, payload = @payload,
+  submissions = @submissions, next_attempt_at = @next_attempt_at, updated_at = now()
+WHERE execution_id = @execution_id AND number = @number;
+
+-- name: GatewayCreateChatExecutionPrompt :exec
+INSERT INTO chat_execution_prompts (execution_id, attempt, message_id)
+VALUES (@execution_id, @attempt, @message_id)
+ON CONFLICT (execution_id, message_id) DO NOTHING;
+
+-- name: GatewayAcceptChatExecutionPrompt :exec
+UPDATE chat_execution_prompts SET accepted = true
+WHERE execution_id = @execution_id AND message_id = @message_id;
+
+-- name: GatewayChatExecutionPrompts :many
+SELECT * FROM chat_execution_prompts WHERE execution_id = @execution_id AND attempt = @attempt
+ORDER BY created_at;
+
+-- name: GatewayChatExecutionDefinition :one
+SELECT definition FROM chat_executions WHERE workflow_run_uid = @workflow_run_uid;
+
+-- name: GatewayChatExecutionUserRequest :exec
+UPDATE chat_executions e SET
+ user_requests = CASE WHEN @asked::boolean
+  THEN array_append(array_remove(e.user_requests, @request_id::text), @request_id::text)
+  ELSE array_remove(e.user_requests, @request_id::text) END,
+ waiting_on_user = CASE WHEN @asked::boolean THEN true
+  ELSE cardinality(array_remove(e.user_requests, @request_id::text)) > 0 END
+WHERE e.workspace_id = @workspace_id AND e.agent_name = @agent_name AND e.session_id = @session_id
+ AND e.state IN ('admitting', 'running', 'recovering', 'blocked')
+ AND EXISTS (SELECT 1 FROM chat_attempts a WHERE a.execution_id = e.id
+  AND a.number = e.attempt AND a.incarnation = @incarnation);
+
+-- name: GatewayChatExecutionAPIKeyValid :one
+SELECT EXISTS (
+ SELECT 1 FROM apikeys k JOIN api_key_scopes s ON s.api_key_id = k.id
+ JOIN api_key_targets t ON t.api_key_id = k.id
+ WHERE k.id = @api_key_id AND k.reference_id = @organization_id
+  AND k.config_id = 'opencode' AND k.enabled = true
+  AND (k.expires_at IS NULL OR k.expires_at > now())
+  AND s.organization_id = @organization_id AND s.workspace_id = @workspace_id
+  AND s.creator_user_id = @user_id AND s.revoked_at IS NULL
+  AND t.target_type = 'agent' AND t.agent_name = @agent_name
+);

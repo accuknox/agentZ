@@ -39,7 +39,10 @@ func (s *Service) codingWorkerAccess(ctx context.Context, project gatewaydb.Gate
 	}
 	effective, err := authorization.New(s.queries).Resolve(
 		ctx,
-		authorization.Subject{UserID: claims.UserID, OrganizationID: claims.OrganizationID},
+		authorization.Subject{
+			UserID:         claims.UserID,
+			OrganizationID: claims.OrganizationID,
+		},
 	)
 	if err != nil {
 		return access, err
@@ -317,7 +320,10 @@ func (s *Service) runCodingOperation(ctx context.Context, job gatewaydb.CodingOp
 			case <-ticker.C:
 				rows, err := s.queries.GatewayHeartbeatCodingOperation(
 					ctx,
-					gatewaydb.GatewayHeartbeatCodingOperationParams{ID: job.ID, LeaseToken: job.LeaseToken},
+					gatewaydb.GatewayHeartbeatCodingOperationParams{
+						ID:         job.ID,
+						LeaseToken: job.LeaseToken,
+					},
 				)
 				if err != nil || rows != 1 {
 					cancel()
@@ -349,7 +355,10 @@ func (s *Service) runCodingOperation(ctx context.Context, job gatewaydb.CodingOp
 		}
 		return s.queries.GatewayNotifyCoding(
 			ctx,
-			gatewaydb.GatewayNotifyCodingParams{WorkspaceID: job.WorkspaceID, OwnerID: job.OwnerID},
+			gatewaydb.GatewayNotifyCodingParams{
+				WorkspaceID: job.WorkspaceID,
+				OwnerID:     job.OwnerID,
+			},
 		)
 	}
 	err := s.executeCodingOperation(ctx, job, input, &result, publish)
@@ -491,7 +500,10 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 		}
 		err = s.queries.GatewayUpdateCodingBranch(
 			ctx,
-			gatewaydb.GatewayUpdateCodingBranchParams{ID: job.WorktreeID, Branch: current.Branch},
+			gatewaydb.GatewayUpdateCodingBranchParams{
+				ID:     job.WorktreeID,
+				Branch: current.Branch,
+			},
 		)
 		if err != nil {
 			return err
@@ -508,7 +520,10 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 		if err != nil {
 			return err
 		}
-		request := gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitImport, Bundle: &bundle}
+		request := gatewayapi.CodingGitRequest{
+			Operation: gatewayapi.CodingGitImport,
+			Bundle:    &bundle,
+		}
 		if input.Action == gatewayapi.CodingActionPull {
 			request.ExpectedHead, request.Ref = &current.Head, &current.Branch
 		}
@@ -866,7 +881,10 @@ func (s *Service) nameCodingBranch(ctx context.Context, job gatewaydb.CodingOper
 	defer release()
 	current, err := q.GatewayGetCodingWorktree(
 		ctx,
-		gatewaydb.GatewayGetCodingWorktreeParams{ID: job.WorktreeID, WorkspaceID: job.WorkspaceID},
+		gatewaydb.GatewayGetCodingWorktreeParams{
+			ID:          job.WorktreeID,
+			WorkspaceID: job.WorkspaceID,
+		},
 	)
 	if err != nil {
 		return err
@@ -885,13 +903,19 @@ func (s *Service) nameCodingBranch(ctx context.Context, job gatewaydb.CodingOper
 		current.CodingWorktree,
 		current.CodingProject,
 		false,
-		gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitRename, Ref: &suggestion.Text},
+		gatewayapi.CodingGitRequest{
+			Operation: gatewayapi.CodingGitRename,
+			Ref:       &suggestion.Text,
+		},
 	)
 	if err != nil {
 		return err
 	}
 	return q.GatewayUpdateCodingBranch(
 		ctx,
-		gatewaydb.GatewayUpdateCodingBranchParams{ID: job.WorktreeID, Branch: renamed.Branch},
+		gatewaydb.GatewayUpdateCodingBranchParams{
+			ID:     job.WorktreeID,
+			Branch: renamed.Branch,
+		},
 	)
 }

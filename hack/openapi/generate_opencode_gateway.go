@@ -51,6 +51,9 @@ var baseOperationCapabilities = map[string][]string{
 		"listSecrets", "watchSecrets",
 	},
 	"agent.use_shared": {
+		"getChatExecution",
+		"getWorkflowExecution",
+		"startWorkflowExecution",
 		"listChatInputs",
 		"submitChatInput",
 		"updateChatInput",
@@ -77,8 +80,11 @@ var baseOperationCapabilities = map[string][]string{
 		"createAgentFile",
 		"createWorkflow",
 		"listAgentModelCatalog",
-		"createWorkflowEvaluation", "listWorkflowEvaluations",
-		"getWorkflowEvaluation", "updateWorkflowEvaluation", "deleteWorkflowEvaluation",
+		"createWorkflowEvaluation",
+		"listWorkflowEvaluations",
+		"getWorkflowEvaluation",
+		"updateWorkflowEvaluation",
+		"deleteWorkflowEvaluation",
 		"createWorkflowRun",
 		"createWorkflowSchedule",
 		"deleteAgent",
@@ -899,7 +905,7 @@ func applyOAPICodegenFixups(doc map[string]any) error {
 		},
 	}
 	// Message roles and tool states are mutually exclusive wire discriminators.
-	discriminators := map[string]string{"Message": "role", "ToolState": "status"}
+	discriminators := map[string]string{"Message": "role", "ToolState": "status", "SessionMessage": "type"}
 	for name, field := range discriminators {
 		schema := schemas[name].(map[string]any)
 		mapping := make(map[string]any)

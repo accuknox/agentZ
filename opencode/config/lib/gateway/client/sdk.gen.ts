@@ -131,6 +131,9 @@ import type {
   GetAgentToolData,
   GetAgentToolErrors,
   GetAgentToolResponses,
+  GetChatExecutionData,
+  GetChatExecutionErrors,
+  GetChatExecutionResponses,
   GetChatSessionPreferenceData,
   GetChatSessionPreferenceErrors,
   GetChatSessionPreferenceResponses,
@@ -184,6 +187,9 @@ import type {
   GetWorkflowEvaluationData,
   GetWorkflowEvaluationErrors,
   GetWorkflowEvaluationResponses,
+  GetWorkflowExecutionData,
+  GetWorkflowExecutionErrors,
+  GetWorkflowExecutionResponses,
   GetWorkflowResponses,
   GetWorkflowRunData,
   GetWorkflowRunErrors,
@@ -386,6 +392,9 @@ import type {
   StartCodingOperationData,
   StartCodingOperationErrors,
   StartCodingOperationResponses,
+  StartWorkflowExecutionData,
+  StartWorkflowExecutionErrors,
+  StartWorkflowExecutionResponses,
   StatAgentFileData,
   StatAgentFileErrors,
   StatAgentFileResponses,
@@ -788,6 +797,54 @@ export const watchChatSessions = <ThrowOnError extends boolean = false>(
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/chat-session/watch",
     ...options,
+  })
+
+/**
+ * Read the current tracked conversation execution.
+ */
+export const getChatExecution = <ThrowOnError extends boolean = false>(
+  options: Options<GetChatExecutionData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetChatExecutionResponses, GetChatExecutionErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/chat-session/{agentName}/{sessionId}/execution",
+    ...options,
+  })
+
+/**
+ * Read execution state for the existing WorkflowRun.
+ */
+export const getWorkflowExecution = <ThrowOnError extends boolean = false>(
+  options: Options<GetWorkflowExecutionData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    GetWorkflowExecutionResponses,
+    GetWorkflowExecutionErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workflow/{agentName}/{workflowName}/run/{runName}/execution",
+    ...options,
+  })
+
+/**
+ * Durably admit execution of the existing WorkflowRun session.
+ */
+export const startWorkflowExecution = <ThrowOnError extends boolean = false>(
+  options: Options<StartWorkflowExecutionData, ThrowOnError>
+) =>
+  (options.client ?? client).put<
+    StartWorkflowExecutionResponses,
+    StartWorkflowExecutionErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workflow/{agentName}/{workflowName}/run/{runName}/execution",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
   })
 
 /**

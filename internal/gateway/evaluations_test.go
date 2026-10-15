@@ -89,7 +89,9 @@ func TestEvaluationScore(t *testing.T) {
 			if tt.missing {
 				execution.Tokens = nil
 			}
-			evaluation := gatewayapi.WorkflowEvaluation{Executions: []gatewayapi.EvaluationExecution{execution}}
+			evaluation := gatewayapi.WorkflowEvaluation{
+				Executions: []gatewayapi.EvaluationExecution{execution},
+			}
 			scoreEvaluation(&evaluation)
 			result := evaluation.Executions[0]
 			if tt.missing {
@@ -143,15 +145,17 @@ func TestEvaluationReferencesFreezeBeforeJudgment(t *testing.T) {
 
 // TestEvaluationReferencesWaitForExecution prevents partial cohort scoring.
 func TestEvaluationReferencesWaitForExecution(t *testing.T) {
-	evaluation := gatewayapi.WorkflowEvaluation{Executions: []gatewayapi.EvaluationExecution{
-		{
-			State:     gatewayapi.EvaluationExecutionStateJudging,
-			RunStatus: new(gatewayapi.WorkflowRunStatusSucceeded),
-			Tokens:    new(100.0),
-			ToolCalls: new(2),
+	evaluation := gatewayapi.WorkflowEvaluation{
+		Executions: []gatewayapi.EvaluationExecution{
+			{
+				State:     gatewayapi.EvaluationExecutionStateJudging,
+				RunStatus: new(gatewayapi.WorkflowRunStatusSucceeded),
+				Tokens:    new(100.0),
+				ToolCalls: new(2),
+			},
+			{State: gatewayapi.EvaluationExecutionStateRunning},
 		},
-		{State: gatewayapi.EvaluationExecutionStateRunning},
-	}}
+	}
 	scoreEvaluation(&evaluation)
 	if evaluation.References != nil {
 		t.Fatal("references froze while cohort was running")
@@ -162,14 +166,16 @@ func TestEvaluationReferencesWaitForExecution(t *testing.T) {
 func TestEvaluationScoreIgnoresDuration(t *testing.T) {
 	durations := []*float64{nil, new(0.0), new(900.0), new(math.NaN())}
 	for _, duration := range durations {
-		evaluation := gatewayapi.WorkflowEvaluation{Executions: []gatewayapi.EvaluationExecution{{
-			State:           gatewayapi.EvaluationExecutionStateCompleted,
-			RunStatus:       new(gatewayapi.WorkflowRunStatusSucceeded),
-			Tokens:          new(100.0),
-			ToolCalls:       new(4),
-			DurationSeconds: duration,
-			Judgment:        &gatewayapi.EvaluationJudgment{Correctness: 4, Efficiency: 4},
-		}}}
+		evaluation := gatewayapi.WorkflowEvaluation{
+			Executions: []gatewayapi.EvaluationExecution{{
+				State:           gatewayapi.EvaluationExecutionStateCompleted,
+				RunStatus:       new(gatewayapi.WorkflowRunStatusSucceeded),
+				Tokens:          new(100.0),
+				ToolCalls:       new(4),
+				DurationSeconds: duration,
+				Judgment:        &gatewayapi.EvaluationJudgment{Correctness: 4, Efficiency: 4},
+			}},
+		}
 		scoreEvaluation(&evaluation)
 		if evaluation.Executions[0].Score == nil || *evaluation.Executions[0].Score != 95 {
 			t.Fatalf("duration %v changed scoring: %+v", duration, evaluation.Executions[0])
@@ -268,7 +274,10 @@ func TestEvaluationParallelRuns(t *testing.T) {
 			}
 			// Losing a later run must release its slot even while the first run is active.
 			var finished agentzv1alpha1.WorkflowRun
-			key := client.ObjectKey{Namespace: "test", Name: evaluation.Executions[concurrency-1].RunName}
+			key := client.ObjectKey{
+				Namespace: "test",
+				Name:      evaluation.Executions[concurrency-1].RunName,
+			}
 			if err := k8s.Get(ctx, key, &finished); err != nil {
 				t.Fatal(err)
 			}
@@ -407,8 +416,21 @@ func TestEvaluationVariants(t *testing.T) {
 			status: 200,
 			calls:  1,
 		},
-		{name: "catalog unavailable", status: 503, model: "low", calls: 1, unavailable: true},
-		{name: "catalog malformed", body: `{`, status: 200, model: "low", calls: 1, unavailable: true},
+		{
+			name:        "catalog unavailable",
+			status:      503,
+			model:       "low",
+			calls:       1,
+			unavailable: true,
+		},
+		{
+			name:        "catalog malformed",
+			body:        `{`,
+			status:      200,
+			model:       "low",
+			calls:       1,
+			unavailable: true,
+		},
 		{
 			name:        "catalog missing providers",
 			body:        `{}`,
@@ -446,10 +468,12 @@ func TestEvaluationVariants(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			agent := &agentzv1alpha1.Agent{ObjectMeta: metav1.ObjectMeta{
-				Name:      "agent",
-				Namespace: testWorkspaceNS,
-			}}
+			agent := &agentzv1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "agent",
+					Namespace: testWorkspaceNS,
+				},
+			}
 			agent.Spec.SandboxRef = agentzv1alpha1.ResourceReference{
 				Name:  sandbox.Name,
 				Scope: agentzv1alpha1.ResourceScopeWorkspace,
@@ -463,8 +487,16 @@ func TestEvaluationVariants(t *testing.T) {
 				targetOverride: upstream.URL,
 			}
 			svc.outboundHTTP = upstream.Client()
-			model := gatewayapi.EvaluationModel{ProviderId: "provider", ModelId: "model", Variant: &tt.model}
-			judge := gatewayapi.EvaluationModel{ProviderId: "provider", ModelId: "model", Variant: &tt.judge}
+			model := gatewayapi.EvaluationModel{
+				ProviderId: "provider",
+				ModelId:    "model",
+				Variant:    &tt.model,
+			}
+			judge := gatewayapi.EvaluationModel{
+				ProviderId: "provider",
+				ModelId:    "model",
+				Variant:    &tt.judge,
+			}
 			fields, err := svc.validateEvaluationModels(
 				t.Context(), testWorkspaceNS, agent.Name,
 				[]gatewayapi.EvaluationModel{model, model}, judge,
@@ -602,10 +634,12 @@ func TestEvaluationJudgeSchema(t *testing.T) {
 	}))
 	defer upstream.Close()
 	index := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
-	err = index.Add(&agentzv1alpha1.Agent{ObjectMeta: metav1.ObjectMeta{
-		Name:      "agent",
-		Namespace: "test",
-	}})
+	err = index.Add(&agentzv1alpha1.Agent{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "agent",
+			Namespace: "test",
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

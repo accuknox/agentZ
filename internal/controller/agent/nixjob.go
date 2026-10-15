@@ -199,7 +199,11 @@ func (r *Reconciler) buildPackageJob(agt *agentzv1alpha1.Agent, envCfg sandboxCo
 		)
 		immutableMounts = append(
 			immutableMounts,
-			corev1.VolumeMount{Name: configVolume, MountPath: opencodeConfigDir, ReadOnly: true},
+			corev1.VolumeMount{
+				Name:      configVolume,
+				MountPath: opencodeConfigDir,
+				ReadOnly:  true,
+			},
 			corev1.VolumeMount{
 				Name:      immutableSkillsBucketVolume,
 				MountPath: immutableSkillsSecretMount,

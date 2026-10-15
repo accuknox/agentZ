@@ -473,7 +473,10 @@ func (r *MCPConnectionReconciler) updateStatus(ctx context.Context, update mcpCo
 		retry.DefaultRetry,
 		func() error {
 			current := &agentzv1alpha1.MCPConnection{}
-			key := types.NamespacedName{Namespace: update.connection.Namespace, Name: update.connection.Name}
+			key := types.NamespacedName{
+				Namespace: update.connection.Namespace,
+				Name:      update.connection.Name,
+			}
 			err := r.Get(ctx, key, current)
 			if err != nil {
 				return client.IgnoreNotFound(err)

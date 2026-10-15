@@ -23,6 +23,7 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
@@ -341,18 +342,13 @@ func PatchRunNodeStatus(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlc
 				return nil
 			}
 
+			definition, err := gatewaydb.New(pool).GatewayChatExecutionDefinition(ctx, string(current.UID))
+			if err != nil {
+				return fmt.Errorf("read executing workflow definition: %w", err)
+			}
 			var workflow gatewayapi.Workflow
-			switch {
-			case current.Spec.Definition != nil:
-				if err := json.Unmarshal(current.Spec.Definition.Raw, &workflow); err != nil {
-					return fmt.Errorf("decode frozen workflow: %w", err)
-				}
-			default:
-				var err error
-				workflow, err = Get(ctx, pool, ns, agtName, wfName)
-				if err != nil {
-					return err
-				}
+			if err := json.Unmarshal(definition, &workflow); err != nil {
+				return fmt.Errorf("decode executing workflow definition: %w", err)
 			}
 
 			nodes := make([]agentzv1alpha1.WorkflowRunNodeStatus, 0, len(workflow.Nodes))

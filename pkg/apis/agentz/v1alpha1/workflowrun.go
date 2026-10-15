@@ -60,6 +60,8 @@ const (
 	// WorkflowRunConditionSessionAborted tracks cancellation independently of
 	// execution status so failed abort requests can be retried after a restart.
 	WorkflowRunConditionSessionAborted = "SessionAborted"
+	// WorkflowRunConditionRecovering identifies a replacement execution attempt.
+	WorkflowRunConditionRecovering = "Recovering"
 )
 
 const (
@@ -167,6 +169,10 @@ type WorkflowRunStatus struct {
 	// SessionID is the OpenCode session created for this run.
 	// +optional
 	SessionID string `json:"sessionID,omitempty"`
+
+	// ExecutionID binds this run to its durable gateway execution.
+	// +optional
+	ExecutionID string `json:"executionID,omitempty"`
 
 	// StartedAt is when the controller started execution.
 	// +optional

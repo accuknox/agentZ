@@ -19,36 +19,40 @@ func kubeArmorLogEvent(item *pb.Log, agentName string) (event, bool) {
 		if process == "" {
 			return event{}, false
 		}
-		return event{process: &processEvent{
-			tenantNamespace:   item.GetNamespaceName(),
-			agentName:         agentName,
-			eventTime:         ts,
-			podNamespace:      item.GetNamespaceName(),
-			podName:           item.GetPodName(),
-			process:           process,
-			parentProcess:     item.GetParentProcessName(),
-			commandInvocation: commandLine(item.GetResource(), process),
-			action:            actionAllowed,
-			source:            sourceKubeArmorLog,
-		}}, true
+		return event{
+			process: &processEvent{
+				tenantNamespace:   item.GetNamespaceName(),
+				agentName:         agentName,
+				eventTime:         ts,
+				podNamespace:      item.GetNamespaceName(),
+				podName:           item.GetPodName(),
+				process:           process,
+				parentProcess:     item.GetParentProcessName(),
+				commandInvocation: commandLine(item.GetResource(), process),
+				action:            actionAllowed,
+				source:            sourceKubeArmorLog,
+			},
+		}, true
 	case "File":
 		path := firstToken(item.GetResource())
 		process := commandLine(item.GetProcessName(), firstToken(item.GetSource()))
 		if path == "" || process == "" {
 			return event{}, false
 		}
-		return event{file: &fileEvent{
-			tenantNamespace:   item.GetNamespaceName(),
-			agentName:         agentName,
-			eventTime:         ts,
-			podNamespace:      item.GetNamespaceName(),
-			podName:           item.GetPodName(),
-			filePathAccessed:  path,
-			process:           process,
-			commandInvocation: commandLine(item.GetSource(), process),
-			action:            actionAllowed,
-			source:            sourceKubeArmorLog,
-		}}, true
+		return event{
+			file: &fileEvent{
+				tenantNamespace:   item.GetNamespaceName(),
+				agentName:         agentName,
+				eventTime:         ts,
+				podNamespace:      item.GetNamespaceName(),
+				podName:           item.GetPodName(),
+				filePathAccessed:  path,
+				process:           process,
+				commandInvocation: commandLine(item.GetSource(), process),
+				action:            actionAllowed,
+				source:            sourceKubeArmorLog,
+			},
+		}, true
 	default:
 		return event{}, false
 	}
@@ -68,36 +72,40 @@ func kubeArmorAlertEvent(item *pb.Alert, agentName string) (event, bool) {
 		if process == "" {
 			return event{}, false
 		}
-		return event{process: &processEvent{
-			tenantNamespace:   ns,
-			agentName:         agentName,
-			eventTime:         ts,
-			podNamespace:      ns,
-			podName:           item.GetPodName(),
-			process:           process,
-			parentProcess:     item.GetParentProcessName(),
-			commandInvocation: commandLine(item.GetResource(), process),
-			action:            action,
-			source:            sourceKubeArmorAlert,
-		}}, true
+		return event{
+			process: &processEvent{
+				tenantNamespace:   ns,
+				agentName:         agentName,
+				eventTime:         ts,
+				podNamespace:      ns,
+				podName:           item.GetPodName(),
+				process:           process,
+				parentProcess:     item.GetParentProcessName(),
+				commandInvocation: commandLine(item.GetResource(), process),
+				action:            action,
+				source:            sourceKubeArmorAlert,
+			},
+		}, true
 	case "File":
 		path := firstToken(item.GetResource())
 		process := commandLine(item.GetProcessName(), firstToken(item.GetSource()))
 		if path == "" || process == "" {
 			return event{}, false
 		}
-		return event{file: &fileEvent{
-			tenantNamespace:   ns,
-			agentName:         agentName,
-			eventTime:         ts,
-			podNamespace:      ns,
-			podName:           item.GetPodName(),
-			filePathAccessed:  path,
-			process:           process,
-			commandInvocation: commandLine(item.GetSource(), process),
-			action:            action,
-			source:            sourceKubeArmorAlert,
-		}}, true
+		return event{
+			file: &fileEvent{
+				tenantNamespace:   ns,
+				agentName:         agentName,
+				eventTime:         ts,
+				podNamespace:      ns,
+				podName:           item.GetPodName(),
+				filePathAccessed:  path,
+				process:           process,
+				commandInvocation: commandLine(item.GetSource(), process),
+				action:            action,
+				source:            sourceKubeArmorAlert,
+			},
+		}, true
 	default:
 		return event{}, false
 	}

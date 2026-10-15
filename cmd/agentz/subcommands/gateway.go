@@ -22,6 +22,11 @@ var gatewayServeCmd = &cli.Command{
 	Name:  "serve",
 	Usage: "Run the gateway HTTP server",
 	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "conversation-recovery-enabled",
+			Usage: "Automatically continue interrupted conversations after agent restarts",
+			Value: true,
+		},
 		&cli.StringFlag{
 			Name:  "delegation-namespace",
 			Usage: "Private native MCP aggregator namespace",
@@ -206,6 +211,7 @@ var gatewayServeCmd = &cli.Command{
 			ctx,
 			gateway.Config{
 				Addr:                           c.String("addr"),
+				ConversationRecoveryEnabled:    c.Bool("conversation-recovery-enabled"),
 				CodingGitHubClientID:           c.String("coding-github-client-id"),
 				CodingGitHubClientSecret:       c.String("coding-github-client-secret"),
 				CodingGitHubEncryptionKey:      c.String("coding-github-encryption-key"),

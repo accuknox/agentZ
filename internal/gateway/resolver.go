@@ -2,12 +2,19 @@ package gateway
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	coreinformers "k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
+	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -73,6 +80,8 @@ type mcpConnectionWatchEvent struct {
 type resolver struct {
 	targetOverride string
 	client         clientset.Interface
+	pods           corelisters.PodLister
+	runtimeWake    chan struct{}
 	agents         listersv1alpha1.AgentLister
 	secrets        listersv1alpha1.SecretLister
 	mcpConnections listersv1alpha1.MCPConnectionLister
@@ -96,6 +105,18 @@ func newResolver(ctx context.Context, targetOverride string) (*resolver, error) 
 		return nil, fmt.Errorf("create agent clientset: %w", err)
 	}
 
+	coreClient, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("create pod clientset: %w", err)
+	}
+	coreFactory := coreinformers.NewSharedInformerFactoryWithOptions(
+		coreClient,
+		30*time.Second,
+		coreinformers.WithTweakListOptions(func(options *metav1.ListOptions) {
+			options.LabelSelector = "app.kubernetes.io/name=agentz-agent"
+		}),
+	)
+	podInformer := coreFactory.Core().V1().Pods()
 	factory := informers.NewSharedInformerFactoryWithOptions(cs, 30*time.Second)
 	agentInformer := factory.Agentz().V1alpha1().Agents()
 	workflowRunInformer := factory.Agentz().V1alpha1().WorkflowRuns()
@@ -104,6 +125,8 @@ func newResolver(ctx context.Context, targetOverride string) (*resolver, error) 
 
 	r := &resolver{
 		targetOverride: strings.TrimSpace(targetOverride),
+		pods:           podInformer.Lister(),
+		runtimeWake:    make(chan struct{}, 1),
 		client:         cs,
 		agents:         agentInformer.Lister(),
 		secrets:        secretInformer.Lister(),
@@ -188,11 +211,37 @@ func newResolver(ctx context.Context, targetOverride string) (*resolver, error) 
 		r.Close()
 	}()
 
+	_, err = podInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(_ any) {
+			select {
+			case r.runtimeWake <- struct{}{}:
+			default:
+			}
+		},
+		UpdateFunc: func(_, _ any) {
+			select {
+			case r.runtimeWake <- struct{}{}:
+			default:
+			}
+		},
+		DeleteFunc: func(_ any) {
+			select {
+			case r.runtimeWake <- struct{}{}:
+			default:
+			}
+		},
+	})
+	if err != nil {
+		r.Close()
+		return nil, fmt.Errorf("register pod informer: %w", err)
+	}
+	coreFactory.Start(r.stopCh)
 	factory.Start(r.stopCh)
 
 	ok := cache.WaitForCacheSync(
 		r.stopCh,
 		agentInformer.Informer().HasSynced,
+		podInformer.Informer().HasSynced,
 		workflowRunInformer.Informer().HasSynced,
 		secretInformer.Informer().HasSynced,
 		mcpInformer.Informer().HasSynced,
@@ -521,4 +570,35 @@ func statusFromAgent(agt *agentzv1alpha1.Agent) *agentStatusView {
 		view.Message = cond.Message
 	}
 	return view
+}
+
+// agentRuntime identifies the agent container, independently of its sidecars.
+func (r *resolver) agentRuntime(ctx context.Context, namespace, agent string) (*resolvedAgent, string, error) {
+	resolved, err := r.resolveAgent(ctx, namespace, agent)
+	if err != nil {
+		return nil, "", err
+	}
+	pods, err := r.pods.Pods(namespace).List(labels.SelectorFromSet(labels.Set{"agentz.accuknox.com/agent": agent}))
+	if err != nil {
+		return nil, "", err
+	}
+	var incarnation string
+	for _, pod := range pods {
+		if !pod.DeletionTimestamp.IsZero() || pod.Status.Phase != corev1.PodRunning {
+			continue
+		}
+		for _, container := range pod.Status.ContainerStatuses {
+			if container.Name != "agent" || !container.Ready || container.State.Running == nil || container.ContainerID == "" {
+				continue
+			}
+			if incarnation != "" {
+				return nil, "", errors.New("agent has multiple running containers")
+			}
+			incarnation = fmt.Sprintf("%s/%s/%s/%d", resolved.Agent.UID, pod.UID, container.ContainerID, container.RestartCount)
+		}
+	}
+	if incarnation == "" {
+		return nil, "", errors.New("agent container is not ready")
+	}
+	return resolved, incarnation, nil
 }

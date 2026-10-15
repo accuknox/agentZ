@@ -125,6 +125,19 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 	}
 	auth, authenticated := requestAuthState(r.Context())
 	stop := route.ID == "session.abort" || route.ID == "v2.session.interrupt"
+	if stop && auth.actorType == requestActorSystem {
+		err := s.cancelChatExecution(r.Context(), gatewaydb.GatewayCancelChatExecutionParams{
+			WorkspaceID: access.workspaceID,
+			AgentName:   agentName,
+			SessionID:   route.Params["sessionID"],
+			Reason:      "execution_stopped",
+			Message:     "The conversation execution was stopped",
+		})
+		if err != nil {
+			apiutil.WriteInternalError(w, r, err)
+			return
+		}
+	}
 	if authenticated && auth.actorType != requestActorSystem && stop {
 		s.stopOpenCodeSession(w, r, route, agentName)
 		return
@@ -145,6 +158,22 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, opencodeProxyBodyLimitBytes)
+	}
+	switch route.ID {
+	case "session.command", "session.shell", "session.summarize", "v2.session.compact",
+		"session.revert", "session.unrevert", "session.delete",
+		"v2.session.revert.stage", "v2.session.revert.commit", "v2.session.revert.clear":
+		err := s.cancelChatExecution(r.Context(), gatewaydb.GatewayCancelChatExecutionParams{
+			WorkspaceID: access.workspaceID,
+			AgentName:   agentName,
+			SessionID:   route.Params["sessionID"],
+			Reason:      "native_operation",
+			Message:     "A native operation superseded automatic recovery",
+		})
+		if err != nil {
+			apiutil.WriteInternalError(w, r, err)
+			return
+		}
 	}
 	query := r.URL.Query()
 	if query.Get("directory") == "" && r.Header.Get("X-Opencode-Directory") != "" {
@@ -198,6 +227,10 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		"v2.session.revert.commit", "v2.session.revert.clear":
 		changesInput = true
 	}
+	if err := attributeOpenCodePrompt(r, route, auth); err != nil {
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "bad_request", "Invalid OpenCode prompt", err))
+		return
+	}
 	sessionID := route.Params["sessionID"]
 	if sessionID != "" && changesInput {
 		release, err := s.lockChatInputs(
@@ -230,6 +263,14 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 					"The session is stopping; retry Stop before sending another input", nil,
 				))
 				return
+			}
+			if route.ID == "session.prompt" || route.ID == "session.prompt_async" || route.ID == "v2.session.prompt" {
+				err = s.trackOpenCodePrompt(r, route, access, agentName)
+				if err != nil {
+					release()
+					apiutil.WriteInternalError(w, r, err)
+					return
+				}
 			}
 			identity := "session-execution/" + access.workspaceID + "/" + agentName + "/" + sessionID
 			_, finish, err := lockGatewayResource(r.Context(), s.lockDB, identity, true)
@@ -293,19 +334,6 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := attributeOpenCodePrompt(r, route, auth); err != nil {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"bad_request",
-				"invalid OpenCode prompt",
-				err,
-			),
-		)
-		return
-	}
 	proxy := &httputil.ReverseProxy{
 		Rewrite: func(preq *httputil.ProxyRequest) {
 			preq.Out.URL.Scheme = target.Scheme

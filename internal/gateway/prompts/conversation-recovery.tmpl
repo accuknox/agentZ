@@ -1,0 +1,16 @@
+{{define "conversation-recovery" -}}
+The agent runtime restarted. Continue where you left off using this
+conversation's saved history. Tools and native subagents interrupted by the
+restart will not report back. Inspect their current state before repeating an
+action.
+
+{{- if .RunName}}
+Continue WorkflowRun {{printf "%q" .RunName}} for workflow {{printf "%q" .WorkflowName}}
+on agent {{printf "%q" .AgentName}}. Keep the original inputs and workflow
+definition. Current node progress: {{.ProgressJSON}}. Skip successful nodes.
+Verify the interrupted node's outcome and update its status yourself using
+set_workflowrun_status. Finish the same run and report its final status
+yourself. If an action's outcome cannot be established, report the node and run
+failed with a clear reason.
+{{- end}}
+{{- end}}

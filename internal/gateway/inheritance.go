@@ -441,8 +441,14 @@ func (s *Service) validateOrganizationResourceSelection(ctx context.Context, org
 	)
 	fields := []gatewayapi.FieldError{}
 	kinds := []organizationResourceSelectionKind{
-		{agentzv1alpha1.OrganizationResourceKindSkill, "selected_organization_resources.skills"},
-		{agentzv1alpha1.OrganizationResourceKindSandbox, "selected_organization_resources.sandboxes"},
+		{
+			agentzv1alpha1.OrganizationResourceKindSkill,
+			"selected_organization_resources.skills",
+		},
+		{
+			agentzv1alpha1.OrganizationResourceKindSandbox,
+			"selected_organization_resources.sandboxes",
+		},
 		{
 			agentzv1alpha1.OrganizationResourceKindMCPConnection,
 			"selected_organization_resources.mcp_connections",
@@ -507,9 +513,18 @@ func (s *Service) validateOrganizationResourceSelection(ctx context.Context, org
 
 func insertWorkspaceResourceSelection(ctx context.Context, q gatewaydb.Querier, workspaceID, organizationID string, selected agentzv1alpha1.SelectedOrganizationResources) error {
 	kinds := []workspaceInheritedResourceKind{
-		{agentzv1alpha1.OrganizationResourceKindSkill, gatewaydb.PermissionResourceSkill},
-		{agentzv1alpha1.OrganizationResourceKindSandbox, gatewaydb.PermissionResourceSandbox},
-		{agentzv1alpha1.OrganizationResourceKindMCPConnection, gatewaydb.PermissionResourceMcpConnection},
+		{
+			agentzv1alpha1.OrganizationResourceKindSkill,
+			gatewaydb.PermissionResourceSkill,
+		},
+		{
+			agentzv1alpha1.OrganizationResourceKindSandbox,
+			gatewaydb.PermissionResourceSandbox,
+		},
+		{
+			agentzv1alpha1.OrganizationResourceKindMCPConnection,
+			gatewaydb.PermissionResourceMcpConnection,
+		},
 		{
 			agentzv1alpha1.OrganizationResourceKindInferenceProvider,
 			gatewaydb.PermissionResourceInferenceProvider,

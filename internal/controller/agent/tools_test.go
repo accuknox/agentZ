@@ -10,9 +10,11 @@ import (
 // TestToolPermissions keeps trusted scripts executable while protecting Plan mode.
 func TestToolPermissions(t *testing.T) {
 	t.Parallel()
-	agt := &agentzv1alpha1.Agent{Spec: agentzv1alpha1.AgentSpec{
-		Tools: []agentzv1alpha1.AgentTool{{Name: "trusted_script"}},
-	}}
+	agt := &agentzv1alpha1.Agent{
+		Spec: agentzv1alpha1.AgentSpec{
+			Tools: []agentzv1alpha1.AgentTool{{Name: "trusted_script"}},
+		},
+	}
 	for _, kind := range []agentzv1alpha1.WorkspaceType{agentzv1alpha1.WorkspaceTypeGeneral, agentzv1alpha1.WorkspaceTypeCoding} {
 		t.Run(string(kind), func(t *testing.T) {
 			raw, _, err := renderOpencodeConfig(agt, sandboxConfig{WorkspaceType: kind})

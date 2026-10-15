@@ -88,6 +88,24 @@ export type ChatAttachment = {
   size: number
 }
 
+export type ConversationExecutionState =
+  "admitting" | "running" | "recovering" | "blocked" | "completed" | "cancelled" | "failed"
+
+export type ConversationExecution = {
+  id: string
+  state: ConversationExecutionState
+  attempt: number
+  continuations: number
+  reason: string
+  message: string
+  created_at: string
+  updated_at: string
+}
+
+export type ChatExecutionResponse = {
+  execution: ConversationExecution | null
+}
+
 export type ChatInputContent = {
   text: string
   attachments: Array<ChatAttachment>
@@ -122,6 +140,7 @@ export type ChatInput = {
 export type ChatInputs = {
   items: Array<ChatInput>
   stopping: boolean
+  execution: ConversationExecution | null
 }
 
 export type ChatInputUpdate = {
@@ -4191,6 +4210,114 @@ export type WatchChatSessionsResponses = {
 }
 
 export type WatchChatSessionsResponse = WatchChatSessionsResponses[keyof WatchChatSessionsResponses]
+
+export type GetChatExecutionData = {
+  body?: never
+  path: {
+    agentName: AgentName
+    sessionId: string
+  }
+  query?: never
+  url: "/api/chat-session/{agentName}/{sessionId}/execution"
+}
+
+export type GetChatExecutionErrors = {
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetChatExecutionError = GetChatExecutionErrors[keyof GetChatExecutionErrors]
+
+export type GetChatExecutionResponses = {
+  /**
+   * Current execution, or null when the session has no tracked work.
+   */
+  200: ChatExecutionResponse
+}
+
+export type GetChatExecutionResponse = GetChatExecutionResponses[keyof GetChatExecutionResponses]
+
+export type GetWorkflowExecutionData = {
+  body?: never
+  path: {
+    agentName: AgentName
+    workflowName: WorkflowName
+    runName: WorkflowRunName
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/run/{runName}/execution"
+}
+
+export type GetWorkflowExecutionErrors = {
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetWorkflowExecutionError = GetWorkflowExecutionErrors[keyof GetWorkflowExecutionErrors]
+
+export type GetWorkflowExecutionResponses = {
+  /**
+   * Current workflow execution.
+   */
+  200: ChatExecutionResponse
+}
+
+export type GetWorkflowExecutionResponse =
+  GetWorkflowExecutionResponses[keyof GetWorkflowExecutionResponses]
+
+export type StartWorkflowExecutionData = {
+  body: {
+    run_uid: string
+  }
+  path: {
+    agentName: AgentName
+    workflowName: WorkflowName
+    runName: WorkflowRunName
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/run/{runName}/execution"
+}
+
+export type StartWorkflowExecutionErrors = {
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type StartWorkflowExecutionError =
+  StartWorkflowExecutionErrors[keyof StartWorkflowExecutionErrors]
+
+export type StartWorkflowExecutionResponses = {
+  /**
+   * Execution admission committed.
+   */
+  202: ConversationExecution
+}
+
+export type StartWorkflowExecutionResponse =
+  StartWorkflowExecutionResponses[keyof StartWorkflowExecutionResponses]
 
 export type ListChatInputsData = {
   body?: never

@@ -39,11 +39,23 @@ func TestParseMarkdownCompatibility(t *testing.T) {
 
 	tests := []markdownCompatibilityCase{
 		{name: "LF", content: skillMarkdown("skill-name", "\n", false, "# Skill\n")},
-		{name: "CRLF", content: skillMarkdown("skill-name", "\r\n", false, "# Skill\r\n")},
-		{name: "BOM and LF", content: skillMarkdown("skill-name", "\n", true, "# Skill\n")},
-		{name: "BOM and CRLF", content: skillMarkdown("skill-name", "\r\n", true, "# Skill\r\n")},
+		{
+			name:    "CRLF",
+			content: skillMarkdown("skill-name", "\r\n", false, "# Skill\r\n"),
+		},
+		{
+			name:    "BOM and LF",
+			content: skillMarkdown("skill-name", "\n", true, "# Skill\n"),
+		},
+		{
+			name:    "BOM and CRLF",
+			content: skillMarkdown("skill-name", "\r\n", true, "# Skill\r\n"),
+		},
 		{name: "empty body", content: skillMarkdown("skill-name", "\n", false, "")},
-		{name: "63-character name", content: skillMarkdown(strings.Repeat("a", 63), "\n", false, "")},
+		{
+			name:    "63-character name",
+			content: skillMarkdown(strings.Repeat("a", 63), "\n", false, ""),
+		},
 	}
 
 	for _, tt := range tests {
@@ -159,7 +171,10 @@ func TestParseZIPStrictTree(t *testing.T) {
 			name: "nested roots",
 			files: []archiveFile{
 				{name: "skill/SKILL.md", content: skillMarkdown("skill", "\n", false, "")},
-				{name: "skill/nested/SKILL.md", content: skillMarkdown("nested", "\n", false, "")},
+				{
+					name:    "skill/nested/SKILL.md",
+					content: skillMarkdown("nested", "\n", false, ""),
+				},
 			},
 			kind: ImportIssueInvalidTree,
 		},

@@ -275,11 +275,13 @@ func parseMarkdown(name string, content []byte) (Bundle, error) {
 	if err != nil {
 		return Bundle{}, err
 	}
-	return Bundle{Skills: []Tree{{
-		Name:        metadata.Name,
-		Description: strings.TrimSpace(metadata.Description),
-		Files:       []File{{Path: skillFileName, Content: canonical}},
-	}}}, nil
+	return Bundle{
+		Skills: []Tree{{
+			Name:        metadata.Name,
+			Description: strings.TrimSpace(metadata.Description),
+			Files:       []File{{Path: skillFileName, Content: canonical}},
+		}},
+	}, nil
 }
 
 func parseZIP(archiveName string, content io.ReaderAt, size int64) (Bundle, error) {

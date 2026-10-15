@@ -654,8 +654,14 @@ func (r *Reconciler) agentEnv(agt *agentzv1alpha1.Agent, envCfg sandboxConfig, m
 		corev1.EnvVar{Name: "CURL_CA_BUNDLE", Value: r.Config.AgentCABundlePath},
 		corev1.EnvVar{Name: "NODE_EXTRA_CA_CERTS", Value: r.Config.AgentCABundlePath},
 		corev1.EnvVar{Name: "OPENCODE_DISABLE_SHARE", Value: "1"},
-		corev1.EnvVar{Name: "AGENTZ_IMMUTABLE_SKILLS_PATH", Value: opencodeImmutableSkillsPath},
-		corev1.EnvVar{Name: "AGENTZ_TOOLS_PATH", Value: opencodeConfigDir + "/" + toolsManifestKey},
+		corev1.EnvVar{
+			Name:  "AGENTZ_IMMUTABLE_SKILLS_PATH",
+			Value: opencodeImmutableSkillsPath,
+		},
+		corev1.EnvVar{
+			Name:  "AGENTZ_TOOLS_PATH",
+			Value: opencodeConfigDir + "/" + toolsManifestKey,
+		},
 	)
 	var telemetryURL string
 	if telemetryEndpoint != "" {
@@ -672,7 +678,10 @@ func (r *Reconciler) agentEnv(agt *agentzv1alpha1.Agent, envCfg sandboxConfig, m
 		corev1.EnvVar{Name: "OPENCODE_OTLP_PROTOCOL", Value: "grpc"},
 		corev1.EnvVar{Name: "OPENCODE_OTLP_ENDPOINT", Value: telemetryURL},
 		corev1.EnvVar{Name: "AGENTZ_AGENT_NAME", Value: agt.Name},
-		corev1.EnvVar{Name: "AGENTZ_WORKSPACE_TYPE", Value: string(envCfg.WorkspaceType)},
+		corev1.EnvVar{
+			Name:  "AGENTZ_WORKSPACE_TYPE",
+			Value: string(envCfg.WorkspaceType),
+		},
 		corev1.EnvVar{
 			Name:  "AGENTZ_MEMORY_ENABLED",
 			Value: strconv.FormatBool(memoryEnabled),

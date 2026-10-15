@@ -457,7 +457,10 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 
 	row, err := s.queries.GatewayGetWorkspace(
 		r.Context(),
-		gatewaydb.GatewayGetWorkspaceParams{ID: id, OrganizationID: claims.OrganizationID},
+		gatewaydb.GatewayGetWorkspaceParams{
+			ID:             id,
+			OrganizationID: claims.OrganizationID,
+		},
 	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, fmt.Errorf("read created workspace: %w", err))
@@ -1058,7 +1061,10 @@ func (s *Service) requireWorkspaceFeatures(next http.Handler) http.Handler {
 		// A stale Kubernetes projection must not relax coding project privacy.
 		workspace, err := s.queries.GatewayGetWorkspace(
 			r.Context(),
-			gatewaydb.GatewayGetWorkspaceParams{ID: workspaceID, OrganizationID: organizationID},
+			gatewaydb.GatewayGetWorkspaceParams{
+				ID:             workspaceID,
+				OrganizationID: organizationID,
+			},
 		)
 		if err != nil {
 			apiutil.WriteError(w, r, mapGatewayStoreError("get workspace", err))

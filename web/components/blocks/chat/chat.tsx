@@ -110,6 +110,7 @@ import {
   Settings2Icon,
   Undo2Icon,
   CircleAlert,
+  Info,
 } from "lucide-react"
 import { motion } from "motion/react"
 import {
@@ -853,6 +854,7 @@ function ChatInner({
     sendMessage,
     sendState,
     pending: pendingMessages,
+    execution,
     queue,
     queueError,
     updateInput,
@@ -1242,7 +1244,27 @@ function ChatInner({
   )
   const inputDisabled =
     agentReadiness.isGettingReady || navigationPending || (!sessionId && sendState === "submitted")
-  const showStop = isBusy || isStopping || queue.some((item) => item.state !== "recovered")
+  let recoveryNotice: string | undefined
+  if (execution) {
+    switch (execution.state) {
+      case "recovering":
+        recoveryNotice = "Resuming conversation after agent restart..."
+        break
+      case "blocked":
+      case "failed":
+        recoveryNotice = execution.message
+        break
+      default:
+        if (execution.continuations > 0) recoveryNotice = "Resumed after agent restart"
+    }
+  }
+  const executionPending =
+    execution?.state === "admitting" ||
+    execution?.state === "recovering" ||
+    execution?.state === "running" ||
+    execution?.state === "blocked"
+  const showStop =
+    isBusy || isStopping || executionPending || queue.some((item) => item.state !== "recovered")
   const submitDisabled =
     inputDisabled ||
     isStopping ||
@@ -1339,6 +1361,12 @@ function ChatInner({
                 className="mx-auto flex w-[calc(100%-2rem)] max-w-3xl flex-col gap-4 pt-2"
                 style={{ paddingBottom: composerHeight + 16 }}
               >
+                {recoveryNotice ? (
+                  <Alert className="mx-auto w-fit max-w-full" variant="info">
+                    <Info aria-hidden="true" />
+                    <AlertDescription>{recoveryNotice}</AlertDescription>
+                  </Alert>
+                ) : null}
                 {pendingInputs.map(({ id, text, files, status, author }) => (
                   <div
                     key={id}

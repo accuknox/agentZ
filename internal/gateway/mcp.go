@@ -1074,7 +1074,9 @@ func authLocationFromRequest(location *gatewayapi.MCPConnectionAuthLocation) *ag
 
 	out := &agentzv1alpha1.MCPConnectionAuthLocation{}
 	if location.Header != nil {
-		out.Header = &agentzv1alpha1.MCPConnectionHeaderLocation{Name: strings.TrimSpace(location.Header.Name)}
+		out.Header = &agentzv1alpha1.MCPConnectionHeaderLocation{
+			Name: strings.TrimSpace(location.Header.Name),
+		}
 		if location.Header.Prefix != nil {
 			prefix := strings.TrimSpace(*location.Header.Prefix)
 			out.Header.Prefix = &prefix
@@ -1086,7 +1088,9 @@ func authLocationFromRequest(location *gatewayapi.MCPConnectionAuthLocation) *ag
 		}
 	}
 	if location.Cookie != nil {
-		out.Cookie = &agentzv1alpha1.MCPConnectionCookieLocation{Name: strings.TrimSpace(location.Cookie.Name)}
+		out.Cookie = &agentzv1alpha1.MCPConnectionCookieLocation{
+			Name: strings.TrimSpace(location.Cookie.Name),
+		}
 	}
 	return out
 }
@@ -1105,7 +1109,9 @@ func authLocationToResponse(location *agentzv1alpha1.MCPConnectionAuthLocation) 
 		}
 	}
 	if location.QueryParameter != nil {
-		out.QueryParameter = &gatewayapi.MCPConnectionQueryParameterLocation{Name: location.QueryParameter.Name}
+		out.QueryParameter = &gatewayapi.MCPConnectionQueryParameterLocation{
+			Name: location.QueryParameter.Name,
+		}
 	}
 	if location.Cookie != nil {
 		out.Cookie = &gatewayapi.MCPConnectionCookieLocation{Name: location.Cookie.Name}

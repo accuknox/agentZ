@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -47,7 +48,12 @@ func TestPTYWebSocketAuthentication(t *testing.T) {
 			"agentz.pty, agentz.bearer.test-token",
 			http.StatusForbidden,
 		},
-		{"missing origin", "", "agentz.pty, agentz.bearer.test-token", http.StatusForbidden},
+		{
+			"missing origin",
+			"",
+			"agentz.pty, agentz.bearer.test-token",
+			http.StatusForbidden,
+		},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
@@ -332,13 +338,15 @@ func TestCodingSuggestionModels(t *testing.T) {
 			org := agentzv1alpha1.ScopeNamespace(
 				agentzv1alpha1.ResourceScopeOrganisation, "org",
 			)
-			ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
-				Name: "workspace",
-				Labels: map[string]string{
-					agentzv1alpha1.WorkspaceNameLabel:        "workspace",
-					agentzv1alpha1.TenantOrganizationIDLabel: org,
+			ns := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "workspace",
+					Labels: map[string]string{
+						agentzv1alpha1.WorkspaceNameLabel:        "workspace",
+						agentzv1alpha1.TenantOrganizationIDLabel: org,
+					},
 				},
-			}}
+			}
 			workspace := &agentzv1alpha1.Workspace{
 				ObjectMeta: metav1.ObjectMeta{Name: ns.Name},
 			}
@@ -616,7 +624,11 @@ func TestChatInputAdmissionRecovery(t *testing.T) {
 			active:   true,
 			want:     gatewayapi.ChatInputStateSending,
 		},
-		{name: "provider error", messages: []int{http.StatusServiceUnavailable}, wantErr: true},
+		{
+			name:     "provider error",
+			messages: []int{http.StatusServiceUnavailable},
+			wantErr:  true,
+		},
 		{name: "forbidden", messages: []int{http.StatusForbidden}, wantErr: true},
 		{name: "empty success", messages: []int{http.StatusNoContent}, wantErr: true},
 		{
@@ -708,6 +720,115 @@ func TestChatInputAdmissionRecovery(t *testing.T) {
 				if q.saves != 1 || got.MessageID != row.MessageID || got.Error != "" {
 					t.Fatal("admitted message was not recorded as delivered")
 				}
+			}
+		})
+	}
+}
+
+type chatAdmissionStore struct {
+	gatewaydb.Querier
+	accepted bool
+}
+
+func (s *chatAdmissionStore) GatewayAcceptChatExecutionPrompt(_ context.Context, input gatewaydb.GatewayAcceptChatExecutionPromptParams) error {
+	if input.MessageID != "user" {
+		return fmt.Errorf("unexpected admission confirmation %q", input.MessageID)
+	}
+	s.accepted = true
+	return nil
+}
+
+// TestBusyConversationConfirmsAdmission keeps acceptance durable before tool output displaces user history.
+func TestBusyConversationConfirmsAdmission(t *testing.T) {
+	for _, protocol := range []gatewaydb.ChatProtocol{gatewaydb.ChatProtocolV1, gatewaydb.ChatProtocolV2} {
+		t.Run(string(protocol), func(t *testing.T) {
+			store := &chatAdmissionStore{}
+			var phase atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				switch r.URL.Path {
+				case "/session/status":
+					body := `{"session":{"type":"busy"}}`
+					if phase.Load() == 2 {
+						body = `{}`
+					}
+					fmt.Fprint(w, body)
+				case "/api/session/active":
+					fmt.Fprint(w, `{"data":{"session":{"type":"running"}}}`)
+				case "/permission", "/question":
+					fmt.Fprint(w, `[]`)
+				case "/session/session/message":
+					if phase.Load() == 1 {
+						t.Error("confirmed busy turn fetched displaced history")
+						http.Error(w, "history unavailable", 503)
+						return
+					}
+					body := `[{"info":{"id":"user","role":"user","sessionID":"session","agent":"build","time":{"created":1},"model":{"providerID":"p","modelID":"m"}},"parts":[]}]`
+					if phase.Load() == 2 {
+						body = `[{"info":{"id":"assistant","role":"assistant","parentID":"user","sessionID":"session","finish":"stop","time":{"created":1,"completed":2},"agent":"build","modelID":"m","providerID":"p","mode":"build","path":{"cwd":"/home/agentz","root":"/home/agentz"},"cost":0,"tokens":{"input":0,"output":0,"reasoning":0,"cache":{"read":0,"write":0}}},"parts":[]}]`
+					}
+					fmt.Fprint(w, body)
+				case "/api/session/session/message":
+					if phase.Load() == 1 {
+						t.Error("confirmed busy turn fetched displaced history")
+						http.Error(w, "history unavailable", 503)
+						return
+					}
+					fmt.Fprint(w, `{"cursor":{},"data":[{"type":"user","id":"user","text":"task","time":{"created":1}}]}`)
+				default:
+					t.Errorf("unexpected native path %q", r.URL.Path)
+				}
+			}))
+			defer server.Close()
+			client, err := gatewayapi.NewClientWithResponses(
+				server.URL,
+				gatewayapi.WithRequestEditorFn(func(_ context.Context, r *http.Request) error {
+					r.URL.Path = strings.TrimPrefix(r.URL.Path, "/api/opencode/agent")
+					return nil
+				}),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			service := &Service{queries: store}
+			execution := gatewaydb.ChatExecution{
+				AgentName: "agent",
+				SessionID: "session",
+				Directory: "/home/agentz",
+				Protocol:  protocol,
+			}
+			prompts := []gatewaydb.ChatExecutionPrompt{{MessageID: "user"}}
+			observe := func() (chatAttemptObservation, error) {
+				if protocol == gatewaydb.ChatProtocolV2 {
+					return service.readV2ChatAttempt(t.Context(), client, execution, prompts, false)
+				}
+				return service.readChatAttempt(t.Context(), client, execution, prompts, false)
+			}
+			observed, err := observe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !observed.busy || !prompts[0].Accepted || !store.accepted {
+				t.Fatal("busy turn did not confirm admission")
+			}
+			phase.Store(1)
+			observed, err = observe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !observed.busy {
+				t.Fatal("confirmed turn stopped running after user history was displaced")
+			}
+			if protocol == gatewaydb.ChatProtocolV2 {
+				return
+			}
+			phase.Store(2)
+			observed, err = observe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !observed.completed {
+				t.Fatal("completed turn lost acceptance when user history was displaced")
 			}
 		})
 	}

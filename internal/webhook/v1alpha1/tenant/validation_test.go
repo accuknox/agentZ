@@ -98,20 +98,24 @@ func TestValidatorChecksOnlyQuotaReductionsAgainstUsage(t *testing.T) {
 	}
 	tenantName := "tenant"
 	reader := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
-		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
-			Name: "workspace",
-			Labels: map[string]string{
-				agentzv1alpha1.TenantOrganizationIDLabel: tenantName,
+		&corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "workspace",
+				Labels: map[string]string{
+					agentzv1alpha1.TenantOrganizationIDLabel: tenantName,
+				},
 			},
-		}},
+		},
 		&agentzv1alpha1.Agent{
 			ObjectMeta: metav1.ObjectMeta{Name: "agent", Namespace: "workspace"},
-			Spec: agentzv1alpha1.AgentSpec{Resources: corev1.ResourceRequirements{
-				Requests: corev1.ResourceList{
-					corev1.ResourceCPU:    resource.MustParse("750m"),
-					corev1.ResourceMemory: resource.MustParse("800Mi"),
+			Spec: agentzv1alpha1.AgentSpec{
+				Resources: corev1.ResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("750m"),
+						corev1.ResourceMemory: resource.MustParse("800Mi"),
+					},
 				},
-			}},
+			},
 		},
 	).Build()
 	validator := &Validator{reader: reader}

@@ -299,10 +299,12 @@ func (r *Reconciler) sandboxesForInferenceGateway(ctx context.Context, obj clien
 
 func (r *Reconciler) sandboxesForInferencePolicy(ctx context.Context, obj client.Object) []reconcile.Request {
 	if name := obj.GetLabels()[inference.SandboxLabel]; name != "" {
-		return []reconcile.Request{{NamespacedName: types.NamespacedName{
-			Namespace: obj.GetNamespace(),
-			Name:      name,
-		}}}
+		return []reconcile.Request{{
+			NamespacedName: types.NamespacedName{
+				Namespace: obj.GetNamespace(),
+				Name:      name,
+			},
+		}}
 	}
 	if obj.GetName() != inferenceTracePolicyName {
 		return nil
@@ -323,10 +325,12 @@ func (r *Reconciler) inferenceSandboxRequests(ctx context.Context, namespace str
 		}
 		requests = append(
 			requests,
-			reconcile.Request{NamespacedName: types.NamespacedName{
-				Namespace: namespace,
-				Name:      sandboxes.Items[i].Name,
-			}},
+			reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: namespace,
+					Name:      sandboxes.Items[i].Name,
+				},
+			},
 		)
 	}
 	return requests
@@ -1304,11 +1308,13 @@ func (r *Reconciler) reconcileGatewayNetworkPolicy(ctx context.Context, namespac
 									Port:     "80",
 									Protocol: ciliumapi.ProtoTCP,
 								}},
-								Rules: &ciliumapi.L7Rules{HTTP: ciliumapi.PortRulesHTTP{
-									{Method: "GET", Path: path},
-									{Method: "POST", Path: path},
-									{Method: "DELETE", Path: path},
-								}},
+								Rules: &ciliumapi.L7Rules{
+									HTTP: ciliumapi.PortRulesHTTP{
+										{Method: "GET", Path: path},
+										{Method: "POST", Path: path},
+										{Method: "DELETE", Path: path},
+									},
+								},
 							}},
 						},
 					)

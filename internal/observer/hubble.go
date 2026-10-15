@@ -123,19 +123,21 @@ func hubbleFlowEvent(ctx context.Context, item *flowpb.Flow, r *resolver, cache 
 		r.resolveDestinationDomain(ctx, dstIP),
 	)
 
-	return event{network: &networkEvent{
-		tenantNamespace:   src.namespace,
-		agentName:         src.agentName,
-		eventTime:         ts,
-		podNamespace:      src.namespace,
-		podName:           src.podName,
-		destinationDomain: domain,
-		destinationIP:     dstIP,
-		destinationPort:   port,
-		protocol:          protocol,
-		action:            action,
-		source:            sourceHubble,
-	}}, true
+	return event{
+		network: &networkEvent{
+			tenantNamespace:   src.namespace,
+			agentName:         src.agentName,
+			eventTime:         ts,
+			podNamespace:      src.namespace,
+			podName:           src.podName,
+			destinationDomain: domain,
+			destinationIP:     dstIP,
+			destinationPort:   port,
+			protocol:          protocol,
+			action:            action,
+			source:            sourceHubble,
+		},
+	}, true
 }
 
 func observeDNSFlow(item *flowpb.Flow, src managedSource, cache *dnsCache, now time.Time) {

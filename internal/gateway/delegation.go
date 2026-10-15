@@ -96,7 +96,11 @@ func (s *Service) GetDelegationCatalog(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 	catalog, err := s.delegationCatalog(
-		r.Context(), auth.claims.UserID, auth.claims.OrganizationID, auth.claims.WorkspaceID, params.IncludeUnavailable != nil && *params.IncludeUnavailable,
+		r.Context(),
+		auth.claims.UserID,
+		auth.claims.OrganizationID,
+		auth.claims.WorkspaceID,
+		params.IncludeUnavailable != nil && *params.IncludeUnavailable,
 	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
@@ -724,7 +728,8 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 			return
 		}
 	}
-	if err := controller.SetReadDeadline(time.Time{}); err != nil && !errors.Is(err, http.ErrNotSupported) {
+	err = controller.SetReadDeadline(time.Time{})
+	if err != nil && !errors.Is(err, http.ErrNotSupported) {
 		s.delegationError(
 			w,
 			r,
@@ -795,11 +800,13 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 				}
 				response.Header = http.Header{"Cache-Control": {"no-store, no-transform"}}
 				response.Trailer = nil
-				body, err := json.Marshal(openAIError{Error: openAIErrorDetail{
-					Message: "The upstream service could not complete this request.",
-					Type:    "server_error",
-					Code:    "upstream_error",
-				}})
+				body, err := json.Marshal(openAIError{
+					Error: openAIErrorDetail{
+						Message: "The upstream service could not complete this request.",
+						Type:    "server_error",
+						Code:    "upstream_error",
+					},
+				})
 				if err != nil {
 					return err
 				}
@@ -866,11 +873,13 @@ func (s *Service) delegationError(w http.ResponseWriter, r *http.Request, status
 		apiutil.WriteError(w, r, apiutil.NewError(status, code, message, nil))
 		return
 	}
-	apiutil.WriteJSON(w, status, openAIError{Error: openAIErrorDetail{
-		Message: message,
-		Type:    code,
-		Code:    code,
-	}})
+	apiutil.WriteJSON(w, status, openAIError{
+		Error: openAIErrorDetail{
+			Message: message,
+			Type:    code,
+			Code:    code,
+		},
+	})
 }
 
 func (s *Service) delegationCORS(next http.Handler) http.Handler {

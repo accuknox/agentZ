@@ -1215,6 +1215,16 @@ components:
       - path
       - size
       type: object
+    ChatExecutionResponse:
+      additionalProperties: false
+      properties:
+        execution:
+          allOf:
+          - $ref: '#/components/schemas/ConversationExecution'
+          nullable: true
+      required:
+      - execution
+      type: object
     ChatInput:
       properties:
         author:
@@ -1329,6 +1339,10 @@ components:
       type: object
     ChatInputs:
       properties:
+        execution:
+          allOf:
+          - $ref: '#/components/schemas/ConversationExecution'
+          nullable: true
         items:
           items:
             $ref: '#/components/schemas/ChatInput'
@@ -1338,6 +1352,7 @@ components:
       required:
       - items
       - stopping
+      - execution
       type: object
     ChatSession:
       additionalProperties: false
@@ -2192,6 +2207,51 @@ components:
       - base_url
       - auth_mode
       type: object
+    ConversationExecution:
+      additionalProperties: false
+      properties:
+        attempt:
+          minimum: 1
+          type: integer
+        continuations:
+          maximum: 3
+          minimum: 0
+          type: integer
+        created_at:
+          format: date-time
+          type: string
+        id:
+          format: uuid
+          type: string
+        message:
+          type: string
+        reason:
+          type: string
+        state:
+          $ref: '#/components/schemas/ConversationExecutionState'
+        updated_at:
+          format: date-time
+          type: string
+      required:
+      - id
+      - state
+      - attempt
+      - continuations
+      - reason
+      - message
+      - created_at
+      - updated_at
+      type: object
+    ConversationExecutionState:
+      enum:
+      - admitting
+      - running
+      - recovering
+      - blocked
+      - completed
+      - cancelled
+      - failed
+      type: string
     CreateAgentDirectoryRequest:
       additionalProperties: false
       properties:
@@ -17770,7 +17830,18 @@ components:
       - timeCreated
       type: object
     OpencodeSessionMessage:
-      anyOf:
+      discriminator:
+        mapping:
+          agent-switched: '#/components/schemas/OpencodeSessionMessageAgentSwitched'
+          assistant: '#/components/schemas/OpencodeSessionMessageAssistant'
+          compaction: '#/components/schemas/OpencodeSessionMessageCompaction'
+          model-switched: '#/components/schemas/OpencodeSessionMessageModelSwitched'
+          shell: '#/components/schemas/OpencodeSessionMessageShell'
+          synthetic: '#/components/schemas/OpencodeSessionMessageSynthetic'
+          system: '#/components/schemas/OpencodeSessionMessageSystem'
+          user: '#/components/schemas/OpencodeSessionMessageUser'
+        propertyName: type
+      oneOf:
       - $ref: '#/components/schemas/OpencodeSessionMessageAgentSwitched'
       - $ref: '#/components/schemas/OpencodeSessionMessageModelSwitched'
       - $ref: '#/components/schemas/OpencodeSessionMessageUser'
@@ -27793,6 +27864,38 @@ paths:
       summary: Replace the caller's Workspace chat preferences.
       tags:
       - chat-sessions
+  /api/chat-session/{agentName}/{sessionId}/execution:
+    get:
+      operationId: getChatExecution
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatExecutionResponse'
+          description: Current execution, or null when the session has no tracked work.
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Read the current tracked conversation execution.
+      tags:
+      - chat-sessions
+    parameters:
+    - in: path
+      name: agentName
+      required: true
+      schema:
+        $ref: '#/components/schemas/AgentName'
+    - in: path
+      name: sessionId
+      required: true
+      schema:
+        minLength: 1
+        type: string
   /api/chat-session/{agentName}/{sessionId}/input:
     get:
       operationId: listChatInputs
@@ -43461,6 +43564,76 @@ paths:
       - GatewayBearer:
         - agent.use_shared
       summary: Get a workflow run.
+      tags:
+      - workflow-runs
+  /api/workflow/{agentName}/{workflowName}/run/{runName}/execution:
+    get:
+      operationId: getWorkflowExecution
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatExecutionResponse'
+          description: Current workflow execution.
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Read execution state for the existing WorkflowRun.
+      tags:
+      - workflow-runs
+    parameters:
+    - in: path
+      name: agentName
+      required: true
+      schema:
+        $ref: '#/components/schemas/AgentName'
+    - in: path
+      name: workflowName
+      required: true
+      schema:
+        $ref: '#/components/schemas/WorkflowName'
+    - in: path
+      name: runName
+      required: true
+      schema:
+        $ref: '#/components/schemas/WorkflowRunName'
+    put:
+      operationId: startWorkflowExecution
+      requestBody:
+        content:
+          application/json:
+            schema:
+              additionalProperties: false
+              properties:
+                run_uid:
+                  minLength: 1
+                  type: string
+              required:
+              - run_uid
+              type: object
+        required: true
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationExecution'
+          description: Execution admission committed.
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Durably admit execution of the existing WorkflowRun session.
       tags:
       - workflow-runs
   /api/workflow/{agentName}/{workflowName}/run/{runName}/nodes/{nodeName}/status:

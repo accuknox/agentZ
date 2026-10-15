@@ -632,10 +632,12 @@ func (r *Reconciler) providersForSandbox(_ context.Context, obj client.Object) [
 		providers[model.Provider] = struct{}{}
 		requests = append(
 			requests,
-			reconcile.Request{NamespacedName: types.NamespacedName{
-				Namespace: sandbox.Namespace,
-				Name:      model.Provider,
-			}},
+			reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: sandbox.Namespace,
+					Name:      model.Provider,
+				},
+			},
 		)
 	}
 	return requests

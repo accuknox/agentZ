@@ -463,6 +463,64 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /api/chat-session/{agentName}/{sessionId}/execution:
+    parameters:
+    - {name: agentName, in: path, required: true, schema: {$ref: '#/components/schemas/AgentName'}}
+    - {name: sessionId, in: path, required: true, schema: {type: string, minLength: 1}}
+    get:
+      operationId: getChatExecution
+      summary: Read the current tracked conversation execution.
+      tags: [chat-sessions]
+      responses:
+        '200':
+          description: Current execution, or null when the session has no tracked work.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ChatExecutionResponse'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /api/workflow/{agentName}/{workflowName}/run/{runName}/execution:
+    parameters:
+    - {name: agentName, in: path, required: true, schema: {$ref: '#/components/schemas/AgentName'}}
+    - {name: workflowName, in: path, required: true, schema: {$ref: '#/components/schemas/WorkflowName'}}
+    - {name: runName, in: path, required: true, schema: {$ref: '#/components/schemas/WorkflowRunName'}}
+    put:
+      operationId: startWorkflowExecution
+      summary: Durably admit execution of the existing WorkflowRun session.
+      tags: [workflow-runs]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [run_uid]
+              properties:
+                run_uid: {type: string, minLength: 1}
+      responses:
+        '202':
+          description: Execution admission committed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ConversationExecution'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    get:
+      operationId: getWorkflowExecution
+      summary: Read execution state for the existing WorkflowRun.
+      tags: [workflow-runs]
+      responses:
+        '200':
+          description: Current workflow execution.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ChatExecutionResponse'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
   /api/chat-session/{agentName}/{sessionId}/input:
     parameters:
     - {name: agentName, in: path, required: true, schema: {$ref: '#/components/schemas/AgentName'}}
@@ -5234,6 +5292,31 @@ components:
         mediaType: {type: string, minLength: 1}
         path: {type: string, minLength: 1}
         size: {type: integer, format: int32, minimum: 0, maximum: 8388608}
+    ConversationExecutionState:
+      type: string
+      enum: [admitting, running, recovering, blocked, completed, cancelled, failed]
+    ConversationExecution:
+      type: object
+      additionalProperties: false
+      required: [id, state, attempt, continuations, reason, message, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        state: {$ref: '#/components/schemas/ConversationExecutionState'}
+        attempt: {type: integer, minimum: 1}
+        continuations: {type: integer, minimum: 0, maximum: 3}
+        reason: {type: string}
+        message: {type: string}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    ChatExecutionResponse:
+      type: object
+      additionalProperties: false
+      required: [execution]
+      properties:
+        execution:
+          nullable: true
+          allOf: [{$ref: '#/components/schemas/ConversationExecution'}]
+
     ChatInputContent:
       type: object
       additionalProperties: false
@@ -5279,12 +5362,15 @@ components:
         error: {type: string}
     ChatInputs:
       type: object
-      required: [items, stopping]
+      required: [items, stopping, execution]
       properties:
         items:
           type: array
           items: {$ref: '#/components/schemas/ChatInput'}
         stopping: {type: boolean}
+        execution:
+          nullable: true
+          allOf: [{$ref: '#/components/schemas/ConversationExecution'}]
     ChatInputUpdate:
       type: object
       additionalProperties: false

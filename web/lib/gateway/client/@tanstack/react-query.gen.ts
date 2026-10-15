@@ -50,6 +50,7 @@ import {
   exportImmutableSkills,
   getAgentOwner,
   getAgentTool,
+  getChatExecution,
   getChatSessionPreference,
   getCodingOperation,
   getCodingProject,
@@ -68,6 +69,7 @@ import {
   getTenant,
   getWorkflow,
   getWorkflowEvaluation,
+  getWorkflowExecution,
   getWorkflowRun,
   getWorkspace,
   importImmutableSkills,
@@ -136,6 +138,7 @@ import {
   retryWorkspace,
   runCodingGit,
   startCodingOperation,
+  startWorkflowExecution,
   statAgentFile,
   submitChatInput,
   suggestCodingText,
@@ -279,6 +282,9 @@ import type {
   GetAgentToolData,
   GetAgentToolError,
   GetAgentToolResponse,
+  GetChatExecutionData,
+  GetChatExecutionError,
+  GetChatExecutionResponse,
   GetChatSessionPreferenceData,
   GetChatSessionPreferenceError,
   GetChatSessionPreferenceResponse,
@@ -332,6 +338,9 @@ import type {
   GetWorkflowEvaluationData,
   GetWorkflowEvaluationError,
   GetWorkflowEvaluationResponse,
+  GetWorkflowExecutionData,
+  GetWorkflowExecutionError,
+  GetWorkflowExecutionResponse,
   GetWorkflowResponse,
   GetWorkflowRunData,
   GetWorkflowRunError,
@@ -534,6 +543,9 @@ import type {
   StartCodingOperationData,
   StartCodingOperationError,
   StartCodingOperationResponse,
+  StartWorkflowExecutionData,
+  StartWorkflowExecutionError,
+  StartWorkflowExecutionResponse,
   StatAgentFileData,
   StatAgentFileError,
   StatAgentFileResponse,
@@ -1192,6 +1204,83 @@ export const listChatSessionsOptions = (options?: Options<ListChatSessionsData>)
     },
     queryKey: listChatSessionsQueryKey(options),
   })
+
+export const getChatExecutionQueryKey = (options: Options<GetChatExecutionData>) =>
+  createQueryKey("getChatExecution", options)
+
+/**
+ * Read the current tracked conversation execution.
+ */
+export const getChatExecutionOptions = (options: Options<GetChatExecutionData>) =>
+  queryOptions<
+    GetChatExecutionResponse,
+    GetChatExecutionError,
+    GetChatExecutionResponse,
+    ReturnType<typeof getChatExecutionQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getChatExecution({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getChatExecutionQueryKey(options),
+  })
+
+export const getWorkflowExecutionQueryKey = (options: Options<GetWorkflowExecutionData>) =>
+  createQueryKey("getWorkflowExecution", options)
+
+/**
+ * Read execution state for the existing WorkflowRun.
+ */
+export const getWorkflowExecutionOptions = (options: Options<GetWorkflowExecutionData>) =>
+  queryOptions<
+    GetWorkflowExecutionResponse,
+    GetWorkflowExecutionError,
+    GetWorkflowExecutionResponse,
+    ReturnType<typeof getWorkflowExecutionQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getWorkflowExecution({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getWorkflowExecutionQueryKey(options),
+  })
+
+/**
+ * Durably admit execution of the existing WorkflowRun session.
+ */
+export const startWorkflowExecutionMutation = (
+  options?: Partial<Options<StartWorkflowExecutionData>>
+): UseMutationOptions<
+  StartWorkflowExecutionResponse,
+  StartWorkflowExecutionError,
+  Options<StartWorkflowExecutionData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    StartWorkflowExecutionResponse,
+    StartWorkflowExecutionError,
+    Options<StartWorkflowExecutionData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await startWorkflowExecution({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
 
 export const listChatInputsQueryKey = (options: Options<ListChatInputsData>) =>
   createQueryKey("listChatInputs", options)

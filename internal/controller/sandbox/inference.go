@@ -164,13 +164,15 @@ func (r *Reconciler) reconcileInference(ctx context.Context, sandbox *agentzv1al
 		runtime := inference.RenderSandboxTarget(sandbox.Namespace, sandbox.Name, target)
 		desired[runtime.Route.Name] = struct{}{}
 		if target.BackendNamespace != "" && target.BackendNamespace != sandbox.Namespace {
-			grant := &gwv1.ReferenceGrant{ObjectMeta: metav1.ObjectMeta{
-				Name: inference.SandboxProviderRuntimeName(
-					sandbox.Namespace+"-"+sandbox.Name,
-					target.Name,
-				),
-				Namespace: target.BackendNamespace,
-			}}
+			grant := &gwv1.ReferenceGrant{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: inference.SandboxProviderRuntimeName(
+						sandbox.Namespace+"-"+sandbox.Name,
+						target.Name,
+					),
+					Namespace: target.BackendNamespace,
+				},
+			}
 			_, err := ctrlutil.CreateOrPatch(
 				ctx,
 				r.Client,

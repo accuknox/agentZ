@@ -76,7 +76,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 		backend := &agentgatewayv1alpha1.AgentgatewayBackend{}
 		key := client.ObjectKeyFromObject(pool)
-		if cleanupErr := r.Get(ctx, key, backend); cleanupErr != nil && !apierrors.IsNotFound(cleanupErr) {
+		cleanupErr = r.Get(ctx, key, backend)
+		if cleanupErr != nil && !apierrors.IsNotFound(cleanupErr) {
 			return ctrl.Result{}, cleanupErr
 		}
 		if metav1.IsControlledBy(backend, pool) {
@@ -315,10 +316,12 @@ func (r *Reconciler) poolsForProvider(ctx context.Context, obj client.Object) []
 		}
 		requests = append(
 			requests,
-			reconcile.Request{NamespacedName: types.NamespacedName{
-				Namespace: pool.Namespace,
-				Name:      pool.Name,
-			}},
+			reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: pool.Namespace,
+					Name:      pool.Name,
+				},
+			},
 		)
 	}
 	return requests

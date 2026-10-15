@@ -106,6 +106,7 @@ type Config struct {
 	OpenBaoK8sAuthTokenPath        string
 	MCPProbeStaleAfter             time.Duration
 	AllowedWebOrigins              []string
+	ConversationRecoveryEnabled    bool
 	SkillStore                     skill.Config
 }
 
@@ -135,6 +136,8 @@ type Service struct {
 	skillImports        chan struct{}
 	chatSessionEvents   chatSessionEvents
 	chatInputWake       chan struct{}
+	chatObserverMu      sync.Mutex
+	chatObservers       map[string]*chatObserver
 	codingEvents        chatSessionEvents
 	catalog             *inference.Catalog
 	openAPI             *openapi3.T
@@ -418,6 +421,11 @@ func Serve(ctx context.Context, cfg Config) error {
 		defer close(chatInputsDone)
 		svc.runChatInputs(runCtx)
 	}()
+	executionsDone := make(chan struct{})
+	go func() {
+		defer close(executionsDone)
+		svc.runChatExecutions(runCtx)
+	}()
 	codingDone := make(chan struct{})
 	go func() {
 		defer close(codingDone)
@@ -508,6 +516,7 @@ func Serve(ctx context.Context, cfg Config) error {
 	<-dashboardRetentionDone
 	<-chatSessionNotificationsDone
 	<-chatInputsDone
+	<-executionsDone
 	<-codingDone
 	<-codingEventsDone
 	evaluations.Wait()

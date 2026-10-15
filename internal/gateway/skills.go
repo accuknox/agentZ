@@ -1299,7 +1299,10 @@ func (s *Service) importImmutableSkills(ctx context.Context, bundle skill.Bundle
 				"malformed_skill_metadata",
 				"The skill could not be imported.",
 				err,
-				gatewayapi.FieldError{Field: "file:" + tree.Name + "/SKILL.md", Message: err.Error()},
+				gatewayapi.FieldError{
+					Field:   "file:" + tree.Name + "/SKILL.md",
+					Message: err.Error(),
+				},
 			)
 		}
 		current := &agentzv1alpha1.Skill{}

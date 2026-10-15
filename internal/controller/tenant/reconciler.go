@@ -402,10 +402,12 @@ func (r *Reconciler) reconcileNamespace(ctx context.Context, tenant *agentzv1alp
 }
 
 func (r *Reconciler) reconcileNixStorePVC(ctx context.Context, tenant *agentzv1alpha1.Tenant, nsName string) error {
-	pvc := &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{
-		Name:      r.NixStorePVCName,
-		Namespace: nsName,
-	}}
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      r.NixStorePVCName,
+			Namespace: nsName,
+		},
+	}
 	_, err := controllerutil.CreateOrPatch(
 		ctx,
 		r.directClient(),

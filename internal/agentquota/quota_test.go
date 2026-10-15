@@ -29,19 +29,23 @@ func TestEffectiveRequests(t *testing.T) {
 	tests := []effectiveRequestsCase{
 		{
 			name: "requests",
-			resources: corev1.ResourceRequirements{Requests: corev1.ResourceList{
-				corev1.ResourceCPU:    resource.MustParse("250m"),
-				corev1.ResourceMemory: resource.MustParse("400Mi"),
-			}},
+			resources: corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("250m"),
+					corev1.ResourceMemory: resource.MustParse("400Mi"),
+				},
+			},
 			cpu:    "250m",
 			memory: "400Mi",
 		},
 		{
 			name: "limits default requests",
-			resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{
-				corev1.ResourceCPU:    resource.MustParse("500m"),
-				corev1.ResourceMemory: resource.MustParse("800Mi"),
-			}},
+			resources: corev1.ResourceRequirements{
+				Limits: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("500m"),
+					corev1.ResourceMemory: resource.MustParse("800Mi"),
+				},
+			},
 			cpu:    "500m",
 			memory: "800Mi",
 		},
@@ -69,7 +73,12 @@ func TestEffectiveRequests(t *testing.T) {
 			cpu:    "0",
 			memory: "0",
 		},
-		{name: "best effort", resources: corev1.ResourceRequirements{}, cpu: "0", memory: "0"},
+		{
+			name:      "best effort",
+			resources: corev1.ResourceRequirements{},
+			cpu:       "0",
+			memory:    "0",
+		},
 	}
 
 	for _, tt := range tests {
@@ -94,7 +103,12 @@ func TestResources(t *testing.T) {
 		Memory: resource.MustParse("800Mi"),
 	}
 	tests := []resourcesCase{
-		{name: "guaranteed", qos: corev1.PodQOSGuaranteed, wantRequests: true, wantLimits: true},
+		{
+			name:         "guaranteed",
+			qos:          corev1.PodQOSGuaranteed,
+			wantRequests: true,
+			wantLimits:   true,
+		},
 		{name: "burstable", qos: corev1.PodQOSBurstable, wantRequests: true},
 		{name: "best effort", qos: corev1.PodQOSBestEffort},
 	}
@@ -116,14 +130,26 @@ func TestUsageStatus(t *testing.T) {
 	t.Parallel()
 
 	agents := []agentzv1alpha1.Agent{
-		{Spec: agentzv1alpha1.AgentSpec{Resources: corev1.ResourceRequirements{Requests: corev1.ResourceList{
-			corev1.ResourceCPU:    resource.MustParse("500m"),
-			corev1.ResourceMemory: resource.MustParse("800Mi"),
-		}}}},
-		{Spec: agentzv1alpha1.AgentSpec{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{
-			corev1.ResourceCPU:    resource.MustParse("750m"),
-			corev1.ResourceMemory: resource.MustParse("1Gi"),
-		}}}},
+		{
+			Spec: agentzv1alpha1.AgentSpec{
+				Resources: corev1.ResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("500m"),
+						corev1.ResourceMemory: resource.MustParse("800Mi"),
+					},
+				},
+			},
+		},
+		{
+			Spec: agentzv1alpha1.AgentSpec{
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("750m"),
+						corev1.ResourceMemory: resource.MustParse("1Gi"),
+					},
+				},
+			},
+		},
 	}
 	quota := agentzv1alpha1.AgentQuota{
 		Count: 1,

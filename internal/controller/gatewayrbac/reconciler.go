@@ -59,10 +59,12 @@ func Reconcile(ctx context.Context, c client.Client, cfg Config) error {
 		return fmt.Errorf("gateway service account namespace is required")
 	}
 
-	role := &rbacv1.Role{ObjectMeta: metav1.ObjectMeta{
-		Name:      accessName,
-		Namespace: cfg.Namespace,
-	}}
+	role := &rbacv1.Role{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      accessName,
+			Namespace: cfg.Namespace,
+		},
+	}
 	_, err := controllerutil.CreateOrPatch(
 		ctx,
 		c,
@@ -78,10 +80,12 @@ func Reconcile(ctx context.Context, c client.Client, cfg Config) error {
 		return fmt.Errorf("reconcile gateway role: %w", err)
 	}
 
-	binding := &rbacv1.RoleBinding{ObjectMeta: metav1.ObjectMeta{
-		Name:      accessName,
-		Namespace: cfg.Namespace,
-	}}
+	binding := &rbacv1.RoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      accessName,
+			Namespace: cfg.Namespace,
+		},
+	}
 	_, err = controllerutil.CreateOrPatch(
 		ctx,
 		c,

@@ -1101,7 +1101,11 @@ func (s *Service) judgeEvaluation(ctx context.Context, namespace string, evaluat
 	judge := evaluation.Request.Judge
 	permissions := gatewayapi.OpencodePermissionRuleset{
 		{Permission: "*", Pattern: "*", Action: gatewayapi.OpencodePermissionActionDeny},
-		{Permission: "StructuredOutput", Pattern: "*", Action: gatewayapi.OpencodePermissionActionAllow},
+		{
+			Permission: "StructuredOutput",
+			Pattern:    "*",
+			Action:     gatewayapi.OpencodePermissionActionAllow,
+		},
 	}
 	session, err := upstream.SessionCreateWithResponse(ctx, evaluation.Workflow.AgentName, nil, gatewayapi.SessionCreateJSONRequestBody{
 		Title:    new("Judge workflow execution"),
@@ -1187,13 +1191,22 @@ func (s *Service) judgeEvaluation(ctx context.Context, namespace string, evaluat
 		messageID := fmt.Sprintf(
 			"msg_%012x%s", (time.Now().UnixMilli()<<12)&0xffffffffffff, rand.Text()[:14],
 		)
-		response, err := upstream.SessionPromptWithResponse(ctx, evaluation.Workflow.AgentName, session.JSON200.Id, nil, gatewayapi.SessionPromptJSONRequestBody{
-			MessageID: &messageID,
-			Format:    &format,
-			Parts:     []gatewayapi.OpencodePromptPartInput{part},
-			Variant:   judge.Variant,
-			Model:     &gatewayapi.OpencodePromptModel{ProviderID: judge.ProviderId, ModelID: judge.ModelId},
-		})
+		response, err := upstream.SessionPromptWithResponse(
+			ctx,
+			evaluation.Workflow.AgentName,
+			session.JSON200.Id,
+			nil,
+			gatewayapi.SessionPromptJSONRequestBody{
+				MessageID: &messageID,
+				Format:    &format,
+				Parts:     []gatewayapi.OpencodePromptPartInput{part},
+				Variant:   judge.Variant,
+				Model: &gatewayapi.OpencodePromptModel{
+					ProviderID: judge.ProviderId,
+					ModelID:    judge.ModelId,
+				},
+			},
+		)
 		if err != nil {
 			return err
 		}

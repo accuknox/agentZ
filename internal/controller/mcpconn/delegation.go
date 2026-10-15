@@ -32,10 +32,12 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationRuntime(ctx context.Contex
 		_, delegated := route.Labels[authorization.DelegationLabel]
 		return delegated
 	})
-	backend := &agw.AgentgatewayBackend{ObjectMeta: metav1.ObjectMeta{
-		Name:      "delegation-extauth",
-		Namespace: ns,
-	}}
+	backend := &agw.AgentgatewayBackend{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "delegation-extauth",
+			Namespace: ns,
+		},
+	}
 	if delegated {
 		_, err = ctrlutil.CreateOrPatch(ctx, r.Client, backend, func() error {
 			backend.OwnerReferences = ownerRefs
@@ -76,10 +78,12 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationRuntime(ctx context.Contex
 				if err := client.IgnoreNotFound(r.Delete(ctx, gateway)); err != nil {
 					return err
 				}
-				parameters := &agw.AgentgatewayParameters{ObjectMeta: metav1.ObjectMeta{
-					Name:      desired.Spec.Infrastructure.ParametersRef.Name,
-					Namespace: ns,
-				}}
+				parameters := &agw.AgentgatewayParameters{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      desired.Spec.Infrastructure.ParametersRef.Name,
+						Namespace: ns,
+					},
+				}
 				if err := client.IgnoreNotFound(r.Delete(ctx, parameters)); err != nil {
 					return err
 				}
@@ -97,10 +101,12 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationRuntime(ctx context.Contex
 			}
 			continue
 		}
-		parameters := &agw.AgentgatewayParameters{ObjectMeta: metav1.ObjectMeta{
-			Name:      desired.Spec.Infrastructure.ParametersRef.Name,
-			Namespace: ns,
-		}}
+		parameters := &agw.AgentgatewayParameters{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      desired.Spec.Infrastructure.ParametersRef.Name,
+				Namespace: ns,
+			},
+		}
 		_, err = ctrlutil.CreateOrPatch(ctx, r.Client, parameters, func() error {
 			parameters.OwnerReferences = ownerRefs
 			if parameters.CreationTimestamp.IsZero() {

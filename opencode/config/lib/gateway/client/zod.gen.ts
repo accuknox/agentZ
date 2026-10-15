@@ -52,6 +52,31 @@ export const zChatAttachment = z.object({
   size: z.int().gte(0).lte(8388608),
 })
 
+export const zConversationExecutionState = z.enum([
+  "admitting",
+  "running",
+  "recovering",
+  "blocked",
+  "completed",
+  "cancelled",
+  "failed",
+])
+
+export const zConversationExecution = z.object({
+  id: z.uuid(),
+  state: zConversationExecutionState,
+  attempt: z.int().gte(1),
+  continuations: z.int().gte(0).lte(3),
+  reason: z.string(),
+  message: z.string(),
+  created_at: z.iso.datetime({ offset: true }),
+  updated_at: z.iso.datetime({ offset: true }),
+})
+
+export const zChatExecutionResponse = z.object({
+  execution: zConversationExecution.nullable(),
+})
+
 export const zChatInputContent = z.object({
   text: z.string().max(1000000),
   attachments: z.array(zChatAttachment).max(3),
@@ -261,6 +286,7 @@ export const zChatInput = z.object({
 export const zChatInputs = z.object({
   items: z.array(zChatInput),
   stopping: z.boolean(),
+  execution: zConversationExecution.nullable(),
 })
 
 export const zTenant = z.object({
@@ -4039,6 +4065,42 @@ export const zListChatSessionsResponse2 = zListChatSessionsResponse
  * Stream of chat inbox invalidations.
  */
 export const zWatchChatSessionsResponse = zWatchChatSessionsEvent
+
+export const zGetChatExecutionPath = z.object({
+  agentName: zAgentName,
+  sessionId: z.string().min(1),
+})
+
+/**
+ * Current execution, or null when the session has no tracked work.
+ */
+export const zGetChatExecutionResponse = zChatExecutionResponse
+
+export const zGetWorkflowExecutionPath = z.object({
+  agentName: zAgentName,
+  workflowName: zWorkflowName,
+  runName: zWorkflowRunName,
+})
+
+/**
+ * Current workflow execution.
+ */
+export const zGetWorkflowExecutionResponse = zChatExecutionResponse
+
+export const zStartWorkflowExecutionBody = z.object({
+  run_uid: z.string().min(1),
+})
+
+export const zStartWorkflowExecutionPath = z.object({
+  agentName: zAgentName,
+  workflowName: zWorkflowName,
+  runName: zWorkflowRunName,
+})
+
+/**
+ * Execution admission committed.
+ */
+export const zStartWorkflowExecutionResponse = zConversationExecution
 
 export const zListChatInputsPath = z.object({
   agentName: zAgentName,

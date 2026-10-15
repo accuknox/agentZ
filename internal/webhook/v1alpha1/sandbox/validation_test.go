@@ -82,13 +82,15 @@ func TestValidatorValidateCreateAllowsWorkspaceResources(t *testing.T) {
 			},
 		},
 	}
-	workspaceNamespace := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
-		Name: workspaceName,
-		Labels: map[string]string{
-			agentzv1alpha1.WorkspaceNameLabel:        workspaceName,
-			agentzv1alpha1.TenantOrganizationIDLabel: organizationNamespace,
+	workspaceNamespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: workspaceName,
+			Labels: map[string]string{
+				agentzv1alpha1.WorkspaceNameLabel:        workspaceName,
+				agentzv1alpha1.TenantOrganizationIDLabel: organizationNamespace,
+			},
 		},
-	}}
+	}
 	skill := &agentzv1alpha1.Skill{
 		ObjectMeta: metav1.ObjectMeta{Name: "local-skill", Namespace: workspaceName},
 	}

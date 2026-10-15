@@ -55,7 +55,10 @@ func (s *Service) ListCodingRefs(w http.ResponseWriter, r *http.Request, project
 	}
 	row, err := s.queries.GatewayTouchCodingSnapshot(
 		r.Context(),
-		gatewaydb.GatewayTouchCodingSnapshotParams{ProjectID: project.ID, AgentName: params.AgentName},
+		gatewaydb.GatewayTouchCodingSnapshotParams{
+			ProjectID: project.ID,
+			AgentName: params.AgentName,
+		},
 	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
@@ -166,7 +169,10 @@ func (s *Service) RefreshCodingRepository(w http.ResponseWriter, r *http.Request
 	}
 	_, err = s.queries.GatewayTouchCodingSnapshot(
 		r.Context(),
-		gatewaydb.GatewayTouchCodingSnapshotParams{ProjectID: projectId, AgentName: params.AgentName},
+		gatewaydb.GatewayTouchCodingSnapshotParams{
+			ProjectID: projectId,
+			AgentName: params.AgentName,
+		},
 	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
@@ -423,7 +429,10 @@ func (s *Service) loadCodingSnapshot(ctx context.Context, access resourceAccess,
 		"Projects", base64.RawURLEncoding.EncodeToString([]byte(project.OwnerID)),
 		"github", project.ID,
 	)
-	tree := gatewaydb.CodingWorktree{AgentName: snapshot.AgentName, Directory: root + "/repo"}
+	tree := gatewaydb.CodingWorktree{
+		AgentName: snapshot.AgentName,
+		Directory: root + "/repo",
+	}
 	if snapshot.WorktreeID != "" {
 		row, err := s.queries.GatewayGetCodingWorktree(
 			ctx,
@@ -637,7 +646,10 @@ func (s *Service) loadCodingSnapshot(ctx context.Context, access resourceAccess,
 					tree,
 					project,
 					false,
-					gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitImport, Bundle: &bundle},
+					gatewayapi.CodingGitRequest{
+						Operation: gatewayapi.CodingGitImport,
+						Bundle:    &bundle,
+					},
 				)
 			}
 		}

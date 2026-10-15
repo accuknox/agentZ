@@ -18,16 +18,14 @@ package workflowrun
 
 import (
 	"context"
-	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"slices"
-	"strings"
-	"text/template"
 	"time"
+
+	"github.com/google/uuid"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
@@ -46,29 +44,12 @@ import (
 
 const (
 	runRequeueInterval = 5 * time.Second
-	// openCode can report a brand-new session as effectively idle until the
-	// async prompt loop registers itself as busy. Give cold starts time to
-	// transition before treating an idle session as a failed run.
-	sessionStartupGrace = 30 * time.Second
 	// DefaultOrphanRetention retains terminal webhook-triggered runs for seven
 	// days before opportunistic pruning deletes them.
 	DefaultOrphanRetention = 7 * 24 * time.Hour
 )
 
 const workflowRunFinalizer = "agentz.accuknox.com/workflowrun-session"
-
-//go:embed prompt.tmpl
-var promptTemplateText string
-
-var promptTemplate = template.Must(template.New("workflowrun-prompt").Parse(promptTemplateText))
-
-type promptTemplateData struct {
-	AgentName    string
-	WorkflowName string
-	RunName      string
-	InputsJSON   string
-	Definition   string
-}
 
 // Reconciler reconciles a WorkflowRun object.
 type Reconciler struct {
@@ -307,27 +288,79 @@ func (r *Reconciler) reconcilePending(ctx context.Context, run *agentzv1alpha1.W
 }
 
 func (r *Reconciler) reconcileRunning(ctx context.Context, run *agentzv1alpha1.WorkflowRun) (ctrl.Result, error) {
-	done, err := r.sessionIdle(ctx, run)
-	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("inspect workflow session status: %w", err)
+	if run.Status.ExecutionID == "" {
+		return ctrl.Result{}, r.failRun(
+			ctx,
+			run,
+			agentzv1alpha1.WorkflowRunReasonGatewayError,
+			"Workflow run has no tracked execution",
+		)
 	}
-	if !done {
+	response, err := r.GatewayClient.GetWorkflowExecutionWithResponse(
+		ctx,
+		run.Spec.AgentName,
+		run.Spec.WorkflowName,
+		run.Name,
+		gwreq.RequestEditor(r.TokenPath, run.Namespace),
+	)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("read workflow execution: %w", err)
+	}
+	if response.JSON200 == nil {
+		return ctrl.Result{}, fmt.Errorf("read workflow execution returned status %d", response.StatusCode())
+	}
+	execution := response.JSON200.Execution
+	if execution == nil {
+		admitted, err := r.GatewayClient.StartWorkflowExecutionWithResponse(
+			ctx,
+			run.Spec.AgentName,
+			run.Spec.WorkflowName,
+			run.Name,
+			gatewayapi.StartWorkflowExecutionJSONRequestBody{RunUid: string(run.UID)},
+			gwreq.RequestEditor(r.TokenPath, run.Namespace),
+		)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("admit workflow execution: %w", err)
+		}
+		if admitted.JSON202 == nil {
+			return ctrl.Result{}, fmt.Errorf("admit workflow execution returned status %d", admitted.StatusCode())
+		}
 		return ctrl.Result{RequeueAfter: runRequeueInterval}, nil
 	}
-
-	message, err := r.sessionTerminalMessage(ctx, run)
-	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("inspect workflow session messages: %w", err)
-	}
-	if message == "" {
-		// on a fresh agent pod, OpenCode may briefly show no terminal message
-		// while the first async prompt is still starting up.
-		if run.Status.StartedAt != nil && time.Since(run.Status.StartedAt.Time) < sessionStartupGrace {
-			return ctrl.Result{RequeueAfter: runRequeueInterval}, nil
+	switch execution.State {
+	case gatewayapi.ConversationExecutionStateAdmitting,
+		gatewayapi.ConversationExecutionStateRunning,
+		gatewayapi.ConversationExecutionStateRecovering,
+		gatewayapi.ConversationExecutionStateBlocked:
+		recovering := execution.State == gatewayapi.ConversationExecutionStateRecovering
+		condition := apimeta.FindStatusCondition(run.Status.Conditions, agentzv1alpha1.WorkflowRunConditionRecovering)
+		desired := metav1.ConditionFalse
+		if recovering {
+			desired = metav1.ConditionTrue
 		}
-		message = "workflow session completed without terminal status update"
+		if condition == nil || condition.Status != desired || condition.Message != execution.Message {
+			err = r.patchStatus(ctx, run, func(status *agentzv1alpha1.WorkflowRunStatus) {
+				if status.Phase.Terminal() {
+					return
+				}
+				status.Message = execution.Message
+				status.SetCondition(metav1.Condition{
+					Type:               agentzv1alpha1.WorkflowRunConditionRecovering,
+					Status:             desired,
+					Reason:             "ExecutionObserved",
+					Message:            execution.Message,
+					ObservedGeneration: run.Generation,
+				})
+			})
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+		return ctrl.Result{RequeueAfter: runRequeueInterval}, nil
+	case gatewayapi.ConversationExecutionStateFailed, gatewayapi.ConversationExecutionStateCancelled:
+		return ctrl.Result{}, r.failRun(ctx, run, agentzv1alpha1.WorkflowRunReasonGatewayError, execution.Message)
 	}
-
+	message := "workflow session completed without terminal status update"
 	now := metav1.Now()
 	err = r.patchStatus(
 		ctx,
@@ -422,10 +455,6 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 		}
 	}
 
-	prompt, err := buildPromptRequest(run)
-	if err != nil {
-		return err
-	}
 	title := "workflowrun/" + run.Namespace + "/" + run.Name
 	var metadata *map[string]any
 	if evaluation := run.Labels["agentz.accuknox.com/evaluation"]; evaluation != "" {
@@ -466,6 +495,7 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 		current.Status.Phase = agentzv1alpha1.WorkflowRunPhaseRunning
 		current.Status.ObservedGeneration = run.Generation
 		current.Status.SessionID = sessionID
+		current.Status.ExecutionID = uuid.NewSHA1(uuid.NameSpaceOID, []byte(current.UID)).String()
 		current.Status.StartedAt = &now
 		current.Status.Message = ""
 		r.setActiveConditions(
@@ -490,19 +520,19 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 		}
 		return fmt.Errorf("persist workflow session admission: %w", err)
 	}
-	promptResp, err := r.GatewayClient.SessionPromptAsyncWithResponse(
-		ctx, run.Spec.AgentName, sessionID, nil, prompt,
+	response, err := r.GatewayClient.StartWorkflowExecutionWithResponse(
+		ctx, run.Spec.AgentName, run.Spec.WorkflowName, run.Name,
+		gatewayapi.StartWorkflowExecutionJSONRequestBody{RunUid: string(run.UID)},
 		gwreq.RequestEditor(r.TokenPath, run.Namespace),
 	)
 	if err != nil {
-		// The request may have reached OpenCode. The running reconciler observes
-		// its evidence and timeout; it must not submit a replacement prompt.
-		slog.WarnContext(ctx, "workflow prompt admission uncertain", "run", run.Name, "error", err)
+		slog.WarnContext(ctx, "workflow execution admission uncertain", "run", run.Name, "error", err)
 		return nil
 	}
-	if promptResp.StatusCode() != http.StatusNoContent {
-		return fmt.Errorf("send workflow prompt returned status %d", promptResp.StatusCode())
+	if response.JSON202 == nil {
+		return fmt.Errorf("admit workflow execution returned status %d", response.StatusCode())
 	}
+
 	return nil
 }
 
@@ -738,167 +768,4 @@ func (r *Reconciler) setTerminalStatus(status *agentzv1alpha1.WorkflowRunStatus,
 		Message:            message,
 		ObservedGeneration: generation,
 	})
-}
-
-func buildPromptRequest(run *agentzv1alpha1.WorkflowRun) (gatewayapi.SessionPromptAsyncJSONRequestBody, error) {
-	var body gatewayapi.SessionPromptAsyncJSONRequestBody
-	inputs := "null"
-	if len(run.Spec.Inputs.Raw) > 0 {
-		inputs = string(run.Spec.Inputs.Raw)
-	}
-
-	var definition string
-	if run.Spec.Definition != nil {
-		definition = string(run.Spec.Definition.Raw)
-	}
-	if run.Spec.Model != nil {
-		body.Model = &gatewayapi.OpencodePromptModel{
-			ProviderID: run.Spec.Model.ProviderID,
-			ModelID:    run.Spec.Model.ModelID,
-		}
-		if run.Spec.Model.Variant != "" {
-			body.Variant = &run.Spec.Model.Variant
-		}
-	}
-	var prompt strings.Builder
-	err := promptTemplate.Execute(
-		&prompt,
-		promptTemplateData{
-			AgentName:    run.Spec.AgentName,
-			WorkflowName: run.Spec.WorkflowName,
-			RunName:      run.Name,
-			InputsJSON:   inputs,
-			Definition:   definition,
-		},
-	)
-	if err != nil {
-		return body, fmt.Errorf("render session prompt: %w", err)
-	}
-
-	var part gatewayapi.OpencodePromptPartInput
-	err = part.FromOpencodeTextPartInput(gatewayapi.OpencodeTextPartInput{
-		Type: gatewayapi.OpencodeTextPartInputTypeText,
-		Text: prompt.String(),
-	})
-	if err != nil {
-		return body, fmt.Errorf("encode workflow prompt part: %w", err)
-	}
-	body.Parts = []gatewayapi.OpencodePromptPartInput{part}
-	body.Tools = &map[string]bool{
-		"get_workflow":           run.Spec.Definition == nil,
-		"question":               false,
-		"set_workflowrun_status": true,
-	}
-	return body, nil
-}
-
-func (r *Reconciler) sessionIdle(ctx context.Context, run *agentzv1alpha1.WorkflowRun) (bool, error) {
-	if run.Status.SessionID == "" {
-		return false, nil
-	}
-	if r.GatewayClient == nil {
-		return false, fmt.Errorf("gateway client is not configured")
-	}
-
-	resp, err := r.GatewayClient.SessionStatusWithResponse(
-		ctx,
-		run.Spec.AgentName,
-		nil,
-		gwreq.RequestEditor(r.TokenPath, run.Namespace),
-	)
-	if err != nil {
-		return false, fmt.Errorf("get session status: %w", err)
-	}
-	if resp.JSON200 == nil {
-		return false, nil
-	}
-
-	status, ok := (*resp.JSON200)[run.Status.SessionID]
-	if !ok {
-		// openCode omits idle sessions from the status map, so a missing entry
-		// means "not busy anymore" rather than "unknown session".
-		return true, nil
-	}
-	kind, err := status.Discriminator()
-	return err == nil && kind == "idle", nil
-}
-
-func (r *Reconciler) sessionTerminalMessage(ctx context.Context, run *agentzv1alpha1.WorkflowRun) (string, error) {
-	if run.Status.SessionID == "" {
-		return "", nil
-	}
-	if r.GatewayClient == nil {
-		return "", fmt.Errorf("gateway client is not configured")
-	}
-
-	limit := 20
-	resp, err := r.GatewayClient.SessionMessagesWithResponse(
-		ctx,
-		run.Spec.AgentName,
-		run.Status.SessionID,
-		&gatewayapi.SessionMessagesParams{
-			Limit: &limit,
-		},
-		gwreq.RequestEditor(r.TokenPath, run.Namespace),
-	)
-	if err != nil {
-		return "", fmt.Errorf("list session messages: %w", err)
-	}
-	if resp.JSON200 == nil {
-		return "", nil
-	}
-
-	for _, msg := range slices.Backward(*resp.JSON200) {
-		role, err := msg.Info.Discriminator()
-		if err != nil || role != "assistant" {
-			continue
-		}
-		assistant, err := msg.Info.AsOpencodeAssistantMessage()
-		if err != nil {
-			continue
-		}
-		if assistant.Finish == nil {
-			continue
-		}
-		if *assistant.Finish == "tool-calls" || *assistant.Finish == "stop" {
-			return "", nil
-		}
-		return assistantFailureMessage(assistant), nil
-	}
-	return "", nil
-}
-
-func assistantFailureMessage(assistant gatewayapi.OpencodeAssistantMessage) string {
-	if assistant.Finish == nil || *assistant.Finish != "error" || assistant.Error == nil {
-		return ""
-	}
-
-	value, err := assistant.Error.ValueByDiscriminator()
-	if err != nil {
-		return "workflow session failed"
-	}
-	switch failure := value.(type) {
-	case gatewayapi.OpencodeProviderAuthError:
-		if failure.Data.ProviderID != "" {
-			return failure.Data.ProviderID + ": " + failure.Data.Message
-		}
-		return failure.Data.Message
-	case gatewayapi.OpencodeAPIError:
-		if failure.Data.StatusCode != nil {
-			return fmt.Sprintf("%s (status %d)", failure.Data.Message, *failure.Data.StatusCode)
-		}
-		return failure.Data.Message
-	case gatewayapi.OpencodeUnknownError:
-		return failure.Data.Message
-	case gatewayapi.OpencodeMessageAbortedError:
-		return failure.Data.Message
-	case gatewayapi.OpencodeContextOverflowError:
-		return failure.Data.Message
-	case gatewayapi.OpencodeStructuredOutputError:
-		return failure.Data.Message
-	case gatewayapi.OpencodeMessageOutputLengthError:
-		return "workflow response exceeded the output limit"
-	}
-
-	return "workflow session failed"
 }

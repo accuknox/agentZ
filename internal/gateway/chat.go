@@ -814,7 +814,10 @@ func decodeChatSessionGroupKey(token gatewayapi.ChatSessionGroupKeyQuery) (chatS
 	if !ok || groupBy == "" || value == "" {
 		return chatSessionGroupKey{}, errors.New("chat session group key is incomplete")
 	}
-	return chatSessionGroupKey{GroupBy: gatewayapi.ChatSessionGroupBy(groupBy), Value: value}, nil
+	return chatSessionGroupKey{
+		GroupBy: gatewayapi.ChatSessionGroupBy(groupBy),
+		Value:   value,
+	}, nil
 }
 
 func chatSessionGroup(groupBy gatewayapi.ChatSessionGroupBy, value, active string) gatewayapi.ChatSessionGroup {

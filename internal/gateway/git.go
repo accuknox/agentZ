@@ -257,7 +257,9 @@ func (s *Service) ListCodingRepositories(w http.ResponseWriter, r *http.Request,
 	if params.Query != nil {
 		query = strings.ToLower(strings.TrimSpace(*params.Query))
 	}
-	result := gatewayapi.CodingRepositoryPage{Repositories: []gatewayapi.CodingRepositoryItem{}}
+	result := gatewayapi.CodingRepositoryPage{
+		Repositories: []gatewayapi.CodingRepositoryItem{},
+	}
 	seen := make(map[int64]bool)
 	for repo, err := range identity.repositories(r.Context()) {
 		if err != nil {
@@ -306,7 +308,11 @@ func newCodingRepository(ctx context.Context, repository, token string) (*coding
 	if err != nil {
 		return nil, err
 	}
-	repo := &codingRepository{dir: dir, url: "https://github.com/" + repository + ".git", token: token}
+	repo := &codingRepository{
+		dir:   dir,
+		url:   "https://github.com/" + repository + ".git",
+		token: token,
+	}
 	if _, err := repo.run(ctx, false, "init", "--bare", "."); err != nil {
 		os.RemoveAll(dir)
 		return nil, err

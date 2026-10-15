@@ -1592,7 +1592,10 @@ func (s *Service) providerAndUsage(w http.ResponseWriter, r *http.Request, names
 		sandboxes: []string{},
 	}
 	provider := &agentzv1alpha1.InferenceProvider{}
-	key := ctrlclient.ObjectKey{Namespace: namespace, Name: strings.TrimSpace(providerName)}
+	key := ctrlclient.ObjectKey{
+		Namespace: namespace,
+		Name:      strings.TrimSpace(providerName),
+	}
 	if err := s.k8sClient.Get(r.Context(), key, provider); err != nil {
 		apiutil.WriteError(w, r, mapKubeHTTPError("get inference provider", err))
 		return nil, usage, false

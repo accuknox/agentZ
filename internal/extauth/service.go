@@ -857,18 +857,36 @@ func (s *delegationServer) Check(ctx context.Context, request *authv3.CheckReque
 	defer cancel()
 	extensions := request.GetAttributes().GetContextExtensions()
 	if extensions["agentz.namespace"] != s.namespace {
-		return denyDecision(codes.PermissionDenied, typev3.StatusCode_Forbidden, "delegation owner mismatch", "delegation_owner", slog.LevelWarn).response, nil
+		return denyDecision(
+			codes.PermissionDenied,
+			typev3.StatusCode_Forbidden,
+			"delegation owner mismatch",
+			"delegation_owner",
+			slog.LevelWarn,
+		).response, nil
 	}
 	httpRequest := request.GetAttributes().GetRequest().GetHttp()
 	if httpRequest == nil {
-		return denyDecision(codes.PermissionDenied, typev3.StatusCode_Forbidden, "delegation HTTP request missing", "delegation_request", slog.LevelWarn).response, nil
+		return denyDecision(
+			codes.PermissionDenied,
+			typev3.StatusCode_Forbidden,
+			"delegation HTTP request missing",
+			"delegation_request",
+			slog.LevelWarn,
+		).response, nil
 	}
 	operation := extensions["agentz.operation"]
 	if operation == "inference" {
 		path := httpRequest.GetPath()
 		responses := strings.HasSuffix(path, "/responses")
 		if httpRequest.GetMethod() != "POST" || (!responses && !strings.HasSuffix(path, "/chat/completions")) {
-			return denyDecision(codes.PermissionDenied, typev3.StatusCode_Forbidden, "inference endpoint is not delegated", "delegation_endpoint", slog.LevelWarn).response, nil
+			return denyDecision(
+				codes.PermissionDenied,
+				typev3.StatusCode_Forbidden,
+				"inference endpoint is not delegated",
+				"delegation_endpoint",
+				slog.LevelWarn,
+			).response, nil
 		}
 		body := httpRequest.GetRawBody()
 		if len(body) == 0 {
@@ -876,7 +894,13 @@ func (s *delegationServer) Check(ctx context.Context, request *authv3.CheckReque
 		}
 		input, err := inference.ValidateDelegatedRequest(body, responses)
 		if err != nil || input.Model != extensions["agentz.target"] {
-			return denyDecision(codes.PermissionDenied, typev3.StatusCode_Forbidden, "invalid delegated inference request", "delegation_body", slog.LevelWarn).response, nil
+			return denyDecision(
+				codes.PermissionDenied,
+				typev3.StatusCode_Forbidden,
+				"invalid delegated inference request",
+				"delegation_body",
+				slog.LevelWarn,
+			).response, nil
 		}
 	}
 	// A spec change must reach the native route before it can receive current

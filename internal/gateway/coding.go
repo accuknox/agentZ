@@ -213,7 +213,10 @@ func (s *Service) GetCodingProject(w http.ResponseWriter, r *http.Request, proje
 	}
 	trees, err := s.queries.GatewayListCodingWorktrees(
 		r.Context(),
-		gatewaydb.GatewayListCodingWorktreesParams{ProjectID: projectId, WorkspaceID: access.workspaceID},
+		gatewaydb.GatewayListCodingWorktreesParams{
+			ProjectID:   projectId,
+			WorkspaceID: access.workspaceID,
+		},
 	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
@@ -221,7 +224,10 @@ func (s *Service) GetCodingProject(w http.ResponseWriter, r *http.Request, proje
 	}
 	threads, err := s.queries.GatewayListCodingThreads(
 		r.Context(),
-		gatewaydb.GatewayListCodingThreadsParams{ProjectID: projectId, WorkspaceID: access.workspaceID},
+		gatewaydb.GatewayListCodingThreadsParams{
+			ProjectID:   projectId,
+			WorkspaceID: access.workspaceID,
+		},
 	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
@@ -1158,7 +1164,10 @@ func (s *Service) RunCodingGit(w http.ResponseWriter, r *http.Request, worktreeI
 	}
 	row, err := s.queries.GatewayGetCodingWorktree(
 		r.Context(),
-		gatewaydb.GatewayGetCodingWorktreeParams{ID: worktreeId, WorkspaceID: claims.WorkspaceID},
+		gatewaydb.GatewayGetCodingWorktreeParams{
+			ID:          worktreeId,
+			WorkspaceID: claims.WorkspaceID,
+		},
 	)
 	if err != nil {
 		apiutil.WriteError(w, r, mapGatewayStoreError("get worktree", err))
@@ -1245,7 +1254,10 @@ func (s *Service) RunCodingGit(w http.ResponseWriter, r *http.Request, worktreeI
 	defer release()
 	row, err = q.GatewayGetCodingWorktree(
 		r.Context(),
-		gatewaydb.GatewayGetCodingWorktreeParams{ID: worktreeId, WorkspaceID: claims.WorkspaceID},
+		gatewaydb.GatewayGetCodingWorktreeParams{
+			ID:          worktreeId,
+			WorkspaceID: claims.WorkspaceID,
+		},
 	)
 	if err != nil {
 		apiutil.WriteError(w, r, mapGatewayStoreError("get worktree", err))
@@ -1641,7 +1653,10 @@ func (s *Service) enforceCodingSession(r *http.Request, access resourceAccess, r
 		*r = *r.WithContext(context.WithValue(r.Context(), gatewayLockKey{}, q))
 		current, err := q.GatewayGetCodingWorktree(
 			r.Context(),
-			gatewaydb.GatewayGetCodingWorktreeParams{ID: tree.ID, WorkspaceID: access.workspaceID},
+			gatewaydb.GatewayGetCodingWorktreeParams{
+				ID:          tree.ID,
+				WorkspaceID: access.workspaceID,
+			},
 		)
 		if err != nil {
 			return release, mapGatewayStoreError("get coding checkout", err)

@@ -2984,7 +2984,9 @@ func (s *Service) agentTools(w http.ResponseWriter, r *http.Request, name, toolN
 	})
 	if err == nil {
 		err = createAgentEventTrail(ctx, q, agentEvent{
-			access: access, name: name, action: action,
+			access: access,
+			name:   name,
+			action: action,
 			before: []gatewayapi.EventTrailField{
 				{Field: gatewayapi.EventTrailFieldName, Value: toolName},
 				{Field: gatewayapi.EventTrailFieldState, Value: before.ResourceVersion},

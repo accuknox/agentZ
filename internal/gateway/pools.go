@@ -551,7 +551,10 @@ func (s *Service) GetInferencePoolUsage(w http.ResponseWriter, r *http.Request, 
 
 func (s *Service) poolAndUsage(w http.ResponseWriter, r *http.Request, access resourceAccess, poolName string) (*agentzv1alpha1.InferencePool, []string, bool) {
 	pool := &agentzv1alpha1.InferencePool{}
-	key := ctrlclient.ObjectKey{Namespace: access.namespace, Name: strings.TrimSpace(poolName)}
+	key := ctrlclient.ObjectKey{
+		Namespace: access.namespace,
+		Name:      strings.TrimSpace(poolName),
+	}
 	if err := s.k8sClient.Get(r.Context(), key, pool); err != nil {
 		apiutil.WriteError(w, r, mapKubeHTTPError("get inference pool", err))
 		return nil, nil, false

@@ -100,6 +100,141 @@ func (ns NullApiKeyTargetType) Value() (driver.Value, error) {
 	return string(ns.ApiKeyTargetType), nil
 }
 
+type ChatAttemptState string
+
+const (
+	ChatAttemptStatePending     ChatAttemptState = "pending"
+	ChatAttemptStateSubmitting  ChatAttemptState = "submitting"
+	ChatAttemptStateInterrupted ChatAttemptState = "interrupted"
+	ChatAttemptStateCompleted   ChatAttemptState = "completed"
+	ChatAttemptStateCancelled   ChatAttemptState = "cancelled"
+	ChatAttemptStateFailed      ChatAttemptState = "failed"
+)
+
+func (e *ChatAttemptState) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatAttemptState(s)
+	case string:
+		*e = ChatAttemptState(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatAttemptState: %T", src)
+	}
+	return nil
+}
+
+type NullChatAttemptState struct {
+	ChatAttemptState ChatAttemptState `json:"chat_attempt_state"`
+	Valid            bool             `json:"valid"` // Valid is true if ChatAttemptState is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatAttemptState) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatAttemptState, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatAttemptState.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatAttemptState) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatAttemptState), nil
+}
+
+type ChatExecutionState string
+
+const (
+	ChatExecutionStateAdmitting  ChatExecutionState = "admitting"
+	ChatExecutionStateRunning    ChatExecutionState = "running"
+	ChatExecutionStateRecovering ChatExecutionState = "recovering"
+	ChatExecutionStateBlocked    ChatExecutionState = "blocked"
+	ChatExecutionStateCompleted  ChatExecutionState = "completed"
+	ChatExecutionStateCancelled  ChatExecutionState = "cancelled"
+	ChatExecutionStateFailed     ChatExecutionState = "failed"
+)
+
+func (e *ChatExecutionState) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatExecutionState(s)
+	case string:
+		*e = ChatExecutionState(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatExecutionState: %T", src)
+	}
+	return nil
+}
+
+type NullChatExecutionState struct {
+	ChatExecutionState ChatExecutionState `json:"chat_execution_state"`
+	Valid              bool               `json:"valid"` // Valid is true if ChatExecutionState is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatExecutionState) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatExecutionState, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatExecutionState.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatExecutionState) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatExecutionState), nil
+}
+
+type ChatProtocol string
+
+const (
+	ChatProtocolV1 ChatProtocol = "v1"
+	ChatProtocolV2 ChatProtocol = "v2"
+)
+
+func (e *ChatProtocol) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatProtocol(s)
+	case string:
+		*e = ChatProtocol(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatProtocol: %T", src)
+	}
+	return nil
+}
+
+type NullChatProtocol struct {
+	ChatProtocol ChatProtocol `json:"chat_protocol"`
+	Valid        bool         `json:"valid"` // Valid is true if ChatProtocol is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatProtocol) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatProtocol, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatProtocol.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatProtocol) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatProtocol), nil
+}
+
 type ChatSessionGroupBy string
 
 const (
@@ -865,6 +1000,59 @@ type Apikey struct {
 	UpdatedAt           pgtype.Timestamp `json:"updated_at"`
 	Permissions         pgtype.Text      `json:"permissions"`
 	Metadata            pgtype.Text      `json:"metadata"`
+}
+
+type ChatAttempt struct {
+	ExecutionID   uuid.UUID        `json:"execution_id"`
+	Number        int32            `json:"number"`
+	Incarnation   string           `json:"incarnation"`
+	State         ChatAttemptState `json:"state"`
+	MessageID     string           `json:"message_id"`
+	Payload       []byte           `json:"payload"`
+	Submissions   int32            `json:"submissions"`
+	NextAttemptAt time.Time        `json:"next_attempt_at"`
+	CreatedAt     time.Time        `json:"created_at"`
+	UpdatedAt     time.Time        `json:"updated_at"`
+}
+
+type ChatExecution struct {
+	ID              uuid.UUID          `json:"id"`
+	WorkspaceID     string             `json:"workspace_id"`
+	AgentName       string             `json:"agent_name"`
+	AgentUid        string             `json:"agent_uid"`
+	Namespace       string             `json:"namespace"`
+	SessionID       string             `json:"session_id"`
+	Directory       string             `json:"directory"`
+	Protocol        ChatProtocol       `json:"protocol"`
+	ActorID         string             `json:"actor_id"`
+	ActorName       string             `json:"actor_name"`
+	ActorType       string             `json:"actor_type"`
+	UserID          string             `json:"user_id"`
+	OrganizationID  string             `json:"organization_id"`
+	WorkflowRunUid  string             `json:"workflow_run_uid"`
+	WorkflowName    string             `json:"workflow_name"`
+	WorkflowRunName string             `json:"workflow_run_name"`
+	Definition      []byte             `json:"definition"`
+	Deadline        pgtype.Timestamptz `json:"deadline"`
+	State           ChatExecutionState `json:"state"`
+	Attempt         int32              `json:"attempt"`
+	Continuations   int32              `json:"continuations"`
+	Reason          string             `json:"reason"`
+	Message         string             `json:"message"`
+	WaitingOnUser   bool               `json:"waiting_on_user"`
+	UserRequests    []string           `json:"user_requests"`
+	LeaseToken      string             `json:"lease_token"`
+	LeaseUntil      time.Time          `json:"lease_until"`
+	CreatedAt       time.Time          `json:"created_at"`
+	UpdatedAt       time.Time          `json:"updated_at"`
+}
+
+type ChatExecutionPrompt struct {
+	ExecutionID uuid.UUID `json:"execution_id"`
+	Attempt     int32     `json:"attempt"`
+	MessageID   string    `json:"message_id"`
+	Accepted    bool      `json:"accepted"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type ChatInput struct {

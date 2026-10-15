@@ -3,6 +3,7 @@ import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
+import { connection } from "next/server"
 import { Suspense } from "react"
 import { ChatShell } from "@/components/blocks/chat/chat-shell"
 import { getWorkspaceScope } from "@/data/workspaces"
@@ -55,6 +56,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
 }
 
 async function ChatPageContent({ params }: ChatPageProps) {
+  await connection()
   const { agentName, orgSlug, sessionId, workspaceSlug } = await params
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
   if (scope.kind !== "ready") {

@@ -195,6 +195,7 @@ export function useOpencodeSend(
           chatInputsOptions(workspaceId, agentName, id).queryKey,
           (current) => ({
             stopping: current?.stopping ?? false,
+            execution: current?.execution ?? null,
             items: [
               ...(current?.items ?? []).filter((item) => item.id !== result.data.id),
               ...(result.data.state === "delivered" || result.data.state === "removed"
@@ -224,6 +225,7 @@ export function useOpencodeSend(
     sendMessage: send.mutateAsync,
     pending,
     sendState: pending.length ? ("submitted" as const) : undefined,
+    execution: queue.data?.execution,
     queue: queue.data?.items ?? [],
     queueError: queue.error?.message,
     updateInput: update.mutateAsync,

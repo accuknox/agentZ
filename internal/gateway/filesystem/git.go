@@ -500,7 +500,11 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			if len(entry) < 4 {
 				return errors.New("invalid Git status response")
 			}
-			file := gatewayapi.CodingGitFile{Path: entry[3:], Index: entry[:1], Worktree: entry[1:2]}
+			file := gatewayapi.CodingGitFile{
+				Path:     entry[3:],
+				Index:    entry[:1],
+				Worktree: entry[1:2],
+			}
 			file.Conflict = strings.Contains(entry[:2], "U") || entry[:2] == "AA" || entry[:2] == "DD"
 			conflicts = conflicts || file.Conflict
 			if file.Index == "R" || file.Index == "C" || file.Worktree == "R" || file.Worktree == "C" {

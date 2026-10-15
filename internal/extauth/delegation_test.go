@@ -41,10 +41,17 @@ func TestDelegationCredentialsRequireProjectedResourceRevision(t *testing.T) {
 	if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
-	metadata := metav1.ObjectMeta{Name: "selected", Namespace: "owner", UID: "original", Generation: 2}
+	metadata := metav1.ObjectMeta{
+		Name:       "selected",
+		Namespace:  "owner",
+		UID:        "original",
+		Generation: 2,
+	}
 	provider := &agentzv1alpha1.InferenceProvider{
 		ObjectMeta: metadata,
-		Spec:       agentzv1alpha1.InferenceProviderSpec{Kind: agentzv1alpha1.InferenceProviderKindOpenAI},
+		Spec: agentzv1alpha1.InferenceProviderSpec{
+			Kind: agentzv1alpha1.InferenceProviderKindOpenAI,
+		},
 	}
 	connection := &agentzv1alpha1.MCPConnection{ObjectMeta: metadata}
 	service := &Service{
@@ -70,7 +77,12 @@ func TestDelegationCredentialsRequireProjectedResourceRevision(t *testing.T) {
 					namespace:  "foreign",
 					want:       codes.PermissionDenied,
 				},
-				{name: "replaced resource", uid: "replacement", generation: "2", want: codes.Unavailable},
+				{
+					name:       "replaced resource",
+					uid:        "replacement",
+					generation: "2",
+					want:       codes.Unavailable,
+				},
 			}
 			for _, test := range cases {
 				t.Run(test.name, func(t *testing.T) {
@@ -78,21 +90,25 @@ func TestDelegationCredentialsRequireProjectedResourceRevision(t *testing.T) {
 					if test.namespace != "" {
 						owner = test.namespace
 					}
-					request := &authv3.CheckRequest{Attributes: &authv3.AttributeContext{
-						ContextExtensions: map[string]string{
-							"agentz.operation":  operation,
-							"agentz.namespace":  owner,
-							"agentz.name":       "selected",
-							"agentz.uid":        test.uid,
-							"agentz.generation": test.generation,
-							"agentz.target":     "model",
+					request := &authv3.CheckRequest{
+						Attributes: &authv3.AttributeContext{
+							ContextExtensions: map[string]string{
+								"agentz.operation":  operation,
+								"agentz.namespace":  owner,
+								"agentz.name":       "selected",
+								"agentz.uid":        test.uid,
+								"agentz.generation": test.generation,
+								"agentz.target":     "model",
+							},
+							Request: &authv3.AttributeContext_Request{
+								Http: &authv3.AttributeContext_HttpRequest{
+									Method: "POST",
+									Path:   "/v1/chat/completions",
+									Body:   `{"model":"model","messages":[]}`,
+								},
+							},
 						},
-						Request: &authv3.AttributeContext_Request{Http: &authv3.AttributeContext_HttpRequest{
-							Method: "POST",
-							Path:   "/v1/chat/completions",
-							Body:   `{"model":"model","messages":[]}`,
-						}},
-					}}
+					}
 					ordinary, err := service.Check(t.Context(), request)
 					if err != nil {
 						t.Fatal(err)
@@ -145,10 +161,16 @@ func TestOAuthRefreshKeepsConcurrentConnectionCredentialsSeparate(t *testing.T) 
 				secrets[path] = update["data"]
 			}
 			if secrets[path] == nil {
-				record := mcp.OAuthSecretRecord{Record: oauth.Record{
-					ClientID: path,
-					Token:    &oauth2.Token{AccessToken: "expired", RefreshToken: path, Expiry: time.Unix(1, 0)},
-				}}
+				record := mcp.OAuthSecretRecord{
+					Record: oauth.Record{
+						ClientID: path,
+						Token: &oauth2.Token{
+							AccessToken:  "expired",
+							RefreshToken: path,
+							Expiry:       time.Unix(1, 0),
+						},
+					},
+				}
 				data, err := json.Marshal(record)
 				if err != nil {
 					return nil, err
@@ -201,12 +223,14 @@ func TestOAuthRefreshKeepsConcurrentConnectionCredentialsSeparate(t *testing.T) 
 			UID:        "original",
 			Generation: 1,
 		},
-		Spec: agentzv1alpha1.MCPConnectionSpec{Auth: &agentzv1alpha1.MCPConnectionAuth{
-			OAuth: &agentzv1alpha1.MCPConnectionOAuthAuth{
-				TokenEndpoint: "https://8.8.8.8/token",
-				SecretRef:     &agentzv1alpha1.MCPConnectionSecretRef{Path: "old", Key: "credentials"},
+		Spec: agentzv1alpha1.MCPConnectionSpec{
+			Auth: &agentzv1alpha1.MCPConnectionAuth{
+				OAuth: &agentzv1alpha1.MCPConnectionOAuthAuth{
+					TokenEndpoint: "https://8.8.8.8/token",
+					SecretRef:     &agentzv1alpha1.MCPConnectionSecretRef{Path: "old", Key: "credentials"},
+				},
 			},
-		}},
+		},
 	}
 	current := old.DeepCopy()
 	current.Generation++
@@ -312,9 +336,11 @@ func TestMCPProbeDiscoversBoundedPaginatedCatalog(t *testing.T) {
 			))
 			defer upstream.Close()
 			service := &Service{probeTimeout: 10 * time.Second}
-			connection := &agentzv1alpha1.MCPConnection{Spec: agentzv1alpha1.MCPConnectionSpec{
-				Endpoint: agentzv1alpha1.MCPConnectionEndpoint{URL: upstream.URL},
-			}}
+			connection := &agentzv1alpha1.MCPConnection{
+				Spec: agentzv1alpha1.MCPConnectionSpec{
+					Endpoint: agentzv1alpha1.MCPConnectionEndpoint{URL: upstream.URL},
+				},
+			}
 			outcome := service.probeMCPConnectionOnce(t.Context(), connection)
 			if outcome.healthy != test.healthy {
 				t.Fatalf("healthy = %v, want %v: %s", outcome.healthy, test.healthy, outcome.message)
@@ -340,10 +366,31 @@ func TestMCPProbeDiscoversBoundedPaginatedCatalog(t *testing.T) {
 
 func TestMCPProbeCatalogRequiresCurrentResourceRevision(t *testing.T) {
 	cases := []probeRevisionCase{
-		{name: "current", uid: "original", generation: 2, probeTime: time.Unix(3, 0), updated: true},
-		{name: "replaced connection", uid: "replacement", generation: 2, probeTime: time.Unix(3, 0)},
-		{name: "changed endpoint", uid: "original", generation: 1, probeTime: time.Unix(3, 0)},
-		{name: "older result", uid: "original", generation: 2, probeTime: time.Unix(1, 0)},
+		{
+			name:       "current",
+			uid:        "original",
+			generation: 2,
+			probeTime:  time.Unix(3, 0),
+			updated:    true,
+		},
+		{
+			name:       "replaced connection",
+			uid:        "replacement",
+			generation: 2,
+			probeTime:  time.Unix(3, 0),
+		},
+		{
+			name:       "changed endpoint",
+			uid:        "original",
+			generation: 1,
+			probeTime:  time.Unix(3, 0),
+		},
+		{
+			name:       "older result",
+			uid:        "original",
+			generation: 2,
+			probeTime:  time.Unix(1, 0),
+		},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
@@ -363,7 +410,9 @@ func TestMCPProbeCatalogRequiresCurrentResourceRevision(t *testing.T) {
 					LastProbeTime: new(metav1.NewTime(time.Unix(2, 0))),
 				},
 			}
-			service := &Service{kube: fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(current).WithObjects(current).Build()}
+			service := &Service{
+				kube: fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(current).WithObjects(current).Build(),
+			}
 			probed := current.DeepCopy()
 			probed.UID, probed.Generation = test.uid, test.generation
 			outcome := mcpProbeOutcome{
@@ -375,7 +424,8 @@ func TestMCPProbeCatalogRequiresCurrentResourceRevision(t *testing.T) {
 			if err := service.writeMCPProbeStatus(t.Context(), probed, outcome); err != nil {
 				t.Fatal(err)
 			}
-			if err := service.kube.Get(t.Context(), client.ObjectKeyFromObject(current), current); err != nil {
+			err := service.kube.Get(t.Context(), client.ObjectKeyFromObject(current), current)
+			if err != nil {
 				t.Fatal(err)
 			}
 			want := "current"

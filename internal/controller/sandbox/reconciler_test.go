@@ -71,20 +71,24 @@ func TestReconcileMCPAgentRouteIdentity(t *testing.T) {
 	}
 	agt := &agentzv1alpha1.Agent{
 		ObjectMeta: metav1.ObjectMeta{Name: agentName, Namespace: namespace},
-		Spec: agentzv1alpha1.AgentSpec{SandboxRef: agentzv1alpha1.ResourceReference{
-			Scope: agentzv1alpha1.ResourceScopeWorkspace,
-			Name:  sandboxName,
-		}},
+		Spec: agentzv1alpha1.AgentSpec{
+			SandboxRef: agentzv1alpha1.ResourceReference{
+				Scope: agentzv1alpha1.ResourceScopeWorkspace,
+				Name:  sandboxName,
+			},
+		},
 	}
 	k8sClient := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithObjects(
-			&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
-				Name: namespace,
-				Labels: map[string]string{
-					agentzv1alpha1.WorkspaceNameLabel: namespace,
+			&corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: namespace,
+					Labels: map[string]string{
+						agentzv1alpha1.WorkspaceNameLabel: namespace,
+					},
 				},
-			}},
+			},
 			sandbox,
 			agt,
 		).
@@ -232,13 +236,15 @@ func TestReconcileInferenceGatewayExtAuthEgress(t *testing.T) {
 			}
 
 			objects := []client.Object{
-				&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
-					Name: workspaceNamespace,
-					Labels: map[string]string{
-						agentzv1alpha1.WorkspaceNameLabel:        workspaceNamespace,
-						agentzv1alpha1.TenantOrganizationIDLabel: organizationNamespace,
+				&corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: workspaceNamespace,
+						Labels: map[string]string{
+							agentzv1alpha1.WorkspaceNameLabel:        workspaceNamespace,
+							agentzv1alpha1.TenantOrganizationIDLabel: organizationNamespace,
+						},
 					},
-				}},
+				},
 				&agentzv1alpha1.Workspace{
 					ObjectMeta: metav1.ObjectMeta{Name: workspaceNamespace},
 					Spec: agentzv1alpha1.WorkspaceSpec{
@@ -357,27 +363,33 @@ func TestReconcileDeletionFindsOrganisationSandboxAgentAcrossWorkspaces(t *testi
 	}
 
 	now := metav1.Now()
-	sandbox := &agentzv1alpha1.Sandbox{ObjectMeta: metav1.ObjectMeta{
-		Name:              sandboxName,
-		Namespace:         organizationNamespace,
-		DeletionTimestamp: &now,
-		Finalizers:        []string{mcp.SandboxFinalizer},
-	}}
+	sandbox := &agentzv1alpha1.Sandbox{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              sandboxName,
+			Namespace:         organizationNamespace,
+			DeletionTimestamp: &now,
+			Finalizers:        []string{mcp.SandboxFinalizer},
+		},
+	}
 	objects := []client.Object{
 		sandbox,
-		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
-			Name: organizationNamespace,
-			Labels: map[string]string{
-				agentzv1alpha1.TenantNameLabel: organizationNamespace,
+		&corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: organizationNamespace,
+				Labels: map[string]string{
+					agentzv1alpha1.TenantNameLabel: organizationNamespace,
+				},
 			},
-		}},
-		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
-			Name: workspaceNamespace,
-			Labels: map[string]string{
-				agentzv1alpha1.WorkspaceNameLabel:        workspaceNamespace,
-				agentzv1alpha1.TenantOrganizationIDLabel: organizationNamespace,
+		},
+		&corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: workspaceNamespace,
+				Labels: map[string]string{
+					agentzv1alpha1.WorkspaceNameLabel:        workspaceNamespace,
+					agentzv1alpha1.TenantOrganizationIDLabel: organizationNamespace,
+				},
 			},
-		}},
+		},
 		&agentzv1alpha1.Workspace{
 			ObjectMeta: metav1.ObjectMeta{Name: workspaceNamespace},
 			Spec: agentzv1alpha1.WorkspaceSpec{
@@ -390,17 +402,21 @@ func TestReconcileDeletionFindsOrganisationSandboxAgentAcrossWorkspaces(t *testi
 		},
 		&agentzv1alpha1.Agent{
 			ObjectMeta: metav1.ObjectMeta{Name: "organisation-agent", Namespace: workspaceNamespace},
-			Spec: agentzv1alpha1.AgentSpec{SandboxRef: agentzv1alpha1.ResourceReference{
-				Scope: agentzv1alpha1.ResourceScopeOrganisation,
-				Name:  sandboxName,
-			}},
+			Spec: agentzv1alpha1.AgentSpec{
+				SandboxRef: agentzv1alpha1.ResourceReference{
+					Scope: agentzv1alpha1.ResourceScopeOrganisation,
+					Name:  sandboxName,
+				},
+			},
 		},
 		&agentzv1alpha1.Agent{
 			ObjectMeta: metav1.ObjectMeta{Name: "workspace-agent", Namespace: workspaceNamespace},
-			Spec: agentzv1alpha1.AgentSpec{SandboxRef: agentzv1alpha1.ResourceReference{
-				Scope: agentzv1alpha1.ResourceScopeWorkspace,
-				Name:  sandboxName,
-			}},
+			Spec: agentzv1alpha1.AgentSpec{
+				SandboxRef: agentzv1alpha1.ResourceReference{
+					Scope: agentzv1alpha1.ResourceScopeWorkspace,
+					Name:  sandboxName,
+				},
+			},
 		},
 	}
 	k8sClient := fake.NewClientBuilder().

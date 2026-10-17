@@ -184,8 +184,11 @@ func newResolver(ctx context.Context, targetOverride string) (*resolver, error) 
 		return nil, fmt.Errorf("register mcp connection informer handler: %w", err)
 	}
 	go func() {
-		<-ctx.Done()
-		r.Close()
+		select {
+		case <-ctx.Done():
+			r.Close()
+		case <-r.stopCh:
+		}
 	}()
 
 	factory.Start(r.stopCh)

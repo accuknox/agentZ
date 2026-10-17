@@ -3,7 +3,6 @@ package observer
 import (
 	"context"
 	"strings"
-	"sync"
 	"time"
 
 	flowpb "github.com/cilium/cilium/api/v1/flow"
@@ -37,7 +36,6 @@ type dnsCacheEntry struct {
 }
 
 type dnsCache struct {
-	mu    sync.Mutex
 	items map[dnsCacheKey]dnsCacheEntry
 }
 
@@ -54,8 +52,6 @@ func (c *dnsCache) put(agentName, podName, ip, domain string, now time.Time, ttl
 		d = time.Hour
 	}
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	key := dnsCacheKey{agentName: agentName, podName: podName, ip: ip}
 	c.items[key] = dnsCacheEntry{
 		domain:   domain,
@@ -69,8 +65,6 @@ func (c *dnsCache) get(agentName, podName, ip string, now time.Time) string {
 	}
 
 	key := dnsCacheKey{agentName: agentName, podName: podName, ip: ip}
-	c.mu.Lock()
-	defer c.mu.Unlock()
 
 	item, ok := c.items[key]
 	if !ok {
@@ -116,11 +110,18 @@ func hubbleFlowEvent(ctx context.Context, item *flowpb.Flow, r *resolver, cache 
 	}
 
 	dstIP := strings.TrimSpace(item.GetIP().GetDestination())
-	domain := destinationDomain(
-		cache.get(src.agentName, src.podName, dstIP, ts),
-		item.GetDestinationNames(),
-		r.resolveDestinationDomain(ctx, dstIP),
-	)
+	domain := strings.TrimSuffix(strings.TrimSpace(cache.get(src.agentName, src.podName, dstIP, ts)), ".")
+	if domain == "" {
+		for _, name := range item.GetDestinationNames() {
+			domain = strings.TrimSuffix(strings.TrimSpace(name), ".")
+			if domain != "" {
+				break
+			}
+		}
+	}
+	if domain == "" && dstIP != "" {
+		domain = r.resolveServiceDomain(ctx, dstIP)
+	}
 
 	return event{network: &networkEvent{
 		tenantNamespace:   src.namespace,
@@ -220,18 +221,4 @@ func networkProtocol(l4 *flowpb.Layer4) (string, int64) {
 	default:
 		return "", 0
 	}
-}
-
-func destinationDomain(cacheDomain string, names []string, fallback string) string {
-	cacheDomain = strings.TrimSuffix(strings.TrimSpace(cacheDomain), ".")
-	if cacheDomain != "" {
-		return cacheDomain
-	}
-	for _, item := range names {
-		item = strings.TrimSuffix(strings.TrimSpace(item), ".")
-		if item != "" {
-			return item
-		}
-	}
-	return strings.TrimSuffix(strings.TrimSpace(fallback), ".")
 }

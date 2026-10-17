@@ -8,18 +8,21 @@ import { LanguageDescription, syntaxHighlighting } from "@codemirror/language"
 import { languages } from "@codemirror/language-data"
 import { oneDarkHighlightStyle } from "@codemirror/theme-one-dark"
 import { minimalSetup } from "codemirror"
+import { searchKeymap } from "@codemirror/search"
 import { useTheme } from "next-themes"
 
 type CodeEditorProps = {
   filename: string
-  onChange: (value: string) => void
-  onSave: () => void
-  readOnly?: boolean
   value: string
-}
+  lineWrapping?: boolean
+} & (
+  | { readOnly: true; onChange?: (value: string) => void; onSave?: () => void }
+  | { readOnly?: false; onChange: (value: string) => void; onSave: () => void }
+)
 
 export function CodeEditor({
   filename,
+  lineWrapping = true,
   onChange,
   onSave,
   readOnly,
@@ -53,21 +56,23 @@ export function CodeEditor({
         doc: initialValueRef.current,
         extensions: [
           minimalSetup,
+          EditorView.contentAttributes.of({ tabindex: "0", "aria-label": filename }),
           EditorState.readOnly.of(readOnly ?? false),
           EditorView.editable.of(readOnly !== true),
           language.of([]),
           keymap.of([
+            ...(readOnly ? searchKeymap : []),
             indentWithTab,
             {
               key: "Mod-s",
               preventDefault: true,
               run: () => {
-                onSaveRef.current()
+                onSaveRef.current?.()
                 return true
               },
             },
           ]),
-          EditorView.lineWrapping,
+          ...(lineWrapping ? [EditorView.lineWrapping] : []),
           ...(dark ? [syntaxHighlighting(oneDarkHighlightStyle)] : []),
           EditorView.theme(
             {
@@ -115,7 +120,7 @@ export function CodeEditor({
           ),
           EditorView.updateListener.of((update) => {
             if (update.docChanged && !applyingValueRef.current) {
-              onChangeRef.current(update.state.doc.toString())
+              onChangeRef.current?.(update.state.doc.toString())
             }
           }),
         ],
@@ -139,7 +144,7 @@ export function CodeEditor({
       view.destroy()
       viewRef.current = null
     }
-  }, [filename, readOnly, resolvedTheme])
+  }, [filename, lineWrapping, readOnly, resolvedTheme])
 
   React.useEffect(() => {
     const view = viewRef.current

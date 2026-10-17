@@ -322,7 +322,9 @@ func (r *Reconciler) reconcileRunning(ctx context.Context, run *agentzv1alpha1.W
 	if message == "" {
 		// on a fresh agent pod, OpenCode may briefly show no terminal message
 		// while the first async prompt is still starting up.
-		if run.Status.StartedAt != nil && time.Since(run.Status.StartedAt.Time) < sessionStartupGrace {
+		starting := run.Status.StartedAt != nil &&
+			time.Since(run.Status.StartedAt.Time) < sessionStartupGrace
+		if starting {
 			return ctrl.Result{RequeueAfter: runRequeueInterval}, nil
 		}
 		message = "workflow session completed without terminal status update"
@@ -459,7 +461,9 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 		if err := r.Get(ctx, client.ObjectKeyFromObject(run), current); err != nil {
 			return err
 		}
-		if !current.DeletionTimestamp.IsZero() || current.Status.Phase != agentzv1alpha1.WorkflowRunPhasePending {
+		pending := current.DeletionTimestamp.IsZero() &&
+			current.Status.Phase == agentzv1alpha1.WorkflowRunPhasePending
+		if !pending {
 			return errors.New("workflow run is no longer pending")
 		}
 		patch := client.MergeFromWithOptions(current.DeepCopy(), client.MergeFromWithOptimisticLock{})

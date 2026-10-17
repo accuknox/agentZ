@@ -147,8 +147,8 @@ func (s *Service) GetDelegationCatalog(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 	catalog, err := s.delegationCatalog(
-		r.Context(), auth.claims.UserID, auth.claims.OrganizationID,
-		auth.claims.WorkspaceID, params.IncludeUnavailable != nil && *params.IncludeUnavailable,
+		r.Context(), auth.claims.UserID, auth.claims.OrganizationID, auth.claims.WorkspaceID,
+		params.IncludeUnavailable != nil && *params.IncludeUnavailable,
 	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
@@ -239,7 +239,10 @@ func (s *Service) delegationCatalog(ctx context.Context, userID, organizationID,
 			probe := meta.FindStatusCondition(connection.Status.Conditions, mcp.ConditionProbeHealthy)
 			currentCatalog := probe != nil && probe.ObservedGeneration == connection.Generation
 			unavailable := !includeUnavailable && (!connection.Status.ToolCatalogReady || !currentCatalog)
-			if !connection.DeletionTimestamp.IsZero() || connection.Spec.Endpoint.InsecureSkipVerify || unavailable {
+			unusableConnection := !connection.DeletionTimestamp.IsZero() ||
+				connection.Spec.Endpoint.InsecureSkipVerify ||
+				unavailable
+			if unusableConnection {
 				continue
 			}
 			target, err := mcp.ParseTarget(&connection)
@@ -740,7 +743,7 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		name := fmt.Sprintf("d-%s-model-%d", grant.ID, index)
-		err = s.delegationReady(r.Context(), grant, selected.Namespace, inference.GatewayName, name)
+		err = s.delegationReady(r.Context(), grant, selected.Namespace, inference.GatewayName, name, name+"-telemetry")
 		if err != nil {
 			s.delegationError(
 				w,
@@ -840,7 +843,7 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 		}
 		for index, selected := range selection.Mcp {
 			name := fmt.Sprintf("d-%s-mcp-%d", grant.ID, index)
-			err := s.delegationReady(r.Context(), grant, selected.Namespace, mcp.GatewayName, name, name+"-auth")
+			err := s.delegationReady(r.Context(), grant, selected.Namespace, mcp.GatewayName, name, name+"-auth", name+"-telemetry")
 			if err != nil {
 				s.delegationError(
 					w,
@@ -864,8 +867,8 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 			return
 		}
 	}
-	err = controller.SetReadDeadline(time.Time{})
-	if err != nil && !errors.Is(err, http.ErrNotSupported) {
+	readErr := controller.SetReadDeadline(time.Time{})
+	if readErr != nil && !errors.Is(readErr, http.ErrNotSupported) {
 		s.delegationError(
 			w,
 			r,

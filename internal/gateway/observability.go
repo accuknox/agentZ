@@ -55,9 +55,12 @@ func (s *Service) authorizeObservability(w http.ResponseWriter, r *http.Request,
 	if workspace.Type != gatewaydb.WorkspaceTypeCoding {
 		return access.namespace, true
 	}
-	_, err = s.resolveCodingSession(
-		r.Context(), access, agentName, strings.TrimSpace(*sessionID),
-	)
+	session := strings.TrimSpace(*sessionID)
+	if session == "" {
+		apiutil.WriteError(w, r, resourceForbidden(errors.New("a coding conversation is required for observability")))
+		return "", false
+	}
+	_, err = s.resolveCodingSession(r.Context(), access, agentName, session)
 	if err != nil {
 		apiutil.WriteError(w, r, mapGatewayStoreError("get conversation", err))
 		return "", false
@@ -360,10 +363,7 @@ func (s *Service) GetSpanDetail(w http.ResponseWriter, r *http.Request, agentNam
 		return
 	}
 
-	span, ok := spanDetailFromRow(w, r, row)
-	if !ok {
-		return
-	}
+	span := spanDetailFromRow(row)
 
 	apiutil.WriteJSON(
 		w,
@@ -381,7 +381,11 @@ func (s *Service) GetMCPGraph(w http.ResponseWriter, r *http.Request, agentName 
 	if !ok {
 		return
 	}
-	ns, ok := s.authorizeObservability(w, r, agentName, nil)
+	sessionID := ""
+	if params.SessionId != nil {
+		sessionID = *params.SessionId
+	}
+	ns, ok := s.authorizeObservability(w, r, agentName, &sessionID)
 	if !ok {
 		return
 	}
@@ -431,6 +435,7 @@ func (s *Service) GetMCPGraph(w http.ResponseWriter, r *http.Request, agentName 
 		gatewaydb.GatewayGetMCPGraphParams{
 			TenantNamespace: ns,
 			AgentName:       agentName,
+			SessionID:       sessionID,
 			StartTimeAfter:  startTime,
 			StartTimeBefore: endTime,
 		},
@@ -498,10 +503,7 @@ func (s *Service) GetMCPGraph(w http.ResponseWriter, r *http.Request, agentName 
 			SuccessCount: &row.SuccessCount,
 			FailedCount:  &row.FailedCount,
 		}
-		if row.LastCalledAt.Valid {
-			lastCalledAt := row.LastCalledAt.Time.UTC()
-			edge.LastCalledAt = &lastCalledAt
-		}
+		edge.LastCalledAt = &row.LastCalledAt
 		edges = append(edges, edge)
 	}
 
@@ -590,7 +592,7 @@ func (s *Service) ListProcessObservability(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	items, next := eventPage(rows, req.limit, processEvent, func(row gatewaydb.GatewayListProcessEventsRow) eventPageCursor {
+	items, next := cursorPage(rows, req.limit, processEvent, func(row gatewaydb.GatewayListProcessEventsRow) eventPageCursor {
 		return eventPageCursor{EventTime: row.EventTime, ID: row.ID}
 	})
 	apiutil.WriteJSON(
@@ -644,7 +646,7 @@ func (s *Service) ListProcessObservabilitySummary(w http.ResponseWriter, r *http
 		return
 	}
 
-	items, next := eventPage(
+	items, next := cursorPage(
 		rows,
 		req.limit,
 		processAggregatedEvent,
@@ -705,7 +707,7 @@ func (s *Service) ListFileObservability(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	items, next := eventPage(rows, req.limit, fileEvent, func(row gatewaydb.GatewayListFileEventsRow) eventPageCursor {
+	items, next := cursorPage(rows, req.limit, fileEvent, func(row gatewaydb.GatewayListFileEventsRow) eventPageCursor {
 		return eventPageCursor{EventTime: row.EventTime, ID: row.ID}
 	})
 	apiutil.WriteJSON(
@@ -759,7 +761,7 @@ func (s *Service) ListFileObservabilitySummary(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	items, next := eventPage(
+	items, next := cursorPage(
 		rows,
 		req.limit,
 		fileAggregatedEvent,
@@ -820,7 +822,7 @@ func (s *Service) ListNetworkObservability(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	items, next := eventPage(rows, req.limit, networkEvent, func(row gatewaydb.GatewayListNetworkEventsRow) eventPageCursor {
+	items, next := cursorPage(rows, req.limit, networkEvent, func(row gatewaydb.GatewayListNetworkEventsRow) eventPageCursor {
 		return eventPageCursor{EventTime: row.EventTime, ID: row.ID}
 	})
 	apiutil.WriteJSON(
@@ -874,7 +876,7 @@ func (s *Service) ListNetworkObservabilitySummary(w http.ResponseWriter, r *http
 		return
 	}
 
-	items, next := eventPage(
+	items, next := cursorPage(
 		rows,
 		req.limit,
 		networkAggregatedEvent,
@@ -923,46 +925,35 @@ func spanFromListRow(row gatewaydb.GatewayListSpansRow) gatewayapi.Span {
 	}
 }
 
-func spanDetailFromRow(w http.ResponseWriter, r *http.Request, row gatewaydb.GatewayGetSpanDetailRow) (gatewayapi.SpanDetail, bool) {
-	resourceAttrs, ok := jsonValue(w, r, row.ResourceAttributes)
-	if !ok {
-		return gatewayapi.SpanDetail{}, false
-	}
-	spanAttrs, ok := jsonValue(w, r, row.SpanAttributes)
-	if !ok {
-		return gatewayapi.SpanDetail{}, false
-	}
-
+func spanDetailFromRow(row gatewaydb.GatewayGetSpanDetailRow) gatewayapi.SpanDetail {
 	return gatewayapi.SpanDetail{
-		AgentName:          row.AgentName,
-		CachedInputTokens:  row.CachedInputTokens,
-		CachedWriteTokens:  row.CachedWriteTokens,
-		CostUsd:            row.CostUsd,
-		DurationMs:         float64(row.DurationNs) / float64(time.Millisecond),
-		DurationNs:         row.DurationNs,
-		EndTime:            row.EndTime,
-		ErrorMessage:       row.ErrorMessage,
-		ErrorType:          row.ErrorType,
-		Id:                 row.ID,
-		IngestedAt:         row.IngestedAt,
-		InputTokens:        row.InputTokens,
-		Kind:               row.Kind,
-		LlmFinishReason:    row.LlmFinishReason,
-		Model:              row.Model,
-		Name:               row.Name,
-		OperationName:      row.OperationName,
-		OutputTokens:       row.OutputTokens,
-		ParentSpanId:       hex.EncodeToString(row.ParentSpanID),
-		ResourceAttributes: &resourceAttrs,
-		SessionId:          row.SessionID,
-		SpanAttributes:     &spanAttrs,
-		SpanClass:          row.SpanClass,
-		SpanId:             hex.EncodeToString(row.SpanID),
-		StartTime:          row.StartTime,
-		StatusCode:         row.StatusCode,
-		ToolName:           row.ToolName,
-		TraceId:            hex.EncodeToString(row.TraceID),
-	}, true
+		AgentName:         row.AgentName,
+		CachedInputTokens: row.CachedInputTokens,
+		CachedWriteTokens: row.CachedWriteTokens,
+		CostUsd:           row.CostUsd,
+		DurationMs:        float64(row.DurationNs) / float64(time.Millisecond),
+		DurationNs:        row.DurationNs,
+		EndTime:           row.EndTime,
+		ErrorMessage:      row.ErrorMessage,
+		ErrorType:         row.ErrorType,
+		Id:                row.ID,
+		IngestedAt:        row.IngestedAt,
+		InputTokens:       row.InputTokens,
+		Kind:              row.Kind,
+		LlmFinishReason:   row.LlmFinishReason,
+		Model:             row.Model,
+		Name:              row.Name,
+		OperationName:     row.OperationName,
+		OutputTokens:      row.OutputTokens,
+		ParentSpanId:      hex.EncodeToString(row.ParentSpanID),
+		SessionId:         row.SessionID,
+		SpanClass:         row.SpanClass,
+		SpanId:            hex.EncodeToString(row.SpanID),
+		StartTime:         row.StartTime,
+		StatusCode:        row.StatusCode,
+		ToolName:          row.ToolName,
+		TraceId:           hex.EncodeToString(row.TraceID),
+	}
 }
 
 func spanPayload(w http.ResponseWriter, r *http.Request, row gatewaydb.GatewayGetSpanDetailRow) (gatewayapi.SpanPayload, bool) {
@@ -995,25 +986,15 @@ func jsonValue(w http.ResponseWriter, r *http.Request, raw []byte) (gatewayapi.J
 		raw = []byte("null")
 	}
 	var out gatewayapi.JSONValue
-	if !jsonBytes(w, r, raw, &out) {
+	if err := json.Unmarshal(raw, &out); err != nil {
+		apiutil.WriteInternalError(w, r, err)
 		return gatewayapi.JSONValue{}, false
 	}
 	return out, true
 }
 
-func jsonBytes(w http.ResponseWriter, r *http.Request, raw []byte, out any) bool {
-	if len(raw) == 0 {
-		raw = []byte("[]")
-	}
-	if err := json.Unmarshal(raw, out); err != nil {
-		apiutil.WriteInternalError(w, r, err)
-		return false
-	}
-	return true
-}
-
-func eventPage[T any, E any, C any](rows []T, limit int, convert func(T) E, cursor func(T) C) ([]E, string) {
-	items := make([]E, 0, limit)
+func cursorPage[T any, E any, C any](rows []T, limit int, convert func(T) E, cursor func(T) C) ([]E, string) {
+	items := make([]E, 0, min(len(rows), limit))
 	var next string
 	for i, row := range rows {
 		if i == limit {

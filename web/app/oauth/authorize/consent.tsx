@@ -76,9 +76,6 @@ export function Consent({
   workspaces,
   initialWorkspace,
 }: ConsentProps) {
-  const [inferenceAPI, setInferenceAPI] = useState(
-    client.agent === "claude" || request.type === "device_code" ? "Messages" : "Responses"
-  )
   const inference = scopes.includes("inference:use")
   const mcp = scopes.includes("mcp:use")
   const resourceAccess = inference || mcp
@@ -190,7 +187,7 @@ export function Consent({
           </AlertDescription>
         </Alert>
       ) : null}
-      <div className="rounded-xl border-2 border-dashed border-border/70 bg-card/40 p-5 text-sm">
+      <div className="rounded-xl border-2 border-dashed border-muted-foreground/50 bg-card/40 p-5 text-sm">
         <UserIdentity name={user.name} email={user.email} image={user.image} size="default" />
       </div>
       {requestedIdentityScopes.length ? (
@@ -226,41 +223,6 @@ export function Consent({
             <Layers3 aria-hidden="true" className="size-4 text-primary" />
             Choose resource access
           </h2>
-          {inference && !client.agent ? (
-            <Field>
-              <FieldLabel htmlFor="consent-inference-api">Inference API</FieldLabel>
-              <Select
-                value={inferenceAPI}
-                onValueChange={(value) => {
-                  setInferenceAPI(value)
-                  setSelection((current) => ({
-                    ...current,
-                    models: current.models.filter((model) =>
-                      model.api_compatibility?.some(
-                        (item) => item.api === value && item.support !== "unsupported"
-                      )
-                    ),
-                  }))
-                }}
-                disabled={pending || loading}
-              >
-                <SelectTrigger id="consent-inference-api" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="Messages">Messages, used by Claude</SelectItem>
-                    <SelectItem value="Responses">Responses, used by Codex</SelectItem>
-                    <SelectItem value="ChatCompletions">Chat Completions</SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              <FieldDescription>
-                Choose your client&apos;s API to see conversion warnings. Unsupported models cannot
-                be selected for this API.
-              </FieldDescription>
-            </Field>
-          ) : null}
           {organizations.length === 0 ? (
             <Alert>
               <AlertDescription>
@@ -381,7 +343,7 @@ export function Consent({
                           disabled={pending || loading || !catalog.models.length}
                           className={
                             !catalog.models.length
-                              ? "border-2 border-dashed border-border/70"
+                              ? "border-2 border-dashed border-muted-foreground/50"
                               : undefined
                           }
                           placeholder={
@@ -390,25 +352,26 @@ export function Consent({
                           searchPlaceholder="Search models or providers…"
                           emptyMessage="No matching models."
                           options={catalog.models.map((model) => {
-                            const compatibility = model.api_compatibility?.find(
-                              (item) => item.api === inferenceAPI
-                            )
+                            const api = client.agent === "claude" ? "Messages" : "Responses"
+                            const compatibility = client.agent
+                              ? model.api_compatibility?.find((item) => item.api === api)
+                              : undefined
                             const codexUnsupported =
                               client.agent === "codex" &&
                               (compatibility?.support !== "native" ||
                                 !model.model_info?.capabilities.tool_call)
+                            const unsupported =
+                              compatibility?.support === "unsupported" || codexUnsupported
                             let badge = model.provider_display_name || model.provider
                             if (compatibility?.support === "native") badge = "Native"
-                            if (compatibility?.support === "unsupported") badge = "Unsupported"
                             if (compatibility?.support === "translated") badge = "Supported"
-                            if (codexUnsupported) badge = "Unsupported"
+                            if (unsupported) badge = "Unsupported"
                             return {
                               value: model.id,
                               label: model.model_display_name || model.model,
                               description: `${model.provider_display_name || model.provider} / ${model.model}`,
                               badge,
-                              disabled:
-                                compatibility?.support === "unsupported" || codexUnsupported,
+                              disabled: unsupported,
                               icon: Cpu,
                             }
                           })}
@@ -433,7 +396,7 @@ export function Consent({
                         <Select disabled>
                           <SelectTrigger
                             id={`mcp-empty-${id}`}
-                            className="w-full border-2 border-dashed border-border/70"
+                            className="w-full border-2 border-dashed border-muted-foreground/50"
                           >
                             <SelectValue placeholder="No MCP connections available" />
                           </SelectTrigger>

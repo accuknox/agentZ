@@ -185,6 +185,8 @@ var baseOperationCapabilities = map[string][]string{
 		"watchMCPConnections",
 	},
 	"observability.read": {
+		"listLensApps", "listAppSessions", "listAppTraces", "getAppTraceChart",
+		"listAppSpans", "getAppOperation", "getAppMCPGraph",
 		"getEventTrailEvent",
 		"getMCPGraph",
 		"getSpanDetail",

@@ -4,6 +4,132 @@ export type ClientOptions = {
   baseUrl: `${string}://${string}` | (string & {})
 }
 
+export type LensApp = {
+  client_id: string
+  name: string
+  user?: ResourceActor
+  agent_kind?: "claude" | "codex"
+}
+
+export type ListLensAppsResponse = {
+  apps: Array<LensApp>
+}
+
+export type AppSession = {
+  session_id: string
+  last_seen: string
+}
+
+export type ListAppSessionsResponse = {
+  sessions: Array<AppSession>
+  next_page_token: string
+  has_next_page: boolean
+}
+
+export type AppTrace = {
+  trace_id: TraceId
+  root_span_id: OptionalSpanId
+  started_at: string
+  ended_at: string
+  duration_ns: number
+  duration_ms: number
+  span_count: number
+  error_count: number
+  tool_count: number
+  model_count: number
+  input_tokens: number | null
+  output_tokens: number | null
+  cached_input_tokens: number | null
+  cached_write_tokens: number | null
+  cost_usd: number | null
+  status_code: string
+  updated_at: string
+}
+
+export type AppSpan = {
+  id: number
+  session_id: string
+  trace_id: TraceId
+  span_id: SpanId
+  parent_span_id: OptionalSpanId
+  start_time: string
+  end_time: string
+  duration_ns: number | null
+  duration_ms: number | null
+  name: string
+  span_class: string
+  operation_name: string
+  kind: string
+  status_code: string
+  error_type: string
+  error_message: string
+  model: string
+  tool_name: string
+  input_tokens: number | null
+  output_tokens: number | null
+  cached_input_tokens: number | null
+  cached_write_tokens: number | null
+  cost_usd: number | null
+  ingested_at: string
+  grant_id: string
+  user_id: string
+  resource_namespace: string
+  resource_name: string
+  resource_uid: string
+  resource_kind: string
+  target_id: string
+  reasoning_tokens: number | null
+}
+
+export type ListAppTracesResponse = {
+  traces: Array<AppTrace>
+  next_page_token: string
+}
+
+export type ListAppSpansResponse = {
+  spans: Array<AppSpan>
+  next_page_token: string
+  /**
+   * Conversation content in page order when include_recording is true; otherwise empty. Model input histories are omitted except for the first model request on the initial page.
+   */
+  recording: Array<AppOperationResponse>
+}
+
+/**
+ * Serialized JSON documents preserve numeric precision when displayed by browser clients.
+ */
+export type AppPayload = {
+  input_messages: string
+  output_messages: string
+  tool_arguments: string
+  tool_result: string
+}
+
+/**
+ * Content fields contain serialized JSON, including the JSON literal null for absent values.
+ */
+export type AppOperationResponse = {
+  span: AppSpan
+  payload: AppPayload
+  tool_error: string
+}
+
+export type AppTraceChartPoint = {
+  time: string
+  count: number
+}
+
+export type AppTraceChartResponse = {
+  points: Array<AppTraceChartPoint>
+}
+
+export type AppMcpGraphResponse = {
+  connections: Array<McpGraphConnection>
+  tools: Array<McpGraphTool>
+  edges: Array<McpGraphEdge>
+  app: LensApp
+}
+
 export type DelegationApiCompatibility = {
   api: InferenceModelApi
   support: "native" | "translated" | "unsupported"
@@ -1230,10 +1356,7 @@ export type Span = {
   ingested_at: string
 }
 
-export type SpanDetail = Span & {
-  resource_attributes: JsonValue
-  span_attributes: JsonValue
-}
+export type SpanDetail = Span
 
 export type SpanPayload = {
   input_messages: JsonValue
@@ -1268,7 +1391,7 @@ export type McpGraphTool = {
 export type McpGraphEdge = {
   source: string
   target: string
-  kind: "agent_connection" | "connection_tool"
+  kind: "agent_connection" | "app_connection" | "connection_tool"
   avg_latency_ms?: number
   success_count?: number
   failed_count?: number
@@ -1276,7 +1399,7 @@ export type McpGraphEdge = {
 }
 
 export type SpanDetailResponse = {
-  span: SpanDetail
+  span: Span
   payload: SpanPayload
 }
 
@@ -3543,6 +3666,359 @@ export type DashboardWidgetNamePath = DashboardWidgetName
  * Stable publish call identifier.
  */
 export type IdempotencyKeyHeader = string
+
+export type ListLensAppsData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/lens/apps"
+}
+
+export type ListLensAppsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListLensAppsError = ListLensAppsErrors[keyof ListLensAppsErrors]
+
+export type ListLensAppsResponses = {
+  /**
+   * Workspace-scoped app telemetry.
+   */
+  200: ListLensAppsResponse
+}
+
+export type ListLensAppsResponse2 = ListLensAppsResponses[keyof ListLensAppsResponses]
+
+export type ListAppSessionsData = {
+  body?: never
+  path: {
+    clientID: string
+  }
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+    /**
+     * Optional root session ID.
+     */
+    session_id?: string
+  }
+  url: "/api/lens/apps/{clientID}/sessions"
+}
+
+export type ListAppSessionsErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListAppSessionsError = ListAppSessionsErrors[keyof ListAppSessionsErrors]
+
+export type ListAppSessionsResponses = {
+  /**
+   * Observed sessions, ordered by last activity and native session ID.
+   */
+  200: ListAppSessionsResponse
+}
+
+export type ListAppSessionsResponse2 = ListAppSessionsResponses[keyof ListAppSessionsResponses]
+
+export type ListAppTracesData = {
+  body?: never
+  path: {
+    clientID: string
+  }
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+    /**
+     * Inclusive lower bound for trace start time.
+     */
+    started_after?: string
+    /**
+     * Inclusive upper bound for trace start time.
+     */
+    started_before?: string
+    /**
+     * Optional root session ID.
+     */
+    session_id?: string
+  }
+  url: "/api/lens/apps/{clientID}/traces"
+}
+
+export type ListAppTracesErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListAppTracesError = ListAppTracesErrors[keyof ListAppTracesErrors]
+
+export type ListAppTracesResponses = {
+  /**
+   * Workspace-scoped app telemetry.
+   */
+  200: ListAppTracesResponse
+}
+
+export type ListAppTracesResponse2 = ListAppTracesResponses[keyof ListAppTracesResponses]
+
+export type GetAppTraceChartData = {
+  body?: never
+  path: {
+    clientID: string
+  }
+  query?: {
+    /**
+     * Inclusive lower bound for trace start time.
+     */
+    started_after?: string
+    /**
+     * Inclusive upper bound for trace start time.
+     */
+    started_before?: string
+    /**
+     * Optional root session ID.
+     */
+    session_id?: string
+  }
+  url: "/api/lens/apps/{clientID}/traces/chart"
+}
+
+export type GetAppTraceChartErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetAppTraceChartError = GetAppTraceChartErrors[keyof GetAppTraceChartErrors]
+
+export type GetAppTraceChartResponses = {
+  /**
+   * Workspace-scoped app telemetry.
+   */
+  200: AppTraceChartResponse
+}
+
+export type GetAppTraceChartResponse = GetAppTraceChartResponses[keyof GetAppTraceChartResponses]
+
+export type ListAppSpansData = {
+  body?: never
+  path: {
+    clientID: string
+    traceID: TraceId
+  }
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+    /**
+     * Include conversation content in page order, with only the initial page's first model request and model completion text. Full payloads remain available from the operation endpoint.
+     */
+    include_recording?: boolean
+  }
+  url: "/api/lens/apps/{clientID}/traces/{traceID}/spans"
+}
+
+export type ListAppSpansErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListAppSpansError = ListAppSpansErrors[keyof ListAppSpansErrors]
+
+export type ListAppSpansResponses = {
+  /**
+   * Workspace-scoped app telemetry.
+   */
+  200: ListAppSpansResponse
+}
+
+export type ListAppSpansResponse2 = ListAppSpansResponses[keyof ListAppSpansResponses]
+
+export type GetAppOperationData = {
+  body?: never
+  path: {
+    clientID: string
+    operationID: number
+  }
+  query?: never
+  url: "/api/lens/apps/{clientID}/operations/{operationID}"
+}
+
+export type GetAppOperationErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetAppOperationError = GetAppOperationErrors[keyof GetAppOperationErrors]
+
+export type GetAppOperationResponses = {
+  /**
+   * Workspace-scoped app telemetry.
+   */
+  200: AppOperationResponse
+}
+
+export type GetAppOperationResponse = GetAppOperationResponses[keyof GetAppOperationResponses]
+
+export type GetAppMcpGraphData = {
+  body?: never
+  path: {
+    clientID: string
+  }
+  query: {
+    /**
+     * Inclusive lower bound for MCP tool activity date.
+     */
+    from: string
+    /**
+     * Inclusive upper bound for MCP tool activity date.
+     */
+    to: string
+    /**
+     * Optional root session ID.
+     */
+    session_id?: string
+  }
+  url: "/api/lens/apps/{clientID}/mcp/graph"
+}
+
+export type GetAppMcpGraphErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetAppMcpGraphError = GetAppMcpGraphErrors[keyof GetAppMcpGraphErrors]
+
+export type GetAppMcpGraphResponses = {
+  /**
+   * Workspace-scoped app telemetry.
+   */
+  200: AppMcpGraphResponse
+}
+
+export type GetAppMcpGraphResponse = GetAppMcpGraphResponses[keyof GetAppMcpGraphResponses]
 
 export type WatchExternalAgentsData = {
   body?: never
@@ -7709,6 +8185,10 @@ export type GetMcpGraphData = {
      * Inclusive upper bound for MCP tool activity date.
      */
     to: string
+    /**
+     * Optional root session ID.
+     */
+    session_id?: string
   }
   url: "/api/lens/{agentName}/mcp/graph"
 }

@@ -1,11 +1,16 @@
 import type {
+  LensApp,
   Agent,
   Sandbox,
   Error,
   McpGraphResponse,
+  AppMcpGraphResponse,
   SecretWarning,
   WorkflowArbitraryJson,
   WorkflowInputs,
+  ProcessObservabilityEvent,
+  FileObservabilityEvent,
+  NetworkObservabilityEvent,
 } from "@/lib/gateway/client"
 
 export type WorkspacePath = `/orgs/${string}/workspaces/${string}`
@@ -24,16 +29,23 @@ export type ListAgentActionResponse<TAgent = Agent> =
       error: Error
     }
 
-export type AgentSessionListItem = {
-  id: string
-  title: string
-  updatedAt: number
-  parentID?: string
-}
+export type LensSubject =
+  | { kind: "agent"; name: string; sessionId?: string }
+  | { kind: "app"; clientID: string; name: string }
+  | {
+      kind: "external-agent"
+      clientID: string
+      name: string
+      providerKind: NonNullable<LensApp["agent_kind"]>
+      sessionId?: string
+    }
+
+export type TraceSubject =
+  | { kind: "agent"; name: string; sessionId: string }
+  | Extract<LensSubject, { kind: "app" | "external-agent" }>
 
 export type TraceListItem = {
-  agentName: string
-  sessionId: string
+  subject: TraceSubject
   traceId: string
   startedAt: string
   endedAt: string
@@ -49,9 +61,9 @@ export type TraceListItem = {
   errorCount: number
   toolCount: number
   modelCount: number
-  inputTokens: number
-  outputTokens: number
-  totalTokens: number
+  inputTokens: number | null
+  outputTokens: number | null
+  totalTokens: number | null
   tokenRatio: number
 }
 
@@ -77,26 +89,16 @@ export type TraceSessionFilterActionResponse =
       error: Error
     }
 
-export type RuntimeTelemetryEventItem = {
-  id: number
-  kind: "process" | "file" | "network"
-  eventTime: string
-  time: string
-  action: string
-  primary: string
-  secondary: string
-  source: string
-  namespace: string
-  pod: string
-}
-
 export type RuntimeTelemetryTab = "process" | "file" | "network"
 
 export type RuntimeTelemetryTabActionData = {
-  events: RuntimeTelemetryEventItem[]
   nextPageToken: string
   hasNextPage: boolean
-}
+} & (
+  | { tab: "process"; events: ProcessObservabilityEvent[] }
+  | { tab: "file"; events: FileObservabilityEvent[] }
+  | { tab: "network"; events: NetworkObservabilityEvent[] }
+)
 
 export type RuntimeTelemetryTabActionResponse =
   | {
@@ -199,7 +201,7 @@ export type EventsChartActionResponse =
 
 export type McpGraphActionResponse =
   | {
-      data: McpGraphResponse
+      data: McpGraphResponse | AppMcpGraphResponse
       error: undefined
     }
   | {
@@ -209,31 +211,28 @@ export type McpGraphActionResponse =
 
 export type SpanListItem = {
   id: number
-  agentName: string
-  sessionId: string
+  subject: TraceSubject
   traceId: string
   spanId: string
   parentSpanId: string
   startLabel: string
   endLabel: string
-  duration: string
-  durationMs: number
+  duration: string | undefined
+  durationMs: number | null
   displayName: string
-  operationLabel: string
   spanClass: string
   kind: string
   statusCode: string
-  llmFinishReason: string
+  llmFinishReason?: string
   hasError: boolean
   error: string
   spanType: "agent" | "model" | "tool" | "span"
   depth: number
-  inputTokens: number
-  cachedInputTokens: number
-  cachedWriteTokens: number
-  outputTokens: number
-  totalTokens: number
-  costUSD: number
+  inputTokens: number | null
+  cachedInputTokens: number | null
+  cachedWriteTokens: number | null
+  outputTokens: number | null
+  totalTokens: number | null
   offsetPercent: number
   durationPercent: number
 }
@@ -257,16 +256,13 @@ export type ListSpansActionResponse =
 export type SpanDetailPayloadSection = {
   key: string
   label: string
-  preview: string
-  json: string
+  content: { code: string } | { text: string }
   empty: boolean
 }
 
 export type SpanDetailActionData = {
   span: SpanListItem
   payload: SpanDetailPayloadSection[]
-  resourceAttributes: SpanDetailPayloadSection
-  spanAttributes: SpanDetailPayloadSection
 }
 
 export type SpanDetailActionResponse =

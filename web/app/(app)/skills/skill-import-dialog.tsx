@@ -334,9 +334,7 @@ export function SkillImportDialog({
               "flex min-h-36 w-full flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-6 text-center transition-colors outline-none",
               "border-muted-foreground/50 text-muted-foreground hover:bg-muted/30 hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
               dragging && "border-primary bg-primary/10 text-primary",
-              Boolean(error) &&
-                !dragging &&
-                "border-destructive/60 bg-destructive/5 text-destructive"
+              Boolean(error) && !dragging && "border-destructive bg-destructive/5 text-destructive"
             )}
             disabled={pending}
             onClick={() => inputRef.current?.click()}

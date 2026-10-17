@@ -20,6 +20,7 @@ export type SelectionPage = (typeof selectionPages)[number]
 
 const selectionSchema = z.object({
   agent_name: z.string().optional(),
+  app_client_id: z.string().optional(),
   workflow_name: z.string().optional(),
   type: z.string().optional(),
   schedule_name: z.string().optional(),
@@ -63,7 +64,8 @@ export function selectionGroups(page: SelectionPage, selection: PageSelection): 
     case "workflows/triggers/runs/graph":
       return [["agent_name"], ["workflow_name"], ["run_name"]]
     case "lens/traces":
-      return [["agent_name"], ["session_id"]]
+    case "lens/mcp":
+      return [["agent_name", "app_client_id"], ["session_id"]]
     default:
       return [["agent_name"]]
   }
@@ -124,7 +126,7 @@ export function rememberSelection(
       return false
     return !parents.every((field) => saved[field] === selected[field])
   })
-  if (selected.agent_name) retained.unshift([scope, page, selected])
+  if (selected.agent_name || selected.app_client_id) retained.unshift([scope, page, selected])
   return retained
 }
 

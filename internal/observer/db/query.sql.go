@@ -6,8 +6,36 @@
 package observerdb
 
 import (
+	"context"
 	"time"
 )
+
+const assignAppRuns = `-- name: AssignAppRuns :exec
+UPDATE observer_app_operations op SET run_id = run.id
+FROM observer_app_operations run
+WHERE op.id = ANY($1::bigint[]) AND op.agent_kind IN ('claude', 'codex')
+  AND op.resource_kind <> 'turn' AND run.resource_kind = 'turn'
+  AND run.organization_id = op.organization_id AND run.workspace_id = op.workspace_id
+  AND run.client_id = op.client_id AND run.user_id = op.user_id
+  AND run.session_id = op.session_id AND run.turn_id = op.turn_id
+`
+
+func (q *Queries) AssignAppRuns(ctx context.Context, operationIds []int64) error {
+	_, err := q.db.Exec(ctx, assignAppRuns, operationIds)
+	return err
+}
+
+const assignAppToolRuns = `-- name: AssignAppToolRuns :exec
+UPDATE observer_app_operations tool SET run_id = source.run_id
+FROM observer_app_operations source
+WHERE source.id = ANY($1::bigint[]) AND tool.source_operation_id = source.id
+  AND tool.resource_kind = 'tool' AND tool.run_id IS DISTINCT FROM source.run_id
+`
+
+func (q *Queries) AssignAppToolRuns(ctx context.Context, operationIds []int64) error {
+	_, err := q.db.Exec(ctx, assignAppToolRuns, operationIds)
+	return err
+}
 
 type InsertFileEventsParams struct {
 	TenantNamespace   string    `json:"tenant_namespace"`
@@ -47,4 +75,126 @@ type InsertProcessEventsParams struct {
 	CommandInvocation string    `json:"command_invocation"`
 	Action            string    `json:"action"`
 	Source            string    `json:"source"`
+}
+
+const lockAppInvocationKeys = `-- name: LockAppInvocationKeys :exec
+SELECT pg_advisory_xact_lock(hashtextextended(key, 0))
+FROM (SELECT DISTINCT unnest($1::text[]) AS key ORDER BY key) ordered
+`
+
+func (q *Queries) LockAppInvocationKeys(ctx context.Context, keys []string) error {
+	_, err := q.db.Exec(ctx, lockAppInvocationKeys, keys)
+	return err
+}
+
+const refreshAppRunCorrelations = `-- name: RefreshAppRunCorrelations :exec
+WITH affected AS MATERIALIZED (
+  SELECT key->>'organization_id' AS organization_id, key->>'workspace_id' AS workspace_id,
+    key->>'client_id' AS client_id, key->>'user_id' AS user_id, key->>'call_id' AS call_id
+  FROM jsonb_array_elements($1::jsonb) AS key
+), matches AS (
+  SELECT mcp.id, CASE WHEN COUNT(tool.run_id) = COUNT(tool.id) AND COUNT(DISTINCT tool.run_id) = 1 THEN MIN(tool.run_id) END AS run_id
+  FROM affected key
+  JOIN observer_app_operations mcp ON mcp.organization_id = key.organization_id AND mcp.workspace_id = key.workspace_id
+    AND mcp.client_id = key.client_id AND mcp.user_id = key.user_id AND mcp.tool_call_id = key.call_id
+    -- Explicit nonempty IDs keep correlation probes on the partial call index.
+    AND mcp.tool_call_id <> ''
+    AND mcp.resource_kind = 'mcp' AND mcp.agent_kind IN ('claude', 'codex')
+    AND (mcp.session_id = '' OR mcp.turn_id = '')
+  LEFT JOIN observer_app_operations tool ON tool.organization_id = mcp.organization_id AND tool.workspace_id = mcp.workspace_id
+    AND tool.client_id = mcp.client_id AND tool.user_id = mcp.user_id AND tool.tool_call_id = mcp.tool_call_id
+    AND tool.resource_kind = 'tool' AND tool.agent_kind = mcp.agent_kind
+    AND tool.tool_call_id <> ''
+    AND (mcp.session_id = '' OR tool.session_id = mcp.session_id)
+    AND (mcp.turn_id = '' OR tool.turn_id = mcp.turn_id)
+  GROUP BY mcp.id
+)
+UPDATE observer_app_operations mcp SET run_id = matches.run_id
+FROM matches WHERE mcp.id = matches.id AND mcp.run_id IS DISTINCT FROM matches.run_id
+`
+
+func (q *Queries) RefreshAppRunCorrelations(ctx context.Context, invocations []byte) error {
+	_, err := q.db.Exec(ctx, refreshAppRunCorrelations, invocations)
+	return err
+}
+
+const refreshAppRunStatuses = `-- name: RefreshAppRunStatuses :exec
+WITH affected AS MATERIALIZED (
+  SELECT key->>'organization_id' AS organization_id, key->>'workspace_id' AS workspace_id,
+    key->>'client_id' AS client_id, key->>'user_id' AS user_id, key->>'call_id' AS call_id
+  FROM jsonb_array_elements($1::jsonb) AS key
+), runs AS (
+  SELECT op.run_id AS id FROM observer_app_operations op WHERE op.id = ANY($2::bigint[])
+  UNION
+  SELECT op.run_id FROM affected key JOIN observer_app_operations op
+    ON op.organization_id = key.organization_id AND op.workspace_id = key.workspace_id
+    AND op.client_id = key.client_id AND op.user_id = key.user_id AND op.tool_call_id = key.call_id
+    AND op.tool_call_id <> ''
+)
+UPDATE observer_app_operations root SET
+  status_code = CASE WHEN EXISTS (
+    SELECT 1 FROM observer_app_spans span WHERE span.run_id = root.id AND span.visible AND span.status_code = 'ERROR'
+  ) THEN 'ERROR' ELSE 'OK' END,
+  start_time = summary.started_at,
+  end_time = summary.ended_at,
+  duration_ns = (EXTRACT(EPOCH FROM summary.ended_at - summary.started_at) * 1000000000)::bigint,
+  ingested_at = summary.updated_at
+FROM (
+  SELECT op.run_id, MIN(op.start_time)::timestamptz AS started_at, MAX(op.end_time)::timestamptz AS ended_at,
+    MAX(op.ingested_at)::timestamptz AS updated_at
+  FROM observer_app_operations op WHERE op.run_id IN (SELECT id FROM runs) GROUP BY op.run_id
+) summary
+WHERE root.id = summary.run_id AND root.resource_kind = 'turn'
+`
+
+type RefreshAppRunStatusesParams struct {
+	Invocations  []byte  `json:"invocations"`
+	OperationIds []int64 `json:"operation_ids"`
+}
+
+func (q *Queries) RefreshAppRunStatuses(ctx context.Context, arg RefreshAppRunStatusesParams) error {
+	_, err := q.db.Exec(ctx, refreshAppRunStatuses, arg.Invocations, arg.OperationIds)
+	return err
+}
+
+const refreshAppToolResults = `-- name: RefreshAppToolResults :exec
+WITH affected AS MATERIALIZED (
+  SELECT key->>'organization_id' AS organization_id, key->>'workspace_id' AS workspace_id,
+    key->>'client_id' AS client_id, key->>'user_id' AS user_id, key->>'call_id' AS call_id
+  FROM jsonb_array_elements($1::jsonb) AS key
+), calls AS MATERIALIZED (
+  SELECT tool.id, tool.organization_id, tool.workspace_id, tool.client_id, tool.user_id,
+    tool.session_id, tool.tool_call_id, tool.source_operation_id, source.start_time AS emitted_source_time
+  FROM affected key JOIN observer_app_operations tool
+    ON tool.organization_id = key.organization_id AND tool.workspace_id = key.workspace_id
+    AND tool.client_id = key.client_id AND tool.user_id = key.user_id AND tool.tool_call_id = key.call_id
+    AND tool.resource_kind = 'tool' AND tool.tool_call_id <> ''
+  JOIN observer_app_operations source ON source.id = tool.source_operation_id
+), matches AS (
+  SELECT tool.id, (
+    SELECT result.id FROM observer_app_tool_results result
+    WHERE result.organization_id = tool.organization_id AND result.workspace_id = tool.workspace_id
+      AND result.client_id = tool.client_id AND result.user_id = tool.user_id
+      AND result.session_id = tool.session_id AND result.tool_call_id = tool.tool_call_id
+      -- Input history cannot be a result of the response to that same request.
+      AND result.source_operation_id <> tool.source_operation_id
+      AND result.source_start_time > tool.emitted_source_time
+      -- Reused IDs are ambiguous once more than one emitted occurrence could
+      -- own this result. Request turn metadata does not identify historical results.
+      AND (SELECT COUNT(*) FROM calls other
+        WHERE other.organization_id = tool.organization_id AND other.workspace_id = tool.workspace_id
+          AND other.client_id = tool.client_id AND other.user_id = tool.user_id
+          AND other.session_id = tool.session_id AND other.tool_call_id = tool.tool_call_id
+          AND other.source_operation_id <> result.source_operation_id
+          AND other.emitted_source_time < result.source_start_time) = 1
+    ORDER BY result.source_start_time, result.source_ordinal, result.source_operation_id, result.id LIMIT 1
+  ) AS result_id FROM calls tool
+)
+UPDATE observer_app_operations tool SET result_id = matches.result_id
+FROM matches WHERE tool.id = matches.id AND tool.result_id IS DISTINCT FROM matches.result_id
+`
+
+func (q *Queries) RefreshAppToolResults(ctx context.Context, invocations []byte) error {
+	_, err := q.db.Exec(ctx, refreshAppToolResults, invocations)
+	return err
 }

@@ -1,0 +1,34 @@
+{{- if .Values.enabled }}
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "observer.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "observer.labels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      {{- include "observer.selectorLabels" . | nindent 6 }}
+  enableDefaultDeny: {ingress: true, egress: false}
+  ingress:
+    # Native agents cannot submit app observations, even with forged attributes.
+    - fromEntities: [all]
+      toPorts:
+        - ports: [{port: {{ .Values.service.otlpGrpcPort | quote }}, protocol: TCP}]
+    # Agent metadata can carry gateway labels. The controller overwrites its app
+    # name and agent identity, so both must distinguish Pods from gateways.
+    - fromEndpoints:
+        {{- range $gateway := list "inference" "mcp" }}
+        - matchLabels:
+            k8s:io.cilium.k8s.namespace.labels.app.kubernetes.io/managed-by: agentz
+            k8s:io.cilium.k8s.policy.serviceaccount: {{ $gateway }}
+            k8s:gateway.networking.k8s.io/gateway-name: {{ $gateway }}
+            k8s:app.kubernetes.io/name: {{ $gateway }}
+          matchExpressions:
+            - key: k8s:agentz.accuknox.com/agent
+              operator: DoesNotExist
+        {{- end }}
+      toPorts:
+        - ports: [{port: {{ .Values.service.appGrpcPort | quote }}, protocol: TCP}]
+{{- end }}

@@ -277,8 +277,8 @@ export function AgentTools({
           className={cn(
             "mx-4 w-auto gap-x-3 rounded-lg border-2 border-dashed p-4 md:mx-6",
             failed
-              ? "border-destructive/60 bg-destructive/5"
-              : "border-primary/60 bg-primary/5 text-primary"
+              ? "border-destructive bg-destructive/5"
+              : "border-primary bg-primary/5 text-primary"
           )}
           variant={failed ? "destructive" : "default"}
         >

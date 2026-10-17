@@ -404,49 +404,25 @@ func Serve(ctx context.Context, cfg Config) error {
 	if err := svc.recoverWorkspaceProvisioning(ctx); err != nil {
 		return err
 	}
-	eventTrailRetentionDone := make(chan struct{})
-	go func() {
-		defer close(eventTrailRetentionDone)
-		svc.runEventTrailRetention(runCtx)
-	}()
-	dashboardRetentionDone := make(chan struct{})
-	go func() {
-		defer close(dashboardRetentionDone)
-		svc.runDashboardRetention(runCtx)
-	}()
-	chatInputsDone := make(chan struct{})
-	go func() {
-		defer close(chatInputsDone)
-		svc.runChatInputs(runCtx)
-	}()
-	codingDone := make(chan struct{})
-	go func() {
-		defer close(codingDone)
-		svc.runCoding(runCtx)
-	}()
-	codingEventsDone := make(chan struct{})
-	go func() {
-		defer close(codingEventsDone)
-		svc.listenCoding(runCtx)
-	}()
+	var workers sync.WaitGroup
+	backgroundJobs := []func(context.Context){
+		svc.runEventTrailRetention,
+		svc.runDashboardRetention,
+		svc.runChatInputs,
+		svc.runCoding,
+		svc.listenCoding,
+		svc.runCleanupJobs,
+		svc.runChatSessionNotifications,
+	}
+	for _, job := range backgroundJobs {
+		workers.Go(func() { job(runCtx) })
+	}
 	// Reserve a cleanup worker so judge requests cannot delay deletion.
-	var evaluations sync.WaitGroup
 	cleanupModes := []bool{false, true}
 	for _, cleanup := range cleanupModes {
-		evaluations.Go(func() { svc.runEvaluations(runCtx, cleanup) })
+		workers.Go(func() { svc.runEvaluations(runCtx, cleanup) })
 	}
-	cleanupDone := make(chan struct{})
-	go func() {
-		defer close(cleanupDone)
-		svc.runCleanupJobs(runCtx)
-	}()
-	chatSessionNotificationsDone := make(chan struct{})
-	go func() {
-		defer close(chatSessionNotificationsDone)
-		svc.runChatSessionNotifications(runCtx)
-	}()
 
-	var delegationWorkers sync.WaitGroup
 	if cfg.DelegationNamespace != "" {
 		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.Proxy = nil
@@ -456,7 +432,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		svc.delegationTransport = transport
 		svc.delegationRequests = make(chan struct{}, 64)
 		svc.delegationBodies = semaphore.NewWeighted(128 << 20)
-		delegationWorkers.Go(func() { svc.runDelegationRuntime(runCtx) })
+		workers.Go(func() { svc.runDelegationRuntime(runCtx) })
 	}
 
 	srv := &http.Server{
@@ -506,15 +482,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		}
 	}
 	stopRun()
-	<-dashboardRetentionDone
-	<-chatSessionNotificationsDone
-	<-chatInputsDone
-	<-codingDone
-	<-codingEventsDone
-	evaluations.Wait()
-	<-cleanupDone
-	<-eventTrailRetentionDone
-	delegationWorkers.Wait()
+	workers.Wait()
 
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("serve http: %w", err)

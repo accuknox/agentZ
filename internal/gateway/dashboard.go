@@ -975,7 +975,7 @@ func (s *Service) QueryDashboard(w http.ResponseWriter, r *http.Request, agentNa
 		writeDashboardQueryReservationError(w, r, err)
 		return
 	}
-	defer s.releaseDashboardQuery(auth.tenantNamespace, lease)
+	defer s.releaseDashboardQuery(r.Context(), auth.tenantNamespace, lease)
 
 	ctx, cancel := context.WithTimeout(r.Context(), quota.Query.Timeout.Duration)
 	defer cancel()
@@ -984,7 +984,7 @@ func (s *Service) QueryDashboard(w http.ResponseWriter, r *http.Request, agentNa
 		apiutil.WriteError(w, r, mapDashboardStoreError("begin dashboard query", err))
 		return
 	}
-	defer tx.Rollback(context.Background())
+	defer tx.Rollback(context.WithoutCancel(ctx))
 	queries := dashboarddb.New(tx)
 	_, err = queries.DashboardSetStatementTimeout(
 		ctx,
@@ -1471,7 +1471,7 @@ func (s *Service) ListDashboardTableRows(w http.ResponseWriter, r *http.Request,
 		writeDashboardQueryReservationError(w, r, err)
 		return
 	}
-	defer s.releaseDashboardQuery(auth.tenantNamespace, lease)
+	defer s.releaseDashboardQuery(r.Context(), auth.tenantNamespace, lease)
 
 	ctx, cancel := context.WithTimeout(r.Context(), quota.Query.Timeout.Duration)
 	defer cancel()
@@ -1691,8 +1691,8 @@ func (s *Service) reserveDashboardCells(ctx context.Context, auth requestAuth, q
 	}
 }
 
-func (s *Service) releaseDashboardQuery(namespace string, token uuid.UUID) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+func (s *Service) releaseDashboardQuery(ctx context.Context, namespace string, token uuid.UUID) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
 	defer cancel()
 	_, _ = s.dashboards.DashboardReleaseQueryLease(ctx, dashboarddb.DashboardReleaseQueryLeaseParams{
 		Token:           token,

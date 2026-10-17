@@ -797,7 +797,10 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 		err := s.refreshOpenCodeSession(ctx, &target, workspaceID, agentName, sessionID)
 		// Interrupting an already removed native session is successful. Do not
 		// turn that idempotent cleanup into a persistence failure.
-		if errors.Is(err, pgx.ErrNoRows) && (route.ID == "session.abort" || route.ID == "v2.session.interrupt") {
+		removedSession := errors.Is(err, pgx.ErrNoRows) &&
+			(route.ID == "session.abort" ||
+				route.ID == "v2.session.interrupt")
+		if removedSession {
 			return nil
 		}
 		if err != nil {
@@ -970,7 +973,9 @@ func (s *Service) storeOpenCodeSession(ctx context.Context, workspaceID, agentNa
 	defer tx.Rollback(context.WithoutCancel(ctx))
 	q := gatewaydb.New(tx)
 	auth, _ := requestAuthState(ctx)
-	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding && auth.actorType != requestActorSystem {
+	userCodingSession := auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding &&
+		auth.actorType != requestActorSystem
+	if userCodingSession {
 		tree, err := q.GatewayOwnedCodingDirectory(ctx, gatewaydb.GatewayOwnedCodingDirectoryParams{
 			WorkspaceID: workspaceID,
 			AgentName:   agentName,

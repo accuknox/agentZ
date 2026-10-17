@@ -28,10 +28,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	sandboxcontroller "github.com/accuknox/agentz/internal/controller/sandbox"
 	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/mcp"
 	"github.com/accuknox/agentz/internal/networkpolicy"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
+	agw "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
 )
 
 const (
@@ -83,6 +85,8 @@ type ExtAuthRuntimeReconciler struct {
 	OpenBaoSecretMountPath  string
 	OpenBaoK8sAuthMountPath string
 	DelegationNamespace     string
+	TraceBackend            sandboxcontroller.TraceBackend
+	DelegationImage         agw.Image
 }
 
 // The runtime controller deletes obsolete scope-reader RBAC objects explicitly
@@ -148,7 +152,9 @@ func (r *ExtAuthRuntimeReconciler) runtimeNeeded(ctx context.Context, ns string)
 		if !provider.DeletionTimestamp.IsZero() {
 			continue
 		}
-		if provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICodex || r.DelegationNamespace != "" {
+		requiresExtAuth := provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICodex ||
+			r.DelegationNamespace != ""
+		if requiresExtAuth {
 			return true, nil
 		}
 	}

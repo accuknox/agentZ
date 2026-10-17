@@ -2,6 +2,15 @@
 
 import {
   getMcpGraph,
+  getAppMcpGraph,
+  getAppOperation,
+  getAppTraceChart,
+  listAppSpans,
+  listAppSessions,
+  type ListAppSessionsData,
+  listAppTraces,
+  type AppSpan,
+  type AppTrace,
   getSpanDetail,
   listChatSessions,
   listFileObservability,
@@ -15,20 +24,17 @@ import {
   type ProcessObservabilityEventAggregated,
   type FileObservabilityEventAggregated,
   type NetworkObservabilityEventAggregated,
-  type ProcessObservabilityEvent,
-  type FileObservabilityEvent,
-  type NetworkObservabilityEvent,
-  type GetSpanDetailData,
   type GetMcpGraphData,
-  type JsonValue,
   type ListSpansData,
   type ListTraceSessionsData,
   type Span,
-  type SpanPayload,
+  type AppPayload,
   type TraceSession,
   type WorkspaceType,
 } from "@/lib/gateway/client"
 import type {
+  LensSubject,
+  TraceSubject,
   FileTelemetryActionResponse,
   FileTelemetryRow,
   ListSpansActionResponse,
@@ -40,7 +46,6 @@ import type {
   ProcessTelemetryRow,
   RuntimeTelemetryTab,
   RuntimeTelemetryTabActionResponse,
-  RuntimeTelemetryEventItem,
   SpanDetailActionResponse,
   SpanDetailPayloadSection,
   SpanListItem,
@@ -54,6 +59,7 @@ import type {
 import { dayjs, formatDurationMs, formatRecentTimestamp } from "@/lib/format"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { createAgentOpencodeClient } from "@/lib/opencode/server-client"
+import { readTraceRecording, readToolContent } from "@/lib/trace-recording"
 
 const maxChartPoints = 25
 const chartSourceLimit = 100
@@ -62,42 +68,41 @@ type AggregatedTelemetryEvent = {
   last_seen: string
   occurrences: number
 }
-type TraceSummary = Pick<
-  TraceSession,
-  | "trace_id"
-  | "agent_name"
-  | "started_at"
-  | "ended_at"
-  | "duration_ns"
-  | "span_count"
-  | "error_count"
-  | "tool_count"
-  | "model_count"
-  | "input_tokens"
-  | "output_tokens"
-> & {
-  session_id?: string
-}
-
-export async function listTraceSessionsAction(
-  path: ListTraceSessionsData["path"],
+export async function listTracesAction(
+  subject: TraceSubject,
   query: ListTraceSessionsData["query"] | undefined,
   workspaceId: string
 ): Promise<ListTracesActionResponse> {
-  const result = await listTraceSessions({
-    path,
-    query,
-    client: getGatewayServerClient(workspaceId),
-  })
-  if (result.error) {
-    return { data: undefined, error: result.error }
+  const client = getGatewayServerClient(workspaceId)
+  let traces: (TraceSession | AppTrace)[]
+  let nextPageToken: string
+  if (subject.kind !== "agent") {
+    const result = await listAppTraces({
+      path: { clientID: subject.clientID },
+      query: {
+        ...query,
+        session_id: subject.kind === "external-agent" ? subject.sessionId : undefined,
+      },
+      client,
+    })
+    if (result.error) return { data: undefined, error: result.error }
+    traces = result.data.traces
+    nextPageToken = result.data.next_page_token
+  } else {
+    const result = await listTraceSessions({
+      path: { agentName: subject.name, sessionID: subject.sessionId },
+      query,
+      client,
+    })
+    if (result.error) return { data: undefined, error: result.error }
+    traces = result.data.trace_sessions
+    nextPageToken = result.data.next_page_token
   }
-
   return {
     data: {
-      traces: traceListItems(result.data.trace_sessions),
-      nextPageToken: result.data.next_page_token,
-      hasNextPage: result.data.next_page_token.length > 0,
+      traces: traceListItems(traces, subject),
+      nextPageToken,
+      hasNextPage: nextPageToken.length > 0,
       limit: query?.limit ?? 25,
     },
     error: undefined,
@@ -105,28 +110,59 @@ export async function listTraceSessionsAction(
 }
 
 export async function getTraceChartAction(
-  path: ListTraceSessionsData["path"],
+  subject: TraceSubject,
   query: ListTraceSessionsData["query"] | undefined,
   workspaceId: string
 ): Promise<EventsChartActionResponse> {
+  const client = getGatewayServerClient(workspaceId)
+  if (subject.kind !== "agent") {
+    const result = await getAppTraceChart({
+      path: { clientID: subject.clientID },
+      query: {
+        ...query,
+        session_id: subject.kind === "external-agent" ? subject.sessionId : undefined,
+      },
+      client,
+    })
+    if (result.error) return { data: undefined, error: result.error }
+    return {
+      data: {
+        points: result.data.points.map((point) => ({
+          label: dayjs(point.time).format("MMM D, h:mm A"),
+          count: point.count,
+        })),
+        total: result.data.points.reduce((total, point) => total + point.count, 0),
+      },
+      error: undefined,
+    }
+  }
   const result = await listTraceSessions({
-    client: getGatewayServerClient(workspaceId),
-    path,
+    client,
+    path: { agentName: subject.name, sessionID: subject.sessionId },
     query: { ...query, limit: chartSourceLimit },
   })
-  if (result.error) {
-    return { data: undefined, error: result.error }
-  }
-
-  const points = traceChartPoints(result.data.trace_sessions)
-
+  if (result.error) return { data: undefined, error: result.error }
   return {
     data: {
-      points,
+      points: traceChartPoints(result.data.trace_sessions),
       total: result.data.trace_sessions.length,
     },
     error: undefined,
   }
+}
+
+export async function listAppSessionsAction(
+  clientID: string,
+  workspaceId: string,
+  query?: ListAppSessionsData["query"]
+) {
+  const result = await listAppSessions({
+    path: { clientID },
+    query,
+    client: getGatewayServerClient(workspaceId),
+  })
+  if (result.error) return { data: undefined, error: result.error }
+  return { data: result.data, error: undefined }
 }
 
 export async function listTraceSessionFilterAction(
@@ -170,84 +206,138 @@ export async function listTraceSessionFilterAction(
 }
 
 export async function listSpansAction(
-  path: ListSpansData["path"],
+  path: { subject: TraceSubject; traceID: string },
   query: ListSpansData["query"],
   workspaceId: string
 ): Promise<ListSpansActionResponse> {
-  const result = await listSpans({
-    path,
-    query,
-    client: getGatewayServerClient(workspaceId),
-  })
-  if (result.error) {
-    return { data: undefined, error: result.error }
+  const client = getGatewayServerClient(workspaceId)
+  const subject = path.subject
+  let spans: SpanListItem[]
+  let nextPageToken: string
+  if (subject.kind !== "agent") {
+    const result = await listAppSpans({
+      path: { clientID: subject.clientID, traceID: path.traceID },
+      query,
+      client,
+    })
+    if (result.error) return { data: undefined, error: result.error }
+    spans = spanListItems(result.data.spans, subject, () => undefined)
+    nextPageToken = result.data.next_page_token
+  } else {
+    const result = await listSpans({
+      path: { agentName: subject.name, sessionID: subject.sessionId, traceID: path.traceID },
+      query,
+      client,
+    })
+    if (result.error) return { data: undefined, error: result.error }
+    spans = spanListItems(result.data.spans, subject, (span) => span.llm_finish_reason)
+    nextPageToken = result.data.next_page_token
   }
+  return { data: { spans, nextPageToken, hasNextPage: nextPageToken.length > 0 }, error: undefined }
+}
 
-  const spans = spanListItems(result.data.spans)
-
+export async function getSpanDetailAction(
+  path: { subject: TraceSubject; traceID: string; spanID: string; operationID: number },
+  workspaceId: string
+): Promise<SpanDetailActionResponse> {
+  const client = getGatewayServerClient(workspaceId)
+  const subject = path.subject
+  let span: Span | AppSpan
+  let payload: AppPayload
+  let toolError = "null"
+  let finishReason: string | undefined
+  if (subject.kind !== "agent") {
+    const result = await getAppOperation({
+      path: { clientID: subject.clientID, operationID: path.operationID },
+      client,
+    })
+    if (result.error) return { data: undefined, error: result.error }
+    span = result.data.span
+    payload = result.data.payload
+    toolError = result.data.tool_error
+  } else {
+    const result = await getSpanDetail({
+      path: {
+        agentName: subject.name,
+        sessionID: subject.sessionId,
+        traceID: path.traceID,
+        spanID: path.spanID,
+      },
+      client,
+    })
+    if (result.error) return { data: undefined, error: result.error }
+    span = result.data.span
+    payload = {
+      input_messages: JSON.stringify(result.data.payload.input_messages, null, 2),
+      output_messages: JSON.stringify(result.data.payload.output_messages, null, 2),
+      tool_arguments: JSON.stringify(result.data.payload.tool_arguments, null, 2),
+      tool_result: JSON.stringify(result.data.payload.tool_result, null, 2),
+    }
+    finishReason = result.data.span.llm_finish_reason
+  }
   return {
     data: {
-      spans,
-      nextPageToken: result.data.next_page_token,
-      hasNextPage: result.data.next_page_token.length > 0,
+      span: spanListItem({
+        span,
+        subject,
+        llmFinishReason: finishReason,
+        offsetPercent: 0,
+        durationMs: span.duration_ns === null ? null : span.duration_ns / 1_000_000,
+        durationPercent: 100,
+        depth: span.parent_span_id ? 1 : 0,
+      }),
+      payload: [
+        payloadSection("input_messages", "Input", payload.input_messages),
+        payloadSection("output_messages", "Output", payload.output_messages),
+        payloadSection("tool_arguments", "Tool arguments", payload.tool_arguments),
+        payloadSection("tool_result", "Tool result", payload.tool_result),
+        payloadSection("tool_error", "Tool error", toolError),
+      ],
     },
     error: undefined,
   }
 }
 
-export async function getSpanDetailAction(
-  path: GetSpanDetailData["path"],
-  workspaceId: string
-): Promise<SpanDetailActionResponse> {
-  const result = await getSpanDetail({
-    path,
+/** getTraceRecordingAction fetches one bounded page of captured activity. */
+export async function getTraceRecordingAction(
+  clientID: string,
+  traceID: string,
+  workspaceId: string,
+  pageToken?: string
+) {
+  const page = await listAppSpans({
+    path: { clientID, traceID },
+    query: { limit: 50, page_token: pageToken, include_recording: true },
     client: getGatewayServerClient(workspaceId),
   })
-  if (result.error) {
-    return { data: undefined, error: result.error }
-  }
-
-  const durationMs = result.data.span.duration_ns / 1_000_000
-
+  if (page.error) return { data: undefined, error: page.error }
   return {
     data: {
-      span: spanListItem({
-        span: result.data.span,
-        offsetPercent: 0,
-        durationMs,
-        durationPercent: 100,
-        depth: result.data.span.parent_span_id ? 1 : 0,
-      }),
-      payload: payloadSections(result.data.payload),
-      resourceAttributes: payloadSection(
-        "resource_attributes",
-        "Resource attributes",
-        result.data.span.resource_attributes
-      ),
-      spanAttributes: payloadSection(
-        "span_attributes",
-        "Span attributes",
-        result.data.span.span_attributes
-      ),
+      steps: readTraceRecording(page.data.recording, !pageToken),
+      nextPageToken: page.data.next_page_token,
     },
     error: undefined,
   }
 }
 
 export async function getMcpGraphAction(
-  path: GetMcpGraphData["path"],
+  subject: LensSubject,
   query: GetMcpGraphData["query"],
   workspaceId: string
 ): Promise<McpGraphActionResponse> {
-  const result = await getMcpGraph({
-    path,
-    query,
-    client: getGatewayServerClient(workspaceId),
-  })
-  if (result.error) {
-    return { data: undefined, error: result.error }
-  }
-
+  const client = getGatewayServerClient(workspaceId)
+  const result =
+    subject.kind !== "agent"
+      ? await getAppMcpGraph({
+          path: { clientID: subject.clientID },
+          query: {
+            ...query,
+            session_id: subject.kind === "external-agent" ? subject.sessionId : undefined,
+          },
+          client,
+        })
+      : await getMcpGraph({ path: { agentName: subject.name }, query, client })
+  if (result.error) return { data: undefined, error: result.error }
   return { data: result.data, error: undefined }
 }
 
@@ -283,10 +373,10 @@ export async function getRuntimeTelemetryTabAction({
       return { data: undefined, error: result.error }
     }
 
-    const events = result.data.events.map(processTelemetryEventItem)
     return {
       data: {
-        events,
+        tab,
+        events: result.data.events,
         nextPageToken: result.data.next_page_token,
         hasNextPage: result.data.next_page_token.length > 0,
       },
@@ -304,10 +394,10 @@ export async function getRuntimeTelemetryTabAction({
       return { data: undefined, error: result.error }
     }
 
-    const events = result.data.events.map(fileTelemetryEventItem)
     return {
       data: {
-        events,
+        tab,
+        events: result.data.events,
         nextPageToken: result.data.next_page_token,
         hasNextPage: result.data.next_page_token.length > 0,
       },
@@ -324,10 +414,10 @@ export async function getRuntimeTelemetryTabAction({
     return { data: undefined, error: result.error }
   }
 
-  const events = result.data.events.map(networkTelemetryEventItem)
   return {
     data: {
-      events,
+      tab: "network",
+      events: result.data.events,
       nextPageToken: result.data.next_page_token,
       hasNextPage: result.data.next_page_token.length > 0,
     },
@@ -371,18 +461,14 @@ function networkTelemetryEvent(event: NetworkObservabilityEventAggregated): Netw
 }
 
 function computeTelemetryChartFromAggregated(events: AggregatedTelemetryEvent[]): EventsChartData {
-  if (events.length === 0) {
-    return { points: [], total: 0 }
-  }
-
-  const [firstEvent, ...restEvents] = events
+  const [firstEvent] = events
   if (!firstEvent) {
     return { points: [], total: 0 }
   }
 
   let minTime = dayjs(firstEvent.last_seen)
   let maxTime = minTime
-  for (const event of restEvents) {
+  for (const event of events) {
     const seenAt = dayjs(event.last_seen)
     if (seenAt.isBefore(minTime)) {
       minTime = seenAt
@@ -392,6 +478,7 @@ function computeTelemetryChartFromAggregated(events: AggregatedTelemetryEvent[])
     }
   }
 
+  const total = events.reduce((sum, event) => sum + event.occurrences, 0)
   const from = minTime
   const to = maxTime
   const totalMs = to.valueOf() - from.valueOf()
@@ -402,22 +489,22 @@ function computeTelemetryChartFromAggregated(events: AggregatedTelemetryEvent[])
       points: [
         {
           label: from.format("MMM D, h:mm A"),
-          count: events.length,
+          count: total,
         },
       ],
-      total: events.length,
+      total,
     }
   }
 
   const bucketMs = totalMs / bucketCount
-  const buckets = Array(bucketCount).fill(0)
+  const buckets = Array.from({ length: bucketCount }, () => 0)
 
   for (const event of events) {
     const eventMs = dayjs(event.last_seen).valueOf()
     let bucketIndex = Math.floor((eventMs - from.valueOf()) / bucketMs)
     if (bucketIndex < 0) bucketIndex = 0
     if (bucketIndex >= bucketCount) bucketIndex = bucketCount - 1
-    buckets[bucketIndex] += Number(event.occurrences)
+    buckets[bucketIndex] = (buckets[bucketIndex] ?? 0) + event.occurrences
   }
 
   const points = buckets
@@ -434,7 +521,7 @@ function computeTelemetryChartFromAggregated(events: AggregatedTelemetryEvent[])
 
   return {
     points,
-    total: events.reduce((sum, event) => sum + event.occurrences, 0),
+    total,
   }
 }
 
@@ -573,7 +660,7 @@ export async function getNetworkTelemetryAction({
   }
 }
 
-function traceChartPoints(traces: readonly TraceSummary[]): EventsChartPoint[] {
+function traceChartPoints(traces: readonly TraceSession[]): EventsChartPoint[] {
   if (traces.length === 0) {
     return []
   }
@@ -601,71 +688,61 @@ function chartPointLabel(startedAfter: DayjsDate, startedBefore: DayjsDate) {
   return `${startedAfter.format("MMM D")} - ${startedBefore.format("MMM D")}`
 }
 
-function traceListItems(traces: readonly TraceSummary[]): TraceListItem[] {
-  const durations = traces.map((trace) => trace.duration_ns / 1_000_000)
-  const totalDurationMs = durations.reduce((total, durationMs) => total + durationMs, 0)
+function traceListItems(
+  traces: readonly (TraceSession | AppTrace)[],
+  subject: TraceSubject
+): TraceListItem[] {
+  const totalDurationMs = traces.reduce((total, trace) => total + trace.duration_ns / 1_000_000, 0)
   let cumulativeDurationMs = 0
-
   return traces.map((trace, index) => {
-    cumulativeDurationMs += durations[index] ?? 0
+    const startedAt = dayjs(trace.started_at)
+    const endedAt = dayjs(trace.ended_at)
+    const totalTokens =
+      trace.input_tokens === null || trace.output_tokens === null
+        ? null
+        : trace.input_tokens + trace.output_tokens
+    const durationMs = trace.duration_ns / 1_000_000
+    cumulativeDurationMs += durationMs
+    const startedDate = startedAt.isValid()
+      ? formatRecentTimestamp(trace.started_at, "MMM D, YYYY")
+      : trace.started_at
+    const startedTime = startedAt.isValid() ? startedAt.format("h:mm A") : trace.started_at
+    const endedTime = endedAt.isValid() ? endedAt.format("h:mm A") : trace.ended_at
 
-    return traceListItem({
-      trace,
+    return {
+      subject,
+      traceId: trace.trace_id,
+      startedAt: trace.started_at,
+      endedAt: trace.ended_at,
+      startedDate,
+      startedTime,
+      endedTime,
+      duration: formatDurationMs(durationMs),
+      durationMs,
       cumulativeDurationMs,
       cumulativeDurationPercent:
         totalDurationMs === 0 ? 0 : (cumulativeDurationMs / totalDurationMs) * 100,
       waterfallDelayMs: index * 70,
-    })
+      spanCount: trace.span_count,
+      errorCount: trace.error_count,
+      toolCount: trace.tool_count,
+      modelCount: trace.model_count,
+      inputTokens: trace.input_tokens,
+      outputTokens: trace.output_tokens,
+      totalTokens,
+      tokenRatio:
+        totalTokens === null || totalTokens === 0 || trace.output_tokens === null
+          ? 0
+          : trace.output_tokens / totalTokens,
+    }
   })
 }
 
-function traceListItem({
-  trace,
-  cumulativeDurationMs,
-  cumulativeDurationPercent,
-  waterfallDelayMs,
-}: {
-  trace: TraceSummary
-  cumulativeDurationMs: number
-  cumulativeDurationPercent: number
-  waterfallDelayMs: number
-}): TraceListItem {
-  const startedAt = dayjs(trace.started_at)
-  const endedAt = dayjs(trace.ended_at)
-  const totalTokens = trace.input_tokens + trace.output_tokens
-  const durationMs = trace.duration_ns / 1_000_000
-  const startedDate = startedAt.isValid()
-    ? formatRecentTimestamp(trace.started_at, "MMM D, YYYY")
-    : trace.started_at
-  const startedTime = startedAt.isValid() ? startedAt.format("h:mm A") : trace.started_at
-  const endedTime = endedAt.isValid() ? endedAt.format("h:mm A") : trace.ended_at
-
-  return {
-    agentName: trace.agent_name,
-    sessionId: trace.session_id ?? "",
-    traceId: trace.trace_id,
-    startedAt: trace.started_at,
-    endedAt: trace.ended_at,
-    startedDate,
-    startedTime,
-    endedTime,
-    duration: formatDurationMs(durationMs),
-    durationMs,
-    cumulativeDurationMs,
-    cumulativeDurationPercent,
-    waterfallDelayMs,
-    spanCount: trace.span_count,
-    errorCount: trace.error_count,
-    toolCount: trace.tool_count,
-    modelCount: trace.model_count,
-    inputTokens: trace.input_tokens,
-    outputTokens: trace.output_tokens,
-    totalTokens,
-    tokenRatio: totalTokens === 0 ? 0 : trace.output_tokens / totalTokens,
-  }
-}
-
-function spanListItems(spans: Span[]): SpanListItem[] {
+function spanListItems<T extends Span | AppSpan>(
+  spans: T[],
+  subject: TraceSubject,
+  finishReason: (span: T) => string | undefined
+): SpanListItem[] {
   if (spans.length === 0) {
     return []
   }
@@ -678,37 +755,52 @@ function spanListItems(spans: Span[]): SpanListItem[] {
   const traceEndMs = Math.max(...times)
   const traceDurationMs = Math.max(traceEndMs - traceStartMs, 0)
 
-  const depths = spanDepths(spans)
+  const byID = new Map(spans.map((span) => [span.span_id, span]))
 
   return spans.map((span) => {
     const startMs = dayjs(span.start_time).valueOf()
-    const durationMs = span.duration_ns / 1_000_000
+    const durationMs = span.duration_ns === null ? null : span.duration_ns / 1_000_000
     const offsetMs = Math.max(startMs - traceStartMs, 0)
+    let depth = 0
+    let parent = byID.get(span.parent_span_id)
+    while (parent && depth < 4) {
+      depth++
+      parent = byID.get(parent.parent_span_id)
+    }
 
     return spanListItem({
       span,
+      subject,
+      llmFinishReason: finishReason(span),
       offsetPercent: percent(offsetMs, traceDurationMs),
       durationMs,
-      durationPercent: percent(durationMs, traceDurationMs),
-      depth: depths.get(span.span_id) ?? 0,
+      durationPercent: durationMs === null ? 0 : percent(durationMs, traceDurationMs),
+      depth,
     })
   })
 }
 
 function spanListItem({
   span,
+  subject,
+  llmFinishReason,
   offsetPercent,
   durationMs,
   durationPercent,
   depth,
 }: {
-  span: Span
+  span: Span | AppSpan
+  subject: TraceSubject
+  llmFinishReason?: string
   offsetPercent: number
-  durationMs: number
+  durationMs: number | null
   durationPercent: number
   depth: number
 }): SpanListItem {
-  const totalTokens = span.input_tokens + span.output_tokens
+  const totalTokens =
+    span.input_tokens === null || span.output_tokens === null
+      ? null
+      : span.input_tokens + span.output_tokens
   const hasError =
     span.status_code === "ERROR" || span.error_type.length > 0 || span.error_message.length > 0
   const startLabel = formatRecentTimestamp(span.start_time)
@@ -716,21 +808,19 @@ function spanListItem({
 
   return {
     id: span.id,
-    agentName: span.agent_name,
-    sessionId: span.session_id,
+    subject,
     traceId: span.trace_id,
     spanId: span.span_id,
     parentSpanId: span.parent_span_id,
     startLabel,
     endLabel,
-    duration: formatDurationMs(durationMs),
+    duration: durationMs === null ? undefined : formatDurationMs(durationMs),
     durationMs,
-    displayName: displayName(span),
-    operationLabel: operationLabel(span),
+    displayName: operationLabel(span),
     spanClass: span.span_class,
     kind: span.kind,
     statusCode: span.status_code,
-    llmFinishReason: span.llm_finish_reason,
+    llmFinishReason,
     hasError,
     error: span.error_message,
     spanType: spanType(span),
@@ -740,150 +830,22 @@ function spanListItem({
     cachedWriteTokens: span.cached_write_tokens,
     outputTokens: span.output_tokens,
     totalTokens,
-    costUSD: span.cost_usd,
     offsetPercent,
-    durationPercent: Math.max(durationPercent, durationMs > 0 ? 0.5 : 0),
+    durationPercent: Math.max(durationPercent, durationMs !== null && durationMs > 0 ? 0.5 : 0),
   }
 }
 
-function payloadSections(payload: SpanPayload): SpanDetailPayloadSection[] {
-  return [
-    payloadSection("input_messages", "Input", payload.input_messages),
-    payloadSection("output_messages", "Output", payload.output_messages),
-    payloadSection("tool_arguments", "Tool arguments", payload.tool_arguments),
-    payloadSection("tool_result", "Tool result", payload.tool_result),
-  ]
+function payloadSection(key: string, label: string, json: string): SpanDetailPayloadSection {
+  let kind: "arguments" | "result" | "error" | undefined
+  if (key === "tool_arguments") kind = "arguments"
+  if (key === "tool_result") kind = "result"
+  if (key === "tool_error") kind = "error"
+  const tool = kind ? readToolContent(json, kind) : undefined
+  const content = tool?.format === "text" ? { text: tool.text } : { code: json }
+  return { key, label, content, empty: json === "null" || json === "[]" || json === "{}" }
 }
 
-function payloadSection(key: string, label: string, value: JsonValue): SpanDetailPayloadSection {
-  const json = JSON.stringify(value, null, 2)
-  const preview = jsonPreview(value)
-
-  return {
-    key,
-    label,
-    preview,
-    json,
-    empty: isEmptyJSON(value),
-  }
-}
-
-function jsonPreview(value: JsonValue) {
-  if (isEmptyJSON(value)) {
-    return "Empty"
-  }
-
-  if (typeof value === "string") {
-    return value.length > 120 ? `${value.slice(0, 117)}...` : value
-  }
-
-  if (Array.isArray(value)) {
-    return `${value.length} item${value.length === 1 ? "" : "s"}`
-  }
-
-  if (typeof value === "object" && value !== null) {
-    const keys = Object.keys(value)
-    return keys.slice(0, 4).join(", ") || "Object"
-  }
-
-  return String(value)
-}
-
-function isEmptyJSON(value: JsonValue) {
-  if (value === "" || value === null) {
-    return true
-  }
-
-  if (Array.isArray(value)) {
-    return value.length === 0
-  }
-
-  if (typeof value === "object") {
-    return Object.keys(value).length === 0
-  }
-
-  return false
-}
-
-function processTelemetryEventItem(event: ProcessObservabilityEvent): RuntimeTelemetryEventItem {
-  const eventTime = dayjs(event.event_time)
-  const time = eventTime.isValid() ? formatRecentTimestamp(event.event_time) : event.event_time
-
-  return {
-    id: event.id,
-    kind: "process",
-    eventTime: event.event_time,
-    time,
-    action: event.action,
-    primary: event.process,
-    secondary: event.command_invocation || event.parent_process,
-    source: event.source,
-    namespace: event.pod_namespace,
-    pod: event.pod_name,
-  }
-}
-
-function fileTelemetryEventItem(event: FileObservabilityEvent): RuntimeTelemetryEventItem {
-  const eventTime = dayjs(event.event_time)
-  const time = eventTime.isValid() ? formatRecentTimestamp(event.event_time) : event.event_time
-
-  return {
-    id: event.id,
-    kind: "file",
-    eventTime: event.event_time,
-    time,
-    action: event.action,
-    primary: event.file_path_accessed,
-    secondary: event.command_invocation || event.process,
-    source: event.source,
-    namespace: event.pod_namespace,
-    pod: event.pod_name,
-  }
-}
-
-function networkTelemetryEventItem(event: NetworkObservabilityEvent): RuntimeTelemetryEventItem {
-  const eventTime = dayjs(event.event_time)
-  const time = eventTime.isValid() ? formatRecentTimestamp(event.event_time) : event.event_time
-
-  return {
-    id: event.id,
-    kind: "network",
-    eventTime: event.event_time,
-    time,
-    action: event.action,
-    primary: event.destination_domain || event.destination_ip,
-    secondary: `${event.protocol} ${event.destination_ip}:${event.destination_port}`,
-    source: event.source,
-    namespace: event.pod_namespace,
-    pod: event.pod_name,
-  }
-}
-
-function spanDepths(spans: Span[]) {
-  const byID = new Map(spans.map((span) => [span.span_id, span]))
-  const depths = new Map<string, number>()
-
-  function depth(span: Span): number {
-    const cached = depths.get(span.span_id)
-    if (cached !== undefined) {
-      return cached
-    }
-
-    const parent = byID.get(span.parent_span_id)
-    const value = parent ? Math.min(depth(parent) + 1, 4) : 0
-    depths.set(span.span_id, value)
-
-    return value
-  }
-
-  for (const span of spans) {
-    depth(span)
-  }
-
-  return depths
-}
-
-function operationLabel(span: Span) {
+function operationLabel(span: Span | AppSpan) {
   if (span.operation_name === "invoke_agent") {
     return "Agent run"
   }
@@ -899,23 +861,7 @@ function operationLabel(span: Span) {
   return span.operation_name || span.name
 }
 
-function displayName(span: Span) {
-  if (span.operation_name === "invoke_agent") {
-    return "Agent run"
-  }
-
-  if (span.tool_name) {
-    return span.tool_name
-  }
-
-  if (span.model) {
-    return "Model call"
-  }
-
-  return span.name
-}
-
-function spanType(span: Span): SpanListItem["spanType"] {
+function spanType(span: Span | AppSpan): SpanListItem["spanType"] {
   if (span.operation_name === "invoke_agent") {
     return "agent"
   }

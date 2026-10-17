@@ -26,6 +26,10 @@ const CodeBlock = dynamic(
   }
 )
 
+const CodeEditor = dynamic(() =>
+  import("@/components/code-editor").then((module) => module.CodeEditor)
+)
+
 export function TraceInspectorSheet({
   title,
   description,
@@ -42,15 +46,15 @@ export function TraceInspectorSheet({
     <SheetContent
       size="full"
       aria-describedby={description ? descriptionId : undefined}
-      className="gap-0 overflow-x-hidden overflow-y-auto border-l bg-background p-0 text-sm shadow-2xl md:w-[89vw] lg:w-[84vw] lg:overflow-hidden [&_svg]:size-4"
+      className="gap-0 overflow-hidden border-l bg-background p-0 text-sm shadow-2xl md:w-[89vw] lg:w-[84vw] [&_svg]:size-4"
     >
       <SheetHeader>
         <SheetTitle className="text-md truncate">{title}</SheetTitle>
         {description ? <SheetDescription id={descriptionId}>{description}</SheetDescription> : null}
       </SheetHeader>
-      <div className="flex flex-col bg-background lg:grid lg:min-h-0 lg:flex-1 lg:grid-rows-[auto_1fr]">
+      <div className="grid min-h-0 flex-1 grid-rows-[auto_1fr] bg-background">
         <div className="bg-muted/50 px-4 py-2">{tabs}</div>
-        <div className="lg:min-h-0 lg:overflow-hidden">{children}</div>
+        <div className="min-h-0 overflow-auto lg:overflow-hidden">{children}</div>
       </div>
     </SheetContent>
   )
@@ -178,7 +182,7 @@ export function TraceInspectorRow({
   selected: boolean
   onClick: () => void
   depth: number
-  duration: string
+  duration?: string
   tokens?: number
   id: string
   hasError?: boolean
@@ -205,19 +209,23 @@ export function TraceInspectorRow({
         {hasError ? <CircleAlert className="text-destructive" /> : null}
       </div>
       <div className="mt-0.5 ml-6 flex flex-wrap items-center gap-2 text-xs text-muted-foreground lg:gap-3 [&_svg]:size-3.5">
-        <span className="inline-flex items-center gap-1">
-          <Clock />
-          {duration}
-        </span>
+        {duration ? (
+          <span className="inline-flex items-center gap-1">
+            <Clock />
+            {duration}
+          </span>
+        ) : null}
         {tokens > 0 ? <span>{formatCompactNumber(tokens)} tokens</span> : null}
         <span className="font-mono">{id.slice(0, 8)}</span>
       </div>
-      <div className="mt-1.5 ml-6 h-0.5 rounded-full bg-border">
-        <div
-          className={cn("h-full rounded-full", timelineClass)}
-          style={{ width: `${durationPercent}%`, marginLeft: `${offsetPercent}%` }}
-        />
-      </div>
+      {duration ? (
+        <div className="mt-1.5 ml-6 h-0.5 rounded-full bg-border">
+          <div
+            className={cn("h-full rounded-full", timelineClass)}
+            style={{ width: `${durationPercent}%`, marginLeft: `${offsetPercent}%` }}
+          />
+        </div>
+      ) : null}
     </button>
   )
 }
@@ -307,6 +315,7 @@ export function TraceContentPanel({
 }: {
   title: string
 } & ({ code: string; text?: never } | { text: string; code?: never })) {
+  const value = code ?? text
   return (
     <section>
       <div className="my-2 flex items-center justify-between">
@@ -320,7 +329,12 @@ export function TraceContentPanel({
         )}
       </div>
       <div className="max-h-100 overflow-auto rounded-md">
-        {code !== undefined ? (
+        {/* Large JSON needs a virtual viewport; highlighting or laying out the entire text blocks interaction. */}
+        {value.length > 16_384 ? (
+          <div className="h-100">
+            <CodeEditor filename={`${title}.txt`} readOnly lineWrapping={false} value={value} />
+          </div>
+        ) : code !== undefined ? (
           <CodeBlock code={code} language="json" showLineNumbers className="border-0 bg-muted/20" />
         ) : (
           <pre className="bg-muted/20 p-4 font-mono text-xs leading-relaxed wrap-break-word whitespace-pre-wrap">

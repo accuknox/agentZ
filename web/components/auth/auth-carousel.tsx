@@ -226,7 +226,7 @@ const slides = [
           <ShieldCheck className="size-4 text-primary" />
           <span className="text-sm font-medium">Sandbox egress</span>
         </div>
-        <div className="absolute top-[22%] bottom-[10%] left-0 flex w-[37%] flex-col items-center justify-center gap-3 rounded-[2rem] border-2 border-dashed border-primary/60 bg-primary/5">
+        <div className="absolute top-[22%] bottom-[10%] left-0 flex w-[37%] flex-col items-center justify-center gap-3 rounded-[2rem] border-2 border-dashed border-primary bg-primary/5">
           <span className="flex size-16 items-center justify-center rounded-2xl bg-card text-primary shadow-sm ring-1 ring-foreground/10">
             <Bot className="size-9 stroke-1" />
           </span>
@@ -254,7 +254,7 @@ const slides = [
               detail: "Denied",
               icon: CircleX,
               color: "text-destructive",
-              line: "border-destructive/60 border-t-2 border-dashed",
+              line: "border-destructive border-t-2 border-dashed",
             },
           ].map(({ label, detail, icon: Icon, color, line }) => (
             <div key={label} className="flex items-center gap-3">

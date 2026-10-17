@@ -18,7 +18,6 @@ package sandbox
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -1025,7 +1024,7 @@ func (r *Reconciler) reconcileTracePolicy(ctx context.Context, namespace string,
 
 	currentSpec := obj.Spec.DeepCopy()
 	currentOwners := slices.Clone(obj.OwnerReferences)
-	backendRef := tracePolicyBackendRef(r.TraceBackend, traceBackendName)
+	backendRef := r.TraceBackend.BackendRef(traceBackendName)
 	randomSampling := agentgatewayv1alpha1.CELExpression("true")
 	attrs := &agentgatewayv1alpha1.LogTracingAttributes{
 		Add: []agentgatewayv1alpha1.AttributeAdd{
@@ -1187,28 +1186,6 @@ func (r *Reconciler) reconcileTraceBackend(ctx context.Context, namespace, name 
 		return fmt.Errorf("update trace backend: %w", err)
 	}
 	return nil
-}
-
-func tracePolicyBackendRef(cfg TraceBackend, name string) *gwv1.BackendObjectReference {
-	if cfg.Mode == TraceBackendModeService {
-		kind := gwv1.Kind("Service")
-		namespace := gwv1.Namespace(cfg.ServiceNamespace)
-		port := cfg.ServicePort
-		return &gwv1.BackendObjectReference{
-			Kind:      &kind,
-			Name:      gwv1.ObjectName(cfg.ServiceName),
-			Namespace: &namespace,
-			Port:      &port,
-		}
-	}
-
-	group := gwv1.Group("agentgateway.dev")
-	kind := gwv1.Kind("AgentgatewayBackend")
-	return &gwv1.BackendObjectReference{
-		Group: &group,
-		Kind:  &kind,
-		Name:  gwv1.ObjectName(name),
-	}
 }
 
 func (r *Reconciler) deleteTraceEndpointResources(ctx context.Context, namespace string) error {
@@ -1400,25 +1377,7 @@ func gatewayNetworkPolicySpec(namespace, gatewayName string, traceBackend TraceB
 			agentGatewayControlPlanePort,
 		)...,
 	)
-	switch traceBackend.Mode {
-	case TraceBackendModeService:
-		rule.Egress = append(
-			rule.Egress,
-			networkpolicy.ServiceEgress(
-				traceBackend.ServiceNamespace,
-				traceBackend.ServiceName,
-				traceBackend.ServicePort,
-			)...,
-		)
-	case TraceBackendModeStatic:
-		rule.Egress = append(
-			rule.Egress,
-			networkpolicy.ExternalEgress([]networkpolicy.Target{{
-				Host: traceBackend.Host,
-				Port: traceBackend.Port,
-			}})...,
-		)
-	}
+	rule.Egress = append(rule.Egress, traceBackend.Egress()...)
 	return rule
 }
 
@@ -1438,28 +1397,19 @@ func (r *Reconciler) ensureAgentgatewayParameters(ctx context.Context, namespace
 		}
 	}
 
-	specBytes, err := json.Marshal(map[string]string{"type": "ClusterIP"})
-	if err != nil {
-		return fmt.Errorf("marshal service spec overlay: %w", err)
-	}
-
-	desiredSpec := agentgatewayv1alpha1.AgentgatewayParametersSpec{
-		AgentgatewayParametersOverlays: agentgatewayv1alpha1.AgentgatewayParametersOverlays{
-			Service: &agentgatewayv1alpha1.KubernetesResourceOverlay{
-				Spec: &apiextensionsv1.JSON{Raw: specBytes},
-			},
-		},
+	desiredService := &agentgatewayv1alpha1.KubernetesResourceOverlay{
+		Spec: &apiextensionsv1.JSON{Raw: []byte(`{"type":"ClusterIP"}`)},
 	}
 
 	if obj.CreationTimestamp.IsZero() {
-		obj.Spec = desiredSpec
+		obj.Spec.Service = desiredService
 		if _, err := client.Create(ctx, obj, metav1.CreateOptions{}); err != nil {
 			return fmt.Errorf("create agentgateway parameters: %w", err)
 		}
 		return nil
 	}
 
-	if reflect.DeepEqual(obj.Spec, desiredSpec) {
+	if reflect.DeepEqual(obj.Spec.Service, desiredService) {
 		return nil
 	}
 
@@ -1470,10 +1420,10 @@ func (r *Reconciler) ensureAgentgatewayParameters(ctx context.Context, namespace
 			if err != nil {
 				return fmt.Errorf("get agentgateway parameters for update: %w", err)
 			}
-			if reflect.DeepEqual(current.Spec, desiredSpec) {
+			if reflect.DeepEqual(current.Spec.Service, desiredService) {
 				return nil
 			}
-			current.Spec = desiredSpec
+			current.Spec.Service = desiredService
 			_, err = client.Update(ctx, current, metav1.UpdateOptions{})
 			if err != nil {
 				return fmt.Errorf("update agentgateway parameters: %w", err)

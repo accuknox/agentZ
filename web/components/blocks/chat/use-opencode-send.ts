@@ -35,7 +35,7 @@ type SendMessageInput = PromptInputMessage & {
   delivery: ChatInputRequest["delivery"]
 }
 
-export function chatInputsOptions(workspaceId: string, agentName: string, sessionID?: string) {
+function chatInputsOptions(workspaceId: string, agentName: string, sessionID?: string) {
   return queryOptions({
     queryKey: ["chatInputs", workspaceId, agentName, sessionID] as const,
     enabled: Boolean(sessionID),

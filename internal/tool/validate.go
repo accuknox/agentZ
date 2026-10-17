@@ -94,9 +94,10 @@ func Validate(tools []agentzv1alpha1.AgentTool, p *field.Path) field.ErrorList {
 				"upload a .sh, .py or .js filename matching the language",
 			))
 		}
-		badScript := !utf8.ValidString(t.Script) || strings.ContainsRune(t.Script, '\x00') ||
+		invalidScript := !utf8.ValidString(t.Script) ||
+			strings.ContainsRune(t.Script, '\x00') ||
 			strings.TrimSpace(t.Script) == ""
-		if badScript {
+		if invalidScript {
 			errs = append(errs, field.Invalid(
 				at.Child("script"), "",
 				"upload a nonempty UTF-8 script without NUL bytes",

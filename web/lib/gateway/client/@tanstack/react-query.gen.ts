@@ -50,6 +50,9 @@ import {
   exportImmutableSkills,
   getAgentOwner,
   getAgentTool,
+  getAppMcpGraph,
+  getAppOperation,
+  getAppTraceChart,
   getChatSessionPreference,
   getCodingOperation,
   getCodingProject,
@@ -82,6 +85,9 @@ import {
   listAgentShares,
   listAgentTools,
   listAgentWorkflowSchedules,
+  listAppSessions,
+  listAppSpans,
+  listAppTraces,
   listChatInputs,
   listChatSessions,
   listCodingOperations,
@@ -99,6 +105,7 @@ import {
   listInferencePools,
   listInferenceProviderCatalog,
   listInferenceProviders,
+  listLensApps,
   listMcpConnections,
   listNetworkObservability,
   listNetworkObservabilitySummary,
@@ -280,6 +287,15 @@ import type {
   GetAgentToolData,
   GetAgentToolError,
   GetAgentToolResponse,
+  GetAppMcpGraphData,
+  GetAppMcpGraphError,
+  GetAppMcpGraphResponse,
+  GetAppOperationData,
+  GetAppOperationError,
+  GetAppOperationResponse,
+  GetAppTraceChartData,
+  GetAppTraceChartError,
+  GetAppTraceChartResponse,
   GetChatSessionPreferenceData,
   GetChatSessionPreferenceError,
   GetChatSessionPreferenceResponse,
@@ -376,6 +392,15 @@ import type {
   ListAgentWorkflowSchedulesData,
   ListAgentWorkflowSchedulesError,
   ListAgentWorkflowSchedulesResponse,
+  ListAppSessionsData,
+  ListAppSessionsError,
+  ListAppSessionsResponse2,
+  ListAppSpansData,
+  ListAppSpansError,
+  ListAppSpansResponse2,
+  ListAppTracesData,
+  ListAppTracesError,
+  ListAppTracesResponse2,
   ListChatInputsData,
   ListChatInputsError,
   ListChatInputsResponse,
@@ -427,6 +452,9 @@ import type {
   ListInferenceProvidersData,
   ListInferenceProvidersError,
   ListInferenceProvidersResponse2,
+  ListLensAppsData,
+  ListLensAppsError,
+  ListLensAppsResponse2,
   ListMcpConnectionsData,
   ListMcpConnectionsError,
   ListMcpConnectionsResponse2,
@@ -635,6 +663,187 @@ const createQueryKey = <TOptions extends Options>(
   }
   return [params]
 }
+
+export const listLensAppsQueryKey = (options?: Options<ListLensAppsData>) =>
+  createQueryKey("listLensApps", options)
+
+/**
+ * List apps with workspace access or telemetry history
+ *
+ * Includes approved resource selections and historical operations after app access is revoked or the app is deleted.
+ */
+export const listLensAppsOptions = (options?: Options<ListLensAppsData>) =>
+  queryOptions<
+    ListLensAppsResponse2,
+    ListLensAppsError,
+    ListLensAppsResponse2,
+    ReturnType<typeof listLensAppsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listLensApps({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listLensAppsQueryKey(options),
+  })
+
+export const listAppSessionsQueryKey = (options: Options<ListAppSessionsData>) =>
+  createQueryKey("listAppSessions", options)
+
+/**
+ * List observed native sessions for a registered external agent
+ */
+export const listAppSessionsOptions = (options: Options<ListAppSessionsData>) =>
+  queryOptions<
+    ListAppSessionsResponse2,
+    ListAppSessionsError,
+    ListAppSessionsResponse2,
+    ReturnType<typeof listAppSessionsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listAppSessions({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listAppSessionsQueryKey(options),
+  })
+
+export const listAppTracesQueryKey = (options: Options<ListAppTracesData>) =>
+  createQueryKey("listAppTraces", options)
+
+/**
+ * List traces for an app
+ *
+ * Groups attributed inference and MCP tool operations by trace ID. Apps do not require an Agent or an OpenCode session.
+ */
+export const listAppTracesOptions = (options: Options<ListAppTracesData>) =>
+  queryOptions<
+    ListAppTracesResponse2,
+    ListAppTracesError,
+    ListAppTracesResponse2,
+    ReturnType<typeof listAppTracesQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listAppTraces({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listAppTracesQueryKey(options),
+  })
+
+export const getAppTraceChartQueryKey = (options: Options<GetAppTraceChartData>) =>
+  createQueryKey("getAppTraceChart", options)
+
+/**
+ * Get trace counts for an app
+ *
+ * Counts the entire requested time range independently of trace pagination.
+ */
+export const getAppTraceChartOptions = (options: Options<GetAppTraceChartData>) =>
+  queryOptions<
+    GetAppTraceChartResponse,
+    GetAppTraceChartError,
+    GetAppTraceChartResponse,
+    ReturnType<typeof getAppTraceChartQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getAppTraceChart({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getAppTraceChartQueryKey(options),
+  })
+
+export const listAppSpansQueryKey = (options: Options<ListAppSpansData>) =>
+  createQueryKey("listAppSpans", options)
+
+/**
+ * List operations in an app trace
+ */
+export const listAppSpansOptions = (options: Options<ListAppSpansData>) =>
+  queryOptions<
+    ListAppSpansResponse2,
+    ListAppSpansError,
+    ListAppSpansResponse2,
+    ReturnType<typeof listAppSpansQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listAppSpans({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listAppSpansQueryKey(options),
+  })
+
+export const getAppOperationQueryKey = (options: Options<GetAppOperationData>) =>
+  createQueryKey("getAppOperation", options)
+
+/**
+ * Get an app operation and its captured content
+ */
+export const getAppOperationOptions = (options: Options<GetAppOperationData>) =>
+  queryOptions<
+    GetAppOperationResponse,
+    GetAppOperationError,
+    GetAppOperationResponse,
+    ReturnType<typeof getAppOperationQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getAppOperation({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getAppOperationQueryKey(options),
+  })
+
+export const getAppMcpGraphQueryKey = (options: Options<GetAppMcpGraphData>) =>
+  createQueryKey("getAppMcpGraph", options)
+
+/**
+ * Get MCP tool activity for an app
+ */
+export const getAppMcpGraphOptions = (options: Options<GetAppMcpGraphData>) =>
+  queryOptions<
+    GetAppMcpGraphResponse,
+    GetAppMcpGraphError,
+    GetAppMcpGraphResponse,
+    ReturnType<typeof getAppMcpGraphQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getAppMcpGraph({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getAppMcpGraphQueryKey(options),
+  })
 
 export const getDelegationCatalogQueryKey = (options?: Options<GetDelegationCatalogData>) =>
   createQueryKey("getDelegationCatalog", options)

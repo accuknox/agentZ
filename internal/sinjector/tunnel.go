@@ -78,8 +78,6 @@ func (p *proxy) handleConnect(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case looksLikeTLS(peek):
 		p.handleTLS(ctx, clientBuf, upstream, host)
-	case looksLikeHTTP2(peek):
-		relay(clientBuf, upstream)
 	case looksLikeHTTP(peek):
 		p.handleHTTP(ctx, clientBuf, host, "http")
 	default:
@@ -278,12 +276,6 @@ func looksLikeTLS(peek []byte) bool {
 		return false
 	}
 	return peek[2] <= 0x04
-}
-
-// looksLikeHTTP2 reports whether the first bytes look like the HTTP/2
-// connection preface ("PRI").
-func looksLikeHTTP2(peek []byte) bool {
-	return len(peek) >= 3 && string(peek[:3]) == "PRI"
 }
 
 // looksLikeHTTP reports whether the first bytes look like an HTTP/1.1

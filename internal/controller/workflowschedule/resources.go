@@ -54,12 +54,6 @@ func scheduleLabels(schedule *agentzv1alpha1.WorkflowSchedule) map[string]string
 	return labels
 }
 
-func scheduleRunnerPodLabels(schedule *agentzv1alpha1.WorkflowSchedule) map[string]string {
-	labels := scheduleLabels(schedule)
-	labels[scheduleRunnerLabel] = schedule.Name
-	return labels
-}
-
 func (r *Reconciler) reconcileServiceAccount(ctx context.Context, schedule *agentzv1alpha1.WorkflowSchedule) error {
 	sa := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
@@ -258,7 +252,9 @@ func (r *Reconciler) reconcileCronJob(ctx context.Context, schedule *agentzv1alp
 			cronJob.Spec.SuccessfulJobsHistoryLimit = new(int32(1))
 			cronJob.Spec.FailedJobsHistoryLimit = new(int32(1))
 			cronJob.Spec.JobTemplate.Spec.BackoffLimit = new(int32(0))
-			cronJob.Spec.JobTemplate.Spec.Template.Labels = scheduleRunnerPodLabels(schedule)
+			podLabels := scheduleLabels(schedule)
+			podLabels[scheduleRunnerLabel] = schedule.Name
+			cronJob.Spec.JobTemplate.Spec.Template.Labels = podLabels
 			cronJob.Spec.JobTemplate.Spec.Template.Spec.RestartPolicy = corev1.RestartPolicyNever
 			cronJob.Spec.JobTemplate.Spec.Template.Spec.ServiceAccountName = scheduleRunnerName(schedule)
 			cronJob.Spec.JobTemplate.Spec.Template.Spec.Containers = []corev1.Container{{

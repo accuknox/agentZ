@@ -12,46 +12,48 @@ import { cjk } from "@streamdown/cjk"
 import { code } from "@streamdown/code"
 import { math } from "@streamdown/math"
 import { mermaid } from "@streamdown/mermaid"
-import type { UIMessage } from "ai"
-import type { ComponentProps, HTMLAttributes, FC } from "react"
+import type { ComponentProps, HTMLAttributes, FC, ReactNode } from "react"
 import { Children, cloneElement, isValidElement, memo } from "react"
 import { bundledLanguages } from "shiki"
 import type { BundledLanguage } from "shiki"
 import type { ExtraProps } from "streamdown"
 import { Streamdown } from "streamdown"
 
-export type MessageProps = HTMLAttributes<HTMLDivElement> & {
-  from: UIMessage["role"]
+export function ChatMessage({
+  from,
+  avatar,
+  footer,
+  children,
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & {
+  from: "user" | "assistant"
+  avatar?: ReactNode
+  footer?: ReactNode
+}) {
+  return (
+    <div
+      className={cn(
+        "group flex w-full min-w-0 flex-col",
+        from === "user" && "items-end gap-1",
+        className
+      )}
+      {...props}
+    >
+      {from === "user" ? (
+        <div className="flex w-full items-end justify-end gap-2">
+          <div className="relative max-w-[80%] rounded-2xl bg-message p-3 text-sm text-message-foreground">
+            {children}
+          </div>
+          {avatar}
+        </div>
+      ) : (
+        <div className="relative min-w-0 px-1 py-0.5 text-sm">{children}</div>
+      )}
+      {footer}
+    </div>
+  )
 }
-
-export const Message = ({ className, from, ...props }: MessageProps) => (
-  <div
-    className={cn(
-      "group flex w-full max-w-[95%] flex-col gap-2",
-      from === "user" ? "is-user ml-auto justify-end" : "is-assistant",
-      className
-    )}
-    {...props}
-  />
-)
-
-export type MessageContentProps = HTMLAttributes<HTMLDivElement>
-
-export const MessageContent = ({ children, className, ...props }: MessageContentProps) => (
-  <div
-    className={cn(
-      "is-user:dark flex w-full max-w-full min-w-0 flex-col text-sm",
-      "group-[.is-user]:w-fit",
-      "group-[.is-user]:ml-auto group-[.is-user]:rounded-lg group-[.is-user]:rounded-r-none group-[.is-user]:border-r-2 group-[.is-user]:border-primary group-[.is-user]:bg-secondary group-[.is-user]:px-4 group-[.is-user]:py-3 group-[.is-user]:text-foreground",
-      "group-[.is-assistant]:text-foreground",
-      "group-[.is-assistant]:gap-1",
-      className
-    )}
-    {...props}
-  >
-    {children}
-  </div>
-)
 
 export type MessageResponseProps = ComponentProps<typeof Streamdown> & {
   onAgentFileOpen?: (path: string, name: string) => void

@@ -688,7 +688,10 @@ func ListRuns(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtNa
 		if trigger != nil && *trigger == gatewayapi.Webhook && run.Spec.ScheduleRef != nil {
 			continue
 		}
-		if scheduleName != "" && (run.Spec.ScheduleRef == nil || run.Spec.ScheduleRef.Name != scheduleName) {
+		differentSchedule := scheduleName != "" &&
+			(run.Spec.ScheduleRef == nil ||
+				run.Spec.ScheduleRef.Name != scheduleName)
+		if differentSchedule {
 			continue
 		}
 		if webhookAPIKeyID != "" && workflowRunWebhookAPIKeyID(run) != webhookAPIKeyID {

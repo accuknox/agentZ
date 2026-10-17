@@ -35,7 +35,8 @@
       "additionalProperties": false,
       "properties": {
         "type": { "type": "string", "minLength": 1 },
-        "otlpGrpcPort": { "type": "integer", "minimum": 1, "maximum": 65535 }
+        "otlpGrpcPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "appGrpcPort": { "type": "integer", "minimum": 1, "maximum": 65535 }
       }
     },
     "config": {
@@ -47,6 +48,7 @@
         "logWithSource": { "type": "boolean" },
         "kubearmorRelayAddr": { "type": "string", "minLength": 1 },
         "hubbleRelayAddr": { "type": "string", "minLength": 1 },
+        "otlpTraceMaxMessageSize": { "type": "integer", "minimum": 1 },
         "batchSize": { "type": "integer", "minimum": 1 },
         "flushInterval": { "type": "string", "minLength": 1 }
       }

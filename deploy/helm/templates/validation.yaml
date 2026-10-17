@@ -35,3 +35,8 @@
 {{- fail (printf "manager.delegation.namespace must be %s to match the gateway delegation namespace" $namespace) }}
 {{- end }}
 {{- end }}
+{{- if and .Values.manager.enabled .Values.observer.enabled .Values.global.agentz.delegationEnabled }}
+{{- if ne (int .Values.manager.config.delegationTracePort) (int .Values.observer.service.appGrpcPort) }}
+{{- fail "manager.config.delegationTracePort must match observer.service.appGrpcPort" }}
+{{- end }}
+{{- end }}

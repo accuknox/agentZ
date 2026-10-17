@@ -5,20 +5,24 @@ import (
 	"slices"
 	"testing"
 
+	agw "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	slimv1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	"github.com/accuknox/agentz/internal/authorization"
+	sandboxcontroller "github.com/accuknox/agentz/internal/controller/sandbox"
+	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/mcp"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
@@ -220,5 +224,106 @@ func TestExtAuthCallerIdentities(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestDelegationRestoresAgentGatewayParameters(t *testing.T) {
+	scheme := runtime.NewScheme()
+	for _, add := range []func(*runtime.Scheme) error{corev1.AddToScheme, gwv1.Install, agw.Install, ciliumv2.AddToScheme} {
+		if err := add(scheme); err != nil {
+			t.Fatal(err)
+		}
+	}
+	namespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: "telemetry-test", UID: "namespace-uid"},
+	}
+	normal := &gwv1.HTTPRoute{
+		ObjectMeta: metav1.ObjectMeta{Namespace: namespace.Name, Name: "agent-route"},
+		Spec: gwv1.HTTPRouteSpec{CommonRouteSpec: gwv1.CommonRouteSpec{
+			ParentRefs: []gwv1.ParentReference{{Name: gwv1.ObjectName(inference.GatewayName)}},
+		}},
+	}
+	delegated := normal.DeepCopy()
+	delegated.Name = "app-route"
+	delegated.Labels = map[string]string{authorization.DelegationLabel: "grant"}
+	gateway := inference.Gateway(namespace.Name)
+	originalImage := &agw.Image{
+		Registry: new("registry.example.test"), Repository: new("gateway"), Tag: new("operator"),
+	}
+	parameters := &agw.AgentgatewayParameters{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace.Name, Name: gateway.Spec.Infrastructure.ParametersRef.Name,
+		},
+		Spec: agw.AgentgatewayParametersSpec{
+			Image: originalImage,
+			Env: []corev1.EnvVar{
+				{Name: "OPERATOR_VARIABLE", Value: "keep"},
+				{Name: "OTEL_BSP_MAX_EXPORT_BATCH_SIZE", Value: "32"},
+			},
+		},
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).
+		WithObjects(namespace, normal, delegated, parameters).Build()
+	r := &ExtAuthRuntimeReconciler{
+		Client: c,
+		TraceBackend: sandboxcontroller.TraceBackend{
+			Mode: sandboxcontroller.TraceBackendModeStatic, Host: "192.0.2.10", Port: 4317,
+		},
+		DelegationImage: agw.Image{
+			Registry: new("registry.example.test"), Repository: new("patched-gateway"), Tag: new("tested"),
+		},
+	}
+	if err := r.reconcileDelegationRuntime(t.Context(), namespace); err != nil {
+		t.Fatal(err)
+	}
+	key := client.ObjectKeyFromObject(parameters)
+	if err := c.Get(t.Context(), key, parameters); err != nil {
+		t.Fatal(err)
+	}
+	if !equality.Semantic.DeepEqual(parameters.Spec.Image, &r.DelegationImage) {
+		t.Fatal("delegated listener did not select the tested native image")
+	}
+	if len(parameters.Spec.Env) != 2 || parameters.Spec.Env[1].Value != "1" {
+		t.Fatalf("full-content exports were not isolated into one-span batches: %+v", parameters.Spec.Env)
+	}
+	// A manager rollout can change the configured image immediately before revocation.
+	r.DelegationImage.Tag = new("updated")
+	if err := c.Delete(t.Context(), delegated); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.reconcileDelegationRuntime(t.Context(), namespace); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Get(t.Context(), key, parameters); err != nil {
+		t.Fatal(err)
+	}
+	restored := equality.Semantic.DeepEqual(parameters.Spec.Image, originalImage) &&
+		len(parameters.Spec.Env) == 2 && parameters.Spec.Env[1].Value == "32" &&
+		parameters.Spec.Env[0].Value == "keep"
+	if !restored {
+		t.Fatalf("final app removal changed Agent settings: %+v", parameters.Spec)
+	}
+	if _, ok := parameters.Annotations[delegationParametersAnnotation]; ok {
+		t.Fatal("obsolete delegation settings snapshot retained")
+	}
+	if err := c.Get(t.Context(), client.ObjectKeyFromObject(gateway), gateway); err != nil {
+		t.Fatal(err)
+	}
+	for _, listener := range gateway.Spec.Listeners {
+		if listener.Name == "delegation" {
+			t.Fatal("delegation listener retained after final grant removal")
+		}
+	}
+	if len(gateway.Spec.Listeners) == 0 {
+		t.Fatal("Agent listener was removed")
+	}
+	policy := &agw.AgentgatewayPolicy{}
+	key = client.ObjectKey{
+		Namespace: namespace.Name,
+		Name:      inference.GatewayName + "-delegation-tracing",
+	}
+	err := c.Get(t.Context(), key, policy)
+	if !apierrors.IsNotFound(err) {
+		t.Fatalf("delegation tracing retained: %v", err)
 	}
 }

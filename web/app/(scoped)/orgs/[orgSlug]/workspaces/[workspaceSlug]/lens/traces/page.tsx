@@ -8,7 +8,7 @@ import { EventsChartSkeleton } from "@/components/events-chart-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
 import { resolvePageSelection, type ResolvedPageSelection } from "@/data/page-selection"
 import { RememberPageSelection } from "@/components/page-selection"
-import { getTraceChartAction, listTraceSessionsAction } from "@/data/lens.actions"
+import { getTraceChartAction, listTracesAction } from "@/data/lens.actions"
 import { LensFilters } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/lens-filters"
 import {
   lensDateRange,
@@ -17,6 +17,7 @@ import {
 import { TracesSkeleton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/traces/traces-skeleton"
 import { TracesTable } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/traces/traces-table"
 import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
+import type { TraceSubject } from "@/data/types"
 import { getWorkspaceScope } from "@/data/workspaces"
 import { CircleAlert } from "lucide-react"
 
@@ -28,6 +29,7 @@ const defaultTraceLimit = 25
 
 const tracesSearchParamsSchema = z.object({
   agent_name: searchParamStringSchema,
+  app_client_id: searchParamStringSchema,
   session_id: searchParamStringSchema,
   from: searchParamStringSchema,
   to: searchParamStringSchema,
@@ -37,6 +39,7 @@ const tracesSearchParamsSchema = z.object({
 
 type TracesSearchParams = {
   agent_name?: SearchParamStringInput
+  app_client_id?: SearchParamStringInput
   session_id?: SearchParamStringInput
   from?: SearchParamStringInput
   to?: SearchParamStringInput
@@ -62,9 +65,11 @@ export default async function TracesPage({
 
   const resolved = resolveTracesSearchParams(searchParams)
   const workspaceId = workspace.workspace.id
+  const contentKey = JSON.stringify(await resolved)
   const scope = resolved.then((params) =>
     resolvePageSelection(workspace, "lens/traces", {
       agent_name: params.agentName,
+      app_client_id: params.appClientID,
       session_id: params.sessionID,
     })
   )
@@ -84,10 +89,10 @@ export default async function TracesPage({
         >
           <Filters searchParams={resolved} scope={scope} />
         </Suspense>
-        <Suspense fallback={<EventsChartSkeleton />}>
+        <Suspense key={`chart:${contentKey}`} fallback={<EventsChartSkeleton />}>
           <Chart searchParams={resolved} workspaceId={workspaceId} scope={scope} />
         </Suspense>
-        <Suspense fallback={<TracesSkeleton />}>
+        <Suspense key={`traces:${contentKey}`} fallback={<TracesSkeleton />}>
           <Traces searchParams={resolved} workspaceId={workspaceId} scope={scope} />
         </Suspense>
       </div>
@@ -112,7 +117,12 @@ async function Filters({
     <>
       <RememberPageSelection selected={scope.selected} requested={scope.requested} />
       <LensFilters
+        workspaceId={scope.workspaceId}
+        defaultAppClientID={scope.defaultAppClientID}
+        sessionNextPageToken={scope.sessionNextPageToken}
         agents={scope.agents}
+        apps={scope.apps}
+        selectedAppClientID={scope.selected.app_client_id}
         sessions={scope.sessions}
         selectedAgentName={scope.selected.agent_name}
         selectedSessionId={scope.selected.session_id}
@@ -138,19 +148,11 @@ async function Chart({
     return null
   }
 
-  if (!scope.selected.agent_name) {
-    return null
-  }
-  const sessionID = scope.selected.session_id
-  if (!sessionID) {
-    return null
-  }
+  const subject = selectedTraceSubject(scope)
+  if (!subject) return null
 
   const result = await getTraceChartAction(
-    {
-      agentName: scope.selected.agent_name,
-      sessionID,
-    },
+    subject,
     {
       started_after: params.range.after,
       started_before: params.range.before,
@@ -179,21 +181,21 @@ async function Traces({
     return <ErrorPanel message={scope.error.message} />
   }
 
-  if (!scope.selected.agent_name) {
-    return <EmptyState message="No accessible agents" />
-  }
-  if (!scope.selected.session_id) {
-    return <EmptyState message="No trace sessions for this agent" />
+  const subject = selectedTraceSubject(scope)
+  if (!subject) {
+    const message =
+      scope.subject?.kind === "agent"
+        ? "No trace sessions for this agent"
+        : "No accessible agents or apps"
+    return <EmptyState message={message} />
   }
 
-  const result = await listTraceSessionsAction(
-    {
-      agentName: scope.selected.agent_name,
-      sessionID: scope.selected.session_id,
-    },
+  const result = await listTracesAction(
+    subject,
     {
       limit: params.limit,
       page_token:
+        scope.selected.app_client_id === scope.requested.app_client_id &&
         scope.selected.agent_name === scope.requested.agent_name &&
         scope.selected.session_id === scope.requested.session_id
           ? params.pageToken
@@ -204,11 +206,23 @@ async function Traces({
     workspaceId
   )
 
-  return <TracesTable data={result.data} error={result.error} workspaceId={workspaceId} />
+  return (
+    <TracesTable
+      key={
+        subject.kind !== "agent"
+          ? `app:${subject.clientID}:${subject.kind === "external-agent" ? (subject.sessionId ?? "") : ""}`
+          : `agent:${subject.name}:${subject.sessionId}`
+      }
+      data={result.data}
+      error={result.error}
+      workspaceId={workspaceId}
+    />
+  )
 }
 
 type ResolvedTracesSearchParams = {
   agentName?: string
+  appClientID?: string
   limit: number
   pageToken?: string
   range: LensDateRange
@@ -220,6 +234,7 @@ async function resolveTracesSearchParams(searchParams: Promise<TracesSearchParam
 
   return {
     agentName: params.agent_name,
+    appClientID: params.app_client_id,
     limit: parseLimitParam(params.limit),
     pageToken: params.page_token,
     range: lensDateRange(params.from, params.to),
@@ -247,4 +262,13 @@ function EmptyState({ message }: { message: string }) {
       {message}
     </div>
   )
+}
+
+function selectedTraceSubject(scope: ResolvedPageSelection): TraceSubject | undefined {
+  const subject = scope.subject
+  if (!subject) return
+  if (subject.kind !== "agent") return subject
+  const sessionId = scope.selected.session_id
+  if (!sessionId) return
+  return { ...subject, sessionId }
 }

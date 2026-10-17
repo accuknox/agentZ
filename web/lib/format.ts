@@ -23,7 +23,8 @@ const compactNumberFormatter = new Intl.NumberFormat("en", {
 })
 
 /** formatCompactNumber keeps counts and token displays consistent. */
-export function formatCompactNumber(value: number) {
+export function formatCompactNumber(value: number | null) {
+  if (value === null) return "Unknown"
   return compactNumberFormatter.format(value)
 }
 

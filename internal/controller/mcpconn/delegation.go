@@ -2,21 +2,37 @@ package mcpconn
 
 import (
 	"context"
+	"encoding/json"
 	"slices"
+	"strconv"
 
 	agw "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
+	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	ciliumlabels "github.com/cilium/cilium/pkg/labels"
+	ciliumapi "github.com/cilium/cilium/pkg/policy/api"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/accuknox/agentz/internal/authorization"
+	sandboxcontroller "github.com/accuknox/agentz/internal/controller/sandbox"
 	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/mcp"
 )
+
+const delegationParametersAnnotation = "agentz.accuknox.com/delegation-parameters"
+
+type delegationParameters struct {
+	Image        *agw.Image     `json:"image"`
+	Batch        *corev1.EnvVar `json:"batch"`
+	AppliedImage *agw.Image     `json:"applied_image"`
+}
 
 func (r *ExtAuthRuntimeReconciler) reconcileDelegationRuntime(ctx context.Context, namespace *corev1.Namespace) error {
 	ns := namespace.Name
@@ -63,10 +79,17 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationRuntime(ctx context.Contex
 			}
 			consumed = true
 			_, delegated := route.Labels[authorization.DelegationLabel]
-			needed = needed || delegated
+			if delegated {
+				needed = true
+				break
+			}
+		}
+		err := r.reconcileDelegationTracing(ctx, ns, desired.Name, needed, ownerRefs)
+		if err != nil {
+			return err
 		}
 		gateway := &gwv1.Gateway{ObjectMeta: metav1.ObjectMeta{Name: desired.Name, Namespace: ns}}
-		err := r.Get(ctx, client.ObjectKeyFromObject(gateway), gateway)
+		err = r.Get(ctx, client.ObjectKeyFromObject(gateway), gateway)
 		missing := apierrors.IsNotFound(err)
 		if err != nil && !missing {
 			return err
@@ -88,6 +111,40 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationRuntime(ctx context.Contex
 			if missing {
 				continue
 			}
+			parameters := &agw.AgentgatewayParameters{}
+			key := client.ObjectKey{
+				Namespace: ns,
+				Name:      desired.Spec.Infrastructure.ParametersRef.Name,
+			}
+			err := r.Get(ctx, key, parameters)
+			if err != nil && !apierrors.IsNotFound(err) {
+				return err
+			}
+			if err == nil {
+				patch := client.MergeFrom(parameters.DeepCopy())
+				if saved := parameters.Annotations[delegationParametersAnnotation]; saved != "" {
+					var original delegationParameters
+					if err := json.Unmarshal([]byte(saved), &original); err != nil {
+						return err
+					}
+					index := slices.IndexFunc(parameters.Spec.Env, func(variable corev1.EnvVar) bool {
+						return variable.Name == "OTEL_BSP_MAX_EXPORT_BATCH_SIZE" && variable.Value == "1"
+					})
+					if index >= 0 {
+						parameters.Spec.Env = slices.Delete(parameters.Spec.Env, index, index+1)
+						if original.Batch != nil {
+							parameters.Spec.Env = append(parameters.Spec.Env, *original.Batch)
+						}
+					}
+					if equality.Semantic.DeepEqual(parameters.Spec.Image, original.AppliedImage) {
+						parameters.Spec.Image = original.Image
+					}
+					delete(parameters.Annotations, delegationParametersAnnotation)
+				}
+				if err := r.Patch(ctx, parameters, patch); err != nil {
+					return err
+				}
+			}
 			patch := client.MergeFrom(gateway.DeepCopy())
 			gateway.Spec.Listeners = slices.DeleteFunc(gateway.Spec.Listeners, func(listener gwv1.Listener) bool {
 				return listener.Name == "delegation"
@@ -103,6 +160,30 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationRuntime(ctx context.Contex
 		}}
 		_, err = ctrlutil.CreateOrPatch(ctx, r.Client, parameters, func() error {
 			parameters.OwnerReferences = ownerRefs
+			original := delegationParameters{Image: parameters.Spec.Image.DeepCopy()}
+			switch saved := parameters.Annotations[delegationParametersAnnotation]; saved {
+			case "":
+				index := slices.IndexFunc(parameters.Spec.Env, func(variable corev1.EnvVar) bool {
+					return variable.Name == "OTEL_BSP_MAX_EXPORT_BATCH_SIZE"
+				})
+				if index >= 0 {
+					original.Batch = parameters.Spec.Env[index].DeepCopy()
+				}
+			default:
+				if err := json.Unmarshal([]byte(saved), &original); err != nil {
+					return err
+				}
+			}
+			original.AppliedImage = r.DelegationImage.DeepCopy()
+			encoded, err := json.Marshal(original)
+			if err != nil {
+				return err
+			}
+			if parameters.Annotations == nil {
+				parameters.Annotations = map[string]string{}
+			}
+			parameters.Annotations[delegationParametersAnnotation] = string(encoded)
+			parameters.Spec.Image = r.DelegationImage.DeepCopy()
 			if parameters.CreationTimestamp.IsZero() {
 				parameters.Spec.Service = &agw.KubernetesResourceOverlay{
 					Spec: &apiextensionsv1.JSON{
@@ -110,6 +191,10 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationRuntime(ctx context.Contex
 					},
 				}
 			}
+			parameters.Spec.Env = slices.DeleteFunc(parameters.Spec.Env, func(variable corev1.EnvVar) bool {
+				return variable.Name == "OTEL_BSP_MAX_EXPORT_BATCH_SIZE"
+			})
+			parameters.Spec.Env = append(parameters.Spec.Env, corev1.EnvVar{Name: "OTEL_BSP_MAX_EXPORT_BATCH_SIZE", Value: "1"})
 			return nil
 		})
 		if err != nil {
@@ -135,4 +220,165 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationRuntime(ctx context.Contex
 		}
 	}
 	return nil
+}
+
+func (r *ExtAuthRuntimeReconciler) reconcileDelegationTracing(ctx context.Context, namespace, gateway string, needed bool, owners []metav1.OwnerReference) error {
+	name := gateway + "-delegation-tracing"
+	policy := &agw.AgentgatewayPolicy{
+		ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
+	}
+	backend := &agw.AgentgatewayBackend{
+		ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name + "-backend"},
+	}
+	network := &ciliumv2.CiliumNetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
+	}
+	if !needed {
+		for _, object := range []client.Object{policy, backend, network} {
+			if err := client.IgnoreNotFound(r.Delete(ctx, object)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if err := r.TraceBackend.Validate(); err != nil {
+		return err
+	}
+	if r.TraceBackend.Mode == sandboxcontroller.TraceBackendModeStatic {
+		_, err := ctrlutil.CreateOrPatch(ctx, r.Client, backend, func() error {
+			backend.OwnerReferences = owners
+			backend.Spec = agw.AgentgatewayBackendSpec{Static: &agw.StaticBackend{
+				Host: r.TraceBackend.Host, Port: r.TraceBackend.Port,
+			}}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	}
+	if r.TraceBackend.Mode == sandboxcontroller.TraceBackendModeService {
+		if err := client.IgnoreNotFound(r.Delete(ctx, backend)); err != nil {
+			return err
+		}
+	}
+	attrs := []agw.AttributeAdd{}
+	fields := []string{
+		"client_id", "app_name", "grant_id", "user_id", "organization_id", "workspace_id",
+		"resource_kind", "resource_namespace", "resource_name", "resource_uid", "target_id",
+	}
+	for _, field := range fields {
+		attrs = append(attrs, agw.AttributeAdd{
+			Name:       "agentz." + field,
+			Expression: agw.CELExpression("metadata.agentz_observability." + field),
+		})
+	}
+	// Registration controls which native metadata is accepted as conversation identity.
+	agentKind := `default(metadata.agentz_observability.agent_kind, "")`
+	attrs = append(attrs, agw.AttributeAdd{
+		Name:       "agentz.agent_kind",
+		Expression: agw.CELExpression(agentKind),
+	})
+	if gateway == inference.GatewayName {
+		attrs = append(attrs,
+			agw.AttributeAdd{
+				Name:       "session.id",
+				Expression: agw.CELExpression(agentKind + ` == "codex" ? default(request.headers["thread-id"], "") : (` + agentKind + ` == "claude" ? default(request.headers["x-claude-code-session-id"], "") : "")`),
+			},
+			agw.AttributeAdd{
+				Name:       "agentz.turn_id",
+				Expression: agw.CELExpression(agentKind + ` == "codex" ? default(json(request.headers["x-codex-turn-metadata"]).turn_id, "") : (` + agentKind + ` == "claude" ? default(request.headers["x-claude-code-prompt-id"], "") : "")`),
+			},
+			agw.AttributeAdd{Name: "llm.input_messages", Expression: "string(request.body)"},
+			agw.AttributeAdd{
+				Name:       "gen_ai.request.model",
+				Expression: "default(llm.requestModel, json(request.body).model)",
+			},
+			agw.AttributeAdd{
+				Name:       "llm.output_messages",
+				Expression: `toJson({"completion": default(llm.completion, []), "tool_calls": default(llm.toolCalls, [])})`,
+			},
+		)
+	}
+	if gateway == mcp.GatewayName {
+		attrs = append(attrs,
+			agw.AttributeAdd{
+				Name:       "session.id",
+				Expression: agw.CELExpression(agentKind + ` == "codex" ? default(json(request.body).params._meta["x-codex-turn-metadata"].thread_id, "") : ""`),
+			},
+			agw.AttributeAdd{
+				Name:       "agentz.turn_id",
+				Expression: agw.CELExpression(agentKind + ` == "codex" ? default(json(request.body).params._meta["x-codex-turn-metadata"].turn_id, "") : ""`),
+			},
+			agw.AttributeAdd{
+				Name:       "gen_ai.tool.call.id",
+				Expression: agw.CELExpression(agentKind + ` == "claude" ? default(json(request.body).params._meta["claudecode/toolUseId"], "") : (` + agentKind + ` == "codex" ? default(json(request.body).params._meta.callId, "") : "")`),
+			},
+			agw.AttributeAdd{
+				Name:       "tool.parameters",
+				Expression: "toJson(default(mcp.tool.arguments, json(request.body).params.arguments))",
+			},
+			agw.AttributeAdd{Name: "output.value", Expression: "toJson(mcp.tool.result)"},
+			agw.AttributeAdd{
+				Name:       "tool.error",
+				Expression: "toJson(response.code >= 400 ? default(mcp.tool.error, string(response.body)) : mcp.tool.error)",
+			},
+			agw.AttributeAdd{Name: "mcp.request.id", Expression: "json(request.body).id"},
+			agw.AttributeAdd{
+				Name:       "mcp.method.name",
+				Expression: "default(mcp.methodName, json(request.body).method)",
+			},
+			agw.AttributeAdd{
+				Name:       "gen_ai.tool.name",
+				Expression: "default(mcp.tool.name, json(request.body).params.name)",
+			},
+		)
+	}
+	sample := agw.CELExpression("true")
+	filter := agw.CELExpression(
+		`metadata.agentz_observability.resource_kind == "inference" || (metadata.agentz_observability.resource_kind == "mcp" && default(mcp.methodName, json(request.body).method) == "tools/call")`,
+	)
+	bufferSize := resource.MustParse("32Mi")
+	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, policy, func() error {
+		policy.OwnerReferences = owners
+		policy.Spec = agw.AgentgatewayPolicySpec{
+			TargetRefs: []agw.LocalPolicyTargetReferenceWithSectionName{{
+				LocalPolicyTargetReference: agw.LocalPolicyTargetReference{
+					Group: "gateway.networking.k8s.io", Kind: "Gateway", Name: gwv1.ObjectName(gateway),
+				},
+				Port: new(int32(8080)),
+			}},
+			Frontend: &agw.Frontend{HTTP: &agw.FrontendHTTP{
+				MaxBufferSize: &agw.ByteSize{Value: &bufferSize},
+			}, Tracing: &agw.Tracing{
+				PolicyBackendEndpoint: agw.PolicyBackendEndpoint{
+					BackendRef: r.TraceBackend.BackendRef(backend.Name),
+				},
+				Protocol:       agw.OTLPProtocolGrpc,
+				RandomSampling: &sample, ClientSampling: &sample, ParentNotSampled: &sample,
+				Filter: &filter, Attributes: &agw.LogTracingAttributes{Add: attrs},
+				Resources: []agw.ResourceAdd{
+					{Name: "service.name", Expression: `"agentz-oauth-gateway"`},
+					{
+						Name:       "service.namespace",
+						Expression: agw.CELExpression(strconv.Quote(namespace)),
+					},
+				},
+			}},
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, network, func() error {
+		network.OwnerReferences = owners
+		network.Spec = &ciliumapi.Rule{
+			EndpointSelector: ciliumapi.NewESFromLabels(ciliumlabels.NewLabel(
+				"gateway.networking.k8s.io/gateway-name", gateway, ciliumlabels.LabelSourceK8s,
+			)),
+			Egress: r.TraceBackend.Egress(),
+		}
+		return nil
+	})
+	return err
 }

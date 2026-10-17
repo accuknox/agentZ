@@ -3,12 +3,14 @@ SHELL := bash
 
 IMAGE ?= public.ecr.aws/k9v9d5v2/agentz:latest
 AGENT_IMAGE ?= public.ecr.aws/k9v9d5v2/agentz/agent:latest
+AGENTGATEWAY_IMAGE ?= public.ecr.aws/k9v9d5v2/agentz/agentgateway:latest
 BETTER_AUTH_URL ?= http://localhost:3000
 GATEWAY_JWT_AUDIENCE ?= agentz-gateway
 CODING_GITHUB_CLIENT_ID ?=
 CODING_GITHUB_CLIENT_SECRET ?=
 CODING_GITHUB_ENCRYPTION_KEY ?=
 POSTGRES_DSN ?= postgresql://postgres:postgres@localhost:5432/postgres
+OBSERVER_APP_GRPC_ADDR ?= :4318
 K8S_NAMESPACE ?= default
 OPENBAO_TOKEN_PATH ?= /tmp/sa-token
 OPENBAO_AUTH_SERVICE_ACCOUNT ?= default
@@ -141,6 +143,7 @@ run-manager:
 		--delegation-namespace="$(DELEGATION_NAMESPACE)" \
 		--controller-image=$(IMAGE) \
 		--agent-image=$(AGENT_IMAGE) \
+		--delegation-image="$(AGENTGATEWAY_IMAGE)" \
 		--openbao-addr=http://openbao.openbao.svc.cluster.local:8200 \
 		--openbao-secret-mount-path=kv \
 		--manager-openbao-addr=http://localhost:8200 \
@@ -163,11 +166,13 @@ run-manager:
 		--agentgateway-trace-mode=static \
 		--agentgateway-trace-host=172.18.0.1 \
 		--agentgateway-trace-port=4317 \
+		--delegation-trace-port=4318 \
 		--gateway-url=http://172.18.0.1:8090
 
 .PHONY: run-observer
 run-observer:
-	go run ./cmd/agentz observer serve --postgres-dsn "$(POSTGRES_DSN)"
+	go run ./cmd/agentz observer serve --postgres-dsn "$(POSTGRES_DSN)" \
+		--otlp-app-grpc-addr="$(OBSERVER_APP_GRPC_ADDR)"
 
 .PHONY: run-extauth
 run-extauth:

@@ -202,6 +202,8 @@ manager:
     # Base URL exposed to agents for gateway-backed workflow tools.
     gatewayURL: ""
 
+    # Patched Agentgateway image for delegated inference and MCP.
+    delegationImage: public.ecr.aws/k9v9d5v2/agentz/agentgateway:main
     # AgentGateway trace target discovery mode: service or static.
     agentgatewayTraceMode: service
 
@@ -214,6 +216,8 @@ manager:
     # Static AgentGateway trace target used when trace mode is static.
     agentgatewayTraceHost: ""
     agentgatewayTracePort: 4317
+    # Separate observer port restricted to delegated gateway exporters.
+    delegationTracePort: 4318
 
     # Name of each scope-local shared PVC used by agent package jobs.
     nixStorePVC: nix-store
@@ -648,6 +652,8 @@ observer:
 
     # OTLP/gRPC port exposed by the observer.
     otlpGrpcPort: 4317
+    # Requires the observer ingress policy; native agents cannot export here.
+    appGrpcPort: 4318
 
   config:
     # Application log level passed to `agentz observer serve`.
@@ -664,6 +670,9 @@ observer:
 
     # Hubble relay gRPC address.
     hubbleRelayAddr: hubble-relay.kube-system.svc.cluster.local:80
+
+    # Bytes. Full content exports can exceed the default gRPC message limit.
+    otlpTraceMaxMessageSize: 134217728
 
     # Max events buffered into one PostgreSQL flush.
     batchSize: 500

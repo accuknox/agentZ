@@ -9,15 +9,21 @@ import (
 )
 
 type Querier interface {
+	AssignAppRuns(ctx context.Context, operationIds []int64) error
+	AssignAppToolRuns(ctx context.Context, operationIds []int64) error
+	InsertAppOperation(ctx context.Context, arg []InsertAppOperationParams) *InsertAppOperationBatchResults
 	InsertFileEvents(ctx context.Context, arg []InsertFileEventsParams) (int64, error)
 	InsertMCPToolInvocation(ctx context.Context, arg []InsertMCPToolInvocationParams) *InsertMCPToolInvocationBatchResults
 	InsertNetworkEvents(ctx context.Context, arg []InsertNetworkEventsParams) (int64, error)
 	InsertProcessEvents(ctx context.Context, arg []InsertProcessEventsParams) (int64, error)
 	InsertTraceSpan(ctx context.Context, arg []InsertTraceSpanParams) *InsertTraceSpanBatchResults
 	InsertTraceSpanPayload(ctx context.Context, arg []InsertTraceSpanPayloadParams) *InsertTraceSpanPayloadBatchResults
+	LockAppInvocationKeys(ctx context.Context, keys []string) error
+	RefreshAppRunCorrelations(ctx context.Context, invocations []byte) error
+	RefreshAppRunStatuses(ctx context.Context, arg RefreshAppRunStatusesParams) error
+	RefreshAppToolResults(ctx context.Context, invocations []byte) error
 	RefreshTraceSessionSummary(ctx context.Context, arg []RefreshTraceSessionSummaryParams) *RefreshTraceSessionSummaryBatchResults
 	RefreshTraceSummary(ctx context.Context, traceID [][]byte) *RefreshTraceSummaryBatchResults
-	UpsertMCPToolLastCalled(ctx context.Context, arg []UpsertMCPToolLastCalledParams) *UpsertMCPToolLastCalledBatchResults
 }
 
 var _ Querier = (*Queries)(nil)

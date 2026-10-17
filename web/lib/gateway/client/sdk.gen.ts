@@ -131,6 +131,15 @@ import type {
   GetAgentToolData,
   GetAgentToolErrors,
   GetAgentToolResponses,
+  GetAppMcpGraphData,
+  GetAppMcpGraphErrors,
+  GetAppMcpGraphResponses,
+  GetAppOperationData,
+  GetAppOperationErrors,
+  GetAppOperationResponses,
+  GetAppTraceChartData,
+  GetAppTraceChartErrors,
+  GetAppTraceChartResponses,
   GetChatSessionPreferenceData,
   GetChatSessionPreferenceErrors,
   GetChatSessionPreferenceResponses,
@@ -227,6 +236,15 @@ import type {
   ListAgentWorkflowSchedulesData,
   ListAgentWorkflowSchedulesErrors,
   ListAgentWorkflowSchedulesResponses,
+  ListAppSessionsData,
+  ListAppSessionsErrors,
+  ListAppSessionsResponses,
+  ListAppSpansData,
+  ListAppSpansErrors,
+  ListAppSpansResponses,
+  ListAppTracesData,
+  ListAppTracesErrors,
+  ListAppTracesResponses,
   ListChatInputsData,
   ListChatInputsErrors,
   ListChatInputsResponses,
@@ -278,6 +296,9 @@ import type {
   ListInferenceProvidersData,
   ListInferenceProvidersErrors,
   ListInferenceProvidersResponses,
+  ListLensAppsData,
+  ListLensAppsErrors,
+  ListLensAppsResponses,
   ListMcpConnectionsData,
   ListMcpConnectionsErrors,
   ListMcpConnectionsResponses,
@@ -501,6 +522,96 @@ export type Options<
    */
   meta?: Record<string, unknown>
 }
+
+/**
+ * List apps with workspace access or telemetry history
+ *
+ * Includes approved resource selections and historical operations after app access is revoked or the app is deleted.
+ */
+export const listLensApps = <ThrowOnError extends boolean = false>(
+  options?: Options<ListLensAppsData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<ListLensAppsResponses, ListLensAppsErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/lens/apps",
+    ...options,
+  })
+
+/**
+ * List observed native sessions for a registered external agent
+ */
+export const listAppSessions = <ThrowOnError extends boolean = false>(
+  options: Options<ListAppSessionsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ListAppSessionsResponses, ListAppSessionsErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/lens/apps/{clientID}/sessions",
+    ...options,
+  })
+
+/**
+ * List traces for an app
+ *
+ * Groups attributed inference and MCP tool operations by trace ID. Apps do not require an Agent or an OpenCode session.
+ */
+export const listAppTraces = <ThrowOnError extends boolean = false>(
+  options: Options<ListAppTracesData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ListAppTracesResponses, ListAppTracesErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/lens/apps/{clientID}/traces",
+    ...options,
+  })
+
+/**
+ * Get trace counts for an app
+ *
+ * Counts the entire requested time range independently of trace pagination.
+ */
+export const getAppTraceChart = <ThrowOnError extends boolean = false>(
+  options: Options<GetAppTraceChartData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetAppTraceChartResponses, GetAppTraceChartErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/lens/apps/{clientID}/traces/chart",
+    ...options,
+  })
+
+/**
+ * List operations in an app trace
+ */
+export const listAppSpans = <ThrowOnError extends boolean = false>(
+  options: Options<ListAppSpansData, ThrowOnError>
+) =>
+  (options.client ?? client).get<ListAppSpansResponses, ListAppSpansErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/lens/apps/{clientID}/traces/{traceID}/spans",
+    ...options,
+  })
+
+/**
+ * Get an app operation and its captured content
+ */
+export const getAppOperation = <ThrowOnError extends boolean = false>(
+  options: Options<GetAppOperationData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetAppOperationResponses, GetAppOperationErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/lens/apps/{clientID}/operations/{operationID}",
+    ...options,
+  })
+
+/**
+ * Get MCP tool activity for an app
+ */
+export const getAppMcpGraph = <ThrowOnError extends boolean = false>(
+  options: Options<GetAppMcpGraphData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetAppMcpGraphResponses, GetAppMcpGraphErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/lens/apps/{clientID}/mcp/graph",
+    ...options,
+  })
 
 /**
  * Watch external agent registration and consent changes.

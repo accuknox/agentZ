@@ -12,17 +12,23 @@ import {
   Server,
   Wrench,
   Cpu,
+  MessageSquare,
 } from "lucide-react"
 import {
   getRuntimeTelemetryTabAction,
   getSpanDetailAction,
   listSpansAction,
 } from "@/data/lens.actions"
-import type { Error } from "@/lib/gateway/client"
+import type {
+  AppSpan,
+  Error,
+  ProcessObservabilityEvent,
+  FileObservabilityEvent,
+  NetworkObservabilityEvent,
+} from "@/lib/gateway/client"
 import type {
   ListSpansActionData,
   ListTracesActionData,
-  RuntimeTelemetryEventItem,
   RuntimeTelemetryTab,
   RuntimeTelemetryTabActionData,
   SpanDetailActionData,
@@ -54,7 +60,8 @@ import {
   type TelemetryTableColumn,
 } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/telemetry-table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { formatCompactNumber } from "@/lib/format"
+import { formatCompactNumber, formatRecentTimestamp } from "@/lib/format"
+import { TraceConversation } from "./trace-conversation"
 
 const layout: Record<string, AdminColumnLayout> = {
   trace: { minWidth: 160, contentMaxWidth: 256 },
@@ -125,6 +132,9 @@ const columns: ColumnDef<TraceListItem>[] = [
     header: "Tokens",
     cell: ({ row }) => {
       const trace = row.original
+      if (trace.inputTokens === null || trace.outputTokens === null) {
+        return <div aria-hidden="true" className="h-1.5 rounded-full bg-muted" />
+      }
       const outputWidth = trace.totalTokens === 0 ? 0 : trace.tokenRatio * 100
       const inputWidth = trace.totalTokens === 0 ? 0 : 100 - outputWidth
 
@@ -156,6 +166,7 @@ export function TracesTable({
 }) {
   "use no memo"
 
+  const requestVersion = React.useRef(0)
   const [selectedTrace, setSelectedTrace] = React.useState<TraceListItem | undefined>()
   const [spans, setSpans] = React.useState<ListSpansActionData | undefined>()
   const [telemetryTab, setTelemetryTab] = React.useState<RuntimeTelemetryTab>("process")
@@ -180,6 +191,7 @@ export function TracesTable({
   })
 
   function selectTrace(trace: TraceListItem) {
+    const version = ++requestVersion.current
     setSelectedTrace(trace)
     setSpans(undefined)
     setTelemetryPage(undefined)
@@ -194,8 +206,7 @@ export function TracesTable({
     startTransition(async () => {
       const spanResult = await listSpansAction(
         {
-          agentName: trace.agentName,
-          sessionID: trace.sessionId,
+          subject: trace.subject,
           traceID: trace.traceId,
         },
         {
@@ -203,6 +214,7 @@ export function TracesTable({
         },
         workspaceId
       )
+      if (version !== requestVersion.current) return
       setSpans(spanResult.data)
       setSpansError(spanResult.error)
     })
@@ -213,19 +225,22 @@ export function TracesTable({
     nextPageToken?: string,
     mode: "reset" | "next" | "previous" = "reset"
   ) {
-    if (!selectedTrace) {
+    if (!selectedTrace || selectedTrace.subject.kind !== "agent") {
       return
     }
+    const version = ++requestVersion.current
+    const agentName = selectedTrace.subject.name
 
     startTelemetryTransition(async () => {
       const result = await getRuntimeTelemetryTabAction({
-        agent_name: selectedTrace.agentName,
+        agent_name: agentName,
         started_after: selectedTrace.startedAt,
         started_before: selectedTrace.endedAt,
         tab: nextTab,
         page_token: nextPageToken,
         workspace_id: workspaceId,
       })
+      if (version !== requestVersion.current) return
       setTelemetryPage(result.data)
       setTelemetryError(result.error)
       setTelemetryTab(nextTab)
@@ -249,11 +264,11 @@ export function TracesTable({
       return
     }
 
+    const version = ++requestVersion.current
     startSpansTransition(async () => {
       const result = await listSpansAction(
         {
-          agentName: selectedTrace.agentName,
-          sessionID: selectedTrace.sessionId,
+          subject: selectedTrace.subject,
           traceID: selectedTrace.traceId,
         },
         {
@@ -262,6 +277,7 @@ export function TracesTable({
         },
         workspaceId
       )
+      if (version !== requestVersion.current) return
       setSpans(result.data)
       setSpansError(result.error)
       if (mode === "next") {
@@ -274,6 +290,7 @@ export function TracesTable({
   }
 
   function closeTrace() {
+    requestVersion.current++
     setSelectedTrace(undefined)
     setSpans(undefined)
     setTelemetryPage(undefined)
@@ -318,6 +335,7 @@ export function TracesTable({
         />
       </div>
       <TraceInspector
+        key={selectedTrace?.traceId}
         workspaceId={workspaceId}
         trace={selectedTrace}
         spans={spans}
@@ -345,6 +363,7 @@ export function TracesTable({
         tab={tab}
         onTabChange={(nextTab) => {
           setTab(nextTab)
+          if (nextTab === "spans" && !spans) loadSpansPage()
           if (nextTab === "telemetry" && !telemetryPage) {
             loadTelemetryTab(telemetryTab)
           }
@@ -354,7 +373,7 @@ export function TracesTable({
   )
 }
 
-type TraceInspectorTab = "spans" | "telemetry"
+type TraceInspectorTab = "conversation" | "spans" | "telemetry"
 
 function TraceInspector({
   workspaceId,
@@ -397,60 +416,101 @@ function TraceInspector({
   tab: TraceInspectorTab
   onTabChange: (tab: TraceInspectorTab) => void
 }) {
+  const [focusedDetail, setFocusedDetail] = React.useState<SpanDetailActionData>()
+  const [focusError, setFocusError] = React.useState<Error>()
+  const [, startInspectTransition] = React.useTransition()
+
+  function inspect(span: AppSpan) {
+    if (!trace) return
+    startInspectTransition(async () => {
+      const result = await getSpanDetailAction(
+        {
+          subject: trace.subject,
+          traceID: span.trace_id,
+          spanID: span.span_id,
+          operationID: span.id,
+        },
+        workspaceId
+      )
+      setFocusError(result.error)
+      if (!result.data) return
+      setFocusedDetail(result.data)
+      onTabChange("spans")
+    })
+  }
+
   return (
-    <TraceInspectorSheet
-      title={
-        <span className="font-mono">
-          {trace?.traceId ? `Trace ID: ${trace.traceId}` : "Trace inspector"}
-        </span>
-      }
-      tabs={
-        <Tabs
-          value={tab}
-          onValueChange={(value) => {
-            if (value === "spans" || value === "telemetry") {
-              onTabChange(value)
-            }
-          }}
-        >
+    <Tabs
+      value={tab}
+      onValueChange={(value) => {
+        if (value === "conversation" || value === "spans" || value === "telemetry")
+          onTabChange(value)
+      }}
+    >
+      <TraceInspectorSheet
+        title={
+          <span className="font-mono">
+            {trace?.traceId ? `Trace ID: ${trace.traceId}` : "Trace inspector"}
+          </span>
+        }
+        tabs={
           <TabsList className="gap-2">
+            {trace && trace.subject.kind !== "agent" ? (
+              <TabsTrigger value="conversation" className="gap-2">
+                <MessageSquare /> Conversation
+              </TabsTrigger>
+            ) : null}
             <TabsTrigger value="spans" className="gap-2">
               <Route /> Spans
             </TabsTrigger>
-            <TabsTrigger value="telemetry" className="gap-2">
-              <Server /> Runtime Telemetry
-            </TabsTrigger>
+            {trace?.subject.kind === "agent" ? (
+              <TabsTrigger value="telemetry" className="gap-2">
+                <Server /> Runtime Telemetry
+              </TabsTrigger>
+            ) : null}
           </TabsList>
-        </Tabs>
-      }
-    >
-      {tab === "spans" ? (
-        <SpansInspectorContent
-          workspaceId={workspaceId}
-          key={trace?.traceId}
-          trace={trace}
-          data={spans}
-          error={spansError}
-          pending={pending}
-          pagePending={spansPending}
-          canGoPrevious={canGoPreviousSpans}
-          onNextPage={onNextSpans}
-          onPreviousPage={onPreviousSpans}
-        />
-      ) : (
-        <RuntimeTelemetryContent
-          key={trace?.traceId}
-          telemetryTab={telemetryTab}
-          telemetryPage={telemetryPage}
-          error={telemetryError}
-          pagePending={telemetryPending}
-          onTabChange={onTelemetryTabChange}
-          canGoPrevious={canGoPreviousTelemetry}
-          onNextPage={onNextTelemetry}
-          onPreviousPage={onPreviousTelemetry}
-        />
-      )}
-    </TraceInspectorSheet>
+        }
+      >
+        {focusError ? (
+          <Alert variant="destructive">
+            <AlertDescription>{focusError.message}</AlertDescription>
+          </Alert>
+        ) : null}
+        {trace && trace.subject.kind !== "agent" ? (
+          <TabsContent value="conversation" className="m-0 h-full min-h-0">
+            <TraceConversation trace={trace} workspaceId={workspaceId} onInspect={inspect} />
+          </TabsContent>
+        ) : null}
+        <TabsContent value="spans" className="m-0 h-full min-h-0">
+          <SpansInspectorContent
+            workspaceId={workspaceId}
+            key={trace?.traceId}
+            trace={trace}
+            data={spans}
+            error={spansError}
+            pending={pending}
+            pagePending={spansPending}
+            canGoPrevious={canGoPreviousSpans}
+            onNextPage={onNextSpans}
+            onPreviousPage={onPreviousSpans}
+            focusedDetail={focusedDetail}
+          />
+        </TabsContent>
+        <TabsContent value="telemetry" className="m-0 h-full min-h-0">
+          <RuntimeTelemetryContent
+            key={trace?.traceId}
+            telemetryTab={telemetryTab}
+            telemetryPage={telemetryPage}
+            error={telemetryError}
+            pagePending={telemetryPending}
+            onTabChange={onTelemetryTabChange}
+            canGoPrevious={canGoPreviousTelemetry}
+            onNextPage={onNextTelemetry}
+            onPreviousPage={onPreviousTelemetry}
+          />
+        </TabsContent>
+      </TraceInspectorSheet>
+    </Tabs>
   )
 }
 
@@ -464,6 +524,7 @@ function SpansInspectorContent({
   canGoPrevious,
   onNextPage,
   onPreviousPage,
+  focusedDetail,
 }: {
   workspaceId: string
   trace?: TraceListItem
@@ -474,30 +535,37 @@ function SpansInspectorContent({
   canGoPrevious: boolean
   onNextPage: () => void
   onPreviousPage: () => void
+  focusedDetail?: SpanDetailActionData
 }) {
-  const [selectedSpanID, setSelectedSpanID] = React.useState<string | undefined>()
+  const [selectedOperationID, setSelectedOperationID] = React.useState<number | undefined>()
   const [detailState, setDetailState] = React.useState<{
-    spanID?: string
+    operationID?: number
     data?: SpanDetailActionData
     error?: Error
   }>({})
   const [detailPending, startDetailTransition] = React.useTransition()
-  const selectedSpan = data?.spans.find((span) => span.spanId === selectedSpanID) ?? data?.spans[0]
-  const detail = detailState.spanID === selectedSpan?.spanId ? detailState.data : undefined
-  const detailError = detailState.spanID === selectedSpan?.spanId ? detailState.error : undefined
+  const selectedID = selectedOperationID ?? focusedDetail?.span.id
+  let selectedSpan = data?.spans.find((span) => span.id === selectedID)
+  if (!selectedSpan && focusedDetail && focusedDetail.span.id === selectedID)
+    selectedSpan = focusedDetail.span
+  selectedSpan ??= data?.spans[0]
+  let detail = focusedDetail?.span.id === selectedSpan?.id ? focusedDetail : undefined
+  if (detailState.operationID === selectedSpan?.id) detail = detailState.data
+  const detailError = detailState.operationID === selectedSpan?.id ? detailState.error : undefined
 
   React.useEffect(() => {
     if (!selectedSpan) {
       return
     }
+    if (focusedDetail?.span.id === selectedSpan.id) return
 
     let cancelled = false
 
     startDetailTransition(async () => {
       const result = await getSpanDetailAction(
         {
-          agentName: selectedSpan.agentName,
-          sessionID: selectedSpan.sessionId,
+          subject: selectedSpan.subject,
+          operationID: selectedSpan.id,
           traceID: selectedSpan.traceId,
           spanID: selectedSpan.spanId,
         },
@@ -505,7 +573,7 @@ function SpansInspectorContent({
       )
       if (!cancelled) {
         setDetailState({
-          spanID: selectedSpan.spanId,
+          operationID: selectedSpan.id,
           data: result.data,
           error: result.error,
         })
@@ -515,9 +583,9 @@ function SpansInspectorContent({
     return () => {
       cancelled = true
     }
-  }, [selectedSpan, startDetailTransition, workspaceId])
+  }, [selectedSpan, focusedDetail, startDetailTransition, workspaceId])
 
-  if (pending && !data) {
+  if ((pending || pagePending) && !data) {
     return <TraceInspectorSkeleton />
   }
 
@@ -533,6 +601,8 @@ function SpansInspectorContent({
   if (!data) {
     return null
   }
+  const offPageSpan = focusedDetail?.span
+  const sourceOffPage = offPageSpan && !data.spans.some((span) => span.id === offPageSpan.id)
 
   return (
     <TraceInspectorLayout
@@ -547,25 +617,39 @@ function SpansInspectorContent({
         />
       }
       navigation={
-        data.spans.length > 0 ? (
-          data.spans.map((span) => (
-            <SpanTreeRow
-              key={span.spanId}
-              span={span}
-              selected={selectedSpan?.spanId === span.spanId}
-              onClick={() => {
-                if (selectedSpan?.spanId === span.spanId) {
-                  return
-                }
+        <>
+          {sourceOffPage ? (
+            <div className="mb-2 border-b pb-2">
+              <p className="px-4 py-2 text-xs text-muted-foreground lg:px-5">
+                Selected from conversation
+              </p>
+              <SpanTreeRow
+                span={offPageSpan}
+                selected={selectedSpan?.id === offPageSpan.id}
+                onClick={() => setSelectedOperationID(offPageSpan.id)}
+              />
+            </div>
+          ) : null}
+          {data.spans.length > 0 ? (
+            data.spans.map((span) => (
+              <SpanTreeRow
+                key={span.id}
+                span={span}
+                selected={selectedSpan?.id === span.id}
+                onClick={() => {
+                  if (selectedSpan?.id === span.id) {
+                    return
+                  }
 
-                setSelectedSpanID(span.spanId)
-                setDetailState({})
-              }}
-            />
-          ))
-        ) : (
-          <div className="px-4 py-10 text-sm text-muted-foreground lg:px-5">No spans</div>
-        )
+                  setSelectedOperationID(span.id)
+                  setDetailState({})
+                }}
+              />
+            ))
+          ) : (
+            <div className="px-4 py-10 text-sm text-muted-foreground lg:px-5">No spans</div>
+          )}
+        </>
       }
     >
       <SpanDetailViewer
@@ -596,7 +680,7 @@ function SpanTreeRow({
       onClick={onClick}
       depth={span.depth}
       duration={span.duration}
-      tokens={span.totalTokens}
+      tokens={span.totalTokens ?? undefined}
       id={span.spanId}
       hasError={span.hasError}
       timelineClass={spanTimelineClass(span)}
@@ -637,19 +721,24 @@ function SpanDetailViewer({
     <TraceInspectorDetail
       title={title}
       started={span?.startLabel ?? trace?.startedDate}
-      duration={span?.duration ?? trace?.duration}
-      tokens={span?.totalTokens}
+      duration={span ? span.duration : trace?.duration}
+      tokens={span?.totalTokens ?? undefined}
     >
-      {span && span.spanType !== "agent" ? (
+      {span &&
+      span.spanType !== "agent" &&
+      span.inputTokens !== null &&
+      span.outputTokens !== null ? (
         <TraceTokenMeter
           segments={[
             {
               label: "Input",
-              value: Math.max(span.inputTokens - span.cachedInputTokens, 0),
+              value: Math.max(span.inputTokens - (span.cachedInputTokens ?? 0), 0),
               displayValue: span.inputTokens,
               colorClass: "bg-chart-1",
             },
-            { label: "Cached", value: span.cachedInputTokens, colorClass: "bg-chart-3" },
+            ...(span.cachedInputTokens === null
+              ? []
+              : [{ label: "Cached", value: span.cachedInputTokens, colorClass: "bg-chart-3" }]),
             { label: "Output", value: span.outputTokens, colorClass: "bg-chart-4" },
           ]}
         />
@@ -684,7 +773,7 @@ function SpanJSONSections({
           title="Trace"
           rows={[
             ["trace.id", trace?.traceId ?? ""],
-            ["agent.name", trace?.agentName ?? ""],
+            [trace?.subject.kind === "app" ? "app.name" : "agent.name", trace?.subject.name ?? ""],
             ["duration", trace?.duration ?? ""],
             ["spans", String(trace?.spanCount ?? 0)],
             ["tools", String(trace?.toolCount ?? 0)],
@@ -696,50 +785,44 @@ function SpanJSONSections({
     )
   }
 
-  const payload = detail?.payload ?? []
-  const input = payload.find((section) => section.key === "input_messages")
-  const output = payload.find((section) => section.key === "output_messages")
-  const toolArguments = payload.find((section) => section.key === "tool_arguments")
-  const toolResult = payload.find((section) => section.key === "tool_result")
+  const rows: [string, string][] = [
+    [span.subject.kind === "app" ? "app.name" : "agent.name", span.subject.name],
+    ["span.id", span.spanId],
+    ["parent.id", span.parentSpanId || "root"],
+    ["span.class", span.spanClass],
+    ["kind", span.kind],
+    ["status_code", span.statusCode],
+    ["operation", span.displayName],
+  ]
+  const usage = [
+    ["input_tokens", span.inputTokens],
+    ["cached_input_tokens", span.cachedInputTokens],
+    ["cached_write_tokens", span.cachedWriteTokens],
+    ["output_tokens", span.outputTokens],
+  ] as const
+  for (const [name, value] of usage) {
+    if (value !== null) rows.push([name, String(value)])
+  }
+  if (span.subject.kind === "agent") {
+    rows.push(
+      ["session.id", span.subject.sessionId],
+      ["llm_finish_reason", span.llmFinishReason || ""]
+    )
+  } else {
+    rows.push(["app.client_id", span.subject.clientID])
+  }
 
   return (
     <div className="flex flex-col gap-5">
       {span.error ? (
         <TraceContentPanel title="Error" code={JSON.stringify({ error: span.error }, null, 2)} />
       ) : null}
-      {input && !input.empty ? <TraceContentPanel title="Input" code={input.json} /> : null}
-      {output && !output.empty ? <TraceContentPanel title="Output" code={output.json} /> : null}
-      {toolArguments && !toolArguments.empty ? (
-        <TraceContentPanel title="Tool arguments" code={toolArguments.json} />
-      ) : null}
-      {toolResult && !toolResult.empty ? (
-        <TraceContentPanel title="Tool result" code={toolResult.json} />
-      ) : null}
-      {detail?.resourceAttributes && !detail.resourceAttributes.empty ? (
-        <TraceContentPanel title="Resource attributes" code={detail.resourceAttributes.json} />
-      ) : null}
-      {detail?.spanAttributes && !detail.spanAttributes.empty ? (
-        <TraceContentPanel title="Span attributes" code={detail.spanAttributes.json} />
-      ) : null}
-      <JSONPanel
-        title="Usage"
-        rows={[
-          ["agent.name", span.agentName],
-          ["session.id", span.sessionId],
-          ["span.id", span.spanId],
-          ["parent.id", span.parentSpanId || "root"],
-          ["span.class", span.spanClass],
-          ["kind", span.kind],
-          ["status_code", span.statusCode],
-          ["operation", span.operationLabel],
-          ["llm_finish_reason", span.llmFinishReason || ""],
-          ["input_tokens", String(span.inputTokens)],
-          ["cached_input_tokens", String(span.cachedInputTokens)],
-          ["cached_write_tokens", String(span.cachedWriteTokens)],
-          ["output_tokens", String(span.outputTokens)],
-          ["cost_usd", String(span.costUSD)],
-        ]}
-      />
+      {detail?.payload.map((section) =>
+        section.empty ? null : (
+          <TraceContentPanel key={section.key} title={section.label} {...section.content} />
+        )
+      )}
+      <JSONPanel title="Usage" rows={rows} />
     </div>
   )
 }
@@ -780,7 +863,14 @@ function RuntimeTelemetryContent({
     return null
   }
 
-  const events = telemetryPage.events
+  const pagination = {
+    hasNextPage: telemetryPage.hasNextPage,
+    nextPageToken: telemetryPage.nextPageToken,
+    canGoPrevious,
+    onNextPage,
+    onPreviousPage,
+    pending: pagePending,
+  }
 
   return (
     <Tabs
@@ -805,37 +895,34 @@ function RuntimeTelemetryContent({
       </TabsList>
       <div className="min-h-0 flex-1 overflow-auto px-1 pt-4 pb-8">
         <TabsContent value="process">
-          <ProcessTelemetryTable
-            events={telemetryTab === "process" ? events : []}
-            hasNextPage={telemetryTab === "process" && telemetryPage.hasNextPage}
-            nextPageToken={telemetryTab === "process" ? telemetryPage.nextPageToken : ""}
-            canGoPrevious={canGoPrevious}
-            onNextPage={onNextPage}
-            onPreviousPage={onPreviousPage}
-            pending={pagePending}
-          />
+          {telemetryPage.tab === "process" ? (
+            <SharedTelemetryTable
+              data={telemetryPage.events}
+              columns={processTelemetryColumns}
+              emptyText="No process events were recorded in this trace window."
+              {...pagination}
+            />
+          ) : null}
         </TabsContent>
         <TabsContent value="file">
-          <FileTelemetryTable
-            events={telemetryTab === "file" ? events : []}
-            hasNextPage={telemetryTab === "file" && telemetryPage.hasNextPage}
-            nextPageToken={telemetryTab === "file" ? telemetryPage.nextPageToken : ""}
-            canGoPrevious={canGoPrevious}
-            onNextPage={onNextPage}
-            onPreviousPage={onPreviousPage}
-            pending={pagePending}
-          />
+          {telemetryPage.tab === "file" ? (
+            <SharedTelemetryTable
+              data={telemetryPage.events}
+              columns={fileTelemetryColumns}
+              emptyText="No file events were recorded in this trace window."
+              {...pagination}
+            />
+          ) : null}
         </TabsContent>
         <TabsContent value="network">
-          <NetworkTelemetryTable
-            events={telemetryTab === "network" ? events : []}
-            hasNextPage={telemetryTab === "network" && telemetryPage.hasNextPage}
-            nextPageToken={telemetryTab === "network" ? telemetryPage.nextPageToken : ""}
-            canGoPrevious={canGoPrevious}
-            onNextPage={onNextPage}
-            onPreviousPage={onPreviousPage}
-            pending={pagePending}
-          />
+          {telemetryPage.tab === "network" ? (
+            <SharedTelemetryTable
+              data={telemetryPage.events}
+              columns={networkTelemetryColumns}
+              emptyText="No network events were recorded in this trace window."
+              {...pagination}
+            />
+          ) : null}
         </TabsContent>
       </div>
     </Tabs>
@@ -895,18 +982,18 @@ function spanTimelineClass(span: SpanListItem) {
   return "bg-chart-2"
 }
 
-const processTelemetryColumns: TelemetryTableColumn<RuntimeTelemetryEventItem>[] = [
+const processTelemetryColumns: TelemetryTableColumn<ProcessObservabilityEvent>[] = [
   {
     key: "process",
     header: "Process",
     layout: { minWidth: 144, contentMaxWidth: 256 },
-    render: (event) => <TruncateCell value={event.primary} />,
+    render: (event) => <TruncateCell value={event.process} />,
   },
   {
     key: "command",
     header: "Command",
     layout: { minWidth: 320, contentMaxWidth: 448 },
-    render: (event) => <TruncateCell value={event.secondary} />,
+    render: (event) => <TruncateCell value={event.command_invocation || event.parent_process} />,
   },
   {
     key: "action",
@@ -918,54 +1005,26 @@ const processTelemetryColumns: TelemetryTableColumn<RuntimeTelemetryEventItem>[]
     key: "time",
     header: "Seen at",
     layout: { minWidth: 160, width: 160 },
-    render: (event) => <TelemetryTimestamp value={event.time} />,
+    render: (event) => (
+      <span className="text-sm text-muted-foreground">
+        {formatRecentTimestamp(event.event_time)}
+      </span>
+    ),
   },
 ]
 
-function ProcessTelemetryTable({
-  events,
-  hasNextPage,
-  nextPageToken,
-  canGoPrevious,
-  onNextPage,
-  onPreviousPage,
-  pending,
-}: {
-  events: RuntimeTelemetryEventItem[]
-  hasNextPage: boolean
-  nextPageToken: string
-  canGoPrevious: boolean
-  onNextPage: () => void
-  onPreviousPage: () => void
-  pending: boolean
-}) {
-  return (
-    <SharedTelemetryTable
-      data={events}
-      columns={processTelemetryColumns}
-      emptyText="No process events were recorded in this trace window."
-      hasNextPage={hasNextPage}
-      nextPageToken={nextPageToken}
-      canGoPrevious={canGoPrevious}
-      onNextPage={onNextPage}
-      onPreviousPage={onPreviousPage}
-      pending={pending}
-    />
-  )
-}
-
-const fileTelemetryColumns: TelemetryTableColumn<RuntimeTelemetryEventItem>[] = [
+const fileTelemetryColumns: TelemetryTableColumn<FileObservabilityEvent>[] = [
   {
     key: "file",
     header: "File path accessed",
     layout: { minWidth: 320, contentMaxWidth: 448 },
-    render: (event) => <TruncateCell value={event.primary} />,
+    render: (event) => <TruncateCell value={event.file_path_accessed} />,
   },
   {
     key: "process",
     header: "Process",
     layout: { minWidth: 288, contentMaxWidth: 448 },
-    render: (event) => <TruncateCell value={event.secondary} />,
+    render: (event) => <TruncateCell value={event.command_invocation || event.process} />,
   },
   {
     key: "action",
@@ -977,66 +1036,38 @@ const fileTelemetryColumns: TelemetryTableColumn<RuntimeTelemetryEventItem>[] = 
     key: "time",
     header: "Seen at",
     layout: { minWidth: 160, width: 160 },
-    render: (event) => <TelemetryTimestamp value={event.time} />,
+    render: (event) => (
+      <span className="text-sm text-muted-foreground">
+        {formatRecentTimestamp(event.event_time)}
+      </span>
+    ),
   },
 ]
 
-function FileTelemetryTable({
-  events,
-  hasNextPage,
-  nextPageToken,
-  canGoPrevious,
-  onNextPage,
-  onPreviousPage,
-  pending,
-}: {
-  events: RuntimeTelemetryEventItem[]
-  hasNextPage: boolean
-  nextPageToken: string
-  canGoPrevious: boolean
-  onNextPage: () => void
-  onPreviousPage: () => void
-  pending: boolean
-}) {
-  return (
-    <SharedTelemetryTable
-      data={events}
-      columns={fileTelemetryColumns}
-      emptyText="No file events were recorded in this trace window."
-      hasNextPage={hasNextPage}
-      nextPageToken={nextPageToken}
-      canGoPrevious={canGoPrevious}
-      onNextPage={onNextPage}
-      onPreviousPage={onPreviousPage}
-      pending={pending}
-    />
-  )
-}
-
-const networkTelemetryColumns: TelemetryTableColumn<RuntimeTelemetryEventItem>[] = [
+const networkTelemetryColumns: TelemetryTableColumn<NetworkObservabilityEvent>[] = [
   {
     key: "domain",
     header: "Destination domain",
     layout: { minWidth: 208, contentMaxWidth: 320 },
-    render: (event) => <TruncateCell value={networkDestinationDomain(event)} />,
+    render: (event) => <TruncateCell value={event.destination_domain} />,
   },
   {
     key: "ip",
     header: "Destination IP",
     layout: { minWidth: 160, width: 160 },
-    render: (event) => <TruncateCell value={networkDestinationIP(event)} />,
+    render: (event) => <TruncateCell value={event.destination_ip} />,
   },
   {
     key: "port",
     header: "Destination port",
     layout: { minWidth: 128, width: 128 },
-    render: (event) => <TruncateCell value={networkDestinationPort(event)} />,
+    render: (event) => <TruncateCell value={event.destination_port.toString()} />,
   },
   {
     key: "protocol",
     header: "Protocol",
     layout: { minWidth: 128, width: 128 },
-    render: (event) => <TruncateCell value={networkProtocol(event)} />,
+    render: (event) => <TruncateCell value={event.protocol} />,
   },
   {
     key: "action",
@@ -1048,68 +1079,13 @@ const networkTelemetryColumns: TelemetryTableColumn<RuntimeTelemetryEventItem>[]
     key: "time",
     header: "Seen at",
     layout: { minWidth: 160, width: 160 },
-    render: (event) => <TelemetryTimestamp value={event.time} />,
+    render: (event) => (
+      <span className="text-sm text-muted-foreground">
+        {formatRecentTimestamp(event.event_time)}
+      </span>
+    ),
   },
 ]
-
-function NetworkTelemetryTable({
-  events,
-  hasNextPage,
-  nextPageToken,
-  canGoPrevious,
-  onNextPage,
-  onPreviousPage,
-  pending,
-}: {
-  events: RuntimeTelemetryEventItem[]
-  hasNextPage: boolean
-  nextPageToken: string
-  canGoPrevious: boolean
-  onNextPage: () => void
-  onPreviousPage: () => void
-  pending: boolean
-}) {
-  return (
-    <SharedTelemetryTable
-      data={events}
-      columns={networkTelemetryColumns}
-      emptyText="No network events were recorded in this trace window."
-      hasNextPage={hasNextPage}
-      nextPageToken={nextPageToken}
-      canGoPrevious={canGoPrevious}
-      onNextPage={onNextPage}
-      onPreviousPage={onPreviousPage}
-      pending={pending}
-    />
-  )
-}
-
-function TelemetryTimestamp({ value }: { value: string }) {
-  return <span className="text-sm text-muted-foreground">{value}</span>
-}
-
-function networkDestinationDomain(event: RuntimeTelemetryEventItem) {
-  const domain = /^(?!-)(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,63}$/
-  if (domain.test(event.primary)) return event.primary
-  return ""
-}
-
-function networkDestinationIP(event: RuntimeTelemetryEventItem) {
-  if (!networkDestinationDomain(event)) {
-    return event.primary
-  }
-  return ""
-}
-
-function networkDestinationPort(event: RuntimeTelemetryEventItem) {
-  const match = event.secondary.match(/:(\d+)$/)
-
-  return match?.[1] ?? ""
-}
-
-function networkProtocol(event: RuntimeTelemetryEventItem) {
-  return event.secondary.split(" ")[0] ?? ""
-}
 
 function JSONPanel({ title, rows }: { title: string; rows: [string, string][] }) {
   return (

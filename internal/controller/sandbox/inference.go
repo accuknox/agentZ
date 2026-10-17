@@ -608,7 +608,7 @@ func (r *Reconciler) inferenceTracing(namespace string) *agentgatewayv1alpha1.Tr
 	randomSampling := agentgatewayv1alpha1.CELExpression("true")
 	return &agentgatewayv1alpha1.Tracing{
 		PolicyBackendEndpoint: agentgatewayv1alpha1.PolicyBackendEndpoint{
-			BackendRef: tracePolicyBackendRef(r.TraceBackend, inferenceTraceBackendName),
+			BackendRef: r.TraceBackend.BackendRef(inferenceTraceBackendName),
 		},
 		Protocol:       agentgatewayv1alpha1.OTLPProtocolGrpc,
 		RandomSampling: &randomSampling,

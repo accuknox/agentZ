@@ -852,6 +852,7 @@ type delegationServer struct {
 	*Service
 }
 
+// Check authorizes native gateway requests against owner-scoped delegation grants.
 func (s *delegationServer) Check(ctx context.Context, request *authv3.CheckRequest) (*authv3.CheckResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -874,7 +875,9 @@ func (s *delegationServer) Check(ctx context.Context, request *authv3.CheckReque
 		path := httpRequest.GetPath()
 		responses := strings.HasSuffix(path, "/responses")
 		messages := strings.HasSuffix(path, "/messages") || strings.HasSuffix(path, "/messages/count_tokens")
-		if httpRequest.GetMethod() != "POST" || (!responses && !messages && !strings.HasSuffix(path, "/chat/completions")) {
+		unsupportedEndpoint := httpRequest.GetMethod() != "POST" ||
+			(!responses && !messages && !strings.HasSuffix(path, "/chat/completions"))
+		if unsupportedEndpoint {
 			return denyDecision(
 				codes.PermissionDenied, typev3.StatusCode_Forbidden,
 				"inference endpoint is not delegated", "delegation_endpoint", slog.LevelWarn,

@@ -100,12 +100,14 @@ function UserIdentity({
 
 /** UserAvatar renders only a person's avatar; hovering reveals their name and email. */
 function UserAvatar({
+  className,
   email,
   id,
   image,
   name,
   size = "sm",
 }: {
+  className?: string
   email?: string | null
   id?: string
   image?: string | null
@@ -117,7 +119,7 @@ function UserAvatar({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Avatar size={size}>
+        <Avatar className={className} size={size}>
           <AvatarImage alt={label} src={image ?? undefined} />
           <AvatarFallback>{initialsFromLabel(label)}</AvatarFallback>
         </Avatar>

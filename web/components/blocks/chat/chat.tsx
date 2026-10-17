@@ -11,7 +11,7 @@ import {
   getAttachmentMediaCategory,
   inferAttachmentMediaType,
 } from "@/components/ai-elements/attachments"
-import { MessageResponse } from "@/components/ai-elements/message"
+import { ChatMessage, MessageResponse } from "@/components/ai-elements/message"
 import { AgentGettingReady, useAgentReadiness } from "@/components/agent-readiness"
 import { Checkpoint, CheckpointIcon } from "@/components/ai-elements/checkpoint"
 import { Reasoning, ReasoningContent, ReasoningTrigger } from "@/components/ai-elements/reasoning"
@@ -140,7 +140,6 @@ import {
   ContextCacheUsage,
   ContextContent,
   ContextContentBody,
-  ContextContentFooter,
   ContextContentHeader,
   ContextInputUsage,
   ContextOutputUsage,
@@ -581,7 +580,6 @@ function ChatInner({
     reconnectStream,
     reload,
     session,
-    sessionCost,
     sessionStatus,
     streamError,
     textByPart,
@@ -838,7 +836,7 @@ function ChatInner({
     selectedReasoningLevel === DEFAULT_REASONING_LEVEL ? undefined : selectedReasoningLevel
 
   // Reverted turns are dropped on the next prompt, so exclude them from the
-  // context/cost indicator.
+  // context usage indicator.
   const revertMessageID = session?.revert?.messageID
   const contextMessages = revertMessageID
     ? messages.filter((message) => message.id < revertMessageID)
@@ -1620,7 +1618,6 @@ function ChatInner({
                         contextUsage.maxTokens > 0 ? (
                           <Context
                             maxTokens={contextUsage.maxTokens}
-                            totalCostUSD={sessionCost}
                             usage={contextUsage.usage}
                             usedTokens={contextUsage.usedTokens}
                           >
@@ -1633,7 +1630,6 @@ function ChatInner({
                                 <ContextReasoningUsage />
                                 <ContextCacheUsage />
                               </ContextContentBody>
-                              <ContextContentFooter />
                             </ContextContent>
                           </Context>
                         ) : null}
@@ -1742,7 +1738,6 @@ function ChatInner({
                                   <div className="px-1.5 py-1.5">
                                     <Context
                                       maxTokens={contextUsage.maxTokens}
-                                      totalCostUSD={sessionCost}
                                       usage={contextUsage.usage}
                                       usedTokens={contextUsage.usedTokens}
                                     >
@@ -1753,7 +1748,6 @@ function ChatInner({
                                         <ContextReasoningUsage />
                                         <ContextCacheUsage />
                                       </ContextContentBody>
-                                      <ContextContentFooter className="mt-2 rounded-md px-2 py-1.5" />
                                     </Context>
                                   </div>
                                 </DropdownMenuGroup>
@@ -2115,47 +2109,51 @@ function TimelineRowView({
         : undefined
 
       return (
-        <div className="group flex flex-col items-end gap-1">
-          <div className="flex w-full items-end justify-end gap-2">
-            <div className="relative max-w-[80%] rounded-2xl bg-message p-3 text-sm text-message-foreground">
-              {row.attachments.length > 0 ? (
-                <StoredAttachments
-                  agentName={agentName}
-                  attachments={row.attachments}
-                  onOpen={openAgentFile}
-                  workspaceId={workspaceId}
-                />
-              ) : null}
-              {row.text.length > 0 ? <MessageResponse>{row.text}</MessageResponse> : null}
-            </div>
-            {name && label ? (
+        <ChatMessage
+          from="user"
+          avatar={
+            name && label ? (
               <UserMessageAvatar image={profile?.image} label={label} name={name} />
-            ) : null}
-          </div>
-          {row.isWaiting ? (
-            <div role="status" className="pe-11 text-xs text-muted-foreground">
-              Waiting for the current step...
-            </div>
+            ) : null
+          }
+          footer={
+            <>
+              {row.isWaiting ? (
+                <div role="status" className="pe-11 text-xs text-muted-foreground">
+                  Waiting for the current step...
+                </div>
+              ) : null}
+              <div className="flex w-full max-w-[80%] items-center justify-end gap-2 pe-11 text-xs tabular-nums opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100">
+                <RelativeDateTime value={row.createdAt} />
+                <div className="flex items-center gap-0.5">
+                  <MessageActionBar>
+                    <CopyButton content={row.text} />
+                    <Button
+                      aria-label="Revert to here"
+                      className="size-6"
+                      disabled={revertDisabled}
+                      onClick={() => onRevert(row.messageID)}
+                      size="icon"
+                      variant="ghost"
+                    >
+                      <Undo2Icon />
+                    </Button>
+                  </MessageActionBar>
+                </div>
+              </div>
+            </>
+          }
+        >
+          {row.attachments.length > 0 ? (
+            <StoredAttachments
+              agentName={agentName}
+              attachments={row.attachments}
+              onOpen={openAgentFile}
+              workspaceId={workspaceId}
+            />
           ) : null}
-          <div className="flex w-full max-w-[80%] items-center justify-end gap-2 pe-11 text-xs tabular-nums opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100">
-            <RelativeDateTime value={row.createdAt} />
-            <div className="flex items-center gap-0.5">
-              <MessageActionBar>
-                <CopyButton content={row.text} />
-                <Button
-                  aria-label="Revert to here"
-                  className="size-6"
-                  disabled={revertDisabled}
-                  onClick={() => onRevert(row.messageID)}
-                  size="icon"
-                  variant="ghost"
-                >
-                  <Undo2Icon />
-                </Button>
-              </MessageActionBar>
-            </div>
-          </div>
-        </div>
+          {row.text.length > 0 ? <MessageResponse>{row.text}</MessageResponse> : null}
+        </ChatMessage>
       )
     }
 
@@ -2168,66 +2166,68 @@ function TimelineRowView({
         .map((entry) => entry.content)
         .join("\n\n")
       return (
-        <div className="group flex w-full min-w-0 flex-col">
-          <div className="relative min-w-0 px-1 py-0.5 text-sm">
-            {groups.map((group, groupIndex) => {
-              const spacing = groupIndex === lastGroupIndex ? undefined : "pb-2"
+        <ChatMessage
+          from="assistant"
+          footer={
+            showMeta ? (
+              <div className="mt-1.5 flex items-center gap-1 px-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100">
+                <RelativeDateTime className="text-xs" value={row.createdAt} />
+                {copyText.length > 0 ? (
+                  <MessageActionBar>
+                    <CopyButton content={copyText} />
+                  </MessageActionBar>
+                ) : null}
+              </div>
+            ) : null
+          }
+        >
+          {groups.map((group, groupIndex) => {
+            const spacing = groupIndex === lastGroupIndex ? undefined : "pb-2"
 
-              switch (group.type) {
-                case "text":
-                  return (
-                    <div className={spacing} key={group.key}>
-                      <MessageResponse onAgentFileOpen={openAgentFile}>
-                        {group.content}
-                      </MessageResponse>
-                    </div>
-                  )
-                case "reasoning": {
-                  const isStreaming = row.isStreaming && groupIndex === lastGroupIndex
-                  return (
-                    <div className={spacing} key={group.key}>
-                      <Reasoning isStreaming={isStreaming}>
-                        <ReasoningTrigger />
-                        <ReasoningContent>{group.content}</ReasoningContent>
-                      </Reasoning>
-                    </div>
-                  )
-                }
-                case "tool-group":
-                  return (
-                    <div className={spacing} key={group.key}>
-                      <div className="ml-1 max-w-full min-w-0 space-y-px overflow-hidden border-l border-border/60 py-0.5 pl-3">
-                        {group.entries.map((entry) => {
-                          const toolEntry = entry.toolEntries[0]
-                          if (!toolEntry) return null
-                          return (
-                            <ToolEntries
-                              agentName={agentName}
-                              entry={toolEntry}
-                              key={entry.key}
-                              workspacePath={workspacePath}
-                            />
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )
-                default:
-                  return null
+            switch (group.type) {
+              case "text":
+                return (
+                  <div className={spacing} key={group.key}>
+                    <MessageResponse onAgentFileOpen={openAgentFile}>
+                      {group.content}
+                    </MessageResponse>
+                  </div>
+                )
+              case "reasoning": {
+                const isStreaming = row.isStreaming && groupIndex === lastGroupIndex
+                return (
+                  <div className={spacing} key={group.key}>
+                    <Reasoning isStreaming={isStreaming}>
+                      <ReasoningTrigger />
+                      <ReasoningContent>{group.content}</ReasoningContent>
+                    </Reasoning>
+                  </div>
+                )
               }
-            })}
-          </div>
-          {showMeta ? (
-            <div className="mt-1.5 flex items-center gap-1 px-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100">
-              <RelativeDateTime className="text-xs" value={row.createdAt} />
-              {copyText.length > 0 ? (
-                <MessageActionBar>
-                  <CopyButton content={copyText} />
-                </MessageActionBar>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
+              case "tool-group":
+                return (
+                  <div className={spacing} key={group.key}>
+                    <div className="ml-1 max-w-full min-w-0 space-y-px overflow-hidden border-l border-border/60 py-0.5 pl-3">
+                      {group.entries.map((entry) => {
+                        const toolEntry = entry.toolEntries[0]
+                        if (!toolEntry) return null
+                        return (
+                          <ToolEntries
+                            agentName={agentName}
+                            entry={toolEntry}
+                            key={entry.key}
+                            workspacePath={workspacePath}
+                          />
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              default:
+                return null
+            }
+          })}
+        </ChatMessage>
       )
     }
 

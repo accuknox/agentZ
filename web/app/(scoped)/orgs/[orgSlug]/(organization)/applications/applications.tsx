@@ -394,7 +394,7 @@ export function Applications({
             table={table}
             layout={columnLayout}
             emptyState={
-              <Empty className="border-2 border-dashed border-border/70 bg-card/40 py-12">
+              <Empty className="border-2 border-dashed border-muted-foreground/50 bg-card/40 py-12">
                 <EmptyHeader>
                   <EmptyMedia variant="icon">
                     <AppWindow aria-hidden="true" />

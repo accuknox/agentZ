@@ -100,70 +100,73 @@ var (
 	agentImage                                       string
 	controllerImage                                  string
 	gatewayURL                                       string
-	agentgatewayTraceMode                            string
-	agentgatewayTraceServiceName                     string
-	agentgatewayTraceServiceNamespace                string
-	agentgatewayTraceServicePort                     int
-	agentgatewayTraceHost                            string
-	agentgatewayTracePort                            int
-	nixStorePVC                                      string
-	agentInitImage                                   string
-	openBaoAddr                                      string
-	managerOpenBaoAddr                               string
-	openBaoSecretMountPath                           string
-	openBaoK8sAuthMountPath                          string
-	sinjectorOpenBaoK8sAuthTokenPath                 string
-	managerOpenBaoK8sAuthRole                        string
-	managerOpenBaoK8sAuthTokenPath                   string
-	managerGatewayTokenPath                          string
-	managerGatewayTokenAudience                      string
-	managerServiceAccountName                        string
-	managerServiceAccountNamespace                   string
-	gatewayServiceAccountName                        string
-	gatewayServiceAccountNamespace                   string
-	sinjectorCASecretName                            string
-	sinjectorCASecretCertKey                         string
-	sinjectorCASecretKeyKey                          string
-	sinjectorCASecretBundleKey                       string
-	sinjectorCACertPath                              string
-	sinjectorCAKeyPath                               string
-	agentCABundlePath                                string
-	nixStoreSize                                     string
-	nixStoreAccessModes                              []string
-	nixStoreStorageClass                             string
-	nixCacheEndpoint                                 string
-	skillsS3Endpoint                                 string
-	skillsS3Region                                   string
-	skillsS3Bucket                                   string
-	tenantSinjectorClusterIssuerName                 string
-	tenantAgentQuotaCount                            int32
-	tenantAgentQuotaCPU                              string
-	tenantAgentQuotaMemory                           string
-	tenantAgentDefaultCPU                            string
-	tenantAgentDefaultMemory                         string
-	tenantAgentDefaultQoS                            string
-	tenantDashboardQuotaDashboardsPerAgent           int32
-	tenantDashboardQuotaWidgetsPerDashboard          int32
-	tenantDashboardQuotaRequestBytes                 string
-	tenantDashboardQuotaRecordsPerRequest            int32
-	tenantDashboardQuotaRequestsPerMinutePerAgent    int32
-	tenantDashboardQuotaAcceptedBytesPerDay          string
-	tenantDashboardQuotaTemporalRecordsPerDay        int64
-	tenantDashboardQuotaRetainedTemporalRecords      int64
-	tenantDashboardQuotaLatestBytesPerAgent          string
-	tenantDashboardQuotaRequestsPerMinutePerUser     int32
-	tenantDashboardQuotaReturnedCellsPerHour         int64
-	tenantDashboardQuotaConcurrentRequests           int32
-	tenantDashboardQuotaCellsPerRequest              int32
-	tenantDashboardQuotaResponseBytes                string
-	tenantDashboardQuotaPointsPerSeries              int32
-	tenantDashboardQuotaTimeout                      time.Duration
-	watchNamespace                                   string
-	enableWebhooks                                   bool
-	workflowRunOrphanRetention                       time.Duration
-	inferenceSecretStoreName                         string
-	delegationNamespace                              string
-	inferenceSecretRefreshInterval                   time.Duration
+	delegationImage                                  string
+
+	agentgatewayTraceMode                         string
+	agentgatewayTraceServiceName                  string
+	agentgatewayTraceServiceNamespace             string
+	agentgatewayTraceServicePort                  int
+	agentgatewayTraceHost                         string
+	agentgatewayTracePort                         int
+	delegationTracePort                           int
+	nixStorePVC                                   string
+	agentInitImage                                string
+	openBaoAddr                                   string
+	managerOpenBaoAddr                            string
+	openBaoSecretMountPath                        string
+	openBaoK8sAuthMountPath                       string
+	sinjectorOpenBaoK8sAuthTokenPath              string
+	managerOpenBaoK8sAuthRole                     string
+	managerOpenBaoK8sAuthTokenPath                string
+	managerGatewayTokenPath                       string
+	managerGatewayTokenAudience                   string
+	managerServiceAccountName                     string
+	managerServiceAccountNamespace                string
+	gatewayServiceAccountName                     string
+	gatewayServiceAccountNamespace                string
+	sinjectorCASecretName                         string
+	sinjectorCASecretCertKey                      string
+	sinjectorCASecretKeyKey                       string
+	sinjectorCASecretBundleKey                    string
+	sinjectorCACertPath                           string
+	sinjectorCAKeyPath                            string
+	agentCABundlePath                             string
+	nixStoreSize                                  string
+	nixStoreAccessModes                           []string
+	nixStoreStorageClass                          string
+	nixCacheEndpoint                              string
+	skillsS3Endpoint                              string
+	skillsS3Region                                string
+	skillsS3Bucket                                string
+	tenantSinjectorClusterIssuerName              string
+	tenantAgentQuotaCount                         int32
+	tenantAgentQuotaCPU                           string
+	tenantAgentQuotaMemory                        string
+	tenantAgentDefaultCPU                         string
+	tenantAgentDefaultMemory                      string
+	tenantAgentDefaultQoS                         string
+	tenantDashboardQuotaDashboardsPerAgent        int32
+	tenantDashboardQuotaWidgetsPerDashboard       int32
+	tenantDashboardQuotaRequestBytes              string
+	tenantDashboardQuotaRecordsPerRequest         int32
+	tenantDashboardQuotaRequestsPerMinutePerAgent int32
+	tenantDashboardQuotaAcceptedBytesPerDay       string
+	tenantDashboardQuotaTemporalRecordsPerDay     int64
+	tenantDashboardQuotaRetainedTemporalRecords   int64
+	tenantDashboardQuotaLatestBytesPerAgent       string
+	tenantDashboardQuotaRequestsPerMinutePerUser  int32
+	tenantDashboardQuotaReturnedCellsPerHour      int64
+	tenantDashboardQuotaConcurrentRequests        int32
+	tenantDashboardQuotaCellsPerRequest           int32
+	tenantDashboardQuotaResponseBytes             string
+	tenantDashboardQuotaPointsPerSeries           int32
+	tenantDashboardQuotaTimeout                   time.Duration
+	watchNamespace                                string
+	enableWebhooks                                bool
+	workflowRunOrphanRetention                    time.Duration
+	inferenceSecretStoreName                      string
+	delegationNamespace                           string
+	inferenceSecretRefreshInterval                time.Duration
 )
 
 type silentExitCoder interface {
@@ -349,6 +352,12 @@ var managerCmd = &cli.Command{
 			},
 		},
 		&cli.StringFlag{
+			Name:        "delegation-image",
+			Usage:       "Patched Agentgateway image for delegated inference and MCP",
+			Value:       "public.ecr.aws/k9v9d5v2/agentz/agentgateway:main",
+			Destination: &delegationImage,
+		},
+		&cli.StringFlag{
 			Name:        "agentgateway-trace-mode",
 			Usage:       "OTLP/gRPC backend mode used by agentgateway for MCP traces: service or static",
 			Value:       string(sandboxcontroller.TraceBackendModeService),
@@ -388,6 +397,12 @@ var managerCmd = &cli.Command{
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
+		},
+		&cli.IntFlag{
+			Name:        "delegation-trace-port",
+			Usage:       "Network-isolated app OTLP port on the configured trace backend",
+			Value:       4318,
+			Destination: &delegationTracePort,
 		},
 		&cli.IntFlag{
 			Name:        "agentgateway-trace-port",
@@ -1030,6 +1045,22 @@ var managerCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
+		if delegationTracePort < 1 || delegationTracePort > 65535 {
+			return fmt.Errorf("delegation trace port must be between 1 and 65535")
+		}
+		appTraceBackend := traceBackend
+		switch appTraceBackend.Mode {
+		case sandboxcontroller.TraceBackendModeService:
+			if delegationNamespace != "" && delegationTracePort == agentgatewayTraceServicePort {
+				return fmt.Errorf("delegated app traces require a separate collector port")
+			}
+			appTraceBackend.ServicePort = gwv1.PortNumber(delegationTracePort)
+		case sandboxcontroller.TraceBackendModeStatic:
+			if delegationNamespace != "" && delegationTracePort == agentgatewayTracePort {
+				return fmt.Errorf("delegated app traces require a separate collector port")
+			}
+			appTraceBackend.Port = gwv1.PortNumber(delegationTracePort)
+		}
 		skillStoreConfig := skillpkg.Config{
 			Endpoint:        skillsS3Endpoint,
 			Region:          skillsS3Region,
@@ -1458,6 +1489,14 @@ var managerCmd = &cli.Command{
 			os.Exit(1)
 		}
 		extAuthRuntimeReconciler := &mcpconn.ExtAuthRuntimeReconciler{
+			TraceBackend: appTraceBackend,
+			// Clear inherited image parts so Repository is the complete reference.
+			DelegationImage: agentgatewayv1alpha1.Image{
+				Registry:   new(""),
+				Repository: new(delegationImage),
+				Tag:        new(""),
+				Digest:     new(""),
+			},
 			Bao:                     baoClient,
 			Client:                  mgr.GetClient(),
 			ControllerImage:         controllerImage,

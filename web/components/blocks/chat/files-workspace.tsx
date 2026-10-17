@@ -80,7 +80,7 @@ import { cn } from "@/lib/utils"
 import { useObjectURL } from "@/hooks/use-object-url"
 
 const CodeEditor = dynamic(
-  () => import("@/components/blocks/chat/code-editor").then((module) => module.CodeEditor),
+  () => import("@/components/code-editor").then((module) => module.CodeEditor),
   { ssr: false }
 )
 const DocumentPreview = dynamic(

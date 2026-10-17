@@ -839,7 +839,9 @@ func (s *Service) deleteEvaluation(ctx context.Context, job workflowdb.WorkflowR
 			if session.JSON200 == nil {
 				return fmt.Errorf("read evaluation session: HTTP %d", session.StatusCode())
 			}
-			if session.JSON200.Metadata == nil || (*session.JSON200.Metadata)["agentz.evaluation_id"] != job.ID.String() {
+			foreignSession := session.JSON200.Metadata == nil ||
+				(*session.JSON200.Metadata)["agentz.evaluation_id"] != job.ID.String()
+			if foreignSession {
 				continue
 			}
 			stopped, err := upstream.SessionAbortWithResponse(ctx, job.AgentName, item.Id, nil)
@@ -1191,16 +1193,19 @@ func (s *Service) judgeEvaluation(ctx context.Context, namespace string, evaluat
 		messageID := fmt.Sprintf(
 			"msg_%012x%s", (time.Now().UnixMilli()<<12)&0xffffffffffff, rand.Text()[:14],
 		)
-		response, err := upstream.SessionPromptWithResponse(ctx, evaluation.Workflow.AgentName, session.JSON200.Id, nil, gatewayapi.SessionPromptJSONRequestBody{
-			MessageID: &messageID,
-			Format:    &format,
-			Parts:     []gatewayapi.OpencodePromptPartInput{part},
-			Variant:   judge.Variant,
-			Model: &gatewayapi.OpencodePromptModel{
-				ProviderID: judge.ProviderId,
-				ModelID:    judge.ModelId,
+		response, err := upstream.SessionPromptWithResponse(
+			ctx, evaluation.Workflow.AgentName, session.JSON200.Id, nil,
+			gatewayapi.SessionPromptJSONRequestBody{
+				MessageID: &messageID,
+				Format:    &format,
+				Parts:     []gatewayapi.OpencodePromptPartInput{part},
+				Variant:   judge.Variant,
+				Model: &gatewayapi.OpencodePromptModel{
+					ProviderID: judge.ProviderId,
+					ModelID:    judge.ModelId,
+				},
 			},
-		})
+		)
 		if err != nil {
 			return err
 		}

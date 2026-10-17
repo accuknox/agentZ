@@ -334,4 +334,4 @@ function DateRangePicker({
   )
 }
 
-export { Calendar, DateRangePicker }
+export { DateRangePicker }

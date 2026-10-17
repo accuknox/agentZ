@@ -24,7 +24,7 @@ export function EventsChart({ data, label = "Events" }: { data: EventsChartData;
           {data.total} {label.toLowerCase()}
         </span>
       </div>
-      <ChartContainer config={chartConfig} className="aspect-auto h-40 w-full">
+      <ChartContainer config={chartConfig} className="aspect-auto h-40 w-full" resizeDebounce={250}>
         <BarChart
           accessibilityLayer
           data={points}

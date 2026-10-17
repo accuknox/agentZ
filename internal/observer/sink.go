@@ -51,7 +51,7 @@ func (s *sink) run(ctx context.Context) {
 		defer cancel()
 		if err := s.store.insertBatch(writeCtx, current); err != nil {
 			atomic.AddUint64(&s.stats.failed, 1)
-			slog.ErrorContext(ctx, "flush observer batch", slog.Any("error", err))
+			slog.ErrorContext(writeCtx, "flush observer batch", slog.Any("error", err))
 			return
 		}
 		atomic.AddUint64(&s.stats.flushed, 1)
@@ -59,17 +59,11 @@ func (s *sink) run(ctx context.Context) {
 
 	for {
 		select {
-		case <-ctx.Done():
-			for {
-				select {
-				case ev := <-s.events:
-					b.add(ev)
-				default:
-					flush()
-					return
-				}
+		case ev, ok := <-s.events:
+			if !ok {
+				flush()
+				return
 			}
-		case ev := <-s.events:
 			b.add(ev)
 			if b.count() >= s.cfg.BatchSize {
 				flush()

@@ -1,4 +1,7 @@
 {{- if .Values.enabled }}
+{{- if eq (int .Values.service.otlpGrpcPort) (int .Values.service.appGrpcPort) }}
+{{- fail "observer native and app OTLP ports must differ" }}
+{{- end }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -12,6 +15,10 @@ spec:
     - name: otlp-grpc
       port: {{ .Values.service.otlpGrpcPort }}
       targetPort: otlp-grpc
+      protocol: TCP
+    - name: app-grpc
+      port: {{ .Values.service.appGrpcPort }}
+      targetPort: app-grpc
       protocol: TCP
   selector:
     {{- include "observer.selectorLabels" . | nindent 4 }}

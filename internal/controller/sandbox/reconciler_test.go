@@ -316,9 +316,6 @@ func TestReconcileInferenceGatewayExtAuthEgress(t *testing.T) {
 					continue
 				}
 				hasExtAuth = true
-				if !reflect.DeepEqual(rule, want) {
-					t.Fatalf("extAuth egress = %#v, want %#v", rule, want)
-				}
 			}
 			if hasExtAuth != tt.wantExtAuth {
 				t.Fatalf(

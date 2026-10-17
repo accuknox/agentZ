@@ -295,9 +295,6 @@ export function NavSessions({
   workspaceType,
   workspacePath,
 }: NavSessionsProps) {
-  const { isMobile, state } = useSidebar()
-  if (!isMobile && state === "collapsed") return null
-
   if (workspaceType === "coding") {
     return (
       <Projects

@@ -20,13 +20,7 @@ const percentFormatter = new Intl.NumberFormat("en-US", {
 const compactFormatter = new Intl.NumberFormat("en-US", {
   notation: "compact",
 })
-const currencyFormatter = new Intl.NumberFormat("en-US", {
-  currency: "USD",
-  style: "currency",
-})
-
 interface ContextSchema {
-  totalCostUSD?: number
   usedTokens: number
   maxTokens: number
   usage?: LanguageModelUsage
@@ -46,10 +40,10 @@ const useContextValue = () => {
 
 export type ContextProps = ComponentProps<typeof HoverCard> & ContextSchema
 
-export const Context = ({ usedTokens, maxTokens, usage, totalCostUSD, ...props }: ContextProps) => {
+export const Context = ({ usedTokens, maxTokens, usage, ...props }: ContextProps) => {
   const contextValue = useMemo(
-    () => ({ maxTokens, totalCostUSD, usage, usedTokens }),
-    [maxTokens, totalCostUSD, usage, usedTokens]
+    () => ({ maxTokens, usage, usedTokens }),
+    [maxTokens, usage, usedTokens]
   )
 
   return (
@@ -163,34 +157,6 @@ export const ContextContentBody = ({ children, className, ...props }: ContextCon
     {children}
   </div>
 )
-
-export type ContextContentFooterProps = ComponentProps<"div">
-
-export const ContextContentFooter = ({
-  children,
-  className,
-  ...props
-}: ContextContentFooterProps) => {
-  const { totalCostUSD } = useContextValue()
-  const totalCost = currencyFormatter.format(totalCostUSD ?? 0)
-
-  return (
-    <div
-      className={cn(
-        "flex w-full items-center justify-between gap-3 bg-secondary p-3 text-xs",
-        className
-      )}
-      {...props}
-    >
-      {children ?? (
-        <>
-          <span className="text-muted-foreground">Total cost</span>
-          <span>{totalCost}</span>
-        </>
-      )}
-    </div>
-  )
-}
 
 const Tokens = ({ tokens }: { tokens?: number }) => (
   <span>{tokens === undefined ? "-" : compactFormatter.format(tokens)}</span>

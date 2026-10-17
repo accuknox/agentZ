@@ -510,7 +510,7 @@ export const createSandboxFormSchema = z.object({
   inference: zSandboxInference,
 })
 
-export const organizationNameSchema = z
+const organizationNameSchema = z
   .string()
   .min(1, "Enter an Organization name.")
   .max(100, "Use 100 characters or fewer.")

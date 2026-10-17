@@ -1329,6 +1329,117 @@ type OauthResource struct {
 	Metadata                      []byte           `json:"metadata"`
 }
 
+type ObserverAppOperation struct {
+	ID                int64         `json:"id"`
+	OrganizationID    string        `json:"organization_id"`
+	WorkspaceID       string        `json:"workspace_id"`
+	ClientID          string        `json:"client_id"`
+	AppName           string        `json:"app_name"`
+	GrantID           string        `json:"grant_id"`
+	UserID            string        `json:"user_id"`
+	ResourceKind      string        `json:"resource_kind"`
+	ResourceNamespace string        `json:"resource_namespace"`
+	ResourceName      string        `json:"resource_name"`
+	ResourceUid       string        `json:"resource_uid"`
+	TargetID          string        `json:"target_id"`
+	TraceID           []byte        `json:"trace_id"`
+	SpanID            []byte        `json:"span_id"`
+	ParentSpanID      []byte        `json:"parent_span_id"`
+	StartTime         time.Time     `json:"start_time"`
+	EndTime           time.Time     `json:"end_time"`
+	DurationNs        int64         `json:"duration_ns"`
+	Name              string        `json:"name"`
+	SpanClass         string        `json:"span_class"`
+	OperationName     string        `json:"operation_name"`
+	StatusCode        string        `json:"status_code"`
+	ErrorType         string        `json:"error_type"`
+	ErrorMessage      string        `json:"error_message"`
+	Model             string        `json:"model"`
+	ToolName          string        `json:"tool_name"`
+	SessionID         string        `json:"session_id"`
+	AgentKind         string        `json:"agent_kind"`
+	TurnID            string        `json:"turn_id"`
+	ToolCallID        string        `json:"tool_call_id"`
+	RunID             pgtype.Int8   `json:"run_id"`
+	SourceOperationID pgtype.Int8   `json:"source_operation_id"`
+	ResultID          pgtype.Int8   `json:"result_id"`
+	InputTokens       pgtype.Int8   `json:"input_tokens"`
+	OutputTokens      pgtype.Int8   `json:"output_tokens"`
+	ReasoningTokens   pgtype.Int8   `json:"reasoning_tokens"`
+	CachedInputTokens pgtype.Int8   `json:"cached_input_tokens"`
+	CachedWriteTokens pgtype.Int8   `json:"cached_write_tokens"`
+	CostUsd           pgtype.Float8 `json:"cost_usd"`
+	IngestedAt        time.Time     `json:"ingested_at"`
+}
+
+type ObserverAppOperationPayload struct {
+	OperationID    int64  `json:"operation_id"`
+	InputMessages  []byte `json:"input_messages"`
+	OutputMessages []byte `json:"output_messages"`
+	ToolArguments  []byte `json:"tool_arguments"`
+	ToolResult     []byte `json:"tool_result"`
+	ToolError      []byte `json:"tool_error"`
+}
+
+type ObserverAppSpan struct {
+	ID                int64         `json:"id"`
+	OrganizationID    string        `json:"organization_id"`
+	WorkspaceID       string        `json:"workspace_id"`
+	ClientID          string        `json:"client_id"`
+	AppName           string        `json:"app_name"`
+	GrantID           string        `json:"grant_id"`
+	UserID            string        `json:"user_id"`
+	ResourceKind      string        `json:"resource_kind"`
+	ResourceNamespace string        `json:"resource_namespace"`
+	ResourceName      string        `json:"resource_name"`
+	ResourceUid       string        `json:"resource_uid"`
+	TargetID          string        `json:"target_id"`
+	TraceID           []byte        `json:"trace_id"`
+	SpanID            []byte        `json:"span_id"`
+	ParentSpanID      []byte        `json:"parent_span_id"`
+	StartTime         time.Time     `json:"start_time"`
+	EndTime           time.Time     `json:"end_time"`
+	DurationNs        int64         `json:"duration_ns"`
+	Name              string        `json:"name"`
+	SpanClass         string        `json:"span_class"`
+	OperationName     string        `json:"operation_name"`
+	StatusCode        string        `json:"status_code"`
+	ErrorType         string        `json:"error_type"`
+	ErrorMessage      string        `json:"error_message"`
+	Model             string        `json:"model"`
+	ToolName          string        `json:"tool_name"`
+	SessionID         string        `json:"session_id"`
+	InputTokens       pgtype.Int8   `json:"input_tokens"`
+	OutputTokens      pgtype.Int8   `json:"output_tokens"`
+	ReasoningTokens   pgtype.Int8   `json:"reasoning_tokens"`
+	CachedInputTokens pgtype.Int8   `json:"cached_input_tokens"`
+	CachedWriteTokens pgtype.Int8   `json:"cached_write_tokens"`
+	CostUsd           pgtype.Float8 `json:"cost_usd"`
+	IngestedAt        time.Time     `json:"ingested_at"`
+	AgentKind         string        `json:"agent_kind"`
+	TurnID            string        `json:"turn_id"`
+	ToolCallID        string        `json:"tool_call_id"`
+	RunID             pgtype.Int8   `json:"run_id"`
+	SourceOperationID pgtype.Int8   `json:"source_operation_id"`
+	ResultID          pgtype.Int8   `json:"result_id"`
+	Visible           pgtype.Bool   `json:"visible"`
+}
+
+type ObserverAppToolResult struct {
+	ID                int64     `json:"id"`
+	OrganizationID    string    `json:"organization_id"`
+	WorkspaceID       string    `json:"workspace_id"`
+	ClientID          string    `json:"client_id"`
+	UserID            string    `json:"user_id"`
+	SessionID         string    `json:"session_id"`
+	ToolCallID        string    `json:"tool_call_id"`
+	SourceOperationID int64     `json:"source_operation_id"`
+	SourceStartTime   time.Time `json:"source_start_time"`
+	SourceOrdinal     int64     `json:"source_ordinal"`
+	Protocol          string    `json:"protocol"`
+	IsError           bool      `json:"is_error"`
+}
+
 type ObserverFileEvent struct {
 	ID                int64     `json:"id"`
 	TenantNamespace   string    `json:"tenant_namespace"`

@@ -131,7 +131,11 @@ func TestExternalAgentRechecksOwnerWorkspaceAndPermission(t *testing.T) {
 }
 
 func (q *delegationQueries) GatewayGetDelegationGrant(_ context.Context, arg gatewaydb.GatewayGetDelegationGrantParams) (gatewaydb.DelegationGrant, error) {
-	if q.revoked || arg.ID != q.grant.ID || arg.ClientID != q.grant.ClientID || arg.UserID != q.grant.UserID {
+	invalidGrant := q.revoked ||
+		arg.ID != q.grant.ID ||
+		arg.ClientID != q.grant.ClientID ||
+		arg.UserID != q.grant.UserID
+	if invalidGrant {
 		return gatewaydb.DelegationGrant{}, pgx.ErrNoRows
 	}
 	if arg.Origin != "" && arg.Origin != "https://app.example" {
@@ -727,6 +731,7 @@ func TestDelegatedInferenceUsesPrivateGateway(t *testing.T) {
 		conditions := []metav1.Condition{
 			{Type: "Accepted", Status: metav1.ConditionTrue, ObservedGeneration: 1},
 			{Type: "ResolvedRefs", Status: metav1.ConditionTrue, ObservedGeneration: 1},
+			{Type: "Attached", Status: metav1.ConditionTrue, ObservedGeneration: 1},
 		}
 		objects := []ctrlclient.Object{
 			&gwv1.HTTPRoute{
@@ -741,6 +746,27 @@ func TestDelegatedInferenceUsesPrivateGateway(t *testing.T) {
 				ObjectMeta: metadata,
 				Status:     agw.AgentgatewayBackendStatus{Conditions: conditions},
 			},
+		}
+		if ns != "private" {
+			objects = append(objects, &agw.AgentgatewayPolicy{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       gateway + "-delegation-tracing",
+					Namespace:  ns,
+					Generation: 1,
+				},
+				Status: gwv1.PolicyStatus{Ancestors: []gwv1.PolicyAncestorStatus{{
+					AncestorRef:    gwv1.ParentReference{Name: gwv1.ObjectName(gateway)},
+					ControllerName: "agentgateway.dev/agentgateway", Conditions: conditions,
+				}}},
+			})
+			objects = append(objects, &agw.AgentgatewayPolicy{
+				ObjectMeta: metav1.ObjectMeta{Name: metadata.Name + "-telemetry", Namespace: ns,
+					Generation: 1, Annotations: metadata.Annotations},
+				Status: gwv1.PolicyStatus{Ancestors: []gwv1.PolicyAncestorStatus{{
+					AncestorRef:    gwv1.ParentReference{Name: gwv1.ObjectName(gateway)},
+					ControllerName: "agentgateway.dev/agentgateway", Conditions: conditions,
+				}}},
+			})
 		}
 		for _, object := range objects {
 			if err := service.k8sClient.Create(t.Context(), object); err != nil {
@@ -777,7 +803,9 @@ func TestDelegatedInferenceUsesPrivateGateway(t *testing.T) {
 			t.Errorf("upstream CORS header %s: got %q, want %q", header, got, want)
 		}
 	}
-	if upstream.request.URL.Host != "private.example:8080" || upstream.request.URL.Path != "/delegations/grant-1/models/0/chat/completions" {
+	unexpectedTarget := upstream.request.URL.Host != "private.example:8080" ||
+		upstream.request.URL.Path != "/delegations/grant-1/models/0/chat/completions"
+	if unexpectedTarget {
 		t.Fatalf("inference bypassed the configured private gateway: %s", upstream.request.URL)
 	}
 	route := &gwv1.HTTPRoute{ObjectMeta: metav1.ObjectMeta{
@@ -947,7 +975,9 @@ func TestDelegationCORSMethodsHeadersAndMissingOrigins(t *testing.T) {
 	request.Header.Set("Origin", "https://app.example")
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
-	if response.Code != http.StatusServiceUnavailable || response.Header().Get("Access-Control-Allow-Origin") != "" {
+	unexpectedResponse := response.Code != http.StatusServiceUnavailable ||
+		response.Header().Get("Access-Control-Allow-Origin") != ""
+	if unexpectedResponse {
 		t.Fatal("unavailable origin registry did not fail closed")
 	}
 }
@@ -1223,6 +1253,17 @@ func TestDelegatedMCPTransportBoundary(t *testing.T) {
 		{Type: "Attached", Status: metav1.ConditionTrue, ObservedGeneration: 1},
 	}
 	projections := []ctrlclient.Object{
+		&agw.AgentgatewayPolicy{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       mcp.GatewayName + "-delegation-tracing",
+				Namespace:  namespace,
+				Generation: 1,
+			},
+			Status: gwv1.PolicyStatus{Ancestors: []gwv1.PolicyAncestorStatus{{
+				AncestorRef:    gwv1.ParentReference{Name: gwv1.ObjectName(mcp.GatewayName)},
+				ControllerName: "agentgateway.dev/agentgateway", Conditions: conditions,
+			}}},
+		},
 		&gwv1.HTTPRoute{
 			ObjectMeta: metadata,
 			Status: gwv1.HTTPRouteStatus{RouteStatus: gwv1.RouteStatus{Parents: []gwv1.RouteParentStatus{{
@@ -1270,6 +1311,14 @@ func TestDelegatedMCPTransportBoundary(t *testing.T) {
 				Conditions:     conditions,
 			}}},
 		},
+		&agw.AgentgatewayPolicy{
+			ObjectMeta: metav1.ObjectMeta{Name: "d-grant-1-mcp-0-telemetry", Namespace: namespace,
+				Generation: 1, Annotations: metadata.Annotations},
+			Status: gwv1.PolicyStatus{Ancestors: []gwv1.PolicyAncestorStatus{{
+				AncestorRef:    gwv1.ParentReference{Name: gwv1.ObjectName(mcp.GatewayName)},
+				ControllerName: "agentgateway.dev/agentgateway", Conditions: conditions,
+			}}},
+		},
 	}
 	for _, object := range projections {
 		if err := service.k8sClient.Create(t.Context(), object); err != nil {
@@ -1290,7 +1339,8 @@ func TestDelegatedMCPTransportBoundary(t *testing.T) {
 			}}
 			service.delegationTransport = upstream
 			request := httptest.NewRequest(
-				http.MethodPost, "/api/mcp?api_key=private-credential",
+				http.MethodPost,
+				"/api/mcp?api_key=private-credential",
 				strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"ping"}`),
 			)
 			request.Header.Set("Authorization", "Bearer "+signed)

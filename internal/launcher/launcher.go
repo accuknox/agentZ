@@ -182,6 +182,22 @@ func (installed *installation) claude(ctx context.Context, command *cli.Command,
 	settings["forceLoginMethod"] = json.RawMessage(`"gateway"`)
 	settings["forceLoginGatewayUrl"] = gateway
 	settings["disableAutoMode"] = json.RawMessage(`"disable"`)
+	// Persist correlation hints so native sessions that reuse this profile
+	// also supply prompt IDs when started without the launcher environment.
+	env := make(map[string]json.RawMessage)
+	if raw := settings["env"]; len(raw) > 0 {
+		if err := json.Unmarshal(raw, &env); err != nil {
+			return fmt.Errorf("read Claude environment settings: %w", err)
+		}
+		if env == nil {
+			env = make(map[string]json.RawMessage)
+		}
+	}
+	env["CLAUDE_CODE_GATEWAY_HINT_HEADERS"] = json.RawMessage(`"1"`)
+	settings["env"], err = json.Marshal(env)
+	if err != nil {
+		return err
+	}
 	data, err = json.MarshalIndent(settings, "", "  ")
 	if err != nil {
 		return err
@@ -197,12 +213,15 @@ func (installed *installation) claude(ctx context.Context, command *cli.Command,
 		if runtime.GOOS == "windows" {
 			name = strings.ToUpper(name)
 		}
-		return name == "CLAUDE_CONFIG_DIR" || name == "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY" ||
+		return name == "CLAUDE_CONFIG_DIR" || name == "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY" || name == "CLAUDE_CODE_GATEWAY_HINT_HEADERS" ||
 			strings.HasPrefix(name, "ANTHROPIC_") || name == "CLAUDE_CODE_OAUTH_TOKEN" ||
 			name == "CLAUDE_CODE_USE_BEDROCK" || name == "CLAUDE_CODE_USE_VERTEX" ||
 			name == "CLAUDE_CODE_USE_FOUNDRY" || name == "CLAUDE_CODE_USE_MANTLE"
 	})
-	child.Env = append(child.Env, "CLAUDE_CONFIG_DIR="+profile, "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1")
+	child.Env = append(child.Env,
+		"CLAUDE_CONFIG_DIR="+profile,
+		"CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1", "CLAUDE_CODE_GATEWAY_HINT_HEADERS=1",
+	)
 	if err := child.Run(); err != nil {
 		if exit, ok := errors.AsType[*exec.ExitError](err); ok {
 			return cli.Exit("Claude exited", exit.ExitCode())

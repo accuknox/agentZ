@@ -135,14 +135,6 @@ func (r *resolver) resolveAgent(ctx context.Context, namespace, agentName string
 	return agt.Name, true
 }
 
-func (r *resolver) resolveDestinationDomain(ctx context.Context, ip string) string {
-	ip = strings.TrimSpace(ip)
-	if ip == "" {
-		return ""
-	}
-	return r.resolveServiceDomain(ctx, ip)
-}
-
 func (r *resolver) resolveServiceDomain(ctx context.Context, ip string) string {
 	now := time.Now().UTC()
 

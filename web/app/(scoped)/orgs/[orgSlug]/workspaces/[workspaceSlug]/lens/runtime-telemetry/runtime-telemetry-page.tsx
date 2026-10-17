@@ -248,6 +248,7 @@ async function Filters({
     <>
       <RememberPageSelection selected={state.selected} requested={state.requested} />
       <LensFilters
+        workspaceId={state.workspaceId}
         agents={state.agents}
         selectedAgentName={state.selected.agent_name}
         from={params.range.from}

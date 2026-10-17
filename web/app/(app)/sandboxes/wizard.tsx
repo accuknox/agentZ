@@ -1788,7 +1788,7 @@ function ModelsStep({
                     </SelectContent>
                   </Select>
                   <FieldDescription>
-                    Optional lower-cost model for lightweight background tasks.
+                    Optional lightweight model for background tasks.
                   </FieldDescription>
                 </Field>
                 {invalidSubmit && !inference ? (

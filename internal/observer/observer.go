@@ -29,12 +29,14 @@ var (
 
 // Config describes how the observer consumes telemetry and writes PostgreSQL.
 type Config struct {
-	PostgresDSN        string
-	KubeArmorRelayAddr string
-	HubbleRelayAddr    string
-	OTLPTraceGRPCAddr  string
-	BatchSize          int
-	FlushInterval      time.Duration
+	PostgresDSN             string
+	KubeArmorRelayAddr      string
+	HubbleRelayAddr         string
+	OTLPTraceGRPCAddr       string
+	OTLPAppGRPCAddr         string
+	OTLPTraceMaxMessageSize int
+	BatchSize               int
+	FlushInterval           time.Duration
 }
 
 // Validate reports invalid observer configuration before any side effects.
@@ -50,6 +52,12 @@ func (c Config) Validate() error {
 	}
 	if c.OTLPTraceGRPCAddr == "" {
 		return errOTLPTraceGRPCAddrEmpty
+	}
+	if c.OTLPAppGRPCAddr == "" || c.OTLPAppGRPCAddr == c.OTLPTraceGRPCAddr {
+		return errors.New("app OTLP listener must have a separate address")
+	}
+	if c.OTLPTraceMaxMessageSize < 0 {
+		return errors.New("otlp trace max message size must not be negative")
 	}
 	if c.BatchSize <= 0 {
 		return errBatchSizeInvalid
@@ -68,6 +76,8 @@ func Serve(ctx context.Context, cfg Config) error {
 
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
 
 	pool, err := pgxpool.New(ctx, cfg.PostgresDSN)
 	if err != nil {
@@ -93,9 +103,11 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 
 	var wg sync.WaitGroup
-	wg.Go(func() {
+	sinkDone := make(chan struct{})
+	go func() {
+		defer close(sinkDone)
 		sink.run(ctx)
-	})
+	}()
 	wg.Go(func() {
 		runKubeArmorWatcher(ctx, cfg, res, watchModeLogs, evCh, stats)
 	})
@@ -105,17 +117,28 @@ func Serve(ctx context.Context, cfg Config) error {
 	wg.Go(func() {
 		runHubbleWatcher(ctx, cfg, res, evCh, stats)
 	})
-	wg.Go(func() {
-		if err := runOTLPTraceReceiver(ctx, cfg, evCh, stats); err != nil {
-			slog.ErrorContext(ctx, "otlp trace receiver failed", slog.Any("error", err))
-		}
-	})
+	receivers := []*traceReceiver{
+		{addr: cfg.OTLPTraceGRPCAddr, out: evCh, stats: stats},
+		{addr: cfg.OTLPAppGRPCAddr, app: true, out: evCh, stats: stats},
+	}
+	for _, receiver := range receivers {
+		wg.Go(func() {
+			if err := receiver.run(ctx, cfg); err != nil {
+				cancel(err)
+			}
+		})
+	}
 	wg.Go(func() {
 		logStats(ctx, stats)
 	})
 
 	<-ctx.Done()
 	wg.Wait()
+	close(evCh)
+	<-sinkDone
+	if err := context.Cause(ctx); !errors.Is(err, context.Canceled) {
+		return err
+	}
 	return nil
 }
 
@@ -247,13 +270,15 @@ func newKubeArmorRelayClient(ctx context.Context, addr string) (*grpc.ClientConn
 	}
 
 	client := pb.NewLogServiceClient(conn)
-	nonce := time.Now().UnixNano()
-	reply, err := client.HealthCheck(ctx, &pb.NonceMessage{Nonce: int32(nonce)})
+	nonce := int32(time.Now().UnixNano())
+	checkCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	reply, err := client.HealthCheck(checkCtx, &pb.NonceMessage{Nonce: nonce})
 	if err != nil {
 		_ = conn.Close()
 		return nil, nil, fmt.Errorf("kubearmor relay healthcheck: %w", err)
 	}
-	if reply.GetRetval() != int32(nonce) {
+	if reply.GetRetval() != nonce {
 		_ = conn.Close()
 		return nil, nil, fmt.Errorf("kubearmor relay healthcheck nonce mismatch")
 	}
@@ -267,7 +292,9 @@ func newHubbleRelayClient(ctx context.Context, addr string) (*grpc.ClientConn, o
 	}
 
 	client := observerpb.NewObserverClient(conn)
-	_, err = client.ServerStatus(ctx, &observerpb.ServerStatusRequest{})
+	checkCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	_, err = client.ServerStatus(checkCtx, &observerpb.ServerStatusRequest{})
 	if err != nil {
 		_ = conn.Close()
 		return nil, nil, fmt.Errorf("hubble relay status: %w", err)

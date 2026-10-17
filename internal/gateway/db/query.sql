@@ -669,10 +669,12 @@ WITH range_rows AS (
     inv.tool_name,
     AVG(CAST(inv.duration_ns AS DOUBLE PRECISION) / 1000000.0) AS avg_latency_ms,
     COUNT(*) FILTER (WHERE NOT inv.failed)::BIGINT AS success_count,
-    COUNT(*) FILTER (WHERE inv.failed)::BIGINT AS failed_count
+    COUNT(*) FILTER (WHERE inv.failed)::BIGINT AS failed_count,
+    MAX(inv.start_time)::timestamptz AS last_called_at
   FROM observer_mcp_tool_invocations inv
   WHERE inv.tenant_namespace = sqlc.arg(tenant_namespace)
     AND inv.agent_name = sqlc.arg(agent_name)
+    AND (sqlc.arg(session_id)::text = '' OR inv.session_id = sqlc.arg(session_id))
     AND inv.start_time >= sqlc.arg(start_time_after)
     AND inv.start_time < sqlc.arg(start_time_before)
   GROUP BY
@@ -687,13 +689,8 @@ SELECT
   range_rows.avg_latency_ms,
   range_rows.success_count,
   range_rows.failed_count,
-  observer_mcp_tool_last_called.last_called_at
+  range_rows.last_called_at
 FROM range_rows
-LEFT JOIN observer_mcp_tool_last_called
-  ON observer_mcp_tool_last_called.tenant_namespace = sqlc.arg(tenant_namespace)
-  AND observer_mcp_tool_last_called.agent_name = range_rows.agent_name
-  AND observer_mcp_tool_last_called.mcp_connection_name = range_rows.mcp_connection_name
-  AND observer_mcp_tool_last_called.tool_name = range_rows.tool_name
 ORDER BY
   range_rows.mcp_connection_name ASC,
   range_rows.tool_name ASC;
@@ -768,8 +765,6 @@ WITH span_row AS (
     cached_write_tokens,
     cost_usd,
     llm_finish_reason,
-    resource_attributes,
-    span_attributes,
     ingested_at
   FROM observer_trace_spans sp
   WHERE sp.tenant_namespace = sqlc.arg(tenant_namespace)
@@ -805,8 +800,6 @@ SELECT
   s.cached_write_tokens,
   s.cost_usd,
   s.llm_finish_reason,
-  s.resource_attributes,
-  s.span_attributes,
   s.ingested_at,
   COALESCE(p.input_messages, 'null'::jsonb) AS input_messages,
   COALESCE(p.output_messages, 'null'::jsonb) AS output_messages,
@@ -2693,9 +2686,12 @@ WHERE g.id = sqlc.arg(id) AND g.client_id = sqlc.arg(client_id)
 SELECT * FROM external_agents WHERE client_id = sqlc.arg(client_id);
 
 -- name: GatewayListDelegationGrants :many
-SELECT g.*
+SELECT sqlc.embed(g), COALESCE(c.name, c.client_id)::text AS app_name,
+ COALESCE(e.kind::text, '')::text AS agent_kind
 FROM delegation_grants g
 JOIN oauth_clients c ON c.client_id = g.client_id AND c.disabled IS NOT TRUE AND g.scopes <@ c.scopes
+LEFT JOIN external_agents e ON e.client_id = g.client_id
+  AND e.organization_id = g.organization_id AND e.user_id = g.user_id
 WHERE g.approved_at IS NOT NULL AND g.revoked_at IS NULL
   AND (
     (g.selection->'models' = '[]'::jsonb AND g.selection->'mcp' = '[]'::jsonb)
@@ -2739,3 +2735,286 @@ DELETE FROM delegation_transactions WHERE expires_at <= now();
 
 -- name: GatewayCheckDelegationSession :one
 SELECT EXISTS(SELECT 1 FROM sessions WHERE id = sqlc.arg(id) AND user_id = sqlc.arg(user_id) AND expires_at > now());
+
+-- name: GatewayListLensApps :many
+WITH subjects AS (
+ SELECT op.client_id, op.app_name AS name, op.agent_kind, MAX(op.start_time) AS last_seen
+ FROM observer_app_operations op
+ WHERE op.organization_id = sqlc.arg(organization_id) AND op.workspace_id = sqlc.arg(workspace_id)
+ GROUP BY op.client_id, op.app_name, op.agent_kind
+ UNION ALL
+ SELECT g.client_id, COALESCE(c.name, c.client_id)::text, COALESCE(e.kind::text, ''), now()
+ FROM delegation_grants g JOIN oauth_clients c ON c.client_id = g.client_id
+ LEFT JOIN external_agents e ON e.client_id = g.client_id AND e.organization_id = g.organization_id
+   AND e.workspace_id = sqlc.arg(workspace_id)
+ WHERE g.organization_id = sqlc.arg(organization_id)
+   AND g.approved_at IS NOT NULL AND g.revoked_at IS NULL AND c.disabled IS NOT TRUE
+   AND EXISTS (
+    SELECT 1 FROM jsonb_array_elements((g.selection->'models') || (g.selection->'mcp')) AS selected
+    WHERE selected->>'workspace_id' = sqlc.arg(workspace_id)
+   )
+ UNION ALL
+ SELECT e.client_id, COALESCE(c.name, e.client_id)::text, e.kind::text, now()
+ FROM external_agents e LEFT JOIN oauth_clients c ON c.client_id = e.client_id
+ WHERE e.organization_id = sqlc.arg(organization_id) AND e.workspace_id = sqlc.arg(workspace_id)
+), latest AS (
+ SELECT DISTINCT ON (client_id) client_id, name FROM subjects ORDER BY client_id, last_seen DESC, name
+), kinds AS (
+ SELECT client_id, MAX(NULLIF(agent_kind, ''))::text AS agent_kind FROM subjects GROUP BY client_id
+)
+SELECT latest.client_id, COALESCE(c.name, latest.name)::text AS name, COALESCE(kinds.agent_kind, '')::text AS agent_kind,
+ COALESCE(owner.user_id, '')::text AS user_id, COALESCE(u.name, '')::text AS user_name,
+ COALESCE(u.email, '')::text AS user_email, u.image AS user_image
+FROM latest JOIN kinds ON kinds.client_id = latest.client_id LEFT JOIN oauth_clients c ON c.client_id = latest.client_id
+LEFT JOIN external_agents owner ON owner.client_id = latest.client_id
+ AND owner.organization_id = sqlc.arg(organization_id) AND owner.workspace_id = sqlc.arg(workspace_id)
+LEFT JOIN users u ON u.id = owner.user_id
+ORDER BY COALESCE(c.name, latest.name), latest.client_id;
+
+-- name: GatewayLensAppExists :one
+SELECT EXISTS (
+ SELECT 1 FROM observer_app_operations op
+ WHERE op.organization_id = sqlc.arg(organization_id) AND op.workspace_id = sqlc.arg(workspace_id)
+   AND op.client_id = sqlc.arg(client_id)
+ UNION ALL
+ SELECT 1 FROM delegation_grants g JOIN oauth_clients c ON c.client_id = g.client_id
+ WHERE g.organization_id = sqlc.arg(organization_id) AND g.client_id = sqlc.arg(client_id)
+   AND g.approved_at IS NOT NULL AND g.revoked_at IS NULL AND c.disabled IS NOT TRUE
+   AND EXISTS (
+    SELECT 1 FROM jsonb_array_elements((g.selection->'models') || (g.selection->'mcp')) AS selected
+    WHERE selected->>'workspace_id' = sqlc.arg(workspace_id)
+   )
+ UNION ALL
+ SELECT 1 FROM external_agents e
+ WHERE e.organization_id = sqlc.arg(organization_id) AND e.workspace_id = sqlc.arg(workspace_id)
+   AND e.client_id = sqlc.arg(client_id)
+) AS exists;
+
+-- name: GatewayGetLensApp :one
+WITH subjects AS (
+ SELECT op.client_id, op.app_name AS name, op.agent_kind, MAX(op.start_time) AS last_seen
+ FROM observer_app_operations op
+ WHERE op.client_id = sqlc.arg(client_id) AND op.organization_id = sqlc.arg(organization_id) AND op.workspace_id = sqlc.arg(workspace_id)
+ GROUP BY op.client_id, op.app_name, op.agent_kind
+ UNION ALL
+ SELECT g.client_id, COALESCE(c.name, c.client_id)::text, COALESCE(e.kind::text, ''), now()
+ FROM delegation_grants g JOIN oauth_clients c ON c.client_id = g.client_id
+ LEFT JOIN external_agents e ON e.client_id = g.client_id AND e.organization_id = g.organization_id
+   AND e.workspace_id = sqlc.arg(workspace_id)
+ WHERE g.client_id = sqlc.arg(client_id) AND g.organization_id = sqlc.arg(organization_id)
+   AND g.approved_at IS NOT NULL AND g.revoked_at IS NULL AND c.disabled IS NOT TRUE
+   AND EXISTS (
+    SELECT 1 FROM jsonb_array_elements((g.selection->'models') || (g.selection->'mcp')) AS selected
+    WHERE selected->>'workspace_id' = sqlc.arg(workspace_id)
+   )
+ UNION ALL
+ SELECT e.client_id, COALESCE(c.name, e.client_id)::text, e.kind::text, now()
+ FROM external_agents e LEFT JOIN oauth_clients c ON c.client_id = e.client_id
+ WHERE e.client_id = sqlc.arg(client_id) AND e.organization_id = sqlc.arg(organization_id) AND e.workspace_id = sqlc.arg(workspace_id)
+), latest AS (
+ SELECT DISTINCT ON (client_id) client_id, name FROM subjects ORDER BY client_id, last_seen DESC, name
+), kinds AS (
+ SELECT client_id, MAX(NULLIF(agent_kind, ''))::text AS agent_kind FROM subjects GROUP BY client_id
+)
+SELECT latest.client_id, COALESCE(c.name, latest.name)::text AS name, COALESCE(kinds.agent_kind, '')::text AS agent_kind
+FROM latest JOIN kinds ON kinds.client_id = latest.client_id LEFT JOIN oauth_clients c ON c.client_id = latest.client_id
+LIMIT 1;
+
+-- name: GatewayListAppSessions :many
+WITH sessions AS (
+ SELECT session_id, MAX(end_time)::timestamptz AS last_seen
+ FROM observer_app_operations
+ WHERE organization_id = sqlc.arg(organization_id) AND workspace_id = sqlc.arg(workspace_id)
+   AND client_id = sqlc.arg(client_id) AND agent_kind IN ('claude', 'codex')
+   AND session_id <> '' AND run_id IS NULL AND resource_kind <> 'tool'
+   AND (sqlc.arg(session_id)::text = '' OR session_id = sqlc.arg(session_id))
+ GROUP BY session_id
+)
+SELECT session_id, last_seen FROM sessions
+WHERE NOT sqlc.arg(cursor_set)::boolean
+  OR (last_seen, session_id) < (sqlc.arg(cursor_last_seen)::timestamptz, sqlc.arg(cursor_session_id)::text)
+ORDER BY last_seen DESC, session_id DESC LIMIT sqlc.arg(page_size);
+
+-- name: GatewayListAppTraces :many
+WITH identities AS (
+ SELECT op.id AS root_id, op.trace_id, op.start_time AS started_at
+ FROM observer_app_operations op
+ WHERE op.organization_id = sqlc.arg(organization_id) AND op.workspace_id = sqlc.arg(workspace_id)
+   AND op.client_id = sqlc.arg(client_id) AND op.resource_kind = 'turn' AND op.run_id IS NULL
+   AND (sqlc.arg(session_id)::text = '' OR op.session_id = sqlc.arg(session_id))
+   AND op.start_time >= sqlc.arg(started_after)::timestamptz AND op.start_time <= sqlc.arg(started_before)::timestamptz
+ UNION ALL
+ SELECT NULL::bigint AS root_id, op.trace_id, MIN(op.start_time)::timestamptz AS started_at
+ FROM observer_app_operations op
+ WHERE op.organization_id = sqlc.arg(organization_id) AND op.workspace_id = sqlc.arg(workspace_id)
+   AND op.client_id = sqlc.arg(client_id) AND op.run_id IS NULL AND op.resource_kind IN ('inference', 'mcp')
+   AND op.start_time >= sqlc.arg(started_after)::timestamptz AND op.start_time <= sqlc.arg(started_before)::timestamptz
+ GROUP BY op.trace_id
+ -- Limit aggregation to the selected range without moving a trace's true start.
+ HAVING NOT EXISTS (
+   SELECT 1 FROM observer_app_operations earlier
+   WHERE earlier.organization_id = sqlc.arg(organization_id) AND earlier.workspace_id = sqlc.arg(workspace_id)
+     AND earlier.client_id = sqlc.arg(client_id) AND earlier.trace_id = op.trace_id
+     AND earlier.run_id IS NULL AND earlier.resource_kind IN ('inference', 'mcp')
+     AND earlier.start_time < sqlc.arg(started_after)::timestamptz
+ ) AND (sqlc.arg(session_id)::text = '' OR EXISTS (
+   SELECT 1 FROM observer_app_operations session
+   WHERE session.organization_id = sqlc.arg(organization_id) AND session.workspace_id = sqlc.arg(workspace_id)
+     AND session.client_id = sqlc.arg(client_id) AND session.trace_id = op.trace_id
+     AND session.run_id IS NULL AND session.resource_kind IN ('inference', 'mcp')
+     AND session.session_id = sqlc.arg(session_id)
+ ))
+), candidates AS MATERIALIZED (
+ SELECT * FROM identities
+ WHERE NOT sqlc.arg(cursor_set)::boolean
+   OR (started_at, trace_id) < (sqlc.arg(cursor_started_at)::timestamptz, sqlc.arg(cursor_trace_id)::bytea)
+ ORDER BY started_at DESC, trace_id DESC LIMIT sqlc.arg(page_size)
+), members AS MATERIALIZED (
+ SELECT candidate.trace_id AS logical_trace_id, candidate.started_at, op.id
+ FROM candidates candidate JOIN observer_app_operations op
+   ON op.organization_id = sqlc.arg(organization_id) AND op.workspace_id = sqlc.arg(workspace_id)
+   AND op.client_id = sqlc.arg(client_id)
+   AND (op.run_id = candidate.root_id OR op.id = candidate.root_id
+     OR (candidate.root_id IS NULL AND op.run_id IS NULL AND op.trace_id = candidate.trace_id))
+)
+SELECT members.logical_trace_id AS trace_id, members.started_at,
+ MAX(span.end_time)::timestamptz AS ended_at,
+ (ARRAY_AGG(span.span_id ORDER BY span.resource_kind <> 'turn', span.start_time, span.id))[1]::bytea AS root_span_id,
+ (EXTRACT(EPOCH FROM MAX(span.end_time) - members.started_at) * 1000000000)::bigint AS duration_ns,
+ COUNT(*)::bigint AS span_count,
+ COUNT(*) FILTER (WHERE span.resource_kind <> 'turn' AND span.status_code = 'ERROR')::bigint AS error_count,
+ COUNT(*) FILTER (WHERE span.span_class = 'tool')::bigint AS tool_count,
+ COUNT(*) FILTER (WHERE span.span_class = 'llm')::bigint AS model_count,
+ COALESCE(SUM(span.input_tokens) FILTER (WHERE span.span_class = 'llm'), 0)::bigint AS input_tokens,
+ COUNT(span.input_tokens) FILTER (WHERE span.span_class = 'llm') > 0
+   AND COUNT(span.input_tokens) FILTER (WHERE span.span_class = 'llm') = COUNT(*) FILTER (WHERE span.span_class = 'llm') AS input_tokens_known,
+ COALESCE(SUM(span.output_tokens) FILTER (WHERE span.span_class = 'llm'), 0)::bigint AS output_tokens,
+ COUNT(span.output_tokens) FILTER (WHERE span.span_class = 'llm') > 0
+   AND COUNT(span.output_tokens) FILTER (WHERE span.span_class = 'llm') = COUNT(*) FILTER (WHERE span.span_class = 'llm') AS output_tokens_known,
+ COALESCE(SUM(span.cached_input_tokens) FILTER (WHERE span.span_class = 'llm'), 0)::bigint AS cached_input_tokens,
+ COUNT(span.cached_input_tokens) FILTER (WHERE span.span_class = 'llm') > 0
+   AND COUNT(span.cached_input_tokens) FILTER (WHERE span.span_class = 'llm') = COUNT(*) FILTER (WHERE span.span_class = 'llm') AS cached_input_tokens_known,
+ COALESCE(SUM(span.cached_write_tokens) FILTER (WHERE span.span_class = 'llm'), 0)::bigint AS cached_write_tokens,
+ COUNT(span.cached_write_tokens) FILTER (WHERE span.span_class = 'llm') > 0
+   AND COUNT(span.cached_write_tokens) FILTER (WHERE span.span_class = 'llm') = COUNT(*) FILTER (WHERE span.span_class = 'llm') AS cached_write_tokens_known,
+ COALESCE(SUM(span.cost_usd) FILTER (WHERE span.span_class = 'llm'), 0)::double precision AS cost_usd,
+ COUNT(span.cost_usd) FILTER (WHERE span.span_class = 'llm') > 0
+   AND COUNT(span.cost_usd) FILTER (WHERE span.span_class = 'llm') = COUNT(*) FILTER (WHERE span.span_class = 'llm') AS cost_usd_known,
+ CASE WHEN BOOL_OR(span.status_code = 'ERROR') THEN 'ERROR' ELSE 'OK' END::text AS status_code,
+ MAX(span.ingested_at)::timestamptz AS updated_at
+FROM members JOIN observer_app_spans span ON span.id = members.id
+WHERE span.visible
+GROUP BY members.logical_trace_id, members.started_at
+ORDER BY members.started_at DESC, members.logical_trace_id DESC;
+
+-- name: GatewayGetAppTraceChart :many
+WITH identities AS (
+ SELECT op.id AS root_id, op.trace_id, op.start_time AS started_at
+ FROM observer_app_operations op
+ WHERE op.organization_id = sqlc.arg(organization_id) AND op.workspace_id = sqlc.arg(workspace_id)
+   AND op.client_id = sqlc.arg(client_id) AND op.resource_kind = 'turn' AND op.run_id IS NULL
+   AND (sqlc.arg(session_id)::text = '' OR op.session_id = sqlc.arg(session_id))
+   AND op.start_time >= sqlc.arg(started_after)::timestamptz AND op.start_time <= sqlc.arg(started_before)::timestamptz
+ UNION ALL
+ SELECT NULL::bigint AS root_id, op.trace_id, MIN(op.start_time)::timestamptz AS started_at
+ FROM observer_app_operations op
+ WHERE op.organization_id = sqlc.arg(organization_id) AND op.workspace_id = sqlc.arg(workspace_id)
+   AND op.client_id = sqlc.arg(client_id) AND op.run_id IS NULL AND op.resource_kind IN ('inference', 'mcp')
+   AND op.start_time >= sqlc.arg(started_after)::timestamptz AND op.start_time <= sqlc.arg(started_before)::timestamptz
+ GROUP BY op.trace_id
+ -- Limit aggregation to the selected range without moving a trace's true start.
+ HAVING NOT EXISTS (
+   SELECT 1 FROM observer_app_operations earlier
+   WHERE earlier.organization_id = sqlc.arg(organization_id) AND earlier.workspace_id = sqlc.arg(workspace_id)
+     AND earlier.client_id = sqlc.arg(client_id) AND earlier.trace_id = op.trace_id
+     AND earlier.run_id IS NULL AND earlier.resource_kind IN ('inference', 'mcp')
+     AND earlier.start_time < sqlc.arg(started_after)::timestamptz
+ ) AND (sqlc.arg(session_id)::text = '' OR EXISTS (
+   SELECT 1 FROM observer_app_operations session
+   WHERE session.organization_id = sqlc.arg(organization_id) AND session.workspace_id = sqlc.arg(workspace_id)
+     AND session.client_id = sqlc.arg(client_id) AND session.trace_id = op.trace_id
+     AND session.run_id IS NULL AND session.resource_kind IN ('inference', 'mcp')
+     AND session.session_id = sqlc.arg(session_id)
+ ))
+)
+SELECT date_trunc('hour', started_at)::timestamptz AS time, COUNT(*)::bigint AS count
+FROM identities GROUP BY time ORDER BY time;
+
+-- name: GatewayListAppSpans :many
+WITH roots AS MATERIALIZED (
+ SELECT root.id FROM observer_app_operations root
+ WHERE root.organization_id = sqlc.arg(organization_id) AND root.workspace_id = sqlc.arg(workspace_id)
+   AND root.client_id = sqlc.arg(client_id) AND root.trace_id = sqlc.arg(trace_id) AND root.resource_kind = 'turn'
+), candidates AS MATERIALIZED (
+ SELECT op.id FROM observer_app_operations op
+ WHERE op.organization_id = sqlc.arg(organization_id) AND op.workspace_id = sqlc.arg(workspace_id)
+   AND op.client_id = sqlc.arg(client_id) AND op.run_id IS NULL AND op.trace_id = sqlc.arg(trace_id)
+ UNION ALL
+ SELECT op.id FROM roots JOIN observer_app_operations op ON op.run_id = roots.id
+ WHERE op.organization_id = sqlc.arg(organization_id) AND op.workspace_id = sqlc.arg(workspace_id)
+   AND op.client_id = sqlc.arg(client_id)
+)
+SELECT sqlc.embed(span) FROM candidates JOIN observer_app_spans span ON span.id = candidates.id
+WHERE span.visible AND (NOT sqlc.arg(cursor_set)::boolean
+  OR (span.resource_kind <> 'turn', span.start_time, span.id)
+    > (sqlc.arg(cursor_non_root)::boolean, sqlc.arg(cursor_start_time)::timestamptz, sqlc.arg(cursor_id)::bigint))
+ORDER BY span.resource_kind <> 'turn', span.start_time, span.id LIMIT sqlc.arg(page_size);
+
+-- name: GatewayGetAppOperations :many
+SELECT sqlc.embed(span),
+ CASE WHEN NOT sqlc.arg(recording)::boolean OR span.id = sqlc.arg(prompt_operation_id)::bigint
+   THEN COALESCE(payload.input_messages, 'null'::jsonb) ELSE 'null'::jsonb END::jsonb AS input_messages,
+ CASE WHEN sqlc.arg(recording)::boolean AND span.resource_kind = 'inference'
+   AND payload.output_messages <> 'null'::jsonb
+   THEN jsonb_build_object('completion', payload.output_messages->'completion')
+   ELSE COALESCE(payload.output_messages, 'null'::jsonb) END::jsonb AS output_messages,
+ COALESCE(payload.tool_arguments, 'null'::jsonb)::jsonb AS tool_arguments,
+ CASE WHEN span.resource_kind = 'tool' THEN COALESCE(
+   CASE result.protocol
+     WHEN 'messages' THEN (jsonb_path_query_array(result_payload.input_messages,
+       '$.messages[*] ? (@.role == "user").content[*] ? (@.type == "tool_result")') -> (result.source_ordinal - 1)::int) -> 'content'
+     WHEN 'responses' THEN (jsonb_path_query_array(result_payload.input_messages,
+       '$.input[*] ? (@.type == "function_call_output" || @.type == "custom_tool_call_output")') -> (result.source_ordinal - 1)::int) -> 'output'
+     WHEN 'chat' THEN (jsonb_path_query_array(result_payload.input_messages,
+       '$.messages[*] ? (@.role == "tool")') -> (result.source_ordinal - 1)::int) -> 'content'
+   END, 'null'::jsonb)
+   ELSE COALESCE(payload.tool_result, 'null'::jsonb) END::jsonb AS tool_result,
+ COALESCE(payload.tool_error, 'null'::jsonb)::jsonb AS tool_error
+FROM observer_app_spans span
+LEFT JOIN observer_app_operation_payloads payload ON payload.operation_id = span.id
+LEFT JOIN observer_app_tool_results result ON result.id = span.result_id
+LEFT JOIN observer_app_operation_payloads result_payload ON result_payload.operation_id = result.source_operation_id
+WHERE span.organization_id = sqlc.arg(organization_id) AND span.workspace_id = sqlc.arg(workspace_id)
+  AND span.client_id = sqlc.arg(client_id) AND span.id = ANY(sqlc.arg(operation_ids)::bigint[])
+ORDER BY array_position(sqlc.arg(operation_ids)::bigint[], span.id);
+
+-- name: GatewayGetAppMCPGraph :many
+WITH selected AS (
+ SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name, op.duration_ns, op.status_code, op.start_time FROM observer_app_operations op
+ WHERE op.organization_id = sqlc.arg(organization_id) AND op.workspace_id = sqlc.arg(workspace_id)
+   AND op.client_id = sqlc.arg(client_id) AND op.resource_kind = 'mcp'
+   AND op.start_time >= sqlc.arg(start_time_after) AND op.start_time < sqlc.arg(start_time_before)
+   AND sqlc.arg(session_id)::text = ''
+ UNION ALL
+ SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name, op.duration_ns, op.status_code, op.start_time FROM observer_app_operations op
+ WHERE op.organization_id = sqlc.arg(organization_id) AND op.workspace_id = sqlc.arg(workspace_id)
+   AND op.client_id = sqlc.arg(client_id) AND op.resource_kind = 'mcp'
+   AND op.start_time >= sqlc.arg(start_time_after) AND op.start_time < sqlc.arg(start_time_before)
+   AND sqlc.arg(session_id)::text <> '' AND op.session_id = sqlc.arg(session_id)
+ UNION ALL
+ SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name, op.duration_ns, op.status_code, op.start_time FROM observer_app_operations run JOIN observer_app_operations op ON op.run_id = run.id
+ WHERE run.organization_id = sqlc.arg(organization_id) AND run.workspace_id = sqlc.arg(workspace_id)
+   AND run.client_id = sqlc.arg(client_id) AND run.resource_kind = 'turn'
+   AND run.session_id = sqlc.arg(session_id) AND sqlc.arg(session_id)::text <> ''
+   AND op.organization_id = sqlc.arg(organization_id) AND op.workspace_id = sqlc.arg(workspace_id)
+   AND op.client_id = sqlc.arg(client_id) AND op.resource_kind = 'mcp' AND op.session_id = ''
+   AND op.start_time >= sqlc.arg(start_time_after) AND op.start_time < sqlc.arg(start_time_before)
+)
+SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name,
+ AVG(op.duration_ns::double precision / 1000000)::double precision AS avg_latency_ms,
+ COUNT(*) FILTER (WHERE op.status_code <> 'ERROR')::bigint AS success_count,
+ COUNT(*) FILTER (WHERE op.status_code = 'ERROR')::bigint AS failed_count,
+ MAX(op.start_time)::timestamptz AS last_called_at
+FROM selected op
+GROUP BY op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name
+ORDER BY op.resource_namespace, op.resource_name, op.tool_name;

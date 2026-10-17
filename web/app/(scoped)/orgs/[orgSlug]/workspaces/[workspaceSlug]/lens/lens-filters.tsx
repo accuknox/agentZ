@@ -1,38 +1,76 @@
 "use client"
 
 import * as React from "react"
+import { ClaudeAI, CodexLight } from "@ridemountainpig/svgl-react"
 import { useSelectResource } from "@/components/page-selection"
-import { BotIcon, MessageSquareQuote } from "lucide-react"
+import { AppWindowIcon, BotIcon, MessageSquareIcon } from "lucide-react"
 import { useRouter } from "@bprogress/next/app"
 import { usePathname, useSearchParams } from "next/navigation"
 import { DateRangePicker } from "@/components/ui/calendar"
+import { Button } from "@/components/ui/button"
+import { UserAvatar } from "@/components/ui/avatar"
+import { Separator } from "@/components/ui/separator"
+import { FieldError } from "@/components/ui/field"
 import {
   Select,
   SelectContent,
   SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { listAppSessionsAction } from "@/data/lens.actions"
 import type { TraceSessionFilterItem } from "@/data/types"
 import { dayjs, formatDateParam } from "@/lib/format"
-import type { Agent } from "@/lib/gateway/client"
+import type { Agent, LensApp } from "@/lib/gateway/client"
+
+type SourceIconKind = "agent" | "app" | NonNullable<LensApp["agent_kind"]>
+
+export function LensSourceIcon({
+  kind,
+  className = "size-4 shrink-0",
+}: {
+  kind: SourceIconKind
+  className?: string
+}) {
+  switch (kind) {
+    case "agent":
+      return <BotIcon aria-hidden="true" className={className} />
+    case "claude":
+      return <ClaudeAI aria-hidden="true" className={className} />
+    case "codex":
+      return <CodexLight aria-hidden="true" fill="currentColor" className={className} />
+    case "app":
+      return <AppWindowIcon aria-hidden="true" className={className} />
+  }
+}
 
 type LensFiltersProps = {
   agents: Agent[]
+  apps?: LensApp[]
+  selectedAppClientID?: string
+  defaultAppClientID?: string
   from: string
   selectedAgentName?: string
   selectedSessionId?: string
   sessions?: TraceSessionFilterItem[]
+  sessionNextPageToken?: string
+  workspaceId: string
   to: string
 }
 
 export function LensFilters({
   agents,
+  apps: appOptions,
+  selectedAppClientID,
+  defaultAppClientID,
   from,
   selectedAgentName,
   selectedSessionId,
   sessions,
+  sessionNextPageToken,
+  workspaceId,
   to,
 }: LensFiltersProps) {
   const { select, pending: selectionPending } = useSelectResource(true)
@@ -40,19 +78,42 @@ export function LensFilters({
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [pending, startTransition] = React.useTransition()
+  const apps = appOptions ?? []
+  const ordinaryApps = apps.filter((app) => !app.agent_kind)
+  const externalAgents = apps
+    .flatMap((app) => (app.agent_kind ? [{ ...app, agent_kind: app.agent_kind }] : []))
+    .toSorted(
+      (a, b) =>
+        (a.user?.name || a.user?.email || "Unknown user").localeCompare(
+          b.user?.name || b.user?.email || "Unknown user"
+        ) ||
+        a.name.localeCompare(b.name) ||
+        a.client_id.localeCompare(b.client_id)
+    )
+  const externalAgentsByUser = new Map<string, typeof externalAgents>()
+  for (const app of externalAgents) {
+    const userID = app.user?.id ?? ""
+    const group = externalAgentsByUser.get(userID)
+    if (group) {
+      group.push(app)
+      continue
+    }
+    externalAgentsByUser.set(userID, [app])
+  }
+  const selectedApp = apps.find((app) => app.client_id === selectedAppClientID)
+  let selectedSubject = ordinaryApps.length > 0 ? "external-apps" : ""
+  if (selectedAgentName) selectedSubject = `agent:${selectedAgentName}`
+  if (selectedApp?.agent_kind) selectedSubject = `external-agent:${selectedApp.client_id}`
+  const disabled = pending || selectionPending
 
-  function update(values: Record<string, string | undefined>) {
+  function updateDate(values: Record<string, string | undefined>) {
     const params = new URLSearchParams(searchParams)
     params.delete("page_token")
     params.delete("token_stack")
     for (const [key, value] of Object.entries(values)) {
-      if (value) {
-        params.set(key, value)
-      } else {
-        params.delete(key)
-      }
+      if (value) params.set(key, value)
+      else params.delete(key)
     }
-
     startTransition(() => {
       const query = params.toString()
       router.replace(query === "" ? pathname : `${pathname}?${query}`)
@@ -61,61 +122,268 @@ export function LensFilters({
 
   return (
     <div
-      data-pending={pending || selectionPending}
+      data-pending={disabled}
       className="flex min-h-14 flex-col gap-3 border-b bg-background px-4 py-2 data-[pending=true]:opacity-70 sm:flex-row sm:items-center sm:justify-between sm:px-6"
     >
-      <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+      <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
         <Select
-          value={selectedAgentName ?? ""}
-          onValueChange={(agent_name) => select({ agent_name })}
-          disabled={agents.length === 0 || pending || selectionPending}
+          value={selectedSubject}
+          onValueChange={(value) => {
+            if (value === "external-apps") {
+              const app =
+                ordinaryApps.find((app) => app.client_id === defaultAppClientID) ?? ordinaryApps[0]
+              if (app) select({ app_client_id: app.client_id })
+              return
+            }
+            const agent = agents.find((agent) => `agent:${agent.name}` === value)
+            if (agent) {
+              select({ agent_name: agent.name })
+              return
+            }
+            const external = externalAgents.find(
+              (app) => `external-agent:${app.client_id}` === value
+            )
+            if (external) select({ app_client_id: external.client_id })
+          }}
+          disabled={agents.length + apps.length === 0 || disabled}
         >
-          <SelectTrigger className="h-8 w-full min-w-0 rounded-md sm:w-64 sm:min-w-52">
-            <SelectValue placeholder="Agent" />
+          <SelectTrigger
+            aria-label="Agent or external apps"
+            className="h-8 w-full min-w-0 rounded-md sm:w-64"
+          >
+            <SelectValue placeholder="Agent or external apps" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent position="popper">
             <SelectGroup>
+              {ordinaryApps.length > 0 ? (
+                <SelectItem value="external-apps">
+                  <LensSourceIcon kind="app" />
+                  External apps
+                </SelectItem>
+              ) : null}
               {agents.map((agent) => (
-                <SelectItem key={agent.name} value={agent.name}>
-                  <BotIcon className="inline-block" />
+                <SelectItem key={agent.name} value={`agent:${agent.name}`}>
+                  <LensSourceIcon kind="agent" />
                   {agent.name}
                 </SelectItem>
               ))}
             </SelectGroup>
+            {externalAgentsByUser.size > 0 ? (
+              <SelectGroup>
+                <SelectLabel className="flex items-center gap-2">
+                  <Separator className="flex-1 bg-muted-foreground/30" />
+                  <span className="shrink-0">External agents</span>
+                  <Separator className="flex-1 bg-muted-foreground/30" />
+                </SelectLabel>
+                {[...externalAgentsByUser].map(([userID, group]) => (
+                  <SelectGroup key={userID} className="py-0">
+                    <SelectLabel className="flex items-center gap-2 py-2">
+                      <UserAvatar {...group[0]?.user} className="ring-1 ring-muted-foreground/20" />
+                      <span className="truncate">
+                        {group[0]?.user?.name || group[0]?.user?.email || "Unknown user"}
+                      </span>
+                    </SelectLabel>
+                    {group.map((app) => (
+                      <SelectItem
+                        key={app.client_id}
+                        value={`external-agent:${app.client_id}`}
+                        className="pl-4"
+                      >
+                        <LensSourceIcon kind={app.agent_kind} />
+                        {app.name}
+                        {group.some(
+                          (other) => other.client_id !== app.client_id && other.name === app.name
+                        ) ? (
+                          <span
+                            className="max-w-28 truncate text-xs text-muted-foreground"
+                            title={app.client_id}
+                          >
+                            {app.client_id.slice(-8)}
+                          </span>
+                        ) : null}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                ))}
+              </SelectGroup>
+            ) : null}
           </SelectContent>
         </Select>
-        {sessions ? (
+        {selectedSubject === "external-apps" ? (
           <Select
-            value={selectedSessionId ?? ""}
-            onValueChange={(session_id) => select({ agent_name: selectedAgentName, session_id })}
-            disabled={sessions.length === 0 || pending || selectionPending}
+            value={selectedAppClientID ?? ""}
+            onValueChange={(app_client_id) => select({ app_client_id })}
+            disabled={ordinaryApps.length === 0 || disabled}
           >
-            <SelectTrigger className="h-8 w-full min-w-0 rounded-md sm:w-72 sm:min-w-52">
-              <SelectValue placeholder="Session" className="truncate" />
+            <SelectTrigger
+              aria-label="External app"
+              className="h-8 w-full min-w-0 rounded-md sm:w-72"
+            >
+              <SelectValue placeholder="External app" className="truncate" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="popper">
               <SelectGroup>
-                {sessions.map((session) => (
-                  <SelectItem key={session.sessionId} value={session.sessionId}>
-                    <MessageSquareQuote className="inline-block" />
-                    <span className="block min-w-0 flex-1 truncate">{session.title}</span>
+                {ordinaryApps.map((app) => (
+                  <SelectItem key={app.client_id} value={app.client_id}>
+                    <LensSourceIcon kind="app" />
+                    {app.name}
+                    {ordinaryApps.some(
+                      (other) => other.name === app.name && other.client_id !== app.client_id
+                    ) ? (
+                      <span
+                        className="max-w-28 truncate text-xs text-muted-foreground"
+                        title={app.client_id}
+                      >
+                        {app.client_id.slice(-8)}
+                      </span>
+                    ) : null}
                   </SelectItem>
                 ))}
               </SelectGroup>
             </SelectContent>
           </Select>
+        ) : sessions ? (
+          <LensSessionPicker
+            key={JSON.stringify([
+              workspaceId,
+              selectedSubject,
+              selectedSessionId,
+              sessions,
+              sessionNextPageToken,
+            ])}
+            sessions={sessions}
+            selectedSessionId={selectedSessionId}
+            disabled={disabled}
+            nextPageToken={sessionNextPageToken}
+            clientID={selectedApp?.agent_kind ? selectedApp.client_id : undefined}
+            workspaceId={workspaceId}
+            onSelect={(session_id) =>
+              select({
+                agent_name: selectedAgentName,
+                app_client_id: selectedAppClientID,
+                session_id,
+              })
+            }
+          />
         ) : null}
         <DateRangePicker
           className="w-full sm:w-auto"
           onSelect={(range) =>
-            update({
-              from: formatDateParam(range.from),
-              to: formatDateParam(range.to),
-            })
+            updateDate({ from: formatDateParam(range.from), to: formatDateParam(range.to) })
           }
           range={{ from: dayjs(from).toDate(), to: dayjs(to).toDate() }}
         />
       </div>
+    </div>
+  )
+}
+
+function LensSessionPicker({
+  sessions,
+  selectedSessionId,
+  disabled,
+  nextPageToken,
+  clientID,
+  workspaceId,
+  onSelect,
+}: {
+  sessions: TraceSessionFilterItem[]
+  selectedSessionId?: string
+  disabled: boolean
+  nextPageToken?: string
+  clientID?: string
+  workspaceId: string
+  onSelect: (sessionId: string) => void
+}) {
+  const [open, setOpen] = React.useState(false)
+  const [items, setItems] = React.useState(sessions)
+  const [next, setNext] = React.useState(nextPageToken)
+  const [loading, startTransition] = React.useTransition()
+  const [error, setError] = React.useState<string>()
+  const observeMore = React.useCallback(
+    (target: HTMLDivElement | null) => {
+      if (!open || !next || !clientID || loading || error || !target) return
+      const observer = new IntersectionObserver((entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return
+        observer.disconnect()
+        startTransition(async () => {
+          const result = await listAppSessionsAction(clientID, workspaceId, {
+            limit: 50,
+            page_token: next,
+          })
+          if (result.error) {
+            setError(result.error.message)
+            return
+          }
+          setItems((current) => [
+            ...current,
+            ...result.data.sessions
+              .filter((session) => !current.some((item) => item.sessionId === session.session_id))
+              .map((session) => ({ sessionId: session.session_id, title: session.session_id })),
+          ])
+          setNext(result.data.next_page_token)
+        })
+      })
+      observer.observe(target)
+      return () => observer.disconnect()
+    },
+    [open, next, clientID, workspaceId, loading, error]
+  )
+
+  return (
+    <div className="flex w-full min-w-0 flex-col gap-1 sm:w-72">
+      <Select
+        open={open}
+        onOpenChange={setOpen}
+        value={items.length ? (selectedSessionId ?? "") : ""}
+        onValueChange={onSelect}
+        disabled={disabled || items.length === 0}
+      >
+        <SelectTrigger
+          aria-label="Session"
+          aria-invalid={!!error}
+          className="h-8 w-full min-w-0 rounded-md"
+        >
+          <SelectValue
+            placeholder={
+              <>
+                <MessageSquareIcon aria-hidden="true" />
+                Session
+              </>
+            }
+            className="min-w-0 truncate"
+          />
+        </SelectTrigger>
+        <SelectContent position="popper" aria-busy={loading}>
+          <SelectGroup>
+            {items.map((session, index) => (
+              <SelectItem
+                key={session.sessionId}
+                value={session.sessionId}
+                ref={index === items.length - 1 ? observeMore : undefined}
+              >
+                <MessageSquareIcon aria-hidden="true" />
+                <span className="min-w-0 flex-1 truncate" title={session.sessionId}>
+                  {session.title}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectGroup>
+          {loading ? (
+            <div role="status" className="px-2 py-1 text-xs text-muted-foreground">
+              Loading sessions…
+            </div>
+          ) : null}
+        </SelectContent>
+      </Select>
+      {error ? (
+        <FieldError>
+          {error}
+          <Button variant="link" size="sm" onClick={() => setError(undefined)}>
+            Retry
+          </Button>
+        </FieldError>
+      ) : null}
     </div>
   )
 }

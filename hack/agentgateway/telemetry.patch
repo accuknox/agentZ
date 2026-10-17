@@ -1,0 +1,2435 @@
+diff --git a/crates/agentgateway/src/cel/mod.rs b/crates/agentgateway/src/cel/mod.rs
+index 396c93f..a0a64c5 100644
+--- a/crates/agentgateway/src/cel/mod.rs
++++ b/crates/agentgateway/src/cel/mod.rs
+@@ -252,6 +252,21 @@ impl ContextBuilder {
+ 			req.body_mut().record(limit);
+ 		}
+ 	}
++	/// Capture bodies rejected before forwarding, when log expressions need their contents.
++	pub async fn maybe_capture_failed_request_body(&self, req: &mut crate::http::Request) {
++		if self.any_has(Attributes::RequestBody) {
++			let deadline = req
++				.extensions()
++				.get::<crate::http::filters::RequestDeadline>()
++				.map(|d| d.0);
++			let capture = crate::http::inspect_body(req);
++			if let Some(deadline) = deadline {
++				let _ = tokio::time::timeout_at(tokio::time::Instant::from_std(deadline), capture).await;
++			} else {
++				let _ = capture.await;
++			}
++		}
++	}
+ 	pub async fn maybe_buffer_response_body(&self, resp: &mut crate::http::Response) {
+ 		if self.before_log_has(Attributes::ResponseBody) {
+ 			resp.body_mut().require_inspection();
+@@ -266,6 +281,10 @@ impl ContextBuilder {
+ 		}
+ 	}
+ 
++	pub fn needs_metadata(&self) -> bool {
++		self.any_has(Attributes::Metadata)
++	}
++
+ 	pub fn needs_llm(&self) -> bool {
+ 		self.any_has(Attributes::Llm)
+ 	}
+diff --git a/crates/agentgateway/src/cel/types.rs b/crates/agentgateway/src/cel/types.rs
+index 2df3906..6d5f31f 100644
+--- a/crates/agentgateway/src/cel/types.rs
++++ b/crates/agentgateway/src/cel/types.rs
+@@ -1475,6 +1475,10 @@ impl GuardrailInfo {
+ #[apply(schema!)]
+ #[derive(cel::DynamicType)]
+ pub struct LLMContext {
++	#[serde(skip_serializing_if = "Option::is_none")]
++	pub error_type: Option<String>,
++	#[serde(skip_serializing_if = "Option::is_none")]
++	pub error: Option<String>,
+ 	/// Whether the LLM response is streamed. If it is streamed some fields may be inconsistent based on when accessed during the response flow.
+ 	pub streaming: bool,
+ 	/// The model requested for the LLM request. This may differ from the actual model used.
+@@ -1611,6 +1615,8 @@ impl LLMContext {
+ 
+ 		let resp = value.response;
+ 		let mut base = LLMContext {
++			error_type: resp.error_type,
++			error: resp.error,
+ 			provider_input_tokens: resp.input_tokens,
+ 			output_tokens: resp.output_tokens,
+ 			output_image_tokens: resp.output_image_tokens,
+@@ -1733,6 +1739,8 @@ impl From<llm::LLMRequest> for LLMContext {
+ 			completion: None,
+ 			tool_calls: None,
+ 			reasoning_tokens: None,
++			error_type: None,
++			error: None,
+ 			input_image_tokens: None,
+ 			input_text_tokens: None,
+ 			input_audio_tokens: None,
+@@ -2450,6 +2458,8 @@ pub fn full_example_executor() -> ExecutorSerde {
+ 			output_text_tokens: Some(20),
+ 			output_audio_tokens: Some(3),
+ 			reasoning_tokens: Some(30),
++			error_type: None,
++			error: None,
+ 			total_tokens: Some(150),
+ 			provider_total_tokens: Some(150),
+ 			service_tier: Some("default".into()),
+diff --git a/crates/agentgateway/src/cel/types_test.rs b/crates/agentgateway/src/cel/types_test.rs
+index 68fab4c..c6565a1 100644
+--- a/crates/agentgateway/src/cel/types_test.rs
++++ b/crates/agentgateway/src/cel/types_test.rs
+@@ -116,6 +116,8 @@ fn build_test_request() -> crate::http::Request {
+ 
+ 	// Add LLM context
+ 	let llm = LLMContext {
++		error_type: None,
++		error: None,
+ 		streaming: false,
+ 		request_model: "gpt-4".into(),
+ 		response_model: Some("gpt-4-turbo".into()),
+diff --git a/crates/agentgateway/src/http/transformation_cel.rs b/crates/agentgateway/src/http/transformation_cel.rs
+index 2e8ffdc..a21e042 100644
+--- a/crates/agentgateway/src/http/transformation_cel.rs
++++ b/crates/agentgateway/src/http/transformation_cel.rs
+@@ -147,6 +147,12 @@ fn json_to_header_value(v: &serde_json::Value) -> Option<HeaderValue> {
+ }
+ 
+ impl Transformation {
++	pub fn apply_request_metadata(&self, req: &mut crate::http::Request) {
++		if let Some(config) = &self.request {
++			Self::apply_metadata(&mut req.into(), config, None);
++		}
++	}
++
+ 	pub fn apply_request(&self, req: &mut crate::http::Request) -> anyhow::Result<()> {
+ 		if let Some(config) = &self.request {
+ 			Self::apply(req.into(), config, None)?;
+@@ -202,19 +208,24 @@ impl Transformation {
+ 		}
+ 	}
+ 
++	fn apply_metadata<'a>(
++		r: &mut RequestOrResponse<'a>,
++		cfg: &TransformerConfig,
++		request: Option<&'a RequestSnapshot>,
++	) {
++		for (name, expr) in &cfg.metadata {
++			if let Ok(v) = eval_metadata(r, expr, request) {
++				Self::get_meta(r).0.insert(name.to_string(), v);
++			}
++		}
++	}
++
+ 	fn apply<'a>(
+ 		mut r: RequestOrResponse<'a>,
+ 		cfg: &TransformerConfig,
+ 		request: Option<&'a RequestSnapshot>,
+ 	) -> anyhow::Result<()> {
+-		if !cfg.metadata.is_empty() {
+-			for (name, expr) in &cfg.metadata {
+-				if let Ok(v) = eval_metadata(&r, expr, request) {
+-					let metadata = Self::get_meta(&mut r);
+-					metadata.0.insert(name.to_string(), v);
+-				}
+-			}
+-		}
++		Self::apply_metadata(&mut r, cfg, request);
+ 		if let Some(expr) = &cfg.replace {
+ 			match eval_headers(&r, expr, request) {
+ 				Ok(headers) => {
+diff --git a/crates/agentgateway/src/mcp/mod.rs b/crates/agentgateway/src/mcp/mod.rs
+index c5927f8..4a43e76 100644
+--- a/crates/agentgateway/src/mcp/mod.rs
++++ b/crates/agentgateway/src/mcp/mod.rs
+@@ -24,11 +24,11 @@ pub use rbac::{McpAuthorization, McpAuthorizationSet, ResourceId, ResourceType};
+ use rmcp::model::{
+ 	CallToolRequestMethod, CallToolResult, CancelTaskMethod, CompleteRequestMethod, ConstString,
+ 	ContentBlock, DiscoverRequestMethod, ErrorCode, ErrorData, GetPromptRequestMethod, GetTaskMethod,
+-	InitializeResultMethod, JsonRpcError, ListPromptsRequestMethod,
++	InitializeResultMethod, JsonRpcError, JsonRpcResponse, ListPromptsRequestMethod,
+ 	ListResourceTemplatesRequestMethod, ListResourcesRequestMethod, ListToolsRequestMethod,
+-	PingRequestMethod, ProtocolVersion, ReadResourceRequestMethod, RequestId, SetLevelRequestMethod,
+-	SubscribeRequestMethod, SubscriptionsListenRequestMethod, UnsubscribeRequestMethod,
+-	UpdateTaskMethod,
++	PingRequestMethod, ProtocolVersion, ReadResourceRequestMethod, RequestId, ServerJsonRpcMessage,
++	ServerResult, SetLevelRequestMethod, SubscribeRequestMethod, SubscriptionsListenRequestMethod,
++	UnsubscribeRequestMethod, UpdateTaskMethod,
+ };
+ pub use router::App;
+ use thiserror::Error;
+@@ -198,25 +198,36 @@ pub enum Error {
+ 	NoBackends,
+ }
+ 
+-fn tool_error_body(
++fn tool_error_message(
+ 	request_id: &RequestId,
+ 	text: String,
+ 	downstream_modern: bool,
+-) -> Option<String> {
++) -> ServerJsonRpcMessage {
+ 	let mut result = CallToolResult::error(vec![ContentBlock::text(text)]);
+ 	if !downstream_modern {
+ 		result.result_type = None;
+ 	}
+-	serde_json::to_string(&serde_json::json!({
+-		"jsonrpc": "2.0",
+-		"id": request_id,
+-		"result": result,
+-	}))
+-	.ok()
++	ServerJsonRpcMessage::Response(JsonRpcResponse {
++		jsonrpc: Default::default(),
++		id: request_id.clone(),
++		result: ServerResult::CallToolResult(result),
++	})
+ }
+ 
+ impl Error {
+ 	pub fn jsonrpc_error_body(&self) -> Option<String> {
++		let message = self.jsonrpc_error_message()?;
++		match message {
++			ServerJsonRpcMessage::Response(response) => serde_json::to_string(&serde_json::json!({
++				"jsonrpc": "2.0", "id": response.id, "result": response.result,
++			}))
++			.ok(),
++			ServerJsonRpcMessage::Error(error) => serde_json::to_string(&error).ok(),
++			_ => None,
++		}
++	}
++
++	pub(crate) fn jsonrpc_error_message(&self) -> Option<ServerJsonRpcMessage> {
+ 		match self {
+ 			Error::RateLimited {
+ 				request_id,
+@@ -233,7 +244,7 @@ impl Error {
+ 						status.reset_seconds, status.limit, status.remaining
+ 					);
+ 				}
+-				return tool_error_body(request_id, text, *downstream_modern);
++				return Some(tool_error_message(request_id, text, *downstream_modern));
+ 			},
+ 			// internal error sure looks like a protocol error so making the decision to bubble it back up
+ 			Error::McpGuardrails {
+@@ -242,7 +253,11 @@ impl Error {
+ 				was_tool_call: true,
+ 				downstream_modern,
+ 			} if rej.code != ErrorCode::INTERNAL_ERROR => {
+-				return tool_error_body(request_id, rej.message.to_string(), *downstream_modern);
++				return Some(tool_error_message(
++					request_id,
++					rej.message.to_string(),
++					*downstream_modern,
++				));
+ 			},
+ 			_ => {},
+ 		}
+@@ -312,12 +327,11 @@ impl Error {
+ 			},
+ 		};
+ 
+-		serde_json::to_string(&JsonRpcError {
++		Some(ServerJsonRpcMessage::Error(JsonRpcError {
+ 			jsonrpc: Default::default(),
+ 			id: Some(id),
+ 			error,
+-		})
+-		.ok()
++		}))
+ 	}
+ }
+ 
+diff --git a/crates/agentgateway/src/parse/websocket.rs b/crates/agentgateway/src/parse/websocket.rs
+index 904c2f4..242ef52 100644
+--- a/crates/agentgateway/src/parse/websocket.rs
++++ b/crates/agentgateway/src/parse/websocket.rs
+@@ -77,6 +77,9 @@ impl<IO> Parser<IO> {
+ 						first_token: None,
+ 						last_token_at: None,
+ 						inter_chunk_latencies: TokenGapSummary::default(),
++						error_type: None,
++						error: None,
++						stream_complete: false,
+ 						count_tokens: None,
+ 						pages: None,
+ 						reasoning_tokens: None,
+@@ -562,6 +565,9 @@ pub async fn guarded_realtime_proxy<C, S>(
+ 												first_token: None,
+ 												last_token_at: None,
+ 												inter_chunk_latencies: TokenGapSummary::default(),
++												error_type: None,
++												error: None,
++												stream_complete: false,
+ 												count_tokens: None,
+ 												pages: None,
+ 												reasoning_tokens: None,
+diff --git a/crates/agentgateway/src/proxy/httpproxy.rs b/crates/agentgateway/src/proxy/httpproxy.rs
+index 13de18a..73d6f8f 100644
+--- a/crates/agentgateway/src/proxy/httpproxy.rs
++++ b/crates/agentgateway/src/proxy/httpproxy.rs
+@@ -1075,6 +1075,24 @@ impl HTTPProxy {
+ 		)
+ 		.await;
+ 		let route_retry = mcp::maybe_convert_mcp_error(route_retry, request_protocol, &mut req).await;
++		if route_retry.as_ref().is_err_and(|error| match error {
++			ProxyResponse::Error(_) => true,
++			ProxyResponse::DirectResponse(response) => {
++				response.status().is_client_error() || response.status().is_server_error()
++			},
++		}) {
++			log
++				.cel
++				.ctx()
++				.maybe_capture_failed_request_body(&mut req)
++				.await;
++			if response_policies.transformation.is_empty()
++				&& log.cel.ctx().needs_metadata()
++				&& let Some(transformation) = route_policies.transformation.select("transformation", &req)
++			{
++				transformation.apply_request_metadata(&mut req);
++			}
++		}
+ 		let route_retry = route_retry.snapshot_on_err(log, &mut req)?;
+ 		dtrace::snapshot!(Request, "route policies", &req);
+ 		// With no explicit retry policy, Substrate only retries stale actor assignments.
+@@ -3744,6 +3762,19 @@ pub(crate) fn resolve_response(
+ 	log: &mut RequestLog,
+ 	is_grpc_request: bool,
+ ) -> (Response, ProxyResponseReason) {
++	if let Err(ProxyResponse::Error(ProxyError::MCP(error))) = &result {
++		log
++			.mcp_status
++			.non_atomic_mutate(|mcp| match error.jsonrpc_error_message() {
++				Some(rmcp::model::ServerJsonRpcMessage::Error(error)) => mcp.capture_error(&error.error),
++				Some(rmcp::model::ServerJsonRpcMessage::Response(response)) => {
++					if let rmcp::model::ServerResult::CallToolResult(result) = response.result {
++						mcp.capture_call_result(&result);
++					}
++				},
++				_ => {},
++			});
++	}
+ 	let reason = match &result {
+ 		Ok(_) => ProxyResponseReason::Upstream,
+ 		Err(failure) => failure.as_reason(),
+diff --git a/crates/agentgateway/src/proxy/mod.rs b/crates/agentgateway/src/proxy/mod.rs
+index 77acc38..4b664e9 100644
+--- a/crates/agentgateway/src/proxy/mod.rs
++++ b/crates/agentgateway/src/proxy/mod.rs
+@@ -317,6 +317,7 @@ fn classify_ai_request(error: &llm::AIError) -> AIErrorClassification {
+ 		},
+ 		llm::AIError::RequestMarshal(_)
+ 		| llm::AIError::ResponseParsing(_)
++		| llm::AIError::ProviderResponse(..)
+ 		| llm::AIError::IncompleteResponse
+ 		| llm::AIError::InvalidResponse(_)
+ 		| llm::AIError::ResponseMarshal(_)
+@@ -334,6 +335,7 @@ fn classify_ai_request(error: &llm::AIError) -> AIErrorClassification {
+ fn classify_ai_response(error: &llm::AIError) -> AIErrorClassification {
+ 	match error {
+ 		llm::AIError::ResponseParsing(_)
++		| llm::AIError::ProviderResponse(..)
+ 		| llm::AIError::IncompleteResponse
+ 		| llm::AIError::InvalidResponse(_)
+ 		| llm::AIError::ResponseTooLarge
+diff --git a/crates/agentgateway/src/store/policy.rs b/crates/agentgateway/src/store/policy.rs
+index 10f2f00..0290406 100644
+--- a/crates/agentgateway/src/store/policy.rs
++++ b/crates/agentgateway/src/store/policy.rs
+@@ -395,6 +395,9 @@ impl<T> Default for ResponsePolicy<T> {
+ }
+ 
+ impl<T> ResponsePolicy<T> {
++	pub fn is_empty(&self) -> bool {
++		self.inner.is_none()
++	}
+ 	pub fn new(inner: Option<Arc<T>>) -> Self {
+ 		Self { inner }
+ 	}
+diff --git a/crates/agentgateway/src/telemetry/log.rs b/crates/agentgateway/src/telemetry/log.rs
+index 8120a95..a10462b 100644
+--- a/crates/agentgateway/src/telemetry/log.rs
++++ b/crates/agentgateway/src/telemetry/log.rs
+@@ -1991,6 +1991,20 @@ impl Drop for DropOnLog {
+ 					guardrails_json.as_ref().map(json_value_to_value_bag),
+ 				),
+ 				("retry.attempt", log.retry_attempt.display()),
++				(
++					"error.type",
++					llm_response
++						.as_ref()
++						.and_then(|r| r.error_type.as_ref())
++						.map(display),
++				),
++				(
++					"error.message",
++					llm_response
++						.as_ref()
++						.and_then(|r| r.error.as_ref())
++						.map(quoted),
++				),
+ 				("error", log.error.quoted()),
+ 				("reason", reason.display()),
+ 				("duration", Some(dur.as_str().into())),
+diff --git a/crates/agentgateway/src/telemetry/trc.rs b/crates/agentgateway/src/telemetry/trc.rs
+index 5b974c1..6c0138b 100644
+--- a/crates/agentgateway/src/telemetry/trc.rs
++++ b/crates/agentgateway/src/telemetry/trc.rs
+@@ -336,6 +336,12 @@ impl Tracer {
+ }
+ 
+ fn request_span_status(request: &RequestLog, attributes: &mut Vec<KeyValue>) -> Status {
++	if let Some(message) = attributes
++		.iter()
++		.find(|a| a.key.as_str() == "error.message")
++	{
++		return Status::error(message.value.to_string());
++	}
+ 	let (error_type, description) = if let Some(error) = &request.error {
+ 		(
+ 			request
+diff --git a/crates/llm/src/conversion/bedrock.rs b/crates/llm/src/conversion/bedrock.rs
+index 2895b0a..592f530 100644
+--- a/crates/llm/src/conversion/bedrock.rs
++++ b/crates/llm/src/conversion/bedrock.rs
+@@ -1196,6 +1196,7 @@ pub mod from_completions {
+ 		let passthrough = json::convert::<_, types::completions::Response>(&openai)
+ 			.map_err(AIError::ResponseParsing)?;
+ 		Ok(Box::new(super::super::ResponseWithProviderUsage {
++			failure: None,
+ 			response: passthrough,
+ 			provider_usage,
+ 		}))
+@@ -1251,8 +1252,40 @@ pub mod from_completions {
+ 		let mut finish_reason = None;
+ 		let model = model.to_string();
+ 		let message_id = message_id.to_string();
+-		let body = parse::aws_sse::transform(b, buffer_limit, move |f| {
+-			let res = bedrock::ConverseStreamOutput::deserialize(f).ok()?;
++		let body = parse::aws_sse::transform_with_events(b, buffer_limit, move |event| {
++			let f = match event {
++				parse::aws_sse::StreamEvent::Item(item) => item,
++				other => {
++					log.update(|r| {
++						if let Some(c) = completion.take() {
++							r.response.completion = Some(vec![c]);
++						}
++						if r.response.output_messages.is_none() {
++							r.response.output_messages = logged_tool_calls.take_output_messages(None);
++						}
++						if matches!(other, parse::aws_sse::StreamEvent::Eof) {
++							r.response.stream_complete = true;
++						}
++					});
++					if matches!(other, parse::aws_sse::StreamEvent::Error) && !log.is_terminal() {
++						log.fail("stream_error", "stream interrupted before terminal event");
++					}
++					return None;
++				},
++			};
++			let res = match bedrock::ConverseStreamOutput::deserialize(f) {
++				Ok(event) => event,
++				Err(error) => {
++					log.update(|r| {
++						if let Some(c) = completion.take() {
++							r.response.completion = Some(vec![c]);
++						}
++						r.response.output_messages = logged_tool_calls.take_output_messages(None);
++					});
++					log.fail("provider_error", error.to_string());
++					return None;
++				},
++			};
+ 			let mk = |choices: Vec<completions::ChatChoiceStream>, usage: Option<completions::Usage>| {
+ 				Some(completions::StreamResponse {
+ 					id: message_id.to_string(),
+@@ -2015,6 +2048,7 @@ pub mod from_messages {
+ 		let passthrough =
+ 			json::convert::<_, types::messages::Response>(&openai).map_err(AIError::ResponseParsing)?;
+ 		Ok(Box::new(super::super::ResponseWithProviderUsage {
++			failure: None,
+ 			response: passthrough,
+ 			provider_usage,
+ 		}))
+@@ -2061,10 +2095,37 @@ pub mod from_messages {
+ 		let mut tool_calls =
+ 			crate::conversion::messages::StreamingToolCalls::new(log_content.tool_calls);
+ 		let model = model.to_string();
+-		parse::aws_sse::transform_multi(b, buffer_limit, move |aws_event| {
++		parse::aws_sse::transform_multi_with_events(b, buffer_limit, move |notification| {
++			let aws_event = match notification {
++				parse::aws_sse::StreamEvent::Item(item) => item,
++				other => {
++					log.update(|r| {
++						if let Some(c) = completion.take() {
++							r.response.completion = Some(vec![c]);
++						}
++						if r.response.output_messages.is_none() {
++							r.response.output_messages = tool_calls.take_output_messages(None);
++						}
++						if matches!(other, parse::aws_sse::StreamEvent::Eof) {
++							r.response.stream_complete = true;
++						}
++					});
++					if matches!(other, parse::aws_sse::StreamEvent::Error) && !log.is_terminal() {
++						log.fail("stream_error", "stream interrupted before terminal event");
++					}
++					return Vec::new();
++				},
++			};
+ 			let event = match bedrock::ConverseStreamOutput::deserialize(aws_event) {
+ 				Ok(e) => e,
+ 				Err(e) => {
++					log.update(|r| {
++						if let Some(c) = completion.take() {
++							r.response.completion = Some(vec![c]);
++						}
++						r.response.output_messages = tool_calls.take_output_messages(None);
++					});
++					log.fail("provider_error", e.to_string());
+ 					tracing::error!(error = %e, "failed to deserialize bedrock stream event");
+ 					return vec![(
+ 						"error",
+@@ -3152,6 +3213,7 @@ pub mod from_responses {
+ 		let passthrough =
+ 			json::convert::<_, types::responses::Response>(&typed).map_err(AIError::ResponseParsing)?;
+ 		Ok(Box::new(super::super::ResponseWithProviderUsage {
++			failure: None,
+ 			response: passthrough,
+ 			provider_usage,
+ 		}))
+@@ -3221,7 +3283,24 @@ pub mod from_responses {
+ 			})
+ 		};
+ 
+-		parse::aws_sse::transform_multi(b, buffer_limit, move |aws_event| {
++		parse::aws_sse::transform_multi_with_events(b, buffer_limit, move |notification| {
++			let aws_event = match notification {
++				parse::aws_sse::StreamEvent::Item(item) => item,
++				other => {
++					log.update(|r| {
++						if log_content.completion {
++							r.response.completion = Some(vec![text.clone()]);
++						}
++						if matches!(other, parse::aws_sse::StreamEvent::Eof) {
++							r.response.stream_complete = true;
++						}
++					});
++					if matches!(other, parse::aws_sse::StreamEvent::Error) && !log.is_terminal() {
++						log.fail("stream_error", "stream interrupted before terminal event");
++					}
++					return Vec::new();
++				},
++			};
+ 			tracing::debug!("Raw AWS event - headers: {:?}", aws_event.headers());
+ 			if let Ok(body_str) = std::str::from_utf8(aws_event.payload()) {
+ 				tracing::debug!("AWS event body: {}", body_str);
+@@ -3230,6 +3309,12 @@ pub mod from_responses {
+ 			let event = match bedrock::ConverseStreamOutput::deserialize(aws_event) {
+ 				Ok(e) => e,
+ 				Err(e) => {
++					log.update(|r| {
++						if log_content.completion {
++							r.response.completion = Some(vec![text.clone()]);
++						}
++					});
++					log.fail("provider_error", e.to_string());
+ 					tracing::error!(error = %e, "failed to deserialize bedrock stream event");
+ 					sequence_number += 1;
+ 					return vec![(
+diff --git a/crates/llm/src/conversion/completions.rs b/crates/llm/src/conversion/completions.rs
+index c9ce063..9bae031 100644
+--- a/crates/llm/src/conversion/completions.rs
++++ b/crates/llm/src/conversion/completions.rs
+@@ -5,10 +5,19 @@ use agent_http::Body;
+ use bytes::Bytes;
+ use http::Response;
+ use itertools::Itertools;
+-use tracing::debug;
+ 
++use crate::parse::sse::SseJsonEvent;
+ use crate::{StreamingUsageGuard, logged_response_parsing, parse, types};
+ 
++#[derive(serde::Deserialize)]
++#[serde(untagged)]
++pub(crate) enum CapturedStreamEvent {
++	Error {
++		error: types::completions::typed::ChatCompletionError,
++	},
++	Chunk(types::completions::typed::StreamResponse),
++}
++
+ #[cfg(test)]
+ #[path = "completions_tests.rs"]
+ mod tests;
+@@ -125,6 +134,7 @@ pub mod from_messages {
+ 		});
+ 		let anthropic = translate_response_internal(resp)?;
+ 		Ok(Box::new(super::super::ResponseWithProviderUsage {
++			failure: None,
+ 			response: anthropic,
+ 			provider_usage,
+ 		}))
+@@ -574,17 +584,38 @@ pub mod from_messages {
+ 			}
+ 		}
+ 
++		fn record_partial_tools(state: &StreamState, log: &StreamingUsageGuard, enabled: bool) {
++			if enabled {
++				let mut parts = super::finalize_streaming_tool_calls(state.pending_tool_calls.iter().map(
++					|(idx, call)| {
++						(
++							*idx,
++							call.id.clone(),
++							call.name.clone(),
++							call.arguments.clone(),
++						)
++					},
++				));
++				log.update(|r| super::build_output_messages(&mut r.response, parts.take(), None));
++			}
++		}
++
+ 		let mut state = StreamState::default();
+ 
+ 		crate::parse::sse::json_transform_multi::<
+-			completions::StreamResponse,
++			super::CapturedStreamEvent,
+ 			messages::MessagesStreamEvent,
+ 			_,
+ 		>(b, buffer_limit, move |evt| {
+ 			let mut events: Vec<(&'static str, messages::MessagesStreamEvent)> = Vec::new();
+ 			match evt {
+-				SseJsonEvent::Eof | SseJsonEvent::Error => return events,
++				SseJsonEvent::Eof | SseJsonEvent::Error => {
++					record_partial_tools(&state, &log, log_content.tool_calls);
++					log.fail("stream_error", "stream interrupted before terminal event");
++					return events;
++				},
+ 				SseJsonEvent::Done => {
++					log.update(|r| r.response.stream_complete = true);
+ 					flush_message_end(&mut state, &mut events, &log, true, log_content.tool_calls);
+ 					return events;
+ 				},
+@@ -595,7 +626,22 @@ pub mod from_messages {
+ 					);
+ 					return events;
+ 				},
+-				SseJsonEvent::Data(Ok(f)) => {
++				SseJsonEvent::Data(Ok(super::CapturedStreamEvent::Error { error })) => {
++					record_partial_tools(&state, &log, log_content.tool_calls);
++					let kind = error
++						.r#type
++						.or_else(|| {
++							error
++								.code
++								.as_ref()
++								.and_then(|v| v.as_str())
++								.map(str::to_owned)
++						})
++						.unwrap_or_else(|| "provider_error".to_string());
++					log.fail(kind, error.message);
++					return events;
++				},
++				SseJsonEvent::Data(Ok(super::CapturedStreamEvent::Chunk(f))) => {
+ 					if !state.sent_message_start {
+ 						state.sent_message_start = true;
+ 						push_event(
+@@ -662,6 +708,14 @@ pub mod from_messages {
+ 							state.thinking_signature = Some(signature.to_string());
+ 						}
+ 						if let Some(content) = choice.delta.content.as_deref().filter(|s| !s.is_empty()) {
++							if log_content.completion {
++								log.update(|r| {
++									r.response
++										.completion
++										.get_or_insert_with(|| vec![String::new()])[0]
++										.push_str(content)
++								});
++							}
+ 							let index = open_text_block(&mut state, &mut events);
+ 							maybe_set_first_token(&mut state, &log);
+ 							push_event(
+@@ -733,6 +787,7 @@ pub mod from_messages {
+ 						}
+ 
+ 						if let Some(finish_reason) = &choice.finish_reason {
++							log.update(|r| r.response.stream_complete = true);
+ 							let mut stop_reason = match finish_reason {
+ 								completions::FinishReason::Stop => messages::StopReason::EndTurn,
+ 								completions::FinishReason::Length => messages::StopReason::MaxTokens,
+@@ -1349,131 +1404,183 @@ pub fn passthrough_stream(
+ 		arguments: String,
+ 	}
+ 
+-	fn finalize_tool_calls(
+-		pending: &mut std::collections::HashMap<u32, PendingPassthroughToolCall>,
+-	) -> Option<Vec<crate::OutputMessagePart>> {
+-		finalize_streaming_tool_calls(
+-			pending
+-				.drain()
+-				.map(|(idx, call)| (idx, call.id, call.name, call.arguments)),
+-		)
++	#[derive(Default)]
++	struct CapturedChoice {
++		completion: String,
++		finish_reason: Option<strng::Strng>,
++		pending_tool_calls: std::collections::HashMap<u32, PendingPassthroughToolCall>,
+ 	}
+ 
+-	let mut completion = log_content.completion.then(String::new);
+-	let mut finish_reason = None;
+-	let mut pending_tool_calls: Option<std::collections::HashMap<u32, PendingPassthroughToolCall>> =
+-		log_content.tool_calls.then(std::collections::HashMap::new);
++	fn flush_choices(
++		log: &StreamingUsageGuard,
++		choices: &mut std::collections::BTreeMap<u32, CapturedChoice>,
++		log_content: crate::LogContentFields,
++		failed: bool,
++	) {
++		let mut completion = log_content.completion.then(Vec::new);
++		let mut messages = Vec::new();
++		for choice in std::mem::take(choices).into_values() {
++			if let Some(text) = completion.as_mut() {
++				text.push(choice.completion);
++			}
++			if log_content.tool_calls
++				&& let Some(content) = finalize_streaming_tool_calls(
++					choice
++						.pending_tool_calls
++						.into_iter()
++						.map(|(index, call)| (index, call.id, call.name, call.arguments)),
++				) {
++				messages.push(crate::OutputMessage {
++					role: strng::literal!("assistant"),
++					content,
++					finish_reason: if failed { None } else { choice.finish_reason },
++				});
++			}
++		}
++		log.update(|r| {
++			if let Some(mut text) = completion.take() {
++				if text.is_empty() {
++					text.push(String::new());
++				}
++				r.response.completion = Some(text);
++			}
++			if !messages.is_empty() {
++				r.response.output_messages = Some(std::mem::take(&mut messages));
++			}
++		});
++	}
++
++	let mut terminal = false;
++	let mut choices = std::collections::BTreeMap::new();
+ 	let buffer_limit = agent_http::response_buffer_limit(&resp);
+ 	resp.map(|b| {
+ 		let mut seen_provider = false;
+ 		let mut saw_token = false;
+ 		let mut last_token_at: Option<Instant> = None;
+-		parse::sse::json_passthrough::<types::completions::typed::StreamResponse>(
+-			b,
+-			buffer_limit,
+-			move |f| {
+-				match f {
+-					Some(Ok(f)) => {
+-						if let Some(reason) = f
+-							.choices
+-							.first()
+-							.and_then(|choice| choice.finish_reason.as_ref())
+-						{
+-							finish_reason = crate::types::serialize_str(reason);
+-						}
+-						if let Some(c) = completion.as_mut()
+-							&& let Some(delta) = f.choices.first().and_then(|c| c.delta.content.as_deref())
+-						{
+-							c.push_str(delta);
+-						}
+-						if let Some(pending) = pending_tool_calls.as_mut()
+-							&& let Some(deltas) = f.choices.first().and_then(|c| c.delta.tool_calls.as_ref())
+-						{
+-							for chunk in deltas {
+-								let entry = pending.entry(chunk.index).or_default();
+-								if let Some(id) = &chunk.id {
+-									entry.id = Some(id.clone());
++		parse::sse::json_passthrough::<CapturedStreamEvent>(b, buffer_limit, move |f| {
++			if terminal {
++				return;
++			}
++			let f = match f {
++				SseJsonEvent::Data(result) => Some(result),
++				SseJsonEvent::Done => None,
++				SseJsonEvent::Eof | SseJsonEvent::Error => Some(Err(anyhow::anyhow!(
++					"stream interrupted before terminal event"
++				))),
++			};
++			let f = match f {
++				Some(Ok(CapturedStreamEvent::Chunk(chunk))) => chunk,
++				Some(Ok(CapturedStreamEvent::Error { error })) => {
++					let kind = error
++						.code
++						.as_ref()
++						.and_then(|c| c.as_str())
++						.or(error.r#type.as_deref())
++						.unwrap_or("provider_error");
++					flush_choices(&log, &mut choices, log_content, true);
++					log.fail(kind, error.message);
++					terminal = true;
++					return;
++				},
++				Some(Err(error)) => {
++					flush_choices(&log, &mut choices, log_content, true);
++					log.fail("stream_error", error.to_string());
++					terminal = true;
++					return;
++				},
++				None => {
++					flush_choices(&log, &mut choices, log_content, false);
++					log.update(|r| r.response.stream_complete = true);
++					terminal = true;
++					return;
++				},
++			};
++			if log_content.completion || log_content.tool_calls {
++				for choice in &f.choices {
++					let captured = choices
++						.entry(choice.index)
++						.or_insert_with(CapturedChoice::default);
++					if let Some(reason) = choice.finish_reason.as_ref() {
++						captured.finish_reason = crate::types::serialize_str(reason);
++					}
++					if log_content.completion
++						&& let Some(delta) = choice.delta.content.as_deref()
++					{
++						captured.completion.push_str(delta);
++					}
++					if log_content.completion
++						&& let Some(refusal) = choice.delta.refusal.as_deref()
++					{
++						captured.completion.push_str(refusal);
++					}
++					if log_content.tool_calls
++						&& let Some(deltas) = choice.delta.tool_calls.as_ref()
++					{
++						for chunk in deltas {
++							let entry = captured.pending_tool_calls.entry(chunk.index).or_default();
++							if let Some(id) = &chunk.id {
++								entry.id = Some(id.clone());
++							}
++							if let Some(function) = &chunk.function {
++								if let Some(name) = &function.name {
++									entry.name = Some(name.clone());
+ 								}
+-								if let Some(function) = &chunk.function {
+-									if let Some(name) = &function.name {
+-										entry.name = Some(name.clone());
+-									}
+-									if let Some(args) = &function.arguments {
+-										entry.arguments.push_str(args);
+-									}
++								if let Some(args) = &function.arguments {
++									entry.arguments.push_str(args);
+ 								}
+ 							}
+ 						}
+-						let now = Instant::now();
+-						if !saw_token {
+-							saw_token = true;
+-							last_token_at = Some(now);
+-							log.update(|r| {
+-								r.response.first_token = Some(now);
+-							});
+-						} else if let Some(prev) = last_token_at.replace(now) {
+-							let gap = now.duration_since(prev);
+-							log.update(|r| r.response.inter_chunk_latencies.record(gap));
+-						}
+-						if !seen_provider {
+-							seen_provider = true;
+-							log.update(|r| {
+-								r.response.provider_model = Some(strng::new(&f.model));
+-								r.response.service_tier = f.service_tier.as_deref().map(Into::into);
+-							});
+-						}
+-						if let Some(u) = f.usage {
+-							log.update(|r| {
+-								r.response.input_tokens = Some(u.prompt_tokens as u64);
+-								r.response.input_audio_tokens = u
+-									.prompt_tokens_details
+-									.as_ref()
+-									.and_then(|d| d.audio_tokens);
+-								r.response.output_tokens = Some(u.completion_tokens as u64);
+-								r.response.output_audio_tokens = u
+-									.completion_tokens_details
+-									.as_ref()
+-									.and_then(|d| d.audio_tokens);
+-								r.response.total_tokens = Some(u.total_tokens as u64);
+-								r.response.cached_input_tokens = u
+-									.prompt_tokens_details
+-									.as_ref()
+-									.and_then(|d| d.cached_tokens);
+-								r.response.cache_creation_input_tokens = u
+-									.prompt_tokens_details
+-									.as_ref()
+-									.and_then(|d| d.cache_write_tokens)
+-									.or(u.cache_creation_input_tokens);
+-								r.response.reasoning_tokens = u
+-									.completion_tokens_details
+-									.as_ref()
+-									.and_then(|d| d.reasoning_tokens);
+-								if let Some(c) = completion.take() {
+-									r.response.completion = Some(vec![c]);
+-								}
+-								let tool_parts = pending_tool_calls.as_mut().and_then(finalize_tool_calls);
+-								build_output_messages(&mut r.response, tool_parts, finish_reason.take());
+-							});
+-
+-							log.report_usage();
+-						}
+-					},
+-					Some(Err(e)) => {
+-						debug!("failed to parse streaming response: {e}");
+-					},
+-					None => {
+-						// We are done, try to set completion if we haven't already
+-						// This is useful in case we never see "usage"
+-						log.update(|r| {
+-							if let Some(c) = completion.take() {
+-								r.response.completion = Some(vec![c]);
+-							}
+-							let tool_parts = pending_tool_calls.as_mut().and_then(finalize_tool_calls);
+-							build_output_messages(&mut r.response, tool_parts, finish_reason.take());
+-						});
+-					},
++					}
+ 				}
+-			},
+-		)
++			}
++			let now = Instant::now();
++			if !saw_token {
++				saw_token = true;
++				last_token_at = Some(now);
++				log.update(|r| {
++					r.response.first_token = Some(now);
++				});
++			} else if let Some(prev) = last_token_at.replace(now) {
++				let gap = now.duration_since(prev);
++				log.update(|r| r.response.inter_chunk_latencies.record(gap));
++			}
++			if !seen_provider {
++				seen_provider = true;
++				log.update(|r| {
++					r.response.provider_model = Some(strng::new(&f.model));
++					r.response.service_tier = f.service_tier.as_deref().map(Into::into);
++				});
++			}
++			if let Some(u) = f.usage {
++				log.update(|r| {
++					r.response.input_tokens = Some(u.prompt_tokens as u64);
++					r.response.input_audio_tokens = u
++						.prompt_tokens_details
++						.as_ref()
++						.and_then(|d| d.audio_tokens);
++					r.response.output_tokens = Some(u.completion_tokens as u64);
++					r.response.output_audio_tokens = u
++						.completion_tokens_details
++						.as_ref()
++						.and_then(|d| d.audio_tokens);
++					r.response.total_tokens = Some(u.total_tokens as u64);
++					r.response.cached_input_tokens = u
++						.prompt_tokens_details
++						.as_ref()
++						.and_then(|d| d.cached_tokens);
++					r.response.cache_creation_input_tokens = u
++						.prompt_tokens_details
++						.as_ref()
++						.and_then(|d| d.cache_write_tokens)
++						.or(u.cache_creation_input_tokens);
++					r.response.reasoning_tokens = u
++						.completion_tokens_details
++						.as_ref()
++						.and_then(|d| d.reasoning_tokens);
++				});
++
++				log.report_usage();
++			}
++		})
+ 	})
+ }
+diff --git a/crates/llm/src/conversion/messages.rs b/crates/llm/src/conversion/messages.rs
+index 76685f5..f45f1c5 100644
+--- a/crates/llm/src/conversion/messages.rs
++++ b/crates/llm/src/conversion/messages.rs
+@@ -5,6 +5,7 @@ use agent_core::strng::{self, Strng};
+ use agent_http::Body;
+ use bytes::Bytes;
+ 
++use crate::parse::sse::SseJsonEvent;
+ use crate::types::completions::typed as completions;
+ use crate::types::messages::typed as messages;
+ use crate::{AIError, StreamingUsageGuard, parse};
+@@ -539,6 +540,7 @@ pub mod from_completions {
+ 		let passthrough = json::convert::<_, types::completions::Response>(&openai)
+ 			.map_err(AIError::ResponseParsing)?;
+ 		Ok(Box::new(super::super::ResponseWithProviderUsage {
++			failure: None,
+ 			response: passthrough,
+ 			provider_usage,
+ 		}))
+@@ -727,6 +729,7 @@ pub mod from_completions {
+ 		let mut tool_calls = super::StreamingToolCalls::new(log_content.tool_calls);
+ 
+ 		// https://docs.anthropic.com/en/docs/build-with-claude/streaming
++		let mut terminal = false;
+ 		let body = parse::sse::json_transform::<
+ 			messages::MessagesStreamEvent,
+ 			completions::StreamResponse,
+@@ -747,8 +750,23 @@ pub mod from_completions {
+ 					usage,
+ 				})
+ 			};
+-			// ignore errors... what else can we do?
+-			let f = f.ok()?;
++			if terminal && f.is_err() {
++				return None;
++			}
++			let f = match f {
++				Ok(f) => f,
++				Err(error) => {
++					terminal = true;
++					log.update(|r| {
++						if let Some(c) = completion.take() {
++							r.response.completion = Some(vec![c]);
++						}
++						r.response.output_messages = tool_calls.take_output_messages(None);
++					});
++					log.fail("stream_error", error.to_string());
++					return None;
++				},
++			};
+ 
+ 			// Extract info we need
+ 			match f {
+@@ -986,7 +1004,9 @@ pub mod from_completions {
+ 					}
+ 				},
+ 				messages::MessagesStreamEvent::MessageStop => {
++					terminal = true;
+ 					log.update(|r| {
++						r.response.stream_complete = true;
+ 						if let Some(completion) = completion.take() {
+ 							r.response.completion = Some(vec![completion]);
+ 						}
+@@ -998,6 +1018,14 @@ pub mod from_completions {
+ 				},
+ 				messages::MessagesStreamEvent::Ping => None,
+ 				messages::MessagesStreamEvent::Error { error } => {
++					terminal = true;
++					log.update(|r| {
++						if let Some(c) = completion.take() {
++							r.response.completion = Some(vec![c]);
++						}
++						r.response.output_messages = tool_calls.take_output_messages(None);
++					});
++					log.fail(error.r#type.clone(), error.message.clone());
+ 					tracing::warn!(
+ 						"Messages stream error during completions translation: {}",
+ 						error.message
+@@ -1113,20 +1141,36 @@ pub fn passthrough_stream(
+ 	let mut completion = log_content.completion.then(String::new);
+ 	let mut tool_calls = StreamingToolCalls::new(log_content.tool_calls);
+ 	// https://platform.claude.com/docs/en/build-with-claude/streaming
++	let mut terminal = false;
+ 	parse::sse::json_passthrough::<messages::MessagesStreamEvent>(b, buffer_limit, move |f| {
+-		// ignore errors... what else can we do?
+-		let Some(Ok(f)) = f else {
+-			// Stream ended ([DONE]): flush completion if not already set via MessageDelta
+-			if f.is_none() {
+-				log.update(|r| {
+-					if let Some(c) = completion.take() {
+-						r.response.completion = Some(vec![c]);
+-					}
+-					if r.response.output_messages.is_none() {
+-						r.response.output_messages = tool_calls.take_output_messages(None);
+-					}
+-				});
+-			}
++		if terminal {
++			return;
++		}
++		let f = match f {
++			SseJsonEvent::Data(result) => result,
++			SseJsonEvent::Done | SseJsonEvent::Eof | SseJsonEvent::Error => {
++				Err(anyhow::anyhow!("stream interrupted before terminal event"))
++			},
++		};
++		let failure = match f {
++			Err(ref error) => Some(("stream_error".to_owned(), error.to_string())),
++			Ok(messages::MessagesStreamEvent::Error { ref error }) => {
++				Some((error.r#type.clone(), error.message.clone()))
++			},
++			_ => None,
++		};
++		if let Some((kind, message)) = failure {
++			terminal = true;
++			log.update(|r| {
++				if let Some(c) = completion.take() {
++					r.response.completion = Some(vec![c]);
++				}
++				r.response.output_messages = tool_calls.take_output_messages(None);
++			});
++			log.fail(kind, message);
++			return;
++		}
++		let Ok(f) = f else {
+ 			return;
+ 		};
+ 
+@@ -1206,7 +1250,12 @@ pub fn passthrough_stream(
+ 				});
+ 			},
+ 			messages::MessagesStreamEvent::MessageStop => {
++				terminal = true;
+ 				log.update(|r| {
++					r.response.stream_complete = true;
++					if let Some(c) = completion.take() {
++						r.response.completion = Some(vec![c]);
++					}
+ 					if r.response.output_messages.is_none() {
+ 						r.response.output_messages = tool_calls.take_output_messages(None);
+ 					}
+diff --git a/crates/llm/src/conversion/mod.rs b/crates/llm/src/conversion/mod.rs
+index 613fb71..dbc6d76 100644
+--- a/crates/llm/src/conversion/mod.rs
++++ b/crates/llm/src/conversion/mod.rs
+@@ -19,6 +19,7 @@ struct ProviderUsage {
+ struct ResponseWithProviderUsage<T> {
+ 	response: T,
+ 	provider_usage: Option<ProviderUsage>,
++	failure: Option<(String, String)>,
+ }
+ 
+ impl<T: crate::types::ResponseType> crate::types::ResponseType for ResponseWithProviderUsage<T> {
+@@ -29,6 +30,10 @@ impl<T: crate::types::ResponseType> crate::types::ResponseType for ResponseWithP
+ 			response.total_tokens = Some(usage.total_tokens);
+ 			response.reasoning_tokens = usage.reasoning_tokens.or(response.reasoning_tokens);
+ 		}
++		if let Some((kind, message)) = &self.failure {
++			response.error_type = Some(kind.clone());
++			response.error = Some(message.clone());
++		}
+ 		response
+ 	}
+ 
+diff --git a/crates/llm/src/conversion/openai_compat.rs b/crates/llm/src/conversion/openai_compat.rs
+index 7daf173..861abec 100644
+--- a/crates/llm/src/conversion/openai_compat.rs
++++ b/crates/llm/src/conversion/openai_compat.rs
+@@ -496,6 +496,7 @@ pub mod to_responses {
+ 	use types::completions::typed as completions;
+ 	use types::responses::typed as responses;
+ 
++	use crate::conversion::completions::CapturedStreamEvent;
+ 	use crate::parse::sse::SseJsonEvent;
+ 	use crate::types::ResponseType;
+ 	use crate::{AIError, StreamingUsageGuard, json, logged_response_parsing, parse, types};
+@@ -650,6 +651,8 @@ pub mod to_responses {
+ 		let mut sent_created = false;
+ 		let mut sent_content_part = false;
+ 		let mut flushed = false;
++		let mut terminal = false;
++		let mut pending_failure: Option<(String, String)> = None;
+ 
+ 		let mut sequence_number: u64 = 0;
+ 		let response_id = format!("resp_{:016x}", rand::rng().random::<u64>());
+@@ -666,14 +669,80 @@ pub mod to_responses {
+ 		let mut pending_stop_reason: Option<completions::FinishReason> = None;
+ 		let mut pending_usage: Option<completions::Usage> = None;
+ 
+-		parse::sse::json_transform_multi::<completions::StreamResponse, ResponseStreamEvent, _>(
++		parse::sse::json_transform_multi::<CapturedStreamEvent, ResponseStreamEvent, _>(
+ 			b,
+ 			buffer_limit,
+ 			move |evt| {
+ 				let mut events: Vec<(&'static str, ResponseStreamEvent)> = Vec::new();
+ 
++				if terminal
++					&& matches!(
++						&evt,
++						SseJsonEvent::Eof | SseJsonEvent::Error | SseJsonEvent::Data(Err(_))
++					) {
++					return events;
++				}
++				let evt = match evt {
++					SseJsonEvent::Data(Ok(CapturedStreamEvent::Chunk(chunk))) => {
++						SseJsonEvent::Data(Ok(chunk))
++					},
++					SseJsonEvent::Data(Ok(CapturedStreamEvent::Error { error })) => {
++						pending_failure = Some((
++							error
++								.code
++								.as_ref()
++								.and_then(|c| c.as_str())
++								.or(error.r#type.as_deref())
++								.unwrap_or("provider_error")
++								.to_string(),
++							error.message,
++						));
++						terminal = true;
++						SseJsonEvent::Error
++					},
++					SseJsonEvent::Data(Err(error)) => {
++						pending_failure = Some(("stream_error".to_string(), error.to_string()));
++						terminal = true;
++						SseJsonEvent::Error
++					},
++					SseJsonEvent::Eof | SseJsonEvent::Error => {
++						pending_failure = Some((
++							"stream_error".to_string(),
++							"stream interrupted before terminal event".to_string(),
++						));
++						terminal = true;
++						SseJsonEvent::Error
++					},
++					SseJsonEvent::Done => {
++						log.update(|r| r.response.stream_complete = true);
++						terminal = true;
++						SseJsonEvent::Done
++					},
++				};
+ 				match evt {
+-					SseJsonEvent::Eof | SseJsonEvent::Error => return events,
++					SseJsonEvent::Eof | SseJsonEvent::Error => {
++						log.update(|r| {
++							if let Some(c) = completion.take() {
++								r.response.completion = Some(vec![c]);
++							}
++							let tool_parts = logged_tool_calls.as_mut().and_then(|pending| {
++								crate::conversion::completions::finalize_streaming_tool_calls(
++									pending
++										.drain()
++										.map(|(i, (id, name, args))| (i, id, name, args)),
++								)
++							});
++							crate::conversion::completions::build_output_messages(
++								&mut r.response,
++								tool_parts,
++								None,
++							);
++						});
++						if let Some((kind, message)) = pending_failure.take() {
++							log.fail(kind, message);
++						}
++						return events;
++					},
+ 					SseJsonEvent::Done => {
+ 						// Fall through to namespace restoration for the terminal events too.
+ 						if !flushed {
+diff --git a/crates/llm/src/conversion/responses.rs b/crates/llm/src/conversion/responses.rs
+index 24540d8..1466251 100644
+--- a/crates/llm/src/conversion/responses.rs
++++ b/crates/llm/src/conversion/responses.rs
+@@ -5,6 +5,7 @@ use agent_core::strng::{self, Strng};
+ use agent_http::Body;
+ use serde::Deserialize;
+ 
++use crate::parse::sse::SseJsonEvent;
+ use crate::types::detect;
+ use crate::{OutputMessage, OutputMessagePart, StreamingUsageGuard, parse, types};
+ 
+@@ -25,107 +26,291 @@ pub fn passthrough_stream(
+ 	mut log: StreamingUsageGuard,
+ 	log_content: crate::LogContentFields,
+ ) -> Body {
++	fn record_response(log: &StreamingUsageGuard, response: &types::responses::typed::Response) {
++		log.update(|r| {
++			r.response.provider_model = Some(strng::new(&response.model));
++			r.response.service_tier = response
++				.service_tier
++				.as_ref()
++				.and_then(types::serialize_str);
++			if let Some(usage) = &response.usage {
++				r.response.input_tokens = Some(usage.input_tokens as u64);
++				r.response.output_tokens = Some(usage.output_tokens as u64);
++				r.response.total_tokens = Some(usage.total_tokens as u64);
++				r.response.cached_input_tokens = Some(usage.input_tokens_details.cached_tokens as u64);
++				r.response.cache_creation_input_tokens = usage
++					.input_tokens_details
++					.cache_write_tokens
++					.map(|n| n as u64);
++				r.response.reasoning_tokens = Some(usage.output_tokens_details.reasoning_tokens as u64);
++			}
++		});
++	}
++
++	fn record_output_item(
++		index: u32,
++		item: types::responses::typed::OutputItem,
++		completion: &mut Option<BTreeMap<(u32, u32), String>>,
++		tools: &mut Option<BTreeMap<u32, OutputMessagePart>>,
++	) {
++		if let Some(tools) = tools.as_mut()
++			&& let Some(part) = types::responses::output_item_tool_call_part(&item)
++		{
++			tools.insert(index, part);
++		}
++		if let Some(completion) = completion.as_mut()
++			&& let types::responses::typed::OutputItem::Message(message) = item
++		{
++			for (part_index, part) in message.content.into_iter().enumerate() {
++				let text = match part {
++					types::responses::typed::OutputMessageContent::OutputText(text) => text.text,
++					types::responses::typed::OutputMessageContent::Refusal(refusal) => refusal.refusal,
++				};
++				completion.insert((index, part_index as u32), text);
++			}
++		}
++	}
++
++	fn flush_capture(
++		log: &StreamingUsageGuard,
++		completion: &mut Option<BTreeMap<(u32, u32), String>>,
++		tools: &mut Option<BTreeMap<u32, OutputMessagePart>>,
++		pending: &mut Option<BTreeMap<u32, (String, String, String)>>,
++		finish_reason: Option<Strng>,
++	) {
++		log.update(|r| {
++			if let Some(parts) = completion.take() {
++				let mut text: Vec<_> = parts.into_values().collect();
++				if text.is_empty() {
++					text.push(String::new());
++				}
++				r.response.completion = Some(text);
++			}
++			merge_pending_tool_calls(tools, pending);
++			r.response.output_messages = take_output_messages(tools, finish_reason.clone());
++		});
++	}
++
++	let mut terminal = false;
+ 	let mut saw_token = false;
+ 	let mut last_token_at: Option<Instant> = None;
+-	let mut completion = log_content.completion.then(String::new);
++	let mut completion = log_content.completion.then(BTreeMap::new);
+ 	let mut tool_calls = log_content.tool_calls.then(BTreeMap::new);
++	let mut pending_tool_calls = log_content.tool_calls.then(BTreeMap::new);
+ 	parse::sse::json_passthrough::<StreamResponse>(b, buffer_limit, move |event| {
+-		let Some(Ok(event)) = event else {
+-			// Stream ended ([DONE]): flush completion if not already set via ResponseCompleted
+-			if event.is_none() {
+-				log.update(|r| {
+-					if let Some(c) = completion.take() {
+-						r.response.completion = Some(vec![c]);
+-					}
+-					if r.response.output_messages.is_none() {
+-						r.response.output_messages = take_output_messages(&mut tool_calls, None);
+-					}
+-				});
+-			}
++		if terminal {
+ 			return;
++		}
++		let event = match event {
++			SseJsonEvent::Data(result) => result,
++			SseJsonEvent::Done | SseJsonEvent::Eof | SseJsonEvent::Error => {
++				Err(anyhow::anyhow!("stream interrupted before terminal event"))
++			},
+ 		};
+ 		let event = match event {
+-			StreamResponse::Typed(e) => e,
+-			StreamResponse::Raw(raw) => {
++			Err(error) => {
++				terminal = true;
++				flush_capture(
++					&log,
++					&mut completion,
++					&mut tool_calls,
++					&mut pending_tool_calls,
++					None,
++				);
++				log.fail("stream_error", error.to_string());
++				return;
++			},
++			Ok(StreamResponse::Raw(raw)) => {
+ 				detect::amend_from_stream_response(&mut log, &raw);
+ 				return;
+ 			},
++			Ok(StreamResponse::Typed(event)) => event,
+ 		};
+-		match event {
+-			types::responses::typed::ResponseStreamEvent::ResponseCreated(created) => {
+-				log.update(|r| {
+-					r.response.provider_model = Some(strng::new(&created.response.model));
+-					r.response.service_tier = created
+-						.response
+-						.service_tier
+-						.as_ref()
+-						.and_then(types::serialize_str);
+-					if let Some(usage) = &created.response.usage {
+-						r.response.input_tokens = Some(usage.input_tokens as u64);
+-						r.response.output_tokens = Some(usage.output_tokens as u64);
+-						r.response.total_tokens = Some(usage.total_tokens as u64);
+-						r.response.cached_input_tokens = Some(usage.input_tokens_details.cached_tokens as u64);
+-						r.response.cache_creation_input_tokens = usage
+-							.input_tokens_details
+-							.cache_write_tokens
+-							.map(|tokens| tokens as u64);
+-						r.response.reasoning_tokens = Some(usage.output_tokens_details.reasoning_tokens as u64);
+-					}
+-				});
++		let (response, failure) = match event {
++			types::responses::typed::ResponseStreamEvent::ResponseCompleted(event) => {
++				(event.response, None)
+ 			},
+-			types::responses::typed::ResponseStreamEvent::ResponseOutputTextDelta(ref delta) => {
+-				let now = Instant::now();
+-				if !saw_token {
+-					saw_token = true;
+-					last_token_at = Some(now);
+-					log.update(|r| {
+-						r.response.first_token = Some(now);
+-					});
+-				} else if let Some(prev) = last_token_at.replace(now) {
+-					let gap = now.duration_since(prev);
+-					log.update(|r| r.response.inter_chunk_latencies.record(gap));
+-				}
+-				if let Some(c) = completion.as_mut() {
+-					c.push_str(&delta.delta);
+-				}
++			types::responses::typed::ResponseStreamEvent::ResponseFailed(event) => {
++				let message = event
++					.response
++					.error
++					.as_ref()
++					.map(|error| error.message.clone())
++					.unwrap_or_else(|| "provider response failed".to_owned());
++				(event.response, Some(("provider_error".to_owned(), message)))
+ 			},
+-			types::responses::typed::ResponseStreamEvent::ResponseOutputItemDone(done) => {
+-				if let Some(tool_calls) = tool_calls.as_mut()
+-					&& let Some(part) = types::responses::output_item_tool_call_part(&done.item)
+-				{
+-					tool_calls.insert(done.output_index, part);
+-				}
++			types::responses::typed::ResponseStreamEvent::ResponseIncomplete(event) => {
++				let failure = event
++					.response
++					.error
++					.as_ref()
++					.map(|error| ("provider_error".to_owned(), error.message.clone()));
++				(event.response, failure)
+ 			},
+-			types::responses::typed::ResponseStreamEvent::ResponseCompleted(completed) => {
+-				let finish_reason = types::serialize_str(&completed.response.status);
+-				log.update(|r| {
+-					r.response.provider_model = Some(strng::new(&completed.response.model));
+-					r.response.service_tier = completed
+-						.response
+-						.service_tier
+-						.as_ref()
+-						.and_then(types::serialize_str);
+-					if let Some(usage) = &completed.response.usage {
+-						r.response.input_tokens = Some(usage.input_tokens as u64);
+-						r.response.output_tokens = Some(usage.output_tokens as u64);
+-						r.response.total_tokens = Some(usage.total_tokens as u64);
+-						r.response.cached_input_tokens = Some(usage.input_tokens_details.cached_tokens as u64);
+-						r.response.cache_creation_input_tokens = usage
+-							.input_tokens_details
+-							.cache_write_tokens
+-							.map(|tokens| tokens as u64);
+-						r.response.reasoning_tokens = Some(usage.output_tokens_details.reasoning_tokens as u64);
+-					}
+-					if let Some(c) = completion.take() {
+-						r.response.completion = Some(vec![c]);
+-					}
+-					r.response.output_messages = take_output_messages(&mut tool_calls, finish_reason.clone());
+-				});
++			types::responses::typed::ResponseStreamEvent::ResponseError(event) => {
++				terminal = true;
++				flush_capture(
++					&log,
++					&mut completion,
++					&mut tool_calls,
++					&mut pending_tool_calls,
++					None,
++				);
++				log.fail(
++					event.code.unwrap_or_else(|| "provider_error".to_owned()),
++					event.message,
++				);
++				return;
++			},
++			other => {
++				match other {
++					types::responses::typed::ResponseStreamEvent::ResponseCreated(event) => {
++						record_response(&log, &event.response)
++					},
++					types::responses::typed::ResponseStreamEvent::ResponseOutputTextDelta(event) => {
++						let now = Instant::now();
++						if !saw_token {
++							saw_token = true;
++							log.update(|r| r.response.first_token = Some(now));
++						} else if let Some(previous) = last_token_at {
++							log.update(|r| {
++								r.response
++									.inter_chunk_latencies
++									.record(now.duration_since(previous))
++							});
++						}
++						last_token_at = Some(now);
++						if let Some(parts) = completion.as_mut() {
++							parts
++								.entry((event.output_index, event.content_index))
++								.or_default()
++								.push_str(&event.delta);
++						}
++					},
++					types::responses::typed::ResponseStreamEvent::ResponseRefusalDelta(event) => {
++						if let Some(parts) = completion.as_mut() {
++							parts
++								.entry((event.output_index, event.content_index))
++								.or_default()
++								.push_str(&event.delta);
++						}
++					},
++					types::responses::typed::ResponseStreamEvent::ResponseOutputTextDone(event) => {
++						if let Some(parts) = completion.as_mut() {
++							parts.insert((event.output_index, event.content_index), event.text);
++						}
++					},
++					types::responses::typed::ResponseStreamEvent::ResponseRefusalDone(event) => {
++						if let Some(parts) = completion.as_mut() {
++							parts.insert((event.output_index, event.content_index), event.refusal);
++						}
++					},
++					types::responses::typed::ResponseStreamEvent::ResponseContentPartDone(event) => {
++						if let Some(parts) = completion.as_mut() {
++							let text = match event.part {
++								types::responses::typed::OutputContent::OutputText(text) => Some(text.text),
++								types::responses::typed::OutputContent::Refusal(refusal) => Some(refusal.refusal),
++								_ => None,
++							};
++							if let Some(text) = text {
++								parts.insert((event.output_index, event.content_index), text);
++							}
++						}
++					},
++					types::responses::typed::ResponseStreamEvent::ResponseOutputItemAdded(event) => {
++						if let Some(pending) = pending_tool_calls.as_mut()
++							&& let types::responses::typed::OutputItem::FunctionCall(call) = event.item
++						{
++							pending.insert(
++								event.output_index,
++								(call.call_id, call.name, call.arguments),
++							);
++						}
++					},
++					types::responses::typed::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(
++						event,
++					) => {
++						if let Some(pending) = pending_tool_calls.as_mut()
++							&& let Some((_, _, arguments)) = pending.get_mut(&event.output_index)
++						{
++							arguments.push_str(&event.delta);
++						}
++					},
++					types::responses::typed::ResponseStreamEvent::ResponseFunctionCallArgumentsDone(
++						event,
++					) => {
++						if let Some(parts) = tool_calls.as_mut()
++							&& let Some(OutputMessagePart::ToolCall {
++								name, arguments, ..
++							}) = parts.get_mut(&event.output_index)
++						{
++							*arguments = crate::conversion::tool_arguments_to_input(&event.arguments);
++							if let Some(done_name) = event.name.as_ref() {
++								*name = strng::new(done_name);
++							}
++						}
++						if let Some(pending) = pending_tool_calls.as_mut()
++							&& let Some((_, name, arguments)) = pending.get_mut(&event.output_index)
++						{
++							*arguments = event.arguments;
++							if let Some(done_name) = event.name {
++								*name = done_name;
++							}
++						}
++					},
++					types::responses::typed::ResponseStreamEvent::ResponseOutputItemDone(event) => {
++						record_output_item(
++							event.output_index,
++							event.item,
++							&mut completion,
++							&mut tool_calls,
++						)
++					},
++					_ => {},
++				}
++				return;
+ 			},
+-			_ => {},
++		};
++		terminal = true;
++		record_response(&log, &response);
++		let finish_reason = failure
++			.is_none()
++			.then(|| types::serialize_str(&response.status))
++			.flatten();
++		for (index, item) in response.output.into_iter().enumerate() {
++			record_output_item(index as u32, item, &mut completion, &mut tool_calls);
++		}
++		flush_capture(
++			&log,
++			&mut completion,
++			&mut tool_calls,
++			&mut pending_tool_calls,
++			finish_reason,
++		);
++		if let Some((kind, message)) = failure {
++			log.fail(kind, message);
++		} else {
++			log.update(|r| r.response.stream_complete = true);
+ 		}
+ 	})
+ }
++fn merge_pending_tool_calls(
++	parts: &mut Option<BTreeMap<u32, OutputMessagePart>>,
++	pending: &mut Option<BTreeMap<u32, (String, String, String)>>,
++) {
++	let (Some(parts), Some(pending)) = (parts, pending) else {
++		return;
++	};
++	for (index, (id, name, args)) in std::mem::take(pending) {
++		parts
++			.entry(index)
++			.or_insert_with(|| OutputMessagePart::ToolCall {
++				id: strng::new(id),
++				name: strng::new(name),
++				arguments: crate::conversion::tool_arguments_to_input(&args),
++			});
++	}
++}
+ 
+ fn take_output_messages(
+ 	tool_calls: &mut Option<BTreeMap<u32, OutputMessagePart>>,
+@@ -738,6 +923,7 @@ pub mod from_messages {
+ 		});
+ 		let anthropic = translate_response_internal(resp)?;
+ 		Ok(Box::new(super::super::ResponseWithProviderUsage {
++			failure: None,
+ 			response: anthropic,
+ 			provider_usage,
+ 		}))
+@@ -1248,6 +1434,7 @@ pub mod from_messages {
+ 		}
+ 
+ 		let mut state = StreamState::default();
++		let mut pending_failure: Option<(String, String)> = None;
+ 		let mut completion = log_content.completion.then(String::new);
+ 		let mut tool_calls = log_content.tool_calls.then(BTreeMap::new);
+ 
+@@ -1261,7 +1448,19 @@ pub mod from_messages {
+ 				return events;
+ 			}
+ 			match evt {
+-				SseJsonEvent::Eof | SseJsonEvent::Error => return events,
++				SseJsonEvent::Eof | SseJsonEvent::Error => {
++					if log.is_terminal() {
++						return events;
++					}
++					log.update(|r| {
++						if let Some(c) = completion.take() {
++							r.response.completion = Some(vec![c]);
++						}
++						r.response.output_messages = super::take_output_messages(&mut tool_calls, None);
++					});
++					log.fail("stream_error", "stream interrupted before terminal event");
++					return events;
++				},
+ 				SseJsonEvent::Done => {
+ 					flush_message_end(
+ 						&mut state,
+@@ -1485,6 +1684,7 @@ pub mod from_messages {
+ 						},
+ 					},
+ 					responses::ResponseStreamEvent::ResponseCompleted(completed) => {
++						log.update(|r| r.response.stream_complete = true);
+ 						record_response_metadata(&mut state, &log, &completed.response);
+ 						state.pending_stop_reason = Some(if state.saw_tool_call {
+ 							messages::StopReason::ToolUse
+@@ -1503,6 +1703,7 @@ pub mod from_messages {
+ 						);
+ 					},
+ 					responses::ResponseStreamEvent::ResponseIncomplete(incomplete) => {
++						log.update(|r| r.response.stream_complete = true);
+ 						record_response_metadata(&mut state, &log, &incomplete.response);
+ 						state.pending_stop_reason = incomplete
+ 							.response
+@@ -1519,6 +1720,16 @@ pub mod from_messages {
+ 						);
+ 					},
+ 					responses::ResponseStreamEvent::ResponseFailed(failed) => {
++						pending_failure = Some((
++							"provider_error".to_string(),
++							failed
++								.response
++								.error
++								.as_ref()
++								.map(|e| e.message.as_str())
++								.unwrap_or("provider response failed")
++								.to_string(),
++						));
+ 						record_response_metadata(&mut state, &log, &failed.response);
+ 						tracing::warn!(
+ 							"Responses stream failed during messages translation; emitting error event"
+@@ -1548,6 +1759,13 @@ pub mod from_messages {
+ 						);
+ 					},
+ 					responses::ResponseStreamEvent::ResponseError(error) => {
++						pending_failure = Some((
++							error
++								.code
++								.clone()
++								.unwrap_or_else(|| "provider_error".to_string()),
++							error.message.clone(),
++						));
+ 						tracing::warn!(
+ 							"Responses stream error during messages translation: {}",
+ 							error.message
+@@ -1578,6 +1796,9 @@ pub mod from_messages {
+ 					r.response.output_messages = super::take_output_messages(&mut tool_calls, None);
+ 				});
+ 			}
++			if let Some((kind, message)) = pending_failure.take() {
++				log.fail(kind, message);
++			}
+ 			events
+ 		})
+ 	}
+diff --git a/crates/llm/src/conversion/vertex_gemini.rs b/crates/llm/src/conversion/vertex_gemini.rs
+index ca54e0a..08c7014 100644
+--- a/crates/llm/src/conversion/vertex_gemini.rs
++++ b/crates/llm/src/conversion/vertex_gemini.rs
+@@ -2,6 +2,7 @@ use agent_core::prelude::Strng;
+ use agent_core::strng;
+ use bytes::Bytes;
+ 
++use crate::parse::sse::SseJsonEvent;
+ use crate::types::{ResponseType, vertex_gemini as vg};
+ use crate::{AIError, logged_response_parsing, types};
+ 
+@@ -44,11 +45,25 @@ pub fn passthrough_stream(
+ 	use std::time::Instant;
+ 	let mut saw_token = false;
+ 	crate::parse::sse::json_passthrough::<vg::GenerateContentResponse>(b, buffer_limit, move |f| {
+-		// Gemini never sends a [DONE] sentinel, so f(None) does not fire; all bookkeeping
+-		// happens per-chunk and the guard flushes on drop.
+-		let Some(Ok(chunk)) = f else {
+-			return;
++		// Gemini has no [DONE] sentinel; clean HTTP EOF completes the stream.
++		let chunk = match f {
++			SseJsonEvent::Data(Ok(chunk)) => chunk,
++			SseJsonEvent::Data(Err(_)) => return,
++			SseJsonEvent::Error => {
++				if !log.is_terminal() {
++					log.fail("stream_error", "stream interrupted before terminal event");
++				}
++				return;
++			},
++			SseJsonEvent::Eof | SseJsonEvent::Done => {
++				log.update(|r| r.response.stream_complete = true);
++				return;
++			},
+ 		};
++		if let Some((kind, message)) = crate::response_error(&chunk.rest) {
++			log.fail(kind, message);
++			return;
++		}
+ 		if !saw_token {
+ 			saw_token = true;
+ 			log.update(|r| r.response.first_token = Some(Instant::now()));
+@@ -1142,7 +1157,11 @@ pub mod to_completions {
+ 		let typed = build_response(&resp);
+ 		let inner =
+ 			json::convert::<_, types::completions::Response>(&typed).map_err(AIError::ResponseParsing)?;
+-		Ok(Box::new(inner))
++		Ok(Box::new(super::super::ResponseWithProviderUsage {
++			response: inner,
++			provider_usage: None,
++			failure: crate::response_error(&resp.rest),
++		}))
+ 	}
+ 
+ 	#[derive(Default)]
+@@ -1513,14 +1532,46 @@ pub mod to_completions {
+ 			let chunk = match ev {
+ 				parse::sse::SseJsonEvent::Data(Ok(c)) => c,
+ 				parse::sse::SseJsonEvent::Data(Err(e)) => {
++					if !log.is_terminal() {
++						log.update(|r| {
++							if let Some(c) = completion.take() {
++								r.response.completion = Some(vec![c]);
++							}
++						});
++						log.fail("stream_error", e.to_string());
++					}
+ 					tracing::debug!("failed to parse gemini stream chunk: {e}");
+ 					return vec![];
+ 				},
+-				parse::sse::SseJsonEvent::Done
+-				| parse::sse::SseJsonEvent::Eof
+-				| parse::sse::SseJsonEvent::Error => return vec![],
++				parse::sse::SseJsonEvent::Done | parse::sse::SseJsonEvent::Eof => {
++					log.update(|r| {
++						if let Some(c) = completion.take() {
++							r.response.completion = Some(vec![c]);
++						}
++						r.response.stream_complete = true;
++					});
++					return vec![];
++				},
++				parse::sse::SseJsonEvent::Error => {
++					if !log.is_terminal() {
++						log.update(|r| {
++							if let Some(c) = completion.take() {
++								r.response.completion = Some(vec![c]);
++							}
++						});
++						log.fail("stream_error", "stream interrupted before terminal event");
++					}
++					return vec![];
++				},
+ 			};
+-
++			if let Some((kind, message)) = crate::response_error(&chunk.rest) {
++				log.update(|r| {
++					if let Some(c) = completion.take() {
++						r.response.completion = Some(vec![c]);
++					}
++				});
++				log.fail(kind, message);
++			}
+ 			let now = Instant::now();
+ 			if !saw_token {
+ 				saw_token = true;
+diff --git a/crates/llm/src/lib.rs b/crates/llm/src/lib.rs
+index 275de62..90c419a 100644
+--- a/crates/llm/src/lib.rs
++++ b/crates/llm/src/lib.rs
+@@ -366,6 +366,12 @@ impl LLMInfo {
+ 
+ #[derive(Debug, Clone, Default, serde::Serialize)]
+ pub struct LLMResponse {
++	#[serde(skip_serializing_if = "Option::is_none")]
++	pub error_type: Option<String>,
++	#[serde(skip_serializing_if = "Option::is_none")]
++	pub error: Option<String>,
++	#[serde(skip)]
++	pub stream_complete: bool,
+ 	/// Provider-reported input tokens. Whether this includes cache tokens is described by the
+ 	/// corresponding request's [`CacheTokenConvention`].
+ 	#[serde(skip_serializing_if = "Option::is_none")]
+@@ -494,9 +500,30 @@ impl StreamingUsageGuard {
+ 	}
+ 
+ 	pub fn update(&self, mut f: impl FnMut(&mut LLMInfo)) {
+-		self.reporter.update(&mut f);
++		self.reporter.update(&mut |r| {
++			if r.response.error.is_none() {
++				f(r);
++			}
++		});
+ 	}
+ 
++	pub fn is_terminal(&self) -> bool {
++		let mut terminal = false;
++		self
++			.reporter
++			.update(&mut |r| terminal = r.response.stream_complete || r.response.error.is_some());
++		terminal
++	}
++	pub fn fail(&self, kind: impl Into<String>, message: impl Into<String>) {
++		let kind = kind.into();
++		let message = message.into();
++		self.reporter.update(&mut |r| {
++			if r.response.error.is_none() && !r.response.stream_complete {
++				r.response.error_type = Some(kind.clone());
++				r.response.error = Some(message.clone());
++			}
++		});
++	}
+ 	pub fn report_usage(&mut self) {
+ 		self.reporter.report_usage();
+ 	}
+@@ -520,6 +547,25 @@ pub use types::{
+ 	SimpleChatCompletionMessage, ToolCall,
+ };
+ 
++pub(crate) fn response_error(value: &serde_json::Value) -> Option<(String, String)> {
++	let error = value.get("error")?.as_object()?;
++	let message = error.get("message")?.as_str()?.to_string();
++	let kind = error
++		.get("status")
++		.or_else(|| error.get("type"))
++		.and_then(|v| v.as_str())
++		.map(str::to_owned)
++		.or_else(|| {
++			error.get("code").filter(|v| !v.is_null()).map(|v| {
++				v.as_str()
++					.map(str::to_owned)
++					.unwrap_or_else(|| v.to_string())
++			})
++		})
++		.unwrap_or_else(|| "provider_error".to_string());
++	Some((kind, message))
++}
++
+ pub fn logged_response_parsing(bytes: &[u8]) -> impl FnOnce(serde_json::Error) -> AIError + '_ {
+ 	|e| {
+ 		const LOGGED_BODY_LIMIT: usize = 1024;
+@@ -529,12 +575,22 @@ pub fn logged_response_parsing(bytes: &[u8]) -> impl FnOnce(serde_json::Error) -
+ 			body = %String::from_utf8_lossy(body),
+ 			"failed to parse response"
+ 		);
++		if let Ok(value) = serde_json::from_slice::<serde_json::Value>(bytes) {
++			if let Some((kind, message)) = response_error(&value) {
++				return AIError::ProviderResponse(kind, message);
++			}
++			if let Some(message) = value.get("message").and_then(|v| v.as_str()) {
++				return AIError::ProviderResponse("provider_error".to_string(), message.to_string());
++			}
++		}
+ 		AIError::ResponseParsing(e)
+ 	}
+ }
+ 
+ #[derive(thiserror::Error, Debug)]
+ pub enum AIError {
++	#[error("provider returned {0}: {1}")]
++	ProviderResponse(String, String),
+ 	#[error("missing field: {0}")]
+ 	MissingField(Strng),
+ 	#[error("model not found")]
+diff --git a/crates/llm/src/parse/aws_sse.rs b/crates/llm/src/parse/aws_sse.rs
+index c2f878b..0685eba 100644
+--- a/crates/llm/src/parse/aws_sse.rs
++++ b/crates/llm/src/parse/aws_sse.rs
+@@ -135,37 +135,105 @@ impl Decoder for EventStreamCodec {
+ 	}
+ }
+ 
+-pub fn transform<O: Serialize>(
++pub enum StreamEvent {
++	Item(Message),
++	Eof,
++	Error,
++}
++
++struct Finalizer<O, F: FnMut(StreamEvent) -> O> {
++	callback: F,
++	done: bool,
++	marker: std::marker::PhantomData<fn() -> O>,
++}
++
++impl<O, F: FnMut(StreamEvent) -> O> Drop for Finalizer<O, F> {
++	fn drop(&mut self) {
++		if !self.done {
++			(self.callback)(StreamEvent::Error);
++		}
++	}
++}
++
++pub fn transform<O: Serialize + 'static>(
+ 	b: Body,
+ 	buffer_limit: usize,
+ 	mut f: impl FnMut(Message) -> Option<O> + Send + 'static,
++) -> Body {
++	transform_with_events(b, buffer_limit, move |event| match event {
++		StreamEvent::Item(item) => f(item),
++		_ => None,
++	})
++}
++
++pub fn transform_with_events<O: Serialize + 'static>(
++	b: Body,
++	buffer_limit: usize,
++	f: impl FnMut(StreamEvent) -> Option<O> + Send + 'static,
+ ) -> Body {
+ 	let decoder = EventStreamCodec::with_max_size(buffer_limit);
+ 	let encoder = BytesCodec::new();
++	let mut finalizer = Finalizer {
++		callback: f,
++		done: false,
++		marker: std::marker::PhantomData,
++	};
+ 
+ 	transform_parser(b, decoder, encoder, move |event| {
+-		let TransformEvent::Item(o) = event else {
+-			return None;
++		let event = match event {
++			TransformEvent::Item(item) => StreamEvent::Item(item),
++			TransformEvent::Eof => {
++				finalizer.done = true;
++				StreamEvent::Eof
++			},
++			TransformEvent::Error => {
++				finalizer.done = true;
++				StreamEvent::Error
++			},
+ 		};
+-		let transformed = f(o)?;
++		let transformed = (finalizer.callback)(event)?;
+ 		let json_bytes = serde_json::to_vec(&transformed).ok()?;
+ 		Some(crate::parse::encode_sse_event("", Bytes::from(json_bytes)))
+ 	})
+ }
+ 
+-pub fn transform_multi<O: Serialize>(
++pub fn transform_multi<O: Serialize + 'static>(
+ 	b: Body,
+ 	buffer_limit: usize,
+ 	mut f: impl FnMut(Message) -> Vec<(&'static str, O)> + Send + 'static,
++) -> Body {
++	transform_multi_with_events(b, buffer_limit, move |event| match event {
++		StreamEvent::Item(item) => f(item),
++		_ => Vec::new(),
++	})
++}
++
++pub fn transform_multi_with_events<O: Serialize + 'static>(
++	b: Body,
++	buffer_limit: usize,
++	f: impl FnMut(StreamEvent) -> Vec<(&'static str, O)> + Send + 'static,
+ ) -> Body {
+ 	let decoder = EventStreamCodec::with_max_size(buffer_limit);
+ 	let encoder = BytesCodec::new();
++	let mut finalizer = Finalizer {
++		callback: f,
++		done: false,
++		marker: std::marker::PhantomData,
++	};
+ 
+ 	transform_parser(b, decoder, encoder, move |event| {
+-		let TransformEvent::Item(msg) = event else {
+-			return Vec::new();
++		let event = match event {
++			TransformEvent::Item(item) => StreamEvent::Item(item),
++			TransformEvent::Eof => {
++				finalizer.done = true;
++				StreamEvent::Eof
++			},
++			TransformEvent::Error => {
++				finalizer.done = true;
++				StreamEvent::Error
++			},
+ 		};
+-		f(msg)
++		(finalizer.callback)(event)
+ 			.into_iter()
+ 			.filter_map(|(event_name, event)| {
+ 				serde_json::to_vec(&event)
+diff --git a/crates/llm/src/parse/passthrough.rs b/crates/llm/src/parse/passthrough.rs
+index 12d15bb..4131f79 100644
+--- a/crates/llm/src/parse/passthrough.rs
++++ b/crates/llm/src/parse/passthrough.rs
+@@ -18,11 +18,29 @@ pin_project! {
+ 	}
+ }
+ 
+-pub fn parser<D, F>(body: Body, decoder: D, handler: F) -> Body
++pub enum PassthroughEvent<T> {
++	Item(T),
++	Eof,
++}
++
++pub fn parser<D, F>(body: Body, decoder: D, mut handler: F) -> Body
+ where
+ 	D: Decoder + Send + 'static,
+ 	D::Error: Send + Into<axum_core::BoxError> + 'static,
+ 	F: FnMut(D::Item) + Send + 'static,
++{
++	parser_with_events(body, decoder, move |event| {
++		if let PassthroughEvent::Item(item) = event {
++			handler(item);
++		}
++	})
++}
++
++pub fn parser_with_events<D, F>(body: Body, decoder: D, handler: F) -> Body
++where
++	D: Decoder + Send + 'static,
++	D::Error: Send + Into<axum_core::BoxError> + 'static,
++	F: FnMut(PassthroughEvent<D::Item>) + Send + 'static,
+ {
+ 	// Safe: parsing consumes a separate copy of the data; original frames,
+ 	// including trailers, are forwarded unchanged and in order.
+@@ -41,7 +59,7 @@ impl<D, F> HttpBody for PassthroughBody<D, F>
+ where
+ 	D: Decoder + Send + 'static,
+ 	D::Error: Send + Into<axum_core::BoxError> + 'static,
+-	F: FnMut(D::Item) + Send + 'static,
++	F: FnMut(PassthroughEvent<D::Item>) + Send + 'static,
+ {
+ 	type Data = Bytes;
+ 	type Error = axum_core::Error;
+@@ -65,7 +83,7 @@ where
+ 				};
+ 				match decode {
+ 					Ok(Some(decoded_item)) => {
+-						(handler)(decoded_item);
++						(handler)(PassthroughEvent::Item(decoded_item));
+ 					},
+ 					Ok(None) => {
+ 						// Nothing more to decode!
+@@ -111,7 +129,12 @@ where
+ 			&mut *this.decoder,
+ 			this.handler,
+ 		) {
+-			Ok(_) => Poll::Ready(frame_to_send),
++			Ok(_) => {
++				if frame_to_send.is_none() {
++					(this.handler)(PassthroughEvent::Eof);
++				}
++				Poll::Ready(frame_to_send)
++			},
+ 			Err(e) => Poll::Ready(Some(Err(e))),
+ 		}
+ 	}
+diff --git a/crates/llm/src/parse/sse.rs b/crates/llm/src/parse/sse.rs
+index e762205..e3aa73c 100644
+--- a/crates/llm/src/parse/sse.rs
++++ b/crates/llm/src/parse/sse.rs
+@@ -7,7 +7,7 @@ use serde::de::DeserializeOwned;
+ use tokio_sse_codec::{Event, Frame, SseDecoder};
+ use tokio_util::codec::BytesCodec;
+ 
+-use super::passthrough::parser as passthrough_parser;
++use super::passthrough::{PassthroughEvent, parser_with_events as passthrough_parser};
+ use super::transform::{TransformEvent, parser as transform_parser};
+ 
+ /// Append an OpenAI `[DONE]` event after a body closes successfully.
+@@ -33,27 +33,43 @@ pub fn append_done_on_success(body: Body) -> Body {
+ 	})
+ }
+ 
+-pub fn json_passthrough<F: DeserializeOwned>(
++pub fn json_passthrough<F: DeserializeOwned + 'static>(
+ 	b: Body,
+ 	buffer_limit: usize,
+-	mut f: impl FnMut(Option<anyhow::Result<F>>) + Send + 'static,
++	f: impl FnMut(SseJsonEvent<F>) + Send + 'static,
+ ) -> Body {
+ 	let decoder = SseDecoder::<Bytes>::with_max_size(buffer_limit);
+ 
+-	passthrough_parser(b, decoder, move |o| {
++	let mut finalizer = MultiFinalizer {
++		callback: f,
++		done: false,
++		marker: std::marker::PhantomData,
++	};
++	passthrough_parser(b, decoder, move |event| {
++		let o = match event {
++			PassthroughEvent::Item(o) => o,
++			PassthroughEvent::Eof => {
++				if !finalizer.done {
++					finalizer.done = true;
++					(finalizer.callback)(SseJsonEvent::Eof);
++				}
++				return;
++			},
++		};
+ 		let Some(data) = unwrap_sse_data(o) else {
+ 			return;
+ 		};
+ 		if data.as_ref() == b"[DONE]" {
+-			f(None);
++			finalizer.done = true;
++			(finalizer.callback)(SseJsonEvent::Done);
+ 			return;
+ 		}
+ 		let obj = serde_json::from_slice::<F>(&data);
+-		f(Some(obj.map_err(anyhow::Error::from)))
++		(finalizer.callback)(SseJsonEvent::Data(obj.map_err(anyhow::Error::from)))
+ 	})
+ }
+ 
+-pub fn permissive_json_passthrough<F: DeserializeOwned>(
++pub fn permissive_json_passthrough<F: DeserializeOwned + 'static>(
+ 	b: Body,
+ 	buffer_limit: usize,
+ 	mut f: impl FnMut(Option<anyhow::Result<F>>) + Send + 'static,
+@@ -73,20 +89,41 @@ pub fn permissive_json_passthrough<F: DeserializeOwned>(
+ 	})
+ }
+ 
+-pub fn json_transform<I: DeserializeOwned, O: Serialize>(
++struct TransformFinalizer<I, O, F: FnMut(anyhow::Result<I>) -> Option<O>> {
++	callback: F,
++	done: bool,
++	marker: std::marker::PhantomData<fn(I) -> O>,
++}
++impl<I, O, F: FnMut(anyhow::Result<I>) -> Option<O>> Drop for TransformFinalizer<I, O, F> {
++	fn drop(&mut self) {
++		if !self.done {
++			(self.callback)(Err(anyhow::anyhow!(
++				"stream interrupted before terminal event"
++			)));
++		}
++	}
++}
++
++pub fn json_transform<I: DeserializeOwned + 'static, O: Serialize + 'static>(
+ 	b: Body,
+ 	buffer_limit: usize,
+-	mut f: impl FnMut(anyhow::Result<I>) -> Option<O> + Send + 'static,
++	f: impl FnMut(anyhow::Result<I>) -> Option<O> + Send + 'static,
+ ) -> Body {
+ 	let decoder = SseDecoder::<Bytes>::with_max_size(buffer_limit);
+ 	let encoder = BytesCodec::new();
+ 
++	let mut finalizer = TransformFinalizer {
++		callback: f,
++		done: false,
++		marker: std::marker::PhantomData,
++	};
+ 	transform_parser(b, decoder, encoder, move |event| {
+ 		let data = match event {
+ 			TransformEvent::Item(frame) => unwrap_sse_data(frame)?,
+ 			TransformEvent::Eof => return None,
+ 			TransformEvent::Error => {
+-				let transformed = f(Err(anyhow::anyhow!("upstream SSE stream failed")))?;
++				finalizer.done = true;
++				let transformed = (finalizer.callback)(Err(anyhow::anyhow!("upstream SSE stream failed")))?;
+ 				let json_bytes = serde_json::to_vec(&transformed).ok()?;
+ 				return Some(crate::parse::encode_sse_event("", Bytes::from(json_bytes)));
+ 			},
+@@ -99,7 +136,7 @@ pub fn json_transform<I: DeserializeOwned, O: Serialize>(
+ 			));
+ 		}
+ 		let obj = serde_json::from_slice::<I>(&data);
+-		let transformed = f(obj.map_err(anyhow::Error::from))?;
++		let transformed = (finalizer.callback)(obj.map_err(anyhow::Error::from))?;
+ 		let json_bytes = serde_json::to_vec(&transformed).ok()?;
+ 		Some(crate::parse::encode_sse_event("", Bytes::from(json_bytes)))
+ 	})
+@@ -112,10 +149,23 @@ pub enum SseJsonEvent<I> {
+ 	Error,
+ }
+ 
+-pub fn json_transform_multi<I: DeserializeOwned, O: Serialize, It>(
++struct MultiFinalizer<I, It, F: FnMut(SseJsonEvent<I>) -> It> {
++	callback: F,
++	done: bool,
++	marker: std::marker::PhantomData<fn(I) -> It>,
++}
++impl<I, It, F: FnMut(SseJsonEvent<I>) -> It> Drop for MultiFinalizer<I, It, F> {
++	fn drop(&mut self) {
++		if !self.done {
++			(self.callback)(SseJsonEvent::Error);
++		}
++	}
++}
++
++pub fn json_transform_multi<I: DeserializeOwned + 'static, O: Serialize, It: 'static>(
+ 	b: Body,
+ 	buffer_limit: usize,
+-	mut f: impl FnMut(SseJsonEvent<I>) -> It + Send + 'static,
++	f: impl FnMut(SseJsonEvent<I>) -> It + Send + 'static,
+ ) -> Body
+ where
+ 	It: IntoIterator<Item = (&'static str, O)>,
+@@ -124,6 +174,11 @@ where
+ 	let decoder = SseDecoder::<Bytes>::with_max_size(buffer_limit);
+ 	let encoder = BytesCodec::new();
+ 
++	let mut finalizer = MultiFinalizer {
++		callback: f,
++		done: false,
++		marker: std::marker::PhantomData,
++	};
+ 	transform_parser(b, decoder, encoder, move |event| {
+ 		let event = match event {
+ 			TransformEvent::Eof => SseJsonEvent::Eof,
+@@ -140,7 +195,13 @@ where
+ 				}
+ 			},
+ 		};
+-		f(event)
++		if matches!(
++			event,
++			SseJsonEvent::Eof | SseJsonEvent::Error | SseJsonEvent::Done
++		) {
++			finalizer.done = true;
++		}
++		(finalizer.callback)(event)
+ 			.into_iter()
+ 			.filter_map(|(event_name, item)| {
+ 				let json_bytes = serde_json::to_vec(&item).ok()?;
+diff --git a/crates/llm/src/tests/response/completions/stream.completions-messages-streaming.snap b/crates/llm/src/tests/response/completions/stream.completions-messages-streaming.snap
+index 48fae87..7664e5a 100644
+--- a/crates/llm/src/tests/response/completions/stream.completions-messages-streaming.snap
++++ b/crates/llm/src/tests/response/completions/stream.completions-messages-streaming.snap
+@@ -280,5 +280,8 @@ data: {"type":"message_stop"}
+   "total_tokens": 304,
+   "reasoning_tokens": 192,
+   "cached_input_tokens": 0,
+-  "provider_model": "gpt-5-nano-2025-08-07"
++  "provider_model": "gpt-5-nano-2025-08-07",
++  "completion": [
++    "Hi there! How can I help today? If you’re not sure where to start, I can:\n\n- Answer questions or explain concepts\n- Help with writing, editing, or brainstorming\n- Assist with coding, math, or data tasks\n- Plan something (a trip, a project, a study schedule)\n- Translate or practice a language\n\nTell me what you’re aiming for, and I’ll tailor my help."
++  ]
+ }
+diff --git a/crates/llm/src/tests/response/responses/stream-error.responses-messages-streaming.snap b/crates/llm/src/tests/response/responses/stream-error.responses-messages-streaming.snap
+index 73a84a0..20b09d2 100644
+--- a/crates/llm/src/tests/response/responses/stream-error.responses-messages-streaming.snap
++++ b/crates/llm/src/tests/response/responses/stream-error.responses-messages-streaming.snap
+@@ -11,6 +11,8 @@ data: {"type":"error","error":{"type":"rate_limit_error","message":"provider fai
+ 
+ 
+ {
++  "error_type": "rate_limit_exceeded",
++  "error": "provider failed",
+   "provider_model": "gpt-5.6-luna",
+   "completion": [
+     ""
+diff --git a/crates/llm/src/tests/response/responses/stream-failed.responses-messages-streaming.snap b/crates/llm/src/tests/response/responses/stream-failed.responses-messages-streaming.snap
+index cb8e28e..9b4f4cd 100644
+--- a/crates/llm/src/tests/response/responses/stream-failed.responses-messages-streaming.snap
++++ b/crates/llm/src/tests/response/responses/stream-failed.responses-messages-streaming.snap
+@@ -26,6 +26,8 @@ data: {"type":"error","error":{"type":"api_error","message":"provider failed"}}
+ 
+ 
+ {
++  "error_type": "provider_error",
++  "error": "provider failed",
+   "input_tokens": 100,
+   "output_tokens": 5,
+   "total_tokens": 105,
+diff --git a/crates/llm/src/types/completions.rs b/crates/llm/src/types/completions.rs
+index 688234f..4ec471c 100644
+--- a/crates/llm/src/types/completions.rs
++++ b/crates/llm/src/types/completions.rs
+@@ -216,7 +216,16 @@ impl ResponseType for Response {
+ 					self
+ 						.choices
+ 						.iter()
+-						.flat_map(|c| c.message.content.clone())
++						.filter_map(|c| {
++							let content = c.message.content.as_deref();
++							let refusal = c
++								.message
++								.rest
++								.get("refusal")
++								.and_then(serde_json::Value::as_str);
++							(content.is_some() || refusal.is_some())
++								.then(|| content.into_iter().chain(refusal).collect::<String>())
++						})
+ 						.collect_vec(),
+ 				)
+ 			} else {
+@@ -226,6 +235,9 @@ impl ResponseType for Response {
+ 			first_token: Default::default(),
+ 			last_token_at: Default::default(),
+ 			inter_chunk_latencies: Default::default(),
++			error_type: None,
++			error: None,
++			stream_complete: false,
+ 		}
+ 	}
+ 
+diff --git a/crates/llm/src/types/detect.rs b/crates/llm/src/types/detect.rs
+index 285e633..dbba40f 100644
+--- a/crates/llm/src/types/detect.rs
++++ b/crates/llm/src/types/detect.rs
+@@ -628,6 +628,9 @@ impl ResponseType for Response {
+ 			first_token: None,
+ 			last_token_at: None,
+ 			inter_chunk_latencies: crate::TokenGapSummary::default(),
++			error_type: None,
++			error: None,
++			stream_complete: false,
+ 		}
+ 	}
+ 
+diff --git a/crates/llm/src/types/gemini.rs b/crates/llm/src/types/gemini.rs
+index d530234..caa1d5a 100644
+--- a/crates/llm/src/types/gemini.rs
++++ b/crates/llm/src/types/gemini.rs
+@@ -541,9 +541,12 @@ pub struct Response(pub vg::GenerateContentResponse);
+ 
+ impl ResponseType for Response {
+ 	fn to_llm_response(&self, log_content: crate::LogContentFields) -> LLMResponse {
++		let failure = crate::response_error(&self.0.rest);
+ 		let um = self.0.usage_metadata.as_ref();
+ 		let counts = um.map(vg::UsageMetadata::counts);
+ 		LLMResponse {
++			error_type: failure.as_ref().map(|f| f.0.clone()),
++			error: failure.map(|f| f.1),
+ 			input_tokens: counts.map(|c| c.0),
+ 			output_tokens: counts.map(|c| c.1),
+ 			total_tokens: counts.map(|c| c.2),
+diff --git a/crates/llm/src/types/messages.rs b/crates/llm/src/types/messages.rs
+index 7d14f70..5fda00b 100644
+--- a/crates/llm/src/types/messages.rs
++++ b/crates/llm/src/types/messages.rs
+@@ -605,6 +605,9 @@ impl ResponseType for Response {
+ 			first_token: Default::default(),
+ 			last_token_at: Default::default(),
+ 			inter_chunk_latencies: Default::default(),
++			error_type: None,
++			error: None,
++			stream_complete: false,
+ 		}
+ 	}
+ 
+@@ -1385,6 +1388,9 @@ pub mod typed {
+ 				first_token: Default::default(),
+ 				last_token_at: Default::default(),
+ 				inter_chunk_latencies: Default::default(),
++				error_type: None,
++				error: None,
++				stream_complete: false,
+ 			}
+ 		}
+ 
+diff --git a/crates/llm/src/types/responses.rs b/crates/llm/src/types/responses.rs
+index cddb31a..4c14126 100644
+--- a/crates/llm/src/types/responses.rs
++++ b/crates/llm/src/types/responses.rs
+@@ -810,6 +810,14 @@ impl ResponseType for Response {
+ 			None
+ 		};
+ 
++		let failure = crate::response_error(&self.rest).or_else(|| {
++			matches!(self.status.as_str(), "failed" | "cancelled").then(|| {
++				(
++					format!("response_{}", self.status),
++					format!("provider response {}", self.status),
++				)
++			})
++		});
+ 		LLMResponse {
+ 			input_tokens: self.usage.as_ref().map(|u| u.input_tokens),
+ 			input_image_tokens: None,
+@@ -857,7 +865,7 @@ impl ResponseType for Response {
+ 						.flat_map(|msg| {
+ 							msg.content.iter().filter_map(|c| match c {
+ 								Content::OutputText(t) => Some(t.text.clone()),
+-								_ => None,
++								Content::Refusal(r) => Some(r.refusal.clone()),
+ 							})
+ 						})
+ 						.collect(),
+@@ -869,6 +877,9 @@ impl ResponseType for Response {
+ 			first_token: Default::default(),
+ 			last_token_at: Default::default(),
+ 			inter_chunk_latencies: Default::default(),
++			error_type: failure.as_ref().map(|f| f.0.clone()),
++			error: failure.map(|f| f.1),
++			stream_complete: false,
+ 		}
+ 	}
+ 

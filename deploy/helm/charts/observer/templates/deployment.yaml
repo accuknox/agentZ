@@ -57,6 +57,8 @@ spec:
             - --kubearmor-relay-addr={{ .Values.config.kubearmorRelayAddr }}
             - --hubble-relay-addr={{ .Values.config.hubbleRelayAddr }}
             - "--otlp-trace-grpc-addr=:{{ .Values.service.otlpGrpcPort }}"
+            - "--otlp-app-grpc-addr=:{{ .Values.service.appGrpcPort }}"
+            - --otlp-trace-max-message-size={{ .Values.config.otlpTraceMaxMessageSize | int64 }}
             - --batch-size={{ .Values.config.batchSize }}
             - --flush-interval={{ .Values.config.flushInterval }}
             {{- if .Values.config.logWithSource }}
@@ -68,6 +70,9 @@ spec:
           ports:
             - name: otlp-grpc
               containerPort: {{ .Values.service.otlpGrpcPort }}
+              protocol: TCP
+            - name: app-grpc
+              containerPort: {{ .Values.service.appGrpcPort }}
               protocol: TCP
           env:
             - name: AGENTZ_POSTGRES_DSN

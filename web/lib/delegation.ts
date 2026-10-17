@@ -235,7 +235,7 @@ export async function checkDelegationSelection(
 }
 
 /** delegationTransaction verifies the provider's signed query before loading its server-owned transaction. */
-export async function delegationTransaction(oauthQuery: string, userId: string, sessionId: string) {
+async function delegationTransaction(oauthQuery: string, userId: string, sessionId: string) {
   if (!(await verifyOAuthQueryParams(oauthQuery, getEnv().BETTER_AUTH_SECRET))) {
     throw new Error("This authorization request is invalid or has expired.")
   }

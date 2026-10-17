@@ -174,3 +174,34 @@ test("selection URLs remove old descendants and cursors while preserving unrelat
   assert.equal(url, "/page?from=2026-09-01&sort_by=name&agent_name=b&workflow_name=new")
   assert.equal(search.get("page_token"), "p")
 })
+
+test("Lens sessions stay under their native or external parent on both pages", () => {
+  for (const page of ["lens/traces", "lens/mcp"] as const) {
+    const choices: SelectionHistory = [
+      [scope, page, { agent_name: "native", session_id: "native-session" }],
+      [scope, page, { app_client_id: "claude", session_id: "claude-session" }],
+      [scope, page, { app_client_id: "codex", session_id: "codex-session" }],
+      [scope, page, { app_client_id: "app" }],
+    ]
+    assert.equal(
+      restoreSelection(choices, scope, page, { app_client_id: "claude" }).session_id,
+      "claude-session"
+    )
+    assert.equal(
+      restoreSelection(choices, scope, page, { app_client_id: "codex" }).session_id,
+      "codex-session"
+    )
+    assert.equal(
+      restoreSelection(choices, scope, page, { agent_name: "native" }).session_id,
+      "native-session"
+    )
+    assert.equal(
+      restoreSelection(choices, scope, page, { app_client_id: "app" }).session_id,
+      undefined
+    )
+    assert.equal(
+      restoreSelection(choices, scope, page, { app_client_id: "new" }).session_id,
+      undefined
+    )
+  }
+})

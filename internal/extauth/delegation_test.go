@@ -109,7 +109,9 @@ func TestDelegationCredentialsRequireProjectedResourceRevision(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if ordinary.GetStatus().GetCode() != int32(codes.PermissionDenied) || ordinary.GetOkResponse() != nil {
+					unexpectedResponse := ordinary.GetStatus().GetCode() != int32(codes.PermissionDenied) ||
+						ordinary.GetOkResponse() != nil
+					if unexpectedResponse {
 						t.Fatal("ordinary authorization listener admitted delegated credential access")
 					}
 
@@ -341,13 +343,22 @@ func TestMCPProbeDiscoversBoundedPaginatedCatalog(t *testing.T) {
 				}
 				return
 			}
-			if len(outcome.tools) != test.count || len(outcome.prompts) != test.count || len(outcome.resources) != test.count {
+			incompleteCatalog := len(outcome.tools) != test.count ||
+				len(outcome.prompts) != test.count ||
+				len(outcome.resources) != test.count
+			if incompleteCatalog {
 				t.Fatalf("incomplete catalog: tools=%d prompts=%d resources=%d", len(outcome.tools), len(outcome.prompts), len(outcome.resources))
 			}
 			for i := range test.count {
 				name := fmt.Sprintf("item-%04d", i)
-				if outcome.tools[i].Name != name || outcome.prompts[i] != name || outcome.resources[i] != "test:///"+name {
-					t.Fatalf("catalog identifiers changed: tool=%q prompt=%q resource=%q", outcome.tools[i].Name, outcome.prompts[i], outcome.resources[i])
+				changedIdentifiers := outcome.tools[i].Name != name ||
+					outcome.prompts[i] != name ||
+					outcome.resources[i] != "test:///"+name
+				if changedIdentifiers {
+					t.Fatalf(
+						"catalog identifiers changed: tool=%q prompt=%q resource=%q",
+						outcome.tools[i].Name, outcome.prompts[i], outcome.resources[i],
+					)
 				}
 			}
 		})

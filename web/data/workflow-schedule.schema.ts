@@ -85,7 +85,7 @@ export const workflowScheduleArbitraryJSONSchema = z.codec(
   }
 )
 
-export type WorkflowScheduleInputValue = string | number | boolean | undefined
+type WorkflowScheduleInputValue = z.infer<typeof workflowScheduleFieldSchema>
 
 export type WorkflowInputContract = {
   inputs: WorkflowInputs

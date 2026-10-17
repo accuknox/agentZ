@@ -400,7 +400,9 @@ func (r *Reconciler) reconcileNamespace(ctx context.Context, workspace *agentzv1
 				workspaceMatches := ns.Annotations[agentzv1alpha1.WorkspaceIDAnnotation] == workspace.Spec.WorkspaceID
 				organizationID := ns.Annotations[agentzv1alpha1.TenantOrganizationIDAnnotation]
 				organizationMatches := organizationID == workspace.Spec.OrganizationID
-				if !managed || !workspaceOwned || !organizationOwned || !workspaceMatches || !organizationMatches {
+				identityMatches := managed && workspaceOwned && organizationOwned &&
+					workspaceMatches && organizationMatches
+				if !identityMatches {
 					return errNamespaceConflict
 				}
 				for _, owner := range ns.OwnerReferences {

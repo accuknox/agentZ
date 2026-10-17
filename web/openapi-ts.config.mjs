@@ -18,6 +18,7 @@ const config = {
     },
     {
       name: "zod",
+      dates: { offset: true },
       requests: false,
       "~resolvers": {
         string(ctx) {

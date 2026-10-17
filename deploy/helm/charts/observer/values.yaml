@@ -66,6 +66,8 @@ containerSecurityContext:
 service:
   type: ClusterIP
   otlpGrpcPort: 4317
+  # Reachable only from controller-managed inference and MCP gateway pods.
+  appGrpcPort: 4318
 
 config:
   logLevel: info
@@ -73,6 +75,8 @@ config:
   logWithSource: false
   kubearmorRelayAddr: kubearmor-relay.kubearmor.svc.cluster.local:32767
   hubbleRelayAddr: hubble-relay.kube-system.svc.cluster.local:80
+  # Bytes. Full content exports can exceed the default gRPC message limit.
+  otlpTraceMaxMessageSize: 134217728
   batchSize: 500
   flushInterval: 1s
 

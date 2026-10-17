@@ -276,7 +276,7 @@ export AGENTZ_HOST=agentz.example.com
 export S3_HOST=s3.agentz.example.com
 export ACME_EMAIL=ops@example.com
 export ADMIN_EMAIL=you@example.com
-export AGENTZ_VERSION=v0.28.1
+export AGENTZ_VERSION=v0.30.0
 
 kubectl rollout status deployment/cert-manager-webhook -n cert-manager --timeout=180s
 
@@ -507,6 +507,7 @@ manager:
   config:
     agentImage: public.ecr.aws/k9v9d5v2/agentz/agent:${AGENTZ_VERSION}
     agentInitImage: public.ecr.aws/k9v9d5v2/agentz/init:${AGENTZ_VERSION}
+    delegationImage: public.ecr.aws/k9v9d5v2/agentz/agentgateway:${AGENTZ_VERSION}
     skillsS3Endpoint: http://rustfs-svc.rustfs.svc.cluster.local:9000
 gateway:
   image:
@@ -558,4 +559,75 @@ kubectl wait certificate/agentz-tls -n agentz-system --for=condition=Ready --tim
 kubectl get deployments,pods,ingress -n agentz-system
 ```
 
+The observer receives native agent traces on port 4317. Delegated inference and
+MCP gateways export app traces to port 4318. The chart installs a mandatory
+Cilium ingress policy matching gateway Pods, their ServiceAccounts, and
+controller-managed namespaces. Native agents cannot use this port, and the
+native listener rejects app observations regardless of their attributes. Keep
+`manager.config.delegationTracePort` and `observer.service.appGrpcPort` equal
+when changing this port. Standalone collectors require equivalent isolation;
+the command defaults the app listener to `127.0.0.1:4318`.
+
 Open `https://agentz.example.com/signup` and register with `ADMIN_EMAIL`.
+
+## Upgrade an existing installation
+
+Before the first merge build, create the new public repository in the AWS account
+that owns registry `k9v9d5v2`, and grant the CI identity push access:
+
+```bash
+aws ecr-public create-repository --region us-east-1 --repository-name agentz/agentgateway
+```
+
+After merging and tagging `v0.30.0`, wait for CI to publish both architectures
+for all five images: `agentz`, `web`, `init`, `agent`, and `agentgateway`.
+Use the chart from the same tag. Keep the existing `agentz` Secret and take a
+database backup before upgrading.
+Keep the Agentgateway controller and its CRDs on v1.6.0 as installed above.
+
+Export the release's user-supplied values, then create an image override file.
+Clearing image digests prevents an old digest from taking precedence over a tag.
+
+```bash
+umask 077
+helm get values agentz --namespace agentz-system -o yaml > agentz-current-values.yaml
+cat > agentz-v0.30.0.yaml <<'YAML'
+manager:
+  image: {tag: v0.30.0, digest: ""}
+  config:
+    controllerImage: ""
+    agentImage: public.ecr.aws/k9v9d5v2/agentz/agent:v0.30.0
+    agentInitImage: public.ecr.aws/k9v9d5v2/agentz/init:v0.30.0
+    delegationImage: public.ecr.aws/k9v9d5v2/agentz/agentgateway:v0.30.0
+gateway:
+  image: {tag: v0.30.0, digest: ""}
+  config:
+    agentImage: public.ecr.aws/k9v9d5v2/agentz/agent:v0.30.0
+observer:
+  image: {tag: v0.30.0, digest: ""}
+web:
+  image: {tag: v0.30.0, digest: ""}
+YAML
+
+helm upgrade agentz ./deploy/helm --namespace agentz-system --reset-values \
+  -f agentz-current-values.yaml -f agentz-v0.30.0.yaml \
+  --wait --timeout 10m
+kubectl get deployments,pods,services -n agentz-system
+```
+
+The new chart defaults merge with the exported overrides. Remove the unsupported
+`manager.config.delegationImageTag` key if an earlier values file contains it.
+Custom registries must contain the corresponding release images.
+
+The pre-upgrade Job applies the additive app telemetry migration before updating
+workloads. Keep `migrations.enabled` true unless another process applies migrations.
+Helm rollback does not reverse SQL or restore controller-managed gateway resources.
+The manager rolls delegated inference/MCP gateways onto the patched image; allow
+active streams to finish before upgrading. App telemetry starts with new requests;
+historical requests are not backfilled. Cilium must enforce the observer policy,
+and custom trace collectors must expose the separate app listener on port 4318.
+
+Upgrade the local `agentz` CLI to v0.30.0 and relaunch Claude through it to enable
+native prompt correlation. Existing Agent resources with an explicit `spec.image`
+keep that image; changing Helm's agent image defaults affects new Agents and
+Agents without an explicit image.

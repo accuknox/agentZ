@@ -336,8 +336,10 @@ function TriggerLine({ action, arg, href, pending, title, tone = "neutral" }: Tr
   return (
     <div className="flex min-w-0 items-center gap-2">
       <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-baseline gap-2 leading-tight">
-          <div className={cn("shrink-0 text-sm font-medium", toneClass(tone))}>{title}</div>
+        <div className="flex min-w-0 items-center gap-2 leading-tight">
+          <div className={cn("flex shrink-0 items-center text-sm font-medium", toneClass(tone))}>
+            {title}
+          </div>
           {arg ? (
             href ? (
               <a
@@ -361,7 +363,7 @@ function TriggerLine({ action, arg, href, pending, title, tone = "neutral" }: Tr
   )
 }
 
-function ToolCard({
+export function ToolCard({
   children,
   defaultOpen = false,
   hideDetails = false,
@@ -381,7 +383,7 @@ function ToolCard({
           <button className="min-w-0 flex-1 rounded-sm text-left" type="button">
             <div className="flex items-center">
               <div className="min-w-0 flex-1">
-                <TriggerLine {...{ ...trigger, action: undefined }} />
+                <TriggerLine {...trigger} action={undefined} />
               </div>
               <span className="flex size-6 shrink-0 items-center justify-center text-muted-foreground">
                 {open ? (
@@ -396,7 +398,7 @@ function ToolCard({
         {trigger.action ? <div className="ml-2 shrink-0">{trigger.action}</div> : null}
       </div>
       <CollapsibleContent>
-        <div className="space-y-1 pt-1 pl-3">{children}</div>
+        <div className="flex flex-col gap-1 pt-1 pl-3">{children}</div>
       </CollapsibleContent>
     </Collapsible>
   )
@@ -420,7 +422,13 @@ function ToolDescription({ children }: { children: React.ReactNode }) {
   )
 }
 
-function ToolCode({ code, language = "markdown" }: { code: string; language?: BundledLanguage }) {
+export function ToolCode({
+  code,
+  language = "markdown",
+}: {
+  code: string
+  language?: BundledLanguage
+}) {
   return (
     <div className="max-w-full min-w-0 [&_pre]:p-0 [&_pre]:text-xs" data-language={language}>
       <CodeBlockContent code={code} language={language} showLineNumbers={code.includes("\n")} />

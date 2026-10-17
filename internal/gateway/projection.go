@@ -34,7 +34,10 @@ func (s *Service) delegationReady(ctx context.Context, grant gatewaydb.Delegatio
 	conditionsReady := func(conditions []metav1.Condition, generation int64, names ...string) bool {
 		for _, name := range names {
 			condition := meta.FindStatusCondition(conditions, name)
-			if condition == nil || condition.Status != metav1.ConditionTrue || condition.ObservedGeneration != generation {
+			unreadyCondition := condition == nil ||
+				condition.Status != metav1.ConditionTrue ||
+				condition.ObservedGeneration != generation
+			if unreadyCondition {
 				return false
 			}
 		}
@@ -52,7 +55,9 @@ func (s *Service) delegationReady(ctx context.Context, grant gatewaydb.Delegatio
 	}
 	ready := false
 	for _, parent := range route.Status.Parents {
-		if parent.ParentRef.Name != gwv1.ObjectName(gateway) || parent.ControllerName != "agentgateway.dev/agentgateway" {
+		foreignParent := parent.ParentRef.Name != gwv1.ObjectName(gateway) ||
+			parent.ControllerName != "agentgateway.dev/agentgateway"
+		if foreignParent {
 			continue
 		}
 		ready = conditionsReady(parent.Conditions, route.Generation,
@@ -75,14 +80,18 @@ func (s *Service) delegationReady(ctx context.Context, grant gatewaydb.Delegatio
 	if !conditionsReady(backend.Status.Conditions, backend.Generation, "Accepted") {
 		return errors.New("backend is not accepted")
 	}
+	tracingPolicy := gateway + "-delegation-tracing"
+	if len(policyNames) > 0 {
+		policyNames = append(policyNames, tracingPolicy)
+	}
 	for _, policyName := range policyNames {
 		policy := &agw.AgentgatewayPolicy{}
 		key.Name = policyName
 		if err := s.k8sClient.Get(ctx, key, policy); err != nil {
 			return err
 		}
-		if policy.Annotations["agentz.accuknox.com/selection"] != selection {
-			return errors.New("credential policy selection is not current")
+		if policyName != tracingPolicy && policy.Annotations["agentz.accuknox.com/selection"] != selection {
+			return errors.New("delegated policy selection is not current")
 		}
 		ready = false
 		for _, ancestor := range policy.Status.Ancestors {
@@ -97,7 +106,7 @@ func (s *Service) delegationReady(ctx context.Context, grant gatewaydb.Delegatio
 			}
 		}
 		if !ready {
-			return errors.New("credential policy is not attached")
+			return errors.New("delegated policy is not attached")
 		}
 	}
 	return nil
@@ -136,7 +145,8 @@ func (s *Service) reconcileDelegations(ctx context.Context) error {
 		return err
 	}
 	active := make(map[string]bool, len(grants))
-	for _, row := range grants {
+	for _, projected := range grants {
+		row := projected.DelegationGrant
 		active[row.ID] = true
 		selection := gatewayapi.DelegationCatalog{}
 		if err := json.Unmarshal(row.Selection, &selection); err != nil {
@@ -146,7 +156,8 @@ func (s *Service) reconcileDelegations(ctx context.Context) error {
 		if err != nil {
 			continue
 		}
-		if err := s.projectDelegation(ctx, row, selection, resources); err != nil {
+		err = s.projectDelegation(ctx, row, projected.AppName, projected.AgentKind, selection, resources)
+		if err != nil {
 			slog.ErrorContext(ctx, "project delegation", slog.String("grant", row.ID), slog.Any("error", err))
 		}
 	}
@@ -182,7 +193,7 @@ func (s *Service) reconcileDelegations(ctx context.Context) error {
 	return s.queries.GatewayPruneDelegationTransactions(ctx)
 }
 
-func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.DelegationGrant, selection gatewayapi.DelegationCatalog, resources *delegationResources) error {
+func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.DelegationGrant, appName, agentKind string, selection gatewayapi.DelegationCatalog, resources *delegationResources) error {
 	var objects []ctrlclient.Object
 	ownerEgress := make(map[string][]networkpolicy.Target)
 	var aggregationEgress []ciliumapi.EgressRule
@@ -237,7 +248,10 @@ func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.Delegat
 			fmt.Sprintf("/delegations/%s/models/%d", grant.ID, index),
 			gwv1.PathMatchPathPrefix,
 		)
-		objects = append(objects, backend, route)
+		objects = append(objects, backend, route, delegationTelemetry(
+			grant, appName, agentKind, route, selected.WorkspaceId,
+			"inference", selected.Provider, selected.Uid, selected.Id,
+		))
 		// Keep the owner route intact through the shared private ingress. Only the
 		// owner gateway rewrites it to the provider's API and injects credentials.
 		forward := &agw.AgentgatewayBackend{
@@ -357,7 +371,11 @@ func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.Delegat
 				},
 			}
 			path := "/delegations/" + grant.ID + "/mcp/" + selected.Id
-			objects = append(objects, inner, policy, delegationRoute(selected.Namespace, mcp.GatewayName, innerName, path, gwv1.PathMatchExact))
+			route := delegationRoute(selected.Namespace, mcp.GatewayName, innerName, path, gwv1.PathMatchExact)
+			objects = append(objects, inner, policy, route, delegationTelemetry(
+				grant, appName, agentKind, route, selected.WorkspaceId,
+				"mcp", selected.Connection, selected.Uid, selected.Id,
+			))
 			host := mcp.GatewayName + "." + selected.Namespace + ".svc.cluster.local"
 			outer.Spec.MCP.Targets = append(outer.Spec.MCP.Targets, agw.McpTargetSelector{
 				Name: section,
@@ -555,6 +573,36 @@ func delegationRoute(namespace, gateway, name, path string, matchType gwv1.PathM
 					Kind:  new(gwv1.Kind("AgentgatewayBackend")),
 					Name:  gwv1.ObjectName(name),
 				}}}},
+			}},
+		},
+	}
+}
+
+func delegationTelemetry(grant gatewaydb.DelegationGrant, appName, agentKind string, route *gwv1.HTTPRoute, workspaceID, kind, resourceName, uid, targetID string) *agw.AgentgatewayPolicy {
+	identity := map[string]string{
+		"client_id": grant.ClientID, "app_name": appName, "agent_kind": agentKind,
+		"grant_id": grant.ID, "user_id": grant.UserID,
+		"organization_id": grant.OrganizationID.String, "workspace_id": workspaceID,
+		"resource_kind": kind, "resource_namespace": route.Namespace,
+		"resource_name": resourceName, "resource_uid": uid, "target_id": targetID,
+	}
+	data, _ := json.Marshal(identity)
+	return &agw.AgentgatewayPolicy{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: agw.GroupVersion.String(),
+			Kind:       "AgentgatewayPolicy",
+		},
+		ObjectMeta: metav1.ObjectMeta{Namespace: route.Namespace, Name: route.Name + "-telemetry"},
+		Spec: agw.AgentgatewayPolicySpec{
+			TargetRefs: []agw.LocalPolicyTargetReferenceWithSectionName{{
+				LocalPolicyTargetReference: agw.LocalPolicyTargetReference{
+					Group: "gateway.networking.k8s.io", Kind: "HTTPRoute", Name: gwv1.ObjectName(route.Name),
+				},
+			}},
+			Traffic: &agw.Traffic{Transformation: &agw.TransformationOrConditional{
+				Request: &agw.Transform{Metadata: map[string]agw.CELExpression{
+					"agentz_observability": agw.CELExpression(data),
+				}},
 			}},
 		},
 	}

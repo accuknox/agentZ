@@ -125,8 +125,12 @@ jobs:
           repository: public.ecr.aws/k9v9d5v2/agentz/init
           context: .
           file: Dockerfile.init
+        - name: agentgateway
+          repository: public.ecr.aws/k9v9d5v2/agentz/agentgateway
+          nix-package: agentgatewayImage
         - name: agent
           repository: public.ecr.aws/k9v9d5v2/agentz/agent
+          nix-package: agentImage
         platform:
         - arch: amd64
           runner: ubuntu-24.04
@@ -149,9 +153,9 @@ jobs:
         flavor: latest=false
         tags: type=raw,value=${{ needs.prepare.outputs.tag }}
     - uses: docker/setup-buildx-action@v4.3.0
-      if: matrix.image.name != 'agent'
+      if: matrix.image.nix-package == ''
     - uses: docker/build-push-action@v7.3.0
-      if: matrix.image.name != 'agent'
+      if: matrix.image.nix-package == ''
       id: docker
       with:
         context: ${{ matrix.image.context }}
@@ -162,29 +166,30 @@ jobs:
         cache-from: type=gha,scope=${{ matrix.image.name }}-${{ matrix.platform.arch }}
         cache-to: type=gha,scope=${{ matrix.image.name }}-${{ matrix.platform.arch }},mode=max
     - uses: cachix/install-nix-action@v31.11.1
-      if: matrix.image.name == 'agent'
+      if: matrix.image.nix-package != ''
     - uses: nix-community/cache-nix-action@v7
-      if: matrix.image.name == 'agent'
+      if: matrix.image.nix-package != ''
       with:
-        primary-key: nix-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock') }}-${{ github.sha }}
+        primary-key: nix-${{ matrix.image.name }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock') }}-${{ github.sha }}
         restore-prefixes-first-match: |
-          nix-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock') }}-
-          nix-${{ runner.os }}-${{ runner.arch }}-
+          nix-${{ matrix.image.name }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock') }}-
+          nix-${{ matrix.image.name }}-${{ runner.os }}-${{ runner.arch }}-
     - name: Build and push Nix image
-      if: matrix.image.name == 'agent'
+      if: matrix.image.nix-package != ''
       id: nix
       env:
         IMAGE: ${{ matrix.image.repository }}
+        NIX_PACKAGE: ${{ matrix.image.nix-package }}
       run: |
-        nix build .#agentImage --out-link "$RUNNER_TEMP/agent-image"
+        nix build ".#$NIX_PACKAGE" --out-link "$RUNNER_TEMP/image"
         # Skopeo uploads the Nix archive without creating an intermediate tag.
         # The local build has no source signature to verify.
         nix shell --inputs-from . nixpkgs#skopeo --command \
-          skopeo --insecure-policy copy --digestfile "$RUNNER_TEMP/agent-digest" \
+          skopeo --insecure-policy copy --digestfile "$RUNNER_TEMP/image-digest" \
           --dest-authfile "$HOME/.docker/config.json" \
-          "docker-archive:$RUNNER_TEMP/agent-image" \
+          "docker-archive:$RUNNER_TEMP/image" \
           "docker://$IMAGE@@unknown-digest@@"
-        echo "digest=$(cat "$RUNNER_TEMP/agent-digest")" >> "$GITHUB_OUTPUT"
+        echo "digest=$(cat "$RUNNER_TEMP/image-digest")" >> "$GITHUB_OUTPUT"
     - name: Export digest
       env:
         DIGEST: ${{ steps.docker.outputs.digest || steps.nix.outputs.digest }}
@@ -213,6 +218,8 @@ jobs:
           repository: public.ecr.aws/k9v9d5v2/agentz/web
         - name: init
           repository: public.ecr.aws/k9v9d5v2/agentz/init
+        - name: agentgateway
+          repository: public.ecr.aws/k9v9d5v2/agentz/agentgateway
         - name: agent
           repository: public.ecr.aws/k9v9d5v2/agentz/agent
     steps:

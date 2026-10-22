@@ -2,8 +2,10 @@
 
 ## Prerequisites
 
-- Box with minimum 4 GiB memory, 2 vCPU, 50 GiB disk
+- Box with minimum 4 GiB memory, 2 vCPU, 50 GiB disk. Tested on x86_64, and ARM64.
 - Root access to the box
+
+![](deployment-arch.png)
 
 ## Install K3S
 

@@ -318,7 +318,9 @@ func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.Delegat
 			grant, appName, agentKind, route, selected.WorkspaceId,
 			"inference", selected.Provider, selected.Uid, selected.Id,
 		)
-		route.Annotations = map[string]string{"agentz.accuknox.com/guardrail-workspace-id": selected.WorkspaceId}
+		route.Annotations = map[string]string{
+			"agentz.accuknox.com/guardrail-workspace-id": selected.WorkspaceId,
+		}
 		switch bundle.Guard {
 		case nil:
 			if err := s.k8sClient.Delete(ctx, guardrailPolicy); ctrlclient.IgnoreNotFound(err) != nil {

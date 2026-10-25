@@ -28,8 +28,6 @@ async function UpdateOrganizationSandboxContent({
   if (!tenant.data?.sandbox_capabilities.read) return <AdministrationState kind="forbidden" />
   return (
     <UpdateSandboxPage
-      canCreateGuardrailPolicy={tenant.data.guardrail_policy_capabilities.create}
-      canCreateGuardrailConnection={tenant.data.guardrail_connection_capabilities.create}
       basePath={`/orgs/${scope.organization.slug}/sandboxes`}
       params={Promise.resolve({ name: values.name })}
       providersHref={{

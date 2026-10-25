@@ -1,7 +1,7 @@
 "use client"
 
 import { useId, useState, useTransition } from "react"
-import { ArrowDown, ArrowUp, FlaskConical, LockKeyhole, Plus } from "lucide-react"
+import { ArrowDown, ArrowUp, FlaskConical, LockKeyhole } from "lucide-react"
 import type {
   GuardrailAssignment,
   GuardrailEffective,
@@ -34,19 +34,10 @@ type SubjectGuardrailsProps = {
   settings: GuardrailSettings
   scope: GuardrailActionScope
   onChange: (assignment: GuardrailAssignment) => void
-  onCreatePolicy?: () => void
 }
 
 export function SubjectGuardrails(props: SubjectGuardrailsProps) {
-  const {
-    assignment,
-    disabled = false,
-    policies,
-    settings,
-    scope,
-    onChange,
-    onCreatePolicy,
-  } = props
+  const { assignment, disabled = false, policies, settings, scope, onChange } = props
 
   const idPrefix = useId()
   const [effective, setEffective] = useState<GuardrailEffective>()
@@ -128,21 +119,9 @@ export function SubjectGuardrails(props: SubjectGuardrailsProps) {
       ))}
       <FieldSet className="min-w-0 gap-0">
         <FieldLegend>Additional policies</FieldLegend>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <FieldDescription>Selected policies run in the order shown.</FieldDescription>
-          {onCreatePolicy && !disabled ? (
-            <Button
-              disabled={pending}
-              onClick={onCreatePolicy}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              <Plus data-icon="inline-start" />
-              Create policy
-            </Button>
-          ) : null}
-        </div>
+        <FieldDescription className="mb-3">
+          Selected policies run in the order shown.
+        </FieldDescription>
         {available.length ? (
           available.map((policy) => {
             const selectedIndex = selected.findIndex(

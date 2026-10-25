@@ -4,16 +4,21 @@ import { useId, useState, useTransition } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { flushSync } from "react-dom"
 import { useRouter } from "next/navigation"
-import { Cable, ChevronDown, ChevronsUpDown, CircleAlert, Webhook } from "lucide-react"
+import { ChevronsUpDown, CircleAlert, Save } from "lucide-react"
 import { toast } from "sonner"
-import { GoogleCloud } from "@ridemountainpig/svgl-react"
-import { ProviderIcon } from "@/app/(app)/inference/providers/provider-shared"
+import { GuardrailProviderIcon, guardrailProviderLabels } from "./provider-shared"
 import type { GuardrailConnection, CreateGuardrailConnectionData } from "@/lib/gateway/client"
 import { saveGuardrailConnectionAction, type GuardrailActionScope } from "@/data/guardrail.actions"
 import { zGuardrailConnectionInputWritable } from "@/lib/gateway/client/zod.gen"
 import { LoadingButton } from "@/components/interior/loading-button"
 import { CopyButton } from "@/components/interior/copy-button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -31,7 +36,6 @@ import {
   SheetContent,
   SheetDescription,
   SheetHeader,
-  SheetFooter,
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
@@ -138,18 +142,23 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
         if (!open && !pending) onClose()
       }}
     >
-      <SheetContent size="lg" className="gap-0 overflow-hidden">
+      <SheetContent size="half" className="h-full overflow-y-auto">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
-            <Cable aria-hidden className="size-4 text-muted-foreground" />
+            <GuardrailProviderIcon provider={provider} />
             {title}
           </SheetTitle>
           <SheetDescription className="sr-only">
             Connect a checker service to use in policies.
           </SheetDescription>
+          {readOnly ? (
+            <Badge className="w-fit" variant="secondary">
+              Read only
+            </Badge>
+          ) : null}
         </SheetHeader>
         <form
-          className="flex min-h-0 flex-1 flex-col"
+          className="flex flex-1 flex-col gap-5 px-4 pb-2"
           onSubmit={(event) => {
             event.preventDefault()
             const formData = new FormData(event.currentTarget)
@@ -211,14 +220,9 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
             })
           }}
         >
-          <FieldGroup className="min-h-0 flex-1 overflow-y-auto p-4">
-            {readOnly ? (
-              <Badge variant="secondary" className="w-fit">
-                Read only
-              </Badge>
-            ) : null}
+          <FieldGroup>
             <Field>
-              <FieldLabel htmlFor={`${idPrefix}-guardrail-connection-display`} required>
+              <FieldLabel htmlFor={`${idPrefix}-guardrail-connection-display`} required={!readOnly}>
                 Name
               </FieldLabel>
               <Input
@@ -236,7 +240,10 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor={`${idPrefix}-guardrail-connection-provider`} required>
+              <FieldLabel
+                htmlFor={`${idPrefix}-guardrail-connection-provider`}
+                required={!readOnly}
+              >
                 Service
               </FieldLabel>
               <Select
@@ -258,33 +265,34 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
                 <SelectContent>
                   <SelectGroup>
                     <SelectItem value="OpenAI">
-                      <ProviderIcon provider="openai" className="size-4" />
-                      OpenAI moderation
+                      <GuardrailProviderIcon provider="OpenAI" />
+                      {guardrailProviderLabels.OpenAI}
                     </SelectItem>
                     <SelectItem value="Bedrock">
-                      <ProviderIcon provider="amazon-bedrock" className="size-4" />
-                      AWS Bedrock Guardrails
+                      <GuardrailProviderIcon provider="Bedrock" />
+                      {guardrailProviderLabels.Bedrock}
                     </SelectItem>
                     <SelectItem value="ModelArmor">
-                      <GoogleCloud aria-hidden />
-                      Google Model Armor
+                      <GuardrailProviderIcon provider="ModelArmor" />
+                      {guardrailProviderLabels.ModelArmor}
                     </SelectItem>
                     <SelectItem value="Webhook">
-                      <Webhook aria-hidden />
-                      Custom guardrail webhook
+                      <GuardrailProviderIcon provider="Webhook" />
+                      {guardrailProviderLabels.Webhook}
                     </SelectItem>
                   </SelectGroup>
                 </SelectContent>
               </Select>
-              {provider !== "Webhook" ? (
-                <FieldDescription className="text-xs">
-                  {providerDescriptions[provider]}
-                </FieldDescription>
+              {!connection && provider !== "Webhook" ? (
+                <FieldDescription>{providerDescriptions[provider]}</FieldDescription>
               ) : null}
             </Field>
             {provider === "Webhook" ? (
               <Field>
-                <FieldLabel htmlFor={`${idPrefix}-guardrail-connection-endpoint`} required>
+                <FieldLabel
+                  htmlFor={`${idPrefix}-guardrail-connection-endpoint`}
+                  required={!readOnly}
+                >
                   Webhook service URL
                 </FieldLabel>
                 <Input
@@ -296,14 +304,19 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
                   required
                   type="url"
                 />
-                <FieldDescription className="text-xs">
-                  Root URL without a path or query. Uses /request and /response.
-                </FieldDescription>
+                {!readOnly ? (
+                  <FieldDescription>
+                    Root URL without a path or query. Uses /request and /response.
+                  </FieldDescription>
+                ) : null}
               </Field>
             ) : null}
             {provider === "Bedrock" ? (
               <Field>
-                <FieldLabel htmlFor={`${idPrefix}-guardrail-connection-region`} required>
+                <FieldLabel
+                  htmlFor={`${idPrefix}-guardrail-connection-region`}
+                  required={!readOnly}
+                >
                   AWS region
                 </FieldLabel>
                 <input name="region" type="hidden" value={region} />
@@ -352,9 +365,11 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
                     </Command>
                   </PopoverContent>
                 </Popover>
-                <FieldDescription className="text-xs">
-                  AgentZ will list the guardrails available in this region.
-                </FieldDescription>
+                {!readOnly ? (
+                  <FieldDescription>
+                    We list the guardrails available in this region.
+                  </FieldDescription>
+                ) : null}
               </Field>
             ) : null}
             <div className="flex flex-col gap-4" key={provider}>
@@ -408,9 +423,7 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
                           name="sessionToken"
                           type="password"
                         />
-                        <FieldDescription className="text-xs">
-                          Optional for temporary credentials.
-                        </FieldDescription>
+                        <FieldDescription>Optional for temporary credentials.</FieldDescription>
                       </Field>
                     </>
                   ) : (
@@ -443,7 +456,7 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
                         />
                       )}
                       {provider !== "OpenAI" ? (
-                        <FieldDescription className="text-xs">
+                        <FieldDescription>
                           {provider === "Webhook"
                             ? "Optional. Sent only to this checker. Caller authorization is not forwarded."
                             : "Use supported Google ADC credential JSON."}
@@ -454,8 +467,8 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
                 </>
               ) : null}
             </div>
-            {provider === "Webhook" ? (
-              <FieldDescription className="text-xs">
+            {provider === "Webhook" && !readOnly ? (
+              <FieldDescription>
                 Implement the{" "}
                 <a
                   className="underline underline-offset-4"
@@ -468,61 +481,69 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
                 .
               </FieldDescription>
             ) : null}
-            <details
-              className="group/details pt-4"
-              open={detailsOpen}
+            <Accordion
+              collapsible
+              type="single"
+              value={detailsOpen ? "details" : ""}
               onInvalidCapture={() => flushSync(() => setDetailsOpen(true))}
-              onToggle={(event) => setDetailsOpen(event.currentTarget.open)}
+              onValueChange={(value) => setDetailsOpen(value === "details")}
             >
-              <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-medium marker:hidden [&::-webkit-details-marker]:hidden">
-                Details
-                <ChevronDown
-                  aria-hidden
-                  className="size-4 text-muted-foreground transition-transform group-open/details:rotate-180 motion-reduce:transition-none"
-                />
-              </summary>
-              <FieldGroup className="gap-4 pt-4">
-                <Field>
-                  <FieldLabel htmlFor={`${idPrefix}-guardrail-connection-name`} required>
-                    Connection ID
-                  </FieldLabel>
-                  <div className="flex items-center gap-1">
-                    <Input
-                      autoComplete="off"
-                      disabled={readOnly || pending}
-                      id={`${idPrefix}-guardrail-connection-name`}
-                      maxLength={63}
-                      name="name"
-                      onChange={(event) => setConnectionID(event.currentTarget.value)}
-                      pattern={"[a-z0-9]([a-z0-9\\-]*[a-z0-9])?"}
-                      readOnly={connection !== undefined}
-                      required
-                      value={connectionID ?? ""}
-                    />
-                    {connection ? (
-                      <CopyButton content={connection.name} label="Copy connection ID" />
-                    ) : null}
-                  </div>
-                  <FieldDescription className="text-xs">
-                    Lowercase letters, numbers, and hyphens. Permanent once created.
-                  </FieldDescription>
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor={`${idPrefix}-guardrail-connection-description`}>
-                    Description <span className="font-normal text-muted-foreground">Optional</span>
-                  </FieldLabel>
-                  <Textarea
-                    defaultValue={connection?.description}
-                    disabled={readOnly || pending}
-                    id={`${idPrefix}-guardrail-connection-description`}
-                    maxLength={2048}
-                    name="description"
-                  />
-                </Field>
-              </FieldGroup>
-            </details>
+              <AccordionItem value="details">
+                <AccordionTrigger>Details</AccordionTrigger>
+                <AccordionContent forceMount hidden={!detailsOpen}>
+                  <FieldGroup>
+                    <Field>
+                      <FieldLabel
+                        htmlFor={`${idPrefix}-guardrail-connection-name`}
+                        required={!readOnly}
+                      >
+                        Connection ID
+                      </FieldLabel>
+                      <div className="flex items-center gap-1">
+                        <Input
+                          autoComplete="off"
+                          disabled={readOnly || pending}
+                          id={`${idPrefix}-guardrail-connection-name`}
+                          maxLength={63}
+                          name="name"
+                          onChange={(event) => setConnectionID(event.currentTarget.value)}
+                          pattern={"[a-z0-9]([a-z0-9\\-]*[a-z0-9])?"}
+                          readOnly={connection !== undefined}
+                          required
+                          value={connectionID ?? ""}
+                        />
+                        {connection ? (
+                          <CopyButton content={connection.name} label="Copy connection ID" />
+                        ) : null}
+                      </div>
+                      {!readOnly ? (
+                        <FieldDescription>
+                          Lowercase letters, numbers, and hyphens. Permanent once created.
+                        </FieldDescription>
+                      ) : null}
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor={`${idPrefix}-guardrail-connection-description`}>
+                        Description
+                      </FieldLabel>
+                      <Textarea
+                        defaultValue={connection?.description}
+                        disabled={readOnly || pending}
+                        id={`${idPrefix}-guardrail-connection-description`}
+                        maxLength={2048}
+                        name="description"
+                      />
+                    </Field>
+                  </FieldGroup>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
             {connection?.status.state === "Error" && connection.status.message ? (
-              <p className="text-sm text-muted-foreground">{connection.status.message}</p>
+              <Alert variant="destructive">
+                <CircleAlert aria-hidden />
+                <AlertTitle>Connection error</AlertTitle>
+                <AlertDescription>{connection.status.message}</AlertDescription>
+              </Alert>
             ) : null}
             {error ? (
               <Alert variant="destructive">
@@ -532,18 +553,14 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
               </Alert>
             ) : null}
           </FieldGroup>
-          <SheetFooter className="shrink-0 border-t">
-            <div className="flex justify-end gap-2">
-              <Button disabled={pending} onClick={onClose} type="button" variant="ghost">
-                {readOnly ? "Close" : "Cancel"}
-              </Button>
-              {!readOnly ? (
-                <LoadingButton pending={pending} pendingLabel="Saving..." type="submit">
-                  {connection ? "Save changes" : "Add connection"}
-                </LoadingButton>
-              ) : null}
+          {!readOnly ? (
+            <div className="flex justify-end">
+              <LoadingButton pending={pending} pendingLabel="Saving..." type="submit">
+                <Save data-icon="inline-start" />
+                {connection ? "Save changes" : "Add connection"}
+              </LoadingButton>
             </div>
-          </SheetFooter>
+          ) : null}
         </form>
       </SheetContent>
     </Sheet>

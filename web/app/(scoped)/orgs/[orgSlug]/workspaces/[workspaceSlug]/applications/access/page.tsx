@@ -11,7 +11,9 @@ import { ApplicationGuardrailAccess } from "./applications"
 
 export const metadata = { title: "Application access guardrails" }
 
-export default function ApplicationAccessPage(props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/applications/access">) {
+export default function ApplicationAccessPage(
+  props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/applications/access">
+) {
   return (
     <Suspense fallback={<AdministrationLoadingState />}>
       <ApplicationAccessContent {...props} />
@@ -19,7 +21,9 @@ export default function ApplicationAccessPage(props: PageProps<"/orgs/[orgSlug]/
   )
 }
 
-async function ApplicationAccessContent(props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/applications/access">) {
+async function ApplicationAccessContent(
+  props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/applications/access">
+) {
   const { params } = props
 
   await connection()
@@ -30,7 +34,6 @@ async function ApplicationAccessContent(props: PageProps<"/orgs/[orgSlug]/worksp
     <main className="flex min-w-0 flex-1 flex-col gap-6">
       <RememberRoute />
       <AdministrationPageHeader
-        description="Guardrails for applications and CLI agents with approved model access in this workspace."
         scope={{
           kind: "workspace",
           organizationName: result.organization.name,

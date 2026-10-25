@@ -468,7 +468,12 @@ function RunActions(props: RunActionsProps) {
   )
 }
 
-function runGraphHref(basePath: string, agentName: string, workflowName: string, runName: string): Route {
+function runGraphHref(
+  basePath: string,
+  agentName: string,
+  workflowName: string,
+  runName: string
+): Route {
   const params = new URLSearchParams()
   params.set("agent_name", agentName)
   params.set("workflow_name", workflowName)
@@ -573,7 +578,7 @@ function DeleteRunDialog(props: DeleteRunDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent>
+      <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>Delete {item.name}?</DialogTitle>
           <DialogDescription>

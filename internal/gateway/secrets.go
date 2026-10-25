@@ -719,10 +719,14 @@ func (s *Service) secretFromRequest(ns string, tenant *agentzv1alpha1.Tenant, ag
 			runtimeRecord.Scopes = append([]string{}, (*req.Oauth.Credentials.Scopes)...)
 		}
 		if req.Oauth.Credentials.Registration != nil {
-			runtimeRecord.Registration = copyJSONObject(*req.Oauth.Credentials.Registration)
+			for key, value := range *req.Oauth.Credentials.Registration {
+				runtimeRecord.Registration[key] = value
+			}
 		}
 		if req.Oauth.Credentials.Revocation != nil {
-			runtimeRecord.Revocation = copyJSONObject(*req.Oauth.Credentials.Revocation)
+			for key, value := range *req.Oauth.Credentials.Revocation {
+				runtimeRecord.Revocation[key] = value
+			}
 		}
 
 		token := oauth2.Token{}
@@ -874,14 +878,6 @@ func (s *Service) deleteAgentSecretResources(ctx context.Context, namespace, age
 		}
 	}
 	return nil
-}
-
-func copyJSONObject(src gatewayapi.JSONObject) map[string]any {
-	out := make(map[string]any, len(src))
-	for key, value := range src {
-		out[key] = value
-	}
-	return out
 }
 
 // syncAgentEnv updates the Agent CR spec.env by adding placeholder entries

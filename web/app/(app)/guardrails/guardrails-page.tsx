@@ -108,8 +108,7 @@ export async function GuardrailsPage(props: GuardrailsPageProps) {
   if (section === "settings" && (workspaceId || !canAdminister))
     return <AdministrationState kind="forbidden" />
   const needsConnections =
-    connectionCapabilities.read &&
-    (section === "connections" || (section === "policies" && view[1] !== undefined))
+    connectionCapabilities.read && (section === "connections" || section === "policies")
   const needsPolicies = section !== "connections"
   const needsSettings =
     section === "settings" ||
@@ -131,9 +130,23 @@ export async function GuardrailsPage(props: GuardrailsPageProps) {
   const connections = connectionResult?.data?.items ?? []
   const policies = policyResult?.data?.items ?? []
   const settings = settingsResult?.data
-  let content: ReactNode = <GuardrailConnectionList connections={connections} scope={scope} />
+  let content: ReactNode = (
+    <GuardrailConnectionList
+      canCreate={connectionCapabilities.create}
+      connections={connections}
+      scope={scope}
+    />
+  )
   if (section === "policies") {
-    content = <GuardrailPolicyList basePath={basePath} policies={policies} scope={scope} />
+    content = (
+      <GuardrailPolicyList
+        canCreate={policyCapabilities.create}
+        canCreateConnection={connectionCapabilities.create}
+        connections={connections}
+        policies={policies}
+        scope={scope}
+      />
+    )
     if (view[1]) {
       const selectedScope = searchParams.scope
       const policy = policies.find(
@@ -144,7 +157,7 @@ export async function GuardrailsPage(props: GuardrailsPageProps) {
       if (view[1] !== "new" && !policy) notFound()
       content = (
         <>
-          <GuardrailPolicyList basePath={basePath} policies={policies} scope={scope} />
+          {content}
           <PolicyEditor
             basePath={basePath}
             canCreateConnection={connectionCapabilities.create}

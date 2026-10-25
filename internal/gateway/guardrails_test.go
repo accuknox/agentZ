@@ -54,7 +54,8 @@ func TestOrganizationSettingsRequireAdministratorAndUseMappedBearerScope(t *test
 		service := sandboxTestService(t, queries)
 		router := chi.NewRouter()
 		gatewayapi.HandlerWithOptions(service, gatewayapi.ChiServerOptions{
-			BaseRouter: router, Middlewares: []gatewayapi.MiddlewareFunc{sandboxTestAuth},
+			BaseRouter:  router,
+			Middlewares: []gatewayapi.MiddlewareFunc{sandboxTestAuth},
 		})
 		body := `{"mandatoryPolicies":[],"retentionDays":30}`
 		request := httptest.NewRequest(http.MethodPut, "/api/guardrails/settings", strings.NewReader(body))
@@ -82,16 +83,20 @@ func TestGuardrailHTTPHandlersUseAuthorizedClaimsForSettingsAndAudit(t *testing.
 	}
 	queries := &sandboxQueries{
 		workspace: gatewaydb.Workspace{
-			ID: testWorkspaceID, OrganizationID: testOrganizationID,
-			Namespace: testWorkspaceNS, State: gatewaydb.WorkspaceStateReady,
+			ID:             testWorkspaceID,
+			OrganizationID: testOrganizationID,
+			Namespace:      testWorkspaceNS,
+			State:          gatewaydb.WorkspaceStateReady,
 		},
 	}
 	actions := []gatewaydb.PermissionAction{gatewaydb.PermissionActionRead, gatewaydb.PermissionActionCreate}
 	for _, action := range actions {
 		queries.permissions = append(queries.permissions, gatewaydb.GatewayResolvePermissionsRow{
-			Active: true, WorkspaceID: pgtype.Text{String: testWorkspaceID, Valid: true},
+			Active:      true,
+			WorkspaceID: pgtype.Text{String: testWorkspaceID, Valid: true},
 			Resource: gatewaydb.NullPermissionResource{
-				PermissionResource: gatewaydb.PermissionResourceGuardrailPolicy, Valid: true,
+				PermissionResource: gatewaydb.PermissionResourceGuardrailPolicy,
+				Valid:              true,
 			},
 			Action: gatewaydb.NullPermissionAction{PermissionAction: action, Valid: true},
 		})
@@ -110,7 +115,8 @@ func TestGuardrailHTTPHandlersUseAuthorizedClaimsForSettingsAndAudit(t *testing.
 	}
 	router := chi.NewRouter()
 	gatewayapi.HandlerWithOptions(service, gatewayapi.ChiServerOptions{
-		BaseRouter: router, Middlewares: []gatewayapi.MiddlewareFunc{sandboxTestAuth},
+		BaseRouter:  router,
+		Middlewares: []gatewayapi.MiddlewareFunc{sandboxTestAuth},
 	})
 	request := httptest.NewRequest(http.MethodGet, "/api/guardrails/settings", nil)
 	request.Header.Set("X-AgentZ-Workspace-ID", testWorkspaceID)

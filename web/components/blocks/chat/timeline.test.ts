@@ -154,3 +154,101 @@ test("native errors preserve partial output and ignore forged guardrail metadata
     assert.ok(!error?.body.includes("forged"))
   }
 })
+
+test("repeated guardrail rejections recover from the first blocked turn", () => {
+  const error: AssistantMessage["error"] = {
+    name: "APIError",
+    data: {
+      isRetryable: false,
+      statusCode: 422,
+      message: 'Unprocessable Entity: Blocked by guardrail "first": Edit your message.',
+    },
+  }
+  const messages = [
+    user,
+    { ...assistant, error },
+    steer,
+    { ...assistant, id: "assistant2", parentID: steer.id, error },
+  ]
+  const input = {
+    messages,
+    partsByMessage: parts,
+    textByPart: {},
+    isBusy: false,
+    isRetrying: false,
+  }
+  const { rows } = projectTimeline(input)
+  const errors = rows.filter((row) => row.type === "assistant-error")
+  assert.equal(errors.length, 2)
+  assert.deepEqual(
+    errors.map((row) => row.revertMessageID),
+    [user.id, user.id]
+  )
+
+  const { rows: recovered, reverted } = projectTimeline({
+    ...input,
+    revertMessageID: errors.at(-1)?.revertMessageID,
+  })
+  assert.deepEqual(recovered, [])
+  assert.deepEqual(
+    reverted.map((message) => message.id),
+    [user.id, steer.id]
+  )
+})
+
+test("provider validation errors do not offer guardrail recovery", () => {
+  const { rows } = projectTimeline({
+    messages: [
+      user,
+      {
+        ...assistant,
+        error: {
+          name: "APIError",
+          data: { isRetryable: false, statusCode: 422, message: "Invalid model parameters" },
+        },
+      },
+    ],
+    partsByMessage: parts,
+    textByPart: {},
+    isBusy: false,
+    isRetrying: false,
+  })
+  const error = rows.find((row) => row.type === "assistant-error")
+  assert.equal(error?.revertMessageID, undefined)
+})
+
+test("a successful request clears an earlier guardrail recovery target", () => {
+  const error: AssistantMessage["error"] = {
+    name: "APIError",
+    data: {
+      isRetryable: false,
+      statusCode: 422,
+      message: 'Blocked by guardrail "first": Edit your message.',
+    },
+  }
+  const messages = [
+    user,
+    { ...assistant, error },
+    steer,
+    { ...assistant, id: "assistant2", parentID: steer.id, time: { created: 4, completed: 5 } },
+  ]
+  const input = {
+    messages,
+    partsByMessage: parts,
+    textByPart: {},
+    isBusy: false,
+    isRetrying: false,
+  }
+  assert.equal(projectTimeline(input).guardrailMessageID, undefined)
+
+  const nextUser = { ...user, id: "user3", time: { created: 6 } }
+  const { guardrailMessageID } = projectTimeline({
+    ...input,
+    messages: [
+      ...messages,
+      nextUser,
+      { ...assistant, id: "assistant3", parentID: nextUser.id, error },
+    ],
+  })
+  assert.equal(guardrailMessageID, nextUser.id)
+})

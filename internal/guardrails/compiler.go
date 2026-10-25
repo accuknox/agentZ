@@ -250,11 +250,14 @@ func (b *Bundle) compile(namespace string) error {
 				return fmt.Errorf("check %q can modify content after mandatory organization checks; use audit mode or a non-mutating detector", check.ID)
 			}
 		}
-		explanation := check.SafeExplanation
-		if explanation == "" {
-			explanation = "Edit your request to comply with this policy and try again."
+		label := fmt.Sprintf("Blocked by guardrail %q", check.Name)
+		if resolved.Policy != nil {
+			label += fmt.Sprintf(" in policy %q", resolved.Policy.Spec.DisplayName)
 		}
-		message := check.Name + ": " + explanation
+		message := label
+		if check.SafeExplanation != "" {
+			message += ": " + check.SafeExplanation
+		}
 		request := agw.PromptguardRequest{
 			CustomResponse: &agw.CustomResponse{StatusCode: 422, Message: &message},
 		}
@@ -424,7 +427,10 @@ func (b *Bundle) ValidateStreaming() error {
 			return fmt.Errorf("check %q masks output, which native checked streaming cannot apply; use audit mode or denial", check.ID)
 		}
 		if resolved.Connection != nil && (resolved.Connection.Spec.Provider == "Bedrock" || resolved.Connection.Spec.Provider == "Webhook") {
-			return fmt.Errorf("check %q uses a provider that can modify output, which native checked streaming cannot apply; use audit mode or a non-mutating detector", check.ID)
+			return fmt.Errorf(
+				"check %q uses a provider that can modify output, which native checked streaming cannot apply; use audit mode or a non-mutating detector",
+				check.ID,
+			)
 		}
 	}
 	return nil
@@ -553,9 +559,7 @@ func boundedPatternWidth(pattern *syntax.Regexp) (int, bool) {
 		return width, true
 	case syntax.OpCharClass, syntax.OpAnyCharNotNL, syntax.OpAnyChar:
 		return 4, true
-	case syntax.OpCapture:
-		return boundedPatternWidth(pattern.Sub[0])
-	case syntax.OpQuest:
+	case syntax.OpCapture, syntax.OpQuest:
 		return boundedPatternWidth(pattern.Sub[0])
 	case syntax.OpRepeat:
 		if pattern.Max < 0 {

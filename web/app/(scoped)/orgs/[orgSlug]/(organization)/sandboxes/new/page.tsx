@@ -31,8 +31,6 @@ async function NewOrganizationSandboxContent({
     <>
       <RememberRoute />
       <NewSandboxPage
-        canCreateGuardrailPolicy={tenant.data.guardrail_policy_capabilities.create}
-        canCreateGuardrailConnection={tenant.data.guardrail_connection_capabilities.create}
         basePath={`/orgs/${scope.organization.slug}/sandboxes`}
         providersHref={{
           pathname: `/orgs/${scope.organization.slug}/inference/providers`,

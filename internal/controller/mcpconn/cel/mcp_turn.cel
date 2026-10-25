@@ -1,5 +1,6 @@
-
-					default(metadata.agentz_observability.agent_kind, "") == "codex"
-						? default(json(request.body).params._meta["x-codex-turn-metadata"].turn_id, "")
-						: ""
-				
+default(metadata.agentz_observability.agent_kind, "") == "codex"
+  ? default(
+      json(request.body).params._meta["x-codex-turn-metadata"].turn_id,
+      ""
+    )
+  : ""

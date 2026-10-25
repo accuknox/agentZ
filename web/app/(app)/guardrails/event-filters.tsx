@@ -49,6 +49,7 @@ export function GuardrailEventFilters(props: GuardrailEventFiltersProps) {
     const next = { ...current, [field]: value || undefined }
     const params = new URLSearchParams(searchParams)
     params.delete("cursor")
+    params.delete("token_stack")
     for (const name of names) {
       const value = next[name]
       if (!value) {

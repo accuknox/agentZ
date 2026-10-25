@@ -1,8 +1,8 @@
 "use client"
 
 import Link from "next/link"
+import type { Route } from "next"
 import type { ComponentProps } from "react"
-import { useRouter } from "next/navigation"
 import {
   ArrowLeft,
   CheckCircle2,
@@ -17,6 +17,7 @@ import { createColumnHelper, getCoreRowModel, useReactTable } from "@tanstack/re
 import type { GuardrailEvent, ListGuardrailEventsResponse } from "@/lib/gateway/client"
 import { AdminDataGrid } from "@/components/admin-data-grid"
 import { AdministrationState } from "@/components/administration"
+import { TokenTablePagination } from "@/components/table-pagination"
 import { Badge } from "@/components/ui/badge"
 import {
   Accordion,
@@ -55,7 +56,6 @@ export function GuardrailEvents(props: GuardrailEventsProps) {
   "use no memo"
   const { data, basePath, action, traceId } = props
 
-  const router = useRouter()
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
   const table = useReactTable({
     data: data.events,
@@ -116,23 +116,12 @@ export function GuardrailEvents(props: GuardrailEventsProps) {
       }),
     ],
   })
-  const next = new URLSearchParams()
-  if (data.next_cursor) next.set("cursor", data.next_cursor)
-  if (action) next.set("action", action)
-  if (traceId) next.set("trace_id", traceId)
-
   return (
     <>
       <GuardrailEventFilters action={action} traceId={traceId} />
       <AdminDataGrid
         ariaLabel="Guardrail evaluations"
-        emptyState={
-          <AdministrationState
-            description="No evaluations match these filters. Events appear after processing."
-            kind="empty"
-            title="No guardrail events"
-          />
-        }
+        emptyState={<AdministrationState kind="empty" title="No guardrail events" />}
         layout={{
           occurred_at: { minWidth: 180 },
           subject: { minWidth: 160 },
@@ -142,15 +131,13 @@ export function GuardrailEvents(props: GuardrailEventsProps) {
           trace_id: { minWidth: 200 },
         }}
         pagination={
-          data.next_cursor ? (
-            <div className="flex justify-end px-4">
-              <Button asChild variant="outline">
-                <Link href={`${basePath}/events?${next.toString()}`}>Next events</Link>
-              </Button>
-            </div>
-          ) : undefined
+          <TokenTablePagination
+            hasNextPage={Boolean(data.next_cursor)}
+            nextPageToken={data.next_cursor ?? ""}
+            pageTokenKey="cursor"
+          />
         }
-        onRowActivate={(event) => router.push(`${basePath}/events/${encodeURIComponent(event.id)}`)}
+        rowHref={(event) => `${basePath}/events/${encodeURIComponent(event.id)}` as Route}
         rowAriaLabel={(event) =>
           `View ${verdicts[event.evaluation.action].label.toLowerCase()} evaluation from ${formatTimestamp(event.occurred_at)}`
         }

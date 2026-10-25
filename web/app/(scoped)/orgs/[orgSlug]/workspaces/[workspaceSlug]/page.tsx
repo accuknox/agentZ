@@ -23,9 +23,6 @@ export default async function WorkspacePage({
       <AdministrationState
         kind={destination ? "empty" : "forbidden"}
         title={destination ? "No agents available" : undefined}
-        description={
-          destination ? "Use the sidebar to open the workspace pages you can access." : undefined
-        }
       />
     </div>
   )

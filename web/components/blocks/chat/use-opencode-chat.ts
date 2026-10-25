@@ -66,6 +66,7 @@ type UseOpencodeChatResult = {
   isPending: boolean
   hasEarlierMessages: boolean
   isLoadingEarlier: boolean
+  isRefreshingHistory: boolean
   loadEarlier: () => Promise<void>
   messages: Message[]
   partsByMessage: Record<string, Part[]>
@@ -83,7 +84,11 @@ type UseOpencodeChatResult = {
 }
 
 const idleSessionStatus: SessionStatus = { type: "idle" }
-function deriveSessionIsBusy(messages: Message[], sessionStatus: SessionStatus | undefined, session: Session | undefined): boolean {
+function deriveSessionIsBusy(
+  messages: Message[],
+  sessionStatus: SessionStatus | undefined,
+  session: Session | undefined
+): boolean {
   // OpenCode owns the lifecycle. Message state only bridges bootstrap before
   // the first status snapshot arrives.
   if (sessionStatus) return sessionStatus.type !== "idle"
@@ -140,7 +145,11 @@ export function buildStore(sessionID: string, records: SessionMessageRecord[]) {
   return store
 }
 
-function mergeHistoryPage(store: OpencodeChatStore, sessionID: string, records: SessionMessageRecord[]) {
+function mergeHistoryPage(
+  store: OpencodeChatStore,
+  sessionID: string,
+  records: SessionMessageRecord[]
+) {
   const known = new Set((store.message[sessionID] ?? []).map((message) => message.id))
   const messages = [...(store.message[sessionID] ?? [])]
   const part = { ...store.part }
@@ -214,7 +223,11 @@ function visibleSessionIDs(sessions: Session[], sessionID: string) {
   return result
 }
 
-function firstVisibleRequest<T extends { sessionID: string }>(requests: Record<string, T[]>, sessions: Session[], sessionID?: string) {
+function firstVisibleRequest<T extends { sessionID: string }>(
+  requests: Record<string, T[]>,
+  sessions: Session[],
+  sessionID?: string
+) {
   if (!sessionID) return undefined
 
   for (const id of visibleSessionIDs(sessions, sessionID)) {
@@ -435,7 +448,12 @@ export function sessionInfoQueryOptions(agentName: string, workspaceId: string, 
 }
 
 // Creation, stream events and revert responses all publish the same metadata.
-export async function updateSessionInfo(queryClient: QueryClient, agentName: string, workspaceId: string, info: Session) {
+export async function updateSessionInfo(
+  queryClient: QueryClient,
+  agentName: string,
+  workspaceId: string,
+  info: Session
+) {
   const { queryKey } = sessionInfoQueryOptions(agentName, workspaceId, info.id)
   await queryClient.cancelQueries({ queryKey, exact: true })
   queryClient.setQueryData(queryKey, (current) => {
@@ -497,7 +515,12 @@ export function sessionDiffQueryOptions(agentName: string, workspaceId: string, 
   })
 }
 
-function sessionMessagesQueryOptions(agentName: string, workspaceId: string, sessionID: string, directory: string) {
+function sessionMessagesQueryOptions(
+  agentName: string,
+  workspaceId: string,
+  sessionID: string,
+  directory: string
+) {
   return infiniteQueryOptions({
     initialPageParam: { limit: 20 } satisfies SessionMessagePageParam,
     queryFn: async ({
@@ -613,7 +636,11 @@ function sessionStatusQueryOptions(agentName: string, workspaceId: string, direc
   })
 }
 
-export function useOpencodeChat(agentName: string, workspaceId: string, sessionID?: string): UseOpencodeChatResult {
+export function useOpencodeChat(
+  agentName: string,
+  workspaceId: string,
+  sessionID?: string
+): UseOpencodeChatResult {
   const queryClient = useQueryClient()
   const [liveStore, setLiveStore] = useState<{
     store: OpencodeChatStore
@@ -811,8 +838,12 @@ export function useOpencodeChat(agentName: string, workspaceId: string, sessionI
       }))
     }
 
-    // Idle reconciles metadata even when the upstream omitted an update event.
-    if (refreshSession) void refetchSession()
+    // Sending after a revert removes the reverted messages on the server.
+    // Reconcile history too so a missed removal event cannot resurrect them.
+    if (refreshSession) {
+      void refetchSession()
+      void refetchHistory()
+    }
   })
 
   useEffect(() => {
@@ -1009,6 +1040,7 @@ export function useOpencodeChat(agentName: string, workspaceId: string, sessionI
     isBusy: deriveSessionIsBusy(messages, sessionStatus, session.data ?? undefined),
     hasEarlierMessages: history.hasNextPage,
     isLoadingEarlier: history.isFetchingNextPage,
+    isRefreshingHistory: history.isFetching && !history.isFetchingNextPage,
     isPending: Boolean(sessionID) && (session.isPending || history.isPending),
     loadEarlier,
     messages,

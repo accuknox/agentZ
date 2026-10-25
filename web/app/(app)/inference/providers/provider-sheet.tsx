@@ -1870,11 +1870,6 @@ export function ProviderSheet({
                         <p className="text-sm font-medium text-success">
                           Connected to {providerKindLabels[kind]}
                         </p>
-                        <p className="text-sm text-muted-foreground">
-                          {provider
-                            ? "Your subscription is ready to use."
-                            : "Choose which models Agents may use, then add the provider."}
-                        </p>
                       </div>
                     </div>
                   ) : (
@@ -2203,9 +2198,6 @@ export function ProviderSheet({
               </Alert>
             )}
             <div className="flex items-center justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                Cancel
-              </Button>
               <LoadingButton
                 pending={pending}
                 type="submit"
@@ -2227,7 +2219,7 @@ export function ProviderSheet({
           onCloseAction={() => setEditingModel(undefined)}
         />
         <Dialog open={Boolean(impact)} onOpenChange={(next) => !next && setImpact(undefined)}>
-          <DialogContent>
+          <DialogContent showCloseButton={false}>
             <DialogHeader>
               <DialogTitle>Update shared Pool contracts?</DialogTitle>
               <DialogDescription>

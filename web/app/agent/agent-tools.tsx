@@ -357,7 +357,7 @@ export function AgentTools({
           if (!open && !pending) setDeleting(undefined)
         }}
       >
-        <DialogContent className="gap-5 sm:max-w-lg">
+        <DialogContent className="gap-5 sm:max-w-lg" showCloseButton={false}>
           <DialogHeader className="pr-6">
             <DialogTitle className="leading-snug wrap-anywhere">
               Delete {deleting?.tool.name}?
@@ -897,9 +897,6 @@ function ToolUpload({
           ) : null}
         </form>
         <SheetFooter className="shrink-0 flex-row justify-end border-t">
-          <Button disabled={pending || reading} onClick={close} variant="outline">
-            Cancel
-          </Button>
           <LoadingButton
             pending={pending || reading}
             disabled={pending || reading || !!fileError}
@@ -912,7 +909,7 @@ function ToolUpload({
         </SheetFooter>
         {/* Nesting keeps discard clicks from dismissing the editor. */}
         <Dialog open={discard} onOpenChange={setDiscard}>
-          <DialogContent className="sm:max-w-sm">
+          <DialogContent className="sm:max-w-sm" showCloseButton={false}>
             <DialogHeader>
               <DialogTitle>Discard changes?</DialogTitle>
               <DialogDescription>

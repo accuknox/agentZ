@@ -47,12 +47,12 @@ const (
 
 // chatTextContent adapts text parts for providers requiring string content.
 //
-//go:embed chat-text-content.cel
+//go:embed chat_text_content.cel
 var chatTextContent agentgatewayv1alpha1.CELExpression
 
 // retryableResponse excludes content denials from retries and Pool eviction.
 //
-//go:embed retryable-response.cel
+//go:embed retryable_response.cel
 var retryableResponse agentgatewayv1alpha1.CELExpression
 
 // CredentialPath returns the OpenBao path for one provider's credential kind.
@@ -296,7 +296,8 @@ func RenderInferenceAuthPolicy(namespace, backend string, section *gwv1.SectionN
 	return &agentgatewayv1alpha1.AgentgatewayPolicy{
 		APIVersion: agentgatewayv1alpha1.GroupVersion.String(),
 		Kind:       "AgentgatewayPolicy",
-		Name:       name, Namespace: namespace,
+		Name:       name,
+		Namespace:  namespace,
 		Spec: agentgatewayv1alpha1.AgentgatewayPolicySpec{
 			TargetRefs: []agentgatewayv1alpha1.LocalPolicyTargetReferenceWithSectionName{{
 				Group:       "agentgateway.dev",

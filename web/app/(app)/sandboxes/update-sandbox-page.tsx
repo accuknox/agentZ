@@ -8,19 +8,13 @@ import { listSkills } from "@/lib/gateway/client"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { listInferenceProvidersCachedQuery } from "@/data/inference-provider.queries"
 import { listInferencePoolsCachedQuery } from "@/data/inference-pool.queries"
-import {
-  listGuardrailPoliciesQuery,
-  getGuardrailSettingsQuery,
-  listGuardrailConnectionsQuery,
-} from "@/data/guardrail.queries"
+import { listGuardrailPoliciesQuery, getGuardrailSettingsQuery } from "@/data/guardrail.queries"
 import { SandboxWizard } from "./wizard"
 import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CircleAlert } from "lucide-react"
 
 type UpdateSandboxPageProps = {
-  canCreateGuardrailPolicy: boolean
-  canCreateGuardrailConnection: boolean
   basePath: string
   params: Promise<{
     name: string
@@ -44,22 +38,13 @@ export async function generateMetadata(props: generateMetadataProps): Promise<Me
 }
 
 export default async function UpdateSandboxPage(props: UpdateSandboxPageProps) {
-  const {
-    canCreateGuardrailPolicy,
-    canCreateGuardrailConnection,
-    basePath,
-    params,
-    providersHref,
-    workspaceId,
-  } = props
+  const { basePath, params, providersHref, workspaceId } = props
 
   const { name } = await params
 
   return (
     <Suspense fallback={<UpdateSandboxSkeleton />}>
       <UpdateSandboxContent
-        canCreateGuardrailPolicy={canCreateGuardrailPolicy}
-        canCreateGuardrailConnection={canCreateGuardrailConnection}
         basePath={basePath}
         name={name}
         providersHref={providersHref}
@@ -70,8 +55,6 @@ export default async function UpdateSandboxPage(props: UpdateSandboxPageProps) {
 }
 
 type UpdateSandboxContentProps = {
-  canCreateGuardrailPolicy: boolean
-  canCreateGuardrailConnection: boolean
   basePath: string
   name: string
   providersHref: UrlObject
@@ -79,14 +62,7 @@ type UpdateSandboxContentProps = {
 }
 
 async function UpdateSandboxContent(props: UpdateSandboxContentProps) {
-  const {
-    canCreateGuardrailPolicy,
-    canCreateGuardrailConnection,
-    basePath,
-    name,
-    providersHref,
-    workspaceId,
-  } = props
+  const { basePath, name, providersHref, workspaceId } = props
 
   const sandboxResult = listSandboxesCachedQuery({ limit: 200 }, workspaceId)
   const mcpResult = listMcpConnectionsCachedQuery(
@@ -102,27 +78,16 @@ async function UpdateSandboxContent(props: UpdateSandboxContentProps) {
   const poolsResult = workspaceId
     ? listInferencePoolsCachedQuery(workspaceId)
     : Promise.resolve({ pools: [], error: undefined })
-  const [
-    sandboxes,
-    mcpConnections,
-    skills,
-    providers,
-    pools,
-    policies,
-    guardrailSettings,
-    guardrailConnections,
-  ] = await Promise.all([
-    sandboxResult,
-    mcpResult,
-    skillsResult,
-    providersResult,
-    poolsResult,
-    listGuardrailPoliciesQuery(workspaceId),
-    getGuardrailSettingsQuery(workspaceId),
-    canCreateGuardrailPolicy
-      ? listGuardrailConnectionsQuery(workspaceId)
-      : Promise.resolve({ data: { items: [] }, error: undefined }),
-  ])
+  const [sandboxes, mcpConnections, skills, providers, pools, policies, guardrailSettings] =
+    await Promise.all([
+      sandboxResult,
+      mcpResult,
+      skillsResult,
+      providersResult,
+      poolsResult,
+      listGuardrailPoliciesQuery(workspaceId),
+      getGuardrailSettingsQuery(workspaceId),
+    ])
 
   if (sandboxes.error || !sandboxes.sandboxes) {
     return (
@@ -133,13 +98,12 @@ async function UpdateSandboxContent(props: UpdateSandboxContentProps) {
     )
   }
 
-  if (policies.error || guardrailSettings.error || guardrailConnections.error)
+  if (policies.error || guardrailSettings.error)
     return (
       <AdministrationState
         description={
           policies.error?.message ??
           guardrailSettings.error?.message ??
-          guardrailConnections.error?.message ??
           "Guardrail configuration is unavailable."
         }
         kind="failed"
@@ -181,10 +145,7 @@ async function UpdateSandboxContent(props: UpdateSandboxContentProps) {
       <SandboxWizard
         key={wizardKey}
         mode="update"
-        canCreateGuardrailPolicy={canCreateGuardrailPolicy}
-        canCreateGuardrailConnection={canCreateGuardrailConnection}
         initialGuardrails={sandbox.guardrails}
-        guardrailConnections={guardrailConnections.data.items}
         guardrailPolicies={policies.data.items}
         guardrailSettings={guardrailSettings.data}
         providersHref={providersHref}

@@ -93,7 +93,7 @@ export function RoleDeleteDialog({
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent>
+      <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>Delete {name}?</DialogTitle>
           <DialogDescription>

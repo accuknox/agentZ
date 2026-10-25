@@ -21,14 +21,14 @@ export function SidebarLinks({ showEnterpriseUpgrade }: { showEnterpriseUpgrade:
           variant="secondary"
           size="icon"
           className="rounded-md"
-          aria-label="AgentZ links"
+          aria-label="Help and resources"
           title={showEnterpriseUpgrade ? "GitHub and Enterprise" : "Star on GitHub"}
         >
           <Zap aria-hidden="true" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        aria-label="AgentZ links"
+        aria-label="Help and resources"
         side={isMobile ? "bottom" : "right"}
         align={isMobile ? "end" : "start"}
         sideOffset={8}

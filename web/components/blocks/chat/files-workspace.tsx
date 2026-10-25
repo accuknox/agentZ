@@ -798,7 +798,7 @@ function WorkspaceBody({
                     <div className="flex size-12 items-center justify-center rounded-2xl bg-muted">
                       <Code2 className="size-5" />
                     </div>
-                    Select a file to start editing
+                    No file selected
                   </div>
                 )}
               </div>
@@ -1011,7 +1011,7 @@ function WorkspaceBody({
         />
       ) : null}
       <Dialog open={confirmation !== null} onOpenChange={(open) => !open && setConfirmation(null)}>
-        <DialogContent>
+        <DialogContent showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>{confirmation?.title}</DialogTitle>
             <DialogDescription>{confirmation?.description}</DialogDescription>
@@ -1933,7 +1933,7 @@ function EntryDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && !pending && onClose()}>
-      <DialogContent>
+      <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>{label}</DialogTitle>
           <DialogDescription>

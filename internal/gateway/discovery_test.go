@@ -469,8 +469,10 @@ func TestGuardrailDiscoveryServiceAccountSignsTokenBeforeResourceRequest(t *test
 	}
 	privateKey := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
 	payload, err := json.Marshal(map[string]string{
-		"type": "service_account", "client_email": "guardrail-reader@demo-project.iam.gserviceaccount.com",
-		"private_key": string(privateKey), "token_uri": "https://oauth2.googleapis.com/token",
+		"type":         "service_account",
+		"client_email": "guardrail-reader@demo-project.iam.gserviceaccount.com",
+		"private_key":  string(privateKey),
+		"token_uri":    "https://oauth2.googleapis.com/token",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -566,9 +568,13 @@ func TestGuardrailDiscoveryRejectsMalformedProviderProjects(t *testing.T) {
 
 func TestGuardrailDiscoveryWorkspaceHeaderMustMatchClaims(t *testing.T) {
 	fixture := newGuardrailDiscoveryFixture(t, "Bedrock", false, false, true)
-	ctx := context.WithValue(t.Context(), authContextKey{}, requestAuth{claims: &gatewayClaims{
-		UserID: testUserID, OrganizationID: testOrganizationID, WorkspaceID: "different-workspace",
-	}})
+	ctx := context.WithValue(t.Context(), authContextKey{}, requestAuth{
+		claims: &gatewayClaims{
+			UserID:         testUserID,
+			OrganizationID: testOrganizationID,
+			WorkspaceID:    "different-workspace",
+		},
+	})
 	ctx = context.WithValue(ctx, gatewayapi.GatewayBearerScopes, []string{"guardrail_connection.read"}) //nolint:staticcheck
 	request := httptest.NewRequest(
 		http.MethodPost,

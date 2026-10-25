@@ -225,9 +225,8 @@ export function InferenceProviderTable({
         ariaLabel="Inference providers"
         emptyState={
           <AdministrationState
-            description="Add provider credentials and choose which models Agents may use."
             kind={canCreate ? "welcome" : "empty"}
-            title="Let's add your first inference provider"
+            title="No inference providers"
           />
         }
         layout={layout}
@@ -380,7 +379,7 @@ function DeleteProviderDialog({
         setOpen(nextOpen)
       }}
     >
-      <DialogContent>
+      <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>Delete {provider.display_name}?</DialogTitle>
           <DialogDescription>

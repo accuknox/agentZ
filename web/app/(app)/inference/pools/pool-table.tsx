@@ -280,9 +280,8 @@ export function InferencePoolTable({
           ariaLabel="Inference pools"
           emptyState={
             <AdministrationState
-              description="Create a Pool and set the order in which models handle requests."
               kind={canCreate ? "welcome" : "empty"}
-              title="Let's create your first pool"
+              title="No inference pools"
             />
           }
           layout={layout}
@@ -422,7 +421,7 @@ function DeletePoolDialog({
         setOpen(next)
       }}
     >
-      <DialogContent>
+      <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>Delete {pool.display_name}?</DialogTitle>
           <DialogDescription>

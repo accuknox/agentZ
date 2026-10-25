@@ -520,14 +520,6 @@ export function PoolSheet({
           </div>
           <SheetFooter className="border-t">
             <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={pending}
-                onClick={() => onOpenChange(false)}
-              >
-                Cancel
-              </Button>
               <LoadingButton pending={pending} type="submit">
                 <Save data-icon="inline-start" />
                 {pool ? "Save changes" : "Create Pool"}
@@ -536,7 +528,7 @@ export function PoolSheet({
           </SheetFooter>
         </form>
         <Dialog open={Boolean(impact)} onOpenChange={(next) => !next && setImpact(undefined)}>
-          <DialogContent>
+          <DialogContent showCloseButton={false}>
             <DialogHeader>
               <DialogTitle>Update a Pool used by Sandboxes?</DialogTitle>
               <DialogDescription>

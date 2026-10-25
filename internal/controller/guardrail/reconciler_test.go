@@ -30,12 +30,16 @@ func TestConnectionDeletionRemovesAllProjectionsBeforeCredentials(t *testing.T) 
 	}
 	connection := &api.GuardrailConnection{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "detector", Namespace: "source", UID: "detector-uid",
+			Name:       "detector",
+			Namespace:  "source",
+			UID:        "detector-uid",
 			Finalizers: []string{api.GuardrailConnectionFinalizer},
 		},
 		Spec: api.GuardrailConnectionSpec{
-			DisplayName: "Detector", Provider: "Webhook",
-			Endpoint: "https://guardrail.example", SecretName: "credentials",
+			DisplayName: "Detector",
+			Provider:    "Webhook",
+			Endpoint:    "https://guardrail.example",
+			SecretName:  "credentials",
 		},
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(connection).Build()
@@ -59,8 +63,9 @@ func TestConnectionDeletionRemovesAllProjectionsBeforeCredentials(t *testing.T) 
 		}
 		secret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
-				Namespace: namespace, Name: name,
-				Labels: external.Spec.Target.Template.Metadata.Labels,
+				Namespace: namespace,
+				Name:      name,
+				Labels:    external.Spec.Target.Template.Metadata.Labels,
 			},
 		}
 		if err := c.Create(t.Context(), secret); err != nil {
@@ -69,8 +74,9 @@ func TestConnectionDeletionRemovesAllProjectionsBeforeCredentials(t *testing.T) 
 	}
 	foreign := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "consumer-one", Name: "unrelated",
-			Labels: map[string]string{guardrails.ConnectionUIDLabel: "other-connection-uid"},
+			Namespace: "consumer-one",
+			Name:      "unrelated",
+			Labels:    map[string]string{guardrails.ConnectionUIDLabel: "other-connection-uid"},
 		},
 	}
 	if err := c.Create(t.Context(), foreign); err != nil {

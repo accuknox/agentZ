@@ -83,11 +83,7 @@ export function WorkspaceTable({
     <AdminDataGrid
       ariaLabel="Workspaces"
       emptyState={
-        <AdministrationState
-          description="Create a Workspace with its own Agents, Sandboxes, secrets, and access rules."
-          kind={canCreate ? "welcome" : "empty"}
-          title="Let's create your first workspace"
-        />
+        <AdministrationState kind={canCreate ? "welcome" : "empty"} title="No workspaces" />
       }
       layout={layout}
       pagination={<TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />}

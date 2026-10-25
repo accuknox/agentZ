@@ -173,7 +173,7 @@ function CreateAPIKeyDialog({
   }
 
   return (
-    <DialogContent className="sm:max-w-md">
+    <DialogContent className="sm:max-w-md" showCloseButton={!!state.key}>
       <DialogHeader>
         <DialogTitle>{state.key ? "Copy your API key" : "Create API key"}</DialogTitle>
         <DialogDescription>
@@ -203,11 +203,6 @@ function CreateAPIKeyDialog({
           </FieldGroup>
           <DialogFooter>
             <CopyButton content={state.key.secret} label="Copy" />
-            <DialogClose asChild>
-              <Button type="button" variant="destructive">
-                Close
-              </Button>
-            </DialogClose>
           </DialogFooter>
         </>
       ) : (

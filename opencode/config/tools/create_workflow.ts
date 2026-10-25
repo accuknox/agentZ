@@ -133,12 +133,10 @@ If you have not yet exercised the task successfully, keep working instead of cal
 If the service reports "workflow_name" already in use, surface the conflict. Do not rename the workflow automatically.
 `.trim()
 
-type CreateWorkflowToolInput = CreateWorkflowRequest
-
 export default tool({
   description,
   args: createWorkflowArgs,
-  async execute(args: CreateWorkflowToolInput, context) {
+  async execute(args: CreateWorkflowRequest, context) {
     const agentName = workflowAgentName()
     if (!agentName) {
       context.metadata({
@@ -156,9 +154,7 @@ export default tool({
       },
     })
 
-    const bodyInput = args satisfies CreateWorkflowRequest
-
-    const bodyResult = zCreateWorkflowBody.safeParse(bodyInput)
+    const bodyResult = zCreateWorkflowBody.safeParse(args)
     if (!bodyResult.success) {
       const issues = bodyResult.error.issues.map((issue) => ({
         path: issue.path.length > 0 ? issue.path.join(".") : "request",

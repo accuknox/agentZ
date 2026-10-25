@@ -156,15 +156,7 @@ export function McpTable({
       <AdminDataGrid
         ariaLabel="MCP connections"
         emptyState={
-          <AdministrationState
-            description={
-              canCreate
-                ? "Connect an MCP server, then choose which of its tools Agents may use."
-                : "There are no MCP connections available in this scope."
-            }
-            kind={canCreate ? "welcome" : "empty"}
-            title="Let's connect your tools"
-          />
+          <AdministrationState kind={canCreate ? "welcome" : "empty"} title="No MCP connections" />
         }
         layout={columnLayout}
         pagination={

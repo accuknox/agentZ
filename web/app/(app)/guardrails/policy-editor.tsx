@@ -20,7 +20,8 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { useRouter } from "next/navigation"
-import { Cable, ChevronDown, Plus, Regex, BrickWallShield } from "lucide-react"
+import { ChevronDown, CircleAlert, Plus, Regex, Save, BrickWallShield } from "lucide-react"
+import { GuardrailProviderIcon } from "./provider-shared"
 import { toast } from "sonner"
 import type {
   GuardrailCheck,
@@ -29,11 +30,18 @@ import type {
   GuardrailPolicyInput,
 } from "@/lib/gateway/client"
 import { saveGuardrailPolicyAction, type GuardrailActionScope } from "@/data/guardrail.actions"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CopyButton } from "@/components/interior/copy-button"
 import { LoadingButton } from "@/components/interior/loading-button"
-import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -48,7 +56,6 @@ import {
   Sheet,
   SheetContent,
   SheetDescription,
-  SheetFooter,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
@@ -90,10 +97,11 @@ export function PolicyEditor(props: PolicyEditorProps) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState("")
   const [validationVisible, setValidationVisible] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(false)
   const readOnly = policy !== undefined && !policy.canModify
-  let description = "Configure checks for model input and output."
-  if (policy?.mandatory) description = "Required by the organization."
-  if (readOnly) description = "Read only."
+  let title = "Add guardrail policy"
+  if (policy) title = "Edit guardrail policy"
+  if (readOnly) title = "Guardrail policy"
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
@@ -121,15 +129,18 @@ export function PolicyEditor(props: PolicyEditorProps) {
   }
 
   function addCheck(connection?: GuardrailConnection) {
+    // Bedrock can mistake trusted system instructions for prompt injection.
     const check: GuardrailCheck = {
       id: crypto.randomUUID(),
       name: "",
       phase: "input",
-      scopes: connection ? ["instructions", "conversation"] : ["conversation"],
+      scopes:
+        connection && connection.provider !== "Bedrock"
+          ? ["instructions", "conversation"]
+          : ["conversation"],
       mode: "enforce",
       failureMode: "closed",
       action: "deny",
-      safeExplanation: "Revise the request to comply with this policy and submit again.",
       ...(connection
         ? { connection: { scope: connection.scope, name: connection.name } }
         : { regex: { patterns: [""] } }),
@@ -145,20 +156,26 @@ export function PolicyEditor(props: PolicyEditorProps) {
         if (!open) close()
       }}
     >
-      <SheetContent size="lg" className="gap-0 overflow-hidden">
+      <SheetContent size="half" className="h-full overflow-y-auto">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <BrickWallShield aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-            <span className="min-w-0 truncate" title={policy?.displayName}>
-              {policy?.displayName ?? "New policy"}
-            </span>
+            {title}
           </SheetTitle>
-          <SheetDescription className={policy?.mandatory || readOnly ? undefined : "sr-only"}>
-            {description}
+          <SheetDescription className="sr-only">
+            Configure checks for model input and output.
           </SheetDescription>
+          {policy?.mandatory || readOnly ? (
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              {readOnly ? <Badge variant="secondary">Read only</Badge> : null}
+              {policy?.mandatory ? (
+                <Badge variant="secondary">Required by the organization</Badge>
+              ) : null}
+            </div>
+          ) : null}
         </SheetHeader>
         <form
-          className="flex min-h-0 min-w-0 flex-1 flex-col gap-5 overflow-y-auto p-4"
+          className="flex flex-1 flex-col gap-5 px-4 pb-2"
           id={`${id}-form`}
           onSubmit={(event) => {
             event.preventDefault()
@@ -199,6 +216,8 @@ export function PolicyEditor(props: PolicyEditorProps) {
         >
           {policy?.status.state === "Error" && policy.status.message ? (
             <Alert variant="destructive">
+              <CircleAlert aria-hidden />
+              <AlertTitle>Policy error</AlertTitle>
               <AlertDescription>{policy.status.message}</AlertDescription>
             </Alert>
           ) : null}
@@ -252,7 +271,8 @@ export function PolicyEditor(props: PolicyEditorProps) {
                           key={`${connection.scope}/${connection.name}`}
                           onSelect={() => addCheck(connection)}
                         >
-                          <Cable /> {connection.displayName}
+                          <GuardrailProviderIcon provider={connection.provider} />
+                          {connection.displayName}
                         </DropdownMenuItem>
                       ))}
                     </DropdownMenuGroup>
@@ -323,71 +343,76 @@ export function PolicyEditor(props: PolicyEditorProps) {
               </DndContext>
             ) : (
               <p className="rounded-lg border-2 border-dashed border-muted-foreground/50 p-4 text-center text-sm text-muted-foreground">
-                Add a check to get started.
+                No checks
               </p>
             )}
           </section>
-          <details
-            className="group/details"
-            onInvalidCapture={(event) => {
-              event.currentTarget.open = true
-            }}
+          <Accordion
+            collapsible
+            type="single"
+            value={detailsOpen ? "details" : ""}
+            onInvalidCapture={() => flushSync(() => setDetailsOpen(true))}
+            onValueChange={(value) => setDetailsOpen(value === "details")}
           >
-            <summary className="flex cursor-pointer list-none items-center gap-2 py-1 text-sm text-muted-foreground transition-colors marker:hidden hover:text-foreground motion-reduce:transition-none [&::-webkit-details-marker]:hidden">
-              <ChevronDown className="size-3.5 transition-transform group-open/details:rotate-180 motion-reduce:transition-none" />{" "}
-              Details
-            </summary>
-            <FieldGroup className="mt-3">
-              <Field>
-                <FieldLabel htmlFor={`${id}-description`}>Description</FieldLabel>
-                <Textarea
-                  disabled={readOnly || pending}
-                  id={`${id}-description`}
-                  maxLength={2048}
-                  onChange={(event) => setDraft({ ...draft, description: event.target.value })}
-                  rows={2}
-                  value={draft.description ?? ""}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor={policy ? undefined : `${id}-id`}>Policy ID</FieldLabel>
-                {policy ? (
-                  <div className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-                    <code className="truncate">{draft.name}</code>
-                    <CopyButton content={draft.name} label="Copy policy ID" />
-                  </div>
-                ) : (
-                  <Input
-                    disabled={pending}
-                    id={`${id}-id`}
-                    maxLength={63}
-                    onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-                    pattern={"[a-z0-9]([a-z0-9\\-]*[a-z0-9])?"}
-                    required
-                    value={draft.name}
-                  />
-                )}
-              </Field>
-            </FieldGroup>
-          </details>
-          {error ? <FieldError>{error}</FieldError> : null}
-        </form>
-        <SheetFooter className="shrink-0 flex-row justify-end border-t">
-          <Button disabled={pending} onClick={close} type="button" variant="ghost">
-            {readOnly ? "Close" : "Cancel"}
-          </Button>
-          {!readOnly ? (
-            <LoadingButton
-              disabled={!draft.checks.length}
-              form={`${id}-form`}
-              pending={pending}
-              pendingLabel="Saving..."
-              type="submit"
-            >
-              Save policy
-            </LoadingButton>
+            <AccordionItem value="details">
+              <AccordionTrigger>Details</AccordionTrigger>
+              <AccordionContent forceMount hidden={!detailsOpen}>
+                <FieldGroup>
+                  <Field>
+                    <FieldLabel htmlFor={`${id}-description`}>Description</FieldLabel>
+                    <Textarea
+                      disabled={readOnly || pending}
+                      id={`${id}-description`}
+                      maxLength={2048}
+                      onChange={(event) => setDraft({ ...draft, description: event.target.value })}
+                      rows={2}
+                      value={draft.description ?? ""}
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor={policy ? undefined : `${id}-id`}>Policy ID</FieldLabel>
+                    {policy ? (
+                      <div className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+                        <code className="truncate">{draft.name}</code>
+                        <CopyButton content={draft.name} label="Copy policy ID" />
+                      </div>
+                    ) : (
+                      <Input
+                        disabled={pending}
+                        id={`${id}-id`}
+                        maxLength={63}
+                        onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+                        pattern={"[a-z0-9]([a-z0-9\\-]*[a-z0-9])?"}
+                        required
+                        value={draft.name}
+                      />
+                    )}
+                  </Field>
+                </FieldGroup>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+          {error ? (
+            <Alert variant="destructive">
+              <CircleAlert aria-hidden />
+              <AlertTitle>Policy not saved</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           ) : null}
-        </SheetFooter>
+          {!readOnly ? (
+            <div className="flex justify-end">
+              <LoadingButton
+                disabled={!draft.checks.length}
+                pending={pending}
+                pendingLabel="Saving..."
+                type="submit"
+              >
+                <Save data-icon="inline-start" />
+                {policy ? "Save changes" : "Add policy"}
+              </LoadingButton>
+            </div>
+          ) : null}
+        </form>
         {addingConnection ? (
           <ConnectionSheet
             scope={scope}

@@ -44,7 +44,7 @@ import { InputGroupAddon } from "@/components/ui/input-group"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useChatModelStorage } from "@/components/blocks/chat/use-chat-model-storage"
 import { useFileWorkspace } from "@/components/blocks/chat/file-workspace-store"
 import { NewSessionGreeting } from "@/components/blocks/chat/new-session-greeting"
@@ -68,7 +68,7 @@ import {
   projectTimeline,
   type TimelineRow,
 } from "@/components/blocks/chat/timeline"
-import { opencodeErrorMessage } from "@/components/blocks/chat/errors"
+import { describeMessageError, opencodeErrorMessage } from "@/components/blocks/chat/errors"
 import { ToolEntries } from "@/components/blocks/chat/tool-parts"
 import {
   type ChatAttachment,
@@ -565,6 +565,7 @@ export default function Chat({
     blocked,
     hasEarlierMessages,
     isLoadingEarlier,
+    isRefreshingHistory,
     loadError,
     isBusy,
     isPending,
@@ -993,8 +994,9 @@ export default function Chat({
   // Reverting stages the rolled-back turn's prompt in the composer to edit/resend.
   const handleRevert = useCallback(
     (messageID: string) => {
-      composerRef.current?.setMessage(composerMessageFor(messageID))
-      revertMessage(messageID)
+      revertMessage(messageID, {
+        onSuccess: () => composerRef.current?.setMessage(composerMessageFor(messageID)),
+      })
     },
     [composerMessageFor, revertMessage]
   )
@@ -1141,7 +1143,7 @@ export default function Chat({
     [replyPermission]
   )
 
-  const { reverted, rows } = useMemo(
+  const { guardrailMessageID, reverted, rows } = useMemo(
     () =>
       projectTimeline({
         isBusy,
@@ -1153,6 +1155,69 @@ export default function Chat({
       }),
     [isBusy, messages, partsByMessage, session?.revert?.messageID, sessionStatus?.type, textByPart]
   )
+  // The first loaded rejection may itself include an older blocked prompt.
+  // Find its preceding turn so automatic recovery removes the original cause.
+  const guardrailHistoryPending =
+    guardrailMessageID !== undefined &&
+    hasEarlierMessages &&
+    guardrailMessageID === messages.find((message) => message.role === "user")?.id
+  useEffect(() => {
+    if (guardrailHistoryPending && !isLoadingEarlier && !loadError) void loadEarlier()
+  }, [guardrailHistoryPending, isLoadingEarlier, loadError, loadEarlier])
+  const revertedAssistant = messages.findLast(
+    (message) =>
+      message.role === "assistant" &&
+      message.parentID === session?.revert?.messageID &&
+      message.error
+  )
+  const revertedError =
+    revertedAssistant?.role === "assistant"
+      ? describeMessageError(revertedAssistant.error)
+      : undefined
+  const recoveredError = revertedError?.guardrail ? revertedError : undefined
+  const handledGuardrail = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    if (
+      !sessionId ||
+      !guardrailMessageID ||
+      guardrailHistoryPending ||
+      isRefreshingHistory ||
+      isBusy ||
+      isStopping ||
+      revertPending ||
+      sendState
+    )
+      return
+    const error = rows.findLast(
+      (row) => row.type === "assistant-error" && row.revertMessageID === guardrailMessageID
+    )
+    if (!error || error.type !== "assistant-error") return
+    const key = `${sessionId}:${error.key}`
+    if (handledGuardrail.current === key) return
+    // Restore each rejected turn once. An explicit restore in the revert dock
+    // must not be immediately undone by another render of the same error.
+    handledGuardrail.current = key
+    const message = composerMessageFor(guardrailMessageID)
+    revertMessage(guardrailMessageID, {
+      onSuccess: () => {
+        const draft = composerRef.current?.getMessage()
+        // Preserve anything typed while the rejection and revert were in flight.
+        if (!draft?.text && !draft?.files.length) composerRef.current?.setMessage(message)
+      },
+    })
+  }, [
+    sessionId,
+    guardrailMessageID,
+    guardrailHistoryPending,
+    isRefreshingHistory,
+    isBusy,
+    isStopping,
+    revertPending,
+    sendState,
+    rows,
+    composerMessageFor,
+    revertMessage,
+  ])
   // SSE can render a prompt before either its submission or queue response.
   // Reconcile against visible rows so a header arriving before its parts does
   // not remove the pending bubble before the server bubble can replace it.
@@ -1482,6 +1547,15 @@ export default function Chat({
             onUpdate={updateInput}
             onRestore={restoreInput}
           />
+          {recoveredError ? (
+            <Alert className="mb-3" variant="destructive">
+              <CircleAlert aria-hidden="true" />
+              <AlertTitle>{recoveredError.label}</AlertTitle>
+              {recoveredError.body ? (
+                <AlertDescription>{recoveredError.body}</AlertDescription>
+              ) : null}
+            </Alert>
+          ) : null}
           {isBusy ? <TypingIndicator className="mb-2 self-start" /> : null}
           <div className={cn(styles.shell, "relative w-full pb-9")}>
             <PromptInput
@@ -2247,12 +2321,15 @@ function TimelineRowView({
       return (
         <Alert className="mx-auto w-fit max-w-full" variant="destructive">
           <CircleAlert aria-hidden="true" />
-          <AlertDescription>
-            <span>
-              <span className="font-medium">{row.label}:</span> {row.body}
-              {row.partialOutput ? " The response above is incomplete." : null}
-            </span>
-          </AlertDescription>
+          <AlertTitle>{row.label}</AlertTitle>
+          {row.body || row.partialOutput ? (
+            <AlertDescription>
+              <p>
+                {row.body}
+                {row.partialOutput ? " The response above is incomplete." : null}
+              </p>
+            </AlertDescription>
+          ) : null}
         </Alert>
       )
     }

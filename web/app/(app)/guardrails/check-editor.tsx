@@ -4,10 +4,17 @@ import { useId, useState } from "react"
 import { flushSync } from "react-dom"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { ArrowDown, ArrowUp, Cable, ChevronDown, GripVertical, Regex, Trash2 } from "lucide-react"
+import { ArrowDown, ArrowUp, ChevronDown, GripVertical, Regex, Trash2 } from "lucide-react"
 import type { GuardrailCheck, GuardrailConnection } from "@/lib/gateway/client"
 import type { GuardrailActionScope } from "@/data/guardrail.actions"
 import { GuardrailProviderResources } from "./provider-resources"
+import { GuardrailProviderIcon, guardrailProviderLabels } from "./provider-shared"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -73,7 +80,9 @@ export function CheckEditor(props: CheckEditorProps) {
     (item) => item.name === check.connection?.name && item.scope === check.connection.scope
   )
   const defaultScopes =
-    check.phase === "output" || check.regex ? ["conversation"] : ["instructions", "conversation"]
+    check.phase === "output" || check.regex || connection?.provider === "Bedrock"
+      ? ["conversation"]
+      : ["instructions", "conversation"]
   const customScopes =
     check.scopes.length !== defaultScopes.length ||
     check.scopes.some((scope) => !defaultScopes.includes(scope))
@@ -116,7 +125,11 @@ export function CheckEditor(props: CheckEditorProps) {
               aria-hidden
               className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
             >
-              {check.regex ? <Regex className="size-4" /> : <Cable className="size-4" />}
+              {check.regex ? (
+                <Regex className="size-4" />
+              ) : connection ? (
+                <GuardrailProviderIcon provider={connection.provider} />
+              ) : null}
             </span>
           ) : (
             <Button
@@ -131,7 +144,11 @@ export function CheckEditor(props: CheckEditorProps) {
               onClick={(event) => event.stopPropagation()}
             >
               <span className="flex group-hover/summary:opacity-0 group-focus-visible/grip:opacity-0 group-aria-pressed/grip:opacity-0">
-                {check.regex ? <Regex /> : <Cable />}
+                {check.regex ? (
+                  <Regex />
+                ) : connection ? (
+                  <GuardrailProviderIcon provider={connection.provider} />
+                ) : null}
               </span>
               <GripVertical className="absolute opacity-0 group-hover/summary:opacity-100 group-focus-visible/grip:opacity-100 group-aria-pressed/grip:opacity-100" />
             </Button>
@@ -163,26 +180,14 @@ export function CheckEditor(props: CheckEditorProps) {
                   {check.regex ? "Block" : "Enforce"}
                 </Badge>
               ) : null}
-              {check.mode === "audit" ? (
-                <Badge className="text-[11px]" variant="secondary">
-                  Audit
-                </Badge>
-              ) : null}
+              {check.mode === "audit" ? <Badge variant="secondary">Audit</Badge> : null}
               {check.mode === "enforce" && check.action === "mask" ? (
-                <Badge className="text-[11px]" variant="secondary">
-                  Mask
-                </Badge>
+                <Badge variant="secondary">Mask</Badge>
               ) : null}
               {check.mode === "enforce" && check.failureMode === "open" ? (
-                <Badge className="text-[11px]" variant="warning">
-                  Fail open
-                </Badge>
+                <Badge variant="warning">Fail open</Badge>
               ) : null}
-              {customScopes ? (
-                <Badge className="text-[11px]" variant="secondary">
-                  Custom scope
-                </Badge>
-              ) : null}
+              {customScopes ? <Badge variant="secondary">Custom scope</Badge> : null}
             </span>
           </span>
           <ChevronDown
@@ -205,7 +210,7 @@ export function CheckEditor(props: CheckEditorProps) {
           ) : null}
         </summary>
         <div className="pt-1 pb-4 motion-safe:group-open/check:animate-in motion-safe:group-open/check:duration-150 motion-safe:group-open/check:fade-in motion-safe:group-open/check:slide-in-from-top-1">
-          <FieldGroup className="[&_[data-slot=field-description]]:text-xs">
+          <FieldGroup>
             <Field>
               <FieldLabel htmlFor={`${id}-name`} required>
                 Check name
@@ -252,7 +257,8 @@ export function CheckEditor(props: CheckEditorProps) {
                           template: undefined,
                           phase: selected.provider === "OpenAI" ? "input" : check.phase,
                           scopes:
-                            check.phase === "output" && selected.provider !== "OpenAI"
+                            selected.provider === "Bedrock" ||
+                            (check.phase === "output" && selected.provider !== "OpenAI")
                               ? ["conversation"]
                               : ["instructions", "conversation"],
                         })
@@ -264,7 +270,10 @@ export function CheckEditor(props: CheckEditorProps) {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
-                        <SelectItem value="regex">Regular expression</SelectItem>
+                        <SelectItem value="regex">
+                          <Regex aria-hidden />
+                          Regular expression
+                        </SelectItem>
                         {check.connection && !connection ? (
                           <SelectItem value={`${check.connection.scope}/${check.connection.name}`}>
                             {check.connection.scope} / {check.connection.name}
@@ -275,7 +284,8 @@ export function CheckEditor(props: CheckEditorProps) {
                             key={`${item.scope}/${item.name}`}
                             value={`${item.scope}/${item.name}`}
                           >
-                            {item.displayName} · {item.provider}
+                            <GuardrailProviderIcon provider={item.provider} />
+                            {item.displayName} · {guardrailProviderLabels[item.provider]}
                           </SelectItem>
                         ))}
                       </SelectGroup>
@@ -339,7 +349,11 @@ export function CheckEditor(props: CheckEditorProps) {
                   onValueChange={(value) => {
                     if (value !== "input" && value !== "output") return
                     let scopes = check.scopes
-                    if (!check.regex) scopes = ["instructions", "conversation"]
+                    if (!check.regex)
+                      scopes =
+                        connection?.provider === "Bedrock"
+                          ? ["conversation"]
+                          : ["instructions", "conversation"]
                     if (value === "output") scopes = ["conversation"]
                     onChange({ ...check, phase: value, scopes })
                   }}
@@ -391,90 +405,97 @@ export function CheckEditor(props: CheckEditorProps) {
                 ) : null}
               </Field>
             </div>
-            <details
-              className="group/advanced"
-              open={advanced}
+            <Accordion
+              collapsible
+              type="single"
+              value={advanced ? "advanced" : ""}
               onInvalidCapture={() => flushSync(() => setAdvanced(true))}
-              onToggle={(event) => {
-                if (event.target === event.currentTarget) setAdvanced(event.currentTarget.open)
-              }}
+              onValueChange={(value) => setAdvanced(value === "advanced")}
             >
-              <summary className="group/summary flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-muted-foreground transition-colors marker:hidden hover:text-foreground motion-reduce:transition-none [&::-webkit-details-marker]:hidden">
-                <ChevronDown className="size-3.5 transition-transform group-open/advanced:rotate-180 motion-reduce:transition-none" />
-                Advanced settings
-              </summary>
-              <FieldGroup className="pt-4">
-                <FieldSet>
-                  <FieldLegend variant="label">Inspected content</FieldLegend>
-                  {check.phase === "input" ? (
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {contentScopes.map(([scope, label]) => (
-                        <Field key={scope} orientation="horizontal">
-                          <Checkbox
-                            checked={check.scopes.includes(scope)}
-                            disabled={
-                              disabled || (!check.regex && connection?.provider !== "Bedrock")
-                            }
-                            id={`${id}-${scope}`}
-                            onCheckedChange={(selected) =>
-                              onChange({
-                                ...check,
-                                scopes:
-                                  selected === true
-                                    ? [...check.scopes, scope]
-                                    : check.scopes.filter((item) => item !== scope),
-                              })
-                            }
-                          />
-                          <FieldLabel htmlFor={`${id}-${scope}`}>{label}</FieldLabel>
-                        </Field>
-                      ))}
-                    </div>
-                  ) : (
-                    <FieldDescription>Response text.</FieldDescription>
-                  )}
-                </FieldSet>
-                <Field>
-                  <FieldLabel htmlFor={`${id}-failure`}>If the checker fails</FieldLabel>
-                  <Select
-                    disabled={disabled}
-                    onValueChange={(value) => {
-                      if (value === "closed" || value === "open")
-                        onChange({ ...check, failureMode: value })
-                    }}
-                    value={check.failureMode}
-                  >
-                    <SelectTrigger id={`${id}-failure`} className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectItem value="closed">Stop request</SelectItem>
-                        <SelectItem value="open">Allow request</SelectItem>
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                  <FieldDescription>
-                    Applies to checker errors and timeouts, including audit checks. Audit findings
-                    do not block requests.
-                  </FieldDescription>
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor={`${id}-explanation`}>Message when blocked</FieldLabel>
-                  <Textarea
-                    disabled={disabled}
-                    id={`${id}-explanation`}
-                    maxLength={512}
-                    onChange={(event) =>
-                      onChange({ ...check, safeExplanation: event.target.value })
-                    }
-                    placeholder="Explain what the user can change and try again."
-                    value={check.safeExplanation ?? ""}
-                  />
-                  <FieldDescription>Shown in errors. Keep sensitive details out.</FieldDescription>
-                </Field>
-              </FieldGroup>
-            </details>
+              <AccordionItem value="advanced">
+                <AccordionTrigger>Advanced settings</AccordionTrigger>
+                <AccordionContent forceMount hidden={!advanced}>
+                  <FieldGroup>
+                    <FieldSet>
+                      <FieldLegend variant="label">Inspected content</FieldLegend>
+                      {check.phase === "input" ? (
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          {contentScopes.map(([scope, label]) => (
+                            <Field key={scope} orientation="horizontal">
+                              <Checkbox
+                                checked={check.scopes.includes(scope)}
+                                disabled={
+                                  disabled || (!check.regex && connection?.provider !== "Bedrock")
+                                }
+                                id={`${id}-${scope}`}
+                                onCheckedChange={(selected) =>
+                                  onChange({
+                                    ...check,
+                                    scopes:
+                                      selected === true
+                                        ? [...check.scopes, scope]
+                                        : check.scopes.filter((item) => item !== scope),
+                                  })
+                                }
+                              />
+                              <FieldLabel htmlFor={`${id}-${scope}`}>{label}</FieldLabel>
+                            </Field>
+                          ))}
+                        </div>
+                      ) : (
+                        <FieldDescription>Response text.</FieldDescription>
+                      )}
+                      {connection?.provider === "Bedrock" &&
+                      check.phase === "input" &&
+                      check.scopes.includes("instructions") ? (
+                        <FieldDescription>
+                          Prompt-attack filters may flag trusted system instructions.
+                        </FieldDescription>
+                      ) : null}
+                    </FieldSet>
+                    <Field>
+                      <FieldLabel htmlFor={`${id}-failure`}>If the checker fails</FieldLabel>
+                      <Select
+                        disabled={disabled}
+                        onValueChange={(value) => {
+                          if (value === "closed" || value === "open")
+                            onChange({ ...check, failureMode: value })
+                        }}
+                        value={check.failureMode}
+                      >
+                        <SelectTrigger id={`${id}-failure`} className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectItem value="closed">Stop request</SelectItem>
+                            <SelectItem value="open">Allow request</SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      <FieldDescription>
+                        Applies to checker errors and timeouts, including audit checks. Audit
+                        findings do not block requests.
+                      </FieldDescription>
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor={`${id}-explanation`}>Message when blocked</FieldLabel>
+                      <Textarea
+                        disabled={disabled}
+                        id={`${id}-explanation`}
+                        maxLength={512}
+                        onChange={(event) =>
+                          onChange({ ...check, safeExplanation: event.target.value })
+                        }
+                        placeholder="e.g. Remove API keys from your message."
+                        value={check.safeExplanation ?? ""}
+                      />
+                      <FieldDescription>Keep sensitive details out.</FieldDescription>
+                    </Field>
+                  </FieldGroup>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </FieldGroup>
         </div>
       </details>

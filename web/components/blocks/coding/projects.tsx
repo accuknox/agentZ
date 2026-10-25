@@ -367,11 +367,11 @@ export function Projects({
                 title="No projects yet"
                 description={
                   agentNames.length
-                    ? "Connect a GitHub repository to start working with an agent."
+                    ? undefined
                     : "Create an agent or ask someone to share one with you before adding a project."
                 }
                 actions={
-                  agentNames.length ? (
+                  !pageScope && agentNames.length ? (
                     <Button onClick={() => setAdding(true)}>
                       <Plus data-icon="inline-start" />
                       Add your first project
@@ -391,7 +391,7 @@ export function Projects({
           if (!open && search.get("new") === "true") router.replace(`${workspacePath}/projects`)
         }}
       >
-        <DialogContent>
+        <DialogContent showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>Add a GitHub project</DialogTitle>
             <DialogDescription>Projects and their chats are private to you.</DialogDescription>
@@ -586,7 +586,7 @@ export function Projects({
           }
         }}
       >
-        <DialogContent>
+        <DialogContent showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>{dialog === "rename" ? "Rename project" : "Delete project"}</DialogTitle>
             <DialogDescription>

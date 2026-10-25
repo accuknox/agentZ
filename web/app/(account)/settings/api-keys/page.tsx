@@ -32,7 +32,6 @@ async function APIKeysContent({ searchParams }: PageProps<"/settings/api-keys">)
     <main className="flex min-w-0 flex-1 flex-col gap-6 p-0">
       <AdministrationPageHeader
         actions={<APIKeyWorkspaceMenu workspaces={context.workspaces} />}
-        description="Create and revoke your API keys for Agents and workflow webhooks."
         title="API keys"
       />
       {!context.workspaces.length ? (

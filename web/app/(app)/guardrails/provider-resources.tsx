@@ -82,7 +82,7 @@ export function GuardrailProviderResources(props: GuardrailProviderResourcesProp
           />
         </div>
         <FieldDescription className="text-xs">
-          Region: {connection.region}. Select a published version or the working draft.{" "}
+          Region: {connection.region}.{" "}
           <a
             href="https://console.aws.amazon.com/bedrock/home#/guardrails"
             target="_blank"
@@ -143,7 +143,6 @@ export function GuardrailProviderResources(props: GuardrailProviderResourcesProp
           value={check.template ?? ""}
         />
         <FieldDescription className="text-xs">
-          Rules stay in your Google Cloud template.{" "}
           <a
             href="https://console.cloud.google.com/security/model-armor"
             target="_blank"
@@ -156,11 +155,7 @@ export function GuardrailProviderResources(props: GuardrailProviderResourcesProp
     )
 
   if (connection.provider === "OpenAI")
-    return (
-      <FieldDescription className="text-xs">
-        OpenAI moderation · omni-moderation-latest. No cloud policy is required.
-      </FieldDescription>
-    )
+    return <FieldDescription className="text-xs">omni-moderation-latest</FieldDescription>
 
   return null
 }

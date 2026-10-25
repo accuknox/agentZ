@@ -28,11 +28,6 @@ const gatewayFetchInit = {
 
 let gatewayBaseURLPromise: Promise<ClientOptions["baseUrl"]> | undefined
 
-async function parseResponse<T>(response: Response, schema: z.ZodType<T>): Promise<T> {
-  const body = await response.json()
-  return await schema.parseAsync(body)
-}
-
 async function fetchGatewayResponse<T>(
   path: string,
   errorMessage: string,
@@ -48,7 +43,7 @@ async function fetchGatewayResponse<T>(
     throw new Error(errorMessage)
   }
 
-  return await parseResponse(response, schema)
+  return schema.parseAsync(await response.json())
 }
 
 /**

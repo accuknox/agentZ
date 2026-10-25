@@ -1,11 +1,9 @@
 "use client"
 
-import Link from "next/link"
-import { useEffect, useState, useTransition } from "react"
+import { useEffect, useState, useTransition, type ComponentProps } from "react"
 import { useRouter } from "next/navigation"
 import { createColumnHelper, getCoreRowModel, useReactTable } from "@tanstack/react-table"
 import {
-  Cable,
   CheckCircle2,
   CircleDashed,
   Eye,
@@ -19,7 +17,6 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { toast } from "sonner"
-import { cn } from "@/lib/utils"
 import {
   listGuardrailConnections,
   type GuardrailConnection,
@@ -38,6 +35,7 @@ import { AdministrationState } from "@/components/administration"
 import { HoldToConfirm } from "@/components/interior/hold-to-confirm"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
   DialogContent,
@@ -55,19 +53,20 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { ConnectionSheet } from "./connection-sheet"
+import { GuardrailProviderIcon, guardrailProviderLabels } from "./provider-shared"
 
 const policyColumn = createColumnHelper<GuardrailPolicy>()
 const connectionColumn = createColumnHelper<GuardrailConnection>()
 const statusMeta = {
-  Pending: { icon: CircleDashed, label: "Applying", className: "text-warning" },
-  Ready: { icon: CheckCircle2, label: "Configured", className: "text-success" },
-  Error: { icon: XCircle, label: "Error", className: "text-destructive" },
+  Pending: { icon: CircleDashed, label: "Applying", variant: "pending" },
+  Ready: { icon: CheckCircle2, label: "Configured", variant: "success" },
+  Error: { icon: XCircle, label: "Error", variant: "destructive" },
 } satisfies Record<
   GuardrailStatus["state"],
   {
     icon: LucideIcon
     label: string
-    className: string
+    variant: ComponentProps<typeof Badge>["variant"]
   }
 >
 
@@ -136,16 +135,18 @@ export function NewGuardrailConnectionButton({ scope }: { scope: GuardrailAction
 }
 
 type GuardrailPolicyListProps = {
+  canCreate: boolean
+  canCreateConnection: boolean
+  connections: GuardrailConnection[]
   policies: GuardrailPolicy[]
   scope: GuardrailActionScope
-  basePath: `/orgs/${string}/guardrails`
 }
 
 export function GuardrailPolicyList(props: GuardrailPolicyListProps) {
   "use no memo"
-  const { policies, scope, basePath } = props
+  const { canCreate, canCreateConnection, connections, policies, scope } = props
 
-  const router = useRouter()
+  const [editing, setEditing] = useState<GuardrailPolicy>()
   const [deleting, setDeleting] = useState<GuardrailPolicy>()
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
   const table = useReactTable({
@@ -155,33 +156,33 @@ export function GuardrailPolicyList(props: GuardrailPolicyListProps) {
       policyColumn.accessor("displayName", {
         header: "Name",
         cell: ({ row }) => (
-          <div className="flex min-w-0 items-center gap-3 py-1">
+          <div className="flex min-w-0 items-center gap-2">
             <BrickWallShield aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-            <div className="flex min-w-0 flex-col gap-1">
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="truncate font-medium">{row.original.displayName}</span>
-                {row.original.mandatory ? (
-                  <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
-                    <LockKeyhole aria-hidden className="size-3" /> Required
-                  </span>
-                ) : null}
-              </div>
-              {row.original.description ? (
-                <span className="truncate text-xs text-muted-foreground">
-                  {row.original.description}
-                </span>
-              ) : null}
-              {scope.workspaceId !== undefined && row.original.scope === "Organisation" ? (
-                <span className="text-xs text-muted-foreground">Organization</span>
-              ) : null}
-            </div>
+            <span className="min-w-0 truncate font-medium">{row.original.displayName}</span>
+            {scope.workspaceId !== undefined && row.original.scope === "Organisation" ? (
+              <Badge variant="secondary">Organization</Badge>
+            ) : null}
+            {row.original.mandatory ? (
+              <Badge variant="secondary">
+                <LockKeyhole aria-hidden data-icon="inline-start" />
+                Required
+              </Badge>
+            ) : null}
           </div>
+        ),
+      }),
+      policyColumn.accessor("description", {
+        header: "Description",
+        cell: ({ getValue }) => (
+          <span className="block truncate text-muted-foreground" title={getValue()}>
+            {getValue() || "—"}
+          </span>
         ),
       }),
       policyColumn.accessor("checks", {
         header: "Checks",
         cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground tabular-nums">
+          <span className="tabular-nums">
             {row.original.checks.filter((check) => check.phase === "input").length} input ·{" "}
             {row.original.checks.filter((check) => check.phase === "output").length} output
           </span>
@@ -189,7 +190,7 @@ export function GuardrailPolicyList(props: GuardrailPolicyListProps) {
       }),
       policyColumn.accessor("status", {
         header: "Status",
-        cell: ({ getValue }) => <GuardrailStatusLabel status={getValue()} />,
+        cell: ({ getValue }) => <GuardrailStatusBadge status={getValue()} />,
       }),
       policyColumn.display({
         id: "actions",
@@ -213,13 +214,9 @@ export function GuardrailPolicyList(props: GuardrailPolicyListProps) {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuGroup>
-                  <DropdownMenuItem asChild>
-                    <Link
-                      href={`${basePath}/policies/${encodeURIComponent(row.original.name)}?scope=${row.original.scope}`}
-                    >
-                      {row.original.canModify ? <Pencil /> : <Eye />}
-                      {row.original.canModify ? "Edit" : "View"}
-                    </Link>
+                  <DropdownMenuItem onSelect={() => setEditing(row.original)}>
+                    {row.original.canModify ? <Pencil /> : <Eye />}
+                    {row.original.canModify ? "Edit" : "View"}
                   </DropdownMenuItem>
                   {row.original.canDelete ? (
                     <DropdownMenuItem
@@ -244,26 +241,32 @@ export function GuardrailPolicyList(props: GuardrailPolicyListProps) {
         ariaLabel="Guardrail policies"
         emptyState={
           <AdministrationState
-            description="Start with a regex check or a provider connection. Assign policies to the workloads you want to protect."
-            kind="empty"
+            kind={canCreate ? "welcome" : "empty"}
             title="No guardrail policies"
           />
         }
         layout={{
-          displayName: { minWidth: 280, contentMaxWidth: 480 },
-          checks: { minWidth: 140 },
+          displayName: { minWidth: 256, contentMaxWidth: 400 },
+          description: { minWidth: 200, contentMaxWidth: 320, hiddenBelow: "lg" },
+          checks: { minWidth: 160, width: 160 },
           status: { minWidth: 128, width: 128 },
           actions: { minWidth: 64, width: 64, align: "end" },
         }}
+        onRowActivate={setEditing}
         rowAriaLabel={(policy) => `View ${policy.displayName}`}
-        onRowActivate={(policy) =>
-          router.push(
-            `${basePath}/policies/${encodeURIComponent(policy.name)}?scope=${policy.scope}`
-          )
-        }
         rows={policies}
         table={table}
       />
+      {editing ? (
+        <PolicyEditor
+          canCreateConnection={canCreateConnection}
+          connections={connections}
+          policy={editing}
+          scope={scope}
+          onCancel={() => setEditing(undefined)}
+          onSaved={() => setEditing(undefined)}
+        />
+      ) : null}
       {deleting ? (
         <DeleteGuardrail
           name={deleting.name}
@@ -278,13 +281,14 @@ export function GuardrailPolicyList(props: GuardrailPolicyListProps) {
 }
 
 type GuardrailConnectionListProps = {
+  canCreate: boolean
   connections: GuardrailConnection[]
   scope: GuardrailActionScope
 }
 
 export function GuardrailConnectionList(props: GuardrailConnectionListProps) {
   "use no memo"
-  const { connections, scope } = props
+  const { canCreate, connections, scope } = props
 
   const [editing, setEditing] = useState<GuardrailConnection>()
   const [deleting, setDeleting] = useState<GuardrailConnection>()
@@ -296,35 +300,30 @@ export function GuardrailConnectionList(props: GuardrailConnectionListProps) {
       connectionColumn.accessor("displayName", {
         header: "Name",
         cell: ({ row }) => (
-          <div className="flex min-w-0 items-center gap-3 py-1">
-            <Cable aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-            <div className="flex min-w-0 flex-col gap-1">
-              <span className="truncate font-medium">{row.original.displayName}</span>
-              {row.original.description ? (
-                <span className="truncate text-xs text-muted-foreground">
-                  {row.original.description}
-                </span>
-              ) : null}
-              {scope.workspaceId !== undefined && row.original.scope === "Organisation" ? (
-                <span className="text-xs text-muted-foreground">Organization</span>
-              ) : null}
-            </div>
+          <div className="flex min-w-0 items-center gap-2">
+            <GuardrailProviderIcon provider={row.original.provider} />
+            <span className="min-w-0 truncate font-medium">{row.original.displayName}</span>
+            {scope.workspaceId !== undefined && row.original.scope === "Organisation" ? (
+              <Badge variant="secondary">Organization</Badge>
+            ) : null}
           </div>
+        ),
+      }),
+      connectionColumn.accessor("description", {
+        header: "Description",
+        cell: ({ getValue }) => (
+          <span className="block truncate text-muted-foreground" title={getValue()}>
+            {getValue() || "—"}
+          </span>
         ),
       }),
       connectionColumn.accessor("provider", {
         header: "Service",
-        cell: ({ row }) =>
-          ({
-            OpenAI: "OpenAI moderation",
-            Bedrock: "AWS Bedrock",
-            ModelArmor: "Google Model Armor",
-            Webhook: "Custom webhook",
-          })[row.original.provider],
+        cell: ({ row }) => guardrailProviderLabels[row.original.provider],
       }),
       connectionColumn.accessor("status", {
         header: "Status",
-        cell: ({ getValue }) => <GuardrailStatusLabel status={getValue()} />,
+        cell: ({ getValue }) => <GuardrailStatusBadge status={getValue()} />,
       }),
       connectionColumn.display({
         id: "actions",
@@ -375,14 +374,14 @@ export function GuardrailConnectionList(props: GuardrailConnectionListProps) {
         ariaLabel="Guardrail connections"
         emptyState={
           <AdministrationState
-            description="Use OpenAI moderation, Bedrock Guardrails, Google Model Armor, or a service implementing the AgentGateway guardrail webhook."
-            kind="empty"
-            title="No connections"
+            kind={canCreate ? "welcome" : "empty"}
+            title="No guardrail connections"
           />
         }
         layout={{
-          displayName: { minWidth: 240, contentMaxWidth: 360 },
-          provider: { minWidth: 160 },
+          displayName: { minWidth: 224, contentMaxWidth: 360 },
+          description: { minWidth: 200, contentMaxWidth: 320, hiddenBelow: "lg" },
+          provider: { minWidth: 192, width: 192 },
           status: { minWidth: 128, width: 128 },
           actions: { minWidth: 64, width: 64, align: "end" },
         }}
@@ -407,17 +406,14 @@ export function GuardrailConnectionList(props: GuardrailConnectionListProps) {
   )
 }
 
-function GuardrailStatusLabel({ status }: { status: GuardrailStatus }) {
+function GuardrailStatusBadge({ status }: { status: GuardrailStatus }) {
   const meta = statusMeta[status.state]
   const message = status.message.trim()
   const label = (
-    <span
-      className="inline-flex items-center gap-1.5 text-xs text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring"
-      tabIndex={message ? 0 : undefined}
-    >
-      <meta.icon aria-hidden className={cn("size-3.5", meta.className)} />
+    <Badge tabIndex={message ? 0 : undefined} variant={meta.variant}>
+      <meta.icon aria-hidden data-icon="inline-start" />
       {meta.label}
-    </span>
+    </Badge>
   )
   if (!message) return label
   return (
@@ -449,7 +445,7 @@ function DeleteGuardrail(props: DeleteGuardrailProps) {
         if (!open && !pending) onClose()
       }}
     >
-      <DialogContent>
+      <DialogContent showCloseButton={false}>
         <DialogHeader className="min-w-0">
           <DialogTitle className="pr-6 leading-snug break-words">Delete {label}?</DialogTitle>
           <DialogDescription>

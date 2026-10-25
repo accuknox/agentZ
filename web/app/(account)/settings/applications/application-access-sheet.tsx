@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils"
 import type { ConnectedApplication } from "./connected-applications"
 
 const permissions: Record<string, string> = {
-  openid: "Sign in with your AgentZ account",
+  openid: "Sign in with your account",
   profile: "Read your name and profile image",
   email: "Read your email address and verification status",
   offline_access: "Keep access when you are away, until you disconnect",

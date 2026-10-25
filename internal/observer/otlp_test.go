@@ -18,13 +18,19 @@ func TestGuardrailEvidenceTrustBoundary(t *testing.T) {
 	span := appSpanFixture(0)
 	evidence := `[{"phase":"request","guard":"webhook","action":"reject","actionReason":"private detector response","agentz":{"retentionDays":3650,"inspected":["private inspected message"]}}]`
 	span.Attributes = append(span.Attributes, &commonpb.KeyValue{
-		Key: attrGuardrailEvaluations, Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: evidence}},
+		Key:   attrGuardrailEvaluations,
+		Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: evidence}},
 	})
 	request := &tracev1.ExportTraceServiceRequest{
 		ResourceSpans: []*tracepb.ResourceSpans{{
-			Resource: &resourcepb.Resource{Attributes: []*commonpb.KeyValue{{
-				Key: "service.name", Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: "agentz-oauth-gateway"}},
-			}}},
+			Resource: &resourcepb.Resource{
+				Attributes: []*commonpb.KeyValue{{
+					Key: "service.name",
+					Value: &commonpb.AnyValue{
+						Value: &commonpb.AnyValue_StringValue{StringValue: "agentz-oauth-gateway"},
+					},
+				}},
+			},
 			ScopeSpans: []*tracepb.ScopeSpans{{Spans: []*tracepb.Span{span}}},
 		}},
 	}
@@ -320,8 +326,12 @@ func TestNativeGuardrailIdentityAndMetadata(t *testing.T) {
 	t.Parallel()
 	span := appSpanFixture(0)
 	span.Attributes = append(span.Attributes, &commonpb.KeyValue{
-		Key:   attrGuardrailEvaluations,
-		Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: `[{"phase":"request","guard":"bedrockGuardrails","action":"mask","guardrailId":"resource","guardrailVersion":"3","actionReason":"secret","assessments":[{"text":"secret"}]},{"phase":"request","guard":"bedrockGuardrails","action":"mask","guardrailId":"resource","guardrailVersion":"3"}]`}},
+		Key: attrGuardrailEvaluations,
+		Value: &commonpb.AnyValue{
+			Value: &commonpb.AnyValue_StringValue{
+				StringValue: `[{"phase":"request","guard":"bedrockGuardrails","action":"mask","guardrailId":"resource","guardrailVersion":"3","actionReason":"secret","assessments":[{"text":"secret"}]},{"phase":"request","guard":"bedrockGuardrails","action":"mask","guardrailId":"resource","guardrailVersion":"3"}]`,
+			},
+		},
 	})
 	events, err := guardrailEventsFromSpan(span, nil)
 	if err != nil || len(events) != 2 {
@@ -356,30 +366,66 @@ type nativeGuardrailEvidenceCase struct {
 func TestNativeGuardrailInvalidEvidence(t *testing.T) {
 	t.Parallel()
 	cases := []nativeGuardrailEvidenceCase{
-		{name: "zero trace", change: func(sp *tracepb.Span) { sp.TraceId = make([]byte, 16) }},
+		{
+			name:   "zero trace",
+			change: func(sp *tracepb.Span) { sp.TraceId = make([]byte, 16) },
+		},
 		{name: "short span", change: func(sp *tracepb.Span) { sp.SpanId = []byte{1} }},
-		{name: "zero span", change: func(sp *tracepb.Span) { sp.SpanId = make([]byte, 8) }},
-		{name: "missing occurrence", change: func(sp *tracepb.Span) { sp.StartTimeUnixNano = 0 }},
-		{name: "future occurrence", change: func(sp *tracepb.Span) { sp.StartTimeUnixNano = uint64(time.Now().Add(time.Hour).UnixNano()) }},
-		{name: "invalid phase", change: func(sp *tracepb.Span) {
-			sp.Attributes[len(sp.Attributes)-1].Value = &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: `[{"phase":"unknown","guard":"regex","action":"reject"}]`}}
-		}},
-		{name: "invalid verdict", change: func(sp *tracepb.Span) {
-			sp.Attributes[len(sp.Attributes)-1].Value = &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: `[{"phase":"request","guard":"regex","action":"unknown"}]`}}
-		}},
-		{name: "missing namespace", change: func(sp *tracepb.Span) {
-			for _, attr := range sp.Attributes {
-				if attr.Key == "agentz.resource_namespace" {
-					attr.Value = nil
+		{
+			name:   "zero span",
+			change: func(sp *tracepb.Span) { sp.SpanId = make([]byte, 8) },
+		},
+		{
+			name:   "missing occurrence",
+			change: func(sp *tracepb.Span) { sp.StartTimeUnixNano = 0 },
+		},
+		{
+			name:   "future occurrence",
+			change: func(sp *tracepb.Span) { sp.StartTimeUnixNano = uint64(time.Now().Add(time.Hour).UnixNano()) },
+		},
+		{
+			name: "invalid phase",
+			change: func(sp *tracepb.Span) {
+				sp.Attributes[len(sp.Attributes)-1].Value = &commonpb.AnyValue{
+					Value: &commonpb.AnyValue_StringValue{
+						StringValue: `[{"phase":"unknown","guard":"regex","action":"reject"}]`,
+					},
 				}
-			}
-		}},
+			},
+		},
+		{
+			name: "invalid verdict",
+			change: func(sp *tracepb.Span) {
+				sp.Attributes[len(sp.Attributes)-1].Value = &commonpb.AnyValue{
+					Value: &commonpb.AnyValue_StringValue{
+						StringValue: `[{"phase":"request","guard":"regex","action":"unknown"}]`,
+					},
+				}
+			},
+		},
+		{
+			name: "missing namespace",
+			change: func(sp *tracepb.Span) {
+				for _, attr := range sp.Attributes {
+					if attr.Key == "agentz.resource_namespace" {
+						attr.Value = nil
+					}
+				}
+			},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			span := appSpanFixture(0)
-			span.Attributes = append(span.Attributes, &commonpb.KeyValue{Key: attrGuardrailEvaluations, Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: `[{"phase":"request","guard":"regex","action":"reject"}]`}}})
+			span.Attributes = append(span.Attributes, &commonpb.KeyValue{
+				Key: attrGuardrailEvaluations,
+				Value: &commonpb.AnyValue{
+					Value: &commonpb.AnyValue_StringValue{
+						StringValue: `[{"phase":"request","guard":"regex","action":"reject"}]`,
+					},
+				},
+			})
 			tc.change(span)
 			if _, err := guardrailEventsFromSpan(span, nil); err == nil {
 				t.Fatal("invalid native evidence was accepted")

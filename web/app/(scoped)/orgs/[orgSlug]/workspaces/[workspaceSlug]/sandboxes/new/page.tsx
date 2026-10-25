@@ -28,8 +28,6 @@ async function NewWorkspaceSandboxContent({
     <>
       <RememberRoute />
       <NewSandboxPage
-        canCreateGuardrailPolicy={scope.workspace.capabilities.guardrail_policies.create}
-        canCreateGuardrailConnection={scope.workspace.capabilities.guardrail_connections.create}
         basePath={basePath}
         providersHref={{
           pathname: `/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}/inference/providers`,

@@ -46,7 +46,11 @@ func guardrailEventsFromSpan(sp *tracepb.Span, resourceAttrs map[string]*commonp
 	if err := json.Unmarshal([]byte(raw), &evaluations); err != nil {
 		return nil, fmt.Errorf("decode guardrail evaluations: %w", err)
 	}
-	namespace := cmp.Or(attrs[attrAgentZTenantNamespace].GetStringValue(), attrs["agentz.resource_namespace"].GetStringValue(), resourceAttrs[attrServiceNamespace].GetStringValue())
+	namespace := cmp.Or(
+		attrs[attrAgentZTenantNamespace].GetStringValue(),
+		attrs["agentz.resource_namespace"].GetStringValue(),
+		resourceAttrs[attrServiceNamespace].GetStringValue(),
+	)
 	if namespace == "" {
 		return nil, errors.New("guardrail evaluation has no gateway-owned namespace")
 	}
@@ -69,8 +73,11 @@ func guardrailEventsFromSpan(sp *tracepb.Span, resourceAttrs map[string]*commonp
 		}
 		// Only the native verdict and provider resource identifiers enter audit storage.
 		metadata := gatewayapi.GuardrailRuntimeEvaluation{
-			Phase: evaluation.Phase, Guard: evaluation.Guard, Action: evaluation.Action,
-			GuardrailId: evaluation.GuardrailId, GuardrailVersion: evaluation.GuardrailVersion,
+			Phase:            evaluation.Phase,
+			Guard:            evaluation.Guard,
+			Action:           evaluation.Action,
+			GuardrailId:      evaluation.GuardrailId,
+			GuardrailVersion: evaluation.GuardrailVersion,
 		}
 		encoded, err := json.Marshal(metadata)
 		if err != nil {

@@ -29,7 +29,10 @@ type OpenCodeClientError =
   | SessionRevertError
   | SessionUnrevertError
 
-export function opencodeErrorMessage(error: OpenCodeClientError | undefined, fallback: string): string {
+export function opencodeErrorMessage(
+  error: OpenCodeClientError | undefined,
+  fallback: string
+): string {
   if (!error) return fallback
   if ("message" in error) return error.message
   if ("data" in error) return error.data.message
@@ -40,6 +43,7 @@ export function opencodeErrorMessage(error: OpenCodeClientError | undefined, fal
 // provider detail while giving every SDK variant a stable user-facing label.
 export function describeMessageError(error: AssistantMessage["error"]): {
   body: string
+  guardrail?: boolean
   label: string
 } {
   if (!error) {
@@ -86,9 +90,22 @@ export function describeMessageError(error: AssistantMessage["error"]): {
       }
     }
     case "APIError": {
+      if (error.data.statusCode === 422) {
+        const body = error.data.message.replace(/^Unprocessable Entity:\s*/, "")
+        // Match the gateway's explicit guardrail prefix. Other 422 responses
+        // can be provider validation errors and must keep their own message.
+        const guardrail =
+          /^(Blocked by guardrail "(?:[^"\\]|\\.)*"(?: in policy "(?:[^"\\]|\\.)*")?)(?:: ([\s\S]*))?$/.exec(
+            body
+          )
+        return {
+          body: guardrail ? (guardrail[2] ?? "") : body,
+          guardrail: guardrail !== null,
+          label: guardrail?.[1] || "Request blocked",
+        }
+      }
       let label = "Provider error"
       if (error.data.statusCode) label = `Provider error ${error.data.statusCode}`
-      if (error.data.statusCode === 422) label = "Request rejected"
       return {
         body: error.data.message || "The provider rejected the request",
         label,

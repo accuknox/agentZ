@@ -1,12 +1,7 @@
-import { z, ZodError } from "zod"
+import { z } from "zod"
 
 import type { Workflow, WorkflowInputSchema, WorkflowInputs } from "./gateway/client"
 import { zJsonValue } from "./gateway/client/zod.gen"
-
-export type WorkflowInputValidationIssue = {
-  path: string
-  message: string
-}
 
 export function validateWorkflowRuntimeInputs(inputs: unknown, workflow: Workflow) {
   const result = workflow.arbitrary_json
@@ -16,24 +11,18 @@ export function validateWorkflowRuntimeInputs(inputs: unknown, workflow: Workflo
     return []
   }
 
-  return zodIssues(result.error)
-}
-
-export function formatWorkflowInputValidationError(issues: Array<WorkflowInputValidationIssue>) {
-  const lines = ["Workflow schedule request validation failed."]
-  for (const issue of issues) {
-    lines.push(`${issue.path}: ${issue.message}`)
-  }
-  return lines.join("\n")
+  return result.error.issues.map((issue) => ({
+    path: issue.path.length > 0 ? `inputs.${issue.path.join(".")}` : "inputs",
+    message: issue.message,
+  }))
 }
 
 function buildWorkflowInputsSchema(schema: WorkflowInputs | undefined) {
   const shape: Record<string, z.ZodType<unknown>> = {}
 
   for (const [name, input] of Object.entries(schema ?? {})) {
-    shape[name] = input.required
-      ? buildWorkflowInputSchema(input)
-      : buildWorkflowInputSchema(input).optional()
+    const value = buildWorkflowInputSchema(input)
+    shape[name] = input.required ? value : value.optional()
   }
 
   return z.strictObject(shape)
@@ -122,11 +111,4 @@ function buildNumberSchema(input: WorkflowInputSchema, integer: boolean) {
   }
 
   return schema
-}
-
-function zodIssues(error: ZodError) {
-  return error.issues.map((issue) => ({
-    path: issue.path.length > 0 ? `inputs.${issue.path.join(".")}` : "inputs",
-    message: issue.message,
-  }))
 }

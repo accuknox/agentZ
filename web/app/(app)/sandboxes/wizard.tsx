@@ -102,7 +102,6 @@ import {
   type McpConnectionSummary,
   type GuardrailAssignment,
   type GuardrailPolicy,
-  type GuardrailConnection,
   type GuardrailSettings,
   type InferenceProvider,
   type InferencePool,
@@ -120,8 +119,7 @@ import {
 } from "@/lib/gateway/client/zod.gen"
 import { renderMcpServerIcon } from "@/app/(app)/mcps/catalog"
 import { ProviderIcon, providerKindLabels } from "@/app/(app)/inference/providers/provider-shared"
-import { PolicyEditor } from "@/app/(app)/guardrails/policy-editor"
-import { SubjectGuardrails } from "@/components/guardrails/subject-guardrails"
+import { GuardrailSelection } from "./guardrail-selection"
 import { PackageSearch } from "./package-search"
 import { useServerSorting } from "@/lib/use-token-pagination"
 
@@ -191,10 +189,7 @@ type AllowedHostsDraft = AllowedHostsStepValues & {
 }
 
 type SandboxWizardProps = {
-  canCreateGuardrailPolicy: boolean
-  canCreateGuardrailConnection: boolean
   initialGuardrails?: GuardrailAssignment
-  guardrailConnections: GuardrailConnection[]
   guardrailPolicies: GuardrailPolicy[]
   guardrailSettings: GuardrailSettings
   initialName?: string
@@ -2192,10 +2187,7 @@ function StepActions({ children }: { children: React.ReactNode }) {
 }
 
 export function SandboxWizard({
-  canCreateGuardrailPolicy,
-  canCreateGuardrailConnection,
   initialGuardrails = { policies: [] },
-  guardrailConnections,
   guardrailPolicies,
   guardrailSettings,
   initialAllowedHosts = [],
@@ -2216,8 +2208,6 @@ export function SandboxWizard({
   secretHostSuggestions,
 }: SandboxWizardProps) {
   const [direction, setDirection] = useState(1)
-  const [creatingPolicy, setCreatingPolicy] = useState(false)
-  const [createdPolicies, setCreatedPolicies] = useState<GuardrailPolicy[]>([])
   const pendingNavigationRef = useRef<NavigationRequest | undefined>(undefined)
   const initialIdentity = { name: initialName }
 
@@ -2411,23 +2401,10 @@ export function SandboxWizard({
                     pendingNavigationRef.current = undefined
                   }}
                 >
-                  <SubjectGuardrails
+                  <GuardrailSelection
                     assignment={data.guardrails ?? initialGuardrails}
-                    policies={[
-                      ...guardrailPolicies,
-                      ...createdPolicies.filter(
-                        (created) =>
-                          !guardrailPolicies.some(
-                            (policy) =>
-                              policy.scope === created.scope && policy.name === created.name
-                          )
-                      ),
-                    ]}
+                    policies={guardrailPolicies}
                     settings={guardrailSettings}
-                    scope={scope}
-                    onCreatePolicy={
-                      canCreateGuardrailPolicy ? () => setCreatingPolicy(true) : undefined
-                    }
                     onChange={(assignment) => stepper.metadata.set("guardrails", assignment)}
                   />
                   <StepActions>
@@ -2467,27 +2444,6 @@ export function SandboxWizard({
                   />
                 ) : null,
             })}
-            {creatingPolicy ? (
-              <PolicyEditor
-                canCreateConnection={canCreateGuardrailConnection}
-                connections={guardrailConnections}
-                scope={scope}
-                onCancel={() => setCreatingPolicy(false)}
-                onSaved={(policy) => {
-                  setCreatedPolicies((items) => [...items, policy])
-                  const assignment =
-                    stepper.metadata.get<GuardrailAssignment>("guardrails") ?? initialGuardrails
-                  stepper.metadata.set("guardrails", {
-                    ...assignment,
-                    policies: [
-                      ...(assignment.policies ?? []),
-                      { scope: policy.scope, name: policy.name },
-                    ],
-                  })
-                  setCreatingPolicy(false)
-                }}
-              />
-            ) : null}
           </WizardShell>
         )
       }}

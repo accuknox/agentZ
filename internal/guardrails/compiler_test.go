@@ -219,10 +219,14 @@ func TestRemoteProviderMaskingCannotBeOverriddenByAnUnusedAction(t *testing.T) {
 	policy := api.GuardrailPolicySpec{
 		DisplayName: "Remote detector",
 		Checks: []api.GuardrailCheck{{
-			ID: "remote", Name: "Remote detector", Phase: "input",
-			Scopes: []string{"instructions", "conversation"}, Mode: "enforce",
-			FailureMode: "closed", Action: "mask",
-			Connection: &api.ResourceReference{Scope: api.ResourceScopeWorkspace, Name: "detector"},
+			ID:          "remote",
+			Name:        "Remote detector",
+			Phase:       "input",
+			Scopes:      []string{"instructions", "conversation"},
+			Mode:        "enforce",
+			FailureMode: "closed",
+			Action:      "mask",
+			Connection:  &api.ResourceReference{Scope: api.ResourceScopeWorkspace, Name: "detector"},
 		}},
 	}
 	if err := ValidatePolicy(policy); err == nil {
@@ -238,11 +242,14 @@ func TestCompilePolicySharesConnectionsAndRejectsTermination(t *testing.T) {
 	reader, _, namespace := guardrailFixture(t)
 	connection := &api.GuardrailConnection{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace, Name: "detector",
+			Namespace:  namespace,
+			Name:       "detector",
 			Finalizers: []string{api.GuardrailConnectionFinalizer},
 		},
 		Spec: api.GuardrailConnectionSpec{
-			DisplayName: "Detector", Provider: "Webhook", Endpoint: "https://detector.example",
+			DisplayName: "Detector",
+			Provider:    "Webhook",
+			Endpoint:    "https://detector.example",
 		},
 	}
 	if err := reader.Create(t.Context(), connection); err != nil {
@@ -254,9 +261,14 @@ func TestCompilePolicySharesConnectionsAndRejectsTermination(t *testing.T) {
 	}
 	for _, id := range []string{"first", "second"} {
 		policy.Spec.Checks = append(policy.Spec.Checks, api.GuardrailCheck{
-			ID: id, Name: id, Phase: "input", Mode: "enforce", Action: "deny", FailureMode: "closed",
-			Scopes:     []string{"instructions", "conversation"},
-			Connection: &api.ResourceReference{Scope: api.ResourceScopeWorkspace, Name: connection.Name},
+			ID:          id,
+			Name:        id,
+			Phase:       "input",
+			Mode:        "enforce",
+			Action:      "deny",
+			FailureMode: "closed",
+			Scopes:      []string{"instructions", "conversation"},
+			Connection:  &api.ResourceReference{Scope: api.ResourceScopeWorkspace, Name: connection.Name},
 		})
 	}
 	bundle, err := CompilePolicy(t.Context(), reader, namespace, policy)
@@ -285,6 +297,10 @@ func TestNativeRejectionAndRevisionMetadata(t *testing.T) {
 	if rejection.StatusCode != 422 || rejection.Message == nil || !strings.Contains(*rejection.Message, "Mandatory detector") {
 		t.Fatalf("native rejection lost safe feedback or non-retryable status: %#v", rejection)
 	}
+	want := `Blocked by guardrail "Mandatory detector" in policy "Organization baseline"`
+	if *rejection.Message != want {
+		t.Fatalf("native rejection = %q, want %q", *rejection.Message, want)
+	}
 	policy := &agw.AgentgatewayPolicy{}
 	if err := bundle.Apply(policy); err != nil {
 		t.Fatal(err)
@@ -303,15 +319,31 @@ func TestMandatoryChecksRejectOptionalMutations(t *testing.T) {
 		for _, mode := range []string{"enforce", "audit"} {
 			for _, phase := range []string{"input", "output"} {
 				t.Run(string(provider)+"/"+mode+"/"+phase, func(t *testing.T) {
-					mandatory := ResolvedCheck{Mandatory: true, Check: api.GuardrailCheck{
-						ID: "mandatory", Name: "Mandatory", Phase: "input", Mode: "enforce", Action: "deny",
-						Scopes: []string{"instructions", "conversation"}, Regex: &api.GuardrailRegex{Patterns: []string{"secret"}},
-					}}
-					optional := ResolvedCheck{Check: api.GuardrailCheck{
-						ID: "optional", Name: "Optional", Phase: phase, Mode: mode, Action: "deny",
-						Scopes: []string{"instructions", "conversation"}, GuardrailID: "id", GuardrailVersion: "1",
-						Template: "projects/project/locations/region/templates/template",
-					}}
+					mandatory := ResolvedCheck{
+						Mandatory: true,
+						Check: api.GuardrailCheck{
+							ID:     "mandatory",
+							Name:   "Mandatory",
+							Phase:  "input",
+							Mode:   "enforce",
+							Action: "deny",
+							Scopes: []string{"instructions", "conversation"},
+							Regex:  &api.GuardrailRegex{Patterns: []string{"secret"}},
+						},
+					}
+					optional := ResolvedCheck{
+						Check: api.GuardrailCheck{
+							ID:               "optional",
+							Name:             "Optional",
+							Phase:            phase,
+							Mode:             mode,
+							Action:           "deny",
+							Scopes:           []string{"instructions", "conversation"},
+							GuardrailID:      "id",
+							GuardrailVersion: "1",
+							Template:         "projects/project/locations/region/templates/template",
+						},
+					}
 					if phase == "output" {
 						optional.Check.Scopes = []string{"conversation"}
 					}
@@ -341,9 +373,14 @@ func TestStreamingRejectsEnforcedMutations(t *testing.T) {
 		for _, phase := range []string{"input", "output"} {
 			for _, mode := range []string{"enforce", "audit"} {
 				t.Run(string(provider)+"/"+phase+"/"+mode, func(t *testing.T) {
-					resolved := ResolvedCheck{Check: api.GuardrailCheck{
-						ID: "check", Phase: phase, Mode: mode, Action: "deny",
-					}}
+					resolved := ResolvedCheck{
+						Check: api.GuardrailCheck{
+							ID:     "check",
+							Phase:  phase,
+							Mode:   mode,
+							Action: "deny",
+						},
+					}
 					switch provider {
 					case "Regex":
 						resolved.Check.Action = "mask"
@@ -365,8 +402,11 @@ func TestStreamingRegexNeedsBoundedContext(t *testing.T) {
 	for _, pattern := range []string{"SECRET", "[0-9]{3}", "^SECRET", "SECRET$", "a+", "a{257}", `\bsecret\b`} {
 		t.Run(pattern, func(t *testing.T) {
 			check := api.GuardrailCheck{
-				ID: "check", Phase: "output", Mode: "enforce", Action: "deny",
-				Regex: &api.GuardrailRegex{Patterns: []string{pattern}},
+				ID:     "check",
+				Phase:  "output",
+				Mode:   "enforce",
+				Action: "deny",
+				Regex:  &api.GuardrailRegex{Patterns: []string{pattern}},
 			}
 			bundle := &Bundle{Checks: []ResolvedCheck{{Check: check}}}
 			wantError := pattern != "SECRET" && pattern != "[0-9]{3}"

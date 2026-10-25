@@ -25,8 +25,6 @@ async function UpdateWorkspaceSandboxContent({
   const basePath = `/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}/sandboxes`
   return (
     <UpdateSandboxPage
-      canCreateGuardrailPolicy={scope.workspace.capabilities.guardrail_policies.create}
-      canCreateGuardrailConnection={scope.workspace.capabilities.guardrail_connections.create}
       basePath={basePath}
       params={Promise.resolve({ name: values.name })}
       providersHref={{

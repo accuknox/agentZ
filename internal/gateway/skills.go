@@ -1547,10 +1547,12 @@ func (s *Service) DeleteImmutableSkills(w http.ResponseWriter, r *http.Request, 
 	if !decodeJSONBody(w, r, &req, false) {
 		return
 	}
-	names, ok := validateRequestedSkillNames(w, r, req.SkillNames)
-	if !ok {
+	names := req.SkillNames
+	if err := skill.ValidateNames(names); err != nil {
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "skill_names is invalid", err))
 		return
 	}
+	slices.Sort(names)
 	var workspaceID string
 	if params.XAgentZWorkspaceID != nil {
 		workspaceID = *params.XAgentZWorkspaceID
@@ -1954,13 +1956,4 @@ func (s *Service) ExportImmutableSkills(w http.ResponseWriter, r *http.Request, 
 	if err := s.skillStore.WriteVersionsZIP(r.Context(), w, selections); err != nil {
 		slog.ErrorContext(r.Context(), "stream immutable skill export", slog.Any("err", err))
 	}
-}
-
-func validateRequestedSkillNames(w http.ResponseWriter, r *http.Request, raw []gatewayapi.SkillName) ([]string, bool) {
-	if err := skill.ValidateNames(raw); err != nil {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "skill_names is invalid", err))
-		return nil, false
-	}
-	slices.Sort(raw)
-	return raw, true
 }

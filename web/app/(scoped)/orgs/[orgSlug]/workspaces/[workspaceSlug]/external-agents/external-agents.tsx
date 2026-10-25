@@ -342,9 +342,8 @@ export function ExternalAgents({
         rowAriaLabel={(agent) => `Open ${agent.name}`}
         emptyState={
           <AdministrationState
-            description="Connect Claude Code or Codex and choose which models and tools it can use."
             kind={workspace.capabilities.external_agents.create ? "welcome" : "empty"}
-            title="Let's connect your coding agent"
+            title="No external agents"
           />
         }
       />
@@ -455,7 +454,7 @@ export function ExternalAgents({
           if (!open && !pending) setConfirmation(undefined)
         }}
       >
-        <DialogContent>
+        <DialogContent showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>
               {confirmation?.operation === "delete" ? "Delete agent?" : "Disconnect agent?"}
@@ -601,9 +600,6 @@ function ExternalAgentEditor({
             <LoadingButton pending={pending} type="submit">
               {agent ? "Save" : "Add agent"}
             </LoadingButton>
-            <Button variant="outline" type="button" disabled={pending} onClick={onClose}>
-              Cancel
-            </Button>
           </SheetFooter>
         </form>
       </SheetContent>
@@ -643,7 +639,7 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
         </Alert>
       ) : null}
       <Field>
-        <FieldLabel>1. Install the AgentZ CLI</FieldLabel>
+        <FieldLabel>1. Install the CLI</FieldLabel>
         <FieldDescription>
           Requires {agent.kind === "claude" ? "Claude Code 2.1.299+" : "Codex 0.162.1+"}
         </FieldDescription>
@@ -683,7 +679,7 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
             </FieldDescription>
           </TabsContent>
         </Tabs>
-        <SetupCommand command={config} label="Copy AgentZ configuration" />
+        <SetupCommand command={config} label="Copy configuration" />
         <FieldDescription>
           Add this entry to <code>externalAgents</code>. Keep your existing profiles.
         </FieldDescription>

@@ -51,7 +51,6 @@ type sandboxQueries struct {
 	gatewaydb.Querier
 	permissions []gatewaydb.GatewayResolvePermissionsRow
 	workspace   gatewaydb.Workspace
-	events      []gatewaydb.GatewayCreateEventTrailEventParams
 }
 
 type generatedSandboxListCase struct {
@@ -69,9 +68,8 @@ type sandboxMutationAuthorizationCase struct {
 	wantStatus int
 }
 
-// GatewayCreateEventTrailEvent records resource mutations in the scope fixture.
-func (q *sandboxQueries) GatewayCreateEventTrailEvent(_ context.Context, arg gatewaydb.GatewayCreateEventTrailEventParams) (gatewaydb.EventTrailEvent, error) {
-	q.events = append(q.events, arg)
+// GatewayCreateEventTrailEvent accepts audit records from sandbox mutations.
+func (*sandboxQueries) GatewayCreateEventTrailEvent(context.Context, gatewaydb.GatewayCreateEventTrailEventParams) (gatewaydb.EventTrailEvent, error) {
 	return gatewaydb.EventTrailEvent{}, nil
 }
 
@@ -86,11 +84,6 @@ func (q *sandboxQueries) GatewayGetWorkspace(_ context.Context, arg gatewaydb.Ga
 		return q.workspace, nil
 	}
 	return gatewaydb.Workspace{}, pgx.ErrNoRows
-}
-
-// GatewayListOrganizationGuardrailClientAccess returns no client assignments in the sandbox fixture.
-func (q *sandboxQueries) GatewayListOrganizationGuardrailClientAccess(context.Context, string) ([]gatewaydb.GuardrailClientAccess, error) {
-	return nil, nil
 }
 
 // GatewayListWorkspaceInheritedResources returns no inherited resources for the fixture.

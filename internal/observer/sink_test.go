@@ -50,30 +50,42 @@ func TestSinkDrainsAfterProducersStop(t *testing.T) {
 type retryStore struct {
 	attempts int
 	rows     int
+	cancel   context.CancelFunc
 }
 
 func (s *retryStore) insertBatch(_ context.Context, b batch) error {
 	s.attempts++
 	if s.attempts == 1 {
+		if s.cancel != nil {
+			s.cancel()
+		}
 		return errors.New("temporary failure")
 	}
 	s.rows += len(b.apps)
 	return nil
 }
 func TestSinkRetainsFailedBatch(t *testing.T) {
-	events := make(chan event, 1)
-	events <- event{app: &observerdb.InsertAppOperationParams{ClientID: "accepted"}}
-	close(events)
-	store := &retryStore{}
-	sink := &sink{
-		store:  store,
-		stats:  &stats{},
-		cfg:    Config{BatchSize: 10, FlushInterval: time.Millisecond},
-		events: events,
-	}
-	sink.run(t.Context())
-	if store.attempts != 2 || store.rows != 1 {
-		t.Fatalf("failed batch was lost: attempts=%d rows=%d", store.attempts, store.rows)
+	for _, shutdown := range []bool{false, true} {
+		ctx, cancel := context.WithCancel(t.Context())
+		events := make(chan event, 2)
+		events <- event{app: &observerdb.InsertAppOperationParams{ClientID: "first"}}
+		events <- event{app: &observerdb.InsertAppOperationParams{ClientID: "buffered"}}
+		close(events)
+		store := &retryStore{}
+		if shutdown {
+			store.cancel = cancel
+		}
+		sink := &sink{
+			store:  store,
+			stats:  &stats{},
+			cfg:    Config{BatchSize: 1, FlushInterval: time.Millisecond},
+			events: events,
+		}
+		sink.run(ctx)
+		cancel()
+		if store.attempts != 3 || store.rows != 2 {
+			t.Fatalf("shutdown=%v: accepted events lost after recovery: attempts=%d rows=%d", shutdown, store.attempts, store.rows)
+		}
 	}
 }
 

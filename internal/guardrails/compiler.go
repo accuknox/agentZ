@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"regexp/syntax"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -213,10 +214,9 @@ func resolve(ctx context.Context, reader client.Reader, namespace, orgNamespace 
 			return nil, fmt.Errorf("guardrail policy %q is assigned more than once", ref.Name)
 		}
 		seen[key] = mandatory
-		policy := &api.GuardrailPolicy{}
-		if replacement != nil && replacement.Namespace == policyNamespace && replacement.Name == ref.Name {
-			policy = replacement
-		} else {
+		policy := replacement
+		if policy == nil || policy.Namespace != policyNamespace || policy.Name != ref.Name {
+			policy = &api.GuardrailPolicy{}
 			err = reader.Get(ctx, client.ObjectKey{Namespace: policyNamespace, Name: ref.Name}, policy)
 			if err != nil {
 				return nil, fmt.Errorf("get guardrail policy %q: %w", ref.Name, err)
@@ -295,41 +295,13 @@ func (b *Bundle) compile(namespace string) error {
 			context.PolicyId = resolved.Policy.Name
 			context.PolicyName = resolved.Policy.Spec.DisplayName
 		}
-		if resolved.Connection != nil {
-			switch resolved.Connection.Spec.Provider {
-			case "OpenAI":
-				context.Guard = "openAIModeration"
-			case "Bedrock":
-				context.Guard = "bedrockGuardrails"
-			case "ModelArmor":
-				context.Guard = "googleModelArmor"
-			case "Webhook":
-				context.Guard = "webhook"
-			}
-		}
 		if check.Phase == "output" {
 			context.Phase = gatewayapi.GuardrailContextPhaseResponse
 		}
+		request := agw.PromptguardRequest{}
+		response := agw.PromptguardResponse{}
 		for _, value := range check.Scopes {
 			context.Scopes = append(context.Scopes, gatewayapi.GuardrailContextScopes(value))
-		}
-		message := fmt.Sprintf("Blocked by %s", check.Name)
-		if context.Message != "" {
-			message += ": " + context.Message
-		}
-		body, err := json.Marshal(gatewayapi.GuardrailRejection{Error: gatewayapi.GuardrailError{
-			Type: gatewayapi.GuardrailErrorTypeInvalidRequestError, Code: gatewayapi.ContentPolicyViolation,
-			Message: message, Guardrail: context,
-		}})
-		if err != nil {
-			return err
-		}
-		customResponse := &agw.CustomResponse{
-			StatusCode: 422, Message: new(string(body)),
-		}
-		request := agw.PromptguardRequest{CustomResponse: customResponse}
-		response := agw.PromptguardResponse{CustomResponse: customResponse}
-		for _, value := range check.Scopes {
 			switch value {
 			case "instructions":
 				request.Scope = append(request.Scope, agw.ContentScopeSystemPrompt)
@@ -359,6 +331,7 @@ func (b *Bundle) compile(namespace string) error {
 			}
 			switch connection.Spec.Provider {
 			case "OpenAI":
+				context.Guard = "openAIModeration"
 				if check.Phase == "output" {
 					return errors.New("OpenAI moderation currently supports input checks only")
 				}
@@ -368,6 +341,7 @@ func (b *Bundle) compile(namespace string) error {
 					Policies:    &agw.OpenAIModerationPolicy{Auth: &agw.OpenAIModerationAuth{SecretRef: secret}},
 				}
 			case "Bedrock":
+				context.Guard = "bedrockGuardrails"
 				if check.GuardrailID == "" || check.GuardrailVersion == "" {
 					return errors.New("guardrail ID and version are required for Bedrock")
 				}
@@ -386,6 +360,7 @@ func (b *Bundle) compile(namespace string) error {
 				request.BedrockGuardrails = bedrock
 				response.BedrockGuardrails = bedrock
 			case "ModelArmor":
+				context.Guard = "googleModelArmor"
 				parts := strings.Split(check.Template, "/")
 				if len(parts) != 6 || parts[0] != "projects" || parts[2] != "locations" || parts[4] != "templates" {
 					return errors.New("template must use projects/{project}/locations/{location}/templates/{template} for Model Armor")
@@ -405,6 +380,7 @@ func (b *Bundle) compile(namespace string) error {
 				request.GoogleModelArmor = armor
 				response.GoogleModelArmor = armor
 			case "Webhook":
+				context.Guard = "webhook"
 				webhook := &agw.Webhook{
 					BackendRef: gwv1.BackendObjectReference{
 						Group:     new(gwv1.Group("agentgateway.dev")),
@@ -419,6 +395,22 @@ func (b *Bundle) compile(namespace string) error {
 				response.Webhook = webhook
 			}
 		}
+		message := fmt.Sprintf("Blocked by %s", check.Name)
+		if context.Message != "" {
+			message += ": " + context.Message
+		}
+		body, err := json.Marshal(gatewayapi.GuardrailRejection{Error: gatewayapi.GuardrailError{
+			Type: gatewayapi.GuardrailErrorTypeInvalidRequestError, Code: gatewayapi.ContentPolicyViolation,
+			Message: message, Guardrail: context,
+		}})
+		if err != nil {
+			return err
+		}
+		customResponse := &agw.CustomResponse{
+			StatusCode: 422, Message: new(string(body)),
+		}
+		request.CustomResponse = customResponse
+		response.CustomResponse = customResponse
 		if check.Phase == "input" {
 			guard.Request = append(guard.Request, request)
 			continue
@@ -435,9 +427,9 @@ func (b *Bundle) compile(namespace string) error {
 }
 
 // Apply attaches the complete effective bundle without discarding existing model/auth policies.
-func (b *Bundle) Apply(policy *agw.AgentgatewayPolicy) error {
+func (b *Bundle) Apply(policy *agw.AgentgatewayPolicy) {
 	if b.Guard == nil {
-		return nil
+		return
 	}
 	if policy.Spec.Backend == nil {
 		policy.Spec.Backend = &agw.BackendFull{}
@@ -459,16 +451,11 @@ func (b *Bundle) Apply(policy *agw.AgentgatewayPolicy) error {
 	if request.Metadata == nil {
 		request.Metadata = map[string]agw.CELExpression{}
 	}
-	encoded, err := json.Marshal(b.Revision)
-	if err != nil {
-		return err
-	}
-	request.Metadata["agentz_guardrail_revision"] = agw.CELExpression(encoded)
+	request.Metadata["agentz_guardrail_revision"] = agw.CELExpression(strconv.Quote(b.Revision))
 	if policy.Annotations == nil {
 		policy.Annotations = map[string]string{}
 	}
 	policy.Annotations["agentz.accuknox.com/guardrail-revision"] = b.Revision
-	return nil
 }
 
 // ValidateStreaming rejects mutations that native checked streaming cannot apply.

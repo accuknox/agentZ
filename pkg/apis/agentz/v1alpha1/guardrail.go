@@ -64,11 +64,6 @@ type GuardrailResourceStatus struct {
 	// Message is a safe readiness explanation.
 	// +optional
 	Message string `json:"message,omitempty"`
-	// Conditions records current reconciliation results.
-	// +listType=map
-	// +listMapKey=type
-	// +optional
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // GuardrailRegex configures a deterministic text detector.

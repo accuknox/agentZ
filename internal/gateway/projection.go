@@ -311,9 +311,7 @@ func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.Delegat
 				}},
 			},
 		}
-		if err := bundle.Apply(guardrailPolicy); err != nil {
-			return err
-		}
+		bundle.Apply(guardrailPolicy)
 		telemetry := delegationTelemetry(
 			grant, appName, agentKind, route, selected.WorkspaceId,
 			"inference", selected.Provider, selected.Uid, selected.Id,

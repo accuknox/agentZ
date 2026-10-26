@@ -1,6 +1,0 @@
-default(metadata.agentz_observability.agent_kind, "") == "codex"
-  ? default(
-      json(request.body).params._meta["x-codex-turn-metadata"].thread_id,
-      ""
-    )
-  : ""

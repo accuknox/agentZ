@@ -3,8 +3,11 @@ import type { Route } from "next"
 import { AdministrationPageHeader, type AdministrationPageScope } from "@/components/administration"
 import { RouteTabs } from "@/components/route-tabs"
 import type { ResourceCapabilities } from "@/lib/gateway/client"
-import { GuardrailHeaderActions } from "./header-actions"
-import { NewGuardrailConnectionButton, NewGuardrailPolicyButton } from "./resource-list"
+import {
+  GuardrailHeaderActions,
+  NewGuardrailConnectionButton,
+  NewGuardrailPolicyButton,
+} from "./resource-list"
 
 type GuardrailsLayoutProps = {
   basePath: `/orgs/${string}/guardrails`

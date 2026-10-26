@@ -234,7 +234,7 @@ export function GuardrailEvents({ data, basePath, workspaceId }: GuardrailEvents
   )
 }
 
-export function GuardrailEventDetail({
+function GuardrailEventDetail({
   event,
   basePath,
 }: {

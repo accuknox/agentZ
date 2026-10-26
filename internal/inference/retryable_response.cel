@@ -1,4 +1,0 @@
-response.code == 401 ||
-response.code == 403 ||
-response.code == 429 ||
-response.code >= 500

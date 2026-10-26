@@ -1,7 +1,6 @@
 "use server"
 
 import { randomUUID } from "node:crypto"
-import { sql } from "drizzle-orm"
 import { getDB, schema } from "@/db"
 import { getAuthSession } from "@/lib/auth"
 import { updateTag } from "next/cache"
@@ -193,7 +192,6 @@ export async function saveGuardrailClientAccessAction(
       targetId: clientId,
       targetType: "external_access_guardrails",
     })
-    await tx.execute(sql`select pg_notify('agentz_guardrails', ${access.workspace.id})`)
   })
   return { success: true }
 }

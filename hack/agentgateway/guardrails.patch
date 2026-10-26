@@ -147,7 +147,7 @@ index 448d93b..3dbe02e 100644
  	let request_body = SanitizeUserPromptRequest {
  		user_prompt_data: UserPromptData { text: content },
 diff --git a/crates/agentgateway/src/llm/policy/mod.rs b/crates/agentgateway/src/llm/policy/mod.rs
-index 34f4f97..9d08c7c 100644
+index 34f4f97..358f140 100644
 --- a/crates/agentgateway/src/llm/policy/mod.rs
 +++ b/crates/agentgateway/src/llm/policy/mod.rs
 @@ -56,6 +56,45 @@ fn record_guardrail(
@@ -196,7 +196,7 @@ index 34f4f97..9d08c7c 100644
  fn reject_or_audit<M>(audit: bool, rejection: &RequestRejection) -> GuardrailOutcome<M> {
  	if audit {
  		GuardrailOutcome::Audit
-@@ -982,17 +1021,32 @@ impl Policy {
+@@ -982,17 +1021,30 @@ impl Policy {
  		original: Option<&cel::RequestSnapshot>,
  		guardrail_log: Option<&GuardrailLog>,
  	) -> anyhow::Result<(GuardrailAction, Option<Response>)> {
@@ -208,12 +208,9 @@ index 34f4f97..9d08c7c 100644
  			{
  				Err(e) if guard.failure_mode() == FailureMode::FailOpen => {
  					tracing::warn!("request guard error, failing open: {e}");
--					(GuardrailOutcome::FailOpen, None)
-+					{
-+						checker_failed = true;
-+						(GuardrailOutcome::FailOpen, None)
-+					}
-+				},
++					checker_failed = true;
+ 					(GuardrailOutcome::FailOpen, None)
+ 				},
 +				Err(e) if guard.rejection.structured_error().is_some() => {
 +					tracing::warn!("guardrail checker failed closed: {e}");
 +					checker_failed = true;
@@ -221,7 +218,7 @@ index 34f4f97..9d08c7c 100644
 +						GuardrailOutcome::Rejected(guard.rejection.as_response()),
 +						None,
 +					)
- 				},
++				},
  				result => result?,
  			};
 -		let (action, rejection) = Self::apply_request_guard_outcome(outcome, req)?;
@@ -232,7 +229,7 @@ index 34f4f97..9d08c7c 100644
  		record_guardrail(
  			guardrail_log,
  			GuardrailPhase::Request,
-@@ -1012,9 +1066,11 @@ impl Policy {
+@@ -1012,9 +1064,11 @@ impl Policy {
  		original: Option<&cel::RequestSnapshot>,
  	) -> anyhow::Result<(GuardrailOutcome<RequestGuardMutation>, Option<GuardDetail>)> {
  		match &guard.kind {
@@ -247,16 +244,7 @@ index 34f4f97..9d08c7c 100644
  			)),
  			RequestGuardKind::Webhook(wh) => {
  				Self::evaluate_webhook_request(req, http_headers, client, wh, original).await
-@@ -1427,7 +1483,7 @@ impl Policy {
- 		rej: &RequestRejection,
- 		guard_scope: &[ContentScope],
- 	) -> anyhow::Result<GuardrailAction> {
--		let outcome = Self::evaluate_regex_request(req, rgx, rej, guard_scope);
-+		let (outcome, _) = Self::evaluate_regex_request(req, rgx, rej, guard_scope);
- 		let (action, _) = Self::apply_request_guard_outcome(outcome, req)?;
- 		Ok(action)
- 	}
-@@ -1437,10 +1493,11 @@ impl Policy {
+@@ -1437,10 +1491,11 @@ impl Policy {
  		rgx: &RegexRules,
  		rejection: &RequestRejection,
  		guard_scope: &[ContentScope],
@@ -269,7 +257,7 @@ index 34f4f97..9d08c7c 100644
  		req.visit_text_mut(&mut |content_scope, text| {
  			if rejected || audited {
  				return;
-@@ -1450,7 +1507,16 @@ impl Policy {
+@@ -1450,7 +1505,16 @@ impl Policy {
  				replacements.push(None);
  				return;
  			}
@@ -287,7 +275,7 @@ index 34f4f97..9d08c7c 100644
  				Some(RegexResult::Audit) => {
  					audited = true;
  				},
-@@ -1463,17 +1529,23 @@ impl Policy {
+@@ -1463,17 +1527,23 @@ impl Policy {
  				None => replacements.push(None),
  			}
  		});
@@ -319,16 +307,7 @@ index 34f4f97..9d08c7c 100644
  	}
  
  	#[cfg(test)]
-@@ -1482,7 +1554,7 @@ impl Policy {
- 		rgx: &RegexRules,
- 		rej: &RequestRejection,
- 	) -> anyhow::Result<GuardrailAction> {
--		let outcome = Self::evaluate_regex_response(resp, rgx, rej);
-+		let (outcome, _) = Self::evaluate_regex_response(resp, rgx, rej);
- 		let (action, _) = Self::apply_response_guard_outcome(outcome, resp)?;
- 		Ok(action)
- 	}
-@@ -1491,15 +1563,20 @@ impl Policy {
+@@ -1491,15 +1561,20 @@ impl Policy {
  		resp: &mut dyn ResponseType,
  		rgx: &RegexRules,
  		rejection: &RequestRejection,
@@ -351,7 +330,7 @@ index 34f4f97..9d08c7c 100644
  				Some(RegexResult::Audit) => {
  					audited = true;
  				},
-@@ -1512,17 +1589,23 @@ impl Policy {
+@@ -1512,17 +1587,23 @@ impl Policy {
  				None => replacements.push(None),
  			}
  		});
@@ -383,7 +362,7 @@ index 34f4f97..9d08c7c 100644
  	}
  
  	async fn evaluate_webhook_request(
-@@ -1539,7 +1622,13 @@ impl Policy {
+@@ -1539,7 +1620,13 @@ impl Policy {
  			.then(|| req.to_value())
  			.transpose()?;
  		let context = webhook::EvaluationContext::new(original, llm_request.as_ref());
@@ -398,7 +377,7 @@ index 34f4f97..9d08c7c 100644
  		let headers = Self::get_webhook_forward_headers(http_headers, &webhook.forward_header_matches);
  		let whr = webhook::send_request(client, webhook, context, &headers, messages).await?;
  		if webhook.action == RejectAuditAction::Audit {
-@@ -1557,7 +1646,26 @@ impl Policy {
+@@ -1557,7 +1644,26 @@ impl Policy {
  				}),
  			));
  		}
@@ -426,7 +405,7 @@ index 34f4f97..9d08c7c 100644
  	}
  
  	fn webhook_request_outcome(
-@@ -1882,15 +1990,24 @@ impl Policy {
+@@ -1882,16 +1988,23 @@ impl Policy {
  		guardrail_log: Option<&GuardrailLog>,
  		streaming_allow_recorded: Option<&mut bool>,
  	) -> anyhow::Result<(GuardrailAction, Option<Response>)> {
@@ -441,12 +420,9 @@ index 34f4f97..9d08c7c 100644
 -				{
 +				Err(e) if guard.failure_mode() == FailureMode::FailOpen => {
  					tracing::warn!("response guard error, failing open: {e}");
--					(GuardrailOutcome::FailOpen, None)
-+					{
-+						checker_failed = true;
-+						(GuardrailOutcome::FailOpen, None)
-+					}
-+				},
++					checker_failed = true;
+ 					(GuardrailOutcome::FailOpen, None)
+ 				},
 +				Err(e) if guard.rejection.structured_error().is_some() => {
 +					tracing::warn!("guardrail checker failed closed: {e}");
 +					checker_failed = true;
@@ -454,10 +430,11 @@ index 34f4f97..9d08c7c 100644
 +						GuardrailOutcome::Rejected(guard.rejection.as_response()),
 +						None,
 +					)
- 				},
++				},
  				result => result?,
  			};
-@@ -1900,7 +2017,10 @@ impl Policy {
+ 
+@@ -1900,7 +2013,10 @@ impl Policy {
  			return Ok((GuardrailAction::Allow, None));
  		}
  
@@ -469,7 +446,7 @@ index 34f4f97..9d08c7c 100644
  		let record = match streaming_allow_recorded {
  			Some(recorded) if action == GuardrailAction::Allow => !std::mem::replace(recorded, true),
  			_ => true,
-@@ -1925,10 +2045,7 @@ impl Policy {
+@@ -1925,10 +2041,7 @@ impl Policy {
  		original: Option<&cel::RequestSnapshot>,
  	) -> anyhow::Result<(GuardrailOutcome<ResponseGuardMutation>, Option<GuardDetail>)> {
  		match &guard.kind {
@@ -481,7 +458,7 @@ index 34f4f97..9d08c7c 100644
  			ResponseGuardKind::Webhook(wh) => {
  				Self::evaluate_webhook_response(resp, http_headers, client, wh, original).await
  			},
-@@ -2077,6 +2194,80 @@ pub enum RegexRule {
+@@ -2077,6 +2190,80 @@ pub enum RegexRule {
  }
  
  impl RequestRejection {
@@ -594,7 +571,7 @@ index 9c836e1..fa10807 100644
  		.uri("https://api.openai.com/v1/moderations")
  		.method(::http::Method::POST)
 diff --git a/crates/agentgateway/src/llm/policy/streaming_guardrails.rs b/crates/agentgateway/src/llm/policy/streaming_guardrails.rs
-index 8a4a827..133b604 100644
+index 8a4a827..aaa7ada 100644
 --- a/crates/agentgateway/src/llm/policy/streaming_guardrails.rs
 +++ b/crates/agentgateway/src/llm/policy/streaming_guardrails.rs
 @@ -197,16 +197,51 @@ impl StreamingEvaluator for ResponseGuardEvaluator {
@@ -845,108 +822,6 @@ index 8a4a827..133b604 100644
  									},
  									Ok(None) => break,
  									Err(e) => {
-@@ -610,7 +700,13 @@ mod tests {
- 		let done = sse_bytes("[DONE]");
- 		let body = make_body(vec![chunk.clone(), done.clone()]);
- 
--		let guarded = GuardedSseBody::new(body, vec![Box::new(PassEvaluator)], 1024 * 1024, None);
-+		let guarded = GuardedSseBody::new(
-+			body,
-+			vec![Box::new(PassEvaluator)],
-+			1024 * 1024,
-+			None,
-+			crate::llm::InputFormat::Completions,
-+		);
- 
- 		let bytes = guarded.collect().await.unwrap().to_bytes();
- 		assert!(bytes.starts_with(&chunk));
-@@ -622,7 +718,13 @@ mod tests {
- 		let done = sse_bytes("[DONE]");
- 		let body = make_body(vec![chunk, done]);
- 
--		let guarded = GuardedSseBody::new(body, vec![Box::new(BlockEvaluator)], 1024 * 1024, None);
-+		let guarded = GuardedSseBody::new(
-+			body,
-+			vec![Box::new(BlockEvaluator)],
-+			1024 * 1024,
-+			None,
-+			crate::llm::InputFormat::Completions,
-+		);
- 
- 		let bytes = guarded.collect().await.unwrap().to_bytes();
- 		assert!(contains(&bytes, b"guardrail_blocked"));
-@@ -646,6 +748,7 @@ mod tests {
- 			vec![Box::new(pattern_evaluator("SSN"))],
- 			1024 * 1024,
- 			None,
-+			crate::llm::InputFormat::Completions,
- 		);
- 
- 		let bytes = guarded.collect().await.unwrap().to_bytes();
-@@ -671,6 +774,7 @@ mod tests {
- 			vec![Box::new(pattern_evaluator("SSN is"))],
- 			1024 * 1024,
- 			None,
-+			crate::llm::InputFormat::Completions,
- 		);
- 
- 		let bytes = guarded.collect().await.unwrap().to_bytes();
-@@ -697,6 +801,7 @@ mod tests {
- 			vec![Box::new(pattern_evaluator("SSN"))],
- 			1024 * 1024,
- 			None,
-+			crate::llm::InputFormat::Completions,
- 		);
- 
- 		let bytes = guarded.collect().await.unwrap().to_bytes();
-@@ -718,6 +823,7 @@ mod tests {
- 			vec![Box::new(pattern_evaluator("forbidden"))],
- 			1024 * 1024,
- 			None,
-+			crate::llm::InputFormat::Completions,
- 		);
- 
- 		let bytes = guarded.collect().await.unwrap().to_bytes();
-@@ -769,6 +875,7 @@ mod tests {
- 			vec![Box::new(pattern_evaluator("forbidden"))],
- 			1024 * 1024,
- 			None,
-+			crate::llm::InputFormat::Completions,
- 		);
- 
- 		let bytes = guarded.collect().await.unwrap().to_bytes();
-@@ -787,6 +894,7 @@ mod tests {
- 			vec![Box::new(pattern_evaluator("SSN"))],
- 			1024 * 1024,
- 			None,
-+			crate::llm::InputFormat::Completions,
- 		);
- 
- 		let bytes = guarded.collect().await.unwrap().to_bytes();
-@@ -806,6 +914,7 @@ mod tests {
- 			vec![Box::new(pattern_evaluator("credit card"))],
- 			1024 * 1024,
- 			None,
-+			crate::llm::InputFormat::Completions,
- 		);
- 
- 		let bytes = guarded.collect().await.unwrap().to_bytes();
-@@ -826,6 +935,7 @@ mod tests {
- 			1024 * 1024,
- 			None,
- 			4,
-+			crate::llm::InputFormat::Completions,
- 		);
- 
- 		let bytes = guarded.collect().await.unwrap().to_bytes();
-@@ -847,6 +957,7 @@ mod tests {
- 			1024 * 1024,
- 			None,
- 			4,
-+			crate::llm::InputFormat::Completions,
- 		);
- 
- 		let bytes = guarded.collect().await.unwrap().to_bytes();
 diff --git a/crates/llm/src/types/completions.rs b/crates/llm/src/types/completions.rs
 index 4ec471c..5cfecf6 100644
 --- a/crates/llm/src/types/completions.rs

@@ -174,9 +174,7 @@ func (r *Reconciler) reconcileInference(ctx context.Context, sandbox *agentzv1al
 	desiredGrants := make(map[client.ObjectKey]struct{}, len(targets))
 	for _, target := range targets {
 		runtime := inference.RenderSandboxTarget(sandbox.Namespace, sandbox.Name, target)
-		if err := bundle.Apply(runtime.Policy); err != nil {
-			return false, err
-		}
+		bundle.Apply(runtime.Policy)
 		runtime.Policy.Spec.Traffic.ExtAuth = &agentgatewayv1alpha1.ExtAuthOrConditional{
 			ExtAuth: agentgatewayv1alpha1.ExtAuth{
 				PolicyBackendEndpoint: agentgatewayv1alpha1.PolicyBackendEndpoint{

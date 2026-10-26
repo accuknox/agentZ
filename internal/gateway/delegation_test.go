@@ -22,7 +22,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"golang.org/x/sync/semaphore"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1133,86 +1132,6 @@ func TestDelegationMCPExpressionsFitNativeLimits(t *testing.T) {
 	selected.Resources = []string{strings.Repeat("x", 2501)}
 	if _, err := delegationMCPExpressions(selected); err == nil {
 		t.Fatal("unprojectable capability admitted")
-	}
-}
-
-func TestEmptyDelegatedMCPDiscoveryAndRevocation(t *testing.T) {
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	issuer := "https://agentz.example"
-	queries := &delegationQueries{
-		grant: gatewaydb.DelegationGrant{
-			ID:        "empty-grant",
-			ClientID:  "client",
-			UserID:    testUserID,
-			Scopes:    []string{"mcp:use"},
-			Resources: []string{issuer + "/api/mcp"},
-			Selection: []byte(`{"models":[],"mcp":[]}`),
-		},
-	}
-	service := sandboxTestService(t, queries)
-	service.cfg.ExternalJWTIssuer = issuer
-	service.delegationBodies = semaphore.NewWeighted(128 << 20)
-	service.externalJWTKeyfunc = func(*jwt.Token) (any, error) { return &key.PublicKey, nil }
-	token := jwt.NewWithClaims(jwt.SigningMethodES256, authorization.DelegationClaims{
-		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:    issuer,
-			Subject:   testUserID,
-			Audience:  jwt.ClaimStrings{issuer + "/api/mcp"},
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-		},
-		ClientID: "client",
-		GrantID:  "empty-grant",
-		Scope:    "mcp:use",
-	})
-	token.Header["typ"] = "at+jwt"
-	signed, err := token.SignedString(key)
-	if err != nil {
-		t.Fatal(err)
-	}
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.Header.Set("Authorization", "Bearer "+signed)
-		service.handleDelegatedRequest(w, r)
-	}))
-	defer server.Close()
-	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
-	defer cancel()
-	client := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "empty-grant-test", Version: "test"}, nil)
-	session, err := client.Connect(ctx, &mcpsdk.StreamableClientTransport{Endpoint: server.URL + "/api/mcp"}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer session.Close()
-	if session.ID() != "" {
-		t.Fatal("empty grant created MCP session state")
-	}
-	tools, err := session.ListTools(ctx, nil)
-	if err != nil || tools == nil || len(tools.Tools) != 0 {
-		t.Fatalf("tools: %v, %v", tools, err)
-	}
-	prompts, err := session.ListPrompts(ctx, nil)
-	if err != nil || prompts == nil || len(prompts.Prompts) != 0 {
-		t.Fatalf("prompts: %v, %v", prompts, err)
-	}
-	resources, err := session.ListResources(ctx, nil)
-	if err != nil || resources == nil || len(resources.Resources) != 0 {
-		t.Fatalf("resources: %v, %v", resources, err)
-	}
-	templates, err := session.ListResourceTemplates(ctx, nil)
-	if err != nil || templates == nil || len(templates.ResourceTemplates) != 0 {
-		t.Fatalf("templates: %v, %v", templates, err)
-	}
-	_, err = session.CallTool(ctx, &mcpsdk.CallToolParams{Name: "unselected", Arguments: map[string]any{}})
-	if err == nil {
-		t.Fatal("empty grant executed an unselected tool")
-	}
-	queries.revoked = true
-	_, err = session.ListTools(ctx, nil)
-	if err == nil || !strings.Contains(err.Error(), "Forbidden") {
-		t.Fatalf("revoked discovery: %v", err)
 	}
 }
 

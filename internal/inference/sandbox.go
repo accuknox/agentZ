@@ -184,7 +184,7 @@ func RenderSandboxTarget(namespace, sandboxName string, target SandboxTarget) Sa
 				Attempts: &target.Retries,
 				Backoff:  &backoff,
 			},
-			Condition: &retryableResponse,
+			Condition: new(retryableResponse),
 		}
 	}
 	return SandboxTargetRuntime{Route: route, Policy: policy}

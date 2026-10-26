@@ -56,7 +56,6 @@ func (b *Bundle) ProjectConnections(ctx context.Context, c client.Client, namesp
 		labels := map[string]string{ConnectionUIDLabel: string(connection.UID)}
 		name := ConnectionRuntimeName(connection)
 		if connection.Spec.SecretName != "" {
-
 			desired := &eso.ExternalSecret{
 				ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
 			}

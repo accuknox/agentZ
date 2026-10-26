@@ -136,11 +136,9 @@ export function SubjectGuardrails(props: SubjectGuardrailsProps) {
                   <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/5 text-primary">
                     <BrickWallShield aria-hidden className="size-4" />
                   </span>
-                  {selected.length > 1 ? (
-                    <span className="w-5 shrink-0 text-sm text-muted-foreground tabular-nums">
-                      {index + 1}.
-                    </span>
-                  ) : null}
+                  <span className="w-5 shrink-0 text-sm text-muted-foreground tabular-nums">
+                    {index + 1}.
+                  </span>
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <span className="text-sm font-medium wrap-anywhere">{policy.displayName}</span>
                     <span className="text-xs text-muted-foreground">
@@ -158,32 +156,30 @@ export function SubjectGuardrails(props: SubjectGuardrailsProps) {
                     ) : null}
                   </div>
                   <div className="flex shrink-0 items-center">
-                    {selected.length > 1
-                      ? ([-1, 1] as const).map((direction) => (
-                          <Button
-                            aria-label={`Move ${policy.displayName} ${direction === -1 ? "up" : "down"}`}
-                            disabled={
-                              disabled ||
-                              (direction === -1 ? index === 0 : index === selected.length - 1)
-                            }
-                            key={direction}
-                            onClick={() => {
-                              const targetIndex = index + direction
-                              const target = selected[targetIndex]
-                              if (!target) return
-                              const refs = [...selected]
-                              refs[index] = target
-                              refs[targetIndex] = ref
-                              onChange({ ...assignment, policies: refs })
-                            }}
-                            size="icon-sm"
-                            type="button"
-                            variant="ghost"
-                          >
-                            {direction === -1 ? <ArrowUp /> : <ArrowDown />}
-                          </Button>
-                        ))
-                      : null}
+                    {([-1, 1] as const).map((direction) => (
+                      <Button
+                        aria-label={`Move ${policy.displayName} ${direction === -1 ? "up" : "down"}`}
+                        disabled={
+                          disabled ||
+                          (direction === -1 ? index === 0 : index === selected.length - 1)
+                        }
+                        key={direction}
+                        onClick={() => {
+                          const targetIndex = index + direction
+                          const target = selected[targetIndex]
+                          if (!target) return
+                          const refs = [...selected]
+                          refs[index] = target
+                          refs[targetIndex] = ref
+                          onChange({ ...assignment, policies: refs })
+                        }}
+                        size="icon-sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        {direction === -1 ? <ArrowUp /> : <ArrowDown />}
+                      </Button>
+                    ))}
                     <Button
                       aria-label={`Remove ${policy.displayName}`}
                       disabled={disabled}

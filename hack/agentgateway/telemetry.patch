@@ -77,19 +77,6 @@ index 2df3906..6d5f31f 100644
  			total_tokens: Some(150),
  			provider_total_tokens: Some(150),
  			service_tier: Some("default".into()),
-diff --git a/crates/agentgateway/src/cel/types_test.rs b/crates/agentgateway/src/cel/types_test.rs
-index 68fab4c..c6565a1 100644
---- a/crates/agentgateway/src/cel/types_test.rs
-+++ b/crates/agentgateway/src/cel/types_test.rs
-@@ -116,6 +116,8 @@ fn build_test_request() -> crate::http::Request {
- 
- 	// Add LLM context
- 	let llm = LLMContext {
-+		error_type: None,
-+		error: None,
- 		streaming: false,
- 		request_model: "gpt-4".into(),
- 		response_model: Some("gpt-4-turbo".into()),
 diff --git a/crates/agentgateway/src/http/transformation_cel.rs b/crates/agentgateway/src/http/transformation_cel.rs
 index 2e8ffdc..a21e042 100644
 --- a/crates/agentgateway/src/http/transformation_cel.rs
@@ -2268,46 +2255,6 @@ index e762205..e3aa73c 100644
  			.into_iter()
  			.filter_map(|(event_name, item)| {
  				let json_bytes = serde_json::to_vec(&item).ok()?;
-diff --git a/crates/llm/src/tests/response/completions/stream.completions-messages-streaming.snap b/crates/llm/src/tests/response/completions/stream.completions-messages-streaming.snap
-index 48fae87..7664e5a 100644
---- a/crates/llm/src/tests/response/completions/stream.completions-messages-streaming.snap
-+++ b/crates/llm/src/tests/response/completions/stream.completions-messages-streaming.snap
-@@ -280,5 +280,8 @@ data: {"type":"message_stop"}
-   "total_tokens": 304,
-   "reasoning_tokens": 192,
-   "cached_input_tokens": 0,
--  "provider_model": "gpt-5-nano-2025-08-07"
-+  "provider_model": "gpt-5-nano-2025-08-07",
-+  "completion": [
-+    "Hi there! How can I help today? If you’re not sure where to start, I can:\n\n- Answer questions or explain concepts\n- Help with writing, editing, or brainstorming\n- Assist with coding, math, or data tasks\n- Plan something (a trip, a project, a study schedule)\n- Translate or practice a language\n\nTell me what you’re aiming for, and I’ll tailor my help."
-+  ]
- }
-diff --git a/crates/llm/src/tests/response/responses/stream-error.responses-messages-streaming.snap b/crates/llm/src/tests/response/responses/stream-error.responses-messages-streaming.snap
-index 73a84a0..20b09d2 100644
---- a/crates/llm/src/tests/response/responses/stream-error.responses-messages-streaming.snap
-+++ b/crates/llm/src/tests/response/responses/stream-error.responses-messages-streaming.snap
-@@ -11,6 +11,8 @@ data: {"type":"error","error":{"type":"rate_limit_error","message":"provider fai
- 
- 
- {
-+  "error_type": "rate_limit_exceeded",
-+  "error": "provider failed",
-   "provider_model": "gpt-5.6-luna",
-   "completion": [
-     ""
-diff --git a/crates/llm/src/tests/response/responses/stream-failed.responses-messages-streaming.snap b/crates/llm/src/tests/response/responses/stream-failed.responses-messages-streaming.snap
-index cb8e28e..9b4f4cd 100644
---- a/crates/llm/src/tests/response/responses/stream-failed.responses-messages-streaming.snap
-+++ b/crates/llm/src/tests/response/responses/stream-failed.responses-messages-streaming.snap
-@@ -26,6 +26,8 @@ data: {"type":"error","error":{"type":"api_error","message":"provider failed"}}
- 
- 
- {
-+  "error_type": "provider_error",
-+  "error": "provider failed",
-   "input_tokens": 100,
-   "output_tokens": 5,
-   "total_tokens": 105,
 diff --git a/crates/llm/src/types/completions.rs b/crates/llm/src/types/completions.rs
 index 688234f..4ec471c 100644
 --- a/crates/llm/src/types/completions.rs

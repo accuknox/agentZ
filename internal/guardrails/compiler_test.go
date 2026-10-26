@@ -1,13 +1,9 @@
 package guardrails
 
 import (
-	"encoding/json"
-	"slices"
 	"strconv"
 	"strings"
 	"testing"
-
-	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 
 	agw "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
 	corev1 "k8s.io/api/core/v1"
@@ -291,36 +287,6 @@ func TestCompilePolicySharesConnectionsAndRejectsTermination(t *testing.T) {
 	}
 }
 
-func TestNativeRejectionAndRevisionMetadata(t *testing.T) {
-	reader, _, workspace := guardrailFixture(t)
-	bundle, err := Resolve(t.Context(), reader, workspace, api.GuardrailAssignment{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	rejection := bundle.Guard.Request[0].CustomResponse
-	if rejection.StatusCode != 422 || rejection.Message == nil || !strings.Contains(*rejection.Message, "Mandatory detector") {
-		t.Fatalf("native rejection lost safe feedback or non-retryable status: %#v", rejection)
-	}
-	var body gatewayapi.GuardrailRejection
-	if err := json.Unmarshal([]byte(*rejection.Message), &body); err != nil {
-		t.Fatal(err)
-	}
-	if body.Error.Code != gatewayapi.ContentPolicyViolation || body.Error.Guardrail.CheckId != "mandatory" || body.Error.Guardrail.PolicyName != "Organization baseline" {
-		t.Fatalf("native rejection lost structured policy context: %+v", body)
-	}
-	policy := &agw.AgentgatewayPolicy{}
-	if err := bundle.Apply(policy); err != nil {
-		t.Fatal(err)
-	}
-	metadata := policy.Spec.Traffic.Transformation.Request.Metadata
-	if _, exists := metadata["agentz_guardrails"]; exists {
-		t.Fatal("native configuration still includes private runtime instructions")
-	}
-	if string(metadata["agentz_guardrail_revision"]) != `"`+bundle.Revision+`"` {
-		t.Fatal("telemetry lost the effective configuration revision")
-	}
-}
-
 func TestMandatoryChecksRejectOptionalMutations(t *testing.T) {
 	for _, provider := range []api.GuardrailProvider{"Regex", "Webhook", "Bedrock", "ModelArmor"} {
 		for _, mode := range []string{"enforce", "audit"} {
@@ -425,48 +391,6 @@ func TestStreamingRegexNeedsBoundedContext(t *testing.T) {
 				t.Fatalf("audit check rejected: %v", err)
 			}
 		})
-	}
-}
-
-func TestRegexPresetsCompileWithCustomPatterns(t *testing.T) {
-	reader, org, workspace := guardrailFixture(t)
-	policy := &api.GuardrailPolicy{}
-	key := client.ObjectKey{Namespace: org, Name: "baseline"}
-	err := reader.Get(t.Context(), key, policy)
-	if err != nil {
-		t.Fatal(err)
-	}
-	policy.Spec.Checks[0].Regex = &api.GuardrailRegex{
-		Builtins: []string{"Email", "PhoneNumber", "Ssn", "CreditCard", "CaSin"},
-		Patterns: []string{"internal-only"},
-	}
-	if err := reader.Update(t.Context(), policy); err != nil {
-		t.Fatal(err)
-	}
-	bundle, err := Resolve(t.Context(), reader, workspace, api.GuardrailAssignment{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	regex := bundle.Guard.Request[0].Regex
-	want := []agw.BuiltIn{agw.EMAIL, agw.PHONE_NUMBER, agw.SSN, agw.CREDIT_CARD, agw.CA_SIN}
-	if !slices.Equal(regex.Builtins, want) || !slices.Equal(regex.Matches, []string{"internal-only"}) {
-		t.Fatalf("native preset and custom checks were not preserved: %+v", regex)
-	}
-	policy.Spec.Checks[0].Regex.Patterns = nil
-	if err := ValidatePolicy(policy.Spec); err != nil {
-		t.Fatalf("preset-only check rejected: %v", err)
-	}
-	invalid := []*api.GuardrailRegex{
-		{},
-		{Builtins: []string{"Email", "Email"}},
-		{Builtins: []string{"Unknown"}},
-		{Builtins: []string{"Email"}, Patterns: []string{"["}},
-	}
-	for _, regex := range invalid {
-		policy.Spec.Checks[0].Regex = regex
-		if err := ValidatePolicy(policy.Spec); err == nil {
-			t.Fatalf("invalid detector accepted: %+v", regex)
-		}
 	}
 }
 

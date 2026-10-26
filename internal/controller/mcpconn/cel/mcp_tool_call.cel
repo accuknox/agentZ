@@ -1,0 +1,5 @@
+default(metadata.agentz_observability.agent_kind, "") == "claude"
+  ? default(json(request.body).params._meta["claudecode/toolUseId"], "")
+  : (default(metadata.agentz_observability.agent_kind, "") == "codex"
+      ? default(json(request.body).params._meta.callId, "")
+      : "")

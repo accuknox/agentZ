@@ -257,7 +257,7 @@ function DeleteAgentDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent>
+      <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>Delete {agent.name}?</DialogTitle>
           <DialogDescription>

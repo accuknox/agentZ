@@ -13,6 +13,7 @@ import {
   ScrollText,
   Settings2,
   ShieldCheck,
+  BrickWallShield,
   SlidersHorizontal,
   User2,
   UserRoundCheck,
@@ -62,6 +63,9 @@ export type SidebarScope =
       kind: "organization"
       mcpConnectionCapabilities: ResourceCapabilities
       inferenceProviderCapabilities: ResourceCapabilities
+      guardrailPolicyCapabilities: ResourceCapabilities
+      guardrailConnectionCapabilities: ResourceCapabilities
+      guardrailEventCapabilities: ResourceCapabilities
       sandboxCapabilities: ResourceCapabilities
       skillCapabilities: ResourceCapabilities
     } & WorkspaceNavigationScope)
@@ -79,14 +83,16 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   showTourButton?: boolean
 }
 
-export function AppSidebar({
-  activeOrganizationId,
-  organizations = [],
-  scope,
-  showTourButton = false,
-  user,
-  ...sidebarProps
-}: AppSidebarProps) {
+export function AppSidebar(props: AppSidebarProps) {
+  const {
+    activeOrganizationId,
+    organizations = [],
+    scope,
+    showTourButton = false,
+    user,
+    ...sidebarProps
+  } = props
+
   const userMenu = user ? (
     <NavUser
       activeOrganizationId={activeOrganizationId}
@@ -135,6 +141,9 @@ export function AppSidebar({
             canEnterOrganization={scope.canEnterOrganization}
             mcpConnectionCapabilities={scope.mcpConnectionCapabilities}
             inferenceProviderCapabilities={scope.inferenceProviderCapabilities}
+            guardrailPolicyCapabilities={scope.guardrailPolicyCapabilities}
+            guardrailConnectionCapabilities={scope.guardrailConnectionCapabilities}
+            guardrailEventCapabilities={scope.guardrailEventCapabilities}
             organization={scope.organization}
             skillCapabilities={scope.skillCapabilities}
             sandboxCapabilities={scope.sandboxCapabilities}
@@ -193,15 +202,15 @@ function SettingsNavigation() {
   )
 }
 
-async function WorkspaceSidebar({
-  scope,
-  showTourButton,
-  userMenu,
-}: {
+type WorkspaceSidebarProps = {
   scope: Extract<SidebarScope, { kind: "workspace" }>
   showTourButton: boolean
   userMenu: React.ReactNode
-}) {
+}
+
+async function WorkspaceSidebar(props: WorkspaceSidebarProps) {
+  const { scope, showTourButton, userMenu } = props
+
   const { organization, workspace } = scope
   const workspacePath: WorkspacePath = `/orgs/${organization.slug}/workspaces/${workspace.slug}`
   const agents = await listAllAgentsCachedQuery(workspace.id)
@@ -260,19 +269,17 @@ async function WorkspaceSidebar({
   )
 }
 
-async function WorkspaceChatSessions({
-  agents,
-  preferences,
-  workspaceId,
-  workspaceType,
-  workspacePath,
-}: {
+type WorkspaceChatSessionsProps = {
   agents: ListAgentActionResponse
   preferences: ChatSessionPreference
   workspaceType: Workspace["type"]
   workspaceId: string
   workspacePath: WorkspacePath
-}) {
+}
+
+async function WorkspaceChatSessions(props: WorkspaceChatSessionsProps) {
+  const { agents, preferences, workspaceId, workspaceType, workspacePath } = props
+
   const [sessions, actor] = await Promise.all([
     listChatSessions({
       client: getGatewayServerClient(workspaceId),
@@ -307,23 +314,41 @@ async function WorkspaceChatSessions({
   )
 }
 
-function OrganizationNavigation({
-  canEnterOrganization,
-  mcpConnectionCapabilities,
-  inferenceProviderCapabilities,
-  organization,
-  skillCapabilities,
-  sandboxCapabilities,
-}: {
+type OrganizationNavigationProps = {
   canEnterOrganization: boolean
   mcpConnectionCapabilities: ResourceCapabilities
   inferenceProviderCapabilities: ResourceCapabilities
+  guardrailPolicyCapabilities: ResourceCapabilities
+  guardrailConnectionCapabilities: ResourceCapabilities
+  guardrailEventCapabilities: ResourceCapabilities
   organization: OrganizationSummary
   skillCapabilities: ResourceCapabilities
   sandboxCapabilities: ResourceCapabilities
-}) {
+}
+
+function OrganizationNavigation(props: OrganizationNavigationProps) {
+  const {
+    guardrailPolicyCapabilities,
+    guardrailConnectionCapabilities,
+    guardrailEventCapabilities,
+    canEnterOrganization,
+    mcpConnectionCapabilities,
+    inferenceProviderCapabilities,
+    organization,
+    skillCapabilities,
+    sandboxCapabilities,
+  } = props
+
   const root = `/orgs/${organization.slug}` as const
+  const canReadGuardrails =
+    guardrailPolicyCapabilities.read ||
+    guardrailConnectionCapabilities.read ||
+    guardrailEventCapabilities.read
+  let guardrailsView = "events"
+  if (guardrailConnectionCapabilities.read) guardrailsView = "connections"
+  if (guardrailPolicyCapabilities.read) guardrailsView = "policies"
   const hasResources =
+    canReadGuardrails ||
     skillCapabilities.read ||
     mcpConnectionCapabilities.read ||
     sandboxCapabilities.read ||
@@ -393,6 +418,17 @@ function OrganizationNavigation({
               <SidebarMenuItem data-tour="sandboxes">
                 <SidebarNavigationLink href={`${root}/sandboxes`} label="Sandboxes">
                   <Box aria-hidden="true" />
+                </SidebarNavigationLink>
+              </SidebarMenuItem>
+            ) : null}
+            {canReadGuardrails ? (
+              <SidebarMenuItem>
+                <SidebarNavigationLink
+                  href={`${root}/guardrails/${guardrailsView}`}
+                  label="Guardrails"
+                  match={`${root}/guardrails`}
+                >
+                  <BrickWallShield aria-hidden="true" />
                 </SidebarNavigationLink>
               </SidebarMenuItem>
             ) : null}

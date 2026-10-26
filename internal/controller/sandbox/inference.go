@@ -22,6 +22,7 @@ import (
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/accuknox/agentz/internal/authorization"
+	"github.com/accuknox/agentz/internal/guardrails"
 	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/mcp"
 	"github.com/accuknox/agentz/internal/networkpolicy"
@@ -32,6 +33,13 @@ import (
 const sandboxNamespaceLabel = "agentz.accuknox.com/sandbox-namespace"
 
 func (r *Reconciler) reconcileInference(ctx context.Context, sandbox *agentzv1alpha1.Sandbox) (bool, error) {
+	bundle, err := guardrails.Resolve(ctx, r.Client, sandbox.Namespace, sandbox.Spec.Guardrails)
+	if err != nil {
+		return false, fmt.Errorf("resolve guardrails: %w", err)
+	}
+	if err := bundle.ValidateStreaming(); err != nil {
+		return false, err
+	}
 	providers := make(map[string]*agentzv1alpha1.InferenceProvider)
 	models := make(map[string][]string)
 	targets := []inference.SandboxTarget{}
@@ -166,6 +174,27 @@ func (r *Reconciler) reconcileInference(ctx context.Context, sandbox *agentzv1al
 	desiredGrants := make(map[client.ObjectKey]struct{}, len(targets))
 	for _, target := range targets {
 		runtime := inference.RenderSandboxTarget(sandbox.Namespace, sandbox.Name, target)
+		if err := bundle.Apply(runtime.Policy); err != nil {
+			return false, err
+		}
+		runtime.Policy.Spec.Traffic.ExtAuth = &agentgatewayv1alpha1.ExtAuthOrConditional{
+			ExtAuth: agentgatewayv1alpha1.ExtAuth{
+				PolicyBackendEndpoint: agentgatewayv1alpha1.PolicyBackendEndpoint{
+					BackendRef: &gwv1.BackendObjectReference{
+						Name: gwv1.ObjectName(mcp.ExtAuthServiceName),
+						Port: new(mcp.ExtAuthPort),
+					},
+				},
+				GRPC: &agentgatewayv1alpha1.AgentExtAuthGRPC{
+					ContextExtensions: map[string]string{
+						"agentz.guardrail_namespace": sandbox.Namespace,
+						"agentz.guardrail_sandbox":   sandbox.Name,
+						"agentz.guardrail_revision":  bundle.Revision,
+					},
+				},
+			},
+		}
+
 		desired[runtime.Route.Name] = struct{}{}
 		if target.BackendNamespace != "" && target.BackendNamespace != sandbox.Namespace {
 			grant := &gwv1.ReferenceGrant{
@@ -282,8 +311,10 @@ func (r *Reconciler) reconcileInference(ctx context.Context, sandbox *agentzv1al
 
 func inferenceRouteReady(route *gwv1.HTTPRoute) bool {
 	for _, parent := range route.Status.Parents {
-		accepted := meta.IsStatusConditionTrue(parent.Conditions, string(gwv1.RouteConditionAccepted))
-		resolved := meta.IsStatusConditionTrue(parent.Conditions, string(gwv1.RouteConditionResolvedRefs))
+		acceptedCondition := meta.FindStatusCondition(parent.Conditions, string(gwv1.RouteConditionAccepted))
+		accepted := acceptedCondition != nil && acceptedCondition.Status == metav1.ConditionTrue && acceptedCondition.ObservedGeneration == route.Generation
+		resolvedCondition := meta.FindStatusCondition(parent.Conditions, string(gwv1.RouteConditionResolvedRefs))
+		resolved := resolvedCondition != nil && resolvedCondition.Status == metav1.ConditionTrue && resolvedCondition.ObservedGeneration == route.Generation
 		if accepted && resolved {
 			return true
 		}
@@ -293,8 +324,10 @@ func inferenceRouteReady(route *gwv1.HTTPRoute) bool {
 
 func inferencePolicyReady(policy *agentgatewayv1alpha1.AgentgatewayPolicy) bool {
 	for _, ancestor := range policy.Status.Ancestors {
-		accepted := meta.IsStatusConditionTrue(ancestor.Conditions, "Accepted")
-		attached := meta.IsStatusConditionTrue(ancestor.Conditions, "Attached")
+		acceptedCondition := meta.FindStatusCondition(ancestor.Conditions, "Accepted")
+		accepted := acceptedCondition != nil && acceptedCondition.Status == metav1.ConditionTrue && acceptedCondition.ObservedGeneration == policy.Generation
+		attachedCondition := meta.FindStatusCondition(ancestor.Conditions, "Attached")
+		attached := attachedCondition != nil && attachedCondition.Status == metav1.ConditionTrue && attachedCondition.ObservedGeneration == policy.Generation
 		if accepted && attached {
 			return true
 		}
@@ -470,7 +503,18 @@ func (r *Reconciler) reconcileInferenceGateway(ctx context.Context, namespace st
 		}
 	}
 	egressTargets := make([]networkpolicy.Target, 0, len(providerKeys)+1)
-	extAuthNamespaces := []string{}
+	for i := range owners {
+		bundle, err := guardrails.Resolve(ctx, r.Client, namespace, owners[i].Spec.Guardrails)
+		if err != nil {
+			return err
+		}
+		targets, err := bundle.ProjectConnections(ctx, r.Client, namespace, r.GuardrailStoreName)
+		if err != nil {
+			return err
+		}
+		egressTargets = append(egressTargets, targets...)
+	}
+	extAuthNamespaces := []string{namespace}
 	for key := range providerKeys {
 		provider := &agentzv1alpha1.InferenceProvider{}
 		if err := r.Get(ctx, key, provider); err != nil {
@@ -612,43 +656,53 @@ func (r *Reconciler) inferenceTracing(namespace string) *agentgatewayv1alpha1.Tr
 		PolicyBackendEndpoint: agentgatewayv1alpha1.PolicyBackendEndpoint{
 			BackendRef: r.TraceBackend.BackendRef(inferenceTraceBackendName),
 		},
-		Protocol:       agentgatewayv1alpha1.OTLPProtocolGrpc,
-		RandomSampling: &randomSampling,
+		Protocol:         agentgatewayv1alpha1.OTLPProtocolGrpc,
+		RandomSampling:   &randomSampling,
+		ClientSampling:   &randomSampling,
+		ParentNotSampled: &randomSampling,
 		Attributes: &agentgatewayv1alpha1.LogTracingAttributes{
 			Add: []agentgatewayv1alpha1.AttributeAdd{
 				{
-					Name:       agentgatewayv1alpha1.ShortString("session.id"),
-					Expression: agentgatewayv1alpha1.CELExpression(`default(request.headers["x-session-id"], "")`),
+					Name:       "agentz.guardrails",
+					Expression: "toJson(guardrails)",
 				},
 				{
-					Name:       agentgatewayv1alpha1.ShortString("agentz.tenant_namespace"),
+					Name:       "agentz.guardrail_revision",
+					Expression: `default(metadata.agentz_guardrail_revision, "")`,
+				},
+				{
+					Name:       "session.id",
+					Expression: `default(request.headers["x-session-id"], "")`,
+				},
+				{
+					Name:       "agentz.tenant_namespace",
 					Expression: agentgatewayv1alpha1.CELExpression(strconv.Quote(namespace)),
 				},
 				{
-					Name:       agentgatewayv1alpha1.ShortString("agentz.sandbox_name"),
-					Expression: agentgatewayv1alpha1.CELExpression(`request.path.split("/")[2]`),
+					Name:       "agentz.sandbox_name",
+					Expression: `request.path.split("/")[2]`,
 				},
 				{
-					Name:       agentgatewayv1alpha1.ShortString("agentz.provider_id"),
-					Expression: agentgatewayv1alpha1.CELExpression(`request.path.split("/")[4]`),
+					Name:       "agentz.provider_id",
+					Expression: `request.path.split("/")[4]`,
 				},
 				{
-					Name:       agentgatewayv1alpha1.ShortString("agentz.agent_name"),
-					Expression: agentgatewayv1alpha1.CELExpression("source.identity.serviceAccount"),
+					Name:       "agentz.agent_name",
+					Expression: "source.identity.serviceAccount",
 				},
 				{
-					Name:       agentgatewayv1alpha1.ShortString("gen_ai.request.model"),
-					Expression: agentgatewayv1alpha1.CELExpression("llm.requestModel"),
+					Name:       "gen_ai.request.model",
+					Expression: "llm.requestModel",
 				},
 			},
 		},
 		Resources: []agentgatewayv1alpha1.ResourceAdd{
 			{
-				Name:       agentgatewayv1alpha1.ShortString("service.name"),
+				Name:       "service.name",
 				Expression: agentgatewayv1alpha1.CELExpression(strconv.Quote("agentz-inference-gateway")),
 			},
 			{
-				Name:       agentgatewayv1alpha1.ShortString("service.namespace"),
+				Name:       "service.namespace",
 				Expression: agentgatewayv1alpha1.CELExpression(strconv.Quote(namespace)),
 			},
 		},

@@ -66,15 +66,7 @@ func (s *Service) createSkillEventTrail(ctx context.Context, access resourceAcce
 	case authorization.OperationDeleteSkill:
 		action = "delete"
 	}
-	return s.createResourceEventTrail(
-		ctx,
-		access,
-		gatewaydb.EventTrailTargetSkill,
-		name,
-		"skill",
-		action,
-		result,
-	)
+	return s.createResourceEventTrail(ctx, access, gatewaydb.EventTrailTargetSkill, name, "skill", action, result)
 }
 
 // ListSkills handles GET /api/skill.
@@ -95,16 +87,7 @@ func (s *Service) ListSkills(w http.ResponseWriter, r *http.Request, params gate
 		limit = int(*params.Limit)
 	}
 	if limit < 1 || limit > 200 {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"limit must be between 1 and 200",
-				errBadRequest,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "limit must be between 1 and 200", errBadRequest))
 		return
 	}
 
@@ -163,12 +146,7 @@ func (s *Service) ListSkills(w http.ResponseWriter, r *http.Request, params gate
 		items = append(items, skillFromCRD(item, refsBySkill[ref], access, actors))
 	}
 	if workspaceID != "" {
-		organizationItems, err := s.listInheritedSkills(
-			r.Context(),
-			access,
-			effective,
-			refsBySkill,
-		)
+		organizationItems, err := s.listInheritedSkills(r.Context(), access, effective, refsBySkill)
 		if err != nil {
 			apiutil.WriteInternalError(w, r, err)
 			return
@@ -207,14 +185,7 @@ func (s *Service) ListSkills(w http.ResponseWriter, r *http.Request, params gate
 		next = encodeOffsetToken(end)
 	}
 
-	apiutil.WriteJSON(
-		w,
-		http.StatusOK,
-		gatewayapi.ListSkillsResponse{
-			Skills:        page,
-			NextPageToken: next,
-		},
-	)
+	apiutil.WriteJSON(w, http.StatusOK, gatewayapi.ListSkillsResponse{Skills: page, NextPageToken: next})
 }
 
 func (s *Service) listInheritedSkills(ctx context.Context, access resourceAccess, effective map[agentzv1alpha1.ResourceReference]struct{}, refs map[agentzv1alpha1.ResourceReference]gatewayapi.SkillReferences) ([]gatewayapi.Skill, error) {
@@ -230,10 +201,7 @@ func (s *Service) listInheritedSkills(ctx context.Context, access resourceAccess
 	if len(selected) == 0 {
 		return []gatewayapi.Skill{}, nil
 	}
-	organizationNamespace := agentzv1alpha1.ScopeNamespace(
-		agentzv1alpha1.ResourceScopeOrganisation,
-		access.claims.OrganizationID,
-	)
+	organizationNamespace := agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeOrganisation, access.claims.OrganizationID)
 	skills := &agentzv1alpha1.SkillList{}
 	err = s.k8sClient.List(ctx, skills, ctrlclient.InNamespace(organizationNamespace))
 	if err != nil {
@@ -299,27 +267,12 @@ func (s *Service) CreateSkill(w http.ResponseWriter, r *http.Request, params gat
 	ns := access.namespace
 
 	fields := validateSkillName("name", req.Name)
-	fields = append(
-		fields,
-		validateSkillSpec(
-			ns,
-			req.Name,
-			req.Description,
-			req.Version,
-			req.StoragePath,
-		)...,
-	)
+	fields = append(fields, validateSkillSpec(ns, req.Name, req.Description, req.Version, req.StoragePath)...)
 	if len(fields) > 0 {
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				fields...,
-			),
+			apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", errBadRequest, fields...),
 		)
 		return
 	}
@@ -368,11 +321,7 @@ func (s *Service) CreateSkill(w http.ResponseWriter, r *http.Request, params gat
 		Name:  skill.Name,
 	}
 	refs := refsBySkill[ref]
-	actors, err := s.resourceActors(
-		r.Context(),
-		skill.Spec.CreatedByUserID,
-		skill.Spec.LastModifiedByUserID,
-	)
+	actors, err := s.resourceActors(r.Context(), skill.Spec.CreatedByUserID, skill.Spec.LastModifiedByUserID)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
@@ -407,13 +356,7 @@ func (s *Service) UpdateSkill(w http.ResponseWriter, r *http.Request, skillName 
 
 	fields := validateSkillName("skillName", skillName)
 	if req.Version < 1 {
-		fields = append(
-			fields,
-			gatewayapi.FieldError{
-				Field:   "version",
-				Message: "must be at least 1",
-			},
-		)
+		fields = append(fields, gatewayapi.FieldError{Field: "version", Message: "must be at least 1"})
 	}
 	if req.Description != nil {
 		fields = append(fields, validateSkillDescription(*req.Description)...)
@@ -422,23 +365,13 @@ func (s *Service) UpdateSkill(w http.ResponseWriter, r *http.Request, skillName 
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				fields...,
-			),
+			apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", errBadRequest, fields...),
 		)
 		return
 	}
 	_, err := s.skillStore.VersionSummary(r.Context(), ns, skillName, req.Version)
 	if errors.Is(err, fs.ErrNotExist) {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(http.StatusNotFound, "not_found", "immutable skill version not found", err),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusNotFound, "not_found", "immutable skill version not found", err))
 		return
 	}
 	if err != nil {
@@ -493,11 +426,7 @@ func (s *Service) UpdateSkill(w http.ResponseWriter, r *http.Request, skillName 
 		Name:  updated.Name,
 	}
 	refs := refsBySkill[ref]
-	actors, err := s.resourceActors(
-		r.Context(),
-		updated.Spec.CreatedByUserID,
-		updated.Spec.LastModifiedByUserID,
-	)
+	actors, err := s.resourceActors(r.Context(), updated.Spec.CreatedByUserID, updated.Spec.LastModifiedByUserID)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
@@ -506,27 +435,18 @@ func (s *Service) UpdateSkill(w http.ResponseWriter, r *http.Request, skillName 
 }
 
 func (s *Service) checkSkillDeletion(ctx context.Context, access resourceAccess, name string) (*apiutil.APIError, error) {
-	conflict, err := s.selectedOrganizationResourceConflict(
-		ctx, access, agentzv1alpha1.OrganizationResourceKindSkill, name,
-	)
+	conflict, err := s.selectedOrganizationResourceConflict(ctx, access, agentzv1alpha1.OrganizationResourceKindSkill, name)
 	if err != nil || conflict != nil {
 		return conflict, err
 	}
-	refs, err := skill.ReferencingConsumers(ctx, s.k8sClient, ctrlclient.ObjectKey{
-		Namespace: access.namespace,
-		Name:      name,
-	})
+	refs, err := skill.ReferencingConsumers(ctx, s.k8sClient, ctrlclient.ObjectKey{Namespace: access.namespace, Name: name})
 	if err != nil || len(refs) == 0 {
 		return nil, err
 	}
 	return apiutil.NewError(
 		http.StatusConflict,
 		"skill_in_use",
-		fmt.Sprintf(
-			"skill %q is in use by %s; remove these references before deleting",
-			name,
-			strings.Join(refs, ", "),
-		),
+		fmt.Sprintf("skill %q is in use by %s; remove these references before deleting", name, strings.Join(refs, ", ")),
 		errBadRequest,
 	), nil
 }
@@ -554,13 +474,7 @@ func (s *Service) DeleteSkill(w http.ResponseWriter, r *http.Request, skillName 
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				fields...,
-			),
+			apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", errBadRequest, fields...),
 		)
 		return
 	}
@@ -612,13 +526,7 @@ func (s *Service) GetSkillReferences(w http.ResponseWriter, r *http.Request, ski
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				fields...,
-			),
+			apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", errBadRequest, fields...),
 		)
 		return
 	}
@@ -717,10 +625,7 @@ func (s *Service) listSkillReferences(ctx context.Context, namespace string) (ma
 			names = append(names, item)
 		}
 		slices.Sort(names)
-		refs[ref] = gatewayapi.SkillReferences{
-			Agents:    names,
-			Sandboxes: []gatewayapi.SandboxName{},
-		}
+		refs[ref] = gatewayapi.SkillReferences{Agents: names, Sandboxes: []gatewayapi.SandboxName{}}
 	}
 	for resource, items := range sandboxRefs {
 		names := make([]gatewayapi.SandboxName, 0, len(items))
@@ -769,24 +674,9 @@ func validateSkillName(field string, name string) []gatewayapi.FieldError {
 func validateSkillSpec(namespace, name, description string, version int64, storagePath string) []gatewayapi.FieldError {
 	fields := validateSkillDescription(description)
 	if version < 1 {
-		fields = append(
-			fields,
-			gatewayapi.FieldError{
-				Field:   "version",
-				Message: "must be at least 1",
-			},
-		)
+		fields = append(fields, gatewayapi.FieldError{Field: "version", Message: "must be at least 1"})
 	}
-	fields = append(
-		fields,
-		validateSkillStoragePath(
-			"storage_path",
-			namespace,
-			name,
-			version,
-			storagePath,
-		)...,
-	)
+	fields = append(fields, validateSkillStoragePath("storage_path", namespace, name, version, storagePath)...)
 	return fields
 }
 
@@ -797,10 +687,7 @@ func validateSkillStoragePath(field, namespace, name string, version int64, stor
 	}
 	expected := (skill.Config{Bucket: bucket}).StoragePath(namespace, name, version)
 	if storagePath != expected {
-		return []gatewayapi.FieldError{{
-			Field:   field,
-			Message: "must match the skill namespace, name, and version",
-		}}
+		return []gatewayapi.FieldError{{Field: field, Message: "must match the skill namespace, name, and version"}}
 	}
 	return nil
 }
@@ -808,13 +695,7 @@ func validateSkillStoragePath(field, namespace, name string, version int64, stor
 func validateSkillDescription(description string) []gatewayapi.FieldError {
 	fields := []gatewayapi.FieldError{}
 	if strings.TrimSpace(description) == "" {
-		fields = append(
-			fields,
-			gatewayapi.FieldError{
-				Field:   "description",
-				Message: "required",
-			},
-		)
+		fields = append(fields, gatewayapi.FieldError{Field: "description", Message: "required"})
 	}
 	if len(description) > 1024 {
 		fields = append(
@@ -836,13 +717,7 @@ func (s *Service) validateSkillRefs(ctx context.Context, namespace string, refs 
 		name := ref.Name
 		field := fmt.Sprintf("skills[%d].name", i)
 		if name == "" {
-			fields = append(
-				fields,
-				gatewayapi.FieldError{
-					Field:   field,
-					Message: "required",
-				},
-			)
+			fields = append(fields, gatewayapi.FieldError{Field: field, Message: "required"})
 			continue
 		}
 		if first, ok := seen[ref]; ok {
@@ -885,13 +760,7 @@ func (s *Service) validateSkillRefs(ctx context.Context, namespace string, refs 
 		key := types.NamespacedName{Name: name, Namespace: ns}
 		if err := s.k8sClient.Get(ctx, key, skill); err != nil {
 			if apierrors.IsNotFound(err) {
-				fields = append(
-					fields,
-					gatewayapi.FieldError{
-						Field:   field,
-						Message: "skill not found",
-					},
-				)
+				fields = append(fields, gatewayapi.FieldError{Field: field, Message: "skill not found"})
 				continue
 			}
 			return nil, nil, fmt.Errorf("get skill %q: %w", name, err)
@@ -939,16 +808,7 @@ func (s *Service) PreviewMutableSkillImport(w http.ResponseWriter, r *http.Reque
 	for _, agent := range agents {
 		mutable, err := s.mutableSkillNames(r.Context(), agent)
 		if err != nil {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusBadGateway,
-					"filesystem_unavailable",
-					"agent filesystem is unavailable",
-					err,
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadGateway, "filesystem_unavailable", "agent filesystem is unavailable", err))
 			return
 		}
 		for _, tree := range bundle.Skills {
@@ -972,13 +832,7 @@ func (s *Service) PreviewMutableSkillImport(w http.ResponseWriter, r *http.Reque
 			},
 		)
 	}
-	apiutil.WriteJSON(
-		w,
-		http.StatusOK,
-		gatewayapi.MutableSkillImportPreviewResponse{
-			Skills: items,
-		},
-	)
+	apiutil.WriteJSON(w, http.StatusOK, gatewayapi.MutableSkillImportPreviewResponse{Skills: items})
 }
 
 // ImportMutableSkills handles POST /api/agent/skill/import.
@@ -1018,16 +872,7 @@ func (s *Service) ImportMutableSkills(w http.ResponseWriter, r *http.Request, _ 
 	for i, agent := range agents {
 		existing, err := s.mutableSkillNames(r.Context(), agent)
 		if err != nil {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusBadGateway,
-					"filesystem_unavailable",
-					"agent filesystem is unavailable",
-					err,
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadGateway, "filesystem_unavailable", "agent filesystem is unavailable", err))
 			return
 		}
 		plan := make([]skill.Decision, 0, len(bundle.Skills))
@@ -1063,12 +908,7 @@ func (s *Service) ImportMutableSkills(w http.ResponseWriter, r *http.Request, _ 
 				return
 			}
 			defer func() { <-s.skillImports }()
-			results[i] = s.importMutableSkillArchive(
-				r.Context(),
-				agent,
-				archive.Bytes(),
-				decisionHeaders[i],
-			)
+			results[i] = s.importMutableSkillArchive(r.Context(), agent, archive.Bytes(), decisionHeaders[i])
 		})
 	}
 	wg.Wait()
@@ -1077,14 +917,7 @@ func (s *Service) ImportMutableSkills(w http.ResponseWriter, r *http.Request, _ 
 	for _, tree := range bundle.Skills {
 		imported = append(imported, tree.Name)
 	}
-	apiutil.WriteJSON(
-		w,
-		http.StatusOK,
-		gatewayapi.SkillImportResponse{
-			Skills: imported,
-			Agents: results,
-		},
-	)
+	apiutil.WriteJSON(w, http.StatusOK, gatewayapi.SkillImportResponse{Skills: imported, Agents: results})
 }
 
 // PreviewImmutableSkillImport handles POST /api/skill/import/preview.
@@ -1116,21 +949,9 @@ func (s *Service) PreviewImmutableSkillImport(w http.ResponseWriter, r *http.Req
 	items := make([]gatewayapi.ImmutableSkillImportPreviewItem, 0, len(bundle.Skills))
 	for _, tree := range bundle.Skills {
 		_, conflict := immutableNames[tree.Name]
-		items = append(
-			items,
-			gatewayapi.ImmutableSkillImportPreviewItem{
-				Name:     tree.Name,
-				Conflict: conflict,
-			},
-		)
+		items = append(items, gatewayapi.ImmutableSkillImportPreviewItem{Name: tree.Name, Conflict: conflict})
 	}
-	apiutil.WriteJSON(
-		w,
-		http.StatusOK,
-		gatewayapi.ImmutableSkillImportPreviewResponse{
-			Skills: items,
-		},
-	)
+	apiutil.WriteJSON(w, http.StatusOK, gatewayapi.ImmutableSkillImportPreviewResponse{Skills: items})
 }
 
 // ImportImmutableSkills handles POST /api/skill/import.
@@ -1156,12 +977,7 @@ func (s *Service) ImportImmutableSkills(w http.ResponseWriter, r *http.Request, 
 		if eventRecorded {
 			return
 		}
-		err := s.createSkillEventTrail(
-			context.WithoutCancel(r.Context()),
-			access,
-			"import",
-			gatewaydb.EventTrailResultFailed,
-		)
+		err := s.createSkillEventTrail(context.WithoutCancel(r.Context()), access, "import", gatewaydb.EventTrailResultFailed)
 		if err != nil {
 			slog.ErrorContext(r.Context(), "event trail failed Skill import", slog.Any("err", err))
 		}
@@ -1182,12 +998,7 @@ func (s *Service) ImportImmutableSkills(w http.ResponseWriter, r *http.Request, 
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"Organisation skill imports cannot target Agents",
-				errBadRequest,
-			),
+			apiutil.NewError(http.StatusBadRequest, "invalid_request", "Organisation skill imports cannot target Agents", errBadRequest),
 		)
 		return
 	}
@@ -1230,11 +1041,7 @@ func (s *Service) ImportImmutableSkills(w http.ResponseWriter, r *http.Request, 
 		err := retry.RetryOnConflict(
 			retry.DefaultRetry,
 			func() error {
-				current, err := s.resolver.client.AgentzV1alpha1().Agents(access.namespace).Get(
-					r.Context(),
-					agent.Agent.Name,
-					metav1.GetOptions{},
-				)
+				current, err := s.resolver.client.AgentzV1alpha1().Agents(access.namespace).Get(r.Context(), agent.Agent.Name, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
@@ -1249,11 +1056,7 @@ func (s *Service) ImportImmutableSkills(w http.ResponseWriter, r *http.Request, 
 					},
 				)
 				current.Spec.Skills = slices.Compact(current.Spec.Skills)
-				_, err = s.resolver.client.AgentzV1alpha1().Agents(access.namespace).Update(
-					r.Context(),
-					current,
-					metav1.UpdateOptions{},
-				)
+				_, err = s.resolver.client.AgentzV1alpha1().Agents(access.namespace).Update(r.Context(), current, metav1.UpdateOptions{})
 				return err
 			},
 		)
@@ -1266,14 +1069,7 @@ func (s *Service) ImportImmutableSkills(w http.ResponseWriter, r *http.Request, 
 		result.Status = gatewayapi.SkillImportAgentResultStatusSucceeded
 		results[i] = result
 	}
-	apiutil.WriteJSON(
-		w,
-		http.StatusOK,
-		gatewayapi.SkillImportResponse{
-			Skills: names,
-			Agents: results,
-		},
-	)
+	apiutil.WriteJSON(w, http.StatusOK, gatewayapi.SkillImportResponse{Skills: names, Agents: results})
 }
 
 func (s *Service) importImmutableSkills(ctx context.Context, bundle skill.Bundle, decisions []skill.Decision, access resourceAccess) *apiutil.APIError {
@@ -1314,12 +1110,7 @@ func (s *Service) importImmutableSkills(ctx context.Context, bundle skill.Bundle
 		}
 		action := actions[tree.Name]
 		if action == skill.DecisionOverwrite && !exists {
-			return apiutil.NewError(
-				http.StatusConflict,
-				"decision_conflict",
-				"overwrite destination does not exist",
-				errBadRequest,
-			)
+			return apiutil.NewError(http.StatusConflict, "decision_conflict", "overwrite destination does not exist", errBadRequest)
 		}
 		overwriteDenied := action == skill.DecisionOverwrite &&
 			!canModify &&
@@ -1329,31 +1120,16 @@ func (s *Service) importImmutableSkills(ctx context.Context, bundle skill.Bundle
 			eventTrailAccess.operation = authorization.OperationUpdateSkill
 			err := s.createSkillEventTrail(ctx, eventTrailAccess, tree.Name, gatewaydb.EventTrailResultDenied)
 			if err != nil {
-				return apiutil.NewError(
-					http.StatusInternalServerError,
-					"internal_error",
-					"unexpected server error",
-					err,
-				)
+				return apiutil.NewError(http.StatusInternalServerError, "internal_error", "unexpected server error", err)
 			}
 			return resourceForbidden(errors.New("skill creator privilege is missing"))
 		}
 		if action != skill.DecisionOverwrite && exists {
-			return apiutil.NewError(
-				http.StatusConflict,
-				"decision_conflict",
-				"create destination already exists",
-				errBadRequest,
-			)
+			return apiutil.NewError(http.StatusConflict, "decision_conflict", "create destination already exists", errBadRequest)
 		}
 		versions, err := s.skillStore.Versions(ctx, namespace, tree.Name)
 		if err != nil {
-			return apiutil.NewError(
-				http.StatusInternalServerError,
-				"storage_unavailable",
-				"immutable skill storage is unavailable",
-				err,
-			)
+			return apiutil.NewError(http.StatusInternalServerError, "storage_unavailable", "immutable skill storage is unavailable", err)
 		}
 		version := int64(1)
 		if len(versions) > 0 {
@@ -1365,14 +1141,7 @@ func (s *Service) importImmutableSkills(ctx context.Context, bundle skill.Bundle
 		if !exists {
 			current = nil
 		}
-		plans = append(
-			plans,
-			immutableImportPlan{
-				tree:    tree,
-				version: version,
-				current: current,
-			},
-		)
+		plans = append(plans, immutableImportPlan{tree: tree, version: version, current: current})
 	}
 
 	for i, plan := range plans {
@@ -1387,12 +1156,7 @@ func (s *Service) importImmutableSkills(ctx context.Context, bundle skill.Bundle
 					errors.Join(err, cleanupErr),
 				)
 			}
-			return apiutil.NewError(
-				http.StatusConflict,
-				"version_conflict",
-				"immutable skill version already exists",
-				errors.Join(err, cleanupErr),
-			)
+			return apiutil.NewError(http.StatusConflict, "version_conflict", "immutable skill version already exists", errors.Join(err, cleanupErr))
 		}
 	}
 
@@ -1426,19 +1190,11 @@ func (s *Service) importImmutableSkills(ctx context.Context, bundle skill.Bundle
 					applied = plans[:i]
 				}
 				cleanupErr := s.rollbackImmutableImport(ctx, namespace, applied, plans)
-				return mapKubeHTTPError(
-					"create immutable skill",
-					errors.Join(err, cleanupErr, eventTrailErr),
-				)
+				return mapKubeHTTPError("create immutable skill", errors.Join(err, cleanupErr, eventTrailErr))
 			}
 			err := s.createSkillEventTrail(ctx, access, plan.tree.Name, gatewaydb.EventTrailResultSucceeded)
 			if err != nil {
-				return apiutil.NewError(
-					http.StatusInternalServerError,
-					"internal_error",
-					"unexpected server error",
-					err,
-				)
+				return apiutil.NewError(http.StatusInternalServerError, "internal_error", "unexpected server error", err)
 			}
 			continue
 		}
@@ -1460,21 +1216,13 @@ func (s *Service) importImmutableSkills(ctx context.Context, bundle skill.Bundle
 		if err != nil {
 			eventTrailAccess := access
 			eventTrailAccess.operation = authorization.OperationUpdateSkill
-			eventTrailErr := s.createSkillEventTrail(
-				ctx,
-				eventTrailAccess,
-				plan.tree.Name,
-				gatewaydb.EventTrailResultFailed,
-			)
+			eventTrailErr := s.createSkillEventTrail(ctx, eventTrailAccess, plan.tree.Name, gatewaydb.EventTrailResultFailed)
 			applied := plans[:i+1]
 			if apierrors.IsConflict(err) {
 				applied = plans[:i]
 			}
 			cleanupErr := s.rollbackImmutableImport(ctx, namespace, applied, plans)
-			return mapKubeHTTPError(
-				"update immutable skill",
-				errors.Join(err, cleanupErr, eventTrailErr),
-			)
+			return mapKubeHTTPError("update immutable skill", errors.Join(err, cleanupErr, eventTrailErr))
 		}
 		eventTrailAccess := access
 		eventTrailAccess.operation = authorization.OperationUpdateSkill
@@ -1514,14 +1262,7 @@ func (s *Service) rollbackImmutableImport(ctx context.Context, namespace string,
 			}
 			uid := item.UID
 			resourceVersion := item.ResourceVersion
-			err = s.k8sClient.Delete(
-				ctx,
-				item,
-				ctrlclient.Preconditions{
-					UID:             &uid,
-					ResourceVersion: &resourceVersion,
-				},
-			)
+			err = s.k8sClient.Delete(ctx, item, ctrlclient.Preconditions{UID: &uid, ResourceVersion: &resourceVersion})
 			if apierrors.IsNotFound(err) {
 				err = nil
 			}
@@ -1556,15 +1297,7 @@ func (s *Service) rollbackImmutableImport(ctx context.Context, namespace string,
 		if _, active := activeVersions[plan.tree.Name]; active {
 			continue
 		}
-		rollbackErr = errors.Join(
-			rollbackErr,
-			s.skillStore.DeleteVersion(
-				ctx,
-				namespace,
-				plan.tree.Name,
-				plan.version,
-			),
-		)
+		rollbackErr = errors.Join(rollbackErr, s.skillStore.DeleteVersion(ctx, namespace, plan.tree.Name, plan.version))
 	}
 	return rollbackErr
 }
@@ -1573,16 +1306,7 @@ func readSkillUpload(w http.ResponseWriter, r *http.Request) (skill.Bundle, bool
 	r.Body = http.MaxBytesReader(w, r.Body, maxSkillUploadBytes+(1<<20))
 	reader, err := r.MultipartReader()
 	if err != nil {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"skill upload must be multipart",
-				err,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "skill upload must be multipart", err))
 		return skill.Bundle{}, false
 	}
 	values := make(map[string][]string)
@@ -1625,31 +1349,13 @@ func readSkillUpload(w http.ResponseWriter, r *http.Request) (skill.Bundle, bool
 			continue
 		}
 		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusRequestEntityTooLarge,
-					"upload_too_large",
-					"The skill could not be imported.",
-					err,
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(http.StatusRequestEntityTooLarge, "upload_too_large", "The skill could not be imported.", err))
 			return skill.Bundle{}, false
 		}
 		invalidForm := errors.Is(err, errMultipleSkillUploadFiles) ||
 			errors.Is(err, errSkillImportFieldTooLarge)
 		if invalidForm {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusBadRequest,
-					"invalid_request",
-					"skill upload is invalid",
-					err,
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "skill upload is invalid", err))
 			return skill.Bundle{}, false
 		}
 
@@ -1662,10 +1368,7 @@ func readSkillUpload(w http.ResponseWriter, r *http.Request) (skill.Bundle, bool
 		status := http.StatusBadRequest
 		code := "invalid_archive"
 		message := "The skill could not be imported."
-		fields := []gatewayapi.FieldError{{
-			Field:   "file:" + issue.Path,
-			Message: issue.Message,
-		}}
+		fields := []gatewayapi.FieldError{{Field: "file:" + issue.Path, Message: issue.Message}}
 		switch issue.Kind {
 		case skill.ImportIssueUnsupportedFileType:
 			code = "unsupported_file_type"
@@ -1686,16 +1389,7 @@ func readSkillUpload(w http.ResponseWriter, r *http.Request) (skill.Bundle, bool
 		return skill.Bundle{}, false
 	}
 	if !hasFile {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"skill file is required",
-				errBadRequest,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "skill file is required", errBadRequest))
 		return skill.Bundle{}, false
 	}
 	r.MultipartForm = &multipart.Form{Value: values}
@@ -1705,16 +1399,7 @@ func readSkillUpload(w http.ResponseWriter, r *http.Request) (skill.Bundle, bool
 func readSkillImportAgentNames(w http.ResponseWriter, r *http.Request, required bool) ([]gatewayapi.AgentName, bool) {
 	values := r.MultipartForm.Value["agents"]
 	if (required && len(values) == 0) || len(values) > 200 {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"skill import Agents are invalid",
-				errBadRequest,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "skill import Agents are invalid", errBadRequest))
 		return nil, false
 	}
 	names := make([]gatewayapi.AgentName, 0, len(values))
@@ -1725,16 +1410,7 @@ func readSkillImportAgentNames(w http.ResponseWriter, r *http.Request, required 
 			return nil, false
 		}
 		if _, ok := seen[name]; ok {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusBadRequest,
-					"invalid_request",
-					"skill import Agents must be unique",
-					errBadRequest,
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "skill import Agents must be unique", errBadRequest))
 			return nil, false
 		}
 		seen[name] = struct{}{}
@@ -1747,44 +1423,17 @@ func readSkillImportAgentNames(w http.ResponseWriter, r *http.Request, required 
 func readSkillImportDecisions(w http.ResponseWriter, r *http.Request, bundle skill.Bundle) (skill.Bundle, []skill.Decision, bool) {
 	values := r.MultipartForm.Value["decisions"]
 	if len(values) != 1 {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"skill import decisions are invalid",
-				errBadRequest,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "skill import decisions are invalid", errBadRequest))
 		return skill.Bundle{}, nil, false
 	}
 	var decisions []skill.Decision
 	if err := json.Unmarshal([]byte(values[0]), &decisions); err != nil {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"skill import decisions are invalid",
-				err,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "skill import decisions are invalid", err))
 		return skill.Bundle{}, nil, false
 	}
 	decided, err := bundle.Decide(decisions)
 	if err != nil {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"decision_conflict",
-				"skill import decisions conflict",
-				err,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "decision_conflict", "skill import decisions conflict", err))
 		return skill.Bundle{}, nil, false
 	}
 	return decided, decisions, true
@@ -1793,11 +1442,7 @@ func readSkillImportDecisions(w http.ResponseWriter, r *http.Request, bundle ski
 func (s *Service) resolveSkillImportAgents(ctx context.Context, names []gatewayapi.AgentName) ([]*resolvedAgent, *apiutil.APIError) {
 	agents := make([]*resolvedAgent, 0, len(names))
 	for _, name := range names {
-		access, apiErr := s.resolveAgentAccess(
-			ctx,
-			name,
-			authorization.OperationUseSharedAgent,
-		)
+		access, apiErr := s.resolveAgentAccess(ctx, name, authorization.OperationUseSharedAgent)
 		if apiErr != nil {
 			return nil, apiErr
 		}
@@ -1806,12 +1451,7 @@ func (s *Service) resolveSkillImportAgents(ctx context.Context, names []gatewaya
 			return nil, mapKubeHTTPError("get Agent", err)
 		}
 		if statusFromAgent(agent.Agent).Phase != agentPhaseReady {
-			return nil, apiutil.NewError(
-				http.StatusConflict,
-				"agent_not_ready",
-				"Agent is not ready",
-				errBadRequest,
-			)
+			return nil, apiutil.NewError(http.StatusConflict, "agent_not_ready", "Agent is not ready", errBadRequest)
 		}
 		agents = append(agents, agent)
 	}
@@ -1843,10 +1483,7 @@ func (s *Service) mutableSkillNames(ctx context.Context, agent *resolvedAgent) (
 		}
 		if resp.StatusCode != http.StatusOK {
 			closeErr := resp.Body.Close()
-			return nil, errors.Join(
-				fmt.Errorf("list mutable skills returned %s", resp.Status),
-				closeErr,
-			)
+			return nil, errors.Join(fmt.Errorf("list mutable skills returned %s", resp.Status), closeErr)
 		}
 		var page gatewayapi.ListMutableSkillsResponse
 		decodeErr := json.NewDecoder(resp.Body).Decode(&page)
@@ -1883,12 +1520,7 @@ func (s *Service) importMutableSkillArchive(ctx context.Context, agent *resolved
 		return result
 	}
 	target.Path = "/skill/import"
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodPost,
-		target.String(),
-		bytes.NewReader(archive),
-	)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target.String(), bytes.NewReader(archive))
 	if err != nil {
 		return result
 	}
@@ -1904,11 +1536,7 @@ func (s *Service) importMutableSkillArchive(ctx context.Context, agent *resolved
 		return result
 	}
 	if resp.StatusCode != http.StatusNoContent {
-		err = fmt.Errorf(
-			"mutable skill import returned %s: %s",
-			resp.Status,
-			body,
-		)
+		err = fmt.Errorf("mutable skill import returned %s: %s", resp.Status, body)
 	}
 	return result
 }
@@ -1919,10 +1547,12 @@ func (s *Service) DeleteImmutableSkills(w http.ResponseWriter, r *http.Request, 
 	if !decodeJSONBody(w, r, &req, false) {
 		return
 	}
-	names, ok := validateRequestedSkillNames(w, r, req.SkillNames)
-	if !ok {
+	names := req.SkillNames
+	if err := skill.ValidateNames(names); err != nil {
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "skill_names is invalid", err))
 		return
 	}
+	slices.Sort(names)
 	var workspaceID string
 	if params.XAgentZWorkspaceID != nil {
 		workspaceID = *params.XAgentZWorkspaceID
@@ -1944,12 +1574,7 @@ func (s *Service) DeleteImmutableSkills(w http.ResponseWriter, r *http.Request, 
 		}
 		conflict, err := s.checkSkillDeletion(r.Context(), access, name)
 		if err != nil || conflict != nil {
-			eventTrailErr := s.createSkillEventTrail(
-				r.Context(),
-				access,
-				name,
-				gatewaydb.EventTrailResultFailed,
-			)
+			eventTrailErr := s.createSkillEventTrail(r.Context(), access, name, gatewaydb.EventTrailResultFailed)
 
 			if err != nil || eventTrailErr != nil {
 				apiutil.WriteInternalError(w, r, errors.Join(err, eventTrailErr))
@@ -1969,12 +1594,7 @@ func (s *Service) DeleteImmutableSkills(w http.ResponseWriter, r *http.Request, 
 	}
 	for i, item := range items {
 		if err := s.k8sClient.Delete(r.Context(), item); err != nil {
-			eventTrailErr := s.createSkillEventTrail(
-				r.Context(),
-				accesses[i],
-				item.Name,
-				gatewaydb.EventTrailResultFailed,
-			)
+			eventTrailErr := s.createSkillEventTrail(r.Context(), accesses[i], item.Name, gatewaydb.EventTrailResultFailed)
 			if eventTrailErr != nil {
 				apiutil.WriteInternalError(w, r, errors.Join(err, eventTrailErr))
 				return
@@ -2004,17 +1624,7 @@ func (s *Service) ListImmutableSkillVersions(w http.ResponseWriter, r *http.Requ
 	}
 	ns := access.namespace
 	if fields := validateSkillName("skillName", skillName); len(fields) > 0 {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"skill name is invalid",
-				errBadRequest,
-				fields...,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "skill name is invalid", errBadRequest, fields...))
 		return
 	}
 	item := &agentzv1alpha1.Skill{}
@@ -2048,16 +1658,7 @@ func (s *Service) ListImmutableSkillSummaries(w http.ResponseWriter, r *http.Req
 		limit = int(*params.Limit)
 	}
 	if limit < 1 || limit > 200 {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"limit must be between 1 and 200",
-				errBadRequest,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "limit must be between 1 and 200", errBadRequest))
 		return
 	}
 	offset, ok := decodeOffsetPageToken(w, r, params.PageToken)
@@ -2112,12 +1713,7 @@ func (s *Service) ListImmutableSkillSummaries(w http.ResponseWriter, r *http.Req
 				continue
 			}
 		}
-		summary, err := s.skillStore.VersionSummary(
-			r.Context(),
-			ns,
-			item.Name,
-			item.Spec.Version,
-		)
+		summary, err := s.skillStore.VersionSummary(r.Context(), ns, item.Name, item.Spec.Version)
 		if err != nil {
 			apiutil.WriteInternalError(w, r, fmt.Errorf("summarize immutable skill: %w", err))
 			return
@@ -2163,10 +1759,7 @@ func (s *Service) ListImmutableSkillSummaries(w http.ResponseWriter, r *http.Req
 			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		organizationNamespace := agentzv1alpha1.ScopeNamespace(
-			agentzv1alpha1.ResourceScopeOrganisation,
-			access.claims.OrganizationID,
-		)
+		organizationNamespace := agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeOrganisation, access.claims.OrganizationID)
 		inherited := &agentzv1alpha1.SkillList{}
 		err = s.k8sClient.List(r.Context(), inherited, ctrlclient.InNamespace(organizationNamespace))
 		if err != nil {
@@ -2201,12 +1794,7 @@ func (s *Service) ListImmutableSkillSummaries(w http.ResponseWriter, r *http.Req
 					continue
 				}
 			}
-			summary, err := s.skillStore.VersionSummary(
-				r.Context(),
-				organizationNamespace,
-				item.Name,
-				item.Spec.Version,
-			)
+			summary, err := s.skillStore.VersionSummary(r.Context(), organizationNamespace, item.Name, item.Spec.Version)
 			if err != nil {
 				apiutil.WriteInternalError(w, r, fmt.Errorf("summarize inherited immutable skill: %w", err))
 				return
@@ -2318,13 +1906,7 @@ func (s *Service) ExportImmutableSkills(w http.ResponseWriter, r *http.Request, 
 			apiutil.WriteError(
 				w,
 				r,
-				apiutil.NewError(
-					http.StatusBadRequest,
-					"invalid_request",
-					"request validation failed",
-					errBadRequest,
-					fields...,
-				),
+				apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", errBadRequest, fields...),
 			)
 			return
 		}
@@ -2367,36 +1949,11 @@ func (s *Service) ExportImmutableSkills(w http.ResponseWriter, r *http.Request, 
 			apiutil.WriteInternalError(w, r, fmt.Errorf("inspect immutable skill export: %w", err))
 			return
 		}
-		selections = append(
-			selections,
-			skill.VersionSelection{
-				Namespace: ns,
-				Name:      name,
-				Version:   item.Spec.Version,
-			},
-		)
+		selections = append(selections, skill.VersionSelection{Namespace: ns, Name: name, Version: item.Spec.Version})
 	}
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", `attachment; filename="skills.zip"`)
 	if err := s.skillStore.WriteVersionsZIP(r.Context(), w, selections); err != nil {
 		slog.ErrorContext(r.Context(), "stream immutable skill export", slog.Any("err", err))
 	}
-}
-
-func validateRequestedSkillNames(w http.ResponseWriter, r *http.Request, raw []gatewayapi.SkillName) ([]string, bool) {
-	if err := skill.ValidateNames(raw); err != nil {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"skill_names is invalid",
-				err,
-			),
-		)
-		return nil, false
-	}
-	slices.Sort(raw)
-	return raw, true
 }

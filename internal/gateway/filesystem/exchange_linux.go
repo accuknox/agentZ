@@ -37,13 +37,7 @@ func exchangeFiles(root *os.Root, first, second string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("open exchange directory: %w", err)
 	}
-	exchangeErr := unix.Renameat2(
-		int(dir.Fd()),
-		path.Base(first),
-		int(dir.Fd()),
-		path.Base(second),
-		unix.RENAME_EXCHANGE,
-	)
+	exchangeErr := unix.Renameat2(int(dir.Fd()), path.Base(first), int(dir.Fd()), path.Base(second), unix.RENAME_EXCHANGE)
 	closeErr := dir.Close()
 	if closeErr != nil {
 		return false, fmt.Errorf("close exchange directory: %w", closeErr)

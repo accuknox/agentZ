@@ -9,4 +9,5 @@ generate:
 compatibility:
   apply-chi-middleware-first-to-last: true
 output-options:
+  skip-prune: true
   response-type-suffix: Resp

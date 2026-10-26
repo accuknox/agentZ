@@ -3,6 +3,7 @@ package gateway
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -87,19 +88,17 @@ func (s *Service) ReplaceWorkspaceInheritedResources(w http.ResponseWriter, r *h
 	slices.Sort(names)
 	invalid := slices.Contains(names, "")
 	for i := 1; i < len(names); i++ {
-		invalid = invalid || names[i-1] == names[i]
+		if names[i-1] == names[i] {
+			invalid = true
+			break
+		}
 	}
 	if invalid {
 		s.recordWorkspaceInheritanceFailure(r, claims, workspaceID, resourceType)
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"resource names must be non-empty and unique",
-				errBadRequest,
-			),
+			apiutil.NewError(http.StatusBadRequest, "invalid_request", "resource names must be non-empty and unique", errBadRequest),
 		)
 		return
 	}
@@ -138,7 +137,7 @@ func (s *Service) ReplaceWorkspaceInheritedResources(w http.ResponseWriter, r *h
 		}
 		consumerNames := make([]string, 0, len(resource.Consumers))
 		for _, consumer := range resource.Consumers {
-			consumerNames = append(consumerNames, consumer.Kind+" "+consumer.Name)
+			consumerNames = append(consumerNames, fmt.Sprintf("%s %s", consumer.Kind, consumer.Name))
 		}
 		s.recordWorkspaceInheritanceFailure(r, claims, workspaceID, resourceType)
 		apiutil.WriteError(
@@ -166,16 +165,7 @@ func (s *Service) ReplaceWorkspaceInheritedResources(w http.ResponseWriter, r *h
 	next := previous
 	kind, _, mapped := inheritedResourceKind(resourceType)
 	if !mapped {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"unknown inherited resource type",
-				errBadRequest,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "unknown inherited resource type", errBadRequest))
 		return
 	}
 	next.Set(kind, names)
@@ -304,6 +294,10 @@ func (s *Service) selectedOrganizationResourceNames(ctx context.Context, workspa
 
 func inheritedResourceKind(resourceType gatewayapi.InheritedResourceType) (agentzv1alpha1.OrganizationResourceKind, gatewaydb.PermissionResource, bool) {
 	switch resourceType {
+	case gatewayapi.InheritedResourceTypeGuardrailConnection:
+		return agentzv1alpha1.OrganizationResourceKindGuardrailConnection, gatewaydb.PermissionResourceGuardrailConnection, true
+	case gatewayapi.InheritedResourceTypeGuardrailPolicy:
+		return agentzv1alpha1.OrganizationResourceKindGuardrailPolicy, gatewaydb.PermissionResourceGuardrailPolicy, true
 	case gatewayapi.InheritedResourceTypeSkill:
 		return agentzv1alpha1.OrganizationResourceKindSkill, gatewaydb.PermissionResourceSkill, true
 	case gatewayapi.InheritedResourceTypeSandbox:
@@ -318,6 +312,10 @@ func inheritedResourceKind(resourceType gatewayapi.InheritedResourceType) (agent
 
 func databaseOrganizationResourceKind(resource gatewaydb.PermissionResource) (agentzv1alpha1.OrganizationResourceKind, bool) {
 	switch resource {
+	case gatewaydb.PermissionResourceGuardrailConnection:
+		return agentzv1alpha1.OrganizationResourceKindGuardrailConnection, true
+	case gatewaydb.PermissionResourceGuardrailPolicy:
+		return agentzv1alpha1.OrganizationResourceKindGuardrailPolicy, true
 	case gatewaydb.PermissionResourceSkill:
 		return agentzv1alpha1.OrganizationResourceKindSkill, true
 	case gatewaydb.PermissionResourceSandbox:
@@ -396,10 +394,7 @@ func (s *Service) persistWorkspaceResourceSelection(ctx context.Context, claims 
 			actorID:        claims.UserID,
 			action:         "workspace.inheritance.modify",
 			result:         gatewaydb.EventTrailResultSucceeded,
-			after: []gatewayapi.EventTrailField{{
-				Field: gatewayapi.EventTrailFieldName,
-				Value: string(resourceType),
-			}},
+			after:          []gatewayapi.EventTrailField{{Field: gatewayapi.EventTrailFieldName, Value: string(resourceType)}},
 		},
 	)
 	if err != nil {
@@ -422,10 +417,7 @@ func (s *Service) recordWorkspaceInheritanceFailure(r *http.Request, claims gate
 			actorID:        claims.UserID,
 			action:         "workspace.inheritance.modify",
 			result:         gatewaydb.EventTrailResultFailed,
-			after: []gatewayapi.EventTrailField{{
-				Field: gatewayapi.EventTrailFieldName,
-				Value: string(resourceType),
-			}},
+			after:          []gatewayapi.EventTrailField{{Field: gatewayapi.EventTrailFieldName, Value: string(resourceType)}},
 		},
 	)
 	if err != nil {
@@ -434,12 +426,17 @@ func (s *Service) recordWorkspaceInheritanceFailure(r *http.Request, claims gate
 }
 
 func (s *Service) validateOrganizationResourceSelection(ctx context.Context, organizationID string, selected agentzv1alpha1.SelectedOrganizationResources) ([]gatewayapi.FieldError, error) {
-	namespace := agentzv1alpha1.ScopeNamespace(
-		agentzv1alpha1.ResourceScopeOrganisation,
-		organizationID,
-	)
+	namespace := agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeOrganisation, organizationID)
 	fields := []gatewayapi.FieldError{}
 	kinds := []organizationResourceSelectionKind{
+		{
+			agentzv1alpha1.OrganizationResourceKindGuardrailConnection,
+			"selected_organization_resources.guardrail_connections",
+		},
+		{
+			agentzv1alpha1.OrganizationResourceKindGuardrailPolicy,
+			"selected_organization_resources.guardrail_policies",
+		},
 		{
 			agentzv1alpha1.OrganizationResourceKindSkill,
 			"selected_organization_resources.skills",
@@ -484,6 +481,10 @@ func (s *Service) validateOrganizationResourceSelection(ctx context.Context, org
 			key := ctrlclient.ObjectKey{Namespace: namespace, Name: name}
 			var err error
 			switch item.kind {
+			case agentzv1alpha1.OrganizationResourceKindGuardrailConnection:
+				err = s.k8sClient.Get(ctx, key, &agentzv1alpha1.GuardrailConnection{})
+			case agentzv1alpha1.OrganizationResourceKindGuardrailPolicy:
+				err = s.k8sClient.Get(ctx, key, &agentzv1alpha1.GuardrailPolicy{})
 			case agentzv1alpha1.OrganizationResourceKindSkill:
 				err = s.k8sClient.Get(ctx, key, &agentzv1alpha1.Skill{})
 			case agentzv1alpha1.OrganizationResourceKindSandbox:
@@ -512,6 +513,14 @@ func (s *Service) validateOrganizationResourceSelection(ctx context.Context, org
 
 func insertWorkspaceResourceSelection(ctx context.Context, q gatewaydb.Querier, workspaceID, organizationID string, selected agentzv1alpha1.SelectedOrganizationResources) error {
 	kinds := []workspaceInheritedResourceKind{
+		{
+			agentzv1alpha1.OrganizationResourceKindGuardrailConnection,
+			gatewaydb.PermissionResourceGuardrailConnection,
+		},
+		{
+			agentzv1alpha1.OrganizationResourceKindGuardrailPolicy,
+			gatewaydb.PermissionResourceGuardrailPolicy,
+		},
 		{
 			agentzv1alpha1.OrganizationResourceKindSkill,
 			gatewaydb.PermissionResourceSkill,
@@ -556,6 +565,10 @@ func (s *Service) selectedOrganizationResourceConflict(ctx context.Context, acce
 	}
 	var resource gatewaydb.PermissionResource
 	switch kind {
+	case agentzv1alpha1.OrganizationResourceKindGuardrailConnection:
+		resource = gatewaydb.PermissionResourceGuardrailConnection
+	case agentzv1alpha1.OrganizationResourceKindGuardrailPolicy:
+		resource = gatewaydb.PermissionResourceGuardrailPolicy
 	case agentzv1alpha1.OrganizationResourceKindSkill:
 		resource = gatewaydb.PermissionResourceSkill
 	case agentzv1alpha1.OrganizationResourceKindSandbox:
@@ -607,10 +620,7 @@ func (s *Service) workspaceInheritedResources(ctx context.Context, workspace gat
 		return nil, fmt.Errorf("unknown inherited resource type %q", resourceType)
 	}
 	selectedNames := selected.Names(kind)
-	organizationNamespace := agentzv1alpha1.ScopeNamespace(
-		agentzv1alpha1.ResourceScopeOrganisation,
-		workspace.OrganizationID,
-	)
+	organizationNamespace := agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeOrganisation, workspace.OrganizationID)
 	resources := []gatewayapi.WorkspaceInheritedResource{}
 	appendResource := func(name string, status gatewayapi.ResourceLifecycle, message string) {
 		resource := gatewayapi.WorkspaceInheritedResource{
@@ -625,6 +635,31 @@ func (s *Service) workspaceInheritedResources(ctx context.Context, workspace gat
 		resources = append(resources, resource)
 	}
 	switch resourceType {
+	case gatewayapi.InheritedResourceTypeGuardrailConnection:
+		list := &agentzv1alpha1.GuardrailConnectionList{}
+		if err := s.k8sClient.List(ctx, list, ctrlclient.InNamespace(organizationNamespace)); err != nil {
+			return nil, err
+		}
+		for _, item := range list.Items {
+			state := gatewayapi.ResourceLifecycleAccepted
+			if item.Status.State == "Error" {
+				state = gatewayapi.ResourceLifecycleError
+			}
+			appendResource(item.Name, state, item.Status.Message)
+		}
+	case gatewayapi.InheritedResourceTypeGuardrailPolicy:
+		list := &agentzv1alpha1.GuardrailPolicyList{}
+		if err := s.k8sClient.List(ctx, list, ctrlclient.InNamespace(organizationNamespace)); err != nil {
+			return nil, err
+		}
+		for _, item := range list.Items {
+			state := gatewayapi.ResourceLifecycleAccepted
+			if item.Status.State == "Error" {
+				state = gatewayapi.ResourceLifecycleError
+			}
+			appendResource(item.Name, state, item.Status.Message)
+		}
+
 	case gatewayapi.InheritedResourceTypeSkill:
 		var list agentzv1alpha1.SkillList
 		err := s.k8sClient.List(ctx, &list, ctrlclient.InNamespace(organizationNamespace))
@@ -693,11 +728,7 @@ func (s *Service) workspaceInheritedResources(ctx context.Context, workspace gat
 					}
 				}
 			}
-			appendResource(
-				item.Name,
-				status,
-				message,
-			)
+			appendResource(item.Name, status, message)
 		}
 	default:
 		return nil, fmt.Errorf("unknown inherited resource type %q", resourceType)
@@ -721,11 +752,8 @@ func (s *Service) workspaceInheritedResources(ctx context.Context, workspace gat
 
 func (s *Service) inheritedResourceConsumers(ctx context.Context, workspace gatewaydb.Workspace, resourceType gatewayapi.InheritedResourceType) (map[string][]gatewayapi.InheritedResourceConsumer, error) {
 	consumers := map[string][]gatewayapi.InheritedResourceConsumer{}
-	add := func(name, kind, consumerName string) {
-		consumer := gatewayapi.InheritedResourceConsumer{
-			Kind: kind,
-			Name: consumerName,
-		}
+	add := func(name string, kind gatewayapi.InheritedResourceConsumerKind, consumerName string) {
+		consumer := gatewayapi.InheritedResourceConsumer{Kind: kind, Name: consumerName}
 		if !slices.Contains(consumers[name], consumer) {
 			consumers[name] = append(consumers[name], consumer)
 		}
@@ -756,6 +784,12 @@ func (s *Service) inheritedResourceConsumers(ctx context.Context, workspace gate
 	}
 	for _, sandbox := range sandboxes.Items {
 		switch resourceType {
+		case gatewayapi.InheritedResourceTypeGuardrailPolicy:
+			for _, ref := range sandbox.Spec.Guardrails.Policies {
+				if ref.Scope == agentzv1alpha1.ResourceScopeOrganisation {
+					add(ref.Name, "Sandbox", sandbox.Name)
+				}
+			}
 		case gatewayapi.InheritedResourceTypeSkill:
 			for _, ref := range sandbox.Spec.Skills {
 				if ref.Scope == agentzv1alpha1.ResourceScopeOrganisation {
@@ -772,6 +806,39 @@ func (s *Service) inheritedResourceConsumers(ctx context.Context, workspace gate
 			for _, ref := range sandbox.Spec.Inference.Models {
 				if ref.Scope == agentzv1alpha1.ResourceScopeOrganisation {
 					add(ref.Provider, "Sandbox", sandbox.Name)
+				}
+			}
+		}
+	}
+	if resourceType == gatewayapi.InheritedResourceTypeGuardrailConnection {
+		policies := &agentzv1alpha1.GuardrailPolicyList{}
+		if err := s.k8sClient.List(ctx, policies, ctrlclient.InNamespace(workspace.Namespace)); err != nil {
+			return nil, err
+		}
+		for _, policy := range policies.Items {
+			for _, check := range policy.Spec.Checks {
+				if check.Connection != nil && check.Connection.Scope == agentzv1alpha1.ResourceScopeOrganisation {
+					add(check.Connection.Name, "Guardrail Policy", policy.Name)
+				}
+			}
+		}
+	}
+	if resourceType == gatewayapi.InheritedResourceTypeGuardrailPolicy {
+		assignments, err := s.queries.GatewayListGuardrailClientAccess(ctx, gatewaydb.GatewayListGuardrailClientAccessParams{
+			OrganizationID: workspace.OrganizationID,
+			WorkspaceID:    workspace.ID,
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, assignment := range assignments {
+			var refs []agentzv1alpha1.ResourceReference
+			if err := json.Unmarshal(assignment.Policies, &refs); err != nil {
+				return nil, err
+			}
+			for _, ref := range refs {
+				if ref.Scope == agentzv1alpha1.ResourceScopeOrganisation {
+					add(ref.Name, "External Client", assignment.ClientID)
 				}
 			}
 		}

@@ -49,11 +49,7 @@ type RunPhaseConflictError struct {
 
 // Error describes the rejected workflow run transition.
 func (e *RunPhaseConflictError) Error() string {
-	return fmt.Sprintf(
-		"workflow run phase %q cannot transition to %q",
-		e.Current,
-		e.Target,
-	)
+	return fmt.Sprintf("workflow run phase %q cannot transition to %q", e.Current, e.Target)
 }
 
 // NodePhaseConflictError reports one invalid node phase transition.
@@ -65,12 +61,7 @@ type NodePhaseConflictError struct {
 
 // Error identifies the node and its rejected phase transition.
 func (e *NodePhaseConflictError) Error() string {
-	return fmt.Sprintf(
-		"workflow run node %q phase %q cannot transition to %q",
-		e.Node,
-		e.Current,
-		e.Target,
-	)
+	return fmt.Sprintf("workflow run node %q phase %q cannot transition to %q", e.Node, e.Current, e.Target)
 }
 
 // ValidateRunStatusMessage validates one terminal status message.
@@ -79,10 +70,7 @@ func ValidateRunStatusMessage(message string) []gatewayapi.FieldError {
 		return nil
 	}
 
-	return []gatewayapi.FieldError{{
-		Field:   "message",
-		Message: "must be 4096 characters or fewer",
-	}}
+	return []gatewayapi.FieldError{{Field: "message", Message: "must be 4096 characters or fewer"}}
 }
 
 // ValidateRunTerminalPhase validates a terminal WorkflowRun patch phase.
@@ -92,10 +80,7 @@ func ValidateRunTerminalPhase(phase gatewayapi.WorkflowRunTerminalPhase) []gatew
 		gatewayapi.WorkflowRunTerminalPhaseFailed:
 		return nil
 	default:
-		return []gatewayapi.FieldError{{
-			Field:   "phase",
-			Message: "must be Succeeded or Failed",
-		}}
+		return []gatewayapi.FieldError{{Field: "phase", Message: "must be Succeeded or Failed"}}
 	}
 }
 
@@ -107,10 +92,7 @@ func ValidateRunNodePatchPhase(phase gatewayapi.WorkflowRunNodePatchPhase) []gat
 		gatewayapi.WorkflowRunNodePatchPhaseFailed:
 		return nil
 	default:
-		return []gatewayapi.FieldError{{
-			Field:   "phase",
-			Message: "must be Running, Succeeded, or Failed",
-		}}
+		return []gatewayapi.FieldError{{Field: "phase", Message: "must be Running, Succeeded, or Failed"}}
 	}
 }
 
@@ -118,16 +100,10 @@ func ValidateRunNodePatchPhase(phase gatewayapi.WorkflowRunNodePatchPhase) []gat
 func ValidateRunName(name string) []gatewayapi.FieldError {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return []gatewayapi.FieldError{{
-			Field:   "runName",
-			Message: "required",
-		}}
+		return []gatewayapi.FieldError{{Field: "runName", Message: "required"}}
 	}
 	if errs := validation.IsDNS1123Subdomain(name); len(errs) > 0 {
-		return []gatewayapi.FieldError{{
-			Field:   "runName",
-			Message: "must be a valid DNS subdomain",
-		}}
+		return []gatewayapi.FieldError{{Field: "runName", Message: "must be a valid DNS subdomain"}}
 	}
 	return nil
 }
@@ -146,10 +122,7 @@ func ValidateRunListStatus(status *gatewayapi.WorkflowRunStatus) []gatewayapi.Fi
 		gatewayapi.WorkflowRunStatusUnacked:
 		return nil
 	default:
-		return []gatewayapi.FieldError{{
-			Field:   "status",
-			Message: "must be a valid workflow run status",
-		}}
+		return []gatewayapi.FieldError{{Field: "status", Message: "must be a valid workflow run status"}}
 	}
 }
 
@@ -174,13 +147,7 @@ func ValidateRunListFilters(params gatewayapi.ListWorkflowRunsParams) []gatewaya
 	if params.ScheduleName != nil {
 		name := strings.TrimSpace(*params.ScheduleName)
 		if name == "" {
-			fields = append(
-				fields,
-				gatewayapi.FieldError{
-					Field:   "schedule_name",
-					Message: "required",
-				},
-			)
+			fields = append(fields, gatewayapi.FieldError{Field: "schedule_name", Message: "required"})
 		}
 		if errs := validation.IsDNS1123Subdomain(name); name != "" && len(errs) > 0 {
 			fields = append(
@@ -205,13 +172,7 @@ func ValidateRunListFilters(params gatewayapi.ListWorkflowRunsParams) []gatewaya
 	if params.WebhookApiKeyId != nil {
 		keyID := strings.TrimSpace(*params.WebhookApiKeyId)
 		if keyID == "" {
-			fields = append(
-				fields,
-				gatewayapi.FieldError{
-					Field:   "webhook_api_key_id",
-					Message: "required",
-				},
-			)
+			fields = append(fields, gatewayapi.FieldError{Field: "webhook_api_key_id", Message: "required"})
 		}
 		if params.TriggerType == nil || *params.TriggerType != gatewayapi.Webhook {
 			fields = append(
@@ -276,10 +237,7 @@ func PatchRunStatus(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 				return nil
 			}
 			if current.Status.Phase != agentzv1alpha1.WorkflowRunPhaseRunning {
-				resultErr = &RunPhaseConflictError{
-					Current: current.Status.Phase,
-					Target:  phase,
-				}
+				resultErr = &RunPhaseConflictError{Current: current.Status.Phase, Target: phase}
 				return nil
 			}
 
@@ -379,13 +337,7 @@ func PatchRunNodeStatus(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlc
 			}
 
 			now := metav1.Now()
-			nodes, changed, err := applyNodeStatusPatch(
-				nodes,
-				nodeName,
-				phase,
-				msg,
-				now,
-			)
+			nodes, changed, err := applyNodeStatusPatch(nodes, nodeName, phase, msg, now)
 			if err != nil {
 				resultErr = err
 				return nil
@@ -444,11 +396,7 @@ func applyNodeStatusPatch(nodes []agentzv1alpha1.WorkflowRunNodeStatus, nodeName
 		agentzv1alpha1.WorkflowRunNodePhaseSucceeded,
 		agentzv1alpha1.WorkflowRunNodePhaseFailed:
 	default:
-		return nil, false, &NodePhaseConflictError{
-			Node:    nodeName,
-			Current: current.Phase,
-			Target:  phase,
-		}
+		return nil, false, &NodePhaseConflictError{Node: nodeName, Current: current.Phase, Target: phase}
 	}
 
 	if current.Phase == phase && current.Message == msg {
@@ -468,20 +416,12 @@ func applyNodeStatusPatch(nodes []agentzv1alpha1.WorkflowRunNodeStatus, nodeName
 		switch phase {
 		case agentzv1alpha1.WorkflowRunNodePhaseRunning:
 			if current.Phase != agentzv1alpha1.WorkflowRunNodePhaseDisabled {
-				return nil, false, &NodePhaseConflictError{
-					Node:    nodeName,
-					Current: current.Phase,
-					Target:  phase,
-				}
+				return nil, false, &NodePhaseConflictError{Node: nodeName, Current: current.Phase, Target: phase}
 			}
 		case agentzv1alpha1.WorkflowRunNodePhaseSucceeded,
 			agentzv1alpha1.WorkflowRunNodePhaseFailed:
 			if current.Phase != agentzv1alpha1.WorkflowRunNodePhaseRunning {
-				return nil, false, &NodePhaseConflictError{
-					Node:    nodeName,
-					Current: current.Phase,
-					Target:  phase,
-				}
+				return nil, false, &NodePhaseConflictError{Node: nodeName, Current: current.Phase, Target: phase}
 			}
 		}
 	}
@@ -517,14 +457,9 @@ func CreateScheduledRun(ctx context.Context, k8sClient ctrlclient.Client, ns str
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: ns,
-			Labels: map[string]string{
-				"agentz.accuknox.com/workflow-schedule": schedule.Name,
-			},
+			Labels:    map[string]string{"agentz.accuknox.com/workflow-schedule": schedule.Name},
 			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(
-					schedule,
-					agentzv1alpha1.SchemeGroupVersion.WithKind("WorkflowSchedule"),
-				),
+				*metav1.NewControllerRef(schedule, agentzv1alpha1.SchemeGroupVersion.WithKind("WorkflowSchedule")),
 			},
 		},
 		Spec: agentzv1alpha1.WorkflowRunSpec{
@@ -532,9 +467,7 @@ func CreateScheduledRun(ctx context.Context, k8sClient ctrlclient.Client, ns str
 			WorkflowName:   schedule.Spec.WorkflowName,
 			Inputs:         apiextensionsv1.JSON{Raw: schedule.Spec.Inputs.Raw},
 			TimeoutSeconds: schedule.Spec.TimeoutSeconds,
-			ScheduleRef: &corev1.LocalObjectReference{
-				Name: schedule.Name,
-			},
+			ScheduleRef:    &corev1.LocalObjectReference{Name: schedule.Name},
 		},
 	}
 
@@ -546,11 +479,7 @@ func CreateWebhookRun(ctx context.Context, k8sClient ctrlclient.Client, ns strin
 	agent := &agentzv1alpha1.Agent{}
 	agentKey := ctrlclient.ObjectKey{Name: agtName, Namespace: ns}
 	if err := k8sClient.Get(ctx, agentKey, agent); err != nil {
-		return gatewayapi.WorkflowRunSummary{}, fmt.Errorf(
-			"get agent %q: %w",
-			agtName,
-			err,
-		)
+		return gatewayapi.WorkflowRunSummary{}, fmt.Errorf("get agent %q: %w", agtName, err)
 	}
 
 	name, err := workflowRunName(wfName)
@@ -564,16 +493,11 @@ func CreateWebhookRun(ctx context.Context, k8sClient ctrlclient.Client, ns strin
 			Kind:       "WorkflowRun",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: ns,
-			Annotations: map[string]string{
-				agentzv1alpha1.WorkflowRunAnnotationWebhookAPIKeyID: apiKeyID,
-			},
+			Name:        name,
+			Namespace:   ns,
+			Annotations: map[string]string{agentzv1alpha1.WorkflowRunAnnotationWebhookAPIKeyID: apiKeyID},
 			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(
-					agent,
-					agentzv1alpha1.SchemeGroupVersion.WithKind("Agent"),
-				),
+				*metav1.NewControllerRef(agent, agentzv1alpha1.SchemeGroupVersion.WithKind("Agent")),
 			},
 		},
 		Spec: agentzv1alpha1.WorkflowRunSpec{
@@ -604,7 +528,7 @@ func ListWebhookTriggers(ctx context.Context, k8sClient ctrlclient.Client, ns st
 			continue
 		}
 
-		apiKeyID := workflowRunWebhookAPIKeyID(run)
+		apiKeyID := strings.TrimSpace(run.Annotations[agentzv1alpha1.WorkflowRunAnnotationWebhookAPIKeyID])
 		if apiKeyID == "" {
 			continue
 		}
@@ -694,8 +618,11 @@ func ListRuns(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtNa
 		if differentSchedule {
 			continue
 		}
-		if webhookAPIKeyID != "" && workflowRunWebhookAPIKeyID(run) != webhookAPIKeyID {
-			continue
+		if webhookAPIKeyID != "" {
+			apiKeyID := strings.TrimSpace(run.Annotations[agentzv1alpha1.WorkflowRunAnnotationWebhookAPIKeyID])
+			if apiKeyID != webhookAPIKeyID {
+				continue
+			}
 		}
 
 		items = append(items, runSummaryFromCRD(run))
@@ -895,10 +822,7 @@ func workflowRunReason(run *agentzv1alpha1.WorkflowRun) string {
 	}
 
 	if run.Status.Phase.Terminal() {
-		cond := apimeta.FindStatusCondition(
-			run.Status.Conditions,
-			agentzv1alpha1.WorkflowRunConditionReady,
-		)
+		cond := apimeta.FindStatusCondition(run.Status.Conditions, agentzv1alpha1.WorkflowRunConditionReady)
 		if cond != nil && cond.Message != "" {
 			return cond.Message
 		}
@@ -923,10 +847,7 @@ func workflowRunReason(run *agentzv1alpha1.WorkflowRun) string {
 		}
 	}
 
-	cond := apimeta.FindStatusCondition(
-		run.Status.Conditions,
-		agentzv1alpha1.WorkflowRunConditionProgressing,
-	)
+	cond := apimeta.FindStatusCondition(run.Status.Conditions, agentzv1alpha1.WorkflowRunConditionProgressing)
 	if cond != nil && cond.Message != "" {
 		return cond.Message
 	}
@@ -941,13 +862,6 @@ func workflowRunTriggerType(run *agentzv1alpha1.WorkflowRun) gatewayapi.Workflow
 		return gatewayapi.Schedule
 	}
 	return gatewayapi.Webhook
-}
-
-func workflowRunWebhookAPIKeyID(run *agentzv1alpha1.WorkflowRun) string {
-	if run == nil || len(run.Annotations) == 0 {
-		return ""
-	}
-	return strings.TrimSpace(run.Annotations[agentzv1alpha1.WorkflowRunAnnotationWebhookAPIKeyID])
 }
 
 func getSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, schName string) (*agentzv1alpha1.WorkflowSchedule, error) {

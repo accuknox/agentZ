@@ -48,9 +48,7 @@ func (s *Service) ListCodingRefs(w http.ResponseWriter, r *http.Request, project
 		return
 	}
 	if project.Deleting {
-		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusConflict, "deleting", "Project deletion has started", nil,
-		))
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "deleting", "Project deletion has started", nil))
 		return
 	}
 	row, err := s.queries.GatewayTouchCodingSnapshot(
@@ -110,25 +108,12 @@ func (s *Service) ListCodingRefs(w http.ResponseWriter, r *http.Request, project
 	if params.Cursor != nil {
 		revision, value, ok := strings.Cut(*params.Cursor, ":")
 		if !ok || revision != snapshot.Revision {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusConflict,
-					"snapshot_changed",
-					"Branches changed; restart the search",
-					nil,
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "snapshot_changed", "Branches changed; restart the search", nil))
 			return
 		}
 		offset, err = strconv.Atoi(value)
 		if err != nil || offset < 0 || offset > len(refs) {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(http.StatusBadRequest, "invalid_cursor", "Invalid branch cursor", nil),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_cursor", "Invalid branch cursor", nil))
 			return
 		}
 	}
@@ -162,9 +147,7 @@ func (s *Service) RefreshCodingRepository(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if project.Deleting {
-		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusConflict, "deleting", "Project deletion has started", nil,
-		))
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "deleting", "Project deletion has started", nil))
 		return
 	}
 	_, err = s.queries.GatewayTouchCodingSnapshot(
@@ -223,15 +206,10 @@ func (s *Service) AdoptCodingWorktree(w http.ResponseWriter, r *http.Request, pr
 		return
 	}
 	if project.Deleting {
-		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusConflict, "deleting", "Project deletion has started", nil,
-		))
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "deleting", "Project deletion has started", nil))
 		return
 	}
-	root := path.Join(
-		"Projects", base64.RawURLEncoding.EncodeToString([]byte(project.OwnerID)),
-		"github", project.ID,
-	)
+	root := path.Join("Projects", base64.RawURLEncoding.EncodeToString([]byte(project.OwnerID)), "github", project.ID)
 	tree := gatewaydb.CodingWorktree{AgentName: input.AgentName, Directory: root + "/repo"}
 	result, err := s.codingFilesystem(
 		r.Context(),
@@ -273,16 +251,7 @@ func (s *Service) AdoptCodingWorktree(w http.ResponseWriter, r *http.Request, pr
 			return
 		}
 	}
-	apiutil.WriteError(
-		w,
-		r,
-		apiutil.NewError(
-			http.StatusConflict,
-			"worktree_unavailable",
-			"Worktree changed or is outside this project",
-			nil,
-		),
-	)
+	apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "worktree_unavailable", "Worktree changed or is outside this project", nil))
 }
 
 func (s *Service) refreshCodingSnapshot(ctx context.Context, snapshot gatewaydb.CodingSnapshot) {
@@ -425,10 +394,7 @@ func (s *Service) loadCodingSnapshot(ctx context.Context, access resourceAccess,
 	if project.Deleting {
 		return errors.New("project deletion has started")
 	}
-	root := path.Join(
-		"Projects", base64.RawURLEncoding.EncodeToString([]byte(project.OwnerID)),
-		"github", project.ID,
-	)
+	root := path.Join("Projects", base64.RawURLEncoding.EncodeToString([]byte(project.OwnerID)), "github", project.ID)
 	tree := gatewaydb.CodingWorktree{
 		AgentName: snapshot.AgentName,
 		Directory: root + "/repo",
@@ -532,7 +498,10 @@ func (s *Service) loadCodingSnapshot(ctx context.Context, access resourceAccess,
 	}
 	ready := false
 	for _, existing := range trees {
-		ready = ready || existing.AgentName == tree.AgentName && existing.Ready && !existing.Deleting
+		if existing.AgentName == tree.AgentName && existing.Ready && !existing.Deleting {
+			ready = true
+			break
+		}
 	}
 	if ready {
 		current, err := s.codingFilesystem(

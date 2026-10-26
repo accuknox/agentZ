@@ -122,12 +122,7 @@ func (s *Service) ListTraceSessions(w http.ResponseWriter, r *http.Request, agen
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"started_after must be before or equal to started_before",
-				errBadRequest,
-			),
+			apiutil.NewError(http.StatusBadRequest, "invalid_request", "started_after must be before or equal to started_before", errBadRequest),
 		)
 		return
 	}
@@ -206,14 +201,7 @@ func (s *Service) ListTraceSessions(w http.ResponseWriter, r *http.Request, agen
 		)
 	}
 
-	apiutil.WriteJSON(
-		w,
-		http.StatusOK,
-		gatewayapi.ListTraceSessionsResponse{
-			TraceSessions: items,
-			NextPageToken: next,
-		},
-	)
+	apiutil.WriteJSON(w, http.StatusOK, gatewayapi.ListTraceSessionsResponse{TraceSessions: items, NextPageToken: next})
 }
 
 // ListSpans handles GET /api/lens/{agentName}/{sessionID}/trace/{traceID}/span.
@@ -280,10 +268,7 @@ func (s *Service) ListSpans(w http.ResponseWriter, r *http.Request, agentName ga
 	for i, row := range rows {
 		if i == limit {
 			last := rows[limit-1]
-			next = encodeCursorPageToken(spanPageCursor{
-				StartTime: last.StartTime,
-				ID:        last.ID,
-			})
+			next = encodeCursorPageToken(spanPageCursor{StartTime: last.StartTime, ID: last.ID})
 			break
 		}
 		span := gatewayapi.Span{
@@ -387,16 +372,7 @@ func (s *Service) GetSpanDetail(w http.ResponseWriter, r *http.Request, agentNam
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusNotFound,
-					"not_found",
-					"span not found",
-					err,
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(http.StatusNotFound, "not_found", "span not found", err))
 			return
 		}
 		apiutil.WriteInternalError(w, r, err)
@@ -410,14 +386,7 @@ func (s *Service) GetSpanDetail(w http.ResponseWriter, r *http.Request, agentNam
 
 	span := spanDetailFromRow(row)
 
-	apiutil.WriteJSON(
-		w,
-		http.StatusOK,
-		gatewayapi.SpanDetailResponse{
-			Span:    span,
-			Payload: payload,
-		},
-	)
+	apiutil.WriteJSON(w, http.StatusOK, gatewayapi.SpanDetailResponse{Span: span, Payload: payload})
 }
 
 // GetMCPGraph handles GET /api/lens/{agentName}/mcp/graph.
@@ -434,44 +403,20 @@ func (s *Service) GetMCPGraph(w http.ResponseWriter, r *http.Request, agentName 
 	if !ok {
 		return
 	}
-	exists, err := s.queries.GatewayAgentExists(
-		r.Context(),
-		gatewaydb.GatewayAgentExistsParams{
-			TenantNamespace: ns,
-			AgentName:       agentName,
-		},
-	)
+	exists, err := s.queries.GatewayAgentExists(r.Context(), gatewaydb.GatewayAgentExistsParams{TenantNamespace: ns, AgentName: agentName})
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if !exists {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusNotFound,
-				"not_found",
-				"agent not found",
-				errAgentNotFound,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusNotFound, "not_found", "agent not found", errAgentNotFound))
 		return
 	}
 
 	startTime := params.From.UTC()
 	endTime := params.To.Time.UTC().Add(24 * time.Hour)
 	if !startTime.Before(endTime) {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"from must be before or equal to to",
-				errBadRequest,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "from must be before or equal to to", errBadRequest))
 		return
 	}
 
@@ -507,10 +452,7 @@ func (s *Service) GetMCPGraph(w http.ResponseWriter, r *http.Request, agentName 
 		if !ok {
 			connectionID = "connection:" + row.McpConnectionName
 			connectionIDs[row.McpConnectionName] = connectionID
-			connection := gatewayapi.MCPGraphConnection{
-				Id:   connectionID,
-				Name: row.McpConnectionName,
-			}
+			connection := gatewayapi.MCPGraphConnection{Id: connectionID, Name: row.McpConnectionName}
 			if serverURL, found := connectionURLs[row.McpConnectionName]; found {
 				connection.ServerUrl = &serverURL
 			}
@@ -556,9 +498,7 @@ func (s *Service) GetMCPGraph(w http.ResponseWriter, r *http.Request, agentName 
 		w,
 		http.StatusOK,
 		gatewayapi.MCPGraphResponse{
-			Agent: gatewayapi.MCPGraphAgent{
-				Name: agentName,
-			},
+			Agent:       gatewayapi.MCPGraphAgent{Name: agentName},
 			Connections: connections,
 			Tools:       tools,
 			Edges:       edges,
@@ -640,14 +580,7 @@ func (s *Service) ListProcessObservability(w http.ResponseWriter, r *http.Reques
 	items, next := cursorPage(rows, req.limit, processEvent, func(row gatewaydb.GatewayListProcessEventsRow) eventPageCursor {
 		return eventPageCursor{EventTime: row.EventTime, ID: row.ID}
 	})
-	apiutil.WriteJSON(
-		w,
-		http.StatusOK,
-		gatewayapi.ListProcessObservabilityResponse{
-			Events:        items,
-			NextPageToken: next,
-		},
-	)
+	apiutil.WriteJSON(w, http.StatusOK, gatewayapi.ListProcessObservabilityResponse{Events: items, NextPageToken: next})
 }
 
 // ListProcessObservabilitySummary handles aggregated process events for one Agent.
@@ -755,14 +688,7 @@ func (s *Service) ListFileObservability(w http.ResponseWriter, r *http.Request, 
 	items, next := cursorPage(rows, req.limit, fileEvent, func(row gatewaydb.GatewayListFileEventsRow) eventPageCursor {
 		return eventPageCursor{EventTime: row.EventTime, ID: row.ID}
 	})
-	apiutil.WriteJSON(
-		w,
-		http.StatusOK,
-		gatewayapi.ListFileObservabilityResponse{
-			Events:        items,
-			NextPageToken: next,
-		},
-	)
+	apiutil.WriteJSON(w, http.StatusOK, gatewayapi.ListFileObservabilityResponse{Events: items, NextPageToken: next})
 }
 
 // ListFileObservabilitySummary handles aggregated file events for one Agent.
@@ -870,14 +796,7 @@ func (s *Service) ListNetworkObservability(w http.ResponseWriter, r *http.Reques
 	items, next := cursorPage(rows, req.limit, networkEvent, func(row gatewaydb.GatewayListNetworkEventsRow) eventPageCursor {
 		return eventPageCursor{EventTime: row.EventTime, ID: row.ID}
 	})
-	apiutil.WriteJSON(
-		w,
-		http.StatusOK,
-		gatewayapi.ListNetworkObservabilityResponse{
-			Events:        items,
-			NextPageToken: next,
-		},
-	)
+	apiutil.WriteJSON(w, http.StatusOK, gatewayapi.ListNetworkObservabilityResponse{Events: items, NextPageToken: next})
 }
 
 // ListNetworkObservabilitySummary handles aggregated network events for one Agent.

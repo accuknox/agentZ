@@ -1,6 +1,7 @@
 import type { UrlObject } from "node:url"
 import { Suspense } from "react"
-import { AdministrationPageHeader } from "@/components/administration"
+import { listGuardrailPoliciesQuery, getGuardrailSettingsQuery } from "@/data/guardrail.queries"
+import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
 import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
 import { defaultSandboxPackages } from "@/data/sandbox-defaults"
 import { listSkills } from "@/lib/gateway/client"
@@ -9,15 +10,15 @@ import { listInferenceProvidersCachedQuery } from "@/data/inference-provider.que
 import { listInferencePoolsCachedQuery } from "@/data/inference-pool.queries"
 import { SandboxWizard } from "./wizard"
 
-export default function NewSandboxPage({
-  basePath,
-  providersHref,
-  workspaceId,
-}: {
+type NewSandboxPageProps = {
   basePath: string
   providersHref: UrlObject
   workspaceId?: string
-}) {
+}
+
+export default function NewSandboxPage(props: NewSandboxPageProps) {
+  const { basePath, providersHref, workspaceId } = props
+
   return (
     <main className="flex min-h-0 flex-1 flex-col gap-6 pb-4 sm:pb-6">
       <AdministrationPageHeader title="New sandbox" />
@@ -32,16 +33,10 @@ export default function NewSandboxPage({
   )
 }
 
-async function NewSandboxWizard({
-  basePath,
-  providersHref,
-  workspaceId,
-}: {
-  basePath: string
-  providersHref: UrlObject
-  workspaceId?: string
-}) {
-  const [result, skills, providers, pools] = await Promise.all([
+async function NewSandboxWizard(props: NewSandboxPageProps) {
+  const { basePath, providersHref, workspaceId } = props
+
+  const [result, skills, providers, pools, policies, guardrailSettings] = await Promise.all([
     listMcpConnectionsCachedQuery(
       { limit: 50, sort_by: "created_at", sort_order: "desc" },
       workspaceId
@@ -55,10 +50,26 @@ async function NewSandboxWizard({
     workspaceId
       ? listInferencePoolsCachedQuery(workspaceId)
       : Promise.resolve({ pools: [], error: undefined }),
+    listGuardrailPoliciesQuery(workspaceId),
+    getGuardrailSettingsQuery(workspaceId),
   ])
+  if (policies.error || guardrailSettings.error)
+    return (
+      <AdministrationState
+        description={
+          policies.error?.message ??
+          guardrailSettings.error?.message ??
+          "Guardrail configuration is unavailable."
+        }
+        kind="failed"
+        title="Could not load protection settings"
+      />
+    )
   return (
     <SandboxWizard
       mode="create"
+      guardrailPolicies={policies.data.items}
+      guardrailSettings={guardrailSettings.data}
       providersHref={providersHref}
       scope={{ basePath, workspaceId }}
       initialPackages={[...defaultSandboxPackages]}

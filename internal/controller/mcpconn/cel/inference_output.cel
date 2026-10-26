@@ -1,0 +1,4 @@
+toJson({
+  "completion": default(llm.completion, []),
+  "tool_calls": default(llm.toolCalls, [])
+})

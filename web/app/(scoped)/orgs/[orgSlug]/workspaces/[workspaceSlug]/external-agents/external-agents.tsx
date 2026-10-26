@@ -70,6 +70,7 @@ import {
 } from "@/components/ui/sheet"
 import { RelativeDateTime } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ClientGuardrailsPanel } from "@/components/guardrails/client-guardrails"
 import { ApplicationAccessDetails } from "@/app/(account)/settings/applications/application-access-sheet"
 import { externalAgentInput } from "@/data/schema"
 import type { ExternalAgent } from "@/data/external-agents"
@@ -341,9 +342,8 @@ export function ExternalAgents({
         rowAriaLabel={(agent) => `Open ${agent.name}`}
         emptyState={
           <AdministrationState
-            description="Connect Claude Code or Codex and choose which models and tools it can use."
             kind={workspace.capabilities.external_agents.create ? "welcome" : "empty"}
-            title="Let's connect your coding agent"
+            title="No external agents"
           />
         }
       />
@@ -383,6 +383,10 @@ export function ExternalAgents({
               <TabsList className="mx-4">
                 <TabsTrigger value="setup">Setup</TabsTrigger>
                 <TabsTrigger value="access">Access</TabsTrigger>
+                {(organization.superadmin || workspace.capabilities.administer) &&
+                selected.connected ? (
+                  <TabsTrigger value="guardrails">Guardrails</TabsTrigger>
+                ) : null}
               </TabsList>
               <TabsContent value="setup" className="overflow-y-auto">
                 <AgentSetup agent={selected} />
@@ -430,6 +434,16 @@ export function ExternalAgents({
                   </Empty>
                 )}
               </TabsContent>
+              {(organization.superadmin || workspace.capabilities.administer) &&
+              selected.connected ? (
+                <TabsContent className="overflow-y-auto" value="guardrails">
+                  <ClientGuardrailsPanel
+                    clientId={selected.clientId}
+                    orgSlug={orgSlug}
+                    workspaceSlug={workspaceSlug}
+                  />
+                </TabsContent>
+              ) : null}
             </Tabs>
           </SheetContent>
         </Sheet>
@@ -440,7 +454,7 @@ export function ExternalAgents({
           if (!open && !pending) setConfirmation(undefined)
         }}
       >
-        <DialogContent>
+        <DialogContent showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>
               {confirmation?.operation === "delete" ? "Delete agent?" : "Disconnect agent?"}
@@ -586,9 +600,6 @@ function ExternalAgentEditor({
             <LoadingButton pending={pending} type="submit">
               {agent ? "Save" : "Add agent"}
             </LoadingButton>
-            <Button variant="outline" type="button" disabled={pending} onClick={onClose}>
-              Cancel
-            </Button>
           </SheetFooter>
         </form>
       </SheetContent>
@@ -628,7 +639,7 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
         </Alert>
       ) : null}
       <Field>
-        <FieldLabel>1. Install the AgentZ CLI</FieldLabel>
+        <FieldLabel>1. Install the CLI</FieldLabel>
         <FieldDescription>
           Requires {agent.kind === "claude" ? "Claude Code 2.1.299+" : "Codex 0.162.1+"}
         </FieldDescription>
@@ -668,7 +679,7 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
             </FieldDescription>
           </TabsContent>
         </Tabs>
-        <SetupCommand command={config} label="Copy AgentZ configuration" />
+        <SetupCommand command={config} label="Copy configuration" />
         <FieldDescription>
           Add this entry to <code>externalAgents</code>. Keep your existing profiles.
         </FieldDescription>

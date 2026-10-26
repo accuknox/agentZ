@@ -86,6 +86,10 @@ type SandboxInference struct {
 // +kubebuilder:validation:XValidation:rule="!has(self.skills) || self.skills.all(s, s.name.matches('^[a-z0-9]+(-[a-z0-9]+)*$'))",message="skill names must use lowercase letters, digits, and single hyphens"
 // +kubebuilder:validation:XValidation:rule="self.createdByUserID == oldSelf.createdByUserID",message="createdByUserID is immutable"
 type SandboxSpec struct {
+	// Guardrails adds policies after the mandatory organization baseline.
+	// +optional
+	Guardrails GuardrailAssignment `json:"guardrails,omitempty"`
+
 	ResourceAudit `json:",inline"`
 
 	// Inference defines the model policy inherited by referencing Agents.

@@ -537,12 +537,7 @@ func (s *Service) drainCleanupJobs(ctx context.Context) {
 					},
 				)
 				if failErr != nil {
-					slog.ErrorContext(
-						ctx,
-						"fail cleanup job",
-						slog.String("job_id", job.ID),
-						slog.Any("err", failErr),
-					)
+					slog.ErrorContext(ctx, "fail cleanup job", slog.String("job_id", job.ID), slog.Any("err", failErr))
 					continue
 				}
 				if updated == 0 {
@@ -596,11 +591,7 @@ func (s *Service) processCleanupJob(ctx context.Context, job gatewaydb.CleanupJo
 		return fmt.Errorf("decode cleanup payload: %w", err)
 	}
 	if payload.Operation != job.Operation {
-		return fmt.Errorf(
-			"cleanup payload operation %q does not match job operation %q",
-			payload.Operation,
-			job.Operation,
-		)
+		return fmt.Errorf("cleanup payload operation %q does not match job operation %q", payload.Operation, job.Operation)
 	}
 	if job.Operation == gatewaydb.DestructiveOperationWorkspaceDelete {
 		return s.processWorkspaceCleanup(ctx, job, payload)
@@ -627,10 +618,7 @@ func (s *Service) processCleanupJob(ctx context.Context, job gatewaydb.CleanupJo
 			return fmt.Errorf("get workspace %q for cleanup: %w", agent.WorkspaceID, err)
 		}
 
-		schedules, err := s.agentz.AgentzV1alpha1().WorkflowSchedules(workspace.Namespace).List(
-			ctx,
-			metav1.ListOptions{},
-		)
+		schedules, err := s.agentz.AgentzV1alpha1().WorkflowSchedules(workspace.Namespace).List(ctx, metav1.ListOptions{})
 		if err != nil {
 			return fmt.Errorf("list Agent %q WorkflowSchedules: %w", agent.AgentName, err)
 		}
@@ -641,24 +629,14 @@ func (s *Service) processCleanupJob(ctx context.Context, job gatewaydb.CleanupJo
 			err = s.agentz.AgentzV1alpha1().WorkflowSchedules(workspace.Namespace).Delete(
 				ctx,
 				schedules.Items[i].Name,
-				metav1.DeleteOptions{
-					PropagationPolicy: new(metav1.DeletePropagationBackground),
-				},
+				metav1.DeleteOptions{PropagationPolicy: new(metav1.DeletePropagationBackground)},
 			)
 			if err != nil && !apierrors.IsNotFound(err) {
-				return fmt.Errorf(
-					"delete Agent %q WorkflowSchedule %q: %w",
-					agent.AgentName,
-					schedules.Items[i].Name,
-					err,
-				)
+				return fmt.Errorf("delete Agent %q WorkflowSchedule %q: %w", agent.AgentName, schedules.Items[i].Name, err)
 			}
 		}
 
-		runs, err := s.agentz.AgentzV1alpha1().WorkflowRuns(workspace.Namespace).List(
-			ctx,
-			metav1.ListOptions{},
-		)
+		runs, err := s.agentz.AgentzV1alpha1().WorkflowRuns(workspace.Namespace).List(ctx, metav1.ListOptions{})
 		if err != nil {
 			return fmt.Errorf("list Agent %q WorkflowRuns: %w", agent.AgentName, err)
 		}
@@ -669,26 +647,17 @@ func (s *Service) processCleanupJob(ctx context.Context, job gatewaydb.CleanupJo
 			err = s.agentz.AgentzV1alpha1().WorkflowRuns(workspace.Namespace).Delete(
 				ctx,
 				runs.Items[i].Name,
-				metav1.DeleteOptions{
-					PropagationPolicy: new(metav1.DeletePropagationBackground),
-				},
+				metav1.DeleteOptions{PropagationPolicy: new(metav1.DeletePropagationBackground)},
 			)
 			if err != nil && !apierrors.IsNotFound(err) {
-				return fmt.Errorf(
-					"delete Agent %q WorkflowRun %q: %w",
-					agent.AgentName,
-					runs.Items[i].Name,
-					err,
-				)
+				return fmt.Errorf("delete Agent %q WorkflowRun %q: %w", agent.AgentName, runs.Items[i].Name, err)
 			}
 		}
 
 		err = s.resolver.client.AgentzV1alpha1().Agents(workspace.Namespace).Delete(
 			ctx,
 			agent.AgentName,
-			metav1.DeleteOptions{
-				PropagationPolicy: new(metav1.DeletePropagationForeground),
-			},
+			metav1.DeleteOptions{PropagationPolicy: new(metav1.DeletePropagationForeground)},
 		)
 		if err != nil && !apierrors.IsNotFound(err) {
 			return fmt.Errorf("delete Agent %q: %w", agent.AgentName, err)
@@ -698,45 +667,27 @@ func (s *Service) processCleanupJob(ctx context.Context, job gatewaydb.CleanupJo
 			return fmt.Errorf("delete Agent %q secrets: %w", agent.AgentName, err)
 		}
 
-		schedules, err = s.agentz.AgentzV1alpha1().WorkflowSchedules(workspace.Namespace).List(
-			ctx,
-			metav1.ListOptions{},
-		)
+		schedules, err = s.agentz.AgentzV1alpha1().WorkflowSchedules(workspace.Namespace).List(ctx, metav1.ListOptions{})
 		if err != nil {
 			return fmt.Errorf("confirm Agent %q WorkflowSchedule cleanup: %w", agent.AgentName, err)
 		}
 		for i := range schedules.Items {
 			if schedules.Items[i].Spec.AgentName == agent.AgentName {
-				return fmt.Errorf(
-					"agent %q WorkflowSchedule %q cleanup is pending",
-					agent.AgentName,
-					schedules.Items[i].Name,
-				)
+				return fmt.Errorf("agent %q WorkflowSchedule %q cleanup is pending", agent.AgentName, schedules.Items[i].Name)
 			}
 		}
 
-		runs, err = s.agentz.AgentzV1alpha1().WorkflowRuns(workspace.Namespace).List(
-			ctx,
-			metav1.ListOptions{},
-		)
+		runs, err = s.agentz.AgentzV1alpha1().WorkflowRuns(workspace.Namespace).List(ctx, metav1.ListOptions{})
 		if err != nil {
 			return fmt.Errorf("confirm Agent %q WorkflowRun cleanup: %w", agent.AgentName, err)
 		}
 		for i := range runs.Items {
 			if runs.Items[i].Spec.AgentName == agent.AgentName {
-				return fmt.Errorf(
-					"agent %q WorkflowRun %q cleanup is pending",
-					agent.AgentName,
-					runs.Items[i].Name,
-				)
+				return fmt.Errorf("agent %q WorkflowRun %q cleanup is pending", agent.AgentName, runs.Items[i].Name)
 			}
 		}
 
-		_, err = s.resolver.client.AgentzV1alpha1().Agents(workspace.Namespace).Get(
-			ctx,
-			agent.AgentName,
-			metav1.GetOptions{},
-		)
+		_, err = s.resolver.client.AgentzV1alpha1().Agents(workspace.Namespace).Get(ctx, agent.AgentName, metav1.GetOptions{})
 		if err == nil {
 			return fmt.Errorf("agent %q cleanup is pending", agent.AgentName)
 		}
@@ -788,11 +739,7 @@ func (s *Service) processWorkspaceCleanup(ctx context.Context, job gatewaydb.Cle
 	if err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("delete Workspace %q: %w", workspace.Namespace, err)
 	}
-	_, err = s.agentz.AgentzV1alpha1().Workspaces().Get(
-		ctx,
-		workspace.Namespace,
-		metav1.GetOptions{},
-	)
+	_, err = s.agentz.AgentzV1alpha1().Workspaces().Get(ctx, workspace.Namespace, metav1.GetOptions{})
 	if err == nil {
 		return fmt.Errorf("workspace %q cleanup is pending", workspace.Namespace)
 	}
@@ -825,14 +772,8 @@ func (s *Service) routes() http.Handler {
 		AllowCredentials: false,
 		MaxAge:           300,
 	})
-	r.With(managementCORS, s.ptyWebsocketAuth, requireTenantRequest(s)).HandleFunc(
-		opencodePrefix+"/{agentName}",
-		s.handleOpenCodeProxy,
-	)
-	r.With(managementCORS, s.ptyWebsocketAuth, requireTenantRequest(s)).HandleFunc(
-		opencodePrefix+"/{agentName}/*",
-		s.handleOpenCodeProxy,
-	)
+	r.With(managementCORS, s.ptyWebsocketAuth, requireTenantRequest(s)).HandleFunc(opencodePrefix+"/{agentName}", s.handleOpenCodeProxy)
+	r.With(managementCORS, s.ptyWebsocketAuth, requireTenantRequest(s)).HandleFunc(opencodePrefix+"/{agentName}/*", s.handleOpenCodeProxy)
 
 	if s.cfg.DelegationNamespace != "" {
 		r.Route("/api/inference/v1", func(r chi.Router) {
@@ -892,8 +833,10 @@ func (s *Service) routes() http.Handler {
 	gatewayapi.HandlerWithOptions(
 		s,
 		gatewayapi.ChiServerOptions{
-			BaseRouter:       apiRouter,
-			ErrorHandlerFunc: s.handleRouteError,
+			BaseRouter: apiRouter,
+			ErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
+				apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "request is invalid", err))
+			},
 			Middlewares: []gatewayapi.MiddlewareFunc{
 				requireExplicitCapability,
 				requireTenantRequest(s),

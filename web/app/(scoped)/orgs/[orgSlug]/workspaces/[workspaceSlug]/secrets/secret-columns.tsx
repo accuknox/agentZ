@@ -231,7 +231,7 @@ function DeleteSecretDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent>
+      <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>Delete {item.key}?</DialogTitle>
           <DialogDescription>Deleting this secret removes it permanently.</DialogDescription>

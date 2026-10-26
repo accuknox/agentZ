@@ -455,19 +455,23 @@ func (ns NullEventTrailResult) Value() (driver.Value, error) {
 type EventTrailTarget string
 
 const (
-	EventTrailTargetOrganization           EventTrailTarget = "organization"
-	EventTrailTargetOrganizationMembership EventTrailTarget = "organization_membership"
-	EventTrailTargetTeam                   EventTrailTarget = "team"
-	EventTrailTargetMcpConnection          EventTrailTarget = "mcp_connection"
-	EventTrailTargetInferenceProvider      EventTrailTarget = "inference_provider"
-	EventTrailTargetInferencePool          EventTrailTarget = "inference_pool"
-	EventTrailTargetRole                   EventTrailTarget = "role"
-	EventTrailTargetSandbox                EventTrailTarget = "sandbox"
-	EventTrailTargetSkill                  EventTrailTarget = "skill"
-	EventTrailTargetAgent                  EventTrailTarget = "agent"
-	EventTrailTargetApiKey                 EventTrailTarget = "api_key"
-	EventTrailTargetWorkspaceAccess        EventTrailTarget = "workspace_access"
-	EventTrailTargetWorkspace              EventTrailTarget = "workspace"
+	EventTrailTargetOrganization             EventTrailTarget = "organization"
+	EventTrailTargetOrganizationMembership   EventTrailTarget = "organization_membership"
+	EventTrailTargetTeam                     EventTrailTarget = "team"
+	EventTrailTargetMcpConnection            EventTrailTarget = "mcp_connection"
+	EventTrailTargetInferenceProvider        EventTrailTarget = "inference_provider"
+	EventTrailTargetInferencePool            EventTrailTarget = "inference_pool"
+	EventTrailTargetRole                     EventTrailTarget = "role"
+	EventTrailTargetSandbox                  EventTrailTarget = "sandbox"
+	EventTrailTargetSkill                    EventTrailTarget = "skill"
+	EventTrailTargetAgent                    EventTrailTarget = "agent"
+	EventTrailTargetApiKey                   EventTrailTarget = "api_key"
+	EventTrailTargetWorkspaceAccess          EventTrailTarget = "workspace_access"
+	EventTrailTargetWorkspace                EventTrailTarget = "workspace"
+	EventTrailTargetGuardrailConnection      EventTrailTarget = "guardrail_connection"
+	EventTrailTargetGuardrailPolicy          EventTrailTarget = "guardrail_policy"
+	EventTrailTargetGuardrailSettings        EventTrailTarget = "guardrail_settings"
+	EventTrailTargetExternalAccessGuardrails EventTrailTarget = "external_access_guardrails"
 )
 
 func (e *EventTrailTarget) Scan(src interface{}) error {
@@ -602,14 +606,17 @@ func (ns NullPermissionAction) Value() (driver.Value, error) {
 type PermissionResource string
 
 const (
-	PermissionResourceMcpConnection     PermissionResource = "mcp_connection"
-	PermissionResourceSkill             PermissionResource = "skill"
-	PermissionResourceSandbox           PermissionResource = "sandbox"
-	PermissionResourceInferenceProvider PermissionResource = "inference_provider"
-	PermissionResourceInferencePool     PermissionResource = "inference_pool"
-	PermissionResourceAgent             PermissionResource = "agent"
-	PermissionResourceApiKey            PermissionResource = "api_key"
-	PermissionResourceObservability     PermissionResource = "observability"
+	PermissionResourceMcpConnection       PermissionResource = "mcp_connection"
+	PermissionResourceSkill               PermissionResource = "skill"
+	PermissionResourceSandbox             PermissionResource = "sandbox"
+	PermissionResourceInferenceProvider   PermissionResource = "inference_provider"
+	PermissionResourceInferencePool       PermissionResource = "inference_pool"
+	PermissionResourceAgent               PermissionResource = "agent"
+	PermissionResourceApiKey              PermissionResource = "api_key"
+	PermissionResourceObservability       PermissionResource = "observability"
+	PermissionResourceGuardrailConnection PermissionResource = "guardrail_connection"
+	PermissionResourceGuardrailPolicy     PermissionResource = "guardrail_policy"
+	PermissionResourceGuardrailEvent      PermissionResource = "guardrail_event"
 )
 
 func (e *PermissionResource) Scan(src interface{}) error {
@@ -1135,6 +1142,15 @@ type GithubConnection struct {
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 }
 
+type GuardrailClientAccess struct {
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	ClientID       string             `json:"client_id"`
+	Policies       []byte             `json:"policies"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	UpdatedBy      pgtype.Text        `json:"updated_by"`
+}
+
 type Invitation struct {
 	ID             string           `json:"id"`
 	OrganizationID string           `json:"organization_id"`
@@ -1453,6 +1469,27 @@ type ObserverFileEvent struct {
 	CommandInvocation string    `json:"command_invocation"`
 	Action            string    `json:"action"`
 	Source            string    `json:"source"`
+}
+
+type ObserverGuardrailEvent struct {
+	ID              string    `json:"id"`
+	OrganizationID  string    `json:"organization_id"`
+	WorkspaceID     string    `json:"workspace_id"`
+	OccurredAt      time.Time `json:"occurred_at"`
+	ExpiresAt       time.Time `json:"expires_at"`
+	SandboxName     string    `json:"sandbox_name"`
+	AgentName       string    `json:"agent_name"`
+	ClientID        string    `json:"client_id"`
+	SessionID       string    `json:"session_id"`
+	Model           string    `json:"model"`
+	TraceID         []byte    `json:"trace_id"`
+	SpanID          []byte    `json:"span_id"`
+	EvaluationIndex int32     `json:"evaluation_index"`
+	Revision        string    `json:"revision"`
+	Phase           string    `json:"phase"`
+	Action          string    `json:"action"`
+	Evaluation      []byte    `json:"evaluation"`
+	IngestedAt      time.Time `json:"ingested_at"`
 }
 
 type ObserverMcpToolInvocation struct {

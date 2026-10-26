@@ -70,12 +70,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		limit = *params.Limit
 	}
 	if limit < 1 || limit > 50 {
-		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"limit must be between 1 and 50",
-			errBadRequest,
-		))
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "limit must be between 1 and 50", errBadRequest))
 		return
 	}
 	auth, _ := requestAuthState(r.Context())
@@ -124,12 +119,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		}
 		location, err = time.LoadLocation(*params.TimeZone)
 		if err != nil {
-			apiutil.WriteError(w, r, apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"time_zone is invalid",
-				err,
-			))
+			apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "time_zone is invalid", err))
 			return
 		}
 	}
@@ -168,12 +158,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 			case gatewayapi.ChatSessionGroupByStatus:
 				activeGroup = string(row.Status)
 			case gatewayapi.ChatSessionGroupByDate:
-				activeGroup = chatSessionDateGroup(
-					row.SourceUpdatedAt.Time,
-					today,
-					yesterday,
-					previousWeek,
-				)
+				activeGroup = chatSessionDateGroup(row.SourceUpdatedAt.Time, today, yesterday, previousWeek)
 			}
 		}
 	}
@@ -188,12 +173,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 	groupValue := ""
 	if params.GroupKey != nil {
 		if groupBy == gatewayapi.ChatSessionGroupByNone {
-			apiutil.WriteError(w, r, apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"group_key requires grouped results",
-				errBadRequest,
-			))
+			apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "group_key requires grouped results", errBadRequest))
 			return
 		}
 		key, decodeErr := decodeChatSessionGroupKey(*params.GroupKey)
@@ -201,12 +181,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 			if decodeErr == nil {
 				decodeErr = errBadRequest
 			}
-			apiutil.WriteError(w, r, apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"group_key is invalid",
-				decodeErr,
-			))
+			apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "group_key is invalid", decodeErr))
 			return
 		}
 		groupValue = key.Value
@@ -215,12 +190,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 			projectID = pgtype.Text{String: groupValue, Valid: true}
 		case gatewayapi.ChatSessionGroupByAgent:
 			if !slices.Contains(accessibleAgentNames, groupValue) {
-				apiutil.WriteError(w, r, apiutil.NewError(
-					http.StatusBadRequest,
-					"invalid_request",
-					"group_key is invalid",
-					errBadRequest,
-				))
+				apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "group_key is invalid", errBadRequest))
 				return
 			}
 			groupAgent = pgtype.Text{String: groupValue, Valid: true}
@@ -229,18 +199,10 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 			switch status {
 			case gatewaydb.ChatSessionStatusBusy, gatewaydb.ChatSessionStatusRetry, gatewaydb.ChatSessionStatusIdle:
 			default:
-				apiutil.WriteError(w, r, apiutil.NewError(
-					http.StatusBadRequest,
-					"invalid_request",
-					"group_key is invalid",
-					errBadRequest,
-				))
+				apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "group_key is invalid", errBadRequest))
 				return
 			}
-			groupStatus = gatewaydb.NullChatSessionStatus{
-				ChatSessionStatus: status,
-				Valid:             true,
-			}
+			groupStatus = gatewaydb.NullChatSessionStatus{ChatSessionStatus: status, Valid: true}
 		case gatewayapi.ChatSessionGroupByDate:
 			switch gatewayapi.ChatSessionDateBucket(groupValue) {
 			case gatewayapi.ChatSessionDateBucketToday:
@@ -254,12 +216,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 			case gatewayapi.ChatSessionDateBucketOlder:
 				groupBefore = pgtype.Timestamptz{Time: previousWeek, Valid: true}
 			default:
-				apiutil.WriteError(w, r, apiutil.NewError(
-					http.StatusBadRequest,
-					"invalid_request",
-					"group_key is invalid",
-					errBadRequest,
-				))
+				apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "group_key is invalid", errBadRequest))
 				return
 			}
 		}
@@ -267,12 +224,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 
 	cursor, err := decodeChatSessionCursor(params.PageToken)
 	if err != nil {
-		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"page_token is invalid",
-			err,
-		))
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "page_token is invalid", err))
 		return
 	}
 
@@ -329,12 +281,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 			apiutil.WriteError(
 				w,
 				r,
-				apiutil.NewError(
-					http.StatusBadRequest,
-					"invalid_request",
-					"Project groups require a coding workspace",
-					errBadRequest,
-				),
+				apiutil.NewError(http.StatusBadRequest, "invalid_request", "Project groups require a coding workspace", errBadRequest),
 			)
 			return
 		}
@@ -453,13 +400,10 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 				GroupBefore:         groupBefore,
 				ParticipantUserIds:  participantIDs,
 				CursorSet:           params.PageToken != nil,
-				CursorUpdatedAt: pgtype.Timestamptz{
-					Time:  cursor.UpdatedAt,
-					Valid: params.PageToken != nil,
-				},
-				CursorAgentName: cursor.AgentName,
-				CursorSessionID: cursor.SessionID,
-				PageSize:        limit + 1,
+				CursorUpdatedAt:     pgtype.Timestamptz{Time: cursor.UpdatedAt, Valid: params.PageToken != nil},
+				CursorAgentName:     cursor.AgentName,
+				CursorSessionID:     cursor.SessionID,
+				PageSize:            limit + 1,
 			},
 		)
 		if listErr != nil {
@@ -663,12 +607,7 @@ func (s *Service) UpdateChatSessionPreference(w http.ResponseWriter, r *http.Req
 	}
 	auth, _ := requestAuthState(r.Context())
 	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding && body.IncludeWorkflowRuns {
-		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusForbidden,
-			"feature_disabled",
-			"workflows are disabled in coding workspaces",
-			nil,
-		))
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusForbidden, "feature_disabled", "workflows are disabled in coding workspaces", nil))
 		return
 	}
 	names := []*gatewayapi.AgentName{body.AgentName, body.LastAgentName}
@@ -676,11 +615,7 @@ func (s *Service) UpdateChatSessionPreference(w http.ResponseWriter, r *http.Req
 		if name == nil {
 			continue
 		}
-		_, apiErr = s.resolveAgentAccess(
-			r.Context(),
-			*name,
-			authorization.OperationUseSharedAgent,
-		)
+		_, apiErr = s.resolveAgentAccess(r.Context(), *name, authorization.OperationUseSharedAgent)
 		if apiErr != nil {
 			apiutil.WriteError(w, r, apiErr)
 			return
@@ -699,12 +634,7 @@ func (s *Service) UpdateChatSessionPreference(w http.ResponseWriter, r *http.Req
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"Project groups require a coding workspace",
-				errBadRequest,
-			),
+			apiutil.NewError(http.StatusBadRequest, "invalid_request", "Project groups require a coding workspace", errBadRequest),
 		)
 		return
 	}
@@ -757,9 +687,7 @@ func (s *Service) WatchChatSessions(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case revision := <-events:
-			raw, err := json.Marshal(gatewayapi.WatchChatSessionsEvent{
-				Revision: strconv.FormatUint(revision, 10),
-			})
+			raw, err := json.Marshal(gatewayapi.WatchChatSessionsEvent{Revision: strconv.FormatUint(revision, 10)})
 			if err != nil {
 				apiutil.RecordRequestError(w, "internal_error", err)
 				return

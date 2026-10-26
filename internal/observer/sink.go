@@ -40,36 +40,65 @@ func (s *sink) run(ctx context.Context) {
 	defer ticker.Stop()
 
 	var b batch
-	flush := func() {
-		current := b
-		b = batch{}
-		if current.count() == 0 {
-			return
+	flush := func(parent context.Context) bool {
+		if b.count() == 0 {
+			return true
 		}
 		// Finish accepted events when producer shutdown cancels the parent.
-		writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		writeCtx, cancel := context.WithTimeout(parent, 10*time.Second)
 		defer cancel()
-		if err := s.store.insertBatch(writeCtx, current); err != nil {
+		if err := s.store.insertBatch(writeCtx, b); err != nil {
 			atomic.AddUint64(&s.stats.failed, 1)
 			slog.ErrorContext(writeCtx, "flush observer batch", slog.Any("error", err))
-			return
+			return false
 		}
+		b = batch{}
 		atomic.AddUint64(&s.stats.flushed, 1)
+		return true
 	}
 
+	drain := func() {
+		deadline, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		defer cancel()
+		for !flush(deadline) {
+			select {
+			case <-deadline.Done():
+				return
+			case <-time.After(250 * time.Millisecond):
+			}
+		}
+	}
+	shutdown := ctx.Done()
 	for {
+		// Backpressure bounds a retained failed batch until the next flush attempt.
+		events := s.events
+		if b.count() >= s.cfg.BatchSize {
+			events = nil
+		}
 		select {
-		case ev, ok := <-s.events:
+		case <-shutdown:
+			shutdown = nil
+			if b.count() >= s.cfg.BatchSize {
+				drain()
+				return
+			}
+		case ev, ok := <-events:
 			if !ok {
-				flush()
+				drain()
 				return
 			}
 			b.add(ev)
 			if b.count() >= s.cfg.BatchSize {
-				flush()
+				if !flush(context.WithoutCancel(ctx)) && ctx.Err() != nil {
+					drain()
+					return
+				}
 			}
 		case <-ticker.C:
-			flush()
+			if !flush(context.WithoutCancel(ctx)) && ctx.Err() != nil {
+				drain()
+				return
+			}
 		}
 	}
 }

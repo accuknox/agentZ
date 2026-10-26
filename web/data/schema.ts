@@ -1,6 +1,7 @@
 import * as z from "zod"
 import ipaddr from "ipaddr.js"
 import {
+  zGuardrailAssignment,
   zAgentName,
   zAgentOpencodeConfig,
   zMcpConnectionName,
@@ -462,6 +463,7 @@ export const createAgentSimpleFormSchema = z.object({
 })
 
 export const createSandboxFormSchema = z.object({
+  guardrails: zGuardrailAssignment.optional(),
   name: sandboxNameSchema,
   skills: z.array(zResourceReference, { error: "Skills must be a list" }),
   packages: z.array(sandboxPackageSchema, { error: "Packages must be a list" }),

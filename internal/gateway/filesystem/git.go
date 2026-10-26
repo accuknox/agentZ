@@ -324,16 +324,7 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 		if req.Git.Operation == gatewayapi.CodingGitApplyCommit {
 			namespace = "refs/agentz/incoming/"
 		}
-		_, err = run(
-			cwd,
-			"",
-			"fetch",
-			"--prune",
-			"--no-tags",
-			"--no-recurse-submodules",
-			file.Name(),
-			"+refs/heads/*:"+namespace+"*",
-		)
+		_, err = run(cwd, "", "fetch", "--prune", "--no-tags", "--no-recurse-submodules", file.Name(), "+refs/heads/*:"+namespace+"*")
 		return err
 	}
 	if req.Prepare {
@@ -380,14 +371,7 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			}
 		}
 		if headErr != nil {
-			_, err = run(
-				repo,
-				"",
-				"checkout",
-				"-B",
-				req.BaseBranch,
-				"refs/remotes/origin/"+req.BaseBranch,
-			)
+			_, err = run(repo, "", "checkout", "-B", req.BaseBranch, "refs/remotes/origin/"+req.BaseBranch)
 			if err != nil {
 				return result, err
 			}
@@ -519,14 +503,7 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 				return err
 			}
 			if info != nil {
-				fmt.Fprintf(
-					digest,
-					"%s\x00%d:%d:%d\x00",
-					file.Path,
-					info.Size(),
-					info.ModTime().UnixNano(),
-					info.Mode(),
-				)
+				fmt.Fprintf(digest, "%s\x00%d:%d:%d\x00", file.Path, info.Size(), info.ModTime().UnixNano(), info.Mode())
 			}
 			result.Files = append(result.Files, file)
 		}
@@ -662,15 +639,7 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 				if err != nil {
 					return nil, err
 				}
-				_, err = run(
-					directory,
-					index,
-					"--literal-pathspecs",
-					"add",
-					"--intent-to-add",
-					"--pathspec-from-file="+spec,
-					"--pathspec-file-nul",
-				)
+				_, err = run(directory, index, "--literal-pathspecs", "add", "--intent-to-add", "--pathspec-from-file="+spec, "--pathspec-file-nul")
 				if err != nil {
 					return nil, err
 				}
@@ -922,13 +891,7 @@ func (s *service) runGit(ctx context.Context, req GitRequest) (gatewayapi.Coding
 			return result, errors.New("invalid branch")
 		}
 		if req.Git.Operation == gatewayapi.CodingGitImport {
-			_, err = run(
-				directory,
-				"",
-				"merge",
-				"--ff-only",
-				"refs/remotes/origin/"+*req.Git.Ref,
-			)
+			_, err = run(directory, "", "merge", "--ff-only", "refs/remotes/origin/"+*req.Git.Ref)
 			if err != nil {
 				return result, err
 			}

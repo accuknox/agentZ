@@ -170,10 +170,7 @@ func (s *Service) ListAppSessions(w http.ResponseWriter, r *http.Request, client
 		rows,
 		limit,
 		func(row gatewaydb.GatewayListAppSessionsRow) gatewayapi.AppSession {
-			return gatewayapi.AppSession{
-				SessionId: row.SessionID,
-				LastSeen:  row.LastSeen,
-			}
+			return gatewayapi.AppSession{SessionId: row.SessionID, LastSeen: row.LastSeen}
 		},
 		func(row gatewaydb.GatewayListAppSessionsRow) appSessionPageCursor {
 			return appSessionPageCursor{

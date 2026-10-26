@@ -306,7 +306,7 @@ func Serve(ctx context.Context, cfg Config) error {
 	if delegatedServer != nil {
 		delegatedServer.Stop()
 	}
-	shutdownCtx, stopShutdown := context.WithTimeout(context.Background(), grpcShutdownTimeout)
+	shutdownCtx, stopShutdown := context.WithTimeout(context.WithoutCancel(ctx), grpcShutdownTimeout)
 	defer stopShutdown()
 	doneCh := make(chan struct{})
 	go func() {
@@ -475,6 +475,9 @@ func (s *Service) evaluate(ctx context.Context, req *authv3.CheckRequest) (check
 			"missing_attributes",
 			slog.LevelWarn,
 		), attrs
+	}
+	if checkAttrs.GetContextExtensions()["agentz.guardrail_revision"] != "" {
+		return s.evaluateGuardrailRevision(ctx, checkAttrs, attrs)
 	}
 	providerName := strings.TrimSpace(
 		checkAttrs.GetContextExtensions()[contextProviderKey],

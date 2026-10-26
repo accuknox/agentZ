@@ -51,7 +51,7 @@ interface JournalSearchResult extends JournalEntry {
   score: number
 }
 
-export class Memory {
+class Memory {
   private pending: Promise<void> = Promise.resolve()
 
   constructor(private readonly root = join(process.env.HOME ?? homedir(), ".agentz", "memory")) {}

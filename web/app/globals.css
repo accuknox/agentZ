@@ -428,8 +428,8 @@
       margin-top: 0.25em;
     }
     & blockquote {
-      border-left: 2px solid var(--border);
-      padding-left: 1em;
+      border: 0;
+      padding-inline: 0;
       color: var(--muted-foreground);
     }
     & a {
@@ -444,4 +444,10 @@
       font-size: 0.9em;
     }
   }
+}
+
+/* Keep Markdown quotations semantic without a decorative quote bar. */
+blockquote[data-streamdown="blockquote"] {
+  border: 0;
+  padding-inline: 0;
 }

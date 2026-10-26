@@ -49,7 +49,7 @@ const authClient = createAuthClient({
 })
 
 const identityScopes = [
-  { value: "openid", label: "Sign you in with your AgentZ identity" },
+  { value: "openid", label: "Confirm your identity" },
   { value: "profile", label: "Read your name and profile image" },
   { value: "email", label: "Read your email address" },
   { value: "offline_access", label: "Keep access when you are away, until you disconnect" },
@@ -174,7 +174,7 @@ export function Consent({
           </h1>
           <p className="text-sm text-pretty text-muted-foreground">
             {client.owner ? `An app from the ${client.owner} organization` : "This app"} wants
-            access to your AgentZ account.
+            access to your account.
           </p>
         </div>
       </header>
@@ -474,6 +474,14 @@ export function Consent({
             </p>
           ) : null}
         </section>
+      ) : null}
+      {selection.models.length ? (
+        <p className="text-sm text-muted-foreground">
+          Organization-required guardrails and policies assigned to this application&apos;s
+          workspace access apply to model requests. Guardrail checks may block requests or modify
+          supported content. Guardrail events record metadata; conversation storage is managed
+          separately.
+        </p>
       ) : null}
       <div className="flex items-start gap-2.5 text-sm leading-relaxed text-muted-foreground">
         <ShieldCheck aria-hidden="true" className="mt-0.5 size-4 shrink-0" />

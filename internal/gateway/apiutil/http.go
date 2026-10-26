@@ -50,34 +50,17 @@ func RecordRequestError(w http.ResponseWriter, code string, cause error) {
 
 // WriteInternalError writes a generic internal error response.
 func WriteInternalError(w http.ResponseWriter, r *http.Request, err error) {
-	WriteError(
-		w,
-		r,
-		NewError(
-			http.StatusInternalServerError,
-			"internal_error",
-			"request failed",
-			err,
-		),
-	)
+	WriteError(w, r, NewError(http.StatusInternalServerError, "internal_error", "request failed", err))
 }
 
 // WriteError writes a structured API error response.
 func WriteError(w http.ResponseWriter, _ *http.Request, e *APIError) {
 	if e == nil {
-		e = NewError(
-			http.StatusInternalServerError,
-			"internal_error",
-			"request failed",
-			nil,
-		)
+		e = NewError(http.StatusInternalServerError, "internal_error", "request failed", nil)
 	}
 	RecordRequestError(w, e.Code, e.Cause)
 
-	body := gatewayapi.Error{
-		Code:    e.Code,
-		Message: e.Message,
-	}
+	body := gatewayapi.Error{Code: e.Code, Message: e.Message}
 	if len(e.Fields) > 0 {
 		body.Errors = &e.Fields
 	}
@@ -122,10 +105,7 @@ func DecodeJSONBody(r *http.Request, dst any, allowEmpty bool) error {
 			"invalid_request",
 			"request body is invalid",
 			err,
-			gatewayapi.FieldError{
-				Field:   "body",
-				Message: "invalid JSON",
-			},
+			gatewayapi.FieldError{Field: "body", Message: "invalid JSON"},
 		)
 	}
 	var extra json.RawMessage
@@ -135,10 +115,7 @@ func DecodeJSONBody(r *http.Request, dst any, allowEmpty bool) error {
 			"invalid_request",
 			"request body must contain one JSON object",
 			err,
-			gatewayapi.FieldError{
-				Field:   "body",
-				Message: "must contain one JSON object",
-			},
+			gatewayapi.FieldError{Field: "body", Message: "must contain one JSON object"},
 		)
 	}
 	return nil

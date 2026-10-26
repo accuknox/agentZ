@@ -45,7 +45,7 @@ export function AuthorizationState({
           <Spinner />
         ) : (
           <Button asChild>
-            <Link href="/">Go to AgentZ</Link>
+            <Link href="/">Go home</Link>
           </Button>
         )}
       </EmptyContent>

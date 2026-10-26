@@ -94,6 +94,8 @@ func (installed *installation) codex(ctx context.Context, command *cli.Command, 
 		name="AgentZ",
 		base_url=%s,
 		wire_api="responses",
+		request_max_retries=0,
+		stream_max_retries=0,
 		requires_openai_auth=false,
 		supports_websockets=false,
 		gateway_oauth={
@@ -117,6 +119,7 @@ func (installed *installation) codex(ctx context.Context, command *cli.Command, 
 	}`, mcpURL, client)
 	flags := []string{
 		"-c", `model_provider="agentz"`,
+		"-c", `web_search="disabled"`,
 		"-c", "mcp_oauth_callback_port=8767", "-c", provider, "-c", mcp,
 	}
 
@@ -162,11 +165,7 @@ func (installed *installation) codex(ctx context.Context, command *cli.Command, 
 	child.Stdin, child.Stdout, child.Stderr = os.Stdin, command.Writer, command.ErrWriter
 	if err := child.Run(); err != nil {
 		if exit, ok := errors.AsType[*exec.ExitError](err); ok {
-			message := "Codex exited."
-			if !mcpCommand {
-				message += " To reconnect, run 'agentz login codex' with the same --profile."
-			}
-			return cli.Exit(message, exit.ExitCode())
+			return cli.Exit("Codex exited.", exit.ExitCode())
 		}
 		return err
 	}
@@ -264,7 +263,7 @@ func (installed *installation) codexModels(ctx context.Context, approved gateway
 			continue
 		}
 		supported := slices.ContainsFunc(*selected.ApiCompatibility, func(api gatewayapi.DelegationAPICompatibility) bool {
-			return api.Api == gatewayapi.Responses && api.Support == gatewayapi.Native
+			return api.Api == gatewayapi.Responses && api.Support == gatewayapi.DelegationAPICompatibilitySupportNative
 		})
 		if !supported || !selected.ModelInfo.Capabilities.ToolCall {
 			continue

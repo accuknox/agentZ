@@ -192,8 +192,12 @@ path "auth/kubernetes/role/extauth-*" {
   capabilities = ["create", "read", "update", "delete"]
 }
 
-path "kv/metadata/*" {
+path "kv/metadata/+/*" {
   capabilities = ["delete"]
+}
+
+path "kv/metadata/+/guardrail-connections/*" {
+  capabilities = ["list", "delete"]
 }
 HCL
 
@@ -204,6 +208,10 @@ path "kv/data/+/*" {
 
 path "kv/metadata/+/*" {
   capabilities = ["delete"]
+}
+
+path "kv/data/+/guardrail-connections/*" {
+  capabilities = ["create", "read", "update", "delete"]
 }
 
 path "kv/data/+/inference-provider-oauth-tickets/*" {
@@ -220,6 +228,14 @@ path "kv/metadata/+/inference-provider-oauth-tickets/*" {
 HCL
 
 cat > inference-policy.hcl <<'HCL'
+path "kv/data/+/guardrail-connections/*" {
+  capabilities = ["read"]
+}
+
+path "kv/metadata/+/guardrail-connections/*" {
+  capabilities = ["read"]
+}
+
 path "kv/data/+/inference-providers/+" {
   capabilities = ["read"]
 }
@@ -560,3 +576,27 @@ kubectl get deployments,pods,ingress -n agentz-system
 ```
 
 Open `https://agentz.example.com/signup` and register with `ADMIN_EMAIL`.
+
+## Configure prompt guardrails
+
+Use the AgentZ AgentGateway image for native agents and delegated inference. The pinned runtime includes the telemetry and contextual-error patches under [hack/agentgateway](../../hack/agentgateway/README.md).
+
+Configure the AgentGateway controller to create native inference gateways with that image:
+
+```sh
+helm upgrade agentgateway oci://cr.agentgateway.dev/charts/agentgateway \
+  --namespace agentgateway-system --version v1.6.0 --reuse-values \
+  --set proxy.image.registry=public.ecr.aws \
+  --set proxy.image.repository=k9v9d5v2/agentz/agentgateway \
+  --set proxy.image.tag="${AGENTZ_VERSION}"
+```
+
+In organization Guardrails, create reusable connections and policies, then select mandatory policies in Settings. Regex checks accept built-in presets and custom expressions without a connection. Bedrock and Model Armor checks select existing cloud resources. Custom services implement AgentGateway's guardrail webhook contract.
+
+Workspace administrators can assign additional policies to Sandboxes and application access. Organization requirements always run first. Optional organization resources must be explicitly inherited before a workspace can select them. Preview effective checks to inspect the resulting order. Workload readiness reports when enforcement has rolled out.
+
+Checked streaming uses AgentGateway's native overlapping windows. Previously delivered text cannot be retracted. Managed clients reject enforcing output mutations and custom expressions that need whole-response context. Configuration errors explain unsupported combinations before deployment.
+
+Policy violations return protocol-compatible structured errors with a safe explanation and content context. A failed checker is reported separately from a policy finding. Events retain safe evaluation metadata for exactly 30 days. They do not capture inspected content. The events graph counts the complete filtered range in database time buckets.
+
+Keep the observer's gateway OTLP listener reachable only by gateway services, separately from ordinary telemetry ingestion.

@@ -170,13 +170,7 @@ export function ConnectedApplications({
         layout={layout}
         onRowActivate={setDetails}
         rowAriaLabel={(application) => `View access for ${application.name}`}
-        emptyState={
-          <AdministrationState
-            kind="empty"
-            title="No connected applications"
-            description="Applications appear here after you allow them to access your AgentZ account."
-          />
-        }
+        emptyState={<AdministrationState kind="empty" title="No connected applications" />}
       />
       {details ? (
         <ApplicationAccessSheet
@@ -191,7 +185,7 @@ export function ConnectedApplications({
           if (!pending && !open) setSelected(undefined)
         }}
       >
-        <DialogContent>
+        <DialogContent showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>Disconnect {selected?.name}?</DialogTitle>
             <DialogDescription>

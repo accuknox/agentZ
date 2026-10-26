@@ -116,6 +116,32 @@ func rules() []rbacv1.PolicyRule {
 	group := agentzv1alpha1.SchemeGroupVersion.Group
 	return []rbacv1.PolicyRule{
 		{
+			APIGroups: []string{"gateway.networking.k8s.io"},
+			Resources: []string{"gateways", "httproutes"},
+			Verbs:     []string{"get", "list", "create", "update", "patch", "delete"},
+		},
+		{
+			APIGroups: []string{"agentgateway.dev"},
+			Resources: []string{"agentgatewaybackends", "agentgatewaypolicies", "agentgatewayparameters"},
+			Verbs:     []string{"get", "list", "create", "update", "patch", "delete"},
+		},
+		{
+			APIGroups: []string{"cilium.io"},
+			Resources: []string{"ciliumnetworkpolicies"},
+			Verbs:     []string{"get", "list", "create", "update", "patch", "delete"},
+		},
+		{
+			APIGroups: []string{"external-secrets.io"},
+			Resources: []string{"externalsecrets"},
+			Verbs:     []string{"get", "list", "create", "update", "patch", "delete"},
+		},
+		{
+			APIGroups: []string{""},
+			Resources: []string{"secrets"},
+			Verbs:     []string{"get", "list", "create", "update", "patch", "delete"},
+		},
+
+		{
 			APIGroups: []string{""},
 			Resources: []string{"persistentvolumeclaims"},
 			Verbs:     []string{"get", "list", "watch"},
@@ -123,7 +149,7 @@ func rules() []rbacv1.PolicyRule {
 		{
 			APIGroups: []string{group},
 			Resources: []string{
-				"agents", "skills", "sandboxes", "inferencepools", "inferenceproviders",
+				"agents", "skills", "sandboxes", "inferencepools", "inferenceproviders", "guardrailconnections", "guardrailpolicies",
 			},
 			Verbs: []string{"create", "delete", "get", "list", "update", "watch"},
 		},

@@ -159,7 +159,12 @@ func traceEventsFromOTLPRequest(req *tracev1.ExportTraceServiceRequest, app bool
 	rejected := 0
 	for _, rs := range req.GetResourceSpans() {
 		resourceAttrs := attrsMap(rs.GetResource().GetAttributes())
-		gateway := resourceAttrs["service.name"].GetStringValue() == "agentz-oauth-gateway"
+		serviceName := resourceAttrs["service.name"].GetStringValue()
+		gateway := false
+		switch serviceName {
+		case "agentz-oauth-gateway", "agentz-inference-gateway", "agentz-mcp-gateway":
+			gateway = true
+		}
 		for _, ss := range rs.GetScopeSpans() {
 			for _, sp := range ss.GetSpans() {
 				// Attribution is accepted only on the network-isolated listener.
@@ -168,7 +173,17 @@ func traceEventsFromOTLPRequest(req *tracev1.ExportTraceServiceRequest, app bool
 					rejected++
 					continue
 				}
-				if app {
+				if gateway {
+					evaluations, err := guardrailEventsFromSpan(sp, resourceAttrs)
+					if err != nil {
+						rejected++
+						continue
+					}
+					for _, evaluation := range evaluations {
+						events = append(events, event{guardrail: &evaluation})
+					}
+				}
+				if serviceName == "agentz-oauth-gateway" {
 					operation, err := appOperationFromOTLPSpan(sp)
 					if err != nil {
 						rejected++
@@ -445,6 +460,9 @@ func traceEventFromOTLPSpan(sp *tracepb.Span, resourceAttrs map[string]*commonpb
 
 func extractSpanPayload(spanClass string, attrs map[string]*commonpb.AnyValue) (traceSpanPayload, map[string]any) {
 	out := attrsForStorage(attrs)
+	// Captured guardrail evidence has its own permission and expiry contract.
+	// Keeping it in generic span attributes would bypass event retention.
+	delete(out, attrGuardrailEvaluations)
 	inputMessages := []byte(null)
 	outputMessages := []byte(null)
 	if spanClass == spanClassLLM {

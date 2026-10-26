@@ -407,8 +407,7 @@ export function Applications({
                 Registered applications
               </h2>
               <p className="max-w-lg text-sm text-muted-foreground">
-                Let other applications sign in with AgentZ and request access to user-selected
-                resources.
+                Let applications request access to the resources users choose.
               </p>
             </div>
             <Button variant="outline" disabled={pending} onClick={() => setEditor("new")}>
@@ -433,8 +432,7 @@ export function Applications({
                   </EmptyMedia>
                   <EmptyTitle>Your first application</EmptyTitle>
                   <EmptyDescription>
-                    Register an application to offer Sign in with AgentZ. Users choose which
-                    resources it can use.
+                    Register an application to let users sign in with their account.
                   </EmptyDescription>
                 </EmptyHeader>
               </Empty>
@@ -463,7 +461,7 @@ export function Applications({
           <DialogHeader>
             <DialogTitle>Application credentials</DialogTitle>
             <DialogDescription>
-              Copy or download the secret now. AgentZ stores its hash and cannot show it again.
+              Copy or download the secret now. We store its hash and cannot show it again.
             </DialogDescription>
           </DialogHeader>
           <FieldGroup>
@@ -506,7 +504,6 @@ export function Applications({
                 </a>
               </Button>
             ) : null}
-            <Button onClick={() => setCredential(undefined)}>Done</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -516,7 +513,7 @@ export function Applications({
           if (!pending && !open) setConfirmation(undefined)
         }}
       >
-        <DialogContent>
+        <DialogContent showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>{confirmationTitle}</DialogTitle>
             <DialogDescription>{confirmationDescription}</DialogDescription>
@@ -882,9 +879,6 @@ function ApplicationEditor({
             </FieldGroup>
           </div>
           <SheetFooter className="shrink-0 flex-row justify-end border-t">
-            <Button variant="outline" type="button" disabled={pending} onClick={onClose}>
-              Cancel
-            </Button>
             <Button type="submit" disabled={pending}>
               {pending ? "Saving…" : "Save application"}
             </Button>

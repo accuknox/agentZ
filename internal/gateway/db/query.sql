@@ -6,6 +6,77 @@ SELECT EXISTS(
     AND agent_name = $2
 );
 
+-- name: GatewayListGuardrailEvents :many
+SELECT sqlc.embed(event), coalesce(app.name, '')::text AS subject_name
+FROM observer_guardrail_events event
+LEFT JOIN oauth_clients app ON app.client_id = event.client_id
+WHERE event.organization_id = sqlc.arg(organization_id)
+  AND (sqlc.arg(workspace_id)::text = '' OR event.workspace_id = sqlc.arg(workspace_id))
+  AND event.occurred_at >= sqlc.arg(started_after)::timestamptz
+  AND event.occurred_at < sqlc.arg(started_before)::timestamptz
+  AND event.expires_at > now()
+  AND (sqlc.arg(action)::text = '' OR event.action = sqlc.arg(action))
+  AND (sqlc.arg(phase)::text = '' OR event.phase = sqlc.arg(phase))
+  AND (sqlc.arg(trace_id)::text = '' OR event.trace_id = decode(sqlc.arg(trace_id), 'hex'))
+  AND (sqlc.arg(session_id)::text = '' OR event.session_id = sqlc.arg(session_id))
+  AND (sqlc.arg(cursor_id)::text = '' OR (event.occurred_at, event.id) < (sqlc.arg(cursor_at), sqlc.arg(cursor_id)))
+ORDER BY event.occurred_at DESC, event.id DESC
+LIMIT sqlc.arg(page_size);
+
+-- name: GatewayGetGuardrailEventChart :many
+WITH counts AS (
+  SELECT floor(extract(epoch FROM (occurred_at - sqlc.arg(started_after)::timestamptz))
+    / sqlc.arg(bucket_seconds)::integer)::integer AS bucket, count(*)::bigint AS count
+  FROM observer_guardrail_events
+  WHERE organization_id = sqlc.arg(organization_id)
+    AND (sqlc.arg(workspace_id)::text = '' OR workspace_id = sqlc.arg(workspace_id))
+    AND occurred_at >= sqlc.arg(started_after)::timestamptz
+    AND occurred_at < sqlc.arg(started_before)::timestamptz
+    AND expires_at > now()
+    AND (sqlc.arg(action)::text = '' OR action = sqlc.arg(action))
+    AND (sqlc.arg(phase)::text = '' OR phase = sqlc.arg(phase))
+    AND (sqlc.arg(trace_id)::text = '' OR trace_id = decode(sqlc.arg(trace_id), 'hex'))
+    AND (sqlc.arg(session_id)::text = '' OR session_id = sqlc.arg(session_id))
+  GROUP BY bucket
+)
+SELECT (sqlc.arg(started_after)::timestamptz
+  + make_interval(secs => series.bucket * sqlc.arg(bucket_seconds)::integer))::timestamptz AS time,
+  coalesce(counts.count, 0)::bigint AS count
+FROM generate_series(0, ceil(extract(epoch FROM (
+  sqlc.arg(started_before)::timestamptz - sqlc.arg(started_after)::timestamptz))
+  / sqlc.arg(bucket_seconds)::integer)::integer - 1) AS series(bucket)
+LEFT JOIN counts USING (bucket)
+ORDER BY series.bucket;
+
+-- name: GatewayGetGuardrailEvent :one
+SELECT sqlc.embed(event), coalesce(app.name, '')::text AS subject_name
+FROM observer_guardrail_events event
+LEFT JOIN oauth_clients app ON app.client_id = event.client_id
+WHERE event.id = sqlc.arg(id)
+  AND event.organization_id = sqlc.arg(organization_id)
+  AND (sqlc.arg(workspace_id)::text = '' OR event.workspace_id = sqlc.arg(workspace_id))
+  AND event.expires_at > now();
+
+-- name: GatewayGetGuardrailClientAccess :one
+SELECT * FROM guardrail_client_access
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND client_id = sqlc.arg(client_id);
+
+-- name: GatewayListGuardrailClientAccess :many
+SELECT * FROM guardrail_client_access
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+ORDER BY client_id;
+
+-- name: GatewayListOrganizationGuardrailClientAccess :many
+SELECT access.* FROM guardrail_client_access access
+JOIN workspaces ON workspaces.id = access.workspace_id
+  AND workspaces.organization_id = access.organization_id
+WHERE access.organization_id = sqlc.arg(organization_id)
+  AND workspaces.deleted_at IS NULL
+ORDER BY access.workspace_id, access.client_id;
+
 -- name: GatewayGetAPIKeyByHash :one
 SELECT id, reference_id, name
 FROM apikeys

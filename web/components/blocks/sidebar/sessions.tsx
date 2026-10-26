@@ -143,7 +143,7 @@ type NavSessionsProps = {
 }
 
 const allAgentsValue = "__all_agents__"
-const chatDeletionSource = crypto.randomUUID()
+const chatDeletionSource = nanoid()
 
 const chatSessionKeys = {
   preference: (workspaceId: string) => ["chatSessionPreference", workspaceId] as const,

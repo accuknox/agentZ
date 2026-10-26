@@ -319,6 +319,7 @@ func (r *Reconciler) reconcileRunning(ctx context.Context, run *agentzv1alpha1.W
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("inspect workflow session messages: %w", err)
 	}
+	failed := message != ""
 	if message == "" {
 		// on a fresh agent pod, OpenCode may briefly show no terminal message
 		// while the first async prompt is still starting up.
@@ -339,11 +340,16 @@ func (r *Reconciler) reconcileRunning(ctx context.Context, run *agentzv1alpha1.W
 				return
 			}
 			status.Phase = agentzv1alpha1.WorkflowRunPhaseUnacked
+			reason := agentzv1alpha1.WorkflowRunReasonUnacked
+			if failed {
+				status.Phase = agentzv1alpha1.WorkflowRunPhaseFailed
+				reason = agentzv1alpha1.WorkflowRunReasonFailed
+			}
 			status.Message = message
 			r.setTerminalStatus(
 				status,
 				run.Generation,
-				agentzv1alpha1.WorkflowRunReasonUnacked,
+				reason,
 				message,
 				&now,
 			)
@@ -864,22 +870,23 @@ func (r *Reconciler) sessionTerminalMessage(ctx context.Context, run *agentzv1al
 		if err != nil {
 			continue
 		}
-		if assistant.Finish == nil {
-			continue
+		if assistant.Error == nil {
+			if assistant.Finish == nil {
+				continue
+			}
+			if *assistant.Finish == "tool-calls" || *assistant.Finish == "stop" {
+				return "", nil
+			}
 		}
-		if *assistant.Finish == "tool-calls" || *assistant.Finish == "stop" {
-			return "", nil
-		}
-		return assistantFailureMessage(assistant), nil
+		return assistantFailure(assistant), nil
 	}
 	return "", nil
 }
 
-func assistantFailureMessage(assistant gatewayapi.OpencodeAssistantMessage) string {
-	if assistant.Finish == nil || *assistant.Finish != "error" || assistant.Error == nil {
+func assistantFailure(assistant gatewayapi.OpencodeAssistantMessage) string {
+	if assistant.Error == nil {
 		return ""
 	}
-
 	value, err := assistant.Error.ValueByDiscriminator()
 	if err != nil {
 		return "workflow session failed"
@@ -891,10 +898,10 @@ func assistantFailureMessage(assistant gatewayapi.OpencodeAssistantMessage) stri
 		}
 		return failure.Data.Message
 	case gatewayapi.OpencodeAPIError:
-		if failure.Data.StatusCode != nil {
-			return fmt.Sprintf("%s (status %d)", failure.Data.Message, *failure.Data.StatusCode)
+		if failure.Data.StatusCode == nil {
+			return failure.Data.Message
 		}
-		return failure.Data.Message
+		return fmt.Sprintf("%s (status %d)", failure.Data.Message, *failure.Data.StatusCode)
 	case gatewayapi.OpencodeUnknownError:
 		return failure.Data.Message
 	case gatewayapi.OpencodeMessageAbortedError:
@@ -906,6 +913,5 @@ func assistantFailureMessage(assistant gatewayapi.OpencodeAssistantMessage) stri
 	case gatewayapi.OpencodeMessageOutputLengthError:
 		return "workflow response exceeded the output limit"
 	}
-
 	return "workflow session failed"
 }

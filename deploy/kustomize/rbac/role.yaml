@@ -1,3 +1,4 @@
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -88,6 +89,8 @@ rules:
   - agentz.accuknox.com
   resources:
   - agents/status
+  - guardrailconnections/status
+  - guardrailpolicies/status
   - inferencepools/status
   - inferenceproviders/status
   - mcpconnections/status
@@ -101,6 +104,32 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - agentz.accuknox.com
+  resources:
+  - guardrailconnections
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - agentz.accuknox.com
+  resources:
+  - guardrailconnections/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - agentz.accuknox.com
+  resources:
+  - guardrailpolicies
+  - workspaces
+  verbs:
+  - get
+  - list
+  - watch
 - apiGroups:
   - agentz.accuknox.com
   resources:
@@ -150,14 +179,6 @@ rules:
   - get
   - list
   - update
-  - watch
-- apiGroups:
-  - agentz.accuknox.com
-  resources:
-  - workspaces
-  verbs:
-  - get
-  - list
   - watch
 - apiGroups:
   - apps

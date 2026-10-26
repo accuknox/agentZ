@@ -2,6 +2,7 @@ import { RememberRoute, missingRoute } from "@/data/route-memory"
 import { Suspense } from "react"
 import { InheritedResourceForm } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/settings/inherited/inherited-resource-form"
 import { AdministrationLoadingState, AdministrationState } from "@/components/administration"
+import { listGuardrailConnectionsQuery, listGuardrailPoliciesQuery } from "@/data/guardrail.queries"
 import { listInferenceProvidersCachedQuery } from "@/data/inference-provider.queries"
 import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
 import { getWorkspaceInheritedResources } from "@/data/workspaces"
@@ -26,16 +27,19 @@ export default function InheritedResourcePage(
   )
 }
 
-async function InheritedResourceContent({
-  params,
-  searchParams,
-}: PageProps<"/orgs/[orgSlug]/workspaces/manage/[workspaceSlug]/inherited/[resourceTab]">) {
+async function InheritedResourceContent(
+  props: PageProps<"/orgs/[orgSlug]/workspaces/manage/[workspaceSlug]/inherited/[resourceTab]">
+) {
+  const { params, searchParams } = props
+
   const [{ orgSlug, resourceTab, workspaceSlug }, search] = await Promise.all([
     params,
     searchParams,
   ])
   const sorting = searchSchema.parse(search)
   const resources: Record<string, { label: string; type: InheritedResourceType }> = {
+    "guardrail-connections": { label: "Guardrail connections", type: "guardrail_connection" },
+    "guardrail-policies": { label: "Optional guardrail policies", type: "guardrail_policy" },
     skills: { label: "Skills", type: "skill" },
     sandboxes: { label: "Sandboxes", type: "sandbox" },
     "mcp-connections": { label: "MCP Connections", type: "mcp_connection" },
@@ -53,7 +57,17 @@ async function InheritedResourceContent({
   if (!result) return <AdministrationState kind="forbidden" />
 
   let displayNames: Record<string, string> | undefined
-  let iconSources: Record<string, string> = {}
+  const iconSources: Record<string, string> = {}
+  if (resource.type === "guardrail_policy" || resource.type === "guardrail_connection") {
+    const result =
+      resource.type === "guardrail_policy"
+        ? await listGuardrailPoliciesQuery()
+        : await listGuardrailConnectionsQuery()
+    if (result.error) throw new Error(result.error.message)
+    displayNames = Object.fromEntries(
+      result.data.items.map((item) => [item.name, item.displayName])
+    )
+  }
   if (resource.type === "inference_provider") {
     const providers = await listInferenceProvidersCachedQuery()
     if (providers.error) throw new Error(providers.error.message)
@@ -62,7 +76,8 @@ async function InheritedResourceContent({
       displayNames[provider.id] = provider.display_name
       iconSources[provider.id] = provider.catalog_provider
     }
-  } else if (resource.type === "mcp_connection") {
+  }
+  if (resource.type === "mcp_connection") {
     let pageToken: string | undefined
     do {
       const page = await listMcpConnectionsCachedQuery({ limit: 200, page_token: pageToken })

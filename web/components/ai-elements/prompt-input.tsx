@@ -5,6 +5,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { nanoid } from "nanoid"
+import { v4 as uuidv4 } from "uuid"
 import type {
   ChangeEventHandler,
   ClipboardEventHandler,
@@ -120,7 +121,7 @@ export const PromptInput = ({
   const inputRef = useRef<HTMLInputElement | null>(null)
   const formRef = useRef<HTMLFormElement | null>(null)
   const queueSubmit = useRef(false)
-  const requestID = useRef(crypto.randomUUID())
+  const requestID = useRef(uuidv4())
   const [items, setItems] = useState<PromptInputItem[]>(() =>
     (initialMessage?.files ?? []).map((file) => ({
       ...file,
@@ -148,7 +149,7 @@ export const PromptInput = ({
   const add = useCallback(
     (fileList: File[] | FileList) => {
       if (disabled) return
-      requestID.current = crypto.randomUUID()
+      requestID.current = uuidv4()
       const incoming = [...fileList]
       const sized =
         typeof maxFileSize === "number"
@@ -186,7 +187,7 @@ export const PromptInput = ({
 
   const remove = useCallback(
     (id: string) => {
-      requestID.current = crypto.randomUUID()
+      requestID.current = uuidv4()
       const current = filesRef.current
       const found = current.find((file) => file.id === id)
       if (!found) return
@@ -361,7 +362,7 @@ export const PromptInput = ({
       const submitted = filesRef.current
       if (!text.trim() && !submitted.length) return
       const submittedID = requestID.current
-      requestID.current = crypto.randomUUID()
+      requestID.current = uuidv4()
       const message = {
         requestID: submittedID,
         text,
@@ -407,7 +408,7 @@ export const PromptInput = ({
         />
         <form
           onInputCapture={() => {
-            requestID.current = crypto.randomUUID()
+            requestID.current = uuidv4()
           }}
           className={cn("w-full", className)}
           inert={disabled}

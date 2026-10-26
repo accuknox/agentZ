@@ -7,7 +7,7 @@ metadata:
     {{- include "observer.labels" . | nindent 4 }}
 rules:
   - apiGroups: ["agentz.accuknox.com"]
-    resources: ["agents"]
+    resources: ["agents", "tenants"]
     verbs: ["get"]
   - apiGroups: ["agentz.accuknox.com"]
     resources: ["sandboxes"]

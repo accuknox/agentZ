@@ -16,6 +16,8 @@ import {
   createAgentTool,
   createCodingProject,
   createDashboard,
+  createGuardrailConnection,
+  createGuardrailPolicy,
   createInferencePool,
   createInferenceProvider,
   createInferenceProviderOAuthTicket,
@@ -34,6 +36,8 @@ import {
   deleteAgentTool,
   deleteCodingProject,
   deleteDashboard,
+  deleteGuardrailConnection,
+  deleteGuardrailPolicy,
   deleteImmutableSkills,
   deleteInferencePool,
   deleteInferenceProvider,
@@ -45,6 +49,7 @@ import {
   deleteWorkflowRun,
   deleteWorkflows,
   deleteWorkflowSchedule,
+  discoverGuardrailConnectionResources,
   ensureTenant,
   exportAgentMutableSkills,
   exportImmutableSkills,
@@ -60,7 +65,13 @@ import {
   getDashboard,
   getDelegatedCatalog,
   getDelegationCatalog,
+  getEffectiveGuardrails,
   getEventTrailEvent,
+  getGuardrailConnection,
+  getGuardrailEvent,
+  getGuardrailEventChart,
+  getGuardrailPolicy,
+  getGuardrailSettings,
   getInferencePool,
   getInferencePoolUsage,
   getInferenceProvider,
@@ -99,6 +110,9 @@ import {
   listEventTrailEvents,
   listFileObservability,
   listFileObservabilitySummary,
+  listGuardrailConnections,
+  listGuardrailEvents,
+  listGuardrailPolicies,
   listImmutableSkillSummaries,
   listImmutableSkillVersions,
   listInferenceModelSuggestions,
@@ -153,6 +167,9 @@ import {
   updateChatInput,
   updateChatSessionPreference,
   updateCodingProjectPreference,
+  updateGuardrailConnection,
+  updateGuardrailPolicy,
+  updateGuardrailSettings,
   updateInferencePool,
   updateInferenceProvider,
   updateSandbox,
@@ -186,6 +203,12 @@ import type {
   CreateDashboardData,
   CreateDashboardError,
   CreateDashboardResponse,
+  CreateGuardrailConnectionData,
+  CreateGuardrailConnectionError,
+  CreateGuardrailConnectionResponse,
+  CreateGuardrailPolicyData,
+  CreateGuardrailPolicyError,
+  CreateGuardrailPolicyResponse,
   CreateInferencePoolData,
   CreateInferencePoolError,
   CreateInferencePoolResponse,
@@ -240,6 +263,12 @@ import type {
   DeleteDashboardData,
   DeleteDashboardError,
   DeleteDashboardResponse,
+  DeleteGuardrailConnectionData,
+  DeleteGuardrailConnectionError,
+  DeleteGuardrailConnectionResponse,
+  DeleteGuardrailPolicyData,
+  DeleteGuardrailPolicyError,
+  DeleteGuardrailPolicyResponse,
   DeleteImmutableSkillsData,
   DeleteImmutableSkillsError,
   DeleteImmutableSkillsResponse,
@@ -272,6 +301,9 @@ import type {
   DeleteWorkflowsData,
   DeleteWorkflowsError,
   DeleteWorkflowsResponse,
+  DiscoverGuardrailConnectionResourcesData,
+  DiscoverGuardrailConnectionResourcesError,
+  DiscoverGuardrailConnectionResourcesResponse,
   EnsureTenantData,
   EnsureTenantError,
   EnsureTenantResponse,
@@ -317,9 +349,27 @@ import type {
   GetDelegationCatalogData,
   GetDelegationCatalogError,
   GetDelegationCatalogResponse,
+  GetEffectiveGuardrailsData,
+  GetEffectiveGuardrailsError,
+  GetEffectiveGuardrailsResponse,
   GetEventTrailEventData,
   GetEventTrailEventError,
   GetEventTrailEventResponse,
+  GetGuardrailConnectionData,
+  GetGuardrailConnectionError,
+  GetGuardrailConnectionResponse,
+  GetGuardrailEventChartData,
+  GetGuardrailEventChartError,
+  GetGuardrailEventChartResponse,
+  GetGuardrailEventData,
+  GetGuardrailEventError,
+  GetGuardrailEventResponse,
+  GetGuardrailPolicyData,
+  GetGuardrailPolicyError,
+  GetGuardrailPolicyResponse,
+  GetGuardrailSettingsData,
+  GetGuardrailSettingsError,
+  GetGuardrailSettingsResponse,
   GetInferencePoolData,
   GetInferencePoolError,
   GetInferencePoolResponse,
@@ -434,6 +484,15 @@ import type {
   ListFileObservabilitySummaryData,
   ListFileObservabilitySummaryError,
   ListFileObservabilitySummaryResponse2,
+  ListGuardrailConnectionsData,
+  ListGuardrailConnectionsError,
+  ListGuardrailConnectionsResponse,
+  ListGuardrailEventsData,
+  ListGuardrailEventsError,
+  ListGuardrailEventsResponse2,
+  ListGuardrailPoliciesData,
+  ListGuardrailPoliciesError,
+  ListGuardrailPoliciesResponse,
   ListImmutableSkillSummariesData,
   ListImmutableSkillSummariesError,
   ListImmutableSkillSummariesResponse2,
@@ -593,6 +652,15 @@ import type {
   UpdateCodingProjectPreferenceData,
   UpdateCodingProjectPreferenceError,
   UpdateCodingProjectPreferenceResponse,
+  UpdateGuardrailConnectionData,
+  UpdateGuardrailConnectionError,
+  UpdateGuardrailConnectionResponse,
+  UpdateGuardrailPolicyData,
+  UpdateGuardrailPolicyError,
+  UpdateGuardrailPolicyResponse,
+  UpdateGuardrailSettingsData,
+  UpdateGuardrailSettingsError,
+  UpdateGuardrailSettingsResponse,
   UpdateInferencePoolData,
   UpdateInferencePoolError,
   UpdateInferencePoolResponse,
@@ -4778,4 +4846,453 @@ export const listDashboardTableRowsOptions = (options: Options<ListDashboardTabl
       return data
     },
     queryKey: listDashboardTableRowsQueryKey(options),
+  })
+
+export const listGuardrailConnectionsQueryKey = (options?: Options<ListGuardrailConnectionsData>) =>
+  createQueryKey("listGuardrailConnections", options)
+
+export const listGuardrailConnectionsOptions = (options?: Options<ListGuardrailConnectionsData>) =>
+  queryOptions<
+    ListGuardrailConnectionsResponse,
+    ListGuardrailConnectionsError,
+    ListGuardrailConnectionsResponse,
+    ReturnType<typeof listGuardrailConnectionsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listGuardrailConnections({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listGuardrailConnectionsQueryKey(options),
+  })
+
+export const createGuardrailConnectionMutation = (
+  options?: Partial<Options<CreateGuardrailConnectionData>>
+): UseMutationOptions<
+  CreateGuardrailConnectionResponse,
+  CreateGuardrailConnectionError,
+  Options<CreateGuardrailConnectionData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    CreateGuardrailConnectionResponse,
+    CreateGuardrailConnectionError,
+    Options<CreateGuardrailConnectionData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createGuardrailConnection({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const deleteGuardrailConnectionMutation = (
+  options?: Partial<Options<DeleteGuardrailConnectionData>>
+): UseMutationOptions<
+  DeleteGuardrailConnectionResponse,
+  DeleteGuardrailConnectionError,
+  Options<DeleteGuardrailConnectionData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteGuardrailConnectionResponse,
+    DeleteGuardrailConnectionError,
+    Options<DeleteGuardrailConnectionData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteGuardrailConnection({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const getGuardrailConnectionQueryKey = (options: Options<GetGuardrailConnectionData>) =>
+  createQueryKey("getGuardrailConnection", options)
+
+export const getGuardrailConnectionOptions = (options: Options<GetGuardrailConnectionData>) =>
+  queryOptions<
+    GetGuardrailConnectionResponse,
+    GetGuardrailConnectionError,
+    GetGuardrailConnectionResponse,
+    ReturnType<typeof getGuardrailConnectionQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getGuardrailConnection({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getGuardrailConnectionQueryKey(options),
+  })
+
+export const updateGuardrailConnectionMutation = (
+  options?: Partial<Options<UpdateGuardrailConnectionData>>
+): UseMutationOptions<
+  UpdateGuardrailConnectionResponse,
+  UpdateGuardrailConnectionError,
+  Options<UpdateGuardrailConnectionData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UpdateGuardrailConnectionResponse,
+    UpdateGuardrailConnectionError,
+    Options<UpdateGuardrailConnectionData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await updateGuardrailConnection({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Browse cloud resources using a saved scoped connection.
+ */
+export const discoverGuardrailConnectionResourcesMutation = (
+  options?: Partial<Options<DiscoverGuardrailConnectionResourcesData>>
+): UseMutationOptions<
+  DiscoverGuardrailConnectionResourcesResponse,
+  DiscoverGuardrailConnectionResourcesError,
+  Options<DiscoverGuardrailConnectionResourcesData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    DiscoverGuardrailConnectionResourcesResponse,
+    DiscoverGuardrailConnectionResourcesError,
+    Options<DiscoverGuardrailConnectionResourcesData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await discoverGuardrailConnectionResources({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const listGuardrailPoliciesQueryKey = (options?: Options<ListGuardrailPoliciesData>) =>
+  createQueryKey("listGuardrailPolicies", options)
+
+export const listGuardrailPoliciesOptions = (options?: Options<ListGuardrailPoliciesData>) =>
+  queryOptions<
+    ListGuardrailPoliciesResponse,
+    ListGuardrailPoliciesError,
+    ListGuardrailPoliciesResponse,
+    ReturnType<typeof listGuardrailPoliciesQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listGuardrailPolicies({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listGuardrailPoliciesQueryKey(options),
+  })
+
+export const createGuardrailPolicyMutation = (
+  options?: Partial<Options<CreateGuardrailPolicyData>>
+): UseMutationOptions<
+  CreateGuardrailPolicyResponse,
+  CreateGuardrailPolicyError,
+  Options<CreateGuardrailPolicyData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    CreateGuardrailPolicyResponse,
+    CreateGuardrailPolicyError,
+    Options<CreateGuardrailPolicyData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createGuardrailPolicy({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const deleteGuardrailPolicyMutation = (
+  options?: Partial<Options<DeleteGuardrailPolicyData>>
+): UseMutationOptions<
+  DeleteGuardrailPolicyResponse,
+  DeleteGuardrailPolicyError,
+  Options<DeleteGuardrailPolicyData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteGuardrailPolicyResponse,
+    DeleteGuardrailPolicyError,
+    Options<DeleteGuardrailPolicyData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteGuardrailPolicy({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const getGuardrailPolicyQueryKey = (options: Options<GetGuardrailPolicyData>) =>
+  createQueryKey("getGuardrailPolicy", options)
+
+export const getGuardrailPolicyOptions = (options: Options<GetGuardrailPolicyData>) =>
+  queryOptions<
+    GetGuardrailPolicyResponse,
+    GetGuardrailPolicyError,
+    GetGuardrailPolicyResponse,
+    ReturnType<typeof getGuardrailPolicyQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getGuardrailPolicy({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getGuardrailPolicyQueryKey(options),
+  })
+
+export const updateGuardrailPolicyMutation = (
+  options?: Partial<Options<UpdateGuardrailPolicyData>>
+): UseMutationOptions<
+  UpdateGuardrailPolicyResponse,
+  UpdateGuardrailPolicyError,
+  Options<UpdateGuardrailPolicyData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UpdateGuardrailPolicyResponse,
+    UpdateGuardrailPolicyError,
+    Options<UpdateGuardrailPolicyData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await updateGuardrailPolicy({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const getGuardrailSettingsQueryKey = (options?: Options<GetGuardrailSettingsData>) =>
+  createQueryKey("getGuardrailSettings", options)
+
+export const getGuardrailSettingsOptions = (options?: Options<GetGuardrailSettingsData>) =>
+  queryOptions<
+    GetGuardrailSettingsResponse,
+    GetGuardrailSettingsError,
+    GetGuardrailSettingsResponse,
+    ReturnType<typeof getGuardrailSettingsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getGuardrailSettings({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getGuardrailSettingsQueryKey(options),
+  })
+
+export const updateGuardrailSettingsMutation = (
+  options?: Partial<Options<UpdateGuardrailSettingsData>>
+): UseMutationOptions<
+  UpdateGuardrailSettingsResponse,
+  UpdateGuardrailSettingsError,
+  Options<UpdateGuardrailSettingsData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UpdateGuardrailSettingsResponse,
+    UpdateGuardrailSettingsError,
+    Options<UpdateGuardrailSettingsData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await updateGuardrailSettings({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const getEffectiveGuardrailsMutation = (
+  options?: Partial<Options<GetEffectiveGuardrailsData>>
+): UseMutationOptions<
+  GetEffectiveGuardrailsResponse,
+  GetEffectiveGuardrailsError,
+  Options<GetEffectiveGuardrailsData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    GetEffectiveGuardrailsResponse,
+    GetEffectiveGuardrailsError,
+    Options<GetEffectiveGuardrailsData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await getEffectiveGuardrails({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const listGuardrailEventsQueryKey = (options?: Options<ListGuardrailEventsData>) =>
+  createQueryKey("listGuardrailEvents", options)
+
+/**
+ * List guardrail evaluations in the authorized scope.
+ */
+export const listGuardrailEventsOptions = (options?: Options<ListGuardrailEventsData>) =>
+  queryOptions<
+    ListGuardrailEventsResponse2,
+    ListGuardrailEventsError,
+    ListGuardrailEventsResponse2,
+    ReturnType<typeof listGuardrailEventsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listGuardrailEvents({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listGuardrailEventsQueryKey(options),
+  })
+
+export const listGuardrailEventsInfiniteQueryKey = (
+  options?: Options<ListGuardrailEventsData>
+): QueryKey<Options<ListGuardrailEventsData>> =>
+  createQueryKey("listGuardrailEvents", options, true)
+
+/**
+ * List guardrail evaluations in the authorized scope.
+ */
+export const listGuardrailEventsInfiniteOptions = (options?: Options<ListGuardrailEventsData>) =>
+  infiniteQueryOptions<
+    ListGuardrailEventsResponse2,
+    ListGuardrailEventsError,
+    InfiniteData<ListGuardrailEventsResponse2>,
+    QueryKey<Options<ListGuardrailEventsData>>,
+    | string
+    | Pick<QueryKey<Options<ListGuardrailEventsData>>[0], "body" | "headers" | "path" | "query">
+  >(
+    // @ts-ignore
+    {
+      queryFn: async ({ pageParam, queryKey, signal }) => {
+        // @ts-ignore
+        const page: Pick<
+          QueryKey<Options<ListGuardrailEventsData>>[0],
+          "body" | "headers" | "path" | "query"
+        > =
+          typeof pageParam === "object"
+            ? pageParam
+            : {
+                query: {
+                  cursor: pageParam,
+                },
+              }
+        const params = createInfiniteParams(queryKey, page)
+        const { data } = await listGuardrailEvents({
+          ...options,
+          ...params,
+          signal,
+          throwOnError: true,
+        })
+        return data
+      },
+      queryKey: listGuardrailEventsInfiniteQueryKey(options),
+    }
+  )
+
+export const getGuardrailEventChartQueryKey = (options?: Options<GetGuardrailEventChartData>) =>
+  createQueryKey("getGuardrailEventChart", options)
+
+/**
+ * Count the complete filtered range in bounded time buckets.
+ */
+export const getGuardrailEventChartOptions = (options?: Options<GetGuardrailEventChartData>) =>
+  queryOptions<
+    GetGuardrailEventChartResponse,
+    GetGuardrailEventChartError,
+    GetGuardrailEventChartResponse,
+    ReturnType<typeof getGuardrailEventChartQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getGuardrailEventChart({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getGuardrailEventChartQueryKey(options),
+  })
+
+export const getGuardrailEventQueryKey = (options: Options<GetGuardrailEventData>) =>
+  createQueryKey("getGuardrailEvent", options)
+
+/**
+ * Read a guardrail evaluation and its safe context.
+ */
+export const getGuardrailEventOptions = (options: Options<GetGuardrailEventData>) =>
+  queryOptions<
+    GetGuardrailEventResponse,
+    GetGuardrailEventError,
+    GetGuardrailEventResponse,
+    ReturnType<typeof getGuardrailEventQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getGuardrailEvent({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getGuardrailEventQueryKey(options),
   })

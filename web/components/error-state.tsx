@@ -21,39 +21,32 @@ import {
 type ErrorKind = "forbidden" | "network" | "not-found" | "timeout" | "unreadable" | "unknown"
 
 type ErrorContent = {
-  description: string
   image: "/cry-emoji.svg" | "/file-corrupted.svg"
   title: string
 }
 
 const errorContent: Record<ErrorKind, ErrorContent> = {
   forbidden: {
-    description: "Your account does not have access to this page.",
     image: "/cry-emoji.svg",
     title: "Access denied",
   },
   network: {
-    description: "The service could not be reached. Check your connection and try again.",
     image: "/cry-emoji.svg",
     title: "Service unavailable",
   },
   "not-found": {
-    description: "This address does not point to a page.",
     image: "/file-corrupted.svg",
     title: "Page not found",
   },
   timeout: {
-    description: "The service took too long to respond. Try the request again.",
     image: "/cry-emoji.svg",
     title: "Request timed out",
   },
   unreadable: {
-    description: "We couldn't read the response. Reload the data and try again.",
     image: "/file-corrupted.svg",
     title: "Data could not be read",
   },
   unknown: {
-    description: "An unexpected problem prevented this page from loading.",
     image: "/cry-emoji.svg",
     title: "Page could not load",
   },
@@ -87,7 +80,7 @@ export function ErrorState({
         <EmptyTitle className="text-base font-semibold">
           <h1>{content.title}</h1>
         </EmptyTitle>
-        <EmptyDescription>{description ?? content.description}</EmptyDescription>
+        {description ? <EmptyDescription>{description}</EmptyDescription> : null}
         {error?.digest ? (
           <p className="font-mono text-xs text-muted-foreground">Reference: {error.digest}</p>
         ) : null}

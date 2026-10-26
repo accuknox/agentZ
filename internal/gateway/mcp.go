@@ -186,10 +186,7 @@ func (s *Service) listInheritedMCPConnectionSummaries(ctx context.Context, acces
 	}
 	organizationAccess := access
 	organizationAccess.workspaceID = ""
-	organizationAccess.namespace = agentzv1alpha1.ScopeNamespace(
-		agentzv1alpha1.ResourceScopeOrganisation,
-		access.claims.OrganizationID,
-	)
+	organizationAccess.namespace = agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeOrganisation, access.claims.OrganizationID)
 	items, err := s.listMCPConnectionSummaries(ctx, organizationAccess, nil)
 	if err != nil {
 		return nil, err
@@ -236,13 +233,7 @@ func (s *Service) WatchMCPConnections(w http.ResponseWriter, r *http.Request, pa
 				apiutil.WriteError(
 					w,
 					r,
-					apiutil.NewError(
-						http.StatusBadRequest,
-						"invalid_request",
-						"request validation failed",
-						errBadRequest,
-						fields...,
-					),
+					apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", errBadRequest, fields...),
 				)
 				return
 			}
@@ -270,9 +261,7 @@ func (s *Service) WatchMCPConnections(w http.ResponseWriter, r *http.Request, pa
 			return true
 		}
 
-		raw, err := json.Marshal(gatewayapi.WatchMCPConnectionsEvent{
-			McpConnections: items,
-		})
+		raw, err := json.Marshal(gatewayapi.WatchMCPConnectionsEvent{McpConnections: items})
 		if err != nil {
 			apiutil.RecordRequestError(w, "internal_error", err)
 			return false
@@ -454,13 +443,7 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request, pa
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				fields...,
-			),
+			apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", errBadRequest, fields...),
 		)
 		return
 	}
@@ -487,13 +470,7 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request, pa
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				fields...,
-			),
+			apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", errBadRequest, fields...),
 		)
 		return
 	}
@@ -539,25 +516,12 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request, pa
 		return
 	}
 
-	actors, err := s.resourceActors(
-		r.Context(),
-		conn.Spec.CreatedByUserID,
-		conn.Spec.LastModifiedByUserID,
-	)
+	actors, err := s.resourceActors(r.Context(), conn.Spec.CreatedByUserID, conn.Spec.LastModifiedByUserID)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	apiutil.WriteJSON(
-		w,
-		http.StatusCreated,
-		s.mcpConnectionDetail(
-			access,
-			resourceScope(access.workspaceID),
-			*conn,
-			actors,
-		),
-	)
+	apiutil.WriteJSON(w, http.StatusCreated, s.mcpConnectionDetail(access, resourceScope(access.workspaceID), *conn, actors))
 }
 
 // GetMCPConnection handles GET /api/mcp-connection/{name}.
@@ -598,11 +562,7 @@ func (s *Service) GetMCPConnection(w http.ResponseWriter, r *http.Request, name 
 	if !ok {
 		return
 	}
-	actors, err := s.resourceActors(
-		r.Context(),
-		conn.Spec.CreatedByUserID,
-		conn.Spec.LastModifiedByUserID,
-	)
+	actors, err := s.resourceActors(r.Context(), conn.Spec.CreatedByUserID, conn.Spec.LastModifiedByUserID)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
@@ -636,12 +596,7 @@ func (s *Service) DeleteMCPConnection(w http.ResponseWriter, r *http.Request, na
 		}
 		return
 	}
-	conflict, err := s.selectedOrganizationResourceConflict(
-		r.Context(),
-		access,
-		agentzv1alpha1.OrganizationResourceKindMCPConnection,
-		name,
-	)
+	conflict, err := s.selectedOrganizationResourceConflict(r.Context(), access, agentzv1alpha1.OrganizationResourceKindMCPConnection, name)
 	if err != nil || conflict != nil {
 		eventTrailErr := s.createMCPEventTrail(r.Context(), access, name, gatewaydb.EventTrailResultFailed)
 		if err != nil || eventTrailErr != nil {
@@ -724,13 +679,7 @@ func (s *Service) getMCPConnection(w http.ResponseWriter, r *http.Request, names
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				fields...,
-			),
+			apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", errBadRequest, fields...),
 		)
 		return nil, false
 	}
@@ -772,11 +721,7 @@ func (s *Service) listMCPConnectionSummaries(ctx context.Context, access resourc
 			continue
 		}
 		connections = append(connections, conn)
-		userIDs = append(
-			userIDs,
-			conn.Spec.CreatedByUserID,
-			conn.Spec.LastModifiedByUserID,
-		)
+		userIDs = append(userIDs, conn.Spec.CreatedByUserID, conn.Spec.LastModifiedByUserID)
 	}
 	actors, err := s.resourceActors(ctx, userIDs...)
 	if err != nil {
@@ -939,11 +884,7 @@ func (s *Service) mcpConnectionStatus(conn agentzv1alpha1.MCPConnection) (gatewa
 		message := statusConditionMessage("Server unreachable", unreachable, probeHealthy)
 		return gatewayapi.MCPConnectionLifecycleError, gatewayapi.MCPConnectionReasonUnreachable, message
 	case credentialsInvalid != nil && credentialsInvalid.Status == metav1.ConditionTrue:
-		message := statusConditionMessage(
-			"Credentials invalid",
-			credentialsInvalid,
-			probeHealthy,
-		)
+		message := statusConditionMessage("Credentials invalid", credentialsInvalid, probeHealthy)
 		return gatewayapi.MCPConnectionLifecycleError, gatewayapi.MCPConnectionReasonInvalidCredentials, message
 	case protocolError != nil && protocolError.Status == metav1.ConditionTrue:
 		message := statusConditionMessage("Protocol error", protocolError, probeHealthy)
@@ -996,16 +937,7 @@ func (s *Service) waitForMCPConnectionDeletion(ctx context.Context, name string)
 }
 
 func writeMCPInternalError(w http.ResponseWriter, r *http.Request, err error) {
-	apiutil.WriteError(
-		w,
-		r,
-		apiutil.NewError(
-			http.StatusInternalServerError,
-			"internal_error",
-			mcpInternalErrorMessage,
-			err,
-		),
-	)
+	apiutil.WriteError(w, r, apiutil.NewError(http.StatusInternalServerError, "internal_error", mcpInternalErrorMessage, err))
 }
 
 func mcpConnectionSpecFromRequest(endpoint gatewayapi.MCPConnectionEndpoint, auth *gatewayapi.MCPConnectionAuth) (agentzv1alpha1.MCPConnectionSpec, []gatewayapi.FieldError) {
@@ -1019,10 +951,7 @@ func mcpConnectionSpecFromRequest(endpoint gatewayapi.MCPConnectionEndpoint, aut
 	if endpoint.Timeout != nil {
 		duration, err := time.ParseDuration(strings.TrimSpace(*endpoint.Timeout))
 		if err != nil {
-			return spec, []gatewayapi.FieldError{{
-				Field:   "endpoint.timeout",
-				Message: "must be a valid duration",
-			}}
+			return spec, []gatewayapi.FieldError{{Field: "endpoint.timeout", Message: "must be a valid duration"}}
 		}
 		spec.Endpoint.Timeout = &metav1.Duration{Duration: duration}
 	}
@@ -1209,17 +1138,11 @@ func (s *Service) putMCPConnectionCredentials(ctx context.Context, spec agentzv1
 				"invalid_request",
 				"request validation failed",
 				errBadRequest,
-				gatewayapi.FieldError{
-					Field:   "credentials.bearer.token",
-					Message: "required",
-				},
+				gatewayapi.FieldError{Field: "credentials.bearer.token", Message: "required"},
 			)
 		}
 
-		record := internalmcp.BearerSecretRecord{
-			Token:     token,
-			UpdatedAt: now,
-		}
+		record := internalmcp.BearerSecretRecord{Token: token, UpdatedAt: now}
 		if err := s.putMCPConnectionSecret(ctx, *spec.Auth.Bearer.SecretRef, record); err != nil {
 			return mapOpenBaoError(err)
 		}
@@ -1238,9 +1161,7 @@ func (s *Service) putMCPConnectionCredentials(ctx context.Context, spec agentzv1
 			)
 		}
 
-		record := internalmcp.OAuthSecretRecord{
-			Record: internaloauth.Record{UpdatedAt: now},
-		}
+		record := internalmcp.OAuthSecretRecord{Record: internaloauth.Record{UpdatedAt: now}}
 		if req.Oauth.ClientId != nil {
 			record.ClientID = strings.TrimSpace(*req.Oauth.ClientId)
 		}

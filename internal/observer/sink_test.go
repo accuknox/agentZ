@@ -2,6 +2,7 @@ package observer
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -43,5 +44,58 @@ func TestSinkDrainsAfterProducersStop(t *testing.T) {
 	}
 	if store.err != nil || store.rows != 2 {
 		t.Fatalf("shutdown lost accepted telemetry: rows=%d err=%v", store.rows, store.err)
+	}
+}
+
+type retryStore struct {
+	attempts int
+	rows     int
+}
+
+func (s *retryStore) insertBatch(_ context.Context, b batch) error {
+	s.attempts++
+	if s.attempts == 1 {
+		return errors.New("temporary failure")
+	}
+	s.rows += len(b.apps)
+	return nil
+}
+func TestSinkRetainsFailedBatch(t *testing.T) {
+	events := make(chan event, 1)
+	events <- event{app: &observerdb.InsertAppOperationParams{ClientID: "accepted"}}
+	close(events)
+	store := &retryStore{}
+	sink := &sink{
+		store:  store,
+		stats:  &stats{},
+		cfg:    Config{BatchSize: 10, FlushInterval: time.Millisecond},
+		events: events,
+	}
+	sink.run(t.Context())
+	if store.attempts != 2 || store.rows != 1 {
+		t.Fatalf("failed batch was lost: attempts=%d rows=%d", store.attempts, store.rows)
+	}
+}
+
+type unavailableStore struct{}
+
+func (unavailableStore) insertBatch(context.Context, batch) error { return errors.New("unavailable") }
+func TestSinkStopsWithRetainedBatchOnShutdown(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	events := make(chan event, 1)
+	events <- event{app: &observerdb.InsertAppOperationParams{ClientID: "accepted"}}
+	sink := &sink{
+		store:  unavailableStore{},
+		stats:  &stats{},
+		cfg:    Config{BatchSize: 1, FlushInterval: time.Hour},
+		events: events,
+	}
+	done := make(chan struct{})
+	go func() { sink.run(ctx); close(done) }()
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(12 * time.Second):
+		t.Fatal("failed batch prevented shutdown")
 	}
 }

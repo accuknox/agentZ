@@ -1,3 +1,34 @@
+-- name: InsertGuardrailEvent :execrows
+INSERT INTO observer_guardrail_events (
+  id, organization_id, workspace_id, occurred_at, expires_at, sandbox_name, agent_name,
+  client_id, session_id, model, trace_id, span_id, evaluation_index, revision, phase, action, evaluation
+) VALUES (
+  sqlc.arg(id), sqlc.arg(organization_id), sqlc.arg(workspace_id), sqlc.arg(occurred_at),
+  sqlc.arg(expires_at), sqlc.arg(sandbox_name), sqlc.arg(agent_name), sqlc.arg(client_id),
+  sqlc.arg(session_id), sqlc.arg(model), sqlc.arg(trace_id), sqlc.arg(span_id),
+  sqlc.arg(evaluation_index), sqlc.arg(revision), sqlc.arg(phase), sqlc.arg(action),
+  sqlc.arg(evaluation)
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- name: GuardrailEventChanged :one
+SELECT COALESCE(evaluation <> sqlc.arg(evaluation)::jsonb OR revision <> sqlc.arg(revision)::text, false)::boolean AS changed
+FROM observer_guardrail_events WHERE id = sqlc.arg(id);
+
+-- name: GetGuardrailSubjectScope :one
+SELECT o.id AS organization_id, ''::text AS workspace_id
+FROM organizations o
+-- ScopeNamespace hashes the typed scope and stable ID, separated by a NUL byte.
+WHERE 'org-' || substring(encode(sha256(
+  convert_to('Organisation', 'UTF8') || decode('00', 'hex') || convert_to(o.id, 'UTF8')
+), 'hex'), 1, 32) = sqlc.arg(namespace)
+UNION ALL
+SELECT w.organization_id, w.id AS workspace_id
+FROM workspaces w WHERE w.namespace = sqlc.arg(namespace);
+
+-- name: DeleteExpiredGuardrailEvents :execrows
+DELETE FROM observer_guardrail_events WHERE expires_at <= now();
+
 -- name: InsertProcessEvents :copyfrom
 INSERT INTO observer_process_events(
   tenant_namespace,

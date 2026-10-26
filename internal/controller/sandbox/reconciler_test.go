@@ -277,6 +277,9 @@ func TestReconcileInferenceGatewayExtAuthEgress(t *testing.T) {
 					},
 					Spec: tt.provider,
 				},
+				&agentzv1alpha1.Tenant{
+					ObjectMeta: metav1.ObjectMeta{Name: organizationNamespace},
+				},
 			}
 			k8sClient := fake.NewClientBuilder().
 				WithScheme(scheme).

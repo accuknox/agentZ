@@ -60,9 +60,10 @@ import (
 // Reconciler reconciles Sandbox lifecycle protection and MCP runtime.
 type Reconciler struct {
 	client.Client
-	Scheme       *runtime.Scheme
-	AgentGateway agentgatewayclientset.Interface
-	TraceBackend TraceBackend
+	Scheme             *runtime.Scheme
+	AgentGateway       agentgatewayclientset.Interface
+	TraceBackend       TraceBackend
+	GuardrailStoreName string
 }
 
 const (
@@ -272,6 +273,9 @@ func (r *Reconciler) updateStatus(ctx context.Context, sandbox *agentzv1alpha1.S
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&agentzv1alpha1.Sandbox{}).
+		Watches(&agentzv1alpha1.GuardrailPolicy{}, handler.EnqueueRequestsFromMapFunc(r.sandboxesForGuardrailChange)).
+		Watches(&agentzv1alpha1.GuardrailConnection{}, handler.EnqueueRequestsFromMapFunc(r.sandboxesForGuardrailChange)).
+		Watches(&agentzv1alpha1.Tenant{}, handler.EnqueueRequestsFromMapFunc(r.sandboxesForGuardrailChange)).
 		Watches(&agentzv1alpha1.Agent{}, handler.EnqueueRequestsFromMapFunc(r.sandboxForAgent)).
 		Watches(&agentzv1alpha1.MCPConnection{}, handler.EnqueueRequestsFromMapFunc(r.sandboxesForMCPConnection)).
 		Watches(
@@ -1033,50 +1037,50 @@ func (r *Reconciler) reconcileTracePolicy(ctx context.Context, namespace string,
 	attrs := &agentgatewayv1alpha1.LogTracingAttributes{
 		Add: []agentgatewayv1alpha1.AttributeAdd{
 			{
-				Name:       agentgatewayv1alpha1.ShortString("agentz.tenant_namespace"),
-				Expression: agentgatewayv1alpha1.CELExpression(`request.path.split("/")[3]`),
+				Name:       "agentz.tenant_namespace",
+				Expression: `request.path.split("/")[3]`,
 			},
 			{
-				Name:       agentgatewayv1alpha1.ShortString("agentz.agent_name"),
-				Expression: agentgatewayv1alpha1.CELExpression(`request.path.split("/")[4]`),
+				Name:       "agentz.agent_name",
+				Expression: `request.path.split("/")[4]`,
 			},
 			{
-				Name:       agentgatewayv1alpha1.ShortString("session.id"),
-				Expression: agentgatewayv1alpha1.CELExpression("mcp.sessionId"),
+				Name:       "session.id",
+				Expression: "mcp.sessionId",
 			},
 			{
-				Name:       agentgatewayv1alpha1.ShortString("mcp.connection.name"),
-				Expression: agentgatewayv1alpha1.CELExpression("mcp.tool.target"),
+				Name:       "mcp.connection.name",
+				Expression: "mcp.tool.target",
 			},
 			{
-				Name:       agentgatewayv1alpha1.ShortString("mcp.tool.name"),
-				Expression: agentgatewayv1alpha1.CELExpression("mcp.tool.name"),
+				Name:       "mcp.tool.name",
+				Expression: "mcp.tool.name",
 			},
 			{
-				Name:       agentgatewayv1alpha1.ShortString("tool.name"),
-				Expression: agentgatewayv1alpha1.CELExpression("mcp.tool.name"),
+				Name:       "tool.name",
+				Expression: "mcp.tool.name",
 			},
 			{
-				Name:       agentgatewayv1alpha1.ShortString("tool.parameters"),
-				Expression: agentgatewayv1alpha1.CELExpression("mcp.tool.arguments"),
+				Name:       "tool.parameters",
+				Expression: "mcp.tool.arguments",
 			},
 			{
-				Name:       agentgatewayv1alpha1.ShortString("output.value"),
-				Expression: agentgatewayv1alpha1.CELExpression("mcp.tool.result"),
+				Name:       "output.value",
+				Expression: "mcp.tool.result",
 			},
 			{
-				Name:       agentgatewayv1alpha1.ShortString("tool.error"),
-				Expression: agentgatewayv1alpha1.CELExpression("mcp.tool.error"),
+				Name:       "tool.error",
+				Expression: "mcp.tool.error",
 			},
 		},
 	}
 	resources := []agentgatewayv1alpha1.ResourceAdd{
 		{
-			Name:       agentgatewayv1alpha1.ShortString("service.name"),
+			Name:       "service.name",
 			Expression: agentgatewayv1alpha1.CELExpression(strconv.Quote("agentz-mcp-gateway")),
 		},
 		{
-			Name:       agentgatewayv1alpha1.ShortString("service.namespace"),
+			Name:       "service.namespace",
 			Expression: agentgatewayv1alpha1.CELExpression(strconv.Quote(namespace)),
 		},
 	}
@@ -1449,4 +1453,17 @@ func (r *Reconciler) deleteAgentgatewayParameters(ctx context.Context, namespace
 		return fmt.Errorf("delete agentgateway parameters: %w", err)
 	}
 	return nil
+}
+
+func (r *Reconciler) sandboxesForGuardrailChange(ctx context.Context, _ client.Object) []reconcile.Request {
+	list := &agentzv1alpha1.SandboxList{}
+	if err := r.List(ctx, list); err != nil {
+		slog.ErrorContext(ctx, "list sandboxes for guardrail change", "err", err)
+		return nil
+	}
+	requests := make([]reconcile.Request, 0, len(list.Items))
+	for _, item := range list.Items {
+		requests = append(requests, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&item)})
+	}
+	return requests
 }

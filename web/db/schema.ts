@@ -16,7 +16,7 @@ import {
   unique,
   uniqueIndex,
 } from "drizzle-orm/pg-core"
-import type { DelegationCatalog, EventTrailField } from "@/lib/gateway/client"
+import type { DelegationCatalog, EventTrailField, ResourceReference } from "@/lib/gateway/client"
 import { dayjs } from "@/lib/format"
 import {
   oauthClients,
@@ -121,6 +121,9 @@ export const permissionResource = pgEnum("permission_resource", [
   "agent",
   "api_key",
   "observability",
+  "guardrail_connection",
+  "guardrail_policy",
+  "guardrail_event",
 ])
 export const permissionAction = pgEnum("permission_action", [
   "read",
@@ -160,6 +163,10 @@ export const eventTrailTarget = pgEnum("event_trail_target", [
   "api_key",
   "workspace_access",
   "workspace",
+  "guardrail_connection",
+  "guardrail_policy",
+  "guardrail_settings",
+  "external_access_guardrails",
 ])
 export const cleanupState = pgEnum("cleanup_state", [
   "pending",
@@ -256,6 +263,30 @@ export const externalAgents = pgTable(
       foreignColumns: [workspaces.id, workspaces.organizationId],
       name: "external_agents_workspace_organization_fk",
     }).onDelete("restrict"),
+  ]
+)
+
+export const guardrailClientAccess = pgTable(
+  "guardrail_client_access",
+  {
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    workspaceId: text("workspace_id").notNull(),
+    clientId: text("client_id")
+      .notNull()
+      .references(() => oauthClients.clientId, { onDelete: "cascade" }),
+    policies: jsonb("policies").$type<ResourceReference[]>().default([]).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedBy: text("updated_by").references(() => users.id, { onDelete: "set null" }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.organizationId, table.workspaceId, table.clientId] }),
+    foreignKey({
+      columns: [table.workspaceId, table.organizationId],
+      foreignColumns: [workspaces.id, workspaces.organizationId],
+      name: "guardrail_client_access_workspace_organization_fk",
+    }).onDelete("cascade"),
   ]
 )
 
@@ -384,7 +415,7 @@ export const workspaceInheritedResources = pgTable(
     ),
     check(
       "workspace_inherited_resources_resource_ck",
-      sql`${table.resource} IN ('skill', 'sandbox', 'mcp_connection', 'inference_provider')`
+      sql`${table.resource}::text IN ('skill', 'sandbox', 'mcp_connection', 'inference_provider', 'guardrail_connection', 'guardrail_policy')`
     ),
     check(
       "workspace_inherited_resources_name_ck",

@@ -182,13 +182,11 @@ const streamdownPlugins = { cjk, code, math, mermaid }
 export const ReasoningContent = memo(({ className, children, ...props }: ReasoningContentProps) => (
   <CollapsibleContent
     className={cn(
-      "mt-1 ml-7 rounded-l-none border-l border-muted-foreground/45 pt-0.5 pl-3 text-sm",
+      "mt-1 ml-7 pt-0.5 text-sm",
       "text-muted-foreground outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:animate-in data-[state=open]:slide-in-from-top-2",
-      "[&_blockquote]:border-l [&_blockquote]:border-muted-foreground/35 [&_blockquote]:pl-4",
       "[&_ol]:ml-6 [&_ol]:list-outside [&_ol]:list-decimal [&_ol]:space-y-1",
       "[&_ul]:ml-6 [&_ul]:list-outside [&_ul]:list-disc [&_ul]:space-y-1",
       "[&_li]:pl-1",
-      "data-[state=closed]:border-l-0 data-[state=closed]:pl-0",
       className
     )}
     {...props}

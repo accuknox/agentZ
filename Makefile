@@ -47,7 +47,7 @@ generate:
 	go run ./hack/openapi/generate_opencode_gateway.go
 	$(MAKE) generate-codex
 	oapi-codegen \
-		--include-tags coding,agents,tenants,workspaces,event-trail,lens,secrets,sandboxes,inference,skills,mcp-connections,workflows,workflow-schedules,workflow-runs,workflow-webhooks,chat-sessions,session,sessions,event,global,config,project,permission,question,pty,dashboards \
+		--include-tags guardrails,coding,agents,tenants,workspaces,event-trail,lens,secrets,sandboxes,inference,skills,mcp-connections,workflows,workflow-schedules,workflow-runs,workflow-webhooks,chat-sessions,session,sessions,event,global,config,project,permission,question,pty,dashboards \
 		-config oapi-codegen.gateway.yaml openapi/gateway.yaml
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./pkg/apis/..."
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd:allowDangerousTypes=false webhook \

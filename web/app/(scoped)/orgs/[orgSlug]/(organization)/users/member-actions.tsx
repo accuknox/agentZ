@@ -30,10 +30,8 @@ import { Button } from "@/components/ui/button"
 import { CopyButton } from "@/components/interior/copy-button"
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -265,11 +263,6 @@ function CreateInvitationForm({
             <CopyButton content={state.link} label="Copy" />
           </InputGroupAddon>
         </InputGroup>
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button">Done</Button>
-          </DialogClose>
-        </DialogFooter>
       </DialogContent>
     )
   }

@@ -61,11 +61,10 @@ func ParseHost(raw string) (Host, error) {
 		return Host{Kind: HostKindDeepWildcard, Value: "**." + after}, nil
 	}
 	if after, ok := strings.CutPrefix(value, "*."); ok {
-		domain := after
-		if err := validateDomain(domain); err != nil {
+		if err := validateDomain(after); err != nil {
 			return Host{}, err
 		}
-		return Host{Kind: HostKindWildcard, Value: "*." + domain}, nil
+		return Host{Kind: HostKindWildcard, Value: "*." + after}, nil
 	}
 	if strings.Contains(value, "*") {
 		return Host{}, errors.New("wildcards must use leading *.|**. form")

@@ -1,5 +1,7 @@
 import "server-only"
 
+import { listGuardrailConnectionsQuery, listGuardrailPoliciesQuery } from "@/data/guardrail.queries"
+
 import { randomUUID } from "node:crypto"
 import type { Route } from "next"
 import { cache } from "react"
@@ -148,39 +150,44 @@ export async function getWorkspaceCreation(orgSlug: string) {
 
   await activateOrganization(scope.organization.id)
   const client = getGatewayServerClient()
-  const [members, skills, sandboxes, mcps, providers] = await Promise.all([
-    listWorkspaceMemberCandidates({ client }),
-    listImmutableSkillsCachedQuery(),
-    (async () => {
-      const names: string[] = []
-      let pageToken: string | undefined
-      do {
-        const result = await listSandboxes({
-          client,
-          query: { limit: 200, page_token: pageToken },
-        })
-        if (result.error) return result
-        names.push(...result.data.sandboxes.map(({ name }) => name))
-        pageToken = result.data.next_page_token || undefined
-      } while (pageToken)
-      return { data: names, error: undefined }
-    })(),
-    (async () => {
-      const connections: McpConnectionSummary[] = []
-      let pageToken: string | undefined
-      do {
-        const result = await listMcpConnections({
-          client,
-          query: { limit: 200, page_token: pageToken },
-        })
-        if (result.error) return result
-        connections.push(...result.data.mcp_connections)
-        pageToken = result.data.next_page_token || undefined
-      } while (pageToken)
-      return { data: connections, error: undefined }
-    })(),
-    listInferenceProvidersCachedQuery(),
-  ])
+  const [members, skills, sandboxes, mcps, providers, guardrailConnections, guardrailPolicies] =
+    await Promise.all([
+      listWorkspaceMemberCandidates({ client }),
+      listImmutableSkillsCachedQuery(),
+      (async () => {
+        const names: string[] = []
+        let pageToken: string | undefined
+        do {
+          const result = await listSandboxes({
+            client,
+            query: { limit: 200, page_token: pageToken },
+          })
+          if (result.error) return result
+          names.push(...result.data.sandboxes.map(({ name }) => name))
+          pageToken = result.data.next_page_token || undefined
+        } while (pageToken)
+        return { data: names, error: undefined }
+      })(),
+      (async () => {
+        const connections: McpConnectionSummary[] = []
+        let pageToken: string | undefined
+        do {
+          const result = await listMcpConnections({
+            client,
+            query: { limit: 200, page_token: pageToken },
+          })
+          if (result.error) return result
+          connections.push(...result.data.mcp_connections)
+          pageToken = result.data.next_page_token || undefined
+        } while (pageToken)
+        return { data: connections, error: undefined }
+      })(),
+      listInferenceProvidersCachedQuery(),
+      listGuardrailConnectionsQuery(),
+      listGuardrailPoliciesQuery(),
+    ])
+  if (guardrailConnections.error) throw new Error(guardrailConnections.error.message)
+  if (guardrailPolicies.error) throw new Error(guardrailPolicies.error.message)
   if (members.error) throw new Error(members.error.message)
   if (skills.error) throw new Error(skills.error.message)
   if (sandboxes.error) throw new Error(sandboxes.error.message)
@@ -190,6 +197,13 @@ export async function getWorkspaceCreation(orgSlug: string) {
   return {
     candidates: members.data.members,
     resources: {
+      guardrail_connections: guardrailConnections.data.items.map(({ name, displayName }) => ({
+        name,
+        displayName,
+      })),
+      guardrail_policies: guardrailPolicies.data.items
+        .filter((item) => !item.mandatory)
+        .map(({ name, displayName }) => ({ name, displayName })),
       skills: skills.skills.map(({ name }) => name),
       sandboxes: sandboxes.data,
       mcp_connections: mcps.data.map(({ endpoint_url, name }) => ({ endpoint_url, name })),

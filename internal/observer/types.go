@@ -18,11 +18,12 @@ const (
 )
 
 type event struct {
-	process *processEvent
-	file    *fileEvent
-	network *networkEvent
-	trace   *traceSpanEvent
-	app     *observerdb.InsertAppOperationParams
+	process   *processEvent
+	file      *fileEvent
+	network   *networkEvent
+	trace     *traceSpanEvent
+	app       *observerdb.InsertAppOperationParams
+	guardrail *guardrailEvent
 }
 
 type processEvent struct {
@@ -118,11 +119,12 @@ type mcpToolCallEvent struct {
 }
 
 type batch struct {
-	processes []processEvent
-	files     []fileEvent
-	networks  []networkEvent
-	traces    []traceSpanEvent
-	apps      []observerdb.InsertAppOperationParams
+	processes  []processEvent
+	files      []fileEvent
+	networks   []networkEvent
+	traces     []traceSpanEvent
+	apps       []observerdb.InsertAppOperationParams
+	guardrails []guardrailEvent
 }
 
 func (b *batch) add(ev event) {
@@ -141,8 +143,11 @@ func (b *batch) add(ev event) {
 	if ev.app != nil {
 		b.apps = append(b.apps, *ev.app)
 	}
+	if ev.guardrail != nil {
+		b.guardrails = append(b.guardrails, *ev.guardrail)
+	}
 }
 
 func (b *batch) count() int {
-	return len(b.processes) + len(b.files) + len(b.networks) + len(b.traces) + len(b.apps)
+	return len(b.processes) + len(b.files) + len(b.networks) + len(b.traces) + len(b.apps) + len(b.guardrails)
 }

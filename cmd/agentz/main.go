@@ -55,6 +55,7 @@ import (
 
 	"github.com/accuknox/agentz/cmd/agentz/subcommands"
 	"github.com/accuknox/agentz/internal/controller/agent"
+	guardrailcontroller "github.com/accuknox/agentz/internal/controller/guardrail"
 	inferencepoolcontroller "github.com/accuknox/agentz/internal/controller/inferencepool"
 	inferenceprovidercontroller "github.com/accuknox/agentz/internal/controller/inferenceprovider"
 	"github.com/accuknox/agentz/internal/controller/mcpconn"
@@ -1273,6 +1274,19 @@ var managerCmd = &cli.Command{
 			os.Exit(1)
 		}
 
+		guardrailConnectionReconciler := &guardrailcontroller.ConnectionReconciler{
+			Client:                 mgr.GetClient(),
+			StoreName:              inferenceSecretStoreName,
+			Bao:                    baoClient,
+			OpenBaoSecretMountPath: openBaoSecretMountPath,
+		}
+		if err := guardrailConnectionReconciler.SetupWithManager(mgr); err != nil {
+			return err
+		}
+		guardrailPolicyReconciler := &guardrailcontroller.PolicyReconciler{Client: mgr.GetClient()}
+		if err := guardrailPolicyReconciler.SetupWithManager(mgr); err != nil {
+			return err
+		}
 		inferenceProviderReconciler := &inferenceprovidercontroller.Reconciler{
 			Bao:      baoClient,
 			Client:   mgr.GetClient(),
@@ -1307,10 +1321,11 @@ var managerCmd = &cli.Command{
 		}
 
 		sandboxReconciler := &sandboxcontroller.Reconciler{
-			Client:       mgr.GetClient(),
-			Scheme:       mgr.GetScheme(),
-			AgentGateway: agClient,
-			TraceBackend: traceBackend,
+			Client:             mgr.GetClient(),
+			Scheme:             mgr.GetScheme(),
+			AgentGateway:       agClient,
+			TraceBackend:       appTraceBackend,
+			GuardrailStoreName: inferenceSecretStoreName,
 		}
 		if err := sandboxReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.ErrorContext(ctx,

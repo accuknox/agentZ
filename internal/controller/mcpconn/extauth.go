@@ -32,6 +32,7 @@ import (
 	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/mcp"
 	"github.com/accuknox/agentz/internal/networkpolicy"
+	resourcescope "github.com/accuknox/agentz/internal/scope"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 	agw "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
 )
@@ -91,7 +92,7 @@ type ExtAuthRuntimeReconciler struct {
 
 // The runtime controller deletes obsolete scope-reader RBAC objects explicitly
 // because their owner namespace can remain after the runtime is disabled.
-// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=inferenceproviders,verbs=get;list;watch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=inferenceproviders;guardrailconnections;guardrailpolicies;tenants,verbs=get;list;watch
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles;clusterrolebindings,verbs=get;list;watch;create;update;patch;delete
 
 // SetupWithManager registers the shared runtime controller.
@@ -106,6 +107,7 @@ func (r *ExtAuthRuntimeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			&agentzv1alpha1.InferenceProvider{},
 			handler.EnqueueRequestsFromMapFunc(r.namespaceForObject),
 		).
+		Watches(&agentzv1alpha1.Sandbox{}, handler.EnqueueRequestsFromMapFunc(r.namespaceForObject)).
 		Watches(&gwv1.HTTPRoute{}, handler.EnqueueRequestsFromMapFunc(r.namespaceForObject)).
 		Watches(&corev1.Secret{}, handler.EnqueueRequestsFromMapFunc(r.namespaceForObject)).
 		Watches(
@@ -138,6 +140,15 @@ func (r *ExtAuthRuntimeReconciler) namespaceForObject(_ context.Context, obj cli
 }
 
 func (r *ExtAuthRuntimeReconciler) runtimeNeeded(ctx context.Context, ns string) (bool, error) {
+	sandboxes := &agentzv1alpha1.SandboxList{}
+	if err := r.List(ctx, sandboxes, client.InNamespace(ns)); err != nil {
+		return false, err
+	}
+	for _, sandbox := range sandboxes.Items {
+		if sandbox.DeletionTimestamp.IsZero() {
+			return true, nil
+		}
+	}
 	connections := &agentzv1alpha1.MCPConnectionList{}
 	if err := r.List(ctx, connections, client.InNamespace(ns)); err != nil {
 		return false, fmt.Errorf("list mcp connections for ext auth runtime: %w", err)
@@ -368,7 +379,7 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthRole(ctx context.Context, sco
 			role.Rules = []rbacv1.PolicyRule{
 				{
 					APIGroups: []string{agentzv1alpha1.SchemeGroupVersion.Group},
-					Resources: []string{"sandboxes", "inferenceproviders", "inferencepools"},
+					Resources: []string{"sandboxes", "inferenceproviders", "inferencepools", "guardrailpolicies", "guardrailconnections"},
 					Verbs:     []string{"get"},
 				},
 				{
@@ -396,9 +407,51 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthScopeReader(ctx context.Conte
 	ns, workspaces := scope.namespace, scope.workspaces
 	labels, ownerRefs := scope.labels, scope.ownerRefs
 	name := mcp.ExtAuthOpenBaoName(ns) + "-scope-reader"
+	organizationNamespace, err := resourcescope.Namespace(ctx, r.Client, ns, agentzv1alpha1.ResourceScopeOrganisation)
+	if err != nil {
+		return err
+	}
+	guardrailRole := &rbacv1.Role{
+		ObjectMeta: metav1.ObjectMeta{Name: name + "-guardrails", Namespace: organizationNamespace},
+	}
+	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, guardrailRole, func() error {
+		guardrailRole.Labels = maps.Clone(labels)
+		guardrailRole.OwnerReferences = ownerRefs
+		guardrailRole.Rules = []rbacv1.PolicyRule{{
+			APIGroups: []string{agentzv1alpha1.SchemeGroupVersion.Group},
+			Resources: []string{"guardrailpolicies", "guardrailconnections"},
+			Verbs:     []string{"get"},
+		}}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	guardrailBinding := &rbacv1.RoleBinding{
+		ObjectMeta: metav1.ObjectMeta{Name: name + "-guardrails", Namespace: organizationNamespace},
+	}
+	_, err = ctrlutil.CreateOrPatch(ctx, r.Client, guardrailBinding, func() error {
+		guardrailBinding.Labels = maps.Clone(labels)
+		guardrailBinding.OwnerReferences = ownerRefs
+		guardrailBinding.RoleRef = rbacv1.RoleRef{
+			APIGroup: rbacv1.GroupName,
+			Kind:     "Role",
+			Name:     guardrailRole.Name,
+		}
+		guardrailBinding.Subjects = []rbacv1.Subject{{Kind: "ServiceAccount", Name: mcp.ExtAuthServiceName, Namespace: ns}}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
 	namespaces := make([]string, 1, len(workspaces)+1)
 	namespaces[0] = ns
 	workspaceNames := make([]string, 0, len(workspaces))
+	if ns != organizationNamespace {
+		namespaces = append(namespaces, organizationNamespace)
+		workspaceNames = append(workspaceNames, ns)
+	}
 	for _, workspace := range workspaces {
 		if !workspace.mcp && !workspace.inference {
 			continue
@@ -407,7 +460,7 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthScopeReader(ctx context.Conte
 		workspaceNames = append(workspaceNames, workspace.name)
 	}
 	role := &rbacv1.ClusterRole{ObjectMeta: metav1.ObjectMeta{Name: name}}
-	_, err := ctrlutil.CreateOrPatch(
+	_, err = ctrlutil.CreateOrPatch(
 		ctx,
 		r.Client,
 		role,
@@ -415,6 +468,12 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthScopeReader(ctx context.Conte
 			role.Labels = maps.Clone(labels)
 			role.OwnerReferences = ownerRefs
 			role.Rules = []rbacv1.PolicyRule{
+				{
+					APIGroups:     []string{agentzv1alpha1.SchemeGroupVersion.Group},
+					Resources:     []string{"tenants"},
+					ResourceNames: []string{organizationNamespace},
+					Verbs:         []string{"get"},
+				},
 				{
 					APIGroups:     []string{""},
 					Resources:     []string{"namespaces"},
@@ -1154,7 +1213,7 @@ func (r *ExtAuthRuntimeReconciler) deleteExtAuthRuntime(ctx context.Context, ns 
 		return fmt.Errorf("list workspace ext auth role bindings: %w", err)
 	}
 	for i := range bindings.Items {
-		if bindings.Items[i].Name != accessName {
+		if bindings.Items[i].Name != accessName && bindings.Items[i].Name != accessName+"-scope-reader-guardrails" {
 			continue
 		}
 		if err := r.Delete(ctx, &bindings.Items[i]); err != nil && !apierrors.IsNotFound(err) {
@@ -1166,7 +1225,7 @@ func (r *ExtAuthRuntimeReconciler) deleteExtAuthRuntime(ctx context.Context, ns 
 		return fmt.Errorf("list workspace ext auth roles: %w", err)
 	}
 	for i := range roles.Items {
-		if roles.Items[i].Name != accessName {
+		if roles.Items[i].Name != accessName && roles.Items[i].Name != accessName+"-scope-reader-guardrails" {
 			continue
 		}
 		if err := r.Delete(ctx, &roles.Items[i]); err != nil && !apierrors.IsNotFound(err) {

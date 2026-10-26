@@ -66,6 +66,7 @@ type UseOpencodeChatResult = {
   isPending: boolean
   hasEarlierMessages: boolean
   isLoadingEarlier: boolean
+  isRefreshingHistory: boolean
   loadEarlier: () => Promise<void>
   messages: Message[]
   partsByMessage: Record<string, Part[]>
@@ -121,7 +122,7 @@ function upsertPart(parts: Part[], next: Part) {
   return at < 0 ? [...parts, next] : [...parts.slice(0, at), next, ...parts.slice(at)]
 }
 
-function buildStore(sessionID: string, records: SessionMessageRecord[]) {
+export function buildStore(sessionID: string, records: SessionMessageRecord[]) {
   const store: OpencodeChatStore = {
     part: {},
     partTextAccumDelta: {},
@@ -237,7 +238,7 @@ function firstVisibleRequest<T extends { sessionID: string }>(
   return undefined
 }
 
-function applyEvent(store: OpencodeChatStore, event: StreamEvent): OpencodeChatStore {
+export function applyEvent(store: OpencodeChatStore, event: StreamEvent): OpencodeChatStore {
   switch (event.type) {
     case "message.updated": {
       const sessionID = event.properties.sessionID
@@ -271,14 +272,12 @@ function applyEvent(store: OpencodeChatStore, event: StreamEvent): OpencodeChatS
       if (part.type !== "text" && part.type !== "reasoning") {
         return { ...store, part: { ...store.part, [part.messageID]: upsertPart(parts, part) } }
       }
-      // Keep already-accumulated deltas when the snapshot lags behind them, so
-      // streamed text never flickers backward mid-turn.
-      const accumulated = store.partTextAccumDelta[part.id]
-      const text = accumulated?.startsWith(part.text) ? accumulated : part.text
+      // A part update is an authoritative snapshot. Queued stream events can
+      // overlap a history read, so reset the delta base to this snapshot.
       return {
         ...store,
-        part: { ...store.part, [part.messageID]: upsertPart(parts, { ...part, text }) },
-        partTextAccumDelta: { ...store.partTextAccumDelta, [part.id]: text },
+        part: { ...store.part, [part.messageID]: upsertPart(parts, part) },
+        partTextAccumDelta: { ...store.partTextAccumDelta, [part.id]: part.text },
       }
     }
 
@@ -319,11 +318,8 @@ function applyEvent(store: OpencodeChatStore, event: StreamEvent): OpencodeChatS
       // Empty todos means the agent finished; drop the key so the dock unmounts.
       const sessionID = event.properties.sessionID
       const nextTodos = { ...store.todos }
-      if (event.properties.todos.length === 0) {
-        delete nextTodos[sessionID]
-      } else {
-        nextTodos[sessionID] = event.properties.todos
-      }
+      nextTodos[sessionID] = event.properties.todos
+      if (event.properties.todos.length === 0) delete nextTodos[sessionID]
       return { ...store, todos: nextTodos }
     }
 
@@ -747,10 +743,12 @@ export function useOpencodeChat(
         const errorSessionID = event.properties.sessionID
         if (!errorSessionID || errorSessionID === sessionID) {
           const error = describeMessageError(event.properties.error)
-          toast.error(error.label, {
-            description: error.body,
-            id: `chat:${agentName}:${sessionID}:session-error`,
-          })
+          if (!error.guardrail || !errorSessionID) {
+            toast.error(error.label, {
+              description: error.body,
+              id: `chat:${agentName}:${sessionID}:session-error`,
+            })
+          }
         }
       }
 
@@ -842,8 +840,12 @@ export function useOpencodeChat(
       }))
     }
 
-    // Idle reconciles metadata even when the upstream omitted an update event.
-    if (refreshSession) void refetchSession()
+    // Sending after a revert removes the reverted messages on the server.
+    // Reconcile history too so a missed removal event cannot resurrect them.
+    if (refreshSession) {
+      void refetchSession()
+      void refetchHistory()
+    }
   })
 
   useEffect(() => {
@@ -1040,6 +1042,7 @@ export function useOpencodeChat(
     isBusy: deriveSessionIsBusy(messages, sessionStatus, session.data ?? undefined),
     hasEarlierMessages: history.hasNextPage,
     isLoadingEarlier: history.isFetchingNextPage,
+    isRefreshingHistory: history.isFetching && !history.isFetchingNextPage,
     isPending: Boolean(sessionID) && (session.isPending || history.isPending),
     loadEarlier,
     messages,

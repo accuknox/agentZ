@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -49,6 +50,12 @@ type delegationQueries struct {
 	externalAgent  *gatewaydb.ExternalAgent
 }
 
+// GatewayGetGuardrailClientAccess reports no optional client policies for delegation fixtures.
+func (q *delegationQueries) GatewayGetGuardrailClientAccess(context.Context, gatewaydb.GatewayGetGuardrailClientAccessParams) (gatewaydb.GuardrailClientAccess, error) {
+	return gatewaydb.GuardrailClientAccess{}, pgx.ErrNoRows
+}
+
+// GatewayGetExternalAgent returns the configured external agent fixture.
 func (q *delegationQueries) GatewayGetExternalAgent(context.Context, string) (gatewaydb.ExternalAgent, error) {
 	if q.externalAgent == nil {
 		return gatewaydb.ExternalAgent{}, pgx.ErrNoRows
@@ -130,6 +137,7 @@ func TestExternalAgentRechecksOwnerWorkspaceAndPermission(t *testing.T) {
 	}
 }
 
+// GatewayGetDelegationGrant checks the fixture grant identity and registered origins.
 func (q *delegationQueries) GatewayGetDelegationGrant(_ context.Context, arg gatewaydb.GatewayGetDelegationGrantParams) (gatewaydb.DelegationGrant, error) {
 	invalidGrant := q.revoked ||
 		arg.ID != q.grant.ID ||
@@ -144,23 +152,28 @@ func (q *delegationQueries) GatewayGetDelegationGrant(_ context.Context, arg gat
 	return q.grant, q.err
 }
 
+// GatewayCheckDelegationOrigin accepts the registered fixture origins.
 func (q *delegationQueries) GatewayCheckDelegationOrigin(_ context.Context, origin string) (bool, error) {
 	return origin == "https://app.example" || origin == "https://other.example", q.err
 }
 
+// GatewayCheckDelegationSession returns the configured session lookup error.
 func (q *delegationQueries) GatewayCheckDelegationSession(context.Context, gatewaydb.GatewayCheckDelegationSessionParams) (bool, error) {
 	return false, q.sessionErr
 }
 
+// GatewayCheckDelegationMCPSession checks the saved fixture session and grant.
 func (q *delegationQueries) GatewayCheckDelegationMCPSession(_ context.Context, arg gatewaydb.GatewayCheckDelegationMCPSessionParams) (bool, error) {
 	return q.mcpSession != "" && q.mcpSession == arg.ID && arg.GrantID == q.grant.ID, q.sessionErr
 }
 
+// GatewaySaveDelegationMCPSession records the fixture session.
 func (q *delegationQueries) GatewaySaveDelegationMCPSession(_ context.Context, arg gatewaydb.GatewaySaveDelegationMCPSessionParams) (int64, error) {
 	q.mcpSession = arg.ID
 	return 1, nil
 }
 
+// GatewayDeleteDelegationMCPSession removes a session belonging to the fixture grant.
 func (q *delegationQueries) GatewayDeleteDelegationMCPSession(_ context.Context, arg gatewaydb.GatewayDeleteDelegationMCPSessionParams) error {
 	if q.mcpSession == arg.ID && arg.GrantID == q.grant.ID {
 		q.mcpSession = ""
@@ -168,6 +181,7 @@ func (q *delegationQueries) GatewayDeleteDelegationMCPSession(_ context.Context,
 	return nil
 }
 
+// GatewayResolvePermissions returns the configured permissions and lookup error.
 func (q *delegationQueries) GatewayResolvePermissions(context.Context, gatewaydb.GatewayResolvePermissionsParams) ([]gatewaydb.GatewayResolvePermissionsRow, error) {
 	return q.permissions, q.permissionsErr
 }
@@ -177,6 +191,7 @@ type delegationUpstream struct {
 	request  *http.Request
 }
 
+// RoundTrip records the delegated upstream request.
 func (u *delegationUpstream) RoundTrip(r *http.Request) (*http.Response, error) {
 	u.request = r
 	return u.response, nil
@@ -598,15 +613,10 @@ func TestDelegationReadinessRequiresCurrentAcceptedProjection(t *testing.T) {
 				Parents: []gwv1.RouteParentStatus{{
 					ParentRef:      gwv1.ParentReference{Name: "delegations"},
 					ControllerName: "agentgateway.dev/agentgateway",
-					Conditions: []metav1.Condition{{
-						Type:               "Accepted",
-						Status:             metav1.ConditionTrue,
-						ObservedGeneration: 2,
-					}, {
-						Type:               "ResolvedRefs",
-						Status:             metav1.ConditionTrue,
-						ObservedGeneration: 2,
-					}},
+					Conditions: []metav1.Condition{
+						{Type: "Accepted", Status: metav1.ConditionTrue, ObservedGeneration: 2},
+						{Type: "ResolvedRefs", Status: metav1.ConditionTrue, ObservedGeneration: 2},
+					},
 				}},
 			},
 		},
@@ -614,11 +624,7 @@ func TestDelegationReadinessRequiresCurrentAcceptedProjection(t *testing.T) {
 	backend := &agw.AgentgatewayBackend{
 		ObjectMeta: metadata,
 		Status: agw.AgentgatewayBackendStatus{
-			Conditions: []metav1.Condition{{
-				Type:               "Accepted",
-				Status:             metav1.ConditionTrue,
-				ObservedGeneration: 1,
-			}},
+			Conditions: []metav1.Condition{{Type: "Accepted", Status: metav1.ConditionTrue, ObservedGeneration: 1}},
 		},
 	}
 	objects := []ctrlclient.Object{route, backend}
@@ -681,11 +687,23 @@ func TestDelegatedInferenceUsesPrivateGateway(t *testing.T) {
 	objects := []ctrlclient.Object{
 		&corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:   namespace,
-				Labels: map[string]string{agentzv1alpha1.WorkspaceNameLabel: namespace},
+				Name: namespace,
+				Labels: map[string]string{
+					agentzv1alpha1.WorkspaceNameLabel: namespace,
+					agentzv1alpha1.TenantOrganizationIDLabel: agentzv1alpha1.ScopeNamespace(
+						agentzv1alpha1.ResourceScopeOrganisation, testOrganizationID,
+					),
+				},
 			},
 		},
 		provider,
+		&agentzv1alpha1.Workspace{
+			ObjectMeta: metav1.ObjectMeta{Name: namespace},
+			Spec: agentzv1alpha1.WorkspaceSpec{
+				WorkspaceID:    testWorkspaceID,
+				OrganizationID: testOrganizationID,
+			},
+		},
 	}
 	for _, object := range objects {
 		if err := service.k8sClient.Create(t.Context(), object); err != nil {
@@ -743,7 +761,8 @@ func TestDelegatedInferenceUsesPrivateGateway(t *testing.T) {
 			Namespace:  ns,
 			Generation: 1,
 			Annotations: map[string]string{
-				"agentz.accuknox.com/selection": fmt.Sprintf("%x", sha256.Sum256(encoded)),
+				"agentz.accuknox.com/guardrail-workspace-id": testWorkspaceID,
+				"agentz.accuknox.com/selection":              fmt.Sprintf("%x", sha256.Sum256(encoded)),
 			},
 		}
 		conditions := []metav1.Condition{
@@ -842,11 +861,67 @@ func TestDelegatedInferenceUsesPrivateGateway(t *testing.T) {
 	if unexpectedTarget {
 		t.Fatalf("inference bypassed the configured private gateway: %s", upstream.request.URL)
 	}
-	route := &gwv1.HTTPRoute{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "d-grant-1-model-0",
-			Namespace: "private",
+	upstream.response = &http.Response{
+		StatusCode: http.StatusUnprocessableEntity,
+		Header:     http.Header{"X-Agentz-Guardrail-Outcome": {"1"}},
+		Body:       io.NopCloser(strings.NewReader(`{"error":{"guardrail":{"explanation":"private-credential"}}}`)),
+	}
+	request = httptest.NewRequest(http.MethodPost, "/api/inference/v1/chat/completions", strings.NewReader(body))
+	request.Header.Set("Authorization", "Bearer "+signed)
+	response = httptest.NewRecorder()
+	service.handleDelegatedRequest(response, request)
+	if response.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("request rejection changed status: %d", response.Code)
+	}
+	var failure inferenceError
+	if err := json.Unmarshal(response.Body.Bytes(), &failure); err != nil {
+		t.Fatal(err)
+	}
+	if failure.Error.Code != "request_rejected" || !strings.Contains(failure.Error.Message, "Review your input") {
+		t.Fatalf("missing actionable rejection feedback: %+v", failure.Error)
+	}
+	if strings.Contains(response.Body.String(), "private-credential") || response.Header().Get("X-Agentz-Guardrail-Outcome") != "" {
+		t.Fatal("provider metadata became trusted rejection feedback")
+	}
+
+	rejection := gatewayapi.GuardrailRejection{Error: gatewayapi.GuardrailError{
+		Type:    gatewayapi.GuardrailErrorTypeInvalidRequestError,
+		Code:    gatewayapi.ContentPolicyViolation,
+		Message: "Tool arguments blocked by Sensitive identifiers",
+		Guardrail: gatewayapi.GuardrailContext{
+			Phase: gatewayapi.GuardrailContextPhaseRequest,
+			Guard: "regex", PolicyId: "policy", PolicyName: "Sensitive data",
+			CheckId: "check", CheckName: "Sensitive identifiers", Message: "Remove identifiers",
+			Scopes:       []gatewayapi.GuardrailContextScopes{gatewayapi.GuardrailContextScopesToolArguments},
+			MatchedScope: new(gatewayapi.GuardrailContextMatchedScopeToolArguments),
 		},
+	}}
+	encodedRejection, err := json.Marshal(rejection)
+	if err != nil {
+		t.Fatal(err)
+	}
+	upstream.response = &http.Response{
+		StatusCode: http.StatusUnprocessableEntity,
+		Header:     http.Header{"X-Agentgateway-Guardrail-Error": {"true"}},
+		Body:       io.NopCloser(bytes.NewReader(encodedRejection)),
+	}
+	request = httptest.NewRequest(http.MethodPost, "/api/inference/v1/chat/completions", strings.NewReader(body))
+	request.Header.Set("Authorization", "Bearer "+signed)
+	response = httptest.NewRecorder()
+	service.handleDelegatedRequest(response, request)
+	var preserved gatewayapi.GuardrailRejection
+	if err := json.Unmarshal(response.Body.Bytes(), &preserved); err != nil {
+		t.Fatal(err)
+	}
+	if response.Code != http.StatusUnprocessableEntity || preserved.Error.Code != gatewayapi.ContentPolicyViolation || preserved.Error.Guardrail.CheckId != "check" {
+		t.Fatalf("gateway-owned policy context was lost: HTTP %d: %s", response.Code, response.Body.String())
+	}
+	if response.Header().Get("X-Agentgateway-Guardrail-Error") != "" {
+		t.Fatal("private runtime marker leaked")
+	}
+
+	route := &gwv1.HTTPRoute{
+		ObjectMeta: metav1.ObjectMeta{Name: "d-grant-1-model-0", Namespace: "private"},
 	}
 	if err := service.k8sClient.Delete(t.Context(), route); err != nil {
 		t.Fatal(err)
@@ -1130,10 +1205,7 @@ func TestEmptyDelegatedMCPDiscoveryAndRevocation(t *testing.T) {
 	if err != nil || templates == nil || len(templates.ResourceTemplates) != 0 {
 		t.Fatalf("templates: %v, %v", templates, err)
 	}
-	_, err = session.CallTool(ctx, &mcpsdk.CallToolParams{
-		Name:      "unselected",
-		Arguments: map[string]any{},
-	})
+	_, err = session.CallTool(ctx, &mcpsdk.CallToolParams{Name: "unselected", Arguments: map[string]any{}})
 	if err == nil {
 		t.Fatal("empty grant executed an unselected tool")
 	}

@@ -40,11 +40,7 @@ func (s *Service) resolveOpenCodeAPIKeyAuth(r *http.Request) (requestAuth, error
 		return requestAuth{}, invalidAPIKeyAuthError(err)
 	}
 
-	scope, targets, err := s.resolveAPIKeyTargets(
-		r.Context(),
-		key,
-		gatewaydb.ApiKeyTargetTypeAgent,
-	)
+	scope, targets, err := s.resolveAPIKeyTargets(r.Context(), key, gatewaydb.ApiKeyTargetTypeAgent)
 	if err != nil {
 		return requestAuth{}, invalidAPIKeyAuthError(err)
 	}
@@ -61,9 +57,7 @@ func (s *Service) resolveOpenCodeAPIKeyAuth(r *http.Request) (requestAuth, error
 		}
 	}
 	if !allowed {
-		return requestAuth{}, invalidAPIKeyAuthError(
-			fmt.Errorf("api key %q is not authorized for agent %q", key.ID, agentName),
-		)
+		return requestAuth{}, invalidAPIKeyAuthError(fmt.Errorf("api key %q is not authorized for agent %q", key.ID, agentName))
 	}
 	actorName := key.ID
 	if key.Name.Valid {
@@ -93,11 +87,7 @@ func (s *Service) resolveWebhookAPIKeyAuth(r *http.Request) (requestAuth, error)
 		return requestAuth{}, invalidAPIKeyAuthError(err)
 	}
 
-	scope, targets, err := s.resolveAPIKeyTargets(
-		r.Context(),
-		key,
-		gatewaydb.ApiKeyTargetTypeWorkflow,
-	)
+	scope, targets, err := s.resolveAPIKeyTargets(r.Context(), key, gatewaydb.ApiKeyTargetTypeWorkflow)
 	if err != nil {
 		return requestAuth{}, invalidAPIKeyAuthError(err)
 	}
@@ -116,12 +106,7 @@ func (s *Service) resolveWebhookAPIKeyAuth(r *http.Request) (requestAuth, error)
 	}
 	if !allowed {
 		return requestAuth{}, invalidAPIKeyAuthError(
-			fmt.Errorf(
-				"api key %q is not authorized for workflow %q/%q",
-				key.ID,
-				agentName,
-				workflowName,
-			),
+			fmt.Errorf("api key %q is not authorized for workflow %q/%q", key.ID, agentName, workflowName),
 		)
 	}
 	return requestAuth{
@@ -141,10 +126,7 @@ func (s *Service) getAPIKeyByHash(ctx context.Context, rawKey string, configID s
 		gatewaydb.GatewayGetAPIKeyByHashParams{
 			Key:      base64.RawURLEncoding.EncodeToString(sum[:]),
 			ConfigID: configID,
-			NowAt: pgtype.Timestamp{
-				Time:  time.Now().UTC(),
-				Valid: true,
-			},
+			NowAt:    pgtype.Timestamp{Time: time.Now().UTC(), Valid: true},
 		},
 	)
 }
@@ -265,12 +247,7 @@ func (s *Service) validateAPIKeyTargets(ctx context.Context, scope apiKeyScope, 
 				}
 				return errors.New(reason)
 			}
-			allowed, err := s.agentOperationAllowed(
-				ctx,
-				access,
-				target.AgentName,
-				authorization.OperationUseSharedAgent,
-			)
+			allowed, err := s.agentOperationAllowed(ctx, access, target.AgentName, authorization.OperationUseSharedAgent)
 			if err != nil {
 				return err
 			}
@@ -331,10 +308,5 @@ func (s *Service) revokeAPIKeyScope(ctx context.Context, scope apiKeyScope, reas
 }
 
 func invalidAPIKeyAuthError(err error) *apiutil.APIError {
-	return apiutil.NewError(
-		http.StatusUnauthorized,
-		"unauthorized",
-		"missing or invalid credentials",
-		err,
-	)
+	return apiutil.NewError(http.StatusUnauthorized, "unauthorized", "missing or invalid credentials", err)
 }

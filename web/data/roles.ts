@@ -48,6 +48,27 @@ type RoleResourceDefinition = {
 
 const roleResourceCatalog: RoleResourceDefinition[] = [
   {
+    resource: "guardrail_connection",
+    label: "Guardrail connections",
+    organisation: true,
+    workspace: true,
+    actions: ["read", "create", "modify", "delete"],
+  },
+  {
+    resource: "guardrail_policy",
+    label: "Guardrail policies",
+    organisation: true,
+    workspace: true,
+    actions: ["read", "create", "modify", "delete"],
+  },
+  {
+    resource: "guardrail_event",
+    label: "Guardrail events",
+    organisation: true,
+    workspace: true,
+    actions: ["read"],
+  },
+  {
     resource: "skill",
     label: "Skills",
     organisation: true,
@@ -227,11 +248,14 @@ function requiredGrants(grant: RoleGrantInput): RoleGrantInput[] {
   }
 
   if (grant.resource === "sandbox" && ["create", "modify"].includes(grant.action)) {
+    add("guardrail_policy", "read")
     add("mcp_connection", "read")
     add("skill", "read")
     add("inference_provider", "read")
     add("inference_pool", "read")
   }
+  if (grant.resource === "guardrail_policy" && ["create", "modify"].includes(grant.action))
+    add("guardrail_connection", "read")
   if (grant.resource === "inference_pool" && ["create", "modify"].includes(grant.action)) {
     add("inference_provider", "read")
   }

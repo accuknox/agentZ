@@ -2,6 +2,7 @@ package observer
 
 import (
 	"bytes"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +12,53 @@ import (
 	resourcepb "go.opentelemetry.io/proto/otlp/resource/v1"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 )
+
+func TestGuardrailEvidenceTrustBoundary(t *testing.T) {
+	t.Parallel()
+	span := appSpanFixture(0)
+	evidence := `[{"phase":"request","guard":"webhook","action":"reject","actionReason":"private detector response","agentz":{"retentionDays":3650,"inspected":["private inspected message"]}}]`
+	span.Attributes = append(span.Attributes, &commonpb.KeyValue{
+		Key:   attrGuardrailEvaluations,
+		Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: evidence}},
+	})
+	request := &tracev1.ExportTraceServiceRequest{
+		ResourceSpans: []*tracepb.ResourceSpans{{
+			Resource: &resourcepb.Resource{
+				Attributes: []*commonpb.KeyValue{{
+					Key: "service.name",
+					Value: &commonpb.AnyValue{
+						Value: &commonpb.AnyValue_StringValue{StringValue: "agentz-oauth-gateway"},
+					},
+				}},
+			},
+			ScopeSpans: []*tracepb.ScopeSpans{{Spans: []*tracepb.Span{span}}},
+		}},
+	}
+	events, rejected := traceEventsFromOTLPRequest(request, false)
+	if len(events) != 0 || rejected != 1 {
+		t.Fatal("native telemetry listener accepted forged gateway evidence")
+	}
+	events, rejected = traceEventsFromOTLPRequest(request, true)
+	if rejected != 0 || len(events) != 2 || events[0].guardrail == nil || events[1].app == nil {
+		t.Fatal("gateway listener did not retain both evaluation and app operation")
+	}
+	row := events[0].guardrail.row
+	if !row.ExpiresAt.IsZero() {
+		t.Fatal("native evaluation trusted exporter retention")
+	}
+	if bytes.Contains(row.Evaluation, []byte("private")) || bytes.Contains(row.Evaluation, []byte("agentz")) {
+		t.Fatal("native evaluation retained arbitrary provider text or captured content")
+	}
+
+	_, attrs := extractSpanPayload(spanClassLLM, attrsMap(span.Attributes))
+	stored, err := json.Marshal(attrs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(stored, []byte("private inspected message")) || bytes.Contains(stored, []byte(attrGuardrailEvaluations)) {
+		t.Fatal("guardrail evidence escaped into ordinary trace storage")
+	}
+}
 
 func appSpanFixture(payloadSize int) *tracepb.Span {
 	attributes := map[string]string{
@@ -269,6 +317,118 @@ func TestReceiverAttributionBoundary(t *testing.T) {
 			got := <-events
 			if (got.app != nil) != test.app || (got.trace != nil) == test.app {
 				t.Fatal("receiver routed telemetry to the wrong storage path")
+			}
+		})
+	}
+}
+
+func TestNativeGuardrailIdentityAndMetadata(t *testing.T) {
+	t.Parallel()
+	span := appSpanFixture(0)
+	span.Attributes = append(span.Attributes, &commonpb.KeyValue{
+		Key: attrGuardrailEvaluations,
+		Value: &commonpb.AnyValue{
+			Value: &commonpb.AnyValue_StringValue{
+				StringValue: `[{"phase":"request","guard":"bedrockGuardrails","action":"mask","guardrailId":"resource","guardrailVersion":"3","actionReason":"secret","assessments":[{"text":"secret"}]},{"phase":"request","guard":"bedrockGuardrails","action":"mask","guardrailId":"resource","guardrailVersion":"3"}]`,
+			},
+		},
+	})
+	events, err := guardrailEventsFromSpan(span, nil)
+	if err != nil || len(events) != 2 {
+		t.Fatalf("native evaluations: %v, %d events", err, len(events))
+	}
+	replayed, err := guardrailEventsFromSpan(span, nil)
+	if err != nil || events[0].row.ID != replayed[0].row.ID || events[0].row.ID == events[1].row.ID {
+		t.Fatalf("evaluation identity did not preserve replay and repeated checks: %v", err)
+	}
+	if events[0].row.EvaluationIndex != 0 || events[1].row.EvaluationIndex != 1 || !bytes.Equal(events[0].row.SpanID, span.SpanId) {
+		t.Fatal("native span identity was lost")
+	}
+	var metadata map[string]string
+	if err := json.Unmarshal(events[0].row.Evaluation, &metadata); err != nil {
+		t.Fatal(err)
+	}
+	if len(metadata) != 5 || metadata["phase"] != "request" || metadata["guard"] != "bedrockGuardrails" || metadata["action"] != "mask" || metadata["guardrailId"] != "resource" || metadata["guardrailVersion"] != "3" {
+		t.Fatalf("metadata allowlist changed: %s", events[0].row.Evaluation)
+	}
+	span.SpanId = bytes.Repeat([]byte{3}, 8)
+	other, err := guardrailEventsFromSpan(span, nil)
+	if err != nil || other[0].row.ID == events[0].row.ID {
+		t.Fatal("two spans in the same trace shared an evaluation identity")
+	}
+}
+
+type nativeGuardrailEvidenceCase struct {
+	name   string
+	change func(*tracepb.Span)
+}
+
+func TestNativeGuardrailInvalidEvidence(t *testing.T) {
+	t.Parallel()
+	cases := []nativeGuardrailEvidenceCase{
+		{
+			name:   "zero trace",
+			change: func(sp *tracepb.Span) { sp.TraceId = make([]byte, 16) },
+		},
+		{name: "short span", change: func(sp *tracepb.Span) { sp.SpanId = []byte{1} }},
+		{
+			name:   "zero span",
+			change: func(sp *tracepb.Span) { sp.SpanId = make([]byte, 8) },
+		},
+		{
+			name:   "missing occurrence",
+			change: func(sp *tracepb.Span) { sp.StartTimeUnixNano = 0 },
+		},
+		{
+			name:   "future occurrence",
+			change: func(sp *tracepb.Span) { sp.StartTimeUnixNano = uint64(time.Now().Add(time.Hour).UnixNano()) },
+		},
+		{
+			name: "invalid phase",
+			change: func(sp *tracepb.Span) {
+				sp.Attributes[len(sp.Attributes)-1].Value = &commonpb.AnyValue{
+					Value: &commonpb.AnyValue_StringValue{
+						StringValue: `[{"phase":"unknown","guard":"regex","action":"reject"}]`,
+					},
+				}
+			},
+		},
+		{
+			name: "invalid verdict",
+			change: func(sp *tracepb.Span) {
+				sp.Attributes[len(sp.Attributes)-1].Value = &commonpb.AnyValue{
+					Value: &commonpb.AnyValue_StringValue{
+						StringValue: `[{"phase":"request","guard":"regex","action":"unknown"}]`,
+					},
+				}
+			},
+		},
+		{
+			name: "missing namespace",
+			change: func(sp *tracepb.Span) {
+				for _, attr := range sp.Attributes {
+					if attr.Key == "agentz.resource_namespace" {
+						attr.Value = nil
+					}
+				}
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			span := appSpanFixture(0)
+			span.Attributes = append(span.Attributes, &commonpb.KeyValue{
+				Key: attrGuardrailEvaluations,
+				Value: &commonpb.AnyValue{
+					Value: &commonpb.AnyValue_StringValue{
+						StringValue: `[{"phase":"request","guard":"regex","action":"reject"}]`,
+					},
+				},
+			})
+			tc.change(span)
+			if _, err := guardrailEventsFromSpan(span, nil); err == nil {
+				t.Fatal("invalid native evidence was accepted")
 			}
 		})
 	}

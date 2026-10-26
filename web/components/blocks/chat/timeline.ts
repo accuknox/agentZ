@@ -38,7 +38,14 @@ export type TimelineRow =
       type: "assistant"
     }
   | { key: string; type: "checkpoint"; variant: "compaction" | "interrupted" }
-  | { body: string; key: string; label: string; type: "assistant-error" }
+  | {
+      body: string
+      key: string
+      label: string
+      revertMessageID?: string
+      type: "assistant-error"
+      partialOutput: boolean
+    }
 
 const contextToolNames = new Set(["read", "list", "glob", "grep"])
 
@@ -58,12 +65,13 @@ function groupTools(parts: ToolPart[]): ToolEntry[] {
 
   const flush = () => {
     if (group.length === 0) return
-    if (group.length === 1) {
-      const [part] = group
-      if (part) result.push({ type: "tool", part })
-    } else {
-      result.push({ type: "context", parts: group })
+    const [part] = group
+    if (group.length === 1 && part) {
+      result.push({ type: "tool", part })
+      group = []
+      return
     }
+    result.push({ type: "context", parts: group })
     group = []
   }
 
@@ -100,13 +108,13 @@ function renderParts(parts: Part[], textByPart: Record<string, string>): RenderE
     for (const entry of groupTools(toolBuffer)) {
       if (entry.type === "tool") {
         entries.push({ key: entry.part.id, toolEntries: [entry], type: "tool" })
-      } else {
-        entries.push({
-          key: entry.parts.map((part) => part.id).join(":"),
-          toolEntries: [entry],
-          type: "tool",
-        })
+        continue
       }
+      entries.push({
+        key: entry.parts.map((part) => part.id).join(":"),
+        toolEntries: [entry],
+        type: "tool",
+      })
     }
     toolBuffer = []
   }
@@ -171,7 +179,9 @@ function projectTurn(input: {
   textByPart: Record<string, string>
   turnKey: string
   isActive: boolean
-}): void {
+  messageID: string
+  guardrailMessageID?: string
+}): string | undefined {
   const { assistants, compacted, out, partsByMessage, textByPart, turnKey, isActive } = input
 
   const interruption = compacted
@@ -206,8 +216,8 @@ function projectTurn(input: {
       continue
     }
 
-    if (assistant.error && assistant.error.name !== "MessageAbortedError" && !error) {
-      error = describeMessageError(assistant.error)
+    if (assistant.error && assistant.error.name !== "MessageAbortedError") {
+      error ??= describeMessageError(assistant.error)
     }
   }
 
@@ -215,23 +225,30 @@ function projectTurn(input: {
     out.push({
       createdAt,
       entries,
-      isStreaming: isActive,
+      isStreaming: isActive && !error,
       key: interruption ? `${turnKey}:${segment}` : turnKey,
       type: "assistant",
     })
   }
 
+  const revertMessageID = error?.guardrail
+    ? (input.guardrailMessageID ?? input.messageID)
+    : undefined
   if (error) {
     out.push({
       body: error.body,
       key: `assistant-error:${assistants.at(-1)?.id ?? "x"}`,
       label: error.label,
+      revertMessageID,
       type: "assistant-error",
+      partialOutput: entries.some((entry) => entry.type === "text"),
     })
   }
+  return revertMessageID
 }
 
 export function projectTimeline(input: ProjectInput): {
+  guardrailMessageID?: string
   reverted: RevertedMessage[]
   rows: TimelineRow[]
 } {
@@ -278,6 +295,7 @@ export function projectTimeline(input: ProjectInput): {
     turn.assistants.some((assistant) => !assistant.time.completed && !assistant.error)
   )
   const activeIndex = input.isBusy ? (runningIndex < 0 ? visible.length - 1 : runningIndex) : -1
+  let guardrailMessageID: string | undefined
   visible.forEach((turn, index) => {
     const userParts = input.partsByMessage[turn.user.id] ?? []
     const attachments = userParts
@@ -321,7 +339,7 @@ export function projectTimeline(input: ProjectInput): {
       })
     }
 
-    projectTurn({
+    const blockedMessageID = projectTurn({
       assistants: turn.assistants,
       compacted,
       isActive: index === activeIndex && !input.isRetrying,
@@ -329,8 +347,19 @@ export function projectTimeline(input: ProjectInput): {
       partsByMessage: input.partsByMessage,
       textByPart: input.textByPart,
       turnKey: `assistant:${turn.user.id}`,
+      messageID: turn.user.id,
+      guardrailMessageID,
     })
+    if (blockedMessageID) {
+      // Later requests include the rejected prompt. Reverting only the newest
+      // failure would leave the original blocked message in the conversation.
+      guardrailMessageID = blockedMessageID
+    } else if (turn.assistants.some((assistant) => assistant.time.completed && !assistant.error)) {
+      // A successful request can follow a policy change. Its old rejection
+      // must not become the recovery target for an unrelated future failure.
+      guardrailMessageID = undefined
+    }
   })
 
-  return { reverted, rows: out }
+  return { guardrailMessageID, reverted, rows: out }
 }

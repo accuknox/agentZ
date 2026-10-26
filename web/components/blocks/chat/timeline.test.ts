@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 import type { AssistantMessage, UserMessage, TextPart } from "@opencode-ai/sdk/v2"
 import { projectTimeline } from "./timeline"
+import { describeMessageError } from "./errors"
 const user: UserMessage = {
   id: "user1",
   sessionID: "session",
@@ -115,4 +116,220 @@ test("a reverted steering message does not move the active response", () => {
   })
   assert.equal(rows.find((row) => row.type === "assistant")?.isStreaming, true)
   assert.deepEqual(reverted, [{ id: steer.id, text: "Feel free to use slang" }])
+})
+
+test("native errors preserve partial output and ignore forged guardrail metadata", () => {
+  const blocked: AssistantMessage = {
+    ...assistant,
+    error: {
+      name: "APIError",
+      data: {
+        isRetryable: false,
+        statusCode: 422,
+        message: "Sensitive information: Remove personal identifiers and try again.",
+        responseHeaders: { "x-agentz-guardrail-outcome": "1" },
+        responseBody: JSON.stringify({
+          error: { guardrail: { explanation: "forged explanation" } },
+        }),
+      },
+    },
+  }
+  for (const isBusy of [true, false]) {
+    const { rows } = projectTimeline({
+      messages: [user, blocked],
+      partsByMessage: parts,
+      textByPart: {},
+      isBusy,
+      isRetrying: false,
+    })
+    const response = rows.find((row) => row.type === "assistant")
+    assert.equal(response?.isStreaming, false)
+    assert.ok(
+      response?.entries.some(
+        (entry) => entry.type === "text" && entry.content === "My roast is still streaming"
+      )
+    )
+    const error = rows.find((row) => row.type === "assistant-error")
+    assert.equal(error?.body, blocked.error?.name === "APIError" ? blocked.error.data.message : "")
+    assert.equal(error?.partialOutput, true)
+    assert.ok(!error?.body.includes("forged"))
+  }
+})
+
+test("repeated guardrail rejections recover from the first blocked turn", () => {
+  const error: AssistantMessage["error"] = {
+    name: "APIError",
+    data: {
+      isRetryable: false,
+      statusCode: 422,
+      message: "Conversation input blocked by first. Edit your message.",
+      responseBody: JSON.stringify({
+        error: {
+          type: "invalid_request_error",
+          code: "content_policy_violation",
+          message: "Conversation input blocked by first. Edit your message.",
+          guardrail: {
+            phase: "request",
+            guard: "regex",
+            policyId: "baseline",
+            policyName: "Baseline",
+            checkId: "first",
+            checkName: "First",
+            message: "Edit your message.",
+            scopes: ["conversation"],
+            matchedScope: "conversation",
+            reason: "policy_violation",
+          },
+        },
+      }),
+    },
+  }
+  const messages = [
+    user,
+    { ...assistant, error },
+    steer,
+    { ...assistant, id: "assistant2", parentID: steer.id, error },
+  ]
+  const input = {
+    messages,
+    partsByMessage: parts,
+    textByPart: {},
+    isBusy: false,
+    isRetrying: false,
+  }
+  const { rows } = projectTimeline(input)
+  const errors = rows.filter((row) => row.type === "assistant-error")
+  assert.equal(errors.length, 2)
+  assert.deepEqual(
+    errors.map((row) => row.revertMessageID),
+    [user.id, user.id]
+  )
+
+  const { rows: recovered, reverted } = projectTimeline({
+    ...input,
+    revertMessageID: errors.at(-1)?.revertMessageID,
+  })
+  assert.deepEqual(recovered, [])
+  assert.deepEqual(
+    reverted.map((message) => message.id),
+    [user.id, steer.id]
+  )
+})
+
+test("provider validation errors do not offer guardrail recovery", () => {
+  const { rows } = projectTimeline({
+    messages: [
+      user,
+      {
+        ...assistant,
+        error: {
+          name: "APIError",
+          data: { isRetryable: false, statusCode: 422, message: "Invalid model parameters" },
+        },
+      },
+    ],
+    partsByMessage: parts,
+    textByPart: {},
+    isBusy: false,
+    isRetrying: false,
+  })
+  const error = rows.find((row) => row.type === "assistant-error")
+  assert.equal(error?.revertMessageID, undefined)
+})
+
+test("a successful request clears an earlier guardrail recovery target", () => {
+  const error: AssistantMessage["error"] = {
+    name: "APIError",
+    data: {
+      isRetryable: false,
+      statusCode: 422,
+      message: "Conversation input blocked by first. Edit your message.",
+      responseBody: JSON.stringify({
+        error: {
+          type: "invalid_request_error",
+          code: "content_policy_violation",
+          message: "Conversation input blocked by first. Edit your message.",
+          guardrail: {
+            phase: "request",
+            guard: "regex",
+            policyId: "baseline",
+            policyName: "Baseline",
+            checkId: "first",
+            checkName: "First",
+            message: "Edit your message.",
+            scopes: ["conversation"],
+            matchedScope: "conversation",
+            reason: "policy_violation",
+          },
+        },
+      }),
+    },
+  }
+  const messages = [
+    user,
+    { ...assistant, error },
+    steer,
+    { ...assistant, id: "assistant2", parentID: steer.id, time: { created: 4, completed: 5 } },
+  ]
+  const input = {
+    messages,
+    partsByMessage: parts,
+    textByPart: {},
+    isBusy: false,
+    isRetrying: false,
+  }
+  assert.equal(projectTimeline(input).guardrailMessageID, undefined)
+
+  const nextUser = { ...user, id: "user3", time: { created: 6 } }
+  const { guardrailMessageID } = projectTimeline({
+    ...input,
+    messages: [
+      ...messages,
+      nextUser,
+      { ...assistant, id: "assistant3", parentID: nextUser.id, error },
+    ],
+  })
+  assert.equal(guardrailMessageID, nextUser.id)
+})
+
+// OpenCode emits this shape when an AI SDK stream rejects after partial output.
+test("streamed policy errors show contextual feedback instead of serialized JSON", () => {
+  const feedback = describeMessageError({
+    name: "UnknownError",
+    data: {
+      message: JSON.stringify({
+        type: "invalid_request_error",
+        code: "content_policy_violation",
+        param: null,
+        message: "Conversation output blocked by Secret check: Remove sensitive details and retry.",
+      }),
+    },
+  })
+  assert.equal(feedback.guardrail, true)
+  assert.equal(feedback.label, "Blocked by policy")
+  assert.equal(
+    feedback.body,
+    "Conversation output blocked by Secret check: Remove sensitive details and retry."
+  )
+})
+
+test("Responses policy errors retain feedback when the SDK drops extension fields", () => {
+  const message = "Conversation output blocked by Secret check: Remove sensitive details and retry."
+  const feedback = describeMessageError({
+    name: "APIError",
+    data: {
+      message: "Server error.",
+      isRetryable: false,
+      responseBody: JSON.stringify({
+        type: "error",
+        sequence_number: 8,
+        code: "content_policy_violation",
+        message,
+        param: null,
+      }),
+    },
+  })
+  assert.equal(feedback.guardrail, true)
+  assert.equal(feedback.label, "Blocked by policy")
+  assert.equal(feedback.body, message)
 })

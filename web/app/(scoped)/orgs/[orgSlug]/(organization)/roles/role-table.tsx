@@ -122,13 +122,7 @@ export function RoleTable({
   return (
     <AdminDataGrid
       ariaLabel={workspaceSlug ? "Workspace roles" : "Organization roles"}
-      emptyState={
-        <AdministrationState
-          description="Create a Role, choose its permissions, then assign it to members or Teams."
-          kind="welcome"
-          title="Let's create your first role"
-        />
-      }
+      emptyState={<AdministrationState kind="welcome" title="No roles" />}
       layout={layout}
       pagination={
         <TokenTablePagination hasNextPage={nextPageToken !== ""} nextPageToken={nextPageToken} />

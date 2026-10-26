@@ -310,13 +310,11 @@ func RenderPoolBackend(pool *agentzv1alpha1.InferencePool, definition PoolDefini
 		}
 		policies := &agentgatewayv1alpha1.BackendWithAI{
 			BackendSimple:  target.Policies.BackendSimple,
+			AI:             target.Policies.AI,
 			Transformation: target.Policies.Transformation,
 		}
 		if pool.Spec.AutomaticFailover {
-			condition := agentgatewayv1alpha1.CELExpression(
-				"response == null || response.code == 401 || response.code == 403 || " +
-					"response.code == 429 || response.code >= 500",
-			)
+			condition := "response == null || " + retryableResponse
 			failures := int32(1)
 			restore := int32(100)
 			policies.Health = &agentgatewayv1alpha1.Health{
@@ -329,7 +327,7 @@ func RenderPoolBackend(pool *agentzv1alpha1.InferencePool, definition PoolDefini
 			}
 		}
 		hasSecurity := policies.Auth != nil || policies.TLS != nil
-		hasBehavior := policies.Transformation != nil || policies.Health != nil
+		hasBehavior := policies.Transformation != nil || policies.Health != nil || policies.AI != nil
 		if !hasSecurity && !hasBehavior {
 			policies = nil
 		}

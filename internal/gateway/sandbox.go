@@ -19,6 +19,7 @@ import (
 	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	"github.com/accuknox/agentz/internal/guardrails"
 	"github.com/accuknox/agentz/internal/sandboxutil"
 	"github.com/accuknox/agentz/internal/scope"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
@@ -39,10 +40,7 @@ func (s *Service) resolveSandboxAccess(ctx context.Context, workspaceID, sandbox
 		creatorFallback = authorization.OperationCreateSandbox
 		isCreator = func(ctx context.Context, namespace, userID string) (bool, error) {
 			sandbox := &agentzv1alpha1.Sandbox{}
-			sandboxKey := ctrlclient.ObjectKey{
-				Name:      sandboxName,
-				Namespace: namespace,
-			}
+			sandboxKey := ctrlclient.ObjectKey{Name: sandboxName, Namespace: namespace}
 			err := s.k8sClient.Get(ctx, sandboxKey, sandbox)
 			return sandbox.Spec.CreatedByUserID == userID, err
 		}
@@ -91,12 +89,7 @@ func (s *Service) ListSandboxes(w http.ResponseWriter, r *http.Request, params g
 	if params.XAgentZWorkspaceID != nil {
 		workspaceID = *params.XAgentZWorkspaceID
 	}
-	access, apiErr := s.resolveSandboxAccess(
-		r.Context(),
-		workspaceID,
-		"",
-		authorization.OperationListSandboxes,
-	)
+	access, apiErr := s.resolveSandboxAccess(r.Context(), workspaceID, "", authorization.OperationListSandboxes)
 	if apiErr != nil {
 		apiutil.WriteError(w, r, apiErr)
 		return
@@ -107,16 +100,7 @@ func (s *Service) ListSandboxes(w http.ResponseWriter, r *http.Request, params g
 		limit = int(*params.Limit)
 	}
 	if limit < 1 || limit > 200 {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"limit must be between 1 and 200",
-				errBadRequest,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "limit must be between 1 and 200", errBadRequest))
 		return
 	}
 
@@ -131,11 +115,7 @@ func (s *Service) ListSandboxes(w http.ResponseWriter, r *http.Request, params g
 		apiutil.WriteInternalError(w, r, fmt.Errorf("list sandboxes: %w", err))
 		return
 	}
-	refs, err := sandboxutil.ReferencedNames(
-		r.Context(),
-		s.k8sClient,
-		access.namespace,
-	)
+	refs, err := sandboxutil.ReferencedNames(r.Context(), s.k8sClient, access.namespace)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, fmt.Errorf("list sandbox references: %w", err))
 		return
@@ -192,14 +172,7 @@ func (s *Service) ListSandboxes(w http.ResponseWriter, r *http.Request, params g
 		next = encodeOffsetToken(end)
 	}
 
-	apiutil.WriteJSON(
-		w,
-		http.StatusOK,
-		gatewayapi.ListSandboxesResponse{
-			Sandboxes:     page,
-			NextPageToken: next,
-		},
-	)
+	apiutil.WriteJSON(w, http.StatusOK, gatewayapi.ListSandboxesResponse{Sandboxes: page, NextPageToken: next})
 }
 
 func (s *Service) listInheritedSandboxes(ctx context.Context, access resourceAccess, refs map[string]bool) ([]gatewayapi.Sandbox, error) {
@@ -215,10 +188,7 @@ func (s *Service) listInheritedSandboxes(ctx context.Context, access resourceAcc
 	if len(selected) == 0 {
 		return []gatewayapi.Sandbox{}, nil
 	}
-	organizationNamespace := agentzv1alpha1.ScopeNamespace(
-		agentzv1alpha1.ResourceScopeOrganisation,
-		access.claims.OrganizationID,
-	)
+	organizationNamespace := agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeOrganisation, access.claims.OrganizationID)
 	var sandboxes agentzv1alpha1.SandboxList
 	err = s.k8sClient.List(ctx, &sandboxes, ctrlclient.InNamespace(organizationNamespace))
 	if err != nil {
@@ -262,22 +232,10 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 		workspaceID = *params.XAgentZWorkspaceID
 	}
 	name, fields := validateCreateSandboxRequest(req, workspaceID != "")
-	access, apiErr := s.resolveSandboxAccess(
-		r.Context(),
-		workspaceID,
-		"",
-		authorization.OperationCreateSandbox,
-	)
+	access, apiErr := s.resolveSandboxAccess(r.Context(), workspaceID, "", authorization.OperationCreateSandbox)
 	if apiErr != nil {
 		if access.claims.OrganizationID != "" {
-			err := s.createSandboxEventTrail(
-				r.Context(),
-				sandboxEventTrail{
-					access: access,
-					name:   name,
-					result: access.failureResult(),
-				},
-			)
+			err := s.createSandboxEventTrail(r.Context(), sandboxEventTrail{access: access, name: name, result: access.failureResult()})
 			if err != nil {
 				apiutil.WriteInternalError(w, r, err)
 				return
@@ -299,13 +257,7 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				fields...,
-			),
+			apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", errBadRequest, fields...),
 		)
 		return
 	}
@@ -345,13 +297,7 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				fields...,
-			),
+			apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", errBadRequest, fields...),
 		)
 		return
 	}
@@ -442,31 +388,13 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				fields...,
-			),
+			apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", errBadRequest, fields...),
 		)
 		return
 	}
-	access, apiErr = s.resolveSandboxAccess(
-		r.Context(),
-		workspaceID,
-		"",
-		authorization.OperationCreateSandbox,
-	)
+	access, apiErr = s.resolveSandboxAccess(r.Context(), workspaceID, "", authorization.OperationCreateSandbox)
 	if apiErr != nil {
-		err := s.createSandboxEventTrail(
-			r.Context(),
-			sandboxEventTrail{
-				access: access,
-				name:   name,
-				result: access.failureResult(),
-			},
-		)
+		err := s.createSandboxEventTrail(r.Context(), sandboxEventTrail{access: access, name: name, result: access.failureResult()})
 		if err != nil {
 			apiutil.WriteInternalError(w, r, err)
 			return
@@ -496,6 +424,9 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 			Skills:            resourceReferencesToCRD(skills),
 			Inference:         sandboxInferenceFromAPI(req.Inference),
 		},
+	}
+	if req.Guardrails != nil {
+		sandbox.Spec.Guardrails = *req.Guardrails
 	}
 	dependencyFields, err := s.validateSandboxDependencies(r.Context(), access, sandbox)
 	if err != nil {
@@ -528,13 +459,7 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				dependencyFields...,
-			),
+			apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", errBadRequest, dependencyFields...),
 		)
 		return
 	}
@@ -566,11 +491,7 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 		return
 	}
 
-	actors, err := s.resourceActors(
-		r.Context(),
-		sandbox.Spec.CreatedByUserID,
-		sandbox.Spec.LastModifiedByUserID,
-	)
+	actors, err := s.resourceActors(r.Context(), sandbox.Spec.CreatedByUserID, sandbox.Spec.LastModifiedByUserID)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
@@ -599,22 +520,10 @@ func (s *Service) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 	if params.XAgentZWorkspaceID != nil {
 		workspaceID = *params.XAgentZWorkspaceID
 	}
-	access, apiErr := s.resolveSandboxAccess(
-		r.Context(),
-		workspaceID,
-		name,
-		authorization.OperationDeleteSandbox,
-	)
+	access, apiErr := s.resolveSandboxAccess(r.Context(), workspaceID, name, authorization.OperationDeleteSandbox)
 	if apiErr != nil {
 		if access.claims.OrganizationID != "" {
-			err := s.createSandboxEventTrail(
-				r.Context(),
-				sandboxEventTrail{
-					access: access,
-					name:   name,
-					result: access.failureResult(),
-				},
-			)
+			err := s.createSandboxEventTrail(r.Context(), sandboxEventTrail{access: access, name: name, result: access.failureResult()})
 			if err != nil {
 				apiutil.WriteInternalError(w, r, err)
 				return
@@ -623,12 +532,7 @@ func (s *Service) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		apiutil.WriteError(w, r, apiErr)
 		return
 	}
-	conflict, err := s.selectedOrganizationResourceConflict(
-		r.Context(),
-		access,
-		agentzv1alpha1.OrganizationResourceKindSandbox,
-		name,
-	)
+	conflict, err := s.selectedOrganizationResourceConflict(r.Context(), access, agentzv1alpha1.OrganizationResourceKindSandbox, name)
 	if err != nil || conflict != nil {
 		eventTrailErr := s.createSandboxEventTrail(
 			r.Context(),
@@ -651,12 +555,7 @@ func (s *Service) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 	sandbox.Name = name
 	sandbox.Namespace = access.namespace
 	// Scope resolution needs Namespace and Workspace reads outside the usage cache.
-	agentNames, err := sandboxutil.ReferencingAgentNames(
-		r.Context(),
-		s.k8sClient,
-		access.namespace,
-		name,
-	)
+	agentNames, err := sandboxutil.ReferencingAgentNames(r.Context(), s.k8sClient, access.namespace, name)
 	if err != nil {
 		eventTrailErr := s.createSandboxEventTrail(
 			r.Context(),
@@ -687,30 +586,13 @@ func (s *Service) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(
-				http.StatusConflict,
-				"sandbox_referenced",
-				"sandbox is referenced by agent "+agentNames[0],
-				errBadRequest,
-			),
+			apiutil.NewError(http.StatusConflict, "sandbox_referenced", "sandbox is referenced by agent "+agentNames[0], errBadRequest),
 		)
 		return
 	}
-	access, apiErr = s.resolveSandboxAccess(
-		r.Context(),
-		workspaceID,
-		name,
-		authorization.OperationDeleteSandbox,
-	)
+	access, apiErr = s.resolveSandboxAccess(r.Context(), workspaceID, name, authorization.OperationDeleteSandbox)
 	if apiErr != nil {
-		err := s.createSandboxEventTrail(
-			r.Context(),
-			sandboxEventTrail{
-				access: access,
-				name:   name,
-				result: access.failureResult(),
-			},
-		)
+		err := s.createSandboxEventTrail(r.Context(), sandboxEventTrail{access: access, name: name, result: access.failureResult()})
 		if err != nil {
 			apiutil.WriteInternalError(w, r, err)
 			return
@@ -762,22 +644,10 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		workspaceID = *params.XAgentZWorkspaceID
 	}
 	name := strings.TrimSpace(sandboxName)
-	access, apiErr := s.resolveSandboxAccess(
-		r.Context(),
-		workspaceID,
-		name,
-		authorization.OperationUpdateSandbox,
-	)
+	access, apiErr := s.resolveSandboxAccess(r.Context(), workspaceID, name, authorization.OperationUpdateSandbox)
 	if apiErr != nil {
 		if access.claims.OrganizationID != "" {
-			err := s.createSandboxEventTrail(
-				r.Context(),
-				sandboxEventTrail{
-					access: access,
-					name:   name,
-					result: access.failureResult(),
-				},
-			)
+			err := s.createSandboxEventTrail(r.Context(), sandboxEventTrail{access: access, name: name, result: access.failureResult()})
 			if err != nil {
 				apiutil.WriteInternalError(w, r, err)
 				return
@@ -800,13 +670,7 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				fields...,
-			),
+			apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", errBadRequest, fields...),
 		)
 		return
 	}
@@ -902,31 +766,13 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				fields...,
-			),
+			apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", errBadRequest, fields...),
 		)
 		return
 	}
-	access, apiErr = s.resolveSandboxAccess(
-		r.Context(),
-		workspaceID,
-		name,
-		authorization.OperationUpdateSandbox,
-	)
+	access, apiErr = s.resolveSandboxAccess(r.Context(), workspaceID, name, authorization.OperationUpdateSandbox)
 	if apiErr != nil {
-		err := s.createSandboxEventTrail(
-			r.Context(),
-			sandboxEventTrail{
-				access: access,
-				name:   name,
-				result: access.failureResult(),
-			},
-		)
+		err := s.createSandboxEventTrail(r.Context(), sandboxEventTrail{access: access, name: name, result: access.failureResult()})
 		if err != nil {
 			apiutil.WriteInternalError(w, r, err)
 			return
@@ -942,6 +788,9 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 			Skills:            resourceReferencesToCRD(skills),
 			Inference:         desiredInference,
 		},
+	}
+	if req.Guardrails != nil {
+		dependencies.Spec.Guardrails = *req.Guardrails
 	}
 	dependencyFields, err := s.validateSandboxDependencies(r.Context(), access, dependencies)
 	if err != nil {
@@ -974,13 +823,7 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				dependencyFields...,
-			),
+			apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", errBadRequest, dependencyFields...),
 		)
 		return
 	}
@@ -990,10 +833,7 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		retry.DefaultRetry,
 		func() error {
 			sandbox := &agentzv1alpha1.Sandbox{}
-			key := ctrlclient.ObjectKey{
-				Name:      name,
-				Namespace: access.namespace,
-			}
+			key := ctrlclient.ObjectKey{Name: name, Namespace: access.namespace}
 			if getErr := s.k8sClient.Get(r.Context(), key, sandbox); getErr != nil {
 				return getErr
 			}
@@ -1003,6 +843,9 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 			sandbox.Spec.MCPConnectionRefs = mcpConnectionRefs
 			sandbox.Spec.Skills = resourceReferencesToCRD(skills)
 			sandbox.Spec.Inference = desiredInference
+			if req.Guardrails != nil {
+				sandbox.Spec.Guardrails = *req.Guardrails
+			}
 			sandbox.Spec.LastModifiedByUserID = access.claims.UserID
 
 			if updateErr := s.k8sClient.Update(r.Context(), sandbox); updateErr != nil {
@@ -1031,12 +874,7 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 	}
 
 	// Scope resolution needs Namespace and Workspace reads outside the usage cache.
-	agentNames, err := sandboxutil.ReferencingAgentNames(
-		r.Context(),
-		s.k8sClient,
-		access.namespace,
-		updated.Name,
-	)
+	agentNames, err := sandboxutil.ReferencingAgentNames(r.Context(), s.k8sClient, access.namespace, updated.Name)
 	if err != nil {
 		eventTrailErr := s.createSandboxEventTrail(
 			r.Context(),
@@ -1063,11 +901,7 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	actors, err := s.resourceActors(
-		r.Context(),
-		updated.Spec.CreatedByUserID,
-		updated.Spec.LastModifiedByUserID,
-	)
+	actors, err := s.resourceActors(r.Context(), updated.Spec.CreatedByUserID, updated.Spec.LastModifiedByUserID)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
@@ -1111,6 +945,7 @@ func sandboxFromCRD(sb agentzv1alpha1.Sandbox, referenced bool, access resourceA
 	out := gatewayapi.Sandbox{
 		Scope:             resourceScope(access.workspaceID),
 		Name:              sb.Name,
+		Guardrails:        &sb.Spec.Guardrails,
 		CreatedBy:         actors[sb.Spec.CreatedByUserID],
 		LastModifiedBy:    actors[sb.Spec.LastModifiedByUserID],
 		Packages:          packages,
@@ -1287,22 +1122,10 @@ func validateSandboxName(name string) []gatewayapi.FieldError {
 		fields = append(fields, gatewayapi.FieldError{Field: "name", Message: "required"})
 	}
 	if len(name) > 32 {
-		fields = append(
-			fields,
-			gatewayapi.FieldError{
-				Field:   "name",
-				Message: "must be at most 32 characters",
-			},
-		)
+		fields = append(fields, gatewayapi.FieldError{Field: "name", Message: "must be at most 32 characters"})
 	}
 	if errs := validation.IsDNS1123Label(name); name != "" && len(errs) > 0 {
-		fields = append(
-			fields,
-			gatewayapi.FieldError{
-				Field:   "name",
-				Message: "must be a valid DNS label",
-			},
-		)
+		fields = append(fields, gatewayapi.FieldError{Field: "name", Message: "must be a valid DNS label"})
 	}
 	return fields
 }
@@ -1389,16 +1212,8 @@ func validateMCPConnectionRefList(refs []gatewayapi.MCPConnectionRef, workspace 
 				fields = append(
 					fields,
 					gatewayapi.FieldError{
-						Field: fmt.Sprintf(
-							"mcp_connection_refs[%d].tools[%d].name",
-							i,
-							toolIndex,
-						),
-						Message: fmt.Sprintf(
-							"duplicate value %q first seen at index %d",
-							toolName,
-							firstToolIndex,
-						),
+						Field:   fmt.Sprintf("mcp_connection_refs[%d].tools[%d].name", i, toolIndex),
+						Message: fmt.Sprintf("duplicate value %q first seen at index %d", toolName, firstToolIndex),
 					},
 				)
 				continue
@@ -1433,10 +1248,7 @@ func (s *Service) validateSandboxMCPConnections(ctx context.Context, current str
 			continue
 		}
 		conn := &agentzv1alpha1.MCPConnection{}
-		key := ctrlclient.ObjectKey{
-			Namespace: ns,
-			Name:      ref.Name,
-		}
+		key := ctrlclient.ObjectKey{Namespace: ns, Name: ref.Name}
 		err = s.k8sClient.Get(ctx, key, conn)
 		if apierrors.IsNotFound(err) {
 			fields = append(
@@ -1485,16 +1297,8 @@ func (s *Service) validateSandboxMCPConnections(ctx context.Context, current str
 			fields = append(
 				fields,
 				gatewayapi.FieldError{
-					Field: fmt.Sprintf(
-						"mcp_connection_refs[%d].tools[%d].name",
-						i,
-						toolIndex,
-					),
-					Message: fmt.Sprintf(
-						"tool %q is not exposed by mcp connection %q",
-						toolName,
-						ref.Name,
-					),
+					Field:   fmt.Sprintf("mcp_connection_refs[%d].tools[%d].name", i, toolIndex),
+					Message: fmt.Sprintf("tool %q is not exposed by mcp connection %q", toolName, ref.Name),
 				},
 			)
 		}
@@ -1503,14 +1307,19 @@ func (s *Service) validateSandboxMCPConnections(ctx context.Context, current str
 }
 
 func (s *Service) validateSandboxDependencies(ctx context.Context, access resourceAccess, sandbox *agentzv1alpha1.Sandbox) ([]gatewayapi.FieldError, error) {
+	bundle, err := guardrails.Resolve(ctx, s.k8sClient, access.namespace, sandbox.Spec.Guardrails)
+	if err != nil {
+		return []gatewayapi.FieldError{{Field: "guardrails", Message: err.Error()}}, nil
+	}
+	if err := bundle.ValidateStreaming(); err != nil {
+		return []gatewayapi.FieldError{{Field: "guardrails", Message: err.Error()}}, nil
+	}
 	fields := []gatewayapi.FieldError{}
 	workspaceScope := authorization.Scope{
 		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 	}
-	organizationScope := authorization.Scope{
-		OrganizationID: access.claims.OrganizationID,
-	}
+	organizationScope := authorization.Scope{OrganizationID: access.claims.OrganizationID}
 	allowsRead := func(scope agentzv1alpha1.ResourceScope, operation authorization.Operation) bool {
 		if scope == agentzv1alpha1.ResourceScopeWorkspace {
 			return access.workspaceID != "" && access.effective.Allows(workspaceScope, operation)
@@ -1679,10 +1488,7 @@ func writeAllowedHostsError(w http.ResponseWriter, r *http.Request, err error) {
 			"invalid_request",
 			"request validation failed",
 			errBadRequest,
-			gatewayapi.FieldError{
-				Field:   "allowed_hosts",
-				Message: err.Error(),
-			},
+			gatewayapi.FieldError{Field: "allowed_hosts", Message: err.Error()},
 		),
 	)
 }

@@ -109,10 +109,7 @@ func TestPTYProxyOrigins(t *testing.T) {
 	router := chi.NewRouter()
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx := context.WithValue(r.Context(), authContextKey{}, requestAuth{
-				actorType:       requestActorSystem,
-				tenantNamespace: "workspace",
-			})
+			ctx := context.WithValue(r.Context(), authContextKey{}, requestAuth{actorType: requestActorSystem, tenantNamespace: "workspace"})
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	})
@@ -127,8 +124,7 @@ func TestPTYProxyOrigins(t *testing.T) {
 	for _, prefix := range prefixes {
 		for _, origin := range origins {
 			t.Run(prefix+"/"+origin, func(t *testing.T) {
-				req := httptest.NewRequest(http.MethodPost,
-					"/api/opencode/test"+prefix+"/pty_test/connect-token", nil)
+				req := httptest.NewRequest(http.MethodPost, "/api/opencode/test"+prefix+"/pty_test/connect-token", nil)
 				req.Header.Set("Origin", origin)
 				req.Header.Set("Authorization", "Bearer secret")
 				req.Header.Set("Cookie", "secret=value")
@@ -261,10 +257,7 @@ func TestOpenCodeEventTransport(t *testing.T) {
 
 // TestAPIKeyPromptIdentity prevents key IDs from replacing their owner's identity.
 func TestAPIKeyPromptIdentity(t *testing.T) {
-	req := httptest.NewRequest(
-		http.MethodPost, "/session/ses_test/message",
-		strings.NewReader(`{"parts":[{"type":"text","text":"hello"}]}`),
-	)
+	req := httptest.NewRequest(http.MethodPost, "/session/ses_test/message", strings.NewReader(`{"parts":[{"type":"text","text":"hello"}]}`))
 	auth := requestAuth{
 		actorType: requestActorAPIKey,
 		actorID:   "key_test",
@@ -334,9 +327,7 @@ func TestCodingSuggestionModels(t *testing.T) {
 			if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
 				t.Fatal(err)
 			}
-			org := agentzv1alpha1.ScopeNamespace(
-				agentzv1alpha1.ResourceScopeOrganisation, "org",
-			)
+			org := agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeOrganisation, "org")
 			ns := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "workspace",
@@ -346,9 +337,7 @@ func TestCodingSuggestionModels(t *testing.T) {
 					},
 				},
 			}
-			workspace := &agentzv1alpha1.Workspace{
-				ObjectMeta: metav1.ObjectMeta{Name: ns.Name},
-			}
+			workspace := &agentzv1alpha1.Workspace{ObjectMeta: metav1.ObjectMeta{Name: ns.Name}}
 			workspace.Spec.OrganizationID = "org"
 			workspace.Spec.SelectedOrganizationResources.Sandboxes = []string{"sandbox"}
 			if test.unselected {
@@ -375,10 +364,7 @@ func TestCodingSuggestionModels(t *testing.T) {
 					Scope:    agentzv1alpha1.ResourceScopeWorkspace,
 				}
 			}
-			k8s := fake.NewClientBuilder().
-				WithScheme(scheme).
-				WithObjects(ns, workspace, sandbox).
-				Build()
+			k8s := fake.NewClientBuilder().WithScheme(scheme).WithObjects(ns, workspace, sandbox).Build()
 			if test.missing {
 				if err := k8s.Delete(t.Context(), sandbox); err != nil {
 					t.Fatal(err)
@@ -398,10 +384,7 @@ func TestCodingSuggestionModels(t *testing.T) {
 			}
 			want := parent
 			if test.small {
-				want = &gatewayapi.OpencodeModelRef{
-					ProviderID: "small-provider",
-					Id:         "family/small",
-				}
+				want = &gatewayapi.OpencodeModelRef{ProviderID: "small-provider", Id: "family/small"}
 			}
 			calls := make(chan string, 10)
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -477,9 +460,7 @@ func TestCodingSuggestionModels(t *testing.T) {
 			svc := &Service{
 				k8sClient:    k8s,
 				outboundHTTP: server.Client(),
-				cfg: Config{
-					FilesystemTargetOverride: strings.TrimPrefix(server.URL, "http://"),
-				},
+				cfg:          Config{FilesystemTargetOverride: strings.TrimPrefix(server.URL, "http://")},
 				resolver: &resolver{
 					agents:         listersv1alpha1.NewAgentLister(index),
 					targetOverride: server.URL,
@@ -491,10 +472,7 @@ func TestCodingSuggestionModels(t *testing.T) {
 				ExpectedTree: new("reviewed"),
 			}
 			if test.override {
-				err := json.Unmarshal(
-					[]byte(`{"model":{"providerID":"override","modelID":"family/override"}}`),
-					&input,
-				)
+				err := json.Unmarshal([]byte(`{"model":{"providerID":"override","modelID":"family/override"}}`), &input)
 				if err != nil {
 					t.Fatal(err)
 				}

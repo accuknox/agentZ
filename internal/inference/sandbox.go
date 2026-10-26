@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"maps"
+	"strconv"
 	"strings"
 
 	agentgatewayv1alpha1 "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
@@ -150,7 +151,7 @@ func RenderSandboxTarget(namespace, sandboxName string, target SandboxTarget) Sa
 	}
 	quoted := make([]string, 0, len(target.Models))
 	for _, model := range target.Models {
-		quoted = append(quoted, fmt.Sprintf("%q", model))
+		quoted = append(quoted, strconv.Quote(model))
 	}
 	expression := agentgatewayv1alpha1.CELExpression(fmt.Sprintf(
 		"default(json(request.body).model, \"\") in [%s]",
@@ -178,16 +179,12 @@ func RenderSandboxTarget(namespace, sandboxName string, target SandboxTarget) Sa
 	}
 	if target.Retries > 0 {
 		backoff := gwv1.Duration("50ms")
-		condition := agentgatewayv1alpha1.CELExpression(
-			"response.code == 401 || response.code == 403 || " +
-				"response.code == 429 || response.code >= 500",
-		)
 		policy.Spec.Traffic.Retry = &agentgatewayv1alpha1.Retry{
 			HTTPRouteRetry: &gwv1.HTTPRouteRetry{
 				Attempts: &target.Retries,
 				Backoff:  &backoff,
 			},
-			Condition: &condition,
+			Condition: &retryableResponse,
 		}
 	}
 	return SandboxTargetRuntime{Route: route, Policy: policy}

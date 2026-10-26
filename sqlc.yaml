@@ -3,6 +3,7 @@ sql:
 - engine: postgresql
   queries: internal/observer/db/query.sql
   schema:
+  - web/db/schema.sql
   - internal/gateway/db/schema.sql
   - internal/observer/db/schema.sql
   gen:

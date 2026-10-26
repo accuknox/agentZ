@@ -1,3 +1,4 @@
+---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -54,14 +55,17 @@ spec:
             description: spec defines the desired state of Agent.
             properties:
               createdByUserID:
-                description: CreatedByUserID is the immutable Better Auth User ID that created the resource.
+                description: CreatedByUserID is the immutable Better Auth User ID
+                  that created the resource.
                 maxLength: 128
                 minLength: 1
                 type: string
               env:
-                description: Env defines environment variables injected into the Agent pod.
+                description: Env defines environment variables injected into the Agent
+                  pod.
                 items:
-                  description: EnvVar represents an environment variable present in a Container.
+                  description: EnvVar represents an environment variable present in
+                    a Container.
                   properties:
                     name:
                       description: |-
@@ -81,7 +85,8 @@ spec:
                         Defaults to "".
                       type: string
                     valueFrom:
-                      description: Source for the environment variable's value. Cannot be used if value is not empty.
+                      description: Source for the environment variable's value. Cannot
+                        be used if value is not empty.
                       properties:
                         configMapKeyRef:
                           description: Selects a key of a ConfigMap.
@@ -101,7 +106,8 @@ spec:
                                 More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
                               type: string
                             optional:
-                              description: Specify whether the ConfigMap or its key must be defined
+                              description: Specify whether the ConfigMap or its key
+                                must be defined
                               type: boolean
                           required:
                           - key
@@ -113,10 +119,12 @@ spec:
                             spec.nodeName, spec.serviceAccountName, status.hostIP, status.podIP, status.podIPs.
                           properties:
                             apiVersion:
-                              description: Version of the schema the FieldPath is written in terms of, defaults to "v1".
+                              description: Version of the schema the FieldPath is
+                                written in terms of, defaults to "v1".
                               type: string
                             fieldPath:
-                              description: Path of the field to select in the specified API version.
+                              description: Path of the field to select in the specified
+                                API version.
                               type: string
                           required:
                           - fieldPath
@@ -150,7 +158,8 @@ spec:
                                 Must be relative and may not contain the '..' path or start with '..'.
                               type: string
                             volumeName:
-                              description: The name of the volume mount containing the env file.
+                              description: The name of the volume mount containing
+                                the env file.
                               type: string
                           required:
                           - key
@@ -164,13 +173,15 @@ spec:
                             (limits.cpu, limits.memory, limits.ephemeral-storage, requests.cpu, requests.memory and requests.ephemeral-storage) are currently supported.
                           properties:
                             containerName:
-                              description: 'Container name: required for volumes, optional for env vars'
+                              description: 'Container name: required for volumes,
+                                optional for env vars'
                               type: string
                             divisor:
                               anyOf:
                               - type: integer
                               - type: string
-                              description: Specifies the output format of the exposed resources, defaults to "1"
+                              description: Specifies the output format of the exposed
+                                resources, defaults to "1"
                               pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                               x-kubernetes-int-or-string: true
                             resource:
@@ -184,7 +195,8 @@ spec:
                           description: Selects a key of a secret in the pod's namespace
                           properties:
                             key:
-                              description: The key of the secret to select from.  Must be a valid secret key.
+                              description: The key of the secret to select from.  Must
+                                be a valid secret key.
                               type: string
                             name:
                               default: ""
@@ -196,7 +208,8 @@ spec:
                                 More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
                               type: string
                             optional:
-                              description: Specify whether the Secret or its key must be defined
+                              description: Specify whether the Secret or its key must
+                                be defined
                               type: boolean
                           required:
                           - key
@@ -212,14 +225,16 @@ spec:
                 type: string
               imagePullPolicy:
                 default: IfNotPresent
-                description: ImagePullPolicy defines when Kubernetes pulls the Agent image.
+                description: ImagePullPolicy defines when Kubernetes pulls the Agent
+                  image.
                 type: string
               instruction:
                 description: Instruction defines additional OpenCode instruction content.
                 maxLength: 32000
                 type: string
               lastModifiedByUserID:
-                description: LastModifiedByUserID is the Better Auth User ID that last changed the resource.
+                description: LastModifiedByUserID is the Better Auth User ID that
+                  last changed the resource.
                 maxLength: 128
                 minLength: 1
                 type: string
@@ -227,7 +242,8 @@ spec:
                 description: Memory configures persistent, agent-curated memory.
                 properties:
                   enabled:
-                    description: Enabled makes curated memory available across Agent sessions.
+                    description: Enabled makes curated memory available across Agent
+                      sessions.
                     type: boolean
                 type: object
               nixStoreSize:
@@ -235,11 +251,13 @@ spec:
                 - type: integer
                 - type: string
                 default: 5Gi
-                description: NixStoreSize sets the size of the agent-specific nix store PVC.
+                description: NixStoreSize sets the size of the agent-specific nix
+                  store PVC.
                 pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                 x-kubernetes-int-or-string: true
               resources:
-                description: Resources defines compute resources allocated to the Agent pod.
+                description: Resources defines compute resources allocated to the
+                  Agent pod.
                 properties:
                   claims:
                     description: |-
@@ -298,16 +316,19 @@ spec:
                     type: object
                 type: object
               sandboxRef:
-                description: SandboxRef references reusable package, policy, and inference configuration.
+                description: SandboxRef references reusable package, policy, and inference
+                  configuration.
                 properties:
                   name:
-                    description: Name is the immutable Kubernetes metadata name of the resource.
+                    description: Name is the immutable Kubernetes metadata name of
+                      the resource.
                     maxLength: 63
                     minLength: 1
                     pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                     type: string
                   scope:
-                    description: Scope selects the current Organisation or Workspace namespace.
+                    description: Scope selects the current Organisation or Workspace
+                      namespace.
                     enum:
                     - Organisation
                     - Workspace
@@ -317,18 +338,22 @@ spec:
                 - scope
                 type: object
               skills:
-                description: Skills lists immutable Skill names attached directly to this Agent.
+                description: Skills lists immutable Skill names attached directly
+                  to this Agent.
                 items:
-                  description: ResourceReference identifies a resource by scope and metadata name.
+                  description: ResourceReference identifies a resource by scope and
+                    metadata name.
                   properties:
                     name:
-                      description: Name is the immutable Kubernetes metadata name of the resource.
+                      description: Name is the immutable Kubernetes metadata name
+                        of the resource.
                       maxLength: 63
                       minLength: 1
                       pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                       type: string
                     scope:
-                      description: Scope selects the current Organisation or Workspace namespace.
+                      description: Scope selects the current Organisation or Workspace
+                        namespace.
                       enum:
                       - Organisation
                       - Workspace
@@ -350,43 +375,54 @@ spec:
                     description: Enabled turns on OpenTelemetry trace export.
                     type: boolean
                   traceEndpoint:
-                    description: TraceEndpoint is the OTLP/gRPC trace endpoint in host:port form.
+                    description: TraceEndpoint is the OTLP/gRPC trace endpoint in
+                      host:port form.
                     type: string
                 type: object
               tools:
-                description: Tools registers uploaded scripts as callable tools in this Agent runtime.
+                description: Tools registers uploaded scripts as callable tools in
+                  this Agent runtime.
                 items:
-                  description: AgentTool stores trusted script source separately from the runtime plugin.
+                  description: AgentTool stores trusted script source separately from
+                    the runtime plugin.
                   properties:
                     description:
-                      description: Description explains when the agent should invoke this tool.
+                      description: Description explains when the agent should invoke
+                        this tool.
                       maxLength: 4096
                       minLength: 1
                       type: string
                     filename:
-                      description: Filename records the original upload name, never an execution path.
+                      description: Filename records the original upload name, never
+                        an execution path.
                       maxLength: 255
                       minLength: 1
                       type: string
                     inputs:
-                      description: Inputs define the model's arguments; no inputs produces an empty JSON object.
+                      description: Inputs define the model's arguments; no inputs
+                        produces an empty JSON object.
                       items:
-                        description: ToolInput describes one named argument passed to the script through JSON stdin.
+                        description: ToolInput describes one named argument passed
+                          to the script through JSON stdin.
                         properties:
                           description:
-                            description: Description explains how the model should choose this argument.
+                            description: Description explains how the model should
+                              choose this argument.
                             maxLength: 1024
                             type: string
                           name:
-                            description: Name identifies the property in the input JSON object.
+                            description: Name identifies the property in the input
+                              JSON object.
                             maxLength: 64
                             pattern: ^[a-z][a-z0-9_]*$
                             type: string
                           required:
-                            description: Required rejects invocations that omit this argument.
+                            description: Required rejects invocations that omit this
+                              argument.
                             type: boolean
                           type:
-                            description: Type defines the values accepted before the script starts.
+                            description: Type defines the values accepted before the
+                              script starts.
                             enum:
                             - string
                             - number
@@ -413,12 +449,14 @@ spec:
                       - node
                       type: string
                     name:
-                      description: Name is the immutable identifier exposed to the model.
+                      description: Name is the immutable identifier exposed to the
+                        model.
                       maxLength: 64
                       pattern: ^[a-z][a-z0-9_]*$
                       type: string
                     script:
-                      description: Script preserves the uploaded source exactly, including its newlines.
+                      description: Script preserves the uploaded source exactly, including
+                        its newlines.
                       maxLength: 65536
                       minLength: 1
                       type: string
@@ -443,7 +481,8 @@ spec:
             x-kubernetes-validations:
             - message: skill names must not exceed 63 characters
               rule: '!has(self.skills) || self.skills.all(s, size(s.name) <= 63)'
-            - message: skill names must use lowercase letters, digits, and single hyphens
+            - message: skill names must use lowercase letters, digits, and single
+                hyphens
               rule: '!has(self.skills) || self.skills.all(s, s.name.matches(''^[a-z0-9]+(-[a-z0-9]+)*$''))'
             - message: createdByUserID is immutable
               rule: self.createdByUserID == oldSelf.createdByUserID
@@ -453,7 +492,8 @@ spec:
               conditions:
                 description: Conditions represent the current state of the Agent resource.
                 items:
-                  description: Condition contains details for one aspect of the current state of this API Resource.
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
                   properties:
                     lastTransitionTime:
                       description: |-

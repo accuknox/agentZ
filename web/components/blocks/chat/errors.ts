@@ -1,3 +1,5 @@
+import { zGuardrailError, zGuardrailRejection } from "@/lib/gateway/client/zod.gen"
+
 import type {
   AssistantMessage,
   PermissionListError,
@@ -14,7 +16,6 @@ import type {
   SessionRevertError,
   SessionUnrevertError,
 } from "@opencode-ai/sdk/v2"
-
 type OpenCodeClientError =
   | PermissionListError
   | PermissionReplyError
@@ -44,6 +45,7 @@ export function opencodeErrorMessage(
 // provider detail while giving every SDK variant a stable user-facing label.
 export function describeMessageError(error: AssistantMessage["error"]): {
   body: string
+  guardrail?: boolean
   label: string
 } {
   if (!error) {
@@ -90,12 +92,76 @@ export function describeMessageError(error: AssistantMessage["error"]): {
       }
     }
     case "APIError": {
+      if (error.data.responseBody) {
+        let body: unknown
+        try {
+          body = JSON.parse(error.data.responseBody)
+        } catch {
+          // A provider may return plain text instead of a JSON error.
+        }
+        const rejection = zGuardrailRejection
+          .transform((value) => value.error)
+          .or(zGuardrailError.omit({ type: true }).partial({ guardrail: true }))
+          .safeParse(body)
+        if (rejection.success) {
+          const context = rejection.data.guardrail
+          if (!context) {
+            return {
+              body: rejection.data.message,
+              guardrail: true,
+              label:
+                rejection.data.code === "guardrail_unavailable"
+                  ? "Guardrail checker unavailable"
+                  : "Blocked by policy",
+            }
+          }
+          const scopes = {
+            instructions: "System instructions",
+            conversation:
+              context.phase === "request" ? "Conversation input" : "Conversation output",
+            toolArguments: "Tool arguments",
+            toolResults: "Tool results",
+          }
+          const label =
+            context.reason === "checker_error"
+              ? "Guardrail checker unavailable"
+              : "Blocked by policy"
+          const content = context.matchedScope
+            ? scopes[context.matchedScope]
+            : context.scopes.map((scope) => scopes[scope]).join(", ")
+          return {
+            body: rejection.data.message,
+            guardrail: true,
+            label: content ? `${label} · ${content}` : label,
+          }
+        }
+      }
+      let label = "Provider error"
+      if (error.data.statusCode) label = `Provider error ${error.data.statusCode}`
       return {
         body: error.data.message || "The provider rejected the request",
-        label: error.data.statusCode ? `Provider error ${error.data.statusCode}` : "Provider error",
+        label,
       }
     }
     case "UnknownError": {
+      // OpenCode serializes AI SDK stream errors after the SDK drops extension fields.
+      let body: unknown
+      try {
+        body = JSON.parse(error.data.message)
+      } catch {
+        // Other UnknownError messages are ordinary text.
+      }
+      const streamed = zGuardrailError.omit({ guardrail: true }).safeParse(body)
+      if (streamed.success) {
+        return {
+          body: streamed.data.message,
+          guardrail: true,
+          label:
+            streamed.data.code === "guardrail_unavailable"
+              ? "Guardrail checker unavailable"
+              : "Blocked by policy",
+        }
+      }
       return {
         body: error.data.message || "An unexpected error occurred",
         label: "Session error",

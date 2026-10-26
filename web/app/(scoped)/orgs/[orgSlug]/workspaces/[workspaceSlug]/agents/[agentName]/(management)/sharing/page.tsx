@@ -75,19 +75,7 @@ async function AgentSharingContent({
         />
       </div>
       {detail.shares.length === 0 ? (
-        <AdministrationState
-          actions={
-            <AgentShareDialog
-              actionScope={actionScope}
-              agentName={agentName}
-              teams={shareTargets.teams}
-              users={shareTargets.users}
-            />
-          }
-          description="Share this Agent with a User or Team, then choose what they may do with it."
-          kind="empty"
-          title="No shares yet"
-        />
+        <AdministrationState kind="empty" title="No shares yet" />
       ) : (
         <AgentSharesTable
           actionScope={actionScope}

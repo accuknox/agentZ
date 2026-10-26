@@ -2307,11 +2307,13 @@ function TimelineRowView({
 
     case "checkpoint": {
       return (
-        <div className="flex items-center gap-0.5 overflow-hidden text-muted-foreground">
-          <BookmarkIcon className="size-4 shrink-0" />
-          <span className="shrink-0 text-xs">
-            {row.variant === "compaction" ? "Context compacted" : "Interrupted"}
-          </span>
+        <div className="flex flex-col gap-2 text-muted-foreground">
+          <div className="flex items-center gap-0.5">
+            <BookmarkIcon className="size-4 shrink-0" />
+            <span className="text-xs">
+              {row.variant === "compaction" ? "Context compacted" : "Interrupted"}
+            </span>
+          </div>
           <Separator />
         </div>
       )

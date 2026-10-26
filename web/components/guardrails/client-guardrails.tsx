@@ -4,6 +4,7 @@ import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { queryOptions, useQuery } from "@tanstack/react-query"
 import { toast } from "sonner"
+import { Save } from "lucide-react"
 import { authClient } from "@/lib/auth-client"
 import type { GuardrailAssignment } from "@/lib/gateway/client"
 import {
@@ -15,6 +16,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { LoadingButton } from "@/components/interior/loading-button"
 import { FieldError } from "@/components/ui/field"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Separator } from "@/components/ui/separator"
 
 type ClientGuardrailData = NonNullable<
   Awaited<ReturnType<typeof loadClientGuardrailsAction>>["data"]
@@ -89,7 +91,7 @@ function ClientGuardrailsForm(props: ClientGuardrailsFormProps) {
   const [pending, startTransition] = useTransition()
   return (
     <form
-      className="flex flex-col gap-5 p-4"
+      className="flex min-w-0 flex-col gap-6 p-4"
       onSubmit={(event) => {
         event.preventDefault()
         setError("")
@@ -110,21 +112,21 @@ function ClientGuardrailsForm(props: ClientGuardrailsFormProps) {
         })
       }}
     >
-      <p className="text-sm text-muted-foreground">
-        Protects all {data.subject.name} model access in this workspace, including existing grants.
-      </p>
       <SubjectGuardrails
         assignment={assignment}
         disabled={pending}
         onChange={setAssignment}
         policies={data.policies}
-        scope={{ workspaceId: data.workspaceId }}
         settings={data.settings}
       />
       {error ? <FieldError>{error}</FieldError> : null}
-      <LoadingButton className="self-end" pending={pending} pendingLabel="Saving..." type="submit">
-        Save guardrails
-      </LoadingButton>
+      <Separator className="-mx-4 w-[calc(100%+2rem)]" />
+      <div className="flex justify-end">
+        <LoadingButton pending={pending} pendingLabel="Saving..." type="submit">
+          <Save data-icon="inline-start" />
+          Save guardrails
+        </LoadingButton>
+      </div>
     </form>
   )
 }

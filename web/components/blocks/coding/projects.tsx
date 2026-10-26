@@ -897,7 +897,7 @@ export function CheckoutPicker({
               }
             />
           </CommandList>
-          <div className="flex items-center gap-2 border-t p-2 text-xs">
+          <div className="-mx-1 -mb-1 flex items-center gap-2 border-t p-2 text-xs">
             {refs.error || snapshot?.error ? (
               <Alert variant="destructive" className="flex-1">
                 <CircleAlert aria-hidden="true" />

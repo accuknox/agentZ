@@ -5,7 +5,9 @@ import { AdministrationLoadingState, AdministrationState } from "@/components/ad
 import { GuardrailsPage } from "@/app/(app)/guardrails/guardrails-page"
 import { getWorkspaceScope } from "@/data/workspaces"
 
-export default function WorkspaceGuardrailsPage(props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/guardrails/[[...view]]">) {
+export default function WorkspaceGuardrailsPage(
+  props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/guardrails/[[...view]]">
+) {
   return (
     <Suspense fallback={<AdministrationLoadingState />}>
       <WorkspaceGuardrails {...props} />
@@ -13,7 +15,9 @@ export default function WorkspaceGuardrailsPage(props: PageProps<"/orgs/[orgSlug
   )
 }
 
-async function WorkspaceGuardrails(props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/guardrails/[[...view]]">) {
+async function WorkspaceGuardrails(
+  props: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/guardrails/[[...view]]">
+) {
   const { params, searchParams } = props
 
   await connection()

@@ -6,7 +6,9 @@ import { getWorkspaceScope } from "@/data/workspaces"
 
 export const metadata = { title: "Guardrails" }
 
-export default function WorkspaceGuardrailsLayout(props: LayoutProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/guardrails">) {
+export default function WorkspaceGuardrailsLayout(
+  props: LayoutProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/guardrails">
+) {
   return (
     <Suspense fallback={<AdministrationLoadingState />}>
       <WorkspaceGuardrails {...props} />
@@ -14,7 +16,9 @@ export default function WorkspaceGuardrailsLayout(props: LayoutProps<"/orgs/[org
   )
 }
 
-async function WorkspaceGuardrails(props: LayoutProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/guardrails">) {
+async function WorkspaceGuardrails(
+  props: LayoutProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/guardrails">
+) {
   const { params, children } = props
 
   await connection()

@@ -17,7 +17,9 @@ const searchSchema = z.object({
   sort_order: searchParamStringSchema.pipe(z.enum(["asc", "desc"]).default("asc")),
 })
 
-export default function InheritedResourcePage(props: PageProps<"/orgs/[orgSlug]/workspaces/manage/[workspaceSlug]/inherited/[resourceTab]">) {
+export default function InheritedResourcePage(
+  props: PageProps<"/orgs/[orgSlug]/workspaces/manage/[workspaceSlug]/inherited/[resourceTab]">
+) {
   return (
     <Suspense fallback={<AdministrationLoadingState />}>
       <InheritedResourceContent {...props} />
@@ -25,7 +27,9 @@ export default function InheritedResourcePage(props: PageProps<"/orgs/[orgSlug]/
   )
 }
 
-async function InheritedResourceContent(props: PageProps<"/orgs/[orgSlug]/workspaces/manage/[workspaceSlug]/inherited/[resourceTab]">) {
+async function InheritedResourceContent(
+  props: PageProps<"/orgs/[orgSlug]/workspaces/manage/[workspaceSlug]/inherited/[resourceTab]">
+) {
   const { params, searchParams } = props
 
   const [{ orgSlug, resourceTab, workspaceSlug }, search] = await Promise.all([

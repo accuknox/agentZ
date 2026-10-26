@@ -219,7 +219,12 @@ function MultiSelectDropdown({
                         if (closeOnSelect) setOpen(false)
                       }}
                     >
-                      <Checkbox className="pointer-events-none" checked={checked} />
+                      <Checkbox
+                        className="pointer-events-none"
+                        checked={checked}
+                        disabled={option.disabled}
+                        tabIndex={-1}
+                      />
                       {option.image !== undefined ? (
                         <Avatar size="sm">
                           <AvatarImage alt="" src={option.image ?? undefined} />

@@ -9,7 +9,6 @@ import { usePathname, useSearchParams } from "next/navigation"
 import { DateRangePicker } from "@/components/ui/calendar"
 import { Button } from "@/components/ui/button"
 import { UserAvatar } from "@/components/ui/avatar"
-import { Separator } from "@/components/ui/separator"
 import { FieldError } from "@/components/ui/field"
 import {
   Select,
@@ -170,11 +169,7 @@ export function LensFilters({
             </SelectGroup>
             {externalAgentsByUser.size > 0 ? (
               <SelectGroup>
-                <SelectLabel className="flex items-center gap-2">
-                  <Separator className="flex-1 bg-muted-foreground/30" />
-                  <span className="shrink-0">External agents</span>
-                  <Separator className="flex-1 bg-muted-foreground/30" />
-                </SelectLabel>
+                <SelectLabel>External agents</SelectLabel>
                 {[...externalAgentsByUser].map(([userID, group]) => (
                   <SelectGroup key={userID} className="py-0">
                     <SelectLabel className="flex items-center gap-2 py-2">

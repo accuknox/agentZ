@@ -454,7 +454,7 @@ function NodeExecutionSummary({ status }: { status?: WorkflowRunNodeStatus }) {
   }
 
   return (
-    <div className="flex flex-col gap-2 border-b border-border/70 pb-4">
+    <div className="-mx-4 flex flex-col gap-2 border-b border-border/70 px-4 pb-4">
       <div className="mb-2 flex items-center justify-end">
         <NodeStatusBadge status={status} />
       </div>

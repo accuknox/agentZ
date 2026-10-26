@@ -115,7 +115,10 @@ export const getWorkspaceScope = cache(async (orgSlug: string, workspaceSlug: st
   }
 })
 
-export async function resolveWorkspaceDestination(orgSlug: string, workspaceSlug: string): Promise<Route | undefined> {
+export async function resolveWorkspaceDestination(
+  orgSlug: string,
+  workspaceSlug: string
+): Promise<Route | undefined> {
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
   if (scope.kind !== "ready") {
     return
@@ -214,7 +217,13 @@ export async function getWorkspaceCreation(orgSlug: string) {
   }
 }
 
-export async function getWorkspaceInheritedResources(orgSlug: string, workspaceSlug: string, resourceType: InheritedResourceType, sortBy: InheritedResourceSortByQuery, sortOrder: InheritedResourceSortOrderQuery) {
+export async function getWorkspaceInheritedResources(
+  orgSlug: string,
+  workspaceSlug: string,
+  resourceType: InheritedResourceType,
+  sortBy: InheritedResourceSortByQuery,
+  sortOrder: InheritedResourceSortOrderQuery
+) {
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
   if (
     scope.scope.kind !== "ready" ||
@@ -234,7 +243,12 @@ export async function getWorkspaceInheritedResources(orgSlug: string, workspaceS
   return { ...scope, resources: result.data.resources }
 }
 
-export async function replaceWorkspaceInheritedResourceSelection(orgSlug: string, workspaceSlug: string, resourceType: InheritedResourceType, names: string[]) {
+export async function replaceWorkspaceInheritedResourceSelection(
+  orgSlug: string,
+  workspaceSlug: string,
+  resourceType: InheritedResourceType,
+  names: string[]
+) {
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
   if (
     scope.scope.kind !== "ready" ||

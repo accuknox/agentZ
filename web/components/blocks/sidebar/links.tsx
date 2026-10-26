@@ -53,7 +53,7 @@ export function SidebarLinks({ showEnterpriseUpgrade }: { showEnterpriseUpgrade:
         </div>
         {showEnterpriseUpgrade ? (
           <>
-            <Separator className="border-t-2 border-dashed border-muted-foreground/50 bg-transparent data-horizontal:h-0" />
+            <Separator />
             <div className="flex flex-col gap-2 p-3.5">
               <h2 className="font-medium">Upgrade to enterprise</h2>
               <Button asChild variant="outline" size="sm">

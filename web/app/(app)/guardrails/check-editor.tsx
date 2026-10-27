@@ -32,9 +32,9 @@ import {
 
 const contentScopes = [
   { value: "instructions", label: "System instructions", icon: Regex },
-  { value: "conversation", label: "Conversation", icon: Regex },
+  { value: "conversation", label: "Chat messages", icon: Regex },
   { value: "toolResults", label: "Tool results", icon: Regex },
-  { value: "toolArguments", label: "Tool arguments", icon: Regex },
+  { value: "toolArguments", label: "Tool inputs", icon: Regex },
 ] satisfies { value: GuardrailCheck["scopes"][number]; label: string; icon: typeof Regex }[]
 
 const regexPresets = [
@@ -170,7 +170,7 @@ export function CheckEditor(props: CheckEditorProps) {
                 ) : (
                   <ArrowUp aria-hidden className="size-3" />
                 )}
-                {check.phase === "input" ? "Model input" : "Model output"}
+                {check.phase === "input" ? "Model request" : "Model response"}
               </span>
               <span aria-hidden className="text-muted-foreground/50">
                 ·
@@ -323,35 +323,6 @@ export function CheckEditor(props: CheckEditorProps) {
                         })
                       }}
                     />
-                    {check.regex.builtins?.length ? (
-                      <div className="flex flex-wrap gap-1.5">
-                        {check.regex.builtins.map((builtin) => (
-                          <Badge key={builtin} variant="secondary" className="gap-1 pr-1 pl-2.5">
-                            {regexPresets.find((preset) => preset.value === builtin)?.label}
-                            <Button
-                              type="button"
-                              size="icon-xs"
-                              variant="ghost"
-                              disabled={disabled}
-                              aria-label={`Remove ${builtin} preset`}
-                              onClick={() =>
-                                onChange({
-                                  ...check,
-                                  regex: {
-                                    ...check.regex,
-                                    builtins: check.regex?.builtins?.filter(
-                                      (value) => value !== builtin
-                                    ),
-                                  },
-                                })
-                              }
-                            >
-                              <Trash2 className="size-3" />
-                            </Button>
-                          </Badge>
-                        ))}
-                      </div>
-                    ) : null}
                   </Field>
                   <Field>
                     <FieldLabel htmlFor={`${id}-patterns`}>Custom expressions</FieldLabel>
@@ -369,9 +340,7 @@ export function CheckEditor(props: CheckEditorProps) {
                       required={!check.regex.builtins?.length}
                       value={check.regex.patterns?.join("\n") ?? ""}
                     />
-                    <FieldDescription>
-                      One expression per line. Presets and expressions are checked together.
-                    </FieldDescription>
+                    <FieldDescription>One expression per line.</FieldDescription>
                   </Field>
                 </FieldGroup>
               ) : null}
@@ -424,9 +393,9 @@ export function CheckEditor(props: CheckEditorProps) {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
-                      <SelectItem value="input">Model input</SelectItem>
+                      <SelectItem value="input">Model request</SelectItem>
                       <SelectItem disabled={connection?.provider === "OpenAI"} value="output">
-                        Model output
+                        Model response
                       </SelectItem>
                     </SelectGroup>
                   </SelectContent>
@@ -498,7 +467,7 @@ export function CheckEditor(props: CheckEditorProps) {
                           }
                         />
                       ) : (
-                        <FieldDescription>Conversation output.</FieldDescription>
+                        <FieldDescription>Assistant response.</FieldDescription>
                       )}
                       {connection?.provider === "Bedrock" &&
                       check.phase === "input" &&
@@ -509,7 +478,7 @@ export function CheckEditor(props: CheckEditorProps) {
                       ) : null}
                     </Field>
                     <Field>
-                      <FieldLabel htmlFor={`${id}-failure`}>If the checker fails</FieldLabel>
+                      <FieldLabel htmlFor={`${id}-failure`}>Failure mode</FieldLabel>
                       <Select
                         disabled={disabled}
                         onValueChange={(value) => {
@@ -523,14 +492,14 @@ export function CheckEditor(props: CheckEditorProps) {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectGroup>
-                            <SelectItem value="closed">Stop request</SelectItem>
-                            <SelectItem value="open">Allow request</SelectItem>
+                            <SelectItem value="closed">Fail closed</SelectItem>
+                            <SelectItem value="open">Fail open</SelectItem>
                           </SelectGroup>
                         </SelectContent>
                       </Select>
                       <FieldDescription>
-                        Applies to checker errors and timeouts, including audit checks. Audit
-                        findings do not block requests.
+                        Fail closed rejects traffic on checker errors or timeouts. Fail open allows
+                        content to continue unchanged. Applies to audit checks too.
                       </FieldDescription>
                     </Field>
                     <Field>

@@ -8,7 +8,8 @@ import type { Route } from "next"
 import Link from "next/link"
 import { useRouter } from "@bprogress/next/app"
 import { startTransition, useActionState, useState } from "react"
-import { Box, CircleAlert, Code2, Layers, Plus, Wrench, BrickWallShield, Cable } from "lucide-react"
+import { Box, CircleAlert, Code2, Layers, Plus, Wrench, BrickWallShield } from "lucide-react"
+import { GuardrailProviderIcon } from "@/app/(app)/guardrails/provider-shared"
 import { ProviderIcon } from "@/app/(app)/inference/providers/provider-shared"
 import { renderMcpServerIcon } from "@/app/(app)/mcps/catalog"
 import { createWorkspaceAction, type CreateWorkspaceFormState } from "@/app/(scoped)/orgs/actions"
@@ -104,7 +105,7 @@ export function WorkspaceForm(props: WorkspaceFormProps) {
   }))
   const resourceOptions = {
     guardrail_connections: resources.guardrail_connections.map((item) => ({
-      icon: Cable,
+      iconElement: <GuardrailProviderIcon provider={item.provider} />,
       label: item.displayName,
       value: item.name,
     })),
@@ -367,7 +368,7 @@ const inheritanceCategories = [
   {
     field: "inherited_guardrail_policies",
     key: "guardrail_policies",
-    label: "Optional guardrail policies",
+    label: "Guardrail Policies",
   },
   { field: "inherited_skills", key: "skills", label: "Skills" },
   { field: "inherited_sandboxes", key: "sandboxes", label: "Sandboxes" },

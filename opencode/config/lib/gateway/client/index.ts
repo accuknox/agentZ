@@ -787,6 +787,7 @@ export type {
   GuardrailRuntimeEvaluation,
   GuardrailSettings,
   GuardrailStatus,
+  GuardrailTraceSource,
   IdempotencyKeyHeader,
   ImmutableSkillImportPreviewItem,
   ImmutableSkillImportPreviewResponse,

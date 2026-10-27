@@ -458,7 +458,7 @@ index 34f4f97..358f140 100644
  			ResponseGuardKind::Webhook(wh) => {
  				Self::evaluate_webhook_response(resp, http_headers, client, wh, original).await
  			},
-@@ -2077,6 +2190,80 @@ pub enum RegexRule {
+@@ -2077,6 +2190,89 @@ pub enum RegexRule {
  }
  
  impl RequestRejection {
@@ -505,16 +505,25 @@ index 34f4f97..358f140 100644
 +				.or_else(|| (error.guardrail.scopes.len() == 1).then(|| &error.guardrail.scopes[0]));
 +			let target = match scope.map(|scope| scope.as_str()) {
 +				Some("instructions") => "System instructions",
-+				Some("toolArguments") => "Tool arguments",
++				Some("toolArguments") => "Tool inputs",
 +				Some("toolResults") => "Tool results",
 +				Some("conversation") if error.guardrail.phase.as_str() == "response" => {
-+					"Conversation output"
++					"Assistant response"
 +				},
-+				Some("conversation") => "Conversation input",
-+				_ if error.guardrail.phase.as_str() == "response" => "Output",
-+				_ => "Input",
++				Some("conversation") => "Chat messages",
++				_ if error.guardrail.phase.as_str() == "response" => "Model response",
++				_ => "Model request",
 +			};
-+			error.message = format!("{target} blocked by {}", error.guardrail.check_name);
++			let policy = if error.guardrail.policy_name.is_empty() {
++				&error.guardrail.policy_id
++			} else {
++				&error.guardrail.policy_name
++			};
++			error.message = if policy.is_empty() {
++				format!("{target} blocked by policy")
++			} else {
++				format!("{target} blocked by policy named {policy:?}")
++			};
 +			if !error.guardrail.message.is_empty() {
 +				error.message.push_str(": ");
 +				error.message.push_str(&error.guardrail.message);

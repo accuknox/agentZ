@@ -1,11 +1,16 @@
 package gateway
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"math"
 	"net/http"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/accuknox/agentz/internal/authorization"
 	"github.com/accuknox/agentz/internal/gateway/apiutil"
@@ -180,7 +185,72 @@ func (s *Service) GetGuardrailEvent(w http.ResponseWriter, r *http.Request, even
 		apiutil.WriteInternalError(w, r, err)
 		return
 	}
+	event.TraceSource, err = s.guardrailTraceSource(r.Context(), access, eventID)
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
 	apiutil.WriteJSON(w, http.StatusOK, event)
+}
+
+func (s *Service) guardrailTraceSource(ctx context.Context, access resourceAccess, eventID string) (*gatewayapi.GuardrailTraceSource, error) {
+	rows, err := s.queries.GatewayFindGuardrailTraceSource(ctx, gatewaydb.GatewayFindGuardrailTraceSourceParams{
+		EventID: eventID, OrganizationID: access.claims.OrganizationID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("find guardrail trace source: %w", err)
+	}
+	// Independent gateway and SDK traces share a session and time interval.
+	// Multiple matching model calls are ambiguous; never pick a nearby call.
+	if len(rows) != 1 {
+		return nil, nil
+	}
+	source := rows[0]
+	scope := authorization.Scope{
+		OrganizationID: access.claims.OrganizationID, WorkspaceID: source.WorkspaceID,
+	}
+	if !access.effective.Allows(scope, authorization.OperationReadObservability) {
+		return nil, nil
+	}
+	if source.AgentName != "" {
+		target := access
+		target.workspaceID = source.WorkspaceID
+		target.namespace = source.Namespace
+		target.claims.WorkspaceID = source.WorkspaceID
+		allowed, err := s.agentOperationAllowed(ctx, target, source.AgentName, authorization.OperationUseSharedAgent)
+		if err != nil {
+			return nil, fmt.Errorf("authorize guardrail trace source: %w", err)
+		}
+		if !allowed {
+			return nil, nil
+		}
+		if source.WorkspaceType == "coding" {
+			_, err := s.resolveCodingSession(ctx, target, source.AgentName, source.SessionID)
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil, nil
+			}
+			if err != nil {
+				return nil, fmt.Errorf("authorize guardrail trace session: %w", err)
+			}
+		}
+	} else {
+		exists, err := s.queries.GatewayLensAppExists(ctx, gatewaydb.GatewayLensAppExistsParams{
+			OrganizationID: scope.OrganizationID, WorkspaceID: source.WorkspaceID,
+			ClientID: source.ClientID,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("authorize guardrail app trace: %w", err)
+		}
+		if !exists {
+			return nil, nil
+		}
+	}
+	return &gatewayapi.GuardrailTraceSource{
+		WorkspaceId: source.WorkspaceID, AgentName: source.AgentName,
+		ClientId: source.ClientID, SessionId: source.SessionID,
+		TraceId: hex.EncodeToString(source.TraceID), SpanId: hex.EncodeToString(source.SpanID),
+		OperationId: source.OperationID,
+	}, nil
 }
 
 func guardrailEventView(row gatewaydb.ObserverGuardrailEvent, subjectName string) (gatewayapi.GuardrailEvent, error) {

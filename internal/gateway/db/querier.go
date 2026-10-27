@@ -61,6 +61,7 @@ type Querier interface {
 	GatewayDeleteWorkspaceInheritedResources(ctx context.Context, arg GatewayDeleteWorkspaceInheritedResourcesParams) (int64, error)
 	GatewayDeletingCodingWorktree(ctx context.Context, arg GatewayDeletingCodingWorktreeParams) error
 	GatewayFailCleanupJob(ctx context.Context, arg GatewayFailCleanupJobParams) (int64, error)
+	GatewayFindGuardrailTraceSource(ctx context.Context, arg GatewayFindGuardrailTraceSourceParams) ([]GatewayFindGuardrailTraceSourceRow, error)
 	GatewayGetAPIKeyByHash(ctx context.Context, arg GatewayGetAPIKeyByHashParams) (GatewayGetAPIKeyByHashRow, error)
 	GatewayGetAPIKeyScopeByKey(ctx context.Context, arg GatewayGetAPIKeyScopeByKeyParams) (GatewayGetAPIKeyScopeByKeyRow, error)
 	GatewayGetAgent(ctx context.Context, arg GatewayGetAgentParams) (Agent, error)

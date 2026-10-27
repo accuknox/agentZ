@@ -1525,6 +1525,101 @@ func (q *Queries) GatewayFailCleanupJob(ctx context.Context, arg GatewayFailClea
 	return result.RowsAffected(), nil
 }
 
+const gatewayFindGuardrailTraceSource = `-- name: GatewayFindGuardrailTraceSource :many
+WITH event AS (
+  SELECT ev.id, ev.organization_id, ev.workspace_id, ev.occurred_at, ev.expires_at, ev.sandbox_name, ev.agent_name, ev.client_id, ev.session_id, ev.model, ev.trace_id, ev.span_id, ev.evaluation_index, ev.revision, ev.phase, ev.action, ev.evaluation, ev.ingested_at FROM observer_guardrail_events ev
+  WHERE ev.id = $1
+    AND ev.organization_id = $2
+    AND ev.expires_at > now()
+), candidates AS (
+  SELECT w.id AS workspace_id, w.namespace, w.type::text AS workspace_type,
+    sp.agent_name, ''::text AS client_id, sp.session_id,
+    sp.trace_id, sp.span_id, sp.id AS operation_id,
+    CASE WHEN sp.trace_id = event.trace_id AND sp.span_id = event.span_id THEN 0 ELSE 1 END AS priority
+  FROM event
+  JOIN workspaces w ON w.organization_id = event.organization_id
+    AND w.deleted_at IS NULL
+    AND (event.workspace_id = '' OR w.id = event.workspace_id)
+  JOIN observer_trace_spans sp ON sp.tenant_namespace = w.namespace
+    AND sp.span_class = 'llm'
+    AND (event.agent_name = '' OR sp.agent_name = event.agent_name)
+    AND ((sp.trace_id = event.trace_id AND sp.span_id = event.span_id)
+      OR (event.session_id <> '' AND sp.session_id = event.session_id
+        AND event.occurred_at >= sp.start_time
+        AND event.occurred_at <= sp.end_time))
+  UNION ALL
+  SELECT w.id, w.namespace, w.type::text,
+    ''::text, op.client_id, op.session_id,
+    coalesce(run.trace_id, op.trace_id), op.span_id, op.id,
+    CASE WHEN op.trace_id = event.trace_id AND op.span_id = event.span_id THEN 0 ELSE 1 END
+  FROM event
+  JOIN workspaces w ON w.organization_id = event.organization_id
+    AND w.deleted_at IS NULL
+    AND (event.workspace_id = '' OR w.id = event.workspace_id)
+  JOIN observer_app_operations op ON op.organization_id = event.organization_id
+    AND op.workspace_id = w.id AND op.span_class = 'llm'
+    AND (event.client_id = '' OR op.client_id = event.client_id)
+    AND ((op.trace_id = event.trace_id AND op.span_id = event.span_id)
+      OR (event.session_id <> '' AND op.session_id = event.session_id
+        AND event.occurred_at >= op.start_time
+        AND event.occurred_at <= op.end_time))
+  LEFT JOIN observer_app_operations run ON run.id = op.run_id
+)
+SELECT workspace_id, namespace, workspace_type, agent_name, client_id, session_id, trace_id, span_id, operation_id, priority FROM candidates
+WHERE priority = (SELECT min(priority) FROM candidates)
+ORDER BY operation_id
+LIMIT 2
+`
+
+type GatewayFindGuardrailTraceSourceParams struct {
+	EventID        string `json:"event_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+type GatewayFindGuardrailTraceSourceRow struct {
+	WorkspaceID   string `json:"workspace_id"`
+	Namespace     string `json:"namespace"`
+	WorkspaceType string `json:"workspace_type"`
+	AgentName     string `json:"agent_name"`
+	ClientID      string `json:"client_id"`
+	SessionID     string `json:"session_id"`
+	TraceID       []byte `json:"trace_id"`
+	SpanID        []byte `json:"span_id"`
+	OperationID   int64  `json:"operation_id"`
+	Priority      int32  `json:"priority"`
+}
+
+func (q *Queries) GatewayFindGuardrailTraceSource(ctx context.Context, arg GatewayFindGuardrailTraceSourceParams) ([]GatewayFindGuardrailTraceSourceRow, error) {
+	rows, err := q.db.Query(ctx, gatewayFindGuardrailTraceSource, arg.EventID, arg.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayFindGuardrailTraceSourceRow{}
+	for rows.Next() {
+		var i GatewayFindGuardrailTraceSourceRow
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.Namespace,
+			&i.WorkspaceType,
+			&i.AgentName,
+			&i.ClientID,
+			&i.SessionID,
+			&i.TraceID,
+			&i.SpanID,
+			&i.OperationID,
+			&i.Priority,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const gatewayGetAPIKeyByHash = `-- name: GatewayGetAPIKeyByHash :one
 SELECT id, reference_id, name
 FROM apikeys

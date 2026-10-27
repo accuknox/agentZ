@@ -3022,6 +3022,20 @@ export type GuardrailEvent = {
   span_id: string
   revision: string
   evaluation: GuardrailRuntimeEvaluation
+  trace_source?: GuardrailTraceSource
+}
+
+/**
+ * Authorized Lens model operation correlated with this evaluation.
+ */
+export type GuardrailTraceSource = {
+  workspace_id: string
+  agent_name: string
+  client_id: string
+  session_id: string
+  trace_id: TraceId
+  span_id: SpanId
+  operation_id: number
 }
 
 export type ListGuardrailEventsResponse = {

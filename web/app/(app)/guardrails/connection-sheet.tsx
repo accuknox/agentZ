@@ -3,7 +3,6 @@
 import { customAlphabet } from "nanoid"
 import { useId, useState, useTransition } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { flushSync } from "react-dom"
 import { useRouter } from "next/navigation"
 import { ChevronsUpDown, CircleAlert, Save } from "lucide-react"
 import { toast } from "sonner"
@@ -12,7 +11,6 @@ import type { GuardrailConnection, CreateGuardrailConnectionData } from "@/lib/g
 import { saveGuardrailConnectionAction, type GuardrailActionScope } from "@/data/guardrail.actions"
 import { zGuardrailConnectionInputWritable } from "@/lib/gateway/client/zod.gen"
 import { LoadingButton } from "@/components/interior/loading-button"
-import { CopyButton } from "@/components/interior/copy-button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Accordion,
@@ -194,7 +192,7 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
               return
             }
             const parsed = zGuardrailConnectionInputWritable.safeParse({
-              name: formData.get("name"),
+              name: connectionID,
               displayName: formData.get("displayName"),
               description: formData.get("description"),
               provider,
@@ -496,43 +494,12 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
               collapsible
               type="single"
               value={detailsOpen ? "details" : ""}
-              onInvalidCapture={() => flushSync(() => setDetailsOpen(true))}
               onValueChange={(value) => setDetailsOpen(value === "details")}
             >
               <AccordionItem value="details">
                 <AccordionTrigger>Details</AccordionTrigger>
                 <AccordionContent forceMount hidden={!detailsOpen}>
                   <FieldGroup>
-                    <Field>
-                      <FieldLabel
-                        htmlFor={`${idPrefix}-guardrail-connection-name`}
-                        required={!readOnly}
-                      >
-                        Connection ID
-                      </FieldLabel>
-                      <div className="flex items-center gap-1">
-                        <Input
-                          autoComplete="off"
-                          disabled={readOnly || pending}
-                          id={`${idPrefix}-guardrail-connection-name`}
-                          maxLength={63}
-                          name="name"
-                          onChange={(event) => setConnectionID(event.currentTarget.value)}
-                          pattern={"[a-z0-9]([a-z0-9\\-]*[a-z0-9])?"}
-                          readOnly={connection !== undefined}
-                          required
-                          value={connectionID ?? ""}
-                        />
-                        {connection ? (
-                          <CopyButton content={connection.name} label="Copy connection ID" />
-                        ) : null}
-                      </div>
-                      {!readOnly ? (
-                        <FieldDescription>
-                          Lowercase letters, numbers, and hyphens. Permanent once created.
-                        </FieldDescription>
-                      ) : null}
-                    </Field>
                     <Field>
                       <FieldLabel htmlFor={`${idPrefix}-guardrail-connection-description`}>
                         Description

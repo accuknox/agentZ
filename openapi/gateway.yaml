@@ -4444,6 +4444,8 @@ components:
           type: string
         trace_id:
           type: string
+        trace_source:
+          $ref: '#/components/schemas/GuardrailTraceSource'
         workspace_id:
           type: string
       required:
@@ -4706,6 +4708,34 @@ components:
       - revision
       - message
       - observedGeneration
+      type: object
+    GuardrailTraceSource:
+      additionalProperties: false
+      description: Authorized Lens model operation correlated with this evaluation.
+      properties:
+        agent_name:
+          type: string
+        client_id:
+          type: string
+        operation_id:
+          format: int64
+          type: integer
+        session_id:
+          type: string
+        span_id:
+          $ref: '#/components/schemas/SpanID'
+        trace_id:
+          $ref: '#/components/schemas/TraceID'
+        workspace_id:
+          type: string
+      required:
+      - workspace_id
+      - agent_name
+      - client_id
+      - session_id
+      - trace_id
+      - span_id
+      - operation_id
       type: object
     ImmutableSkillImportPreviewItem:
       additionalProperties: false

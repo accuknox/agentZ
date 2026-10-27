@@ -3127,3 +3127,48 @@ SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name,
 FROM selected op
 GROUP BY op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name
 ORDER BY op.resource_namespace, op.resource_name, op.tool_name;
+
+-- name: GatewayFindGuardrailTraceSource :many
+WITH event AS (
+  SELECT ev.* FROM observer_guardrail_events ev
+  WHERE ev.id = sqlc.arg(event_id)
+    AND ev.organization_id = sqlc.arg(organization_id)
+    AND ev.expires_at > now()
+), candidates AS (
+  SELECT w.id AS workspace_id, w.namespace, w.type::text AS workspace_type,
+    sp.agent_name, ''::text AS client_id, sp.session_id,
+    sp.trace_id, sp.span_id, sp.id AS operation_id,
+    CASE WHEN sp.trace_id = event.trace_id AND sp.span_id = event.span_id THEN 0 ELSE 1 END AS priority
+  FROM event
+  JOIN workspaces w ON w.organization_id = event.organization_id
+    AND w.deleted_at IS NULL
+    AND (event.workspace_id = '' OR w.id = event.workspace_id)
+  JOIN observer_trace_spans sp ON sp.tenant_namespace = w.namespace
+    AND sp.span_class = 'llm'
+    AND (event.agent_name = '' OR sp.agent_name = event.agent_name)
+    AND ((sp.trace_id = event.trace_id AND sp.span_id = event.span_id)
+      OR (event.session_id <> '' AND sp.session_id = event.session_id
+        AND event.occurred_at >= sp.start_time
+        AND event.occurred_at <= sp.end_time))
+  UNION ALL
+  SELECT w.id, w.namespace, w.type::text,
+    ''::text, op.client_id, op.session_id,
+    coalesce(run.trace_id, op.trace_id), op.span_id, op.id,
+    CASE WHEN op.trace_id = event.trace_id AND op.span_id = event.span_id THEN 0 ELSE 1 END
+  FROM event
+  JOIN workspaces w ON w.organization_id = event.organization_id
+    AND w.deleted_at IS NULL
+    AND (event.workspace_id = '' OR w.id = event.workspace_id)
+  JOIN observer_app_operations op ON op.organization_id = event.organization_id
+    AND op.workspace_id = w.id AND op.span_class = 'llm'
+    AND (event.client_id = '' OR op.client_id = event.client_id)
+    AND ((op.trace_id = event.trace_id AND op.span_id = event.span_id)
+      OR (event.session_id <> '' AND op.session_id = event.session_id
+        AND event.occurred_at >= op.start_time
+        AND event.occurred_at <= op.end_time))
+  LEFT JOIN observer_app_operations run ON run.id = op.run_id
+)
+SELECT * FROM candidates
+WHERE priority = (SELECT min(priority) FROM candidates)
+ORDER BY operation_id
+LIMIT 2;

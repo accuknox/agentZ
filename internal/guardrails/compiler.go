@@ -395,7 +395,10 @@ func (b *Bundle) compile(namespace string) error {
 				response.Webhook = webhook
 			}
 		}
-		message := fmt.Sprintf("Blocked by %s", check.Name)
+		message := "Blocked by policy"
+		if context.PolicyName != "" {
+			message = fmt.Sprintf("Blocked by policy named %q", context.PolicyName)
+		}
 		if context.Message != "" {
 			message += ": " + context.Message
 		}

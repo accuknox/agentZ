@@ -63,6 +63,25 @@ import { readTraceRecording, readToolContent } from "@/lib/trace-recording"
 
 const maxChartPoints = 25
 const chartSourceLimit = 100
+
+/** Resolve an exact trace even when it is outside the first list page. */
+// ponytail: scan session pages; add a server trace filter if large sessions need it.
+export async function findTraceAction(subject: TraceSubject, traceID: string, workspaceId: string) {
+  let pageToken: string | undefined
+  do {
+    const result = await listTracesAction(
+      subject,
+      { limit: 100, page_token: pageToken },
+      workspaceId
+    )
+    if (result.error) return { error: result.error }
+    const trace = result.data.traces.find((trace) => trace.traceId === traceID)
+    if (trace) return { data: trace }
+    pageToken = result.data.nextPageToken || undefined
+  } while (pageToken)
+  return { error: { code: "not_found", message: "No Lens recording was found for this trace." } }
+}
+
 type DayjsDate = ReturnType<typeof dayjs>
 type AggregatedTelemetryEvent = {
   last_seen: string

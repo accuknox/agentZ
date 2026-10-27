@@ -3342,6 +3342,26 @@ export const zGuardrailRuntimeEvaluation = z.object({
   context: zGuardrailContext.optional(),
 })
 
+/**
+ * Authorized Lens model operation correlated with this evaluation.
+ */
+export const zGuardrailTraceSource = z.object({
+  workspace_id: z.string(),
+  agent_name: z.string(),
+  client_id: z.string(),
+  session_id: z.string(),
+  trace_id: zTraceId,
+  span_id: zSpanId,
+  operation_id: z.coerce
+    .bigint()
+    .min(BigInt("-9223372036854775808"), {
+      error: "Invalid value: Expected int64 to be >= -9223372036854775808",
+    })
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+})
+
 export const zGuardrailEvent = z.object({
   id: z.string(),
   organization_id: z.string(),
@@ -3358,6 +3378,7 @@ export const zGuardrailEvent = z.object({
   span_id: z.string(),
   revision: z.string(),
   evaluation: zGuardrailRuntimeEvaluation,
+  trace_source: zGuardrailTraceSource.optional(),
 })
 
 export const zListGuardrailEventsResponse = z.object({

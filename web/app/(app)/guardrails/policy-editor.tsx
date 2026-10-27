@@ -20,7 +20,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { ChevronDown, CircleAlert, Plus, Regex, Save, BrickWallShield } from "lucide-react"
 import { GuardrailProviderIcon } from "./provider-shared"
 import { toast } from "sonner"
@@ -40,7 +40,6 @@ import {
 } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { CopyButton } from "@/components/interior/copy-button"
 import { LoadingButton } from "@/components/interior/loading-button"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -86,6 +85,7 @@ export function PolicyEditor(props: PolicyEditorProps) {
 
   const id = useId()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [draft, setDraft] = useState<GuardrailPolicyInput>(() => ({
     name: policy?.name ?? "",
     displayName: policy?.displayName ?? "",
@@ -94,7 +94,9 @@ export function PolicyEditor(props: PolicyEditorProps) {
   }))
   const [connections, setConnections] = useState(initialConnections)
   const [addingConnection, setAddingConnection] = useState(false)
-  const [editingCheck, setEditingCheck] = useState<string>()
+  const [editingCheck, setEditingCheck] = useState<string | undefined>(
+    policy?.checks.find((check) => check.id === searchParams.get("check"))?.id
+  )
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState("")
   const [validationVisible, setValidationVisible] = useState(false)
@@ -363,7 +365,6 @@ export function PolicyEditor(props: PolicyEditorProps) {
             collapsible
             type="single"
             value={detailsOpen ? "details" : ""}
-            onInvalidCapture={() => flushSync(() => setDetailsOpen(true))}
             onValueChange={(value) => setDetailsOpen(value === "details")}
           >
             <AccordionItem value="details">
@@ -380,25 +381,6 @@ export function PolicyEditor(props: PolicyEditorProps) {
                       rows={2}
                       value={draft.description ?? ""}
                     />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor={policy ? undefined : `${id}-id`}>Policy ID</FieldLabel>
-                    {policy ? (
-                      <div className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-                        <code className="truncate">{draft.name}</code>
-                        <CopyButton content={draft.name} label="Copy policy ID" />
-                      </div>
-                    ) : (
-                      <Input
-                        disabled={pending}
-                        id={`${id}-id`}
-                        maxLength={63}
-                        onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-                        pattern={"[a-z0-9]([a-z0-9\\-]*[a-z0-9])?"}
-                        required
-                        value={draft.name}
-                      />
-                    )}
                   </Field>
                 </FieldGroup>
               </AccordionContent>

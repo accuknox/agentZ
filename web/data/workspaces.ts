@@ -197,10 +197,13 @@ export async function getWorkspaceCreation(orgSlug: string) {
   return {
     candidates: members.data.members,
     resources: {
-      guardrail_connections: guardrailConnections.data.items.map(({ name, displayName }) => ({
-        name,
-        displayName,
-      })),
+      guardrail_connections: guardrailConnections.data.items.map(
+        ({ name, displayName, provider }) => ({
+          name,
+          displayName,
+          provider,
+        })
+      ),
       guardrail_policies: guardrailPolicies.data.items
         .filter((item) => !item.mandatory)
         .map(({ name, displayName }) => ({ name, displayName })),

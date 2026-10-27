@@ -3,6 +3,7 @@ import { test } from "node:test"
 import type { AssistantMessage, UserMessage, TextPart } from "@opencode-ai/sdk/v2"
 import { projectTimeline } from "./timeline"
 import { describeMessageError } from "./errors"
+import type { GuardrailContext } from "@/lib/gateway/client"
 const user: UserMessage = {
   id: "user1",
   sessionID: "session",
@@ -200,6 +201,8 @@ test("repeated guardrail rejections recover from the first blocked turn", () => 
   const { rows } = projectTimeline(input)
   const errors = rows.filter((row) => row.type === "assistant-error")
   assert.equal(errors.length, 2)
+  assert.equal(errors[0]?.label, 'Chat messages blocked by policy named "Baseline"')
+  assert.equal(errors[0]?.body, "Edit your message.")
   assert.deepEqual(
     errors.map((row) => row.revertMessageID),
     [user.id, user.id]
@@ -301,20 +304,22 @@ test("streamed policy errors show contextual feedback instead of serialized JSON
         type: "invalid_request_error",
         code: "content_policy_violation",
         param: null,
-        message: "Conversation output blocked by Secret check: Remove sensitive details and retry.",
+        message:
+          'Assistant response blocked by policy named "Secret policy": Remove sensitive details and retry.',
       }),
     },
   })
   assert.equal(feedback.guardrail, true)
-  assert.equal(feedback.label, "Blocked by policy")
+  assert.equal(feedback.body, "")
   assert.equal(
-    feedback.body,
-    "Conversation output blocked by Secret check: Remove sensitive details and retry."
+    feedback.label,
+    'Assistant response blocked by policy named "Secret policy": Remove sensitive details and retry.'
   )
 })
 
 test("Responses policy errors retain feedback when the SDK drops extension fields", () => {
-  const message = "Conversation output blocked by Secret check: Remove sensitive details and retry."
+  const message =
+    'Assistant response blocked by policy named "Secret policy": Remove sensitive details and retry.'
   const feedback = describeMessageError({
     name: "APIError",
     data: {
@@ -330,6 +335,52 @@ test("Responses policy errors retain feedback when the SDK drops extension field
     },
   })
   assert.equal(feedback.guardrail, true)
-  assert.equal(feedback.label, "Blocked by policy")
-  assert.equal(feedback.body, message)
+  assert.equal(feedback.label, message)
+  assert.equal(feedback.body, "")
+})
+
+test("guardrail feedback names the policy and content for buffered and streamed errors", () => {
+  const cases = [
+    { phase: "request", scope: "conversation", content: "Chat messages" },
+    { phase: "response", scope: "conversation", content: "Assistant response" },
+    { phase: "request", scope: "instructions", content: "System instructions" },
+    { phase: "request", scope: "toolArguments", content: "Tool inputs" },
+    { phase: "request", scope: "toolResults", content: "Tool results" },
+  ] as const
+  for (const { phase, scope, content } of cases) {
+    const guardrail = {
+      phase,
+      guard: "regex",
+      policyId: "policy-id",
+      policyName: 'quickies "PII"',
+      checkId: "check-id",
+      checkName: "Phone numbers",
+      scopes: [scope],
+      matchedScope: scope,
+      reason: "policy_violation",
+      message: "Remove personal data and retry.",
+    } satisfies GuardrailContext
+    const error = {
+      type: "invalid_request_error",
+      code: "content_policy_violation",
+      message: "Legacy gateway message",
+      guardrail,
+    }
+    const buffered = describeMessageError({
+      name: "APIError",
+      data: {
+        isRetryable: false,
+        statusCode: 422,
+        message: error.message,
+        responseBody: JSON.stringify({ error }),
+      },
+    })
+    const streamed = describeMessageError({
+      name: "UnknownError",
+      data: { message: JSON.stringify(error) },
+    })
+    assert.deepEqual(streamed, buffered)
+    assert.equal(buffered.body, "Remove personal data and retry.")
+    assert.equal(buffered.label, `${content} blocked by policy named "quickies \\"PII\\""`)
+  }
 })

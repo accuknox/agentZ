@@ -1,4 +1,5 @@
 import { zGuardrailError, zGuardrailRejection } from "@/lib/gateway/client/zod.gen"
+import type { GuardrailError } from "@/lib/gateway/client"
 
 import type {
   AssistantMessage,
@@ -30,6 +31,36 @@ type OpenCodeClientError =
   | SessionPromptAsyncError
   | SessionRevertError
   | SessionUnrevertError
+
+function describeGuardrailError(
+  error: Pick<GuardrailError, "code" | "message"> & Partial<Pick<GuardrailError, "guardrail">>
+) {
+  const context = error.guardrail
+  const unavailable = error.code === "guardrail_unavailable" || context?.reason === "checker_error"
+  if (unavailable) {
+    return { body: error.message, guardrail: true, label: "Guardrail checker unavailable" }
+  }
+  if (!context) return { body: "", guardrail: true, label: error.message || "Blocked by policy" }
+
+  const scopes = {
+    instructions: "System instructions",
+    conversation: context.phase === "request" ? "Chat messages" : "Assistant response",
+    toolArguments: "Tool inputs",
+    toolResults: "Tool results",
+  }
+  const scope =
+    context.matchedScope ?? (context.scopes.length === 1 ? context.scopes[0] : undefined)
+  const content = scope
+    ? scopes[scope]
+    : context.phase === "request"
+      ? "Model request"
+      : "Model response"
+  const policy = context.policyName || context.policyId
+  const label = policy
+    ? `${content} blocked by policy named ${JSON.stringify(policy)}`
+    : `${content} blocked by policy`
+  return { body: context.message, guardrail: true, label }
+}
 
 export function opencodeErrorMessage(
   error: OpenCodeClientError | undefined,
@@ -104,36 +135,7 @@ export function describeMessageError(error: AssistantMessage["error"]): {
           .or(zGuardrailError.omit({ type: true }).partial({ guardrail: true }))
           .safeParse(body)
         if (rejection.success) {
-          const context = rejection.data.guardrail
-          if (!context) {
-            return {
-              body: rejection.data.message,
-              guardrail: true,
-              label:
-                rejection.data.code === "guardrail_unavailable"
-                  ? "Guardrail checker unavailable"
-                  : "Blocked by policy",
-            }
-          }
-          const scopes = {
-            instructions: "System instructions",
-            conversation:
-              context.phase === "request" ? "Conversation input" : "Conversation output",
-            toolArguments: "Tool arguments",
-            toolResults: "Tool results",
-          }
-          const label =
-            context.reason === "checker_error"
-              ? "Guardrail checker unavailable"
-              : "Blocked by policy"
-          const content = context.matchedScope
-            ? scopes[context.matchedScope]
-            : context.scopes.map((scope) => scopes[scope]).join(", ")
-          return {
-            body: rejection.data.message,
-            guardrail: true,
-            label: content ? `${label} · ${content}` : label,
-          }
+          return describeGuardrailError(rejection.data)
         }
       }
       let label = "Provider error"
@@ -151,16 +153,12 @@ export function describeMessageError(error: AssistantMessage["error"]): {
       } catch {
         // Other UnknownError messages are ordinary text.
       }
-      const streamed = zGuardrailError.omit({ guardrail: true }).safeParse(body)
+      const streamed = zGuardrailError
+        .partial({ guardrail: true })
+        .or(zGuardrailError.omit({ guardrail: true }))
+        .safeParse(body)
       if (streamed.success) {
-        return {
-          body: streamed.data.message,
-          guardrail: true,
-          label:
-            streamed.data.code === "guardrail_unavailable"
-              ? "Guardrail checker unavailable"
-              : "Blocked by policy",
-        }
+        return describeGuardrailError(streamed.data)
       }
       return {
         body: error.data.message || "An unexpected error occurred",

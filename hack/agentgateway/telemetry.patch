@@ -531,15 +531,13 @@ diff --git a/crates/llm/src/conversion/completions.rs b/crates/llm/src/conversio
 index c9ce063..9bae031 100644
 --- a/crates/llm/src/conversion/completions.rs
 +++ b/crates/llm/src/conversion/completions.rs
-@@ -5,10 +5,19 @@ use agent_http::Body;
- use bytes::Bytes;
- use http::Response;
+@@ -7,5 +7,14 @@ use http::Response;
  use itertools::Itertools;
 -use tracing::debug;
  
 +use crate::parse::sse::SseJsonEvent;
  use crate::{StreamingUsageGuard, logged_response_parsing, parse, types};
- 
++
 +#[derive(serde::Deserialize)]
 +#[serde(untagged)]
 +pub(crate) enum CapturedStreamEvent {
@@ -548,10 +546,7 @@ index c9ce063..9bae031 100644
 +	},
 +	Chunk(types::completions::typed::StreamResponse),
 +}
-+
- #[cfg(test)]
- #[path = "completions_tests.rs"]
- mod tests;
+
 @@ -125,6 +134,7 @@ pub mod from_messages {
  		});
  		let anthropic = translate_response_internal(resp)?;

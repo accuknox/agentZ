@@ -166,8 +166,8 @@ export function GuardrailEventDetail({
   const policyHref = context?.policyId
     ? `${basePath}/policies/${encodeURIComponent(context.policyId)}`
     : undefined
-  let heading = `${content} passed`
-  let consequence = "Check passed."
+  let heading = "Policy finding recorded"
+  let consequence = "Finding logged; processing continued."
   if (evaluation.action === "reject") {
     heading = `${content} blocked`
     consequence =
@@ -178,10 +178,6 @@ export function GuardrailEventDetail({
   if (evaluation.action === "mask") {
     heading = `${content} masked`
     consequence = "Matched content redacted; processing continued."
-  }
-  if (evaluation.action === "audit") {
-    heading = "Policy finding recorded"
-    consequence = "Finding logged; processing continued."
   }
   if (failed || evaluation.action === "failOpen") {
     heading = evaluation.action === "reject" ? "Guardrail failed closed" : "Guardrail failed open"

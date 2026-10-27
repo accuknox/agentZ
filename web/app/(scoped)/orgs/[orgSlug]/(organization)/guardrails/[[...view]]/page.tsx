@@ -26,7 +26,6 @@ async function OrganizationGuardrails(props: PageProps<"/orgs/[orgSlug]/guardrai
   if (result.kind !== "ready") return <AdministrationState kind="forbidden" />
   await activateOrganization(result.organization.id)
   const tenant = await ensureTenant({ client: getGatewayServerClient(), throwOnError: true })
-  if (!tenant.data) return <AdministrationState kind="provisioning" />
   return (
     <>
       <RememberRoute />

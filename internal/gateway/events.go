@@ -279,7 +279,8 @@ func (s *Service) guardrailTraceSource(ctx context.Context, access resourceAcces
 	if !access.effective.Allows(scope, authorization.OperationReadObservability) {
 		return nil, nil
 	}
-	if source.AgentName != "" {
+	switch {
+	case source.AgentName != "":
 		target := access
 		target.workspaceID = source.WorkspaceID
 		target.namespace = source.Namespace
@@ -300,7 +301,7 @@ func (s *Service) guardrailTraceSource(ctx context.Context, access resourceAcces
 				return nil, fmt.Errorf("authorize guardrail trace session: %w", err)
 			}
 		}
-	} else {
+	default:
 		exists, err := s.queries.GatewayLensAppExists(ctx, gatewaydb.GatewayLensAppExistsParams{
 			OrganizationID: scope.OrganizationID, WorkspaceID: source.WorkspaceID,
 			ClientID: source.ClientID,

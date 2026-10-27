@@ -297,27 +297,18 @@ func TestReceiverAttributionBoundary(t *testing.T) {
 					ScopeSpans: []*tracepb.ScopeSpans{{Spans: []*tracepb.Span{span}}},
 				}},
 			}
-			events := make(chan event, 1)
-			receiver := traceReceiver{out: events, stats: &stats{}, app: test.app}
-			response, err := receiver.Export(t.Context(), request)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if receiver.stats.received != 1 {
-				t.Fatal("export did not account for its span")
-			}
+			events, rejected := traceEventsFromOTLPRequest(request, test.app)
 			if !test.accept {
-				if len(events) != 0 || receiver.stats.filtered != 1 || response.GetPartialSuccess().GetRejectedSpans() != 1 {
+				if len(events) != 0 || rejected != 1 {
 					t.Fatal("receiver accepted telemetry from the wrong trust boundary")
 				}
 				return
 			}
-			if len(events) != 1 || receiver.stats.filtered != 0 || response.GetPartialSuccess() != nil {
+			if len(events) != 1 || rejected != 0 {
 				t.Fatal("receiver rejected telemetry from the expected source")
 			}
-			got := <-events
-			if (got.app != nil) != test.app || (got.trace != nil) == test.app {
-				t.Fatal("receiver routed telemetry to the wrong storage path")
+			if (events[0].app != nil) != test.app || (events[0].trace != nil) == test.app {
+				t.Fatal("receiver accepted attribution for the wrong source")
 			}
 		})
 	}

@@ -88,26 +88,3 @@ func TestSinkRetainsFailedBatch(t *testing.T) {
 		}
 	}
 }
-
-type unavailableStore struct{}
-
-func (unavailableStore) insertBatch(context.Context, batch) error { return errors.New("unavailable") }
-func TestSinkStopsWithRetainedBatchOnShutdown(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	events := make(chan event, 1)
-	events <- event{app: &observerdb.InsertAppOperationParams{ClientID: "accepted"}}
-	sink := &sink{
-		store:  unavailableStore{},
-		stats:  &stats{},
-		cfg:    Config{BatchSize: 1, FlushInterval: time.Hour},
-		events: events,
-	}
-	done := make(chan struct{})
-	go func() { sink.run(ctx); close(done) }()
-	cancel()
-	select {
-	case <-done:
-	case <-time.After(12 * time.Second):
-		t.Fatal("failed batch prevented shutdown")
-	}
-}

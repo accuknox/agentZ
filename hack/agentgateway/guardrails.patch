@@ -283,8 +283,7 @@ diff --git a/crates/agentgateway/src/llm/policy/mod.rs b/crates/agentgateway/src
  				Some(RegexResult::Audit) => {
  					audited = true;
  				},
-@@ -1463,17 +1527,23 @@
- 				None => replacements.push(None),
+@@ -1464,15 +1528,21 @@
  			}
  		});
 -		if audited {
@@ -314,7 +313,6 @@ diff --git a/crates/agentgateway/src/llm/policy/mod.rs b/crates/agentgateway/src
 +		(outcome, detail)
  	}
  
- 	#[cfg(test)]
 @@ -1491,15 +1561,20 @@
  		resp: &mut dyn ResponseType,
  		rgx: &RegexRules,

@@ -228,16 +228,8 @@ func resolve(ctx context.Context, reader client.Reader, namespace, orgNamespace 
 		if err := ValidatePolicy(policy.Spec); err != nil {
 			return nil, fmt.Errorf("policy %q: %w", ref.Name, err)
 		}
-		for _, check := range policy.Spec.Checks {
-			resolved := ResolvedCheck{Policy: policy, Check: check, Mandatory: mandatory}
-			if check.Connection != nil {
-				connection, err := bundle.resolveConnection(ctx, reader, policy.Namespace, *check.Connection)
-				if err != nil {
-					return nil, err
-				}
-				resolved.Connection = connection
-			}
-			bundle.Checks = append(bundle.Checks, resolved)
+		if err := bundle.appendPolicy(ctx, reader, policy.Namespace, policy, mandatory); err != nil {
+			return nil, err
 		}
 	}
 	bundle.Revision, err = configurationRevision(settings, bundle.Checks)
@@ -500,16 +492,8 @@ func CompilePolicy(ctx context.Context, reader client.Reader, namespace string, 
 		return nil, err
 	}
 	bundle := &Bundle{}
-	for _, check := range policy.Spec.Checks {
-		resolved := ResolvedCheck{Policy: policy, Check: check}
-		if check.Connection != nil {
-			connection, err := bundle.resolveConnection(ctx, reader, namespace, *check.Connection)
-			if err != nil {
-				return nil, err
-			}
-			resolved.Connection = connection
-		}
-		bundle.Checks = append(bundle.Checks, resolved)
+	if err := bundle.appendPolicy(ctx, reader, namespace, policy, false); err != nil {
+		return nil, err
 	}
 	var err error
 	bundle.Revision, err = configurationRevision(api.GuardrailSettings{}, bundle.Checks)
@@ -520,6 +504,21 @@ func CompilePolicy(ctx context.Context, reader client.Reader, namespace string, 
 		return nil, err
 	}
 	return bundle, nil
+}
+
+func (b *Bundle) appendPolicy(ctx context.Context, reader client.Reader, namespace string, policy *api.GuardrailPolicy, mandatory bool) error {
+	for _, check := range policy.Spec.Checks {
+		resolved := ResolvedCheck{Policy: policy, Check: check, Mandatory: mandatory}
+		if check.Connection != nil {
+			connection, err := b.resolveConnection(ctx, reader, namespace, *check.Connection)
+			if err != nil {
+				return err
+			}
+			resolved.Connection = connection
+		}
+		b.Checks = append(b.Checks, resolved)
+	}
+	return nil
 }
 
 // resolveConnection shares one validated credential snapshot across checks in a bundle.

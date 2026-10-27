@@ -27,7 +27,6 @@ async function OrganizationGuardrails(props: LayoutProps<"/orgs/[orgSlug]/guardr
   if (result.kind !== "ready") return <AdministrationState kind="forbidden" />
   await activateOrganization(result.organization.id)
   const tenant = await ensureTenant({ client: getGatewayServerClient(), throwOnError: true })
-  if (!tenant.data) return <AdministrationState kind="provisioning" />
   return (
     <GuardrailsLayout
       basePath={`/orgs/${orgSlug}/guardrails`}

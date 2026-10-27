@@ -38,6 +38,9 @@ func (q *Queries) AssignAppToolRuns(ctx context.Context, operationIds []int64) e
 }
 
 const deleteExpiredGuardrailEvents = `-- name: DeleteExpiredGuardrailEvents :execrows
+WITH expired_requests AS (
+  DELETE FROM observer_guardrail_requests WHERE expires_at <= now()
+)
 DELETE FROM observer_guardrail_events WHERE expires_at <= now()
 `
 
@@ -162,6 +165,29 @@ func (q *Queries) InsertGuardrailEvent(ctx context.Context, arg InsertGuardrailE
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const insertGuardrailRequest = `-- name: InsertGuardrailRequest :exec
+INSERT INTO observer_guardrail_requests (trace_id, span_id, expires_at, body)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (trace_id, span_id) DO NOTHING
+`
+
+type InsertGuardrailRequestParams struct {
+	TraceID   []byte    `json:"trace_id"`
+	SpanID    []byte    `json:"span_id"`
+	ExpiresAt time.Time `json:"expires_at"`
+	Body      []byte    `json:"body"`
+}
+
+func (q *Queries) InsertGuardrailRequest(ctx context.Context, arg InsertGuardrailRequestParams) error {
+	_, err := q.db.Exec(ctx, insertGuardrailRequest,
+		arg.TraceID,
+		arg.SpanID,
+		arg.ExpiresAt,
+		arg.Body,
+	)
+	return err
 }
 
 type InsertNetworkEventsParams struct {

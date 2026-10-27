@@ -139,6 +139,17 @@ func (s *dbStore) insertBatch(ctx context.Context, b batch) error {
 		if err != nil {
 			return fmt.Errorf("insert guardrail event: %w", err)
 		}
+		if len(ev.request) > 0 {
+			err = q.InsertGuardrailRequest(ctx, observerdb.InsertGuardrailRequestParams{
+				TraceID:   row.TraceID,
+				SpanID:    row.SpanID,
+				ExpiresAt: row.ExpiresAt,
+				Body:      ev.request,
+			})
+			if err != nil {
+				return fmt.Errorf("insert guardrail request: %w", err)
+			}
+		}
 		if inserted == 0 && !duplicateChanged {
 			duplicateChanged, err = q.GuardrailEventChanged(ctx, observerdb.GuardrailEventChangedParams{
 				ID:         row.ID,

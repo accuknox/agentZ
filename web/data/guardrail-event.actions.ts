@@ -48,6 +48,7 @@ export async function getGuardrailEventContextAction(eventId: string, workspaceI
   return {
     data: {
       source,
+      requestBody: result.data.request_body,
       workspaceSlug: workspace.data.slug,
       workspaceName: workspace.data.name,
       span: span?.data,

@@ -81,6 +81,7 @@ type Querier interface {
 	GatewayGetGuardrailClientAccess(ctx context.Context, arg GatewayGetGuardrailClientAccessParams) (GuardrailClientAccess, error)
 	GatewayGetGuardrailEvent(ctx context.Context, arg GatewayGetGuardrailEventParams) (GatewayGetGuardrailEventRow, error)
 	GatewayGetGuardrailEventChart(ctx context.Context, arg GatewayGetGuardrailEventChartParams) ([]GatewayGetGuardrailEventChartRow, error)
+	GatewayGetGuardrailRequest(ctx context.Context, arg GatewayGetGuardrailRequestParams) ([]byte, error)
 	GatewayGetLensApp(ctx context.Context, arg GatewayGetLensAppParams) (GatewayGetLensAppRow, error)
 	GatewayGetMCPGraph(ctx context.Context, arg GatewayGetMCPGraphParams) ([]GatewayGetMCPGraphRow, error)
 	GatewayGetSpanDetail(ctx context.Context, arg GatewayGetSpanDetailParams) (GatewayGetSpanDetailRow, error)

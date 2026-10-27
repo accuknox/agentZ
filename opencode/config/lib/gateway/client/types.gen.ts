@@ -3019,6 +3019,10 @@ export type GuardrailEvent = {
   revision: string
   evaluation: GuardrailRuntimeEvaluation
   trace_source?: GuardrailTraceSource
+  /**
+   * Complete JSON request captured before gateway checks. Returned only on event detail with authorized Lens access.
+   */
+  request_body?: string
 }
 
 /**

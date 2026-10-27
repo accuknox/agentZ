@@ -4451,6 +4451,10 @@ components:
           type: string
         organization_id:
           type: string
+        request_body:
+          description: Complete JSON request captured before gateway checks. Returned
+            only on event detail with authorized Lens access.
+          type: string
         revision:
           type: string
         sandbox_name:

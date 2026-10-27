@@ -12118,6 +12118,9 @@ components:
         revision: {type: string}
         evaluation: {$ref: '#/components/schemas/GuardrailRuntimeEvaluation'}
         trace_source: {$ref: '#/components/schemas/GuardrailTraceSource'}
+        request_body:
+          type: string
+          description: Complete JSON request captured before gateway checks. Returned only on event detail with authorized Lens access.
       required: [subject_name, id, organization_id, workspace_id, occurred_at, expires_at, sandbox_name, agent_name, client_id, session_id, model, trace_id, span_id, revision, evaluation]
     GuardrailTraceSource:
       type: object

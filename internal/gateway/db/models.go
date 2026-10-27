@@ -1492,6 +1492,13 @@ type ObserverGuardrailEvent struct {
 	IngestedAt      time.Time `json:"ingested_at"`
 }
 
+type ObserverGuardrailRequest struct {
+	TraceID   []byte    `json:"trace_id"`
+	SpanID    []byte    `json:"span_id"`
+	ExpiresAt time.Time `json:"expires_at"`
+	Body      []byte    `json:"body"`
+}
+
 type ObserverMcpToolInvocation struct {
 	ID                int64     `json:"id"`
 	TenantNamespace   string    `json:"tenant_namespace"`

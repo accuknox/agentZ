@@ -83,6 +83,15 @@ WHERE event.id = sqlc.arg(id)
   AND (sqlc.arg(workspace_id)::text = '' OR event.workspace_id = sqlc.arg(workspace_id))
   AND event.expires_at > now();
 
+-- name: GatewayGetGuardrailRequest :one
+SELECT request.body
+FROM observer_guardrail_requests request
+JOIN observer_guardrail_events event USING (trace_id, span_id)
+WHERE event.id = sqlc.arg(id)
+  AND event.organization_id = sqlc.arg(organization_id)
+  AND (sqlc.arg(workspace_id)::text = '' OR event.workspace_id = sqlc.arg(workspace_id))
+  AND event.expires_at > now() AND request.expires_at > now();
+
 -- name: GatewayGetGuardrailClientAccess :one
 SELECT * FROM guardrail_client_access
 WHERE organization_id = sqlc.arg(organization_id)

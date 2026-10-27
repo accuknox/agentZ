@@ -18,6 +18,7 @@ type Querier interface {
 	InsertAppOperation(ctx context.Context, arg []InsertAppOperationParams) *InsertAppOperationBatchResults
 	InsertFileEvents(ctx context.Context, arg []InsertFileEventsParams) (int64, error)
 	InsertGuardrailEvent(ctx context.Context, arg InsertGuardrailEventParams) (int64, error)
+	InsertGuardrailRequest(ctx context.Context, arg InsertGuardrailRequestParams) error
 	InsertMCPToolInvocation(ctx context.Context, arg []InsertMCPToolInvocationParams) *InsertMCPToolInvocationBatchResults
 	InsertNetworkEvents(ctx context.Context, arg []InsertNetworkEventsParams) (int64, error)
 	InsertProcessEvents(ctx context.Context, arg []InsertProcessEventsParams) (int64, error)

@@ -22,6 +22,12 @@ func TestGuardrailEvidenceTrustBoundary(t *testing.T) {
 		Key:   attrGuardrailEvaluations,
 		Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: evidence}},
 	})
+	span.Attributes = append(span.Attributes, &commonpb.KeyValue{
+		Key: "agentz.guardrail_request",
+		Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{
+			StringValue: `{"messages":[{"role":"user","content":"private request history"}]}`,
+		}},
+	})
 	request := &tracev1.ExportTraceServiceRequest{
 		ResourceSpans: []*tracepb.ResourceSpans{{
 			Resource: &resourcepb.Resource{
@@ -56,8 +62,41 @@ func TestGuardrailEvidenceTrustBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if bytes.Contains(stored, []byte("private inspected message")) || bytes.Contains(stored, []byte(attrGuardrailEvaluations)) {
+	if bytes.Contains(stored, []byte("private")) || bytes.Contains(stored, []byte(attrGuardrailEvaluations)) {
 		t.Fatal("guardrail evidence escaped into ordinary trace storage")
+	}
+}
+
+func TestGuardrailRequestSnapshot(t *testing.T) {
+	t.Parallel()
+	cases := map[string]string{
+		"complete": `{"messages":[{"role":"user","content":"earlier match"},{"role":"user","content":"current input"}]}`,
+		"missing":  "",
+		"partial":  `{"messages":[`,
+		"array":    `[{"content":"not a request"}]`,
+		"large":    `{"input":"` + strings.Repeat("x", 1024*1024) + `"}`,
+	}
+	for name, body := range cases {
+		t.Run(name, func(t *testing.T) {
+			sp := guardrailSpanFixture(`[{"phase":"request","guard":"regex","action":"mask"}]`)
+			sp.Attributes = append(sp.Attributes, &commonpb.KeyValue{
+				Key: "agentz.guardrail_request",
+				Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{
+					StringValue: body,
+				}},
+			})
+			events, err := guardrailEventsFromSpan(sp)
+			if err != nil || len(events) != 1 {
+				t.Fatalf("request capture discarded intervention metadata: %v", err)
+			}
+			captured := len(events[0].request) > 0
+			if captured != (name == "complete") {
+				t.Fatalf("complete request capture = %v", captured)
+			}
+			if captured && string(events[0].request) != body {
+				t.Fatal("request history was changed during ingestion")
+			}
+		})
 	}
 }
 

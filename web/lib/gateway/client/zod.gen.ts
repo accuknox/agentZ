@@ -3389,6 +3389,7 @@ export const zGuardrailEvent = z.object({
   revision: z.string(),
   evaluation: zGuardrailRuntimeEvaluation,
   trace_source: zGuardrailTraceSource.optional(),
+  request_body: z.string().optional(),
 })
 
 export const zListGuardrailEventsResponse = z.object({

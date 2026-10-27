@@ -468,6 +468,7 @@ func extractSpanPayload(spanClass string, attrs map[string]*commonpb.AnyValue) (
 	// Captured guardrail evidence has its own permission and expiry contract.
 	// Keeping it in generic span attributes would bypass event retention.
 	delete(out, attrGuardrailEvaluations)
+	delete(out, "agentz.guardrail_request")
 	inputMessages := []byte(null)
 	outputMessages := []byte(null)
 	if spanClass == spanClassLLM {

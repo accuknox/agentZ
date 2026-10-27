@@ -27,7 +27,15 @@ SELECT w.organization_id, w.id AS workspace_id
 FROM workspaces w WHERE w.namespace = sqlc.arg(namespace) AND w.deleted_at IS NULL;
 
 -- name: DeleteExpiredGuardrailEvents :execrows
+WITH expired_requests AS (
+  DELETE FROM observer_guardrail_requests WHERE expires_at <= now()
+)
 DELETE FROM observer_guardrail_events WHERE expires_at <= now();
+
+-- name: InsertGuardrailRequest :exec
+INSERT INTO observer_guardrail_requests (trace_id, span_id, expires_at, body)
+VALUES (sqlc.arg(trace_id), sqlc.arg(span_id), sqlc.arg(expires_at), sqlc.arg(body))
+ON CONFLICT (trace_id, span_id) DO NOTHING;
 
 -- name: InsertProcessEvents :copyfrom
 INSERT INTO observer_process_events(

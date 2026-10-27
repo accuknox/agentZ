@@ -282,6 +282,11 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationTracing(ctx context.Contex
 		attrs = append(attrs,
 			agw.AttributeAdd{Name: "agentz.guardrails", Expression: "toJson(guardrails)"},
 			agw.AttributeAdd{
+				Name: "agentz.guardrail_request",
+				Expression: `guardrails.exists(g, g.phase == "request")
+  && size(request.body) <= 1048576 ? string(request.body) : ""`,
+			},
+			agw.AttributeAdd{
 				Name:       "agentz.guardrail_revision",
 				Expression: `default(metadata.agentz_guardrail_revision, "")`,
 			},

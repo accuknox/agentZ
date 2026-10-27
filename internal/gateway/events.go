@@ -286,6 +286,22 @@ func (s *Service) GetGuardrailEvent(w http.ResponseWriter, r *http.Request, even
 		apiutil.WriteInternalError(w, r, err)
 		return
 	}
+	// Request bodies require the same workspace, agent/session, and Lens
+	// permissions as the correlated model call. List responses stay metadata-only.
+	if event.TraceSource != nil && event.Evaluation.Phase == gatewayapi.GuardrailRuntimeEvaluationPhaseRequest {
+		body, err := s.queries.GatewayGetGuardrailRequest(r.Context(), gatewaydb.GatewayGetGuardrailRequestParams{
+			ID:             eventID,
+			OrganizationID: access.claims.OrganizationID,
+			WorkspaceID:    access.workspaceID,
+		})
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			apiutil.WriteInternalError(w, r, err)
+			return
+		}
+		if len(body) > 0 {
+			event.RequestBody = new(string(body))
+		}
+	}
 	apiutil.WriteJSON(w, http.StatusOK, event)
 }
 

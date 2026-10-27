@@ -2567,6 +2567,29 @@ func (q *Queries) GatewayGetGuardrailEventChart(ctx context.Context, arg Gateway
 	return items, nil
 }
 
+const gatewayGetGuardrailRequest = `-- name: GatewayGetGuardrailRequest :one
+SELECT request.body
+FROM observer_guardrail_requests request
+JOIN observer_guardrail_events event USING (trace_id, span_id)
+WHERE event.id = $1
+  AND event.organization_id = $2
+  AND ($3::text = '' OR event.workspace_id = $3)
+  AND event.expires_at > now() AND request.expires_at > now()
+`
+
+type GatewayGetGuardrailRequestParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+func (q *Queries) GatewayGetGuardrailRequest(ctx context.Context, arg GatewayGetGuardrailRequestParams) ([]byte, error) {
+	row := q.db.QueryRow(ctx, gatewayGetGuardrailRequest, arg.ID, arg.OrganizationID, arg.WorkspaceID)
+	var body []byte
+	err := row.Scan(&body)
+	return body, err
+}
+
 const gatewayGetLensApp = `-- name: GatewayGetLensApp :one
 WITH subjects AS (
  SELECT op.client_id, op.app_name AS name, op.agent_kind, MAX(op.start_time) AS last_seen

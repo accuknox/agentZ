@@ -20,6 +20,7 @@ const attrGuardrailEvaluations = "agentz.guardrails"
 type guardrailEvent struct {
 	row       observerdb.InsertGuardrailEventParams
 	namespace string
+	request   []byte
 }
 
 // guardrailEventsFromSpan retains interventions from the gateway-only listener.
@@ -61,6 +62,16 @@ func guardrailEventsFromSpan(sp *tracepb.Span) ([]guardrailEvent, error) {
 		return nil, errors.New("guardrail evaluation has an invalid occurrence time")
 	}
 	attrs := attrsMap(sp.GetAttributes())
+	// The gateway captures the actual request before guardrails mutate it.
+	// Oversized or incomplete bodies must never be presented as full context.
+	var request []byte
+	body := attrs["agentz.guardrail_request"].GetStringValue()
+	if len(body) <= 1024*1024 && json.Valid([]byte(body)) {
+		trimmed := bytes.TrimSpace([]byte(body))
+		if len(trimmed) > 0 && trimmed[0] == '{' {
+			request = trimmed
+		}
+	}
 	// The resource can be an organization Sandbox shared by many workspaces.
 	// Only the caller's route identity determines where its evidence belongs.
 	namespace := attrs[attrAgentZTenantNamespace].GetStringValue()
@@ -116,7 +127,11 @@ func guardrailEventsFromSpan(sp *tracepb.Span) ([]guardrailEvent, error) {
 			Action:          string(evaluation.Action),
 			Evaluation:      encoded,
 		}
-		events = append(events, guardrailEvent{row: row, namespace: namespace})
+		events = append(events, guardrailEvent{
+			row:       row,
+			namespace: namespace,
+			request:   request,
+		})
 	}
 	return events, nil
 }

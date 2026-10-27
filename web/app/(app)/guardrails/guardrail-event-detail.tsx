@@ -129,6 +129,13 @@ export function GuardrailEventDetail({
     ? scopeSection
     : messageSection
   const payload = captured?.span?.payload.find((item) => item.key === section && !item.empty)
+  const requestBody = evaluation.phase === "request" ? captured?.requestBody : undefined
+  let capturedContent = requestBody ? JSON.stringify(JSON.parse(requestBody), null, 2) : undefined
+  if (!requestBody && payload)
+    capturedContent = "text" in payload.content ? payload.content.text : payload.content.code
+  let contentHeading = content
+  if (evaluation.phase === "request")
+    contentHeading = requestBody ? "Request before checks" : "Captured model input"
   const workspacePath = captured?.workspaceSlug
     ? `/orgs/${orgSlug}/workspaces/${captured.workspaceSlug}`
     : undefined
@@ -315,7 +322,7 @@ export function GuardrailEventDetail({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="flex items-center gap-2 font-medium">
             <ContentIcon aria-hidden className="size-4 text-muted-foreground" />
-            {content}
+            {contentHeading}
           </h3>
           {captured?.source && workspacePath ? (
             <Link
@@ -347,10 +354,16 @@ export function GuardrailEventDetail({
             </div>
             <Skeleton className="h-4 w-32" />
           </div>
-        ) : payload ? (
+        ) : capturedContent ? (
           <div className="flex flex-col gap-3">
+            {evaluation.phase === "request" && !requestBody ? (
+              <p className="text-sm text-muted-foreground">
+                The full request inspected by this check was not captured. This is the linked
+                model-call input.
+              </p>
+            ) : null}
             <pre className="max-h-64 overflow-auto rounded-md bg-muted/30 p-4 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap">
-              {"text" in payload.content ? payload.content.text : payload.content.code}
+              {capturedContent}
             </pre>
             <p className="text-xs text-muted-foreground">
               {captured?.span?.span.displayName}

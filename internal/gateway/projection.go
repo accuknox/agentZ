@@ -3,12 +3,14 @@ package gateway
 import (
 	"context"
 	"crypto/sha256"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
 	"strconv"
+	"strings"
 	"time"
 
 	agw "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
@@ -31,6 +33,9 @@ import (
 	"github.com/accuknox/agentz/internal/networkpolicy"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
+
+//go:embed delegation_mcp_allowlist.cel
+var delegationMCPAllowlist string
 
 func (s *Service) delegationReady(ctx context.Context, grant gatewaydb.DelegationGrant, namespace, gateway, name string, policyNames ...string) error {
 	conditionsReady := func(conditions []metav1.Condition, generation int64, names ...string) bool {
@@ -256,7 +261,7 @@ func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.Delegat
 			provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindAzure ||
 			provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICodex
 		if stateless {
-			target.Policies.AI.FinalTransformations = []agw.FieldTransformation{{Field: "store", Expression: "false"}}
+			target.Policies.AI.FinalTransformations = []agw.FieldTransformation{{Field: "store", Expression: `false`}}
 		}
 		name := fmt.Sprintf("d-%s-model-%d", grant.ID, index)
 		ownerEgress[selected.Namespace] = append(ownerEgress[selected.Namespace], networkpolicy.Target{
@@ -561,23 +566,28 @@ func delegationMCPExpressions(selected gatewayapi.DelegationMCP) ([]agw.CELExpre
 		if len(values) == 0 {
 			continue
 		}
-		prefix := fmt.Sprintf("has(mcp.%s) && mcp.%s.target == %q && mcp.%s.name in [", kind, kind, selected.Id, kind)
-		expression := prefix
+		// Reserve the embedded policy's syntax before filling each value chunk.
+		limit := 16384 - len(fmt.Sprintf(delegationMCPAllowlist, kind, selected.Id, ""))
+		chunk := []string{}
+		size := 0
 		for _, value := range values {
 			encoded := strconv.Quote(value)
 			if len(value) > 2500 {
 				return nil, errors.New("MCP capability exceeds the native authorization expression limit")
 			}
-			if len(expression)+len(encoded)+2 > 16384 {
-				expressions = append(expressions, agw.CELExpression(expression+"]"))
-				expression = prefix
+			if size+len(encoded)+1 > limit {
+				expressions = append(expressions, agw.CELExpression(fmt.Sprintf(
+					delegationMCPAllowlist, kind, selected.Id, strings.Join(chunk, ","),
+				)))
+				chunk = nil
+				size = 0
 			}
-			if len(expression) != len(prefix) {
-				expression += ","
-			}
-			expression += encoded
+			chunk = append(chunk, encoded)
+			size += len(encoded) + 1
 		}
-		expressions = append(expressions, agw.CELExpression(expression+"]"))
+		expressions = append(expressions, agw.CELExpression(fmt.Sprintf(
+			delegationMCPAllowlist, kind, selected.Id, strings.Join(chunk, ","),
+		)))
 	}
 	return expressions, nil
 }

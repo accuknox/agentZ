@@ -51,10 +51,9 @@ const (
 var chatTextContent agentgatewayv1alpha1.CELExpression
 
 // retryableResponse excludes content denials from retries and Pool eviction.
-const retryableResponse agentgatewayv1alpha1.CELExpression = `response.code == 401 ||
-response.code == 403 ||
-response.code == 429 ||
-response.code >= 500`
+//
+//go:embed retryable_response.cel
+var retryableResponse agentgatewayv1alpha1.CELExpression
 
 // CredentialPath returns the OpenBao path for one provider's credential kind.
 func CredentialPath(namespace, name string, kind agentzv1alpha1.InferenceProviderKind) string {

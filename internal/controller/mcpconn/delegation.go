@@ -2,7 +2,9 @@ package mcpconn
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strconv"
 
@@ -21,9 +23,49 @@ import (
 
 	"github.com/accuknox/agentz/internal/authorization"
 	sandboxcontroller "github.com/accuknox/agentz/internal/controller/sandbox"
+	"github.com/accuknox/agentz/internal/guardrails"
 	"github.com/accuknox/agentz/internal/inference"
 	"github.com/accuknox/agentz/internal/mcp"
 )
+
+//go:embed delegation_agent_kind.cel
+var delegationAgentKind agw.CELExpression
+
+//go:embed inference_session.cel
+var inferenceSession agw.CELExpression
+
+//go:embed inference_turn.cel
+var inferenceTurn agw.CELExpression
+
+//go:embed inference_model.cel
+var inferenceModel agw.CELExpression
+
+//go:embed inference_output.cel
+var inferenceOutput agw.CELExpression
+
+//go:embed mcp_session.cel
+var mcpSession agw.CELExpression
+
+//go:embed mcp_turn.cel
+var mcpTurn agw.CELExpression
+
+//go:embed mcp_call_id.cel
+var mcpCallID agw.CELExpression
+
+//go:embed mcp_arguments.cel
+var mcpArguments agw.CELExpression
+
+//go:embed mcp_error.cel
+var mcpError agw.CELExpression
+
+//go:embed mcp_method.cel
+var mcpMethod agw.CELExpression
+
+//go:embed mcp_tool_name.cel
+var mcpToolName agw.CELExpression
+
+//go:embed delegation_filter.cel
+var delegationFilter agw.CELExpression
 
 const delegationParametersAnnotation = "agentz.accuknox.com/delegation-parameters"
 
@@ -270,113 +312,80 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationTracing(ctx context.Contex
 	for _, field := range fields {
 		attrs = append(attrs, agw.AttributeAdd{
 			Name:       "agentz." + field,
-			Expression: agw.CELExpression("metadata.agentz_observability." + field),
+			Expression: agw.CELExpression(fmt.Sprintf(`metadata.agentz_observability.%s`, field)),
 		})
 	}
 	// Registration controls which native metadata is accepted as conversation identity.
 	attrs = append(attrs, agw.AttributeAdd{
 		Name:       "agentz.agent_kind",
-		Expression: `default(metadata.agentz_observability.agent_kind, "")`,
+		Expression: delegationAgentKind,
 	})
 	if gateway == inference.GatewayName {
 		attrs = append(attrs,
 			agw.AttributeAdd{Name: "agentz.guardrails", Expression: "toJson(guardrails)"},
 			agw.AttributeAdd{
-				Name: "agentz.guardrail_request",
-				Expression: `guardrails.exists(g, g.phase == "request")
-  && size(request.body) <= 1048576 ? string(request.body) : ""`,
+				Name:       "agentz.guardrail_request",
+				Expression: guardrails.RequestCaptureExpression,
 			},
 			agw.AttributeAdd{
 				Name:       "agentz.guardrail_revision",
 				Expression: `default(metadata.agentz_guardrail_revision, "")`,
 			},
 			agw.AttributeAdd{
-				Name: "session.id",
-				Expression: `default(metadata.agentz_observability.agent_kind, "") == "codex"
-  ? default(request.headers["thread-id"], "")
-  : (default(metadata.agentz_observability.agent_kind, "") == "claude"
-      ? default(request.headers["x-claude-code-session-id"], "")
-      : "")`,
+				Name:       "session.id",
+				Expression: inferenceSession,
 			},
 			agw.AttributeAdd{
-				Name: "agentz.turn_id",
-				Expression: `default(metadata.agentz_observability.agent_kind, "") == "codex"
-  ? default(json(request.headers["x-codex-turn-metadata"]).turn_id, "")
-  : (default(metadata.agentz_observability.agent_kind, "") == "claude"
-      ? default(request.headers["x-claude-code-prompt-id"], "")
-      : "")`,
+				Name:       "agentz.turn_id",
+				Expression: inferenceTurn,
 			},
-			agw.AttributeAdd{Name: "llm.input_messages", Expression: "string(request.body)"},
+			agw.AttributeAdd{Name: "llm.input_messages", Expression: `string(request.body)`},
 			agw.AttributeAdd{
 				Name:       "gen_ai.request.model",
-				Expression: "default(llm.requestModel, json(request.body).model)",
+				Expression: inferenceModel,
 			},
 			agw.AttributeAdd{
-				Name: "llm.output_messages",
-				Expression: `toJson({
-  "completion": default(llm.completion, []),
-  "tool_calls": default(llm.toolCalls, [])
-})`,
+				Name:       "llm.output_messages",
+				Expression: inferenceOutput,
 			},
 		)
 	}
 	if gateway == mcp.GatewayName {
 		attrs = append(attrs,
 			agw.AttributeAdd{
-				Name: "session.id",
-				Expression: `default(metadata.agentz_observability.agent_kind, "") == "codex"
-  ? default(
-      json(request.body).params._meta["x-codex-turn-metadata"].thread_id,
-      ""
-    )
-  : ""`,
+				Name:       "session.id",
+				Expression: mcpSession,
 			},
 			agw.AttributeAdd{
-				Name: "agentz.turn_id",
-				Expression: `default(metadata.agentz_observability.agent_kind, "") == "codex"
-  ? default(
-      json(request.body).params._meta["x-codex-turn-metadata"].turn_id,
-      ""
-    )
-  : ""`,
+				Name:       "agentz.turn_id",
+				Expression: mcpTurn,
 			},
 			agw.AttributeAdd{
-				Name: "gen_ai.tool.call.id",
-				Expression: `default(metadata.agentz_observability.agent_kind, "") == "claude"
-  ? default(json(request.body).params._meta["claudecode/toolUseId"], "")
-  : (default(metadata.agentz_observability.agent_kind, "") == "codex"
-      ? default(json(request.body).params._meta.callId, "")
-      : "")`,
+				Name:       "gen_ai.tool.call.id",
+				Expression: mcpCallID,
 			},
 			agw.AttributeAdd{
 				Name:       "tool.parameters",
-				Expression: "toJson(default(mcp.tool.arguments, json(request.body).params.arguments))",
+				Expression: mcpArguments,
 			},
-			agw.AttributeAdd{Name: "output.value", Expression: "toJson(mcp.tool.result)"},
+			agw.AttributeAdd{Name: "output.value", Expression: `toJson(mcp.tool.result)`},
 			agw.AttributeAdd{
-				Name: "tool.error",
-				Expression: `toJson(
-  response.code >= 400
-    ? default(mcp.tool.error, string(response.body))
-    : mcp.tool.error
-)`,
+				Name:       "tool.error",
+				Expression: mcpError,
 			},
-			agw.AttributeAdd{Name: "mcp.request.id", Expression: "json(request.body).id"},
+			agw.AttributeAdd{Name: "mcp.request.id", Expression: `json(request.body).id`},
 			agw.AttributeAdd{
 				Name:       "mcp.method.name",
-				Expression: "default(mcp.methodName, json(request.body).method)",
+				Expression: mcpMethod,
 			},
 			agw.AttributeAdd{
 				Name:       "gen_ai.tool.name",
-				Expression: "default(mcp.tool.name, json(request.body).params.name)",
+				Expression: mcpToolName,
 			},
 		)
 	}
-	sample := agw.CELExpression("true")
-	filter := agw.CELExpression(`metadata.agentz_observability.resource_kind == "inference" || (
-  metadata.agentz_observability.resource_kind == "mcp" &&
-  default(mcp.methodName, json(request.body).method) == "tools/call"
-)`)
+	sample := agw.CELExpression(`true`)
+	filter := delegationFilter
 	bufferSize := resource.MustParse("32Mi")
 	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, policy, func() error {
 		policy.OwnerReferences = owners
@@ -404,7 +413,7 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationTracing(ctx context.Contex
 					Filter:           &filter,
 					Attributes:       &agw.LogTracingAttributes{Add: attrs},
 					Resources: []agw.ResourceAdd{
-						{Name: "service.name", Expression: `"agentz-oauth-gateway"`},
+						{Name: "service.name", Expression: agw.CELExpression(strconv.Quote("agentz-oauth-gateway"))},
 						{
 							Name:       "service.namespace",
 							Expression: agw.CELExpression(strconv.Quote(namespace)),

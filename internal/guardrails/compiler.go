@@ -4,6 +4,7 @@ package guardrails
 import (
 	"context"
 	"crypto/sha256"
+	_ "embed"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -24,6 +25,11 @@ import (
 	"github.com/accuknox/agentz/internal/scope"
 	api "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
+
+// RequestCaptureExpression retains complete, bounded requests for interventions.
+//
+//go:embed request_capture.cel
+var RequestCaptureExpression agw.CELExpression
 
 // ResolvedCheck identifies one check and its immutable connection configuration.
 type ResolvedCheck struct {

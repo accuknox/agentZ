@@ -1033,7 +1033,7 @@ func (r *Reconciler) reconcileTracePolicy(ctx context.Context, namespace string,
 	currentSpec := obj.Spec.DeepCopy()
 	currentOwners := slices.Clone(obj.OwnerReferences)
 	backendRef := r.TraceBackend.BackendRef(traceBackendName)
-	randomSampling := agentgatewayv1alpha1.CELExpression("true")
+	randomSampling := agentgatewayv1alpha1.CELExpression(`true`)
 	attrs := &agentgatewayv1alpha1.LogTracingAttributes{
 		Add: []agentgatewayv1alpha1.AttributeAdd{
 			{
@@ -1046,31 +1046,31 @@ func (r *Reconciler) reconcileTracePolicy(ctx context.Context, namespace string,
 			},
 			{
 				Name:       "session.id",
-				Expression: "mcp.sessionId",
+				Expression: `mcp.sessionId`,
 			},
 			{
 				Name:       "mcp.connection.name",
-				Expression: "mcp.tool.target",
+				Expression: `mcp.tool.target`,
 			},
 			{
 				Name:       "mcp.tool.name",
-				Expression: "mcp.tool.name",
+				Expression: `mcp.tool.name`,
 			},
 			{
 				Name:       "tool.name",
-				Expression: "mcp.tool.name",
+				Expression: `mcp.tool.name`,
 			},
 			{
 				Name:       "tool.parameters",
-				Expression: "mcp.tool.arguments",
+				Expression: `mcp.tool.arguments`,
 			},
 			{
 				Name:       "output.value",
-				Expression: "mcp.tool.result",
+				Expression: `mcp.tool.result`,
 			},
 			{
 				Name:       "tool.error",
-				Expression: "mcp.tool.error",
+				Expression: `mcp.tool.error`,
 			},
 		},
 	}

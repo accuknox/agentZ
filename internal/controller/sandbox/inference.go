@@ -677,9 +677,8 @@ func (r *Reconciler) inferenceTracing(namespace string) *agentgatewayv1alpha1.Tr
 					Expression: "toJson(guardrails)",
 				},
 				{
-					Name: "agentz.guardrail_request",
-					Expression: `guardrails.exists(g, g.phase == "request")
-  && size(request.body) <= 1048576 ? string(request.body) : ""`,
+					Name:       "agentz.guardrail_request",
+					Expression: guardrails.RequestCaptureExpression,
 				},
 				{
 					Name:       "agentz.guardrail_revision",
@@ -703,7 +702,7 @@ func (r *Reconciler) inferenceTracing(namespace string) *agentgatewayv1alpha1.Tr
 				},
 				{
 					Name:       "gen_ai.request.model",
-					Expression: "llm.requestModel",
+					Expression: `llm.requestModel`,
 				},
 			},
 		},

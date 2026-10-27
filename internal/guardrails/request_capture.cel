@@ -1,0 +1,2 @@
+guardrails.exists(g, g.phase == "request")
+  && size(request.body) <= 1048576 ? string(request.body) : ""

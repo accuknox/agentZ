@@ -1,0 +1,1 @@
+has(mcp.%[1]s) && mcp.%[1]s.target == %[2]q && mcp.%[1]s.name in [%[3]s]

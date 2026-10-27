@@ -176,7 +176,7 @@ func RenderSandboxTarget(namespace, sandboxName string, target SandboxTarget, ag
 		quoted = append(quoted, strconv.Quote(model))
 	}
 	expression := agentgatewayv1alpha1.CELExpression(fmt.Sprintf(
-		"default(json(request.body).model, \"\") in [%s]",
+		`default(json(request.body).model, "") in [%s]`,
 		strings.Join(quoted, ", "),
 	))
 	policy := &agentgatewayv1alpha1.AgentgatewayPolicy{

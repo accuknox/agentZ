@@ -1,0 +1,1 @@
+default(mcp.tool.name, json(request.body).params.name)

@@ -1,0 +1,5 @@
+toJson(
+  response.code >= 400
+    ? default(mcp.tool.error, string(response.body))
+    : mcp.tool.error
+)

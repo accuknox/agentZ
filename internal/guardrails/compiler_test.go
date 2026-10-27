@@ -341,33 +341,42 @@ func TestMandatoryChecksRejectOptionalMutations(t *testing.T) {
 	}
 }
 
-func TestStreamingRejectsEnforcedMutations(t *testing.T) {
-	for _, provider := range []api.GuardrailProvider{"Regex", "Webhook", "Bedrock", "ModelArmor"} {
-		for _, phase := range []string{"input", "output"} {
-			for _, mode := range []string{"enforce", "audit"} {
-				t.Run(string(provider)+"/"+phase+"/"+mode, func(t *testing.T) {
-					resolved := ResolvedCheck{
-						Check: api.GuardrailCheck{
-							ID:     "check",
-							Phase:  phase,
-							Mode:   mode,
-							Action: "deny",
-						},
-					}
-					switch provider {
-					case "Regex":
-						resolved.Check.Action = "mask"
-					default:
-						resolved.Connection = &api.GuardrailConnection{Spec: api.GuardrailConnectionSpec{Provider: provider}}
-					}
-					bundle := &Bundle{Checks: []ResolvedCheck{resolved}}
-					wantError := phase == "output" && mode == "enforce" && provider != "ModelArmor"
-					if err := bundle.ValidateStreaming(); (err != nil) != wantError {
-						t.Fatalf("streaming validation = %v, want error %v", err, wantError)
-					}
-				})
+func TestProviderRequestScopes(t *testing.T) {
+	for _, provider := range []api.GuardrailProvider{"OpenAI", "Bedrock", "ModelArmor", "Webhook"} {
+		t.Run(string(provider), func(t *testing.T) {
+			check := api.GuardrailCheck{
+				ID:               "scoped",
+				Name:             "Scoped check",
+				Phase:            "input",
+				Scopes:           []string{"toolResults"},
+				Mode:             "enforce",
+				FailureMode:      "closed",
+				Action:           "deny",
+				GuardrailID:      "guardrail",
+				GuardrailVersion: "1",
+				Template:         "projects/project/locations/region/templates/template",
 			}
-		}
+			bundle := &Bundle{Checks: []ResolvedCheck{{
+				Check: check,
+				Connection: &api.GuardrailConnection{
+					Spec: api.GuardrailConnectionSpec{Provider: provider},
+				},
+			}}}
+			err := bundle.compile("namespace")
+			if provider == "Webhook" {
+				if err == nil {
+					t.Fatal("webhook silently accepted scopes its protocol ignores")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("supported request scope rejected: %v", err)
+			}
+			scopes := bundle.Guard.Request[0].Scope
+			if len(scopes) != 1 || scopes[0] != agw.ContentScopeToolOutput {
+				t.Fatalf("request scope was not preserved: %v", scopes)
+			}
+		})
 	}
 }
 
@@ -375,20 +384,28 @@ func TestStreamingRegexNeedsBoundedContext(t *testing.T) {
 	for _, pattern := range []string{"SECRET", "[0-9]{3}", "^SECRET", "SECRET$", "a+", "a{257}", `\bsecret\b`} {
 		t.Run(pattern, func(t *testing.T) {
 			check := api.GuardrailCheck{
-				ID:     "check",
-				Phase:  "output",
-				Mode:   "enforce",
-				Action: "deny",
-				Regex:  &api.GuardrailRegex{Patterns: []string{pattern}},
+				ID:          "check",
+				Name:        "Output check",
+				Phase:       "output",
+				Scopes:      []string{"conversation"},
+				FailureMode: "closed",
+				Mode:        "enforce",
+				Action:      "deny",
+				Regex:       &api.GuardrailRegex{Patterns: []string{pattern}},
 			}
-			bundle := &Bundle{Checks: []ResolvedCheck{{Check: check}}}
+			policy := api.GuardrailPolicySpec{DisplayName: "Output policy", Checks: []api.GuardrailCheck{check}}
 			wantError := pattern != "SECRET" && pattern != "[0-9]{3}"
-			if err := bundle.ValidateStreaming(); (err != nil) != wantError {
+			if err := ValidatePolicy(policy); (err != nil) != wantError {
 				t.Fatalf("stream validation = %v, want error %v", err, wantError)
 			}
-			bundle.Checks[0].Check.Mode = "audit"
-			if err := bundle.ValidateStreaming(); err != nil {
+			policy.Checks[0].Mode = "audit"
+			if err := ValidatePolicy(policy); err != nil {
 				t.Fatalf("audit check rejected: %v", err)
+			}
+			policy.Checks[0].Mode = "enforce"
+			policy.Checks[0].Action = "mask"
+			if err := ValidatePolicy(policy); err != nil {
+				t.Fatalf("response masking policy rejected: %v", err)
 			}
 		})
 	}

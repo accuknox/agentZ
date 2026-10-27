@@ -44,7 +44,7 @@ type Bundle struct {
 // ValidateConnection rejects unsupported transports and incomplete detector configuration.
 func ValidateConnection(spec api.GuardrailConnectionSpec) error {
 	if strings.TrimSpace(spec.DisplayName) == "" {
-		return errors.New("connection display name is required")
+		return errors.New("provider display name is required")
 	}
 	switch spec.Provider {
 	case "Webhook":
@@ -65,7 +65,7 @@ func ValidateConnection(spec api.GuardrailConnectionSpec) error {
 		}
 	case "OpenAI", "ModelArmor":
 		if spec.Endpoint != "" {
-			return errors.New("custom endpoints are supported only for webhook connections")
+			return errors.New("custom endpoints are supported only for webhook providers")
 		}
 	default:
 		return errors.New("unsupported guardrail provider")
@@ -118,7 +118,7 @@ func ValidatePolicy(spec api.GuardrailPolicySpec) error {
 			}
 		}
 		if (check.Regex == nil) == (check.Connection == nil) {
-			return fmt.Errorf("check %q must select exactly one of regex or connection", check.ID)
+			return fmt.Errorf("check %q must select exactly one of regex or provider", check.ID)
 		}
 		if check.Regex != nil {
 			if len(check.Regex.Patterns)+len(check.Regex.Builtins) == 0 {
@@ -139,6 +139,19 @@ func ValidatePolicy(spec api.GuardrailPolicySpec) error {
 			for _, pattern := range check.Regex.Patterns {
 				if _, err := regexp.Compile(pattern); err != nil {
 					return fmt.Errorf("check %q has an invalid regular expression: %w", check.ID, err)
+				}
+				// Blocking streamed output requires bounded context. Mask and
+				// audit verdicts do not enforce changes to streamed content.
+				if check.Phase != "output" || check.Mode != "enforce" || check.Action != "deny" {
+					continue
+				}
+				parsed, err := syntax.Parse(pattern, syntax.Perl)
+				if err != nil {
+					return fmt.Errorf("check %q has an invalid regular expression: %w", check.ID, err)
+				}
+				width, bounded := boundedPatternWidth(parsed)
+				if !bounded || width > 256 {
+					return fmt.Errorf("check %q requires whole-output regex context; use a bounded pattern without anchors or audit mode", check.ID)
 				}
 			}
 		}
@@ -171,11 +184,8 @@ func ValidateConfiguration(ctx context.Context, reader client.Reader, namespace 
 	if err != nil {
 		return err
 	}
-	bundle, err := resolve(ctx, reader, namespace, org, settings, assignment, replacement)
-	if err != nil {
-		return err
-	}
-	return bundle.ValidateStreaming()
+	_, err = resolve(ctx, reader, namespace, org, settings, assignment, replacement)
+	return err
 }
 
 func resolve(ctx context.Context, reader client.Reader, namespace, orgNamespace string, settings api.GuardrailSettings, assignment api.GuardrailAssignment, replacement *api.GuardrailPolicy) (*Bundle, error) {
@@ -224,9 +234,6 @@ func resolve(ctx context.Context, reader client.Reader, namespace, orgNamespace 
 		}
 		if !policy.DeletionTimestamp.IsZero() {
 			return nil, fmt.Errorf("guardrail policy %q is terminating", ref.Name)
-		}
-		if err := ValidatePolicy(policy.Spec); err != nil {
-			return nil, fmt.Errorf("policy %q: %w", ref.Name, err)
 		}
 		if err := bundle.appendPolicy(ctx, reader, policy.Namespace, policy, mandatory); err != nil {
 			return nil, err
@@ -278,10 +285,12 @@ func (b *Bundle) compile(namespace string) error {
 			}
 		}
 		context := gatewayapi.GuardrailContext{
-			CheckId: check.ID, CheckName: check.Name, Guard: "regex",
-			Phase:   gatewayapi.GuardrailContextPhaseRequest,
-			Message: check.SafeExplanation,
-			Scopes:  make([]gatewayapi.GuardrailContextScopes, 0, len(check.Scopes)),
+			CheckId:   check.ID,
+			CheckName: check.Name,
+			Guard:     "regex",
+			Phase:     gatewayapi.GuardrailContextPhaseRequest,
+			Message:   check.SafeExplanation,
+			Scopes:    make([]gatewayapi.GuardrailContextScopes, 0, len(check.Scopes)),
 		}
 		if resolved.Policy != nil {
 			context.PolicyId = resolved.Policy.Name
@@ -318,8 +327,8 @@ func (b *Bundle) compile(namespace string) error {
 			name := ConnectionRuntimeName(connection)
 			secret := &agw.LocalSecretKeyRef{Name: gwv1.ObjectName(name), Key: new("token")}
 			defaultScopes := len(check.Scopes) == 2 && slices.Contains(check.Scopes, "instructions") && slices.Contains(check.Scopes, "conversation")
-			if check.Phase == "input" && connection.Spec.Provider != "Bedrock" && !defaultScopes {
-				return fmt.Errorf("check %q provider requires instructions and conversation scopes", check.ID)
+			if check.Phase == "input" && connection.Spec.Provider == "Webhook" && !defaultScopes {
+				return fmt.Errorf("check %q webhook requires instructions and conversation scopes", check.ID)
 			}
 			switch connection.Spec.Provider {
 			case "OpenAI":
@@ -395,14 +404,17 @@ func (b *Bundle) compile(namespace string) error {
 			message += ": " + context.Message
 		}
 		body, err := json.Marshal(gatewayapi.GuardrailRejection{Error: gatewayapi.GuardrailError{
-			Type: gatewayapi.GuardrailErrorTypeInvalidRequestError, Code: gatewayapi.ContentPolicyViolation,
-			Message: message, Guardrail: context,
+			Type:      gatewayapi.GuardrailErrorTypeInvalidRequestError,
+			Code:      gatewayapi.ContentPolicyViolation,
+			Message:   message,
+			Guardrail: context,
 		}})
 		if err != nil {
 			return err
 		}
 		customResponse := &agw.CustomResponse{
-			StatusCode: 422, Message: new(string(body)),
+			StatusCode: 422,
+			Message:    new(string(body)),
 		}
 		request.CustomResponse = customResponse
 		response.CustomResponse = customResponse
@@ -453,44 +465,8 @@ func (b *Bundle) Apply(policy *agw.AgentgatewayPolicy) {
 	policy.Annotations["agentz.accuknox.com/guardrail-revision"] = b.Revision
 }
 
-// ValidateStreaming rejects mutations that native checked streaming cannot apply.
-// Checks inspect overlapping windows, not the complete response.
-func (b *Bundle) ValidateStreaming() error {
-	for _, resolved := range b.Checks {
-		check := resolved.Check
-		if check.Phase != "output" || check.Mode != "enforce" {
-			continue
-		}
-		if check.Regex != nil {
-			for _, pattern := range check.Regex.Patterns {
-				parsed, err := syntax.Parse(pattern, syntax.Perl)
-				if err != nil {
-					return fmt.Errorf("check %q has an invalid regex: %w", check.ID, err)
-				}
-				width, compatible := boundedPatternWidth(parsed)
-				if !compatible || width > 256 {
-					return fmt.Errorf("check %q requires whole-output regex context; use a bounded pattern without anchors or audit mode", check.ID)
-				}
-			}
-		}
-		if check.Action == "mask" {
-			return fmt.Errorf("check %q masks output, which native checked streaming cannot apply; use audit mode or denial", check.ID)
-		}
-		if resolved.Connection != nil && (resolved.Connection.Spec.Provider == "Bedrock" || resolved.Connection.Spec.Provider == "Webhook") {
-			return fmt.Errorf(
-				"check %q uses a provider that can modify output, which native checked streaming cannot apply; use audit mode or a non-mutating detector",
-				check.ID,
-			)
-		}
-	}
-	return nil
-}
-
 // CompilePolicy resolves and compiles a policy to validate its checks and scoped connections.
 func CompilePolicy(ctx context.Context, reader client.Reader, namespace string, policy *api.GuardrailPolicy) (*Bundle, error) {
-	if err := ValidatePolicy(policy.Spec); err != nil {
-		return nil, err
-	}
 	bundle := &Bundle{}
 	if err := bundle.appendPolicy(ctx, reader, namespace, policy, false); err != nil {
 		return nil, err
@@ -507,6 +483,9 @@ func CompilePolicy(ctx context.Context, reader client.Reader, namespace string, 
 }
 
 func (b *Bundle) appendPolicy(ctx context.Context, reader client.Reader, namespace string, policy *api.GuardrailPolicy, mandatory bool) error {
+	if err := ValidatePolicy(policy.Spec); err != nil {
+		return fmt.Errorf("policy %q: %w", policy.Name, err)
+	}
 	for _, check := range policy.Spec.Checks {
 		resolved := ResolvedCheck{Policy: policy, Check: check, Mandatory: mandatory}
 		if check.Connection != nil {
@@ -539,10 +518,10 @@ func (b *Bundle) resolveConnection(ctx context.Context, reader client.Reader, na
 	connection := &api.GuardrailConnection{}
 	err = reader.Get(ctx, client.ObjectKey{Namespace: ns, Name: ref.Name}, connection)
 	if err != nil {
-		return nil, fmt.Errorf("get guardrail connection: %w", err)
+		return nil, fmt.Errorf("get guardrail provider: %w", err)
 	}
 	if !connection.DeletionTimestamp.IsZero() {
-		return nil, errors.New("guardrail connection is terminating")
+		return nil, errors.New("guardrail provider is terminating")
 	}
 	if err := ValidateConnection(connection.Spec); err != nil {
 		return nil, err

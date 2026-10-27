@@ -345,7 +345,7 @@ function OrganizationNavigation(props: OrganizationNavigationProps) {
     guardrailConnectionCapabilities.read ||
     guardrailEventCapabilities.read
   let guardrailsView = "events"
-  if (guardrailConnectionCapabilities.read) guardrailsView = "connections"
+  if (guardrailConnectionCapabilities.read) guardrailsView = "providers"
   if (guardrailPolicyCapabilities.read) guardrailsView = "policies"
   const hasResources =
     canReadGuardrails ||

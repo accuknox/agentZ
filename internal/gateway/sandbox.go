@@ -1307,11 +1307,8 @@ func (s *Service) validateSandboxMCPConnections(ctx context.Context, current str
 }
 
 func (s *Service) validateSandboxDependencies(ctx context.Context, access resourceAccess, sandbox *agentzv1alpha1.Sandbox) ([]gatewayapi.FieldError, error) {
-	bundle, err := guardrails.Resolve(ctx, s.k8sClient, access.namespace, sandbox.Spec.Guardrails)
+	_, err := guardrails.Resolve(ctx, s.k8sClient, access.namespace, sandbox.Spec.Guardrails)
 	if err != nil {
-		return []gatewayapi.FieldError{{Field: "guardrails", Message: err.Error()}}, nil
-	}
-	if err := bundle.ValidateStreaming(); err != nil {
 		return []gatewayapi.FieldError{{Field: "guardrails", Message: err.Error()}}, nil
 	}
 	fields := []gatewayapi.FieldError{}

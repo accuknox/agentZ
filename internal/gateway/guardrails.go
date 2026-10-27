@@ -67,7 +67,7 @@ func (s *Service) serveGuardrailConnections(w http.ResponseWriter, r *http.Reque
 		}
 	}
 	access, apiErr := s.resolveResourceAccess(r.Context(), resourceAccessRequest{
-		resource:    "Guardrail Connection",
+		resource:    "Guardrail Provider",
 		workspaceID: r.Header.Get("X-AgentZ-Workspace-ID"),
 		operation:   operation,
 	})
@@ -79,7 +79,7 @@ func (s *Service) serveGuardrailConnections(w http.ResponseWriter, r *http.Reque
 		list := &api.GuardrailConnectionList{}
 		err := s.k8sClient.List(r.Context(), list, ctrlclient.InNamespace(access.namespace))
 		if err != nil {
-			apiutil.WriteError(w, r, mapKubeHTTPError("list guardrail connections", err))
+			apiutil.WriteError(w, r, mapKubeHTTPError("list guardrail providers", err))
 			return
 		}
 		items := make([]gatewayapi.GuardrailConnection, 0, len(list.Items))
@@ -101,7 +101,7 @@ func (s *Service) serveGuardrailConnections(w http.ResponseWriter, r *http.Reque
 					if apierrors.IsNotFound(err) {
 						continue
 					}
-					apiutil.WriteError(w, r, mapKubeHTTPError("get inherited connection", err))
+					apiutil.WriteError(w, r, mapKubeHTTPError("get inherited provider", err))
 					return
 				}
 				items = append(items, guardrailConnectionView(*item, gatewayapi.ResourceScopeOrganisation, access))
@@ -114,7 +114,7 @@ func (s *Service) serveGuardrailConnections(w http.ResponseWriter, r *http.Reque
 	if r.Method != http.MethodPost {
 		err := s.k8sClient.Get(r.Context(), ctrlclient.ObjectKey{Namespace: access.namespace, Name: name}, item)
 		if err != nil {
-			apiutil.WriteError(w, r, mapKubeHTTPError("get guardrail connection", err))
+			apiutil.WriteError(w, r, mapKubeHTTPError("get guardrail provider", err))
 			return
 		}
 	}
@@ -141,7 +141,7 @@ func (s *Service) serveGuardrailConnections(w http.ResponseWriter, r *http.Reque
 				if ns == item.Namespace {
 					apiutil.WriteError(w, r, apiutil.NewError(
 						http.StatusConflict, "resource_in_use",
-						"connection is referenced by policy "+policy.Name, errors.New("referenced guardrail connection"),
+						"provider is referenced by policy "+policy.Name, errors.New("referenced guardrail provider"),
 					))
 					return
 				}
@@ -191,16 +191,16 @@ func (s *Service) serveGuardrailConnections(w http.ResponseWriter, r *http.Reque
 		existing := &api.GuardrailConnection{}
 		err := s.k8sClient.Get(r.Context(), ctrlclient.ObjectKey{Namespace: access.namespace, Name: input.Name}, existing)
 		if err == nil {
-			apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "already_exists", "guardrail connection already exists", errBadRequest))
+			apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "already_exists", "guardrail provider already exists", errBadRequest))
 			return
 		}
 		if !apierrors.IsNotFound(err) {
-			apiutil.WriteError(w, r, mapKubeHTTPError("check connection name", err))
+			apiutil.WriteError(w, r, mapKubeHTTPError("check provider name", err))
 			return
 		}
 	}
 	if r.Method == http.MethodPut && spec.Provider != item.Spec.Provider {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "connection provider is immutable", errBadRequest))
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "provider service is immutable", errBadRequest))
 		return
 	}
 	credentialPath := ""
@@ -232,7 +232,7 @@ func (s *Service) serveGuardrailConnections(w http.ResponseWriter, r *http.Reque
 			if spec.Provider != "ModelArmor" || !json.Valid([]byte(*credentials.GoogleCredentialsJson)) {
 				apiutil.WriteError(w, r, apiutil.NewError(
 					http.StatusBadRequest, "invalid_request",
-					"Google credentials must be valid ADC credential JSON on a Model Armor connection", errBadRequest,
+					"Google credentials must be valid ADC credential JSON on a Model Armor provider", errBadRequest,
 				))
 				return
 			}
@@ -540,10 +540,7 @@ func (s *Service) serveGuardrailPolicies(w http.ResponseWriter, r *http.Request,
 		ObjectMeta: metav1.ObjectMeta{Name: input.Name, Namespace: access.namespace},
 		Spec:       spec,
 	}
-	bundle, err := guardrails.CompilePolicy(r.Context(), s.k8sClient, access.namespace, proposed)
-	if err == nil {
-		err = bundle.ValidateStreaming()
-	}
+	_, err := guardrails.CompilePolicy(r.Context(), s.k8sClient, access.namespace, proposed)
 	replacing := r.Method == http.MethodPut
 	mandatory := access.namespace == org && slices.Contains(tenant.Spec.Guardrails.MandatoryPolicies, input.Name)
 	if err == nil && (replacing || mandatory) {
@@ -552,7 +549,7 @@ func (s *Service) serveGuardrailPolicies(w http.ResponseWriter, r *http.Request,
 	if err != nil {
 		var status apierrors.APIStatus
 		if errors.As(err, &status) {
-			apiutil.WriteError(w, r, mapKubeHTTPError("get detector connection", err))
+			apiutil.WriteError(w, r, mapKubeHTTPError("get detector provider", err))
 			return
 		}
 		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", err.Error(), err))
@@ -758,10 +755,6 @@ func (s *Service) GetEffectiveGuardrails(w http.ResponseWriter, r *http.Request,
 	}
 	bundle, err := guardrails.Resolve(r.Context(), s.k8sClient, contextNamespace, assignment)
 	if err != nil {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", err.Error(), err))
-		return
-	}
-	if err := bundle.ValidateStreaming(); err != nil {
 		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", err.Error(), err))
 		return
 	}

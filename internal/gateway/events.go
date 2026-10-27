@@ -24,6 +24,7 @@ type guardrailEventReader struct {
 	gatewaydb.DBTX
 }
 
+// Query uses parameter descriptions without reusing a generic filter plan.
 func (reader guardrailEventReader) Query(ctx context.Context, query string, args ...any) (pgx.Rows, error) {
 	args = append([]any{pgx.QueryExecModeCacheDescribe}, args...)
 	return reader.DBTX.Query(ctx, query, args...)
@@ -38,24 +39,32 @@ type guardrailEventPageCursor struct {
 // ListGuardrailEventSources lists available sources in the authorized scope.
 func (s *Service) ListGuardrailEventSources(w http.ResponseWriter, r *http.Request, _ gatewayapi.ListGuardrailEventSourcesParams) {
 	access, apiErr := s.resolveResourceAccess(r.Context(), resourceAccessRequest{
-		resource: "Guardrail Event", workspaceID: r.Header.Get("X-AgentZ-Workspace-ID"),
-		operation: authorization.OperationListGuardrailEvents,
+		resource:    "Guardrail Event",
+		workspaceID: r.Header.Get("X-AgentZ-Workspace-ID"),
+		operation:   authorization.OperationListGuardrailEvents,
 	})
 	if apiErr != nil {
 		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	rows, err := s.queries.GatewayListGuardrailEventSources(r.Context(), gatewaydb.GatewayListGuardrailEventSourcesParams{
-		OrganizationID: access.claims.OrganizationID, WorkspaceID: access.workspaceID,
+		OrganizationID: access.claims.OrganizationID,
+		WorkspaceID:    access.workspaceID,
 	})
 	if err != nil {
 		apiutil.WriteError(w, r, mapGatewayStoreError("list guardrail event sources", err))
 		return
 	}
-	result := gatewayapi.GuardrailEventSources{Agents: []string{}, Apps: []gatewayapi.LensApp{}}
+	result := gatewayapi.GuardrailEventSources{
+		Agents: []gatewayapi.GuardrailAgentSource{},
+		Apps:   []gatewayapi.LensApp{},
+	}
 	for _, row := range rows {
 		if row.AgentName != "" {
-			result.Agents = append(result.Agents, row.AgentName)
+			result.Agents = append(result.Agents, gatewayapi.GuardrailAgentSource{
+				WorkspaceId: row.WorkspaceID,
+				Name:        row.AgentName,
+			})
 			continue
 		}
 		app := gatewayapi.LensApp{ClientId: row.ClientID, Name: row.Name}
@@ -75,8 +84,13 @@ func (s *Service) ListGuardrailEvents(w http.ResponseWriter, r *http.Request, pa
 // GetGuardrailEventChart counts interventions over the complete selected range.
 func (s *Service) GetGuardrailEventChart(w http.ResponseWriter, r *http.Request, params gatewayapi.GetGuardrailEventChartParams) {
 	filters := gatewayapi.ListGuardrailEventsParams{
-		WorkspaceId: params.WorkspaceId, AgentName: params.AgentName, ClientId: params.ClientId,
-		From: params.From, To: params.To, TraceId: params.TraceId, SessionId: params.SessionId,
+		WorkspaceId: params.WorkspaceId,
+		AgentName:   params.AgentName,
+		ClientId:    params.ClientId,
+		From:        params.From,
+		To:          params.To,
+		TraceId:     params.TraceId,
+		SessionId:   params.SessionId,
 	}
 	if params.Action != nil {
 		filters.Action = new(gatewayapi.ListGuardrailEventsParamsAction(*params.Action))
@@ -130,7 +144,8 @@ func (s *Service) serveGuardrailEvents(w http.ResponseWriter, r *http.Request, p
 		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 		PageSize:       int32(limit + 1),
-		StartedAfter:   after, StartedBefore: before,
+		StartedAfter:   after,
+		StartedBefore:  before,
 	}
 	if params.WorkspaceId != nil {
 		if access.workspaceID != "" && *params.WorkspaceId != access.workspaceID {
@@ -150,6 +165,12 @@ func (s *Service) serveGuardrailEvents(w http.ResponseWriter, r *http.Request, p
 	if filters.AgentName != "" && filters.ClientID != "" {
 		apiutil.WriteError(w, r, apiutil.NewError(
 			http.StatusBadRequest, "invalid_request", "Select an agent or an external source", errBadRequest,
+		))
+		return
+	}
+	if filters.AgentName != "" && filters.WorkspaceID == "" {
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest, "invalid_request", "Select a workspace with the agent", errBadRequest,
 		))
 		return
 	}
@@ -180,17 +201,25 @@ func (s *Service) serveGuardrailEvents(w http.ResponseWriter, r *http.Request, p
 	if chart {
 		seconds := int32(math.Ceil(before.Sub(after).Seconds() / 60))
 		rows, err := queries.GatewayGetGuardrailEventChart(r.Context(), gatewaydb.GatewayGetGuardrailEventChartParams{
-			OrganizationID: filters.OrganizationID, WorkspaceID: filters.WorkspaceID,
-			AgentName: filters.AgentName, ClientID: filters.ClientID,
-			StartedAfter: after, StartedBefore: before, BucketSeconds: seconds,
-			Action: filters.Action, Phase: filters.Phase, TraceID: filters.TraceID, SessionID: filters.SessionID,
+			OrganizationID: filters.OrganizationID,
+			WorkspaceID:    filters.WorkspaceID,
+			AgentName:      filters.AgentName,
+			ClientID:       filters.ClientID,
+			StartedAfter:   after,
+			StartedBefore:  before,
+			BucketSeconds:  seconds,
+			Action:         filters.Action,
+			Phase:          filters.Phase,
+			TraceID:        filters.TraceID,
+			SessionID:      filters.SessionID,
 		})
 		if err != nil {
 			apiutil.WriteError(w, r, mapGatewayStoreError("count guardrail events", err))
 			return
 		}
 		result := gatewayapi.GuardrailEventChart{
-			Points: make([]gatewayapi.GuardrailEventChartPoint, 0, len(rows)), BucketSeconds: int64(seconds),
+			Points:        make([]gatewayapi.GuardrailEventChartPoint, 0, len(rows)),
+			BucketSeconds: int64(seconds),
 		}
 		for _, row := range rows {
 			result.Points = append(result.Points, gatewayapi.GuardrailEventChartPoint{Time: row.Time, Count: row.Count})
@@ -262,7 +291,8 @@ func (s *Service) GetGuardrailEvent(w http.ResponseWriter, r *http.Request, even
 
 func (s *Service) guardrailTraceSource(ctx context.Context, access resourceAccess, eventID string) (*gatewayapi.GuardrailTraceSource, error) {
 	rows, err := s.queries.GatewayFindGuardrailTraceSource(ctx, gatewaydb.GatewayFindGuardrailTraceSourceParams{
-		EventID: eventID, OrganizationID: access.claims.OrganizationID,
+		EventID:        eventID,
+		OrganizationID: access.claims.OrganizationID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("find guardrail trace source: %w", err)
@@ -274,7 +304,8 @@ func (s *Service) guardrailTraceSource(ctx context.Context, access resourceAcces
 	}
 	source := rows[0]
 	scope := authorization.Scope{
-		OrganizationID: access.claims.OrganizationID, WorkspaceID: source.WorkspaceID,
+		OrganizationID: access.claims.OrganizationID,
+		WorkspaceID:    source.WorkspaceID,
 	}
 	if !access.effective.Allows(scope, authorization.OperationReadObservability) {
 		return nil, nil
@@ -303,8 +334,9 @@ func (s *Service) guardrailTraceSource(ctx context.Context, access resourceAcces
 		}
 	default:
 		exists, err := s.queries.GatewayLensAppExists(ctx, gatewaydb.GatewayLensAppExistsParams{
-			OrganizationID: scope.OrganizationID, WorkspaceID: source.WorkspaceID,
-			ClientID: source.ClientID,
+			OrganizationID: scope.OrganizationID,
+			WorkspaceID:    source.WorkspaceID,
+			ClientID:       source.ClientID,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("authorize guardrail app trace: %w", err)
@@ -314,9 +346,12 @@ func (s *Service) guardrailTraceSource(ctx context.Context, access resourceAcces
 		}
 	}
 	return &gatewayapi.GuardrailTraceSource{
-		WorkspaceId: source.WorkspaceID, AgentName: source.AgentName,
-		ClientId: source.ClientID, SessionId: source.SessionID,
-		TraceId: hex.EncodeToString(source.TraceID), SpanId: hex.EncodeToString(source.SpanID),
+		WorkspaceId: source.WorkspaceID,
+		AgentName:   source.AgentName,
+		ClientId:    source.ClientID,
+		SessionId:   source.SessionID,
+		TraceId:     hex.EncodeToString(source.TraceID),
+		SpanId:      hex.EncodeToString(source.SpanID),
 		OperationId: source.OperationID,
 	}, nil
 }

@@ -764,6 +764,7 @@ export type {
   GetWorkspaceErrors,
   GetWorkspaceResponse,
   GetWorkspaceResponses,
+  GuardrailAgentSource,
   GuardrailAssignment,
   GuardrailCheck,
   GuardrailConnection,

@@ -1,6 +1,5 @@
 import "server-only"
 
-import { cacheLife } from "next/cache"
 import {
   listGuardrailConnections,
   listGuardrailPolicies,
@@ -10,9 +9,6 @@ import {
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
 export async function listGuardrailEventSourcesQuery(workspaceId?: string) {
-  "use cache: private"
-
-  cacheLife("minutes")
   const result = await listGuardrailEventSources({
     client: getGatewayServerClient(workspaceId),
     headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,

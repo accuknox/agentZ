@@ -33,14 +33,14 @@ export function GuardrailsLayout(props: GuardrailsLayoutProps) {
   } = props
 
   let defaultSection = "events"
-  if (connectionCapabilities.read) defaultSection = "connections"
+  if (connectionCapabilities.read) defaultSection = "providers"
   if (policyCapabilities.read) defaultSection = "policies"
   const tabs = [
     ...(policyCapabilities.read
       ? [{ label: "Policies", href: `${basePath}/policies` as Route }]
       : []),
     ...(connectionCapabilities.read
-      ? [{ label: "Connections", href: `${basePath}/connections` as Route }]
+      ? [{ label: "Providers", href: `${basePath}/providers` as Route }]
       : []),
     ...(eventCapabilities.read ? [{ label: "Events", href: `${basePath}/events` as Route }] : []),
     ...(!workspaceId && canAdminister && policyCapabilities.read

@@ -110,9 +110,9 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
   const [region, setRegion] = useState(connection?.region || "us-east-1")
   const [regionOpen, setRegionOpen] = useState(false)
   const readOnly = connection !== undefined && !connection.canModify
-  let title = "Add guardrail connection"
-  if (connection) title = "Edit guardrail connection"
-  if (readOnly) title = "Guardrail connection"
+  let title = "Add guardrail provider"
+  if (connection) title = "Edit guardrail provider"
+  if (readOnly) title = "Guardrail provider"
   const providerDescriptions = {
     Bedrock: "Choose an existing guardrail after connecting. Detection rules stay in AWS.",
     ModelArmor:
@@ -177,7 +177,7 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
                 )
               )
             if (!parsedCredentials.success) {
-              setError(parsedCredentials.error.issues[0]?.message ?? "Check connection credentials")
+              setError(parsedCredentials.error.issues[0]?.message ?? "Check provider credentials")
               return
             }
             const credentials = parsedCredentials.data
@@ -201,7 +201,7 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
               credentials: replacingCredentials ? credentials : undefined,
             })
             if (!parsed.success) {
-              setError(parsed.error.issues[0]?.message ?? "Check connection fields")
+              setError(parsed.error.issues[0]?.message ?? "Check provider fields")
               return
             }
             startTransition(async () => {
@@ -220,7 +220,7 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
               void queryClient.invalidateQueries({
                 predicate: (query) => query.queryKey[0] === "guardrail-resources",
               })
-              toast.success(connection ? "Connection saved" : "Connection created")
+              toast.success(connection ? "Provider saved" : "Provider created")
               onSaved?.(result.data)
               router.refresh()
               onClose()
@@ -229,19 +229,19 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
         >
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor={`${idPrefix}-guardrail-connection-display`} required={!readOnly}>
+              <FieldLabel htmlFor={`${idPrefix}-guardrail-provider-display`} required={!readOnly}>
                 Name
               </FieldLabel>
               <Input
                 defaultValue={connection?.displayName}
                 disabled={readOnly || pending}
-                id={`${idPrefix}-guardrail-connection-display`}
+                id={`${idPrefix}-guardrail-provider-display`}
                 maxLength={128}
                 name="displayName"
                 onChange={() => {
                   if (connectionID === undefined)
                     setConnectionID(
-                      `connection-${customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789")(16)}`
+                      `provider-${customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789")(16)}`
                     )
                 }}
                 required
@@ -249,10 +249,7 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
               />
             </Field>
             <Field>
-              <FieldLabel
-                htmlFor={`${idPrefix}-guardrail-connection-provider`}
-                required={!readOnly}
-              >
+              <FieldLabel htmlFor={`${idPrefix}-guardrail-provider-provider`} required={!readOnly}>
                 Service
               </FieldLabel>
               <Select
@@ -268,7 +265,7 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
                   }
                 }}
               >
-                <SelectTrigger id={`${idPrefix}-guardrail-connection-provider`} className="w-full">
+                <SelectTrigger id={`${idPrefix}-guardrail-provider-provider`} className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -299,7 +296,7 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
             {provider === "Webhook" ? (
               <Field>
                 <FieldLabel
-                  htmlFor={`${idPrefix}-guardrail-connection-endpoint`}
+                  htmlFor={`${idPrefix}-guardrail-provider-endpoint`}
                   required={!readOnly}
                 >
                   Webhook service URL
@@ -307,7 +304,7 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
                 <Input
                   defaultValue={connection?.endpoint}
                   disabled={readOnly || pending}
-                  id={`${idPrefix}-guardrail-connection-endpoint`}
+                  id={`${idPrefix}-guardrail-provider-endpoint`}
                   name="endpoint"
                   placeholder="https://guardrails.example.com"
                   required
@@ -322,10 +319,7 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
             ) : null}
             {provider === "Bedrock" ? (
               <Field>
-                <FieldLabel
-                  htmlFor={`${idPrefix}-guardrail-connection-region`}
-                  required={!readOnly}
-                >
+                <FieldLabel htmlFor={`${idPrefix}-guardrail-provider-region`} required={!readOnly}>
                   AWS region
                 </FieldLabel>
                 <input name="region" type="hidden" value={region} />
@@ -335,7 +329,7 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
                       aria-expanded={regionOpen}
                       className="w-full justify-between font-normal"
                       disabled={readOnly || pending}
-                      id={`${idPrefix}-guardrail-connection-region`}
+                      id={`${idPrefix}-guardrail-provider-region`}
                       role="combobox"
                       type="button"
                       variant="outline"
@@ -438,7 +432,7 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
                   ) : (
                     <Field>
                       <FieldLabel
-                        htmlFor={`${idPrefix}-guardrail-connection-secret`}
+                        htmlFor={`${idPrefix}-guardrail-provider-secret`}
                         required={provider !== "Webhook" && !connection?.credentialsConfigured}
                       >
                         {credentialLabels[provider]}
@@ -448,7 +442,7 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
                           autoComplete="off"
                           className="min-h-40 font-mono"
                           disabled={pending}
-                          id={`${idPrefix}-guardrail-connection-secret`}
+                          id={`${idPrefix}-guardrail-provider-secret`}
                           name="googleCredentialsJson"
                           placeholder="Paste supported Google ADC credential JSON"
                           required={!connection?.credentialsConfigured}
@@ -458,7 +452,7 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
                         <Input
                           autoComplete="new-password"
                           disabled={pending}
-                          id={`${idPrefix}-guardrail-connection-secret`}
+                          id={`${idPrefix}-guardrail-provider-secret`}
                           name="apiKey"
                           type="password"
                           required={provider !== "Webhook" && !connection?.credentialsConfigured}
@@ -501,13 +495,13 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
                 <AccordionContent forceMount hidden={!detailsOpen}>
                   <FieldGroup>
                     <Field>
-                      <FieldLabel htmlFor={`${idPrefix}-guardrail-connection-description`}>
+                      <FieldLabel htmlFor={`${idPrefix}-guardrail-provider-description`}>
                         Description
                       </FieldLabel>
                       <Textarea
                         defaultValue={connection?.description}
                         disabled={readOnly || pending}
-                        id={`${idPrefix}-guardrail-connection-description`}
+                        id={`${idPrefix}-guardrail-provider-description`}
                         maxLength={2048}
                         name="description"
                       />
@@ -519,14 +513,14 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
             {connection?.status.state === "Error" && connection.status.message ? (
               <Alert variant="destructive">
                 <CircleAlert aria-hidden />
-                <AlertTitle>Connection error</AlertTitle>
+                <AlertTitle>Provider error</AlertTitle>
                 <AlertDescription>{connection.status.message}</AlertDescription>
               </Alert>
             ) : null}
             {error ? (
               <Alert variant="destructive">
                 <CircleAlert aria-hidden />
-                <AlertTitle>Connection not saved</AlertTitle>
+                <AlertTitle>Provider not saved</AlertTitle>
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             ) : null}
@@ -535,7 +529,7 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
             <div className="flex justify-end">
               <LoadingButton pending={pending} pendingLabel="Saving..." type="submit">
                 <Save data-icon="inline-start" />
-                {connection ? "Save changes" : "Add connection"}
+                {connection ? "Save changes" : "Add provider"}
               </LoadingButton>
             </div>
           ) : null}

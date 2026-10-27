@@ -24,7 +24,7 @@ WHERE 'org-' || substring(encode(sha256(
 ), 'hex'), 1, 32) = sqlc.arg(namespace)
 UNION ALL
 SELECT w.organization_id, w.id AS workspace_id
-FROM workspaces w WHERE w.namespace = sqlc.arg(namespace);
+FROM workspaces w WHERE w.namespace = sqlc.arg(namespace) AND w.deleted_at IS NULL;
 
 -- name: DeleteExpiredGuardrailEvents :execrows
 DELETE FROM observer_guardrail_events WHERE expires_at <= now();

@@ -363,7 +363,7 @@ const inheritanceCategories = [
   {
     field: "inherited_guardrail_connections",
     key: "guardrail_connections",
-    label: "Guardrail connections",
+    label: "Guardrail providers",
   },
   {
     field: "inherited_guardrail_policies",

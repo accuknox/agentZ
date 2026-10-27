@@ -3333,8 +3333,13 @@ export const zGuardrailEventChart = z.object({
     }),
 })
 
+export const zGuardrailAgentSource = z.object({
+  workspace_id: z.string(),
+  name: z.string(),
+})
+
 export const zGuardrailEventSources = z.object({
-  agents: z.array(z.string()),
+  agents: z.array(zGuardrailAgentSource),
   apps: z.array(zLensApp),
 })
 

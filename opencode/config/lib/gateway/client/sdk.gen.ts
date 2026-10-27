@@ -3465,7 +3465,7 @@ export const getGuardrailEventChart = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * List available guardrail event sources in the authorized scope.
+ * List sources with retained guardrail events in the authorized scope.
  */
 export const listGuardrailEventSources = <ThrowOnError extends boolean = false>(
   options?: Options<ListGuardrailEventSourcesData, ThrowOnError>

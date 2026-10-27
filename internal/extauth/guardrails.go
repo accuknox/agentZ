@@ -28,9 +28,6 @@ func (s *Service) evaluateGuardrailRevision(ctx context.Context, attrs *authv3.A
 	if err == nil {
 		var bundle *guardrails.Bundle
 		bundle, err = guardrails.Resolve(ctx, s.kube, namespace, sandbox.Spec.Guardrails)
-		if err == nil {
-			err = bundle.ValidateStreaming()
-		}
 		if err == nil && bundle.Revision == extensions["agentz.guardrail_revision"] {
 			return allowDecision(injectedRequest{}), request
 		}

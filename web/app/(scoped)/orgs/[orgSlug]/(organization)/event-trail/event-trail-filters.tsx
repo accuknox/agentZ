@@ -21,6 +21,7 @@ import type {
   EventTrailFilters as EventTrailFilterOptions,
 } from "@/lib/gateway/client"
 import { dayjs } from "@/lib/format"
+import { targetLabels } from "./event-trail-event"
 
 type FilterField = { label: string } & (
   | { kind: "date" }
@@ -73,7 +74,10 @@ export function EventTrailFilters({
     category: {
       kind: "options",
       label: "Category",
-      options: options.categories.map((category) => ({ label: category, value: category })),
+      options: options.categories.map((category) => ({
+        label: category === "guardrail_connection" ? "Guardrail provider" : category,
+        value: category,
+      })),
     },
     workspace_id: {
       kind: "options",
@@ -86,7 +90,10 @@ export function EventTrailFilters({
     target_type: {
       kind: "options",
       label: "Resource type",
-      options: options.target_types.map((type) => ({ label: type, value: type })),
+      options: options.target_types.map((type) => ({
+        label: targetLabels[type] ?? type,
+        value: type,
+      })),
     },
     result: {
       kind: "options",

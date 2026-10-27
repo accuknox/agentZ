@@ -71,6 +71,7 @@ func appSpanFixture(payloadSize int) *tracepb.Span {
 		"agentz.user_id":            "telemetry-test-user",
 		"agentz.resource_kind":      "inference",
 		"agentz.resource_namespace": "telemetry-test-namespace",
+		attrAgentZTenantNamespace:   "telemetry-test-namespace",
 		"agentz.resource_name":      "provider",
 		"agentz.resource_uid":       "provider-uid",
 		"agentz.target_id":          "model",
@@ -325,11 +326,11 @@ func TestNativeGuardrailIdentityAndMetadata(t *testing.T) {
 			},
 		},
 	})
-	events, err := guardrailEventsFromSpan(span, nil)
+	events, err := guardrailEventsFromSpan(span)
 	if err != nil || len(events) != 2 {
 		t.Fatalf("native evaluations: %v, %d events", err, len(events))
 	}
-	replayed, err := guardrailEventsFromSpan(span, nil)
+	replayed, err := guardrailEventsFromSpan(span)
 	if err != nil || events[0].row.ID != replayed[0].row.ID || events[0].row.ID == events[1].row.ID {
 		t.Fatalf("evaluation identity did not preserve replay and repeated checks: %v", err)
 	}
@@ -344,9 +345,53 @@ func TestNativeGuardrailIdentityAndMetadata(t *testing.T) {
 		t.Fatalf("metadata allowlist changed: %s", events[0].row.Evaluation)
 	}
 	span.SpanId = bytes.Repeat([]byte{3}, 8)
-	other, err := guardrailEventsFromSpan(span, nil)
+	other, err := guardrailEventsFromSpan(span)
 	if err != nil || other[0].row.ID == events[0].row.ID {
 		t.Fatal("two spans in the same trace shared an evaluation identity")
+	}
+}
+
+func TestGuardrailCallerScope(t *testing.T) {
+	t.Parallel()
+	span := guardrailSpanFixture(`[{"phase":"request","guard":"regex","action":"reject"}]`)
+	for _, attr := range span.Attributes {
+		switch attr.Key {
+		case attrAgentZTenantNamespace:
+			attr.Value = &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: "caller-workspace"}}
+		case "agentz.resource_namespace":
+			attr.Value = &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: "sandbox-organization"}}
+		case "agentz.client_id", "agentz.organization_id", "agentz.workspace_id":
+			attr.Value = nil
+		}
+	}
+	span.Attributes = append(span.Attributes,
+		&commonpb.KeyValue{Key: attrAgentZAgentName,
+			Value: &commonpb.AnyValue{
+				Value: &commonpb.AnyValue_StringValue{StringValue: "billy"},
+			}},
+		&commonpb.KeyValue{Key: attrSessionID,
+			Value: &commonpb.AnyValue{
+				Value: &commonpb.AnyValue_StringValue{StringValue: "session"},
+			}},
+	)
+	request := &tracev1.ExportTraceServiceRequest{
+		ResourceSpans: []*tracepb.ResourceSpans{{
+			Resource: &resourcepb.Resource{Attributes: []*commonpb.KeyValue{
+				{Key: "service.name",
+					Value: &commonpb.AnyValue{
+						Value: &commonpb.AnyValue_StringValue{StringValue: "agentz-inference-gateway"},
+					}},
+			}},
+			ScopeSpans: []*tracepb.ScopeSpans{{Spans: []*tracepb.Span{span}}},
+		}},
+	}
+	events, rejected := traceEventsFromOTLPRequest(request, true)
+	if rejected != 0 || len(events) != 1 || events[0].guardrail == nil {
+		t.Fatalf("expected only gateway evidence, got %d events, %d rejected", len(events), rejected)
+	}
+	ev := events[0].guardrail
+	if ev.namespace != "caller-workspace" || ev.row.AgentName != "billy" {
+		t.Fatalf("evidence attributed to the resource instead of its caller: %+v", ev)
 	}
 }
 
@@ -399,10 +444,21 @@ func TestNativeGuardrailInvalidEvidence(t *testing.T) {
 			name: "missing namespace",
 			change: func(sp *tracepb.Span) {
 				for _, attr := range sp.Attributes {
-					if attr.Key == "agentz.resource_namespace" {
+					if attr.Key == attrAgentZTenantNamespace {
 						attr.Value = nil
 					}
 				}
+			},
+		},
+		{
+			name: "conflicting caller",
+			change: func(sp *tracepb.Span) {
+				sp.Attributes = append(sp.Attributes, &commonpb.KeyValue{
+					Key: attrAgentZAgentName,
+					Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{
+						StringValue: "billy",
+					}},
+				})
 			},
 		},
 	}
@@ -419,7 +475,7 @@ func TestNativeGuardrailInvalidEvidence(t *testing.T) {
 				},
 			})
 			tc.change(span)
-			if _, err := guardrailEventsFromSpan(span, nil); err == nil {
+			if _, err := guardrailEventsFromSpan(span); err == nil {
 				t.Fatal("invalid native evidence was accepted")
 			}
 		})
@@ -444,7 +500,7 @@ func TestGuardrailEventsOnlyInterventions(t *testing.T) {
 			t.Run(phase+"/"+action, func(t *testing.T) {
 				raw := fmt.Sprintf(`[{"phase":%q,"guard":"regex","action":%q}]`, phase, action)
 				span := guardrailSpanFixture(raw)
-				rows, err := guardrailEventsFromSpan(span, nil)
+				rows, err := guardrailEventsFromSpan(span)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -470,7 +526,7 @@ func TestGuardrailEventsEmptyLog(t *testing.T) {
 				Kind:       tracepb.Span_SPAN_KIND_SERVER,
 				Attributes: guardrailSpanFixture(raw).Attributes,
 			}
-			rows, err := guardrailEventsFromSpan(span, nil)
+			rows, err := guardrailEventsFromSpan(span)
 			if err != nil || len(rows) != 0 {
 				t.Fatalf("empty intervention log required event identity: rows=%d err=%v", len(rows), err)
 			}
@@ -486,7 +542,7 @@ func TestGuardrailEventsMixedOutcomes(t *testing.T) {
 		{"phase":"response","guard":"webhook","action":"allow"},
 		{"phase":"response","guard":"webhook","action":"reject"}
 	]`)
-	rows, err := guardrailEventsFromSpan(span, nil)
+	rows, err := guardrailEventsFromSpan(span)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -513,7 +569,7 @@ func BenchmarkGuardrailInterventions(b *testing.B) {
 			span := guardrailSpanFixture(evaluations)
 			b.ReportAllocs()
 			for b.Loop() {
-				if _, err := guardrailEventsFromSpan(span, nil); err != nil {
+				if _, err := guardrailEventsFromSpan(span); err != nil {
 					b.Fatal(err)
 				}
 			}

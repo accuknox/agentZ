@@ -47,11 +47,11 @@ func (b *Bundle) ProjectConnections(ctx context.Context, c client.Client, namesp
 	for _, connection := range b.Connections {
 		live := &api.GuardrailConnection{}
 		if err := c.Get(ctx, client.ObjectKeyFromObject(connection), live); err != nil {
-			return nil, fmt.Errorf("resolve detector connection before projection: %w", err)
+			return nil, fmt.Errorf("resolve detector provider before projection: %w", err)
 		}
 		finalized := slices.Contains(live.Finalizers, api.GuardrailConnectionFinalizer)
 		if connection.UID == "" || live.UID != connection.UID || !live.DeletionTimestamp.IsZero() || !finalized {
-			return nil, fmt.Errorf("guardrail connection %s/%s is not available for projection", connection.Namespace, connection.Name)
+			return nil, fmt.Errorf("guardrail provider %s/%s is not available for projection", connection.Namespace, connection.Name)
 		}
 		labels := map[string]string{ConnectionUIDLabel: string(connection.UID)}
 		name := ConnectionRuntimeName(connection)

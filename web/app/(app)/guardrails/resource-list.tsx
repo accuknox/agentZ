@@ -100,7 +100,7 @@ export function NewGuardrailPolicyButton(props: NewGuardrailPolicyButtonProps) {
                 : undefined
               setConnections(result?.data.items ?? [])
             } catch {
-              toast.error("Could not load guardrail connections")
+              toast.error("Could not load guardrail providers")
             }
           })
         }
@@ -127,7 +127,7 @@ export function NewGuardrailConnectionButton({ scope }: { scope: GuardrailAction
     <>
       <Button onClick={() => setOpen(true)} type="button">
         <Plus />
-        New connection
+        New provider
       </Button>
       {open ? <ConnectionSheet scope={scope} onClose={() => setOpen(false)} /> : null}
     </>
@@ -371,11 +371,11 @@ export function GuardrailConnectionList(props: GuardrailConnectionListProps) {
   return (
     <>
       <AdminDataGrid
-        ariaLabel="Guardrail connections"
+        ariaLabel="Guardrail providers"
         emptyState={
           <AdministrationState
             kind={canCreate ? "welcome" : "empty"}
-            title="No guardrail connections"
+            title="No guardrail providers"
           />
         }
         layout={{
@@ -397,7 +397,7 @@ export function GuardrailConnectionList(props: GuardrailConnectionListProps) {
         <DeleteGuardrail
           name={deleting.name}
           label={deleting.displayName}
-          kind="connection"
+          kind="provider"
           scope={scope}
           onClose={() => setDeleting(undefined)}
         />
@@ -425,7 +425,7 @@ function GuardrailStatusBadge({ status }: { status: GuardrailStatus }) {
 }
 
 type DeleteGuardrailProps = {
-  kind: "connection" | "policy"
+  kind: "provider" | "policy"
   name: string
   label: string
   scope: GuardrailActionScope
@@ -449,8 +449,8 @@ function DeleteGuardrail(props: DeleteGuardrailProps) {
         <DialogHeader className="min-w-0">
           <DialogTitle className="pr-6 leading-snug break-words">Delete {label}?</DialogTitle>
           <DialogDescription>
-            Referenced {kind === "connection" ? "connections" : "policies"} cannot be deleted.
-            Remove their assignments or references first. This action cannot be undone.
+            Referenced {kind === "provider" ? "providers" : "policies"} cannot be deleted. Remove
+            their assignments or references first. This action cannot be undone.
           </DialogDescription>
         </DialogHeader>
         {error ? (
@@ -468,14 +468,14 @@ function DeleteGuardrail(props: DeleteGuardrailProps) {
             onConfirm={() =>
               startTransition(async () => {
                 const result =
-                  kind === "connection"
+                  kind === "provider"
                     ? await deleteGuardrailConnectionAction(scope, name)
                     : await deleteGuardrailPolicyAction(scope, name)
                 if (result.error) {
                   setError(result.error.message)
                   return
                 }
-                toast.success(`${kind === "connection" ? "Connection" : "Policy"} deleted`)
+                toast.success(`${kind === "provider" ? "Provider" : "Policy"} deleted`)
                 router.refresh()
                 onClose()
               })
@@ -518,7 +518,7 @@ export function GuardrailHeaderActions(props: GuardrailHeaderActionsProps) {
 
   const segments = useSelectedLayoutSegments()
   const view = segments[0] ?? defaultSection
-  if (view === "connections") return connectionAction
+  if (view === "providers") return connectionAction
   if (view === "policies") return policyAction
   return null
 }

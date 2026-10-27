@@ -16,24 +16,15 @@ import {
   Wrench,
   Clock3,
 } from "lucide-react"
-import type { GuardrailConnection, GuardrailEvent } from "@/lib/gateway/client"
+import type { GuardrailEvent } from "@/lib/gateway/client"
 import { getGuardrailEventContextAction } from "@/data/guardrail-event.actions"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatTimestamp } from "@/lib/format"
-import { contentScopes, detectors, verdicts } from "./event-shared"
+import { contentScopes, detectorProviders, detectors, verdicts } from "./event-shared"
 import { GuardrailProviderIcon } from "./provider-shared"
-
-const providers: Partial<
-  Record<GuardrailEvent["evaluation"]["guard"], GuardrailConnection["provider"]>
-> = {
-  openAIModeration: "OpenAI",
-  bedrockGuardrails: "Bedrock",
-  googleModelArmor: "ModelArmor",
-  webhook: "Webhook",
-}
 
 export function GuardrailEventSkeleton() {
   return (
@@ -113,7 +104,7 @@ export function GuardrailEventDetail({
       ? "Model request"
       : "Model response"
   const policy = context?.policyName || context?.policyId
-  const provider = providers[evaluation.guard]
+  const provider = detectorProviders[evaluation.guard]
   const investigation = useQuery(
     queryOptions({
       queryKey: ["guardrail-event-context", workspaceId, event.id],

@@ -96,9 +96,6 @@ func (s *Service) delegationReady(ctx context.Context, grant gatewaydb.Delegatio
 		if err != nil {
 			return err
 		}
-		if err := bundle.ValidateStreaming(); err != nil {
-			return err
-		}
 		if bundle.Guard != nil {
 			guardrailPolicy := &agw.AgentgatewayPolicy{}
 			key := ctrlclient.ObjectKey{Namespace: namespace, Name: name + "-guardrails"}
@@ -239,9 +236,6 @@ func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.Delegat
 		contextNamespace := agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeWorkspace, selected.WorkspaceId)
 		bundle, err := guardrails.Resolve(ctx, s.k8sClient, contextNamespace, assignment)
 		if err != nil {
-			return err
-		}
-		if err := bundle.ValidateStreaming(); err != nil {
 			return err
 		}
 		bundle.Rebind(selected.Namespace)

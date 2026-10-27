@@ -47,7 +47,7 @@ const (
 
 // chatTextContent adapts text parts for providers requiring string content.
 //
-//go:embed chat-text-content.cel
+//go:embed chat_text_content.cel
 var chatTextContent agentgatewayv1alpha1.CELExpression
 
 // retryableResponse excludes content denials from retries and Pool eviction.

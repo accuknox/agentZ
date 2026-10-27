@@ -2997,8 +2997,13 @@ export type GuardrailEventChart = {
   bucket_seconds: number
 }
 
+export type GuardrailAgentSource = {
+  workspace_id: string
+  name: string
+}
+
 export type GuardrailEventSources = {
-  agents: Array<string>
+  agents: Array<GuardrailAgentSource>
   apps: Array<LensApp>
 }
 
@@ -12351,6 +12356,9 @@ export type ListGuardrailEventsData = {
      * Narrow organization events to one workspace.
      */
     workspace_id?: string
+    /**
+     * Agent name qualified by workspace_id or the workspace header.
+     */
     agent_name?: string
     /**
      * External agent or application client ID.
@@ -12402,6 +12410,9 @@ export type GetGuardrailEventChartData = {
      * Narrow organization events to one workspace.
      */
     workspace_id?: string
+    /**
+     * Agent name qualified by workspace_id or the workspace header.
+     */
     agent_name?: string
     /**
      * External agent or application client ID.

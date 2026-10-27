@@ -55,10 +55,10 @@ export async function GuardrailsPage(props: GuardrailsPageProps) {
   } = props
 
   let defaultSection = "events"
-  if (connectionCapabilities.read) defaultSection = "connections"
+  if (connectionCapabilities.read) defaultSection = "providers"
   if (policyCapabilities.read) defaultSection = "policies"
   const section = view[0] ?? defaultSection
-  if (!["policies", "connections", "events", "settings"].includes(section) || view.length > 2)
+  if (!["policies", "providers", "events", "settings"].includes(section) || view.length > 2)
     notFound()
   if (section !== "policies" && section !== "events" && view.length > 1) notFound()
   const scope = { workspaceId }
@@ -132,13 +132,13 @@ export async function GuardrailsPage(props: GuardrailsPageProps) {
     )
   }
 
-  const canRead = section === "connections" ? connectionCapabilities.read : policyCapabilities.read
+  const canRead = section === "providers" ? connectionCapabilities.read : policyCapabilities.read
   if (!canRead) return <AdministrationState kind="forbidden" />
   if (section === "settings" && (workspaceId || !canAdminister))
     return <AdministrationState kind="forbidden" />
   const needsConnections =
-    connectionCapabilities.read && (section === "connections" || section === "policies")
-  const needsPolicies = section !== "connections"
+    connectionCapabilities.read && (section === "providers" || section === "policies")
+  const needsPolicies = section !== "providers"
   const needsSettings =
     section === "settings" ||
     (workspaceId !== undefined && section === "policies" && view[1] === undefined)

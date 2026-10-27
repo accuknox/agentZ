@@ -3,7 +3,20 @@
 import { useEffect, useOptimistic, useState, useTransition } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 import { useRouter } from "@bprogress/next/app"
-import { ChevronDown, FunnelPlus, X } from "lucide-react"
+import {
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  ArrowUpDown,
+  ChevronDown,
+  Fingerprint,
+  FunnelPlus,
+  Layers3,
+  MessageSquare,
+  PanelsTopLeft,
+  ShieldCheck,
+  X,
+  type LucideIcon,
+} from "lucide-react"
 import { DateRangePicker } from "@/components/ui/calendar"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -35,6 +48,7 @@ import type {
   Workspace,
 } from "@/lib/gateway/client"
 import { dayjs } from "@/lib/format"
+import { verdicts } from "./event-shared"
 
 type EventQuery = NonNullable<GetGuardrailEventChartData["query"]>
 type GuardrailEventFiltersProps = EventQuery & {
@@ -49,22 +63,24 @@ const fields = ["action", "phase", "trace_id", "session_id"] as const satisfies 
 const fieldByName = {
   action: {
     label: "Outcome",
+    icon: ShieldCheck,
     options: [
-      { label: "Blocked", value: "reject" },
-      { label: "Masked", value: "mask" },
-      { label: "Audit findings", value: "audit" },
-      { label: "Fail open", value: "failOpen" },
-    ] satisfies { label: string; value: NonNullable<EventQuery["action"]> }[],
+      { label: "Blocked", value: "reject", icon: verdicts.reject.icon },
+      { label: "Masked", value: "mask", icon: verdicts.mask.icon },
+      { label: "Audit", value: "audit", icon: verdicts.audit.icon },
+      { label: "Fail open", value: "failOpen", icon: verdicts.failOpen.icon },
+    ] satisfies { label: string; value: NonNullable<EventQuery["action"]>; icon: LucideIcon }[],
   },
   phase: {
     label: "Phase",
+    icon: ArrowUpDown,
     options: [
-      { label: "Model request", value: "request" },
-      { label: "Model response", value: "response" },
-    ] satisfies { label: string; value: NonNullable<EventQuery["phase"]> }[],
+      { label: "Model request", value: "request", icon: ArrowUpFromLine },
+      { label: "Model response", value: "response", icon: ArrowDownToLine },
+    ] satisfies { label: string; value: NonNullable<EventQuery["phase"]>; icon: LucideIcon }[],
   },
-  trace_id: { label: "Trace ID" },
-  session_id: { label: "Session ID" },
+  trace_id: { label: "Trace ID", icon: Fingerprint },
+  session_id: { label: "Session ID", icon: MessageSquare },
 }
 
 export function GuardrailEventFilters({
@@ -126,7 +142,8 @@ export function GuardrailEventFilters({
 
   const availableFields = fields.filter((field) => !current[field])
   let selectedSource = "all"
-  if (current.agent_name) selectedSource = `agent:${current.agent_name}`
+  if (current.agent_name)
+    selectedSource = `agent:${current.workspace_id ?? scopedWorkspaceId}/${current.agent_name}`
   if (current.client_id) selectedSource = `app:${current.client_id}`
 
   return (
@@ -153,12 +170,18 @@ export function GuardrailEventFilters({
             <SelectValue placeholder="All workspaces" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All workspaces</SelectItem>
-            {workspaces.map((workspace) => (
-              <SelectItem key={workspace.id} value={workspace.id}>
-                {workspace.name}
+            <SelectGroup>
+              <SelectItem value="all">
+                <PanelsTopLeft aria-hidden="true" />
+                All workspaces
               </SelectItem>
-            ))}
+              {workspaces.map((workspace) => (
+                <SelectItem key={workspace.id} value={workspace.id}>
+                  <PanelsTopLeft aria-hidden="true" />
+                  {workspace.name}
+                </SelectItem>
+              ))}
+            </SelectGroup>
           </SelectContent>
         </Select>
       ) : null}
@@ -166,10 +189,13 @@ export function GuardrailEventFilters({
         value={selectedSource}
         disabled={pending}
         onValueChange={(value) => {
-          const agent = sources.agents.find((name) => `agent:${name}` === value)
+          const agent = sources.agents.find(
+            (item) => `agent:${item.workspace_id}/${item.name}` === value
+          )
           const app = sources.apps.find((item) => `app:${item.client_id}` === value)
           update({
-            agent_name: agent,
+            workspace_id: agent?.workspace_id ?? current.workspace_id,
+            agent_name: agent?.name,
             client_id: app?.client_id,
             session_id: undefined,
             trace_id: undefined,
@@ -180,14 +206,27 @@ export function GuardrailEventFilters({
           <SelectValue placeholder="All sources" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">All sources</SelectItem>
+          <SelectGroup>
+            <SelectItem value="all">
+              <Layers3 aria-hidden="true" />
+              All sources
+            </SelectItem>
+          </SelectGroup>
           {sources.agents.length > 0 ? (
             <SelectGroup>
               <SelectLabel>Agents</SelectLabel>
               {sources.agents.map((agent) => (
-                <SelectItem key={agent} value={`agent:${agent}`}>
+                <SelectItem
+                  key={`${agent.workspace_id}/${agent.name}`}
+                  value={`agent:${agent.workspace_id}/${agent.name}`}
+                >
                   <LensSourceIcon kind="agent" />
-                  {agent}
+                  {agent.name}
+                  {!current.workspace_id && !scopedWorkspaceId ? (
+                    <span className="text-xs text-muted-foreground">
+                      {workspaces.find((workspace) => workspace.id === agent.workspace_id)?.name}
+                    </span>
+                  ) : null}
                 </SelectItem>
               ))}
             </SelectGroup>
@@ -262,6 +301,7 @@ export function GuardrailEventFilters({
             type="button"
             variant="outline-primary"
           >
+            <field.icon aria-hidden="true" data-icon="inline-start" />
             <span>{field.label}:</span>
             <span className="truncate">{label || "Select value"}</span>
             {!value ? <ChevronDown data-icon="inline-end" /> : null}
@@ -289,6 +329,7 @@ export function GuardrailEventFilters({
                   >
                     {field.options.map((option) => (
                       <DropdownMenuRadioItem key={option.value} value={option.value}>
+                        <option.icon aria-hidden="true" />
                         {option.label}
                       </DropdownMenuRadioItem>
                     ))}
@@ -358,17 +399,21 @@ export function GuardrailEventFilters({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="min-w-44">
             <DropdownMenuGroup>
-              {availableFields.map((name) => (
-                <DropdownMenuItem
-                  key={name}
-                  onSelect={() => {
-                    setActiveField(name)
-                    setEditorOpen(false)
-                  }}
-                >
-                  {fieldByName[name].label}
-                </DropdownMenuItem>
-              ))}
+              {availableFields.map((name) => {
+                const field = fieldByName[name]
+                return (
+                  <DropdownMenuItem
+                    key={name}
+                    onSelect={() => {
+                      setActiveField(name)
+                      setEditorOpen(false)
+                    }}
+                  >
+                    <field.icon aria-hidden="true" />
+                    {field.label}
+                  </DropdownMenuItem>
+                )
+              })}
             </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>

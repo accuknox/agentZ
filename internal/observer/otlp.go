@@ -174,7 +174,7 @@ func traceEventsFromOTLPRequest(req *tracev1.ExportTraceServiceRequest, app bool
 					continue
 				}
 				if gateway {
-					evaluations, err := guardrailEventsFromSpan(sp, resourceAttrs)
+					evaluations, err := guardrailEventsFromSpan(sp)
 					if err != nil {
 						rejected++
 						continue
@@ -182,6 +182,11 @@ func traceEventsFromOTLPRequest(req *tracev1.ExportTraceServiceRequest, app bool
 					for _, evaluation := range evaluations {
 						events = append(events, event{guardrail: &evaluation})
 					}
+				}
+				// The SDK owns model-operation traces. Native inference spans
+				// supply guardrail evidence without adding duplicate operations.
+				if serviceName == "agentz-inference-gateway" {
+					continue
 				}
 				if serviceName == "agentz-oauth-gateway" {
 					operation, err := appOperationFromOTLPSpan(sp)

@@ -49,7 +49,7 @@ type RoleResourceDefinition = {
 const roleResourceCatalog: RoleResourceDefinition[] = [
   {
     resource: "guardrail_connection",
-    label: "Guardrail connections",
+    label: "Guardrail providers",
     organisation: true,
     workspace: true,
     actions: ["read", "create", "modify", "delete"],

@@ -7,36 +7,26 @@ SELECT EXISTS(
 );
 
 -- name: GatewayListGuardrailEventSources :many
-WITH sources AS (
-  SELECT agent.agent_name, ''::text AS client_id
-  FROM agents agent JOIN workspaces workspace ON workspace.namespace = agent.tenant_namespace
-  WHERE workspace.organization_id = sqlc.arg(organization_id) AND workspace.deleted_at IS NULL
-    AND (sqlc.arg(workspace_id)::text = '' OR workspace.id = sqlc.arg(workspace_id))
+WITH retained AS (
+  SELECT DISTINCT workspace_id, agent_name, client_id
+  FROM observer_guardrail_events
+  WHERE organization_id = sqlc.arg(organization_id) AND expires_at > now()
+    AND (sqlc.arg(workspace_id)::text = '' OR workspace_id = sqlc.arg(workspace_id))
+), sources AS (
+  SELECT workspace_id, agent_name, ''::text AS client_id
+  FROM retained WHERE agent_name <> ''
   UNION
-  SELECT ''::text, g.client_id
-  FROM delegation_grants g
-  WHERE g.organization_id = sqlc.arg(organization_id)
-    AND g.approved_at IS NOT NULL AND g.revoked_at IS NULL
-    AND (sqlc.arg(workspace_id)::text = '' OR EXISTS (
-      SELECT 1 FROM jsonb_array_elements((g.selection->'models') || (g.selection->'mcp')) AS selected
-      WHERE selected->>'workspace_id' = sqlc.arg(workspace_id)
-    ))
-  UNION
-  SELECT ''::text, external.client_id
-  FROM external_agents external
-  WHERE external.organization_id = sqlc.arg(organization_id)
-    AND (sqlc.arg(workspace_id)::text = '' OR external.workspace_id = sqlc.arg(workspace_id))
+  SELECT ''::text, ''::text, client_id
+  FROM retained WHERE client_id <> ''
 )
-SELECT sources.agent_name, sources.client_id,
+SELECT sources.workspace_id, sources.agent_name, sources.client_id,
   COALESCE(NULLIF(sources.agent_name, ''), NULLIF(app.name, ''), sources.client_id)::text AS name,
   COALESCE(external.kind::text, '')::text AS agent_kind
 FROM sources
 LEFT JOIN oauth_clients app ON app.client_id = sources.client_id
 LEFT JOIN external_agents external ON external.client_id = sources.client_id
   AND external.organization_id = sqlc.arg(organization_id)
-  AND (sqlc.arg(workspace_id)::text = '' OR external.workspace_id = sqlc.arg(workspace_id))
-WHERE app.disabled IS NOT TRUE
-ORDER BY sources.agent_name, name, sources.client_id;
+ORDER BY sources.workspace_id, sources.agent_name, name, sources.client_id;
 
 -- name: GatewayListGuardrailEvents :many
 SELECT sqlc.embed(event), coalesce(app.name, '')::text AS subject_name
@@ -3178,10 +3168,10 @@ WITH event AS (
   FROM event
   JOIN workspaces w ON w.organization_id = event.organization_id
     AND w.deleted_at IS NULL
-    AND (event.workspace_id = '' OR w.id = event.workspace_id)
+    AND w.id = event.workspace_id
   JOIN observer_trace_spans sp ON sp.tenant_namespace = w.namespace
     AND sp.span_class = 'llm'
-    AND (event.agent_name = '' OR sp.agent_name = event.agent_name)
+    AND event.agent_name <> '' AND sp.agent_name = event.agent_name
     AND ((sp.trace_id = event.trace_id AND sp.span_id = event.span_id)
       OR (event.session_id <> '' AND sp.session_id = event.session_id
         AND event.occurred_at >= sp.start_time
@@ -3194,10 +3184,10 @@ WITH event AS (
   FROM event
   JOIN workspaces w ON w.organization_id = event.organization_id
     AND w.deleted_at IS NULL
-    AND (event.workspace_id = '' OR w.id = event.workspace_id)
+    AND w.id = event.workspace_id
   JOIN observer_app_operations op ON op.organization_id = event.organization_id
     AND op.workspace_id = w.id AND op.span_class = 'llm'
-    AND (event.client_id = '' OR op.client_id = event.client_id)
+    AND event.client_id <> '' AND op.client_id = event.client_id
     AND ((op.trace_id = event.trace_id AND op.span_id = event.span_id)
       OR (event.session_id <> '' AND op.session_id = event.session_id
         AND event.occurred_at >= op.start_time

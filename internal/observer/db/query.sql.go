@@ -57,7 +57,7 @@ WHERE 'org-' || substring(encode(sha256(
 ), 'hex'), 1, 32) = $1
 UNION ALL
 SELECT w.organization_id, w.id AS workspace_id
-FROM workspaces w WHERE w.namespace = $1
+FROM workspaces w WHERE w.namespace = $1 AND w.deleted_at IS NULL
 `
 
 type GetGuardrailSubjectScopeRow struct {

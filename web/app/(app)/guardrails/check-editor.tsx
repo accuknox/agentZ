@@ -4,7 +4,15 @@ import { useId, useState } from "react"
 import { flushSync } from "react-dom"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { ArrowDown, ArrowUp, ChevronDown, GripVertical, Regex, Trash2 } from "lucide-react"
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  GripVertical,
+  Regex,
+  Trash2,
+  TriangleAlert,
+} from "lucide-react"
 import type { GuardrailCheck, GuardrailConnection } from "@/lib/gateway/client"
 import type { GuardrailActionScope } from "@/data/guardrail.actions"
 import { GuardrailProviderResources } from "./provider-resources"
@@ -16,6 +24,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -95,14 +104,23 @@ export function CheckEditor(props: CheckEditorProps) {
   let detector = ""
   if (check.connection) detector = `${check.connection.scope}/${check.connection.name}`
   if (check.regex) detector = "regex"
+  const providerMasks = connection?.provider === "Bedrock" || connection?.provider === "Webhook"
+  const maskSelected = !!check.regex && check.mode === "enforce" && check.action === "mask"
+  let maskUnavailable = ""
+  if (check.scopes.includes("toolArguments"))
+    maskUnavailable = "Tool inputs cannot be masked because redaction can invalidate JSON."
   let action = check.action === "mask" ? "mask" : "enforce"
   if (check.mode === "audit") action = "audit"
   let actionDescription = ""
-  if (!check.regex)
+  if (connection?.provider === "Bedrock")
     actionDescription =
-      "The provider controls detection and may modify content as part of enforcement."
-  if (check.regex && check.action === "mask")
-    actionDescription = "Matched text uses the gateway's standard redaction."
+      "Enforce applies the AWS guardrail's verdict, including anonymization. Configure masking in the selected AWS guardrail version."
+  if (connection?.provider === "Webhook")
+    actionDescription =
+      "Enforce applies the webhook's verdict, including replacement content returned with a mask response."
+  if (connection?.provider === "OpenAI" || connection?.provider === "ModelArmor")
+    actionDescription = "This integration blocks findings and does not apply masked content."
+  if (check.regex && !maskSelected && maskUnavailable) actionDescription = maskUnavailable
   if (check.mode === "audit")
     actionDescription = "Records findings without blocking or changing content."
 
@@ -271,7 +289,7 @@ export function CheckEditor(props: CheckEditorProps) {
                     value={detector}
                   >
                     <SelectTrigger id={`${id}-detector`} className="w-full">
-                      <SelectValue placeholder="Select a checker connection" />
+                      <SelectValue placeholder="Select a provider" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
@@ -346,7 +364,7 @@ export function CheckEditor(props: CheckEditorProps) {
               ) : null}
               {disabled && check.connection && !connection ? (
                 <FieldDescription>
-                  Referenced connection: {check.connection.scope} / {check.connection.name}.
+                  Referenced provider: {check.connection.scope} / {check.connection.name}.
                   {check.guardrailId ? (
                     <span className="block">Guardrail ID: {check.guardrailId}</span>
                   ) : null}
@@ -384,7 +402,12 @@ export function CheckEditor(props: CheckEditorProps) {
                           ? ["conversation"]
                           : ["instructions", "conversation"]
                     if (value === "output") scopes = ["conversation"]
-                    onChange({ ...check, phase: value, scopes })
+                    onChange({
+                      ...check,
+                      phase: value,
+                      scopes,
+                      action: check.mode === "audit" ? "deny" : check.action,
+                    })
                   }}
                   value={check.phase}
                 >
@@ -400,6 +423,11 @@ export function CheckEditor(props: CheckEditorProps) {
                     </SelectGroup>
                   </SelectContent>
                 </Select>
+                {connection?.provider === "OpenAI" ? (
+                  <FieldDescription>
+                    OpenAI moderation supports request checks only in this integration.
+                  </FieldDescription>
+                ) : null}
               </Field>
 
               <Field>
@@ -409,31 +437,51 @@ export function CheckEditor(props: CheckEditorProps) {
                 <Select
                   disabled={disabled}
                   onValueChange={(value) => {
-                    if (value === "audit") onChange({ ...check, mode: "audit" })
+                    if (value === "audit") onChange({ ...check, mode: "audit", action: "deny" })
                     if (value === "enforce") onChange({ ...check, mode: "enforce", action: "deny" })
+                    if (value === "mask" && check.regex && !maskUnavailable)
+                      onChange({ ...check, mode: "enforce", action: "mask" })
                   }}
                   value={action}
                 >
-                  <SelectTrigger id={`${id}-action`} className="w-full">
+                  <SelectTrigger
+                    aria-describedby={actionDescription ? `${id}-action-description` : undefined}
+                    id={`${id}-action`}
+                    className="w-full"
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
-                      <SelectItem value="enforce">Enforce</SelectItem>
-                      {check.action === "mask" ? (
-                        <SelectItem disabled value="mask">
-                          Mask (existing configuration)
+                      <SelectItem value="enforce">{check.regex ? "Block" : "Enforce"}</SelectItem>
+                      {check.regex || check.action === "mask" ? (
+                        <SelectItem disabled={!check.regex || !!maskUnavailable} value="mask">
+                          Mask
                         </SelectItem>
                       ) : null}
-                      <SelectItem value="audit">Audit only</SelectItem>
+                      <SelectItem value="audit">Audit</SelectItem>
                     </SelectGroup>
                   </SelectContent>
                 </Select>
                 {actionDescription ? (
-                  <FieldDescription>{actionDescription}</FieldDescription>
+                  <FieldDescription id={`${id}-action-description`}>
+                    {actionDescription}
+                  </FieldDescription>
                 ) : null}
               </Field>
             </div>
+            {check.phase === "output" &&
+            check.mode === "enforce" &&
+            (maskSelected || providerMasks) ? (
+              <Alert variant="warning">
+                <TriangleAlert aria-hidden />
+                <AlertTitle>Streamed responses cannot be masked</AlertTitle>
+                <AlertDescription>
+                  Mask verdicts leave streamed content unchanged. Blocking verdicts are still
+                  enforced.
+                </AlertDescription>
+              </Alert>
+            ) : null}
             <Accordion
               collapsible
               type="single"
@@ -451,15 +499,17 @@ export function CheckEditor(props: CheckEditorProps) {
                         <MultiSelectDropdown
                           id={`${id}-scopes`}
                           aria-label="Inspected content"
-                          options={contentScopes}
+                          options={contentScopes.map((scope) => ({
+                            ...scope,
+                            disabled: maskSelected && scope.value === "toolArguments",
+                          }))}
                           value={check.scopes}
-                          disabled={
-                            disabled || (!check.regex && connection?.provider !== "Bedrock")
-                          }
+                          disabled={disabled || connection?.provider === "Webhook"}
                           placeholder="Select content"
                           onValueChangeAction={(selected) =>
                             onChange({
                               ...check,
+                              action: check.mode === "audit" ? "deny" : check.action,
                               scopes: contentScopes
                                 .filter((scope) => selected.includes(scope.value))
                                 .map((scope) => scope.value),
@@ -469,6 +519,17 @@ export function CheckEditor(props: CheckEditorProps) {
                       ) : (
                         <FieldDescription>Assistant response.</FieldDescription>
                       )}
+                      {connection?.provider === "Webhook" ? (
+                        <FieldDescription>
+                          Webhooks inspect their full message payload; content scopes cannot be
+                          selected.
+                        </FieldDescription>
+                      ) : null}
+                      {check.regex && (maskSelected || check.scopes.includes("toolArguments")) ? (
+                        <FieldDescription>
+                          Tool inputs cannot be masked because redaction can invalidate JSON.
+                        </FieldDescription>
+                      ) : null}
                       {connection?.provider === "Bedrock" &&
                       check.phase === "input" &&
                       check.scopes.includes("instructions") ? (

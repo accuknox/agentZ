@@ -12,7 +12,6 @@ import (
 
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	observerdb "github.com/accuknox/agentz/internal/observer/db"
-	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 )
 
@@ -24,7 +23,7 @@ type guardrailEvent struct {
 }
 
 // guardrailEventsFromSpan retains interventions from the gateway-only listener.
-func guardrailEventsFromSpan(sp *tracepb.Span, resourceAttrs map[string]*commonpb.AnyValue) ([]guardrailEvent, error) {
+func guardrailEventsFromSpan(sp *tracepb.Span) ([]guardrailEvent, error) {
 	if sp.GetKind() != tracepb.Span_SPAN_KIND_SERVER {
 		return nil, nil
 	}
@@ -62,13 +61,14 @@ func guardrailEventsFromSpan(sp *tracepb.Span, resourceAttrs map[string]*commonp
 		return nil, errors.New("guardrail evaluation has an invalid occurrence time")
 	}
 	attrs := attrsMap(sp.GetAttributes())
-	namespace := cmp.Or(
-		attrs[attrAgentZTenantNamespace].GetStringValue(),
-		attrs["agentz.resource_namespace"].GetStringValue(),
-		resourceAttrs[attrServiceNamespace].GetStringValue(),
-	)
+	// The resource can be an organization Sandbox shared by many workspaces.
+	// Only the caller's route identity determines where its evidence belongs.
+	namespace := attrs[attrAgentZTenantNamespace].GetStringValue()
 	if namespace == "" {
-		return nil, errors.New("guardrail evaluation has no gateway-owned namespace")
+		return nil, errors.New("guardrail evaluation has no caller namespace")
+	}
+	if attrs[attrAgentZAgentName].GetStringValue() != "" && attrs["agentz.client_id"].GetStringValue() != "" {
+		return nil, errors.New("guardrail evaluation has conflicting caller identities")
 	}
 	traceID := hex.EncodeToString(sp.GetTraceId())
 	spanID := hex.EncodeToString(sp.GetSpanId())

@@ -17,7 +17,7 @@ const providerLogos = {
   ModelArmor: "google-vertex",
 } satisfies Record<Exclude<GuardrailConnection["provider"], "Webhook">, string>
 
-// Keep provider branding consistent across connection rows, forms, and checks.
+// Keep provider branding consistent across provider rows, forms, and checks.
 export function GuardrailProviderIcon({
   provider,
   className = "size-4 shrink-0",

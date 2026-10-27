@@ -38,7 +38,7 @@ async function InheritedResourceContent(
   ])
   const sorting = searchSchema.parse(search)
   const resources: Record<string, { label: string; type: InheritedResourceType }> = {
-    "guardrail-connections": { label: "Guardrail connections", type: "guardrail_connection" },
+    "guardrail-providers": { label: "Guardrail providers", type: "guardrail_connection" },
     "guardrail-policies": { label: "Optional guardrail policies", type: "guardrail_policy" },
     skills: { label: "Skills", type: "skill" },
     sandboxes: { label: "Sandboxes", type: "sandbox" },

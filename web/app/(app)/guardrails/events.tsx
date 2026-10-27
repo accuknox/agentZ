@@ -3,6 +3,16 @@
 import { useSearchParams } from "next/navigation"
 import { queryOptions, useQuery } from "@tanstack/react-query"
 import { createColumnHelper, getCoreRowModel, useReactTable } from "@tanstack/react-table"
+import {
+  AppWindow,
+  Bot,
+  BrickWallShield,
+  MessagesSquare,
+  MessageSquareText,
+  Regex,
+  ScrollText,
+  Wrench,
+} from "lucide-react"
 import type { GuardrailEvent, ListGuardrailEventsResponse } from "@/lib/gateway/client"
 import { getGuardrailEvent } from "@/lib/gateway/client"
 import { getGuardrailEventOptions } from "@/lib/gateway/client/@tanstack/react-query.gen"
@@ -15,7 +25,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { formatTimestamp } from "@/lib/format"
 
 import { GuardrailEventDetail, GuardrailEventSkeleton } from "./guardrail-event-detail"
-import { contentScopes, detectors, verdicts } from "./event-shared"
+import { contentScopes, detectorProviders, detectors, verdicts } from "./event-shared"
+import { GuardrailProviderIcon } from "./provider-shared"
 
 const column = createColumnHelper<GuardrailEvent>()
 
@@ -98,18 +109,28 @@ export function GuardrailEvents({ data, basePath, workspaceId }: GuardrailEvents
       column.display({
         id: "check",
         header: "Check",
-        cell: ({ row }) => (
-          <div className="flex min-w-0 flex-col gap-0.5">
-            <span className="truncate font-medium">
-              {row.original.evaluation.context?.checkName ||
-                detectors[row.original.evaluation.guard] ||
-                "Guardrail check"}
-            </span>
-            <span className="truncate text-xs text-muted-foreground">
-              {row.original.evaluation.context?.policyName}
-            </span>
-          </div>
-        ),
+        cell: ({ row }) => {
+          const { context, guard } = row.original.evaluation
+          const provider = detectorProviders[guard]
+          const Icon = guard === "regex" ? Regex : BrickWallShield
+          return (
+            <div className="flex min-w-0 items-center gap-2">
+              {provider ? (
+                <GuardrailProviderIcon provider={provider} />
+              ) : (
+                <Icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+              )}
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <span className="truncate font-medium">
+                  {context?.checkName || detectors[guard] || "Guardrail check"}
+                </span>
+                <span className="truncate text-xs text-muted-foreground">
+                  {context?.policyName}
+                </span>
+              </div>
+            </div>
+          )
+        },
       }),
       column.display({
         id: "content",
@@ -118,23 +139,46 @@ export function GuardrailEvents({ data, basePath, workspaceId }: GuardrailEvents
           const { context, phase } = row.original.evaluation
           const scope =
             context?.matchedScope ?? (context?.scopes.length === 1 ? context.scopes[0] : undefined)
-          if (scope)
-            return scope === "conversation"
+          const Icon =
+            scope === "instructions"
+              ? ScrollText
+              : scope === "toolArguments" || scope === "toolResults"
+                ? Wrench
+                : phase === "response"
+                  ? MessageSquareText
+                  : MessagesSquare
+          const label = scope
+            ? scope === "conversation"
               ? phase === "request"
                 ? "Chat messages"
                 : "Assistant response"
               : contentScopes[scope]
-          return phase === "request" ? "Model request" : "Model response"
+            : phase === "request"
+              ? "Model request"
+              : "Model response"
+          return (
+            <div className="flex min-w-0 items-center gap-2">
+              <Icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+              <span className="truncate">{label}</span>
+            </div>
+          )
         },
       }),
       column.display({
         id: "subject",
         header: "Source",
-        cell: ({ row }) =>
-          row.original.agent_name ||
-          row.original.subject_name ||
-          row.original.sandbox_name ||
-          "External application",
+        cell: ({ row }) => {
+          const event = row.original
+          const Icon = event.agent_name ? Bot : AppWindow
+          return (
+            <div className="flex min-w-0 items-center gap-2">
+              <Icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+              <span className="truncate">
+                {event.agent_name || event.subject_name || event.client_id || "Unknown source"}
+              </span>
+            </div>
+          )
+        },
       }),
     ],
   })

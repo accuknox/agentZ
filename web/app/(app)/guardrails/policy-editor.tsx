@@ -295,7 +295,7 @@ export function PolicyEditor(props: PolicyEditorProps) {
                         <DropdownMenuSeparator />
                         <DropdownMenuGroup>
                           <DropdownMenuItem onSelect={() => setAddingConnection(true)}>
-                            <Plus /> New connection
+                            <Plus /> New provider
                           </DropdownMenuItem>
                         </DropdownMenuGroup>
                       </>

@@ -62,7 +62,7 @@ export async function saveGuardrailConnectionAction(
     return {
       error: {
         code: "INVALID_FORM",
-        message: parsed.error.issues[0]?.message ?? "Check connection fields",
+        message: parsed.error.issues[0]?.message ?? "Check provider fields",
       },
     }
   const options = {

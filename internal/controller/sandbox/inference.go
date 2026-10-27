@@ -37,9 +37,6 @@ func (r *Reconciler) reconcileInference(ctx context.Context, sandbox *agentzv1al
 	if err != nil {
 		return false, fmt.Errorf("resolve guardrails: %w", err)
 	}
-	if err := bundle.ValidateStreaming(); err != nil {
-		return false, err
-	}
 	providers := make(map[string]*agentzv1alpha1.InferenceProvider)
 	models := make(map[string][]string)
 	targets := []inference.SandboxTarget{}
@@ -172,8 +169,21 @@ func (r *Reconciler) reconcileInference(ctx context.Context, sandbox *agentzv1al
 	}
 	desired := make(map[string]struct{}, len(targets))
 	desiredGrants := make(map[client.ObjectKey]struct{}, len(targets))
+	agents, err := r.referencingAgents(ctx, sandbox)
+	if err != nil {
+		return false, fmt.Errorf("find inference sandbox agents: %w", err)
+	}
+	if len(agents) > 128 {
+		if err := r.deleteStaleInferenceRuntime(ctx, sandbox, desired); err != nil {
+			return false, err
+		}
+		return false, fmt.Errorf("inference route has %d agent matches; maximum is 128", len(agents))
+	}
+	if len(agents) == 0 {
+		targets = nil
+	}
 	for _, target := range targets {
-		runtime := inference.RenderSandboxTarget(sandbox.Namespace, sandbox.Name, target)
+		runtime := inference.RenderSandboxTarget(sandbox.Namespace, sandbox.Name, target, agents)
 		bundle.Apply(runtime.Policy)
 		runtime.Policy.Spec.Traffic.ExtAuth = &agentgatewayv1alpha1.ExtAuthOrConditional{
 			ExtAuth: agentgatewayv1alpha1.ExtAuth{
@@ -600,15 +610,17 @@ func (r *Reconciler) reconcileInferenceGateway(ctx context.Context, namespace st
 								Rules: &ciliumapi.L7Rules{
 									HTTP: ciliumapi.PortRulesHTTP{
 										{
-											Path: "^" + inference.SandboxProviderPath(
-												regexp.QuoteMeta(owners[i].Name),
-												"[^/]+",
+											Path: "^" + inference.AgentRoutePath(
+												regexp.QuoteMeta(agt.Namespace),
+												regexp.QuoteMeta(agt.Name),
+												inference.SandboxProviderPath(regexp.QuoteMeta(owners[i].Name), "[^/]+"),
 											) + "/.*$",
 										},
 										{
-											Path: "^" + inference.SandboxPoolPath(
-												regexp.QuoteMeta(owners[i].Name),
-												"[^/]+",
+											Path: "^" + inference.AgentRoutePath(
+												regexp.QuoteMeta(agt.Namespace),
+												regexp.QuoteMeta(agt.Name),
+												inference.SandboxPoolPath(regexp.QuoteMeta(owners[i].Name), "[^/]+"),
 											) + "/.*$",
 										},
 									},
@@ -674,19 +686,15 @@ func (r *Reconciler) inferenceTracing(namespace string) *agentgatewayv1alpha1.Tr
 				},
 				{
 					Name:       "agentz.tenant_namespace",
-					Expression: agentgatewayv1alpha1.CELExpression(strconv.Quote(namespace)),
-				},
-				{
-					Name:       "agentz.sandbox_name",
 					Expression: `request.path.split("/")[2]`,
 				},
 				{
-					Name:       "agentz.provider_id",
-					Expression: `request.path.split("/")[4]`,
+					Name:       "agentz.sandbox_name",
+					Expression: `request.path.split("/")[5]`,
 				},
 				{
 					Name:       "agentz.agent_name",
-					Expression: "source.identity.serviceAccount",
+					Expression: `request.path.split("/")[3]`,
 				},
 				{
 					Name:       "gen_ai.request.model",

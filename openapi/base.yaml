@@ -5019,7 +5019,7 @@ paths:
       summary: List guardrail interventions in the authorized scope.
       parameters:
       - {name: workspace_id, in: query, schema: {type: string}, description: Narrow organization events to one workspace.}
-      - {name: agent_name, in: query, schema: {type: string}}
+      - {name: agent_name, in: query, schema: {type: string}, description: Agent name qualified by workspace_id or the workspace header.}
       - {name: client_id, in: query, schema: {type: string}, description: External agent or application client ID.}
       - {name: action, in: query, schema: {type: string, enum: [failOpen, audit, mask, reject]}}
       - {name: phase, in: query, schema: {type: string, enum: [request, response]}}
@@ -5045,7 +5045,7 @@ paths:
       summary: Count the complete filtered range in bounded time buckets.
       parameters:
       - {name: workspace_id, in: query, schema: {type: string}, description: Narrow organization events to one workspace.}
-      - {name: agent_name, in: query, schema: {type: string}}
+      - {name: agent_name, in: query, schema: {type: string}, description: Agent name qualified by workspace_id or the workspace header.}
       - {name: client_id, in: query, schema: {type: string}, description: External agent or application client ID.}
       - {name: action, in: query, schema: {type: string, enum: [failOpen, audit, mask, reject]}}
       - {name: phase, in: query, schema: {type: string, enum: [request, response]}}
@@ -5066,7 +5066,7 @@ paths:
     get:
       operationId: listGuardrailEventSources
       tags: [guardrails]
-      summary: List available guardrail event sources in the authorized scope.
+      summary: List sources with retained guardrail events in the authorized scope.
       responses:
         '200':
           description: Agent and external source filter choices.
@@ -12073,11 +12073,18 @@ components:
         total: {type: integer, format: int64}
         bucket_seconds: {type: integer, format: int64}
       required: [points, total, bucket_seconds]
+    GuardrailAgentSource:
+      type: object
+      additionalProperties: false
+      properties:
+        workspace_id: {type: string}
+        name: {type: string}
+      required: [workspace_id, name]
     GuardrailEventSources:
       type: object
       additionalProperties: false
       properties:
-        agents: {type: array, items: {type: string}}
+        agents: {type: array, items: {$ref: '#/components/schemas/GuardrailAgentSource'}}
         apps: {type: array, items: {$ref: '#/components/schemas/LensApp'}}
       required: [agents, apps]
     GuardrailRuntimeEvaluation:

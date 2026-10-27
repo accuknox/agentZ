@@ -5281,7 +5281,7 @@ export const listGuardrailEventSourcesQueryKey = (
 ) => createQueryKey("listGuardrailEventSources", options)
 
 /**
- * List available guardrail event sources in the authorized scope.
+ * List sources with retained guardrail events in the authorized scope.
  */
 export const listGuardrailEventSourcesOptions = (
   options?: Options<ListGuardrailEventSourcesData>

@@ -74,7 +74,7 @@ export function WorkspaceNavigation(props: WorkspaceNavigationProps) {
     workspace.capabilities.guardrail_connections.read ||
     workspace.capabilities.guardrail_events.read
   let guardrailsView = "events"
-  if (workspace.capabilities.guardrail_connections.read) guardrailsView = "connections"
+  if (workspace.capabilities.guardrail_connections.read) guardrailsView = "providers"
   if (workspace.capabilities.guardrail_policies.read) guardrailsView = "policies"
   const resources = [
     {

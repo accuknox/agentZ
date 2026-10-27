@@ -66,7 +66,7 @@ func (s *Service) DiscoverGuardrailConnectionResources(w http.ResponseWriter, r 
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
 	access, apiErr := s.resolveResourceAccess(ctx, resourceAccessRequest{
-		resource:    "Guardrail Connection",
+		resource:    "Guardrail Provider",
 		workspaceID: r.Header.Get("X-AgentZ-Workspace-ID"),
 		operation:   authorization.OperationDiscoverGuardrailConnectionResources,
 	})
@@ -79,7 +79,7 @@ func (s *Service) DiscoverGuardrailConnectionResources(w http.ResponseWriter, r 
 		return
 	}
 	if input.Scope != gatewayapi.ResourceScopeOrganisation && input.Scope != gatewayapi.ResourceScopeWorkspace {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "Select the connection scope.", errBadRequest))
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "Select the provider scope.", errBadRequest))
 		return
 	}
 	pageSize := 50
@@ -106,13 +106,13 @@ func (s *Service) DiscoverGuardrailConnectionResources(w http.ResponseWriter, r 
 	connection := &api.GuardrailConnection{}
 	err = s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Namespace: namespace, Name: name}, connection)
 	if err != nil {
-		apiutil.WriteError(w, r, mapKubeHTTPError("get guardrail connection", err))
+		apiutil.WriteError(w, r, mapKubeHTTPError("get guardrail provider", err))
 		return
 	}
 	if !connection.DeletionTimestamp.IsZero() {
 		apiutil.WriteError(w, r, apiutil.NewError(
 			http.StatusServiceUnavailable, "connection_unavailable",
-			"The connection is being deleted.", nil,
+			"The provider is being deleted.", nil,
 		))
 		return
 	}
@@ -142,7 +142,7 @@ func (s *Service) DiscoverGuardrailConnectionResources(w http.ResponseWriter, r 
 		apiutil.WriteError(w, r, apiutil.NewError(
 			http.StatusBadRequest,
 			"invalid_request",
-			"Select a supported resource kind and canonical parent for this connection.",
+			"Select a supported resource kind and canonical parent for this provider.",
 			errBadRequest,
 		))
 		return
@@ -153,7 +153,7 @@ func (s *Service) DiscoverGuardrailConnectionResources(w http.ResponseWriter, r 
 			r,
 			apiutil.NewError(
 				http.StatusServiceUnavailable, "credentials_unavailable",
-				"Save connection credentials before browsing resources.", nil,
+				"Save provider credentials before browsing resources.", nil,
 			),
 		)
 		return
@@ -163,7 +163,7 @@ func (s *Service) DiscoverGuardrailConnectionResources(w http.ResponseWriter, r 
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(http.StatusServiceUnavailable, "credentials_unavailable", "Saved connection credentials could not be read.", nil),
+			apiutil.NewError(http.StatusServiceUnavailable, "credentials_unavailable", "Saved provider credentials could not be read.", nil),
 		)
 		return
 	}
@@ -361,9 +361,9 @@ func guardrailDiscoveryError(err error) *apiutil.APIError {
 	}
 	switch code {
 	case http.StatusUnauthorized:
-		return apiutil.NewError(code, "provider_authentication_failed", "The provider rejected the saved connection credentials.", nil)
+		return apiutil.NewError(code, "provider_authentication_failed", "The provider rejected the saved credentials.", nil)
 	case http.StatusForbidden:
-		return apiutil.NewError(code, "provider_permission_denied", "The connection needs permission to list these provider resources.", nil)
+		return apiutil.NewError(code, "provider_permission_denied", "The provider needs permission to list these resources.", nil)
 	case http.StatusTooManyRequests:
 		return apiutil.NewError(code, "provider_rate_limited", "The provider rate limited resource discovery. Try again later.", nil)
 	case http.StatusNotFound:

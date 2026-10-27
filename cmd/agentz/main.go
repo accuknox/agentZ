@@ -101,7 +101,6 @@ var (
 	agentImage                                       string
 	controllerImage                                  string
 	gatewayURL                                       string
-	delegationImage                                  string
 
 	agentgatewayTraceMode                         string
 	agentgatewayTraceServiceName                  string
@@ -351,12 +350,6 @@ var managerCmd = &cli.Command{
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
-		},
-		&cli.StringFlag{
-			Name:        "delegation-image",
-			Usage:       "Patched Agentgateway image for delegated inference and MCP",
-			Value:       "public.ecr.aws/k9v9d5v2/agentz/agentgateway:main",
-			Destination: &delegationImage,
 		},
 		&cli.StringFlag{
 			Name:        "agentgateway-trace-mode",
@@ -1504,14 +1497,7 @@ var managerCmd = &cli.Command{
 			os.Exit(1)
 		}
 		extAuthRuntimeReconciler := &mcpconn.ExtAuthRuntimeReconciler{
-			TraceBackend: appTraceBackend,
-			// Clear inherited image parts so Repository is the complete reference.
-			DelegationImage: agentgatewayv1alpha1.Image{
-				Registry:   new(""),
-				Repository: new(delegationImage),
-				Tag:        new(""),
-				Digest:     new(""),
-			},
+			TraceBackend:            appTraceBackend,
 			Bao:                     baoClient,
 			Client:                  mgr.GetClient(),
 			ControllerImage:         controllerImage,

@@ -251,7 +251,7 @@ func TestExtAuthCallerIdentities(t *testing.T) {
 	}
 }
 
-func TestDelegationRestoresAgentGatewayParameters(t *testing.T) {
+func TestDelegationPreservesAgentGatewayParameters(t *testing.T) {
 	scheme := runtime.NewScheme()
 	for _, add := range []func(*runtime.Scheme) error{corev1.AddToScheme, gwv1.Install, agw.Install, ciliumv2.AddToScheme} {
 		if err := add(scheme); err != nil {
@@ -300,11 +300,6 @@ func TestDelegationRestoresAgentGatewayParameters(t *testing.T) {
 			Host: "192.0.2.10",
 			Port: 4317,
 		},
-		DelegationImage: agw.Image{
-			Registry:   new("registry.example.test"),
-			Repository: new("patched-gateway"),
-			Tag:        new("tested"),
-		},
 	}
 	if err := r.reconcileDelegationRuntime(t.Context(), namespace); err != nil {
 		t.Fatal(err)
@@ -313,14 +308,18 @@ func TestDelegationRestoresAgentGatewayParameters(t *testing.T) {
 	if err := c.Get(t.Context(), key, parameters); err != nil {
 		t.Fatal(err)
 	}
-	if !equality.Semantic.DeepEqual(parameters.Spec.Image, &r.DelegationImage) {
-		t.Fatal("delegated listener did not select the tested native image")
+	if !equality.Semantic.DeepEqual(parameters.Spec.Image, originalImage) {
+		t.Fatal("delegation changed the operator's image")
 	}
 	if len(parameters.Spec.Env) != 2 || parameters.Spec.Env[1].Value != "1" {
 		t.Fatalf("full-content exports were not isolated into one-span batches: %+v", parameters.Spec.Env)
 	}
-	// A manager rollout can change the configured image immediately before revocation.
-	r.DelegationImage.Tag = new("updated")
+	// Operator changes during delegation must survive revocation.
+	parameters.Spec.Image.Tag = new("updated")
+	if err := c.Update(t.Context(), parameters); err != nil {
+		t.Fatal(err)
+	}
+	originalImage.Tag = new("updated")
 	if err := c.Delete(t.Context(), delegated); err != nil {
 		t.Fatal(err)
 	}

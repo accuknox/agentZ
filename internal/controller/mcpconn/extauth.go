@@ -34,7 +34,6 @@ import (
 	"github.com/accuknox/agentz/internal/networkpolicy"
 	resourcescope "github.com/accuknox/agentz/internal/scope"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
-	agw "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
 )
 
 const (
@@ -87,7 +86,6 @@ type ExtAuthRuntimeReconciler struct {
 	OpenBaoK8sAuthMountPath string
 	DelegationNamespace     string
 	TraceBackend            sandboxcontroller.TraceBackend
-	DelegationImage         agw.Image
 }
 
 // The runtime controller deletes obsolete scope-reader RBAC objects explicitly

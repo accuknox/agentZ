@@ -88,12 +88,18 @@ kubectl apply --server-side --force-conflicts -f \
   https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.0/standard-install.yaml
 ```
 
-```
+```bash
+export AGENTZ_VERSION=v0.30.0
+
 helm upgrade -i --create-namespace \
   --namespace agentgateway-system \
   --version v1.6.0 agentgateway-crds oci://cr.agentgateway.dev/charts/agentgateway-crds
 
-helm upgrade -i -n agentgateway-system agentgateway oci://cr.agentgateway.dev/charts/agentgateway --version v1.6.0
+helm upgrade -i -n agentgateway-system agentgateway oci://cr.agentgateway.dev/charts/agentgateway \
+  --version v1.6.0 \
+  --set proxy.image.registry=public.ecr.aws \
+  --set proxy.image.repository=k9v9d5v2/agentz/agentgateway \
+  --set proxy.image.tag="${AGENTZ_VERSION}"
 ```
 
 Read more: <https://agentgateway.dev/docs/kubernetes/latest/documentation/install/helm/>
@@ -292,7 +298,6 @@ export AGENTZ_HOST=agentz.example.com
 export S3_HOST=s3.agentz.example.com
 export ACME_EMAIL=ops@example.com
 export ADMIN_EMAIL=you@example.com
-export AGENTZ_VERSION=v0.30.0
 
 kubectl rollout status deployment/cert-manager-webhook -n cert-manager --timeout=180s
 
@@ -523,7 +528,6 @@ manager:
   config:
     agentImage: public.ecr.aws/k9v9d5v2/agentz/agent:${AGENTZ_VERSION}
     agentInitImage: public.ecr.aws/k9v9d5v2/agentz/init:${AGENTZ_VERSION}
-    delegationImage: public.ecr.aws/k9v9d5v2/agentz/agentgateway:${AGENTZ_VERSION}
     skillsS3Endpoint: http://rustfs-svc.rustfs.svc.cluster.local:9000
 gateway:
   image:
@@ -576,27 +580,3 @@ kubectl get deployments,pods,ingress -n agentz-system
 ```
 
 Open `https://agentz.example.com/signup` and register with `ADMIN_EMAIL`.
-
-## Configure prompt guardrails
-
-Use the AgentZ AgentGateway image for native agents and delegated inference. The pinned runtime includes the telemetry and contextual-error patches under [hack/agentgateway](../../hack/agentgateway/README.md).
-
-Configure the AgentGateway controller to create native inference gateways with that image:
-
-```sh
-helm upgrade agentgateway oci://cr.agentgateway.dev/charts/agentgateway \
-  --namespace agentgateway-system --version v1.6.0 --reuse-values \
-  --set proxy.image.registry=public.ecr.aws \
-  --set proxy.image.repository=k9v9d5v2/agentz/agentgateway \
-  --set proxy.image.tag="${AGENTZ_VERSION}"
-```
-
-In organization Guardrails, create reusable connections and policies, then select mandatory policies in Settings. Regex checks accept built-in presets and custom expressions without a connection. Bedrock and Model Armor checks select existing cloud resources. Custom services implement AgentGateway's guardrail webhook contract.
-
-Workspace administrators can assign additional policies to Sandboxes and application access. Organization requirements always run first. Optional organization resources must be explicitly inherited before a workspace can select them. Preview effective checks to inspect the resulting order. Workload readiness reports when enforcement has rolled out.
-
-Checked streaming uses AgentGateway's native overlapping windows. Previously delivered text cannot be retracted. Managed clients reject enforcing output mutations and custom expressions that need whole-response context. Configuration errors explain unsupported combinations before deployment.
-
-Policy violations return protocol-compatible structured errors with a safe explanation and content context. A failed checker is reported separately from a policy finding. Events retain safe evaluation metadata for exactly 30 days. They do not capture inspected content. The events graph counts the complete filtered range in database time buckets.
-
-Keep the observer's gateway OTLP listener reachable only by gateway services, separately from ordinary telemetry ingestion.

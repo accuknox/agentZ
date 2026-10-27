@@ -14,7 +14,7 @@
           otel = pkgs.callPackage ./opencode/plugin-otel/default.nix { };
           agentgateway = pkgs.callPackage ./hack/agentgateway/default.nix { };
           opencode = pkgs.opencode.overrideAttrs (old: {
-            patches = (old.patches or [ ]) ++ [ ./hack/opencode/guardrails.patch ];
+            patches = (old.patches or [ ]) ++ [ ./opencode/patches/guardrails.patch ];
           });
           cli = pkgs.buildGo127Module {
             pname = "agentz";

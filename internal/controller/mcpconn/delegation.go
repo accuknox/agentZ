@@ -12,7 +12,6 @@ import (
 	ciliumapi "github.com/cilium/cilium/pkg/policy/api"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,9 +28,7 @@ import (
 const delegationParametersAnnotation = "agentz.accuknox.com/delegation-parameters"
 
 type delegationParameters struct {
-	Image        *agw.Image     `json:"image"`
-	Batch        *corev1.EnvVar `json:"batch"`
-	AppliedImage *agw.Image     `json:"applied_image"`
+	Batch *corev1.EnvVar `json:"batch"`
 }
 
 func (r *ExtAuthRuntimeReconciler) reconcileDelegationRuntime(ctx context.Context, namespace *corev1.Namespace) error {
@@ -140,9 +137,6 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationRuntime(ctx context.Contex
 							parameters.Spec.Env = append(parameters.Spec.Env, *original.Batch)
 						}
 					}
-					if equality.Semantic.DeepEqual(parameters.Spec.Image, original.AppliedImage) {
-						parameters.Spec.Image = original.Image
-					}
 					delete(parameters.Annotations, delegationParametersAnnotation)
 				}
 				if err := r.Patch(ctx, parameters, patch); err != nil {
@@ -166,7 +160,7 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationRuntime(ctx context.Contex
 		}
 		_, err = ctrlutil.CreateOrPatch(ctx, r.Client, parameters, func() error {
 			parameters.OwnerReferences = ownerRefs
-			original := delegationParameters{Image: parameters.Spec.Image.DeepCopy()}
+			var original delegationParameters
 			switch saved := parameters.Annotations[delegationParametersAnnotation]; saved {
 			case "":
 				index := slices.IndexFunc(parameters.Spec.Env, func(variable corev1.EnvVar) bool {
@@ -180,7 +174,6 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationRuntime(ctx context.Contex
 					return err
 				}
 			}
-			original.AppliedImage = r.DelegationImage.DeepCopy()
 			encoded, err := json.Marshal(original)
 			if err != nil {
 				return err
@@ -189,7 +182,6 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationRuntime(ctx context.Contex
 				parameters.Annotations = map[string]string{}
 			}
 			parameters.Annotations[delegationParametersAnnotation] = string(encoded)
-			parameters.Spec.Image = r.DelegationImage.DeepCopy()
 			if parameters.CreationTimestamp.IsZero() {
 				parameters.Spec.Service = &agw.KubernetesResourceOverlay{
 					Spec: &apiextensionsv1.JSON{

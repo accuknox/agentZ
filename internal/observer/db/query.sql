@@ -1,13 +1,12 @@
 -- name: InsertGuardrailEvent :execrows
 INSERT INTO observer_guardrail_events (
   id, organization_id, workspace_id, occurred_at, expires_at, sandbox_name, agent_name,
-  client_id, session_id, model, trace_id, span_id, evaluation_index, revision, phase, action, evaluation
+  client_id, session_id, model, trace_id, span_id, revision, phase, action, evaluation
 ) VALUES (
   sqlc.arg(id), sqlc.arg(organization_id), sqlc.arg(workspace_id), sqlc.arg(occurred_at),
   sqlc.arg(expires_at), sqlc.arg(sandbox_name), sqlc.arg(agent_name), sqlc.arg(client_id),
   sqlc.arg(session_id), sqlc.arg(model), sqlc.arg(trace_id), sqlc.arg(span_id),
-  sqlc.arg(evaluation_index), sqlc.arg(revision), sqlc.arg(phase), sqlc.arg(action),
-  sqlc.arg(evaluation)
+  sqlc.arg(revision), sqlc.arg(phase), sqlc.arg(action), sqlc.arg(evaluation)
 )
 ON CONFLICT (id) DO NOTHING;
 

@@ -3,7 +3,6 @@ package gateway
 import (
 	"context"
 	"crypto/sha256"
-	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -34,8 +33,7 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
-//go:embed delegation_mcp_allowlist.cel
-var delegationMCPAllowlist string
+const delegationMCPAllowlist = `has(mcp.%[1]s) && mcp.%[1]s.target == %[2]q && mcp.%[1]s.name in [%[3]s]`
 
 func (s *Service) delegationReady(ctx context.Context, grant gatewaydb.DelegationGrant, namespace, gateway, name string, policyNames ...string) error {
 	conditionsReady := func(conditions []metav1.Condition, generation int64, names ...string) bool {
@@ -566,7 +564,7 @@ func delegationMCPExpressions(selected gatewayapi.DelegationMCP) ([]agw.CELExpre
 		if len(values) == 0 {
 			continue
 		}
-		// Reserve the embedded policy's syntax before filling each value chunk.
+		// Reserve the policy's syntax before filling each value chunk.
 		limit := 16384 - len(fmt.Sprintf(delegationMCPAllowlist, kind, selected.Id, ""))
 		chunk := []string{}
 		size := 0

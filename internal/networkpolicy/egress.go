@@ -129,6 +129,14 @@ func ExternalEgress(targets []Target) []ciliumapi.EgressRule {
 	rules := make([]ciliumapi.EgressRule, 0, len(targets)+1)
 	dns := ciliumapi.PortRulesDNS{}
 	for _, target := range targets {
+		service := strings.TrimSuffix(target.Host, ".")
+		if prefix, ok := strings.CutSuffix(service, ".svc.cluster.local"); ok {
+			name, namespace, found := strings.Cut(prefix, ".")
+			if found && name != "" && namespace != "" && !strings.Contains(namespace, ".") {
+				rules = append(rules, ServiceEgress(namespace, name, target.Port)...)
+				continue
+			}
+		}
 		port := ciliumapi.PortRules{{
 			Ports: []ciliumapi.PortProtocol{{
 				Port:     strconv.FormatInt(int64(target.Port), 10),

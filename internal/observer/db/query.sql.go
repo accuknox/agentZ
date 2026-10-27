@@ -110,35 +110,33 @@ type InsertFileEventsParams struct {
 const insertGuardrailEvent = `-- name: InsertGuardrailEvent :execrows
 INSERT INTO observer_guardrail_events (
   id, organization_id, workspace_id, occurred_at, expires_at, sandbox_name, agent_name,
-  client_id, session_id, model, trace_id, span_id, evaluation_index, revision, phase, action, evaluation
+  client_id, session_id, model, trace_id, span_id, revision, phase, action, evaluation
 ) VALUES (
   $1, $2, $3, $4,
   $5, $6, $7, $8,
   $9, $10, $11, $12,
-  $13, $14, $15, $16,
-  $17
+  $13, $14, $15, $16
 )
 ON CONFLICT (id) DO NOTHING
 `
 
 type InsertGuardrailEventParams struct {
-	ID              string    `json:"id"`
-	OrganizationID  string    `json:"organization_id"`
-	WorkspaceID     string    `json:"workspace_id"`
-	OccurredAt      time.Time `json:"occurred_at"`
-	ExpiresAt       time.Time `json:"expires_at"`
-	SandboxName     string    `json:"sandbox_name"`
-	AgentName       string    `json:"agent_name"`
-	ClientID        string    `json:"client_id"`
-	SessionID       string    `json:"session_id"`
-	Model           string    `json:"model"`
-	TraceID         []byte    `json:"trace_id"`
-	SpanID          []byte    `json:"span_id"`
-	EvaluationIndex int32     `json:"evaluation_index"`
-	Revision        string    `json:"revision"`
-	Phase           string    `json:"phase"`
-	Action          string    `json:"action"`
-	Evaluation      []byte    `json:"evaluation"`
+	ID             string    `json:"id"`
+	OrganizationID string    `json:"organization_id"`
+	WorkspaceID    string    `json:"workspace_id"`
+	OccurredAt     time.Time `json:"occurred_at"`
+	ExpiresAt      time.Time `json:"expires_at"`
+	SandboxName    string    `json:"sandbox_name"`
+	AgentName      string    `json:"agent_name"`
+	ClientID       string    `json:"client_id"`
+	SessionID      string    `json:"session_id"`
+	Model          string    `json:"model"`
+	TraceID        []byte    `json:"trace_id"`
+	SpanID         []byte    `json:"span_id"`
+	Revision       string    `json:"revision"`
+	Phase          string    `json:"phase"`
+	Action         string    `json:"action"`
+	Evaluation     []byte    `json:"evaluation"`
 }
 
 func (q *Queries) InsertGuardrailEvent(ctx context.Context, arg InsertGuardrailEventParams) (int64, error) {
@@ -155,7 +153,6 @@ func (q *Queries) InsertGuardrailEvent(ctx context.Context, arg InsertGuardrailE
 		arg.Model,
 		arg.TraceID,
 		arg.SpanID,
-		arg.EvaluationIndex,
 		arg.Revision,
 		arg.Phase,
 		arg.Action,

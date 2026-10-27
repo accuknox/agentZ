@@ -28,17 +28,11 @@ import (
 	"github.com/accuknox/agentz/internal/mcp"
 )
 
-//go:embed delegation_agent_kind.cel
-var delegationAgentKind agw.CELExpression
-
 //go:embed inference_session.cel
 var inferenceSession agw.CELExpression
 
 //go:embed inference_turn.cel
 var inferenceTurn agw.CELExpression
-
-//go:embed inference_model.cel
-var inferenceModel agw.CELExpression
 
 //go:embed inference_output.cel
 var inferenceOutput agw.CELExpression
@@ -52,17 +46,8 @@ var mcpTurn agw.CELExpression
 //go:embed mcp_call_id.cel
 var mcpCallID agw.CELExpression
 
-//go:embed mcp_arguments.cel
-var mcpArguments agw.CELExpression
-
 //go:embed mcp_error.cel
 var mcpError agw.CELExpression
-
-//go:embed mcp_method.cel
-var mcpMethod agw.CELExpression
-
-//go:embed mcp_tool_name.cel
-var mcpToolName agw.CELExpression
 
 //go:embed delegation_filter.cel
 var delegationFilter agw.CELExpression
@@ -318,7 +303,7 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationTracing(ctx context.Contex
 	// Registration controls which native metadata is accepted as conversation identity.
 	attrs = append(attrs, agw.AttributeAdd{
 		Name:       "agentz.agent_kind",
-		Expression: delegationAgentKind,
+		Expression: `default(metadata.agentz_observability.agent_kind, "")`,
 	})
 	if gateway == inference.GatewayName {
 		attrs = append(attrs,
@@ -342,7 +327,7 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationTracing(ctx context.Contex
 			agw.AttributeAdd{Name: "llm.input_messages", Expression: `string(request.body)`},
 			agw.AttributeAdd{
 				Name:       "gen_ai.request.model",
-				Expression: inferenceModel,
+				Expression: `default(llm.requestModel, json(request.body).model)`,
 			},
 			agw.AttributeAdd{
 				Name:       "llm.output_messages",
@@ -366,7 +351,7 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationTracing(ctx context.Contex
 			},
 			agw.AttributeAdd{
 				Name:       "tool.parameters",
-				Expression: mcpArguments,
+				Expression: `toJson(default(mcp.tool.arguments, json(request.body).params.arguments))`,
 			},
 			agw.AttributeAdd{Name: "output.value", Expression: `toJson(mcp.tool.result)`},
 			agw.AttributeAdd{
@@ -376,11 +361,11 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationTracing(ctx context.Contex
 			agw.AttributeAdd{Name: "mcp.request.id", Expression: `json(request.body).id`},
 			agw.AttributeAdd{
 				Name:       "mcp.method.name",
-				Expression: mcpMethod,
+				Expression: `default(mcp.methodName, json(request.body).method)`,
 			},
 			agw.AttributeAdd{
 				Name:       "gen_ai.tool.name",
-				Expression: mcpToolName,
+				Expression: `default(mcp.tool.name, json(request.body).params.name)`,
 			},
 		)
 	}

@@ -170,7 +170,6 @@ export async function saveGuardrailClientAccessAction(
         workspaceId: access.workspace.id,
         clientId,
         policies,
-        updatedBy: session.session.user.id,
       })
       .onConflictDoUpdate({
         target: [
@@ -178,7 +177,7 @@ export async function saveGuardrailClientAccessAction(
           schema.guardrailClientAccess.workspaceId,
           schema.guardrailClientAccess.clientId,
         ],
-        set: { policies, updatedBy: session.session.user.id, updatedAt: new Date() },
+        set: { policies, updatedAt: new Date() },
       })
     await tx.insert(schema.eventTrailEvents).values({
       id: `event-trail-${randomUUID()}`,

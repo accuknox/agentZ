@@ -217,7 +217,6 @@ CREATE TABLE "guardrail_client_access" (
 	"client_id" text NOT NULL,
 	"policies" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_by" text,
 	CONSTRAINT "guardrail_client_access_organization_id_workspace_id_client_id_pk" PRIMARY KEY("organization_id","workspace_id","client_id")
 );
 
@@ -748,7 +747,6 @@ ALTER TABLE "github_authorizations" ADD CONSTRAINT "github_authorizations_sessio
 ALTER TABLE "github_connections" ADD CONSTRAINT "github_connections_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "guardrail_client_access" ADD CONSTRAINT "guardrail_client_access_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "guardrail_client_access" ADD CONSTRAINT "guardrail_client_access_client_id_oauth_clients_client_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."oauth_clients"("client_id") ON DELETE cascade ON UPDATE no action;
-ALTER TABLE "guardrail_client_access" ADD CONSTRAINT "guardrail_client_access_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
 ALTER TABLE "guardrail_client_access" ADD CONSTRAINT "guardrail_client_access_workspace_organization_fk" FOREIGN KEY ("workspace_id","organization_id") REFERENCES "public"."workspaces"("id","organization_id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "invitation_roles" ADD CONSTRAINT "invitation_roles_invitation_id_organization_invitations_id_fk" FOREIGN KEY ("invitation_id") REFERENCES "public"."organization_invitations"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "invitation_roles" ADD CONSTRAINT "invitation_roles_role_organization_fk" FOREIGN KEY ("role_id","organization_id") REFERENCES "public"."role_scopes"("role_id","organization_id") ON DELETE restrict ON UPDATE no action;

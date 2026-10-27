@@ -278,7 +278,6 @@ export const guardrailClientAccess = pgTable(
       .references(() => oauthClients.clientId, { onDelete: "cascade" }),
     policies: jsonb("policies").$type<ResourceReference[]>().default([]).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-    updatedBy: text("updated_by").references(() => users.id, { onDelete: "set null" }),
   },
   (table) => [
     primaryKey({ columns: [table.organizationId, table.workspaceId, table.clientId] }),

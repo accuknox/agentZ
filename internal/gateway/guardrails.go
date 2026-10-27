@@ -209,9 +209,23 @@ func (s *Service) serveGuardrailConnections(w http.ResponseWriter, r *http.Reque
 			apiutil.WriteInternalError(w, r, errors.New("credential store is unavailable"))
 			return
 		}
-		data := map[string]any{}
 		credentials := input.Credentials
-		if spec.Provider == "Bedrock" {
+		data := map[string]any{}
+		switch spec.Provider {
+		case "OpenAI", "Webhook":
+			var token string
+			if credentials.ApiKey != nil {
+				token = *credentials.ApiKey
+			}
+			if credentials.Token != nil {
+				token = *credentials.Token
+			}
+			if strings.TrimSpace(token) == "" {
+				apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "a nonempty API key or bearer token is required", errBadRequest))
+				return
+			}
+			data["token"] = token
+		case "Bedrock":
 			missingAccessKey := credentials.AccessKeyId == nil || strings.TrimSpace(*credentials.AccessKeyId) == ""
 			missingSecretKey := credentials.SecretAccessKey == nil || strings.TrimSpace(*credentials.SecretAccessKey) == ""
 			if missingAccessKey || missingSecretKey {
@@ -221,15 +235,13 @@ func (s *Service) serveGuardrailConnections(w http.ResponseWriter, r *http.Reque
 				))
 				return
 			}
-		}
-		if credentials.ApiKey != nil {
-			data["token"] = *credentials.ApiKey
-		}
-		if credentials.Token != nil {
-			data["token"] = *credentials.Token
-		}
-		if credentials.GoogleCredentialsJson != nil {
-			if spec.Provider != "ModelArmor" || !json.Valid([]byte(*credentials.GoogleCredentialsJson)) {
+			data["accessKey"] = *credentials.AccessKeyId
+			data["secretKey"] = *credentials.SecretAccessKey
+			if credentials.SessionToken != nil {
+				data["sessionToken"] = *credentials.SessionToken
+			}
+		case "ModelArmor":
+			if credentials.GoogleCredentialsJson == nil || !json.Valid([]byte(*credentials.GoogleCredentialsJson)) {
 				apiutil.WriteError(w, r, apiutil.NewError(
 					http.StatusBadRequest, "invalid_request",
 					"Google credentials must be valid ADC credential JSON on a Model Armor provider", errBadRequest,
@@ -237,20 +249,6 @@ func (s *Service) serveGuardrailConnections(w http.ResponseWriter, r *http.Reque
 				return
 			}
 			data["credentials.json"] = *credentials.GoogleCredentialsJson
-		}
-
-		if credentials.AccessKeyId != nil {
-			data["accessKey"] = *credentials.AccessKeyId
-		}
-		if credentials.SecretAccessKey != nil {
-			data["secretKey"] = *credentials.SecretAccessKey
-		}
-		if credentials.SessionToken != nil {
-			data["sessionToken"] = *credentials.SessionToken
-		}
-		if len(data) == 0 {
-			apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "credentials cannot be empty", errBadRequest))
-			return
 		}
 		spec.CredentialRevision = uuid.NewString()
 		path := access.namespace + "/guardrail-connections/" + input.Name + "/" + spec.CredentialRevision

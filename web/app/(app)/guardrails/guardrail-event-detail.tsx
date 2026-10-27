@@ -86,23 +86,13 @@ export function GuardrailEventDetail({
   const failed = context?.reason === "checker_error"
   const scope =
     context?.matchedScope ?? (context?.scopes.length === 1 ? context.scopes[0] : undefined)
-  const ContentIcon =
-    scope === "instructions"
-      ? ScrollText
-      : scope === "toolArguments" || scope === "toolResults"
-        ? Wrench
-        : evaluation.phase === "response"
-          ? MessageSquareText
-          : MessagesSquare
-  const content = scope
-    ? scope === "conversation"
-      ? evaluation.phase === "request"
-        ? "Chat messages"
-        : "Assistant response"
-      : contentScopes[scope]
-    : evaluation.phase === "request"
-      ? "Model request"
-      : "Model response"
+  let ContentIcon = evaluation.phase === "response" ? MessageSquareText : MessagesSquare
+  let content = evaluation.phase === "response" ? "Model response" : "Model request"
+  if (scope) content = contentScopes[scope]
+  if (scope === "instructions") ContentIcon = ScrollText
+  if (scope === "toolArguments" || scope === "toolResults") ContentIcon = Wrench
+  if (scope === "conversation")
+    content = evaluation.phase === "response" ? "Assistant response" : "Chat messages"
   const policy = context?.policyName || context?.policyId
   const provider = detectorProviders[evaluation.guard]
   const investigation = useQuery(
@@ -160,9 +150,10 @@ export function GuardrailEventDetail({
     agentName && workspacePath
       ? `${workspacePath}/agents/${encodeURIComponent(agentName)}`
       : undefined
-  const sandboxHref = `${basePath.slice(0, -"/guardrails".length)}/sandboxes/update/${encodeURIComponent(event.sandbox_name)}`
+  const resourcePath = workspacePath ?? basePath.slice(0, -"/guardrails".length)
+  const sandboxHref = `${resourcePath}/sandboxes/update/${encodeURIComponent(event.sandbox_name)}`
   const policyHref = context?.policyId
-    ? `${basePath}/policies/${encodeURIComponent(context.policyId)}`
+    ? `${resourcePath}/guardrails/policies/${encodeURIComponent(context.policyId)}`
     : undefined
   let heading = "Policy finding recorded"
   let consequence = "Finding logged; processing continued."

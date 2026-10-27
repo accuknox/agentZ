@@ -792,6 +792,15 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 	if req.Guardrails != nil {
 		dependencies.Spec.Guardrails = *req.Guardrails
 	}
+	if req.Guardrails == nil {
+		current := &agentzv1alpha1.Sandbox{}
+		key := ctrlclient.ObjectKey{Name: name, Namespace: access.namespace}
+		if err := s.k8sClient.Get(r.Context(), key, current); err != nil {
+			apiutil.WriteError(w, r, mapKubeHTTPError("get sandbox", err))
+			return
+		}
+		dependencies.Spec.Guardrails = current.Spec.Guardrails
+	}
 	dependencyFields, err := s.validateSandboxDependencies(r.Context(), access, dependencies)
 	if err != nil {
 		eventTrailErr := s.createSandboxEventTrail(

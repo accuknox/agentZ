@@ -139,23 +139,13 @@ export function GuardrailEvents({ data, basePath, workspaceId }: GuardrailEvents
           const { context, phase } = row.original.evaluation
           const scope =
             context?.matchedScope ?? (context?.scopes.length === 1 ? context.scopes[0] : undefined)
-          const Icon =
-            scope === "instructions"
-              ? ScrollText
-              : scope === "toolArguments" || scope === "toolResults"
-                ? Wrench
-                : phase === "response"
-                  ? MessageSquareText
-                  : MessagesSquare
-          const label = scope
-            ? scope === "conversation"
-              ? phase === "request"
-                ? "Chat messages"
-                : "Assistant response"
-              : contentScopes[scope]
-            : phase === "request"
-              ? "Model request"
-              : "Model response"
+          let Icon = phase === "response" ? MessageSquareText : MessagesSquare
+          let label = phase === "response" ? "Model response" : "Model request"
+          if (scope) label = contentScopes[scope]
+          if (scope === "instructions") Icon = ScrollText
+          if (scope === "toolArguments" || scope === "toolResults") Icon = Wrench
+          if (scope === "conversation")
+            label = phase === "response" ? "Assistant response" : "Chat messages"
           return (
             <div className="flex min-w-0 items-center gap-2">
               <Icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />

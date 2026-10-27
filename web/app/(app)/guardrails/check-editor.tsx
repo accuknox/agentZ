@@ -105,6 +105,7 @@ export function CheckEditor(props: CheckEditorProps) {
   if (check.connection) detector = `${check.connection.scope}/${check.connection.name}`
   if (check.regex) detector = "regex"
   const providerMasks = connection?.provider === "Bedrock" || connection?.provider === "Webhook"
+  const fixedScopes = connection !== undefined && connection.provider !== "Bedrock"
   const maskSelected = !!check.regex && check.mode === "enforce" && check.action === "mask"
   let maskUnavailable = ""
   if (check.scopes.includes("toolArguments"))
@@ -504,7 +505,7 @@ export function CheckEditor(props: CheckEditorProps) {
                             disabled: maskSelected && scope.value === "toolArguments",
                           }))}
                           value={check.scopes}
-                          disabled={disabled || connection?.provider === "Webhook"}
+                          disabled={disabled || fixedScopes}
                           placeholder="Select content"
                           onValueChangeAction={(selected) =>
                             onChange({
@@ -519,10 +520,9 @@ export function CheckEditor(props: CheckEditorProps) {
                       ) : (
                         <FieldDescription>Assistant response.</FieldDescription>
                       )}
-                      {connection?.provider === "Webhook" ? (
+                      {fixedScopes ? (
                         <FieldDescription>
-                          Webhooks inspect their full message payload; content scopes cannot be
-                          selected.
+                          This provider inspects system instructions and chat messages together.
                         </FieldDescription>
                       ) : null}
                       {check.regex && (maskSelected || check.scopes.includes("toolArguments")) ? (

@@ -1527,7 +1527,7 @@ func (q *Queries) GatewayFailCleanupJob(ctx context.Context, arg GatewayFailClea
 
 const gatewayFindGuardrailTraceSource = `-- name: GatewayFindGuardrailTraceSource :many
 WITH event AS (
-  SELECT ev.id, ev.organization_id, ev.workspace_id, ev.occurred_at, ev.expires_at, ev.sandbox_name, ev.agent_name, ev.client_id, ev.session_id, ev.model, ev.trace_id, ev.span_id, ev.evaluation_index, ev.revision, ev.phase, ev.action, ev.evaluation, ev.ingested_at FROM observer_guardrail_events ev
+  SELECT ev.id, ev.organization_id, ev.workspace_id, ev.occurred_at, ev.expires_at, ev.sandbox_name, ev.agent_name, ev.client_id, ev.session_id, ev.model, ev.trace_id, ev.span_id, ev.revision, ev.phase, ev.action, ev.evaluation FROM observer_guardrail_events ev
   WHERE ev.id = $1
     AND ev.organization_id = $2
     AND ev.expires_at > now()
@@ -2414,7 +2414,7 @@ func (q *Queries) GatewayGetExternalAgent(ctx context.Context, clientID string) 
 }
 
 const gatewayGetGuardrailClientAccess = `-- name: GatewayGetGuardrailClientAccess :one
-SELECT organization_id, workspace_id, client_id, policies, updated_at, updated_by FROM guardrail_client_access
+SELECT organization_id, workspace_id, client_id, policies, updated_at FROM guardrail_client_access
 WHERE organization_id = $1
   AND workspace_id = $2
   AND client_id = $3
@@ -2435,13 +2435,12 @@ func (q *Queries) GatewayGetGuardrailClientAccess(ctx context.Context, arg Gatew
 		&i.ClientID,
 		&i.Policies,
 		&i.UpdatedAt,
-		&i.UpdatedBy,
 	)
 	return i, err
 }
 
 const gatewayGetGuardrailEvent = `-- name: GatewayGetGuardrailEvent :one
-SELECT event.id, event.organization_id, event.workspace_id, event.occurred_at, event.expires_at, event.sandbox_name, event.agent_name, event.client_id, event.session_id, event.model, event.trace_id, event.span_id, event.evaluation_index, event.revision, event.phase, event.action, event.evaluation, event.ingested_at, coalesce(app.name, '')::text AS subject_name
+SELECT event.id, event.organization_id, event.workspace_id, event.occurred_at, event.expires_at, event.sandbox_name, event.agent_name, event.client_id, event.session_id, event.model, event.trace_id, event.span_id, event.revision, event.phase, event.action, event.evaluation, coalesce(app.name, '')::text AS subject_name
 FROM observer_guardrail_events event
 LEFT JOIN oauth_clients app ON app.client_id = event.client_id
 WHERE event.id = $1
@@ -2477,12 +2476,10 @@ func (q *Queries) GatewayGetGuardrailEvent(ctx context.Context, arg GatewayGetGu
 		&i.ObserverGuardrailEvent.Model,
 		&i.ObserverGuardrailEvent.TraceID,
 		&i.ObserverGuardrailEvent.SpanID,
-		&i.ObserverGuardrailEvent.EvaluationIndex,
 		&i.ObserverGuardrailEvent.Revision,
 		&i.ObserverGuardrailEvent.Phase,
 		&i.ObserverGuardrailEvent.Action,
 		&i.ObserverGuardrailEvent.Evaluation,
-		&i.ObserverGuardrailEvent.IngestedAt,
 		&i.SubjectName,
 	)
 	return i, err
@@ -5396,7 +5393,7 @@ func (q *Queries) GatewayListFileEventsAggregated(ctx context.Context, arg Gatew
 }
 
 const gatewayListGuardrailClientAccess = `-- name: GatewayListGuardrailClientAccess :many
-SELECT organization_id, workspace_id, client_id, policies, updated_at, updated_by FROM guardrail_client_access
+SELECT organization_id, workspace_id, client_id, policies, updated_at FROM guardrail_client_access
 WHERE organization_id = $1
   AND workspace_id = $2
 ORDER BY client_id
@@ -5422,7 +5419,6 @@ func (q *Queries) GatewayListGuardrailClientAccess(ctx context.Context, arg Gate
 			&i.ClientID,
 			&i.Policies,
 			&i.UpdatedAt,
-			&i.UpdatedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -5497,7 +5493,7 @@ func (q *Queries) GatewayListGuardrailEventSources(ctx context.Context, arg Gate
 }
 
 const gatewayListGuardrailEvents = `-- name: GatewayListGuardrailEvents :many
-SELECT event.id, event.organization_id, event.workspace_id, event.occurred_at, event.expires_at, event.sandbox_name, event.agent_name, event.client_id, event.session_id, event.model, event.trace_id, event.span_id, event.evaluation_index, event.revision, event.phase, event.action, event.evaluation, event.ingested_at, coalesce(app.name, '')::text AS subject_name
+SELECT event.id, event.organization_id, event.workspace_id, event.occurred_at, event.expires_at, event.sandbox_name, event.agent_name, event.client_id, event.session_id, event.model, event.trace_id, event.span_id, event.revision, event.phase, event.action, event.evaluation, coalesce(app.name, '')::text AS subject_name
 FROM observer_guardrail_events event
 LEFT JOIN oauth_clients app ON app.client_id = event.client_id
 WHERE event.organization_id = $1
@@ -5573,12 +5569,10 @@ func (q *Queries) GatewayListGuardrailEvents(ctx context.Context, arg GatewayLis
 			&i.ObserverGuardrailEvent.Model,
 			&i.ObserverGuardrailEvent.TraceID,
 			&i.ObserverGuardrailEvent.SpanID,
-			&i.ObserverGuardrailEvent.EvaluationIndex,
 			&i.ObserverGuardrailEvent.Revision,
 			&i.ObserverGuardrailEvent.Phase,
 			&i.ObserverGuardrailEvent.Action,
 			&i.ObserverGuardrailEvent.Evaluation,
-			&i.ObserverGuardrailEvent.IngestedAt,
 			&i.SubjectName,
 		); err != nil {
 			return nil, err
@@ -5869,7 +5863,7 @@ func (q *Queries) GatewayListNetworkEventsAggregated(ctx context.Context, arg Ga
 }
 
 const gatewayListOrganizationGuardrailClientAccess = `-- name: GatewayListOrganizationGuardrailClientAccess :many
-SELECT access.organization_id, access.workspace_id, access.client_id, access.policies, access.updated_at, access.updated_by FROM guardrail_client_access access
+SELECT access.organization_id, access.workspace_id, access.client_id, access.policies, access.updated_at FROM guardrail_client_access access
 JOIN workspaces ON workspaces.id = access.workspace_id
   AND workspaces.organization_id = access.organization_id
 WHERE access.organization_id = $1
@@ -5892,7 +5886,6 @@ func (q *Queries) GatewayListOrganizationGuardrailClientAccess(ctx context.Conte
 			&i.ClientID,
 			&i.Policies,
 			&i.UpdatedAt,
-			&i.UpdatedBy,
 		); err != nil {
 			return nil, err
 		}

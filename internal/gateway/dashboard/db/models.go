@@ -1240,7 +1240,6 @@ type GuardrailClientAccess struct {
 	ClientID       string             `json:"client_id"`
 	Policies       []byte             `json:"policies"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
-	UpdatedBy      pgtype.Text        `json:"updated_by"`
 }
 
 type Invitation struct {

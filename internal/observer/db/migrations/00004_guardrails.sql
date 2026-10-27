@@ -13,12 +13,10 @@ CREATE TABLE observer_guardrail_events (
   model TEXT NOT NULL DEFAULT '',
   trace_id BYTEA NOT NULL CHECK (octet_length(trace_id) = 16),
   span_id BYTEA NOT NULL CHECK (octet_length(span_id) = 8),
-  evaluation_index INTEGER NOT NULL CHECK (evaluation_index >= 0),
   revision TEXT NOT NULL,
   phase TEXT NOT NULL CHECK (phase IN ('request', 'response')),
   action TEXT NOT NULL CHECK (action IN ('failOpen', 'audit', 'mask', 'reject')),
-  evaluation JSONB NOT NULL,
-  ingested_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  evaluation JSONB NOT NULL
 );
 
 CREATE INDEX observer_guardrail_events_scope_time_idx
@@ -34,9 +32,6 @@ CREATE INDEX observer_guardrail_events_agent_time_idx
 CREATE INDEX observer_guardrail_events_client_time_idx
   ON observer_guardrail_events (organization_id, client_id, occurred_at DESC, id DESC)
   WHERE client_id <> '';
-
-CREATE UNIQUE INDEX observer_guardrail_events_span_evaluation_idx
-  ON observer_guardrail_events (trace_id, span_id, evaluation_index);
 
 -- This Go-owned phase runs after the web migration has committed the new enum values.
 -- Existing Sandbox authors need the same policy-read dependency as newly saved roles.

@@ -84,10 +84,17 @@ func ValidatePolicy(spec api.GuardrailPolicySpec) error {
 	if strings.TrimSpace(spec.DisplayName) == "" || len(spec.Checks) == 0 {
 		return errors.New("policy display name and at least one check are required")
 	}
+	if strings.ContainsRune(spec.DisplayName, 0) {
+		return errors.New("policy display name cannot contain a null character")
+	}
 	ids := make(map[string]bool, len(spec.Checks))
 	for _, check := range spec.Checks {
 		if check.ID == "" || check.Name == "" || ids[check.ID] {
 			return errors.New("check IDs must be nonempty and unique; every check needs a name")
+		}
+		metadata := check.ID + check.Name + check.SafeExplanation + check.GuardrailID + check.GuardrailVersion + check.Template
+		if strings.ContainsRune(metadata, 0) {
+			return errors.New("check metadata cannot contain a null character")
 		}
 		ids[check.ID] = true
 		if check.Phase != "input" && check.Phase != "output" {
@@ -333,8 +340,9 @@ func (b *Bundle) compile(namespace string) error {
 			name := ConnectionRuntimeName(connection)
 			secret := &agw.LocalSecretKeyRef{Name: gwv1.ObjectName(name), Key: new("token")}
 			defaultScopes := len(check.Scopes) == 2 && slices.Contains(check.Scopes, "instructions") && slices.Contains(check.Scopes, "conversation")
-			if check.Phase == "input" && connection.Spec.Provider == "Webhook" && !defaultScopes {
-				return fmt.Errorf("check %q webhook requires instructions and conversation scopes", check.ID)
+			// The pinned controller and runtime support custom scopes only for regex and Bedrock.
+			if check.Phase == "input" && connection.Spec.Provider != "Bedrock" && !defaultScopes {
+				return fmt.Errorf("check %q provider requires instructions and conversation scopes", check.ID)
 			}
 			switch connection.Spec.Provider {
 			case "OpenAI":

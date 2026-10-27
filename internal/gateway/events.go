@@ -256,7 +256,7 @@ func (s *Service) serveGuardrailEvents(w http.ResponseWriter, r *http.Request, p
 	apiutil.WriteJSON(w, http.StatusOK, result)
 }
 
-// GetGuardrailEvent returns one authorized native evaluation without captured content.
+// GetGuardrailEvent returns one evaluation with captured content gated by Lens access.
 func (s *Service) GetGuardrailEvent(w http.ResponseWriter, r *http.Request, eventID string, _ gatewayapi.GetGuardrailEventParams) {
 	access, apiErr := s.resolveResourceAccess(r.Context(), resourceAccessRequest{
 		resource:    "Guardrail Event",

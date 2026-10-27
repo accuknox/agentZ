@@ -1,5 +1,5 @@
 {
-  "id": "c33a4dff-e96c-4b19-92c9-9ad6c7d185ff",
+  "id": "2de6d865-ef1a-4d69-8095-6496e22d4a33",
   "prevId": "428eaef8-61ea-4b56-9de8-188ef099f277",
   "version": "7",
   "dialect": "postgresql",
@@ -1818,12 +1818,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "updated_by": {
-          "name": "updated_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {},
@@ -1844,15 +1838,6 @@
           "columnsFrom": ["client_id"],
           "columnsTo": ["client_id"],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "guardrail_client_access_updated_by_users_id_fk": {
-          "name": "guardrail_client_access_updated_by_users_id_fk",
-          "tableFrom": "guardrail_client_access",
-          "tableTo": "users",
-          "columnsFrom": ["updated_by"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "guardrail_client_access_workspace_organization_fk": {

@@ -363,9 +363,13 @@ func TestProviderRequestScopes(t *testing.T) {
 				},
 			}}}
 			err := bundle.compile("namespace")
-			if provider == "Webhook" {
+			if provider != "Bedrock" {
 				if err == nil {
-					t.Fatal("webhook silently accepted scopes its protocol ignores")
+					t.Fatal("provider accepted scopes the pinned integration cannot enforce")
+				}
+				bundle.Checks[0].Check.Scopes = []string{"instructions", "conversation"}
+				if err := bundle.compile("namespace"); err != nil {
+					t.Fatalf("default request scopes rejected: %v", err)
 				}
 				return
 			}

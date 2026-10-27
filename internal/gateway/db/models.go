@@ -1148,7 +1148,6 @@ type GuardrailClientAccess struct {
 	ClientID       string             `json:"client_id"`
 	Policies       []byte             `json:"policies"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
-	UpdatedBy      pgtype.Text        `json:"updated_by"`
 }
 
 type Invitation struct {
@@ -1472,24 +1471,22 @@ type ObserverFileEvent struct {
 }
 
 type ObserverGuardrailEvent struct {
-	ID              string    `json:"id"`
-	OrganizationID  string    `json:"organization_id"`
-	WorkspaceID     string    `json:"workspace_id"`
-	OccurredAt      time.Time `json:"occurred_at"`
-	ExpiresAt       time.Time `json:"expires_at"`
-	SandboxName     string    `json:"sandbox_name"`
-	AgentName       string    `json:"agent_name"`
-	ClientID        string    `json:"client_id"`
-	SessionID       string    `json:"session_id"`
-	Model           string    `json:"model"`
-	TraceID         []byte    `json:"trace_id"`
-	SpanID          []byte    `json:"span_id"`
-	EvaluationIndex int32     `json:"evaluation_index"`
-	Revision        string    `json:"revision"`
-	Phase           string    `json:"phase"`
-	Action          string    `json:"action"`
-	Evaluation      []byte    `json:"evaluation"`
-	IngestedAt      time.Time `json:"ingested_at"`
+	ID             string    `json:"id"`
+	OrganizationID string    `json:"organization_id"`
+	WorkspaceID    string    `json:"workspace_id"`
+	OccurredAt     time.Time `json:"occurred_at"`
+	ExpiresAt      time.Time `json:"expires_at"`
+	SandboxName    string    `json:"sandbox_name"`
+	AgentName      string    `json:"agent_name"`
+	ClientID       string    `json:"client_id"`
+	SessionID      string    `json:"session_id"`
+	Model          string    `json:"model"`
+	TraceID        []byte    `json:"trace_id"`
+	SpanID         []byte    `json:"span_id"`
+	Revision       string    `json:"revision"`
+	Phase          string    `json:"phase"`
+	Action         string    `json:"action"`
+	Evaluation     []byte    `json:"evaluation"`
 }
 
 type ObserverGuardrailRequest struct {

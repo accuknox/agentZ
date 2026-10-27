@@ -3333,10 +3333,15 @@ export const zGuardrailEventChart = z.object({
     }),
 })
 
+export const zGuardrailEventSources = z.object({
+  agents: z.array(z.string()),
+  apps: z.array(zLensApp),
+})
+
 export const zGuardrailRuntimeEvaluation = z.object({
   phase: z.enum(["request", "response"]),
   guard: z.string(),
-  action: z.enum(["allow", "failOpen", "audit", "mask", "reject"]),
+  action: z.enum(["failOpen", "audit", "mask", "reject"]),
   guardrailId: z.string().optional(),
   guardrailVersion: z.string().optional(),
   context: zGuardrailContext.optional(),
@@ -5214,7 +5219,7 @@ export const zUpdateGuardrailSettingsResponse = zGuardrailSettings
 export const zGetEffectiveGuardrailsResponse = zGuardrailEffective
 
 /**
- * Retained evaluations, newest first.
+ * Retained blocks, masks, audit findings, and guardrail failures, newest first.
  */
 export const zListGuardrailEventsResponse2 = zListGuardrailEventsResponse
 
@@ -5222,6 +5227,11 @@ export const zListGuardrailEventsResponse2 = zListGuardrailEventsResponse
  * At most sixty buckets, including empty intervals.
  */
 export const zGetGuardrailEventChartResponse = zGuardrailEventChart
+
+/**
+ * Agent and external source filter choices.
+ */
+export const zListGuardrailEventSourcesResponse = zGuardrailEventSources
 
 /**
  * Authorized event detail.

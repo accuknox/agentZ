@@ -23,15 +23,34 @@ type guardrailEvent struct {
 	namespace string
 }
 
-// guardrailEventsFromSpan retains only native metadata from the gateway-only listener.
-// Configuration context cannot identify the individual policy or check that ran.
+// guardrailEventsFromSpan retains interventions from the gateway-only listener.
 func guardrailEventsFromSpan(sp *tracepb.Span, resourceAttrs map[string]*commonpb.AnyValue) ([]guardrailEvent, error) {
 	if sp.GetKind() != tracepb.Span_SPAN_KIND_SERVER {
 		return nil, nil
 	}
-	attrs := attrsMap(sp.GetAttributes())
-	raw := attrs[attrGuardrailEvaluations].GetStringValue()
-	if raw == "" {
+	// Successful checks have no evidence at the source. Avoid allocating an
+	// attribute map or decoding JSON on that common path.
+	var raw string
+	for _, attr := range sp.GetAttributes() {
+		if attr.GetKey() == attrGuardrailEvaluations {
+			raw = attr.GetValue().GetStringValue()
+			break
+		}
+	}
+	if raw == "" || raw == "null" || raw == "[]" {
+		return nil, nil
+	}
+	var evaluations []gatewayapi.GuardrailRuntimeEvaluation
+	if err := json.Unmarshal([]byte(raw), &evaluations); err != nil {
+		return nil, fmt.Errorf("decode guardrail evaluations: %w", err)
+	}
+	retained := 0
+	for _, evaluation := range evaluations {
+		if evaluation.Action != "allow" {
+			retained++
+		}
+	}
+	if retained == 0 {
 		return nil, nil
 	}
 	invalidTrace := len(sp.GetTraceId()) != 16 || bytes.Equal(sp.GetTraceId(), make([]byte, 16))
@@ -42,10 +61,7 @@ func guardrailEventsFromSpan(sp *tracepb.Span, resourceAttrs map[string]*commonp
 	if sp.GetStartTimeUnixNano() == 0 || sp.GetStartTimeUnixNano() > uint64(time.Now().Add(time.Minute).UnixNano()) {
 		return nil, errors.New("guardrail evaluation has an invalid occurrence time")
 	}
-	var evaluations []gatewayapi.GuardrailRuntimeEvaluation
-	if err := json.Unmarshal([]byte(raw), &evaluations); err != nil {
-		return nil, fmt.Errorf("decode guardrail evaluations: %w", err)
-	}
+	attrs := attrsMap(sp.GetAttributes())
 	namespace := cmp.Or(
 		attrs[attrAgentZTenantNamespace].GetStringValue(),
 		attrs["agentz.resource_namespace"].GetStringValue(),
@@ -56,15 +72,21 @@ func guardrailEventsFromSpan(sp *tracepb.Span, resourceAttrs map[string]*commonp
 	}
 	traceID := hex.EncodeToString(sp.GetTraceId())
 	spanID := hex.EncodeToString(sp.GetSpanId())
-	events := make([]guardrailEvent, 0, len(evaluations))
+	events := make([]guardrailEvent, 0, retained)
 	for index, evaluation := range evaluations {
+		if evaluation.Action == "allow" {
+			continue
+		}
 		validPhase := evaluation.Phase == gatewayapi.GuardrailRuntimeEvaluationPhaseRequest ||
 			evaluation.Phase == gatewayapi.GuardrailRuntimeEvaluationPhaseResponse
 		if !validPhase {
 			return nil, errors.New("guardrail evaluation has an invalid phase")
 		}
 		switch evaluation.Action {
-		case gatewayapi.GuardrailRuntimeEvaluationActionAllow, gatewayapi.GuardrailRuntimeEvaluationActionFailOpen, gatewayapi.GuardrailRuntimeEvaluationActionAudit, gatewayapi.GuardrailRuntimeEvaluationActionMask, gatewayapi.GuardrailRuntimeEvaluationActionReject:
+		case gatewayapi.GuardrailRuntimeEvaluationActionFailOpen,
+			gatewayapi.GuardrailRuntimeEvaluationActionAudit,
+			gatewayapi.GuardrailRuntimeEvaluationActionMask,
+			gatewayapi.GuardrailRuntimeEvaluationActionReject:
 		default:
 			return nil, errors.New("guardrail evaluation has an invalid action")
 		}

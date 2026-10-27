@@ -9,7 +9,9 @@ import {
   listGuardrailConnectionsQuery,
   listGuardrailPoliciesQuery,
   getGuardrailSettingsQuery,
+  listGuardrailEventSourcesQuery,
 } from "@/data/guardrail.queries"
+import { getWorkspaceDirectory } from "@/data/workspaces"
 import {
   getGuardrailEventChart,
   listGuardrailEvents,
@@ -28,6 +30,7 @@ import { GuardrailEvents } from "./events"
 import { GuardrailEventFilters } from "./event-filters"
 
 type GuardrailsPageProps = {
+  orgSlug: string
   basePath: `/orgs/${string}/guardrails`
   canAdminister: boolean
   connectionCapabilities: ResourceCapabilities
@@ -48,6 +51,7 @@ export async function GuardrailsPage(props: GuardrailsPageProps) {
     view,
     searchParams,
     workspaceId,
+    orgSlug,
   } = props
 
   let defaultSection = "events"
@@ -70,6 +74,9 @@ export async function GuardrailsPage(props: GuardrailsPageProps) {
         phase: zGuardrailRuntimeEvaluation.shape.phase.optional(),
         trace_id: z.string().optional(),
         session_id: z.string().optional(),
+        workspace_id: z.string().optional(),
+        agent_name: z.string().optional(),
+        client_id: z.string().optional(),
         cursor: z.string().optional(),
         from: z.iso.datetime({ offset: true }).optional(),
         to: z.iso.datetime({ offset: true }).optional(),
@@ -89,9 +96,29 @@ export async function GuardrailsPage(props: GuardrailsPageProps) {
     const query = { ...filters, from, to }
     const chart = getGuardrailEventChart({ client, headers, query })
     const page = listGuardrailEvents({ client, headers, query: { ...query, limit: 25, cursor } })
+    const [directory, sources] = await Promise.all([
+      getWorkspaceDirectory(orgSlug),
+      listGuardrailEventSourcesQuery(workspaceId ?? filters.workspace_id),
+    ])
+    if (sources.error)
+      return (
+        <AdministrationState
+          kind="failed"
+          title="Could not load event sources"
+          description={sources.error.message}
+        />
+      )
+    const workspaces =
+      directory.directory?.workspaces.filter((item) => item.capabilities.guardrail_events.read) ??
+      []
     return (
       <div className="flex min-w-0 flex-col">
-        <GuardrailEventFilters {...query} />
+        <GuardrailEventFilters
+          {...query}
+          sources={sources.data}
+          workspaces={workspaces}
+          scopedWorkspaceId={workspaceId}
+        />
         <Suspense key={`chart:${JSON.stringify(query)}`} fallback={<EventsChartSkeleton />}>
           <GuardrailChart result={chart} />
         </Suspense>
@@ -222,7 +249,7 @@ async function GuardrailChart({
     )
   return (
     <EventsChart
-      label="Evaluations"
+      label="Interventions"
       data={{
         total: response.data.total,
         points: response.data.points.map((point) => ({

@@ -316,6 +316,9 @@ import type {
   ListGuardrailConnectionsResponses,
   ListGuardrailEventsData,
   ListGuardrailEventsErrors,
+  ListGuardrailEventSourcesData,
+  ListGuardrailEventSourcesErrors,
+  ListGuardrailEventSourcesResponses,
   ListGuardrailEventsResponses,
   ListGuardrailPoliciesData,
   ListGuardrailPoliciesErrors,
@@ -3430,7 +3433,7 @@ export const getEffectiveGuardrails = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * List guardrail evaluations in the authorized scope.
+ * List guardrail interventions in the authorized scope.
  */
 export const listGuardrailEvents = <ThrowOnError extends boolean = false>(
   options?: Options<ListGuardrailEventsData, ThrowOnError>
@@ -3458,6 +3461,22 @@ export const getGuardrailEventChart = <ThrowOnError extends boolean = false>(
   >({
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/guardrails/events/chart",
+    ...options,
+  })
+
+/**
+ * List available guardrail event sources in the authorized scope.
+ */
+export const listGuardrailEventSources = <ThrowOnError extends boolean = false>(
+  options?: Options<ListGuardrailEventSourcesData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    ListGuardrailEventSourcesResponses,
+    ListGuardrailEventSourcesErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/guardrails/events/sources",
     ...options,
   })
 

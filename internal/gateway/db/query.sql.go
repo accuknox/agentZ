@@ -2498,10 +2498,12 @@ WITH counts AS (
     AND occurred_at >= $1::timestamptz
     AND occurred_at < $3::timestamptz
     AND expires_at > now()
-    AND ($6::text = '' OR action = $6)
-    AND ($7::text = '' OR phase = $7)
-    AND ($8::text = '' OR trace_id = decode($8, 'hex'))
-    AND ($9::text = '' OR session_id = $9)
+    AND ($6::text = '' OR agent_name = $6)
+    AND ($7::text = '' OR client_id = $7)
+    AND ($8::text = '' OR action = $8)
+    AND ($9::text = '' OR phase = $9)
+    AND ($10::text = '' OR trace_id = decode($10, 'hex'))
+    AND ($11::text = '' OR session_id = $11)
   GROUP BY bucket
 )
 SELECT ($1::timestamptz
@@ -2520,6 +2522,8 @@ type GatewayGetGuardrailEventChartParams struct {
 	StartedBefore  time.Time `json:"started_before"`
 	OrganizationID string    `json:"organization_id"`
 	WorkspaceID    string    `json:"workspace_id"`
+	AgentName      string    `json:"agent_name"`
+	ClientID       string    `json:"client_id"`
 	Action         string    `json:"action"`
 	Phase          string    `json:"phase"`
 	TraceID        string    `json:"trace_id"`
@@ -2538,6 +2542,8 @@ func (q *Queries) GatewayGetGuardrailEventChart(ctx context.Context, arg Gateway
 		arg.StartedBefore,
 		arg.OrganizationID,
 		arg.WorkspaceID,
+		arg.AgentName,
+		arg.ClientID,
 		arg.Action,
 		arg.Phase,
 		arg.TraceID,
@@ -5405,6 +5411,76 @@ func (q *Queries) GatewayListGuardrailClientAccess(ctx context.Context, arg Gate
 	return items, nil
 }
 
+const gatewayListGuardrailEventSources = `-- name: GatewayListGuardrailEventSources :many
+WITH sources AS (
+  SELECT agent.agent_name, ''::text AS client_id
+  FROM agents agent JOIN workspaces workspace ON workspace.namespace = agent.tenant_namespace
+  WHERE workspace.organization_id = $1 AND workspace.deleted_at IS NULL
+    AND ($2::text = '' OR workspace.id = $2)
+  UNION
+  SELECT ''::text, g.client_id
+  FROM delegation_grants g
+  WHERE g.organization_id = $1
+    AND g.approved_at IS NOT NULL AND g.revoked_at IS NULL
+    AND ($2::text = '' OR EXISTS (
+      SELECT 1 FROM jsonb_array_elements((g.selection->'models') || (g.selection->'mcp')) AS selected
+      WHERE selected->>'workspace_id' = $2
+    ))
+  UNION
+  SELECT ''::text, external.client_id
+  FROM external_agents external
+  WHERE external.organization_id = $1
+    AND ($2::text = '' OR external.workspace_id = $2)
+)
+SELECT sources.agent_name, sources.client_id,
+  COALESCE(NULLIF(sources.agent_name, ''), NULLIF(app.name, ''), sources.client_id)::text AS name,
+  COALESCE(external.kind::text, '')::text AS agent_kind
+FROM sources
+LEFT JOIN oauth_clients app ON app.client_id = sources.client_id
+LEFT JOIN external_agents external ON external.client_id = sources.client_id
+  AND external.organization_id = $1
+  AND ($2::text = '' OR external.workspace_id = $2)
+WHERE app.disabled IS NOT TRUE
+ORDER BY sources.agent_name, name, sources.client_id
+`
+
+type GatewayListGuardrailEventSourcesParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+type GatewayListGuardrailEventSourcesRow struct {
+	AgentName string `json:"agent_name"`
+	ClientID  string `json:"client_id"`
+	Name      string `json:"name"`
+	AgentKind string `json:"agent_kind"`
+}
+
+func (q *Queries) GatewayListGuardrailEventSources(ctx context.Context, arg GatewayListGuardrailEventSourcesParams) ([]GatewayListGuardrailEventSourcesRow, error) {
+	rows, err := q.db.Query(ctx, gatewayListGuardrailEventSources, arg.OrganizationID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayListGuardrailEventSourcesRow{}
+	for rows.Next() {
+		var i GatewayListGuardrailEventSourcesRow
+		if err := rows.Scan(
+			&i.AgentName,
+			&i.ClientID,
+			&i.Name,
+			&i.AgentKind,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const gatewayListGuardrailEvents = `-- name: GatewayListGuardrailEvents :many
 SELECT event.id, event.organization_id, event.workspace_id, event.occurred_at, event.expires_at, event.sandbox_name, event.agent_name, event.client_id, event.session_id, event.model, event.trace_id, event.span_id, event.evaluation_index, event.revision, event.phase, event.action, event.evaluation, event.ingested_at, coalesce(app.name, '')::text AS subject_name
 FROM observer_guardrail_events event
@@ -5414,13 +5490,15 @@ WHERE event.organization_id = $1
   AND event.occurred_at >= $3::timestamptz
   AND event.occurred_at < $4::timestamptz
   AND event.expires_at > now()
-  AND ($5::text = '' OR event.action = $5)
-  AND ($6::text = '' OR event.phase = $6)
-  AND ($7::text = '' OR event.trace_id = decode($7, 'hex'))
-  AND ($8::text = '' OR event.session_id = $8)
-  AND ($9::text = '' OR (event.occurred_at, event.id) < ($10, $9))
+  AND ($5::text = '' OR event.agent_name = $5)
+  AND ($6::text = '' OR event.client_id = $6)
+  AND ($7::text = '' OR event.action = $7)
+  AND ($8::text = '' OR event.phase = $8)
+  AND ($9::text = '' OR event.trace_id = decode($9, 'hex'))
+  AND ($10::text = '' OR event.session_id = $10)
+  AND ($11::text = '' OR (event.occurred_at, event.id) < ($12, $11))
 ORDER BY event.occurred_at DESC, event.id DESC
-LIMIT $11
+LIMIT $13
 `
 
 type GatewayListGuardrailEventsParams struct {
@@ -5428,6 +5506,8 @@ type GatewayListGuardrailEventsParams struct {
 	WorkspaceID    string    `json:"workspace_id"`
 	StartedAfter   time.Time `json:"started_after"`
 	StartedBefore  time.Time `json:"started_before"`
+	AgentName      string    `json:"agent_name"`
+	ClientID       string    `json:"client_id"`
 	Action         string    `json:"action"`
 	Phase          string    `json:"phase"`
 	TraceID        string    `json:"trace_id"`
@@ -5448,6 +5528,8 @@ func (q *Queries) GatewayListGuardrailEvents(ctx context.Context, arg GatewayLis
 		arg.WorkspaceID,
 		arg.StartedAfter,
 		arg.StartedBefore,
+		arg.AgentName,
+		arg.ClientID,
 		arg.Action,
 		arg.Phase,
 		arg.TraceID,

@@ -5016,9 +5016,12 @@ paths:
     get:
       operationId: listGuardrailEvents
       tags: [guardrails]
-      summary: List guardrail evaluations in the authorized scope.
+      summary: List guardrail interventions in the authorized scope.
       parameters:
-      - {name: action, in: query, schema: {type: string, enum: [allow, failOpen, audit, mask, reject]}}
+      - {name: workspace_id, in: query, schema: {type: string}, description: Narrow organization events to one workspace.}
+      - {name: agent_name, in: query, schema: {type: string}}
+      - {name: client_id, in: query, schema: {type: string}, description: External agent or application client ID.}
+      - {name: action, in: query, schema: {type: string, enum: [failOpen, audit, mask, reject]}}
       - {name: phase, in: query, schema: {type: string, enum: [request, response]}}
       - {name: trace_id, in: query, schema: {type: string}}
       - {name: session_id, in: query, schema: {type: string}}
@@ -5028,7 +5031,7 @@ paths:
       - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 25}}
       responses:
         '200':
-          description: Retained evaluations, newest first.
+          description: Retained blocks, masks, audit findings, and guardrail failures, newest first.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ListGuardrailEventsResponse'}
@@ -5041,7 +5044,10 @@ paths:
       tags: [guardrails]
       summary: Count the complete filtered range in bounded time buckets.
       parameters:
-      - {name: action, in: query, schema: {type: string, enum: [allow, failOpen, audit, mask, reject]}}
+      - {name: workspace_id, in: query, schema: {type: string}, description: Narrow organization events to one workspace.}
+      - {name: agent_name, in: query, schema: {type: string}}
+      - {name: client_id, in: query, schema: {type: string}, description: External agent or application client ID.}
+      - {name: action, in: query, schema: {type: string, enum: [failOpen, audit, mask, reject]}}
       - {name: phase, in: query, schema: {type: string, enum: [request, response]}}
       - {name: trace_id, in: query, schema: {type: string}}
       - {name: session_id, in: query, schema: {type: string}}
@@ -5053,6 +5059,20 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/GuardrailEventChart'}
+        default: {$ref: '#/components/responses/InternalError'}
+  /api/guardrails/events/sources:
+    parameters:
+    - $ref: '#/components/parameters/WorkspaceIDHeader'
+    get:
+      operationId: listGuardrailEventSources
+      tags: [guardrails]
+      summary: List available guardrail event sources in the authorized scope.
+      responses:
+        '200':
+          description: Agent and external source filter choices.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GuardrailEventSources'}
         default: {$ref: '#/components/responses/InternalError'}
   /api/guardrails/events/{eventId}:
     parameters:
@@ -12053,13 +12073,20 @@ components:
         total: {type: integer, format: int64}
         bucket_seconds: {type: integer, format: int64}
       required: [points, total, bucket_seconds]
+    GuardrailEventSources:
+      type: object
+      additionalProperties: false
+      properties:
+        agents: {type: array, items: {type: string}}
+        apps: {type: array, items: {$ref: '#/components/schemas/LensApp'}}
+      required: [agents, apps]
     GuardrailRuntimeEvaluation:
       type: object
       additionalProperties: false
       properties:
         phase: {type: string, enum: [request, response]}
         guard: {type: string}
-        action: {type: string, enum: [allow, failOpen, audit, mask, reject]}
+        action: {type: string, enum: [failOpen, audit, mask, reject]}
         guardrailId: {type: string}
         guardrailVersion: {type: string}
         context: {$ref: '#/components/schemas/GuardrailContext'}

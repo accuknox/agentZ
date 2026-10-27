@@ -112,6 +112,7 @@ import {
   listFileObservabilitySummary,
   listGuardrailConnections,
   listGuardrailEvents,
+  listGuardrailEventSources,
   listGuardrailPolicies,
   listImmutableSkillSummaries,
   listImmutableSkillVersions,
@@ -489,6 +490,9 @@ import type {
   ListGuardrailConnectionsResponse,
   ListGuardrailEventsData,
   ListGuardrailEventsError,
+  ListGuardrailEventSourcesData,
+  ListGuardrailEventSourcesError,
+  ListGuardrailEventSourcesResponse,
   ListGuardrailEventsResponse2,
   ListGuardrailPoliciesData,
   ListGuardrailPoliciesError,
@@ -5181,7 +5185,7 @@ export const listGuardrailEventsQueryKey = (options?: Options<ListGuardrailEvent
   createQueryKey("listGuardrailEvents", options)
 
 /**
- * List guardrail evaluations in the authorized scope.
+ * List guardrail interventions in the authorized scope.
  */
 export const listGuardrailEventsOptions = (options?: Options<ListGuardrailEventsData>) =>
   queryOptions<
@@ -5208,7 +5212,7 @@ export const listGuardrailEventsInfiniteQueryKey = (
   createQueryKey("listGuardrailEvents", options, true)
 
 /**
- * List guardrail evaluations in the authorized scope.
+ * List guardrail interventions in the authorized scope.
  */
 export const listGuardrailEventsInfiniteOptions = (options?: Options<ListGuardrailEventsData>) =>
   infiniteQueryOptions<
@@ -5270,6 +5274,34 @@ export const getGuardrailEventChartOptions = (options?: Options<GetGuardrailEven
       return data
     },
     queryKey: getGuardrailEventChartQueryKey(options),
+  })
+
+export const listGuardrailEventSourcesQueryKey = (
+  options?: Options<ListGuardrailEventSourcesData>
+) => createQueryKey("listGuardrailEventSources", options)
+
+/**
+ * List available guardrail event sources in the authorized scope.
+ */
+export const listGuardrailEventSourcesOptions = (
+  options?: Options<ListGuardrailEventSourcesData>
+) =>
+  queryOptions<
+    ListGuardrailEventSourcesResponse,
+    ListGuardrailEventSourcesError,
+    ListGuardrailEventSourcesResponse,
+    ReturnType<typeof listGuardrailEventSourcesQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listGuardrailEventSources({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listGuardrailEventSourcesQueryKey(options),
   })
 
 export const getGuardrailEventQueryKey = (options: Options<GetGuardrailEventData>) =>

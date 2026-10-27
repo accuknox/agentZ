@@ -547,7 +547,7 @@ CREATE TABLE observer_guardrail_events (
   evaluation_index INTEGER NOT NULL CHECK (evaluation_index >= 0),
   revision TEXT NOT NULL,
   phase TEXT NOT NULL CHECK (phase IN ('request', 'response')),
-  action TEXT NOT NULL CHECK (action IN ('allow', 'failOpen', 'audit', 'mask', 'reject')),
+  action TEXT NOT NULL CHECK (action IN ('failOpen', 'audit', 'mask', 'reject')),
   evaluation JSONB NOT NULL,
   ingested_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -559,6 +559,12 @@ CREATE INDEX observer_guardrail_events_org_time_idx
 CREATE INDEX observer_guardrail_events_trace_idx
   ON observer_guardrail_events (organization_id, trace_id);
 CREATE INDEX observer_guardrail_events_expiry_idx ON observer_guardrail_events (expires_at);
+CREATE INDEX observer_guardrail_events_agent_time_idx
+  ON observer_guardrail_events (organization_id, agent_name, occurred_at DESC, id DESC)
+  WHERE agent_name <> '';
+CREATE INDEX observer_guardrail_events_client_time_idx
+  ON observer_guardrail_events (organization_id, client_id, occurred_at DESC, id DESC)
+  WHERE client_id <> '';
 
 CREATE UNIQUE INDEX observer_guardrail_events_span_evaluation_idx
   ON observer_guardrail_events (trace_id, span_id, evaluation_index);

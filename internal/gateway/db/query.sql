@@ -6,6 +6,38 @@ SELECT EXISTS(
     AND agent_name = $2
 );
 
+-- name: GatewayListGuardrailEventSources :many
+WITH sources AS (
+  SELECT agent.agent_name, ''::text AS client_id
+  FROM agents agent JOIN workspaces workspace ON workspace.namespace = agent.tenant_namespace
+  WHERE workspace.organization_id = sqlc.arg(organization_id) AND workspace.deleted_at IS NULL
+    AND (sqlc.arg(workspace_id)::text = '' OR workspace.id = sqlc.arg(workspace_id))
+  UNION
+  SELECT ''::text, g.client_id
+  FROM delegation_grants g
+  WHERE g.organization_id = sqlc.arg(organization_id)
+    AND g.approved_at IS NOT NULL AND g.revoked_at IS NULL
+    AND (sqlc.arg(workspace_id)::text = '' OR EXISTS (
+      SELECT 1 FROM jsonb_array_elements((g.selection->'models') || (g.selection->'mcp')) AS selected
+      WHERE selected->>'workspace_id' = sqlc.arg(workspace_id)
+    ))
+  UNION
+  SELECT ''::text, external.client_id
+  FROM external_agents external
+  WHERE external.organization_id = sqlc.arg(organization_id)
+    AND (sqlc.arg(workspace_id)::text = '' OR external.workspace_id = sqlc.arg(workspace_id))
+)
+SELECT sources.agent_name, sources.client_id,
+  COALESCE(NULLIF(sources.agent_name, ''), NULLIF(app.name, ''), sources.client_id)::text AS name,
+  COALESCE(external.kind::text, '')::text AS agent_kind
+FROM sources
+LEFT JOIN oauth_clients app ON app.client_id = sources.client_id
+LEFT JOIN external_agents external ON external.client_id = sources.client_id
+  AND external.organization_id = sqlc.arg(organization_id)
+  AND (sqlc.arg(workspace_id)::text = '' OR external.workspace_id = sqlc.arg(workspace_id))
+WHERE app.disabled IS NOT TRUE
+ORDER BY sources.agent_name, name, sources.client_id;
+
 -- name: GatewayListGuardrailEvents :many
 SELECT sqlc.embed(event), coalesce(app.name, '')::text AS subject_name
 FROM observer_guardrail_events event
@@ -15,6 +47,8 @@ WHERE event.organization_id = sqlc.arg(organization_id)
   AND event.occurred_at >= sqlc.arg(started_after)::timestamptz
   AND event.occurred_at < sqlc.arg(started_before)::timestamptz
   AND event.expires_at > now()
+  AND (sqlc.arg(agent_name)::text = '' OR event.agent_name = sqlc.arg(agent_name))
+  AND (sqlc.arg(client_id)::text = '' OR event.client_id = sqlc.arg(client_id))
   AND (sqlc.arg(action)::text = '' OR event.action = sqlc.arg(action))
   AND (sqlc.arg(phase)::text = '' OR event.phase = sqlc.arg(phase))
   AND (sqlc.arg(trace_id)::text = '' OR event.trace_id = decode(sqlc.arg(trace_id), 'hex'))
@@ -33,6 +67,8 @@ WITH counts AS (
     AND occurred_at >= sqlc.arg(started_after)::timestamptz
     AND occurred_at < sqlc.arg(started_before)::timestamptz
     AND expires_at > now()
+    AND (sqlc.arg(agent_name)::text = '' OR agent_name = sqlc.arg(agent_name))
+    AND (sqlc.arg(client_id)::text = '' OR client_id = sqlc.arg(client_id))
     AND (sqlc.arg(action)::text = '' OR action = sqlc.arg(action))
     AND (sqlc.arg(phase)::text = '' OR phase = sqlc.arg(phase))
     AND (sqlc.arg(trace_id)::text = '' OR trace_id = decode(sqlc.arg(trace_id), 'hex'))

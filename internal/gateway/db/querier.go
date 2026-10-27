@@ -124,6 +124,7 @@ type Querier interface {
 	GatewayListFileEvents(ctx context.Context, arg GatewayListFileEventsParams) ([]GatewayListFileEventsRow, error)
 	GatewayListFileEventsAggregated(ctx context.Context, arg GatewayListFileEventsAggregatedParams) ([]GatewayListFileEventsAggregatedRow, error)
 	GatewayListGuardrailClientAccess(ctx context.Context, arg GatewayListGuardrailClientAccessParams) ([]GuardrailClientAccess, error)
+	GatewayListGuardrailEventSources(ctx context.Context, arg GatewayListGuardrailEventSourcesParams) ([]GatewayListGuardrailEventSourcesRow, error)
 	GatewayListGuardrailEvents(ctx context.Context, arg GatewayListGuardrailEventsParams) ([]GatewayListGuardrailEventsRow, error)
 	GatewayListLensApps(ctx context.Context, arg GatewayListLensAppsParams) ([]GatewayListLensAppsRow, error)
 	GatewayListNetworkEvents(ctx context.Context, arg GatewayListNetworkEventsParams) ([]GatewayListNetworkEventsRow, error)

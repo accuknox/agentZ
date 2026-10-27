@@ -2997,10 +2997,15 @@ export type GuardrailEventChart = {
   bucket_seconds: number
 }
 
+export type GuardrailEventSources = {
+  agents: Array<string>
+  apps: Array<LensApp>
+}
+
 export type GuardrailRuntimeEvaluation = {
   phase: "request" | "response"
   guard: string
-  action: "allow" | "failOpen" | "audit" | "mask" | "reject"
+  action: "failOpen" | "audit" | "mask" | "reject"
   guardrailId?: string
   guardrailVersion?: string
   context?: GuardrailContext
@@ -12342,7 +12347,16 @@ export type ListGuardrailEventsData = {
   }
   path?: never
   query?: {
-    action?: "allow" | "failOpen" | "audit" | "mask" | "reject"
+    /**
+     * Narrow organization events to one workspace.
+     */
+    workspace_id?: string
+    agent_name?: string
+    /**
+     * External agent or application client ID.
+     */
+    client_id?: string
+    action?: "failOpen" | "audit" | "mask" | "reject"
     phase?: "request" | "response"
     trace_id?: string
     session_id?: string
@@ -12365,7 +12379,7 @@ export type ListGuardrailEventsError = ListGuardrailEventsErrors[keyof ListGuard
 
 export type ListGuardrailEventsResponses = {
   /**
-   * Retained evaluations, newest first.
+   * Retained blocks, masks, audit findings, and guardrail failures, newest first.
    */
   200: ListGuardrailEventsResponse
 }
@@ -12384,7 +12398,16 @@ export type GetGuardrailEventChartData = {
   }
   path?: never
   query?: {
-    action?: "allow" | "failOpen" | "audit" | "mask" | "reject"
+    /**
+     * Narrow organization events to one workspace.
+     */
+    workspace_id?: string
+    agent_name?: string
+    /**
+     * External agent or application client ID.
+     */
+    client_id?: string
+    action?: "failOpen" | "audit" | "mask" | "reject"
     phase?: "request" | "response"
     trace_id?: string
     session_id?: string
@@ -12413,6 +12436,40 @@ export type GetGuardrailEventChartResponses = {
 
 export type GetGuardrailEventChartResponse =
   GetGuardrailEventChartResponses[keyof GetGuardrailEventChartResponses]
+
+export type ListGuardrailEventSourcesData = {
+  body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
+  path?: never
+  query?: never
+  url: "/api/guardrails/events/sources"
+}
+
+export type ListGuardrailEventSourcesErrors = {
+  /**
+   * Unexpected server error.
+   */
+  default: Error
+}
+
+export type ListGuardrailEventSourcesError =
+  ListGuardrailEventSourcesErrors[keyof ListGuardrailEventSourcesErrors]
+
+export type ListGuardrailEventSourcesResponses = {
+  /**
+   * Agent and external source filter choices.
+   */
+  200: GuardrailEventSources
+}
+
+export type ListGuardrailEventSourcesResponse =
+  ListGuardrailEventSourcesResponses[keyof ListGuardrailEventSourcesResponses]
 
 export type GetGuardrailEventData = {
   body?: never

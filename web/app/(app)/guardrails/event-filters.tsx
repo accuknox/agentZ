@@ -19,11 +19,31 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import type { GetGuardrailEventChartData } from "@/lib/gateway/client"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { LensSourceIcon } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/lens-filters"
+import type {
+  GetGuardrailEventChartData,
+  GuardrailEventSources,
+  Workspace,
+} from "@/lib/gateway/client"
 import { dayjs } from "@/lib/format"
 
 type EventQuery = NonNullable<GetGuardrailEventChartData["query"]>
-type GuardrailEventFiltersProps = EventQuery & { from: string; to: string }
+type GuardrailEventFiltersProps = EventQuery & {
+  from: string
+  to: string
+  sources: GuardrailEventSources
+  workspaces: Workspace[]
+  scopedWorkspaceId?: string
+}
 
 const fields = ["action", "phase", "trace_id", "session_id"] as const satisfies (keyof EventQuery)[]
 const fieldByName = {
@@ -34,7 +54,6 @@ const fieldByName = {
       { label: "Masked", value: "mask" },
       { label: "Audit findings", value: "audit" },
       { label: "Fail open", value: "failOpen" },
-      { label: "Allowed", value: "allow" },
     ] satisfies { label: string; value: NonNullable<EventQuery["action"]> }[],
   },
   phase: {
@@ -55,6 +74,12 @@ export function GuardrailEventFilters({
   session_id,
   from,
   to,
+  workspace_id,
+  agent_name,
+  client_id,
+  sources,
+  workspaces,
+  scopedWorkspaceId,
 }: GuardrailEventFiltersProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -67,6 +92,9 @@ export function GuardrailEventFilters({
     session_id,
     from,
     to,
+    workspace_id,
+    agent_name,
+    client_id,
   })
   const [activeField, setActiveField] = useState<(typeof fields)[number]>()
   const [editorOpen, setEditorOpen] = useState(false)
@@ -97,6 +125,9 @@ export function GuardrailEventFilters({
   }
 
   const availableFields = fields.filter((field) => !current[field])
+  let selectedSource = "all"
+  if (current.agent_name) selectedSource = `agent:${current.agent_name}`
+  if (current.client_id) selectedSource = `app:${current.client_id}`
 
   return (
     <div
@@ -104,6 +135,93 @@ export function GuardrailEventFilters({
       aria-label="Guardrail event filters"
       className="flex min-h-12 flex-wrap items-center gap-1.5 border-b px-4 py-2 transition-opacity aria-busy:opacity-70 md:px-6"
     >
+      {!scopedWorkspaceId ? (
+        <Select
+          value={current.workspace_id ?? "all"}
+          disabled={pending}
+          onValueChange={(value) =>
+            update({
+              workspace_id: value === "all" ? undefined : value,
+              agent_name: undefined,
+              client_id: undefined,
+              session_id: undefined,
+              trace_id: undefined,
+            })
+          }
+        >
+          <SelectTrigger aria-label="Workspace" className="h-8 w-full sm:w-48">
+            <SelectValue placeholder="All workspaces" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All workspaces</SelectItem>
+            {workspaces.map((workspace) => (
+              <SelectItem key={workspace.id} value={workspace.id}>
+                {workspace.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : null}
+      <Select
+        value={selectedSource}
+        disabled={pending}
+        onValueChange={(value) => {
+          const agent = sources.agents.find((name) => `agent:${name}` === value)
+          const app = sources.apps.find((item) => `app:${item.client_id}` === value)
+          update({
+            agent_name: agent,
+            client_id: app?.client_id,
+            session_id: undefined,
+            trace_id: undefined,
+          })
+        }}
+      >
+        <SelectTrigger aria-label="Agent or external source" className="h-8 w-full sm:w-64">
+          <SelectValue placeholder="All sources" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All sources</SelectItem>
+          {sources.agents.length > 0 ? (
+            <SelectGroup>
+              <SelectLabel>Agents</SelectLabel>
+              {sources.agents.map((agent) => (
+                <SelectItem key={agent} value={`agent:${agent}`}>
+                  <LensSourceIcon kind="agent" />
+                  {agent}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          ) : null}
+          {sources.apps.some((app) => app.agent_kind) ? (
+            <SelectGroup>
+              <SelectLabel>External agents</SelectLabel>
+              {sources.apps.map((app) =>
+                app.agent_kind ? (
+                  <SelectItem key={app.client_id} value={`app:${app.client_id}`}>
+                    <LensSourceIcon kind={app.agent_kind} />
+                    {app.name}
+                    <span className="text-xs text-muted-foreground">{app.client_id.slice(-8)}</span>
+                  </SelectItem>
+                ) : null
+              )}
+            </SelectGroup>
+          ) : null}
+          {sources.apps.some((app) => !app.agent_kind) ? (
+            <SelectGroup>
+              <SelectLabel>External apps</SelectLabel>
+              {sources.apps.map((app) =>
+                !app.agent_kind ? (
+                  <SelectItem key={app.client_id} value={`app:${app.client_id}`}>
+                    <LensSourceIcon kind="app" />
+                    {app.name}
+                    <span className="text-xs text-muted-foreground">{app.client_id.slice(-8)}</span>
+                  </SelectItem>
+                ) : null
+              )}
+            </SelectGroup>
+          ) : null}
+        </SelectContent>
+      </Select>
       <DateRangePicker
         size="sm"
         disabled={pending}

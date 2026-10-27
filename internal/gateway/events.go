@@ -18,20 +18,64 @@ import (
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 )
 
+// guardrailEventReader caches parameter types while planning each filter combination.
+// A generic plan can scan the full retained history for a single source.
+type guardrailEventReader struct {
+	gatewaydb.DBTX
+}
+
+func (reader guardrailEventReader) Query(ctx context.Context, query string, args ...any) (pgx.Rows, error) {
+	args = append([]any{pgx.QueryExecModeCacheDescribe}, args...)
+	return reader.DBTX.Query(ctx, query, args...)
+}
+
 type guardrailEventPageCursor struct {
 	Filters gatewaydb.GatewayListGuardrailEventsParams `json:"filters"`
 	At      time.Time                                  `json:"at"`
 	ID      string                                     `json:"id"`
 }
 
-// ListGuardrailEvents returns retained evaluations within the caller's authorized scope.
+// ListGuardrailEventSources lists available sources in the authorized scope.
+func (s *Service) ListGuardrailEventSources(w http.ResponseWriter, r *http.Request, _ gatewayapi.ListGuardrailEventSourcesParams) {
+	access, apiErr := s.resolveResourceAccess(r.Context(), resourceAccessRequest{
+		resource: "Guardrail Event", workspaceID: r.Header.Get("X-AgentZ-Workspace-ID"),
+		operation: authorization.OperationListGuardrailEvents,
+	})
+	if apiErr != nil {
+		apiutil.WriteError(w, r, apiErr)
+		return
+	}
+	rows, err := s.queries.GatewayListGuardrailEventSources(r.Context(), gatewaydb.GatewayListGuardrailEventSourcesParams{
+		OrganizationID: access.claims.OrganizationID, WorkspaceID: access.workspaceID,
+	})
+	if err != nil {
+		apiutil.WriteError(w, r, mapGatewayStoreError("list guardrail event sources", err))
+		return
+	}
+	result := gatewayapi.GuardrailEventSources{Agents: []string{}, Apps: []gatewayapi.LensApp{}}
+	for _, row := range rows {
+		if row.AgentName != "" {
+			result.Agents = append(result.Agents, row.AgentName)
+			continue
+		}
+		app := gatewayapi.LensApp{ClientId: row.ClientID, Name: row.Name}
+		if row.AgentKind != "" {
+			app.AgentKind = new(gatewayapi.LensAppAgentKind(row.AgentKind))
+		}
+		result.Apps = append(result.Apps, app)
+	}
+	apiutil.WriteJSON(w, http.StatusOK, result)
+}
+
+// ListGuardrailEvents returns retained interventions within the caller's authorized scope.
 func (s *Service) ListGuardrailEvents(w http.ResponseWriter, r *http.Request, params gatewayapi.ListGuardrailEventsParams) {
 	s.serveGuardrailEvents(w, r, params, false)
 }
 
-// GetGuardrailEventChart counts evaluations over the complete selected range.
+// GetGuardrailEventChart counts interventions over the complete selected range.
 func (s *Service) GetGuardrailEventChart(w http.ResponseWriter, r *http.Request, params gatewayapi.GetGuardrailEventChartParams) {
 	filters := gatewayapi.ListGuardrailEventsParams{
+		WorkspaceId: params.WorkspaceId, AgentName: params.AgentName, ClientId: params.ClientId,
 		From: params.From, To: params.To, TraceId: params.TraceId, SessionId: params.SessionId,
 	}
 	if params.Action != nil {
@@ -88,6 +132,27 @@ func (s *Service) serveGuardrailEvents(w http.ResponseWriter, r *http.Request, p
 		PageSize:       int32(limit + 1),
 		StartedAfter:   after, StartedBefore: before,
 	}
+	if params.WorkspaceId != nil {
+		if access.workspaceID != "" && *params.WorkspaceId != access.workspaceID {
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusBadRequest, "invalid_request", "Workspace filter must match the request scope", errBadRequest,
+			))
+			return
+		}
+		filters.WorkspaceID = *params.WorkspaceId
+	}
+	if params.AgentName != nil {
+		filters.AgentName = *params.AgentName
+	}
+	if params.ClientId != nil {
+		filters.ClientID = *params.ClientId
+	}
+	if filters.AgentName != "" && filters.ClientID != "" {
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest, "invalid_request", "Select an agent or an external source", errBadRequest,
+		))
+		return
+	}
 	if params.Action != nil {
 		filters.Action = string(*params.Action)
 	}
@@ -111,10 +176,12 @@ func (s *Service) serveGuardrailEvents(w http.ResponseWriter, r *http.Request, p
 			return
 		}
 	}
+	queries := gatewaydb.New(guardrailEventReader{DBTX: s.db})
 	if chart {
 		seconds := int32(math.Ceil(before.Sub(after).Seconds() / 60))
-		rows, err := s.queries.GatewayGetGuardrailEventChart(r.Context(), gatewaydb.GatewayGetGuardrailEventChartParams{
+		rows, err := queries.GatewayGetGuardrailEventChart(r.Context(), gatewaydb.GatewayGetGuardrailEventChartParams{
 			OrganizationID: filters.OrganizationID, WorkspaceID: filters.WorkspaceID,
+			AgentName: filters.AgentName, ClientID: filters.ClientID,
 			StartedAfter: after, StartedBefore: before, BucketSeconds: seconds,
 			Action: filters.Action, Phase: filters.Phase, TraceID: filters.TraceID, SessionID: filters.SessionID,
 		})
@@ -135,7 +202,7 @@ func (s *Service) serveGuardrailEvents(w http.ResponseWriter, r *http.Request, p
 	query := filters
 	query.CursorAt = cursor.At
 	query.CursorID = cursor.ID
-	rows, err := s.queries.GatewayListGuardrailEvents(r.Context(), query)
+	rows, err := queries.GatewayListGuardrailEvents(r.Context(), query)
 	if err != nil {
 		apiutil.WriteError(w, r, mapGatewayStoreError("list guardrail events", err))
 		return

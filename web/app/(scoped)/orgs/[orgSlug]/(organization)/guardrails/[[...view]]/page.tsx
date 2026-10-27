@@ -31,6 +31,7 @@ async function OrganizationGuardrails(props: PageProps<"/orgs/[orgSlug]/guardrai
     <>
       <RememberRoute />
       <GuardrailsPage
+        orgSlug={orgSlug}
         basePath={`/orgs/${orgSlug}/guardrails`}
         canAdminister={result.organization.superadmin}
         connectionCapabilities={tenant.data.guardrail_connection_capabilities}

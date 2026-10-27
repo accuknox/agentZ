@@ -4496,6 +4496,21 @@ components:
       - time
       - count
       type: object
+    GuardrailEventSources:
+      additionalProperties: false
+      properties:
+        agents:
+          items:
+            type: string
+          type: array
+        apps:
+          items:
+            $ref: '#/components/schemas/LensApp'
+          type: array
+      required:
+      - agents
+      - apps
+      type: object
     GuardrailPolicy:
       additionalProperties: false
       properties:
@@ -4653,7 +4668,6 @@ components:
       properties:
         action:
           enum:
-          - allow
           - failOpen
           - audit
           - mask
@@ -29916,11 +29930,24 @@ paths:
     get:
       operationId: listGuardrailEvents
       parameters:
+      - description: Narrow organization events to one workspace.
+        in: query
+        name: workspace_id
+        schema:
+          type: string
+      - in: query
+        name: agent_name
+        schema:
+          type: string
+      - description: External agent or application client ID.
+        in: query
+        name: client_id
+        schema:
+          type: string
       - in: query
         name: action
         schema:
           enum:
-          - allow
           - failOpen
           - audit
           - mask
@@ -29968,13 +29995,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListGuardrailEventsResponse'
-          description: Retained evaluations, newest first.
+          description: Retained blocks, masks, audit findings, and guardrail failures, newest first.
         default:
           $ref: '#/components/responses/InternalError'
       security:
       - GatewayBearer:
         - guardrail_event.read
-      summary: List guardrail evaluations in the authorized scope.
+      summary: List guardrail interventions in the authorized scope.
       tags:
       - guardrails
     parameters:
@@ -30008,11 +30035,24 @@ paths:
     get:
       operationId: getGuardrailEventChart
       parameters:
+      - description: Narrow organization events to one workspace.
+        in: query
+        name: workspace_id
+        schema:
+          type: string
+      - in: query
+        name: agent_name
+        schema:
+          type: string
+      - description: External agent or application client ID.
+        in: query
+        name: client_id
+        schema:
+          type: string
       - in: query
         name: action
         schema:
           enum:
-          - allow
           - failOpen
           - audit
           - mask
@@ -30056,6 +30096,26 @@ paths:
       - GatewayBearer:
         - guardrail_event.read
       summary: Count the complete filtered range in bounded time buckets.
+      tags:
+      - guardrails
+    parameters:
+    - $ref: '#/components/parameters/WorkspaceIDHeader'
+  /api/guardrails/events/sources:
+    get:
+      operationId: listGuardrailEventSources
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuardrailEventSources'
+          description: Agent and external source filter choices.
+        default:
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - guardrail_event.read
+      summary: List available guardrail event sources in the authorized scope.
       tags:
       - guardrails
     parameters:

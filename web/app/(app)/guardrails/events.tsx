@@ -142,14 +142,14 @@ export function GuardrailEvents({ data, basePath, workspaceId }: GuardrailEvents
   return (
     <>
       <AdminDataGrid
-        ariaLabel="Guardrail evaluations"
+        ariaLabel="Guardrail interventions"
         table={table}
         rows={data.events}
         emptyState={
           <AdministrationState
             kind="empty"
-            title="No evaluations in this range"
-            description="Guardrail activity will appear here when a policy is evaluated."
+            title="No guardrail interventions in this range"
+            description="Blocks, masks, audit findings, and guardrail failures appear here."
           />
         }
         layout={{

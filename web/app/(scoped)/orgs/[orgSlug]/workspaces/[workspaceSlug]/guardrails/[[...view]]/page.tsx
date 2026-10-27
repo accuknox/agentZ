@@ -29,6 +29,7 @@ async function WorkspaceGuardrails(
     <>
       <RememberRoute />
       <GuardrailsPage
+        orgSlug={orgSlug}
         basePath={`/orgs/${orgSlug}/workspaces/${workspaceSlug}/guardrails`}
         canAdminister={result.scope.organization.superadmin || capabilities.administer}
         connectionCapabilities={capabilities.guardrail_connections}

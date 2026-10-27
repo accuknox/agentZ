@@ -3,6 +3,7 @@ package observer
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -429,6 +430,101 @@ func TestNativeGuardrailInvalidEvidence(t *testing.T) {
 			tc.change(span)
 			if _, err := guardrailEventsFromSpan(span, nil); err == nil {
 				t.Fatal("invalid native evidence was accepted")
+			}
+		})
+	}
+}
+
+func guardrailSpanFixture(evaluations string) *tracepb.Span {
+	span := appSpanFixture(0)
+	span.Attributes = append(span.Attributes, &commonpb.KeyValue{
+		Key: attrGuardrailEvaluations,
+		Value: &commonpb.AnyValue{
+			Value: &commonpb.AnyValue_StringValue{StringValue: evaluations},
+		},
+	})
+	return span
+}
+
+func TestGuardrailEventsOnlyInterventions(t *testing.T) {
+	t.Parallel()
+	for _, phase := range []string{"request", "response"} {
+		for _, action := range []string{"allow", "reject", "mask", "audit", "failOpen"} {
+			t.Run(phase+"/"+action, func(t *testing.T) {
+				raw := fmt.Sprintf(`[{"phase":%q,"guard":"regex","action":%q}]`, phase, action)
+				span := guardrailSpanFixture(raw)
+				rows, err := guardrailEventsFromSpan(span, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if action == "allow" {
+					if len(rows) != 0 {
+						t.Fatal("successful check produced a guardrail event")
+					}
+					return
+				}
+				if len(rows) != 1 || rows[0].row.Action != action || rows[0].row.Phase != phase {
+					t.Fatalf("intervention lost: rows=%+v", rows)
+				}
+			})
+		}
+	}
+}
+
+func TestGuardrailEventsEmptyLog(t *testing.T) {
+	t.Parallel()
+	for _, raw := range []string{"", "null", "[]", `[{"phase":"request","guard":"regex","action":"allow"}]`} {
+		t.Run(raw, func(t *testing.T) {
+			span := &tracepb.Span{
+				Kind:       tracepb.Span_SPAN_KIND_SERVER,
+				Attributes: guardrailSpanFixture(raw).Attributes,
+			}
+			rows, err := guardrailEventsFromSpan(span, nil)
+			if err != nil || len(rows) != 0 {
+				t.Fatalf("empty intervention log required event identity: rows=%d err=%v", len(rows), err)
+			}
+		})
+	}
+}
+
+func TestGuardrailEventsMixedOutcomes(t *testing.T) {
+	t.Parallel()
+	span := guardrailSpanFixture(`[
+		{"phase":"request","guard":"regex","action":"allow"},
+		{"phase":"request","guard":"regex","action":"mask"},
+		{"phase":"response","guard":"webhook","action":"allow"},
+		{"phase":"response","guard":"webhook","action":"reject"}
+	]`)
+	rows, err := guardrailEventsFromSpan(span, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 2 || rows[0].row.Action != "mask" || rows[1].row.Action != "reject" {
+		t.Fatalf("mixed export retained successful checks or lost interventions: %+v", rows)
+	}
+	if rows[0].row.EvaluationIndex != 1 || rows[1].row.EvaluationIndex != 3 {
+		t.Fatal("filtering changed the evaluation identities used for replay deduplication")
+	}
+}
+
+func BenchmarkGuardrailInterventions(b *testing.B) {
+	allow := `{"phase":"request","guard":"regex","action":"allow"}`
+	reject := `{"phase":"request","guard":"regex","action":"reject"}`
+	cases := map[string]string{
+		"no_evidence":        "null",
+		"empty":              "[]",
+		"ten_allows":         "[" + strings.TrimSuffix(strings.Repeat(allow+",", 10), ",") + "]",
+		"one_reject":         "[" + reject + "]",
+		"one_percent_reject": "[" + strings.Repeat(allow+",", 99) + reject + "]",
+	}
+	for name, evaluations := range cases {
+		b.Run(name, func(b *testing.B) {
+			span := guardrailSpanFixture(evaluations)
+			b.ReportAllocs()
+			for b.Loop() {
+				if _, err := guardrailEventsFromSpan(span, nil); err != nil {
+					b.Fatal(err)
+				}
 			}
 		})
 	}

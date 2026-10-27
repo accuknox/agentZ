@@ -147,13 +147,23 @@ index 448d93b..3dbe02e 100644
  	let request_body = SanitizeUserPromptRequest {
  		user_prompt_data: UserPromptData { text: content },
 diff --git a/crates/agentgateway/src/llm/policy/mod.rs b/crates/agentgateway/src/llm/policy/mod.rs
-index 34f4f97..358f140 100644
 --- a/crates/agentgateway/src/llm/policy/mod.rs
 +++ b/crates/agentgateway/src/llm/policy/mod.rs
-@@ -56,6 +56,45 @@ fn record_guardrail(
+@@ -39,7 +39,7 @@
+ 	detail: Option<GuardDetail>,
+ ) {
+ 	let action = match action {
+-		GuardrailAction::Allow => strng::literal!("allow"),
++		GuardrailAction::Allow => return,
+ 		GuardrailAction::FailOpen => strng::literal!("failOpen"),
+ 		GuardrailAction::Audit => strng::literal!("audit"),
+ 		GuardrailAction::Mask => strng::literal!("mask"),
+@@ -54,6 +54,45 @@
+ 			detail: detail.unwrap_or_default(),
+ 		});
  	});
- }
- 
++}
++
 +#[derive(Clone, Debug, Serialize, Deserialize)]
 +pub(crate) struct GuardrailError {
 +	#[serde(rename = "type")]
@@ -191,12 +201,10 @@ index 34f4f97..358f140 100644
 +		.headers_mut()
 +		.remove(::http::header::CONTENT_LENGTH);
 +	response
-+}
-+
+ }
+ 
  fn reject_or_audit<M>(audit: bool, rejection: &RequestRejection) -> GuardrailOutcome<M> {
- 	if audit {
- 		GuardrailOutcome::Audit
-@@ -982,17 +1021,30 @@ impl Policy {
+@@ -982,17 +1021,30 @@
  		original: Option<&cel::RequestSnapshot>,
  		guardrail_log: Option<&GuardrailLog>,
  	) -> anyhow::Result<(GuardrailAction, Option<Response>)> {
@@ -210,7 +218,7 @@ index 34f4f97..358f140 100644
  					tracing::warn!("request guard error, failing open: {e}");
 +					checker_failed = true;
  					(GuardrailOutcome::FailOpen, None)
- 				},
++				},
 +				Err(e) if guard.rejection.structured_error().is_some() => {
 +					tracing::warn!("guardrail checker failed closed: {e}");
 +					checker_failed = true;
@@ -218,7 +226,7 @@ index 34f4f97..358f140 100644
 +						GuardrailOutcome::Rejected(guard.rejection.as_response()),
 +						None,
 +					)
-+				},
+ 				},
  				result => result?,
  			};
 -		let (action, rejection) = Self::apply_request_guard_outcome(outcome, req)?;
@@ -229,7 +237,7 @@ index 34f4f97..358f140 100644
  		record_guardrail(
  			guardrail_log,
  			GuardrailPhase::Request,
-@@ -1012,9 +1064,11 @@ impl Policy {
+@@ -1012,9 +1064,11 @@
  		original: Option<&cel::RequestSnapshot>,
  	) -> anyhow::Result<(GuardrailOutcome<RequestGuardMutation>, Option<GuardDetail>)> {
  		match &guard.kind {
@@ -244,7 +252,7 @@ index 34f4f97..358f140 100644
  			)),
  			RequestGuardKind::Webhook(wh) => {
  				Self::evaluate_webhook_request(req, http_headers, client, wh, original).await
-@@ -1437,10 +1491,11 @@ impl Policy {
+@@ -1437,10 +1491,11 @@
  		rgx: &RegexRules,
  		rejection: &RequestRejection,
  		guard_scope: &[ContentScope],
@@ -257,7 +265,7 @@ index 34f4f97..358f140 100644
  		req.visit_text_mut(&mut |content_scope, text| {
  			if rejected || audited {
  				return;
-@@ -1450,7 +1505,16 @@ impl Policy {
+@@ -1450,7 +1505,16 @@
  				replacements.push(None);
  				return;
  			}
@@ -275,7 +283,7 @@ index 34f4f97..358f140 100644
  				Some(RegexResult::Audit) => {
  					audited = true;
  				},
-@@ -1463,17 +1527,23 @@ impl Policy {
+@@ -1463,17 +1527,23 @@
  				None => replacements.push(None),
  			}
  		});
@@ -307,7 +315,7 @@ index 34f4f97..358f140 100644
  	}
  
  	#[cfg(test)]
-@@ -1491,15 +1561,20 @@ impl Policy {
+@@ -1491,15 +1561,20 @@
  		resp: &mut dyn ResponseType,
  		rgx: &RegexRules,
  		rejection: &RequestRejection,
@@ -330,7 +338,7 @@ index 34f4f97..358f140 100644
  				Some(RegexResult::Audit) => {
  					audited = true;
  				},
-@@ -1512,17 +1587,23 @@ impl Policy {
+@@ -1512,17 +1587,23 @@
  				None => replacements.push(None),
  			}
  		});
@@ -362,7 +370,7 @@ index 34f4f97..358f140 100644
  	}
  
  	async fn evaluate_webhook_request(
-@@ -1539,7 +1620,13 @@ impl Policy {
+@@ -1539,7 +1620,13 @@
  			.then(|| req.to_value())
  			.transpose()?;
  		let context = webhook::EvaluationContext::new(original, llm_request.as_ref());
@@ -377,7 +385,7 @@ index 34f4f97..358f140 100644
  		let headers = Self::get_webhook_forward_headers(http_headers, &webhook.forward_header_matches);
  		let whr = webhook::send_request(client, webhook, context, &headers, messages).await?;
  		if webhook.action == RejectAuditAction::Audit {
-@@ -1557,7 +1644,26 @@ impl Policy {
+@@ -1557,7 +1644,26 @@
  				}),
  			));
  		}
@@ -405,7 +413,7 @@ index 34f4f97..358f140 100644
  	}
  
  	fn webhook_request_outcome(
-@@ -1882,16 +1988,23 @@ impl Policy {
+@@ -1882,15 +1988,22 @@
  		guardrail_log: Option<&GuardrailLog>,
  		streaming_allow_recorded: Option<&mut bool>,
  	) -> anyhow::Result<(GuardrailAction, Option<Response>)> {
@@ -422,7 +430,7 @@ index 34f4f97..358f140 100644
  					tracing::warn!("response guard error, failing open: {e}");
 +					checker_failed = true;
  					(GuardrailOutcome::FailOpen, None)
- 				},
++				},
 +				Err(e) if guard.rejection.structured_error().is_some() => {
 +					tracing::warn!("guardrail checker failed closed: {e}");
 +					checker_failed = true;
@@ -430,11 +438,10 @@ index 34f4f97..358f140 100644
 +						GuardrailOutcome::Rejected(guard.rejection.as_response()),
 +						None,
 +					)
-+				},
+ 				},
  				result => result?,
  			};
- 
-@@ -1900,7 +2013,10 @@ impl Policy {
+@@ -1900,7 +2013,10 @@
  			return Ok((GuardrailAction::Allow, None));
  		}
  
@@ -446,7 +453,7 @@ index 34f4f97..358f140 100644
  		let record = match streaming_allow_recorded {
  			Some(recorded) if action == GuardrailAction::Allow => !std::mem::replace(recorded, true),
  			_ => true,
-@@ -1925,10 +2041,7 @@ impl Policy {
+@@ -1925,10 +2041,7 @@
  		original: Option<&cel::RequestSnapshot>,
  	) -> anyhow::Result<(GuardrailOutcome<ResponseGuardMutation>, Option<GuardDetail>)> {
  		match &guard.kind {
@@ -458,7 +465,7 @@ index 34f4f97..358f140 100644
  			ResponseGuardKind::Webhook(wh) => {
  				Self::evaluate_webhook_response(resp, http_headers, client, wh, original).await
  			},
-@@ -2077,6 +2190,89 @@ pub enum RegexRule {
+@@ -2077,6 +2190,92 @@
  }
  
  impl RequestRejection {
@@ -475,6 +482,9 @@ index 34f4f97..358f140 100644
 +		detail: &mut Option<GuardDetail>,
 +		checker_failed: bool,
 +	) {
++		if action == GuardrailAction::Allow {
++			return;
++		}
 +		let Some(mut error) = self.structured_error() else {
 +			return;
 +		};

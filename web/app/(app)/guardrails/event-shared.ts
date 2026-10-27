@@ -1,8 +1,7 @@
-import { CheckCircle2, CircleAlert, Eye, ShieldX, WandSparkles } from "lucide-react"
+import { CircleAlert, Eye, ShieldX, WandSparkles } from "lucide-react"
 import type { GuardrailContext } from "@/lib/gateway/client"
 
 export const verdicts = {
-  allow: { label: "Allowed", icon: CheckCircle2, variant: "success" },
   reject: { label: "Blocked", icon: ShieldX, variant: "destructive" },
   mask: { label: "Masked", icon: WandSparkles, variant: "secondary" },
   audit: { label: "Audit finding", icon: Eye, variant: "secondary" },

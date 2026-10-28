@@ -119,7 +119,6 @@ export function GuardrailOrganizationSettings(props: GuardrailOrganizationSettin
           ))}
         </FieldSet>
       ) : null}
-      <p className="text-sm text-muted-foreground">Guardrail events are retained for 30 days.</p>
       {error ? (
         <Alert variant="destructive">
           <CircleAlert aria-hidden />

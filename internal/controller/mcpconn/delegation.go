@@ -121,7 +121,9 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationRuntime(ctx context.Contex
 			return err
 		}
 		if !needed {
-			if !consumed {
+			// Sandbox reconciliation creates Gateways before their routes.
+			// Only delete a Gateway adopted by the delegation controller.
+			if !consumed && metav1.IsControlledBy(gateway, namespace) {
 				if err := client.IgnoreNotFound(r.Delete(ctx, gateway)); err != nil {
 					return err
 				}

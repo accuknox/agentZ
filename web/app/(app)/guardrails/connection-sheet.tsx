@@ -461,7 +461,7 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
                       {provider !== "OpenAI" ? (
                         <FieldDescription>
                           {provider === "Webhook"
-                            ? "Optional. Sent only to this checker. Caller authorization is not forwarded."
+                            ? "Optional."
                             : "Use supported Google ADC credential JSON."}
                         </FieldDescription>
                       ) : null}

@@ -262,12 +262,6 @@ func ConnectionRuntimeName(connection *api.GuardrailConnection) string {
 }
 
 func (b *Bundle) compile(namespace string) error {
-	mandatoryPhases := make(map[string]bool, 2)
-	for _, resolved := range b.Checks {
-		if resolved.Mandatory {
-			mandatoryPhases[resolved.Check.Phase] = true
-		}
-	}
 	guard := &agw.AIPromptGuard{Streaming: agw.PromptGuardStreamingModeEnabled}
 	for _, resolved := range b.Checks {
 		check := resolved.Check
@@ -283,12 +277,6 @@ func (b *Bundle) compile(namespace string) error {
 		failure := agw.FailureMode("FailClosed")
 		if check.FailureMode == "open" {
 			failure = "FailOpen"
-		}
-		if !resolved.Mandatory && mandatoryPhases[check.Phase] && check.Mode == "enforce" {
-			mutates := check.Action == "mask" || resolved.Connection != nil && (resolved.Connection.Spec.Provider == "Bedrock" || resolved.Connection.Spec.Provider == "Webhook")
-			if mutates {
-				return fmt.Errorf("check %q can modify content after mandatory organization checks; use audit mode or a non-mutating detector", check.ID)
-			}
 		}
 		context := gatewayapi.GuardrailContext{
 			CheckId:   check.ID,

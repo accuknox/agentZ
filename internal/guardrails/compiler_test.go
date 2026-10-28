@@ -287,7 +287,7 @@ func TestCompilePolicySharesConnectionsAndRejectsTermination(t *testing.T) {
 	}
 }
 
-func TestMandatoryChecksRejectOptionalMutations(t *testing.T) {
+func TestMandatoryChecksPrecedeOptionalMutations(t *testing.T) {
 	for _, provider := range []api.GuardrailProvider{"Regex", "Webhook", "Bedrock", "ModelArmor"} {
 		for _, mode := range []string{"enforce", "audit"} {
 			for _, phase := range []string{"input", "output"} {
@@ -297,7 +297,7 @@ func TestMandatoryChecksRejectOptionalMutations(t *testing.T) {
 						Check: api.GuardrailCheck{
 							ID:     "mandatory",
 							Name:   "Mandatory",
-							Phase:  "input",
+							Phase:  phase,
 							Mode:   "enforce",
 							Action: "deny",
 							Scopes: []string{"instructions", "conversation"},
@@ -318,6 +318,7 @@ func TestMandatoryChecksRejectOptionalMutations(t *testing.T) {
 						},
 					}
 					if phase == "output" {
+						mandatory.Check.Scopes = []string{"conversation"}
 						optional.Check.Scopes = []string{"conversation"}
 					}
 					switch provider {
@@ -331,9 +332,24 @@ func TestMandatoryChecksRejectOptionalMutations(t *testing.T) {
 					}
 					bundle := &Bundle{Checks: []ResolvedCheck{mandatory, optional}}
 					err := bundle.compile("namespace")
-					wantError := phase == "input" && mode == "enforce" && provider != "ModelArmor"
-					if (err != nil) != wantError {
-						t.Fatalf("optional mutation validation = %v, want error %v", err, wantError)
+					if err != nil {
+						t.Fatalf("optional check after mandatory baseline rejected: %v", err)
+					}
+					var first *agw.Regex
+					if phase == "input" {
+						if len(bundle.Guard.Request) != 2 {
+							t.Fatal("input checks were dropped")
+						}
+						first = bundle.Guard.Request[0].Regex
+					}
+					if phase == "output" {
+						if len(bundle.Guard.Response) != 2 {
+							t.Fatal("output checks were dropped")
+						}
+						first = bundle.Guard.Response[0].Regex
+					}
+					if first == nil || *first.Action != agw.REJECT {
+						t.Fatal("mandatory baseline must enforce before optional checks")
 					}
 				})
 			}

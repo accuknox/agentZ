@@ -1016,6 +1016,8 @@ type gatewayAgentAccess struct {
 // selected scope. Handlers still resolve PostgreSQL authority for revocation.
 type gatewayClaims struct {
 	jwt.RegisteredClaims
+	MobileSessionID      string                `json:"-"`
+	MobileConnectionID   string                `json:"mobile_connection_id,omitempty"`
 	OrganizationID       string                `json:"organization_id"`
 	ScopeType            gatewayScopeType      `json:"scope_type"`
 	ScopeID              string                `json:"scope_id"`

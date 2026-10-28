@@ -2,6 +2,46 @@
 
 import * as z from "zod"
 
+export const zMobilePairRequest = z.object({
+  workspace_id: z.string().min(1),
+  agent_name: z.string().min(1),
+})
+
+export const zMobileCredential = z.object({
+  id: z.string().min(32).max(64),
+  secret: z
+    .string()
+    .length(64)
+    .regex(/^[a-f0-9]{64}$/),
+})
+
+export const zMobilePairing = z.object({
+  id: z.string(),
+  agent_name: z.string(),
+  code: z.string(),
+  status: z.enum(["pending", "waiting", "approved", "revoked", "expired"]),
+  expires_at: z.iso.datetime({ offset: true }),
+  link: z.url(),
+})
+
+export const zMobileConnection = z.object({
+  id: z.string(),
+  origin: z.url(),
+  gateway_url: z.url(),
+  agent_name: z.string(),
+  workspace_id: z.string(),
+  session_id: z.string(),
+  model: z.object({
+    providerID: z.string(),
+    modelID: z.string(),
+  }),
+})
+
+export const zMobileToken = z.object({
+  token: z.string(),
+  connection: zMobileConnection,
+})
+
 export const zAppSession = z.object({
   session_id: z.string(),
   last_seen: z.iso.datetime({ offset: true }),
@@ -1199,6 +1239,7 @@ export const zAgentOpencodeConfig = z.object({
 })
 
 export const zAgent = z.object({
+  uid: z.string().optional(),
   name: zAgentName,
   sandbox: zResourceReference,
   created_by: zResourceActor,
@@ -4047,6 +4088,43 @@ export const zDashboardWidgetNamePath = zDashboardWidgetName
  * Stable publish call identifier.
  */
 export const zIdempotencyKeyHeader = z.string().min(1).max(128)
+
+export const zGetConnectedMobileResponse = z.union([zMobilePairing, z.void()])
+
+/**
+ * A pending phone invitation. Requires an authenticated web session.
+ */
+export const zCreateMobilePairingResponse = zMobilePairing
+
+/**
+ * Phone invitation and access revoked.
+ */
+export const zRevokeMobilePairingResponse = z.void()
+
+/**
+ * Owner-only pairing state.
+ */
+export const zGetMobilePairingResponse = zMobilePairing
+
+/**
+ * Phone-bound pairing state.
+ */
+export const zClaimMobilePairingResponse = zMobilePairing
+
+/**
+ * Owner approved the phone whose code is displayed.
+ */
+export const zApproveMobilePairingResponse = zMobilePairing
+
+/**
+ * Phone access revoked.
+ */
+export const zDisconnectMobileResponse = z.void()
+
+/**
+ * Short-lived gateway access for an approved phone.
+ */
+export const zGetMobileTokenResponse = zMobileToken
 
 /**
  * Workspace-scoped app telemetry.

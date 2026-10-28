@@ -18,6 +18,9 @@ export default (async ({ client }) => {
       if (event.type === "session.created") {
         await memory.snapshot(event.properties.info.id).catch(() => undefined)
       }
+      if (event.type === "session.compacted") {
+        await memory.removeSnapshot(event.properties.sessionID).catch(() => undefined)
+      }
       if (event.type === "session.deleted") {
         reviewDue.delete(event.properties.info.id)
         await memory.removeSnapshot(event.properties.info.id).catch(() => undefined)

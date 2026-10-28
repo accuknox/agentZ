@@ -2461,6 +2461,7 @@ func (s *Service) listAgentItems(ctx context.Context, q gatewaydb.GatewayListAge
 			items,
 			gatewayapi.Agent{
 				Name:    row.AgentName,
+				Uid:     new(string(agt.UID)),
 				Sandbox: resourceReferenceFromCRD(agt.Spec.SandboxRef),
 				Opencode: &gatewayapi.AgentOpencodeConfig{
 					Instruction: &agt.Spec.Instruction,

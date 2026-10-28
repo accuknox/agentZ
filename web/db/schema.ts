@@ -32,6 +32,40 @@ import {
 
 export * from "./auth-schema"
 
+export const mobileConversations = pgTable(
+  "mobile_conversations",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    agentName: text("agent_name").notNull(),
+    agentUid: text("agent_uid").notNull(),
+    sessionId: text("session_id").notNull(),
+  },
+  (table) => [unique().on(table.userId, table.workspaceId, table.agentUid)]
+)
+
+export const mobileConnections = pgTable("mobile_connections", {
+  id: text("id").primaryKey(),
+  conversationId: text("conversation_id")
+    .notNull()
+    .references(() => mobileConversations.id, { onDelete: "cascade" }),
+  deviceHash: text("device_hash"),
+  code: text("code").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  pairingExpiresAt: timestamp("pairing_expires_at", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+})
+
 export const oauthClientOrigins = pgTable(
   "oauth_client_origins",
   {

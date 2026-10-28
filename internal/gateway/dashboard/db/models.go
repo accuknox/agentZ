@@ -1295,6 +1295,28 @@ type MemberRoleAssignment struct {
 	TeamID         pgtype.Text `json:"team_id"`
 }
 
+type MobileConnection struct {
+	ID               string             `json:"id"`
+	ConversationID   string             `json:"conversation_id"`
+	DeviceHash       pgtype.Text        `json:"device_hash"`
+	Code             string             `json:"code"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	PairingExpiresAt pgtype.Timestamptz `json:"pairing_expires_at"`
+	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
+	ApprovedAt       pgtype.Timestamptz `json:"approved_at"`
+	RevokedAt        pgtype.Timestamptz `json:"revoked_at"`
+}
+
+type MobileConversation struct {
+	ID             string `json:"id"`
+	UserID         string `json:"user_id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	AgentName      string `json:"agent_name"`
+	AgentUid       string `json:"agent_uid"`
+	SessionID      string `json:"session_id"`
+}
+
 type OauthAccessToken struct {
 	ID                      string           `json:"id"`
 	Token                   string           `json:"token"`

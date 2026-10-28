@@ -3056,3 +3056,11 @@ SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name,
 FROM selected op
 GROUP BY op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name
 ORDER BY op.resource_namespace, op.resource_name, op.tool_name;
+
+-- name: GatewayGetMobileConnection :one
+SELECT c.user_id, c.organization_id, c.workspace_id, c.agent_name, c.agent_uid, c.session_id, w.namespace
+FROM mobile_connections AS p
+JOIN mobile_conversations AS c ON c.id = p.conversation_id
+JOIN workspaces AS w ON w.id = c.workspace_id
+WHERE p.id = @id AND p.approved_at IS NOT NULL AND p.revoked_at IS NULL
+  AND p.expires_at > now() AND w.deleted_at IS NULL;

@@ -244,6 +244,29 @@ CREATE TABLE "member_roles" (
 	CONSTRAINT "member_roles_member_id_role_id_pk" PRIMARY KEY("member_id","role_id")
 );
 
+CREATE TABLE "mobile_connections" (
+	"id" text PRIMARY KEY NOT NULL,
+	"conversation_id" text NOT NULL,
+	"device_hash" text,
+	"code" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"pairing_expires_at" timestamp with time zone NOT NULL,
+	"expires_at" timestamp with time zone NOT NULL,
+	"approved_at" timestamp with time zone,
+	"revoked_at" timestamp with time zone
+);
+
+CREATE TABLE "mobile_conversations" (
+	"id" text PRIMARY KEY NOT NULL,
+	"user_id" text NOT NULL,
+	"organization_id" text NOT NULL,
+	"workspace_id" text NOT NULL,
+	"agent_name" text NOT NULL,
+	"agent_uid" text NOT NULL,
+	"session_id" text NOT NULL,
+	CONSTRAINT "mobile_conversations_user_id_workspace_id_agent_uid_unique" UNIQUE("user_id","workspace_id","agent_uid")
+);
+
 CREATE TABLE "oauth_client_origins" (
 	"client_id" text NOT NULL,
 	"origin" text NOT NULL,
@@ -746,6 +769,10 @@ ALTER TABLE "last_accessible_contexts" ADD CONSTRAINT "last_accessible_contexts_
 ALTER TABLE "last_accessible_contexts" ADD CONSTRAINT "last_accessible_contexts_workspace_organization_fk" FOREIGN KEY ("workspace_id","organization_id") REFERENCES "public"."workspaces"("id","organization_id") ON DELETE restrict ON UPDATE no action;
 ALTER TABLE "member_roles" ADD CONSTRAINT "member_roles_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "member_roles" ADD CONSTRAINT "member_roles_role_organization_fk" FOREIGN KEY ("role_id","organization_id") REFERENCES "public"."role_scopes"("role_id","organization_id") ON DELETE restrict ON UPDATE no action;
+ALTER TABLE "mobile_connections" ADD CONSTRAINT "mobile_connections_conversation_id_mobile_conversations_id_fk" FOREIGN KEY ("conversation_id") REFERENCES "public"."mobile_conversations"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "mobile_conversations" ADD CONSTRAINT "mobile_conversations_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "mobile_conversations" ADD CONSTRAINT "mobile_conversations_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "mobile_conversations" ADD CONSTRAINT "mobile_conversations_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "oauth_client_origins" ADD CONSTRAINT "oauth_client_origins_client_id_oauth_clients_client_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."oauth_clients"("client_id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "organization_delegation" ADD CONSTRAINT "organization_delegation_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "permission_grants" ADD CONSTRAINT "permission_grants_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE restrict ON UPDATE no action;

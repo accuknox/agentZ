@@ -2458,6 +2458,40 @@ func (q *Queries) GatewayGetMCPGraph(ctx context.Context, arg GatewayGetMCPGraph
 	return items, nil
 }
 
+const gatewayGetMobileConnection = `-- name: GatewayGetMobileConnection :one
+SELECT c.user_id, c.organization_id, c.workspace_id, c.agent_name, c.agent_uid, c.session_id, w.namespace
+FROM mobile_connections AS p
+JOIN mobile_conversations AS c ON c.id = p.conversation_id
+JOIN workspaces AS w ON w.id = c.workspace_id
+WHERE p.id = $1 AND p.approved_at IS NOT NULL AND p.revoked_at IS NULL
+  AND p.expires_at > now() AND w.deleted_at IS NULL
+`
+
+type GatewayGetMobileConnectionRow struct {
+	UserID         string `json:"user_id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	AgentName      string `json:"agent_name"`
+	AgentUid       string `json:"agent_uid"`
+	SessionID      string `json:"session_id"`
+	Namespace      string `json:"namespace"`
+}
+
+func (q *Queries) GatewayGetMobileConnection(ctx context.Context, id string) (GatewayGetMobileConnectionRow, error) {
+	row := q.db.QueryRow(ctx, gatewayGetMobileConnection, id)
+	var i GatewayGetMobileConnectionRow
+	err := row.Scan(
+		&i.UserID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.AgentName,
+		&i.AgentUid,
+		&i.SessionID,
+		&i.Namespace,
+	)
+	return i, err
+}
+
 const gatewayGetSpanDetail = `-- name: GatewayGetSpanDetail :one
 WITH span_row AS (
   SELECT

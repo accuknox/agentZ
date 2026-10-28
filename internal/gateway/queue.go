@@ -819,6 +819,7 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 		}
 		var user gatewayapi.OpencodeUserMessage
 		var assistant gatewayapi.OpencodeAssistantMessage
+		var assistantParts []gatewayapi.OpencodePart
 		for _, message := range *history.JSON200 {
 			// These generated views expose the protocol's role discriminator.
 			candidate, err := message.Info.AsOpencodeUserMessage()
@@ -833,22 +834,48 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 			if err != nil {
 				return err
 			}
+			assistantParts = message.Parts
 		}
 		if user.Id != "" {
 			if assistant.ParentID != user.Id || assistant.Time.Completed == nil {
 				return nil
 			}
-			if assistant.Error != nil && !row.Resume {
+			finished := false
+			if assistant.Finish != nil {
+				finished = *assistant.Finish != "tool-calls" && *assistant.Finish != "unknown"
+			}
+			failed := assistant.Error != nil
+			// A denied tool can end an idle turn without an assistant error.
+			if !finished && !failed {
+				for _, part := range assistantParts {
+					kind, err := part.Discriminator()
+					if err != nil {
+						return err
+					}
+					if kind != string(gatewayapi.Tool) {
+						continue
+					}
+					tool, err := part.AsOpencodeToolPart()
+					if err != nil {
+						return err
+					}
+					state, err := tool.State.Discriminator()
+					if err != nil {
+						return err
+					}
+					if state == string(gatewayapi.OpencodeToolStateErrorStatusError) {
+						failed = true
+						break
+					}
+				}
+			}
+			if failed && !row.Resume {
 				row.State = string(gatewayapi.ChatInputStateFailed)
 				row.Error = "The previous run stopped with an error. Remove or retry this message to continue."
 				_, err = s.saveChatInput(ctx, row)
 				return err
 			}
-			finished := false
-			if assistant.Finish != nil {
-				finished = *assistant.Finish != "tool-calls" && *assistant.Finish != "unknown"
-			}
-			if !row.Resume && assistant.Error == nil && !finished {
+			if !row.Resume && !finished {
 				return nil
 			}
 		}

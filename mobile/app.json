@@ -1,0 +1,58 @@
+{
+  "expo": {
+    "name": "AgentZ",
+    "slug": "agentz-mobile",
+    "version": "0.1.2",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.accuknox.agentz",
+      "versionCode": 3,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/agentz.png",
+        "backgroundColor": "#19191a"
+      },
+      "predictiveBackGestureEnabled": true
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/icon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-sqlite",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Scan the QR code on your AgentZ agent to connect your phone.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true,
+            "enableMinifyInReleaseBuilds": false,
+            "enableShrinkResourcesInReleaseBuilds": false
+          }
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/agentz.png",
+          "imageWidth": 100,
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "backgroundColor": "#19191a"
+          }
+        }
+      ]
+    ]
+  }
+}

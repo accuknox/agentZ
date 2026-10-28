@@ -445,6 +445,72 @@ func (s *Service) streamOpenCodeEvents(w http.ResponseWriter, r *http.Request, r
 		if err != nil {
 			return
 		}
+		if auth.claims != nil && auth.claims.MobileConnectionID != "" {
+			var owner string
+			switch kind {
+			case string(gatewayapi.OpencodeEventMessageUpdatedTypeMessageUpdated):
+				value, decodeErr := event.AsOpencodeEventMessageUpdated()
+				err, owner = decodeErr, value.Properties.SessionID
+			case string(gatewayapi.OpencodeEventMessageRemovedTypeMessageRemoved):
+				value, decodeErr := event.AsOpencodeEventMessageRemoved()
+				err, owner = decodeErr, value.Properties.SessionID
+			case string(gatewayapi.OpencodeEventMessagePartUpdatedTypeMessagePartUpdated):
+				value, decodeErr := event.AsOpencodeEventMessagePartUpdated()
+				err, owner = decodeErr, value.Properties.SessionID
+			case string(gatewayapi.OpencodeEventMessagePartRemovedTypeMessagePartRemoved):
+				value, decodeErr := event.AsOpencodeEventMessagePartRemoved()
+				err, owner = decodeErr, value.Properties.SessionID
+			case string(gatewayapi.OpencodeEventMessagePartDeltaTypeMessagePartDelta):
+				value, decodeErr := event.AsOpencodeEventMessagePartDelta()
+				err, owner = decodeErr, value.Properties.SessionID
+			case string(gatewayapi.OpencodeEventSessionStatusTypeSessionStatus):
+				value, decodeErr := event.AsOpencodeEventSessionStatus()
+				err, owner = decodeErr, value.Properties.SessionID
+			case string(gatewayapi.OpencodeEventSessionIdleTypeSessionIdle):
+				value, decodeErr := event.AsOpencodeEventSessionIdle()
+				err, owner = decodeErr, value.Properties.SessionID
+			case string(gatewayapi.OpencodeEventSessionCompactedTypeSessionCompacted):
+				value, decodeErr := event.AsOpencodeEventSessionCompacted()
+				err, owner = decodeErr, value.Properties.SessionID
+			case string(gatewayapi.OpencodeEventPermissionAskedTypePermissionAsked):
+				value, decodeErr := event.AsOpencodeEventPermissionAsked()
+				err, owner = decodeErr, value.Properties.SessionID
+			case string(gatewayapi.OpencodeEventPermissionRepliedTypePermissionReplied):
+				value, decodeErr := event.AsOpencodeEventPermissionReplied()
+				err, owner = decodeErr, value.Properties.SessionID
+			case string(gatewayapi.OpencodeEventPermissionV2AskedTypePermissionV2Asked):
+				value, decodeErr := event.AsOpencodeEventPermissionV2Asked()
+				err, owner = decodeErr, value.Properties.SessionID
+			case string(gatewayapi.OpencodeEventPermissionV2RepliedTypePermissionV2Replied):
+				value, decodeErr := event.AsOpencodeEventPermissionV2Replied()
+				err, owner = decodeErr, value.Properties.SessionID
+			case string(gatewayapi.OpencodeEventQuestionAskedTypeQuestionAsked):
+				value, decodeErr := event.AsOpencodeEventQuestionAsked()
+				err, owner = decodeErr, value.Properties.SessionID
+			case string(gatewayapi.OpencodeEventQuestionRepliedTypeQuestionReplied):
+				value, decodeErr := event.AsOpencodeEventQuestionReplied()
+				err, owner = decodeErr, value.Properties.SessionID
+			case string(gatewayapi.OpencodeEventQuestionRejectedTypeQuestionRejected):
+				value, decodeErr := event.AsOpencodeEventQuestionRejected()
+				err, owner = decodeErr, value.Properties.SessionID
+			case string(gatewayapi.OpencodeEventSessionErrorTypeSessionError):
+				value, decodeErr := event.AsOpencodeEventSessionError()
+				err = decodeErr
+				if value.Properties.SessionID != nil {
+					owner = *value.Properties.SessionID
+				}
+			case "server.connected", "server.heartbeat":
+				owner = auth.claims.MobileSessionID
+			default:
+				continue
+			}
+			if err != nil {
+				return
+			}
+			if owner != auth.claims.MobileSessionID {
+				continue
+			}
+		}
 		var sessionID string
 		switch kind {
 		case string(gatewayapi.OpencodeEventSessionCreatedTypeSessionCreated):
@@ -736,6 +802,30 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 			}
 		}
 		switch route.ID {
+		case "permission.list":
+			if auth.claims == nil || auth.claims.MobileConnectionID == "" {
+				return nil
+			}
+			requests, err := decodeOpenCodeResponse[[]gatewayapi.OpencodePermissionRequest](resp)
+			if err != nil {
+				return err
+			}
+			requests = slices.DeleteFunc(requests, func(request gatewayapi.OpencodePermissionRequest) bool {
+				return request.SessionID != auth.claims.MobileSessionID
+			})
+			return replaceOpenCodeResponse(resp, requests)
+		case "question.list":
+			if auth.claims == nil || auth.claims.MobileConnectionID == "" {
+				return nil
+			}
+			requests, err := decodeOpenCodeResponse[[]gatewayapi.OpencodeQuestionRequest](resp)
+			if err != nil {
+				return err
+			}
+			requests = slices.DeleteFunc(requests, func(request gatewayapi.OpencodeQuestionRequest) bool {
+				return request.SessionID != auth.claims.MobileSessionID
+			})
+			return replaceOpenCodeResponse(resp, requests)
 		case "session.create", "session.fork", "session.get", "session.update",
 			"session.revert", "session.unrevert", "session.share", "session.unshare":
 			session, err := decodeOpenCodeResponse[gatewayapi.OpencodeSession](resp)
@@ -785,7 +875,23 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 					Valid:  true,
 				}
 			}
-			return s.storeOpenCodeSessionStatusResponse(ctx, resp, workspaceID, agentName, directory)
+			err := s.storeOpenCodeSessionStatusResponse(ctx, resp, workspaceID, agentName, directory)
+			if err != nil {
+				return err
+			}
+			if auth.claims != nil && auth.claims.MobileConnectionID != "" {
+				statuses, err := decodeOpenCodeResponse[map[string]gatewayapi.OpencodeSessionStatus](resp)
+				if err != nil {
+					return err
+				}
+				for id := range statuses {
+					if id != auth.claims.MobileSessionID {
+						delete(statuses, id)
+					}
+				}
+				return replaceOpenCodeResponse(resp, statuses)
+			}
+			return nil
 		}
 		if sessionID == "" {
 			return nil

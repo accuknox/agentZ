@@ -79,6 +79,7 @@ type Querier interface {
 	GatewayGetExternalAgent(ctx context.Context, clientID string) (ExternalAgent, error)
 	GatewayGetLensApp(ctx context.Context, arg GatewayGetLensAppParams) (GatewayGetLensAppRow, error)
 	GatewayGetMCPGraph(ctx context.Context, arg GatewayGetMCPGraphParams) ([]GatewayGetMCPGraphRow, error)
+	GatewayGetMobileConnection(ctx context.Context, id string) (GatewayGetMobileConnectionRow, error)
 	GatewayGetSpanDetail(ctx context.Context, arg GatewayGetSpanDetailParams) (GatewayGetSpanDetailRow, error)
 	GatewayGetWorkspace(ctx context.Context, arg GatewayGetWorkspaceParams) (Workspace, error)
 	GatewayGetWorkspaceChatPreference(ctx context.Context, arg GatewayGetWorkspaceChatPreferenceParams) (WorkspaceChatPreference, error)

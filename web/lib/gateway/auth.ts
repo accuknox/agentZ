@@ -60,7 +60,8 @@ async function signGatewayAuthToken(
   organizationId: string,
   userId: string,
   userName: string,
-  workspaceId?: string
+  workspaceId?: string,
+  mobileConnectionId?: string
 ): Promise<string> {
   const db = getDB()
   const scopeType = workspaceId ? "workspace" : "organization"
@@ -221,7 +222,8 @@ async function signGatewayAuthToken(
   const data = await auth.api.signJWT({
     body: {
       payload: {
-        administrative_bypass: administrativeBypass,
+        administrative_bypass: mobileConnectionId ? false : administrativeBypass,
+        mobile_connection_id: mobileConnectionId,
         agent_acl: [...agentACL.values()].sort((left, right) =>
           left.agent_name.localeCompare(right.agent_name)
         ),

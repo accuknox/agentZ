@@ -246,6 +246,11 @@ func requireGatewayAuth(s *Service) func(http.Handler) http.Handler {
 			}
 
 			ctx := context.WithValue(r.Context(), authContextKey{}, auth)
+			if auth.claims != nil && auth.claims.MobileConnectionID != "" && auth.claims.ExpiresAt != nil {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithDeadline(ctx, auth.claims.ExpiresAt.Time)
+				defer cancel()
+			}
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -487,6 +492,11 @@ func (s *Service) resolveRequestAuth(r *http.Request) (requestAuth, error) {
 
 	claims, err := s.parseGatewayClaims(token)
 	if err == nil {
+		if claims.MobileConnectionID != "" {
+			if err := s.authorizeMobileRequest(r, &claims); err != nil {
+				return requestAuth{}, err
+			}
+		}
 		effective, resolveErr := authorization.New(s.queries).Resolve(
 			r.Context(),
 			authorization.Subject{
@@ -1058,4 +1068,73 @@ func (s *Service) tenantScopeForNamespace(ctx context.Context, namespace string)
 		)
 	}
 	return tenant, workspace.Spec.WorkspaceID, nil
+}
+
+// authorizeMobileRequest intersects a paired phone's grant with the live agent
+// identity. Ordinary gateway authorization still checks the user's current access.
+func (s *Service) authorizeMobileRequest(r *http.Request, claims *gatewayClaims) error {
+	grant, err := s.queries.GatewayGetMobileConnection(r.Context(), claims.MobileConnectionID)
+	if err != nil {
+		return apiutil.NewError(http.StatusUnauthorized, "mobile_disconnected", "This phone is disconnected. Connect it again from AgentZ.", err)
+	}
+	valid := grant.UserID == claims.UserID && grant.OrganizationID == claims.OrganizationID && grant.WorkspaceID == claims.WorkspaceID
+	if !valid {
+		return apiutil.NewError(http.StatusForbidden, "mobile_scope", "This connection does not allow that workspace.", nil)
+	}
+	agent, err := s.resolver.resolveAgent(r.Context(), grant.Namespace, grant.AgentName)
+	if err != nil || string(agent.Agent.UID) != grant.AgentUid {
+		return apiutil.NewError(http.StatusForbidden, "mobile_agent", "This agent is no longer available. Connect again.", err)
+	}
+	claims.MobileSessionID = grant.SessionID
+	root := "/api/chat-session/" + grant.AgentName + "/" + grant.SessionID + "/input"
+	if r.URL.Path == root || strings.HasPrefix(r.URL.Path, root+"/") {
+		return nil
+	}
+	schedules := "/api/workflow/" + grant.AgentName + "/schedule"
+	if r.URL.Path == schedules && r.Method == http.MethodGet {
+		return nil
+	}
+	route, _ := matchOpenCodeRoute(r.Method, r.URL.Path)
+	if route != nil && chi.URLParam(r, "agentName") == grant.AgentName {
+		session := route.Params["sessionID"]
+		if session != "" && session != grant.SessionID {
+			return apiutil.NewError(http.StatusForbidden, "mobile_session", "This connection is limited to its conversation.", nil)
+		}
+		switch route.ID {
+		case "session.get", "session.messages", "session.message", "session.status", "session.abort", "event.subscribe",
+			"permission.list", "question.list":
+			return nil
+		case "permission.reply", "question.reply", "question.reject":
+			client, err := s.agentClient(r.Context(), grant.Namespace, grant.AgentName, s.outboundHTTP)
+			if err != nil {
+				return err
+			}
+			if route.ID == "permission.reply" {
+				pending, err := client.PermissionListWithResponse(r.Context(), grant.AgentName, nil)
+				if err != nil {
+					return err
+				}
+				if pending.JSON200 != nil {
+					for _, request := range *pending.JSON200 {
+						if request.Id == route.Params["requestID"] && request.SessionID == grant.SessionID {
+							return nil
+						}
+					}
+				}
+				break
+			}
+			pending, err := client.QuestionListWithResponse(r.Context(), grant.AgentName, nil)
+			if err != nil {
+				return err
+			}
+			if pending.JSON200 != nil {
+				for _, request := range *pending.JSON200 {
+					if request.Id == route.Params["requestID"] && request.SessionID == grant.SessionID {
+						return nil
+					}
+				}
+			}
+		}
+	}
+	return apiutil.NewError(http.StatusForbidden, "mobile_operation", "This operation is unavailable on this phone connection.", nil)
 }

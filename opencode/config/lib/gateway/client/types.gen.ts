@@ -4,6 +4,43 @@ export type ClientOptions = {
   baseUrl: `${string}://${string}` | (string & {})
 }
 
+export type MobilePairRequest = {
+  workspace_id: string
+  agent_name: string
+}
+
+export type MobileCredential = {
+  id: string
+  secret: string
+}
+
+export type MobilePairing = {
+  id: string
+  agent_name: string
+  code: string
+  status: "pending" | "waiting" | "approved" | "revoked" | "expired"
+  expires_at: string
+  link: string
+}
+
+export type MobileConnection = {
+  id: string
+  origin: string
+  gateway_url: string
+  agent_name: string
+  workspace_id: string
+  session_id: string
+  model: {
+    providerID: string
+    modelID: string
+  }
+}
+
+export type MobileToken = {
+  token: string
+  connection: MobileConnection
+}
+
 export type LensApp = {
   client_id: string
   name: string
@@ -700,6 +737,10 @@ export type ListWorkflowWebhookTriggersResponse = {
 }
 
 export type Agent = {
+  /**
+   * Stable identity of this agent instance.
+   */
+  uid?: string
   name: AgentName
   sandbox: ResourceReference
   created_by: ResourceActor
@@ -3679,6 +3720,154 @@ export type DashboardWidgetNamePath = DashboardWidgetName
  * Stable publish call identifier.
  */
 export type IdempotencyKeyHeader = string
+
+export type GetConnectedMobileData = {
+  body?: never
+  path?: never
+  query: {
+    workspace_id: string
+    agent_name: string
+  }
+  url: "/api/mobile/pairing"
+}
+
+export type GetConnectedMobileResponses = {
+  /**
+   * The owner's most recently connected phone for this agent.
+   */
+  200: MobilePairing
+  /**
+   * No phone is connected.
+   */
+  204: void
+}
+
+export type GetConnectedMobileResponse =
+  GetConnectedMobileResponses[keyof GetConnectedMobileResponses]
+
+export type CreateMobilePairingData = {
+  body: MobilePairRequest
+  path?: never
+  query?: never
+  url: "/api/mobile/pairing"
+}
+
+export type CreateMobilePairingResponses = {
+  /**
+   * A pending phone invitation. Requires an authenticated web session.
+   */
+  200: MobilePairing
+}
+
+export type CreateMobilePairingResponse =
+  CreateMobilePairingResponses[keyof CreateMobilePairingResponses]
+
+export type RevokeMobilePairingData = {
+  body?: never
+  path: {
+    id: string
+  }
+  query?: never
+  url: "/api/mobile/pairing/{id}"
+}
+
+export type RevokeMobilePairingResponses = {
+  /**
+   * Phone invitation and access revoked.
+   */
+  204: void
+}
+
+export type RevokeMobilePairingResponse =
+  RevokeMobilePairingResponses[keyof RevokeMobilePairingResponses]
+
+export type GetMobilePairingData = {
+  body?: never
+  path: {
+    id: string
+  }
+  query?: never
+  url: "/api/mobile/pairing/{id}"
+}
+
+export type GetMobilePairingResponses = {
+  /**
+   * Owner-only pairing state.
+   */
+  200: MobilePairing
+}
+
+export type GetMobilePairingResponse = GetMobilePairingResponses[keyof GetMobilePairingResponses]
+
+export type ClaimMobilePairingData = {
+  body: MobileCredential
+  path: {
+    id: string
+  }
+  query?: never
+  url: "/api/mobile/pairing/{id}"
+}
+
+export type ClaimMobilePairingResponses = {
+  /**
+   * Phone-bound pairing state.
+   */
+  200: MobilePairing
+}
+
+export type ClaimMobilePairingResponse =
+  ClaimMobilePairingResponses[keyof ClaimMobilePairingResponses]
+
+export type ApproveMobilePairingData = {
+  body?: never
+  path: {
+    id: string
+  }
+  query?: never
+  url: "/api/mobile/pairing/{id}"
+}
+
+export type ApproveMobilePairingResponses = {
+  /**
+   * Owner approved the phone whose code is displayed.
+   */
+  200: MobilePairing
+}
+
+export type ApproveMobilePairingResponse =
+  ApproveMobilePairingResponses[keyof ApproveMobilePairingResponses]
+
+export type DisconnectMobileData = {
+  body: MobileCredential
+  path?: never
+  query?: never
+  url: "/api/mobile/token"
+}
+
+export type DisconnectMobileResponses = {
+  /**
+   * Phone access revoked.
+   */
+  204: void
+}
+
+export type DisconnectMobileResponse = DisconnectMobileResponses[keyof DisconnectMobileResponses]
+
+export type GetMobileTokenData = {
+  body: MobileCredential
+  path?: never
+  query?: never
+  url: "/api/mobile/token"
+}
+
+export type GetMobileTokenResponses = {
+  /**
+   * Short-lived gateway access for an approved phone.
+   */
+  200: MobileToken
+}
+
+export type GetMobileTokenResponse = GetMobileTokenResponses[keyof GetMobileTokenResponses]
 
 export type ListLensAppsData = {
   body?: never

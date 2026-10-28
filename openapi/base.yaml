@@ -45,6 +45,121 @@ tags:
   description: Workspace chat inbox and preference APIs.
 
 paths:
+  /api/mobile/pairing:
+    get:
+      operationId: getConnectedMobile
+      tags: [mobile]
+      parameters:
+      - in: query
+        name: workspace_id
+        required: true
+        schema: {type: string}
+      - in: query
+        name: agent_name
+        required: true
+        schema: {type: string}
+      responses:
+        '200':
+          description: The owner's most recently connected phone for this agent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobilePairing'
+        '204': {description: No phone is connected.}
+    post:
+      operationId: createMobilePairing
+      tags: [mobile]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MobilePairRequest'
+      responses:
+        '200':
+          description: A pending phone invitation. Requires an authenticated web session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobilePairing'
+  /api/mobile/pairing/{id}:
+    parameters:
+    - in: path
+      name: id
+      required: true
+      schema: {type: string}
+    get:
+      operationId: getMobilePairing
+      tags: [mobile]
+      responses:
+        '200':
+          description: Owner-only pairing state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobilePairing'
+    post:
+      operationId: claimMobilePairing
+      tags: [mobile]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MobileCredential'
+      responses:
+        '200':
+          description: Phone-bound pairing state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobilePairing'
+    put:
+      operationId: approveMobilePairing
+      tags: [mobile]
+      responses:
+        '200':
+          description: Owner approved the phone whose code is displayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobilePairing'
+    delete:
+      operationId: revokeMobilePairing
+      tags: [mobile]
+      responses:
+        '204': {description: Phone invitation and access revoked.}
+  /api/mobile/token:
+    post:
+      operationId: getMobileToken
+      tags: [mobile]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MobileCredential'
+      responses:
+        '200':
+          description: Short-lived gateway access for an approved phone.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileToken'
+    delete:
+      operationId: disconnectMobile
+      tags: [mobile]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MobileCredential'
+      responses:
+        '204': {description: Phone access revoked.}
   /api/lens/apps:
     get:
       operationId: listLensApps
@@ -5336,6 +5451,51 @@ components:
             $ref: '#/components/schemas/Error'
 
   schemas:
+    MobilePairRequest:
+      type: object
+      required: [workspace_id, agent_name]
+      properties:
+        workspace_id: {type: string, minLength: 1}
+        agent_name: {type: string, minLength: 1}
+    MobileCredential:
+      type: object
+      required: [id, secret]
+      properties:
+        id: {type: string, minLength: 32, maxLength: 64}
+        secret: {type: string, minLength: 64, maxLength: 64, pattern: '^[a-f0-9]{64}$'}
+    MobilePairing:
+      type: object
+      required: [id, agent_name, code, status, expires_at, link]
+      properties:
+        id: {type: string}
+        agent_name: {type: string}
+        code: {type: string}
+        status: {type: string, enum: [pending, waiting, approved, revoked, expired]}
+        expires_at: {type: string, format: date-time}
+        link: {type: string, format: uri}
+    MobileConnection:
+      type: object
+      required: [id, origin, gateway_url, agent_name, workspace_id, session_id, model]
+      properties:
+        id: {type: string}
+        origin: {type: string, format: uri}
+        gateway_url: {type: string, format: uri}
+        agent_name: {type: string}
+        workspace_id: {type: string}
+        session_id: {type: string}
+        model:
+          type: object
+          required: [providerID, modelID]
+          properties:
+            providerID: {type: string}
+            modelID: {type: string}
+    MobileToken:
+      type: object
+      required: [token, connection]
+      properties:
+        token: {type: string}
+        connection:
+          $ref: '#/components/schemas/MobileConnection'
     LensApp:
       type: object
       additionalProperties: false
@@ -7014,6 +7174,9 @@ components:
       type: object
       additionalProperties: false
       properties:
+        uid:
+          type: string
+          description: Stable identity of this agent instance.
         name:
           $ref: '#/components/schemas/AgentName'
         sandbox:

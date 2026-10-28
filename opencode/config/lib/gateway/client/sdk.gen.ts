@@ -11,6 +11,10 @@ import type {
   AdoptCodingWorktreeData,
   AdoptCodingWorktreeErrors,
   AdoptCodingWorktreeResponses,
+  ApproveMobilePairingData,
+  ApproveMobilePairingResponses,
+  ClaimMobilePairingData,
+  ClaimMobilePairingResponses,
   CreateAgentData,
   CreateAgentDirectoryData,
   CreateAgentDirectoryErrors,
@@ -41,6 +45,8 @@ import type {
   CreateMcpConnectionData,
   CreateMcpConnectionErrors,
   CreateMcpConnectionResponses,
+  CreateMobilePairingData,
+  CreateMobilePairingResponses,
   CreateSandboxData,
   CreateSandboxErrors,
   CreateSandboxResponses,
@@ -116,6 +122,8 @@ import type {
   DeleteWorkflowsData,
   DeleteWorkflowsErrors,
   DeleteWorkflowsResponses,
+  DisconnectMobileData,
+  DisconnectMobileResponses,
   EnsureTenantData,
   EnsureTenantErrors,
   EnsureTenantResponses,
@@ -152,6 +160,8 @@ import type {
   GetCodingThreadData,
   GetCodingThreadErrors,
   GetCodingThreadResponses,
+  GetConnectedMobileData,
+  GetConnectedMobileResponses,
   GetDashboardData,
   GetDashboardErrors,
   GetDashboardResponses,
@@ -182,6 +192,10 @@ import type {
   GetMcpGraphData,
   GetMcpGraphErrors,
   GetMcpGraphResponses,
+  GetMobilePairingData,
+  GetMobilePairingResponses,
+  GetMobileTokenData,
+  GetMobileTokenResponses,
   GetSkillReferencesData,
   GetSkillReferencesErrors,
   GetSkillReferencesResponses,
@@ -404,6 +418,8 @@ import type {
   RetryWorkspaceData,
   RetryWorkspaceErrors,
   RetryWorkspaceResponses,
+  RevokeMobilePairingData,
+  RevokeMobilePairingResponses,
   RunCodingGitData,
   RunCodingGitErrors,
   RunCodingGitResponses,
@@ -522,6 +538,91 @@ export type Options<
    */
   meta?: Record<string, unknown>
 }
+
+export const getConnectedMobile = <ThrowOnError extends boolean = false>(
+  options: Options<GetConnectedMobileData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetConnectedMobileResponses, unknown, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/mobile/pairing",
+    ...options,
+  })
+
+export const createMobilePairing = <ThrowOnError extends boolean = false>(
+  options: Options<CreateMobilePairingData, ThrowOnError>
+) =>
+  (options.client ?? client).post<CreateMobilePairingResponses, unknown, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/mobile/pairing",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+export const revokeMobilePairing = <ThrowOnError extends boolean = false>(
+  options: Options<RevokeMobilePairingData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<RevokeMobilePairingResponses, unknown, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/mobile/pairing/{id}",
+    ...options,
+  })
+
+export const getMobilePairing = <ThrowOnError extends boolean = false>(
+  options: Options<GetMobilePairingData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetMobilePairingResponses, unknown, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/mobile/pairing/{id}",
+    ...options,
+  })
+
+export const claimMobilePairing = <ThrowOnError extends boolean = false>(
+  options: Options<ClaimMobilePairingData, ThrowOnError>
+) =>
+  (options.client ?? client).post<ClaimMobilePairingResponses, unknown, ThrowOnError>({
+    url: "/api/mobile/pairing/{id}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+export const approveMobilePairing = <ThrowOnError extends boolean = false>(
+  options: Options<ApproveMobilePairingData, ThrowOnError>
+) =>
+  (options.client ?? client).put<ApproveMobilePairingResponses, unknown, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/mobile/pairing/{id}",
+    ...options,
+  })
+
+export const disconnectMobile = <ThrowOnError extends boolean = false>(
+  options: Options<DisconnectMobileData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<DisconnectMobileResponses, unknown, ThrowOnError>({
+    url: "/api/mobile/token",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+export const getMobileToken = <ThrowOnError extends boolean = false>(
+  options: Options<GetMobileTokenData, ThrowOnError>
+) =>
+  (options.client ?? client).post<GetMobileTokenResponses, unknown, ThrowOnError>({
+    url: "/api/mobile/token",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
 
 /**
  * List apps with workspace access or telemetry history

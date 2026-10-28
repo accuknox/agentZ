@@ -442,6 +442,11 @@ func applyBaseCapabilities(doc map[string]any) error {
 	}
 	seen := make(map[string]struct{})
 	for path, itemAny := range paths {
+		// Phone pairing is served by the web authentication service.
+		if strings.HasPrefix(path, "/api/mobile/") {
+			delete(paths, path)
+			continue
+		}
 		item, ok := itemAny.(map[string]any)
 		if !ok {
 			return fmt.Errorf("base path %s is not a path item", path)

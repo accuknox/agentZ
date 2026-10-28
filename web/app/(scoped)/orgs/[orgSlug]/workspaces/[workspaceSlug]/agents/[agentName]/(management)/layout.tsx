@@ -1,3 +1,4 @@
+import { MobilePairing } from "@/components/mobile-pairing"
 import { missingRoute } from "@/data/route-memory"
 import { Suspense } from "react"
 import type { Route } from "next"
@@ -81,41 +82,46 @@ async function WorkspaceAgentContent({
               {detail.agent.name}
             </h1>
           </div>
-          {detail.agent.capabilities.use || canViewTraces ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button aria-label="Agent actions" size="icon" variant="ghost">
-                  <MoreHorizontal aria-hidden="true" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {detail.agent.capabilities.use ? (
-                  <DropdownMenuItem asChild>
-                    <Link
-                      href={
-                        `${workspacePath}/sessions/new?agent=${encodeURIComponent(agentName)}` as Route
-                      }
-                    >
-                      <MessageCircle aria-hidden="true" />
-                      New chat
-                    </Link>
-                  </DropdownMenuItem>
-                ) : null}
-                {canViewTraces ? (
-                  <DropdownMenuItem asChild>
-                    <Link
-                      href={
-                        `${workspacePath}/lens/traces?agent_name=${encodeURIComponent(agentName)}` as Route
-                      }
-                    >
-                      <Activity aria-hidden="true" />
-                      View traces
-                    </Link>
-                  </DropdownMenuItem>
-                ) : null}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : null}
+          <div className="flex items-center gap-2">
+            {detail.agent.capabilities.use && scope.workspace.type === "general" && (
+              <MobilePairing agentName={agentName} workspaceId={scope.workspace.id} />
+            )}
+            {detail.agent.capabilities.use || canViewTraces ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button aria-label="Agent actions" size="icon" variant="ghost">
+                    <MoreHorizontal aria-hidden="true" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {detail.agent.capabilities.use ? (
+                    <DropdownMenuItem asChild>
+                      <Link
+                        href={
+                          `${workspacePath}/sessions/new?agent=${encodeURIComponent(agentName)}` as Route
+                        }
+                      >
+                        <MessageCircle aria-hidden="true" />
+                        New chat
+                      </Link>
+                    </DropdownMenuItem>
+                  ) : null}
+                  {canViewTraces ? (
+                    <DropdownMenuItem asChild>
+                      <Link
+                        href={
+                          `${workspacePath}/lens/traces?agent_name=${encodeURIComponent(agentName)}` as Route
+                        }
+                      >
+                        <Activity aria-hidden="true" />
+                        View traces
+                      </Link>
+                    </DropdownMenuItem>
+                  ) : null}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
+          </div>
         </div>
         <RouteTabs label="Agent settings" tabs={tabs} />
       </header>

@@ -25,6 +25,10 @@ const args = {
     .string()
     .min(1)
     .describe("Full replacement cron expression for when the workflow should run."),
+  time_zone: tool.schema
+    .string()
+    .optional()
+    .describe("IANA time zone, such as Asia/Kolkata. Defaults to UTC."),
   inputs: tool.schema
     .record(tool.schema.string(), tool.schema.unknown())
     .optional()
@@ -104,6 +108,7 @@ export default tool({
 
     const bodyInput = {
       schedule: args.schedule.trim(),
+      time_zone: args.time_zone,
       inputs: resolved.value,
       timeout_seconds: args.timeout_seconds,
     }

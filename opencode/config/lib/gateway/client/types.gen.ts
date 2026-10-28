@@ -122,7 +122,6 @@ export type GuardrailPolicy = {
 export type GuardrailEffectiveInput = {
   sandbox?: string
   sandboxScope?: ResourceScope
-  clientId?: string
   assignment: GuardrailAssignment
 }
 
@@ -637,7 +636,7 @@ export type SelectedOrganizationResources = {
 }
 
 export type InheritedResourceConsumer = {
-  kind: "Agent" | "Sandbox" | "Inference Pool" | "Guardrail Policy" | "External Client"
+  kind: "Agent" | "Sandbox" | "Inference Pool" | "Guardrail Policy" | "External Agent"
   name: string
 }
 

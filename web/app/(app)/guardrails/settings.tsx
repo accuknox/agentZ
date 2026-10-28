@@ -15,11 +15,10 @@ import { FieldDescription, FieldLegend, FieldSet } from "@/components/ui/field"
 type GuardrailOrganizationSettingsProps = {
   initial: GuardrailSettings
   policies: GuardrailPolicy[]
-  canModify: boolean
 }
 
 export function GuardrailOrganizationSettings(props: GuardrailOrganizationSettingsProps) {
-  const { initial, policies, canModify } = props
+  const { initial, policies } = props
 
   const router = useRouter()
   const [settings, setSettings] = useState(initial)
@@ -52,7 +51,7 @@ export function GuardrailOrganizationSettings(props: GuardrailOrganizationSettin
         </FieldDescription>
         <MultiSelectDropdown
           aria-label="Organization baseline policies"
-          disabled={!canModify || pending}
+          disabled={pending}
           emptyMessage="No organization policies found."
           placeholder="Select baseline policies"
           searchPlaceholder="Search policies..."
@@ -94,7 +93,6 @@ export function GuardrailOrganizationSettings(props: GuardrailOrganizationSettin
                   <Button
                     aria-label={`Move ${name} ${direction === -1 ? "up" : "down"}`}
                     disabled={
-                      !canModify ||
                       pending ||
                       (direction === -1
                         ? index === 0
@@ -129,14 +127,12 @@ export function GuardrailOrganizationSettings(props: GuardrailOrganizationSettin
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
-      {canModify ? (
-        <div className="-mx-4 flex w-[100cqw] justify-end border-t px-4 pt-6 md:-mx-6 md:px-6">
-          <LoadingButton pending={pending} pendingLabel="Saving..." type="submit">
-            <Save data-icon="inline-start" />
-            Save settings
-          </LoadingButton>
-        </div>
-      ) : null}
+      <div className="-mx-4 flex w-[100cqw] justify-end border-t px-4 pt-6 md:-mx-6 md:px-6">
+        <LoadingButton pending={pending} pendingLabel="Saving..." type="submit">
+          <Save data-icon="inline-start" />
+          Save settings
+        </LoadingButton>
+      </div>
     </form>
   )
 }

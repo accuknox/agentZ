@@ -3,7 +3,6 @@ package gateway
 import (
 	"cmp"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -824,7 +823,7 @@ func (s *Service) inheritedResourceConsumers(ctx context.Context, workspace gate
 		}
 	}
 	if resourceType == gatewayapi.InheritedResourceTypeGuardrailPolicy {
-		assignments, err := s.queries.GatewayListGuardrailClientAccess(ctx, gatewaydb.GatewayListGuardrailClientAccessParams{
+		assignments, err := s.queries.GatewayListExternalAgentGuardrails(ctx, gatewaydb.GatewayListExternalAgentGuardrailsParams{
 			OrganizationID: workspace.OrganizationID,
 			WorkspaceID:    workspace.ID,
 		})
@@ -832,13 +831,9 @@ func (s *Service) inheritedResourceConsumers(ctx context.Context, workspace gate
 			return nil, err
 		}
 		for _, assignment := range assignments {
-			var refs []agentzv1alpha1.ResourceReference
-			if err := json.Unmarshal(assignment.Policies, &refs); err != nil {
-				return nil, err
-			}
-			for _, ref := range refs {
+			for _, ref := range assignment.Policies {
 				if ref.Scope == agentzv1alpha1.ResourceScopeOrganisation {
-					add(ref.Name, "External Client", assignment.ClientID)
+					add(ref.Name, gatewayapi.InheritedResourceConsumerKindExternalAgent, assignment.ClientID)
 				}
 			}
 		}

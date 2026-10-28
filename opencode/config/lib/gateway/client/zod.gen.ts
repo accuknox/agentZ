@@ -606,7 +606,7 @@ export const zCreateWorkspaceRequest = z.object({
 })
 
 export const zInheritedResourceConsumer = z.object({
-  kind: z.enum(["Agent", "Sandbox", "Inference Pool", "Guardrail Policy", "External Client"]),
+  kind: z.enum(["Agent", "Sandbox", "Inference Pool", "Guardrail Policy", "External Agent"]),
   name: z.string(),
 })
 
@@ -756,7 +756,6 @@ export const zGuardrailPolicy = z.object({
 export const zGuardrailEffectiveInput = z.object({
   sandbox: z.string().optional(),
   sandboxScope: zResourceScope.optional(),
-  clientId: z.string().optional(),
   assignment: zGuardrailAssignment,
 })
 

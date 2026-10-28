@@ -5870,7 +5870,6 @@ components:
       properties:
         sandbox: {type: string}
         sandboxScope: {$ref: '#/components/schemas/ResourceScope'}
-        clientId: {type: string}
         assignment: {$ref: '#/components/schemas/GuardrailAssignment'}
       required: [assignment]
     GuardrailEffectiveCheck:
@@ -7109,7 +7108,7 @@ components:
       properties:
         kind:
           type: string
-          enum: [Agent, Sandbox, Inference Pool, Guardrail Policy, External Client]
+          enum: [Agent, Sandbox, Inference Pool, Guardrail Policy, External Agent]
         name:
           type: string
       required: [kind, name]

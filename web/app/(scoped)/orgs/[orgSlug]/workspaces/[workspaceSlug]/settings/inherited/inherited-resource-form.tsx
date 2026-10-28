@@ -244,8 +244,8 @@ export function InheritedResourceForm(props: InheritedResourceFormProps) {
                   case "Guardrail Policy":
                     pathname = `${pathname}/guardrails/policies/${encodeURIComponent(consumer.name)}`
                     break
-                  case "External Client":
-                    pathname = `${pathname}/applications/access`
+                  case "External Agent":
+                    pathname = `${pathname}/external-agents`
                     break
                 }
                 return (

@@ -208,6 +208,42 @@ test("Lens sessions stay under their native or external parent on both pages", (
   }
 })
 
+test("switching Lens sources or sessions clears the previous recording selection", () => {
+  const path = "/orgs/org/workspaces/workspace/lens/traces"
+  const search = new URLSearchParams({
+    app_client_id: "claude",
+    session_id: "first-session",
+    trace_id: "11111111111111111111111111111111",
+    span_id: "1111111111111111",
+    operation_id: "42",
+    section: "input_messages",
+    from: "2026-10-27",
+  })
+  const selections = [
+    { app_client_id: "claude", session_id: "second-session" },
+    { app_client_id: "codex", session_id: "codex-session" },
+    { agent_name: "native", session_id: "native-session" },
+  ]
+  for (const selection of selections) {
+    const href = selectionURL(path, search, selection, true)
+    const next = new URL(href, "http://test").searchParams
+    assert.equal(next.get("session_id"), selection.session_id)
+    assert.equal(next.get("trace_id"), null)
+    assert.equal(next.get("span_id"), null)
+    assert.equal(next.get("operation_id"), null)
+    assert.equal(next.get("section"), null)
+    assert.equal(next.get("from"), "2026-10-27")
+  }
+  const direct = new URL(
+    selectionURL(path, search, { app_client_id: "claude", session_id: "first-session" }, false),
+    "http://test"
+  ).searchParams
+  for (const key of ["trace_id", "span_id", "operation_id", "section"]) {
+    assert.equal(direct.get(key), search.get(key))
+  }
+  assert.equal(search.get("trace_id"), "11111111111111111111111111111111")
+})
+
 test("deletion invalidates related pages and descendants while preserving scopes and parents", () => {
   const saved: SelectionHistory = [
     [scope, "workflows/graphs", { agent_name: "a", workflow_name: "gone" }],

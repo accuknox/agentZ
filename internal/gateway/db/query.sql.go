@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -2413,30 +2414,27 @@ func (q *Queries) GatewayGetExternalAgent(ctx context.Context, clientID string) 
 	return i, err
 }
 
-const gatewayGetGuardrailClientAccess = `-- name: GatewayGetGuardrailClientAccess :one
-SELECT organization_id, workspace_id, client_id, policies, updated_at FROM guardrail_client_access
-WHERE organization_id = $1
-  AND workspace_id = $2
-  AND client_id = $3
+const gatewayGetExternalAgentGuardrails = `-- name: GatewayGetExternalAgentGuardrails :one
+SELECT access.policies FROM guardrail_client_access access
+JOIN external_agents agent ON agent.client_id = access.client_id
+  AND agent.organization_id = access.organization_id
+  AND agent.workspace_id = access.workspace_id
+WHERE access.organization_id = $1
+  AND access.workspace_id = $2
+  AND access.client_id = $3
 `
 
-type GatewayGetGuardrailClientAccessParams struct {
+type GatewayGetExternalAgentGuardrailsParams struct {
 	OrganizationID string `json:"organization_id"`
 	WorkspaceID    string `json:"workspace_id"`
 	ClientID       string `json:"client_id"`
 }
 
-func (q *Queries) GatewayGetGuardrailClientAccess(ctx context.Context, arg GatewayGetGuardrailClientAccessParams) (GuardrailClientAccess, error) {
-	row := q.db.QueryRow(ctx, gatewayGetGuardrailClientAccess, arg.OrganizationID, arg.WorkspaceID, arg.ClientID)
-	var i GuardrailClientAccess
-	err := row.Scan(
-		&i.OrganizationID,
-		&i.WorkspaceID,
-		&i.ClientID,
-		&i.Policies,
-		&i.UpdatedAt,
-	)
-	return i, err
+func (q *Queries) GatewayGetExternalAgentGuardrails(ctx context.Context, arg GatewayGetExternalAgentGuardrailsParams) ([]v1alpha1.ResourceReference, error) {
+	row := q.db.QueryRow(ctx, gatewayGetExternalAgentGuardrails, arg.OrganizationID, arg.WorkspaceID, arg.ClientID)
+	var policies []v1alpha1.ResourceReference
+	err := row.Scan(&policies)
+	return policies, err
 }
 
 const gatewayGetGuardrailEvent = `-- name: GatewayGetGuardrailEvent :one
@@ -5202,6 +5200,46 @@ func (q *Queries) GatewayListEventTrailWorkspaces(ctx context.Context, arg Gatew
 	return items, nil
 }
 
+const gatewayListExternalAgentGuardrails = `-- name: GatewayListExternalAgentGuardrails :many
+SELECT access.client_id, access.policies FROM guardrail_client_access access
+JOIN external_agents agent ON agent.client_id = access.client_id
+  AND agent.organization_id = access.organization_id
+  AND agent.workspace_id = access.workspace_id
+WHERE access.organization_id = $1
+  AND access.workspace_id = $2
+ORDER BY access.client_id
+`
+
+type GatewayListExternalAgentGuardrailsParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+type GatewayListExternalAgentGuardrailsRow struct {
+	ClientID string                       `json:"client_id"`
+	Policies []v1alpha1.ResourceReference `json:"policies"`
+}
+
+func (q *Queries) GatewayListExternalAgentGuardrails(ctx context.Context, arg GatewayListExternalAgentGuardrailsParams) ([]GatewayListExternalAgentGuardrailsRow, error) {
+	rows, err := q.db.Query(ctx, gatewayListExternalAgentGuardrails, arg.OrganizationID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayListExternalAgentGuardrailsRow{}
+	for rows.Next() {
+		var i GatewayListExternalAgentGuardrailsRow
+		if err := rows.Scan(&i.ClientID, &i.Policies); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const gatewayListFileEvents = `-- name: GatewayListFileEvents :many
 SELECT
   id,
@@ -5392,44 +5430,6 @@ func (q *Queries) GatewayListFileEventsAggregated(ctx context.Context, arg Gatew
 	return items, nil
 }
 
-const gatewayListGuardrailClientAccess = `-- name: GatewayListGuardrailClientAccess :many
-SELECT organization_id, workspace_id, client_id, policies, updated_at FROM guardrail_client_access
-WHERE organization_id = $1
-  AND workspace_id = $2
-ORDER BY client_id
-`
-
-type GatewayListGuardrailClientAccessParams struct {
-	OrganizationID string `json:"organization_id"`
-	WorkspaceID    string `json:"workspace_id"`
-}
-
-func (q *Queries) GatewayListGuardrailClientAccess(ctx context.Context, arg GatewayListGuardrailClientAccessParams) ([]GuardrailClientAccess, error) {
-	rows, err := q.db.Query(ctx, gatewayListGuardrailClientAccess, arg.OrganizationID, arg.WorkspaceID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []GuardrailClientAccess{}
-	for rows.Next() {
-		var i GuardrailClientAccess
-		if err := rows.Scan(
-			&i.OrganizationID,
-			&i.WorkspaceID,
-			&i.ClientID,
-			&i.Policies,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const gatewayListGuardrailEventSources = `-- name: GatewayListGuardrailEventSources :many
 WITH retained AS (
   SELECT DISTINCT workspace_id, agent_name, client_id
@@ -5444,13 +5444,19 @@ WITH retained AS (
   FROM retained WHERE client_id <> ''
 )
 SELECT sources.workspace_id, sources.agent_name, sources.client_id,
-  COALESCE(NULLIF(sources.agent_name, ''), NULLIF(app.name, ''), sources.client_id)::text AS name,
-  COALESCE(external.kind::text, '')::text AS agent_kind
+  COALESCE(NULLIF(sources.agent_name, ''), NULLIF(app.name, ''), sources.client_id)::text AS source_name,
+  COALESCE(external.kind::text, '')::text AS agent_kind,
+  COALESCE(external.user_id, '')::text AS user_id,
+  COALESCE(owner.name, '')::text AS user_name,
+  COALESCE(owner.email, '')::text AS user_email,
+  owner.image AS user_image
 FROM sources
 LEFT JOIN oauth_clients app ON app.client_id = sources.client_id
 LEFT JOIN external_agents external ON external.client_id = sources.client_id
   AND external.organization_id = $1
-ORDER BY sources.workspace_id, sources.agent_name, name, sources.client_id
+  AND ($2::text = '' OR external.workspace_id = $2)
+LEFT JOIN users owner ON owner.id = external.user_id
+ORDER BY sources.workspace_id, sources.agent_name, source_name, sources.client_id
 `
 
 type GatewayListGuardrailEventSourcesParams struct {
@@ -5459,11 +5465,15 @@ type GatewayListGuardrailEventSourcesParams struct {
 }
 
 type GatewayListGuardrailEventSourcesRow struct {
-	WorkspaceID string `json:"workspace_id"`
-	AgentName   string `json:"agent_name"`
-	ClientID    string `json:"client_id"`
-	Name        string `json:"name"`
-	AgentKind   string `json:"agent_kind"`
+	WorkspaceID string      `json:"workspace_id"`
+	AgentName   string      `json:"agent_name"`
+	ClientID    string      `json:"client_id"`
+	SourceName  string      `json:"source_name"`
+	AgentKind   string      `json:"agent_kind"`
+	UserID      string      `json:"user_id"`
+	UserName    string      `json:"user_name"`
+	UserEmail   string      `json:"user_email"`
+	UserImage   pgtype.Text `json:"user_image"`
 }
 
 func (q *Queries) GatewayListGuardrailEventSources(ctx context.Context, arg GatewayListGuardrailEventSourcesParams) ([]GatewayListGuardrailEventSourcesRow, error) {
@@ -5479,8 +5489,12 @@ func (q *Queries) GatewayListGuardrailEventSources(ctx context.Context, arg Gate
 			&i.WorkspaceID,
 			&i.AgentName,
 			&i.ClientID,
-			&i.Name,
+			&i.SourceName,
 			&i.AgentKind,
+			&i.UserID,
+			&i.UserName,
+			&i.UserEmail,
+			&i.UserImage,
 		); err != nil {
 			return nil, err
 		}
@@ -5862,8 +5876,11 @@ func (q *Queries) GatewayListNetworkEventsAggregated(ctx context.Context, arg Ga
 	return items, nil
 }
 
-const gatewayListOrganizationGuardrailClientAccess = `-- name: GatewayListOrganizationGuardrailClientAccess :many
-SELECT access.organization_id, access.workspace_id, access.client_id, access.policies, access.updated_at FROM guardrail_client_access access
+const gatewayListOrganizationExternalAgentGuardrails = `-- name: GatewayListOrganizationExternalAgentGuardrails :many
+SELECT access.workspace_id, access.policies FROM guardrail_client_access access
+JOIN external_agents agent ON agent.client_id = access.client_id
+  AND agent.organization_id = access.organization_id
+  AND agent.workspace_id = access.workspace_id
 JOIN workspaces ON workspaces.id = access.workspace_id
   AND workspaces.organization_id = access.organization_id
 WHERE access.organization_id = $1
@@ -5871,22 +5888,21 @@ WHERE access.organization_id = $1
 ORDER BY access.workspace_id, access.client_id
 `
 
-func (q *Queries) GatewayListOrganizationGuardrailClientAccess(ctx context.Context, organizationID string) ([]GuardrailClientAccess, error) {
-	rows, err := q.db.Query(ctx, gatewayListOrganizationGuardrailClientAccess, organizationID)
+type GatewayListOrganizationExternalAgentGuardrailsRow struct {
+	WorkspaceID string                       `json:"workspace_id"`
+	Policies    []v1alpha1.ResourceReference `json:"policies"`
+}
+
+func (q *Queries) GatewayListOrganizationExternalAgentGuardrails(ctx context.Context, organizationID string) ([]GatewayListOrganizationExternalAgentGuardrailsRow, error) {
+	rows, err := q.db.Query(ctx, gatewayListOrganizationExternalAgentGuardrails, organizationID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []GuardrailClientAccess{}
+	items := []GatewayListOrganizationExternalAgentGuardrailsRow{}
 	for rows.Next() {
-		var i GuardrailClientAccess
-		if err := rows.Scan(
-			&i.OrganizationID,
-			&i.WorkspaceID,
-			&i.ClientID,
-			&i.Policies,
-			&i.UpdatedAt,
-		); err != nil {
+		var i GatewayListOrganizationExternalAgentGuardrailsRow
+		if err := rows.Scan(&i.WorkspaceID, &i.Policies); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

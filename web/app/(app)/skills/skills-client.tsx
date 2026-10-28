@@ -96,19 +96,28 @@ type SkillListData = {
 
 const emptySkills: Skill[] = []
 
-export function SkillsClient({
-  agents,
-  canCreateImmutable,
-  canReadImmutable,
-  pageScope,
-  workspaceId,
-}: {
+type SkillsClientProps = {
   agents: Agent[]
   canCreateImmutable: boolean
   canReadImmutable: boolean
   pageScope: AdministrationPageScope
   workspaceId?: string
-}) {
+}
+
+export function SkillsClient(props: SkillsClientProps) {
+  const search = useSearchParams()
+  // Browser navigation must also clear selections and dialogs from the old scope.
+  const key = JSON.stringify([props.workspaceId, search.get("type"), search.get("agent_name")])
+  return <Skills key={key} {...props} />
+}
+
+function Skills({
+  agents,
+  canCreateImmutable,
+  canReadImmutable,
+  pageScope,
+  workspaceId,
+}: SkillsClientProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()

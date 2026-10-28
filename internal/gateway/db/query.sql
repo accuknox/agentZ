@@ -20,13 +20,19 @@ WITH retained AS (
   FROM retained WHERE client_id <> ''
 )
 SELECT sources.workspace_id, sources.agent_name, sources.client_id,
-  COALESCE(NULLIF(sources.agent_name, ''), NULLIF(app.name, ''), sources.client_id)::text AS name,
-  COALESCE(external.kind::text, '')::text AS agent_kind
+  COALESCE(NULLIF(sources.agent_name, ''), NULLIF(app.name, ''), sources.client_id)::text AS source_name,
+  COALESCE(external.kind::text, '')::text AS agent_kind,
+  COALESCE(external.user_id, '')::text AS user_id,
+  COALESCE(owner.name, '')::text AS user_name,
+  COALESCE(owner.email, '')::text AS user_email,
+  owner.image AS user_image
 FROM sources
 LEFT JOIN oauth_clients app ON app.client_id = sources.client_id
 LEFT JOIN external_agents external ON external.client_id = sources.client_id
   AND external.organization_id = sqlc.arg(organization_id)
-ORDER BY sources.workspace_id, sources.agent_name, name, sources.client_id;
+  AND (sqlc.arg(workspace_id)::text = '' OR external.workspace_id = sqlc.arg(workspace_id))
+LEFT JOIN users owner ON owner.id = external.user_id
+ORDER BY sources.workspace_id, sources.agent_name, source_name, sources.client_id;
 
 -- name: GatewayListGuardrailEvents :many
 SELECT sqlc.embed(event), coalesce(app.name, '')::text AS subject_name
@@ -92,20 +98,29 @@ WHERE event.id = sqlc.arg(id)
   AND (sqlc.arg(workspace_id)::text = '' OR event.workspace_id = sqlc.arg(workspace_id))
   AND event.expires_at > now() AND request.expires_at > now();
 
--- name: GatewayGetGuardrailClientAccess :one
-SELECT * FROM guardrail_client_access
-WHERE organization_id = sqlc.arg(organization_id)
-  AND workspace_id = sqlc.arg(workspace_id)
-  AND client_id = sqlc.arg(client_id);
+-- name: GatewayGetExternalAgentGuardrails :one
+SELECT access.policies FROM guardrail_client_access access
+JOIN external_agents agent ON agent.client_id = access.client_id
+  AND agent.organization_id = access.organization_id
+  AND agent.workspace_id = access.workspace_id
+WHERE access.organization_id = sqlc.arg(organization_id)
+  AND access.workspace_id = sqlc.arg(workspace_id)
+  AND access.client_id = sqlc.arg(client_id);
 
--- name: GatewayListGuardrailClientAccess :many
-SELECT * FROM guardrail_client_access
-WHERE organization_id = sqlc.arg(organization_id)
-  AND workspace_id = sqlc.arg(workspace_id)
-ORDER BY client_id;
+-- name: GatewayListExternalAgentGuardrails :many
+SELECT access.client_id, access.policies FROM guardrail_client_access access
+JOIN external_agents agent ON agent.client_id = access.client_id
+  AND agent.organization_id = access.organization_id
+  AND agent.workspace_id = access.workspace_id
+WHERE access.organization_id = sqlc.arg(organization_id)
+  AND access.workspace_id = sqlc.arg(workspace_id)
+ORDER BY access.client_id;
 
--- name: GatewayListOrganizationGuardrailClientAccess :many
-SELECT access.* FROM guardrail_client_access access
+-- name: GatewayListOrganizationExternalAgentGuardrails :many
+SELECT access.workspace_id, access.policies FROM guardrail_client_access access
+JOIN external_agents agent ON agent.client_id = access.client_id
+  AND agent.organization_id = access.organization_id
+  AND agent.workspace_id = access.workspace_id
 JOIN workspaces ON workspaces.id = access.workspace_id
   AND workspaces.organization_id = access.organization_id
 WHERE access.organization_id = sqlc.arg(organization_id)

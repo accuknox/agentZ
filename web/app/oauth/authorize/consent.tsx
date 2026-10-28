@@ -475,14 +475,6 @@ export function Consent({
           ) : null}
         </section>
       ) : null}
-      {selection.models.length ? (
-        <p className="text-sm text-muted-foreground">
-          Organization-required guardrails and policies assigned to this application&apos;s
-          workspace access apply to model requests. Guardrail checks may block requests or modify
-          supported content. Guardrail events record metadata; conversation storage is managed
-          separately.
-        </p>
-      ) : null}
       <div className="flex items-start gap-2.5 text-sm leading-relaxed text-muted-foreground">
         <ShieldCheck aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
         <p>

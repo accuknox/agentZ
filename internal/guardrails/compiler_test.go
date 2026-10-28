@@ -229,11 +229,11 @@ func TestRemoteProviderMaskingCannotBeOverriddenByAnUnusedAction(t *testing.T) {
 			Connection:  &api.ResourceReference{Scope: api.ResourceScopeWorkspace, Name: "detector"},
 		}},
 	}
-	if err := ValidatePolicy(policy); err == nil {
+	if err := validatePolicy(policy); err == nil {
 		t.Fatal("a remote mask override was silently accepted even though native providers own the resulting action")
 	}
 	policy.Checks[0].Action = "deny"
-	if err := ValidatePolicy(policy); err != nil {
+	if err := validatePolicy(policy); err != nil {
 		t.Fatalf("normal native-provider enforcement was rejected: %v", err)
 	}
 }
@@ -399,16 +399,16 @@ func TestStreamingRegexNeedsBoundedContext(t *testing.T) {
 			}
 			policy := api.GuardrailPolicySpec{DisplayName: "Output policy", Checks: []api.GuardrailCheck{check}}
 			wantError := pattern != "SECRET" && pattern != "[0-9]{3}"
-			if err := ValidatePolicy(policy); (err != nil) != wantError {
+			if err := validatePolicy(policy); (err != nil) != wantError {
 				t.Fatalf("stream validation = %v, want error %v", err, wantError)
 			}
 			policy.Checks[0].Mode = "audit"
-			if err := ValidatePolicy(policy); err != nil {
+			if err := validatePolicy(policy); err != nil {
 				t.Fatalf("audit check rejected: %v", err)
 			}
 			policy.Checks[0].Mode = "enforce"
 			policy.Checks[0].Action = "mask"
-			if err := ValidatePolicy(policy); err != nil {
+			if err := validatePolicy(policy); err != nil {
 				t.Fatalf("response masking policy rejected: %v", err)
 			}
 		})

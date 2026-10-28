@@ -4387,8 +4387,6 @@ components:
       properties:
         assignment:
           $ref: '#/components/schemas/GuardrailAssignment'
-        clientId:
-          type: string
         sandbox:
           type: string
         sandboxScope:
@@ -5496,7 +5494,7 @@ components:
           - Sandbox
           - Inference Pool
           - Guardrail Policy
-          - External Client
+          - External Agent
           type: string
         name:
           type: string

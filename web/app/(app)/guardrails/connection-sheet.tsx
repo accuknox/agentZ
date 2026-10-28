@@ -101,7 +101,7 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const [provider, setProvider] = useState<CreateGuardrailConnectionData["body"]["provider"]>(
-    connection?.provider ?? "Webhook"
+    connection?.provider ?? "Bedrock"
   )
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState("")
@@ -270,13 +270,13 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    <SelectItem value="OpenAI">
-                      <GuardrailProviderIcon provider="OpenAI" />
-                      {guardrailProviderLabels.OpenAI}
-                    </SelectItem>
                     <SelectItem value="Bedrock">
                       <GuardrailProviderIcon provider="Bedrock" />
                       {guardrailProviderLabels.Bedrock}
+                    </SelectItem>
+                    <SelectItem value="OpenAI">
+                      <GuardrailProviderIcon provider="OpenAI" />
+                      {guardrailProviderLabels.OpenAI}
                     </SelectItem>
                     <SelectItem value="ModelArmor">
                       <GuardrailProviderIcon provider="ModelArmor" />

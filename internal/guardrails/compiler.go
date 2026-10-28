@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"regexp"
 	"regexp/syntax"
 	"slices"
 	"strconv"
@@ -79,8 +78,8 @@ func ValidateConnection(spec api.GuardrailConnectionSpec) error {
 	return nil
 }
 
-// ValidatePolicy validates locally knowable rules before resolving scoped dependencies.
-func ValidatePolicy(spec api.GuardrailPolicySpec) error {
+// validatePolicy checks local rules before resolving scoped dependencies.
+func validatePolicy(spec api.GuardrailPolicySpec) error {
 	if strings.TrimSpace(spec.DisplayName) == "" || len(spec.Checks) == 0 {
 		return errors.New("policy display name and at least one check are required")
 	}
@@ -150,17 +149,14 @@ func ValidatePolicy(spec api.GuardrailPolicySpec) error {
 				builtins[builtin] = true
 			}
 			for _, pattern := range check.Regex.Patterns {
-				if _, err := regexp.Compile(pattern); err != nil {
+				parsed, err := syntax.Parse(pattern, syntax.Perl)
+				if err != nil {
 					return fmt.Errorf("check %q has an invalid regular expression: %w", check.ID, err)
 				}
 				// Blocking streamed output requires bounded context. Mask and
 				// audit verdicts do not enforce changes to streamed content.
 				if check.Phase != "output" || check.Mode != "enforce" || check.Action != "deny" {
 					continue
-				}
-				parsed, err := syntax.Parse(pattern, syntax.Perl)
-				if err != nil {
-					return fmt.Errorf("check %q has an invalid regular expression: %w", check.ID, err)
 				}
 				width, bounded := boundedPatternWidth(parsed)
 				if !bounded || width > 256 {
@@ -230,13 +226,10 @@ func resolve(ctx context.Context, reader client.Reader, namespace, orgNamespace 
 			}
 		}
 		key := policyNamespace + "/" + ref.Name
-		if previousMandatory, exists := seen[key]; exists {
-			if previousMandatory && !mandatory {
-				continue
-			}
+		if seen[key] {
 			return nil, fmt.Errorf("guardrail policy %q is assigned more than once", ref.Name)
 		}
-		seen[key] = mandatory
+		seen[key] = true
 		policy := replacement
 		if policy == nil || policy.Namespace != policyNamespace || policy.Name != ref.Name {
 			policy = &api.GuardrailPolicy{}
@@ -497,7 +490,7 @@ func CompilePolicy(ctx context.Context, reader client.Reader, namespace string, 
 }
 
 func (b *Bundle) appendPolicy(ctx context.Context, reader client.Reader, namespace string, policy *api.GuardrailPolicy, mandatory bool) error {
-	if err := ValidatePolicy(policy.Spec); err != nil {
+	if err := validatePolicy(policy.Spec); err != nil {
 		return fmt.Errorf("policy %q: %w", policy.Name, err)
 	}
 	for _, check := range policy.Spec.Checks {

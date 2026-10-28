@@ -4,7 +4,6 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   Activity,
-  AppWindow,
   ArrowLeft,
   Bot,
   BotMessageSquare,
@@ -78,18 +77,18 @@ export function WorkspaceNavigation(props: WorkspaceNavigationProps) {
   if (workspace.capabilities.guardrail_policies.read) guardrailsView = "policies"
   const resources = [
     {
-      href: `${root}/guardrails/${guardrailsView}`,
-      label: "Guardrails",
-      icon: BrickWallShield,
-      visible: canReadGuardrails,
-      tour: "guardrails",
-    },
-    {
       href: `${root}/sandboxes`,
       label: "Sandboxes",
       icon: Box,
       visible: workspace.capabilities.sandboxes.read,
       tour: "sandboxes",
+    },
+    {
+      href: `${root}/guardrails/${guardrailsView}`,
+      label: "Guardrails",
+      icon: BrickWallShield,
+      visible: canReadGuardrails,
+      tour: "guardrails",
     },
     {
       href: `${root}/skills`,
@@ -107,13 +106,6 @@ export function WorkspaceNavigation(props: WorkspaceNavigationProps) {
     },
   ] as const
   const administration = [
-    {
-      href: `${root}/applications/access`,
-      label: "Application access",
-      icon: AppWindow,
-      visible: canAdminister,
-      tour: "application-access",
-    },
     {
       href: `${root}/external-agents`,
       label: "External agents",

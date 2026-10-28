@@ -26,7 +26,7 @@ type ChatShellProps = Pick<
   | "onDraftModeChange"
 > & {
   draftId?: string
-  onDraftPromoted?: () => void
+  onDraftPromoted?: (sessionId: string) => void
   onDraftAgentChange?: (name: string) => void
   draftPath?: string
   headerContext?: ReactNode
@@ -195,7 +195,7 @@ export function ChatShell({
             greetingIndex={greetingIndex}
             onSessionCreated={(id) => {
               setPromotedSession({ chatKey: routeChatKey, sessionId: id })
-              onDraftPromoted?.()
+              onDraftPromoted?.(id)
 
               const url = new URL(window.location.href)
               if (url.pathname !== draftPath || url.searchParams.toString() !== search.toString()) {

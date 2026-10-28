@@ -27,7 +27,7 @@ import {
   zGuardrailSettings,
   zGuardrailResourceDiscoveryInput,
 } from "@/lib/gateway/client/zod.gen"
-import { listGuardrailClientAccess } from "@/data/guardrail-client-access"
+import { getExternalAgentGuardrails } from "@/data/external-agents"
 import { listGuardrailPoliciesQuery, getGuardrailSettingsQuery } from "@/data/guardrail.queries"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { sandboxesTag } from "@/data/cache"
@@ -141,7 +141,7 @@ export async function saveGuardrailSettingsAction(settings: GuardrailSettings) {
   return { data: result.data }
 }
 
-export async function saveGuardrailClientAccessAction(
+export async function saveExternalAgentGuardrailsAction(
   orgSlug: string,
   workspaceSlug: string,
   clientId: string,
@@ -150,14 +150,14 @@ export async function saveGuardrailClientAccessAction(
   const parsed = zGuardrailAssignment.safeParse(input)
   if (!parsed.success) return { error: "Check policy assignments." }
   const [access, session] = await Promise.all([
-    listGuardrailClientAccess(orgSlug, workspaceSlug),
+    getExternalAgentGuardrails(orgSlug, workspaceSlug, clientId),
     getAuthSession(),
   ])
-  if (!access || !session || !access.clients.some((client) => client.clientId === clientId))
-    return { error: "This client does not have editable model access in this workspace." }
+  if (!access || !session)
+    return { error: "This external agent does not have editable guardrails in this workspace." }
   const validated = await getEffectiveGuardrails({
-    client: getGatewayServerClient(access.workspace.id),
-    headers: { "X-AgentZ-Workspace-ID": access.workspace.id },
+    client: getGatewayServerClient(access.workspaceId),
+    headers: { "X-AgentZ-Workspace-ID": access.workspaceId },
     body: { assignment: parsed.data },
   })
   if (validated.error) return { error: validated.error.message }
@@ -166,8 +166,8 @@ export async function saveGuardrailClientAccessAction(
     await tx
       .insert(schema.guardrailClientAccess)
       .values({
-        organizationId: access.organization.id,
-        workspaceId: access.workspace.id,
+        organizationId: access.organizationId,
+        workspaceId: access.workspaceId,
         clientId,
         policies,
       })
@@ -181,11 +181,11 @@ export async function saveGuardrailClientAccessAction(
       })
     await tx.insert(schema.eventTrailEvents).values({
       id: `event-trail-${randomUUID()}`,
-      organizationId: access.organization.id,
-      workspaceId: access.workspace.id,
+      organizationId: access.organizationId,
+      workspaceId: access.workspaceId,
       actorId: session.session.user.id,
       actorType: "user",
-      action: "guardrails.client_access.update",
+      action: "guardrails.external_agent.update",
       category: "guardrails",
       result: "succeeded",
       targetId: clientId,
@@ -195,18 +195,17 @@ export async function saveGuardrailClientAccessAction(
   return { success: true }
 }
 
-export async function loadClientGuardrailsAction(
+export async function loadExternalAgentGuardrailsAction(
   orgSlug: string,
   workspaceSlug: string,
   clientId: string
 ) {
-  const access = await listGuardrailClientAccess(orgSlug, workspaceSlug)
-  const subject = access?.clients.find((client) => client.clientId === clientId)
-  if (!access || !subject)
-    return { error: "This client does not have editable model access in this workspace." }
+  const access = await getExternalAgentGuardrails(orgSlug, workspaceSlug, clientId)
+  if (!access)
+    return { error: "This external agent does not have editable guardrails in this workspace." }
   const [policies, settings] = await Promise.all([
-    listGuardrailPoliciesQuery(access.workspace.id),
-    getGuardrailSettingsQuery(access.workspace.id),
+    listGuardrailPoliciesQuery(access.workspaceId),
+    getGuardrailSettingsQuery(access.workspaceId),
   ])
   if (policies.error || settings.error)
     return {
@@ -214,10 +213,10 @@ export async function loadClientGuardrailsAction(
     }
   return {
     data: {
-      subject,
+      assignment: access.assignment,
+      updatedAt: access.updatedAt,
       policies: policies.data.items,
       settings: settings.data,
-      workspaceId: access.workspace.id,
     },
   }
 }

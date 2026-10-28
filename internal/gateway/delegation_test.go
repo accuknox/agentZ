@@ -49,9 +49,9 @@ type delegationQueries struct {
 	externalAgent  *gatewaydb.ExternalAgent
 }
 
-// GatewayGetGuardrailClientAccess reports no optional client policies for delegation fixtures.
-func (q *delegationQueries) GatewayGetGuardrailClientAccess(context.Context, gatewaydb.GatewayGetGuardrailClientAccessParams) (gatewaydb.GuardrailClientAccess, error) {
-	return gatewaydb.GuardrailClientAccess{}, pgx.ErrNoRows
+// GatewayGetExternalAgentGuardrails reports no optional agent policies for delegation fixtures.
+func (q *delegationQueries) GatewayGetExternalAgentGuardrails(context.Context, gatewaydb.GatewayGetExternalAgentGuardrailsParams) ([]agentzv1alpha1.ResourceReference, error) {
+	return nil, pgx.ErrNoRows
 }
 
 // GatewayGetExternalAgent returns the configured external agent fixture.

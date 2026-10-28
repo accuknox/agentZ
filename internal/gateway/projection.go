@@ -90,7 +90,7 @@ func (s *Service) delegationReady(ctx context.Context, grant gatewaydb.Delegatio
 		if workspaceID == "" {
 			return errors.New("guardrail workspace context is missing")
 		}
-		assignment, err := s.resolveGuardrailAssignment(ctx, grant.OrganizationID.String, workspaceID, grant.ClientID)
+		assignment, err := s.resolveExternalAgentGuardrails(ctx, grant.OrganizationID.String, workspaceID, grant.ClientID)
 		if err != nil {
 			return err
 		}
@@ -232,7 +232,7 @@ func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.Delegat
 		key := ctrlclient.ObjectKey{Namespace: selected.Namespace, Name: selected.Provider}
 		provider := resources.providers[key]
 
-		assignment, err := s.resolveGuardrailAssignment(ctx, grant.OrganizationID.String, selected.WorkspaceId, grant.ClientID)
+		assignment, err := s.resolveExternalAgentGuardrails(ctx, grant.OrganizationID.String, selected.WorkspaceId, grant.ClientID)
 		if err != nil {
 			return err
 		}

@@ -41,7 +41,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { LensSourceIcon } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/lens-filters"
+import {
+  ExternalAgentOptions,
+  ExternalAppOptions,
+  LensSourceIcon,
+} from "@/components/lens-source-options"
 import type {
   GetGuardrailEventChartData,
   GuardrailEventSources,
@@ -205,7 +209,7 @@ export function GuardrailEventFilters({
         <SelectTrigger aria-label="Agent or external source" className="h-8 w-full sm:w-64">
           <SelectValue placeholder="All sources" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent position="popper">
           <SelectGroup>
             <SelectItem value="all">
               <Layers3 aria-hidden="true" />
@@ -231,34 +235,8 @@ export function GuardrailEventFilters({
               ))}
             </SelectGroup>
           ) : null}
-          {sources.apps.some((app) => app.agent_kind) ? (
-            <SelectGroup>
-              <SelectLabel>External agents</SelectLabel>
-              {sources.apps.map((app) =>
-                app.agent_kind ? (
-                  <SelectItem key={app.client_id} value={`app:${app.client_id}`}>
-                    <LensSourceIcon kind={app.agent_kind} />
-                    {app.name}
-                    <span className="text-xs text-muted-foreground">{app.client_id.slice(-8)}</span>
-                  </SelectItem>
-                ) : null
-              )}
-            </SelectGroup>
-          ) : null}
-          {sources.apps.some((app) => !app.agent_kind) ? (
-            <SelectGroup>
-              <SelectLabel>External apps</SelectLabel>
-              {sources.apps.map((app) =>
-                !app.agent_kind ? (
-                  <SelectItem key={app.client_id} value={`app:${app.client_id}`}>
-                    <LensSourceIcon kind="app" />
-                    {app.name}
-                    <span className="text-xs text-muted-foreground">{app.client_id.slice(-8)}</span>
-                  </SelectItem>
-                ) : null
-              )}
-            </SelectGroup>
-          ) : null}
+          <ExternalAgentOptions apps={sources.apps} valuePrefix="app:" />
+          <ExternalAppOptions apps={sources.apps} valuePrefix="app:" label="External apps" />
         </SelectContent>
       </Select>
       <DateRangePicker

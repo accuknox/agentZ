@@ -15,6 +15,7 @@ import { getWorkspaceDirectory } from "@/data/workspaces"
 import {
   getGuardrailEventChart,
   listGuardrailEvents,
+  type GuardrailEventSources,
   type ResourceCapabilities,
 } from "@/lib/gateway/client"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
@@ -126,7 +127,12 @@ export async function GuardrailsPage(props: GuardrailsPageProps) {
           key={`events:${JSON.stringify({ ...query, cursor })}`}
           fallback={<AdministrationLoadingState />}
         >
-          <GuardrailEventList result={page} basePath={basePath} workspaceId={workspaceId} />
+          <GuardrailEventList
+            result={page}
+            apps={sources.data.apps}
+            basePath={basePath}
+            workspaceId={workspaceId}
+          />
         </Suspense>
       </div>
     )
@@ -200,13 +206,7 @@ export async function GuardrailsPage(props: GuardrailsPageProps) {
     }
   }
   if (section === "settings" && settings)
-    content = (
-      <GuardrailOrganizationSettings
-        canModify={canAdminister}
-        initial={settings}
-        policies={policies}
-      />
-    )
+    content = <GuardrailOrganizationSettings initial={settings} policies={policies} />
 
   return (
     <>
@@ -263,10 +263,12 @@ async function GuardrailChart({
 
 async function GuardrailEventList({
   result,
+  apps,
   basePath,
   workspaceId,
 }: {
   result: ReturnType<typeof listGuardrailEvents<false>>
+  apps: GuardrailEventSources["apps"]
   basePath: `/orgs/${string}/guardrails`
   workspaceId?: string
 }) {
@@ -279,5 +281,12 @@ async function GuardrailEventList({
         description={response.error.message}
       />
     )
-  return <GuardrailEvents data={response.data} basePath={basePath} workspaceId={workspaceId} />
+  return (
+    <GuardrailEvents
+      data={response.data}
+      apps={apps}
+      basePath={basePath}
+      workspaceId={workspaceId}
+    />
+  )
 }

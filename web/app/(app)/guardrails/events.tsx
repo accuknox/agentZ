@@ -4,8 +4,6 @@ import { useSearchParams } from "next/navigation"
 import { queryOptions, useQuery } from "@tanstack/react-query"
 import { createColumnHelper, getCoreRowModel, useReactTable } from "@tanstack/react-table"
 import {
-  AppWindow,
-  Bot,
   BrickWallShield,
   MessagesSquare,
   MessageSquareText,
@@ -13,11 +11,16 @@ import {
   ScrollText,
   Wrench,
 } from "lucide-react"
-import type { GuardrailEvent, ListGuardrailEventsResponse } from "@/lib/gateway/client"
+import type {
+  GuardrailEvent,
+  GuardrailEventSources,
+  ListGuardrailEventsResponse,
+} from "@/lib/gateway/client"
 import { getGuardrailEvent } from "@/lib/gateway/client"
 import { getGuardrailEventOptions } from "@/lib/gateway/client/@tanstack/react-query.gen"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import { AdminDataGrid } from "@/components/admin-data-grid"
+import { LensSourceIcon } from "@/components/lens-source-options"
 import { AdministrationState } from "@/components/administration"
 import { TokenTablePagination } from "@/components/table-pagination"
 import { Badge } from "@/components/ui/badge"
@@ -32,11 +35,12 @@ const column = createColumnHelper<GuardrailEvent>()
 
 type GuardrailEventsProps = {
   data: ListGuardrailEventsResponse
+  apps: GuardrailEventSources["apps"]
   basePath: `/orgs/${string}/guardrails`
   workspaceId?: string
 }
 
-export function GuardrailEvents({ data, basePath, workspaceId }: GuardrailEventsProps) {
+export function GuardrailEvents({ data, apps, basePath, workspaceId }: GuardrailEventsProps) {
   "use no memo"
   const searchParams = useSearchParams()
   const eventId = searchParams.get("event") ?? ""
@@ -159,10 +163,12 @@ export function GuardrailEvents({ data, basePath, workspaceId }: GuardrailEvents
         header: "Source",
         cell: ({ row }) => {
           const event = row.original
-          const Icon = event.agent_name ? Bot : AppWindow
+          const kind = event.agent_name
+            ? "agent"
+            : (apps.find((app) => app.client_id === event.client_id)?.agent_kind ?? "app")
           return (
             <div className="flex min-w-0 items-center gap-2">
-              <Icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+              <LensSourceIcon kind={kind} />
               <span className="truncate">
                 {event.agent_name || event.subject_name || event.client_id || "Unknown source"}
               </span>

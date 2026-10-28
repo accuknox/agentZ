@@ -8,6 +8,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -78,7 +79,7 @@ type Querier interface {
 	GatewayGetCodingWorktree(ctx context.Context, arg GatewayGetCodingWorktreeParams) (GatewayGetCodingWorktreeRow, error)
 	GatewayGetDelegationGrant(ctx context.Context, arg GatewayGetDelegationGrantParams) (DelegationGrant, error)
 	GatewayGetExternalAgent(ctx context.Context, clientID string) (ExternalAgent, error)
-	GatewayGetGuardrailClientAccess(ctx context.Context, arg GatewayGetGuardrailClientAccessParams) (GuardrailClientAccess, error)
+	GatewayGetExternalAgentGuardrails(ctx context.Context, arg GatewayGetExternalAgentGuardrailsParams) ([]v1alpha1.ResourceReference, error)
 	GatewayGetGuardrailEvent(ctx context.Context, arg GatewayGetGuardrailEventParams) (GatewayGetGuardrailEventRow, error)
 	GatewayGetGuardrailEventChart(ctx context.Context, arg GatewayGetGuardrailEventChartParams) ([]GatewayGetGuardrailEventChartRow, error)
 	GatewayGetGuardrailRequest(ctx context.Context, arg GatewayGetGuardrailRequestParams) ([]byte, error)
@@ -122,15 +123,15 @@ type Querier interface {
 	GatewayListEventTrailEvents(ctx context.Context, arg GatewayListEventTrailEventsParams) ([]GatewayListEventTrailEventsRow, error)
 	GatewayListEventTrailTargetTypes(ctx context.Context, arg GatewayListEventTrailTargetTypesParams) ([]EventTrailTarget, error)
 	GatewayListEventTrailWorkspaces(ctx context.Context, arg GatewayListEventTrailWorkspacesParams) ([]GatewayListEventTrailWorkspacesRow, error)
+	GatewayListExternalAgentGuardrails(ctx context.Context, arg GatewayListExternalAgentGuardrailsParams) ([]GatewayListExternalAgentGuardrailsRow, error)
 	GatewayListFileEvents(ctx context.Context, arg GatewayListFileEventsParams) ([]GatewayListFileEventsRow, error)
 	GatewayListFileEventsAggregated(ctx context.Context, arg GatewayListFileEventsAggregatedParams) ([]GatewayListFileEventsAggregatedRow, error)
-	GatewayListGuardrailClientAccess(ctx context.Context, arg GatewayListGuardrailClientAccessParams) ([]GuardrailClientAccess, error)
 	GatewayListGuardrailEventSources(ctx context.Context, arg GatewayListGuardrailEventSourcesParams) ([]GatewayListGuardrailEventSourcesRow, error)
 	GatewayListGuardrailEvents(ctx context.Context, arg GatewayListGuardrailEventsParams) ([]GatewayListGuardrailEventsRow, error)
 	GatewayListLensApps(ctx context.Context, arg GatewayListLensAppsParams) ([]GatewayListLensAppsRow, error)
 	GatewayListNetworkEvents(ctx context.Context, arg GatewayListNetworkEventsParams) ([]GatewayListNetworkEventsRow, error)
 	GatewayListNetworkEventsAggregated(ctx context.Context, arg GatewayListNetworkEventsAggregatedParams) ([]GatewayListNetworkEventsAggregatedRow, error)
-	GatewayListOrganizationGuardrailClientAccess(ctx context.Context, organizationID string) ([]GuardrailClientAccess, error)
+	GatewayListOrganizationExternalAgentGuardrails(ctx context.Context, organizationID string) ([]GatewayListOrganizationExternalAgentGuardrailsRow, error)
 	GatewayListProcessEvents(ctx context.Context, arg GatewayListProcessEventsParams) ([]GatewayListProcessEventsRow, error)
 	GatewayListProcessEventsAggregated(ctx context.Context, arg GatewayListProcessEventsAggregatedParams) ([]GatewayListProcessEventsAggregatedRow, error)
 	GatewayListProvisioningWorkspaces(ctx context.Context) ([]Workspace, error)

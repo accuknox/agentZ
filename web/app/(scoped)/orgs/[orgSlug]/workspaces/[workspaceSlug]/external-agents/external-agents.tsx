@@ -70,7 +70,7 @@ import {
 } from "@/components/ui/sheet"
 import { RelativeDateTime } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ClientGuardrailsPanel } from "@/components/guardrails/client-guardrails"
+import { ExternalAgentGuardrailsPanel } from "@/components/guardrails/external-agent-guardrails"
 import { ApplicationAccessDetails } from "@/app/(account)/settings/applications/application-access-sheet"
 import { externalAgentInput } from "@/data/schema"
 import type { ExternalAgent } from "@/data/external-agents"
@@ -437,7 +437,7 @@ export function ExternalAgents({
               {(organization.superadmin || workspace.capabilities.administer) &&
               selected.connected ? (
                 <TabsContent className="overflow-y-auto" value="guardrails">
-                  <ClientGuardrailsPanel
+                  <ExternalAgentGuardrailsPanel
                     clientId={selected.clientId}
                     orgSlug={orgSlug}
                     workspaceSlug={workspaceSlug}

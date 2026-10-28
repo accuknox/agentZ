@@ -1,15 +1,14 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { useRouter } from "next/navigation"
 import { queryOptions, useQuery } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { Save } from "lucide-react"
 import { authClient } from "@/lib/auth-client"
 import type { GuardrailAssignment } from "@/lib/gateway/client"
 import {
-  loadClientGuardrailsAction,
-  saveGuardrailClientAccessAction,
+  loadExternalAgentGuardrailsAction,
+  saveExternalAgentGuardrailsAction,
 } from "@/data/guardrail.actions"
 import { SubjectGuardrails } from "@/components/guardrails/subject-guardrails"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -18,26 +17,26 @@ import { FieldError } from "@/components/ui/field"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Separator } from "@/components/ui/separator"
 
-type ClientGuardrailData = NonNullable<
-  Awaited<ReturnType<typeof loadClientGuardrailsAction>>["data"]
+type ExternalAgentGuardrailData = NonNullable<
+  Awaited<ReturnType<typeof loadExternalAgentGuardrailsAction>>["data"]
 >
 
-type ClientGuardrailsPanelProps = {
+type ExternalAgentGuardrailsPanelProps = {
   orgSlug: string
   workspaceSlug: string
   clientId: string
 }
 
-export function ClientGuardrailsPanel(props: ClientGuardrailsPanelProps) {
+export function ExternalAgentGuardrailsPanel(props: ExternalAgentGuardrailsPanelProps) {
   const { orgSlug, workspaceSlug, clientId } = props
 
   const { data: actor } = authClient.useSession()
   const query = useQuery(
     queryOptions({
-      queryKey: ["clientGuardrails", actor?.user.id, orgSlug, workspaceSlug, clientId],
+      queryKey: ["externalAgentGuardrails", actor?.user.id, orgSlug, workspaceSlug, clientId],
       enabled: actor?.user.id !== undefined,
       queryFn: async () => {
-        const result = await loadClientGuardrailsAction(orgSlug, workspaceSlug, clientId)
+        const result = await loadExternalAgentGuardrailsAction(orgSlug, workspaceSlug, clientId)
         if (result.error || !result.data)
           throw new Error(result.error ?? "Could not load guardrails.")
         return result.data
@@ -65,28 +64,24 @@ export function ClientGuardrailsPanel(props: ClientGuardrailsPanelProps) {
       </div>
     )
   return (
-    <ClientGuardrailsForm
+    <ExternalAgentGuardrailsForm
+      {...props}
       data={query.data}
-      key={`${clientId}/${query.data.subject.updatedAt ?? "new"}`}
+      key={`${clientId}/${query.data.updatedAt ?? "new"}`}
       onSaved={() => void query.refetch()}
-      orgSlug={orgSlug}
-      workspaceSlug={workspaceSlug}
     />
   )
 }
 
-type ClientGuardrailsFormProps = {
-  data: ClientGuardrailData
-  orgSlug: string
-  workspaceSlug: string
+type ExternalAgentGuardrailsFormProps = ExternalAgentGuardrailsPanelProps & {
+  data: ExternalAgentGuardrailData
   onSaved: () => void
 }
 
-function ClientGuardrailsForm(props: ClientGuardrailsFormProps) {
-  const { data, orgSlug, workspaceSlug, onSaved } = props
+function ExternalAgentGuardrailsForm(props: ExternalAgentGuardrailsFormProps) {
+  const { data, orgSlug, workspaceSlug, clientId, onSaved } = props
 
-  const router = useRouter()
-  const [assignment, setAssignment] = useState<GuardrailAssignment>(data.subject.guardrails)
+  const [assignment, setAssignment] = useState<GuardrailAssignment>(data.assignment)
   const [error, setError] = useState("")
   const [pending, startTransition] = useTransition()
   return (
@@ -96,18 +91,17 @@ function ClientGuardrailsForm(props: ClientGuardrailsFormProps) {
         event.preventDefault()
         setError("")
         startTransition(async () => {
-          const result = await saveGuardrailClientAccessAction(
+          const result = await saveExternalAgentGuardrailsAction(
             orgSlug,
             workspaceSlug,
-            data.subject.clientId,
+            clientId,
             assignment
           )
           if (result.error) {
             setError(result.error)
             return
           }
-          toast.success("Guardrails saved. Changes apply after rollout.")
-          router.refresh()
+          toast.success("Guardrails saved. Changes will apply automatically.")
           onSaved()
         })
       }}

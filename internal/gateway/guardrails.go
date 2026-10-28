@@ -123,6 +123,20 @@ func (s *Service) serveGuardrailConnections(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	if r.Method == http.MethodDelete {
+		conflict, err := s.selectedOrganizationResourceConflict(
+			r.Context(),
+			access,
+			api.OrganizationResourceKindGuardrailConnection,
+			item.Name,
+		)
+		if err != nil {
+			apiutil.WriteInternalError(w, r, err)
+			return
+		}
+		if conflict != nil {
+			apiutil.WriteError(w, r, conflict)
+			return
+		}
 		policies := &api.GuardrailPolicyList{}
 		if err := s.k8sClient.List(r.Context(), policies); err != nil {
 			apiutil.WriteInternalError(w, r, err)
@@ -147,7 +161,7 @@ func (s *Service) serveGuardrailConnections(w http.ResponseWriter, r *http.Reque
 				}
 			}
 		}
-		err := s.k8sClient.Delete(r.Context(), item)
+		err = s.k8sClient.Delete(r.Context(), item)
 		apiErr = s.recordGuardrailMutation(r.Context(), access, gatewaydb.EventTrailTargetGuardrailConnection, item.Name, err)
 		if apiErr != nil {
 			apiutil.WriteError(w, r, apiErr)
@@ -447,6 +461,20 @@ func (s *Service) serveGuardrailPolicies(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	if r.Method == http.MethodDelete {
+		conflict, err := s.selectedOrganizationResourceConflict(
+			r.Context(),
+			access,
+			api.OrganizationResourceKindGuardrailPolicy,
+			item.Name,
+		)
+		if err != nil {
+			apiutil.WriteInternalError(w, r, err)
+			return
+		}
+		if conflict != nil {
+			apiutil.WriteError(w, r, conflict)
+			return
+		}
 		if item.Namespace == org && slices.Contains(tenant.Spec.Guardrails.MandatoryPolicies, item.Name) {
 			apiutil.WriteError(w, r, apiutil.NewError(
 				http.StatusConflict, "resource_in_use",
@@ -478,29 +506,24 @@ func (s *Service) serveGuardrailPolicies(w http.ResponseWriter, r *http.Request,
 				}
 			}
 		}
-		clientAssignments, err := s.queries.GatewayListOrganizationGuardrailClientAccess(r.Context(), access.claims.OrganizationID)
+		assignments, err := s.queries.GatewayListOrganizationExternalAgentGuardrails(r.Context(), access.claims.OrganizationID)
 		if err != nil {
 			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		for _, assignment := range clientAssignments {
-			var refs []api.ResourceReference
-			if err := json.Unmarshal(assignment.Policies, &refs); err != nil {
-				apiutil.WriteInternalError(w, r, err)
-				return
-			}
-			for _, ref := range refs {
+		for _, assignment := range assignments {
+			for _, ref := range assignment.Policies {
 				if ref.Name != item.Name {
 					continue
 				}
-				ns := api.ScopeNamespace(api.ResourceScopeOrganisation, access.claims.OrganizationID)
+				ns := org
 				if ref.Scope == api.ResourceScopeWorkspace {
 					ns = api.ScopeNamespace(api.ResourceScopeWorkspace, assignment.WorkspaceID)
 				}
 				if ns == item.Namespace {
 					apiutil.WriteError(w, r, apiutil.NewError(
 						http.StatusConflict, "resource_in_use",
-						"policy is assigned to an external client", errBadRequest,
+						"policy is assigned to an external agent", errBadRequest,
 					))
 					return
 				}
@@ -670,7 +693,6 @@ func (s *Service) serveGuardrailSettings(w http.ResponseWriter, r *http.Request)
 				return
 			}
 			seen[name] = true
-
 		}
 		tenant.Spec.Guardrails = api.GuardrailSettings{
 			MandatoryPolicies: input.MandatoryPolicies,
@@ -713,13 +735,6 @@ func (s *Service) GetEffectiveGuardrails(w http.ResponseWriter, r *http.Request,
 	}
 	assignment := input.Assignment
 	contextNamespace := access.namespace
-	if input.Sandbox != nil && input.ClientId != nil {
-		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusBadRequest, "invalid_request",
-			"select one Sandbox or external client context", errBadRequest,
-		))
-		return
-	}
 	if input.Sandbox != nil {
 		selectedScope := api.ResourceScope(resourceScope(access.workspaceID))
 		if input.SandboxScope != nil {
@@ -743,14 +758,6 @@ func (s *Service) GetEffectiveGuardrails(w http.ResponseWriter, r *http.Request,
 		assignment = sandbox.Spec.Guardrails
 		contextNamespace = sandbox.Namespace
 	}
-	if input.ClientId != nil {
-		var err error
-		assignment, err = s.resolveGuardrailAssignment(r.Context(), access.claims.OrganizationID, access.workspaceID, *input.ClientId)
-		if err != nil {
-			apiutil.WriteInternalError(w, r, err)
-			return
-		}
-	}
 	bundle, err := guardrails.Resolve(r.Context(), s.k8sClient, contextNamespace, assignment)
 	if err != nil {
 		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", err.Error(), err))
@@ -768,9 +775,9 @@ func (s *Service) GetEffectiveGuardrails(w http.ResponseWriter, r *http.Request,
 	apiutil.WriteJSON(w, http.StatusOK, gatewayapi.GuardrailEffective{Revision: bundle.Revision, Checks: checks})
 }
 
-// resolveGuardrailAssignment reads client policy additions independently of grant snapshots.
-func (s *Service) resolveGuardrailAssignment(ctx context.Context, organizationID, workspaceID, clientID string) (api.GuardrailAssignment, error) {
-	row, err := s.queries.GatewayGetGuardrailClientAccess(ctx, gatewaydb.GatewayGetGuardrailClientAccessParams{
+// resolveExternalAgentGuardrails reads additions only for registered external agents.
+func (s *Service) resolveExternalAgentGuardrails(ctx context.Context, organizationID, workspaceID, clientID string) (api.GuardrailAssignment, error) {
+	policies, err := s.queries.GatewayGetExternalAgentGuardrails(ctx, gatewaydb.GatewayGetExternalAgentGuardrailsParams{
 		OrganizationID: organizationID,
 		WorkspaceID:    workspaceID,
 		ClientID:       clientID,
@@ -781,11 +788,7 @@ func (s *Service) resolveGuardrailAssignment(ctx context.Context, organizationID
 	if err != nil {
 		return api.GuardrailAssignment{}, err
 	}
-	var refs []api.ResourceReference
-	if err := json.Unmarshal(row.Policies, &refs); err != nil {
-		return api.GuardrailAssignment{}, err
-	}
-	return api.GuardrailAssignment{Policies: refs}, nil
+	return api.GuardrailAssignment{Policies: policies}, nil
 }
 
 // recordGuardrailMutation records the persistence result without storing policy content or credentials.
@@ -833,7 +836,6 @@ func (s *Service) validateGuardrailChange(ctx context.Context, access resourceAc
 		return err
 	}
 	for _, sandbox := range sandboxes.Items {
-
 		affected := mandatory
 		for _, ref := range sandbox.Spec.Guardrails.Policies {
 			namespace := org
@@ -862,15 +864,12 @@ func (s *Service) validateGuardrailChange(ctx context.Context, access resourceAc
 			return fmt.Errorf("sandbox %q: %w", sandbox.Name, err)
 		}
 	}
-	assignments, err := s.queries.GatewayListOrganizationGuardrailClientAccess(ctx, access.claims.OrganizationID)
+	assignments, err := s.queries.GatewayListOrganizationExternalAgentGuardrails(ctx, access.claims.OrganizationID)
 	if err != nil {
 		return err
 	}
 	for _, selected := range assignments {
-		assignment := api.GuardrailAssignment{}
-		if err := json.Unmarshal(selected.Policies, &assignment.Policies); err != nil {
-			return err
-		}
+		assignment := api.GuardrailAssignment{Policies: selected.Policies}
 		namespace := api.ScopeNamespace(api.ResourceScopeWorkspace, selected.WorkspaceID)
 		affected := mandatory
 		for _, ref := range assignment.Policies {
@@ -882,11 +881,12 @@ func (s *Service) validateGuardrailChange(ctx context.Context, access resourceAc
 				affected = true
 			}
 		}
-		if affected {
-			err := guardrails.ValidateConfiguration(ctx, s.k8sClient, namespace, tenant.Spec.Guardrails, assignment, policy)
-			if err != nil {
-				return fmt.Errorf("external client assignment: %w", err)
-			}
+		if !affected {
+			continue
+		}
+		err := guardrails.ValidateConfiguration(ctx, s.k8sClient, namespace, tenant.Spec.Guardrails, assignment, policy)
+		if err != nil {
+			return fmt.Errorf("external agent assignment: %w", err)
 		}
 	}
 	return nil

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/accuknox/agentz/internal/authorization"
 	"github.com/accuknox/agentz/internal/gateway/apiutil"
@@ -67,7 +68,17 @@ func (s *Service) ListGuardrailEventSources(w http.ResponseWriter, r *http.Reque
 			})
 			continue
 		}
-		app := gatewayapi.LensApp{ClientId: row.ClientID, Name: row.Name}
+		app := gatewayapi.LensApp{ClientId: row.ClientID, Name: row.SourceName}
+		if row.UserID != "" {
+			app.User = &gatewayapi.ResourceActor{
+				Id:    row.UserID,
+				Name:  &row.UserName,
+				Email: new(openapi_types.Email(row.UserEmail)),
+			}
+			if row.UserImage.Valid {
+				app.User.Image = &row.UserImage.String
+			}
+		}
 		if row.AgentKind != "" {
 			app.AgentKind = new(gatewayapi.LensAppAgentKind(row.AgentKind))
 		}

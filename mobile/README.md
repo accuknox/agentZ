@@ -29,7 +29,7 @@ Deploy the web database migration and the updated gateway with the web applicati
 ## Behavior
 
 - SQLite restores recent messages and drafts. Sending updates the transcript and composer immediately, then persists the outbox before network delivery. AgentZ's existing input queue supplies idempotent delivery and explicit retries.
-- Streaming batches display updates; active replies also reconcile with the server to recover missed events. The third-party `ShimmerText` from `react-native-ai-animations/text` sweeps a highlight across the live activity text while the agent responds. Tool calls and step counters stay out of the transcript.
+- Streaming batches display updates; active replies also reconcile with the server to recover missed events. The third-party `ShimmerText` from `react-native-ai-animations/text` starts with the local Send update, then follows the agent's live activity. Delivery failures stop the optimistic indicator. Tool calls and step counters stay out of the transcript.
 - History and status refreshes preserve newer streaming events. Server deletions also remove cached text, and cache writes run in order. Delivery confirmation fetches the canonical message directly when it falls outside recent history.
 - Backgrounding closes the stream. Foregrounding refreshes history and reconnects. Server-side work continues while the app is closed.
 - A pairing invitation expires after two minutes. The phone creates its own random secret; the server stores only its hash. Approval grants thirty days of access and issues two-minute gateway tokens.

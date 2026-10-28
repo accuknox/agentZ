@@ -2,7 +2,7 @@
   "expo": {
     "name": "AgentZ",
     "slug": "agentz-mobile",
-    "version": "0.1.2",
+    "version": "0.1.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -11,7 +11,7 @@
     },
     "android": {
       "package": "com.accuknox.agentz",
-      "versionCode": 3,
+      "versionCode": 4,
       "adaptiveIcon": {
         "foregroundImage": "./assets/agentz.png",
         "backgroundColor": "#19191a"

@@ -544,8 +544,12 @@ function Chat({
   }, [home])
 
   const hasDraft = draft.trim().length > 0
+  const responding =
+    snapshot.working ||
+    (!snapshot.error && snapshot.messages.some((message) => message.pending && !message.failed))
+  const activity = snapshot.working ? snapshot.activity : ""
   let pose: ZedPose = snapshot.messages.at(-1)?.role === "user" ? "idle" : "done"
-  if (snapshot.working) pose = snapshot.usingTools ? "working" : "thinking"
+  if (responding) pose = snapshot.working && snapshot.usingTools ? "working" : "thinking"
   if (snapshot.permissions.length || snapshot.questions.length) pose = "waiting"
   const transcript = useMemo(() => {
     const firstMessage = snapshot.messages[0]
@@ -581,20 +585,20 @@ function Chat({
         getItemType={(item) => item.role}
         ListFooterComponent={
           <View style={styles.responseIndicator} accessibilityLiveRegion="polite">
-            {snapshot.working && !snapshot.permissions.length && !snapshot.questions.length && (
+            {responding && !snapshot.permissions.length && !snapshot.questions.length && (
               <View style={styles.activityRow}>
                 <Zed color={colors.mascot} size={28} pose={pose} animate={!home && !details} />
                 <View style={styles.activityLabel}>
                   {!home && !details ? (
                     <ShimmerText
-                      text={snapshot.activity || "Thinking"}
+                      text={activity || "Thinking"}
                       activeColor={colors.foreground}
                       mutedColor={colors.muted}
                       textStyle={styles.activityText}
                     />
                   ) : (
                     <Text numberOfLines={1} style={[styles.activityText, { color: colors.muted }]}>
-                      {snapshot.activity || "Thinking"}
+                      {activity || "Thinking"}
                     </Text>
                   )}
                 </View>
@@ -609,7 +613,7 @@ function Chat({
     )
   }, [
     snapshot.messages,
-    snapshot.activity,
+    activity,
     snapshot.permissions.length,
     snapshot.questions.length,
     colors,
@@ -617,7 +621,7 @@ function Chat({
     pose,
     home,
     details,
-    snapshot.working,
+    responding,
   ])
   const error = actionError || snapshot.error
   return (
@@ -658,7 +662,7 @@ function Chat({
               color={colors.mascot}
               size={30}
               pose={pose}
-              animate={!home && !details && !snapshot.working}
+              animate={!home && !details && !responding}
             />
             <Text numberOfLines={1} style={[styles.agentName, { color: colors.foreground }]}>
               {saved.connection.agent_name}
@@ -910,7 +914,7 @@ function Chat({
               {schedules?.map((schedule) => (
                 <View key={schedule.name} style={[styles.schedule, { borderColor: colors.border }]}>
                   <Text style={[styles.smallTitle, { color: colors.foreground }]}>
-                    {schedule.name.replaceAll("-", " ")}
+                    {schedule.name}
                   </Text>
                   <Text style={[styles.caption, { color: colors.muted }]}>
                     {cronstrue.toString(schedule.schedule, {

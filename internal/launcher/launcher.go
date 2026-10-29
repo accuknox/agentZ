@@ -149,7 +149,7 @@ func Run(ctx context.Context, command *cli.Command) error {
 			return installed.codex(ctx, command, args)
 		}
 		if command.Name == "login" {
-			return errors.New("use agentz launch claude auth login for native Claude login")
+			return errors.New("run agentz launch claude and complete its gateway sign-in")
 		}
 		return installed.claude(ctx, command, args)
 	default:

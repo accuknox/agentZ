@@ -36,6 +36,13 @@
       "when": 1792074567984,
       "tag": "0004_external_agents",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793126279509,
+      "tag": "0005_guardrails",
+      "breakpoints": true
     }
   ]
 }

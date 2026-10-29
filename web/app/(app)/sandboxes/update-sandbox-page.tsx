@@ -8,6 +8,7 @@ import { listSkills } from "@/lib/gateway/client"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { listInferenceProvidersCachedQuery } from "@/data/inference-provider.queries"
 import { listInferencePoolsCachedQuery } from "@/data/inference-pool.queries"
+import { listGuardrailPoliciesQuery, getGuardrailSettingsQuery } from "@/data/guardrail.queries"
 import { SandboxWizard } from "./wizard"
 import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -22,11 +23,13 @@ type UpdateSandboxPageProps = {
   workspaceId?: string
 }
 
-export async function generateMetadata({
-  params,
-}: {
+type generateMetadataProps = {
   params: Promise<{ name: string }>
-}): Promise<Metadata> {
+}
+
+export async function generateMetadata(props: generateMetadataProps): Promise<Metadata> {
+  const { params } = props
+
   const { name } = await params
 
   return {
@@ -34,12 +37,9 @@ export async function generateMetadata({
   }
 }
 
-export default async function UpdateSandboxPage({
-  basePath,
-  params,
-  providersHref,
-  workspaceId,
-}: UpdateSandboxPageProps) {
+export default async function UpdateSandboxPage(props: UpdateSandboxPageProps) {
+  const { basePath, params, providersHref, workspaceId } = props
+
   const { name } = await params
 
   return (
@@ -54,17 +54,16 @@ export default async function UpdateSandboxPage({
   )
 }
 
-async function UpdateSandboxContent({
-  basePath,
-  name,
-  providersHref,
-  workspaceId,
-}: {
+type UpdateSandboxContentProps = {
   basePath: string
   name: string
   providersHref: UrlObject
   workspaceId?: string
-}) {
+}
+
+async function UpdateSandboxContent(props: UpdateSandboxContentProps) {
+  const { basePath, name, providersHref, workspaceId } = props
+
   const sandboxResult = listSandboxesCachedQuery({ limit: 200 }, workspaceId)
   const mcpResult = listMcpConnectionsCachedQuery(
     { limit: 50, sort_by: "created_at", sort_order: "desc" },
@@ -79,13 +78,16 @@ async function UpdateSandboxContent({
   const poolsResult = workspaceId
     ? listInferencePoolsCachedQuery(workspaceId)
     : Promise.resolve({ pools: [], error: undefined })
-  const [sandboxes, mcpConnections, skills, providers, pools] = await Promise.all([
-    sandboxResult,
-    mcpResult,
-    skillsResult,
-    providersResult,
-    poolsResult,
-  ])
+  const [sandboxes, mcpConnections, skills, providers, pools, policies, guardrailSettings] =
+    await Promise.all([
+      sandboxResult,
+      mcpResult,
+      skillsResult,
+      providersResult,
+      poolsResult,
+      listGuardrailPoliciesQuery(workspaceId),
+      getGuardrailSettingsQuery(workspaceId),
+    ])
 
   if (sandboxes.error || !sandboxes.sandboxes) {
     return (
@@ -95,6 +97,19 @@ async function UpdateSandboxContent({
       </Alert>
     )
   }
+
+  if (policies.error || guardrailSettings.error)
+    return (
+      <AdministrationState
+        description={
+          policies.error?.message ??
+          guardrailSettings.error?.message ??
+          "Guardrail configuration is unavailable."
+        }
+        kind="failed"
+        title="Could not load protection settings"
+      />
+    )
 
   const sandbox = sandboxes.sandboxes.find((item) => item.name === name)
   if (!sandbox) {
@@ -120,6 +135,7 @@ async function UpdateSandboxContent({
     mcpConnectionRefs,
     skills: sandbox.skills,
     inference: sandbox.inference,
+    guardrails: sandbox.guardrails,
   })
 
   return (
@@ -129,6 +145,9 @@ async function UpdateSandboxContent({
       <SandboxWizard
         key={wizardKey}
         mode="update"
+        initialGuardrails={sandbox.guardrails}
+        guardrailPolicies={policies.data.items}
+        guardrailSettings={guardrailSettings.data}
         providersHref={providersHref}
         scope={{ basePath, workspaceId }}
         initialName={sandbox.name}

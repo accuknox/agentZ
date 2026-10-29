@@ -729,7 +729,10 @@ func (s *Service) PrepareCodingCheckout(w http.ResponseWriter, r *http.Request) 
 	if !tree.Ready {
 		ready := false
 		for _, existing := range trees {
-			ready = ready || existing.AgentName == tree.AgentName && existing.Ready
+			if existing.AgentName == tree.AgentName && existing.Ready {
+				ready = true
+				break
+			}
 		}
 		if !ready {
 			identity, err := s.codingIdentity(r.Context(), access.userID)

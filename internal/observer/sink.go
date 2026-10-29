@@ -40,29 +40,52 @@ func (s *sink) run(ctx context.Context) {
 	defer ticker.Stop()
 
 	var b batch
+	writeCtx := context.WithoutCancel(ctx)
+	var stop context.CancelFunc
 	flush := func() {
-		current := b
-		b = batch{}
-		if current.count() == 0 {
+		if b.count() == 0 {
 			return
 		}
-		// Finish accepted events when producer shutdown cancels the parent.
-		writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		attempt, cancel := context.WithTimeout(writeCtx, 10*time.Second)
 		defer cancel()
-		if err := s.store.insertBatch(writeCtx, current); err != nil {
+		if err := s.store.insertBatch(attempt, b); err != nil {
 			atomic.AddUint64(&s.stats.failed, 1)
-			slog.ErrorContext(writeCtx, "flush observer batch", slog.Any("error", err))
+			slog.ErrorContext(attempt, "flush observer batch", slog.Any("error", err))
 			return
 		}
+		b = batch{}
 		atomic.AddUint64(&s.stats.flushed, 1)
 	}
 
+	shutdown := ctx.Done()
+	closed := false
 	for {
+		if stop == nil && (closed || ctx.Err() != nil) {
+			// Recover the retained batch and consume accepted events under one
+			// shutdown budget. Producers may still be completing an export.
+			writeCtx, stop = context.WithTimeout(writeCtx, 10*time.Second)
+			defer stop()
+			shutdown = nil
+			ticker.Reset(250 * time.Millisecond)
+			flush()
+		}
+		if writeCtx.Err() != nil || closed && b.count() == 0 {
+			return
+		}
+		// Backpressure bounds a retained failed batch until the next attempt.
+		events := s.events
+		if closed || b.count() >= s.cfg.BatchSize {
+			events = nil
+		}
 		select {
-		case ev, ok := <-s.events:
+		case <-shutdown:
+			continue
+		case <-writeCtx.Done():
+			return
+		case ev, ok := <-events:
 			if !ok {
-				flush()
-				return
+				closed = true
+				continue
 			}
 			b.add(ev)
 			if b.count() >= s.cfg.BatchSize {

@@ -13,19 +13,6 @@ import (
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 )
 
-func (s *Service) handleRouteError(w http.ResponseWriter, r *http.Request, err error) {
-	apiutil.WriteError(
-		w,
-		r,
-		apiutil.NewError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"request is invalid",
-			err,
-		),
-	)
-}
-
 func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst any, allowEmpty bool) bool {
 	err := apiutil.DecodeJSONBody(r, dst, allowEmpty)
 	if err == nil {

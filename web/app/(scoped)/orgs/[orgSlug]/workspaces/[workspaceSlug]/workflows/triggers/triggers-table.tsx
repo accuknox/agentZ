@@ -379,7 +379,7 @@ function RunScheduleDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent>
+      <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>Run {item.name} now?</DialogTitle>
           <DialogDescription>
@@ -443,7 +443,7 @@ function DeleteScheduleDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent>
+      <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>Delete {item.name}?</DialogTitle>
           <DialogDescription>

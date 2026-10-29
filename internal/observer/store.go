@@ -4,8 +4,11 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
+	"time"
 
 	observerdb "github.com/accuknox/agentz/internal/observer/db"
 	"github.com/jackc/pgx/v5"
@@ -107,9 +110,63 @@ func (s *dbStore) insertBatch(ctx context.Context, b batch) error {
 			return err
 		}
 	}
+	guardrailScopes := make(map[string]observerdb.GetGuardrailSubjectScopeRow)
+	duplicateChanged := false
+	for _, ev := range b.guardrails {
+		row := ev.row
+		scope, ok := guardrailScopes[ev.namespace]
+		if !ok {
+			scope, err = q.GetGuardrailSubjectScope(ctx, ev.namespace)
+			if errors.Is(err, pgx.ErrNoRows) {
+				slog.WarnContext(ctx, "discard guardrail event for deleted scope")
+				continue
+			}
+			if err != nil {
+				return fmt.Errorf("resolve guardrail event scope: %w", err)
+			}
+			guardrailScopes[ev.namespace] = scope
+		}
+		wrongOrganization := row.OrganizationID != "" && row.OrganizationID != scope.OrganizationID
+		wrongWorkspace := row.WorkspaceID != "" && row.WorkspaceID != scope.WorkspaceID
+		if wrongOrganization || wrongWorkspace {
+			slog.WarnContext(ctx, "discard guardrail event with mismatched scope")
+			continue
+		}
+		row.OrganizationID = scope.OrganizationID
+		row.WorkspaceID = scope.WorkspaceID
+		row.ExpiresAt = row.OccurredAt.Add(30 * 24 * time.Hour)
+		inserted, err := q.InsertGuardrailEvent(ctx, row)
+		if err != nil {
+			return fmt.Errorf("insert guardrail event: %w", err)
+		}
+		if len(ev.request) > 0 {
+			err = q.InsertGuardrailRequest(ctx, observerdb.InsertGuardrailRequestParams{
+				TraceID:   row.TraceID,
+				SpanID:    row.SpanID,
+				ExpiresAt: row.ExpiresAt,
+				Body:      ev.request,
+			})
+			if err != nil {
+				return fmt.Errorf("insert guardrail request: %w", err)
+			}
+		}
+		if inserted == 0 && !duplicateChanged {
+			duplicateChanged, err = q.GuardrailEventChanged(ctx, observerdb.GuardrailEventChangedParams{
+				ID:         row.ID,
+				Evaluation: row.Evaluation,
+				Revision:   row.Revision,
+			})
+			if err != nil {
+				return fmt.Errorf("compare duplicate guardrail event: %w", err)
+			}
+		}
+	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit tx: %w", err)
+	}
+	if duplicateChanged {
+		slog.WarnContext(ctx, "guardrail replay changed existing evidence")
 	}
 	return nil
 }

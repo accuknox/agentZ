@@ -19,6 +19,7 @@ import (
 	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	"github.com/accuknox/agentz/internal/guardrails"
 	"github.com/accuknox/agentz/internal/sandboxutil"
 	"github.com/accuknox/agentz/internal/scope"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
@@ -497,6 +498,9 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 			Inference:         sandboxInferenceFromAPI(req.Inference),
 		},
 	}
+	if req.Guardrails != nil {
+		sandbox.Spec.Guardrails = *req.Guardrails
+	}
 	dependencyFields, err := s.validateSandboxDependencies(r.Context(), access, sandbox)
 	if err != nil {
 		eventTrailErr := s.createSandboxEventTrail(
@@ -943,6 +947,18 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 			Inference:         desiredInference,
 		},
 	}
+	if req.Guardrails != nil {
+		dependencies.Spec.Guardrails = *req.Guardrails
+	}
+	if req.Guardrails == nil {
+		current := &agentzv1alpha1.Sandbox{}
+		key := ctrlclient.ObjectKey{Name: name, Namespace: access.namespace}
+		if err := s.k8sClient.Get(r.Context(), key, current); err != nil {
+			apiutil.WriteError(w, r, mapKubeHTTPError("get sandbox", err))
+			return
+		}
+		dependencies.Spec.Guardrails = current.Spec.Guardrails
+	}
 	dependencyFields, err := s.validateSandboxDependencies(r.Context(), access, dependencies)
 	if err != nil {
 		eventTrailErr := s.createSandboxEventTrail(
@@ -1003,6 +1019,9 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 			sandbox.Spec.MCPConnectionRefs = mcpConnectionRefs
 			sandbox.Spec.Skills = resourceReferencesToCRD(skills)
 			sandbox.Spec.Inference = desiredInference
+			if req.Guardrails != nil {
+				sandbox.Spec.Guardrails = *req.Guardrails
+			}
 			sandbox.Spec.LastModifiedByUserID = access.claims.UserID
 
 			if updateErr := s.k8sClient.Update(r.Context(), sandbox); updateErr != nil {
@@ -1111,6 +1130,7 @@ func sandboxFromCRD(sb agentzv1alpha1.Sandbox, referenced bool, access resourceA
 	out := gatewayapi.Sandbox{
 		Scope:             resourceScope(access.workspaceID),
 		Name:              sb.Name,
+		Guardrails:        &sb.Spec.Guardrails,
 		CreatedBy:         actors[sb.Spec.CreatedByUserID],
 		LastModifiedBy:    actors[sb.Spec.LastModifiedByUserID],
 		Packages:          packages,
@@ -1503,6 +1523,10 @@ func (s *Service) validateSandboxMCPConnections(ctx context.Context, current str
 }
 
 func (s *Service) validateSandboxDependencies(ctx context.Context, access resourceAccess, sandbox *agentzv1alpha1.Sandbox) ([]gatewayapi.FieldError, error) {
+	_, err := guardrails.Resolve(ctx, s.k8sClient, access.namespace, sandbox.Spec.Guardrails)
+	if err != nil {
+		return []gatewayapi.FieldError{{Field: "guardrails", Message: err.Error()}}, nil
+	}
 	fields := []gatewayapi.FieldError{}
 	workspaceScope := authorization.Scope{
 		OrganizationID: access.claims.OrganizationID,

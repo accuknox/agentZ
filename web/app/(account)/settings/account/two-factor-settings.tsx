@@ -8,7 +8,7 @@ import { useForm } from "react-hook-form"
 import { useRouter } from "next/navigation"
 import QRCode from "react-qr-code"
 import { z } from "zod"
-import { ArrowRight, Download, ShieldCheck, ShieldOff, XIcon, CircleAlert } from "lucide-react"
+import { ArrowRight, Download, ShieldCheck, ShieldOff, CircleAlert } from "lucide-react"
 import { toast } from "sonner"
 import type { AuthError, SocialProvider } from "@/app/(auth)/shared"
 import { authErrorMessages } from "@/app/(auth)/shared"
@@ -339,16 +339,10 @@ export function TwoFactorSettings({
               ? "flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden p-0 sm:max-w-xl"
               : undefined
           }
-          showCloseButton={mode !== "setup"}
+          showCloseButton={mode === "loading" || (mode === "reauth" && provider !== "credential")}
         >
           {mode === "setup" && setup ? (
-            <SetupDialog
-              error={error}
-              pending={verifying}
-              setup={setup}
-              onCloseAction={close}
-              onVerifyAction={verify}
-            />
+            <SetupDialog error={error} pending={verifying} setup={setup} onVerifyAction={verify} />
           ) : null}
           {mode === "loading" ? <LoadingDialog /> : null}
           {mode === "reauth" ? (
@@ -376,13 +370,11 @@ export function TwoFactorSettings({
 
 function SetupDialog({
   error,
-  onCloseAction,
   onVerifyAction,
   pending,
   setup,
 }: {
   error: string | undefined
-  onCloseAction: () => void
   onVerifyAction: (code: string) => Promise<string | undefined>
   pending: boolean
   setup: TwoFactorSetup
@@ -411,10 +403,6 @@ function SetupDialog({
             Scan the QR code or enter the secret, then verify the 6-digit code.
           </DialogDescription>
         </DialogHeader>
-        <Button variant="ghost" className="shrink-0" size="icon-sm" onClick={onCloseAction}>
-          <XIcon />
-          <span className="sr-only">Close</span>
-        </Button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="px-4 pb-4">

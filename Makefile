@@ -3,7 +3,6 @@ SHELL := bash
 
 IMAGE ?= public.ecr.aws/k9v9d5v2/agentz:latest
 AGENT_IMAGE ?= public.ecr.aws/k9v9d5v2/agentz/agent:latest
-AGENTGATEWAY_IMAGE ?= public.ecr.aws/k9v9d5v2/agentz/agentgateway:latest
 BETTER_AUTH_URL ?= http://localhost:3000
 GATEWAY_JWT_AUDIENCE ?= agentz-gateway
 CODING_GITHUB_CLIENT_ID ?=
@@ -47,7 +46,7 @@ generate:
 	go run ./hack/openapi/generate_opencode_gateway.go
 	$(MAKE) generate-codex
 	oapi-codegen \
-		--include-tags coding,agents,tenants,workspaces,event-trail,lens,secrets,sandboxes,inference,skills,mcp-connections,workflows,workflow-schedules,workflow-runs,workflow-webhooks,chat-sessions,session,sessions,event,global,config,project,permission,question,pty,dashboards \
+		--include-tags guardrails,coding,agents,tenants,workspaces,event-trail,lens,secrets,sandboxes,inference,skills,mcp-connections,workflows,workflow-schedules,workflow-runs,workflow-webhooks,chat-sessions,session,sessions,event,global,config,project,permission,question,pty,dashboards \
 		-config oapi-codegen.gateway.yaml openapi/gateway.yaml
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./pkg/apis/..."
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd:allowDangerousTypes=false webhook \
@@ -143,7 +142,6 @@ run-manager:
 		--delegation-namespace="$(DELEGATION_NAMESPACE)" \
 		--controller-image=$(IMAGE) \
 		--agent-image=$(AGENT_IMAGE) \
-		--delegation-image="$(AGENTGATEWAY_IMAGE)" \
 		--openbao-addr=http://openbao.openbao.svc.cluster.local:8200 \
 		--openbao-secret-mount-path=kv \
 		--manager-openbao-addr=http://localhost:8200 \

@@ -2652,6 +2652,8 @@ components:
             minLength: 1
             type: string
           type: array
+        guardrails:
+          $ref: '#/components/schemas/GuardrailAssignment'
         inference:
           $ref: '#/components/schemas/SandboxInference'
         mcp_connection_refs:
@@ -3885,6 +3887,10 @@ components:
       - inference_provider
       - inference_pool
       - agent
+      - guardrail_connection
+      - guardrail_policy
+      - guardrail_settings
+      - external_access_guardrails
       type: string
       x-enum-varnames:
       - EventTrailTargetOrganization
@@ -3898,6 +3904,10 @@ components:
       - EventTrailTargetInferenceProvider
       - EventTrailTargetInferencePool
       - EventTrailTargetAgent
+      - EventTrailTargetGuardrailConnection
+      - EventTrailTargetGuardrailPolicy
+      - EventTrailTargetGuardrailSettings
+      - EventTrailTargetExternalAccessGuardrails
     EventTrailWorkspace:
       additionalProperties: false
       properties:
@@ -4088,6 +4098,677 @@ components:
           format: uri
           maxLength: 2048
           type: string
+      type: object
+    GuardrailAgentSource:
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        workspace_id:
+          type: string
+      required:
+      - workspace_id
+      - name
+      type: object
+    GuardrailAssignment:
+      additionalProperties: false
+      properties:
+        policies:
+          items:
+            $ref: '#/components/schemas/ResourceReference'
+          type: array
+      type: object
+      x-go-type: agentzv1alpha1.GuardrailAssignment
+      x-go-type-import:
+        name: agentzv1alpha1
+        path: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1
+    GuardrailCheck:
+      additionalProperties: false
+      properties:
+        action:
+          enum:
+          - deny
+          - mask
+          type: string
+        connection:
+          $ref: '#/components/schemas/ResourceReference'
+        failureMode:
+          enum:
+          - closed
+          - open
+          type: string
+        guardrailId:
+          type: string
+        guardrailVersion:
+          type: string
+        id:
+          maxLength: 128
+          minLength: 1
+          type: string
+        mode:
+          enum:
+          - enforce
+          - audit
+          type: string
+        name:
+          maxLength: 128
+          minLength: 1
+          type: string
+        phase:
+          enum:
+          - input
+          - output
+          type: string
+        regex:
+          $ref: '#/components/schemas/GuardrailRegex'
+        safeExplanation:
+          maxLength: 1024
+          type: string
+        scopes:
+          items:
+            enum:
+            - instructions
+            - conversation
+            - toolResults
+            - toolArguments
+            type: string
+          minItems: 1
+          type: array
+          uniqueItems: true
+        template:
+          type: string
+      required:
+      - id
+      - name
+      - phase
+      - scopes
+      - mode
+      - failureMode
+      - action
+      type: object
+      x-go-type: agentzv1alpha1.GuardrailCheck
+      x-go-type-import:
+        name: agentzv1alpha1
+        path: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1
+    GuardrailConnection:
+      additionalProperties: false
+      properties:
+        canDelete:
+          type: boolean
+        canModify:
+          type: boolean
+        credentialsConfigured:
+          type: boolean
+        description:
+          type: string
+        displayName:
+          type: string
+        endpoint:
+          type: string
+        name:
+          type: string
+        provider:
+          enum:
+          - AccuKnox
+          - OpenAI
+          - Bedrock
+          - ModelArmor
+          - Webhook
+          type: string
+        region:
+          type: string
+        scope:
+          $ref: '#/components/schemas/ResourceScope'
+        status:
+          $ref: '#/components/schemas/GuardrailStatus'
+      required:
+      - name
+      - displayName
+      - description
+      - provider
+      - endpoint
+      - region
+      - scope
+      - credentialsConfigured
+      - canModify
+      - canDelete
+      - status
+      type: object
+    GuardrailConnectionInput:
+      additionalProperties: false
+      properties:
+        credentials:
+          $ref: '#/components/schemas/GuardrailCredentials'
+        description:
+          maxLength: 2048
+          type: string
+        displayName:
+          maxLength: 128
+          minLength: 1
+          type: string
+        endpoint:
+          type: string
+        name:
+          maxLength: 63
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+        provider:
+          enum:
+          - AccuKnox
+          - OpenAI
+          - Bedrock
+          - ModelArmor
+          - Webhook
+          type: string
+        region:
+          type: string
+      required:
+      - name
+      - displayName
+      - provider
+      type: object
+    GuardrailContext:
+      additionalProperties: false
+      properties:
+        checkId:
+          type: string
+        checkName:
+          type: string
+        guard:
+          type: string
+        matchedScope:
+          enum:
+          - instructions
+          - conversation
+          - toolArguments
+          - toolResults
+          type: string
+        message:
+          type: string
+        phase:
+          enum:
+          - request
+          - response
+          type: string
+        policyId:
+          type: string
+        policyName:
+          type: string
+        reason:
+          enum:
+          - policy_violation
+          - checker_error
+          type: string
+        scopes:
+          items:
+            enum:
+            - instructions
+            - conversation
+            - toolArguments
+            - toolResults
+            type: string
+          type: array
+      required:
+      - phase
+      - guard
+      - policyName
+      - policyId
+      - checkName
+      - checkId
+      - message
+      - scopes
+      type: object
+    GuardrailCredentials:
+      additionalProperties: false
+      properties:
+        accessKeyId:
+          type: string
+          writeOnly: true
+        apiKey:
+          type: string
+          writeOnly: true
+        googleCredentialsJson:
+          description: ADC-compatible Google credential JSON.
+          type: string
+          writeOnly: true
+        secretAccessKey:
+          type: string
+          writeOnly: true
+        sessionToken:
+          type: string
+          writeOnly: true
+        token:
+          type: string
+          writeOnly: true
+      type: object
+    GuardrailDiscoveredResource:
+      additionalProperties: false
+      properties:
+        description:
+          type: string
+        id:
+          type: string
+        label:
+          type: string
+      required:
+      - id
+      - label
+      type: object
+    GuardrailEffective:
+      additionalProperties: false
+      properties:
+        checks:
+          items:
+            $ref: '#/components/schemas/GuardrailEffectiveCheck'
+          type: array
+        revision:
+          type: string
+      required:
+      - revision
+      - checks
+      type: object
+    GuardrailEffectiveCheck:
+      additionalProperties: false
+      properties:
+        check:
+          $ref: '#/components/schemas/GuardrailCheck'
+        mandatory:
+          type: boolean
+        policyId:
+          type: string
+        policyName:
+          type: string
+      required:
+      - policyId
+      - policyName
+      - mandatory
+      - check
+      type: object
+    GuardrailEffectiveInput:
+      additionalProperties: false
+      properties:
+        assignment:
+          $ref: '#/components/schemas/GuardrailAssignment'
+        sandbox:
+          type: string
+        sandboxScope:
+          $ref: '#/components/schemas/ResourceScope'
+      required:
+      - assignment
+      type: object
+    GuardrailError:
+      additionalProperties: false
+      properties:
+        code:
+          enum:
+          - content_policy_violation
+          - guardrail_unavailable
+          type: string
+        guardrail:
+          $ref: '#/components/schemas/GuardrailContext'
+        message:
+          type: string
+        param:
+          nullable: true
+          type: string
+        type:
+          enum:
+          - invalid_request_error
+          - api_error
+          type: string
+      required:
+      - type
+      - code
+      - message
+      - guardrail
+      type: object
+    GuardrailEvent:
+      additionalProperties: false
+      properties:
+        agent_name:
+          type: string
+        client_id:
+          type: string
+        evaluation:
+          $ref: '#/components/schemas/GuardrailRuntimeEvaluation'
+        expires_at:
+          format: date-time
+          type: string
+        id:
+          type: string
+        model:
+          type: string
+        occurred_at:
+          format: date-time
+          type: string
+        organization_id:
+          type: string
+        request_body:
+          description: Complete JSON request captured before gateway checks. Returned only on event detail with authorized Lens access.
+          type: string
+        revision:
+          type: string
+        sandbox_name:
+          type: string
+        session_id:
+          type: string
+        span_id:
+          type: string
+        subject_name:
+          type: string
+        trace_id:
+          type: string
+        trace_source:
+          $ref: '#/components/schemas/GuardrailTraceSource'
+        workspace_id:
+          type: string
+      required:
+      - subject_name
+      - id
+      - organization_id
+      - workspace_id
+      - occurred_at
+      - expires_at
+      - sandbox_name
+      - agent_name
+      - client_id
+      - session_id
+      - model
+      - trace_id
+      - span_id
+      - revision
+      - evaluation
+      type: object
+    GuardrailEventChart:
+      additionalProperties: false
+      properties:
+        bucket_seconds:
+          format: int64
+          type: integer
+        points:
+          items:
+            $ref: '#/components/schemas/GuardrailEventChartPoint'
+          type: array
+        total:
+          format: int64
+          type: integer
+      required:
+      - points
+      - total
+      - bucket_seconds
+      type: object
+    GuardrailEventChartPoint:
+      additionalProperties: false
+      properties:
+        count:
+          format: int64
+          type: integer
+        time:
+          format: date-time
+          type: string
+      required:
+      - time
+      - count
+      type: object
+    GuardrailEventSources:
+      additionalProperties: false
+      properties:
+        agents:
+          items:
+            $ref: '#/components/schemas/GuardrailAgentSource'
+          type: array
+        apps:
+          items:
+            $ref: '#/components/schemas/LensApp'
+          type: array
+      required:
+      - agents
+      - apps
+      type: object
+    GuardrailPolicy:
+      additionalProperties: false
+      properties:
+        canDelete:
+          type: boolean
+        canModify:
+          type: boolean
+        checks:
+          items:
+            $ref: '#/components/schemas/GuardrailCheck'
+          type: array
+        description:
+          type: string
+        displayName:
+          type: string
+        mandatory:
+          type: boolean
+        name:
+          type: string
+        scope:
+          $ref: '#/components/schemas/ResourceScope'
+        status:
+          $ref: '#/components/schemas/GuardrailStatus'
+      required:
+      - name
+      - displayName
+      - description
+      - checks
+      - scope
+      - mandatory
+      - canModify
+      - canDelete
+      - status
+      type: object
+    GuardrailPolicyInput:
+      additionalProperties: false
+      properties:
+        checks:
+          items:
+            $ref: '#/components/schemas/GuardrailCheck'
+          maxItems: 16
+          minItems: 1
+          type: array
+        description:
+          maxLength: 2048
+          type: string
+        displayName:
+          maxLength: 128
+          minLength: 1
+          type: string
+        name:
+          maxLength: 63
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      required:
+      - name
+      - displayName
+      - checks
+      type: object
+    GuardrailRegex:
+      additionalProperties: false
+      properties:
+        builtins:
+          items:
+            enum:
+            - Email
+            - PhoneNumber
+            - Ssn
+            - CreditCard
+            - CaSin
+            type: string
+          type: array
+          uniqueItems: true
+        patterns:
+          items:
+            type: string
+          type: array
+      type: object
+      x-go-type: agentzv1alpha1.GuardrailRegex
+      x-go-type-import:
+        name: agentzv1alpha1
+        path: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1
+    GuardrailRejection:
+      additionalProperties: false
+      properties:
+        error:
+          $ref: '#/components/schemas/GuardrailError'
+      required:
+      - error
+      type: object
+    GuardrailResourceDiscovery:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/GuardrailDiscoveredResource'
+          type: array
+        kind:
+          enum:
+          - guardrails
+          - versions
+          - projects
+          - locations
+          - templates
+          type: string
+        nextPageToken:
+          type: string
+        provider:
+          enum:
+          - AccuKnox
+          - OpenAI
+          - Bedrock
+          - ModelArmor
+          - Webhook
+          type: string
+        unreachable:
+          items:
+            type: string
+          type: array
+      required:
+      - provider
+      - kind
+      - items
+      type: object
+    GuardrailResourceDiscoveryInput:
+      additionalProperties: false
+      properties:
+        kind:
+          enum:
+          - guardrails
+          - versions
+          - projects
+          - locations
+          - templates
+          type: string
+        pageSize:
+          default: 50
+          maximum: 100
+          minimum: 1
+          type: integer
+        pageToken:
+          maxLength: 8192
+          type: string
+        parent:
+          description: Guardrail ID or ARN for versions; projects/PROJECT for locations; projects/PROJECT/locations/LOCATION for templates. Omit for guardrails or projects.
+          maxLength: 2048
+          type: string
+        scope:
+          $ref: '#/components/schemas/ResourceScope'
+      required:
+      - scope
+      - kind
+      type: object
+    GuardrailRuntimeEvaluation:
+      additionalProperties: false
+      properties:
+        action:
+          enum:
+          - failOpen
+          - audit
+          - mask
+          - reject
+          type: string
+        context:
+          $ref: '#/components/schemas/GuardrailContext'
+        error:
+          description: Checker failure recorded for investigation. Never included in model-facing rejection details.
+          maxLength: 4096
+          type: string
+        guard:
+          type: string
+        guardrailId:
+          type: string
+        guardrailVersion:
+          type: string
+        phase:
+          enum:
+          - request
+          - response
+          type: string
+      required:
+      - phase
+      - guard
+      - action
+      type: object
+    GuardrailSettings:
+      additionalProperties: false
+      properties:
+        mandatoryPolicies:
+          items:
+            type: string
+          type: array
+      required:
+      - mandatoryPolicies
+      type: object
+    GuardrailStatus:
+      additionalProperties: false
+      properties:
+        message:
+          type: string
+        observedGeneration:
+          format: int64
+          type: integer
+        revision:
+          type: string
+        state:
+          enum:
+          - Pending
+          - Ready
+          - Error
+          type: string
+      required:
+      - state
+      - revision
+      - message
+      - observedGeneration
+      type: object
+    GuardrailTraceSource:
+      additionalProperties: false
+      description: Authorized Lens model operation correlated with this evaluation.
+      properties:
+        agent_name:
+          type: string
+        client_id:
+          type: string
+        operation_id:
+          format: int64
+          type: integer
+        session_id:
+          type: string
+        span_id:
+          $ref: '#/components/schemas/SpanID'
+        trace_id:
+          $ref: '#/components/schemas/TraceID'
+        workspace_id:
+          type: string
+      required:
+      - workspace_id
+      - agent_name
+      - client_id
+      - session_id
+      - trace_id
+      - span_id
+      - operation_id
       type: object
     ImmutableSkillImportPreviewItem:
       additionalProperties: false
@@ -4815,6 +5496,12 @@ components:
       additionalProperties: false
       properties:
         kind:
+          enum:
+          - Agent
+          - Sandbox
+          - Inference Pool
+          - Guardrail Policy
+          - External Agent
           type: string
         name:
           type: string
@@ -4828,12 +5515,16 @@ components:
       - sandbox
       - mcp_connection
       - inference_provider
+      - guardrail_connection
+      - guardrail_policy
       type: string
       x-enum-varnames:
       - InheritedResourceTypeSkill
       - InheritedResourceTypeSandbox
       - InheritedResourceTypeMCPConnection
       - InheritedResourceTypeInferenceProvider
+      - InheritedResourceTypeGuardrailConnection
+      - InheritedResourceTypeGuardrailPolicy
     JSONObject:
       additionalProperties:
         $ref: '#/components/schemas/JSONValue'
@@ -5052,6 +5743,18 @@ components:
       required:
       - events
       - next_page_token
+      type: object
+    ListGuardrailEventsResponse:
+      additionalProperties: false
+      properties:
+        events:
+          items:
+            $ref: '#/components/schemas/GuardrailEvent'
+          type: array
+        next_cursor:
+          type: string
+      required:
+      - events
       type: object
     ListImmutableSkillSummariesResponse:
       additionalProperties: false
@@ -24900,6 +25603,8 @@ components:
           type: string
         created_by:
           $ref: '#/components/schemas/ResourceActor'
+        guardrails:
+          $ref: '#/components/schemas/GuardrailAssignment'
         inference:
           $ref: '#/components/schemas/SandboxInference'
         last_modified_by:
@@ -25142,6 +25847,14 @@ components:
     SelectedOrganizationResources:
       additionalProperties: false
       properties:
+        guardrail_connections:
+          items:
+            type: string
+          type: array
+        guardrail_policies:
+          items:
+            type: string
+          type: array
         inference_providers:
           items:
             minLength: 1
@@ -25171,6 +25884,8 @@ components:
       - sandboxes
       - mcp_connections
       - inference_providers
+      - guardrail_connections
+      - guardrail_policies
       type: object
     Skill:
       additionalProperties: false
@@ -25467,6 +26182,12 @@ components:
           items:
             $ref: '#/components/schemas/TenantCondition'
           type: array
+        guardrail_connection_capabilities:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        guardrail_event_capabilities:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        guardrail_policy_capabilities:
+          $ref: '#/components/schemas/ResourceCapabilities'
         inference_pool_capabilities:
           $ref: '#/components/schemas/ResourceCapabilities'
         inference_provider_capabilities:
@@ -25496,6 +26217,9 @@ components:
       - sandbox_capabilities
       - inference_provider_capabilities
       - inference_pool_capabilities
+      - guardrail_connection_capabilities
+      - guardrail_policy_capabilities
+      - guardrail_event_capabilities
       type: object
     TenantCondition:
       properties:
@@ -25809,6 +26533,8 @@ components:
             minLength: 1
             type: string
           type: array
+        guardrails:
+          $ref: '#/components/schemas/GuardrailAssignment'
         inference:
           $ref: '#/components/schemas/SandboxInference'
         mcp_connection_refs:
@@ -26731,6 +27457,12 @@ components:
           $ref: '#/components/schemas/ResourceCapabilities'
         external_agents:
           $ref: '#/components/schemas/ResourceCapabilities'
+        guardrail_connections:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        guardrail_events:
+          $ref: '#/components/schemas/ResourceCapabilities'
+        guardrail_policies:
+          $ref: '#/components/schemas/ResourceCapabilities'
         inference_pools:
           $ref: '#/components/schemas/ResourceCapabilities'
         inference_providers:
@@ -26744,6 +27476,9 @@ components:
         skills:
           $ref: '#/components/schemas/ResourceCapabilities'
       required:
+      - guardrail_connections
+      - guardrail_policies
+      - guardrail_events
       - administer
       - agents
       - skills
@@ -29022,6 +29757,537 @@ paths:
       summary: Watch external agent registration and consent changes.
       tags:
       - workspaces
+  /api/guardrails/connections:
+    get:
+      operationId: listGuardrailConnections
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                properties:
+                  items:
+                    items:
+                      $ref: '#/components/schemas/GuardrailConnection'
+                    type: array
+                required:
+                - items
+                type: object
+          description: Scoped resources, including explicitly inherited organization resources.
+        default:
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - guardrail_connection.read
+      tags:
+      - guardrails
+    parameters:
+    - $ref: '#/components/parameters/WorkspaceIDHeader'
+    post:
+      operationId: createGuardrailConnection
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GuardrailConnectionInput'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuardrailConnection'
+          description: Created resource, pending projection.
+        default:
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - guardrail_connection.create
+      tags:
+      - guardrails
+  /api/guardrails/connections/{name}:
+    delete:
+      operationId: deleteGuardrailConnection
+      responses:
+        "204":
+          description: Unreferenced resource deleted.
+        default:
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - guardrail_connection.delete
+      tags:
+      - guardrails
+    get:
+      operationId: getGuardrailConnection
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuardrailConnection'
+          description: Resource detail.
+        default:
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - guardrail_connection.read
+      tags:
+      - guardrails
+    parameters:
+    - $ref: '#/components/parameters/WorkspaceIDHeader'
+    - in: path
+      name: name
+      required: true
+      schema:
+        type: string
+    put:
+      operationId: updateGuardrailConnection
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GuardrailConnectionInput'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuardrailConnection'
+          description: Updated resource, pending projection.
+        default:
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - guardrail_connection.modify
+      tags:
+      - guardrails
+  /api/guardrails/connections/{name}/resources:
+    post:
+      operationId: discoverGuardrailConnectionResources
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
+      - in: path
+        name: name
+        required: true
+        schema:
+          maxLength: 63
+          minLength: 1
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GuardrailResourceDiscoveryInput'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuardrailResourceDiscovery'
+          description: One page of non-secret provider resources.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The cloud provider rate limited discovery.
+        "500":
+          $ref: '#/components/responses/InternalError'
+        "502":
+          $ref: '#/components/responses/BadGateway'
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Saved connection credentials are unavailable.
+        "504":
+          $ref: '#/components/responses/GatewayTimeout'
+      security:
+      - GatewayBearer:
+        - guardrail_connection.read
+      summary: Browse cloud resources using a saved scoped connection.
+      tags:
+      - guardrails
+  /api/guardrails/effective:
+    parameters:
+    - $ref: '#/components/parameters/WorkspaceIDHeader'
+    post:
+      operationId: getEffectiveGuardrails
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GuardrailEffectiveInput'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuardrailEffective'
+          description: Resolved mandatory and optional checks.
+        default:
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - guardrail_policy.read
+      tags:
+      - guardrails
+  /api/guardrails/events:
+    get:
+      operationId: listGuardrailEvents
+      parameters:
+      - description: Narrow organization events to one workspace.
+        in: query
+        name: workspace_id
+        schema:
+          type: string
+      - description: Agent name qualified by workspace_id or the workspace header.
+        in: query
+        name: agent_name
+        schema:
+          type: string
+      - description: External agent or application client ID.
+        in: query
+        name: client_id
+        schema:
+          type: string
+      - in: query
+        name: action
+        schema:
+          enum:
+          - failOpen
+          - audit
+          - mask
+          - reject
+          type: string
+      - in: query
+        name: phase
+        schema:
+          enum:
+          - request
+          - response
+          type: string
+      - in: query
+        name: trace_id
+        schema:
+          type: string
+      - in: query
+        name: session_id
+        schema:
+          type: string
+      - in: query
+        name: from
+        schema:
+          format: date-time
+          type: string
+      - in: query
+        name: to
+        schema:
+          format: date-time
+          type: string
+      - in: query
+        name: cursor
+        schema:
+          type: string
+      - in: query
+        name: limit
+        schema:
+          default: 25
+          maximum: 100
+          minimum: 1
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListGuardrailEventsResponse'
+          description: Retained blocks, masks, audit findings, and guardrail failures, newest first.
+        default:
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - guardrail_event.read
+      summary: List guardrail interventions in the authorized scope.
+      tags:
+      - guardrails
+    parameters:
+    - $ref: '#/components/parameters/WorkspaceIDHeader'
+  /api/guardrails/events/{eventId}:
+    get:
+      operationId: getGuardrailEvent
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuardrailEvent'
+          description: Authorized event detail.
+        default:
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - guardrail_event.read
+      summary: Read a guardrail evaluation and its safe context.
+      tags:
+      - guardrails
+    parameters:
+    - $ref: '#/components/parameters/WorkspaceIDHeader'
+    - in: path
+      name: eventId
+      required: true
+      schema:
+        type: string
+  /api/guardrails/events/chart:
+    get:
+      operationId: getGuardrailEventChart
+      parameters:
+      - description: Narrow organization events to one workspace.
+        in: query
+        name: workspace_id
+        schema:
+          type: string
+      - description: Agent name qualified by workspace_id or the workspace header.
+        in: query
+        name: agent_name
+        schema:
+          type: string
+      - description: External agent or application client ID.
+        in: query
+        name: client_id
+        schema:
+          type: string
+      - in: query
+        name: action
+        schema:
+          enum:
+          - failOpen
+          - audit
+          - mask
+          - reject
+          type: string
+      - in: query
+        name: phase
+        schema:
+          enum:
+          - request
+          - response
+          type: string
+      - in: query
+        name: trace_id
+        schema:
+          type: string
+      - in: query
+        name: session_id
+        schema:
+          type: string
+      - in: query
+        name: from
+        schema:
+          format: date-time
+          type: string
+      - in: query
+        name: to
+        schema:
+          format: date-time
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuardrailEventChart'
+          description: At most sixty buckets, including empty intervals.
+        default:
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - guardrail_event.read
+      summary: Count the complete filtered range in bounded time buckets.
+      tags:
+      - guardrails
+    parameters:
+    - $ref: '#/components/parameters/WorkspaceIDHeader'
+  /api/guardrails/events/sources:
+    get:
+      operationId: listGuardrailEventSources
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuardrailEventSources'
+          description: Agent and external source filter choices.
+        default:
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - guardrail_event.read
+      summary: List sources with retained guardrail events in the authorized scope.
+      tags:
+      - guardrails
+    parameters:
+    - $ref: '#/components/parameters/WorkspaceIDHeader'
+  /api/guardrails/policies:
+    get:
+      operationId: listGuardrailPolicies
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                properties:
+                  items:
+                    items:
+                      $ref: '#/components/schemas/GuardrailPolicy'
+                    type: array
+                required:
+                - items
+                type: object
+          description: Scoped resources, including explicitly inherited organization resources.
+        default:
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - guardrail_policy.read
+      tags:
+      - guardrails
+    parameters:
+    - $ref: '#/components/parameters/WorkspaceIDHeader'
+    post:
+      operationId: createGuardrailPolicy
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GuardrailPolicyInput'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuardrailPolicy'
+          description: Created resource, pending projection.
+        default:
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - guardrail_policy.create
+      tags:
+      - guardrails
+  /api/guardrails/policies/{name}:
+    delete:
+      operationId: deleteGuardrailPolicy
+      responses:
+        "204":
+          description: Unreferenced resource deleted.
+        default:
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - guardrail_policy.delete
+      tags:
+      - guardrails
+    get:
+      operationId: getGuardrailPolicy
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuardrailPolicy'
+          description: Resource detail.
+        default:
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - guardrail_policy.read
+      tags:
+      - guardrails
+    parameters:
+    - $ref: '#/components/parameters/WorkspaceIDHeader'
+    - in: path
+      name: name
+      required: true
+      schema:
+        type: string
+    put:
+      operationId: updateGuardrailPolicy
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GuardrailPolicyInput'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuardrailPolicy'
+          description: Updated resource, pending projection.
+        default:
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - guardrail_policy.modify
+      tags:
+      - guardrails
+  /api/guardrails/settings:
+    get:
+      operationId: getGuardrailSettings
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuardrailSettings'
+          description: Organization baseline and audit settings, inherited read-only by workspaces.
+        default:
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - guardrail_policy.read
+      tags:
+      - guardrails
+    parameters:
+    - $ref: '#/components/parameters/WorkspaceIDHeader'
+    put:
+      operationId: updateGuardrailSettings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GuardrailSettings'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuardrailSettings'
+          description: Organization settings saved.
+        default:
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - guardrail_policy.modify
+      tags:
+      - guardrails
   /api/inference/pool:
     get:
       operationId: listInferencePools

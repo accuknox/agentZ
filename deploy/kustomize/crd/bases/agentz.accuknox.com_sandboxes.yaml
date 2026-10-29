@@ -71,6 +71,32 @@ spec:
                 maxLength: 128
                 minLength: 1
                 type: string
+              guardrails:
+                description: Guardrails adds policies after the mandatory organization baseline.
+                properties:
+                  policies:
+                    description: Policies is the ordered set of optional policy references.
+                    items:
+                      description: ResourceReference identifies a resource by scope and metadata name.
+                      properties:
+                        name:
+                          description: Name is the immutable Kubernetes metadata name of the resource.
+                          maxLength: 63
+                          minLength: 1
+                          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                          type: string
+                        scope:
+                          description: Scope selects the current Organisation or Workspace namespace.
+                          enum:
+                          - Organisation
+                          - Workspace
+                          type: string
+                      required:
+                      - name
+                      - scope
+                      type: object
+                    type: array
+                type: object
               inference:
                 description: Inference defines the model policy inherited by referencing Agents.
                 properties:

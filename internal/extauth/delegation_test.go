@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,7 +15,6 @@ import (
 
 	"github.com/accuknox/agentz/internal/mcp"
 	"github.com/accuknox/agentz/internal/oauth"
-	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	baoapi "github.com/openbao/openbao/api/v2"
 	"golang.org/x/oauth2"
 	"k8s.io/apimachinery/pkg/types"
@@ -300,79 +298,6 @@ type probeRevisionCase struct {
 	generation int64
 	probeTime  time.Time
 	updated    bool
-}
-
-type probeCatalogCase struct {
-	name    string
-	count   int
-	uriSize int
-	healthy bool
-}
-
-func TestMCPProbeDiscoversBoundedPaginatedCatalog(t *testing.T) {
-	cases := []probeCatalogCase{
-		{name: "empty", healthy: true},
-		{name: "multiple pages", count: 5, healthy: true},
-		{name: "item limit", count: maxProbeCatalogItems + 1},
-		{name: "byte limit", count: 2, uriSize: maxProbeCatalogBytes / 2},
-	}
-	for _, test := range cases {
-		t.Run(test.name, func(t *testing.T) {
-			server := mcpsdk.NewServer(&mcpsdk.Implementation{Name: "probe-test"}, &mcpsdk.ServerOptions{
-				PageSize: 2,
-				Capabilities: &mcpsdk.ServerCapabilities{
-					Tools:     &mcpsdk.ToolCapabilities{},
-					Prompts:   &mcpsdk.PromptCapabilities{},
-					Resources: &mcpsdk.ResourceCapabilities{},
-				},
-			})
-			for i := range test.count {
-				name := fmt.Sprintf("item-%04d", i)
-				server.AddTool(&mcpsdk.Tool{Name: name, InputSchema: json.RawMessage(`{"type":"object"}`)}, nil)
-				server.AddPrompt(&mcpsdk.Prompt{Name: name}, nil)
-				server.AddResource(&mcpsdk.Resource{URI: "test:///" + name + strings.Repeat("x", test.uriSize)}, nil)
-			}
-			upstream := httptest.NewServer(mcpsdk.NewStreamableHTTPHandler(
-				func(*http.Request) *mcpsdk.Server { return server },
-				&mcpsdk.StreamableHTTPOptions{JSONResponse: true},
-			))
-			defer upstream.Close()
-			service := &Service{probeTimeout: 10 * time.Second}
-			connection := &agentzv1alpha1.MCPConnection{
-				Spec: agentzv1alpha1.MCPConnectionSpec{
-					Endpoint: agentzv1alpha1.MCPConnectionEndpoint{URL: upstream.URL},
-				},
-			}
-			outcome := service.probeMCPConnectionOnce(t.Context(), connection)
-			if outcome.healthy != test.healthy {
-				t.Fatalf("healthy = %v, want %v: %s", outcome.healthy, test.healthy, outcome.message)
-			}
-			if !test.healthy {
-				if !strings.Contains(outcome.message, "limit") {
-					t.Fatalf("expected catalog limit rejection, got %s", outcome.message)
-				}
-				return
-			}
-			incompleteCatalog := len(outcome.tools) != test.count ||
-				len(outcome.prompts) != test.count ||
-				len(outcome.resources) != test.count
-			if incompleteCatalog {
-				t.Fatalf("incomplete catalog: tools=%d prompts=%d resources=%d", len(outcome.tools), len(outcome.prompts), len(outcome.resources))
-			}
-			for i := range test.count {
-				name := fmt.Sprintf("item-%04d", i)
-				changedIdentifiers := outcome.tools[i].Name != name ||
-					outcome.prompts[i] != name ||
-					outcome.resources[i] != "test:///"+name
-				if changedIdentifiers {
-					t.Fatalf(
-						"catalog identifiers changed: tool=%q prompt=%q resource=%q",
-						outcome.tools[i].Name, outcome.prompts[i], outcome.resources[i],
-					)
-				}
-			}
-		})
-	}
 }
 
 func TestMCPProbeCatalogRequiresCurrentResourceRevision(t *testing.T) {

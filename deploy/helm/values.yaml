@@ -202,8 +202,6 @@ manager:
     # Base URL exposed to agents for gateway-backed workflow tools.
     gatewayURL: ""
 
-    # Patched Agentgateway image for delegated inference and MCP.
-    delegationImage: public.ecr.aws/k9v9d5v2/agentz/agentgateway:main
     # AgentGateway trace target discovery mode: service or static.
     agentgatewayTraceMode: service
 

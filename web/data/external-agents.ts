@@ -114,6 +114,45 @@ export type ExternalAgent = NonNullable<
   Awaited<ReturnType<typeof listExternalAgents>>
 >["agents"][number]
 
+/** getExternalAgentGuardrails limits policy assignments to workspace agent registrations. */
+export async function getExternalAgentGuardrails(
+  orgSlug: string,
+  workspaceSlug: string,
+  clientId: string
+) {
+  const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
+  if (scope.kind !== "ready") return
+  if (!scope.scope.organization.superadmin && !scope.workspace.capabilities.administer) return
+  const [agent] = await getDB()
+    .select({
+      policies: schema.guardrailClientAccess.policies,
+      updatedAt: schema.guardrailClientAccess.updatedAt,
+    })
+    .from(schema.externalAgents)
+    .leftJoin(
+      schema.guardrailClientAccess,
+      and(
+        eq(schema.guardrailClientAccess.clientId, schema.externalAgents.clientId),
+        eq(schema.guardrailClientAccess.organizationId, schema.externalAgents.organizationId),
+        eq(schema.guardrailClientAccess.workspaceId, schema.externalAgents.workspaceId)
+      )
+    )
+    .where(
+      and(
+        eq(schema.externalAgents.clientId, clientId),
+        eq(schema.externalAgents.organizationId, scope.scope.organization.id),
+        eq(schema.externalAgents.workspaceId, scope.workspace.id)
+      )
+    )
+  if (!agent) return
+  return {
+    organizationId: scope.scope.organization.id,
+    workspaceId: scope.workspace.id,
+    assignment: { policies: agent.policies ?? [] },
+    updatedAt: agent.updatedAt?.toISOString(),
+  }
+}
+
 /** createExternalAgent registers fixed native OAuth metadata after workspace authorization. */
 export async function createExternalAgent(
   orgSlug: string,

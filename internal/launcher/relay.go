@@ -272,7 +272,7 @@ func (installed *installation) serveCatalog(w http.ResponseWriter, r *http.Reque
 			continue
 		}
 		supported := slices.ContainsFunc(*model.ApiCompatibility, func(item gatewayapi.DelegationAPICompatibility) bool {
-			return item.Api == gatewayapi.Messages && item.Support != gatewayapi.Unsupported
+			return item.Api == gatewayapi.Messages && item.Support != gatewayapi.DelegationAPICompatibilitySupportUnsupported
 		})
 		if !supported {
 			continue

@@ -1155,7 +1155,7 @@ func (s *Service) judgeEvaluation(ctx context.Context, namespace string, evaluat
 	}
 	var format gatewayapi.OpencodeOutputFormat
 	err = format.FromOpencodeOutputFormatJsonSchema(gatewayapi.OpencodeOutputFormatJsonSchema{
-		Type:       gatewayapi.JsonSchema,
+		Type:       gatewayapi.OpencodeOutputFormatJsonSchemaTypeJsonSchema,
 		Schema:     outputSchema,
 		RetryCount: new(1),
 	})

@@ -60,7 +60,7 @@ rules:
       - set-workflowrun-status
       - update-workflow-schedule
   - apiGroups: ["agentz.accuknox.com"]
-    resources: ["inferencepools", "inferenceproviders", "sandboxes"]
+    resources: ["guardrailconnections", "guardrailpolicies", "inferencepools", "inferenceproviders", "sandboxes"]
     verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
   - apiGroups: ["agentz.accuknox.com"]
     resources: ["mcpconnections", "secrets"]
@@ -69,6 +69,8 @@ rules:
     resources:
       - agents/finalizers
       - inferencepools/finalizers
+      - guardrailconnections/finalizers
+      - guardrailpolicies/finalizers
       - inferenceproviders/finalizers
       - mcpconnections/finalizers
       - sandboxes/finalizers
@@ -80,6 +82,8 @@ rules:
     resources:
       - agents/status
       - inferencepools/status
+      - guardrailconnections/status
+      - guardrailpolicies/status
       - inferenceproviders/status
       - mcpconnections/status
       - sandboxes/status

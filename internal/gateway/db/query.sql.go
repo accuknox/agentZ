@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -1525,6 +1526,101 @@ func (q *Queries) GatewayFailCleanupJob(ctx context.Context, arg GatewayFailClea
 	return result.RowsAffected(), nil
 }
 
+const gatewayFindGuardrailTraceSource = `-- name: GatewayFindGuardrailTraceSource :many
+WITH event AS (
+  SELECT ev.id, ev.organization_id, ev.workspace_id, ev.occurred_at, ev.expires_at, ev.sandbox_name, ev.agent_name, ev.client_id, ev.session_id, ev.model, ev.trace_id, ev.span_id, ev.revision, ev.phase, ev.action, ev.evaluation FROM observer_guardrail_events ev
+  WHERE ev.id = $1
+    AND ev.organization_id = $2
+    AND ev.expires_at > now()
+), candidates AS (
+  SELECT w.id AS workspace_id, w.namespace, w.type::text AS workspace_type,
+    sp.agent_name, ''::text AS client_id, sp.session_id,
+    sp.trace_id, sp.span_id, sp.id AS operation_id,
+    CASE WHEN sp.trace_id = event.trace_id AND sp.span_id = event.span_id THEN 0 ELSE 1 END AS priority
+  FROM event
+  JOIN workspaces w ON w.organization_id = event.organization_id
+    AND w.deleted_at IS NULL
+    AND w.id = event.workspace_id
+  JOIN observer_trace_spans sp ON sp.tenant_namespace = w.namespace
+    AND sp.span_class = 'llm'
+    AND event.agent_name <> '' AND sp.agent_name = event.agent_name
+    AND ((sp.trace_id = event.trace_id AND sp.span_id = event.span_id)
+      OR (event.session_id <> '' AND sp.session_id = event.session_id
+        AND event.occurred_at >= sp.start_time
+        AND event.occurred_at <= sp.end_time))
+  UNION ALL
+  SELECT w.id, w.namespace, w.type::text,
+    ''::text, op.client_id, op.session_id,
+    coalesce(run.trace_id, op.trace_id), op.span_id, op.id,
+    CASE WHEN op.trace_id = event.trace_id AND op.span_id = event.span_id THEN 0 ELSE 1 END
+  FROM event
+  JOIN workspaces w ON w.organization_id = event.organization_id
+    AND w.deleted_at IS NULL
+    AND w.id = event.workspace_id
+  JOIN observer_app_operations op ON op.organization_id = event.organization_id
+    AND op.workspace_id = w.id AND op.span_class = 'llm'
+    AND event.client_id <> '' AND op.client_id = event.client_id
+    AND ((op.trace_id = event.trace_id AND op.span_id = event.span_id)
+      OR (event.session_id <> '' AND op.session_id = event.session_id
+        AND event.occurred_at >= op.start_time
+        AND event.occurred_at <= op.end_time))
+  LEFT JOIN observer_app_operations run ON run.id = op.run_id
+)
+SELECT workspace_id, namespace, workspace_type, agent_name, client_id, session_id, trace_id, span_id, operation_id, priority FROM candidates
+WHERE priority = (SELECT min(priority) FROM candidates)
+ORDER BY operation_id
+LIMIT 2
+`
+
+type GatewayFindGuardrailTraceSourceParams struct {
+	EventID        string `json:"event_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+type GatewayFindGuardrailTraceSourceRow struct {
+	WorkspaceID   string `json:"workspace_id"`
+	Namespace     string `json:"namespace"`
+	WorkspaceType string `json:"workspace_type"`
+	AgentName     string `json:"agent_name"`
+	ClientID      string `json:"client_id"`
+	SessionID     string `json:"session_id"`
+	TraceID       []byte `json:"trace_id"`
+	SpanID        []byte `json:"span_id"`
+	OperationID   int64  `json:"operation_id"`
+	Priority      int32  `json:"priority"`
+}
+
+func (q *Queries) GatewayFindGuardrailTraceSource(ctx context.Context, arg GatewayFindGuardrailTraceSourceParams) ([]GatewayFindGuardrailTraceSourceRow, error) {
+	rows, err := q.db.Query(ctx, gatewayFindGuardrailTraceSource, arg.EventID, arg.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayFindGuardrailTraceSourceRow{}
+	for rows.Next() {
+		var i GatewayFindGuardrailTraceSourceRow
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.Namespace,
+			&i.WorkspaceType,
+			&i.AgentName,
+			&i.ClientID,
+			&i.SessionID,
+			&i.TraceID,
+			&i.SpanID,
+			&i.OperationID,
+			&i.Priority,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const gatewayGetAPIKeyByHash = `-- name: GatewayGetAPIKeyByHash :one
 SELECT id, reference_id, name
 FROM apikeys
@@ -2316,6 +2412,177 @@ func (q *Queries) GatewayGetExternalAgent(ctx context.Context, clientID string) 
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const gatewayGetExternalAgentGuardrails = `-- name: GatewayGetExternalAgentGuardrails :one
+SELECT access.policies FROM guardrail_client_access access
+JOIN external_agents agent ON agent.client_id = access.client_id
+  AND agent.organization_id = access.organization_id
+  AND agent.workspace_id = access.workspace_id
+WHERE access.organization_id = $1
+  AND access.workspace_id = $2
+  AND access.client_id = $3
+`
+
+type GatewayGetExternalAgentGuardrailsParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	ClientID       string `json:"client_id"`
+}
+
+func (q *Queries) GatewayGetExternalAgentGuardrails(ctx context.Context, arg GatewayGetExternalAgentGuardrailsParams) ([]v1alpha1.ResourceReference, error) {
+	row := q.db.QueryRow(ctx, gatewayGetExternalAgentGuardrails, arg.OrganizationID, arg.WorkspaceID, arg.ClientID)
+	var policies []v1alpha1.ResourceReference
+	err := row.Scan(&policies)
+	return policies, err
+}
+
+const gatewayGetGuardrailEvent = `-- name: GatewayGetGuardrailEvent :one
+SELECT event.id, event.organization_id, event.workspace_id, event.occurred_at, event.expires_at, event.sandbox_name, event.agent_name, event.client_id, event.session_id, event.model, event.trace_id, event.span_id, event.revision, event.phase, event.action, event.evaluation, coalesce(app.name, '')::text AS subject_name
+FROM observer_guardrail_events event
+LEFT JOIN oauth_clients app ON app.client_id = event.client_id
+WHERE event.id = $1
+  AND event.organization_id = $2
+  AND ($3::text = '' OR event.workspace_id = $3)
+  AND event.expires_at > now()
+`
+
+type GatewayGetGuardrailEventParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+type GatewayGetGuardrailEventRow struct {
+	ObserverGuardrailEvent ObserverGuardrailEvent `json:"observer_guardrail_event"`
+	SubjectName            string                 `json:"subject_name"`
+}
+
+func (q *Queries) GatewayGetGuardrailEvent(ctx context.Context, arg GatewayGetGuardrailEventParams) (GatewayGetGuardrailEventRow, error) {
+	row := q.db.QueryRow(ctx, gatewayGetGuardrailEvent, arg.ID, arg.OrganizationID, arg.WorkspaceID)
+	var i GatewayGetGuardrailEventRow
+	err := row.Scan(
+		&i.ObserverGuardrailEvent.ID,
+		&i.ObserverGuardrailEvent.OrganizationID,
+		&i.ObserverGuardrailEvent.WorkspaceID,
+		&i.ObserverGuardrailEvent.OccurredAt,
+		&i.ObserverGuardrailEvent.ExpiresAt,
+		&i.ObserverGuardrailEvent.SandboxName,
+		&i.ObserverGuardrailEvent.AgentName,
+		&i.ObserverGuardrailEvent.ClientID,
+		&i.ObserverGuardrailEvent.SessionID,
+		&i.ObserverGuardrailEvent.Model,
+		&i.ObserverGuardrailEvent.TraceID,
+		&i.ObserverGuardrailEvent.SpanID,
+		&i.ObserverGuardrailEvent.Revision,
+		&i.ObserverGuardrailEvent.Phase,
+		&i.ObserverGuardrailEvent.Action,
+		&i.ObserverGuardrailEvent.Evaluation,
+		&i.SubjectName,
+	)
+	return i, err
+}
+
+const gatewayGetGuardrailEventChart = `-- name: GatewayGetGuardrailEventChart :many
+WITH counts AS (
+  SELECT floor(extract(epoch FROM (occurred_at - $1::timestamptz))
+    / $2::integer)::integer AS bucket, count(*)::bigint AS count
+  FROM observer_guardrail_events
+  WHERE organization_id = $4
+    AND ($5::text = '' OR workspace_id = $5)
+    AND occurred_at >= $1::timestamptz
+    AND occurred_at < $3::timestamptz
+    AND expires_at > now()
+    AND ($6::text = '' OR agent_name = $6)
+    AND ($7::text = '' OR client_id = $7)
+    AND ($8::text = '' OR action = $8)
+    AND ($9::text = '' OR phase = $9)
+    AND ($10::text = '' OR trace_id = decode($10, 'hex'))
+    AND ($11::text = '' OR session_id = $11)
+  GROUP BY bucket
+)
+SELECT ($1::timestamptz
+  + make_interval(secs => series.bucket * $2::integer))::timestamptz AS time,
+  coalesce(counts.count, 0)::bigint AS count
+FROM generate_series(0, ceil(extract(epoch FROM (
+  $3::timestamptz - $1::timestamptz))
+  / $2::integer)::integer - 1) AS series(bucket)
+LEFT JOIN counts USING (bucket)
+ORDER BY series.bucket
+`
+
+type GatewayGetGuardrailEventChartParams struct {
+	StartedAfter   time.Time `json:"started_after"`
+	BucketSeconds  int32     `json:"bucket_seconds"`
+	StartedBefore  time.Time `json:"started_before"`
+	OrganizationID string    `json:"organization_id"`
+	WorkspaceID    string    `json:"workspace_id"`
+	AgentName      string    `json:"agent_name"`
+	ClientID       string    `json:"client_id"`
+	Action         string    `json:"action"`
+	Phase          string    `json:"phase"`
+	TraceID        string    `json:"trace_id"`
+	SessionID      string    `json:"session_id"`
+}
+
+type GatewayGetGuardrailEventChartRow struct {
+	Time  time.Time `json:"time"`
+	Count int64     `json:"count"`
+}
+
+func (q *Queries) GatewayGetGuardrailEventChart(ctx context.Context, arg GatewayGetGuardrailEventChartParams) ([]GatewayGetGuardrailEventChartRow, error) {
+	rows, err := q.db.Query(ctx, gatewayGetGuardrailEventChart,
+		arg.StartedAfter,
+		arg.BucketSeconds,
+		arg.StartedBefore,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.ClientID,
+		arg.Action,
+		arg.Phase,
+		arg.TraceID,
+		arg.SessionID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayGetGuardrailEventChartRow{}
+	for rows.Next() {
+		var i GatewayGetGuardrailEventChartRow
+		if err := rows.Scan(&i.Time, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayGetGuardrailRequest = `-- name: GatewayGetGuardrailRequest :one
+SELECT request.body
+FROM observer_guardrail_requests request
+JOIN observer_guardrail_events event USING (trace_id, span_id)
+WHERE event.id = $1
+  AND event.organization_id = $2
+  AND ($3::text = '' OR event.workspace_id = $3)
+  AND event.expires_at > now() AND request.expires_at > now()
+`
+
+type GatewayGetGuardrailRequestParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+func (q *Queries) GatewayGetGuardrailRequest(ctx context.Context, arg GatewayGetGuardrailRequestParams) ([]byte, error) {
+	row := q.db.QueryRow(ctx, gatewayGetGuardrailRequest, arg.ID, arg.OrganizationID, arg.WorkspaceID)
+	var body []byte
+	err := row.Scan(&body)
+	return body, err
 }
 
 const gatewayGetLensApp = `-- name: GatewayGetLensApp :one
@@ -4933,6 +5200,46 @@ func (q *Queries) GatewayListEventTrailWorkspaces(ctx context.Context, arg Gatew
 	return items, nil
 }
 
+const gatewayListExternalAgentGuardrails = `-- name: GatewayListExternalAgentGuardrails :many
+SELECT access.client_id, access.policies FROM guardrail_client_access access
+JOIN external_agents agent ON agent.client_id = access.client_id
+  AND agent.organization_id = access.organization_id
+  AND agent.workspace_id = access.workspace_id
+WHERE access.organization_id = $1
+  AND access.workspace_id = $2
+ORDER BY access.client_id
+`
+
+type GatewayListExternalAgentGuardrailsParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+type GatewayListExternalAgentGuardrailsRow struct {
+	ClientID string                       `json:"client_id"`
+	Policies []v1alpha1.ResourceReference `json:"policies"`
+}
+
+func (q *Queries) GatewayListExternalAgentGuardrails(ctx context.Context, arg GatewayListExternalAgentGuardrailsParams) ([]GatewayListExternalAgentGuardrailsRow, error) {
+	rows, err := q.db.Query(ctx, gatewayListExternalAgentGuardrails, arg.OrganizationID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayListExternalAgentGuardrailsRow{}
+	for rows.Next() {
+		var i GatewayListExternalAgentGuardrailsRow
+		if err := rows.Scan(&i.ClientID, &i.Policies); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const gatewayListFileEvents = `-- name: GatewayListFileEvents :many
 SELECT
   id,
@@ -5112,6 +5419,175 @@ func (q *Queries) GatewayListFileEventsAggregated(ctx context.Context, arg Gatew
 			&i.Action,
 			&i.Source,
 			&i.Occurrences,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListGuardrailEventSources = `-- name: GatewayListGuardrailEventSources :many
+WITH retained AS (
+  SELECT DISTINCT workspace_id, agent_name, client_id
+  FROM observer_guardrail_events
+  WHERE organization_id = $1 AND expires_at > now()
+    AND ($2::text = '' OR workspace_id = $2)
+), sources AS (
+  SELECT workspace_id, agent_name, ''::text AS client_id
+  FROM retained WHERE agent_name <> ''
+  UNION
+  SELECT ''::text, ''::text, client_id
+  FROM retained WHERE client_id <> ''
+)
+SELECT sources.workspace_id, sources.agent_name, sources.client_id,
+  COALESCE(NULLIF(sources.agent_name, ''), NULLIF(app.name, ''), sources.client_id)::text AS source_name,
+  COALESCE(external.kind::text, '')::text AS agent_kind,
+  COALESCE(external.user_id, '')::text AS user_id,
+  COALESCE(owner.name, '')::text AS user_name,
+  COALESCE(owner.email, '')::text AS user_email,
+  owner.image AS user_image
+FROM sources
+LEFT JOIN oauth_clients app ON app.client_id = sources.client_id
+LEFT JOIN external_agents external ON external.client_id = sources.client_id
+  AND external.organization_id = $1
+  AND ($2::text = '' OR external.workspace_id = $2)
+LEFT JOIN users owner ON owner.id = external.user_id
+ORDER BY sources.workspace_id, sources.agent_name, source_name, sources.client_id
+`
+
+type GatewayListGuardrailEventSourcesParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+type GatewayListGuardrailEventSourcesRow struct {
+	WorkspaceID string      `json:"workspace_id"`
+	AgentName   string      `json:"agent_name"`
+	ClientID    string      `json:"client_id"`
+	SourceName  string      `json:"source_name"`
+	AgentKind   string      `json:"agent_kind"`
+	UserID      string      `json:"user_id"`
+	UserName    string      `json:"user_name"`
+	UserEmail   string      `json:"user_email"`
+	UserImage   pgtype.Text `json:"user_image"`
+}
+
+func (q *Queries) GatewayListGuardrailEventSources(ctx context.Context, arg GatewayListGuardrailEventSourcesParams) ([]GatewayListGuardrailEventSourcesRow, error) {
+	rows, err := q.db.Query(ctx, gatewayListGuardrailEventSources, arg.OrganizationID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayListGuardrailEventSourcesRow{}
+	for rows.Next() {
+		var i GatewayListGuardrailEventSourcesRow
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.AgentName,
+			&i.ClientID,
+			&i.SourceName,
+			&i.AgentKind,
+			&i.UserID,
+			&i.UserName,
+			&i.UserEmail,
+			&i.UserImage,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListGuardrailEvents = `-- name: GatewayListGuardrailEvents :many
+SELECT event.id, event.organization_id, event.workspace_id, event.occurred_at, event.expires_at, event.sandbox_name, event.agent_name, event.client_id, event.session_id, event.model, event.trace_id, event.span_id, event.revision, event.phase, event.action, event.evaluation, coalesce(app.name, '')::text AS subject_name
+FROM observer_guardrail_events event
+LEFT JOIN oauth_clients app ON app.client_id = event.client_id
+WHERE event.organization_id = $1
+  AND ($2::text = '' OR event.workspace_id = $2)
+  AND event.occurred_at >= $3::timestamptz
+  AND event.occurred_at < $4::timestamptz
+  AND event.expires_at > now()
+  AND ($5::text = '' OR event.agent_name = $5)
+  AND ($6::text = '' OR event.client_id = $6)
+  AND ($7::text = '' OR event.action = $7)
+  AND ($8::text = '' OR event.phase = $8)
+  AND ($9::text = '' OR event.trace_id = decode($9, 'hex'))
+  AND ($10::text = '' OR event.session_id = $10)
+  AND ($11::text = '' OR (event.occurred_at, event.id) < ($12, $11))
+ORDER BY event.occurred_at DESC, event.id DESC
+LIMIT $13
+`
+
+type GatewayListGuardrailEventsParams struct {
+	OrganizationID string    `json:"organization_id"`
+	WorkspaceID    string    `json:"workspace_id"`
+	StartedAfter   time.Time `json:"started_after"`
+	StartedBefore  time.Time `json:"started_before"`
+	AgentName      string    `json:"agent_name"`
+	ClientID       string    `json:"client_id"`
+	Action         string    `json:"action"`
+	Phase          string    `json:"phase"`
+	TraceID        string    `json:"trace_id"`
+	SessionID      string    `json:"session_id"`
+	CursorID       string    `json:"cursor_id"`
+	CursorAt       time.Time `json:"cursor_at"`
+	PageSize       int32     `json:"page_size"`
+}
+
+type GatewayListGuardrailEventsRow struct {
+	ObserverGuardrailEvent ObserverGuardrailEvent `json:"observer_guardrail_event"`
+	SubjectName            string                 `json:"subject_name"`
+}
+
+func (q *Queries) GatewayListGuardrailEvents(ctx context.Context, arg GatewayListGuardrailEventsParams) ([]GatewayListGuardrailEventsRow, error) {
+	rows, err := q.db.Query(ctx, gatewayListGuardrailEvents,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.StartedAfter,
+		arg.StartedBefore,
+		arg.AgentName,
+		arg.ClientID,
+		arg.Action,
+		arg.Phase,
+		arg.TraceID,
+		arg.SessionID,
+		arg.CursorID,
+		arg.CursorAt,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayListGuardrailEventsRow{}
+	for rows.Next() {
+		var i GatewayListGuardrailEventsRow
+		if err := rows.Scan(
+			&i.ObserverGuardrailEvent.ID,
+			&i.ObserverGuardrailEvent.OrganizationID,
+			&i.ObserverGuardrailEvent.WorkspaceID,
+			&i.ObserverGuardrailEvent.OccurredAt,
+			&i.ObserverGuardrailEvent.ExpiresAt,
+			&i.ObserverGuardrailEvent.SandboxName,
+			&i.ObserverGuardrailEvent.AgentName,
+			&i.ObserverGuardrailEvent.ClientID,
+			&i.ObserverGuardrailEvent.SessionID,
+			&i.ObserverGuardrailEvent.Model,
+			&i.ObserverGuardrailEvent.TraceID,
+			&i.ObserverGuardrailEvent.SpanID,
+			&i.ObserverGuardrailEvent.Revision,
+			&i.ObserverGuardrailEvent.Phase,
+			&i.ObserverGuardrailEvent.Action,
+			&i.ObserverGuardrailEvent.Evaluation,
+			&i.SubjectName,
 		); err != nil {
 			return nil, err
 		}
@@ -5390,6 +5866,43 @@ func (q *Queries) GatewayListNetworkEventsAggregated(ctx context.Context, arg Ga
 			&i.Source,
 			&i.Occurrences,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListOrganizationExternalAgentGuardrails = `-- name: GatewayListOrganizationExternalAgentGuardrails :many
+SELECT access.workspace_id, access.policies FROM guardrail_client_access access
+JOIN external_agents agent ON agent.client_id = access.client_id
+  AND agent.organization_id = access.organization_id
+  AND agent.workspace_id = access.workspace_id
+JOIN workspaces ON workspaces.id = access.workspace_id
+  AND workspaces.organization_id = access.organization_id
+WHERE access.organization_id = $1
+  AND workspaces.deleted_at IS NULL
+ORDER BY access.workspace_id, access.client_id
+`
+
+type GatewayListOrganizationExternalAgentGuardrailsRow struct {
+	WorkspaceID string                       `json:"workspace_id"`
+	Policies    []v1alpha1.ResourceReference `json:"policies"`
+}
+
+func (q *Queries) GatewayListOrganizationExternalAgentGuardrails(ctx context.Context, organizationID string) ([]GatewayListOrganizationExternalAgentGuardrailsRow, error) {
+	rows, err := q.db.Query(ctx, gatewayListOrganizationExternalAgentGuardrails, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayListOrganizationExternalAgentGuardrailsRow{}
+	for rows.Next() {
+		var i GatewayListOrganizationExternalAgentGuardrailsRow
+		if err := rows.Scan(&i.WorkspaceID, &i.Policies); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

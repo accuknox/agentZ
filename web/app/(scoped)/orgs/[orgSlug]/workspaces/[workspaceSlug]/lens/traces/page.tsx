@@ -9,7 +9,7 @@ import { EventsChartSkeleton } from "@/components/events-chart-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
 import { resolvePageSelection, type ResolvedPageSelection } from "@/data/page-selection"
 import { RememberPageSelection } from "@/components/page-selection"
-import { getTraceChartAction, listTracesAction } from "@/data/lens.actions"
+import { findTraceAction, getTraceChartAction, listTracesAction } from "@/data/lens.actions"
 import { LensFilters } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/lens-filters"
 import {
   lensDateRange,
@@ -21,6 +21,7 @@ import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/sear
 import type { TraceSubject } from "@/data/types"
 import { getWorkspaceScope } from "@/data/workspaces"
 import { CircleAlert } from "lucide-react"
+import { zTraceId, zSpanId } from "@/lib/gateway/client/zod.gen"
 
 export const metadata: Metadata = {
   title: "Traces",
@@ -36,6 +37,14 @@ const tracesSearchParamsSchema = z.object({
   to: searchParamStringSchema,
   page_token: searchParamStringSchema,
   limit: searchParamStringSchema,
+  trace_id: searchParamStringSchema.pipe(zTraceId.optional()),
+  span_id: searchParamStringSchema.pipe(zSpanId.optional()),
+  operation_id: searchParamStringSchema
+    .transform((value) => (value === undefined ? undefined : Number(value)))
+    .pipe(z.number().int().positive().optional()),
+  section: searchParamStringSchema.pipe(
+    z.enum(["input_messages", "output_messages", "tool_arguments", "tool_result"]).optional()
+  ),
 })
 
 type TracesSearchParams = {
@@ -46,6 +55,10 @@ type TracesSearchParams = {
   to?: SearchParamStringInput
   page_token?: SearchParamStringInput
   limit?: SearchParamStringInput
+  trace_id?: SearchParamStringInput
+  span_id?: SearchParamStringInput
+  operation_id?: SearchParamStringInput
+  section?: SearchParamStringInput
 }
 
 export default async function TracesPage({
@@ -197,6 +210,22 @@ async function Traces({
     return <EmptyState message={message} />
   }
 
+  if (params.traceID) {
+    const result = await findTraceAction(subject, params.traceID, workspaceId)
+    return (
+      <TracesTable
+        key={JSON.stringify([subject, params.traceID])}
+        data={
+          result.data
+            ? { traces: [result.data], nextPageToken: "", hasNextPage: false, limit: 1 }
+            : undefined
+        }
+        error={result.error}
+        workspaceId={workspaceId}
+      />
+    )
+  }
+
   const result = await listTracesAction(
     subject,
     {
@@ -234,6 +263,7 @@ type ResolvedTracesSearchParams = {
   pageToken?: string
   range: LensDateRange
   sessionID?: string
+  traceID?: string
 }
 
 async function resolveTracesSearchParams(searchParams: Promise<TracesSearchParams>) {
@@ -246,6 +276,7 @@ async function resolveTracesSearchParams(searchParams: Promise<TracesSearchParam
     pageToken: params.page_token,
     range: lensDateRange(params.from, params.to),
     sessionID: params.session_id,
+    traceID: params.trace_id,
   } satisfies ResolvedTracesSearchParams
 }
 

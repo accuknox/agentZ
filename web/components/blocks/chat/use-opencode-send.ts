@@ -1,5 +1,6 @@
 "use client"
 
+import { v4 as uuidv4 } from "uuid"
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRef, useState } from "react"
 import { toast } from "sonner"
@@ -120,7 +121,7 @@ export function useOpencodeSend(
   })
   const send = useMutation({
     mutationFn: async (input: SendMessageInput) => {
-      const requestID = input.requestID ?? crypto.randomUUID()
+      const requestID = input.requestID ?? uuidv4()
       setPending((current) => [...current, { id: requestID, input, status: "Saving message..." }])
       const previous = submission.current
       const next = Promise.withResolvers<void>()

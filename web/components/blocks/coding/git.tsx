@@ -1066,14 +1066,6 @@ export function GitChanges({
                       </TooltipTrigger>
                       <TooltipContent>Generate commit message</TooltipContent>
                     </Tooltip>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setComposerOpen(false)}
-                    >
-                      Cancel
-                    </Button>
                     <LoadingButton
                       pending={sync.isPending && sync.variables.action === "commit"}
                       type="submit"
@@ -1252,11 +1244,6 @@ export function GitChanges({
                     <Check />
                   </EmptyMedia>
                   <EmptyTitle>{filter ? "No matching files" : "No changes"}</EmptyTitle>
-                  <EmptyDescription>
-                    {filter
-                      ? "Try another filename."
-                      : "Changes made by you or the agent appear here."}
-                  </EmptyDescription>
                 </EmptyHeader>
               </Empty>
             )}
@@ -1544,7 +1531,7 @@ export function GitChanges({
           if (!open && !busy) setStashAction(undefined)
         }}
       >
-        <DialogContent>
+        <DialogContent showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>
               {stashAction === "stash_create"

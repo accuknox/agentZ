@@ -283,10 +283,12 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	selected := agentzv1alpha1.SelectedOrganizationResources{
-		Skills:             slices.Clone(req.SelectedOrganizationResources.Skills),
-		Sandboxes:          slices.Clone(req.SelectedOrganizationResources.Sandboxes),
-		MCPConnections:     slices.Clone(req.SelectedOrganizationResources.McpConnections),
-		InferenceProviders: slices.Clone(req.SelectedOrganizationResources.InferenceProviders),
+		Skills:               slices.Clone(req.SelectedOrganizationResources.Skills),
+		Sandboxes:            slices.Clone(req.SelectedOrganizationResources.Sandboxes),
+		MCPConnections:       slices.Clone(req.SelectedOrganizationResources.McpConnections),
+		InferenceProviders:   slices.Clone(req.SelectedOrganizationResources.InferenceProviders),
+		GuardrailConnections: slices.Clone(req.SelectedOrganizationResources.GuardrailConnections),
+		GuardrailPolicies:    slices.Clone(req.SelectedOrganizationResources.GuardrailPolicies),
 	}
 	fields, err := s.validateOrganizationResourceSelection(
 		r.Context(),
@@ -1079,16 +1081,19 @@ func workspaceView(row gatewaydb.Workspace, workspaceAdminCount int64, canAdmini
 	view := gatewayapi.Workspace{
 		Type: gatewayapi.WorkspaceType(row.Type),
 		Capabilities: gatewayapi.WorkspaceCapabilities{
-			Administer:         canAdminister,
-			Agents:             gatewayapi.AgentWorkspaceCapabilities{Author: capabilities.canAuthorAgents},
-			ApiKeys:            capabilities.apiKey,
-			ExternalAgents:     capabilities.externalAgent,
-			InferencePools:     capabilities.inferencePool,
-			InferenceProviders: capabilities.inferenceProvider,
-			McpConnections:     capabilities.mcp,
-			Observability:      capabilities.observability,
-			Sandboxes:          capabilities.sandbox,
-			Skills:             capabilities.skill,
+			Administer:           canAdminister,
+			Agents:               gatewayapi.AgentWorkspaceCapabilities{Author: capabilities.canAuthorAgents},
+			ApiKeys:              capabilities.apiKey,
+			ExternalAgents:       capabilities.externalAgent,
+			InferencePools:       capabilities.inferencePool,
+			InferenceProviders:   capabilities.inferenceProvider,
+			GuardrailConnections: capabilities.guardrailConnection,
+			GuardrailPolicies:    capabilities.guardrailPolicy,
+			GuardrailEvents:      capabilities.guardrailEvent,
+			McpConnections:       capabilities.mcp,
+			Observability:        capabilities.observability,
+			Sandboxes:            capabilities.sandbox,
+			Skills:               capabilities.skill,
 		},
 		CreatedAt:           row.CreatedAt.Time,
 		Id:                  row.ID,

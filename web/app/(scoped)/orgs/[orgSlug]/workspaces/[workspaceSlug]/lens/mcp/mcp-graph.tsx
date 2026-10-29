@@ -25,7 +25,7 @@ import { mcpConnectionFallbackIcon, renderMcpServerIcon } from "@/app/(app)/mcps
 import { formatAge } from "@/lib/format"
 import type { McpGraphResponse } from "@/lib/gateway/client"
 
-import { LensSourceIcon } from "../lens-filters"
+import { LensSourceIcon } from "@/components/lens-source-options"
 import type { LensSubject } from "@/data/types"
 
 type McpGraphData = Pick<McpGraphResponse, "connections" | "tools" | "edges">

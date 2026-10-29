@@ -106,10 +106,10 @@ export function AgentOwnerForm({
   const candidates = users.filter((user) => user.id !== ownerUserId)
 
   return (
-    <section className="flex max-w-3xl min-w-0 flex-col gap-3">
+    <section className="flex min-w-0 flex-col gap-3">
       <h2 className="px-4 text-lg font-medium md:px-6">Transfer ownership</h2>
       <div className="border-b px-4 pb-6 md:px-6">
-        <form action={formAction} className="flex flex-col gap-5">
+        <form action={formAction} className="flex max-w-3xl flex-col gap-5">
           {state.error ? (
             <Alert variant="destructive">
               <CircleAlert aria-hidden="true" />
@@ -247,7 +247,7 @@ function AgentShareDialogForm({
       : undefined
 
   return (
-    <DialogContent className="sm:max-w-2xl">
+    <DialogContent className="sm:max-w-2xl" showCloseButton={false}>
       <DialogHeader>
         <DialogTitle>
           {editing ? "Edit" : "Share"} {agentName}

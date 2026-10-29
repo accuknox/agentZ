@@ -530,3 +530,46 @@ SELECT op.id, op.organization_id, op.workspace_id, op.client_id, op.app_name, op
 FROM observer_app_operations op
 LEFT JOIN observer_app_operations run ON run.id = op.run_id
 LEFT JOIN observer_app_tool_results result ON result.id = op.result_id;
+
+CREATE TABLE observer_guardrail_events (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL DEFAULT '',
+  occurred_at TIMESTAMPTZ NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  sandbox_name TEXT NOT NULL DEFAULT '',
+  agent_name TEXT NOT NULL DEFAULT '',
+  client_id TEXT NOT NULL DEFAULT '',
+  session_id TEXT NOT NULL DEFAULT '',
+  model TEXT NOT NULL DEFAULT '',
+  trace_id BYTEA NOT NULL CHECK (octet_length(trace_id) = 16),
+  span_id BYTEA NOT NULL CHECK (octet_length(span_id) = 8),
+  revision TEXT NOT NULL,
+  phase TEXT NOT NULL CHECK (phase IN ('request', 'response')),
+  action TEXT NOT NULL CHECK (action IN ('failOpen', 'audit', 'mask', 'reject')),
+  evaluation JSONB NOT NULL
+);
+
+CREATE INDEX observer_guardrail_events_scope_time_idx
+  ON observer_guardrail_events (organization_id, workspace_id, occurred_at DESC, id DESC);
+CREATE INDEX observer_guardrail_events_org_time_idx
+  ON observer_guardrail_events (organization_id, occurred_at DESC, id DESC);
+CREATE INDEX observer_guardrail_events_trace_idx
+  ON observer_guardrail_events (organization_id, trace_id);
+CREATE INDEX observer_guardrail_events_expiry_idx ON observer_guardrail_events (expires_at);
+CREATE INDEX observer_guardrail_events_agent_time_idx
+  ON observer_guardrail_events (organization_id, agent_name, occurred_at DESC, id DESC)
+  WHERE agent_name <> '';
+CREATE INDEX observer_guardrail_events_client_time_idx
+  ON observer_guardrail_events (organization_id, client_id, occurred_at DESC, id DESC)
+  WHERE client_id <> '';
+
+CREATE TABLE observer_guardrail_requests (
+  trace_id BYTEA NOT NULL CHECK (octet_length(trace_id) = 16),
+  span_id BYTEA NOT NULL CHECK (octet_length(span_id) = 8),
+  expires_at TIMESTAMPTZ NOT NULL,
+  body JSON NOT NULL CHECK (json_typeof(body) = 'object'),
+  PRIMARY KEY (trace_id, span_id)
+);
+CREATE INDEX observer_guardrail_requests_expiry_idx
+  ON observer_guardrail_requests (expires_at);

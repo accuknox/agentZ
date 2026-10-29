@@ -3,6 +3,7 @@ sql:
 - engine: postgresql
   queries: internal/observer/db/query.sql
   schema:
+  - web/db/schema.sql
   - internal/gateway/db/schema.sql
   - internal/observer/db/schema.sql
   gen:
@@ -33,6 +34,7 @@ sql:
     go:
       package: gatewaydb
       out: internal/gateway/db
+      omit_unused_structs: true
       sql_package: pgx/v5
       emit_json_tags: true
       emit_interface: true
@@ -50,6 +52,11 @@ sql:
         go_type:
           slice: true
           type: byte
+      - column: guardrail_client_access.policies
+        go_type:
+          import: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1
+          type: ResourceReference
+          slice: true
 - engine: postgresql
   queries: internal/gateway/workflow/db/query.sql
   schema:
@@ -87,6 +94,7 @@ sql:
     go:
       package: dashboarddb
       out: internal/gateway/dashboard/db
+      omit_unused_structs: true
       sql_package: pgx/v5
       emit_json_tags: true
       emit_interface: true

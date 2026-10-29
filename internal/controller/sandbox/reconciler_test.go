@@ -160,10 +160,10 @@ func TestReconcileMCPAgentRouteIdentity(t *testing.T) {
 	}
 	wantTenant := agentgatewayv1alpha1.CELExpression(`request.path.split("/")[3]`)
 	wantAgent := agentgatewayv1alpha1.CELExpression(`request.path.split("/")[4]`)
-	if attrs[agentgatewayv1alpha1.ShortString("agentz.tenant_namespace")] != wantTenant {
+	if attrs["agentz.tenant_namespace"] != wantTenant {
 		t.Fatalf("tenant trace attribute = %q, want %q", attrs["agentz.tenant_namespace"], wantTenant)
 	}
-	if attrs[agentgatewayv1alpha1.ShortString("agentz.agent_name")] != wantAgent {
+	if attrs["agentz.agent_name"] != wantAgent {
 		t.Fatalf("agent trace attribute = %q, want %q", attrs["agentz.agent_name"], wantAgent)
 	}
 
@@ -276,6 +276,9 @@ func TestReconcileInferenceGatewayExtAuthEgress(t *testing.T) {
 						Namespace: organizationNamespace,
 					},
 					Spec: tt.provider,
+				},
+				&agentzv1alpha1.Tenant{
+					ObjectMeta: metav1.ObjectMeta{Name: organizationNamespace},
 				},
 			}
 			k8sClient := fake.NewClientBuilder().

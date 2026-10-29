@@ -1,0 +1,120 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.22.0
+  name: guardrailconnections.agentz.accuknox.com
+spec:
+  group: agentz.accuknox.com
+  names:
+    kind: GuardrailConnection
+    listKind: GuardrailConnectionList
+    plural: guardrailconnections
+    singular: guardrailconnection
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: GuardrailConnection is a reusable scoped detector transport.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: GuardrailConnectionSpec defines a reusable detector connection,
+              never its secret values.
+            properties:
+              createdByUserID:
+                description: CreatedByUserID is the immutable Better Auth User ID
+                  that created the resource.
+                maxLength: 128
+                minLength: 1
+                type: string
+              credentialRevision:
+                description: CredentialRevision selects an isolated, immutable credential
+                  key.
+                pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+                type: string
+              description:
+                description: Description explains the connection's intended use.
+                type: string
+              displayName:
+                description: DisplayName is the human-readable connection label.
+                minLength: 1
+                type: string
+              endpoint:
+                description: Endpoint is the root URL for AccuKnox and custom webhook
+                  services.
+                type: string
+              lastModifiedByUserID:
+                description: LastModifiedByUserID is the Better Auth User ID that
+                  last changed the resource.
+                maxLength: 128
+                minLength: 1
+                type: string
+              provider:
+                description: Provider selects the supported detector protocol.
+                enum:
+                - AccuKnox
+                - OpenAI
+                - Bedrock
+                - ModelArmor
+                - Webhook
+                type: string
+                x-kubernetes-validations:
+                - message: provider is immutable
+                  rule: self == oldSelf
+              region:
+                description: Region selects the AWS or Google location.
+                type: string
+              secretName:
+                description: SecretName identifies the materialized Kubernetes credentials
+                  secret.
+                type: string
+            required:
+            - createdByUserID
+            - displayName
+            - lastModifiedByUserID
+            - provider
+            type: object
+          status:
+            description: GuardrailResourceStatus reports the desired revision and
+              reconciliation state.
+            properties:
+              message:
+                description: Message is a safe readiness explanation.
+                type: string
+              observedGeneration:
+                description: ObservedGeneration is the latest reconciled desired generation.
+                format: int64
+                type: integer
+              revision:
+                description: Revision identifies the effective configuration.
+                type: string
+              state:
+                description: State is Pending, Ready, or Error.
+                type: string
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

@@ -2,6 +2,7 @@ package observer
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -43,5 +44,47 @@ func TestSinkDrainsAfterProducersStop(t *testing.T) {
 	}
 	if store.err != nil || store.rows != 2 {
 		t.Fatalf("shutdown lost accepted telemetry: rows=%d err=%v", store.rows, store.err)
+	}
+}
+
+type retryStore struct {
+	attempts int
+	rows     int
+	cancel   context.CancelFunc
+}
+
+func (s *retryStore) insertBatch(_ context.Context, b batch) error {
+	s.attempts++
+	if s.attempts == 1 {
+		if s.cancel != nil {
+			s.cancel()
+		}
+		return errors.New("temporary failure")
+	}
+	s.rows += len(b.apps)
+	return nil
+}
+func TestSinkRetainsFailedBatch(t *testing.T) {
+	for _, shutdown := range []bool{false, true} {
+		ctx, cancel := context.WithCancel(t.Context())
+		events := make(chan event, 2)
+		events <- event{app: &observerdb.InsertAppOperationParams{ClientID: "first"}}
+		events <- event{app: &observerdb.InsertAppOperationParams{ClientID: "buffered"}}
+		close(events)
+		store := &retryStore{}
+		if shutdown {
+			store.cancel = cancel
+		}
+		sink := &sink{
+			store:  store,
+			stats:  &stats{},
+			cfg:    Config{BatchSize: 1, FlushInterval: time.Millisecond},
+			events: events,
+		}
+		sink.run(ctx)
+		cancel()
+		if store.attempts != 3 || store.rows != 2 {
+			t.Fatalf("shutdown=%v: accepted events lost after recovery: attempts=%d rows=%d", shutdown, store.attempts, store.rows)
+		}
 	}
 }

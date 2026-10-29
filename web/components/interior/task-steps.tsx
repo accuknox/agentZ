@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 export function TaskSteps({ todos }: { todos: Todo[] }) {
   const reduced = useReducedMotion()
   return (
-    <div className="mt-1 flex flex-col gap-1 border-l border-muted-foreground/15 pl-3">
+    <div className="mt-1 flex flex-col gap-1">
       {todos.map((todo, index) => {
         const terminal = todo.status === "completed" || todo.status === "cancelled"
         return (

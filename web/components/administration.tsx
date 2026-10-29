@@ -126,49 +126,43 @@ export function AdministrationState({
   kind: AdministrationStateKind
   title?: string
 }) {
-  let content: { description: string; icon: ReactNode; title: string }
+  let content: { icon: ReactNode; title: string }
 
   switch (kind) {
     case "provisioning":
       content = {
-        description: "We're creating this resource.",
         icon: <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />,
         title: "Provisioning in progress",
       }
       break
     case "deleting":
       content = {
-        description: "We're deleting this resource.",
         icon: <Trash2 aria-hidden="true" />,
         title: "Deletion in progress",
       }
       break
     case "failed":
       content = {
-        description: "An unexpected problem prevented this page from loading.",
         icon: <Image alt="" height={112} src="/cry-emoji.svg" width={112} loading="eager" />,
         title: "Page could not load",
       }
       break
     case "forbidden":
       content = {
-        description: "Your account does not have permission to do this.",
         icon: <Image alt="" height={112} src="/cry-emoji.svg" width={112} loading="eager" />,
-        title: "",
+        title: "Access denied",
       }
       break
     case "not-found":
       content = {
-        description: "This page does not exist.",
         icon: <Image alt="" height={112} src="/file-corrupted.svg" width={112} loading="eager" />,
         title: "Page not found",
       }
       break
     default:
       content = {
-        description: "No results.",
         icon: <FolderSearch aria-hidden="true" />,
-        title: "Nothing here yet",
+        title: "No results",
       }
   }
 
@@ -176,7 +170,6 @@ export function AdministrationState({
   const urgent = kind === "failed" || kind === "forbidden"
   const illustrated = kind === "failed" || kind === "forbidden" || kind === "not-found"
   const welcoming = kind === "welcome"
-  const stateDescription = description ?? content.description
   const stateTitle = title ?? content.title
 
   return (
@@ -208,7 +201,7 @@ export function AdministrationState({
             <h2>{stateTitle}</h2>
           </EmptyTitle>
         ) : null}
-        {stateDescription !== "" ? <EmptyDescription>{stateDescription}</EmptyDescription> : null}
+        {description ? <EmptyDescription>{description}</EmptyDescription> : null}
       </EmptyHeader>
       {actions ? <EmptyContent>{actions}</EmptyContent> : null}
     </Empty>

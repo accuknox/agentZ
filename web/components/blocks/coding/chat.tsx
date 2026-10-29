@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 import { useRouter } from "@bprogress/next/app"
 import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
@@ -41,12 +41,19 @@ export function CodingChat({
   const { data: actor } = authClient.useSession()
   const scope = actor ? `${actor.user.id}:${workspaceId}` : ""
   const drafts = useCodingDrafts(scope)
+  const pathname = usePathname()
   const search = useSearchParams()
   const router = useRouter()
   const queryClient = useQueryClient()
   const id = search.get("draft")
   const [promoted, setPromoted] = useState<CodingDraft>()
-  const draft = drafts.find((item) => item.id === id && item.projectId === project.id) ?? promoted
+  const promotedPath = promoted?.sessionID
+    ? `${workspacePath}/agents/${encodeURIComponent(promoted.agentName)}/sessions/${encodeURIComponent(promoted.sessionID)}`
+    : undefined
+  // Keep the live session during promotion, without disabling saves in later drafts.
+  const promotedDraft = id === promoted?.id || pathname === promotedPath ? promoted : undefined
+  const draft =
+    drafts.find((item) => item.id === id && item.projectId === project.id) ?? promotedDraft
   const [ready, setReady] = useState(false)
   const selected =
     [
@@ -56,7 +63,7 @@ export function CodingChat({
       agentNames[0],
     ].find((name) => name && agentNames.includes(name)) ?? ""
   useEffect(() => {
-    if (!scope || !selected || promoted) return
+    if (!scope || !selected || promotedDraft) return
     let active = true
     void codingDrafts
       .load(scope)
@@ -74,7 +81,7 @@ export function CodingChat({
     return () => {
       active = false
     }
-  }, [scope, selected, id, promoted, project.id, router, workspacePath])
+  }, [scope, selected, id, promotedDraft, project.id, router, workspacePath])
   const rememberAgent = async (name: string) => {
     const result = await updateCodingProjectPreference({
       baseUrl: await getGatewayBaseURL(),
@@ -128,9 +135,11 @@ export function CodingChat({
       draftMode={draft.mode}
       onDraftModeChange={(mode) => codingDrafts.save({ ...draft, mode })}
       onDraftModelChange={(model) => codingDrafts.save({ ...draft, model })}
-      onDraftChange={promoted ? undefined : (message) => codingDrafts.save({ ...draft, message })}
-      onDraftPromoted={() => {
-        setPromoted(draft)
+      onDraftChange={
+        promotedDraft ? undefined : (message) => codingDrafts.save({ ...draft, message })
+      }
+      onDraftPromoted={(sessionID) => {
+        setPromoted({ ...draft, sessionID })
         codingDrafts.remove(scope, draft.id)
       }}
       onDraftAgentChange={(name) => {

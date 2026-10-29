@@ -96,19 +96,28 @@ type SkillListData = {
 
 const emptySkills: Skill[] = []
 
-export function SkillsClient({
-  agents,
-  canCreateImmutable,
-  canReadImmutable,
-  pageScope,
-  workspaceId,
-}: {
+type SkillsClientProps = {
   agents: Agent[]
   canCreateImmutable: boolean
   canReadImmutable: boolean
   pageScope: AdministrationPageScope
   workspaceId?: string
-}) {
+}
+
+export function SkillsClient(props: SkillsClientProps) {
+  const search = useSearchParams()
+  // Browser navigation must also clear selections and dialogs from the old scope.
+  const key = JSON.stringify([props.workspaceId, search.get("type"), search.get("agent_name")])
+  return <Skills key={key} {...props} />
+}
+
+function Skills({
+  agents,
+  canCreateImmutable,
+  canReadImmutable,
+  pageScope,
+  workspaceId,
+}: SkillsClientProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -444,7 +453,7 @@ export function SkillsClient({
         <AdministrationState
           description="Import a Markdown file or ZIP bundle, then assign its skills to Agents."
           kind={canImport ? "welcome" : "empty"}
-          title="Let's add your first skill"
+          title="No skills"
         />
       ) : (
         <SkillTable
@@ -625,7 +634,7 @@ function EditSkillDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent>
+      <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>{skill ? `Change version for ${skill.name}` : "Change version"}</DialogTitle>
         </DialogHeader>
@@ -710,7 +719,7 @@ function DeleteDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent>
+      <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>This permanently deletes the selected skill.</DialogDescription>

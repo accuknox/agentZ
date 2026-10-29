@@ -604,7 +604,7 @@ func ListWebhookTriggers(ctx context.Context, k8sClient ctrlclient.Client, ns st
 			continue
 		}
 
-		apiKeyID := workflowRunWebhookAPIKeyID(run)
+		apiKeyID := strings.TrimSpace(run.Annotations[agentzv1alpha1.WorkflowRunAnnotationWebhookAPIKeyID])
 		if apiKeyID == "" {
 			continue
 		}
@@ -694,8 +694,11 @@ func ListRuns(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtNa
 		if differentSchedule {
 			continue
 		}
-		if webhookAPIKeyID != "" && workflowRunWebhookAPIKeyID(run) != webhookAPIKeyID {
-			continue
+		if webhookAPIKeyID != "" {
+			apiKeyID := strings.TrimSpace(run.Annotations[agentzv1alpha1.WorkflowRunAnnotationWebhookAPIKeyID])
+			if apiKeyID != webhookAPIKeyID {
+				continue
+			}
 		}
 
 		items = append(items, runSummaryFromCRD(run))
@@ -941,13 +944,6 @@ func workflowRunTriggerType(run *agentzv1alpha1.WorkflowRun) gatewayapi.Workflow
 		return gatewayapi.Schedule
 	}
 	return gatewayapi.Webhook
-}
-
-func workflowRunWebhookAPIKeyID(run *agentzv1alpha1.WorkflowRun) string {
-	if run == nil || len(run.Annotations) == 0 {
-		return ""
-	}
-	return strings.TrimSpace(run.Annotations[agentzv1alpha1.WorkflowRunAnnotationWebhookAPIKeyID])
 }
 
 func getSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, schName string) (*agentzv1alpha1.WorkflowSchedule, error) {

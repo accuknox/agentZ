@@ -129,13 +129,7 @@ export function APIKeysTable({
   return (
     <AdminDataGrid
       ariaLabel="API keys"
-      emptyState={
-        <AdministrationState
-          description="Create a key for selected Agents and workflow webhooks in this Workspace."
-          kind="empty"
-          title="No API keys"
-        />
-      }
+      emptyState={<AdministrationState kind="empty" title="No API keys" />}
       layout={columnLayout}
       rows={keys}
       table={table}
@@ -259,7 +253,7 @@ function DeleteAPIKeyButton({
         </DropdownMenu>
       </div>
       <Dialog open={shown} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>Revoke API key?</DialogTitle>
             <DialogDescription>

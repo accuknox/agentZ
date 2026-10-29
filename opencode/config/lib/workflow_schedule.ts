@@ -3,10 +3,7 @@ import { z } from "zod"
 import { getWorkflow, listAgentWorkflowSchedules, zError } from "./gateway"
 import { zJsonValue } from "./gateway/client/zod.gen"
 import { formatRequestValidationError, workflowErrorOutput } from "./workflow"
-import {
-  formatWorkflowInputValidationError,
-  validateWorkflowRuntimeInputs,
-} from "./workflow_inputs"
+import { validateWorkflowRuntimeInputs } from "./workflow_inputs"
 
 const arbitraryJSONTextSchema = z
   .string()
@@ -101,7 +98,10 @@ export async function resolveWorkflowScheduleInputs(
     }))
     return {
       error: {
-        message: formatWorkflowInputValidationError(issues),
+        message: formatRequestValidationError(
+          "Workflow schedule request validation failed.",
+          issues
+        ),
         metadata: {
           reason: "invalid_workflow_inputs",
           issues,
@@ -130,7 +130,7 @@ export async function resolveWorkflowScheduleInputs(
 
   return {
     error: {
-      message: formatWorkflowInputValidationError(issues),
+      message: formatRequestValidationError("Workflow schedule request validation failed.", issues),
       metadata: {
         reason: "invalid_workflow_inputs",
         issues,
@@ -186,9 +186,7 @@ export async function listWorkflowSchedulesOnce(agentName: string, scheduleName:
     }
   }
 
-  const schedule = result.data.workflow_schedules.find(
-    (item: (typeof result.data.workflow_schedules)[number]) => item.name === scheduleName
-  )
+  const schedule = result.data.workflow_schedules.find((item) => item.name === scheduleName)
   if (!schedule) {
     return {
       ok: false as const,

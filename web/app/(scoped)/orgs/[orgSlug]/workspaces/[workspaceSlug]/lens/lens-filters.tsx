@@ -1,50 +1,31 @@
 "use client"
 
 import * as React from "react"
-import { ClaudeAI, CodexLight } from "@ridemountainpig/svgl-react"
 import { useSelectResource } from "@/components/page-selection"
-import { AppWindowIcon, BotIcon, MessageSquareIcon } from "lucide-react"
+import { MessageSquareIcon } from "lucide-react"
 import { useRouter } from "@bprogress/next/app"
 import { usePathname, useSearchParams } from "next/navigation"
 import { DateRangePicker } from "@/components/ui/calendar"
 import { Button } from "@/components/ui/button"
-import { UserAvatar } from "@/components/ui/avatar"
-import { Separator } from "@/components/ui/separator"
 import { FieldError } from "@/components/ui/field"
 import {
   Select,
   SelectContent,
   SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
 import { listAppSessionsAction } from "@/data/lens.actions"
 import type { TraceSessionFilterItem } from "@/data/types"
 import { dayjs, formatDateParam } from "@/lib/format"
+import { selectionURL } from "@/lib/page-selection"
 import type { Agent, LensApp } from "@/lib/gateway/client"
-
-type SourceIconKind = "agent" | "app" | NonNullable<LensApp["agent_kind"]>
-
-export function LensSourceIcon({
-  kind,
-  className = "size-4 shrink-0",
-}: {
-  kind: SourceIconKind
-  className?: string
-}) {
-  switch (kind) {
-    case "agent":
-      return <BotIcon aria-hidden="true" className={className} />
-    case "claude":
-      return <ClaudeAI aria-hidden="true" className={className} />
-    case "codex":
-      return <CodexLight aria-hidden="true" fill="currentColor" className={className} />
-    case "app":
-      return <AppWindowIcon aria-hidden="true" className={className} />
-  }
-}
+import {
+  ExternalAgentOptions,
+  ExternalAppOptions,
+  LensSourceIcon,
+} from "@/components/lens-source-options"
 
 type LensFiltersProps = {
   agents: Agent[]
@@ -80,26 +61,6 @@ export function LensFilters({
   const [pending, startTransition] = React.useTransition()
   const apps = appOptions ?? []
   const ordinaryApps = apps.filter((app) => !app.agent_kind)
-  const externalAgents = apps
-    .flatMap((app) => (app.agent_kind ? [{ ...app, agent_kind: app.agent_kind }] : []))
-    .toSorted(
-      (a, b) =>
-        (a.user?.name || a.user?.email || "Unknown user").localeCompare(
-          b.user?.name || b.user?.email || "Unknown user"
-        ) ||
-        a.name.localeCompare(b.name) ||
-        a.client_id.localeCompare(b.client_id)
-    )
-  const externalAgentsByUser = new Map<string, typeof externalAgents>()
-  for (const app of externalAgents) {
-    const userID = app.user?.id ?? ""
-    const group = externalAgentsByUser.get(userID)
-    if (group) {
-      group.push(app)
-      continue
-    }
-    externalAgentsByUser.set(userID, [app])
-  }
   const selectedApp = apps.find((app) => app.client_id === selectedAppClientID)
   let selectedSubject = ordinaryApps.length > 0 ? "external-apps" : ""
   if (selectedAgentName) selectedSubject = `agent:${selectedAgentName}`
@@ -108,15 +69,22 @@ export function LensFilters({
 
   function updateDate(values: Record<string, string | undefined>) {
     const params = new URLSearchParams(searchParams)
-    params.delete("page_token")
-    params.delete("token_stack")
     for (const [key, value] of Object.entries(values)) {
       if (value) params.set(key, value)
       else params.delete(key)
     }
+    const href = selectionURL(
+      pathname,
+      params,
+      {
+        agent_name: selectedAgentName,
+        app_client_id: selectedAppClientID,
+        session_id: selectedSessionId,
+      },
+      true
+    )
     startTransition(() => {
-      const query = params.toString()
-      router.replace(query === "" ? pathname : `${pathname}?${query}`)
+      router.replace(href)
     })
   }
 
@@ -140,8 +108,8 @@ export function LensFilters({
               select({ agent_name: agent.name })
               return
             }
-            const external = externalAgents.find(
-              (app) => `external-agent:${app.client_id}` === value
+            const external = apps.find(
+              (app) => app.agent_kind && `external-agent:${app.client_id}` === value
             )
             if (external) select({ app_client_id: external.client_id })
           }}
@@ -168,45 +136,7 @@ export function LensFilters({
                 </SelectItem>
               ))}
             </SelectGroup>
-            {externalAgentsByUser.size > 0 ? (
-              <SelectGroup>
-                <SelectLabel className="flex items-center gap-2">
-                  <Separator className="flex-1 bg-muted-foreground/30" />
-                  <span className="shrink-0">External agents</span>
-                  <Separator className="flex-1 bg-muted-foreground/30" />
-                </SelectLabel>
-                {[...externalAgentsByUser].map(([userID, group]) => (
-                  <SelectGroup key={userID} className="py-0">
-                    <SelectLabel className="flex items-center gap-2 py-2">
-                      <UserAvatar {...group[0]?.user} className="ring-1 ring-muted-foreground/20" />
-                      <span className="truncate">
-                        {group[0]?.user?.name || group[0]?.user?.email || "Unknown user"}
-                      </span>
-                    </SelectLabel>
-                    {group.map((app) => (
-                      <SelectItem
-                        key={app.client_id}
-                        value={`external-agent:${app.client_id}`}
-                        className="pl-4"
-                      >
-                        <LensSourceIcon kind={app.agent_kind} />
-                        {app.name}
-                        {group.some(
-                          (other) => other.client_id !== app.client_id && other.name === app.name
-                        ) ? (
-                          <span
-                            className="max-w-28 truncate text-xs text-muted-foreground"
-                            title={app.client_id}
-                          >
-                            {app.client_id.slice(-8)}
-                          </span>
-                        ) : null}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                ))}
-              </SelectGroup>
-            ) : null}
+            <ExternalAgentOptions apps={apps} valuePrefix="external-agent:" />
           </SelectContent>
         </Select>
         {selectedSubject === "external-apps" ? (
@@ -222,24 +152,7 @@ export function LensFilters({
               <SelectValue placeholder="External app" className="truncate" />
             </SelectTrigger>
             <SelectContent position="popper">
-              <SelectGroup>
-                {ordinaryApps.map((app) => (
-                  <SelectItem key={app.client_id} value={app.client_id}>
-                    <LensSourceIcon kind="app" />
-                    {app.name}
-                    {ordinaryApps.some(
-                      (other) => other.name === app.name && other.client_id !== app.client_id
-                    ) ? (
-                      <span
-                        className="max-w-28 truncate text-xs text-muted-foreground"
-                        title={app.client_id}
-                      >
-                        {app.client_id.slice(-8)}
-                      </span>
-                    ) : null}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
+              <ExternalAppOptions apps={ordinaryApps} />
             </SelectContent>
           </Select>
         ) : sessions ? (

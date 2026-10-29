@@ -13,13 +13,16 @@
           oapiCodegen = nixpkgs-oapi-codegen.legacyPackages.${system}.oapi-codegen;
           otel = pkgs.callPackage ./opencode/plugin-otel/default.nix { };
           agentgateway = pkgs.callPackage ./hack/agentgateway/default.nix { };
+          opencode = pkgs.opencode.overrideAttrs (old: {
+            patches = (old.patches or [ ]) ++ [ ./opencode/patches/guardrails.patch ];
+          });
           cli = pkgs.buildGo127Module {
             pname = "agentz";
             version = "0.1.0";
             src = ./.;
             subPackages = [ "cmd/agentz" ];
             ldflags = [ "-s" "-w" ];
-            vendorHash = "sha256-ElZkLCeHJaJaEN7ZvHJxQmiubstGYbLg7NE1+okcPt0=";
+            vendorHash = "sha256-c+OagHyu8JNlOO6MNCjjjIysW6m8C4LYnZAKoYqx0pg=";
           };
           nodeModules = pkgs.stdenvNoCC.mkDerivation {
             pname = "opencode-config-node_modules";
@@ -136,7 +139,7 @@
                   export OPENCODE_DISABLE_MODELS_FETCH=1
                   export OPENCODE_DISABLE_SHARE=1
                   export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ]}"
-                  exec ${pkgs.opencode}/bin/opencode "$@"
+                  exec ${opencode}/bin/opencode "$@"
                 '')
                 (pkgs.runCommand "opencode-etc" { } ''
                   mkdir -p "$out/etc/opencode"

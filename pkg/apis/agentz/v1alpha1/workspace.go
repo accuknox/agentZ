@@ -128,6 +128,15 @@ type WorkspaceSpec struct {
 // SelectedOrganizationResources is the explicit Organisation resource set
 // available to a Workspace. Resources created later are not selected.
 type SelectedOrganizationResources struct {
+	// GuardrailConnections selects read-only organization detector connections.
+	// +listType=set
+	// +optional
+	GuardrailConnections []string `json:"guardrailConnections,omitempty"`
+	// GuardrailPolicies selects optional read-only organization policies.
+	// +listType=set
+	// +optional
+	GuardrailPolicies []string `json:"guardrailPolicies,omitempty"`
+
 	// Skills contains selected immutable Organisation Skill names.
 	// +listType=set
 	// +optional
@@ -153,6 +162,10 @@ type SelectedOrganizationResources struct {
 type OrganizationResourceKind string
 
 const (
+	// OrganizationResourceKindGuardrailConnection identifies detector connections.
+	OrganizationResourceKindGuardrailConnection OrganizationResourceKind = "GuardrailConnection"
+	// OrganizationResourceKindGuardrailPolicy identifies prompt policies.
+	OrganizationResourceKindGuardrailPolicy OrganizationResourceKind = "GuardrailPolicy"
 	// OrganizationResourceKindSkill identifies immutable Skills.
 	OrganizationResourceKindSkill OrganizationResourceKind = "Skill"
 	// OrganizationResourceKindSandbox identifies Sandboxes.
@@ -166,6 +179,10 @@ const (
 // Names returns the selected names for kind.
 func (s SelectedOrganizationResources) Names(kind OrganizationResourceKind) []string {
 	switch kind {
+	case OrganizationResourceKindGuardrailConnection:
+		return s.GuardrailConnections
+	case OrganizationResourceKindGuardrailPolicy:
+		return s.GuardrailPolicies
 	case OrganizationResourceKindSkill:
 		return s.Skills
 	case OrganizationResourceKindSandbox:
@@ -181,6 +198,10 @@ func (s SelectedOrganizationResources) Names(kind OrganizationResourceKind) []st
 // Set replaces the selected names for kind.
 func (s *SelectedOrganizationResources) Set(kind OrganizationResourceKind, names []string) {
 	switch kind {
+	case OrganizationResourceKindGuardrailConnection:
+		s.GuardrailConnections = slices.Clone(names)
+	case OrganizationResourceKindGuardrailPolicy:
+		s.GuardrailPolicies = slices.Clone(names)
 	case OrganizationResourceKindSkill:
 		s.Skills = slices.Clone(names)
 	case OrganizationResourceKindSandbox:
@@ -194,7 +215,9 @@ func (s *SelectedOrganizationResources) Set(kind OrganizationResourceKind, names
 
 // Equal reports whether two explicit selections contain the same ordered sets.
 func (s SelectedOrganizationResources) Equal(other SelectedOrganizationResources) bool {
-	return slices.Equal(s.Skills, other.Skills) &&
+	return slices.Equal(s.GuardrailConnections, other.GuardrailConnections) &&
+		slices.Equal(s.GuardrailPolicies, other.GuardrailPolicies) &&
+		slices.Equal(s.Skills, other.Skills) &&
 		slices.Equal(s.Sandboxes, other.Sandboxes) &&
 		slices.Equal(s.MCPConnections, other.MCPConnections) &&
 		slices.Equal(s.InferenceProviders, other.InferenceProviders)

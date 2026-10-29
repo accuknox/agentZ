@@ -1,0 +1,69 @@
+--- a/packages/opencode/src/session/retry.ts
++++ b/packages/opencode/src/session/retry.ts
+@@ -1,3 +1,4 @@
++import { z } from "zod/v4"
+ import type { NamedError } from "@opencode-ai/core/util/error"
+ import { SessionV1 } from "@opencode-ai/core/v1/session"
+ import { Cause, Clock, Duration, Effect, Schedule } from "effect"
+@@ -82,10 +83,18 @@
+   return Math.ceil(base + base * RETRY_JITTER_FACTOR * random)
+ }
+ 
++const policyViolation = z.object({ code: z.literal("content_policy_violation") })
++const policyViolationBody = z.union([
++  policyViolation,
++  z.object({ error: policyViolation }),
++  z.object({ response: z.object({ error: policyViolation }) }),
++])
++
+ export function retryable(error: Err, provider: string) {
+   // context overflow errors should not be retried
+   if (SessionV1.ContextOverflowError.isInstance(error)) return undefined
+   if (SessionV1.APIError.isInstance(error)) {
++    if (policyViolationBody.safeParse(parseJSON(error.data.responseBody)).success) return undefined
+     const status = error.data.statusCode
+     // 5xx errors are transient server failures and should always be retried,
+     // even when the provider SDK doesn't explicitly mark them as retryable.
+--- a/packages/opencode/src/provider/error.ts
++++ b/packages/opencode/src/provider/error.ts
+@@ -107,7 +107,8 @@
+   const responseBody = JSON.stringify(body)
+   if (body.type !== "error") return
+ 
+-  switch (body?.error?.code) {
++  const error = body.error ?? body
++  switch (error.code) {
+     case "context_length_exceeded":
+       return {
+         type: "context_overflow",
+@@ -128,10 +129,11 @@
+         isRetryable: false,
+         responseBody,
+       }
++    case "content_policy_violation":
+     case "invalid_prompt":
+       return {
+         type: "api_error",
+-        message: typeof body?.error?.message === "string" ? body?.error?.message : "Invalid prompt.",
++        message: typeof error.message === "string" ? error.message : "Invalid prompt.",
+         isRetryable: false,
+         responseBody,
+       }
+@@ -139,7 +141,7 @@
+     case "server_error":
+       return {
+         type: "api_error",
+-        message: typeof body?.error?.message === "string" ? body?.error?.message : "Server error.",
++        message: typeof error.message === "string" ? error.message : "Server error.",
+         isRetryable: true,
+         responseBody,
+       }
+@@ -147,7 +149,7 @@
+ 
+   return {
+     type: "api_error",
+-    message: typeof body?.error?.message === "string" ? body.error.message : "Server error.",
++    message: typeof error.message === "string" ? error.message : "Server error.",
+     isRetryable: true,
+     responseBody,
+   }

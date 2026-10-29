@@ -21,12 +21,9 @@ type WorkflowRunGraphProps = {
   workspaceId: string
 }
 
-export function WorkflowRunGraph({
-  agentName,
-  workflow,
-  workflowRun,
-  workspaceId,
-}: WorkflowRunGraphProps) {
+export function WorkflowRunGraph(props: WorkflowRunGraphProps) {
+  const { agentName, workflow, workflowRun, workspaceId } = props
+
   const query = useQuery(
     queryOptions({
       placeholderData: workflowRun,
@@ -36,9 +33,8 @@ export function WorkflowRunGraph({
         readonly ["watchWorkflowRunGraph", string, string, string, string]
       >({
         initialValue: workflowRun,
-        reducer: (current, event) => {
-          return event.workflow_runs.find((run) => run.name === workflowRun.name) ?? current
-        },
+        reducer: (current, event) =>
+          event.workflow_runs.find((run) => run.name === workflowRun.name) ?? current,
         refetchMode: "reset",
         streamFn: async ({ signal }) => {
           const result = await watchWorkflowRuns({

@@ -532,7 +532,10 @@ func (s *Service) loadCodingSnapshot(ctx context.Context, access resourceAccess,
 	}
 	ready := false
 	for _, existing := range trees {
-		ready = ready || existing.AgentName == tree.AgentName && existing.Ready && !existing.Deleting
+		if existing.AgentName == tree.AgentName && existing.Ready && !existing.Deleting {
+			ready = true
+			break
+		}
 	}
 	if ready {
 		current, err := s.codingFilesystem(

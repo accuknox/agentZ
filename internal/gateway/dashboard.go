@@ -799,16 +799,6 @@ func mapDashboardStoreError(action string, err error) *apiutil.APIError {
 	return mapGatewayStoreError(action, err)
 }
 
-func selectedDashboardWidgets(all []dashboarddb.DashboardWidget, selected *[]string) []dashboarddb.DashboardWidget {
-	if selected == nil {
-		return all
-	}
-	wanted := *selected
-	return slices.DeleteFunc(slices.Clone(all), func(widget dashboarddb.DashboardWidget) bool {
-		return !slices.Contains(wanted, widget.Name)
-	})
-}
-
 func (s *Service) runDashboardRetention(ctx context.Context) {
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
@@ -943,7 +933,13 @@ func (s *Service) QueryDashboard(w http.ResponseWriter, r *http.Request, agentNa
 		apiutil.WriteError(w, r, mapDashboardStoreError("list dashboard widgets", err))
 		return
 	}
-	widgets := selectedDashboardWidgets(allWidgets, req.Widgets)
+	widgets := allWidgets
+	if req.Widgets != nil {
+		wanted := *req.Widgets
+		widgets = slices.DeleteFunc(slices.Clone(allWidgets), func(widget dashboarddb.DashboardWidget) bool {
+			return !slices.Contains(wanted, widget.Name)
+		})
+	}
 	if req.Widgets != nil && len(widgets) != len(*req.Widgets) {
 		apiutil.WriteError(
 			w,

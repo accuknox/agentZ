@@ -6,6 +6,127 @@ SELECT EXISTS(
     AND agent_name = $2
 );
 
+-- name: GatewayListGuardrailEventSources :many
+WITH retained AS (
+  SELECT DISTINCT workspace_id, agent_name, client_id
+  FROM observer_guardrail_events
+  WHERE organization_id = sqlc.arg(organization_id) AND expires_at > now()
+    AND (sqlc.arg(workspace_id)::text = '' OR workspace_id = sqlc.arg(workspace_id))
+), sources AS (
+  SELECT workspace_id, agent_name, ''::text AS client_id
+  FROM retained WHERE agent_name <> ''
+  UNION
+  SELECT ''::text, ''::text, client_id
+  FROM retained WHERE client_id <> ''
+)
+SELECT sources.workspace_id, sources.agent_name, sources.client_id,
+  COALESCE(NULLIF(sources.agent_name, ''), NULLIF(app.name, ''), sources.client_id)::text AS source_name,
+  COALESCE(external.kind::text, '')::text AS agent_kind,
+  COALESCE(external.user_id, '')::text AS user_id,
+  COALESCE(owner.name, '')::text AS user_name,
+  COALESCE(owner.email, '')::text AS user_email,
+  owner.image AS user_image
+FROM sources
+LEFT JOIN oauth_clients app ON app.client_id = sources.client_id
+LEFT JOIN external_agents external ON external.client_id = sources.client_id
+  AND external.organization_id = sqlc.arg(organization_id)
+  AND (sqlc.arg(workspace_id)::text = '' OR external.workspace_id = sqlc.arg(workspace_id))
+LEFT JOIN users owner ON owner.id = external.user_id
+ORDER BY sources.workspace_id, sources.agent_name, source_name, sources.client_id;
+
+-- name: GatewayListGuardrailEvents :many
+SELECT sqlc.embed(event), coalesce(app.name, '')::text AS subject_name
+FROM observer_guardrail_events event
+LEFT JOIN oauth_clients app ON app.client_id = event.client_id
+WHERE event.organization_id = sqlc.arg(organization_id)
+  AND (sqlc.arg(workspace_id)::text = '' OR event.workspace_id = sqlc.arg(workspace_id))
+  AND event.occurred_at >= sqlc.arg(started_after)::timestamptz
+  AND event.occurred_at < sqlc.arg(started_before)::timestamptz
+  AND event.expires_at > now()
+  AND (sqlc.arg(agent_name)::text = '' OR event.agent_name = sqlc.arg(agent_name))
+  AND (sqlc.arg(client_id)::text = '' OR event.client_id = sqlc.arg(client_id))
+  AND (sqlc.arg(action)::text = '' OR event.action = sqlc.arg(action))
+  AND (sqlc.arg(phase)::text = '' OR event.phase = sqlc.arg(phase))
+  AND (sqlc.arg(trace_id)::text = '' OR event.trace_id = decode(sqlc.arg(trace_id), 'hex'))
+  AND (sqlc.arg(session_id)::text = '' OR event.session_id = sqlc.arg(session_id))
+  AND (sqlc.arg(cursor_id)::text = '' OR (event.occurred_at, event.id) < (sqlc.arg(cursor_at), sqlc.arg(cursor_id)))
+ORDER BY event.occurred_at DESC, event.id DESC
+LIMIT sqlc.arg(page_size);
+
+-- name: GatewayGetGuardrailEventChart :many
+WITH counts AS (
+  SELECT floor(extract(epoch FROM (occurred_at - sqlc.arg(started_after)::timestamptz))
+    / sqlc.arg(bucket_seconds)::integer)::integer AS bucket, count(*)::bigint AS count
+  FROM observer_guardrail_events
+  WHERE organization_id = sqlc.arg(organization_id)
+    AND (sqlc.arg(workspace_id)::text = '' OR workspace_id = sqlc.arg(workspace_id))
+    AND occurred_at >= sqlc.arg(started_after)::timestamptz
+    AND occurred_at < sqlc.arg(started_before)::timestamptz
+    AND expires_at > now()
+    AND (sqlc.arg(agent_name)::text = '' OR agent_name = sqlc.arg(agent_name))
+    AND (sqlc.arg(client_id)::text = '' OR client_id = sqlc.arg(client_id))
+    AND (sqlc.arg(action)::text = '' OR action = sqlc.arg(action))
+    AND (sqlc.arg(phase)::text = '' OR phase = sqlc.arg(phase))
+    AND (sqlc.arg(trace_id)::text = '' OR trace_id = decode(sqlc.arg(trace_id), 'hex'))
+    AND (sqlc.arg(session_id)::text = '' OR session_id = sqlc.arg(session_id))
+  GROUP BY bucket
+)
+SELECT (sqlc.arg(started_after)::timestamptz
+  + make_interval(secs => series.bucket * sqlc.arg(bucket_seconds)::integer))::timestamptz AS time,
+  coalesce(counts.count, 0)::bigint AS count
+FROM generate_series(0, ceil(extract(epoch FROM (
+  sqlc.arg(started_before)::timestamptz - sqlc.arg(started_after)::timestamptz))
+  / sqlc.arg(bucket_seconds)::integer)::integer - 1) AS series(bucket)
+LEFT JOIN counts USING (bucket)
+ORDER BY series.bucket;
+
+-- name: GatewayGetGuardrailEvent :one
+SELECT sqlc.embed(event), coalesce(app.name, '')::text AS subject_name
+FROM observer_guardrail_events event
+LEFT JOIN oauth_clients app ON app.client_id = event.client_id
+WHERE event.id = sqlc.arg(id)
+  AND event.organization_id = sqlc.arg(organization_id)
+  AND (sqlc.arg(workspace_id)::text = '' OR event.workspace_id = sqlc.arg(workspace_id))
+  AND event.expires_at > now();
+
+-- name: GatewayGetGuardrailRequest :one
+SELECT request.body
+FROM observer_guardrail_requests request
+JOIN observer_guardrail_events event USING (trace_id, span_id)
+WHERE event.id = sqlc.arg(id)
+  AND event.organization_id = sqlc.arg(organization_id)
+  AND (sqlc.arg(workspace_id)::text = '' OR event.workspace_id = sqlc.arg(workspace_id))
+  AND event.expires_at > now() AND request.expires_at > now();
+
+-- name: GatewayGetExternalAgentGuardrails :one
+SELECT access.policies FROM guardrail_client_access access
+JOIN external_agents agent ON agent.client_id = access.client_id
+  AND agent.organization_id = access.organization_id
+  AND agent.workspace_id = access.workspace_id
+WHERE access.organization_id = sqlc.arg(organization_id)
+  AND access.workspace_id = sqlc.arg(workspace_id)
+  AND access.client_id = sqlc.arg(client_id);
+
+-- name: GatewayListExternalAgentGuardrails :many
+SELECT access.client_id, access.policies FROM guardrail_client_access access
+JOIN external_agents agent ON agent.client_id = access.client_id
+  AND agent.organization_id = access.organization_id
+  AND agent.workspace_id = access.workspace_id
+WHERE access.organization_id = sqlc.arg(organization_id)
+  AND access.workspace_id = sqlc.arg(workspace_id)
+ORDER BY access.client_id;
+
+-- name: GatewayListOrganizationExternalAgentGuardrails :many
+SELECT access.workspace_id, access.policies FROM guardrail_client_access access
+JOIN external_agents agent ON agent.client_id = access.client_id
+  AND agent.organization_id = access.organization_id
+  AND agent.workspace_id = access.workspace_id
+JOIN workspaces ON workspaces.id = access.workspace_id
+  AND workspaces.organization_id = access.organization_id
+WHERE access.organization_id = sqlc.arg(organization_id)
+  AND workspaces.deleted_at IS NULL
+ORDER BY access.workspace_id, access.client_id;
+
 -- name: GatewayGetAPIKeyByHash :one
 SELECT id, reference_id, name
 FROM apikeys
@@ -3056,3 +3177,48 @@ SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name,
 FROM selected op
 GROUP BY op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name
 ORDER BY op.resource_namespace, op.resource_name, op.tool_name;
+
+-- name: GatewayFindGuardrailTraceSource :many
+WITH event AS (
+  SELECT ev.* FROM observer_guardrail_events ev
+  WHERE ev.id = sqlc.arg(event_id)
+    AND ev.organization_id = sqlc.arg(organization_id)
+    AND ev.expires_at > now()
+), candidates AS (
+  SELECT w.id AS workspace_id, w.namespace, w.type::text AS workspace_type,
+    sp.agent_name, ''::text AS client_id, sp.session_id,
+    sp.trace_id, sp.span_id, sp.id AS operation_id,
+    CASE WHEN sp.trace_id = event.trace_id AND sp.span_id = event.span_id THEN 0 ELSE 1 END AS priority
+  FROM event
+  JOIN workspaces w ON w.organization_id = event.organization_id
+    AND w.deleted_at IS NULL
+    AND w.id = event.workspace_id
+  JOIN observer_trace_spans sp ON sp.tenant_namespace = w.namespace
+    AND sp.span_class = 'llm'
+    AND event.agent_name <> '' AND sp.agent_name = event.agent_name
+    AND ((sp.trace_id = event.trace_id AND sp.span_id = event.span_id)
+      OR (event.session_id <> '' AND sp.session_id = event.session_id
+        AND event.occurred_at >= sp.start_time
+        AND event.occurred_at <= sp.end_time))
+  UNION ALL
+  SELECT w.id, w.namespace, w.type::text,
+    ''::text, op.client_id, op.session_id,
+    coalesce(run.trace_id, op.trace_id), op.span_id, op.id,
+    CASE WHEN op.trace_id = event.trace_id AND op.span_id = event.span_id THEN 0 ELSE 1 END
+  FROM event
+  JOIN workspaces w ON w.organization_id = event.organization_id
+    AND w.deleted_at IS NULL
+    AND w.id = event.workspace_id
+  JOIN observer_app_operations op ON op.organization_id = event.organization_id
+    AND op.workspace_id = w.id AND op.span_class = 'llm'
+    AND event.client_id <> '' AND op.client_id = event.client_id
+    AND ((op.trace_id = event.trace_id AND op.span_id = event.span_id)
+      OR (event.session_id <> '' AND op.session_id = event.session_id
+        AND event.occurred_at >= op.start_time
+        AND event.occurred_at <= op.end_time))
+  LEFT JOIN observer_app_operations run ON run.id = op.run_id
+)
+SELECT * FROM candidates
+WHERE priority = (SELECT min(priority) FROM candidates)
+ORDER BY operation_id
+LIMIT 2;

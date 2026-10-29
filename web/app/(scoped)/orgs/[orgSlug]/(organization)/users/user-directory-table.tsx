@@ -142,13 +142,7 @@ function MemberTable({
     <DirectoryTable
       ariaLabel={disabled ? "Disabled Users" : "Active Users"}
       emptyState={
-        disabled ? (
-          <AdministrationState
-            description="Users you disable will appear here."
-            kind="empty"
-            title="No disabled users"
-          />
-        ) : undefined
+        disabled ? <AdministrationState kind="empty" title="No disabled users" /> : undefined
       }
       layout={memberLayout}
       nextPageToken={data.nextPageToken}
@@ -250,15 +244,7 @@ function DirectoryTable<T>({
   return (
     <AdminDataGrid
       ariaLabel={ariaLabel}
-      emptyState={
-        emptyState ?? (
-          <AdministrationState
-            description="Invite people and choose the Roles and Teams they receive when they join."
-            kind="welcome"
-            title="Let's invite your team"
-          />
-        )
-      }
+      emptyState={emptyState ?? <AdministrationState kind="welcome" title="No invitations" />}
       layout={layout}
       pagination={
         <TokenTablePagination hasNextPage={Boolean(nextPageToken)} nextPageToken={nextPageToken} />

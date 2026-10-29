@@ -207,7 +207,7 @@ export function TraceConversation({
                     tone={step.span.status_code === "ERROR" ? "error" : "neutral"}
                     action={inspect}
                   >
-                    <div className="my-2 flex min-w-0 flex-col gap-3 border-l border-border/60 pl-3">
+                    <div className="my-2 flex min-w-0 flex-col gap-3">
                       <div className="flex min-w-0 flex-col gap-1.5">
                         <span className="text-xs text-muted-foreground">Input</span>
                         <RecordedText {...step.arguments} />
@@ -274,7 +274,7 @@ export function TraceConversation({
                       Client context
                     </CollapsibleTrigger>
                     <CollapsibleContent>
-                      <div className="mt-2 flex flex-col gap-3 border-l border-border/60 pl-3">
+                      <div className="mt-2 flex flex-col gap-3">
                         {step.context.map((text, index) => (
                           <RecordedText key={index} text={text} format="text" />
                         ))}

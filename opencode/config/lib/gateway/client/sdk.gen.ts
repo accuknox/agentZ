@@ -29,6 +29,12 @@ import type {
   CreateDashboardData,
   CreateDashboardErrors,
   CreateDashboardResponses,
+  CreateGuardrailConnectionData,
+  CreateGuardrailConnectionErrors,
+  CreateGuardrailConnectionResponses,
+  CreateGuardrailPolicyData,
+  CreateGuardrailPolicyErrors,
+  CreateGuardrailPolicyResponses,
   CreateInferencePoolData,
   CreateInferencePoolErrors,
   CreateInferencePoolResponses,
@@ -83,6 +89,12 @@ import type {
   DeleteDashboardData,
   DeleteDashboardErrors,
   DeleteDashboardResponses,
+  DeleteGuardrailConnectionData,
+  DeleteGuardrailConnectionErrors,
+  DeleteGuardrailConnectionResponses,
+  DeleteGuardrailPolicyData,
+  DeleteGuardrailPolicyErrors,
+  DeleteGuardrailPolicyResponses,
   DeleteImmutableSkillsData,
   DeleteImmutableSkillsErrors,
   DeleteImmutableSkillsResponses,
@@ -116,6 +128,9 @@ import type {
   DeleteWorkflowsData,
   DeleteWorkflowsErrors,
   DeleteWorkflowsResponses,
+  DiscoverGuardrailConnectionResourcesData,
+  DiscoverGuardrailConnectionResourcesErrors,
+  DiscoverGuardrailConnectionResourcesResponses,
   EnsureTenantData,
   EnsureTenantErrors,
   EnsureTenantResponses,
@@ -161,9 +176,27 @@ import type {
   GetDelegationCatalogData,
   GetDelegationCatalogErrors,
   GetDelegationCatalogResponses,
+  GetEffectiveGuardrailsData,
+  GetEffectiveGuardrailsErrors,
+  GetEffectiveGuardrailsResponses,
   GetEventTrailEventData,
   GetEventTrailEventErrors,
   GetEventTrailEventResponses,
+  GetGuardrailConnectionData,
+  GetGuardrailConnectionErrors,
+  GetGuardrailConnectionResponses,
+  GetGuardrailEventChartData,
+  GetGuardrailEventChartErrors,
+  GetGuardrailEventChartResponses,
+  GetGuardrailEventData,
+  GetGuardrailEventErrors,
+  GetGuardrailEventResponses,
+  GetGuardrailPolicyData,
+  GetGuardrailPolicyErrors,
+  GetGuardrailPolicyResponses,
+  GetGuardrailSettingsData,
+  GetGuardrailSettingsErrors,
+  GetGuardrailSettingsResponses,
   GetInferencePoolData,
   GetInferencePoolErrors,
   GetInferencePoolResponses,
@@ -278,6 +311,18 @@ import type {
   ListFileObservabilitySummaryData,
   ListFileObservabilitySummaryErrors,
   ListFileObservabilitySummaryResponses,
+  ListGuardrailConnectionsData,
+  ListGuardrailConnectionsErrors,
+  ListGuardrailConnectionsResponses,
+  ListGuardrailEventsData,
+  ListGuardrailEventsErrors,
+  ListGuardrailEventSourcesData,
+  ListGuardrailEventSourcesErrors,
+  ListGuardrailEventSourcesResponses,
+  ListGuardrailEventsResponses,
+  ListGuardrailPoliciesData,
+  ListGuardrailPoliciesErrors,
+  ListGuardrailPoliciesResponses,
   ListImmutableSkillSummariesData,
   ListImmutableSkillSummariesErrors,
   ListImmutableSkillSummariesResponses,
@@ -437,6 +482,15 @@ import type {
   UpdateCodingProjectPreferenceData,
   UpdateCodingProjectPreferenceErrors,
   UpdateCodingProjectPreferenceResponses,
+  UpdateGuardrailConnectionData,
+  UpdateGuardrailConnectionErrors,
+  UpdateGuardrailConnectionResponses,
+  UpdateGuardrailPolicyData,
+  UpdateGuardrailPolicyErrors,
+  UpdateGuardrailPolicyResponses,
+  UpdateGuardrailSettingsData,
+  UpdateGuardrailSettingsErrors,
+  UpdateGuardrailSettingsResponses,
   UpdateInferencePoolData,
   UpdateInferencePoolErrors,
   UpdateInferencePoolResponses,
@@ -3164,3 +3218,278 @@ export const listDashboardTableRows = <ThrowOnError extends boolean = false>(
     url: "/api/agent/{agentName}/dashboard/{dashboardName}/widget/{widgetName}/rows",
     ...options,
   })
+
+export const listGuardrailConnections = <ThrowOnError extends boolean = false>(
+  options?: Options<ListGuardrailConnectionsData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    ListGuardrailConnectionsResponses,
+    ListGuardrailConnectionsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/guardrails/connections",
+    ...options,
+  })
+
+export const createGuardrailConnection = <ThrowOnError extends boolean = false>(
+  options: Options<CreateGuardrailConnectionData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    CreateGuardrailConnectionResponses,
+    CreateGuardrailConnectionErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/guardrails/connections",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+export const deleteGuardrailConnection = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteGuardrailConnectionData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<
+    DeleteGuardrailConnectionResponses,
+    DeleteGuardrailConnectionErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/guardrails/connections/{name}",
+    ...options,
+  })
+
+export const getGuardrailConnection = <ThrowOnError extends boolean = false>(
+  options: Options<GetGuardrailConnectionData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    GetGuardrailConnectionResponses,
+    GetGuardrailConnectionErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/guardrails/connections/{name}",
+    ...options,
+  })
+
+export const updateGuardrailConnection = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateGuardrailConnectionData, ThrowOnError>
+) =>
+  (options.client ?? client).put<
+    UpdateGuardrailConnectionResponses,
+    UpdateGuardrailConnectionErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/guardrails/connections/{name}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Browse cloud resources using a saved scoped connection.
+ */
+export const discoverGuardrailConnectionResources = <ThrowOnError extends boolean = false>(
+  options: Options<DiscoverGuardrailConnectionResourcesData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    DiscoverGuardrailConnectionResourcesResponses,
+    DiscoverGuardrailConnectionResourcesErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/guardrails/connections/{name}/resources",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+export const listGuardrailPolicies = <ThrowOnError extends boolean = false>(
+  options?: Options<ListGuardrailPoliciesData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    ListGuardrailPoliciesResponses,
+    ListGuardrailPoliciesErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/guardrails/policies",
+    ...options,
+  })
+
+export const createGuardrailPolicy = <ThrowOnError extends boolean = false>(
+  options: Options<CreateGuardrailPolicyData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    CreateGuardrailPolicyResponses,
+    CreateGuardrailPolicyErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/guardrails/policies",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+export const deleteGuardrailPolicy = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteGuardrailPolicyData, ThrowOnError>
+) =>
+  (options.client ?? client).delete<
+    DeleteGuardrailPolicyResponses,
+    DeleteGuardrailPolicyErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/guardrails/policies/{name}",
+    ...options,
+  })
+
+export const getGuardrailPolicy = <ThrowOnError extends boolean = false>(
+  options: Options<GetGuardrailPolicyData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    GetGuardrailPolicyResponses,
+    GetGuardrailPolicyErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/guardrails/policies/{name}",
+    ...options,
+  })
+
+export const updateGuardrailPolicy = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateGuardrailPolicyData, ThrowOnError>
+) =>
+  (options.client ?? client).put<
+    UpdateGuardrailPolicyResponses,
+    UpdateGuardrailPolicyErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/guardrails/policies/{name}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+export const getGuardrailSettings = <ThrowOnError extends boolean = false>(
+  options?: Options<GetGuardrailSettingsData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    GetGuardrailSettingsResponses,
+    GetGuardrailSettingsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/guardrails/settings",
+    ...options,
+  })
+
+export const updateGuardrailSettings = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateGuardrailSettingsData, ThrowOnError>
+) =>
+  (options.client ?? client).put<
+    UpdateGuardrailSettingsResponses,
+    UpdateGuardrailSettingsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/guardrails/settings",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+export const getEffectiveGuardrails = <ThrowOnError extends boolean = false>(
+  options: Options<GetEffectiveGuardrailsData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    GetEffectiveGuardrailsResponses,
+    GetEffectiveGuardrailsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/guardrails/effective",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * List guardrail interventions in the authorized scope.
+ */
+export const listGuardrailEvents = <ThrowOnError extends boolean = false>(
+  options?: Options<ListGuardrailEventsData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    ListGuardrailEventsResponses,
+    ListGuardrailEventsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/guardrails/events",
+    ...options,
+  })
+
+/**
+ * Count the complete filtered range in bounded time buckets.
+ */
+export const getGuardrailEventChart = <ThrowOnError extends boolean = false>(
+  options?: Options<GetGuardrailEventChartData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    GetGuardrailEventChartResponses,
+    GetGuardrailEventChartErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/guardrails/events/chart",
+    ...options,
+  })
+
+/**
+ * List sources with retained guardrail events in the authorized scope.
+ */
+export const listGuardrailEventSources = <ThrowOnError extends boolean = false>(
+  options?: Options<ListGuardrailEventSourcesData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    ListGuardrailEventSourcesResponses,
+    ListGuardrailEventSourcesErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/guardrails/events/sources",
+    ...options,
+  })
+
+/**
+ * Read a guardrail evaluation and its safe context.
+ */
+export const getGuardrailEvent = <ThrowOnError extends boolean = false>(
+  options: Options<GetGuardrailEventData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetGuardrailEventResponses, GetGuardrailEventErrors, ThrowOnError>(
+    {
+      security: [{ scheme: "bearer", type: "http" }],
+      url: "/api/guardrails/events/{eventId}",
+      ...options,
+    }
+  )

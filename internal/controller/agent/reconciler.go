@@ -423,6 +423,7 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 			}
 
 			path := inference.SandboxPoolPath(sandbox.Name, pool.Name)
+			path = inference.AgentRoutePath(agt.Namespace, agt.Name, path)
 			contract := pool.Status.Contract
 
 			provider.Models[pool.Name] = opencodeModelFile{
@@ -512,6 +513,7 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 				)
 			}
 			path := inference.SandboxProviderPath(sandbox.Name, modelRef.Provider)
+			path = inference.AgentRoutePath(agt.Namespace, agt.Name, path)
 			npm := "@ai-sdk/openai-compatible"
 			var apiKey string
 			switch provider.Spec.Kind {

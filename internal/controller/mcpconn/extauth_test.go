@@ -1,13 +1,13 @@
 package mcpconn
 
 import (
-	"context"
 	"slices"
 	"testing"
 
 	agw "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	slimv1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -40,7 +40,8 @@ func TestExtAuthAccessIsLimitedToOrganizationWorkspaces(t *testing.T) {
 	foreign := workspaceForExtAuth("workspace-b", "organization-b")
 	ns := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: org,
+			Name:   org,
+			Labels: map[string]string{agentzv1alpha1.TenantNameLabel: org},
 			Annotations: map[string]string{
 				agentzv1alpha1.TenantOrganizationIDAnnotation: organizationID,
 			},
@@ -50,6 +51,7 @@ func TestExtAuthAccessIsLimitedToOrganizationWorkspaces(t *testing.T) {
 	scheme := runtime.NewScheme()
 	adders := []func(*runtime.Scheme) error{
 		corev1.AddToScheme,
+		appsv1.AddToScheme,
 		rbacv1.AddToScheme,
 		gwv1.Install,
 		agentzv1alpha1.AddToScheme,
@@ -61,7 +63,7 @@ func TestExtAuthAccessIsLimitedToOrganizationWorkspaces(t *testing.T) {
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(ns, allowed, foreign).Build()
 	r := &ExtAuthRuntimeReconciler{Client: c}
-	access, err := r.workspaceAccess(context.Background(), ns)
+	access, err := r.workspaceAccess(t.Context(), ns)
 	if err != nil {
 		t.Fatalf("workspaceAccess() error = %v", err)
 	}
@@ -69,7 +71,10 @@ func TestExtAuthAccessIsLimitedToOrganizationWorkspaces(t *testing.T) {
 		t.Fatalf("workspaceAccess() = %#v, want only %q", access, allowed.Name)
 	}
 
-	labels := map[string]string{"app.kubernetes.io/name": extAuthLabelName}
+	labels := map[string]string{
+		"app.kubernetes.io/name":       extAuthLabelName,
+		"app.kubernetes.io/managed-by": "agentz-extauth-controller",
+	}
 	ownerRefs := []metav1.OwnerReference{{APIVersion: "v1", Kind: "Namespace", Name: org}}
 	scope := extAuthScope{
 		namespace:  org,
@@ -77,16 +82,16 @@ func TestExtAuthAccessIsLimitedToOrganizationWorkspaces(t *testing.T) {
 		labels:     labels,
 		ownerRefs:  ownerRefs,
 	}
-	if err := r.reconcileExtAuthScopeReader(context.Background(), scope); err != nil {
+	if err := r.reconcileExtAuthScopeReader(t.Context(), scope); err != nil {
 		t.Fatalf("reconcileExtAuthScopeReader() error = %v", err)
 	}
-	if err := r.reconcileExtAuthWorkspaceAccess(context.Background(), scope); err != nil {
+	if err := r.reconcileExtAuthWorkspaceAccess(t.Context(), scope); err != nil {
 		t.Fatalf("reconcileExtAuthWorkspaceAccess() error = %v", err)
 	}
 
 	role := &rbacv1.ClusterRole{}
 	name := mcp.ExtAuthOpenBaoName(org) + "-scope-reader"
-	if err := c.Get(context.Background(), client.ObjectKey{Name: name}, role); err != nil {
+	if err := c.Get(t.Context(), client.ObjectKey{Name: name}, role); err != nil {
 		t.Fatalf("get scope reader ClusterRole: %v", err)
 	}
 	for _, rule := range role.Rules {
@@ -97,13 +102,30 @@ func TestExtAuthAccessIsLimitedToOrganizationWorkspaces(t *testing.T) {
 
 	workspaceRole := &rbacv1.Role{}
 	key := client.ObjectKey{Namespace: allowed.Name, Name: mcp.ExtAuthOpenBaoName(org)}
-	if err := c.Get(context.Background(), key, workspaceRole); err != nil {
+	if err := c.Get(t.Context(), key, workspaceRole); err != nil {
 		t.Fatalf("get allowed workspace Role: %v", err)
 	}
 	key.Namespace = foreign.Name
-	err = c.Get(context.Background(), key, &rbacv1.Role{})
+	err = c.Get(t.Context(), key, &rbacv1.Role{})
 	if !apierrors.IsNotFound(err) {
 		t.Fatalf("foreign workspace Role unexpectedly exists: %v", err)
+	}
+	guardrailKey := client.ObjectKey{Namespace: org, Name: name + "-guardrails"}
+	guardrailRole := &rbacv1.Role{}
+	if err := c.Get(t.Context(), guardrailKey, guardrailRole); err != nil {
+		t.Fatal(err)
+	}
+	if len(guardrailRole.OwnerReferences) != 1 || guardrailRole.OwnerReferences[0].Name != org {
+		t.Fatal("guardrail access must follow the runtime namespace lifecycle")
+	}
+	if err := r.deleteExtAuthRuntime(t.Context(), org); err != nil {
+		t.Fatal(err)
+	}
+	objects := []client.Object{&rbacv1.Role{}, &rbacv1.RoleBinding{}}
+	for _, object := range objects {
+		if err := c.Get(t.Context(), guardrailKey, object); !apierrors.IsNotFound(err) {
+			t.Fatalf("disabled runtime retained guardrail access %T: %v", object, err)
+		}
 	}
 }
 
@@ -229,7 +251,7 @@ func TestExtAuthCallerIdentities(t *testing.T) {
 	}
 }
 
-func TestDelegationRestoresAgentGatewayParameters(t *testing.T) {
+func TestDelegationPreservesAgentGatewayParameters(t *testing.T) {
 	scheme := runtime.NewScheme()
 	for _, add := range []func(*runtime.Scheme) error{corev1.AddToScheme, gwv1.Install, agw.Install, ciliumv2.AddToScheme} {
 		if err := add(scheme); err != nil {
@@ -278,11 +300,6 @@ func TestDelegationRestoresAgentGatewayParameters(t *testing.T) {
 			Host: "192.0.2.10",
 			Port: 4317,
 		},
-		DelegationImage: agw.Image{
-			Registry:   new("registry.example.test"),
-			Repository: new("patched-gateway"),
-			Tag:        new("tested"),
-		},
 	}
 	if err := r.reconcileDelegationRuntime(t.Context(), namespace); err != nil {
 		t.Fatal(err)
@@ -291,14 +308,18 @@ func TestDelegationRestoresAgentGatewayParameters(t *testing.T) {
 	if err := c.Get(t.Context(), key, parameters); err != nil {
 		t.Fatal(err)
 	}
-	if !equality.Semantic.DeepEqual(parameters.Spec.Image, &r.DelegationImage) {
-		t.Fatal("delegated listener did not select the tested native image")
+	if !equality.Semantic.DeepEqual(parameters.Spec.Image, originalImage) {
+		t.Fatal("delegation changed the operator's image")
 	}
 	if len(parameters.Spec.Env) != 2 || parameters.Spec.Env[1].Value != "1" {
 		t.Fatalf("full-content exports were not isolated into one-span batches: %+v", parameters.Spec.Env)
 	}
-	// A manager rollout can change the configured image immediately before revocation.
-	r.DelegationImage.Tag = new("updated")
+	// Operator changes during delegation must survive revocation.
+	parameters.Spec.Image.Tag = new("updated")
+	if err := c.Update(t.Context(), parameters); err != nil {
+		t.Fatal(err)
+	}
+	originalImage.Tag = new("updated")
 	if err := c.Delete(t.Context(), delegated); err != nil {
 		t.Fatal(err)
 	}

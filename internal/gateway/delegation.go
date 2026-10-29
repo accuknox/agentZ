@@ -78,10 +78,11 @@ type openAIModels struct {
 }
 
 type inferenceErrorDetail struct {
-	Message string  `json:"message"`
-	Type    string  `json:"type"`
-	Param   *string `json:"param"`
-	Code    string  `json:"code"`
+	Message   string                       `json:"message"`
+	Type      string                       `json:"type"`
+	Param     *string                      `json:"param"`
+	Code      string                       `json:"code"`
+	Guardrail *gatewayapi.GuardrailContext `json:"guardrail,omitempty"`
 }
 
 type inferenceError struct {
@@ -110,11 +111,11 @@ func delegatedModelCompatibility(kind agentzv1alpha1.InferenceProviderKind, mode
 	for i, api := range apis {
 		compatibility := gatewayapi.DelegationAPICompatibility{
 			Api:     api,
-			Support: gatewayapi.Unsupported,
+			Support: gatewayapi.DelegationAPICompatibilitySupportUnsupported,
 			Warning: "AgentGateway does not support this direct conversion.",
 		}
 		if slices.Contains(endpoints, paths[i]) {
-			compatibility.Support = gatewayapi.Translated
+			compatibility.Support = gatewayapi.DelegationAPICompatibilitySupportTranslated
 			compatibility.Warning = "Conversion may omit provider-specific reasoning, media or tool fields. Use the native API for full fidelity."
 			if api == gatewayapi.Responses {
 				compatibility.Warning += " Custom, namespaced and search tools, used by Codex, require a native Responses provider."
@@ -130,7 +131,7 @@ func delegatedModelCompatibility(kind agentzv1alpha1.InferenceProviderKind, mode
 			}
 			dualOpenAI := model.API == nil && openAI && api != gatewayapi.Messages
 			if (native || dualOpenAI) && !providerConversion {
-				compatibility.Support = gatewayapi.Native
+				compatibility.Support = gatewayapi.DelegationAPICompatibilitySupportNative
 				compatibility.Warning = ""
 			}
 		}
@@ -386,8 +387,8 @@ func (s *Service) resolveDelegation(ctx context.Context, grant gatewaydb.Delegat
 		return nil
 	}
 	resources := &delegationResources{
-		providers: make(map[ctrlclient.ObjectKey]*agentzv1alpha1.InferenceProvider),
-		mcp:       make(map[ctrlclient.ObjectKey]*agentzv1alpha1.MCPConnection),
+		providers: make(map[ctrlclient.ObjectKey]*agentzv1alpha1.InferenceProvider, len(selection.Models)),
+		mcp:       make(map[ctrlclient.ObjectKey]*agentzv1alpha1.MCPConnection, len(selection.Mcp)),
 	}
 	for _, model := range selection.Models {
 		err := selectedNamespace(model.WorkspaceId, model.Namespace, model.Provider,
@@ -927,7 +928,19 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 			response.Header.Del("Set-Cookie")
 			// Intermediary compression must not buffer streamed inference or MCP events.
 			response.Header.Set("Cache-Control", "no-store, no-transform")
+			gatewayGuardrail := !mcpRequest && response.Header.Get("X-Agentgateway-Guardrail-Error") == "true"
+			response.Header.Del("X-Agentgateway-Guardrail-Error")
 			if response.StatusCode >= http.StatusMultipleChoices {
+				var policyError *gatewayapi.GuardrailError
+				if gatewayGuardrail {
+					var rejection gatewayapi.GuardrailRejection
+					decodeErr := json.NewDecoder(io.LimitReader(response.Body, 32<<10)).Decode(&rejection)
+					violation := response.StatusCode == http.StatusUnprocessableEntity && rejection.Error.Code == gatewayapi.ContentPolicyViolation
+					unavailable := response.StatusCode == http.StatusServiceUnavailable && rejection.Error.Code == gatewayapi.GuardrailUnavailable
+					if decodeErr == nil && (violation || unavailable) {
+						policyError = &rejection.Error
+					}
+				}
 				if err := response.Body.Close(); err != nil {
 					return err
 				}
@@ -949,6 +962,20 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 				if strings.HasPrefix(r.URL.Path, "/api/inference/v1/messages") {
 					failure.Type = "error"
 					failure.Error.Type = "api_error"
+				}
+				if !mcpRequest && response.StatusCode == http.StatusUnprocessableEntity {
+					failure.Error.Message = "The model gateway rejected this request. Review your input and assigned policies, then try again."
+					failure.Error.Type = "invalid_request_error"
+					failure.Error.Code = "request_rejected"
+				}
+				if policyError != nil {
+					failure.Error = inferenceErrorDetail{
+						Message:   policyError.Message,
+						Type:      string(policyError.Type),
+						Code:      string(policyError.Code),
+						Param:     policyError.Param,
+						Guardrail: &policyError.Guardrail,
+					}
 				}
 				body, err := json.Marshal(failure)
 				if err != nil {

@@ -75,6 +75,18 @@ spec:
                   SelectedOrganizationResources identifies the Organisation resources that
                   this Workspace may consume live and read-only.
                 properties:
+                  guardrailConnections:
+                    description: GuardrailConnections selects read-only organization detector connections.
+                    items:
+                      type: string
+                    type: array
+                    x-kubernetes-list-type: set
+                  guardrailPolicies:
+                    description: GuardrailPolicies selects optional read-only organization policies.
+                    items:
+                      type: string
+                    type: array
+                    x-kubernetes-list-type: set
                   inferenceProviders:
                     description: InferenceProviders contains selected Organisation InferenceProvider names.
                     items:

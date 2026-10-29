@@ -16,6 +16,8 @@ import (
 	pb "github.com/kubearmor/KubeArmor/protobuf"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	observerdb "github.com/accuknox/agentz/internal/observer/db"
 )
 
 var (
@@ -130,6 +132,22 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 	wg.Go(func() {
 		logStats(ctx, stats)
+	})
+	wg.Go(func() {
+		ticker := time.NewTicker(time.Hour)
+		defer ticker.Stop()
+		queries := observerdb.New(pool)
+		for {
+			_, err := queries.DeleteExpiredGuardrailEvents(ctx)
+			if err != nil && ctx.Err() == nil {
+				slog.ErrorContext(ctx, "delete expired guardrail events", slog.Any("error", err))
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
 	})
 
 	<-ctx.Done()

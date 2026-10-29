@@ -5,10 +5,10 @@ CREATE TYPE "public"."destructive_operation" AS ENUM('membership_disable', 'memb
 CREATE TYPE "public"."destructive_target" AS ENUM('organization_membership', 'team', 'role', 'workspace_access', 'workspace');
 CREATE TYPE "public"."event_trail_actor" AS ENUM('user', 'api_key', 'system');
 CREATE TYPE "public"."event_trail_result" AS ENUM('succeeded', 'denied', 'failed');
-CREATE TYPE "public"."event_trail_target" AS ENUM('organization', 'organization_membership', 'team', 'mcp_connection', 'inference_provider', 'inference_pool', 'role', 'sandbox', 'skill', 'agent', 'api_key', 'workspace_access', 'workspace');
+CREATE TYPE "public"."event_trail_target" AS ENUM('organization', 'organization_membership', 'team', 'mcp_connection', 'inference_provider', 'inference_pool', 'role', 'sandbox', 'skill', 'agent', 'api_key', 'workspace_access', 'workspace', 'guardrail_connection', 'guardrail_policy', 'guardrail_settings', 'external_access_guardrails');
 CREATE TYPE "public"."external_agent_kind" AS ENUM('claude', 'codex');
 CREATE TYPE "public"."permission_action" AS ENUM('read', 'create', 'modify', 'delete', 'delegate', 'author', 'share_authored', 'share_non_authored', 'use_shared', 'read_shared_secret', 'write_shared_secret', 'delete_shared_secret');
-CREATE TYPE "public"."permission_resource" AS ENUM('mcp_connection', 'skill', 'sandbox', 'inference_provider', 'inference_pool', 'agent', 'api_key', 'observability');
+CREATE TYPE "public"."permission_resource" AS ENUM('mcp_connection', 'skill', 'sandbox', 'inference_provider', 'inference_pool', 'agent', 'api_key', 'observability', 'guardrail_connection', 'guardrail_policy', 'guardrail_event');
 CREATE TYPE "public"."system_role" AS ENUM('superadmin', 'workspace_admin');
 CREATE TYPE "public"."theme_preference" AS ENUM('system', 'light', 'dark');
 CREATE TYPE "public"."workspace_state" AS ENUM('provisioning', 'ready', 'failed', 'deleting');
@@ -211,6 +211,15 @@ CREATE TABLE "github_connections" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 
+CREATE TABLE "guardrail_client_access" (
+	"organization_id" text NOT NULL,
+	"workspace_id" text NOT NULL,
+	"client_id" text NOT NULL,
+	"policies" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "guardrail_client_access_organization_id_workspace_id_client_id_pk" PRIMARY KEY("organization_id","workspace_id","client_id")
+);
+
 CREATE TABLE "invitation_roles" (
 	"invitation_id" text NOT NULL,
 	"role_id" text NOT NULL,
@@ -347,7 +356,7 @@ CREATE TABLE "workspace_inherited_resources" (
 	"resource_name" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "workspace_inherited_resources_workspace_id_resource_resource_name_pk" PRIMARY KEY("workspace_id","resource","resource_name"),
-	CONSTRAINT "workspace_inherited_resources_resource_ck" CHECK ("workspace_inherited_resources"."resource" IN ('skill', 'sandbox', 'mcp_connection', 'inference_provider')),
+	CONSTRAINT "workspace_inherited_resources_resource_ck" CHECK ("workspace_inherited_resources"."resource"::text IN ('skill', 'sandbox', 'mcp_connection', 'inference_provider', 'guardrail_connection', 'guardrail_policy')),
 	CONSTRAINT "workspace_inherited_resources_name_ck" CHECK (NULLIF(BTRIM("workspace_inherited_resources"."resource_name"), '') IS NOT NULL)
 );
 
@@ -736,6 +745,9 @@ ALTER TABLE "external_agents" ADD CONSTRAINT "external_agents_workspace_organiza
 ALTER TABLE "github_authorizations" ADD CONSTRAINT "github_authorizations_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "github_authorizations" ADD CONSTRAINT "github_authorizations_session_id_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."sessions"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "github_connections" ADD CONSTRAINT "github_connections_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "guardrail_client_access" ADD CONSTRAINT "guardrail_client_access_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "guardrail_client_access" ADD CONSTRAINT "guardrail_client_access_client_id_oauth_clients_client_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."oauth_clients"("client_id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "guardrail_client_access" ADD CONSTRAINT "guardrail_client_access_workspace_organization_fk" FOREIGN KEY ("workspace_id","organization_id") REFERENCES "public"."workspaces"("id","organization_id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "invitation_roles" ADD CONSTRAINT "invitation_roles_invitation_id_organization_invitations_id_fk" FOREIGN KEY ("invitation_id") REFERENCES "public"."organization_invitations"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "invitation_roles" ADD CONSTRAINT "invitation_roles_role_organization_fk" FOREIGN KEY ("role_id","organization_id") REFERENCES "public"."role_scopes"("role_id","organization_id") ON DELETE restrict ON UPDATE no action;
 ALTER TABLE "invitation_teams" ADD CONSTRAINT "invitation_teams_invitation_id_organization_invitations_id_fk" FOREIGN KEY ("invitation_id") REFERENCES "public"."organization_invitations"("id") ON DELETE cascade ON UPDATE no action;

@@ -20,6 +20,8 @@ async function WorkspaceInheritanceContent({
   const { orgSlug, workspaceSlug } = await params
   const root = `/orgs/${orgSlug}/workspaces/manage/${workspaceSlug}/inherited`
   const tabs = [
+    { href: `${root}/guardrail-policies` as Route, label: "Guardrail policies" },
+    { href: `${root}/guardrail-providers` as Route, label: "Guardrail providers" },
     { href: `${root}/skills` as Route, label: "Skills" },
     { href: `${root}/sandboxes` as Route, label: "Sandboxes" },
     { href: `${root}/mcp-connections` as Route, label: "MCP Connections" },

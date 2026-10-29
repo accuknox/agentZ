@@ -209,16 +209,19 @@ func (s *Service) tenantView(ctx context.Context, claims gatewayClaims, tenant *
 		return gatewayapi.Tenant{}, err
 	}
 	return gatewayapi.Tenant{
-		Conditions:                    conditions,
-		SkillCapabilities:             capabilities.skill,
-		McpConnectionCapabilities:     capabilities.mcp,
-		SandboxCapabilities:           capabilities.sandbox,
-		InferenceProviderCapabilities: capabilities.inferenceProvider,
-		InferencePoolCapabilities:     capabilities.inferencePool,
-		Namespace:                     tenant.Status.Namespace,
-		Phase:                         phase,
-		Ready:                         ready,
-		OrganizationId:                tenant.Spec.OrganizationID,
+		Conditions:                      conditions,
+		SkillCapabilities:               capabilities.skill,
+		McpConnectionCapabilities:       capabilities.mcp,
+		SandboxCapabilities:             capabilities.sandbox,
+		InferenceProviderCapabilities:   capabilities.inferenceProvider,
+		GuardrailConnectionCapabilities: capabilities.guardrailConnection,
+		GuardrailPolicyCapabilities:     capabilities.guardrailPolicy,
+		GuardrailEventCapabilities:      capabilities.guardrailEvent,
+		InferencePoolCapabilities:       capabilities.inferencePool,
+		Namespace:                       tenant.Status.Namespace,
+		Phase:                           phase,
+		Ready:                           ready,
+		OrganizationId:                  tenant.Spec.OrganizationID,
 	}, nil
 }
 

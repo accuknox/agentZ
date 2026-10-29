@@ -1,0 +1,1110 @@
+diff --git a/crates/agentgateway/src/cel/tests.rs b/crates/agentgateway/src/cel/tests.rs
+index 6d2d0d0..c3cd8bc 100644
+--- a/crates/agentgateway/src/cel/tests.rs
++++ b/crates/agentgateway/src/cel/tests.rs
+@@ -687,6 +687,7 @@ fn log_guardrails_binding() {
+ 					"piiEntities": [{"type": "EMAIL", "action": "BLOCKED", "detected": true}]
+ 				}
+ 			})],
++			..Default::default()
+ 		},
+ 	}];
+ 	let exec = Executor::new_logger(None, None, None, None, Some(&entries), None, None);
+diff --git a/crates/agentgateway/src/cel/types.rs b/crates/agentgateway/src/cel/types.rs
+index 6d5f31f..7f2441c 100644
+--- a/crates/agentgateway/src/cel/types.rs
++++ b/crates/agentgateway/src/cel/types.rs
+@@ -1437,10 +1437,36 @@ pub struct GuardrailInfo {
+ 	pub detail: GuardDetail,
+ }
+ 
++#[apply(schema!)]
++#[derive(Default, cel::DynamicType)]
++#[dynamic(rename_all = "camelCase")]
++pub struct GuardrailContext {
++	pub phase: Strng,
++	pub guard: Strng,
++	pub policy_id: String,
++	pub policy_name: String,
++	pub check_id: String,
++	pub check_name: String,
++	pub message: String,
++	pub scopes: Vec<Strng>,
++	#[serde(default, skip_serializing_if = "Option::is_none")]
++	pub matched_scope: Option<Strng>,
++	#[serde(default, skip_serializing_if = "Option::is_none")]
++	pub reason: Option<Strng>,
++}
++
+ #[apply(schema!)]
+ #[derive(Default, cel::DynamicType)]
+ #[dynamic(rename_all = "camelCase")]
+ pub struct GuardDetail {
++	/// Checker diagnostics are recorded separately from client-visible rejection context.
++	#[serde(default, skip_serializing_if = "Option::is_none")]
++	pub error: Option<String>,
++
++	/// Safe configured identity and measured evaluation context.
++	#[serde(default, skip_serializing_if = "Option::is_none")]
++	pub context: Option<GuardrailContext>,
++
+ 	/// The configured guardrail identifier.
+ 	#[serde(default, skip_serializing_if = "Option::is_none")]
+ 	pub guardrail_id: Option<Strng>,
+@@ -2534,6 +2560,7 @@ pub fn full_example_executor() -> ExecutorSerde {
+ 				guardrail_version: Some("1".into()),
+ 				action_reason: Some("Guardrail blocked.".into()),
+ 				assessments: vec![],
++				..Default::default()
+ 			},
+ 		}]),
+ 		metadata: Some(TransformationMetadata::default()),
+diff --git a/crates/agentgateway/src/llm/mod.rs b/crates/agentgateway/src/llm/mod.rs
+index d047889..e0d573e 100644
+--- a/crates/agentgateway/src/llm/mod.rs
++++ b/crates/agentgateway/src/llm/mod.rs
+@@ -2245,7 +2245,7 @@ impl AIProvider {
+ 				log.llm_request = Some(llm_info);
+ 			}
+ 			return Ok(PreparedRequest::GuardrailRejected {
+-				response,
++				response: policy::render_guardrail_response(response, original_format),
+ 				guardrail,
+ 			});
+ 		}
+@@ -2424,8 +2424,10 @@ impl AIProvider {
+ 		req_snapshot: Option<Arc<RequestSnapshot>>,
+ 		logging: LLMLogging,
+ 		model_catalog: Option<&Arc<catalog::ModelCatalog>>,
+-		resp: Response,
++		mut resp: Response,
+ 	) -> Result<Response, AIError> {
++		// Only locally evaluated rejections may carry this marker through private gateway hops.
++		resp.headers_mut().remove("x-agentgateway-guardrail-error");
+ 		// Non-success responses are plain JSON, not event-stream data.
+ 		// Only enter the streaming path for successful responses; errors
+ 		// fall through to the buffered path where process_error translates them.
+@@ -2527,10 +2529,12 @@ impl AIProvider {
+ 					warn!("failed to apply response prompt guard: {e}");
+ 					AIError::PromptWebhookError
+ 				})? {
+-				return Ok(dr.map(|replacement| {
+-					managed_body.replace_content(replacement.into_boxed().into());
+-					managed_body
+-				}));
++				return Ok(
++					policy::render_guardrail_response(dr, req.input_format).map(|replacement| {
++						managed_body.replace_content(replacement.into_boxed().into());
++						managed_body
++					}),
++				);
+ 			}
+ 
+ 			let llm_resp = resp.to_llm_response(log_content);
+@@ -3042,10 +3046,9 @@ impl AIProvider {
+ 
+ 		if !evaluators.is_empty() {
+ 			// `logger` is owned by the translated body; pass None to avoid double-logging.
+-			return Ok(
+-				translated
+-					.map(|b| b.transform_stream(|b| GuardedSseBody::new(b, evaluators, buffer, None))),
+-			);
++			return Ok(translated.map(|b| {
++				b.transform_stream(|b| GuardedSseBody::new(b, evaluators, buffer, None, input_format))
++			}));
+ 		}
+ 		Ok(translated)
+ 	}
+diff --git a/crates/agentgateway/src/llm/policy/bedrock_guardrails.rs b/crates/agentgateway/src/llm/policy/bedrock_guardrails.rs
+index fdd936b..211cd86 100644
+--- a/crates/agentgateway/src/llm/policy/bedrock_guardrails.rs
++++ b/crates/agentgateway/src/llm/policy/bedrock_guardrails.rs
+@@ -196,6 +196,7 @@ impl ApplyGuardrailResponse {
+ 			guardrail_version: Some(config.guardrail_version.clone()),
+ 			action_reason: self.action_reason.take(),
+ 			assessments,
++			..Default::default()
+ 		}
+ 	}
+ }
+diff --git a/crates/agentgateway/src/llm/policy/google_model_armor.rs b/crates/agentgateway/src/llm/policy/google_model_armor.rs
+index 448d93b..3dbe02e 100644
+--- a/crates/agentgateway/src/llm/policy/google_model_armor.rs
++++ b/crates/agentgateway/src/llm/policy/google_model_armor.rs
+@@ -5,7 +5,6 @@
+ //! via the backend policies.
+ 
+ use agent_core::strng;
+-use itertools::Itertools;
+ use serde::{Deserialize, Serialize};
+ use tracing::{debug, warn};
+ 
+@@ -248,12 +247,16 @@ pub async fn send_request(
+ 	client: &PolicyClient,
+ 	model_armor: &GoogleModelArmor,
+ ) -> anyhow::Result<SanitizeResponse> {
+-	let content = req
+-		.get_messages()
+-		.into_iter()
+-		.map(|m| m.content.to_string())
+-		.collect_vec()
+-		.join("\n");
++	let mut texts = Vec::new();
++	req.visit_text_mut(&mut |scope, text| {
++		if matches!(
++			scope,
++			agent_llm::types::ContentScope::SystemPrompt | agent_llm::types::ContentScope::Messages
++		) {
++			texts.push(text.clone());
++		}
++	});
++	let content = texts.join("\n");
+ 
+ 	let request_body = SanitizeUserPromptRequest {
+ 		user_prompt_data: UserPromptData { text: content },
+diff --git a/crates/agentgateway/src/llm/policy/mod.rs b/crates/agentgateway/src/llm/policy/mod.rs
+index 34f4f97..2ec308f 100644
+--- a/crates/agentgateway/src/llm/policy/mod.rs
++++ b/crates/agentgateway/src/llm/policy/mod.rs
+@@ -39,7 +39,7 @@ fn record_guardrail(
+ 	detail: Option<GuardDetail>,
+ ) {
+ 	let action = match action {
+-		GuardrailAction::Allow => strng::literal!("allow"),
++		GuardrailAction::Allow => return,
+ 		GuardrailAction::FailOpen => strng::literal!("failOpen"),
+ 		GuardrailAction::Audit => strng::literal!("audit"),
+ 		GuardrailAction::Mask => strng::literal!("mask"),
+@@ -56,6 +56,45 @@ fn record_guardrail(
+ 	});
+ }
+ 
++#[derive(Clone, Debug, Serialize, Deserialize)]
++pub(crate) struct GuardrailError {
++	#[serde(rename = "type")]
++	pub error_type: String,
++	pub code: String,
++	pub message: String,
++	#[serde(default)]
++	pub param: Option<String>,
++	pub guardrail: crate::cel::GuardrailContext,
++}
++
++#[derive(Serialize, Deserialize)]
++struct GuardrailErrorResponse {
++	error: GuardrailError,
++}
++
++/// Render a gateway-owned rejection in the client's API format.
++pub(crate) fn render_guardrail_response(
++	mut response: Response,
++	format: crate::llm::InputFormat,
++) -> Response {
++	let Some(error) = response.extensions().get::<GuardrailError>().cloned() else {
++		return response;
++	};
++	response.headers_mut().insert(
++		"x-agentgateway-guardrail-error",
++		::http::HeaderValue::from_static("true"),
++	);
++	let body = match format {
++		crate::llm::InputFormat::Messages => serde_json::json!({"type": "error", "error": error}),
++		_ => serde_json::json!({"error": error}),
++	};
++	*response.body_mut() = http::Body::from(body.to_string());
++	response
++		.headers_mut()
++		.remove(::http::header::CONTENT_LENGTH);
++	response
++}
++
+ fn reject_or_audit<M>(audit: bool, rejection: &RequestRejection) -> GuardrailOutcome<M> {
+ 	if audit {
+ 		GuardrailOutcome::Audit
+@@ -982,17 +1021,30 @@ impl Policy {
+ 		original: Option<&cel::RequestSnapshot>,
+ 		guardrail_log: Option<&GuardrailLog>,
+ 	) -> anyhow::Result<(GuardrailAction, Option<Response>)> {
+-		let (outcome, detail) =
++		let mut checker_error = None;
++		let (outcome, mut detail) =
+ 			match Self::evaluate_single_request_guard(guard, req, http_headers, client, claims, original)
+ 				.await
+ 			{
+ 				Err(e) if guard.failure_mode() == FailureMode::FailOpen => {
+ 					tracing::warn!("request guard error, failing open: {e}");
++					checker_error = Some(e);
+ 					(GuardrailOutcome::FailOpen, None)
+ 				},
++				Err(e) if guard.rejection.structured_error().is_some() => {
++					tracing::warn!("guardrail checker failed closed: {e}");
++					checker_error = Some(e);
++					(
++						GuardrailOutcome::Rejected(guard.rejection.as_response()),
++						None,
++					)
++				},
+ 				result => result?,
+ 			};
+-		let (action, rejection) = Self::apply_request_guard_outcome(outcome, req)?;
++		let (action, mut rejection) = Self::apply_request_guard_outcome(outcome, req)?;
++		guard
++			.rejection
++			.describe_outcome(action, &mut rejection, &mut detail, checker_error.as_ref());
+ 		record_guardrail(
+ 			guardrail_log,
+ 			GuardrailPhase::Request,
+@@ -1012,9 +1064,11 @@ impl Policy {
+ 		original: Option<&cel::RequestSnapshot>,
+ 	) -> anyhow::Result<(GuardrailOutcome<RequestGuardMutation>, Option<GuardDetail>)> {
+ 		match &guard.kind {
+-			RequestGuardKind::Regex(rg) => Ok((
+-				Self::evaluate_regex_request(req, rg, &guard.rejection, &guard.scope),
+-				None,
++			RequestGuardKind::Regex(rg) => Ok(Self::evaluate_regex_request(
++				req,
++				rg,
++				&guard.rejection,
++				&guard.scope,
+ 			)),
+ 			RequestGuardKind::Webhook(wh) => {
+ 				Self::evaluate_webhook_request(req, http_headers, client, wh, original).await
+@@ -1437,10 +1491,11 @@ impl Policy {
+ 		rgx: &RegexRules,
+ 		rejection: &RequestRejection,
+ 		guard_scope: &[ContentScope],
+-	) -> GuardrailOutcome<RequestGuardMutation> {
++	) -> (GuardrailOutcome<RequestGuardMutation>, Option<GuardDetail>) {
+ 		let mut replacements = Vec::new();
+ 		let mut rejected = false;
+ 		let mut audited = false;
++		let mut matched_scope = None;
+ 		req.visit_text_mut(&mut |content_scope, text| {
+ 			if rejected || audited {
+ 				return;
+@@ -1450,7 +1505,16 @@ impl Policy {
+ 				replacements.push(None);
+ 				return;
+ 			}
+-			match Self::apply_prompt_guard_regex(text, rgx, GuardrailPhase::Request) {
++			let result = Self::apply_prompt_guard_regex(text, rgx, GuardrailPhase::Request);
++			if result.is_some() && matched_scope.is_none() {
++				matched_scope = Some(match content_scope {
++					ContentScope::SystemPrompt => strng::literal!("instructions"),
++					ContentScope::Messages => strng::literal!("conversation"),
++					ContentScope::ToolInput => strng::literal!("toolArguments"),
++					ContentScope::ToolOutput => strng::literal!("toolResults"),
++				});
++			}
++			match result {
+ 				Some(RegexResult::Audit) => {
+ 					audited = true;
+ 				},
+@@ -1463,17 +1527,23 @@ impl Policy {
+ 				None => replacements.push(None),
+ 			}
+ 		});
+-		if audited {
+-			return GuardrailOutcome::Audit;
+-		}
+-		if rejected {
+-			return GuardrailOutcome::Rejected(rejection.as_response());
+-		}
+-		if replacements.iter().all(Option::is_none) {
++		let detail = rejection.structured_error().map(|mut error| {
++			error.guardrail.matched_scope = matched_scope;
++			GuardDetail {
++				context: Some(error.guardrail),
++				..Default::default()
++			}
++		});
++		let outcome = if audited {
++			GuardrailOutcome::Audit
++		} else if rejected {
++			GuardrailOutcome::Rejected(rejection.as_response())
++		} else if replacements.iter().all(Option::is_none) {
+ 			GuardrailOutcome::None
+ 		} else {
+ 			GuardrailOutcome::Masked(RequestGuardMutation::Texts(TextReplacements(replacements)))
+-		}
++		};
++		(outcome, detail)
+ 	}
+ 
+ 	#[cfg(test)]
+@@ -1491,15 +1561,20 @@ impl Policy {
+ 		resp: &mut dyn ResponseType,
+ 		rgx: &RegexRules,
+ 		rejection: &RequestRejection,
+-	) -> GuardrailOutcome<ResponseGuardMutation> {
++	) -> (GuardrailOutcome<ResponseGuardMutation>, Option<GuardDetail>) {
+ 		let mut replacements = Vec::new();
+ 		let mut rejected = false;
+ 		let mut audited = false;
++		let mut matched_scope = None;
+ 		resp.visit_text_mut(&mut |text| {
+ 			if rejected || audited {
+ 				return;
+ 			}
+-			match Self::apply_prompt_guard_regex(text, rgx, GuardrailPhase::Response) {
++			let result = Self::apply_prompt_guard_regex(text, rgx, GuardrailPhase::Response);
++			if result.is_some() && matched_scope.is_none() {
++				matched_scope = Some(strng::literal!("conversation"));
++			}
++			match result {
+ 				Some(RegexResult::Audit) => {
+ 					audited = true;
+ 				},
+@@ -1512,17 +1587,23 @@ impl Policy {
+ 				None => replacements.push(None),
+ 			}
+ 		});
+-		if audited {
+-			return GuardrailOutcome::Audit;
+-		}
+-		if rejected {
+-			return GuardrailOutcome::Rejected(rejection.as_response());
+-		}
+-		if replacements.iter().all(Option::is_none) {
++		let detail = rejection.structured_error().map(|mut error| {
++			error.guardrail.matched_scope = matched_scope;
++			GuardDetail {
++				context: Some(error.guardrail),
++				..Default::default()
++			}
++		});
++		let outcome = if audited {
++			GuardrailOutcome::Audit
++		} else if rejected {
++			GuardrailOutcome::Rejected(rejection.as_response())
++		} else if replacements.iter().all(Option::is_none) {
+ 			GuardrailOutcome::None
+ 		} else {
+ 			GuardrailOutcome::Masked(ResponseGuardMutation::Texts(TextReplacements(replacements)))
+-		}
++		};
++		(outcome, detail)
+ 	}
+ 
+ 	async fn evaluate_webhook_request(
+@@ -1539,7 +1620,13 @@ impl Policy {
+ 			.then(|| req.to_value())
+ 			.transpose()?;
+ 		let context = webhook::EvaluationContext::new(original, llm_request.as_ref());
+-		let messages = req.get_messages();
++		let mut all_messages = req.get_messages();
++		let messages: Vec<_> = all_messages
++			.iter()
++			.filter(|message| !matches!(message.role.as_str(), "tool" | "function"))
++			.cloned()
++			.collect();
++		let checked_count = messages.len();
+ 		let headers = Self::get_webhook_forward_headers(http_headers, &webhook.forward_header_matches);
+ 		let whr = webhook::send_request(client, webhook, context, &headers, messages).await?;
+ 		if webhook.action == RejectAuditAction::Audit {
+@@ -1557,7 +1644,26 @@ impl Policy {
+ 				}),
+ 			));
+ 		}
+-		Self::webhook_request_outcome(whr.action)
++		let (mut outcome, detail) = Self::webhook_request_outcome(whr.action)?;
++		if let GuardrailOutcome::Masked(RequestGuardMutation::Messages(messages)) = &mut outcome {
++			anyhow::ensure!(
++				messages.len() == checked_count,
++				"webhook masking must preserve the number of inspected messages"
++			);
++			for (original, replacement) in all_messages
++				.iter_mut()
++				.filter(|message| !matches!(message.role.as_str(), "tool" | "function"))
++				.zip(messages.drain(..))
++			{
++				anyhow::ensure!(
++					original.role == replacement.role,
++					"webhook masking must preserve message roles"
++				);
++				*original = replacement;
++			}
++			*messages = all_messages;
++		}
++		Ok((outcome, detail))
+ 	}
+ 
+ 	fn webhook_request_outcome(
+@@ -1882,16 +1988,23 @@ impl Policy {
+ 		guardrail_log: Option<&GuardrailLog>,
+ 		streaming_allow_recorded: Option<&mut bool>,
+ 	) -> anyhow::Result<(GuardrailAction, Option<Response>)> {
+-		let (outcome, detail) =
++		let mut checker_error = None;
++		let (outcome, mut detail) =
+ 			match Self::evaluate_single_response_guard(guard, resp, http_headers, client, original).await
+ 			{
+-				Err(e)
+-					if streaming_allow_recorded.is_none()
+-						&& guard.failure_mode() == FailureMode::FailOpen =>
+-				{
++				Err(e) if guard.failure_mode() == FailureMode::FailOpen => {
+ 					tracing::warn!("response guard error, failing open: {e}");
++					checker_error = Some(e);
+ 					(GuardrailOutcome::FailOpen, None)
+ 				},
++				Err(e) if guard.rejection.structured_error().is_some() => {
++					tracing::warn!("guardrail checker failed closed: {e}");
++					checker_error = Some(e);
++					(
++						GuardrailOutcome::Rejected(guard.rejection.as_response()),
++						None,
++					)
++				},
+ 				result => result?,
+ 			};
+ 
+@@ -1900,7 +2013,10 @@ impl Policy {
+ 			return Ok((GuardrailAction::Allow, None));
+ 		}
+ 
+-		let (action, rejection) = Self::apply_response_guard_outcome(outcome, resp)?;
++		let (action, mut rejection) = Self::apply_response_guard_outcome(outcome, resp)?;
++		guard
++			.rejection
++			.describe_outcome(action, &mut rejection, &mut detail, checker_error.as_ref());
+ 		let record = match streaming_allow_recorded {
+ 			Some(recorded) if action == GuardrailAction::Allow => !std::mem::replace(recorded, true),
+ 			_ => true,
+@@ -1925,10 +2041,7 @@ impl Policy {
+ 		original: Option<&cel::RequestSnapshot>,
+ 	) -> anyhow::Result<(GuardrailOutcome<ResponseGuardMutation>, Option<GuardDetail>)> {
+ 		match &guard.kind {
+-			ResponseGuardKind::Regex(rg) => Ok((
+-				Self::evaluate_regex_response(resp, rg, &guard.rejection),
+-				None,
+-			)),
++			ResponseGuardKind::Regex(rg) => Ok(Self::evaluate_regex_response(resp, rg, &guard.rejection)),
+ 			ResponseGuardKind::Webhook(wh) => {
+ 				Self::evaluate_webhook_response(resp, http_headers, client, wh, original).await
+ 			},
+@@ -2077,6 +2190,98 @@ pub enum RegexRule {
+ }
+ 
+ impl RequestRejection {
++	fn structured_error(&self) -> Option<GuardrailError> {
++		serde_json::from_slice::<GuardrailErrorResponse>(&self.body)
++			.ok()
++			.map(|body| body.error)
++	}
++
++	fn describe_outcome(
++		&self,
++		action: GuardrailAction,
++		rejection: &mut Option<Response>,
++		detail: &mut Option<GuardDetail>,
++		checker_error: Option<&anyhow::Error>,
++	) {
++		if action == GuardrailAction::Allow {
++			return;
++		}
++		let detail = detail.get_or_insert_with(GuardDetail::default);
++		if let Some(error) = checker_error {
++			let mut message = format!("{error:#}");
++			message.truncate(message.floor_char_boundary(4096));
++			detail.error = Some(message);
++		}
++		let Some(mut error) = self.structured_error() else {
++			return;
++		};
++		let checker_failed = checker_error.is_some();
++		if let Some(context) = &detail.context {
++			error.guardrail = context.clone();
++		}
++		if checker_failed {
++			error.guardrail.reason = Some(strng::literal!("checker_error"));
++			error.guardrail.matched_scope = None;
++			error.code = "guardrail_unavailable".into();
++			error.error_type = "api_error".into();
++			error.message = format!(
++				"Guardrail checker {} is unavailable",
++				error.guardrail.check_name
++			);
++		} else if matches!(
++			action,
++			GuardrailAction::Reject | GuardrailAction::Audit | GuardrailAction::Mask
++		) {
++			error.guardrail.reason = Some(strng::literal!("policy_violation"));
++		}
++		if !checker_failed && rejection.is_some() {
++			let scope = error
++				.guardrail
++				.matched_scope
++				.as_ref()
++				.or_else(|| (error.guardrail.scopes.len() == 1).then(|| &error.guardrail.scopes[0]));
++			let target = match scope.map(|scope| scope.as_str()) {
++				Some("instructions") => "System instructions",
++				Some("toolArguments") => "Tool inputs",
++				Some("toolResults") => "Tool results",
++				Some("conversation") if error.guardrail.phase.as_str() == "response" => {
++					"Assistant response"
++				},
++				Some("conversation") => "Chat messages",
++				_ if error.guardrail.phase.as_str() == "response" => "Model response",
++				_ => "Model request",
++			};
++			let policy = if error.guardrail.policy_name.is_empty() {
++				&error.guardrail.policy_id
++			} else {
++				&error.guardrail.policy_name
++			};
++			error.message = if policy.is_empty() {
++				format!("{target} blocked by policy")
++			} else {
++				format!("{target} blocked by policy named {policy:?}")
++			};
++			if !error.guardrail.message.is_empty() {
++				error.message.push_str(": ");
++				error.message.push_str(&error.guardrail.message);
++			}
++		}
++		detail.context = Some(error.guardrail.clone());
++		let Some(response) = rejection else {
++			return;
++		};
++		*response = self.as_response();
++		response.headers_mut().insert(
++			::http::header::CONTENT_TYPE,
++			::http::HeaderValue::from_static("application/json"),
++		);
++		if checker_failed {
++			*response.status_mut() = StatusCode::SERVICE_UNAVAILABLE;
++		}
++		*response.body_mut() = http::Body::from(serde_json::json!({"error": error}).to_string());
++		response.extensions_mut().insert(error);
++	}
++
+ 	pub fn as_response(&self) -> Response {
+ 		let mut response = ::http::response::Builder::new()
+ 			.status(self.status)
+diff --git a/crates/agentgateway/src/llm/policy/moderation.rs b/crates/agentgateway/src/llm/policy/moderation.rs
+index 9c836e1..fa10807 100644
+--- a/crates/agentgateway/src/llm/policy/moderation.rs
++++ b/crates/agentgateway/src/llm/policy/moderation.rs
+@@ -1,5 +1,4 @@
+ use agent_core::strng;
+-use itertools::Itertools;
+ 
+ use crate::http::jwt::Claims;
+ use crate::json;
+@@ -24,11 +23,15 @@ pub async fn send_request(
+ 	)];
+ 	pols.extend(moderation.policies.iter().cloned());
+ 	// let auth = BackendAuth::from(moderation.auth.clone());
+-	let content = req
+-		.get_messages()
+-		.into_iter()
+-		.map(|t| t.content)
+-		.collect_vec();
++	let mut content = Vec::new();
++	req.visit_text_mut(&mut |scope, text| {
++		if matches!(
++			scope,
++			agent_llm::types::ContentScope::SystemPrompt | agent_llm::types::ContentScope::Messages
++		) {
++			content.push(text.clone());
++		}
++	});
+ 	let mut rb = ::http::Request::builder()
+ 		.uri("https://api.openai.com/v1/moderations")
+ 		.method(::http::Method::POST)
+diff --git a/crates/agentgateway/src/llm/policy/streaming_guardrails.rs b/crates/agentgateway/src/llm/policy/streaming_guardrails.rs
+index 8a4a827..12478f5 100644
+--- a/crates/agentgateway/src/llm/policy/streaming_guardrails.rs
++++ b/crates/agentgateway/src/llm/policy/streaming_guardrails.rs
+@@ -27,6 +27,7 @@ use ::http::HeaderMap;
+ use bytes::Bytes;
+ use http_body::Frame;
+ use pin_project_lite::pin_project;
++use serde::Deserialize;
+ use tokio_sse_codec::{Event, Frame as SseFrame, SseDecoder};
+ use tokio_util::codec::Decoder;
+ use tracing::warn;
+@@ -197,16 +198,59 @@ impl StreamingEvaluator for ResponseGuardEvaluator {
+ /// Synthetic SSE error event sent to the client when a guardrail blocks content.
+ ///
+ /// Encoded as a single `data: {...}\n\n` SSE frame.
+-fn guardrail_blocked_sse_bytes(body: Bytes) -> Bytes {
+-	let message = String::from_utf8_lossy(&body);
+-	let event = serde_json::json!({
+-		"error": {
+-			"type": "guardrail_blocked",
+-			"code": "guardrail_intervention",
+-			"message": message,
++fn guardrail_blocked_sse_bytes(
++	body: Bytes,
++	format: crate::llm::InputFormat,
++	sequence_number: u64,
++	response: Option<&agent_llm::types::responses::Response>,
++) -> Bytes {
++	let parsed = serde_json::from_slice::<super::GuardrailErrorResponse>(&body);
++	let error = match parsed {
++		Ok(body) => body.error,
++		Err(_) => {
++			let event = serde_json::json!({"error": {
++				"type": "guardrail_blocked", "code": "guardrail_intervention",
++				"message": String::from_utf8_lossy(&body),
++			}});
++			return Bytes::from(format!("data: {event}\n\n"));
++		},
++	};
++	if format == crate::llm::InputFormat::Responses {
++		let event = serde_json::json!({
++				"type": "error", "code": error.code, "message": error.message,
++				"param": error.param, "sequence_number": sequence_number, "guardrail": error.guardrail,
++		});
++		let mut frames = format!("event: error\ndata: {event}\n\n");
++		if let Some(response) = response {
++			let mut failed = response.clone();
++			failed.status = "failed".into();
++			failed.output.clear();
++			failed.usage = None;
++			failed.rest["error"] = serde_json::json!(&error);
++			let terminal = serde_json::json!({
++					"type": "response.failed", "sequence_number": sequence_number.saturating_add(1),
++					"response": failed,
++			});
++			frames.push_str(&format!("event: response.failed\ndata: {terminal}\n\n"));
+ 		}
+-	});
+-	Bytes::from(format!("data: {event}\n\n"))
++		return Bytes::from(frames);
++	}
++	let (name, event) = match format {
++		crate::llm::InputFormat::Messages => (
++			"event: error\n",
++			serde_json::json!({"type": "error", "error": error}),
++		),
++		_ => ("", serde_json::json!({"error": error})),
++	};
++	Bytes::from(format!("{name}data: {event}\n\n"))
++}
++
++// Keep the response envelope so a blocked Responses stream can end with a
++// matching response.failed event without forwarding withheld output.
++#[derive(Deserialize)]
++struct ResponseMetadata {
++	sequence_number: Option<u64>,
++	response: Option<agent_llm::types::responses::Response>,
+ }
+ 
+ type EvalFuture =
+@@ -242,6 +286,9 @@ pin_project! {
+ 		sse_decoder: SseDecoder<Bytes>,
+ 		decode_buffer: bytes::BytesMut,
+ 		state: GuardedBodyState,
++		format: crate::llm::InputFormat,
++		sequence_number: u64,
++		response: Option<agent_llm::types::responses::Response>,
+ 		// Owns the rate-limit logger; dropped only when this body is fully consumed,
+ 		// so telemetry is recorded at the correct time.
+ 		logger: Option<crate::llm::AmendOnDrop>,
+@@ -262,6 +309,7 @@ impl GuardedSseBody {
+ 		evaluators: Vec<Box<dyn StreamingEvaluator>>,
+ 		buffer_limit: usize,
+ 		logger: Option<crate::llm::AmendOnDrop>,
++		format: crate::llm::InputFormat,
+ 	) -> agent_http::RawBody {
+ 		Self::with_threshold(
+ 			inner,
+@@ -269,6 +317,7 @@ impl GuardedSseBody {
+ 			buffer_limit,
+ 			logger,
+ 			DEFAULT_EVAL_THRESHOLD,
++			format,
+ 		)
+ 	}
+ 
+@@ -279,6 +328,7 @@ impl GuardedSseBody {
+ 		buffer_limit: usize,
+ 		logger: Option<crate::llm::AmendOnDrop>,
+ 		eval_threshold: usize,
++		format: crate::llm::InputFormat,
+ 	) -> agent_http::RawBody {
+ 		agent_http::RawBody::new(Self {
+ 			inner,
+@@ -292,24 +342,50 @@ impl GuardedSseBody {
+ 			sse_decoder: SseDecoder::with_max_size(buffer_limit),
+ 			decode_buffer: bytes::BytesMut::new(),
+ 			state: GuardedBodyState::Buffering,
++			format,
++			sequence_number: 0,
++			response: None,
+ 			logger,
+ 		})
+ 	}
+ 
+-	/// Extract text delta from a parsed SSE frame if present.
+-	fn extract_text_delta(frame: SseFrame<Bytes>) -> Option<String> {
++	/// Inspect held frames before releasing content or synthesizing a rejection.
++	fn inspect_frame(
++		frame: SseFrame<Bytes>,
++		format: crate::llm::InputFormat,
++		sequence_number: &mut u64,
++		response: &mut Option<agent_llm::types::responses::Response>,
++	) -> Result<Option<String>, Bytes> {
+ 		let SseFrame::Event(Event { data, .. }) = frame else {
+-			return None;
++			return Ok(None);
+ 		};
+ 		if data.as_ref() == b"[DONE]" {
+-			return None;
++			return Ok(None);
+ 		}
+ 		if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&data) {
++			if format == crate::llm::InputFormat::Responses
++				&& let Ok(metadata) = ResponseMetadata::deserialize(&v)
++			{
++				if let Some(number) = metadata.sequence_number {
++					*sequence_number = number.saturating_add(1);
++				}
++				if response.is_none() {
++					*response = metadata.response;
++				}
++			}
++			if let Some(choices) = v.get("choices").and_then(serde_json::Value::as_array) {
++				if choices
++					.iter()
++					.any(|choice| choice.get("index").and_then(serde_json::Value::as_u64) != Some(0))
++				{
++					return Err(Bytes::from_static(b"data: {\"error\":{\"type\":\"invalid_request_error\",\"code\":\"unsupported_value\",\"param\":\"n\",\"message\":\"Checked streaming requires one completion choice.\"}}\n\n"));
++				}
++			}
+ 			// OpenAI responses: response.output_text.delta
+ 			if v.get("type").and_then(|t| t.as_str()) == Some("response.output_text.delta")
+ 				&& let Some(text) = v.get("delta").and_then(|s| s.as_str())
+ 			{
+-				return Some(text.to_string());
++				return Ok(Some(text.to_string()));
+ 			}
+ 			// OpenAI completions: choices[0].delta.content
+ 			if let Some(text) = v
+@@ -319,7 +395,15 @@ impl GuardedSseBody {
+ 				.and_then(|d| d.get("content"))
+ 				.and_then(|s| s.as_str())
+ 			{
+-				return Some(text.to_string());
++				return Ok(Some(text.to_string()));
++			}
++			// Anthropic permits initial text in content_block_start.
++			if v.get("type").and_then(|value| value.as_str()) == Some("content_block_start")
++				&& let Some(block) = v.get("content_block")
++				&& block.get("type").and_then(|value| value.as_str()) == Some("text")
++				&& let Some(text) = block.get("text").and_then(|value| value.as_str())
++			{
++				return Ok(Some(text.to_string()));
+ 			}
+ 			// Anthropic messages: delta.text
+ 			if let Some(text) = v
+@@ -327,7 +411,7 @@ impl GuardedSseBody {
+ 				.and_then(|d| d.get("text"))
+ 				.and_then(|s| s.as_str())
+ 			{
+-				return Some(text.to_string());
++				return Ok(Some(text.to_string()));
+ 			}
+ 			// Native Gemini: candidates[].content.parts[].text. `candidateCount` is client
+ 			// controlled, so reading only candidates[0] would let the client hide text from the
+@@ -337,7 +421,7 @@ impl GuardedSseBody {
+ 			// a single candidate is still contiguous in the concatenation. Thought parts are
+ 			// excluded, as they are on the non-streaming path (types::gemini::candidate_text).
+ 			if let Some(candidates) = v.get("candidates").and_then(|c| c.as_array()) {
+-				return Some(
++				return Ok(Some(
+ 					candidates
+ 						.iter()
+ 						.filter_map(|c| {
+@@ -349,10 +433,10 @@ impl GuardedSseBody {
+ 						.filter(|p| p.get("thought").and_then(serde_json::Value::as_bool) != Some(true))
+ 						.filter_map(|p| p.get("text").and_then(|t| t.as_str()))
+ 						.collect(),
+-				);
++				));
+ 			}
+ 		}
+-		None
++		Ok(None)
+ 	}
+ }
+ 
+@@ -387,7 +471,12 @@ impl http_body::Body for GuardedSseBody {
+ 				GuardedBodyState::Blocked(body) => {
+ 					let body = std::mem::take(body);
+ 					*this.state = GuardedBodyState::Done;
+-					return Poll::Ready(Some(Ok(Frame::data(guardrail_blocked_sse_bytes(body)))));
++					return Poll::Ready(Some(Ok(Frame::data(guardrail_blocked_sse_bytes(
++						body,
++						*this.format,
++						*this.sequence_number,
++						this.response.as_ref(),
++					)))));
+ 				},
+ 				// -----------------------------------------------------------------
+ 				// Done: stream exhausted.
+@@ -433,8 +522,19 @@ impl http_body::Body for GuardedSseBody {
+ 							loop {
+ 								match this.sse_decoder.decode(this.decode_buffer) {
+ 									Ok(Some(sse_frame)) => {
+-										if let Some(delta) = GuardedSseBody::extract_text_delta(sse_frame) {
+-											this.pending_text.push_str(&delta);
++										match GuardedSseBody::inspect_frame(
++											sse_frame,
++											*this.format,
++											this.sequence_number,
++											this.response,
++										) {
++											Ok(Some(delta)) => this.pending_text.push_str(&delta),
++											Ok(None) => {},
++											Err(error) => {
++												this.held_frames.clear();
++												*this.state = GuardedBodyState::Done;
++												return Poll::Ready(Some(Ok(Frame::data(error))));
++											},
+ 										}
+ 									},
+ 									Ok(None) => break,
+@@ -474,10 +574,19 @@ impl http_body::Body for GuardedSseBody {
+ 						Poll::Ready(None) => {
+ 							loop {
+ 								match this.sse_decoder.decode_eof(this.decode_buffer) {
+-									Ok(Some(sse_frame)) => {
+-										if let Some(delta) = GuardedSseBody::extract_text_delta(sse_frame) {
+-											this.pending_text.push_str(&delta);
+-										}
++									Ok(Some(sse_frame)) => match GuardedSseBody::inspect_frame(
++										sse_frame,
++										*this.format,
++										this.sequence_number,
++										this.response,
++									) {
++										Ok(Some(delta)) => this.pending_text.push_str(&delta),
++										Ok(None) => {},
++										Err(error) => {
++											this.held_frames.clear();
++											*this.state = GuardedBodyState::Done;
++											return Poll::Ready(Some(Ok(Frame::data(error))));
++										},
+ 									},
+ 									Ok(None) => break,
+ 									Err(e) => {
+diff --git a/crates/agentgateway/src/llm/policy/webhook.rs b/crates/agentgateway/src/llm/policy/webhook.rs
+index fc32ee5..1bbf0b0 100644
+--- a/crates/agentgateway/src/llm/policy/webhook.rs
++++ b/crates/agentgateway/src/llm/policy/webhook.rs
+@@ -1,7 +1,8 @@
+ use ::http::header::CONTENT_TYPE;
+ use ::http::{HeaderMap, HeaderValue, header};
+ pub use agent_llm::webhook::{Message, ResponseChoice};
+-use serde::{Deserialize, Serialize};
++use anyhow::Context;
++use serde::{Deserialize, Serialize, de::DeserializeOwned};
+ 
+ use crate::cel::RequestSnapshot;
+ use crate::http::{HeaderOrPseudoValue, RequestOrResponse};
+@@ -260,9 +261,9 @@ pub(super) async fn send_request(
+ 				webhook.target.policies.as_slice(),
+ 			),
+ 	)
+-	.await?;
+-	let parsed = json::from_response_body(res).await?;
+-	Ok(parsed)
++	.await
++	.context("webhook request failed")?;
++	parse_response(res).await
+ }
+ 
+ pub(super) async fn send_response(
+@@ -285,9 +286,26 @@ pub(super) async fn send_response(
+ 			&webhook.target.target,
+ 			webhook.target.policies.as_slice(),
+ 		)
+-		.await?;
+-	let parsed = json::from_response_body(res).await?;
+-	Ok(parsed)
++		.await
++		.context("webhook request failed")?;
++	parse_response(res).await
++}
++
++// Keep the HTTP failure before decoding the successful action envelope.
++async fn parse_response<T: DeserializeOwned>(res: http::Response) -> anyhow::Result<T> {
++	let status = res.status();
++	let limit = http::response_buffer_limit(&res);
++	let body = http::read_body_with_limit(res.into_body(), limit)
++		.await
++		.with_context(|| format!("could not read webhook response (HTTP {status})"))?;
++	if !status.is_success() {
++		let body = String::from_utf8_lossy(&body);
++		anyhow::bail!(
++			"webhook returned HTTP {status}: {}",
++			&body[..body.floor_char_boundary(4096)]
++		);
++	}
++	serde_json::from_slice(&body).with_context(|| format!("invalid webhook response (HTTP {status})"))
+ }
+ 
+ #[cfg(test)]
+diff --git a/crates/llm/src/types/completions.rs b/crates/llm/src/types/completions.rs
+index 4ec471c..5cfecf6 100644
+--- a/crates/llm/src/types/completions.rs
++++ b/crates/llm/src/types/completions.rs
+@@ -494,7 +494,27 @@ impl super::RequestType for Request {
+ 	}
+ 
+ 	fn set_messages(&mut self, messages: Vec<SimpleChatCompletionMessage>) {
+-		self.messages = messages.into_iter().map(convert_message).collect();
++		let originals = self.get_messages();
++		for (message, (original, replacement)) in self
++			.messages
++			.iter_mut()
++			.zip(originals.into_iter().zip(messages))
++		{
++			if original.content == replacement.content {
++				continue;
++			}
++			match &mut message.content {
++				Some(Content::Array(parts)) => {
++					let mut replacement = Some(replacement.content.to_string());
++					for part in parts {
++						if let Some(text) = &mut part.text {
++							*text = replacement.take().unwrap_or_default();
++						}
++					}
++				},
++				_ => message.content = Some(Content::Text(replacement.content.to_string())),
++			}
++		}
+ 	}
+ 
+ 	fn visit_text_mut(&mut self, f: &mut dyn FnMut(ContentScope, &mut String)) {
+diff --git a/crates/llm/src/types/messages.rs b/crates/llm/src/types/messages.rs
+index 5fda00b..43a5b86 100644
+--- a/crates/llm/src/types/messages.rs
++++ b/crates/llm/src/types/messages.rs
+@@ -303,25 +303,47 @@ impl RequestType for Request {
+ 	}
+ 
+ 	fn set_messages(&mut self, messages: Vec<SimpleChatCompletionMessage>) {
+-		let (system_prompts, message_prompts): (Vec<_>, Vec<_>) = messages
+-			.into_iter()
+-			.partition(|m| m.role.as_str() == "system");
+-
+-		self.system = if system_prompts.is_empty() {
+-			None
+-		} else {
+-			Some(TextBlock::Array(
+-				system_prompts
+-					.into_iter()
+-					.map(|p| TextPart::Text {
+-						r#type: "text".to_string(),
+-						text: p.content.to_string(),
+-						rest: Default::default(),
+-					})
+-					.collect(),
+-			))
+-		};
+-		self.messages = message_prompts.into_iter().map(Into::into).collect();
++		let originals = self.get_messages();
++		let mut messages = originals.into_iter().zip(messages);
++		if self.system.is_some()
++			&& messages
++				.clone()
++				.next()
++				.is_some_and(|(message, _)| message.role == "system")
++		{
++			if let Some((original, message)) = messages.next()
++				&& original.content != message.content
++			{
++				let mut replacement = Some(message.content.to_string());
++				match &mut self.system {
++					Some(TextBlock::Text(text)) => *text = replacement.take().unwrap_or_default(),
++					Some(TextBlock::Array(parts)) => {
++						for part in parts {
++							if let Some(text) = part.text_mut() {
++								*text = replacement.take().unwrap_or_default();
++							}
++						}
++					},
++					None => {},
++				}
++			}
++		}
++		for (message, (original, replacement)) in self.messages.iter_mut().zip(messages) {
++			if original.content == replacement.content {
++				continue;
++			}
++			match &mut message.content {
++				Some(ContentBlock::Array(parts)) => {
++					let mut replacement = Some(replacement.content.to_string());
++					for part in parts {
++						if let Some(text) = part.text_mut() {
++							*text = replacement.take().unwrap_or_default();
++						}
++					}
++				},
++				_ => message.content = Some(ContentBlock::Text(replacement.content.to_string())),
++			}
++		}
+ 	}
+ 
+ 	fn visit_text_mut(&mut self, f: &mut dyn FnMut(ContentScope, &mut String)) {
+diff --git a/crates/llm/src/types/responses.rs b/crates/llm/src/types/responses.rs
+index 4c14126..a6b267b 100644
+--- a/crates/llm/src/types/responses.rs
++++ b/crates/llm/src/types/responses.rs
+@@ -590,22 +590,36 @@ impl RequestType for Request {
+ 		messages
+ 	}
+ 
+-	fn set_messages(&mut self, mut messages: Vec<SimpleChatCompletionMessage>) {
++	fn set_messages(&mut self, messages: Vec<SimpleChatCompletionMessage>) {
++		let mut messages = messages.into_iter();
+ 		if self.instructions.is_some() {
+-			self.instructions = messages
+-				.first()
+-				.filter(|message| matches!(message.role.as_str(), "developer" | "system"))
+-				.map(|message| message.content.to_string());
+-			if self.instructions.is_some() {
+-				messages.remove(0);
+-			}
++			self.instructions = messages.next().map(|message| message.content.to_string());
++		}
++		match &mut self.input {
++			RequestInput::Text(text) => {
++				if let Some(message) = messages.next() {
++					*text = message.content.to_string();
++				}
++			},
++			RequestInput::Items(items) => {
++				for item in items {
++					let Some(original) = item.as_simple_message() else {
++						continue;
++					};
++					if let Some(message) = messages.next() {
++						if original.content == message.content {
++							continue;
++						}
++						let mut replacement = Some(message.content.to_string());
++						item.visit_text_mut(&mut |scope, text| {
++							if matches!(scope, ContentScope::SystemPrompt | ContentScope::Messages) {
++								*text = replacement.take().unwrap_or_default();
++							}
++						});
++					}
++				}
++			},
+ 		}
+-		self.input = RequestInput::Items(
+-			messages
+-				.into_iter()
+-				.map(RawInputItem::from_simple_message)
+-				.collect(),
+-		);
+ 	}
+ 
+ 	fn visit_text_mut(&mut self, f: &mut dyn FnMut(ContentScope, &mut String)) {

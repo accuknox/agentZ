@@ -288,6 +288,17 @@ spec:
                 - query
                 - widgetsPerDashboard
                 type: object
+              guardrails:
+                description: Guardrails configures the mandatory organization baseline
+                  and audit controls.
+                properties:
+                  mandatoryPolicies:
+                    description: MandatoryPolicies is the ordered organization policy
+                      baseline.
+                    items:
+                      type: string
+                    type: array
+                type: object
               organizationID:
                 description: |-
                   OrganizationID is the immutable Better Auth Organisation ID represented by

@@ -18,6 +18,7 @@ import type {
 } from "@/data/types"
 import * as z from "zod"
 import {
+  zGuardrailAssignment,
   zMcpConnectionName,
   zResourceScope,
   zSandboxName,
@@ -39,6 +40,14 @@ const inferenceRefPartSchema = z
 
 const sandboxFormDataSchema = z
   .object({
+    guardrails: z.preprocess((value) => {
+      if (typeof value !== "string") return value
+      try {
+        return JSON.parse(value)
+      } catch {
+        return value
+      }
+    }, zGuardrailAssignment.optional()),
     packages: z.array(z.string({ error: "Package name must be text" }), {
       error: "Packages must be a list",
     }),
@@ -189,6 +198,7 @@ const sandboxFormDataSchema = z
     }
 
     return {
+      guardrails: data.guardrails,
       packages: data.packages,
       allowedHosts: data.allowedHosts,
       mcpConnectionRefs,
@@ -256,6 +266,7 @@ export async function listSandboxesAction(
 
 function sandboxFormValues(formData: FormData) {
   return sandboxFormDataSchema.safeParse({
+    guardrails: formData.get("guardrails") ?? undefined,
     packages: formData.getAll("packages"),
     allowedHosts: formData.getAll("allowedHosts"),
     mcpConnectionScopes: formData.getAll("mcpConnectionScopes"),
@@ -416,6 +427,7 @@ export async function updateSandboxFormAction(
 
 function sandboxRequestBody(values: SandboxFormValues) {
   return {
+    guardrails: values.guardrails,
     allowed_hosts: values.allowedHosts,
     inference: values.inference,
     mcp_connection_refs: values.mcpConnectionRefs.map(

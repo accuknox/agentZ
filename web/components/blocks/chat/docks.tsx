@@ -527,8 +527,8 @@ export function PermissionDock({
 
   return (
     <div className="mx-auto w-full px-4 @xl/chat:w-4/5 @xl/chat:px-0">
-      <div className="border-l-2 border-primary">
-        <div className="flex flex-col gap-4 px-4 py-3">
+      <div className="py-3">
+        <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
             <div className="text-sm font-medium text-foreground">{permissionTitle(request)}</div>
             <div className="text-sm text-muted-foreground">{permissionDescription(request)}</div>
@@ -629,7 +629,7 @@ export function RevertDock({
         ) : null}
       </button>
       {open ? (
-        <div className="mt-1 flex flex-col gap-1.5 border-l border-muted-foreground/15 pl-3">
+        <div className="mt-1 flex flex-col gap-1.5">
           {items.map((item) => (
             <div className="flex items-center gap-2" key={item.id}>
               <span className="min-w-0 flex-1 truncate text-sm text-foreground">

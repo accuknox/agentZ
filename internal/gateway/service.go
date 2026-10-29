@@ -892,8 +892,19 @@ func (s *Service) routes() http.Handler {
 	gatewayapi.HandlerWithOptions(
 		s,
 		gatewayapi.ChiServerOptions{
-			BaseRouter:       apiRouter,
-			ErrorHandlerFunc: s.handleRouteError,
+			BaseRouter: apiRouter,
+			ErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
+				apiutil.WriteError(
+					w,
+					r,
+					apiutil.NewError(
+						http.StatusBadRequest,
+						"invalid_request",
+						"request is invalid",
+						err,
+					),
+				)
+			},
 			Middlewares: []gatewayapi.MiddlewareFunc{
 				requireExplicitCapability,
 				requireTenantRequest(s),

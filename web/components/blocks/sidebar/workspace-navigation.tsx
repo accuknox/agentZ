@@ -15,6 +15,7 @@ import {
   ScrollText,
   Settings2,
   ShieldCheck,
+  BrickWallShield,
   Workflow,
   Zap,
 } from "lucide-react"
@@ -39,16 +40,7 @@ import { SidebarNavigationLink } from "./navigation-link"
 import type { SidebarScope } from "./sidebar"
 import { WorkspaceSwitcher } from "./workspace-switcher"
 
-export function WorkspaceNavigation({
-  children,
-  headerActions,
-  scope,
-  showAgents,
-  showSecrets,
-  showTourButton,
-  showWorkflows,
-  userMenu,
-}: {
+type WorkspaceNavigationProps = {
   children: ReactNode
   headerActions: ReactNode
   scope: Extract<SidebarScope, { kind: "workspace" }>
@@ -57,12 +49,32 @@ export function WorkspaceNavigation({
   showTourButton: boolean
   showWorkflows: boolean
   userMenu: ReactNode
-}) {
+}
+
+export function WorkspaceNavigation(props: WorkspaceNavigationProps) {
+  const {
+    children,
+    headerActions,
+    scope,
+    showAgents,
+    showSecrets,
+    showTourButton,
+    showWorkflows,
+    userMenu,
+  } = props
+
   const pathname = usePathname()
   const { setOpenMobile } = useSidebar()
   const { organization, workspace } = scope
   const root: WorkspacePath = `/orgs/${organization.slug}/workspaces/${workspace.slug}`
   const canAdminister = organization.superadmin || workspace.capabilities.administer
+  const canReadGuardrails =
+    workspace.capabilities.guardrail_policies.read ||
+    workspace.capabilities.guardrail_connections.read ||
+    workspace.capabilities.guardrail_events.read
+  let guardrailsView = "events"
+  if (workspace.capabilities.guardrail_connections.read) guardrailsView = "providers"
+  if (workspace.capabilities.guardrail_policies.read) guardrailsView = "policies"
   const resources = [
     {
       href: `${root}/sandboxes`,
@@ -70,6 +82,13 @@ export function WorkspaceNavigation({
       icon: Box,
       visible: workspace.capabilities.sandboxes.read,
       tour: "sandboxes",
+    },
+    {
+      href: `${root}/guardrails/${guardrailsView}`,
+      label: "Guardrails",
+      icon: BrickWallShield,
+      visible: canReadGuardrails,
+      tour: "guardrails",
     },
     {
       href: `${root}/skills`,
@@ -111,6 +130,7 @@ export function WorkspaceNavigation({
   ] as const
   const destinations = [
     ...resources,
+    { href: `${root}/guardrails`, visible: canReadGuardrails },
     {
       href: `${root}/inference/providers`,
       visible: workspace.capabilities.inference_providers.read,

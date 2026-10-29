@@ -3,9 +3,12 @@ package inference
 import (
 	"context"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 
+	"github.com/google/cel-go/cel"
+	"github.com/google/cel-go/common/types"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -19,6 +22,11 @@ type resolvePoolInvalidMembershipCase struct {
 	name    string
 	members []agentzv1alpha1.InferencePoolMember
 	field   string
+}
+
+type poolHealthCase struct {
+	code      int
+	unhealthy bool
 }
 
 func TestResolvePoolContract(t *testing.T) {
@@ -353,15 +361,45 @@ func TestRenderPoolBackend(t *testing.T) {
 	if *anthropic.Model != "claude" {
 		t.Fatalf("secondary model override = %#v, want claude", groups[1].Providers[0].Anthropic)
 	}
+	env, err := cel.NewEnv(cel.Variable("response", cel.DynType))
+	if err != nil {
+		t.Fatal(err)
+	}
+	responses := []poolHealthCase{
+		{code: 0, unhealthy: true},
+		{code: 200, unhealthy: false},
+		{code: 400, unhealthy: false},
+		{code: 401, unhealthy: true},
+		{code: 403, unhealthy: true},
+		{code: 404, unhealthy: false},
+		{code: 429, unhealthy: true},
+		{code: 500, unhealthy: true},
+		{code: 503, unhealthy: true},
+	}
 	for i := range groups {
 		health := groups[i].Providers[0].Policies.Health
 		if health == nil || health.UnhealthyCondition == nil || health.Eviction == nil {
 			t.Fatalf("group %d health = %#v", i, health)
 		}
-		wantCondition := "response == null || response.code == 401 || " +
-			"response.code == 403 || response.code == 429 || response.code >= 500"
-		if string(*health.UnhealthyCondition) != wantCondition {
-			t.Fatalf("group %d unhealthy condition = %q", i, *health.UnhealthyCondition)
+		expression, issues := env.Compile(string(*health.UnhealthyCondition))
+		if issues.Err() != nil {
+			t.Fatal(issues.Err())
+		}
+		program, err := env.Program(expression)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, response := range responses {
+			t.Run(strconv.Itoa(i)+"/"+strconv.Itoa(response.code), func(t *testing.T) {
+				var input any
+				if response.code != 0 {
+					input = map[string]any{"code": response.code}
+				}
+				got, _, err := program.Eval(map[string]any{"response": input})
+				if err != nil || got != types.Bool(response.unhealthy) {
+					t.Fatalf("health condition = %v, %v; want %v", got, err, response.unhealthy)
+				}
+			})
 		}
 		eviction := health.Eviction
 		missingSettings := eviction.Duration == nil ||

@@ -223,7 +223,7 @@ func Serve(ctx context.Context, cfg Config) error {
 
 	select {
 	case <-ctx.Done():
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 		defer cancel()
 		if err := srv.Shutdown(shutdownCtx); err != nil {
 			_ = srv.Close()

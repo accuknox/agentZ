@@ -5,11 +5,14 @@ import (
 	"encoding/hex"
 	"fmt"
 	"maps"
+	"strconv"
 	"strings"
 
 	agentgatewayv1alpha1 "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
+
+	api "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 const (
@@ -89,8 +92,14 @@ func SandboxPoolPath(sandboxName, poolName string) string {
 	return "/sandboxes/" + sandboxName + "/pools/" + poolName
 }
 
+// AgentRoutePath binds an inference target to the caller's workspace and agent.
+// The gateway network policy permits each agent to use only its own prefix.
+func AgentRoutePath(namespace, name, path string) string {
+	return "/agents/" + namespace + "/" + name + path
+}
+
 // RenderSandboxTarget creates a route and fail-closed logical model policy.
-func RenderSandboxTarget(namespace, sandboxName string, target SandboxTarget) SandboxTargetRuntime {
+func RenderSandboxTarget(namespace, sandboxName string, target SandboxTarget, agents []api.Agent) SandboxTargetRuntime {
 	name := SandboxProviderRuntimeName(sandboxName, target.Name)
 	pathType := gwv1.PathMatchPathPrefix
 	group := gwv1.Group("agentgateway.dev")
@@ -109,9 +118,6 @@ func RenderSandboxTarget(namespace, sandboxName string, target SandboxTarget) Sa
 				}},
 			},
 			Rules: []gwv1.HTTPRouteRule{{
-				Matches: []gwv1.HTTPRouteMatch{{
-					Path: &gwv1.HTTPPathMatch{Type: &pathType, Value: &target.Path},
-				}},
 				BackendRefs: []gwv1.HTTPBackendRef{{
 					BackendRef: gwv1.BackendRef{
 						BackendObjectReference: gwv1.BackendObjectReference{
@@ -148,12 +154,29 @@ func RenderSandboxTarget(namespace, sandboxName string, target SandboxTarget) Sa
 			route.Spec.Rules[0].Filters...,
 		)
 	}
+	// All callers share the target's policy and backend. Split matches at the
+	// Gateway API's per-rule limit rather than duplicating runtime resources.
+	rule := route.Spec.Rules[0]
+	route.Spec.Rules = nil
+	for _, agent := range agents {
+		path := AgentRoutePath(agent.Namespace, agent.Name, target.Path)
+		rule.Matches = append(rule.Matches, gwv1.HTTPRouteMatch{
+			Path: &gwv1.HTTPPathMatch{Type: &pathType, Value: &path},
+		})
+		if len(rule.Matches) == 64 {
+			route.Spec.Rules = append(route.Spec.Rules, rule)
+			rule.Matches = nil
+		}
+	}
+	if len(rule.Matches) > 0 {
+		route.Spec.Rules = append(route.Spec.Rules, rule)
+	}
 	quoted := make([]string, 0, len(target.Models))
 	for _, model := range target.Models {
-		quoted = append(quoted, fmt.Sprintf("%q", model))
+		quoted = append(quoted, strconv.Quote(model))
 	}
 	expression := agentgatewayv1alpha1.CELExpression(fmt.Sprintf(
-		"default(json(request.body).model, \"\") in [%s]",
+		`default(json(request.body).model, "") in [%s]`,
 		strings.Join(quoted, ", "),
 	))
 	policy := &agentgatewayv1alpha1.AgentgatewayPolicy{
@@ -178,16 +201,12 @@ func RenderSandboxTarget(namespace, sandboxName string, target SandboxTarget) Sa
 	}
 	if target.Retries > 0 {
 		backoff := gwv1.Duration("50ms")
-		condition := agentgatewayv1alpha1.CELExpression(
-			"response.code == 401 || response.code == 403 || " +
-				"response.code == 429 || response.code >= 500",
-		)
 		policy.Spec.Traffic.Retry = &agentgatewayv1alpha1.Retry{
 			HTTPRouteRetry: &gwv1.HTTPRouteRetry{
 				Attempts: &target.Retries,
 				Backoff:  &backoff,
 			},
-			Condition: &condition,
+			Condition: new(retryableResponse),
 		}
 	}
 	return SandboxTargetRuntime{Route: route, Policy: policy}

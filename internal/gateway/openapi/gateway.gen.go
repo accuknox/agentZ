@@ -249,6 +249,11 @@ const (
 	CreateInferenceProviderOAuthTicketRequestKindOpenAICodex CreateInferenceProviderOAuthTicketRequestKind = "OpenAICodex"
 )
 
+// Defines values for CreateSkillImportDecisionAction.
+const (
+	Create CreateSkillImportDecisionAction = "create"
+)
+
 // Defines values for DashboardAggregation.
 const (
 	Average DashboardAggregation = "average"
@@ -314,9 +319,9 @@ const (
 
 // Defines values for DelegationAPICompatibilitySupport.
 const (
-	Native      DelegationAPICompatibilitySupport = "native"
-	Translated  DelegationAPICompatibilitySupport = "translated"
-	Unsupported DelegationAPICompatibilitySupport = "unsupported"
+	DelegationAPICompatibilitySupportNative      DelegationAPICompatibilitySupport = "native"
+	DelegationAPICompatibilitySupportTranslated  DelegationAPICompatibilitySupport = "translated"
+	DelegationAPICompatibilitySupportUnsupported DelegationAPICompatibilitySupport = "unsupported"
 )
 
 // Defines values for EvaluationExecutionState.
@@ -367,17 +372,21 @@ const (
 
 // Defines values for EventTrailTargetType.
 const (
-	EventTrailTargetAgent                  EventTrailTargetType = "agent"
-	EventTrailTargetInferencePool          EventTrailTargetType = "inference_pool"
-	EventTrailTargetInferenceProvider      EventTrailTargetType = "inference_provider"
-	EventTrailTargetMCPConnection          EventTrailTargetType = "mcp_connection"
-	EventTrailTargetOrganization           EventTrailTargetType = "organization"
-	EventTrailTargetOrganizationMembership EventTrailTargetType = "organization_membership"
-	EventTrailTargetRole                   EventTrailTargetType = "role"
-	EventTrailTargetSandbox                EventTrailTargetType = "sandbox"
-	EventTrailTargetSkill                  EventTrailTargetType = "skill"
-	EventTrailTargetTeam                   EventTrailTargetType = "team"
-	EventTrailTargetWorkspace              EventTrailTargetType = "workspace"
+	EventTrailTargetAgent                    EventTrailTargetType = "agent"
+	EventTrailTargetExternalAccessGuardrails EventTrailTargetType = "external_access_guardrails"
+	EventTrailTargetGuardrailConnection      EventTrailTargetType = "guardrail_connection"
+	EventTrailTargetGuardrailPolicy          EventTrailTargetType = "guardrail_policy"
+	EventTrailTargetGuardrailSettings        EventTrailTargetType = "guardrail_settings"
+	EventTrailTargetInferencePool            EventTrailTargetType = "inference_pool"
+	EventTrailTargetInferenceProvider        EventTrailTargetType = "inference_provider"
+	EventTrailTargetMCPConnection            EventTrailTargetType = "mcp_connection"
+	EventTrailTargetOrganization             EventTrailTargetType = "organization"
+	EventTrailTargetOrganizationMembership   EventTrailTargetType = "organization_membership"
+	EventTrailTargetRole                     EventTrailTargetType = "role"
+	EventTrailTargetSandbox                  EventTrailTargetType = "sandbox"
+	EventTrailTargetSkill                    EventTrailTargetType = "skill"
+	EventTrailTargetTeam                     EventTrailTargetType = "team"
+	EventTrailTargetWorkspace                EventTrailTargetType = "workspace"
 )
 
 // Defines values for GeminiInferenceProviderReadKind.
@@ -388,6 +397,112 @@ const (
 // Defines values for GeminiInferenceProviderWriteKind.
 const (
 	GeminiInferenceProviderWriteKindGemini GeminiInferenceProviderWriteKind = "Gemini"
+)
+
+// Defines values for GuardrailConnectionProvider.
+const (
+	GuardrailConnectionProviderAccuKnox   GuardrailConnectionProvider = "AccuKnox"
+	GuardrailConnectionProviderBedrock    GuardrailConnectionProvider = "Bedrock"
+	GuardrailConnectionProviderModelArmor GuardrailConnectionProvider = "ModelArmor"
+	GuardrailConnectionProviderOpenAI     GuardrailConnectionProvider = "OpenAI"
+	GuardrailConnectionProviderWebhook    GuardrailConnectionProvider = "Webhook"
+)
+
+// Defines values for GuardrailConnectionInputProvider.
+const (
+	GuardrailConnectionInputProviderAccuKnox   GuardrailConnectionInputProvider = "AccuKnox"
+	GuardrailConnectionInputProviderBedrock    GuardrailConnectionInputProvider = "Bedrock"
+	GuardrailConnectionInputProviderModelArmor GuardrailConnectionInputProvider = "ModelArmor"
+	GuardrailConnectionInputProviderOpenAI     GuardrailConnectionInputProvider = "OpenAI"
+	GuardrailConnectionInputProviderWebhook    GuardrailConnectionInputProvider = "Webhook"
+)
+
+// Defines values for GuardrailContextMatchedScope.
+const (
+	GuardrailContextMatchedScopeConversation  GuardrailContextMatchedScope = "conversation"
+	GuardrailContextMatchedScopeInstructions  GuardrailContextMatchedScope = "instructions"
+	GuardrailContextMatchedScopeToolArguments GuardrailContextMatchedScope = "toolArguments"
+	GuardrailContextMatchedScopeToolResults   GuardrailContextMatchedScope = "toolResults"
+)
+
+// Defines values for GuardrailContextPhase.
+const (
+	GuardrailContextPhaseRequest  GuardrailContextPhase = "request"
+	GuardrailContextPhaseResponse GuardrailContextPhase = "response"
+)
+
+// Defines values for GuardrailContextReason.
+const (
+	CheckerError    GuardrailContextReason = "checker_error"
+	PolicyViolation GuardrailContextReason = "policy_violation"
+)
+
+// Defines values for GuardrailContextScopes.
+const (
+	GuardrailContextScopesConversation  GuardrailContextScopes = "conversation"
+	GuardrailContextScopesInstructions  GuardrailContextScopes = "instructions"
+	GuardrailContextScopesToolArguments GuardrailContextScopes = "toolArguments"
+	GuardrailContextScopesToolResults   GuardrailContextScopes = "toolResults"
+)
+
+// Defines values for GuardrailErrorCode.
+const (
+	ContentPolicyViolation GuardrailErrorCode = "content_policy_violation"
+	GuardrailUnavailable   GuardrailErrorCode = "guardrail_unavailable"
+)
+
+// Defines values for GuardrailErrorType.
+const (
+	GuardrailErrorTypeApiError            GuardrailErrorType = "api_error"
+	GuardrailErrorTypeInvalidRequestError GuardrailErrorType = "invalid_request_error"
+)
+
+// Defines values for GuardrailResourceDiscoveryKind.
+const (
+	GuardrailResourceDiscoveryKindGuardrails GuardrailResourceDiscoveryKind = "guardrails"
+	GuardrailResourceDiscoveryKindLocations  GuardrailResourceDiscoveryKind = "locations"
+	GuardrailResourceDiscoveryKindProjects   GuardrailResourceDiscoveryKind = "projects"
+	GuardrailResourceDiscoveryKindTemplates  GuardrailResourceDiscoveryKind = "templates"
+	GuardrailResourceDiscoveryKindVersions   GuardrailResourceDiscoveryKind = "versions"
+)
+
+// Defines values for GuardrailResourceDiscoveryProvider.
+const (
+	GuardrailResourceDiscoveryProviderAccuKnox   GuardrailResourceDiscoveryProvider = "AccuKnox"
+	GuardrailResourceDiscoveryProviderBedrock    GuardrailResourceDiscoveryProvider = "Bedrock"
+	GuardrailResourceDiscoveryProviderModelArmor GuardrailResourceDiscoveryProvider = "ModelArmor"
+	GuardrailResourceDiscoveryProviderOpenAI     GuardrailResourceDiscoveryProvider = "OpenAI"
+	GuardrailResourceDiscoveryProviderWebhook    GuardrailResourceDiscoveryProvider = "Webhook"
+)
+
+// Defines values for GuardrailResourceDiscoveryInputKind.
+const (
+	GuardrailResourceDiscoveryInputKindGuardrails GuardrailResourceDiscoveryInputKind = "guardrails"
+	GuardrailResourceDiscoveryInputKindLocations  GuardrailResourceDiscoveryInputKind = "locations"
+	GuardrailResourceDiscoveryInputKindProjects   GuardrailResourceDiscoveryInputKind = "projects"
+	GuardrailResourceDiscoveryInputKindTemplates  GuardrailResourceDiscoveryInputKind = "templates"
+	GuardrailResourceDiscoveryInputKindVersions   GuardrailResourceDiscoveryInputKind = "versions"
+)
+
+// Defines values for GuardrailRuntimeEvaluationAction.
+const (
+	GuardrailRuntimeEvaluationActionAudit    GuardrailRuntimeEvaluationAction = "audit"
+	GuardrailRuntimeEvaluationActionFailOpen GuardrailRuntimeEvaluationAction = "failOpen"
+	GuardrailRuntimeEvaluationActionMask     GuardrailRuntimeEvaluationAction = "mask"
+	GuardrailRuntimeEvaluationActionReject   GuardrailRuntimeEvaluationAction = "reject"
+)
+
+// Defines values for GuardrailRuntimeEvaluationPhase.
+const (
+	GuardrailRuntimeEvaluationPhaseRequest  GuardrailRuntimeEvaluationPhase = "request"
+	GuardrailRuntimeEvaluationPhaseResponse GuardrailRuntimeEvaluationPhase = "response"
+)
+
+// Defines values for GuardrailStatusState.
+const (
+	GuardrailStatusStateError   GuardrailStatusState = "Error"
+	GuardrailStatusStatePending GuardrailStatusState = "Pending"
+	GuardrailStatusStateReady   GuardrailStatusState = "Ready"
 )
 
 // Defines values for InferenceModelAPI.
@@ -459,12 +574,23 @@ const (
 	InferenceProviderKindVertexAI            InferenceProviderKind = "VertexAI"
 )
 
+// Defines values for InheritedResourceConsumerKind.
+const (
+	InheritedResourceConsumerKindAgent           InheritedResourceConsumerKind = "Agent"
+	InheritedResourceConsumerKindExternalAgent   InheritedResourceConsumerKind = "External Agent"
+	InheritedResourceConsumerKindGuardrailPolicy InheritedResourceConsumerKind = "Guardrail Policy"
+	InheritedResourceConsumerKindInferencePool   InheritedResourceConsumerKind = "Inference Pool"
+	InheritedResourceConsumerKindSandbox         InheritedResourceConsumerKind = "Sandbox"
+)
+
 // Defines values for InheritedResourceType.
 const (
-	InheritedResourceTypeInferenceProvider InheritedResourceType = "inference_provider"
-	InheritedResourceTypeMCPConnection     InheritedResourceType = "mcp_connection"
-	InheritedResourceTypeSandbox           InheritedResourceType = "sandbox"
-	InheritedResourceTypeSkill             InheritedResourceType = "skill"
+	InheritedResourceTypeGuardrailConnection InheritedResourceType = "guardrail_connection"
+	InheritedResourceTypeGuardrailPolicy     InheritedResourceType = "guardrail_policy"
+	InheritedResourceTypeInferenceProvider   InheritedResourceType = "inference_provider"
+	InheritedResourceTypeMCPConnection       InheritedResourceType = "mcp_connection"
+	InheritedResourceTypeSandbox             InheritedResourceType = "sandbox"
+	InheritedResourceTypeSkill               InheritedResourceType = "skill"
 )
 
 // Defines values for LensAppAgentKind.
@@ -535,7 +661,7 @@ const (
 
 // Defines values for OpenAIInferenceProviderWriteKind.
 const (
-	OpenAIInferenceProviderWriteKindOpenAI OpenAIInferenceProviderWriteKind = "OpenAI"
+	OpenAI OpenAIInferenceProviderWriteKind = "OpenAI"
 )
 
 // Defines values for OpencodeAPIErrorName.
@@ -543,11 +669,18 @@ const (
 	APIError OpencodeAPIErrorName = "APIError"
 )
 
+// Defines values for OpencodeAgentMode.
+const (
+	OpencodeAgentModeAll      OpencodeAgentMode = "all"
+	OpencodeAgentModePrimary  OpencodeAgentMode = "primary"
+	OpencodeAgentModeSubagent OpencodeAgentMode = "subagent"
+)
+
 // Defines values for OpencodeAgentConfigMode.
 const (
-	All      OpencodeAgentConfigMode = "all"
-	Primary  OpencodeAgentConfigMode = "primary"
-	Subagent OpencodeAgentConfigMode = "subagent"
+	OpencodeAgentConfigModeAll      OpencodeAgentConfigMode = "all"
+	OpencodeAgentConfigModePrimary  OpencodeAgentConfigMode = "primary"
+	OpencodeAgentConfigModeSubagent OpencodeAgentConfigMode = "subagent"
 )
 
 // Defines values for OpencodeAgentPartType.
@@ -558,6 +691,18 @@ const (
 // Defines values for OpencodeAgentPartInputType.
 const (
 	OpencodeAgentPartInputTypeAgent OpencodeAgentPartInputType = "agent"
+)
+
+// Defines values for OpencodeAgentV2InfoMode.
+const (
+	All      OpencodeAgentV2InfoMode = "all"
+	Primary  OpencodeAgentV2InfoMode = "primary"
+	Subagent OpencodeAgentV2InfoMode = "subagent"
+)
+
+// Defines values for OpencodeApiAuthType.
+const (
+	OpencodeApiAuthTypeApi OpencodeApiAuthType = "api"
 )
 
 // Defines values for OpencodeAssistantMessageRole.
@@ -577,6 +722,23 @@ const (
 // Defines values for OpencodeBadRequestErrorName.
 const (
 	OpencodeBadRequestErrorNameBadRequest OpencodeBadRequestErrorName = "BadRequest"
+)
+
+// Defines values for OpencodeCatalogUpdatedType.
+const (
+	OpencodeCatalogUpdatedTypeCatalogUpdated OpencodeCatalogUpdatedType = "catalog.updated"
+)
+
+// Defines values for OpencodeCommandSource.
+const (
+	OpencodeCommandSourceCommand OpencodeCommandSource = "command"
+	OpencodeCommandSourceMcp     OpencodeCommandSource = "mcp"
+	OpencodeCommandSourceSkill   OpencodeCommandSource = "skill"
+)
+
+// Defines values for OpencodeCommandExecutedType.
+const (
+	OpencodeCommandExecutedTypeCommandExecuted OpencodeCommandExecutedType = "command.executed"
 )
 
 // Defines values for OpencodeCompactionPartType.
@@ -611,6 +773,16 @@ const (
 	ConflictError OpencodeConflictErrorTag = "ConflictError"
 )
 
+// Defines values for OpencodeConnectionCredentialInfoType.
+const (
+	Credential OpencodeConnectionCredentialInfoType = "credential"
+)
+
+// Defines values for OpencodeConnectionEnvInfoType.
+const (
+	OpencodeConnectionEnvInfoTypeEnv OpencodeConnectionEnvInfoType = "env"
+)
+
 // Defines values for OpencodeContentFilterErrorName.
 const (
 	ContentFilterError OpencodeContentFilterErrorName = "ContentFilterError"
@@ -619,6 +791,16 @@ const (
 // Defines values for OpencodeContextOverflowErrorName.
 const (
 	ContextOverflowError OpencodeContextOverflowErrorName = "ContextOverflowError"
+)
+
+// Defines values for OpencodeCredentialKeyType.
+const (
+	OpencodeCredentialKeyTypeKey OpencodeCredentialKeyType = "key"
+)
+
+// Defines values for OpencodeCredentialOAuthType.
+const (
+	OpencodeCredentialOAuthTypeOauth OpencodeCredentialOAuthType = "oauth"
 )
 
 // Defines values for OpencodeEventTuiCommandExecuteType.
@@ -1120,11 +1302,40 @@ const (
 	OpencodeEventWorktreeReadyTypeWorktreeReady OpencodeEventWorktreeReadyType = "worktree.ready"
 )
 
+// Defines values for OpencodeFileStatus.
+const (
+	OpencodeFileStatusAdded    OpencodeFileStatus = "added"
+	OpencodeFileStatusDeleted  OpencodeFileStatus = "deleted"
+	OpencodeFileStatusModified OpencodeFileStatus = "modified"
+)
+
+// Defines values for OpencodeFileContentEncoding.
+const (
+	Base64 OpencodeFileContentEncoding = "base64"
+)
+
+// Defines values for OpencodeFileContentType.
+const (
+	OpencodeFileContentTypeBinary OpencodeFileContentType = "binary"
+	OpencodeFileContentTypeText   OpencodeFileContentType = "text"
+)
+
 // Defines values for OpencodeFileDiffStatus.
 const (
 	OpencodeFileDiffStatusAdded    OpencodeFileDiffStatus = "added"
 	OpencodeFileDiffStatusDeleted  OpencodeFileDiffStatus = "deleted"
 	OpencodeFileDiffStatusModified OpencodeFileDiffStatus = "modified"
+)
+
+// Defines values for OpencodeFileEditedType.
+const (
+	OpencodeFileEditedTypeFileEdited OpencodeFileEditedType = "file.edited"
+)
+
+// Defines values for OpencodeFileNodeType.
+const (
+	OpencodeFileNodeTypeDirectory OpencodeFileNodeType = "directory"
+	OpencodeFileNodeTypeFile      OpencodeFileNodeType = "file"
 )
 
 // Defines values for OpencodeFilePartType.
@@ -1142,9 +1353,32 @@ const (
 	OpencodeFileSourceTypeFile OpencodeFileSourceType = "file"
 )
 
+// Defines values for OpencodeFileSystemEntryType.
+const (
+	OpencodeFileSystemEntryTypeDirectory OpencodeFileSystemEntryType = "directory"
+	OpencodeFileSystemEntryTypeFile      OpencodeFileSystemEntryType = "file"
+)
+
+// Defines values for OpencodeFileWatcherUpdatedDataEvent.
+const (
+	OpencodeFileWatcherUpdatedDataEventAdd    OpencodeFileWatcherUpdatedDataEvent = "add"
+	OpencodeFileWatcherUpdatedDataEventChange OpencodeFileWatcherUpdatedDataEvent = "change"
+	OpencodeFileWatcherUpdatedDataEventUnlink OpencodeFileWatcherUpdatedDataEvent = "unlink"
+)
+
+// Defines values for OpencodeFileWatcherUpdatedType.
+const (
+	OpencodeFileWatcherUpdatedTypeFileWatcherUpdated OpencodeFileWatcherUpdatedType = "file.watcher.updated"
+)
+
 // Defines values for OpencodeForbiddenErrorTag.
 const (
 	ForbiddenError OpencodeForbiddenErrorTag = "ForbiddenError"
+)
+
+// Defines values for OpencodeGlobalDisposedType.
+const (
+	OpencodeGlobalDisposedTypeGlobalDisposed OpencodeGlobalDisposedType = "global.disposed"
 )
 
 // Defines values for OpencodeGlobalEventPayload0Type.
@@ -1164,7 +1398,7 @@ const (
 
 // Defines values for OpencodeGlobalEventPayload3Type.
 const (
-	OpencodeGlobalEventPayload3TypeCatalogUpdated OpencodeGlobalEventPayload3Type = "catalog.updated"
+	CatalogUpdated OpencodeGlobalEventPayload3Type = "catalog.updated"
 )
 
 // Defines values for OpencodeGlobalEventPayload4Type.
@@ -1413,7 +1647,7 @@ const (
 
 // Defines values for OpencodeGlobalEventPayload48Type.
 const (
-	OpencodeGlobalEventPayload48TypeFileEdited OpencodeGlobalEventPayload48Type = "file.edited"
+	FileEdited OpencodeGlobalEventPayload48Type = "file.edited"
 )
 
 // Defines values for OpencodeGlobalEventPayload49Type.
@@ -1443,14 +1677,14 @@ const (
 
 // Defines values for OpencodeGlobalEventPayload54PropertiesEvent.
 const (
-	OpencodeGlobalEventPayload54PropertiesEventAdd    OpencodeGlobalEventPayload54PropertiesEvent = "add"
-	OpencodeGlobalEventPayload54PropertiesEventChange OpencodeGlobalEventPayload54PropertiesEvent = "change"
-	OpencodeGlobalEventPayload54PropertiesEventUnlink OpencodeGlobalEventPayload54PropertiesEvent = "unlink"
+	Add    OpencodeGlobalEventPayload54PropertiesEvent = "add"
+	Change OpencodeGlobalEventPayload54PropertiesEvent = "change"
+	Unlink OpencodeGlobalEventPayload54PropertiesEvent = "unlink"
 )
 
 // Defines values for OpencodeGlobalEventPayload54Type.
 const (
-	OpencodeGlobalEventPayload54TypeFileWatcherUpdated OpencodeGlobalEventPayload54Type = "file.watcher.updated"
+	FileWatcherUpdated OpencodeGlobalEventPayload54Type = "file.watcher.updated"
 )
 
 // Defines values for OpencodeGlobalEventPayload55Type.
@@ -1555,7 +1789,7 @@ const (
 
 // Defines values for OpencodeGlobalEventPayload72Type.
 const (
-	OpencodeGlobalEventPayload72TypeCommandExecuted OpencodeGlobalEventPayload72Type = "command.executed"
+	CommandExecuted OpencodeGlobalEventPayload72Type = "command.executed"
 )
 
 // Defines values for OpencodeGlobalEventPayload73Type.
@@ -1638,7 +1872,304 @@ const (
 
 // Defines values for OpencodeGlobalEventPayload87Type.
 const (
-	OpencodeGlobalEventPayload87TypeGlobalDisposed OpencodeGlobalEventPayload87Type = "global.disposed"
+	GlobalDisposed OpencodeGlobalEventPayload87Type = "global.disposed"
+)
+
+// Defines values for OpencodeInstallationUpdateAvailableType.
+const (
+	InstallationUpdateAvailable OpencodeInstallationUpdateAvailableType = "installation.update-available"
+)
+
+// Defines values for OpencodeInstallationUpdatedType.
+const (
+	InstallationUpdated OpencodeInstallationUpdatedType = "installation.updated"
+)
+
+// Defines values for OpencodeIntegrationAttemptMode.
+const (
+	OpencodeIntegrationAttemptModeAuto OpencodeIntegrationAttemptMode = "auto"
+	OpencodeIntegrationAttemptModeCode OpencodeIntegrationAttemptMode = "code"
+)
+
+// Defines values for OpencodeIntegrationAttemptTimeCreated1.
+const (
+	OpencodeIntegrationAttemptTimeCreated1NaN OpencodeIntegrationAttemptTimeCreated1 = "NaN"
+)
+
+// Defines values for OpencodeIntegrationAttemptTimeCreated2.
+const (
+	OpencodeIntegrationAttemptTimeCreated2Infinity OpencodeIntegrationAttemptTimeCreated2 = "Infinity"
+)
+
+// Defines values for OpencodeIntegrationAttemptTimeCreated3.
+const (
+	OpencodeIntegrationAttemptTimeCreated3MinusInfinity OpencodeIntegrationAttemptTimeCreated3 = "-Infinity"
+)
+
+// Defines values for OpencodeIntegrationAttemptTimeCreated4.
+const (
+	OpencodeIntegrationAttemptTimeCreated4Infinity      OpencodeIntegrationAttemptTimeCreated4 = "Infinity"
+	OpencodeIntegrationAttemptTimeCreated4MinusInfinity OpencodeIntegrationAttemptTimeCreated4 = "-Infinity"
+	OpencodeIntegrationAttemptTimeCreated4NaN           OpencodeIntegrationAttemptTimeCreated4 = "NaN"
+)
+
+// Defines values for OpencodeIntegrationAttemptTimeExpires1.
+const (
+	OpencodeIntegrationAttemptTimeExpires1NaN OpencodeIntegrationAttemptTimeExpires1 = "NaN"
+)
+
+// Defines values for OpencodeIntegrationAttemptTimeExpires2.
+const (
+	OpencodeIntegrationAttemptTimeExpires2Infinity OpencodeIntegrationAttemptTimeExpires2 = "Infinity"
+)
+
+// Defines values for OpencodeIntegrationAttemptTimeExpires3.
+const (
+	OpencodeIntegrationAttemptTimeExpires3MinusInfinity OpencodeIntegrationAttemptTimeExpires3 = "-Infinity"
+)
+
+// Defines values for OpencodeIntegrationAttemptTimeExpires4.
+const (
+	OpencodeIntegrationAttemptTimeExpires4Infinity      OpencodeIntegrationAttemptTimeExpires4 = "Infinity"
+	OpencodeIntegrationAttemptTimeExpires4MinusInfinity OpencodeIntegrationAttemptTimeExpires4 = "-Infinity"
+	OpencodeIntegrationAttemptTimeExpires4NaN           OpencodeIntegrationAttemptTimeExpires4 = "NaN"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus0Status.
+const (
+	OpencodeIntegrationAttemptStatus0StatusPending OpencodeIntegrationAttemptStatus0Status = "pending"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus0TimeCreated1.
+const (
+	OpencodeIntegrationAttemptStatus0TimeCreated1NaN OpencodeIntegrationAttemptStatus0TimeCreated1 = "NaN"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus0TimeCreated2.
+const (
+	OpencodeIntegrationAttemptStatus0TimeCreated2Infinity OpencodeIntegrationAttemptStatus0TimeCreated2 = "Infinity"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus0TimeCreated3.
+const (
+	OpencodeIntegrationAttemptStatus0TimeCreated3MinusInfinity OpencodeIntegrationAttemptStatus0TimeCreated3 = "-Infinity"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus0TimeCreated4.
+const (
+	OpencodeIntegrationAttemptStatus0TimeCreated4Infinity      OpencodeIntegrationAttemptStatus0TimeCreated4 = "Infinity"
+	OpencodeIntegrationAttemptStatus0TimeCreated4MinusInfinity OpencodeIntegrationAttemptStatus0TimeCreated4 = "-Infinity"
+	OpencodeIntegrationAttemptStatus0TimeCreated4NaN           OpencodeIntegrationAttemptStatus0TimeCreated4 = "NaN"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus0TimeExpires1.
+const (
+	OpencodeIntegrationAttemptStatus0TimeExpires1NaN OpencodeIntegrationAttemptStatus0TimeExpires1 = "NaN"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus0TimeExpires2.
+const (
+	OpencodeIntegrationAttemptStatus0TimeExpires2Infinity OpencodeIntegrationAttemptStatus0TimeExpires2 = "Infinity"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus0TimeExpires3.
+const (
+	OpencodeIntegrationAttemptStatus0TimeExpires3MinusInfinity OpencodeIntegrationAttemptStatus0TimeExpires3 = "-Infinity"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus0TimeExpires4.
+const (
+	OpencodeIntegrationAttemptStatus0TimeExpires4Infinity      OpencodeIntegrationAttemptStatus0TimeExpires4 = "Infinity"
+	OpencodeIntegrationAttemptStatus0TimeExpires4MinusInfinity OpencodeIntegrationAttemptStatus0TimeExpires4 = "-Infinity"
+	OpencodeIntegrationAttemptStatus0TimeExpires4NaN           OpencodeIntegrationAttemptStatus0TimeExpires4 = "NaN"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus1Status.
+const (
+	Complete OpencodeIntegrationAttemptStatus1Status = "complete"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus1TimeCreated1.
+const (
+	OpencodeIntegrationAttemptStatus1TimeCreated1NaN OpencodeIntegrationAttemptStatus1TimeCreated1 = "NaN"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus1TimeCreated2.
+const (
+	OpencodeIntegrationAttemptStatus1TimeCreated2Infinity OpencodeIntegrationAttemptStatus1TimeCreated2 = "Infinity"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus1TimeCreated3.
+const (
+	OpencodeIntegrationAttemptStatus1TimeCreated3MinusInfinity OpencodeIntegrationAttemptStatus1TimeCreated3 = "-Infinity"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus1TimeCreated4.
+const (
+	OpencodeIntegrationAttemptStatus1TimeCreated4Infinity      OpencodeIntegrationAttemptStatus1TimeCreated4 = "Infinity"
+	OpencodeIntegrationAttemptStatus1TimeCreated4MinusInfinity OpencodeIntegrationAttemptStatus1TimeCreated4 = "-Infinity"
+	OpencodeIntegrationAttemptStatus1TimeCreated4NaN           OpencodeIntegrationAttemptStatus1TimeCreated4 = "NaN"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus1TimeExpires1.
+const (
+	OpencodeIntegrationAttemptStatus1TimeExpires1NaN OpencodeIntegrationAttemptStatus1TimeExpires1 = "NaN"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus1TimeExpires2.
+const (
+	OpencodeIntegrationAttemptStatus1TimeExpires2Infinity OpencodeIntegrationAttemptStatus1TimeExpires2 = "Infinity"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus1TimeExpires3.
+const (
+	OpencodeIntegrationAttemptStatus1TimeExpires3MinusInfinity OpencodeIntegrationAttemptStatus1TimeExpires3 = "-Infinity"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus1TimeExpires4.
+const (
+	OpencodeIntegrationAttemptStatus1TimeExpires4Infinity      OpencodeIntegrationAttemptStatus1TimeExpires4 = "Infinity"
+	OpencodeIntegrationAttemptStatus1TimeExpires4MinusInfinity OpencodeIntegrationAttemptStatus1TimeExpires4 = "-Infinity"
+	OpencodeIntegrationAttemptStatus1TimeExpires4NaN           OpencodeIntegrationAttemptStatus1TimeExpires4 = "NaN"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus2Status.
+const (
+	OpencodeIntegrationAttemptStatus2StatusFailed OpencodeIntegrationAttemptStatus2Status = "failed"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus2TimeCreated1.
+const (
+	OpencodeIntegrationAttemptStatus2TimeCreated1NaN OpencodeIntegrationAttemptStatus2TimeCreated1 = "NaN"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus2TimeCreated2.
+const (
+	OpencodeIntegrationAttemptStatus2TimeCreated2Infinity OpencodeIntegrationAttemptStatus2TimeCreated2 = "Infinity"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus2TimeCreated3.
+const (
+	OpencodeIntegrationAttemptStatus2TimeCreated3MinusInfinity OpencodeIntegrationAttemptStatus2TimeCreated3 = "-Infinity"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus2TimeCreated4.
+const (
+	OpencodeIntegrationAttemptStatus2TimeCreated4Infinity      OpencodeIntegrationAttemptStatus2TimeCreated4 = "Infinity"
+	OpencodeIntegrationAttemptStatus2TimeCreated4MinusInfinity OpencodeIntegrationAttemptStatus2TimeCreated4 = "-Infinity"
+	OpencodeIntegrationAttemptStatus2TimeCreated4NaN           OpencodeIntegrationAttemptStatus2TimeCreated4 = "NaN"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus2TimeExpires1.
+const (
+	OpencodeIntegrationAttemptStatus2TimeExpires1NaN OpencodeIntegrationAttemptStatus2TimeExpires1 = "NaN"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus2TimeExpires2.
+const (
+	OpencodeIntegrationAttemptStatus2TimeExpires2Infinity OpencodeIntegrationAttemptStatus2TimeExpires2 = "Infinity"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus2TimeExpires3.
+const (
+	OpencodeIntegrationAttemptStatus2TimeExpires3MinusInfinity OpencodeIntegrationAttemptStatus2TimeExpires3 = "-Infinity"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus2TimeExpires4.
+const (
+	OpencodeIntegrationAttemptStatus2TimeExpires4Infinity      OpencodeIntegrationAttemptStatus2TimeExpires4 = "Infinity"
+	OpencodeIntegrationAttemptStatus2TimeExpires4MinusInfinity OpencodeIntegrationAttemptStatus2TimeExpires4 = "-Infinity"
+	OpencodeIntegrationAttemptStatus2TimeExpires4NaN           OpencodeIntegrationAttemptStatus2TimeExpires4 = "NaN"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus3Status.
+const (
+	Expired OpencodeIntegrationAttemptStatus3Status = "expired"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus3TimeCreated1.
+const (
+	OpencodeIntegrationAttemptStatus3TimeCreated1NaN OpencodeIntegrationAttemptStatus3TimeCreated1 = "NaN"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus3TimeCreated2.
+const (
+	OpencodeIntegrationAttemptStatus3TimeCreated2Infinity OpencodeIntegrationAttemptStatus3TimeCreated2 = "Infinity"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus3TimeCreated3.
+const (
+	OpencodeIntegrationAttemptStatus3TimeCreated3MinusInfinity OpencodeIntegrationAttemptStatus3TimeCreated3 = "-Infinity"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus3TimeCreated4.
+const (
+	OpencodeIntegrationAttemptStatus3TimeCreated4Infinity      OpencodeIntegrationAttemptStatus3TimeCreated4 = "Infinity"
+	OpencodeIntegrationAttemptStatus3TimeCreated4MinusInfinity OpencodeIntegrationAttemptStatus3TimeCreated4 = "-Infinity"
+	OpencodeIntegrationAttemptStatus3TimeCreated4NaN           OpencodeIntegrationAttemptStatus3TimeCreated4 = "NaN"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus3TimeExpires1.
+const (
+	OpencodeIntegrationAttemptStatus3TimeExpires1NaN OpencodeIntegrationAttemptStatus3TimeExpires1 = "NaN"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus3TimeExpires2.
+const (
+	OpencodeIntegrationAttemptStatus3TimeExpires2Infinity OpencodeIntegrationAttemptStatus3TimeExpires2 = "Infinity"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus3TimeExpires3.
+const (
+	OpencodeIntegrationAttemptStatus3TimeExpires3MinusInfinity OpencodeIntegrationAttemptStatus3TimeExpires3 = "-Infinity"
+)
+
+// Defines values for OpencodeIntegrationAttemptStatus3TimeExpires4.
+const (
+	OpencodeIntegrationAttemptStatus3TimeExpires4Infinity      OpencodeIntegrationAttemptStatus3TimeExpires4 = "Infinity"
+	OpencodeIntegrationAttemptStatus3TimeExpires4MinusInfinity OpencodeIntegrationAttemptStatus3TimeExpires4 = "-Infinity"
+	OpencodeIntegrationAttemptStatus3TimeExpires4NaN           OpencodeIntegrationAttemptStatus3TimeExpires4 = "NaN"
+)
+
+// Defines values for OpencodeIntegrationConnectionUpdatedType.
+const (
+	IntegrationConnectionUpdated OpencodeIntegrationConnectionUpdatedType = "integration.connection.updated"
+)
+
+// Defines values for OpencodeIntegrationEnvMethodType.
+const (
+	OpencodeIntegrationEnvMethodTypeEnv OpencodeIntegrationEnvMethodType = "env"
+)
+
+// Defines values for OpencodeIntegrationKeyMethodType.
+const (
+	OpencodeIntegrationKeyMethodTypeKey OpencodeIntegrationKeyMethodType = "key"
+)
+
+// Defines values for OpencodeIntegrationOAuthMethodType.
+const (
+	OpencodeIntegrationOAuthMethodTypeOauth OpencodeIntegrationOAuthMethodType = "oauth"
+)
+
+// Defines values for OpencodeIntegrationSelectPromptType.
+const (
+	OpencodeIntegrationSelectPromptTypeSelect OpencodeIntegrationSelectPromptType = "select"
+)
+
+// Defines values for OpencodeIntegrationTextPromptType.
+const (
+	OpencodeIntegrationTextPromptTypeText OpencodeIntegrationTextPromptType = "text"
+)
+
+// Defines values for OpencodeIntegrationUpdatedType.
+const (
+	IntegrationUpdated OpencodeIntegrationUpdatedType = "integration.updated"
+)
+
+// Defines values for OpencodeIntegrationWhenOp.
+const (
+	OpencodeIntegrationWhenOpEq  OpencodeIntegrationWhenOp = "eq"
+	OpencodeIntegrationWhenOpNeq OpencodeIntegrationWhenOp = "neq"
 )
 
 // Defines values for OpencodeInvalidCursorErrorTag.
@@ -1648,7 +2179,13 @@ const (
 
 // Defines values for OpencodeInvalidRequestErrorTag.
 const (
-	InvalidRequestError OpencodeInvalidRequestErrorTag = "InvalidRequestError"
+	OpencodeInvalidRequestErrorTagInvalidRequestError OpencodeInvalidRequestErrorTag = "InvalidRequestError"
+)
+
+// Defines values for OpencodeLSPStatusStatus.
+const (
+	OpencodeLSPStatusStatusConnected OpencodeLSPStatusStatus = "connected"
+	OpencodeLSPStatusStatusError     OpencodeLSPStatusStatus = "error"
 )
 
 // Defines values for OpencodeLayoutConfig.
@@ -1665,9 +2202,44 @@ const (
 	WARN  OpencodeLogLevel = "WARN"
 )
 
+// Defines values for OpencodeLspUpdatedType.
+const (
+	LspUpdated OpencodeLspUpdatedType = "lsp.updated"
+)
+
+// Defines values for OpencodeMCPStatusConnectedStatus.
+const (
+	OpencodeMCPStatusConnectedStatusConnected OpencodeMCPStatusConnectedStatus = "connected"
+)
+
+// Defines values for OpencodeMCPStatusDisabledStatus.
+const (
+	OpencodeMCPStatusDisabledStatusDisabled OpencodeMCPStatusDisabledStatus = "disabled"
+)
+
+// Defines values for OpencodeMCPStatusFailedStatus.
+const (
+	OpencodeMCPStatusFailedStatusFailed OpencodeMCPStatusFailedStatus = "failed"
+)
+
+// Defines values for OpencodeMCPStatusNeedsAuthStatus.
+const (
+	NeedsAuth OpencodeMCPStatusNeedsAuthStatus = "needs_auth"
+)
+
+// Defines values for OpencodeMCPStatusNeedsClientRegistrationStatus.
+const (
+	NeedsClientRegistration OpencodeMCPStatusNeedsClientRegistrationStatus = "needs_client_registration"
+)
+
+// Defines values for OpencodeMcpBrowserOpenFailedType.
+const (
+	McpBrowserOpenFailed OpencodeMcpBrowserOpenFailedType = "mcp.browser.open.failed"
+)
+
 // Defines values for OpencodeMcpLocalConfigType.
 const (
-	Local OpencodeMcpLocalConfigType = "local"
+	OpencodeMcpLocalConfigTypeLocal OpencodeMcpLocalConfigType = "local"
 )
 
 // Defines values for OpencodeMcpRemoteConfigOauth1.
@@ -1678,6 +2250,16 @@ const (
 // Defines values for OpencodeMcpRemoteConfigType.
 const (
 	Remote OpencodeMcpRemoteConfigType = "remote"
+)
+
+// Defines values for OpencodeMcpServerNotFoundErrorTag.
+const (
+	McpServerNotFoundError OpencodeMcpServerNotFoundErrorTag = "McpServerNotFoundError"
+)
+
+// Defines values for OpencodeMcpToolsChangedType.
+const (
+	McpToolsChanged OpencodeMcpToolsChangedType = "mcp.tools.changed"
 )
 
 // Defines values for OpencodeMessageAbortedErrorName.
@@ -1695,9 +2277,34 @@ const (
 	MessageOutputLengthError OpencodeMessageOutputLengthErrorName = "MessageOutputLengthError"
 )
 
+// Defines values for OpencodeMessagePartDeltaType.
+const (
+	MessagePartDelta OpencodeMessagePartDeltaType = "message.part.delta"
+)
+
+// Defines values for OpencodeMessagePartRemovedType.
+const (
+	MessagePartRemoved OpencodeMessagePartRemovedType = "message.part.removed"
+)
+
+// Defines values for OpencodeMessagePartUpdatedType.
+const (
+	MessagePartUpdated OpencodeMessagePartUpdatedType = "message.part.updated"
+)
+
+// Defines values for OpencodeMessageRemovedType.
+const (
+	MessageRemoved OpencodeMessageRemovedType = "message.removed"
+)
+
+// Defines values for OpencodeMessageUpdatedType.
+const (
+	MessageUpdated OpencodeMessageUpdatedType = "message.updated"
+)
+
 // Defines values for OpencodeModelCostTiersTierType.
 const (
-	Context OpencodeModelCostTiersTierType = "context"
+	OpencodeModelCostTiersTierTypeContext OpencodeModelCostTiersTierType = "context"
 )
 
 // Defines values for OpencodeModelStatus.
@@ -1708,14 +2315,62 @@ const (
 	OpencodeModelStatusDeprecated OpencodeModelStatus = "deprecated"
 )
 
+// Defines values for OpencodeModelApi0Type.
+const (
+	OpencodeModelApi0TypeAisdk OpencodeModelApi0Type = "aisdk"
+)
+
+// Defines values for OpencodeModelApi1Type.
+const (
+	OpencodeModelApi1TypeNative OpencodeModelApi1Type = "native"
+)
+
+// Defines values for OpencodeModelCostTierType.
+const (
+	OpencodeModelCostTierTypeContext OpencodeModelCostTierType = "context"
+)
+
+// Defines values for OpencodeModelV2InfoStatus.
+const (
+	OpencodeModelV2InfoStatusActive     OpencodeModelV2InfoStatus = "active"
+	OpencodeModelV2InfoStatusAlpha      OpencodeModelV2InfoStatus = "alpha"
+	OpencodeModelV2InfoStatusBeta       OpencodeModelV2InfoStatus = "beta"
+	OpencodeModelV2InfoStatusDeprecated OpencodeModelV2InfoStatus = "deprecated"
+)
+
+// Defines values for OpencodeModelsDevRefreshedType.
+const (
+	ModelsDevRefreshed OpencodeModelsDevRefreshedType = "models-dev.refreshed"
+)
+
+// Defines values for OpencodeMoveSessionErrorName.
+const (
+	MoveSessionError OpencodeMoveSessionErrorName = "MoveSessionError"
+)
+
 // Defines values for OpencodeNotFoundErrorName.
 const (
 	NotFoundError OpencodeNotFoundErrorName = "NotFoundError"
 )
 
+// Defines values for OpencodeOAuthType.
+const (
+	OpencodeOAuthTypeOauth OpencodeOAuthType = "oauth"
+)
+
+// Defines values for OpencodeOutputFormat10Type.
+const (
+	OpencodeOutputFormat10TypeText OpencodeOutputFormat10Type = "text"
+)
+
+// Defines values for OpencodeOutputFormat11Type.
+const (
+	OpencodeOutputFormat11TypeJsonSchema OpencodeOutputFormat11Type = "json_schema"
+)
+
 // Defines values for OpencodeOutputFormatJsonSchemaType.
 const (
-	JsonSchema OpencodeOutputFormatJsonSchemaType = "json_schema"
+	OpencodeOutputFormatJsonSchemaTypeJsonSchema OpencodeOutputFormatJsonSchemaType = "json_schema"
 )
 
 // Defines values for OpencodeOutputFormatTextType.
@@ -1742,9 +2397,43 @@ const (
 	OpencodePermissionActionConfigDeny  OpencodePermissionActionConfig = "deny"
 )
 
+// Defines values for OpencodePermissionAskedType.
+const (
+	PermissionAsked OpencodePermissionAskedType = "permission.asked"
+)
+
 // Defines values for OpencodePermissionNotFoundErrorTag.
 const (
 	PermissionNotFoundError OpencodePermissionNotFoundErrorTag = "PermissionNotFoundError"
+)
+
+// Defines values for OpencodePermissionRepliedDataReply.
+const (
+	OpencodePermissionRepliedDataReplyAlways OpencodePermissionRepliedDataReply = "always"
+	OpencodePermissionRepliedDataReplyOnce   OpencodePermissionRepliedDataReply = "once"
+	OpencodePermissionRepliedDataReplyReject OpencodePermissionRepliedDataReply = "reject"
+)
+
+// Defines values for OpencodePermissionRepliedType.
+const (
+	PermissionReplied OpencodePermissionRepliedType = "permission.replied"
+)
+
+// Defines values for OpencodePermissionV2AskedType.
+const (
+	PermissionV2Asked OpencodePermissionV2AskedType = "permission.v2.asked"
+)
+
+// Defines values for OpencodePermissionV2Effect.
+const (
+	OpencodePermissionV2EffectAllow OpencodePermissionV2Effect = "allow"
+	OpencodePermissionV2EffectAsk   OpencodePermissionV2Effect = "ask"
+	OpencodePermissionV2EffectDeny  OpencodePermissionV2Effect = "deny"
+)
+
+// Defines values for OpencodePermissionV2RepliedType.
+const (
+	PermissionV2Replied OpencodePermissionV2RepliedType = "permission.v2.replied"
 )
 
 // Defines values for OpencodePermissionV2Reply.
@@ -1759,10 +2448,25 @@ const (
 	OpencodePermissionV2SourceTypeTool OpencodePermissionV2SourceType = "tool"
 )
 
+// Defines values for OpencodePluginAddedType.
+const (
+	PluginAdded OpencodePluginAddedType = "plugin.added"
+)
+
 // Defines values for OpencodePolicyEffect.
 const (
-	Allow OpencodePolicyEffect = "allow"
-	Deny  OpencodePolicyEffect = "deny"
+	OpencodePolicyEffectAllow OpencodePolicyEffect = "allow"
+	OpencodePolicyEffectDeny  OpencodePolicyEffect = "deny"
+)
+
+// Defines values for OpencodeProjectCopyErrorName.
+const (
+	ProjectCopyError OpencodeProjectCopyErrorName = "ProjectCopyError"
+)
+
+// Defines values for OpencodeProjectDirectoriesUpdatedType.
+const (
+	ProjectDirectoriesUpdated OpencodeProjectDirectoriesUpdatedType = "project.directories.updated"
 )
 
 // Defines values for OpencodeProjectNotFoundErrorTag.
@@ -1770,22 +2474,75 @@ const (
 	ProjectNotFoundError OpencodeProjectNotFoundErrorTag = "ProjectNotFoundError"
 )
 
+// Defines values for OpencodeProjectUpdatedType.
+const (
+	ProjectUpdated OpencodeProjectUpdatedType = "project.updated"
+)
+
 // Defines values for OpencodeProjectVcs.
 const (
-	Git OpencodeProjectVcs = "git"
+	OpencodeProjectVcsGit OpencodeProjectVcs = "git"
 )
 
 // Defines values for OpencodeProviderSource.
 const (
-	Api    OpencodeProviderSource = "api"
-	Config OpencodeProviderSource = "config"
-	Custom OpencodeProviderSource = "custom"
-	Env    OpencodeProviderSource = "env"
+	OpencodeProviderSourceApi    OpencodeProviderSource = "api"
+	OpencodeProviderSourceConfig OpencodeProviderSource = "config"
+	OpencodeProviderSourceCustom OpencodeProviderSource = "custom"
+	OpencodeProviderSourceEnv    OpencodeProviderSource = "env"
+)
+
+// Defines values for OpencodeProviderAISDKType.
+const (
+	OpencodeProviderAISDKTypeAisdk OpencodeProviderAISDKType = "aisdk"
+)
+
+// Defines values for OpencodeProviderAuthAuthorizationMethod.
+const (
+	OpencodeProviderAuthAuthorizationMethodAuto OpencodeProviderAuthAuthorizationMethod = "auto"
+	OpencodeProviderAuthAuthorizationMethodCode OpencodeProviderAuthAuthorizationMethod = "code"
 )
 
 // Defines values for OpencodeProviderAuthErrorName.
 const (
 	ProviderAuthError OpencodeProviderAuthErrorName = "ProviderAuthError"
+)
+
+// Defines values for OpencodeProviderAuthError1Name.
+const (
+	OpencodeProviderAuthError1NameBadRequest                      OpencodeProviderAuthError1Name = "BadRequest"
+	OpencodeProviderAuthError1NameProviderAuthOauthCallbackFailed OpencodeProviderAuthError1Name = "ProviderAuthOauthCallbackFailed"
+	OpencodeProviderAuthError1NameProviderAuthOauthCodeMissing    OpencodeProviderAuthError1Name = "ProviderAuthOauthCodeMissing"
+	OpencodeProviderAuthError1NameProviderAuthOauthMissing        OpencodeProviderAuthError1Name = "ProviderAuthOauthMissing"
+	OpencodeProviderAuthError1NameProviderAuthValidationFailed    OpencodeProviderAuthError1Name = "ProviderAuthValidationFailed"
+)
+
+// Defines values for OpencodeProviderAuthMethodPrompts0Type.
+const (
+	OpencodeProviderAuthMethodPrompts0TypeText OpencodeProviderAuthMethodPrompts0Type = "text"
+)
+
+// Defines values for OpencodeProviderAuthMethodPrompts0WhenOp.
+const (
+	OpencodeProviderAuthMethodPrompts0WhenOpEq  OpencodeProviderAuthMethodPrompts0WhenOp = "eq"
+	OpencodeProviderAuthMethodPrompts0WhenOpNeq OpencodeProviderAuthMethodPrompts0WhenOp = "neq"
+)
+
+// Defines values for OpencodeProviderAuthMethodPrompts1Type.
+const (
+	OpencodeProviderAuthMethodPrompts1TypeSelect OpencodeProviderAuthMethodPrompts1Type = "select"
+)
+
+// Defines values for OpencodeProviderAuthMethodPrompts1WhenOp.
+const (
+	Eq  OpencodeProviderAuthMethodPrompts1WhenOp = "eq"
+	Neq OpencodeProviderAuthMethodPrompts1WhenOp = "neq"
+)
+
+// Defines values for OpencodeProviderAuthMethodType.
+const (
+	OpencodeProviderAuthMethodTypeApi   OpencodeProviderAuthMethodType = "api"
+	OpencodeProviderAuthMethodTypeOauth OpencodeProviderAuthMethodType = "oauth"
 )
 
 // Defines values for OpencodeProviderConfigModelsInterleaved1.
@@ -1815,10 +2572,10 @@ const (
 
 // Defines values for OpencodeProviderConfigModelsStatus.
 const (
-	OpencodeProviderConfigModelsStatusActive     OpencodeProviderConfigModelsStatus = "active"
-	OpencodeProviderConfigModelsStatusAlpha      OpencodeProviderConfigModelsStatus = "alpha"
-	OpencodeProviderConfigModelsStatusBeta       OpencodeProviderConfigModelsStatus = "beta"
-	OpencodeProviderConfigModelsStatusDeprecated OpencodeProviderConfigModelsStatus = "deprecated"
+	Active     OpencodeProviderConfigModelsStatus = "active"
+	Alpha      OpencodeProviderConfigModelsStatus = "alpha"
+	Beta       OpencodeProviderConfigModelsStatus = "beta"
+	Deprecated OpencodeProviderConfigModelsStatus = "deprecated"
 )
 
 // Defines values for OpencodeProviderConfigOptionsHeaderTimeout1.
@@ -1831,10 +2588,35 @@ const (
 	OpencodeProviderConfigOptionsTimeout1False OpencodeProviderConfigOptionsTimeout1 = false
 )
 
+// Defines values for OpencodeProviderNativeType.
+const (
+	Native OpencodeProviderNativeType = "native"
+)
+
+// Defines values for OpencodeProviderNotFoundErrorTag.
+const (
+	ProviderNotFoundError OpencodeProviderNotFoundErrorTag = "ProviderNotFoundError"
+)
+
 // Defines values for OpencodePtyStatus.
 const (
 	OpencodePtyStatusExited  OpencodePtyStatus = "exited"
 	OpencodePtyStatusRunning OpencodePtyStatus = "running"
+)
+
+// Defines values for OpencodePtyCreatedType.
+const (
+	PtyCreated OpencodePtyCreatedType = "pty.created"
+)
+
+// Defines values for OpencodePtyDeletedType.
+const (
+	PtyDeleted OpencodePtyDeletedType = "pty.deleted"
+)
+
+// Defines values for OpencodePtyExitedType.
+const (
+	PtyExited OpencodePtyExitedType = "pty.exited"
 )
 
 // Defines values for OpencodePtyForbiddenErrorTag.
@@ -1847,14 +2629,54 @@ const (
 	PtyNotFoundError OpencodePtyNotFoundErrorTag = "PtyNotFoundError"
 )
 
+// Defines values for OpencodePtyUpdatedType.
+const (
+	PtyUpdated OpencodePtyUpdatedType = "pty.updated"
+)
+
+// Defines values for OpencodeQuestionAskedType.
+const (
+	QuestionAsked OpencodeQuestionAskedType = "question.asked"
+)
+
 // Defines values for OpencodeQuestionNotFoundErrorTag.
 const (
 	QuestionNotFoundError OpencodeQuestionNotFoundErrorTag = "QuestionNotFoundError"
 )
 
+// Defines values for OpencodeQuestionV2AskedType.
+const (
+	QuestionV2Asked OpencodeQuestionV2AskedType = "question.v2.asked"
+)
+
+// Defines values for OpencodeQuestionV2RejectedType.
+const (
+	QuestionV2Rejected OpencodeQuestionV2RejectedType = "question.v2.rejected"
+)
+
+// Defines values for OpencodeQuestionV2RepliedType.
+const (
+	QuestionV2Replied OpencodeQuestionV2RepliedType = "question.v2.replied"
+)
+
 // Defines values for OpencodeReasoningPartType.
 const (
 	OpencodeReasoningPartTypeReasoning OpencodeReasoningPartType = "reasoning"
+)
+
+// Defines values for OpencodeReferenceGitSourceType.
+const (
+	OpencodeReferenceGitSourceTypeGit OpencodeReferenceGitSourceType = "git"
+)
+
+// Defines values for OpencodeReferenceLocalSourceType.
+const (
+	OpencodeReferenceLocalSourceTypeLocal OpencodeReferenceLocalSourceType = "local"
+)
+
+// Defines values for OpencodeReferenceUpdatedType.
+const (
+	ReferenceUpdated OpencodeReferenceUpdatedType = "reference.updated"
 )
 
 // Defines values for OpencodeResourceSourceType.
@@ -1865,6 +2687,11 @@ const (
 // Defines values for OpencodeRetryPartType.
 const (
 	OpencodeRetryPartTypeRetry OpencodeRetryPartType = "retry"
+)
+
+// Defines values for OpencodeServerConnectedType.
+const (
+	ServerConnected OpencodeServerConnectedType = "server.connected"
 )
 
 // Defines values for OpencodeServiceUnavailableErrorTag.
@@ -1882,9 +2709,39 @@ const (
 	SessionBusyError OpencodeSessionBusyErrorTag = "SessionBusyError"
 )
 
+// Defines values for OpencodeSessionCompactedType.
+const (
+	SessionCompacted OpencodeSessionCompactedType = "session.compacted"
+)
+
+// Defines values for OpencodeSessionCreatedType.
+const (
+	SessionCreated OpencodeSessionCreatedType = "session.created"
+)
+
+// Defines values for OpencodeSessionDeletedType.
+const (
+	SessionDeleted OpencodeSessionDeletedType = "session.deleted"
+)
+
+// Defines values for OpencodeSessionDiffType.
+const (
+	SessionDiff OpencodeSessionDiffType = "session.diff"
+)
+
+// Defines values for OpencodeSessionErrorType.
+const (
+	SessionError OpencodeSessionErrorType = "session.error"
+)
+
 // Defines values for OpencodeSessionErrorUnknownType.
 const (
 	Unknown OpencodeSessionErrorUnknownType = "unknown"
+)
+
+// Defines values for OpencodeSessionIdleType.
+const (
+	SessionIdle OpencodeSessionIdleType = "session.idle"
 )
 
 // Defines values for OpencodeSessionInputAdmittedDelivery.
@@ -1979,6 +2836,11 @@ const (
 	SessionNextAgentSwitched OpencodeSessionNextAgentSwitchedType = "session.next.agent.switched"
 )
 
+// Defines values for OpencodeSessionNextCompactionDeltaType.
+const (
+	SessionNextCompactionDelta OpencodeSessionNextCompactionDeltaType = "session.next.compaction.delta"
+)
+
 // Defines values for OpencodeSessionNextCompactionEndedDataReason.
 const (
 	OpencodeSessionNextCompactionEndedDataReasonAuto   OpencodeSessionNextCompactionEndedDataReason = "auto"
@@ -2036,6 +2898,11 @@ const (
 // Defines values for OpencodeSessionNextPromptedType.
 const (
 	SessionNextPrompted OpencodeSessionNextPromptedType = "session.next.prompted"
+)
+
+// Defines values for OpencodeSessionNextReasoningDeltaType.
+const (
+	SessionNextReasoningDelta OpencodeSessionNextReasoningDeltaType = "session.next.reasoning.delta"
 )
 
 // Defines values for OpencodeSessionNextReasoningEndedType.
@@ -2098,6 +2965,11 @@ const (
 	SessionNextSynthetic OpencodeSessionNextSyntheticType = "session.next.synthetic"
 )
 
+// Defines values for OpencodeSessionNextTextDeltaType.
+const (
+	SessionNextTextDelta OpencodeSessionNextTextDeltaType = "session.next.text.delta"
+)
+
 // Defines values for OpencodeSessionNextTextEndedType.
 const (
 	SessionNextTextEnded OpencodeSessionNextTextEndedType = "session.next.text.ended"
@@ -2116,6 +2988,11 @@ const (
 // Defines values for OpencodeSessionNextToolFailedType.
 const (
 	SessionNextToolFailed OpencodeSessionNextToolFailedType = "session.next.tool.failed"
+)
+
+// Defines values for OpencodeSessionNextToolInputDeltaType.
+const (
+	SessionNextToolInputDelta OpencodeSessionNextToolInputDeltaType = "session.next.tool.input.delta"
 )
 
 // Defines values for OpencodeSessionNextToolInputEndedType.
@@ -2156,6 +3033,26 @@ const (
 // Defines values for OpencodeSessionStatus2Type.
 const (
 	Busy OpencodeSessionStatus2Type = "busy"
+)
+
+// Defines values for OpencodeSessionUpdatedType.
+const (
+	SessionUpdated OpencodeSessionUpdatedType = "session.updated"
+)
+
+// Defines values for OpencodeSkillV2DirectorySourceType.
+const (
+	Directory OpencodeSkillV2DirectorySourceType = "directory"
+)
+
+// Defines values for OpencodeSkillV2EmbeddedSourceType.
+const (
+	Embedded OpencodeSkillV2EmbeddedSourceType = "embedded"
+)
+
+// Defines values for OpencodeSkillV2UrlSourceType.
+const (
+	Url OpencodeSkillV2UrlSourceType = "url"
 )
 
 // Defines values for OpencodeSnapshotFileDiffStatus.
@@ -2584,6 +3481,11 @@ const (
 	OpencodeTextPartInputTypeText OpencodeTextPartInputType = "text"
 )
 
+// Defines values for OpencodeTodoUpdatedType.
+const (
+	TodoUpdated OpencodeTodoUpdatedType = "todo.updated"
+)
+
 // Defines values for OpencodeToolFileContentType.
 const (
 	OpencodeToolFileContentTypeFile OpencodeToolFileContentType = "file"
@@ -2606,7 +3508,7 @@ const (
 
 // Defines values for OpencodeToolStatePendingStatus.
 const (
-	OpencodeToolStatePendingStatusPending OpencodeToolStatePendingStatus = "pending"
+	Pending OpencodeToolStatePendingStatus = "pending"
 )
 
 // Defines values for OpencodeToolStateRunningStatus.
@@ -2617,6 +3519,34 @@ const (
 // Defines values for OpencodeToolTextContentType.
 const (
 	OpencodeToolTextContentTypeText OpencodeToolTextContentType = "text"
+)
+
+// Defines values for OpencodeTuiCommandExecuteType.
+const (
+	TuiCommandExecute OpencodeTuiCommandExecuteType = "tui.command.execute"
+)
+
+// Defines values for OpencodeTuiPromptAppendType.
+const (
+	TuiPromptAppend OpencodeTuiPromptAppendType = "tui.prompt.append"
+)
+
+// Defines values for OpencodeTuiSessionSelectType.
+const (
+	TuiSessionSelect OpencodeTuiSessionSelectType = "tui.session.select"
+)
+
+// Defines values for OpencodeTuiToastShowDataVariant.
+const (
+	OpencodeTuiToastShowDataVariantError   OpencodeTuiToastShowDataVariant = "error"
+	OpencodeTuiToastShowDataVariantInfo    OpencodeTuiToastShowDataVariant = "info"
+	OpencodeTuiToastShowDataVariantSuccess OpencodeTuiToastShowDataVariant = "success"
+	OpencodeTuiToastShowDataVariantWarning OpencodeTuiToastShowDataVariant = "warning"
+)
+
+// Defines values for OpencodeTuiToastShowType.
+const (
+	TuiToastShow OpencodeTuiToastShowType = "tui.toast.show"
 )
 
 // Defines values for OpencodeUnauthorizedErrorTag.
@@ -2639,6 +3569,125 @@ const (
 	OpencodeUserMessageRoleUser OpencodeUserMessageRole = "user"
 )
 
+// Defines values for OpencodeVcsApplyErrorDataReason.
+const (
+	NonGit   OpencodeVcsApplyErrorDataReason = "non-git"
+	NotClean OpencodeVcsApplyErrorDataReason = "not-clean"
+)
+
+// Defines values for OpencodeVcsApplyErrorName.
+const (
+	VcsApplyError OpencodeVcsApplyErrorName = "VcsApplyError"
+)
+
+// Defines values for OpencodeVcsBranchUpdatedType.
+const (
+	VcsBranchUpdated OpencodeVcsBranchUpdatedType = "vcs.branch.updated"
+)
+
+// Defines values for OpencodeVcsFileDiffStatus.
+const (
+	OpencodeVcsFileDiffStatusAdded    OpencodeVcsFileDiffStatus = "added"
+	OpencodeVcsFileDiffStatusDeleted  OpencodeVcsFileDiffStatus = "deleted"
+	OpencodeVcsFileDiffStatusModified OpencodeVcsFileDiffStatus = "modified"
+)
+
+// Defines values for OpencodeVcsFileStatusStatus.
+const (
+	Added    OpencodeVcsFileStatusStatus = "added"
+	Deleted  OpencodeVcsFileStatusStatus = "deleted"
+	Modified OpencodeVcsFileStatusStatus = "modified"
+)
+
+// Defines values for OpencodeWellKnownAuthType.
+const (
+	Wellknown OpencodeWellKnownAuthType = "wellknown"
+)
+
+// Defines values for OpencodeWorkspaceTimeUsed1.
+const (
+	OpencodeWorkspaceTimeUsed1NaN OpencodeWorkspaceTimeUsed1 = "NaN"
+)
+
+// Defines values for OpencodeWorkspaceTimeUsed2.
+const (
+	Infinity OpencodeWorkspaceTimeUsed2 = "Infinity"
+)
+
+// Defines values for OpencodeWorkspaceTimeUsed3.
+const (
+	MinusInfinity OpencodeWorkspaceTimeUsed3 = "-Infinity"
+)
+
+// Defines values for OpencodeWorkspaceTimeUsed4.
+const (
+	OpencodeWorkspaceTimeUsed4Infinity      OpencodeWorkspaceTimeUsed4 = "Infinity"
+	OpencodeWorkspaceTimeUsed4MinusInfinity OpencodeWorkspaceTimeUsed4 = "-Infinity"
+	OpencodeWorkspaceTimeUsed4NaN           OpencodeWorkspaceTimeUsed4 = "NaN"
+)
+
+// Defines values for OpencodeWorkspaceCreateErrorName.
+const (
+	WorkspaceCreateError OpencodeWorkspaceCreateErrorName = "WorkspaceCreateError"
+)
+
+// Defines values for OpencodeWorkspaceEventConnectionStatusStatus.
+const (
+	OpencodeWorkspaceEventConnectionStatusStatusConnected    OpencodeWorkspaceEventConnectionStatusStatus = "connected"
+	OpencodeWorkspaceEventConnectionStatusStatusConnecting   OpencodeWorkspaceEventConnectionStatusStatus = "connecting"
+	OpencodeWorkspaceEventConnectionStatusStatusDisconnected OpencodeWorkspaceEventConnectionStatusStatus = "disconnected"
+	OpencodeWorkspaceEventConnectionStatusStatusError        OpencodeWorkspaceEventConnectionStatusStatus = "error"
+)
+
+// Defines values for OpencodeWorkspaceFailedType.
+const (
+	WorkspaceFailed OpencodeWorkspaceFailedType = "workspace.failed"
+)
+
+// Defines values for OpencodeWorkspaceReadyType.
+const (
+	WorkspaceReady OpencodeWorkspaceReadyType = "workspace.ready"
+)
+
+// Defines values for OpencodeWorkspaceStatusDataStatus.
+const (
+	OpencodeWorkspaceStatusDataStatusConnected    OpencodeWorkspaceStatusDataStatus = "connected"
+	OpencodeWorkspaceStatusDataStatusConnecting   OpencodeWorkspaceStatusDataStatus = "connecting"
+	OpencodeWorkspaceStatusDataStatusDisconnected OpencodeWorkspaceStatusDataStatus = "disconnected"
+	OpencodeWorkspaceStatusDataStatusError        OpencodeWorkspaceStatusDataStatus = "error"
+)
+
+// Defines values for OpencodeWorkspaceStatusType.
+const (
+	WorkspaceStatus OpencodeWorkspaceStatusType = "workspace.status"
+)
+
+// Defines values for OpencodeWorkspaceWarpErrorName.
+const (
+	WorkspaceWarpError OpencodeWorkspaceWarpErrorName = "WorkspaceWarpError"
+)
+
+// Defines values for OpencodeWorktreeErrorName.
+const (
+	WorktreeCreateFailedError         OpencodeWorktreeErrorName = "WorktreeCreateFailedError"
+	WorktreeListFailedError           OpencodeWorktreeErrorName = "WorktreeListFailedError"
+	WorktreeNameGenerationFailedError OpencodeWorktreeErrorName = "WorktreeNameGenerationFailedError"
+	WorktreeNotGitError               OpencodeWorktreeErrorName = "WorktreeNotGitError"
+	WorktreeRemoveFailedError         OpencodeWorktreeErrorName = "WorktreeRemoveFailedError"
+	WorktreeResetFailedError          OpencodeWorktreeErrorName = "WorktreeResetFailedError"
+	WorktreeStartCommandFailedError   OpencodeWorktreeErrorName = "WorktreeStartCommandFailedError"
+)
+
+// Defines values for OpencodeWorktreeFailedType.
+const (
+	WorktreeFailed OpencodeWorktreeFailedType = "worktree.failed"
+)
+
+// Defines values for OpencodeWorktreeReadyType.
+const (
+	WorktreeReady OpencodeWorktreeReadyType = "worktree.ready"
+)
+
 // Defines values for OpencodeeffectHttpApiErrorBadRequestTag.
 const (
 	OpencodeeffectHttpApiErrorBadRequestTagBadRequest OpencodeeffectHttpApiErrorBadRequestTag = "BadRequest"
@@ -2652,6 +3701,31 @@ const (
 // Defines values for OpencodeeffectHttpApiErrorInternalServerErrorTag.
 const (
 	InternalServerError OpencodeeffectHttpApiErrorInternalServerErrorTag = "InternalServerError"
+)
+
+// Defines values for OpencodequestionRejectedType.
+const (
+	QuestionRejected OpencodequestionRejectedType = "question.rejected"
+)
+
+// Defines values for OpencodequestionRepliedType.
+const (
+	QuestionReplied OpencodequestionRepliedType = "question.replied"
+)
+
+// Defines values for OpencodesessionStatusType.
+const (
+	SessionStatus OpencodesessionStatusType = "session.status"
+)
+
+// Defines values for OverwriteSkillImportDecisionAction.
+const (
+	Overwrite OverwriteSkillImportDecisionAction = "overwrite"
+)
+
+// Defines values for RenameSkillImportDecisionAction.
+const (
+	Rename RenameSkillImportDecisionAction = "rename"
 )
 
 // Defines values for ResourceLifecycle.
@@ -2763,11 +3837,11 @@ const (
 
 // Defines values for WorkflowRunNodePhase.
 const (
-	Disabled  WorkflowRunNodePhase = "Disabled"
-	Failed    WorkflowRunNodePhase = "Failed"
-	Running   WorkflowRunNodePhase = "Running"
-	Succeeded WorkflowRunNodePhase = "Succeeded"
-	Unacked   WorkflowRunNodePhase = "Unacked"
+	WorkflowRunNodePhaseDisabled  WorkflowRunNodePhase = "Disabled"
+	WorkflowRunNodePhaseFailed    WorkflowRunNodePhase = "Failed"
+	WorkflowRunNodePhaseRunning   WorkflowRunNodePhase = "Running"
+	WorkflowRunNodePhaseSucceeded WorkflowRunNodePhase = "Succeeded"
+	WorkflowRunNodePhaseUnacked   WorkflowRunNodePhase = "Unacked"
 )
 
 // Defines values for WorkflowRunStatus.
@@ -2890,6 +3964,34 @@ const (
 const (
 	ListAgentMutableSkillsParamsSortOrderAsc  ListAgentMutableSkillsParamsSortOrder = "asc"
 	ListAgentMutableSkillsParamsSortOrderDesc ListAgentMutableSkillsParamsSortOrder = "desc"
+)
+
+// Defines values for ListGuardrailEventsParamsAction.
+const (
+	ListGuardrailEventsParamsActionAudit    ListGuardrailEventsParamsAction = "audit"
+	ListGuardrailEventsParamsActionFailOpen ListGuardrailEventsParamsAction = "failOpen"
+	ListGuardrailEventsParamsActionMask     ListGuardrailEventsParamsAction = "mask"
+	ListGuardrailEventsParamsActionReject   ListGuardrailEventsParamsAction = "reject"
+)
+
+// Defines values for ListGuardrailEventsParamsPhase.
+const (
+	ListGuardrailEventsParamsPhaseRequest  ListGuardrailEventsParamsPhase = "request"
+	ListGuardrailEventsParamsPhaseResponse ListGuardrailEventsParamsPhase = "response"
+)
+
+// Defines values for GetGuardrailEventChartParamsAction.
+const (
+	GetGuardrailEventChartParamsActionAudit    GetGuardrailEventChartParamsAction = "audit"
+	GetGuardrailEventChartParamsActionFailOpen GetGuardrailEventChartParamsAction = "failOpen"
+	GetGuardrailEventChartParamsActionMask     GetGuardrailEventChartParamsAction = "mask"
+	GetGuardrailEventChartParamsActionReject   GetGuardrailEventChartParamsAction = "reject"
+)
+
+// Defines values for GetGuardrailEventChartParamsPhase.
+const (
+	GetGuardrailEventChartParamsPhaseRequest  GetGuardrailEventChartParamsPhase = "request"
+	GetGuardrailEventChartParamsPhaseResponse GetGuardrailEventChartParamsPhase = "response"
 )
 
 // Defines values for ListMCPConnectionsParamsSortBy.
@@ -3868,9 +4970,10 @@ type CreateMCPConnectionRequest struct {
 
 // CreateSandboxRequest defines model for CreateSandboxRequest.
 type CreateSandboxRequest struct {
-	AllowedHosts      *[]string           `json:"allowed_hosts,omitempty"`
-	Inference         SandboxInference    `json:"inference"`
-	McpConnectionRefs *[]MCPConnectionRef `json:"mcp_connection_refs,omitempty"`
+	AllowedHosts      *[]string            `json:"allowed_hosts,omitempty"`
+	Guardrails        *GuardrailAssignment `json:"guardrails,omitempty"`
+	Inference         SandboxInference     `json:"inference"`
+	McpConnectionRefs *[]MCPConnectionRef  `json:"mcp_connection_refs,omitempty"`
 
 	// Name Sandbox resource name.
 	Name     SandboxName          `json:"name"`
@@ -3899,6 +5002,17 @@ type CreateSecretRequest struct {
 	// Value Secret value. Max 48 KB.
 	Value *SecretValue `json:"value,omitempty"`
 }
+
+// CreateSkillImportDecision defines model for CreateSkillImportDecision.
+type CreateSkillImportDecision struct {
+	Action CreateSkillImportDecisionAction `json:"action"`
+
+	// Name Immutable Skill resource name.
+	Name SkillName `json:"name"`
+}
+
+// CreateSkillImportDecisionAction defines model for CreateSkillImportDecision.Action.
+type CreateSkillImportDecisionAction string
 
 // CreateSkillRequest defines model for CreateSkillRequest.
 type CreateSkillRequest struct {
@@ -4444,6 +5558,283 @@ type GeminiProviderConfig struct {
 	BaseUrl *string `json:"base_url,omitempty"`
 }
 
+// GuardrailAgentSource defines model for GuardrailAgentSource.
+type GuardrailAgentSource struct {
+	Name        string `json:"name"`
+	WorkspaceId string `json:"workspace_id"`
+}
+
+// GuardrailAssignment defines model for GuardrailAssignment.
+type GuardrailAssignment = agentzv1alpha1.GuardrailAssignment
+
+// GuardrailCheck defines model for GuardrailCheck.
+type GuardrailCheck = agentzv1alpha1.GuardrailCheck
+
+// GuardrailConnection defines model for GuardrailConnection.
+type GuardrailConnection struct {
+	CanDelete             bool                        `json:"canDelete"`
+	CanModify             bool                        `json:"canModify"`
+	CredentialsConfigured bool                        `json:"credentialsConfigured"`
+	Description           string                      `json:"description"`
+	DisplayName           string                      `json:"displayName"`
+	Endpoint              string                      `json:"endpoint"`
+	Name                  string                      `json:"name"`
+	Provider              GuardrailConnectionProvider `json:"provider"`
+	Region                string                      `json:"region"`
+	Scope                 ResourceScope               `json:"scope"`
+	Status                GuardrailStatus             `json:"status"`
+}
+
+// GuardrailConnectionProvider defines model for GuardrailConnection.Provider.
+type GuardrailConnectionProvider string
+
+// GuardrailConnectionInput defines model for GuardrailConnectionInput.
+type GuardrailConnectionInput struct {
+	Credentials *GuardrailCredentials            `json:"credentials,omitempty"`
+	Description *string                          `json:"description,omitempty"`
+	DisplayName string                           `json:"displayName"`
+	Endpoint    *string                          `json:"endpoint,omitempty"`
+	Name        string                           `json:"name"`
+	Provider    GuardrailConnectionInputProvider `json:"provider"`
+	Region      *string                          `json:"region,omitempty"`
+}
+
+// GuardrailConnectionInputProvider defines model for GuardrailConnectionInput.Provider.
+type GuardrailConnectionInputProvider string
+
+// GuardrailContext defines model for GuardrailContext.
+type GuardrailContext struct {
+	CheckId      string                        `json:"checkId"`
+	CheckName    string                        `json:"checkName"`
+	Guard        string                        `json:"guard"`
+	MatchedScope *GuardrailContextMatchedScope `json:"matchedScope,omitempty"`
+	Message      string                        `json:"message"`
+	Phase        GuardrailContextPhase         `json:"phase"`
+	PolicyId     string                        `json:"policyId"`
+	PolicyName   string                        `json:"policyName"`
+	Reason       *GuardrailContextReason       `json:"reason,omitempty"`
+	Scopes       []GuardrailContextScopes      `json:"scopes"`
+}
+
+// GuardrailContextMatchedScope defines model for GuardrailContext.MatchedScope.
+type GuardrailContextMatchedScope string
+
+// GuardrailContextPhase defines model for GuardrailContext.Phase.
+type GuardrailContextPhase string
+
+// GuardrailContextReason defines model for GuardrailContext.Reason.
+type GuardrailContextReason string
+
+// GuardrailContextScopes defines model for GuardrailContext.Scopes.
+type GuardrailContextScopes string
+
+// GuardrailCredentials defines model for GuardrailCredentials.
+type GuardrailCredentials struct {
+	AccessKeyId *string `json:"accessKeyId,omitempty"`
+	ApiKey      *string `json:"apiKey,omitempty"`
+
+	// GoogleCredentialsJson ADC-compatible Google credential JSON.
+	GoogleCredentialsJson *string `json:"googleCredentialsJson,omitempty"`
+	SecretAccessKey       *string `json:"secretAccessKey,omitempty"`
+	SessionToken          *string `json:"sessionToken,omitempty"`
+	Token                 *string `json:"token,omitempty"`
+}
+
+// GuardrailDiscoveredResource defines model for GuardrailDiscoveredResource.
+type GuardrailDiscoveredResource struct {
+	Description *string `json:"description,omitempty"`
+	Id          string  `json:"id"`
+	Label       string  `json:"label"`
+}
+
+// GuardrailEffective defines model for GuardrailEffective.
+type GuardrailEffective struct {
+	Checks   []GuardrailEffectiveCheck `json:"checks"`
+	Revision string                    `json:"revision"`
+}
+
+// GuardrailEffectiveCheck defines model for GuardrailEffectiveCheck.
+type GuardrailEffectiveCheck struct {
+	Check      GuardrailCheck `json:"check"`
+	Mandatory  bool           `json:"mandatory"`
+	PolicyId   string         `json:"policyId"`
+	PolicyName string         `json:"policyName"`
+}
+
+// GuardrailEffectiveInput defines model for GuardrailEffectiveInput.
+type GuardrailEffectiveInput struct {
+	Assignment   GuardrailAssignment `json:"assignment"`
+	Sandbox      *string             `json:"sandbox,omitempty"`
+	SandboxScope *ResourceScope      `json:"sandboxScope,omitempty"`
+}
+
+// GuardrailError defines model for GuardrailError.
+type GuardrailError struct {
+	Code      GuardrailErrorCode `json:"code"`
+	Guardrail GuardrailContext   `json:"guardrail"`
+	Message   string             `json:"message"`
+	Param     *string            `json:"param"`
+	Type      GuardrailErrorType `json:"type"`
+}
+
+// GuardrailErrorCode defines model for GuardrailError.Code.
+type GuardrailErrorCode string
+
+// GuardrailErrorType defines model for GuardrailError.Type.
+type GuardrailErrorType string
+
+// GuardrailEvent defines model for GuardrailEvent.
+type GuardrailEvent struct {
+	AgentName      string                     `json:"agent_name"`
+	ClientId       string                     `json:"client_id"`
+	Evaluation     GuardrailRuntimeEvaluation `json:"evaluation"`
+	ExpiresAt      time.Time                  `json:"expires_at"`
+	Id             string                     `json:"id"`
+	Model          string                     `json:"model"`
+	OccurredAt     time.Time                  `json:"occurred_at"`
+	OrganizationId string                     `json:"organization_id"`
+
+	// RequestBody Complete JSON request captured before gateway checks. Returned only on event detail with authorized Lens access.
+	RequestBody *string `json:"request_body,omitempty"`
+	Revision    string  `json:"revision"`
+	SandboxName string  `json:"sandbox_name"`
+	SessionId   string  `json:"session_id"`
+	SpanId      string  `json:"span_id"`
+	SubjectName string  `json:"subject_name"`
+	TraceId     string  `json:"trace_id"`
+
+	// TraceSource Authorized Lens model operation correlated with this evaluation.
+	TraceSource *GuardrailTraceSource `json:"trace_source,omitempty"`
+	WorkspaceId string                `json:"workspace_id"`
+}
+
+// GuardrailEventChart defines model for GuardrailEventChart.
+type GuardrailEventChart struct {
+	BucketSeconds int64                      `json:"bucket_seconds"`
+	Points        []GuardrailEventChartPoint `json:"points"`
+	Total         int64                      `json:"total"`
+}
+
+// GuardrailEventChartPoint defines model for GuardrailEventChartPoint.
+type GuardrailEventChartPoint struct {
+	Count int64     `json:"count"`
+	Time  time.Time `json:"time"`
+}
+
+// GuardrailEventSources defines model for GuardrailEventSources.
+type GuardrailEventSources struct {
+	Agents []GuardrailAgentSource `json:"agents"`
+	Apps   []LensApp              `json:"apps"`
+}
+
+// GuardrailPolicy defines model for GuardrailPolicy.
+type GuardrailPolicy struct {
+	CanDelete   bool             `json:"canDelete"`
+	CanModify   bool             `json:"canModify"`
+	Checks      []GuardrailCheck `json:"checks"`
+	Description string           `json:"description"`
+	DisplayName string           `json:"displayName"`
+	Mandatory   bool             `json:"mandatory"`
+	Name        string           `json:"name"`
+	Scope       ResourceScope    `json:"scope"`
+	Status      GuardrailStatus  `json:"status"`
+}
+
+// GuardrailPolicyInput defines model for GuardrailPolicyInput.
+type GuardrailPolicyInput struct {
+	Checks      []GuardrailCheck `json:"checks"`
+	Description *string          `json:"description,omitempty"`
+	DisplayName string           `json:"displayName"`
+	Name        string           `json:"name"`
+}
+
+// GuardrailRegex defines model for GuardrailRegex.
+type GuardrailRegex = agentzv1alpha1.GuardrailRegex
+
+// GuardrailRejection defines model for GuardrailRejection.
+type GuardrailRejection struct {
+	Error GuardrailError `json:"error"`
+}
+
+// GuardrailResourceDiscovery defines model for GuardrailResourceDiscovery.
+type GuardrailResourceDiscovery struct {
+	Items         []GuardrailDiscoveredResource      `json:"items"`
+	Kind          GuardrailResourceDiscoveryKind     `json:"kind"`
+	NextPageToken *string                            `json:"nextPageToken,omitempty"`
+	Provider      GuardrailResourceDiscoveryProvider `json:"provider"`
+	Unreachable   *[]string                          `json:"unreachable,omitempty"`
+}
+
+// GuardrailResourceDiscoveryKind defines model for GuardrailResourceDiscovery.Kind.
+type GuardrailResourceDiscoveryKind string
+
+// GuardrailResourceDiscoveryProvider defines model for GuardrailResourceDiscovery.Provider.
+type GuardrailResourceDiscoveryProvider string
+
+// GuardrailResourceDiscoveryInput defines model for GuardrailResourceDiscoveryInput.
+type GuardrailResourceDiscoveryInput struct {
+	Kind      GuardrailResourceDiscoveryInputKind `json:"kind"`
+	PageSize  *int                                `json:"pageSize,omitempty"`
+	PageToken *string                             `json:"pageToken,omitempty"`
+
+	// Parent Guardrail ID or ARN for versions; projects/PROJECT for locations; projects/PROJECT/locations/LOCATION for templates. Omit for guardrails or projects.
+	Parent *string       `json:"parent,omitempty"`
+	Scope  ResourceScope `json:"scope"`
+}
+
+// GuardrailResourceDiscoveryInputKind defines model for GuardrailResourceDiscoveryInput.Kind.
+type GuardrailResourceDiscoveryInputKind string
+
+// GuardrailRuntimeEvaluation defines model for GuardrailRuntimeEvaluation.
+type GuardrailRuntimeEvaluation struct {
+	Action  GuardrailRuntimeEvaluationAction `json:"action"`
+	Context *GuardrailContext                `json:"context,omitempty"`
+
+	// Error Checker failure recorded for investigation. Never included in model-facing rejection details.
+	Error            *string                         `json:"error,omitempty"`
+	Guard            string                          `json:"guard"`
+	GuardrailId      *string                         `json:"guardrailId,omitempty"`
+	GuardrailVersion *string                         `json:"guardrailVersion,omitempty"`
+	Phase            GuardrailRuntimeEvaluationPhase `json:"phase"`
+}
+
+// GuardrailRuntimeEvaluationAction defines model for GuardrailRuntimeEvaluation.Action.
+type GuardrailRuntimeEvaluationAction string
+
+// GuardrailRuntimeEvaluationPhase defines model for GuardrailRuntimeEvaluation.Phase.
+type GuardrailRuntimeEvaluationPhase string
+
+// GuardrailSettings defines model for GuardrailSettings.
+type GuardrailSettings struct {
+	MandatoryPolicies []string `json:"mandatoryPolicies"`
+}
+
+// GuardrailStatus defines model for GuardrailStatus.
+type GuardrailStatus struct {
+	Message            string               `json:"message"`
+	ObservedGeneration int64                `json:"observedGeneration"`
+	Revision           string               `json:"revision"`
+	State              GuardrailStatusState `json:"state"`
+}
+
+// GuardrailStatusState defines model for GuardrailStatus.State.
+type GuardrailStatusState string
+
+// GuardrailTraceSource Authorized Lens model operation correlated with this evaluation.
+type GuardrailTraceSource struct {
+	AgentName   string `json:"agent_name"`
+	ClientId    string `json:"client_id"`
+	OperationId int64  `json:"operation_id"`
+	SessionId   string `json:"session_id"`
+
+	// SpanId Lowercase hexadecimal OTLP span ID.
+	SpanId SpanID `json:"span_id"`
+
+	// TraceId Lowercase hexadecimal OTLP trace ID.
+	TraceId     TraceID `json:"trace_id"`
+	WorkspaceId string  `json:"workspace_id"`
+}
+
 // ImmutableSkillImportPreviewItem defines model for ImmutableSkillImportPreviewItem.
 type ImmutableSkillImportPreviewItem struct {
 	Conflict bool `json:"conflict"`
@@ -4747,9 +6138,12 @@ type InferenceProviderWriteDiscriminator struct {
 
 // InheritedResourceConsumer defines model for InheritedResourceConsumer.
 type InheritedResourceConsumer struct {
-	Kind string `json:"kind"`
-	Name string `json:"name"`
+	Kind InheritedResourceConsumerKind `json:"kind"`
+	Name string                        `json:"name"`
 }
+
+// InheritedResourceConsumerKind defines model for InheritedResourceConsumer.Kind.
+type InheritedResourceConsumerKind string
 
 // InheritedResourceType defines model for InheritedResourceType.
 type InheritedResourceType string
@@ -4868,6 +6262,12 @@ type ListFileObservabilitySummaryResponse struct {
 	NextPageToken string                             `json:"next_page_token"`
 }
 
+// ListGuardrailEventsResponse defines model for ListGuardrailEventsResponse.
+type ListGuardrailEventsResponse struct {
+	Events     []GuardrailEvent `json:"events"`
+	NextCursor *string          `json:"next_cursor,omitempty"`
+}
+
 // ListImmutableSkillSummariesResponse defines model for ListImmutableSkillSummariesResponse.
 type ListImmutableSkillSummariesResponse struct {
 	NextPageToken string                  `json:"next_page_token"`
@@ -4958,6 +6358,12 @@ type ListSpansResponse struct {
 type ListTraceSessionsResponse struct {
 	NextPageToken string         `json:"next_page_token"`
 	TraceSessions []TraceSession `json:"trace_sessions"`
+}
+
+// ListTracesResponse defines model for ListTracesResponse.
+type ListTracesResponse struct {
+	NextPageToken string  `json:"next_page_token"`
+	Traces        []Trace `json:"traces"`
 }
 
 // ListWorkflowRunsResponse defines model for ListWorkflowRunsResponse.
@@ -5320,6 +6726,33 @@ type OpencodeAPIError struct {
 // OpencodeAPIErrorName defines model for OpencodeAPIError.Name.
 type OpencodeAPIErrorName string
 
+// OpencodeAgent defines model for OpencodeAgent.
+type OpencodeAgent struct {
+	Color       *string           `json:"color,omitempty"`
+	Description *string           `json:"description,omitempty"`
+	Hidden      *bool             `json:"hidden,omitempty"`
+	Mode        OpencodeAgentMode `json:"mode"`
+	Model       *struct {
+		ModelID    string `json:"modelID"`
+		ProviderID string `json:"providerID"`
+	} `json:"model,omitempty"`
+	Name        string                    `json:"name"`
+	Native      *bool                     `json:"native,omitempty"`
+	Options     map[string]interface{}    `json:"options"`
+	Permission  OpencodePermissionRuleset `json:"permission"`
+	Prompt      *string                   `json:"prompt,omitempty"`
+	Steps       *float32                  `json:"steps,omitempty"`
+	Temperature *float32                  `json:"temperature,omitempty"`
+	TopP        *float32                  `json:"topP,omitempty"`
+	Variant     *string                   `json:"variant,omitempty"`
+}
+
+// OpencodeAgentMode defines model for OpencodeAgent.Mode.
+type OpencodeAgentMode string
+
+// OpencodeAgentColor defines model for OpencodeAgentColor.
+type OpencodeAgentColor = string
+
 // OpencodeAgentConfig defines model for OpencodeAgentConfig.
 type OpencodeAgentConfig struct {
 	// Color Hex color code (e.g., #FF5733) or theme color (e.g., primary)
@@ -5376,6 +6809,33 @@ type OpencodeAgentPartInput struct {
 // OpencodeAgentPartInputType defines model for OpencodeAgentPartInput.Type.
 type OpencodeAgentPartInputType string
 
+// OpencodeAgentV2Info defines model for OpencodeAgentV2Info.
+type OpencodeAgentV2Info struct {
+	Color       *OpencodeAgentColor         `json:"color,omitempty"`
+	Description *string                     `json:"description,omitempty"`
+	Hidden      bool                        `json:"hidden"`
+	Id          string                      `json:"id"`
+	Mode        OpencodeAgentV2InfoMode     `json:"mode"`
+	Model       *OpencodeModelRef           `json:"model,omitempty"`
+	Permissions OpencodePermissionV2Ruleset `json:"permissions"`
+	Request     OpencodeProviderRequest     `json:"request"`
+	Steps       *int                        `json:"steps,omitempty"`
+	System      *string                     `json:"system,omitempty"`
+}
+
+// OpencodeAgentV2InfoMode defines model for OpencodeAgentV2Info.Mode.
+type OpencodeAgentV2InfoMode string
+
+// OpencodeApiAuth defines model for OpencodeApiAuth.
+type OpencodeApiAuth struct {
+	Key      string              `json:"key"`
+	Metadata *map[string]string  `json:"metadata,omitempty"`
+	Type     OpencodeApiAuthType `json:"type"`
+}
+
+// OpencodeApiAuthType defines model for OpencodeApiAuth.Type.
+type OpencodeApiAuthType string
+
 // OpencodeAssistantMessage defines model for OpencodeAssistantMessage.
 type OpencodeAssistantMessage struct {
 	Agent    string                          `json:"agent"`
@@ -5425,6 +6885,11 @@ type OpencodeAttachmentConfig struct {
 	Image *OpencodeImageAttachmentConfig `json:"image,omitempty"`
 }
 
+// OpencodeAuth defines model for OpencodeAuth.
+type OpencodeAuth struct {
+	union json.RawMessage
+}
+
 // OpencodeBadRequestError defines model for OpencodeBadRequestError.
 type OpencodeBadRequestError struct {
 	Data struct {
@@ -5439,6 +6904,70 @@ type OpencodeBadRequestErrorDataKind string
 
 // OpencodeBadRequestErrorName defines model for OpencodeBadRequestError.Name.
 type OpencodeBadRequestErrorName string
+
+// OpencodeCatalogUpdated defines model for OpencodeCatalogUpdated.
+type OpencodeCatalogUpdated struct {
+	Data    map[string]interface{} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                     `json:"id"`
+	Location *OpencodeLocationRef       `json:"location,omitempty"`
+	Metadata *map[string]interface{}    `json:"metadata,omitempty"`
+	Type     OpencodeCatalogUpdatedType `json:"type"`
+}
+
+// OpencodeCatalogUpdatedType defines model for OpencodeCatalogUpdated.Type.
+type OpencodeCatalogUpdatedType string
+
+// OpencodeCommand defines model for OpencodeCommand.
+type OpencodeCommand struct {
+	Agent       *string                `json:"agent,omitempty"`
+	Description *string                `json:"description,omitempty"`
+	Hints       []string               `json:"hints"`
+	Model       *string                `json:"model,omitempty"`
+	Name        string                 `json:"name"`
+	Source      *OpencodeCommandSource `json:"source,omitempty"`
+	Subtask     *bool                  `json:"subtask,omitempty"`
+	Template    string                 `json:"template"`
+}
+
+// OpencodeCommandSource defines model for OpencodeCommand.Source.
+type OpencodeCommandSource string
+
+// OpencodeCommandExecuted defines model for OpencodeCommandExecuted.
+type OpencodeCommandExecuted struct {
+	Data struct {
+		Arguments string `json:"arguments"`
+		MessageID string `json:"messageID"`
+		Name      string `json:"name"`
+		SessionID string `json:"sessionID"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                      `json:"id"`
+	Location *OpencodeLocationRef        `json:"location,omitempty"`
+	Metadata *map[string]interface{}     `json:"metadata,omitempty"`
+	Type     OpencodeCommandExecutedType `json:"type"`
+}
+
+// OpencodeCommandExecutedType defines model for OpencodeCommandExecuted.Type.
+type OpencodeCommandExecutedType string
+
+// OpencodeCommandV2Info defines model for OpencodeCommandV2Info.
+type OpencodeCommandV2Info struct {
+	Agent       *string           `json:"agent,omitempty"`
+	Description *string           `json:"description,omitempty"`
+	Model       *OpencodeModelRef `json:"model,omitempty"`
+	Name        string            `json:"name"`
+	Subtask     *bool             `json:"subtask,omitempty"`
+	Template    string            `json:"template"`
+}
 
 // OpencodeCompactionPart defines model for OpencodeCompactionPart.
 type OpencodeCompactionPart struct {
@@ -5691,6 +7220,37 @@ type OpencodeConflictError struct {
 // OpencodeConflictErrorTag defines model for OpencodeConflictError.Tag.
 type OpencodeConflictErrorTag string
 
+// OpencodeConnectionCredentialInfo defines model for OpencodeConnectionCredentialInfo.
+type OpencodeConnectionCredentialInfo struct {
+	Id    string                               `json:"id"`
+	Label string                               `json:"label"`
+	Type  OpencodeConnectionCredentialInfoType `json:"type"`
+}
+
+// OpencodeConnectionCredentialInfoType defines model for OpencodeConnectionCredentialInfo.Type.
+type OpencodeConnectionCredentialInfoType string
+
+// OpencodeConnectionEnvInfo defines model for OpencodeConnectionEnvInfo.
+type OpencodeConnectionEnvInfo struct {
+	Name string                        `json:"name"`
+	Type OpencodeConnectionEnvInfoType `json:"type"`
+}
+
+// OpencodeConnectionEnvInfoType defines model for OpencodeConnectionEnvInfo.Type.
+type OpencodeConnectionEnvInfoType string
+
+// OpencodeConnectionInfo defines model for OpencodeConnectionInfo.
+type OpencodeConnectionInfo struct {
+	union json.RawMessage
+}
+
+// OpencodeConsoleState defines model for OpencodeConsoleState.
+type OpencodeConsoleState struct {
+	ActiveOrgName           *string  `json:"activeOrgName,omitempty"`
+	ConsoleManagedProviders []string `json:"consoleManagedProviders"`
+	SwitchableOrgCount      int      `json:"switchableOrgCount"`
+}
+
 // OpencodeContentFilterError defines model for OpencodeContentFilterError.
 type OpencodeContentFilterError struct {
 	Data struct {
@@ -5713,6 +7273,34 @@ type OpencodeContextOverflowError struct {
 
 // OpencodeContextOverflowErrorName defines model for OpencodeContextOverflowError.Name.
 type OpencodeContextOverflowErrorName string
+
+// OpencodeCredentialKey defines model for OpencodeCredentialKey.
+type OpencodeCredentialKey struct {
+	Key      string                    `json:"key"`
+	Metadata *map[string]interface{}   `json:"metadata,omitempty"`
+	Type     OpencodeCredentialKeyType `json:"type"`
+}
+
+// OpencodeCredentialKeyType defines model for OpencodeCredentialKey.Type.
+type OpencodeCredentialKeyType string
+
+// OpencodeCredentialOAuth defines model for OpencodeCredentialOAuth.
+type OpencodeCredentialOAuth struct {
+	Access   string                      `json:"access"`
+	Expires  int                         `json:"expires"`
+	Metadata *map[string]interface{}     `json:"metadata,omitempty"`
+	MethodID string                      `json:"methodID"`
+	Refresh  string                      `json:"refresh"`
+	Type     OpencodeCredentialOAuthType `json:"type"`
+}
+
+// OpencodeCredentialOAuthType defines model for OpencodeCredentialOAuth.Type.
+type OpencodeCredentialOAuthType string
+
+// OpencodeCredentialValue defines model for OpencodeCredentialValue.
+type OpencodeCredentialValue struct {
+	union json.RawMessage
+}
 
 // OpencodeEvent defines model for OpencodeEvent.
 type OpencodeEvent struct {
@@ -6938,6 +8526,42 @@ type OpencodeEventTodoUpdated struct {
 // OpencodeEventTodoUpdatedType defines model for OpencodeEventTodoUpdated.Type.
 type OpencodeEventTodoUpdatedType string
 
+// OpencodeTUICommandExecuteEvent defines model for OpencodeEventTuiCommandExecute.
+type OpencodeTUICommandExecuteEvent struct {
+	Properties struct {
+		Command string `json:"command"`
+	} `json:"properties"`
+	Type OpencodeEventTuiCommandExecuteType `json:"type"`
+}
+
+// OpencodeTUIPromptAppendEvent defines model for OpencodeEventTuiPromptAppend.
+type OpencodeTUIPromptAppendEvent struct {
+	Properties struct {
+		Text string `json:"text"`
+	} `json:"properties"`
+	Type OpencodeEventTuiPromptAppendType `json:"type"`
+}
+
+// OpencodeTUISessionSelectEvent defines model for OpencodeEventTuiSessionSelect.
+type OpencodeTUISessionSelectEvent struct {
+	Properties struct {
+		// SessionID Session ID to navigate to
+		SessionID string `json:"sessionID"`
+	} `json:"properties"`
+	Type OpencodeEventTuiSessionSelectType `json:"type"`
+}
+
+// OpencodeTUIToastShowEvent defines model for OpencodeEventTuiToastShow.
+type OpencodeTUIToastShowEvent struct {
+	Properties struct {
+		Duration *int                                       `json:"duration,omitempty"`
+		Message  string                                     `json:"message"`
+		Title    *string                                    `json:"title,omitempty"`
+		Variant  OpencodeEventTuiToastShowPropertiesVariant `json:"variant"`
+	} `json:"properties"`
+	Type OpencodeEventTuiToastShowType `json:"type"`
+}
+
 // OpencodeEventVcsBranchUpdated defines model for OpencodeEventVcsBranchUpdated.
 type OpencodeEventVcsBranchUpdated struct {
 	Id         string `json:"id"`
@@ -7015,6 +8639,51 @@ type OpencodeEventWorktreeReady struct {
 // OpencodeEventWorktreeReadyType defines model for OpencodeEventWorktreeReady.Type.
 type OpencodeEventWorktreeReadyType string
 
+// OpencodeExperimentalCapabilities defines model for OpencodeExperimentalCapabilities.
+type OpencodeExperimentalCapabilities struct {
+	BackgroundSubagents bool `json:"backgroundSubagents"`
+}
+
+// OpencodeFile defines model for OpencodeFile.
+type OpencodeFile struct {
+	Added   int                `json:"added"`
+	Path    string             `json:"path"`
+	Removed int                `json:"removed"`
+	Status  OpencodeFileStatus `json:"status"`
+}
+
+// OpencodeFileStatus defines model for OpencodeFile.Status.
+type OpencodeFileStatus string
+
+// OpencodeFileContent defines model for OpencodeFileContent.
+type OpencodeFileContent struct {
+	Content  string                       `json:"content"`
+	Diff     *string                      `json:"diff,omitempty"`
+	Encoding *OpencodeFileContentEncoding `json:"encoding,omitempty"`
+	MimeType *string                      `json:"mimeType,omitempty"`
+	Patch    *struct {
+		Hunks []struct {
+			Lines    []string `json:"lines"`
+			NewLines int      `json:"newLines"`
+			NewStart int      `json:"newStart"`
+			OldLines int      `json:"oldLines"`
+			OldStart int      `json:"oldStart"`
+		} `json:"hunks"`
+		Index       *string `json:"index,omitempty"`
+		NewFileName string  `json:"newFileName"`
+		NewHeader   *string `json:"newHeader,omitempty"`
+		OldFileName string  `json:"oldFileName"`
+		OldHeader   *string `json:"oldHeader,omitempty"`
+	} `json:"patch,omitempty"`
+	Type OpencodeFileContentType `json:"type"`
+}
+
+// OpencodeFileContentEncoding defines model for OpencodeFileContent.Encoding.
+type OpencodeFileContentEncoding string
+
+// OpencodeFileContentType defines model for OpencodeFileContent.Type.
+type OpencodeFileContentType string
+
 // OpencodeFileDiff defines model for OpencodeFileDiff.
 type OpencodeFileDiff struct {
 	Additions int                    `json:"additions"`
@@ -7026,6 +8695,37 @@ type OpencodeFileDiff struct {
 
 // OpencodeFileDiffStatus defines model for OpencodeFileDiff.Status.
 type OpencodeFileDiffStatus string
+
+// OpencodeFileEdited defines model for OpencodeFileEdited.
+type OpencodeFileEdited struct {
+	Data struct {
+		File string `json:"file"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                  `json:"id"`
+	Location *OpencodeLocationRef    `json:"location,omitempty"`
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+	Type     OpencodeFileEditedType  `json:"type"`
+}
+
+// OpencodeFileEditedType defines model for OpencodeFileEdited.Type.
+type OpencodeFileEditedType string
+
+// OpencodeFileNode defines model for OpencodeFileNode.
+type OpencodeFileNode struct {
+	Absolute string               `json:"absolute"`
+	Ignored  bool                 `json:"ignored"`
+	Name     string               `json:"name"`
+	Path     string               `json:"path"`
+	Type     OpencodeFileNodeType `json:"type"`
+}
+
+// OpencodeFileNodeType defines model for OpencodeFileNode.Type.
+type OpencodeFileNodeType string
 
 // OpencodeFilePart defines model for OpencodeFilePart.
 type OpencodeFilePart struct {
@@ -7077,6 +8777,38 @@ type OpencodeFileSource struct {
 // OpencodeFileSourceType defines model for OpencodeFileSource.Type.
 type OpencodeFileSourceType string
 
+// OpencodeFileSystemEntry defines model for OpencodeFileSystemEntry.
+type OpencodeFileSystemEntry struct {
+	Path string                      `json:"path"`
+	Type OpencodeFileSystemEntryType `json:"type"`
+}
+
+// OpencodeFileSystemEntryType defines model for OpencodeFileSystemEntry.Type.
+type OpencodeFileSystemEntryType string
+
+// OpencodeFileWatcherUpdated defines model for OpencodeFileWatcherUpdated.
+type OpencodeFileWatcherUpdated struct {
+	Data struct {
+		Event OpencodeFileWatcherUpdatedDataEvent `json:"event"`
+		File  string                              `json:"file"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                         `json:"id"`
+	Location *OpencodeLocationRef           `json:"location,omitempty"`
+	Metadata *map[string]interface{}        `json:"metadata,omitempty"`
+	Type     OpencodeFileWatcherUpdatedType `json:"type"`
+}
+
+// OpencodeFileWatcherUpdatedDataEvent defines model for OpencodeFileWatcherUpdated.Data.Event.
+type OpencodeFileWatcherUpdatedDataEvent string
+
+// OpencodeFileWatcherUpdatedType defines model for OpencodeFileWatcherUpdated.Type.
+type OpencodeFileWatcherUpdatedType string
+
 // OpencodeForbiddenError defines model for OpencodeForbiddenError.
 type OpencodeForbiddenError struct {
 	UnderscoreTag OpencodeForbiddenErrorTag `json:"_tag"`
@@ -7085,6 +8817,30 @@ type OpencodeForbiddenError struct {
 
 // OpencodeForbiddenErrorTag defines model for OpencodeForbiddenError.Tag.
 type OpencodeForbiddenErrorTag string
+
+// OpencodeFormatterStatus defines model for OpencodeFormatterStatus.
+type OpencodeFormatterStatus struct {
+	Enabled    bool     `json:"enabled"`
+	Extensions []string `json:"extensions"`
+	Name       string   `json:"name"`
+}
+
+// OpencodeGlobalDisposed defines model for OpencodeGlobalDisposed.
+type OpencodeGlobalDisposed struct {
+	Data    map[string]interface{} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                     `json:"id"`
+	Location *OpencodeLocationRef       `json:"location,omitempty"`
+	Metadata *map[string]interface{}    `json:"metadata,omitempty"`
+	Type     OpencodeGlobalDisposedType `json:"type"`
+}
+
+// OpencodeGlobalDisposedType defines model for OpencodeGlobalDisposed.Type.
+type OpencodeGlobalDisposedType string
 
 // OpencodeGlobalEvent defines model for OpencodeGlobalEvent.
 type OpencodeGlobalEvent struct {
@@ -8383,6 +10139,59 @@ type OpencodeGlobalEvent_Payload struct {
 	union json.RawMessage
 }
 
+// OpencodeGlobalSession defines model for OpencodeGlobalSession.
+type OpencodeGlobalSession struct {
+	Agent     *string                 `json:"agent,omitempty"`
+	Cost      *float32                `json:"cost,omitempty"`
+	Directory string                  `json:"directory"`
+	Id        string                  `json:"id"`
+	Metadata  *map[string]interface{} `json:"metadata,omitempty"`
+	Model     *struct {
+		Id         string  `json:"id"`
+		ProviderID string  `json:"providerID"`
+		Variant    *string `json:"variant,omitempty"`
+	} `json:"model,omitempty"`
+	ParentID   *string                    `json:"parentID,omitempty"`
+	Path       *string                    `json:"path,omitempty"`
+	Permission *OpencodePermissionRuleset `json:"permission,omitempty"`
+	Project    OpencodeProjectSummary     `json:"project"`
+	ProjectID  string                     `json:"projectID"`
+	Revert     *struct {
+		Diff      *string `json:"diff,omitempty"`
+		MessageID string  `json:"messageID"`
+		PartID    *string `json:"partID,omitempty"`
+		Snapshot  *string `json:"snapshot,omitempty"`
+	} `json:"revert,omitempty"`
+	Share *struct {
+		Url string `json:"url"`
+	} `json:"share,omitempty"`
+	Slug    string `json:"slug"`
+	Summary *struct {
+		Additions float32                     `json:"additions"`
+		Deletions float32                     `json:"deletions"`
+		Diffs     *[]OpencodeSnapshotFileDiff `json:"diffs,omitempty"`
+		Files     float32                     `json:"files"`
+	} `json:"summary,omitempty"`
+	Time struct {
+		Archived   *float32 `json:"archived,omitempty"`
+		Compacting *int     `json:"compacting,omitempty"`
+		Created    int      `json:"created"`
+		Updated    int      `json:"updated"`
+	} `json:"time"`
+	Title  string `json:"title"`
+	Tokens *struct {
+		Cache struct {
+			Read  float32 `json:"read"`
+			Write float32 `json:"write"`
+		} `json:"cache"`
+		Input     float32 `json:"input"`
+		Output    float32 `json:"output"`
+		Reasoning float32 `json:"reasoning"`
+	} `json:"tokens,omitempty"`
+	Version     string  `json:"version"`
+	WorkspaceID *string `json:"workspaceID,omitempty"`
+}
+
 // OpencodeImageAttachmentConfig defines model for OpencodeImageAttachmentConfig.
 type OpencodeImageAttachmentConfig struct {
 	AutoResize     *bool `json:"auto_resize,omitempty"`
@@ -8390,6 +10199,443 @@ type OpencodeImageAttachmentConfig struct {
 	MaxHeight      *int  `json:"max_height,omitempty"`
 	MaxWidth       *int  `json:"max_width,omitempty"`
 }
+
+// OpencodeInstallationUpdateAvailable defines model for OpencodeInstallationUpdate-available.
+type OpencodeInstallationUpdateAvailable struct {
+	Data struct {
+		Version string `json:"version"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                                  `json:"id"`
+	Location *OpencodeLocationRef                    `json:"location,omitempty"`
+	Metadata *map[string]interface{}                 `json:"metadata,omitempty"`
+	Type     OpencodeInstallationUpdateAvailableType `json:"type"`
+}
+
+// OpencodeInstallationUpdateAvailableType defines model for OpencodeInstallationUpdateAvailable.Type.
+type OpencodeInstallationUpdateAvailableType string
+
+// OpencodeInstallationUpdated defines model for OpencodeInstallationUpdated.
+type OpencodeInstallationUpdated struct {
+	Data struct {
+		Version string `json:"version"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                          `json:"id"`
+	Location *OpencodeLocationRef            `json:"location,omitempty"`
+	Metadata *map[string]interface{}         `json:"metadata,omitempty"`
+	Type     OpencodeInstallationUpdatedType `json:"type"`
+}
+
+// OpencodeInstallationUpdatedType defines model for OpencodeInstallationUpdated.Type.
+type OpencodeInstallationUpdatedType string
+
+// OpencodeIntegrationAttempt defines model for OpencodeIntegrationAttempt.
+type OpencodeIntegrationAttempt struct {
+	AttemptID    string                         `json:"attemptID"`
+	Instructions string                         `json:"instructions"`
+	Mode         OpencodeIntegrationAttemptMode `json:"mode"`
+	Time         struct {
+		Created OpencodeIntegrationAttempt_Time_Created `json:"created"`
+		Expires OpencodeIntegrationAttempt_Time_Expires `json:"expires"`
+	} `json:"time"`
+	Url string `json:"url"`
+}
+
+// OpencodeIntegrationAttemptMode defines model for OpencodeIntegrationAttempt.Mode.
+type OpencodeIntegrationAttemptMode string
+
+// OpencodeIntegrationAttemptTimeCreated0 defines model for .
+type OpencodeIntegrationAttemptTimeCreated0 = float32
+
+// OpencodeIntegrationAttemptTimeCreated1 defines model for OpencodeIntegrationAttempt.Time.Created.1.
+type OpencodeIntegrationAttemptTimeCreated1 string
+
+// OpencodeIntegrationAttemptTimeCreated2 defines model for OpencodeIntegrationAttempt.Time.Created.2.
+type OpencodeIntegrationAttemptTimeCreated2 string
+
+// OpencodeIntegrationAttemptTimeCreated3 defines model for OpencodeIntegrationAttempt.Time.Created.3.
+type OpencodeIntegrationAttemptTimeCreated3 string
+
+// OpencodeIntegrationAttemptTimeCreated4 defines model for OpencodeIntegrationAttempt.Time.Created.4.
+type OpencodeIntegrationAttemptTimeCreated4 string
+
+// OpencodeIntegrationAttempt_Time_Created defines model for OpencodeIntegrationAttempt.Time.Created.
+type OpencodeIntegrationAttempt_Time_Created struct {
+	union json.RawMessage
+}
+
+// OpencodeIntegrationAttemptTimeExpires0 defines model for .
+type OpencodeIntegrationAttemptTimeExpires0 = float32
+
+// OpencodeIntegrationAttemptTimeExpires1 defines model for OpencodeIntegrationAttempt.Time.Expires.1.
+type OpencodeIntegrationAttemptTimeExpires1 string
+
+// OpencodeIntegrationAttemptTimeExpires2 defines model for OpencodeIntegrationAttempt.Time.Expires.2.
+type OpencodeIntegrationAttemptTimeExpires2 string
+
+// OpencodeIntegrationAttemptTimeExpires3 defines model for OpencodeIntegrationAttempt.Time.Expires.3.
+type OpencodeIntegrationAttemptTimeExpires3 string
+
+// OpencodeIntegrationAttemptTimeExpires4 defines model for OpencodeIntegrationAttempt.Time.Expires.4.
+type OpencodeIntegrationAttemptTimeExpires4 string
+
+// OpencodeIntegrationAttempt_Time_Expires defines model for OpencodeIntegrationAttempt.Time.Expires.
+type OpencodeIntegrationAttempt_Time_Expires struct {
+	union json.RawMessage
+}
+
+// OpencodeIntegrationAttemptStatus defines model for OpencodeIntegrationAttemptStatus.
+type OpencodeIntegrationAttemptStatus struct {
+	union json.RawMessage
+}
+
+// OpencodeIntegrationAttemptStatus0 defines model for .
+type OpencodeIntegrationAttemptStatus0 struct {
+	Status OpencodeIntegrationAttemptStatus0Status `json:"status"`
+	Time   struct {
+		Created OpencodeIntegrationAttemptStatus_0_Time_Created `json:"created"`
+		Expires OpencodeIntegrationAttemptStatus_0_Time_Expires `json:"expires"`
+	} `json:"time"`
+}
+
+// OpencodeIntegrationAttemptStatus0Status defines model for OpencodeIntegrationAttemptStatus.0.Status.
+type OpencodeIntegrationAttemptStatus0Status string
+
+// OpencodeIntegrationAttemptStatus0TimeCreated0 defines model for .
+type OpencodeIntegrationAttemptStatus0TimeCreated0 = float32
+
+// OpencodeIntegrationAttemptStatus0TimeCreated1 defines model for OpencodeIntegrationAttemptStatus.0.Time.Created.1.
+type OpencodeIntegrationAttemptStatus0TimeCreated1 string
+
+// OpencodeIntegrationAttemptStatus0TimeCreated2 defines model for OpencodeIntegrationAttemptStatus.0.Time.Created.2.
+type OpencodeIntegrationAttemptStatus0TimeCreated2 string
+
+// OpencodeIntegrationAttemptStatus0TimeCreated3 defines model for OpencodeIntegrationAttemptStatus.0.Time.Created.3.
+type OpencodeIntegrationAttemptStatus0TimeCreated3 string
+
+// OpencodeIntegrationAttemptStatus0TimeCreated4 defines model for OpencodeIntegrationAttemptStatus.0.Time.Created.4.
+type OpencodeIntegrationAttemptStatus0TimeCreated4 string
+
+// OpencodeIntegrationAttemptStatus_0_Time_Created defines model for OpencodeIntegrationAttemptStatus.0.Time.Created.
+type OpencodeIntegrationAttemptStatus_0_Time_Created struct {
+	union json.RawMessage
+}
+
+// OpencodeIntegrationAttemptStatus0TimeExpires0 defines model for .
+type OpencodeIntegrationAttemptStatus0TimeExpires0 = float32
+
+// OpencodeIntegrationAttemptStatus0TimeExpires1 defines model for OpencodeIntegrationAttemptStatus.0.Time.Expires.1.
+type OpencodeIntegrationAttemptStatus0TimeExpires1 string
+
+// OpencodeIntegrationAttemptStatus0TimeExpires2 defines model for OpencodeIntegrationAttemptStatus.0.Time.Expires.2.
+type OpencodeIntegrationAttemptStatus0TimeExpires2 string
+
+// OpencodeIntegrationAttemptStatus0TimeExpires3 defines model for OpencodeIntegrationAttemptStatus.0.Time.Expires.3.
+type OpencodeIntegrationAttemptStatus0TimeExpires3 string
+
+// OpencodeIntegrationAttemptStatus0TimeExpires4 defines model for OpencodeIntegrationAttemptStatus.0.Time.Expires.4.
+type OpencodeIntegrationAttemptStatus0TimeExpires4 string
+
+// OpencodeIntegrationAttemptStatus_0_Time_Expires defines model for OpencodeIntegrationAttemptStatus.0.Time.Expires.
+type OpencodeIntegrationAttemptStatus_0_Time_Expires struct {
+	union json.RawMessage
+}
+
+// OpencodeIntegrationAttemptStatus1 defines model for .
+type OpencodeIntegrationAttemptStatus1 struct {
+	Status OpencodeIntegrationAttemptStatus1Status `json:"status"`
+	Time   struct {
+		Created OpencodeIntegrationAttemptStatus_1_Time_Created `json:"created"`
+		Expires OpencodeIntegrationAttemptStatus_1_Time_Expires `json:"expires"`
+	} `json:"time"`
+}
+
+// OpencodeIntegrationAttemptStatus1Status defines model for OpencodeIntegrationAttemptStatus.1.Status.
+type OpencodeIntegrationAttemptStatus1Status string
+
+// OpencodeIntegrationAttemptStatus1TimeCreated0 defines model for .
+type OpencodeIntegrationAttemptStatus1TimeCreated0 = float32
+
+// OpencodeIntegrationAttemptStatus1TimeCreated1 defines model for OpencodeIntegrationAttemptStatus.1.Time.Created.1.
+type OpencodeIntegrationAttemptStatus1TimeCreated1 string
+
+// OpencodeIntegrationAttemptStatus1TimeCreated2 defines model for OpencodeIntegrationAttemptStatus.1.Time.Created.2.
+type OpencodeIntegrationAttemptStatus1TimeCreated2 string
+
+// OpencodeIntegrationAttemptStatus1TimeCreated3 defines model for OpencodeIntegrationAttemptStatus.1.Time.Created.3.
+type OpencodeIntegrationAttemptStatus1TimeCreated3 string
+
+// OpencodeIntegrationAttemptStatus1TimeCreated4 defines model for OpencodeIntegrationAttemptStatus.1.Time.Created.4.
+type OpencodeIntegrationAttemptStatus1TimeCreated4 string
+
+// OpencodeIntegrationAttemptStatus_1_Time_Created defines model for OpencodeIntegrationAttemptStatus.1.Time.Created.
+type OpencodeIntegrationAttemptStatus_1_Time_Created struct {
+	union json.RawMessage
+}
+
+// OpencodeIntegrationAttemptStatus1TimeExpires0 defines model for .
+type OpencodeIntegrationAttemptStatus1TimeExpires0 = float32
+
+// OpencodeIntegrationAttemptStatus1TimeExpires1 defines model for OpencodeIntegrationAttemptStatus.1.Time.Expires.1.
+type OpencodeIntegrationAttemptStatus1TimeExpires1 string
+
+// OpencodeIntegrationAttemptStatus1TimeExpires2 defines model for OpencodeIntegrationAttemptStatus.1.Time.Expires.2.
+type OpencodeIntegrationAttemptStatus1TimeExpires2 string
+
+// OpencodeIntegrationAttemptStatus1TimeExpires3 defines model for OpencodeIntegrationAttemptStatus.1.Time.Expires.3.
+type OpencodeIntegrationAttemptStatus1TimeExpires3 string
+
+// OpencodeIntegrationAttemptStatus1TimeExpires4 defines model for OpencodeIntegrationAttemptStatus.1.Time.Expires.4.
+type OpencodeIntegrationAttemptStatus1TimeExpires4 string
+
+// OpencodeIntegrationAttemptStatus_1_Time_Expires defines model for OpencodeIntegrationAttemptStatus.1.Time.Expires.
+type OpencodeIntegrationAttemptStatus_1_Time_Expires struct {
+	union json.RawMessage
+}
+
+// OpencodeIntegrationAttemptStatus2 defines model for .
+type OpencodeIntegrationAttemptStatus2 struct {
+	Message string                                  `json:"message"`
+	Status  OpencodeIntegrationAttemptStatus2Status `json:"status"`
+	Time    struct {
+		Created OpencodeIntegrationAttemptStatus_2_Time_Created `json:"created"`
+		Expires OpencodeIntegrationAttemptStatus_2_Time_Expires `json:"expires"`
+	} `json:"time"`
+}
+
+// OpencodeIntegrationAttemptStatus2Status defines model for OpencodeIntegrationAttemptStatus.2.Status.
+type OpencodeIntegrationAttemptStatus2Status string
+
+// OpencodeIntegrationAttemptStatus2TimeCreated0 defines model for .
+type OpencodeIntegrationAttemptStatus2TimeCreated0 = float32
+
+// OpencodeIntegrationAttemptStatus2TimeCreated1 defines model for OpencodeIntegrationAttemptStatus.2.Time.Created.1.
+type OpencodeIntegrationAttemptStatus2TimeCreated1 string
+
+// OpencodeIntegrationAttemptStatus2TimeCreated2 defines model for OpencodeIntegrationAttemptStatus.2.Time.Created.2.
+type OpencodeIntegrationAttemptStatus2TimeCreated2 string
+
+// OpencodeIntegrationAttemptStatus2TimeCreated3 defines model for OpencodeIntegrationAttemptStatus.2.Time.Created.3.
+type OpencodeIntegrationAttemptStatus2TimeCreated3 string
+
+// OpencodeIntegrationAttemptStatus2TimeCreated4 defines model for OpencodeIntegrationAttemptStatus.2.Time.Created.4.
+type OpencodeIntegrationAttemptStatus2TimeCreated4 string
+
+// OpencodeIntegrationAttemptStatus_2_Time_Created defines model for OpencodeIntegrationAttemptStatus.2.Time.Created.
+type OpencodeIntegrationAttemptStatus_2_Time_Created struct {
+	union json.RawMessage
+}
+
+// OpencodeIntegrationAttemptStatus2TimeExpires0 defines model for .
+type OpencodeIntegrationAttemptStatus2TimeExpires0 = float32
+
+// OpencodeIntegrationAttemptStatus2TimeExpires1 defines model for OpencodeIntegrationAttemptStatus.2.Time.Expires.1.
+type OpencodeIntegrationAttemptStatus2TimeExpires1 string
+
+// OpencodeIntegrationAttemptStatus2TimeExpires2 defines model for OpencodeIntegrationAttemptStatus.2.Time.Expires.2.
+type OpencodeIntegrationAttemptStatus2TimeExpires2 string
+
+// OpencodeIntegrationAttemptStatus2TimeExpires3 defines model for OpencodeIntegrationAttemptStatus.2.Time.Expires.3.
+type OpencodeIntegrationAttemptStatus2TimeExpires3 string
+
+// OpencodeIntegrationAttemptStatus2TimeExpires4 defines model for OpencodeIntegrationAttemptStatus.2.Time.Expires.4.
+type OpencodeIntegrationAttemptStatus2TimeExpires4 string
+
+// OpencodeIntegrationAttemptStatus_2_Time_Expires defines model for OpencodeIntegrationAttemptStatus.2.Time.Expires.
+type OpencodeIntegrationAttemptStatus_2_Time_Expires struct {
+	union json.RawMessage
+}
+
+// OpencodeIntegrationAttemptStatus3 defines model for .
+type OpencodeIntegrationAttemptStatus3 struct {
+	Status OpencodeIntegrationAttemptStatus3Status `json:"status"`
+	Time   struct {
+		Created OpencodeIntegrationAttemptStatus_3_Time_Created `json:"created"`
+		Expires OpencodeIntegrationAttemptStatus_3_Time_Expires `json:"expires"`
+	} `json:"time"`
+}
+
+// OpencodeIntegrationAttemptStatus3Status defines model for OpencodeIntegrationAttemptStatus.3.Status.
+type OpencodeIntegrationAttemptStatus3Status string
+
+// OpencodeIntegrationAttemptStatus3TimeCreated0 defines model for .
+type OpencodeIntegrationAttemptStatus3TimeCreated0 = float32
+
+// OpencodeIntegrationAttemptStatus3TimeCreated1 defines model for OpencodeIntegrationAttemptStatus.3.Time.Created.1.
+type OpencodeIntegrationAttemptStatus3TimeCreated1 string
+
+// OpencodeIntegrationAttemptStatus3TimeCreated2 defines model for OpencodeIntegrationAttemptStatus.3.Time.Created.2.
+type OpencodeIntegrationAttemptStatus3TimeCreated2 string
+
+// OpencodeIntegrationAttemptStatus3TimeCreated3 defines model for OpencodeIntegrationAttemptStatus.3.Time.Created.3.
+type OpencodeIntegrationAttemptStatus3TimeCreated3 string
+
+// OpencodeIntegrationAttemptStatus3TimeCreated4 defines model for OpencodeIntegrationAttemptStatus.3.Time.Created.4.
+type OpencodeIntegrationAttemptStatus3TimeCreated4 string
+
+// OpencodeIntegrationAttemptStatus_3_Time_Created defines model for OpencodeIntegrationAttemptStatus.3.Time.Created.
+type OpencodeIntegrationAttemptStatus_3_Time_Created struct {
+	union json.RawMessage
+}
+
+// OpencodeIntegrationAttemptStatus3TimeExpires0 defines model for .
+type OpencodeIntegrationAttemptStatus3TimeExpires0 = float32
+
+// OpencodeIntegrationAttemptStatus3TimeExpires1 defines model for OpencodeIntegrationAttemptStatus.3.Time.Expires.1.
+type OpencodeIntegrationAttemptStatus3TimeExpires1 string
+
+// OpencodeIntegrationAttemptStatus3TimeExpires2 defines model for OpencodeIntegrationAttemptStatus.3.Time.Expires.2.
+type OpencodeIntegrationAttemptStatus3TimeExpires2 string
+
+// OpencodeIntegrationAttemptStatus3TimeExpires3 defines model for OpencodeIntegrationAttemptStatus.3.Time.Expires.3.
+type OpencodeIntegrationAttemptStatus3TimeExpires3 string
+
+// OpencodeIntegrationAttemptStatus3TimeExpires4 defines model for OpencodeIntegrationAttemptStatus.3.Time.Expires.4.
+type OpencodeIntegrationAttemptStatus3TimeExpires4 string
+
+// OpencodeIntegrationAttemptStatus_3_Time_Expires defines model for OpencodeIntegrationAttemptStatus.3.Time.Expires.
+type OpencodeIntegrationAttemptStatus_3_Time_Expires struct {
+	union json.RawMessage
+}
+
+// OpencodeIntegrationConnectionUpdated defines model for OpencodeIntegrationConnectionUpdated.
+type OpencodeIntegrationConnectionUpdated struct {
+	Data struct {
+		IntegrationID string `json:"integrationID"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                                   `json:"id"`
+	Location *OpencodeLocationRef                     `json:"location,omitempty"`
+	Metadata *map[string]interface{}                  `json:"metadata,omitempty"`
+	Type     OpencodeIntegrationConnectionUpdatedType `json:"type"`
+}
+
+// OpencodeIntegrationConnectionUpdatedType defines model for OpencodeIntegrationConnectionUpdated.Type.
+type OpencodeIntegrationConnectionUpdatedType string
+
+// OpencodeIntegrationEnvMethod defines model for OpencodeIntegrationEnvMethod.
+type OpencodeIntegrationEnvMethod struct {
+	Names []string                         `json:"names"`
+	Type  OpencodeIntegrationEnvMethodType `json:"type"`
+}
+
+// OpencodeIntegrationEnvMethodType defines model for OpencodeIntegrationEnvMethod.Type.
+type OpencodeIntegrationEnvMethodType string
+
+// OpencodeIntegrationInfo defines model for OpencodeIntegrationInfo.
+type OpencodeIntegrationInfo struct {
+	Connections []OpencodeConnectionInfo    `json:"connections"`
+	Id          string                      `json:"id"`
+	Methods     []OpencodeIntegrationMethod `json:"methods"`
+	Name        string                      `json:"name"`
+}
+
+// OpencodeIntegrationInputs defines model for OpencodeIntegrationInputs.
+type OpencodeIntegrationInputs map[string]string
+
+// OpencodeIntegrationKeyMethod defines model for OpencodeIntegrationKeyMethod.
+type OpencodeIntegrationKeyMethod struct {
+	Label *string                          `json:"label,omitempty"`
+	Type  OpencodeIntegrationKeyMethodType `json:"type"`
+}
+
+// OpencodeIntegrationKeyMethodType defines model for OpencodeIntegrationKeyMethod.Type.
+type OpencodeIntegrationKeyMethodType string
+
+// OpencodeIntegrationMethod defines model for OpencodeIntegrationMethod.
+type OpencodeIntegrationMethod struct {
+	union json.RawMessage
+}
+
+// OpencodeIntegrationOAuthMethod defines model for OpencodeIntegrationOAuthMethod.
+type OpencodeIntegrationOAuthMethod struct {
+	Id      string                                         `json:"id"`
+	Label   string                                         `json:"label"`
+	Prompts *[]OpencodeIntegrationOAuthMethod_Prompts_Item `json:"prompts,omitempty"`
+	Type    OpencodeIntegrationOAuthMethodType             `json:"type"`
+}
+
+// OpencodeIntegrationOAuthMethod_Prompts_Item defines model for OpencodeIntegrationOAuthMethod.prompts.Item.
+type OpencodeIntegrationOAuthMethod_Prompts_Item struct {
+	union json.RawMessage
+}
+
+// OpencodeIntegrationOAuthMethodType defines model for OpencodeIntegrationOAuthMethod.Type.
+type OpencodeIntegrationOAuthMethodType string
+
+// OpencodeIntegrationRef defines model for OpencodeIntegrationRef.
+type OpencodeIntegrationRef struct {
+	Id   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// OpencodeIntegrationSelectPrompt defines model for OpencodeIntegrationSelectPrompt.
+type OpencodeIntegrationSelectPrompt struct {
+	Key     string `json:"key"`
+	Message string `json:"message"`
+	Options []struct {
+		Hint  *string `json:"hint,omitempty"`
+		Label string  `json:"label"`
+		Value string  `json:"value"`
+	} `json:"options"`
+	Type OpencodeIntegrationSelectPromptType `json:"type"`
+	When *OpencodeIntegrationWhen            `json:"when,omitempty"`
+}
+
+// OpencodeIntegrationSelectPromptType defines model for OpencodeIntegrationSelectPrompt.Type.
+type OpencodeIntegrationSelectPromptType string
+
+// OpencodeIntegrationTextPrompt defines model for OpencodeIntegrationTextPrompt.
+type OpencodeIntegrationTextPrompt struct {
+	Key         string                            `json:"key"`
+	Message     string                            `json:"message"`
+	Placeholder *string                           `json:"placeholder,omitempty"`
+	Type        OpencodeIntegrationTextPromptType `json:"type"`
+	When        *OpencodeIntegrationWhen          `json:"when,omitempty"`
+}
+
+// OpencodeIntegrationTextPromptType defines model for OpencodeIntegrationTextPrompt.Type.
+type OpencodeIntegrationTextPromptType string
+
+// OpencodeIntegrationUpdated defines model for OpencodeIntegrationUpdated.
+type OpencodeIntegrationUpdated struct {
+	Data    map[string]interface{} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                         `json:"id"`
+	Location *OpencodeLocationRef           `json:"location,omitempty"`
+	Metadata *map[string]interface{}        `json:"metadata,omitempty"`
+	Type     OpencodeIntegrationUpdatedType `json:"type"`
+}
+
+// OpencodeIntegrationUpdatedType defines model for OpencodeIntegrationUpdated.Type.
+type OpencodeIntegrationUpdatedType string
+
+// OpencodeIntegrationWhen defines model for OpencodeIntegrationWhen.
+type OpencodeIntegrationWhen struct {
+	Key   string                    `json:"key"`
+	Op    OpencodeIntegrationWhenOp `json:"op"`
+	Value string                    `json:"value"`
+}
+
+// OpencodeIntegrationWhenOp defines model for OpencodeIntegrationWhen.Op.
+type OpencodeIntegrationWhenOp string
 
 // OpencodeInvalidCursorError defines model for OpencodeInvalidCursorError.
 type OpencodeInvalidCursorError struct {
@@ -8422,6 +10668,17 @@ type OpencodeLLMToolContent struct {
 	union json.RawMessage
 }
 
+// OpencodeLSPStatus defines model for OpencodeLSPStatus.
+type OpencodeLSPStatus struct {
+	Id     string                  `json:"id"`
+	Name   string                  `json:"name"`
+	Root   string                  `json:"root"`
+	Status OpencodeLSPStatusStatus `json:"status"`
+}
+
+// OpencodeLSPStatusStatus defines model for OpencodeLSPStatus.Status.
+type OpencodeLSPStatusStatus string
+
 // OpencodeLayoutConfig @deprecated Always uses stretch layout.
 type OpencodeLayoutConfig string
 
@@ -8443,6 +10700,90 @@ type OpencodeLocationRef struct {
 
 // OpencodeLogLevel Log level
 type OpencodeLogLevel string
+
+// OpencodeLspUpdated defines model for OpencodeLspUpdated.
+type OpencodeLspUpdated struct {
+	Data    map[string]interface{} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                  `json:"id"`
+	Location *OpencodeLocationRef    `json:"location,omitempty"`
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+	Type     OpencodeLspUpdatedType  `json:"type"`
+}
+
+// OpencodeLspUpdatedType defines model for OpencodeLspUpdated.Type.
+type OpencodeLspUpdatedType string
+
+// OpencodeMCPStatus defines model for OpencodeMCPStatus.
+type OpencodeMCPStatus struct {
+	union json.RawMessage
+}
+
+// OpencodeMCPStatusConnected defines model for OpencodeMCPStatusConnected.
+type OpencodeMCPStatusConnected struct {
+	Status OpencodeMCPStatusConnectedStatus `json:"status"`
+}
+
+// OpencodeMCPStatusConnectedStatus defines model for OpencodeMCPStatusConnected.Status.
+type OpencodeMCPStatusConnectedStatus string
+
+// OpencodeMCPStatusDisabled defines model for OpencodeMCPStatusDisabled.
+type OpencodeMCPStatusDisabled struct {
+	Status OpencodeMCPStatusDisabledStatus `json:"status"`
+}
+
+// OpencodeMCPStatusDisabledStatus defines model for OpencodeMCPStatusDisabled.Status.
+type OpencodeMCPStatusDisabledStatus string
+
+// OpencodeMCPStatusFailed defines model for OpencodeMCPStatusFailed.
+type OpencodeMCPStatusFailed struct {
+	Error  string                        `json:"error"`
+	Status OpencodeMCPStatusFailedStatus `json:"status"`
+}
+
+// OpencodeMCPStatusFailedStatus defines model for OpencodeMCPStatusFailed.Status.
+type OpencodeMCPStatusFailedStatus string
+
+// OpencodeMCPStatusNeedsAuth defines model for OpencodeMCPStatusNeedsAuth.
+type OpencodeMCPStatusNeedsAuth struct {
+	Status OpencodeMCPStatusNeedsAuthStatus `json:"status"`
+}
+
+// OpencodeMCPStatusNeedsAuthStatus defines model for OpencodeMCPStatusNeedsAuth.Status.
+type OpencodeMCPStatusNeedsAuthStatus string
+
+// OpencodeMCPStatusNeedsClientRegistration defines model for OpencodeMCPStatusNeedsClientRegistration.
+type OpencodeMCPStatusNeedsClientRegistration struct {
+	Error  string                                         `json:"error"`
+	Status OpencodeMCPStatusNeedsClientRegistrationStatus `json:"status"`
+}
+
+// OpencodeMCPStatusNeedsClientRegistrationStatus defines model for OpencodeMCPStatusNeedsClientRegistration.Status.
+type OpencodeMCPStatusNeedsClientRegistrationStatus string
+
+// OpencodeMcpBrowserOpenFailed defines model for OpencodeMcpBrowserOpenFailed.
+type OpencodeMcpBrowserOpenFailed struct {
+	Data struct {
+		McpName string `json:"mcpName"`
+		Url     string `json:"url"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                           `json:"id"`
+	Location *OpencodeLocationRef             `json:"location,omitempty"`
+	Metadata *map[string]interface{}          `json:"metadata,omitempty"`
+	Type     OpencodeMcpBrowserOpenFailedType `json:"type"`
+}
+
+// OpencodeMcpBrowserOpenFailedType defines model for OpencodeMcpBrowserOpenFailed.Type.
+type OpencodeMcpBrowserOpenFailedType string
 
 // OpencodeMcpLocalConfig defines model for OpencodeMcpLocalConfig.
 type OpencodeMcpLocalConfig struct {
@@ -8496,6 +10837,49 @@ type OpencodeMcpRemoteConfig_Oauth struct {
 // OpencodeMcpRemoteConfigType Type of MCP server connection
 type OpencodeMcpRemoteConfigType string
 
+// OpencodeMcpResource defines model for OpencodeMcpResource.
+type OpencodeMcpResource struct {
+	Client      string  `json:"client"`
+	Description *string `json:"description,omitempty"`
+	MimeType    *string `json:"mimeType,omitempty"`
+	Name        string  `json:"name"`
+	Uri         string  `json:"uri"`
+}
+
+// OpencodeMcpServerNotFoundError defines model for OpencodeMcpServerNotFoundError.
+type OpencodeMcpServerNotFoundError struct {
+	UnderscoreTag OpencodeMcpServerNotFoundErrorTag `json:"_tag"`
+	Message       string                            `json:"message"`
+	Name          string                            `json:"name"`
+}
+
+// OpencodeMcpServerNotFoundErrorTag defines model for OpencodeMcpServerNotFoundError.Tag.
+type OpencodeMcpServerNotFoundErrorTag string
+
+// OpencodeMcpToolsChanged defines model for OpencodeMcpToolsChanged.
+type OpencodeMcpToolsChanged struct {
+	Data struct {
+		Server string `json:"server"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                      `json:"id"`
+	Location *OpencodeLocationRef        `json:"location,omitempty"`
+	Metadata *map[string]interface{}     `json:"metadata,omitempty"`
+	Type     OpencodeMcpToolsChangedType `json:"type"`
+}
+
+// OpencodeMcpToolsChangedType defines model for OpencodeMcpToolsChanged.Type.
+type OpencodeMcpToolsChangedType string
+
+// OpencodeMcpUnsupportedOAuthError defines model for OpencodeMcpUnsupportedOAuthError.
+type OpencodeMcpUnsupportedOAuthError struct {
+	Error string `json:"error"`
+}
+
 // OpencodeMessage defines model for OpencodeMessage.
 type OpencodeMessage struct {
 	union json.RawMessage
@@ -8531,6 +10915,111 @@ type OpencodeMessageOutputLengthError struct {
 
 // OpencodeMessageOutputLengthErrorName defines model for OpencodeMessageOutputLengthError.Name.
 type OpencodeMessageOutputLengthErrorName string
+
+// OpencodeMessagePartDelta defines model for OpencodeMessagePartDelta.
+type OpencodeMessagePartDelta struct {
+	Data struct {
+		Delta     string `json:"delta"`
+		Field     string `json:"field"`
+		MessageID string `json:"messageID"`
+		PartID    string `json:"partID"`
+		SessionID string `json:"sessionID"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                       `json:"id"`
+	Location *OpencodeLocationRef         `json:"location,omitempty"`
+	Metadata *map[string]interface{}      `json:"metadata,omitempty"`
+	Type     OpencodeMessagePartDeltaType `json:"type"`
+}
+
+// OpencodeMessagePartDeltaType defines model for OpencodeMessagePartDelta.Type.
+type OpencodeMessagePartDeltaType string
+
+// OpencodeMessagePartRemoved defines model for OpencodeMessagePartRemoved.
+type OpencodeMessagePartRemoved struct {
+	Data struct {
+		MessageID string `json:"messageID"`
+		PartID    string `json:"partID"`
+		SessionID string `json:"sessionID"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                         `json:"id"`
+	Location *OpencodeLocationRef           `json:"location,omitempty"`
+	Metadata *map[string]interface{}        `json:"metadata,omitempty"`
+	Type     OpencodeMessagePartRemovedType `json:"type"`
+}
+
+// OpencodeMessagePartRemovedType defines model for OpencodeMessagePartRemoved.Type.
+type OpencodeMessagePartRemovedType string
+
+// OpencodeMessagePartUpdated defines model for OpencodeMessagePartUpdated.
+type OpencodeMessagePartUpdated struct {
+	Data struct {
+		Part      OpencodePart `json:"part"`
+		SessionID string       `json:"sessionID"`
+		Time      float32      `json:"time"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                         `json:"id"`
+	Location *OpencodeLocationRef           `json:"location,omitempty"`
+	Metadata *map[string]interface{}        `json:"metadata,omitempty"`
+	Type     OpencodeMessagePartUpdatedType `json:"type"`
+}
+
+// OpencodeMessagePartUpdatedType defines model for OpencodeMessagePartUpdated.Type.
+type OpencodeMessagePartUpdatedType string
+
+// OpencodeMessageRemoved defines model for OpencodeMessageRemoved.
+type OpencodeMessageRemoved struct {
+	Data struct {
+		MessageID string `json:"messageID"`
+		SessionID string `json:"sessionID"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                     `json:"id"`
+	Location *OpencodeLocationRef       `json:"location,omitempty"`
+	Metadata *map[string]interface{}    `json:"metadata,omitempty"`
+	Type     OpencodeMessageRemovedType `json:"type"`
+}
+
+// OpencodeMessageRemovedType defines model for OpencodeMessageRemoved.Type.
+type OpencodeMessageRemovedType string
+
+// OpencodeMessageUpdated defines model for OpencodeMessageUpdated.
+type OpencodeMessageUpdated struct {
+	Data struct {
+		Info      OpencodeMessage `json:"info"`
+		SessionID string          `json:"sessionID"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                     `json:"id"`
+	Location *OpencodeLocationRef       `json:"location,omitempty"`
+	Metadata *map[string]interface{}    `json:"metadata,omitempty"`
+	Type     OpencodeMessageUpdatedType `json:"type"`
+}
+
+// OpencodeMessageUpdatedType defines model for OpencodeMessageUpdated.Type.
+type OpencodeMessageUpdatedType string
 
 // OpencodeModel defines model for OpencodeModel.
 type OpencodeModel struct {
@@ -8623,12 +11112,131 @@ type OpencodeModelCostTiersTierType string
 // OpencodeModelStatus defines model for OpencodeModel.Status.
 type OpencodeModelStatus string
 
+// OpencodeModelApi defines model for OpencodeModelApi.
+type OpencodeModelApi struct {
+	union json.RawMessage
+}
+
+// OpencodeModelApi0 defines model for .
+type OpencodeModelApi0 struct {
+	Id       string                  `json:"id"`
+	Package  string                  `json:"package"`
+	Settings *map[string]interface{} `json:"settings,omitempty"`
+	Type     OpencodeModelApi0Type   `json:"type"`
+	Url      *string                 `json:"url,omitempty"`
+}
+
+// OpencodeModelApi0Type defines model for OpencodeModelApi.0.Type.
+type OpencodeModelApi0Type string
+
+// OpencodeModelApi1 defines model for .
+type OpencodeModelApi1 struct {
+	Id       string                 `json:"id"`
+	Settings map[string]interface{} `json:"settings"`
+	Type     OpencodeModelApi1Type  `json:"type"`
+	Url      *string                `json:"url,omitempty"`
+}
+
+// OpencodeModelApi1Type defines model for OpencodeModelApi.1.Type.
+type OpencodeModelApi1Type string
+
+// OpencodeModelCapabilities defines model for OpencodeModelCapabilities.
+type OpencodeModelCapabilities struct {
+	Input  []string `json:"input"`
+	Output []string `json:"output"`
+	Tools  bool     `json:"tools"`
+}
+
+// OpencodeModelCost defines model for OpencodeModelCost.
+type OpencodeModelCost struct {
+	Cache struct {
+		Read  float32 `json:"read"`
+		Write float32 `json:"write"`
+	} `json:"cache"`
+	Input  float32 `json:"input"`
+	Output float32 `json:"output"`
+	Tier   *struct {
+		Size int                       `json:"size"`
+		Type OpencodeModelCostTierType `json:"type"`
+	} `json:"tier,omitempty"`
+}
+
+// OpencodeModelCostTierType defines model for OpencodeModelCost.Tier.Type.
+type OpencodeModelCostTierType string
+
 // OpencodeModelRef defines model for OpencodeModelRef.
 type OpencodeModelRef struct {
 	Id         string  `json:"id"`
 	ProviderID string  `json:"providerID"`
 	Variant    *string `json:"variant,omitempty"`
 }
+
+// OpencodeModelV2Info defines model for OpencodeModelV2Info.
+type OpencodeModelV2Info struct {
+	Api          OpencodeModelApi          `json:"api"`
+	Capabilities OpencodeModelCapabilities `json:"capabilities"`
+	Cost         []OpencodeModelCost       `json:"cost"`
+	Enabled      bool                      `json:"enabled"`
+	Family       *string                   `json:"family,omitempty"`
+	Id           string                    `json:"id"`
+	Limit        struct {
+		Context int  `json:"context"`
+		Input   *int `json:"input,omitempty"`
+		Output  int  `json:"output"`
+	} `json:"limit"`
+	Name       string `json:"name"`
+	ProviderID string `json:"providerID"`
+	Request    struct {
+		Body    map[string]interface{} `json:"body"`
+		Headers map[string]string      `json:"headers"`
+		Variant *string                `json:"variant,omitempty"`
+	} `json:"request"`
+	Status OpencodeModelV2InfoStatus `json:"status"`
+	Time   struct {
+		Released float32 `json:"released"`
+	} `json:"time"`
+	Variants []struct {
+		Body    map[string]interface{} `json:"body"`
+		Headers map[string]string      `json:"headers"`
+		Id      string                 `json:"id"`
+	} `json:"variants"`
+}
+
+// OpencodeModelV2InfoStatus defines model for OpencodeModelV2Info.Status.
+type OpencodeModelV2InfoStatus string
+
+// OpencodeModelsDevRefreshed defines model for OpencodeModels-devRefreshed.
+type OpencodeModelsDevRefreshed struct {
+	Data    map[string]interface{} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                         `json:"id"`
+	Location *OpencodeLocationRef           `json:"location,omitempty"`
+	Metadata *map[string]interface{}        `json:"metadata,omitempty"`
+	Type     OpencodeModelsDevRefreshedType `json:"type"`
+}
+
+// OpencodeModelsDevRefreshedType defines model for OpencodeModelsDevRefreshed.Type.
+type OpencodeModelsDevRefreshedType string
+
+// OpencodeMoveSessionDestination defines model for OpencodeMoveSessionDestination.
+type OpencodeMoveSessionDestination struct {
+	Directory string `json:"directory"`
+}
+
+// OpencodeMoveSessionError defines model for OpencodeMoveSessionError.
+type OpencodeMoveSessionError struct {
+	Data struct {
+		Message string `json:"message"`
+	} `json:"data"`
+	Name OpencodeMoveSessionErrorName `json:"name"`
+}
+
+// OpencodeMoveSessionErrorName defines model for OpencodeMoveSessionError.Name.
+type OpencodeMoveSessionErrorName string
 
 // OpencodeNotFoundError defines model for OpencodeNotFoundError.
 type OpencodeNotFoundError struct {
@@ -8641,10 +11249,46 @@ type OpencodeNotFoundError struct {
 // OpencodeNotFoundErrorName defines model for OpencodeNotFoundError.Name.
 type OpencodeNotFoundErrorName string
 
+// OpencodeOAuth defines model for OpencodeOAuth.
+type OpencodeOAuth struct {
+	Access        string            `json:"access"`
+	AccountId     *string           `json:"accountId,omitempty"`
+	EnterpriseUrl *string           `json:"enterpriseUrl,omitempty"`
+	Expires       int               `json:"expires"`
+	Refresh       string            `json:"refresh"`
+	Type          OpencodeOAuthType `json:"type"`
+}
+
+// OpencodeOAuthType defines model for OpencodeOAuth.Type.
+type OpencodeOAuthType string
+
 // OpencodeOutputFormat defines model for OpencodeOutputFormat.
 type OpencodeOutputFormat struct {
 	union json.RawMessage
 }
+
+// OpencodeOutputFormat1 defines model for OpencodeOutputFormat1.
+type OpencodeOutputFormat1 struct {
+	union json.RawMessage
+}
+
+// OpencodeOutputFormat10 defines model for .
+type OpencodeOutputFormat10 struct {
+	Type OpencodeOutputFormat10Type `json:"type"`
+}
+
+// OpencodeOutputFormat10Type defines model for OpencodeOutputFormat1.0.Type.
+type OpencodeOutputFormat10Type string
+
+// OpencodeOutputFormat11 defines model for .
+type OpencodeOutputFormat11 struct {
+	RetryCount *int                       `json:"retryCount,omitempty"`
+	Schema     OpencodeJSONSchema         `json:"schema"`
+	Type       OpencodeOutputFormat11Type `json:"type"`
+}
+
+// OpencodeOutputFormat11Type defines model for OpencodeOutputFormat1.1.Type.
+type OpencodeOutputFormat11Type string
 
 // OpencodeOutputFormatJsonSchema defines model for OpencodeOutputFormatJsonSchema.
 type OpencodeOutputFormatJsonSchema struct {
@@ -8682,11 +11326,48 @@ type OpencodePatchPart struct {
 // OpencodePatchPartType defines model for OpencodePatchPart.Type.
 type OpencodePatchPartType string
 
+// OpencodePath defines model for OpencodePath.
+type OpencodePath struct {
+	Config    string `json:"config"`
+	Directory string `json:"directory"`
+	Home      string `json:"home"`
+	State     string `json:"state"`
+	Worktree  string `json:"worktree"`
+}
+
 // OpencodePermissionAction defines model for OpencodePermissionAction.
 type OpencodePermissionAction string
 
 // OpencodePermissionActionConfig defines model for OpencodePermissionActionConfig.
 type OpencodePermissionActionConfig string
+
+// OpencodePermissionAsked defines model for OpencodePermissionAsked.
+type OpencodePermissionAsked struct {
+	Data struct {
+		Always     []string               `json:"always"`
+		Id         string                 `json:"id"`
+		Metadata   map[string]interface{} `json:"metadata"`
+		Patterns   []string               `json:"patterns"`
+		Permission string                 `json:"permission"`
+		SessionID  string                 `json:"sessionID"`
+		Tool       *struct {
+			CallID    string `json:"callID"`
+			MessageID string `json:"messageID"`
+		} `json:"tool,omitempty"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                      `json:"id"`
+	Location *OpencodeLocationRef        `json:"location,omitempty"`
+	Metadata *map[string]interface{}     `json:"metadata,omitempty"`
+	Type     OpencodePermissionAskedType `json:"type"`
+}
+
+// OpencodePermissionAskedType defines model for OpencodePermissionAsked.Type.
+type OpencodePermissionAskedType string
 
 // OpencodePermissionConfig defines model for OpencodePermissionConfig.
 type OpencodePermissionConfig struct {
@@ -8726,6 +11407,30 @@ type OpencodePermissionNotFoundErrorTag string
 // OpencodePermissionObjectConfig defines model for OpencodePermissionObjectConfig.
 type OpencodePermissionObjectConfig map[string]OpencodePermissionActionConfig
 
+// OpencodePermissionReplied defines model for OpencodePermissionReplied.
+type OpencodePermissionReplied struct {
+	Data struct {
+		Reply     OpencodePermissionRepliedDataReply `json:"reply"`
+		RequestID string                             `json:"requestID"`
+		SessionID string                             `json:"sessionID"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                        `json:"id"`
+	Location *OpencodeLocationRef          `json:"location,omitempty"`
+	Metadata *map[string]interface{}       `json:"metadata,omitempty"`
+	Type     OpencodePermissionRepliedType `json:"type"`
+}
+
+// OpencodePermissionRepliedDataReply defines model for OpencodePermissionReplied.Data.Reply.
+type OpencodePermissionRepliedDataReply string
+
+// OpencodePermissionRepliedType defines model for OpencodePermissionReplied.Type.
+type OpencodePermissionRepliedType string
+
 // OpencodePermissionRequest defines model for OpencodePermissionRequest.
 type OpencodePermissionRequest struct {
 	Always     []string               `json:"always"`
@@ -8755,8 +11460,86 @@ type OpencodePermissionRuleConfig struct {
 // OpencodePermissionRuleset defines model for OpencodePermissionRuleset.
 type OpencodePermissionRuleset = []OpencodePermissionRule
 
+// OpencodePermissionSavedInfo defines model for OpencodePermissionSavedInfo.
+type OpencodePermissionSavedInfo struct {
+	Action    string `json:"action"`
+	Id        string `json:"id"`
+	ProjectID string `json:"projectID"`
+	Resource  string `json:"resource"`
+}
+
+// OpencodePermissionV2Asked defines model for OpencodePermissionV2Asked.
+type OpencodePermissionV2Asked struct {
+	Data struct {
+		Action    string                      `json:"action"`
+		Id        string                      `json:"id"`
+		Metadata  *map[string]interface{}     `json:"metadata,omitempty"`
+		Resources []string                    `json:"resources"`
+		Save      *[]string                   `json:"save,omitempty"`
+		SessionID string                      `json:"sessionID"`
+		Source    *OpencodePermissionV2Source `json:"source,omitempty"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                        `json:"id"`
+	Location *OpencodeLocationRef          `json:"location,omitempty"`
+	Metadata *map[string]interface{}       `json:"metadata,omitempty"`
+	Type     OpencodePermissionV2AskedType `json:"type"`
+}
+
+// OpencodePermissionV2AskedType defines model for OpencodePermissionV2Asked.Type.
+type OpencodePermissionV2AskedType string
+
+// OpencodePermissionV2Effect defines model for OpencodePermissionV2Effect.
+type OpencodePermissionV2Effect string
+
+// OpencodePermissionV2Replied defines model for OpencodePermissionV2Replied.
+type OpencodePermissionV2Replied struct {
+	Data struct {
+		Reply     OpencodePermissionV2Reply `json:"reply"`
+		RequestID string                    `json:"requestID"`
+		SessionID string                    `json:"sessionID"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                          `json:"id"`
+	Location *OpencodeLocationRef            `json:"location,omitempty"`
+	Metadata *map[string]interface{}         `json:"metadata,omitempty"`
+	Type     OpencodePermissionV2RepliedType `json:"type"`
+}
+
+// OpencodePermissionV2RepliedType defines model for OpencodePermissionV2Replied.Type.
+type OpencodePermissionV2RepliedType string
+
 // OpencodePermissionV2Reply defines model for OpencodePermissionV2Reply.
 type OpencodePermissionV2Reply string
+
+// OpencodePermissionV2Request defines model for OpencodePermissionV2Request.
+type OpencodePermissionV2Request struct {
+	Action    string                      `json:"action"`
+	Id        string                      `json:"id"`
+	Metadata  *map[string]interface{}     `json:"metadata,omitempty"`
+	Resources []string                    `json:"resources"`
+	Save      *[]string                   `json:"save,omitempty"`
+	SessionID string                      `json:"sessionID"`
+	Source    *OpencodePermissionV2Source `json:"source,omitempty"`
+}
+
+// OpencodePermissionV2Rule defines model for OpencodePermissionV2Rule.
+type OpencodePermissionV2Rule struct {
+	Action   string                     `json:"action"`
+	Effect   OpencodePermissionV2Effect `json:"effect"`
+	Resource string                     `json:"resource"`
+}
+
+// OpencodePermissionV2Ruleset defines model for OpencodePermissionV2Ruleset.
+type OpencodePermissionV2Ruleset = []OpencodePermissionV2Rule
 
 // OpencodePermissionV2Source defines model for OpencodePermissionV2Source.
 type OpencodePermissionV2Source struct {
@@ -8767,6 +11550,25 @@ type OpencodePermissionV2Source struct {
 
 // OpencodePermissionV2SourceType defines model for OpencodePermissionV2Source.Type.
 type OpencodePermissionV2SourceType string
+
+// OpencodePluginAdded defines model for OpencodePluginAdded.
+type OpencodePluginAdded struct {
+	Data struct {
+		Id string `json:"id"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                  `json:"id"`
+	Location *OpencodeLocationRef    `json:"location,omitempty"`
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+	Type     OpencodePluginAddedType `json:"type"`
+}
+
+// OpencodePluginAddedType defines model for OpencodePluginAdded.Type.
+type OpencodePluginAddedType string
 
 // OpencodePolicyEffect defines model for OpencodePolicyEffect.
 type OpencodePolicyEffect string
@@ -8789,11 +11591,47 @@ type OpencodeProjectCommands struct {
 	Start *string `json:"start,omitempty"`
 }
 
+// OpencodeProjectCopyCopy defines model for OpencodeProjectCopyCopy.
+type OpencodeProjectCopyCopy struct {
+	Directory string `json:"directory"`
+}
+
+// OpencodeProjectCopyError defines model for OpencodeProjectCopyError.
+type OpencodeProjectCopyError struct {
+	Data struct {
+		ForceRequired *bool  `json:"forceRequired,omitempty"`
+		Message       string `json:"message"`
+	} `json:"data"`
+	Name OpencodeProjectCopyErrorName `json:"name"`
+}
+
+// OpencodeProjectCopyErrorName defines model for OpencodeProjectCopyError.Name.
+type OpencodeProjectCopyErrorName string
+
 // OpencodeProjectDirectories defines model for OpencodeProjectDirectories.
 type OpencodeProjectDirectories = []struct {
 	Directory string  `json:"directory"`
 	Strategy  *string `json:"strategy,omitempty"`
 }
+
+// OpencodeProjectDirectoriesUpdated defines model for OpencodeProjectDirectoriesUpdated.
+type OpencodeProjectDirectoriesUpdated struct {
+	Data struct {
+		ProjectID string `json:"projectID"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                                `json:"id"`
+	Location *OpencodeLocationRef                  `json:"location,omitempty"`
+	Metadata *map[string]interface{}               `json:"metadata,omitempty"`
+	Type     OpencodeProjectDirectoriesUpdatedType `json:"type"`
+}
+
+// OpencodeProjectDirectoriesUpdatedType defines model for OpencodeProjectDirectoriesUpdated.Type.
+type OpencodeProjectDirectoriesUpdatedType string
 
 // OpencodeProjectIcon defines model for OpencodeProjectIcon.
 type OpencodeProjectIcon struct {
@@ -8812,12 +11650,45 @@ type OpencodeProjectNotFoundError struct {
 // OpencodeProjectNotFoundErrorTag defines model for OpencodeProjectNotFoundError.Tag.
 type OpencodeProjectNotFoundErrorTag string
 
+// OpencodeProjectSummary defines model for OpencodeProjectSummary.
+type OpencodeProjectSummary struct {
+	Id       string  `json:"id"`
+	Name     *string `json:"name,omitempty"`
+	Worktree string  `json:"worktree"`
+}
+
 // OpencodeProjectTime defines model for OpencodeProjectTime.
 type OpencodeProjectTime struct {
 	Created     int  `json:"created"`
 	Initialized *int `json:"initialized,omitempty"`
 	Updated     int  `json:"updated"`
 }
+
+// OpencodeProjectUpdated defines model for OpencodeProjectUpdated.
+type OpencodeProjectUpdated struct {
+	Data struct {
+		Commands  *OpencodeProjectCommands `json:"commands,omitempty"`
+		Icon      *OpencodeProjectIcon     `json:"icon,omitempty"`
+		Id        string                   `json:"id"`
+		Name      *string                  `json:"name,omitempty"`
+		Sandboxes []string                 `json:"sandboxes"`
+		Time      OpencodeProjectTime      `json:"time"`
+		Vcs       *OpencodeProjectVcs      `json:"vcs,omitempty"`
+		Worktree  string                   `json:"worktree"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                     `json:"id"`
+	Location *OpencodeLocationRef       `json:"location,omitempty"`
+	Metadata *map[string]interface{}    `json:"metadata,omitempty"`
+	Type     OpencodeProjectUpdatedType `json:"type"`
+}
+
+// OpencodeProjectUpdatedType defines model for OpencodeProjectUpdated.Type.
+type OpencodeProjectUpdatedType string
 
 // OpencodeProjectVcs defines model for OpencodeProjectVcs.
 type OpencodeProjectVcs string
@@ -8891,6 +11762,32 @@ type OpencodeProvider struct {
 // OpencodeProviderSource defines model for OpencodeProvider.Source.
 type OpencodeProviderSource string
 
+// OpencodeProviderAISDK defines model for OpencodeProviderAISDK.
+type OpencodeProviderAISDK struct {
+	Package  string                    `json:"package"`
+	Settings *map[string]interface{}   `json:"settings,omitempty"`
+	Type     OpencodeProviderAISDKType `json:"type"`
+	Url      *string                   `json:"url,omitempty"`
+}
+
+// OpencodeProviderAISDKType defines model for OpencodeProviderAISDK.Type.
+type OpencodeProviderAISDKType string
+
+// OpencodeProviderApi defines model for OpencodeProviderApi.
+type OpencodeProviderApi struct {
+	union json.RawMessage
+}
+
+// OpencodeProviderAuthAuthorization defines model for OpencodeProviderAuthAuthorization.
+type OpencodeProviderAuthAuthorization struct {
+	Instructions string                                  `json:"instructions"`
+	Method       OpencodeProviderAuthAuthorizationMethod `json:"method"`
+	Url          string                                  `json:"url"`
+}
+
+// OpencodeProviderAuthAuthorizationMethod defines model for OpencodeProviderAuthAuthorization.Method.
+type OpencodeProviderAuthAuthorizationMethod string
+
 // OpencodeProviderAuthError defines model for OpencodeProviderAuthError.
 type OpencodeProviderAuthError struct {
 	Data struct {
@@ -8902,6 +11799,77 @@ type OpencodeProviderAuthError struct {
 
 // OpencodeProviderAuthErrorName defines model for OpencodeProviderAuthError.Name.
 type OpencodeProviderAuthErrorName string
+
+// OpencodeProviderAuthError1 defines model for OpencodeProviderAuthError1.
+type OpencodeProviderAuthError1 struct {
+	Data struct {
+		Field      *string `json:"field,omitempty"`
+		Kind       *string `json:"kind,omitempty"`
+		Message    *string `json:"message,omitempty"`
+		ProviderID *string `json:"providerID,omitempty"`
+	} `json:"data"`
+	Name OpencodeProviderAuthError1Name `json:"name"`
+}
+
+// OpencodeProviderAuthError1Name defines model for OpencodeProviderAuthError1.Name.
+type OpencodeProviderAuthError1Name string
+
+// OpencodeProviderAuthMethod defines model for OpencodeProviderAuthMethod.
+type OpencodeProviderAuthMethod struct {
+	Label   string                                     `json:"label"`
+	Prompts *[]OpencodeProviderAuthMethod_Prompts_Item `json:"prompts,omitempty"`
+	Type    OpencodeProviderAuthMethodType             `json:"type"`
+}
+
+// OpencodeProviderAuthMethodPrompts0 defines model for .
+type OpencodeProviderAuthMethodPrompts0 struct {
+	Key         string                                 `json:"key"`
+	Message     string                                 `json:"message"`
+	Placeholder *string                                `json:"placeholder,omitempty"`
+	Type        OpencodeProviderAuthMethodPrompts0Type `json:"type"`
+	When        *struct {
+		Key   string                                   `json:"key"`
+		Op    OpencodeProviderAuthMethodPrompts0WhenOp `json:"op"`
+		Value string                                   `json:"value"`
+	} `json:"when,omitempty"`
+}
+
+// OpencodeProviderAuthMethodPrompts0Type defines model for OpencodeProviderAuthMethod.Prompts.0.Type.
+type OpencodeProviderAuthMethodPrompts0Type string
+
+// OpencodeProviderAuthMethodPrompts0WhenOp defines model for OpencodeProviderAuthMethod.Prompts.0.When.Op.
+type OpencodeProviderAuthMethodPrompts0WhenOp string
+
+// OpencodeProviderAuthMethodPrompts1 defines model for .
+type OpencodeProviderAuthMethodPrompts1 struct {
+	Key     string `json:"key"`
+	Message string `json:"message"`
+	Options []struct {
+		Hint  *string `json:"hint,omitempty"`
+		Label string  `json:"label"`
+		Value string  `json:"value"`
+	} `json:"options"`
+	Type OpencodeProviderAuthMethodPrompts1Type `json:"type"`
+	When *struct {
+		Key   string                                   `json:"key"`
+		Op    OpencodeProviderAuthMethodPrompts1WhenOp `json:"op"`
+		Value string                                   `json:"value"`
+	} `json:"when,omitempty"`
+}
+
+// OpencodeProviderAuthMethodPrompts1Type defines model for OpencodeProviderAuthMethod.Prompts.1.Type.
+type OpencodeProviderAuthMethodPrompts1Type string
+
+// OpencodeProviderAuthMethodPrompts1WhenOp defines model for OpencodeProviderAuthMethod.Prompts.1.When.Op.
+type OpencodeProviderAuthMethodPrompts1WhenOp string
+
+// OpencodeProviderAuthMethod_Prompts_Item defines model for OpencodeProviderAuthMethod.prompts.Item.
+type OpencodeProviderAuthMethod_Prompts_Item struct {
+	union json.RawMessage
+}
+
+// OpencodeProviderAuthMethodType defines model for OpencodeProviderAuthMethod.Type.
+type OpencodeProviderAuthMethodType string
 
 // OpencodeProviderConfig defines model for OpencodeProviderConfig.
 type OpencodeProviderConfig struct {
@@ -9030,6 +11998,42 @@ type OpencodeProviderConfig_Options struct {
 	AdditionalProperties map[string]interface{}                  `json:"-"`
 }
 
+// OpencodeProviderNative defines model for OpencodeProviderNative.
+type OpencodeProviderNative struct {
+	Settings map[string]interface{}     `json:"settings"`
+	Type     OpencodeProviderNativeType `json:"type"`
+	Url      *string                    `json:"url,omitempty"`
+}
+
+// OpencodeProviderNativeType defines model for OpencodeProviderNative.Type.
+type OpencodeProviderNativeType string
+
+// OpencodeProviderNotFoundError defines model for OpencodeProviderNotFoundError.
+type OpencodeProviderNotFoundError struct {
+	UnderscoreTag OpencodeProviderNotFoundErrorTag `json:"_tag"`
+	Message       string                           `json:"message"`
+	ProviderID    string                           `json:"providerID"`
+}
+
+// OpencodeProviderNotFoundErrorTag defines model for OpencodeProviderNotFoundError.Tag.
+type OpencodeProviderNotFoundErrorTag string
+
+// OpencodeProviderRequest defines model for OpencodeProviderRequest.
+type OpencodeProviderRequest struct {
+	Body    map[string]interface{} `json:"body"`
+	Headers map[string]string      `json:"headers"`
+}
+
+// OpencodeProviderV2Info defines model for OpencodeProviderV2Info.
+type OpencodeProviderV2Info struct {
+	Api           OpencodeProviderApi     `json:"api"`
+	Disabled      *bool                   `json:"disabled,omitempty"`
+	Id            string                  `json:"id"`
+	IntegrationID *string                 `json:"integrationID,omitempty"`
+	Name          string                  `json:"name"`
+	Request       OpencodeProviderRequest `json:"request"`
+}
+
 // OpencodePty defines model for OpencodePty.
 type OpencodePty struct {
 	Args     []string          `json:"args"`
@@ -9044,6 +12048,64 @@ type OpencodePty struct {
 
 // OpencodePtyStatus defines model for OpencodePty.Status.
 type OpencodePtyStatus string
+
+// OpencodePtyCreated defines model for OpencodePtyCreated.
+type OpencodePtyCreated struct {
+	Data struct {
+		Info OpencodePty `json:"info"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                  `json:"id"`
+	Location *OpencodeLocationRef    `json:"location,omitempty"`
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+	Type     OpencodePtyCreatedType  `json:"type"`
+}
+
+// OpencodePtyCreatedType defines model for OpencodePtyCreated.Type.
+type OpencodePtyCreatedType string
+
+// OpencodePtyDeleted defines model for OpencodePtyDeleted.
+type OpencodePtyDeleted struct {
+	Data struct {
+		Id string `json:"id"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                  `json:"id"`
+	Location *OpencodeLocationRef    `json:"location,omitempty"`
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+	Type     OpencodePtyDeletedType  `json:"type"`
+}
+
+// OpencodePtyDeletedType defines model for OpencodePtyDeleted.Type.
+type OpencodePtyDeletedType string
+
+// OpencodePtyExited defines model for OpencodePtyExited.
+type OpencodePtyExited struct {
+	Data struct {
+		ExitCode int    `json:"exitCode"`
+		Id       string `json:"id"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                  `json:"id"`
+	Location *OpencodeLocationRef    `json:"location,omitempty"`
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+	Type     OpencodePtyExitedType   `json:"type"`
+}
+
+// OpencodePtyExitedType defines model for OpencodePtyExited.Type.
+type OpencodePtyExitedType string
 
 // OpencodePtyForbiddenError defines model for OpencodePtyForbiddenError.
 type OpencodePtyForbiddenError struct {
@@ -9070,8 +12132,51 @@ type OpencodePtyTicketConnectToken struct {
 	Ticket    string `json:"ticket"`
 }
 
+// OpencodePtyUpdated defines model for OpencodePtyUpdated.
+type OpencodePtyUpdated struct {
+	Data struct {
+		Info OpencodePty `json:"info"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                  `json:"id"`
+	Location *OpencodeLocationRef    `json:"location,omitempty"`
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+	Type     OpencodePtyUpdatedType  `json:"type"`
+}
+
+// OpencodePtyUpdatedType defines model for OpencodePtyUpdated.Type.
+type OpencodePtyUpdatedType string
+
 // OpencodeQuestionAnswer defines model for OpencodeQuestionAnswer.
 type OpencodeQuestionAnswer = []string
+
+// OpencodeQuestionAsked defines model for OpencodeQuestionAsked.
+type OpencodeQuestionAsked struct {
+	Data struct {
+		Id string `json:"id"`
+
+		// Questions Questions to ask
+		Questions []OpencodeQuestionInfo `json:"questions"`
+		SessionID string                 `json:"sessionID"`
+		Tool      *OpencodeQuestionTool  `json:"tool,omitempty"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                    `json:"id"`
+	Location *OpencodeLocationRef      `json:"location,omitempty"`
+	Metadata *map[string]interface{}   `json:"metadata,omitempty"`
+	Type     OpencodeQuestionAskedType `json:"type"`
+}
+
+// OpencodeQuestionAskedType defines model for OpencodeQuestionAsked.Type.
+type OpencodeQuestionAskedType string
 
 // OpencodeQuestionInfo defines model for OpencodeQuestionInfo.
 type OpencodeQuestionInfo struct {
@@ -9107,6 +12212,19 @@ type OpencodeQuestionOption struct {
 	Label string `json:"label"`
 }
 
+// OpencodeQuestionRejected defines model for OpencodeQuestionRejected.
+type OpencodeQuestionRejected struct {
+	RequestID string `json:"requestID"`
+	SessionID string `json:"sessionID"`
+}
+
+// OpencodeQuestionReplied defines model for OpencodeQuestionReplied.
+type OpencodeQuestionReplied struct {
+	Answers   []OpencodeQuestionAnswer `json:"answers"`
+	RequestID string                   `json:"requestID"`
+	SessionID string                   `json:"sessionID"`
+}
+
 // OpencodeQuestionRequest defines model for OpencodeQuestionRequest.
 type OpencodeQuestionRequest struct {
 	Id string `json:"id"`
@@ -9125,6 +12243,30 @@ type OpencodeQuestionTool struct {
 
 // OpencodeQuestionV2Answer defines model for OpencodeQuestionV2Answer.
 type OpencodeQuestionV2Answer = []string
+
+// OpencodeQuestionV2Asked defines model for OpencodeQuestionV2Asked.
+type OpencodeQuestionV2Asked struct {
+	Data struct {
+		Id string `json:"id"`
+
+		// Questions Questions to ask
+		Questions []OpencodeQuestionV2Info `json:"questions"`
+		SessionID string                   `json:"sessionID"`
+		Tool      *OpencodeQuestionV2Tool  `json:"tool,omitempty"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                      `json:"id"`
+	Location *OpencodeLocationRef        `json:"location,omitempty"`
+	Metadata *map[string]interface{}     `json:"metadata,omitempty"`
+	Type     OpencodeQuestionV2AskedType `json:"type"`
+}
+
+// OpencodeQuestionV2AskedType defines model for OpencodeQuestionV2Asked.Type.
+type OpencodeQuestionV2AskedType string
 
 // OpencodeQuestionV2Info defines model for OpencodeQuestionV2Info.
 type OpencodeQuestionV2Info struct {
@@ -9148,6 +12290,63 @@ type OpencodeQuestionV2Option struct {
 
 	// Label Display text (1-5 words, concise)
 	Label string `json:"label"`
+}
+
+// OpencodeQuestionV2Rejected defines model for OpencodeQuestionV2Rejected.
+type OpencodeQuestionV2Rejected struct {
+	Data struct {
+		RequestID string `json:"requestID"`
+		SessionID string `json:"sessionID"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                         `json:"id"`
+	Location *OpencodeLocationRef           `json:"location,omitempty"`
+	Metadata *map[string]interface{}        `json:"metadata,omitempty"`
+	Type     OpencodeQuestionV2RejectedType `json:"type"`
+}
+
+// OpencodeQuestionV2RejectedType defines model for OpencodeQuestionV2Rejected.Type.
+type OpencodeQuestionV2RejectedType string
+
+// OpencodeQuestionV2Replied defines model for OpencodeQuestionV2Replied.
+type OpencodeQuestionV2Replied struct {
+	Data struct {
+		Answers   []OpencodeQuestionV2Answer `json:"answers"`
+		RequestID string                     `json:"requestID"`
+		SessionID string                     `json:"sessionID"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                        `json:"id"`
+	Location *OpencodeLocationRef          `json:"location,omitempty"`
+	Metadata *map[string]interface{}       `json:"metadata,omitempty"`
+	Type     OpencodeQuestionV2RepliedType `json:"type"`
+}
+
+// OpencodeQuestionV2RepliedType defines model for OpencodeQuestionV2Replied.Type.
+type OpencodeQuestionV2RepliedType string
+
+// OpencodeQuestionV2Reply defines model for OpencodeQuestionV2Reply.
+type OpencodeQuestionV2Reply struct {
+	// Answers User answers in order of questions (each answer is an array of selected labels)
+	Answers []OpencodeQuestionV2Answer `json:"answers"`
+}
+
+// OpencodeQuestionV2Request defines model for OpencodeQuestionV2Request.
+type OpencodeQuestionV2Request struct {
+	Id string `json:"id"`
+
+	// Questions Questions to ask
+	Questions []OpencodeQuestionV2Info `json:"questions"`
+	SessionID string                   `json:"sessionID"`
+	Tool      *OpencodeQuestionV2Tool  `json:"tool,omitempty"`
 }
 
 // OpencodeQuestionV2Tool defines model for OpencodeQuestionV2Tool.
@@ -9184,6 +12383,60 @@ type OpencodeReasoningPart struct {
 
 // OpencodeReasoningPartType defines model for OpencodeReasoningPart.Type.
 type OpencodeReasoningPartType string
+
+// OpencodeReferenceGitSource defines model for OpencodeReferenceGitSource.
+type OpencodeReferenceGitSource struct {
+	Branch      *string                        `json:"branch,omitempty"`
+	Description *string                        `json:"description,omitempty"`
+	Hidden      *bool                          `json:"hidden,omitempty"`
+	Repository  string                         `json:"repository"`
+	Type        OpencodeReferenceGitSourceType `json:"type"`
+}
+
+// OpencodeReferenceGitSourceType defines model for OpencodeReferenceGitSource.Type.
+type OpencodeReferenceGitSourceType string
+
+// OpencodeReferenceInfo defines model for OpencodeReferenceInfo.
+type OpencodeReferenceInfo struct {
+	Description *string                 `json:"description,omitempty"`
+	Hidden      *bool                   `json:"hidden,omitempty"`
+	Name        string                  `json:"name"`
+	Path        string                  `json:"path"`
+	Source      OpencodeReferenceSource `json:"source"`
+}
+
+// OpencodeReferenceLocalSource defines model for OpencodeReferenceLocalSource.
+type OpencodeReferenceLocalSource struct {
+	Description *string                          `json:"description,omitempty"`
+	Hidden      *bool                            `json:"hidden,omitempty"`
+	Path        string                           `json:"path"`
+	Type        OpencodeReferenceLocalSourceType `json:"type"`
+}
+
+// OpencodeReferenceLocalSourceType defines model for OpencodeReferenceLocalSource.Type.
+type OpencodeReferenceLocalSourceType string
+
+// OpencodeReferenceSource defines model for OpencodeReferenceSource.
+type OpencodeReferenceSource struct {
+	union json.RawMessage
+}
+
+// OpencodeReferenceUpdated defines model for OpencodeReferenceUpdated.
+type OpencodeReferenceUpdated struct {
+	Data    map[string]interface{} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                       `json:"id"`
+	Location *OpencodeLocationRef         `json:"location,omitempty"`
+	Metadata *map[string]interface{}      `json:"metadata,omitempty"`
+	Type     OpencodeReferenceUpdatedType `json:"type"`
+}
+
+// OpencodeReferenceUpdatedType defines model for OpencodeReferenceUpdated.Type.
+type OpencodeReferenceUpdatedType string
 
 // OpencodeResourceSource defines model for OpencodeResourceSource.
 type OpencodeResourceSource struct {
@@ -9229,6 +12482,23 @@ type OpencodeServerConfig struct {
 	MdnsDomain *string   `json:"mdnsDomain,omitempty"`
 	Port       *int      `json:"port,omitempty"`
 }
+
+// OpencodeServerConnected defines model for OpencodeServerConnected.
+type OpencodeServerConnected struct {
+	Data    map[string]interface{} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                      `json:"id"`
+	Location *OpencodeLocationRef        `json:"location,omitempty"`
+	Metadata *map[string]interface{}     `json:"metadata,omitempty"`
+	Type     OpencodeServerConnectedType `json:"type"`
+}
+
+// OpencodeServerConnectedType defines model for OpencodeServerConnected.Type.
+type OpencodeServerConnectedType string
 
 // OpencodeServiceUnavailableError defines model for OpencodeServiceUnavailableError.
 type OpencodeServiceUnavailableError struct {
@@ -9306,6 +12576,85 @@ type OpencodeSessionBusyError struct {
 // OpencodeSessionBusyErrorTag defines model for OpencodeSessionBusyError.Tag.
 type OpencodeSessionBusyErrorTag string
 
+// OpencodeSessionCompacted defines model for OpencodeSessionCompacted.
+type OpencodeSessionCompacted struct {
+	Data struct {
+		SessionID string `json:"sessionID"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                       `json:"id"`
+	Location *OpencodeLocationRef         `json:"location,omitempty"`
+	Metadata *map[string]interface{}      `json:"metadata,omitempty"`
+	Type     OpencodeSessionCompactedType `json:"type"`
+}
+
+// OpencodeSessionCompactedType defines model for OpencodeSessionCompacted.Type.
+type OpencodeSessionCompactedType string
+
+// OpencodeSessionCreated defines model for OpencodeSessionCreated.
+type OpencodeSessionCreated struct {
+	Data struct {
+		Info      OpencodeSession `json:"info"`
+		SessionID string          `json:"sessionID"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                     `json:"id"`
+	Location *OpencodeLocationRef       `json:"location,omitempty"`
+	Metadata *map[string]interface{}    `json:"metadata,omitempty"`
+	Type     OpencodeSessionCreatedType `json:"type"`
+}
+
+// OpencodeSessionCreatedType defines model for OpencodeSessionCreated.Type.
+type OpencodeSessionCreatedType string
+
+// OpencodeSessionDeleted defines model for OpencodeSessionDeleted.
+type OpencodeSessionDeleted struct {
+	Data struct {
+		Info      OpencodeSession `json:"info"`
+		SessionID string          `json:"sessionID"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                     `json:"id"`
+	Location *OpencodeLocationRef       `json:"location,omitempty"`
+	Metadata *map[string]interface{}    `json:"metadata,omitempty"`
+	Type     OpencodeSessionDeletedType `json:"type"`
+}
+
+// OpencodeSessionDeletedType defines model for OpencodeSessionDeleted.Type.
+type OpencodeSessionDeletedType string
+
+// OpencodeSessionDiff defines model for OpencodeSessionDiff.
+type OpencodeSessionDiff struct {
+	Data struct {
+		Diff      []OpencodeSnapshotFileDiff `json:"diff"`
+		SessionID string                     `json:"sessionID"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                  `json:"id"`
+	Location *OpencodeLocationRef    `json:"location,omitempty"`
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+	Type     OpencodeSessionDiffType `json:"type"`
+}
+
+// OpencodeSessionDiffType defines model for OpencodeSessionDiff.Type.
+type OpencodeSessionDiffType string
+
 // OpencodeSessionDurableEvent defines model for OpencodeSessionDurableEvent.
 type OpencodeSessionDurableEvent struct {
 	union json.RawMessage
@@ -9313,6 +12662,31 @@ type OpencodeSessionDurableEvent struct {
 
 // OpencodeSessionDurableEventStream defines model for OpencodeSessionDurableEventStream.
 type OpencodeSessionDurableEventStream = string
+
+// OpencodeSessionError defines model for OpencodeSessionError.
+type OpencodeSessionError struct {
+	Data struct {
+		Error     *OpencodeSessionError_Data_Error `json:"error,omitempty"`
+		SessionID *string                          `json:"sessionID,omitempty"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                   `json:"id"`
+	Location *OpencodeLocationRef     `json:"location,omitempty"`
+	Metadata *map[string]interface{}  `json:"metadata,omitempty"`
+	Type     OpencodeSessionErrorType `json:"type"`
+}
+
+// OpencodeSessionError_Data_Error defines model for OpencodeSessionError.Data.Error.
+type OpencodeSessionError_Data_Error struct {
+	union json.RawMessage
+}
+
+// OpencodeSessionErrorType defines model for OpencodeSessionError.Type.
+type OpencodeSessionErrorType string
 
 // OpencodeSessionErrorUnknown defines model for OpencodeSessionErrorUnknown.
 type OpencodeSessionErrorUnknown struct {
@@ -9328,6 +12702,25 @@ type OpencodeSessionHistory struct {
 	Data    []OpencodeSessionDurableEvent `json:"data"`
 	HasMore bool                          `json:"hasMore"`
 }
+
+// OpencodeSessionIdle defines model for OpencodeSessionIdle.
+type OpencodeSessionIdle struct {
+	Data struct {
+		SessionID string `json:"sessionID"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                  `json:"id"`
+	Location *OpencodeLocationRef    `json:"location,omitempty"`
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+	Type     OpencodeSessionIdleType `json:"type"`
+}
+
+// OpencodeSessionIdleType defines model for OpencodeSessionIdle.Type.
+type OpencodeSessionIdleType string
 
 // OpencodeSessionInputAdmitted defines model for OpencodeSessionInputAdmitted.
 type OpencodeSessionInputAdmitted struct {
@@ -9595,6 +12988,15 @@ type OpencodeSessionMessageUser struct {
 // OpencodeSessionMessageUserType defines model for OpencodeSessionMessageUser.Type.
 type OpencodeSessionMessageUserType string
 
+// OpencodeSessionMessagesResponse defines model for OpencodeSessionMessagesResponse.
+type OpencodeSessionMessagesResponse struct {
+	Cursor struct {
+		Next     *string `json:"next,omitempty"`
+		Previous *string `json:"previous,omitempty"`
+	} `json:"cursor"`
+	Data []OpencodeSessionMessage `json:"data"`
+}
+
 // OpencodeSessionNextAgentSwitched defines model for OpencodeSessionNextAgentSwitched.
 type OpencodeSessionNextAgentSwitched struct {
 	Data struct {
@@ -9616,6 +13018,28 @@ type OpencodeSessionNextAgentSwitched struct {
 
 // OpencodeSessionNextAgentSwitchedType defines model for OpencodeSessionNextAgentSwitched.Type.
 type OpencodeSessionNextAgentSwitchedType string
+
+// OpencodeSessionNextCompactionDelta defines model for OpencodeSessionNextCompactionDelta.
+type OpencodeSessionNextCompactionDelta struct {
+	Data struct {
+		MessageID string  `json:"messageID"`
+		SessionID string  `json:"sessionID"`
+		Text      string  `json:"text"`
+		Timestamp float32 `json:"timestamp"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                                 `json:"id"`
+	Location *OpencodeLocationRef                   `json:"location,omitempty"`
+	Metadata *map[string]interface{}                `json:"metadata,omitempty"`
+	Type     OpencodeSessionNextCompactionDeltaType `json:"type"`
+}
+
+// OpencodeSessionNextCompactionDeltaType defines model for OpencodeSessionNextCompactionDelta.Type.
+type OpencodeSessionNextCompactionDeltaType string
 
 // OpencodeSessionNextCompactionEnded defines model for OpencodeSessionNextCompactionEnded.
 type OpencodeSessionNextCompactionEnded struct {
@@ -9786,6 +13210,29 @@ type OpencodeSessionNextPromptedDataDelivery string
 
 // OpencodeSessionNextPromptedType defines model for OpencodeSessionNextPrompted.Type.
 type OpencodeSessionNextPromptedType string
+
+// OpencodeSessionNextReasoningDelta defines model for OpencodeSessionNextReasoningDelta.
+type OpencodeSessionNextReasoningDelta struct {
+	Data struct {
+		AssistantMessageID string  `json:"assistantMessageID"`
+		Delta              string  `json:"delta"`
+		ReasoningID        string  `json:"reasoningID"`
+		SessionID          string  `json:"sessionID"`
+		Timestamp          float32 `json:"timestamp"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                                `json:"id"`
+	Location *OpencodeLocationRef                  `json:"location,omitempty"`
+	Metadata *map[string]interface{}               `json:"metadata,omitempty"`
+	Type     OpencodeSessionNextReasoningDeltaType `json:"type"`
+}
+
+// OpencodeSessionNextReasoningDeltaType defines model for OpencodeSessionNextReasoningDelta.Type.
+type OpencodeSessionNextReasoningDeltaType string
 
 // OpencodeSessionNextReasoningEnded defines model for OpencodeSessionNextReasoningEnded.
 type OpencodeSessionNextReasoningEnded struct {
@@ -10075,6 +13522,29 @@ type OpencodeSessionNextSynthetic struct {
 // OpencodeSessionNextSyntheticType defines model for OpencodeSessionNextSynthetic.Type.
 type OpencodeSessionNextSyntheticType string
 
+// OpencodeSessionNextTextDelta defines model for OpencodeSessionNextTextDelta.
+type OpencodeSessionNextTextDelta struct {
+	Data struct {
+		AssistantMessageID string  `json:"assistantMessageID"`
+		Delta              string  `json:"delta"`
+		SessionID          string  `json:"sessionID"`
+		TextID             string  `json:"textID"`
+		Timestamp          float32 `json:"timestamp"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                           `json:"id"`
+	Location *OpencodeLocationRef             `json:"location,omitempty"`
+	Metadata *map[string]interface{}          `json:"metadata,omitempty"`
+	Type     OpencodeSessionNextTextDeltaType `json:"type"`
+}
+
+// OpencodeSessionNextTextDeltaType defines model for OpencodeSessionNextTextDelta.Type.
+type OpencodeSessionNextTextDeltaType string
+
 // OpencodeSessionNextTextEnded defines model for OpencodeSessionNextTextEnded.
 type OpencodeSessionNextTextEnded struct {
 	Data struct {
@@ -10175,6 +13645,29 @@ type OpencodeSessionNextToolFailed struct {
 
 // OpencodeSessionNextToolFailedType defines model for OpencodeSessionNextToolFailed.Type.
 type OpencodeSessionNextToolFailedType string
+
+// OpencodeSessionNextToolInputDelta defines model for OpencodeSessionNextToolInputDelta.
+type OpencodeSessionNextToolInputDelta struct {
+	Data struct {
+		AssistantMessageID string  `json:"assistantMessageID"`
+		CallID             string  `json:"callID"`
+		Delta              string  `json:"delta"`
+		SessionID          string  `json:"sessionID"`
+		Timestamp          float32 `json:"timestamp"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                                `json:"id"`
+	Location *OpencodeLocationRef                  `json:"location,omitempty"`
+	Metadata *map[string]interface{}               `json:"metadata,omitempty"`
+	Type     OpencodeSessionNextToolInputDeltaType `json:"type"`
+}
+
+// OpencodeSessionNextToolInputDeltaType defines model for OpencodeSessionNextToolInputDelta.Type.
+type OpencodeSessionNextToolInputDeltaType string
 
 // OpencodeSessionNextToolInputEnded defines model for OpencodeSessionNextToolInputEnded.
 type OpencodeSessionNextToolInputEnded struct {
@@ -10326,6 +13819,26 @@ type OpencodeSessionStatus2 struct {
 // OpencodeSessionStatus2Type defines model for OpencodeSessionStatus2.Type.
 type OpencodeSessionStatus2Type string
 
+// OpencodeSessionUpdated defines model for OpencodeSessionUpdated.
+type OpencodeSessionUpdated struct {
+	Data struct {
+		Info      OpencodeSession `json:"info"`
+		SessionID string          `json:"sessionID"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                     `json:"id"`
+	Location *OpencodeLocationRef       `json:"location,omitempty"`
+	Metadata *map[string]interface{}    `json:"metadata,omitempty"`
+	Type     OpencodeSessionUpdatedType `json:"type"`
+}
+
+// OpencodeSessionUpdatedType defines model for OpencodeSessionUpdated.Type.
+type OpencodeSessionUpdatedType string
+
 // OpencodeSessionV2Info defines model for OpencodeSessionV2Info.
 type OpencodeSessionV2Info struct {
 	Agent     *string              `json:"agent,omitempty"`
@@ -10363,6 +13876,24 @@ type OpencodeSessionsResponse struct {
 	Data []OpencodeSessionV2Info `json:"data"`
 }
 
+// OpencodeSkillV2DirectorySource defines model for OpencodeSkillV2DirectorySource.
+type OpencodeSkillV2DirectorySource struct {
+	Path string                             `json:"path"`
+	Type OpencodeSkillV2DirectorySourceType `json:"type"`
+}
+
+// OpencodeSkillV2DirectorySourceType defines model for OpencodeSkillV2DirectorySource.Type.
+type OpencodeSkillV2DirectorySourceType string
+
+// OpencodeSkillV2EmbeddedSource defines model for OpencodeSkillV2EmbeddedSource.
+type OpencodeSkillV2EmbeddedSource struct {
+	Skill OpencodeSkillV2Info               `json:"skill"`
+	Type  OpencodeSkillV2EmbeddedSourceType `json:"type"`
+}
+
+// OpencodeSkillV2EmbeddedSourceType defines model for OpencodeSkillV2EmbeddedSource.Type.
+type OpencodeSkillV2EmbeddedSourceType string
+
 // OpencodeSkillV2Info defines model for OpencodeSkillV2Info.
 type OpencodeSkillV2Info struct {
 	Content     string  `json:"content"`
@@ -10371,6 +13902,20 @@ type OpencodeSkillV2Info struct {
 	Name        string  `json:"name"`
 	Slash       *bool   `json:"slash,omitempty"`
 }
+
+// OpencodeSkillV2Source defines model for OpencodeSkillV2Source.
+type OpencodeSkillV2Source struct {
+	union json.RawMessage
+}
+
+// OpencodeSkillV2UrlSource defines model for OpencodeSkillV2UrlSource.
+type OpencodeSkillV2UrlSource struct {
+	Type OpencodeSkillV2UrlSourceType `json:"type"`
+	Url  string                       `json:"url"`
+}
+
+// OpencodeSkillV2UrlSourceType defines model for OpencodeSkillV2UrlSource.Type.
+type OpencodeSkillV2UrlSourceType string
 
 // OpencodeSnapshotFileDiff defines model for OpencodeSnapshotFileDiff.
 type OpencodeSnapshotFileDiff struct {
@@ -10479,6 +14024,16 @@ type OpencodeSubtaskPartInput struct {
 
 // OpencodeSubtaskPartInputType defines model for OpencodeSubtaskPartInput.Type.
 type OpencodeSubtaskPartInputType string
+
+// OpencodeSymbol defines model for OpencodeSymbol.
+type OpencodeSymbol struct {
+	Kind     int `json:"kind"`
+	Location struct {
+		Range OpencodeRange `json:"range"`
+		Uri   string        `json:"uri"`
+	} `json:"location"`
+	Name string `json:"name"`
+}
 
 // OpencodeSymbolSource defines model for OpencodeSymbolSource.
 type OpencodeSymbolSource struct {
@@ -11424,6 +14979,26 @@ type OpencodeTodo struct {
 	Status string `json:"status"`
 }
 
+// OpencodeTodoUpdated defines model for OpencodeTodoUpdated.
+type OpencodeTodoUpdated struct {
+	Data struct {
+		SessionID string         `json:"sessionID"`
+		Todos     []OpencodeTodo `json:"todos"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                  `json:"id"`
+	Location *OpencodeLocationRef    `json:"location,omitempty"`
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+	Type     OpencodeTodoUpdatedType `json:"type"`
+}
+
+// OpencodeTodoUpdatedType defines model for OpencodeTodoUpdated.Type.
+type OpencodeTodoUpdatedType string
+
 // OpencodeToolFileContent defines model for OpencodeToolFileContent.
 type OpencodeToolFileContent struct {
 	Mime string                      `json:"mime"`
@@ -11434,6 +15009,19 @@ type OpencodeToolFileContent struct {
 
 // OpencodeToolFileContentType defines model for OpencodeToolFileContent.Type.
 type OpencodeToolFileContentType string
+
+// OpencodeToolIDs defines model for OpencodeToolIDs.
+type OpencodeToolIDs = []string
+
+// OpencodeToolList defines model for OpencodeToolList.
+type OpencodeToolList = []OpencodeToolListItem
+
+// OpencodeToolListItem defines model for OpencodeToolListItem.
+type OpencodeToolListItem struct {
+	Description string      `json:"description"`
+	Id          string      `json:"id"`
+	Parameters  interface{} `json:"parameters"`
+}
 
 // OpencodeToolPart defines model for OpencodeToolPart.
 type OpencodeToolPart struct {
@@ -11521,6 +15109,89 @@ type OpencodeToolTextContent struct {
 // OpencodeToolTextContentType defines model for OpencodeToolTextContent.Type.
 type OpencodeToolTextContentType string
 
+// OpencodeTuiCommandExecute defines model for OpencodeTuiCommandExecute.
+type OpencodeTuiCommandExecute struct {
+	Data struct {
+		Command string `json:"command"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                        `json:"id"`
+	Location *OpencodeLocationRef          `json:"location,omitempty"`
+	Metadata *map[string]interface{}       `json:"metadata,omitempty"`
+	Type     OpencodeTuiCommandExecuteType `json:"type"`
+}
+
+// OpencodeTuiCommandExecuteType defines model for OpencodeTuiCommandExecute.Type.
+type OpencodeTuiCommandExecuteType string
+
+// OpencodeTuiPromptAppend defines model for OpencodeTuiPromptAppend.
+type OpencodeTuiPromptAppend struct {
+	Data struct {
+		Text string `json:"text"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                      `json:"id"`
+	Location *OpencodeLocationRef        `json:"location,omitempty"`
+	Metadata *map[string]interface{}     `json:"metadata,omitempty"`
+	Type     OpencodeTuiPromptAppendType `json:"type"`
+}
+
+// OpencodeTuiPromptAppendType defines model for OpencodeTuiPromptAppend.Type.
+type OpencodeTuiPromptAppendType string
+
+// OpencodeTuiSessionSelect defines model for OpencodeTuiSessionSelect.
+type OpencodeTuiSessionSelect struct {
+	Data struct {
+		// SessionID Session ID to navigate to
+		SessionID string `json:"sessionID"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                       `json:"id"`
+	Location *OpencodeLocationRef         `json:"location,omitempty"`
+	Metadata *map[string]interface{}      `json:"metadata,omitempty"`
+	Type     OpencodeTuiSessionSelectType `json:"type"`
+}
+
+// OpencodeTuiSessionSelectType defines model for OpencodeTuiSessionSelect.Type.
+type OpencodeTuiSessionSelectType string
+
+// OpencodeTuiToastShow defines model for OpencodeTuiToastShow.
+type OpencodeTuiToastShow struct {
+	Data struct {
+		Duration *int                            `json:"duration,omitempty"`
+		Message  string                          `json:"message"`
+		Title    *string                         `json:"title,omitempty"`
+		Variant  OpencodeTuiToastShowDataVariant `json:"variant"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                   `json:"id"`
+	Location *OpencodeLocationRef     `json:"location,omitempty"`
+	Metadata *map[string]interface{}  `json:"metadata,omitempty"`
+	Type     OpencodeTuiToastShowType `json:"type"`
+}
+
+// OpencodeTuiToastShowDataVariant defines model for OpencodeTuiToastShow.Data.Variant.
+type OpencodeTuiToastShowDataVariant string
+
+// OpencodeTuiToastShowType defines model for OpencodeTuiToastShow.Type.
+type OpencodeTuiToastShowType string
+
 // OpencodeUnauthorizedError defines model for OpencodeUnauthorizedError.
 type OpencodeUnauthorizedError struct {
 	UnderscoreTag OpencodeUnauthorizedErrorTag `json:"_tag"`
@@ -11579,6 +15250,286 @@ type OpencodeUserMessage struct {
 // OpencodeUserMessageRole defines model for OpencodeUserMessage.Role.
 type OpencodeUserMessageRole string
 
+// OpencodeV2Event defines model for OpencodeV2Event.
+type OpencodeV2Event struct {
+	union json.RawMessage
+}
+
+// OpencodeV2EventStream defines model for OpencodeV2EventStream.
+type OpencodeV2EventStream = string
+
+// OpencodeVcsApplyError defines model for OpencodeVcsApplyError.
+type OpencodeVcsApplyError struct {
+	Data struct {
+		Message string                          `json:"message"`
+		Reason  OpencodeVcsApplyErrorDataReason `json:"reason"`
+	} `json:"data"`
+	Name OpencodeVcsApplyErrorName `json:"name"`
+}
+
+// OpencodeVcsApplyErrorDataReason defines model for OpencodeVcsApplyError.Data.Reason.
+type OpencodeVcsApplyErrorDataReason string
+
+// OpencodeVcsApplyErrorName defines model for OpencodeVcsApplyError.Name.
+type OpencodeVcsApplyErrorName string
+
+// OpencodeVcsBranchUpdated defines model for OpencodeVcsBranchUpdated.
+type OpencodeVcsBranchUpdated struct {
+	Data struct {
+		Branch *string `json:"branch,omitempty"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                       `json:"id"`
+	Location *OpencodeLocationRef         `json:"location,omitempty"`
+	Metadata *map[string]interface{}      `json:"metadata,omitempty"`
+	Type     OpencodeVcsBranchUpdatedType `json:"type"`
+}
+
+// OpencodeVcsBranchUpdatedType defines model for OpencodeVcsBranchUpdated.Type.
+type OpencodeVcsBranchUpdatedType string
+
+// OpencodeVcsFileDiff defines model for OpencodeVcsFileDiff.
+type OpencodeVcsFileDiff struct {
+	Additions float32                    `json:"additions"`
+	Deletions float32                    `json:"deletions"`
+	File      string                     `json:"file"`
+	Patch     *string                    `json:"patch,omitempty"`
+	Status    *OpencodeVcsFileDiffStatus `json:"status,omitempty"`
+}
+
+// OpencodeVcsFileDiffStatus defines model for OpencodeVcsFileDiff.Status.
+type OpencodeVcsFileDiffStatus string
+
+// OpencodeVcsFileStatus defines model for OpencodeVcsFileStatus.
+type OpencodeVcsFileStatus struct {
+	Additions float32                     `json:"additions"`
+	Deletions float32                     `json:"deletions"`
+	File      string                      `json:"file"`
+	Status    OpencodeVcsFileStatusStatus `json:"status"`
+}
+
+// OpencodeVcsFileStatusStatus defines model for OpencodeVcsFileStatus.Status.
+type OpencodeVcsFileStatusStatus string
+
+// OpencodeVcsInfo defines model for OpencodeVcsInfo.
+type OpencodeVcsInfo struct {
+	Branch        *string `json:"branch,omitempty"`
+	DefaultBranch *string `json:"default_branch,omitempty"`
+}
+
+// OpencodeWellKnownAuth defines model for OpencodeWellKnownAuth.
+type OpencodeWellKnownAuth struct {
+	Key   string                    `json:"key"`
+	Token string                    `json:"token"`
+	Type  OpencodeWellKnownAuthType `json:"type"`
+}
+
+// OpencodeWellKnownAuthType defines model for OpencodeWellKnownAuth.Type.
+type OpencodeWellKnownAuthType string
+
+// OpencodeWorkspace defines model for OpencodeWorkspace.
+type OpencodeWorkspace struct {
+	Branch    *string                    `json:"branch"`
+	Directory *string                    `json:"directory"`
+	Extra     interface{}                `json:"extra"`
+	Id        string                     `json:"id"`
+	Name      string                     `json:"name"`
+	ProjectID string                     `json:"projectID"`
+	TimeUsed  OpencodeWorkspace_TimeUsed `json:"timeUsed"`
+	Type      string                     `json:"type"`
+}
+
+// OpencodeWorkspaceTimeUsed0 defines model for .
+type OpencodeWorkspaceTimeUsed0 = float32
+
+// OpencodeWorkspaceTimeUsed1 defines model for OpencodeWorkspace.TimeUsed.1.
+type OpencodeWorkspaceTimeUsed1 string
+
+// OpencodeWorkspaceTimeUsed2 defines model for OpencodeWorkspace.TimeUsed.2.
+type OpencodeWorkspaceTimeUsed2 string
+
+// OpencodeWorkspaceTimeUsed3 defines model for OpencodeWorkspace.TimeUsed.3.
+type OpencodeWorkspaceTimeUsed3 string
+
+// OpencodeWorkspaceTimeUsed4 defines model for OpencodeWorkspace.TimeUsed.4.
+type OpencodeWorkspaceTimeUsed4 string
+
+// OpencodeWorkspace_TimeUsed defines model for OpencodeWorkspace.TimeUsed.
+type OpencodeWorkspace_TimeUsed struct {
+	union json.RawMessage
+}
+
+// OpencodeWorkspaceCreateError defines model for OpencodeWorkspaceCreateError.
+type OpencodeWorkspaceCreateError struct {
+	Data struct {
+		Message string `json:"message"`
+	} `json:"data"`
+	Name OpencodeWorkspaceCreateErrorName `json:"name"`
+}
+
+// OpencodeWorkspaceCreateErrorName defines model for OpencodeWorkspaceCreateError.Name.
+type OpencodeWorkspaceCreateErrorName string
+
+// OpencodeWorkspaceEventConnectionStatus defines model for OpencodeWorkspaceEventConnectionStatus.
+type OpencodeWorkspaceEventConnectionStatus struct {
+	Status      OpencodeWorkspaceEventConnectionStatusStatus `json:"status"`
+	WorkspaceID string                                       `json:"workspaceID"`
+}
+
+// OpencodeWorkspaceEventConnectionStatusStatus defines model for OpencodeWorkspaceEventConnectionStatus.Status.
+type OpencodeWorkspaceEventConnectionStatusStatus string
+
+// OpencodeWorkspaceFailed defines model for OpencodeWorkspaceFailed.
+type OpencodeWorkspaceFailed struct {
+	Data struct {
+		Message string `json:"message"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                      `json:"id"`
+	Location *OpencodeLocationRef        `json:"location,omitempty"`
+	Metadata *map[string]interface{}     `json:"metadata,omitempty"`
+	Type     OpencodeWorkspaceFailedType `json:"type"`
+}
+
+// OpencodeWorkspaceFailedType defines model for OpencodeWorkspaceFailed.Type.
+type OpencodeWorkspaceFailedType string
+
+// OpencodeWorkspaceReady defines model for OpencodeWorkspaceReady.
+type OpencodeWorkspaceReady struct {
+	Data struct {
+		Name string `json:"name"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                     `json:"id"`
+	Location *OpencodeLocationRef       `json:"location,omitempty"`
+	Metadata *map[string]interface{}    `json:"metadata,omitempty"`
+	Type     OpencodeWorkspaceReadyType `json:"type"`
+}
+
+// OpencodeWorkspaceReadyType defines model for OpencodeWorkspaceReady.Type.
+type OpencodeWorkspaceReadyType string
+
+// OpencodeWorkspaceStatus defines model for OpencodeWorkspaceStatus.
+type OpencodeWorkspaceStatus struct {
+	Data struct {
+		Status      OpencodeWorkspaceStatusDataStatus `json:"status"`
+		WorkspaceID string                            `json:"workspaceID"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                      `json:"id"`
+	Location *OpencodeLocationRef        `json:"location,omitempty"`
+	Metadata *map[string]interface{}     `json:"metadata,omitempty"`
+	Type     OpencodeWorkspaceStatusType `json:"type"`
+}
+
+// OpencodeWorkspaceStatusDataStatus defines model for OpencodeWorkspaceStatus.Data.Status.
+type OpencodeWorkspaceStatusDataStatus string
+
+// OpencodeWorkspaceStatusType defines model for OpencodeWorkspaceStatus.Type.
+type OpencodeWorkspaceStatusType string
+
+// OpencodeWorkspaceWarpError defines model for OpencodeWorkspaceWarpError.
+type OpencodeWorkspaceWarpError struct {
+	Data struct {
+		Message string `json:"message"`
+	} `json:"data"`
+	Name OpencodeWorkspaceWarpErrorName `json:"name"`
+}
+
+// OpencodeWorkspaceWarpErrorName defines model for OpencodeWorkspaceWarpError.Name.
+type OpencodeWorkspaceWarpErrorName string
+
+// OpencodeWorktree defines model for OpencodeWorktree.
+type OpencodeWorktree struct {
+	Branch    *string `json:"branch,omitempty"`
+	Directory string  `json:"directory"`
+	Name      string  `json:"name"`
+}
+
+// OpencodeWorktreeCreateInput defines model for OpencodeWorktreeCreateInput.
+type OpencodeWorktreeCreateInput struct {
+	Name *string `json:"name,omitempty"`
+
+	// StartCommand Additional startup script to run after the project's start command
+	StartCommand *string `json:"startCommand,omitempty"`
+}
+
+// OpencodeWorktreeError defines model for OpencodeWorktreeError.
+type OpencodeWorktreeError struct {
+	Data struct {
+		Message string `json:"message"`
+	} `json:"data"`
+	Name OpencodeWorktreeErrorName `json:"name"`
+}
+
+// OpencodeWorktreeErrorName defines model for OpencodeWorktreeError.Name.
+type OpencodeWorktreeErrorName string
+
+// OpencodeWorktreeFailed defines model for OpencodeWorktreeFailed.
+type OpencodeWorktreeFailed struct {
+	Data struct {
+		Message string `json:"message"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                     `json:"id"`
+	Location *OpencodeLocationRef       `json:"location,omitempty"`
+	Metadata *map[string]interface{}    `json:"metadata,omitempty"`
+	Type     OpencodeWorktreeFailedType `json:"type"`
+}
+
+// OpencodeWorktreeFailedType defines model for OpencodeWorktreeFailed.Type.
+type OpencodeWorktreeFailedType string
+
+// OpencodeWorktreeReady defines model for OpencodeWorktreeReady.
+type OpencodeWorktreeReady struct {
+	Data struct {
+		Branch *string `json:"branch,omitempty"`
+		Name   string  `json:"name"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                    `json:"id"`
+	Location *OpencodeLocationRef      `json:"location,omitempty"`
+	Metadata *map[string]interface{}   `json:"metadata,omitempty"`
+	Type     OpencodeWorktreeReadyType `json:"type"`
+}
+
+// OpencodeWorktreeReadyType defines model for OpencodeWorktreeReady.Type.
+type OpencodeWorktreeReadyType string
+
+// OpencodeWorktreeRemoveInput defines model for OpencodeWorktreeRemoveInput.
+type OpencodeWorktreeRemoveInput struct {
+	Directory string `json:"directory"`
+}
+
+// OpencodeWorktreeResetInput defines model for OpencodeWorktreeResetInput.
+type OpencodeWorktreeResetInput struct {
+	Directory string `json:"directory"`
+}
+
 // OpencodeeffectHttpApiErrorBadRequest defines model for Opencodeeffect_HttpApiError_BadRequest.
 type OpencodeeffectHttpApiErrorBadRequest struct {
 	UnderscoreTag OpencodeeffectHttpApiErrorBadRequestTag `json:"_tag"`
@@ -11603,8 +15554,80 @@ type OpencodeeffectHttpApiErrorInternalServerError struct {
 // OpencodeeffectHttpApiErrorInternalServerErrorTag defines model for OpencodeeffectHttpApiErrorInternalServerError.Tag.
 type OpencodeeffectHttpApiErrorInternalServerErrorTag string
 
+// OpencodequestionRejected defines model for Opencodequestion.rejected.
+type OpencodequestionRejected struct {
+	Data struct {
+		RequestID string `json:"requestID"`
+		SessionID string `json:"sessionID"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                       `json:"id"`
+	Location *OpencodeLocationRef         `json:"location,omitempty"`
+	Metadata *map[string]interface{}      `json:"metadata,omitempty"`
+	Type     OpencodequestionRejectedType `json:"type"`
+}
+
+// OpencodequestionRejectedType defines model for OpencodequestionRejected.Type.
+type OpencodequestionRejectedType string
+
+// OpencodequestionReplied defines model for Opencodequestion.replied.
+type OpencodequestionReplied struct {
+	Data struct {
+		Answers   []OpencodeQuestionAnswer `json:"answers"`
+		RequestID string                   `json:"requestID"`
+		SessionID string                   `json:"sessionID"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                      `json:"id"`
+	Location *OpencodeLocationRef        `json:"location,omitempty"`
+	Metadata *map[string]interface{}     `json:"metadata,omitempty"`
+	Type     OpencodequestionRepliedType `json:"type"`
+}
+
+// OpencodequestionRepliedType defines model for OpencodequestionReplied.Type.
+type OpencodequestionRepliedType string
+
+// OpencodesessionStatus defines model for Opencodesession.status.
+type OpencodesessionStatus struct {
+	Data struct {
+		SessionID string                `json:"sessionID"`
+		Status    OpencodeSessionStatus `json:"status"`
+	} `json:"data"`
+	Durable *struct {
+		AggregateID string `json:"aggregateID"`
+		Seq         int    `json:"seq"`
+		Version     int    `json:"version"`
+	} `json:"durable,omitempty"`
+	Id       string                    `json:"id"`
+	Location *OpencodeLocationRef      `json:"location,omitempty"`
+	Metadata *map[string]interface{}   `json:"metadata,omitempty"`
+	Type     OpencodesessionStatusType `json:"type"`
+}
+
+// OpencodesessionStatusType defines model for OpencodesessionStatus.Type.
+type OpencodesessionStatusType string
+
 // OptionalSpanID Lowercase hexadecimal OTLP span ID, or empty for root spans.
 type OptionalSpanID = string
+
+// OverwriteSkillImportDecision defines model for OverwriteSkillImportDecision.
+type OverwriteSkillImportDecision struct {
+	Action OverwriteSkillImportDecisionAction `json:"action"`
+
+	// Name Immutable Skill resource name.
+	Name SkillName `json:"name"`
+}
+
+// OverwriteSkillImportDecisionAction defines model for OverwriteSkillImportDecision.Action.
+type OverwriteSkillImportDecisionAction string
 
 // PatchWorkflowRunNodeStatusRequest defines model for PatchWorkflowRunNodeStatusRequest.
 type PatchWorkflowRunNodeStatusRequest struct {
@@ -11695,6 +15718,20 @@ type RenameAgentEntryRequest struct {
 	Target string `json:"target"`
 }
 
+// RenameSkillImportDecision defines model for RenameSkillImportDecision.
+type RenameSkillImportDecision struct {
+	Action RenameSkillImportDecisionAction `json:"action"`
+
+	// Name Immutable Skill resource name.
+	Name SkillName `json:"name"`
+
+	// Rename Immutable Skill resource name.
+	Rename SkillName `json:"rename"`
+}
+
+// RenameSkillImportDecisionAction defines model for RenameSkillImportDecision.Action.
+type RenameSkillImportDecisionAction string
+
 // ReplaceWorkspaceInheritedResourcesRequest defines model for ReplaceWorkspaceInheritedResourcesRequest.
 type ReplaceWorkspaceInheritedResourcesRequest struct {
 	Names []string `json:"names"`
@@ -11730,14 +15767,15 @@ type ResourceScope string
 
 // Sandbox defines model for Sandbox.
 type Sandbox struct {
-	AllowedHosts      []string           `json:"allowed_hosts"`
-	CanDelete         bool               `json:"can_delete"`
-	CanModify         bool               `json:"can_modify"`
-	CreatedAt         time.Time          `json:"created_at"`
-	CreatedBy         ResourceActor      `json:"created_by"`
-	Inference         SandboxInference   `json:"inference"`
-	LastModifiedBy    ResourceActor      `json:"last_modified_by"`
-	McpConnectionRefs []MCPConnectionRef `json:"mcp_connection_refs"`
+	AllowedHosts      []string             `json:"allowed_hosts"`
+	CanDelete         bool                 `json:"can_delete"`
+	CanModify         bool                 `json:"can_modify"`
+	CreatedAt         time.Time            `json:"created_at"`
+	CreatedBy         ResourceActor        `json:"created_by"`
+	Guardrails        *GuardrailAssignment `json:"guardrails,omitempty"`
+	Inference         SandboxInference     `json:"inference"`
+	LastModifiedBy    ResourceActor        `json:"last_modified_by"`
+	McpConnectionRefs []MCPConnectionRef   `json:"mcp_connection_refs"`
 	Metadata          struct {
 		AllowedHostCount  int32 `json:"allowed_host_count"`
 		PackageCount      int32 `json:"package_count"`
@@ -11840,10 +15878,12 @@ type SecretWarningCode string
 
 // SelectedOrganizationResources defines model for SelectedOrganizationResources.
 type SelectedOrganizationResources struct {
-	InferenceProviders []string `json:"inference_providers"`
-	McpConnections     []string `json:"mcp_connections"`
-	Sandboxes          []string `json:"sandboxes"`
-	Skills             []string `json:"skills"`
+	GuardrailConnections []string `json:"guardrail_connections"`
+	GuardrailPolicies    []string `json:"guardrail_policies"`
+	InferenceProviders   []string `json:"inference_providers"`
+	McpConnections       []string `json:"mcp_connections"`
+	Sandboxes            []string `json:"sandboxes"`
+	Skills               []string `json:"skills"`
 }
 
 // Skill defines model for Skill.
@@ -11883,6 +15923,11 @@ type SkillImportAgentResult struct {
 
 // SkillImportAgentResultStatus defines model for SkillImportAgentResult.Status.
 type SkillImportAgentResultStatus string
+
+// SkillImportDecision defines model for SkillImportDecision.
+type SkillImportDecision struct {
+	union json.RawMessage
+}
 
 // SkillImportResponse defines model for SkillImportResponse.
 type SkillImportResponse struct {
@@ -11965,16 +16010,19 @@ type SpanRecording struct {
 
 // Tenant defines model for Tenant.
 type Tenant struct {
-	Conditions                    []TenantCondition    `json:"conditions"`
-	InferencePoolCapabilities     ResourceCapabilities `json:"inference_pool_capabilities"`
-	InferenceProviderCapabilities ResourceCapabilities `json:"inference_provider_capabilities"`
-	McpConnectionCapabilities     ResourceCapabilities `json:"mcp_connection_capabilities"`
-	Namespace                     string               `json:"namespace"`
-	OrganizationId                string               `json:"organization_id"`
-	Phase                         TenantPhase          `json:"phase"`
-	Ready                         bool                 `json:"ready"`
-	SandboxCapabilities           ResourceCapabilities `json:"sandbox_capabilities"`
-	SkillCapabilities             ResourceCapabilities `json:"skill_capabilities"`
+	Conditions                      []TenantCondition    `json:"conditions"`
+	GuardrailConnectionCapabilities ResourceCapabilities `json:"guardrail_connection_capabilities"`
+	GuardrailEventCapabilities      ResourceCapabilities `json:"guardrail_event_capabilities"`
+	GuardrailPolicyCapabilities     ResourceCapabilities `json:"guardrail_policy_capabilities"`
+	InferencePoolCapabilities       ResourceCapabilities `json:"inference_pool_capabilities"`
+	InferenceProviderCapabilities   ResourceCapabilities `json:"inference_provider_capabilities"`
+	McpConnectionCapabilities       ResourceCapabilities `json:"mcp_connection_capabilities"`
+	Namespace                       string               `json:"namespace"`
+	OrganizationId                  string               `json:"organization_id"`
+	Phase                           TenantPhase          `json:"phase"`
+	Ready                           bool                 `json:"ready"`
+	SandboxCapabilities             ResourceCapabilities `json:"sandbox_capabilities"`
+	SkillCapabilities               ResourceCapabilities `json:"skill_capabilities"`
 }
 
 // TenantCondition defines model for TenantCondition.
@@ -12002,6 +16050,32 @@ type ToolLanguage = agentzv1alpha1.ToolLanguage
 
 // ToolName defines model for ToolName.
 type ToolName = string
+
+// Trace defines model for Trace.
+type Trace struct {
+	AgentName         AgentName `json:"agent_name"`
+	CachedInputTokens int64     `json:"cached_input_tokens"`
+	CachedWriteTokens int64     `json:"cached_write_tokens"`
+	CostUsd           float64   `json:"cost_usd"`
+	DurationMs        float64   `json:"duration_ms"`
+	DurationNs        int64     `json:"duration_ns"`
+	EndedAt           time.Time `json:"ended_at"`
+	ErrorCount        int64     `json:"error_count"`
+	InputTokens       int64     `json:"input_tokens"`
+	ModelCount        int64     `json:"model_count"`
+	OutputTokens      int64     `json:"output_tokens"`
+
+	// RootSpanId Lowercase hexadecimal OTLP span ID, or empty for root spans.
+	RootSpanId OptionalSpanID `json:"root_span_id"`
+	SpanCount  int64          `json:"span_count"`
+	StartedAt  time.Time      `json:"started_at"`
+	StatusCode string         `json:"status_code"`
+	ToolCount  int64          `json:"tool_count"`
+
+	// TraceId Lowercase hexadecimal OTLP trace ID.
+	TraceId   TraceID   `json:"trace_id"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
 
 // TraceID Lowercase hexadecimal OTLP trace ID.
 type TraceID = string
@@ -12061,11 +16135,12 @@ type UpdateInferenceProviderRequest struct {
 
 // UpdateSandboxRequest defines model for UpdateSandboxRequest.
 type UpdateSandboxRequest struct {
-	AllowedHosts      []string            `json:"allowed_hosts"`
-	Inference         SandboxInference    `json:"inference"`
-	McpConnectionRefs []MCPConnectionRef  `json:"mcp_connection_refs"`
-	Packages          []string            `json:"packages"`
-	Skills            []ResourceReference `json:"skills"`
+	AllowedHosts      []string             `json:"allowed_hosts"`
+	Guardrails        *GuardrailAssignment `json:"guardrails,omitempty"`
+	Inference         SandboxInference     `json:"inference"`
+	McpConnectionRefs []MCPConnectionRef   `json:"mcp_connection_refs"`
+	Packages          []string             `json:"packages"`
+	Skills            []ResourceReference  `json:"skills"`
 }
 
 // UpdateSkillRequest defines model for UpdateSkillRequest.
@@ -12482,16 +16557,19 @@ type Workspace struct {
 
 // WorkspaceCapabilities defines model for WorkspaceCapabilities.
 type WorkspaceCapabilities struct {
-	Administer         bool                       `json:"administer"`
-	Agents             AgentWorkspaceCapabilities `json:"agents"`
-	ApiKeys            ResourceCapabilities       `json:"api_keys"`
-	ExternalAgents     ResourceCapabilities       `json:"external_agents"`
-	InferencePools     ResourceCapabilities       `json:"inference_pools"`
-	InferenceProviders ResourceCapabilities       `json:"inference_providers"`
-	McpConnections     ResourceCapabilities       `json:"mcp_connections"`
-	Observability      ResourceCapabilities       `json:"observability"`
-	Sandboxes          ResourceCapabilities       `json:"sandboxes"`
-	Skills             ResourceCapabilities       `json:"skills"`
+	Administer           bool                       `json:"administer"`
+	Agents               AgentWorkspaceCapabilities `json:"agents"`
+	ApiKeys              ResourceCapabilities       `json:"api_keys"`
+	ExternalAgents       ResourceCapabilities       `json:"external_agents"`
+	GuardrailConnections ResourceCapabilities       `json:"guardrail_connections"`
+	GuardrailEvents      ResourceCapabilities       `json:"guardrail_events"`
+	GuardrailPolicies    ResourceCapabilities       `json:"guardrail_policies"`
+	InferencePools       ResourceCapabilities       `json:"inference_pools"`
+	InferenceProviders   ResourceCapabilities       `json:"inference_providers"`
+	McpConnections       ResourceCapabilities       `json:"mcp_connections"`
+	Observability        ResourceCapabilities       `json:"observability"`
+	Sandboxes            ResourceCapabilities       `json:"sandboxes"`
+	Skills               ResourceCapabilities       `json:"skills"`
 }
 
 // WorkspaceInheritedResource defines model for WorkspaceInheritedResource.
@@ -12541,6 +16619,9 @@ type AgentNameFilterQuery = []AgentName
 
 // AgentNamePath defines model for AgentNamePath.
 type AgentNamePath = AgentName
+
+// AgentNameQuery defines model for AgentNameQuery.
+type AgentNameQuery = AgentName
 
 // AgentNameQueryOptional defines model for AgentNameQueryOptional.
 type AgentNameQueryOptional = AgentName
@@ -12644,6 +16725,9 @@ type ResourceScopeQuery = ResourceScope
 // ResourceSortByQuery defines model for ResourceSortByQuery.
 type ResourceSortByQuery string
 
+// SandboxNamePath Sandbox resource name.
+type SandboxNamePath = SandboxName
+
 // SecretSortByQuery defines model for SecretSortByQuery.
 type SecretSortByQuery string
 
@@ -12659,6 +16743,9 @@ type SkillSummarySortByQuery string
 // SortOrderQuery defines model for SortOrderQuery.
 type SortOrderQuery string
 
+// SpanIDQuery Lowercase hexadecimal OTLP span ID.
+type SpanIDQuery = SpanID
+
 // StartedAfterQuery defines model for StartedAfterQuery.
 type StartedAfterQuery = time.Time
 
@@ -12667,6 +16754,9 @@ type StartedBeforeQuery = time.Time
 
 // ToDateQuery defines model for ToDateQuery.
 type ToDateQuery = openapi_types.Date
+
+// TraceIDQuery Lowercase hexadecimal OTLP trace ID.
+type TraceIDQuery = TraceID
 
 // UpdateSandboxQuery defines model for UpdateSandboxQuery.
 type UpdateSandboxQuery = bool
@@ -13012,6 +17102,158 @@ type GetEventTrailEventParams struct {
 
 // WatchExternalAgentsParams defines parameters for WatchExternalAgents.
 type WatchExternalAgentsParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// ListGuardrailConnectionsParams defines parameters for ListGuardrailConnections.
+type ListGuardrailConnectionsParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// CreateGuardrailConnectionParams defines parameters for CreateGuardrailConnection.
+type CreateGuardrailConnectionParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// DeleteGuardrailConnectionParams defines parameters for DeleteGuardrailConnection.
+type DeleteGuardrailConnectionParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// GetGuardrailConnectionParams defines parameters for GetGuardrailConnection.
+type GetGuardrailConnectionParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// UpdateGuardrailConnectionParams defines parameters for UpdateGuardrailConnection.
+type UpdateGuardrailConnectionParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// DiscoverGuardrailConnectionResourcesParams defines parameters for DiscoverGuardrailConnectionResources.
+type DiscoverGuardrailConnectionResourcesParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// GetEffectiveGuardrailsParams defines parameters for GetEffectiveGuardrails.
+type GetEffectiveGuardrailsParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// ListGuardrailEventsParams defines parameters for ListGuardrailEvents.
+type ListGuardrailEventsParams struct {
+	// WorkspaceId Narrow organization events to one workspace.
+	WorkspaceId *string `form:"workspace_id,omitempty" json:"workspace_id,omitempty"`
+
+	// AgentName Agent name qualified by workspace_id or the workspace header.
+	AgentName *string `form:"agent_name,omitempty" json:"agent_name,omitempty"`
+
+	// ClientId External agent or application client ID.
+	ClientId  *string                          `form:"client_id,omitempty" json:"client_id,omitempty"`
+	Action    *ListGuardrailEventsParamsAction `form:"action,omitempty" json:"action,omitempty"`
+	Phase     *ListGuardrailEventsParamsPhase  `form:"phase,omitempty" json:"phase,omitempty"`
+	TraceId   *string                          `form:"trace_id,omitempty" json:"trace_id,omitempty"`
+	SessionId *string                          `form:"session_id,omitempty" json:"session_id,omitempty"`
+	From      *time.Time                       `form:"from,omitempty" json:"from,omitempty"`
+	To        *time.Time                       `form:"to,omitempty" json:"to,omitempty"`
+	Cursor    *string                          `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Limit     *int                             `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// ListGuardrailEventsParamsAction defines parameters for ListGuardrailEvents.
+type ListGuardrailEventsParamsAction string
+
+// ListGuardrailEventsParamsPhase defines parameters for ListGuardrailEvents.
+type ListGuardrailEventsParamsPhase string
+
+// GetGuardrailEventChartParams defines parameters for GetGuardrailEventChart.
+type GetGuardrailEventChartParams struct {
+	// WorkspaceId Narrow organization events to one workspace.
+	WorkspaceId *string `form:"workspace_id,omitempty" json:"workspace_id,omitempty"`
+
+	// AgentName Agent name qualified by workspace_id or the workspace header.
+	AgentName *string `form:"agent_name,omitempty" json:"agent_name,omitempty"`
+
+	// ClientId External agent or application client ID.
+	ClientId  *string                             `form:"client_id,omitempty" json:"client_id,omitempty"`
+	Action    *GetGuardrailEventChartParamsAction `form:"action,omitempty" json:"action,omitempty"`
+	Phase     *GetGuardrailEventChartParamsPhase  `form:"phase,omitempty" json:"phase,omitempty"`
+	TraceId   *string                             `form:"trace_id,omitempty" json:"trace_id,omitempty"`
+	SessionId *string                             `form:"session_id,omitempty" json:"session_id,omitempty"`
+	From      *time.Time                          `form:"from,omitempty" json:"from,omitempty"`
+	To        *time.Time                          `form:"to,omitempty" json:"to,omitempty"`
+
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// GetGuardrailEventChartParamsAction defines parameters for GetGuardrailEventChart.
+type GetGuardrailEventChartParamsAction string
+
+// GetGuardrailEventChartParamsPhase defines parameters for GetGuardrailEventChart.
+type GetGuardrailEventChartParamsPhase string
+
+// ListGuardrailEventSourcesParams defines parameters for ListGuardrailEventSources.
+type ListGuardrailEventSourcesParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// GetGuardrailEventParams defines parameters for GetGuardrailEvent.
+type GetGuardrailEventParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// ListGuardrailPoliciesParams defines parameters for ListGuardrailPolicies.
+type ListGuardrailPoliciesParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// CreateGuardrailPolicyParams defines parameters for CreateGuardrailPolicy.
+type CreateGuardrailPolicyParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// DeleteGuardrailPolicyParams defines parameters for DeleteGuardrailPolicy.
+type DeleteGuardrailPolicyParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// GetGuardrailPolicyParams defines parameters for GetGuardrailPolicy.
+type GetGuardrailPolicyParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// UpdateGuardrailPolicyParams defines parameters for UpdateGuardrailPolicy.
+type UpdateGuardrailPolicyParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// GetGuardrailSettingsParams defines parameters for GetGuardrailSettings.
+type GetGuardrailSettingsParams struct {
+	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
+}
+
+// UpdateGuardrailSettingsParams defines parameters for UpdateGuardrailSettings.
+type UpdateGuardrailSettingsParams struct {
 	// XAgentZWorkspaceID Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
 	XAgentZWorkspaceID *WorkspaceIDHeader `json:"X-AgentZ-Workspace-ID,omitempty"`
 }
@@ -14428,6 +18670,27 @@ type RunCodingGitJSONRequestBody = CodingGitRequest
 
 // ListEventTrailEventsJSONRequestBody defines body for ListEventTrailEvents for application/json ContentType.
 type ListEventTrailEventsJSONRequestBody = ListEventTrailEventsRequest
+
+// CreateGuardrailConnectionJSONRequestBody defines body for CreateGuardrailConnection for application/json ContentType.
+type CreateGuardrailConnectionJSONRequestBody = GuardrailConnectionInput
+
+// UpdateGuardrailConnectionJSONRequestBody defines body for UpdateGuardrailConnection for application/json ContentType.
+type UpdateGuardrailConnectionJSONRequestBody = GuardrailConnectionInput
+
+// DiscoverGuardrailConnectionResourcesJSONRequestBody defines body for DiscoverGuardrailConnectionResources for application/json ContentType.
+type DiscoverGuardrailConnectionResourcesJSONRequestBody = GuardrailResourceDiscoveryInput
+
+// GetEffectiveGuardrailsJSONRequestBody defines body for GetEffectiveGuardrails for application/json ContentType.
+type GetEffectiveGuardrailsJSONRequestBody = GuardrailEffectiveInput
+
+// CreateGuardrailPolicyJSONRequestBody defines body for CreateGuardrailPolicy for application/json ContentType.
+type CreateGuardrailPolicyJSONRequestBody = GuardrailPolicyInput
+
+// UpdateGuardrailPolicyJSONRequestBody defines body for UpdateGuardrailPolicy for application/json ContentType.
+type UpdateGuardrailPolicyJSONRequestBody = GuardrailPolicyInput
+
+// UpdateGuardrailSettingsJSONRequestBody defines body for UpdateGuardrailSettings for application/json ContentType.
+type UpdateGuardrailSettingsJSONRequestBody = GuardrailSettings
 
 // CreateInferencePoolJSONRequestBody defines body for CreateInferencePool for application/json ContentType.
 type CreateInferencePoolJSONRequestBody = CreateInferencePoolRequest
@@ -17100,6 +21363,94 @@ func (t *OpencodeAssistantMessage_Error) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsOpencodeOAuth returns the union data inside the OpencodeAuth as a OpencodeOAuth
+func (t OpencodeAuth) AsOpencodeOAuth() (OpencodeOAuth, error) {
+	var body OpencodeOAuth
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeOAuth overwrites any union data inside the OpencodeAuth as the provided OpencodeOAuth
+func (t *OpencodeAuth) FromOpencodeOAuth(v OpencodeOAuth) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeOAuth performs a merge with any union data inside the OpencodeAuth, using the provided OpencodeOAuth
+func (t *OpencodeAuth) MergeOpencodeOAuth(v OpencodeOAuth) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeApiAuth returns the union data inside the OpencodeAuth as a OpencodeApiAuth
+func (t OpencodeAuth) AsOpencodeApiAuth() (OpencodeApiAuth, error) {
+	var body OpencodeApiAuth
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeApiAuth overwrites any union data inside the OpencodeAuth as the provided OpencodeApiAuth
+func (t *OpencodeAuth) FromOpencodeApiAuth(v OpencodeApiAuth) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeApiAuth performs a merge with any union data inside the OpencodeAuth, using the provided OpencodeApiAuth
+func (t *OpencodeAuth) MergeOpencodeApiAuth(v OpencodeApiAuth) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeWellKnownAuth returns the union data inside the OpencodeAuth as a OpencodeWellKnownAuth
+func (t OpencodeAuth) AsOpencodeWellKnownAuth() (OpencodeWellKnownAuth, error) {
+	var body OpencodeWellKnownAuth
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeWellKnownAuth overwrites any union data inside the OpencodeAuth as the provided OpencodeWellKnownAuth
+func (t *OpencodeAuth) FromOpencodeWellKnownAuth(v OpencodeWellKnownAuth) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeWellKnownAuth performs a merge with any union data inside the OpencodeAuth, using the provided OpencodeWellKnownAuth
+func (t *OpencodeAuth) MergeOpencodeWellKnownAuth(v OpencodeWellKnownAuth) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeAuth) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeAuth) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsOpencodeConfigAutoupdate0 returns the union data inside the OpencodeConfig_Autoupdate as a OpencodeConfigAutoupdate0
 func (t OpencodeConfig_Autoupdate) AsOpencodeConfigAutoupdate0() (OpencodeConfigAutoupdate0, error) {
 	var body OpencodeConfigAutoupdate0
@@ -17670,6 +22021,130 @@ func (t OpencodeConfig_References_AdditionalProperties) MarshalJSON() ([]byte, e
 }
 
 func (t *OpencodeConfig_References_AdditionalProperties) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOpencodeConnectionCredentialInfo returns the union data inside the OpencodeConnectionInfo as a OpencodeConnectionCredentialInfo
+func (t OpencodeConnectionInfo) AsOpencodeConnectionCredentialInfo() (OpencodeConnectionCredentialInfo, error) {
+	var body OpencodeConnectionCredentialInfo
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeConnectionCredentialInfo overwrites any union data inside the OpencodeConnectionInfo as the provided OpencodeConnectionCredentialInfo
+func (t *OpencodeConnectionInfo) FromOpencodeConnectionCredentialInfo(v OpencodeConnectionCredentialInfo) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeConnectionCredentialInfo performs a merge with any union data inside the OpencodeConnectionInfo, using the provided OpencodeConnectionCredentialInfo
+func (t *OpencodeConnectionInfo) MergeOpencodeConnectionCredentialInfo(v OpencodeConnectionCredentialInfo) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeConnectionEnvInfo returns the union data inside the OpencodeConnectionInfo as a OpencodeConnectionEnvInfo
+func (t OpencodeConnectionInfo) AsOpencodeConnectionEnvInfo() (OpencodeConnectionEnvInfo, error) {
+	var body OpencodeConnectionEnvInfo
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeConnectionEnvInfo overwrites any union data inside the OpencodeConnectionInfo as the provided OpencodeConnectionEnvInfo
+func (t *OpencodeConnectionInfo) FromOpencodeConnectionEnvInfo(v OpencodeConnectionEnvInfo) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeConnectionEnvInfo performs a merge with any union data inside the OpencodeConnectionInfo, using the provided OpencodeConnectionEnvInfo
+func (t *OpencodeConnectionInfo) MergeOpencodeConnectionEnvInfo(v OpencodeConnectionEnvInfo) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeConnectionInfo) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeConnectionInfo) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOpencodeCredentialOAuth returns the union data inside the OpencodeCredentialValue as a OpencodeCredentialOAuth
+func (t OpencodeCredentialValue) AsOpencodeCredentialOAuth() (OpencodeCredentialOAuth, error) {
+	var body OpencodeCredentialOAuth
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeCredentialOAuth overwrites any union data inside the OpencodeCredentialValue as the provided OpencodeCredentialOAuth
+func (t *OpencodeCredentialValue) FromOpencodeCredentialOAuth(v OpencodeCredentialOAuth) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeCredentialOAuth performs a merge with any union data inside the OpencodeCredentialValue, using the provided OpencodeCredentialOAuth
+func (t *OpencodeCredentialValue) MergeOpencodeCredentialOAuth(v OpencodeCredentialOAuth) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeCredentialKey returns the union data inside the OpencodeCredentialValue as a OpencodeCredentialKey
+func (t OpencodeCredentialValue) AsOpencodeCredentialKey() (OpencodeCredentialKey, error) {
+	var body OpencodeCredentialKey
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeCredentialKey overwrites any union data inside the OpencodeCredentialValue as the provided OpencodeCredentialKey
+func (t *OpencodeCredentialValue) FromOpencodeCredentialKey(v OpencodeCredentialKey) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeCredentialKey performs a merge with any union data inside the OpencodeCredentialValue, using the provided OpencodeCredentialKey
+func (t *OpencodeCredentialValue) MergeOpencodeCredentialKey(v OpencodeCredentialKey) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeCredentialValue) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeCredentialValue) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -24131,6 +28606,1670 @@ func (t *OpencodeGlobalEvent_Payload) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsOpencodeIntegrationAttemptTimeCreated0 returns the union data inside the OpencodeIntegrationAttempt_Time_Created as a OpencodeIntegrationAttemptTimeCreated0
+func (t OpencodeIntegrationAttempt_Time_Created) AsOpencodeIntegrationAttemptTimeCreated0() (OpencodeIntegrationAttemptTimeCreated0, error) {
+	var body OpencodeIntegrationAttemptTimeCreated0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptTimeCreated0 overwrites any union data inside the OpencodeIntegrationAttempt_Time_Created as the provided OpencodeIntegrationAttemptTimeCreated0
+func (t *OpencodeIntegrationAttempt_Time_Created) FromOpencodeIntegrationAttemptTimeCreated0(v OpencodeIntegrationAttemptTimeCreated0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptTimeCreated0 performs a merge with any union data inside the OpencodeIntegrationAttempt_Time_Created, using the provided OpencodeIntegrationAttemptTimeCreated0
+func (t *OpencodeIntegrationAttempt_Time_Created) MergeOpencodeIntegrationAttemptTimeCreated0(v OpencodeIntegrationAttemptTimeCreated0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptTimeCreated1 returns the union data inside the OpencodeIntegrationAttempt_Time_Created as a OpencodeIntegrationAttemptTimeCreated1
+func (t OpencodeIntegrationAttempt_Time_Created) AsOpencodeIntegrationAttemptTimeCreated1() (OpencodeIntegrationAttemptTimeCreated1, error) {
+	var body OpencodeIntegrationAttemptTimeCreated1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptTimeCreated1 overwrites any union data inside the OpencodeIntegrationAttempt_Time_Created as the provided OpencodeIntegrationAttemptTimeCreated1
+func (t *OpencodeIntegrationAttempt_Time_Created) FromOpencodeIntegrationAttemptTimeCreated1(v OpencodeIntegrationAttemptTimeCreated1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptTimeCreated1 performs a merge with any union data inside the OpencodeIntegrationAttempt_Time_Created, using the provided OpencodeIntegrationAttemptTimeCreated1
+func (t *OpencodeIntegrationAttempt_Time_Created) MergeOpencodeIntegrationAttemptTimeCreated1(v OpencodeIntegrationAttemptTimeCreated1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptTimeCreated2 returns the union data inside the OpencodeIntegrationAttempt_Time_Created as a OpencodeIntegrationAttemptTimeCreated2
+func (t OpencodeIntegrationAttempt_Time_Created) AsOpencodeIntegrationAttemptTimeCreated2() (OpencodeIntegrationAttemptTimeCreated2, error) {
+	var body OpencodeIntegrationAttemptTimeCreated2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptTimeCreated2 overwrites any union data inside the OpencodeIntegrationAttempt_Time_Created as the provided OpencodeIntegrationAttemptTimeCreated2
+func (t *OpencodeIntegrationAttempt_Time_Created) FromOpencodeIntegrationAttemptTimeCreated2(v OpencodeIntegrationAttemptTimeCreated2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptTimeCreated2 performs a merge with any union data inside the OpencodeIntegrationAttempt_Time_Created, using the provided OpencodeIntegrationAttemptTimeCreated2
+func (t *OpencodeIntegrationAttempt_Time_Created) MergeOpencodeIntegrationAttemptTimeCreated2(v OpencodeIntegrationAttemptTimeCreated2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptTimeCreated3 returns the union data inside the OpencodeIntegrationAttempt_Time_Created as a OpencodeIntegrationAttemptTimeCreated3
+func (t OpencodeIntegrationAttempt_Time_Created) AsOpencodeIntegrationAttemptTimeCreated3() (OpencodeIntegrationAttemptTimeCreated3, error) {
+	var body OpencodeIntegrationAttemptTimeCreated3
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptTimeCreated3 overwrites any union data inside the OpencodeIntegrationAttempt_Time_Created as the provided OpencodeIntegrationAttemptTimeCreated3
+func (t *OpencodeIntegrationAttempt_Time_Created) FromOpencodeIntegrationAttemptTimeCreated3(v OpencodeIntegrationAttemptTimeCreated3) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptTimeCreated3 performs a merge with any union data inside the OpencodeIntegrationAttempt_Time_Created, using the provided OpencodeIntegrationAttemptTimeCreated3
+func (t *OpencodeIntegrationAttempt_Time_Created) MergeOpencodeIntegrationAttemptTimeCreated3(v OpencodeIntegrationAttemptTimeCreated3) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptTimeCreated4 returns the union data inside the OpencodeIntegrationAttempt_Time_Created as a OpencodeIntegrationAttemptTimeCreated4
+func (t OpencodeIntegrationAttempt_Time_Created) AsOpencodeIntegrationAttemptTimeCreated4() (OpencodeIntegrationAttemptTimeCreated4, error) {
+	var body OpencodeIntegrationAttemptTimeCreated4
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptTimeCreated4 overwrites any union data inside the OpencodeIntegrationAttempt_Time_Created as the provided OpencodeIntegrationAttemptTimeCreated4
+func (t *OpencodeIntegrationAttempt_Time_Created) FromOpencodeIntegrationAttemptTimeCreated4(v OpencodeIntegrationAttemptTimeCreated4) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptTimeCreated4 performs a merge with any union data inside the OpencodeIntegrationAttempt_Time_Created, using the provided OpencodeIntegrationAttemptTimeCreated4
+func (t *OpencodeIntegrationAttempt_Time_Created) MergeOpencodeIntegrationAttemptTimeCreated4(v OpencodeIntegrationAttemptTimeCreated4) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeIntegrationAttempt_Time_Created) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeIntegrationAttempt_Time_Created) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOpencodeIntegrationAttemptTimeExpires0 returns the union data inside the OpencodeIntegrationAttempt_Time_Expires as a OpencodeIntegrationAttemptTimeExpires0
+func (t OpencodeIntegrationAttempt_Time_Expires) AsOpencodeIntegrationAttemptTimeExpires0() (OpencodeIntegrationAttemptTimeExpires0, error) {
+	var body OpencodeIntegrationAttemptTimeExpires0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptTimeExpires0 overwrites any union data inside the OpencodeIntegrationAttempt_Time_Expires as the provided OpencodeIntegrationAttemptTimeExpires0
+func (t *OpencodeIntegrationAttempt_Time_Expires) FromOpencodeIntegrationAttemptTimeExpires0(v OpencodeIntegrationAttemptTimeExpires0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptTimeExpires0 performs a merge with any union data inside the OpencodeIntegrationAttempt_Time_Expires, using the provided OpencodeIntegrationAttemptTimeExpires0
+func (t *OpencodeIntegrationAttempt_Time_Expires) MergeOpencodeIntegrationAttemptTimeExpires0(v OpencodeIntegrationAttemptTimeExpires0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptTimeExpires1 returns the union data inside the OpencodeIntegrationAttempt_Time_Expires as a OpencodeIntegrationAttemptTimeExpires1
+func (t OpencodeIntegrationAttempt_Time_Expires) AsOpencodeIntegrationAttemptTimeExpires1() (OpencodeIntegrationAttemptTimeExpires1, error) {
+	var body OpencodeIntegrationAttemptTimeExpires1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptTimeExpires1 overwrites any union data inside the OpencodeIntegrationAttempt_Time_Expires as the provided OpencodeIntegrationAttemptTimeExpires1
+func (t *OpencodeIntegrationAttempt_Time_Expires) FromOpencodeIntegrationAttemptTimeExpires1(v OpencodeIntegrationAttemptTimeExpires1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptTimeExpires1 performs a merge with any union data inside the OpencodeIntegrationAttempt_Time_Expires, using the provided OpencodeIntegrationAttemptTimeExpires1
+func (t *OpencodeIntegrationAttempt_Time_Expires) MergeOpencodeIntegrationAttemptTimeExpires1(v OpencodeIntegrationAttemptTimeExpires1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptTimeExpires2 returns the union data inside the OpencodeIntegrationAttempt_Time_Expires as a OpencodeIntegrationAttemptTimeExpires2
+func (t OpencodeIntegrationAttempt_Time_Expires) AsOpencodeIntegrationAttemptTimeExpires2() (OpencodeIntegrationAttemptTimeExpires2, error) {
+	var body OpencodeIntegrationAttemptTimeExpires2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptTimeExpires2 overwrites any union data inside the OpencodeIntegrationAttempt_Time_Expires as the provided OpencodeIntegrationAttemptTimeExpires2
+func (t *OpencodeIntegrationAttempt_Time_Expires) FromOpencodeIntegrationAttemptTimeExpires2(v OpencodeIntegrationAttemptTimeExpires2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptTimeExpires2 performs a merge with any union data inside the OpencodeIntegrationAttempt_Time_Expires, using the provided OpencodeIntegrationAttemptTimeExpires2
+func (t *OpencodeIntegrationAttempt_Time_Expires) MergeOpencodeIntegrationAttemptTimeExpires2(v OpencodeIntegrationAttemptTimeExpires2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptTimeExpires3 returns the union data inside the OpencodeIntegrationAttempt_Time_Expires as a OpencodeIntegrationAttemptTimeExpires3
+func (t OpencodeIntegrationAttempt_Time_Expires) AsOpencodeIntegrationAttemptTimeExpires3() (OpencodeIntegrationAttemptTimeExpires3, error) {
+	var body OpencodeIntegrationAttemptTimeExpires3
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptTimeExpires3 overwrites any union data inside the OpencodeIntegrationAttempt_Time_Expires as the provided OpencodeIntegrationAttemptTimeExpires3
+func (t *OpencodeIntegrationAttempt_Time_Expires) FromOpencodeIntegrationAttemptTimeExpires3(v OpencodeIntegrationAttemptTimeExpires3) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptTimeExpires3 performs a merge with any union data inside the OpencodeIntegrationAttempt_Time_Expires, using the provided OpencodeIntegrationAttemptTimeExpires3
+func (t *OpencodeIntegrationAttempt_Time_Expires) MergeOpencodeIntegrationAttemptTimeExpires3(v OpencodeIntegrationAttemptTimeExpires3) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptTimeExpires4 returns the union data inside the OpencodeIntegrationAttempt_Time_Expires as a OpencodeIntegrationAttemptTimeExpires4
+func (t OpencodeIntegrationAttempt_Time_Expires) AsOpencodeIntegrationAttemptTimeExpires4() (OpencodeIntegrationAttemptTimeExpires4, error) {
+	var body OpencodeIntegrationAttemptTimeExpires4
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptTimeExpires4 overwrites any union data inside the OpencodeIntegrationAttempt_Time_Expires as the provided OpencodeIntegrationAttemptTimeExpires4
+func (t *OpencodeIntegrationAttempt_Time_Expires) FromOpencodeIntegrationAttemptTimeExpires4(v OpencodeIntegrationAttemptTimeExpires4) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptTimeExpires4 performs a merge with any union data inside the OpencodeIntegrationAttempt_Time_Expires, using the provided OpencodeIntegrationAttemptTimeExpires4
+func (t *OpencodeIntegrationAttempt_Time_Expires) MergeOpencodeIntegrationAttemptTimeExpires4(v OpencodeIntegrationAttemptTimeExpires4) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeIntegrationAttempt_Time_Expires) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeIntegrationAttempt_Time_Expires) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus0 returns the union data inside the OpencodeIntegrationAttemptStatus as a OpencodeIntegrationAttemptStatus0
+func (t OpencodeIntegrationAttemptStatus) AsOpencodeIntegrationAttemptStatus0() (OpencodeIntegrationAttemptStatus0, error) {
+	var body OpencodeIntegrationAttemptStatus0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus0 overwrites any union data inside the OpencodeIntegrationAttemptStatus as the provided OpencodeIntegrationAttemptStatus0
+func (t *OpencodeIntegrationAttemptStatus) FromOpencodeIntegrationAttemptStatus0(v OpencodeIntegrationAttemptStatus0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus0 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus, using the provided OpencodeIntegrationAttemptStatus0
+func (t *OpencodeIntegrationAttemptStatus) MergeOpencodeIntegrationAttemptStatus0(v OpencodeIntegrationAttemptStatus0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus1 returns the union data inside the OpencodeIntegrationAttemptStatus as a OpencodeIntegrationAttemptStatus1
+func (t OpencodeIntegrationAttemptStatus) AsOpencodeIntegrationAttemptStatus1() (OpencodeIntegrationAttemptStatus1, error) {
+	var body OpencodeIntegrationAttemptStatus1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus1 overwrites any union data inside the OpencodeIntegrationAttemptStatus as the provided OpencodeIntegrationAttemptStatus1
+func (t *OpencodeIntegrationAttemptStatus) FromOpencodeIntegrationAttemptStatus1(v OpencodeIntegrationAttemptStatus1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus1 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus, using the provided OpencodeIntegrationAttemptStatus1
+func (t *OpencodeIntegrationAttemptStatus) MergeOpencodeIntegrationAttemptStatus1(v OpencodeIntegrationAttemptStatus1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus2 returns the union data inside the OpencodeIntegrationAttemptStatus as a OpencodeIntegrationAttemptStatus2
+func (t OpencodeIntegrationAttemptStatus) AsOpencodeIntegrationAttemptStatus2() (OpencodeIntegrationAttemptStatus2, error) {
+	var body OpencodeIntegrationAttemptStatus2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus2 overwrites any union data inside the OpencodeIntegrationAttemptStatus as the provided OpencodeIntegrationAttemptStatus2
+func (t *OpencodeIntegrationAttemptStatus) FromOpencodeIntegrationAttemptStatus2(v OpencodeIntegrationAttemptStatus2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus2 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus, using the provided OpencodeIntegrationAttemptStatus2
+func (t *OpencodeIntegrationAttemptStatus) MergeOpencodeIntegrationAttemptStatus2(v OpencodeIntegrationAttemptStatus2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus3 returns the union data inside the OpencodeIntegrationAttemptStatus as a OpencodeIntegrationAttemptStatus3
+func (t OpencodeIntegrationAttemptStatus) AsOpencodeIntegrationAttemptStatus3() (OpencodeIntegrationAttemptStatus3, error) {
+	var body OpencodeIntegrationAttemptStatus3
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus3 overwrites any union data inside the OpencodeIntegrationAttemptStatus as the provided OpencodeIntegrationAttemptStatus3
+func (t *OpencodeIntegrationAttemptStatus) FromOpencodeIntegrationAttemptStatus3(v OpencodeIntegrationAttemptStatus3) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus3 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus, using the provided OpencodeIntegrationAttemptStatus3
+func (t *OpencodeIntegrationAttemptStatus) MergeOpencodeIntegrationAttemptStatus3(v OpencodeIntegrationAttemptStatus3) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeIntegrationAttemptStatus) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeIntegrationAttemptStatus) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus0TimeCreated0 returns the union data inside the OpencodeIntegrationAttemptStatus_0_Time_Created as a OpencodeIntegrationAttemptStatus0TimeCreated0
+func (t OpencodeIntegrationAttemptStatus_0_Time_Created) AsOpencodeIntegrationAttemptStatus0TimeCreated0() (OpencodeIntegrationAttemptStatus0TimeCreated0, error) {
+	var body OpencodeIntegrationAttemptStatus0TimeCreated0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus0TimeCreated0 overwrites any union data inside the OpencodeIntegrationAttemptStatus_0_Time_Created as the provided OpencodeIntegrationAttemptStatus0TimeCreated0
+func (t *OpencodeIntegrationAttemptStatus_0_Time_Created) FromOpencodeIntegrationAttemptStatus0TimeCreated0(v OpencodeIntegrationAttemptStatus0TimeCreated0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus0TimeCreated0 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_0_Time_Created, using the provided OpencodeIntegrationAttemptStatus0TimeCreated0
+func (t *OpencodeIntegrationAttemptStatus_0_Time_Created) MergeOpencodeIntegrationAttemptStatus0TimeCreated0(v OpencodeIntegrationAttemptStatus0TimeCreated0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus0TimeCreated1 returns the union data inside the OpencodeIntegrationAttemptStatus_0_Time_Created as a OpencodeIntegrationAttemptStatus0TimeCreated1
+func (t OpencodeIntegrationAttemptStatus_0_Time_Created) AsOpencodeIntegrationAttemptStatus0TimeCreated1() (OpencodeIntegrationAttemptStatus0TimeCreated1, error) {
+	var body OpencodeIntegrationAttemptStatus0TimeCreated1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus0TimeCreated1 overwrites any union data inside the OpencodeIntegrationAttemptStatus_0_Time_Created as the provided OpencodeIntegrationAttemptStatus0TimeCreated1
+func (t *OpencodeIntegrationAttemptStatus_0_Time_Created) FromOpencodeIntegrationAttemptStatus0TimeCreated1(v OpencodeIntegrationAttemptStatus0TimeCreated1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus0TimeCreated1 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_0_Time_Created, using the provided OpencodeIntegrationAttemptStatus0TimeCreated1
+func (t *OpencodeIntegrationAttemptStatus_0_Time_Created) MergeOpencodeIntegrationAttemptStatus0TimeCreated1(v OpencodeIntegrationAttemptStatus0TimeCreated1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus0TimeCreated2 returns the union data inside the OpencodeIntegrationAttemptStatus_0_Time_Created as a OpencodeIntegrationAttemptStatus0TimeCreated2
+func (t OpencodeIntegrationAttemptStatus_0_Time_Created) AsOpencodeIntegrationAttemptStatus0TimeCreated2() (OpencodeIntegrationAttemptStatus0TimeCreated2, error) {
+	var body OpencodeIntegrationAttemptStatus0TimeCreated2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus0TimeCreated2 overwrites any union data inside the OpencodeIntegrationAttemptStatus_0_Time_Created as the provided OpencodeIntegrationAttemptStatus0TimeCreated2
+func (t *OpencodeIntegrationAttemptStatus_0_Time_Created) FromOpencodeIntegrationAttemptStatus0TimeCreated2(v OpencodeIntegrationAttemptStatus0TimeCreated2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus0TimeCreated2 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_0_Time_Created, using the provided OpencodeIntegrationAttemptStatus0TimeCreated2
+func (t *OpencodeIntegrationAttemptStatus_0_Time_Created) MergeOpencodeIntegrationAttemptStatus0TimeCreated2(v OpencodeIntegrationAttemptStatus0TimeCreated2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus0TimeCreated3 returns the union data inside the OpencodeIntegrationAttemptStatus_0_Time_Created as a OpencodeIntegrationAttemptStatus0TimeCreated3
+func (t OpencodeIntegrationAttemptStatus_0_Time_Created) AsOpencodeIntegrationAttemptStatus0TimeCreated3() (OpencodeIntegrationAttemptStatus0TimeCreated3, error) {
+	var body OpencodeIntegrationAttemptStatus0TimeCreated3
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus0TimeCreated3 overwrites any union data inside the OpencodeIntegrationAttemptStatus_0_Time_Created as the provided OpencodeIntegrationAttemptStatus0TimeCreated3
+func (t *OpencodeIntegrationAttemptStatus_0_Time_Created) FromOpencodeIntegrationAttemptStatus0TimeCreated3(v OpencodeIntegrationAttemptStatus0TimeCreated3) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus0TimeCreated3 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_0_Time_Created, using the provided OpencodeIntegrationAttemptStatus0TimeCreated3
+func (t *OpencodeIntegrationAttemptStatus_0_Time_Created) MergeOpencodeIntegrationAttemptStatus0TimeCreated3(v OpencodeIntegrationAttemptStatus0TimeCreated3) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus0TimeCreated4 returns the union data inside the OpencodeIntegrationAttemptStatus_0_Time_Created as a OpencodeIntegrationAttemptStatus0TimeCreated4
+func (t OpencodeIntegrationAttemptStatus_0_Time_Created) AsOpencodeIntegrationAttemptStatus0TimeCreated4() (OpencodeIntegrationAttemptStatus0TimeCreated4, error) {
+	var body OpencodeIntegrationAttemptStatus0TimeCreated4
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus0TimeCreated4 overwrites any union data inside the OpencodeIntegrationAttemptStatus_0_Time_Created as the provided OpencodeIntegrationAttemptStatus0TimeCreated4
+func (t *OpencodeIntegrationAttemptStatus_0_Time_Created) FromOpencodeIntegrationAttemptStatus0TimeCreated4(v OpencodeIntegrationAttemptStatus0TimeCreated4) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus0TimeCreated4 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_0_Time_Created, using the provided OpencodeIntegrationAttemptStatus0TimeCreated4
+func (t *OpencodeIntegrationAttemptStatus_0_Time_Created) MergeOpencodeIntegrationAttemptStatus0TimeCreated4(v OpencodeIntegrationAttemptStatus0TimeCreated4) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeIntegrationAttemptStatus_0_Time_Created) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeIntegrationAttemptStatus_0_Time_Created) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus0TimeExpires0 returns the union data inside the OpencodeIntegrationAttemptStatus_0_Time_Expires as a OpencodeIntegrationAttemptStatus0TimeExpires0
+func (t OpencodeIntegrationAttemptStatus_0_Time_Expires) AsOpencodeIntegrationAttemptStatus0TimeExpires0() (OpencodeIntegrationAttemptStatus0TimeExpires0, error) {
+	var body OpencodeIntegrationAttemptStatus0TimeExpires0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus0TimeExpires0 overwrites any union data inside the OpencodeIntegrationAttemptStatus_0_Time_Expires as the provided OpencodeIntegrationAttemptStatus0TimeExpires0
+func (t *OpencodeIntegrationAttemptStatus_0_Time_Expires) FromOpencodeIntegrationAttemptStatus0TimeExpires0(v OpencodeIntegrationAttemptStatus0TimeExpires0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus0TimeExpires0 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_0_Time_Expires, using the provided OpencodeIntegrationAttemptStatus0TimeExpires0
+func (t *OpencodeIntegrationAttemptStatus_0_Time_Expires) MergeOpencodeIntegrationAttemptStatus0TimeExpires0(v OpencodeIntegrationAttemptStatus0TimeExpires0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus0TimeExpires1 returns the union data inside the OpencodeIntegrationAttemptStatus_0_Time_Expires as a OpencodeIntegrationAttemptStatus0TimeExpires1
+func (t OpencodeIntegrationAttemptStatus_0_Time_Expires) AsOpencodeIntegrationAttemptStatus0TimeExpires1() (OpencodeIntegrationAttemptStatus0TimeExpires1, error) {
+	var body OpencodeIntegrationAttemptStatus0TimeExpires1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus0TimeExpires1 overwrites any union data inside the OpencodeIntegrationAttemptStatus_0_Time_Expires as the provided OpencodeIntegrationAttemptStatus0TimeExpires1
+func (t *OpencodeIntegrationAttemptStatus_0_Time_Expires) FromOpencodeIntegrationAttemptStatus0TimeExpires1(v OpencodeIntegrationAttemptStatus0TimeExpires1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus0TimeExpires1 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_0_Time_Expires, using the provided OpencodeIntegrationAttemptStatus0TimeExpires1
+func (t *OpencodeIntegrationAttemptStatus_0_Time_Expires) MergeOpencodeIntegrationAttemptStatus0TimeExpires1(v OpencodeIntegrationAttemptStatus0TimeExpires1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus0TimeExpires2 returns the union data inside the OpencodeIntegrationAttemptStatus_0_Time_Expires as a OpencodeIntegrationAttemptStatus0TimeExpires2
+func (t OpencodeIntegrationAttemptStatus_0_Time_Expires) AsOpencodeIntegrationAttemptStatus0TimeExpires2() (OpencodeIntegrationAttemptStatus0TimeExpires2, error) {
+	var body OpencodeIntegrationAttemptStatus0TimeExpires2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus0TimeExpires2 overwrites any union data inside the OpencodeIntegrationAttemptStatus_0_Time_Expires as the provided OpencodeIntegrationAttemptStatus0TimeExpires2
+func (t *OpencodeIntegrationAttemptStatus_0_Time_Expires) FromOpencodeIntegrationAttemptStatus0TimeExpires2(v OpencodeIntegrationAttemptStatus0TimeExpires2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus0TimeExpires2 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_0_Time_Expires, using the provided OpencodeIntegrationAttemptStatus0TimeExpires2
+func (t *OpencodeIntegrationAttemptStatus_0_Time_Expires) MergeOpencodeIntegrationAttemptStatus0TimeExpires2(v OpencodeIntegrationAttemptStatus0TimeExpires2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus0TimeExpires3 returns the union data inside the OpencodeIntegrationAttemptStatus_0_Time_Expires as a OpencodeIntegrationAttemptStatus0TimeExpires3
+func (t OpencodeIntegrationAttemptStatus_0_Time_Expires) AsOpencodeIntegrationAttemptStatus0TimeExpires3() (OpencodeIntegrationAttemptStatus0TimeExpires3, error) {
+	var body OpencodeIntegrationAttemptStatus0TimeExpires3
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus0TimeExpires3 overwrites any union data inside the OpencodeIntegrationAttemptStatus_0_Time_Expires as the provided OpencodeIntegrationAttemptStatus0TimeExpires3
+func (t *OpencodeIntegrationAttemptStatus_0_Time_Expires) FromOpencodeIntegrationAttemptStatus0TimeExpires3(v OpencodeIntegrationAttemptStatus0TimeExpires3) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus0TimeExpires3 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_0_Time_Expires, using the provided OpencodeIntegrationAttemptStatus0TimeExpires3
+func (t *OpencodeIntegrationAttemptStatus_0_Time_Expires) MergeOpencodeIntegrationAttemptStatus0TimeExpires3(v OpencodeIntegrationAttemptStatus0TimeExpires3) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus0TimeExpires4 returns the union data inside the OpencodeIntegrationAttemptStatus_0_Time_Expires as a OpencodeIntegrationAttemptStatus0TimeExpires4
+func (t OpencodeIntegrationAttemptStatus_0_Time_Expires) AsOpencodeIntegrationAttemptStatus0TimeExpires4() (OpencodeIntegrationAttemptStatus0TimeExpires4, error) {
+	var body OpencodeIntegrationAttemptStatus0TimeExpires4
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus0TimeExpires4 overwrites any union data inside the OpencodeIntegrationAttemptStatus_0_Time_Expires as the provided OpencodeIntegrationAttemptStatus0TimeExpires4
+func (t *OpencodeIntegrationAttemptStatus_0_Time_Expires) FromOpencodeIntegrationAttemptStatus0TimeExpires4(v OpencodeIntegrationAttemptStatus0TimeExpires4) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus0TimeExpires4 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_0_Time_Expires, using the provided OpencodeIntegrationAttemptStatus0TimeExpires4
+func (t *OpencodeIntegrationAttemptStatus_0_Time_Expires) MergeOpencodeIntegrationAttemptStatus0TimeExpires4(v OpencodeIntegrationAttemptStatus0TimeExpires4) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeIntegrationAttemptStatus_0_Time_Expires) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeIntegrationAttemptStatus_0_Time_Expires) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus1TimeCreated0 returns the union data inside the OpencodeIntegrationAttemptStatus_1_Time_Created as a OpencodeIntegrationAttemptStatus1TimeCreated0
+func (t OpencodeIntegrationAttemptStatus_1_Time_Created) AsOpencodeIntegrationAttemptStatus1TimeCreated0() (OpencodeIntegrationAttemptStatus1TimeCreated0, error) {
+	var body OpencodeIntegrationAttemptStatus1TimeCreated0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus1TimeCreated0 overwrites any union data inside the OpencodeIntegrationAttemptStatus_1_Time_Created as the provided OpencodeIntegrationAttemptStatus1TimeCreated0
+func (t *OpencodeIntegrationAttemptStatus_1_Time_Created) FromOpencodeIntegrationAttemptStatus1TimeCreated0(v OpencodeIntegrationAttemptStatus1TimeCreated0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus1TimeCreated0 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_1_Time_Created, using the provided OpencodeIntegrationAttemptStatus1TimeCreated0
+func (t *OpencodeIntegrationAttemptStatus_1_Time_Created) MergeOpencodeIntegrationAttemptStatus1TimeCreated0(v OpencodeIntegrationAttemptStatus1TimeCreated0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus1TimeCreated1 returns the union data inside the OpencodeIntegrationAttemptStatus_1_Time_Created as a OpencodeIntegrationAttemptStatus1TimeCreated1
+func (t OpencodeIntegrationAttemptStatus_1_Time_Created) AsOpencodeIntegrationAttemptStatus1TimeCreated1() (OpencodeIntegrationAttemptStatus1TimeCreated1, error) {
+	var body OpencodeIntegrationAttemptStatus1TimeCreated1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus1TimeCreated1 overwrites any union data inside the OpencodeIntegrationAttemptStatus_1_Time_Created as the provided OpencodeIntegrationAttemptStatus1TimeCreated1
+func (t *OpencodeIntegrationAttemptStatus_1_Time_Created) FromOpencodeIntegrationAttemptStatus1TimeCreated1(v OpencodeIntegrationAttemptStatus1TimeCreated1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus1TimeCreated1 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_1_Time_Created, using the provided OpencodeIntegrationAttemptStatus1TimeCreated1
+func (t *OpencodeIntegrationAttemptStatus_1_Time_Created) MergeOpencodeIntegrationAttemptStatus1TimeCreated1(v OpencodeIntegrationAttemptStatus1TimeCreated1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus1TimeCreated2 returns the union data inside the OpencodeIntegrationAttemptStatus_1_Time_Created as a OpencodeIntegrationAttemptStatus1TimeCreated2
+func (t OpencodeIntegrationAttemptStatus_1_Time_Created) AsOpencodeIntegrationAttemptStatus1TimeCreated2() (OpencodeIntegrationAttemptStatus1TimeCreated2, error) {
+	var body OpencodeIntegrationAttemptStatus1TimeCreated2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus1TimeCreated2 overwrites any union data inside the OpencodeIntegrationAttemptStatus_1_Time_Created as the provided OpencodeIntegrationAttemptStatus1TimeCreated2
+func (t *OpencodeIntegrationAttemptStatus_1_Time_Created) FromOpencodeIntegrationAttemptStatus1TimeCreated2(v OpencodeIntegrationAttemptStatus1TimeCreated2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus1TimeCreated2 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_1_Time_Created, using the provided OpencodeIntegrationAttemptStatus1TimeCreated2
+func (t *OpencodeIntegrationAttemptStatus_1_Time_Created) MergeOpencodeIntegrationAttemptStatus1TimeCreated2(v OpencodeIntegrationAttemptStatus1TimeCreated2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus1TimeCreated3 returns the union data inside the OpencodeIntegrationAttemptStatus_1_Time_Created as a OpencodeIntegrationAttemptStatus1TimeCreated3
+func (t OpencodeIntegrationAttemptStatus_1_Time_Created) AsOpencodeIntegrationAttemptStatus1TimeCreated3() (OpencodeIntegrationAttemptStatus1TimeCreated3, error) {
+	var body OpencodeIntegrationAttemptStatus1TimeCreated3
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus1TimeCreated3 overwrites any union data inside the OpencodeIntegrationAttemptStatus_1_Time_Created as the provided OpencodeIntegrationAttemptStatus1TimeCreated3
+func (t *OpencodeIntegrationAttemptStatus_1_Time_Created) FromOpencodeIntegrationAttemptStatus1TimeCreated3(v OpencodeIntegrationAttemptStatus1TimeCreated3) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus1TimeCreated3 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_1_Time_Created, using the provided OpencodeIntegrationAttemptStatus1TimeCreated3
+func (t *OpencodeIntegrationAttemptStatus_1_Time_Created) MergeOpencodeIntegrationAttemptStatus1TimeCreated3(v OpencodeIntegrationAttemptStatus1TimeCreated3) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus1TimeCreated4 returns the union data inside the OpencodeIntegrationAttemptStatus_1_Time_Created as a OpencodeIntegrationAttemptStatus1TimeCreated4
+func (t OpencodeIntegrationAttemptStatus_1_Time_Created) AsOpencodeIntegrationAttemptStatus1TimeCreated4() (OpencodeIntegrationAttemptStatus1TimeCreated4, error) {
+	var body OpencodeIntegrationAttemptStatus1TimeCreated4
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus1TimeCreated4 overwrites any union data inside the OpencodeIntegrationAttemptStatus_1_Time_Created as the provided OpencodeIntegrationAttemptStatus1TimeCreated4
+func (t *OpencodeIntegrationAttemptStatus_1_Time_Created) FromOpencodeIntegrationAttemptStatus1TimeCreated4(v OpencodeIntegrationAttemptStatus1TimeCreated4) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus1TimeCreated4 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_1_Time_Created, using the provided OpencodeIntegrationAttemptStatus1TimeCreated4
+func (t *OpencodeIntegrationAttemptStatus_1_Time_Created) MergeOpencodeIntegrationAttemptStatus1TimeCreated4(v OpencodeIntegrationAttemptStatus1TimeCreated4) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeIntegrationAttemptStatus_1_Time_Created) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeIntegrationAttemptStatus_1_Time_Created) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus1TimeExpires0 returns the union data inside the OpencodeIntegrationAttemptStatus_1_Time_Expires as a OpencodeIntegrationAttemptStatus1TimeExpires0
+func (t OpencodeIntegrationAttemptStatus_1_Time_Expires) AsOpencodeIntegrationAttemptStatus1TimeExpires0() (OpencodeIntegrationAttemptStatus1TimeExpires0, error) {
+	var body OpencodeIntegrationAttemptStatus1TimeExpires0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus1TimeExpires0 overwrites any union data inside the OpencodeIntegrationAttemptStatus_1_Time_Expires as the provided OpencodeIntegrationAttemptStatus1TimeExpires0
+func (t *OpencodeIntegrationAttemptStatus_1_Time_Expires) FromOpencodeIntegrationAttemptStatus1TimeExpires0(v OpencodeIntegrationAttemptStatus1TimeExpires0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus1TimeExpires0 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_1_Time_Expires, using the provided OpencodeIntegrationAttemptStatus1TimeExpires0
+func (t *OpencodeIntegrationAttemptStatus_1_Time_Expires) MergeOpencodeIntegrationAttemptStatus1TimeExpires0(v OpencodeIntegrationAttemptStatus1TimeExpires0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus1TimeExpires1 returns the union data inside the OpencodeIntegrationAttemptStatus_1_Time_Expires as a OpencodeIntegrationAttemptStatus1TimeExpires1
+func (t OpencodeIntegrationAttemptStatus_1_Time_Expires) AsOpencodeIntegrationAttemptStatus1TimeExpires1() (OpencodeIntegrationAttemptStatus1TimeExpires1, error) {
+	var body OpencodeIntegrationAttemptStatus1TimeExpires1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus1TimeExpires1 overwrites any union data inside the OpencodeIntegrationAttemptStatus_1_Time_Expires as the provided OpencodeIntegrationAttemptStatus1TimeExpires1
+func (t *OpencodeIntegrationAttemptStatus_1_Time_Expires) FromOpencodeIntegrationAttemptStatus1TimeExpires1(v OpencodeIntegrationAttemptStatus1TimeExpires1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus1TimeExpires1 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_1_Time_Expires, using the provided OpencodeIntegrationAttemptStatus1TimeExpires1
+func (t *OpencodeIntegrationAttemptStatus_1_Time_Expires) MergeOpencodeIntegrationAttemptStatus1TimeExpires1(v OpencodeIntegrationAttemptStatus1TimeExpires1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus1TimeExpires2 returns the union data inside the OpencodeIntegrationAttemptStatus_1_Time_Expires as a OpencodeIntegrationAttemptStatus1TimeExpires2
+func (t OpencodeIntegrationAttemptStatus_1_Time_Expires) AsOpencodeIntegrationAttemptStatus1TimeExpires2() (OpencodeIntegrationAttemptStatus1TimeExpires2, error) {
+	var body OpencodeIntegrationAttemptStatus1TimeExpires2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus1TimeExpires2 overwrites any union data inside the OpencodeIntegrationAttemptStatus_1_Time_Expires as the provided OpencodeIntegrationAttemptStatus1TimeExpires2
+func (t *OpencodeIntegrationAttemptStatus_1_Time_Expires) FromOpencodeIntegrationAttemptStatus1TimeExpires2(v OpencodeIntegrationAttemptStatus1TimeExpires2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus1TimeExpires2 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_1_Time_Expires, using the provided OpencodeIntegrationAttemptStatus1TimeExpires2
+func (t *OpencodeIntegrationAttemptStatus_1_Time_Expires) MergeOpencodeIntegrationAttemptStatus1TimeExpires2(v OpencodeIntegrationAttemptStatus1TimeExpires2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus1TimeExpires3 returns the union data inside the OpencodeIntegrationAttemptStatus_1_Time_Expires as a OpencodeIntegrationAttemptStatus1TimeExpires3
+func (t OpencodeIntegrationAttemptStatus_1_Time_Expires) AsOpencodeIntegrationAttemptStatus1TimeExpires3() (OpencodeIntegrationAttemptStatus1TimeExpires3, error) {
+	var body OpencodeIntegrationAttemptStatus1TimeExpires3
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus1TimeExpires3 overwrites any union data inside the OpencodeIntegrationAttemptStatus_1_Time_Expires as the provided OpencodeIntegrationAttemptStatus1TimeExpires3
+func (t *OpencodeIntegrationAttemptStatus_1_Time_Expires) FromOpencodeIntegrationAttemptStatus1TimeExpires3(v OpencodeIntegrationAttemptStatus1TimeExpires3) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus1TimeExpires3 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_1_Time_Expires, using the provided OpencodeIntegrationAttemptStatus1TimeExpires3
+func (t *OpencodeIntegrationAttemptStatus_1_Time_Expires) MergeOpencodeIntegrationAttemptStatus1TimeExpires3(v OpencodeIntegrationAttemptStatus1TimeExpires3) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus1TimeExpires4 returns the union data inside the OpencodeIntegrationAttemptStatus_1_Time_Expires as a OpencodeIntegrationAttemptStatus1TimeExpires4
+func (t OpencodeIntegrationAttemptStatus_1_Time_Expires) AsOpencodeIntegrationAttemptStatus1TimeExpires4() (OpencodeIntegrationAttemptStatus1TimeExpires4, error) {
+	var body OpencodeIntegrationAttemptStatus1TimeExpires4
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus1TimeExpires4 overwrites any union data inside the OpencodeIntegrationAttemptStatus_1_Time_Expires as the provided OpencodeIntegrationAttemptStatus1TimeExpires4
+func (t *OpencodeIntegrationAttemptStatus_1_Time_Expires) FromOpencodeIntegrationAttemptStatus1TimeExpires4(v OpencodeIntegrationAttemptStatus1TimeExpires4) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus1TimeExpires4 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_1_Time_Expires, using the provided OpencodeIntegrationAttemptStatus1TimeExpires4
+func (t *OpencodeIntegrationAttemptStatus_1_Time_Expires) MergeOpencodeIntegrationAttemptStatus1TimeExpires4(v OpencodeIntegrationAttemptStatus1TimeExpires4) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeIntegrationAttemptStatus_1_Time_Expires) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeIntegrationAttemptStatus_1_Time_Expires) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus2TimeCreated0 returns the union data inside the OpencodeIntegrationAttemptStatus_2_Time_Created as a OpencodeIntegrationAttemptStatus2TimeCreated0
+func (t OpencodeIntegrationAttemptStatus_2_Time_Created) AsOpencodeIntegrationAttemptStatus2TimeCreated0() (OpencodeIntegrationAttemptStatus2TimeCreated0, error) {
+	var body OpencodeIntegrationAttemptStatus2TimeCreated0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus2TimeCreated0 overwrites any union data inside the OpencodeIntegrationAttemptStatus_2_Time_Created as the provided OpencodeIntegrationAttemptStatus2TimeCreated0
+func (t *OpencodeIntegrationAttemptStatus_2_Time_Created) FromOpencodeIntegrationAttemptStatus2TimeCreated0(v OpencodeIntegrationAttemptStatus2TimeCreated0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus2TimeCreated0 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_2_Time_Created, using the provided OpencodeIntegrationAttemptStatus2TimeCreated0
+func (t *OpencodeIntegrationAttemptStatus_2_Time_Created) MergeOpencodeIntegrationAttemptStatus2TimeCreated0(v OpencodeIntegrationAttemptStatus2TimeCreated0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus2TimeCreated1 returns the union data inside the OpencodeIntegrationAttemptStatus_2_Time_Created as a OpencodeIntegrationAttemptStatus2TimeCreated1
+func (t OpencodeIntegrationAttemptStatus_2_Time_Created) AsOpencodeIntegrationAttemptStatus2TimeCreated1() (OpencodeIntegrationAttemptStatus2TimeCreated1, error) {
+	var body OpencodeIntegrationAttemptStatus2TimeCreated1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus2TimeCreated1 overwrites any union data inside the OpencodeIntegrationAttemptStatus_2_Time_Created as the provided OpencodeIntegrationAttemptStatus2TimeCreated1
+func (t *OpencodeIntegrationAttemptStatus_2_Time_Created) FromOpencodeIntegrationAttemptStatus2TimeCreated1(v OpencodeIntegrationAttemptStatus2TimeCreated1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus2TimeCreated1 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_2_Time_Created, using the provided OpencodeIntegrationAttemptStatus2TimeCreated1
+func (t *OpencodeIntegrationAttemptStatus_2_Time_Created) MergeOpencodeIntegrationAttemptStatus2TimeCreated1(v OpencodeIntegrationAttemptStatus2TimeCreated1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus2TimeCreated2 returns the union data inside the OpencodeIntegrationAttemptStatus_2_Time_Created as a OpencodeIntegrationAttemptStatus2TimeCreated2
+func (t OpencodeIntegrationAttemptStatus_2_Time_Created) AsOpencodeIntegrationAttemptStatus2TimeCreated2() (OpencodeIntegrationAttemptStatus2TimeCreated2, error) {
+	var body OpencodeIntegrationAttemptStatus2TimeCreated2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus2TimeCreated2 overwrites any union data inside the OpencodeIntegrationAttemptStatus_2_Time_Created as the provided OpencodeIntegrationAttemptStatus2TimeCreated2
+func (t *OpencodeIntegrationAttemptStatus_2_Time_Created) FromOpencodeIntegrationAttemptStatus2TimeCreated2(v OpencodeIntegrationAttemptStatus2TimeCreated2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus2TimeCreated2 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_2_Time_Created, using the provided OpencodeIntegrationAttemptStatus2TimeCreated2
+func (t *OpencodeIntegrationAttemptStatus_2_Time_Created) MergeOpencodeIntegrationAttemptStatus2TimeCreated2(v OpencodeIntegrationAttemptStatus2TimeCreated2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus2TimeCreated3 returns the union data inside the OpencodeIntegrationAttemptStatus_2_Time_Created as a OpencodeIntegrationAttemptStatus2TimeCreated3
+func (t OpencodeIntegrationAttemptStatus_2_Time_Created) AsOpencodeIntegrationAttemptStatus2TimeCreated3() (OpencodeIntegrationAttemptStatus2TimeCreated3, error) {
+	var body OpencodeIntegrationAttemptStatus2TimeCreated3
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus2TimeCreated3 overwrites any union data inside the OpencodeIntegrationAttemptStatus_2_Time_Created as the provided OpencodeIntegrationAttemptStatus2TimeCreated3
+func (t *OpencodeIntegrationAttemptStatus_2_Time_Created) FromOpencodeIntegrationAttemptStatus2TimeCreated3(v OpencodeIntegrationAttemptStatus2TimeCreated3) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus2TimeCreated3 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_2_Time_Created, using the provided OpencodeIntegrationAttemptStatus2TimeCreated3
+func (t *OpencodeIntegrationAttemptStatus_2_Time_Created) MergeOpencodeIntegrationAttemptStatus2TimeCreated3(v OpencodeIntegrationAttemptStatus2TimeCreated3) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus2TimeCreated4 returns the union data inside the OpencodeIntegrationAttemptStatus_2_Time_Created as a OpencodeIntegrationAttemptStatus2TimeCreated4
+func (t OpencodeIntegrationAttemptStatus_2_Time_Created) AsOpencodeIntegrationAttemptStatus2TimeCreated4() (OpencodeIntegrationAttemptStatus2TimeCreated4, error) {
+	var body OpencodeIntegrationAttemptStatus2TimeCreated4
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus2TimeCreated4 overwrites any union data inside the OpencodeIntegrationAttemptStatus_2_Time_Created as the provided OpencodeIntegrationAttemptStatus2TimeCreated4
+func (t *OpencodeIntegrationAttemptStatus_2_Time_Created) FromOpencodeIntegrationAttemptStatus2TimeCreated4(v OpencodeIntegrationAttemptStatus2TimeCreated4) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus2TimeCreated4 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_2_Time_Created, using the provided OpencodeIntegrationAttemptStatus2TimeCreated4
+func (t *OpencodeIntegrationAttemptStatus_2_Time_Created) MergeOpencodeIntegrationAttemptStatus2TimeCreated4(v OpencodeIntegrationAttemptStatus2TimeCreated4) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeIntegrationAttemptStatus_2_Time_Created) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeIntegrationAttemptStatus_2_Time_Created) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus2TimeExpires0 returns the union data inside the OpencodeIntegrationAttemptStatus_2_Time_Expires as a OpencodeIntegrationAttemptStatus2TimeExpires0
+func (t OpencodeIntegrationAttemptStatus_2_Time_Expires) AsOpencodeIntegrationAttemptStatus2TimeExpires0() (OpencodeIntegrationAttemptStatus2TimeExpires0, error) {
+	var body OpencodeIntegrationAttemptStatus2TimeExpires0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus2TimeExpires0 overwrites any union data inside the OpencodeIntegrationAttemptStatus_2_Time_Expires as the provided OpencodeIntegrationAttemptStatus2TimeExpires0
+func (t *OpencodeIntegrationAttemptStatus_2_Time_Expires) FromOpencodeIntegrationAttemptStatus2TimeExpires0(v OpencodeIntegrationAttemptStatus2TimeExpires0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus2TimeExpires0 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_2_Time_Expires, using the provided OpencodeIntegrationAttemptStatus2TimeExpires0
+func (t *OpencodeIntegrationAttemptStatus_2_Time_Expires) MergeOpencodeIntegrationAttemptStatus2TimeExpires0(v OpencodeIntegrationAttemptStatus2TimeExpires0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus2TimeExpires1 returns the union data inside the OpencodeIntegrationAttemptStatus_2_Time_Expires as a OpencodeIntegrationAttemptStatus2TimeExpires1
+func (t OpencodeIntegrationAttemptStatus_2_Time_Expires) AsOpencodeIntegrationAttemptStatus2TimeExpires1() (OpencodeIntegrationAttemptStatus2TimeExpires1, error) {
+	var body OpencodeIntegrationAttemptStatus2TimeExpires1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus2TimeExpires1 overwrites any union data inside the OpencodeIntegrationAttemptStatus_2_Time_Expires as the provided OpencodeIntegrationAttemptStatus2TimeExpires1
+func (t *OpencodeIntegrationAttemptStatus_2_Time_Expires) FromOpencodeIntegrationAttemptStatus2TimeExpires1(v OpencodeIntegrationAttemptStatus2TimeExpires1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus2TimeExpires1 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_2_Time_Expires, using the provided OpencodeIntegrationAttemptStatus2TimeExpires1
+func (t *OpencodeIntegrationAttemptStatus_2_Time_Expires) MergeOpencodeIntegrationAttemptStatus2TimeExpires1(v OpencodeIntegrationAttemptStatus2TimeExpires1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus2TimeExpires2 returns the union data inside the OpencodeIntegrationAttemptStatus_2_Time_Expires as a OpencodeIntegrationAttemptStatus2TimeExpires2
+func (t OpencodeIntegrationAttemptStatus_2_Time_Expires) AsOpencodeIntegrationAttemptStatus2TimeExpires2() (OpencodeIntegrationAttemptStatus2TimeExpires2, error) {
+	var body OpencodeIntegrationAttemptStatus2TimeExpires2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus2TimeExpires2 overwrites any union data inside the OpencodeIntegrationAttemptStatus_2_Time_Expires as the provided OpencodeIntegrationAttemptStatus2TimeExpires2
+func (t *OpencodeIntegrationAttemptStatus_2_Time_Expires) FromOpencodeIntegrationAttemptStatus2TimeExpires2(v OpencodeIntegrationAttemptStatus2TimeExpires2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus2TimeExpires2 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_2_Time_Expires, using the provided OpencodeIntegrationAttemptStatus2TimeExpires2
+func (t *OpencodeIntegrationAttemptStatus_2_Time_Expires) MergeOpencodeIntegrationAttemptStatus2TimeExpires2(v OpencodeIntegrationAttemptStatus2TimeExpires2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus2TimeExpires3 returns the union data inside the OpencodeIntegrationAttemptStatus_2_Time_Expires as a OpencodeIntegrationAttemptStatus2TimeExpires3
+func (t OpencodeIntegrationAttemptStatus_2_Time_Expires) AsOpencodeIntegrationAttemptStatus2TimeExpires3() (OpencodeIntegrationAttemptStatus2TimeExpires3, error) {
+	var body OpencodeIntegrationAttemptStatus2TimeExpires3
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus2TimeExpires3 overwrites any union data inside the OpencodeIntegrationAttemptStatus_2_Time_Expires as the provided OpencodeIntegrationAttemptStatus2TimeExpires3
+func (t *OpencodeIntegrationAttemptStatus_2_Time_Expires) FromOpencodeIntegrationAttemptStatus2TimeExpires3(v OpencodeIntegrationAttemptStatus2TimeExpires3) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus2TimeExpires3 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_2_Time_Expires, using the provided OpencodeIntegrationAttemptStatus2TimeExpires3
+func (t *OpencodeIntegrationAttemptStatus_2_Time_Expires) MergeOpencodeIntegrationAttemptStatus2TimeExpires3(v OpencodeIntegrationAttemptStatus2TimeExpires3) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus2TimeExpires4 returns the union data inside the OpencodeIntegrationAttemptStatus_2_Time_Expires as a OpencodeIntegrationAttemptStatus2TimeExpires4
+func (t OpencodeIntegrationAttemptStatus_2_Time_Expires) AsOpencodeIntegrationAttemptStatus2TimeExpires4() (OpencodeIntegrationAttemptStatus2TimeExpires4, error) {
+	var body OpencodeIntegrationAttemptStatus2TimeExpires4
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus2TimeExpires4 overwrites any union data inside the OpencodeIntegrationAttemptStatus_2_Time_Expires as the provided OpencodeIntegrationAttemptStatus2TimeExpires4
+func (t *OpencodeIntegrationAttemptStatus_2_Time_Expires) FromOpencodeIntegrationAttemptStatus2TimeExpires4(v OpencodeIntegrationAttemptStatus2TimeExpires4) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus2TimeExpires4 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_2_Time_Expires, using the provided OpencodeIntegrationAttemptStatus2TimeExpires4
+func (t *OpencodeIntegrationAttemptStatus_2_Time_Expires) MergeOpencodeIntegrationAttemptStatus2TimeExpires4(v OpencodeIntegrationAttemptStatus2TimeExpires4) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeIntegrationAttemptStatus_2_Time_Expires) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeIntegrationAttemptStatus_2_Time_Expires) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus3TimeCreated0 returns the union data inside the OpencodeIntegrationAttemptStatus_3_Time_Created as a OpencodeIntegrationAttemptStatus3TimeCreated0
+func (t OpencodeIntegrationAttemptStatus_3_Time_Created) AsOpencodeIntegrationAttemptStatus3TimeCreated0() (OpencodeIntegrationAttemptStatus3TimeCreated0, error) {
+	var body OpencodeIntegrationAttemptStatus3TimeCreated0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus3TimeCreated0 overwrites any union data inside the OpencodeIntegrationAttemptStatus_3_Time_Created as the provided OpencodeIntegrationAttemptStatus3TimeCreated0
+func (t *OpencodeIntegrationAttemptStatus_3_Time_Created) FromOpencodeIntegrationAttemptStatus3TimeCreated0(v OpencodeIntegrationAttemptStatus3TimeCreated0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus3TimeCreated0 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_3_Time_Created, using the provided OpencodeIntegrationAttemptStatus3TimeCreated0
+func (t *OpencodeIntegrationAttemptStatus_3_Time_Created) MergeOpencodeIntegrationAttemptStatus3TimeCreated0(v OpencodeIntegrationAttemptStatus3TimeCreated0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus3TimeCreated1 returns the union data inside the OpencodeIntegrationAttemptStatus_3_Time_Created as a OpencodeIntegrationAttemptStatus3TimeCreated1
+func (t OpencodeIntegrationAttemptStatus_3_Time_Created) AsOpencodeIntegrationAttemptStatus3TimeCreated1() (OpencodeIntegrationAttemptStatus3TimeCreated1, error) {
+	var body OpencodeIntegrationAttemptStatus3TimeCreated1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus3TimeCreated1 overwrites any union data inside the OpencodeIntegrationAttemptStatus_3_Time_Created as the provided OpencodeIntegrationAttemptStatus3TimeCreated1
+func (t *OpencodeIntegrationAttemptStatus_3_Time_Created) FromOpencodeIntegrationAttemptStatus3TimeCreated1(v OpencodeIntegrationAttemptStatus3TimeCreated1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus3TimeCreated1 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_3_Time_Created, using the provided OpencodeIntegrationAttemptStatus3TimeCreated1
+func (t *OpencodeIntegrationAttemptStatus_3_Time_Created) MergeOpencodeIntegrationAttemptStatus3TimeCreated1(v OpencodeIntegrationAttemptStatus3TimeCreated1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus3TimeCreated2 returns the union data inside the OpencodeIntegrationAttemptStatus_3_Time_Created as a OpencodeIntegrationAttemptStatus3TimeCreated2
+func (t OpencodeIntegrationAttemptStatus_3_Time_Created) AsOpencodeIntegrationAttemptStatus3TimeCreated2() (OpencodeIntegrationAttemptStatus3TimeCreated2, error) {
+	var body OpencodeIntegrationAttemptStatus3TimeCreated2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus3TimeCreated2 overwrites any union data inside the OpencodeIntegrationAttemptStatus_3_Time_Created as the provided OpencodeIntegrationAttemptStatus3TimeCreated2
+func (t *OpencodeIntegrationAttemptStatus_3_Time_Created) FromOpencodeIntegrationAttemptStatus3TimeCreated2(v OpencodeIntegrationAttemptStatus3TimeCreated2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus3TimeCreated2 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_3_Time_Created, using the provided OpencodeIntegrationAttemptStatus3TimeCreated2
+func (t *OpencodeIntegrationAttemptStatus_3_Time_Created) MergeOpencodeIntegrationAttemptStatus3TimeCreated2(v OpencodeIntegrationAttemptStatus3TimeCreated2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus3TimeCreated3 returns the union data inside the OpencodeIntegrationAttemptStatus_3_Time_Created as a OpencodeIntegrationAttemptStatus3TimeCreated3
+func (t OpencodeIntegrationAttemptStatus_3_Time_Created) AsOpencodeIntegrationAttemptStatus3TimeCreated3() (OpencodeIntegrationAttemptStatus3TimeCreated3, error) {
+	var body OpencodeIntegrationAttemptStatus3TimeCreated3
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus3TimeCreated3 overwrites any union data inside the OpencodeIntegrationAttemptStatus_3_Time_Created as the provided OpencodeIntegrationAttemptStatus3TimeCreated3
+func (t *OpencodeIntegrationAttemptStatus_3_Time_Created) FromOpencodeIntegrationAttemptStatus3TimeCreated3(v OpencodeIntegrationAttemptStatus3TimeCreated3) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus3TimeCreated3 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_3_Time_Created, using the provided OpencodeIntegrationAttemptStatus3TimeCreated3
+func (t *OpencodeIntegrationAttemptStatus_3_Time_Created) MergeOpencodeIntegrationAttemptStatus3TimeCreated3(v OpencodeIntegrationAttemptStatus3TimeCreated3) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus3TimeCreated4 returns the union data inside the OpencodeIntegrationAttemptStatus_3_Time_Created as a OpencodeIntegrationAttemptStatus3TimeCreated4
+func (t OpencodeIntegrationAttemptStatus_3_Time_Created) AsOpencodeIntegrationAttemptStatus3TimeCreated4() (OpencodeIntegrationAttemptStatus3TimeCreated4, error) {
+	var body OpencodeIntegrationAttemptStatus3TimeCreated4
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus3TimeCreated4 overwrites any union data inside the OpencodeIntegrationAttemptStatus_3_Time_Created as the provided OpencodeIntegrationAttemptStatus3TimeCreated4
+func (t *OpencodeIntegrationAttemptStatus_3_Time_Created) FromOpencodeIntegrationAttemptStatus3TimeCreated4(v OpencodeIntegrationAttemptStatus3TimeCreated4) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus3TimeCreated4 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_3_Time_Created, using the provided OpencodeIntegrationAttemptStatus3TimeCreated4
+func (t *OpencodeIntegrationAttemptStatus_3_Time_Created) MergeOpencodeIntegrationAttemptStatus3TimeCreated4(v OpencodeIntegrationAttemptStatus3TimeCreated4) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeIntegrationAttemptStatus_3_Time_Created) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeIntegrationAttemptStatus_3_Time_Created) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus3TimeExpires0 returns the union data inside the OpencodeIntegrationAttemptStatus_3_Time_Expires as a OpencodeIntegrationAttemptStatus3TimeExpires0
+func (t OpencodeIntegrationAttemptStatus_3_Time_Expires) AsOpencodeIntegrationAttemptStatus3TimeExpires0() (OpencodeIntegrationAttemptStatus3TimeExpires0, error) {
+	var body OpencodeIntegrationAttemptStatus3TimeExpires0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus3TimeExpires0 overwrites any union data inside the OpencodeIntegrationAttemptStatus_3_Time_Expires as the provided OpencodeIntegrationAttemptStatus3TimeExpires0
+func (t *OpencodeIntegrationAttemptStatus_3_Time_Expires) FromOpencodeIntegrationAttemptStatus3TimeExpires0(v OpencodeIntegrationAttemptStatus3TimeExpires0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus3TimeExpires0 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_3_Time_Expires, using the provided OpencodeIntegrationAttemptStatus3TimeExpires0
+func (t *OpencodeIntegrationAttemptStatus_3_Time_Expires) MergeOpencodeIntegrationAttemptStatus3TimeExpires0(v OpencodeIntegrationAttemptStatus3TimeExpires0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus3TimeExpires1 returns the union data inside the OpencodeIntegrationAttemptStatus_3_Time_Expires as a OpencodeIntegrationAttemptStatus3TimeExpires1
+func (t OpencodeIntegrationAttemptStatus_3_Time_Expires) AsOpencodeIntegrationAttemptStatus3TimeExpires1() (OpencodeIntegrationAttemptStatus3TimeExpires1, error) {
+	var body OpencodeIntegrationAttemptStatus3TimeExpires1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus3TimeExpires1 overwrites any union data inside the OpencodeIntegrationAttemptStatus_3_Time_Expires as the provided OpencodeIntegrationAttemptStatus3TimeExpires1
+func (t *OpencodeIntegrationAttemptStatus_3_Time_Expires) FromOpencodeIntegrationAttemptStatus3TimeExpires1(v OpencodeIntegrationAttemptStatus3TimeExpires1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus3TimeExpires1 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_3_Time_Expires, using the provided OpencodeIntegrationAttemptStatus3TimeExpires1
+func (t *OpencodeIntegrationAttemptStatus_3_Time_Expires) MergeOpencodeIntegrationAttemptStatus3TimeExpires1(v OpencodeIntegrationAttemptStatus3TimeExpires1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus3TimeExpires2 returns the union data inside the OpencodeIntegrationAttemptStatus_3_Time_Expires as a OpencodeIntegrationAttemptStatus3TimeExpires2
+func (t OpencodeIntegrationAttemptStatus_3_Time_Expires) AsOpencodeIntegrationAttemptStatus3TimeExpires2() (OpencodeIntegrationAttemptStatus3TimeExpires2, error) {
+	var body OpencodeIntegrationAttemptStatus3TimeExpires2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus3TimeExpires2 overwrites any union data inside the OpencodeIntegrationAttemptStatus_3_Time_Expires as the provided OpencodeIntegrationAttemptStatus3TimeExpires2
+func (t *OpencodeIntegrationAttemptStatus_3_Time_Expires) FromOpencodeIntegrationAttemptStatus3TimeExpires2(v OpencodeIntegrationAttemptStatus3TimeExpires2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus3TimeExpires2 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_3_Time_Expires, using the provided OpencodeIntegrationAttemptStatus3TimeExpires2
+func (t *OpencodeIntegrationAttemptStatus_3_Time_Expires) MergeOpencodeIntegrationAttemptStatus3TimeExpires2(v OpencodeIntegrationAttemptStatus3TimeExpires2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus3TimeExpires3 returns the union data inside the OpencodeIntegrationAttemptStatus_3_Time_Expires as a OpencodeIntegrationAttemptStatus3TimeExpires3
+func (t OpencodeIntegrationAttemptStatus_3_Time_Expires) AsOpencodeIntegrationAttemptStatus3TimeExpires3() (OpencodeIntegrationAttemptStatus3TimeExpires3, error) {
+	var body OpencodeIntegrationAttemptStatus3TimeExpires3
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus3TimeExpires3 overwrites any union data inside the OpencodeIntegrationAttemptStatus_3_Time_Expires as the provided OpencodeIntegrationAttemptStatus3TimeExpires3
+func (t *OpencodeIntegrationAttemptStatus_3_Time_Expires) FromOpencodeIntegrationAttemptStatus3TimeExpires3(v OpencodeIntegrationAttemptStatus3TimeExpires3) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus3TimeExpires3 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_3_Time_Expires, using the provided OpencodeIntegrationAttemptStatus3TimeExpires3
+func (t *OpencodeIntegrationAttemptStatus_3_Time_Expires) MergeOpencodeIntegrationAttemptStatus3TimeExpires3(v OpencodeIntegrationAttemptStatus3TimeExpires3) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationAttemptStatus3TimeExpires4 returns the union data inside the OpencodeIntegrationAttemptStatus_3_Time_Expires as a OpencodeIntegrationAttemptStatus3TimeExpires4
+func (t OpencodeIntegrationAttemptStatus_3_Time_Expires) AsOpencodeIntegrationAttemptStatus3TimeExpires4() (OpencodeIntegrationAttemptStatus3TimeExpires4, error) {
+	var body OpencodeIntegrationAttemptStatus3TimeExpires4
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationAttemptStatus3TimeExpires4 overwrites any union data inside the OpencodeIntegrationAttemptStatus_3_Time_Expires as the provided OpencodeIntegrationAttemptStatus3TimeExpires4
+func (t *OpencodeIntegrationAttemptStatus_3_Time_Expires) FromOpencodeIntegrationAttemptStatus3TimeExpires4(v OpencodeIntegrationAttemptStatus3TimeExpires4) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationAttemptStatus3TimeExpires4 performs a merge with any union data inside the OpencodeIntegrationAttemptStatus_3_Time_Expires, using the provided OpencodeIntegrationAttemptStatus3TimeExpires4
+func (t *OpencodeIntegrationAttemptStatus_3_Time_Expires) MergeOpencodeIntegrationAttemptStatus3TimeExpires4(v OpencodeIntegrationAttemptStatus3TimeExpires4) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeIntegrationAttemptStatus_3_Time_Expires) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeIntegrationAttemptStatus_3_Time_Expires) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOpencodeIntegrationOAuthMethod returns the union data inside the OpencodeIntegrationMethod as a OpencodeIntegrationOAuthMethod
+func (t OpencodeIntegrationMethod) AsOpencodeIntegrationOAuthMethod() (OpencodeIntegrationOAuthMethod, error) {
+	var body OpencodeIntegrationOAuthMethod
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationOAuthMethod overwrites any union data inside the OpencodeIntegrationMethod as the provided OpencodeIntegrationOAuthMethod
+func (t *OpencodeIntegrationMethod) FromOpencodeIntegrationOAuthMethod(v OpencodeIntegrationOAuthMethod) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationOAuthMethod performs a merge with any union data inside the OpencodeIntegrationMethod, using the provided OpencodeIntegrationOAuthMethod
+func (t *OpencodeIntegrationMethod) MergeOpencodeIntegrationOAuthMethod(v OpencodeIntegrationOAuthMethod) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationKeyMethod returns the union data inside the OpencodeIntegrationMethod as a OpencodeIntegrationKeyMethod
+func (t OpencodeIntegrationMethod) AsOpencodeIntegrationKeyMethod() (OpencodeIntegrationKeyMethod, error) {
+	var body OpencodeIntegrationKeyMethod
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationKeyMethod overwrites any union data inside the OpencodeIntegrationMethod as the provided OpencodeIntegrationKeyMethod
+func (t *OpencodeIntegrationMethod) FromOpencodeIntegrationKeyMethod(v OpencodeIntegrationKeyMethod) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationKeyMethod performs a merge with any union data inside the OpencodeIntegrationMethod, using the provided OpencodeIntegrationKeyMethod
+func (t *OpencodeIntegrationMethod) MergeOpencodeIntegrationKeyMethod(v OpencodeIntegrationKeyMethod) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationEnvMethod returns the union data inside the OpencodeIntegrationMethod as a OpencodeIntegrationEnvMethod
+func (t OpencodeIntegrationMethod) AsOpencodeIntegrationEnvMethod() (OpencodeIntegrationEnvMethod, error) {
+	var body OpencodeIntegrationEnvMethod
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationEnvMethod overwrites any union data inside the OpencodeIntegrationMethod as the provided OpencodeIntegrationEnvMethod
+func (t *OpencodeIntegrationMethod) FromOpencodeIntegrationEnvMethod(v OpencodeIntegrationEnvMethod) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationEnvMethod performs a merge with any union data inside the OpencodeIntegrationMethod, using the provided OpencodeIntegrationEnvMethod
+func (t *OpencodeIntegrationMethod) MergeOpencodeIntegrationEnvMethod(v OpencodeIntegrationEnvMethod) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeIntegrationMethod) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeIntegrationMethod) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOpencodeIntegrationTextPrompt returns the union data inside the OpencodeIntegrationOAuthMethod_Prompts_Item as a OpencodeIntegrationTextPrompt
+func (t OpencodeIntegrationOAuthMethod_Prompts_Item) AsOpencodeIntegrationTextPrompt() (OpencodeIntegrationTextPrompt, error) {
+	var body OpencodeIntegrationTextPrompt
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationTextPrompt overwrites any union data inside the OpencodeIntegrationOAuthMethod_Prompts_Item as the provided OpencodeIntegrationTextPrompt
+func (t *OpencodeIntegrationOAuthMethod_Prompts_Item) FromOpencodeIntegrationTextPrompt(v OpencodeIntegrationTextPrompt) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationTextPrompt performs a merge with any union data inside the OpencodeIntegrationOAuthMethod_Prompts_Item, using the provided OpencodeIntegrationTextPrompt
+func (t *OpencodeIntegrationOAuthMethod_Prompts_Item) MergeOpencodeIntegrationTextPrompt(v OpencodeIntegrationTextPrompt) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationSelectPrompt returns the union data inside the OpencodeIntegrationOAuthMethod_Prompts_Item as a OpencodeIntegrationSelectPrompt
+func (t OpencodeIntegrationOAuthMethod_Prompts_Item) AsOpencodeIntegrationSelectPrompt() (OpencodeIntegrationSelectPrompt, error) {
+	var body OpencodeIntegrationSelectPrompt
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationSelectPrompt overwrites any union data inside the OpencodeIntegrationOAuthMethod_Prompts_Item as the provided OpencodeIntegrationSelectPrompt
+func (t *OpencodeIntegrationOAuthMethod_Prompts_Item) FromOpencodeIntegrationSelectPrompt(v OpencodeIntegrationSelectPrompt) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationSelectPrompt performs a merge with any union data inside the OpencodeIntegrationOAuthMethod_Prompts_Item, using the provided OpencodeIntegrationSelectPrompt
+func (t *OpencodeIntegrationOAuthMethod_Prompts_Item) MergeOpencodeIntegrationSelectPrompt(v OpencodeIntegrationSelectPrompt) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeIntegrationOAuthMethod_Prompts_Item) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeIntegrationOAuthMethod_Prompts_Item) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsOpencodeToolTextContent returns the union data inside the OpencodeLLMToolContent as a OpencodeToolTextContent
 func (t OpencodeLLMToolContent) AsOpencodeToolTextContent() (OpencodeToolTextContent, error) {
 	var body OpencodeToolTextContent
@@ -24189,6 +30328,146 @@ func (t OpencodeLLMToolContent) MarshalJSON() ([]byte, error) {
 }
 
 func (t *OpencodeLLMToolContent) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOpencodeMCPStatusConnected returns the union data inside the OpencodeMCPStatus as a OpencodeMCPStatusConnected
+func (t OpencodeMCPStatus) AsOpencodeMCPStatusConnected() (OpencodeMCPStatusConnected, error) {
+	var body OpencodeMCPStatusConnected
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeMCPStatusConnected overwrites any union data inside the OpencodeMCPStatus as the provided OpencodeMCPStatusConnected
+func (t *OpencodeMCPStatus) FromOpencodeMCPStatusConnected(v OpencodeMCPStatusConnected) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeMCPStatusConnected performs a merge with any union data inside the OpencodeMCPStatus, using the provided OpencodeMCPStatusConnected
+func (t *OpencodeMCPStatus) MergeOpencodeMCPStatusConnected(v OpencodeMCPStatusConnected) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeMCPStatusDisabled returns the union data inside the OpencodeMCPStatus as a OpencodeMCPStatusDisabled
+func (t OpencodeMCPStatus) AsOpencodeMCPStatusDisabled() (OpencodeMCPStatusDisabled, error) {
+	var body OpencodeMCPStatusDisabled
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeMCPStatusDisabled overwrites any union data inside the OpencodeMCPStatus as the provided OpencodeMCPStatusDisabled
+func (t *OpencodeMCPStatus) FromOpencodeMCPStatusDisabled(v OpencodeMCPStatusDisabled) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeMCPStatusDisabled performs a merge with any union data inside the OpencodeMCPStatus, using the provided OpencodeMCPStatusDisabled
+func (t *OpencodeMCPStatus) MergeOpencodeMCPStatusDisabled(v OpencodeMCPStatusDisabled) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeMCPStatusFailed returns the union data inside the OpencodeMCPStatus as a OpencodeMCPStatusFailed
+func (t OpencodeMCPStatus) AsOpencodeMCPStatusFailed() (OpencodeMCPStatusFailed, error) {
+	var body OpencodeMCPStatusFailed
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeMCPStatusFailed overwrites any union data inside the OpencodeMCPStatus as the provided OpencodeMCPStatusFailed
+func (t *OpencodeMCPStatus) FromOpencodeMCPStatusFailed(v OpencodeMCPStatusFailed) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeMCPStatusFailed performs a merge with any union data inside the OpencodeMCPStatus, using the provided OpencodeMCPStatusFailed
+func (t *OpencodeMCPStatus) MergeOpencodeMCPStatusFailed(v OpencodeMCPStatusFailed) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeMCPStatusNeedsAuth returns the union data inside the OpencodeMCPStatus as a OpencodeMCPStatusNeedsAuth
+func (t OpencodeMCPStatus) AsOpencodeMCPStatusNeedsAuth() (OpencodeMCPStatusNeedsAuth, error) {
+	var body OpencodeMCPStatusNeedsAuth
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeMCPStatusNeedsAuth overwrites any union data inside the OpencodeMCPStatus as the provided OpencodeMCPStatusNeedsAuth
+func (t *OpencodeMCPStatus) FromOpencodeMCPStatusNeedsAuth(v OpencodeMCPStatusNeedsAuth) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeMCPStatusNeedsAuth performs a merge with any union data inside the OpencodeMCPStatus, using the provided OpencodeMCPStatusNeedsAuth
+func (t *OpencodeMCPStatus) MergeOpencodeMCPStatusNeedsAuth(v OpencodeMCPStatusNeedsAuth) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeMCPStatusNeedsClientRegistration returns the union data inside the OpencodeMCPStatus as a OpencodeMCPStatusNeedsClientRegistration
+func (t OpencodeMCPStatus) AsOpencodeMCPStatusNeedsClientRegistration() (OpencodeMCPStatusNeedsClientRegistration, error) {
+	var body OpencodeMCPStatusNeedsClientRegistration
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeMCPStatusNeedsClientRegistration overwrites any union data inside the OpencodeMCPStatus as the provided OpencodeMCPStatusNeedsClientRegistration
+func (t *OpencodeMCPStatus) FromOpencodeMCPStatusNeedsClientRegistration(v OpencodeMCPStatusNeedsClientRegistration) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeMCPStatusNeedsClientRegistration performs a merge with any union data inside the OpencodeMCPStatus, using the provided OpencodeMCPStatusNeedsClientRegistration
+func (t *OpencodeMCPStatus) MergeOpencodeMCPStatusNeedsClientRegistration(v OpencodeMCPStatusNeedsClientRegistration) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeMCPStatus) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeMCPStatus) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -24406,6 +30685,68 @@ func (t *OpencodeModel_Capabilities_Interleaved) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsOpencodeModelApi0 returns the union data inside the OpencodeModelApi as a OpencodeModelApi0
+func (t OpencodeModelApi) AsOpencodeModelApi0() (OpencodeModelApi0, error) {
+	var body OpencodeModelApi0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeModelApi0 overwrites any union data inside the OpencodeModelApi as the provided OpencodeModelApi0
+func (t *OpencodeModelApi) FromOpencodeModelApi0(v OpencodeModelApi0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeModelApi0 performs a merge with any union data inside the OpencodeModelApi, using the provided OpencodeModelApi0
+func (t *OpencodeModelApi) MergeOpencodeModelApi0(v OpencodeModelApi0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeModelApi1 returns the union data inside the OpencodeModelApi as a OpencodeModelApi1
+func (t OpencodeModelApi) AsOpencodeModelApi1() (OpencodeModelApi1, error) {
+	var body OpencodeModelApi1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeModelApi1 overwrites any union data inside the OpencodeModelApi as the provided OpencodeModelApi1
+func (t *OpencodeModelApi) FromOpencodeModelApi1(v OpencodeModelApi1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeModelApi1 performs a merge with any union data inside the OpencodeModelApi, using the provided OpencodeModelApi1
+func (t *OpencodeModelApi) MergeOpencodeModelApi1(v OpencodeModelApi1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeModelApi) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeModelApi) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsOpencodeOutputFormatText returns the union data inside the OpencodeOutputFormat as a OpencodeOutputFormatText
 func (t OpencodeOutputFormat) AsOpencodeOutputFormatText() (OpencodeOutputFormatText, error) {
 	var body OpencodeOutputFormatText
@@ -24464,6 +30805,68 @@ func (t OpencodeOutputFormat) MarshalJSON() ([]byte, error) {
 }
 
 func (t *OpencodeOutputFormat) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOpencodeOutputFormat10 returns the union data inside the OpencodeOutputFormat1 as a OpencodeOutputFormat10
+func (t OpencodeOutputFormat1) AsOpencodeOutputFormat10() (OpencodeOutputFormat10, error) {
+	var body OpencodeOutputFormat10
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeOutputFormat10 overwrites any union data inside the OpencodeOutputFormat1 as the provided OpencodeOutputFormat10
+func (t *OpencodeOutputFormat1) FromOpencodeOutputFormat10(v OpencodeOutputFormat10) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeOutputFormat10 performs a merge with any union data inside the OpencodeOutputFormat1, using the provided OpencodeOutputFormat10
+func (t *OpencodeOutputFormat1) MergeOpencodeOutputFormat10(v OpencodeOutputFormat10) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeOutputFormat11 returns the union data inside the OpencodeOutputFormat1 as a OpencodeOutputFormat11
+func (t OpencodeOutputFormat1) AsOpencodeOutputFormat11() (OpencodeOutputFormat11, error) {
+	var body OpencodeOutputFormat11
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeOutputFormat11 overwrites any union data inside the OpencodeOutputFormat1 as the provided OpencodeOutputFormat11
+func (t *OpencodeOutputFormat1) FromOpencodeOutputFormat11(v OpencodeOutputFormat11) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeOutputFormat11 performs a merge with any union data inside the OpencodeOutputFormat1, using the provided OpencodeOutputFormat11
+func (t *OpencodeOutputFormat1) MergeOpencodeOutputFormat11(v OpencodeOutputFormat11) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeOutputFormat1) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeOutputFormat1) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -25130,6 +31533,130 @@ func (t *OpencodePromptPartInput) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsOpencodeProviderAISDK returns the union data inside the OpencodeProviderApi as a OpencodeProviderAISDK
+func (t OpencodeProviderApi) AsOpencodeProviderAISDK() (OpencodeProviderAISDK, error) {
+	var body OpencodeProviderAISDK
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeProviderAISDK overwrites any union data inside the OpencodeProviderApi as the provided OpencodeProviderAISDK
+func (t *OpencodeProviderApi) FromOpencodeProviderAISDK(v OpencodeProviderAISDK) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeProviderAISDK performs a merge with any union data inside the OpencodeProviderApi, using the provided OpencodeProviderAISDK
+func (t *OpencodeProviderApi) MergeOpencodeProviderAISDK(v OpencodeProviderAISDK) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeProviderNative returns the union data inside the OpencodeProviderApi as a OpencodeProviderNative
+func (t OpencodeProviderApi) AsOpencodeProviderNative() (OpencodeProviderNative, error) {
+	var body OpencodeProviderNative
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeProviderNative overwrites any union data inside the OpencodeProviderApi as the provided OpencodeProviderNative
+func (t *OpencodeProviderApi) FromOpencodeProviderNative(v OpencodeProviderNative) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeProviderNative performs a merge with any union data inside the OpencodeProviderApi, using the provided OpencodeProviderNative
+func (t *OpencodeProviderApi) MergeOpencodeProviderNative(v OpencodeProviderNative) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeProviderApi) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeProviderApi) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOpencodeProviderAuthMethodPrompts0 returns the union data inside the OpencodeProviderAuthMethod_Prompts_Item as a OpencodeProviderAuthMethodPrompts0
+func (t OpencodeProviderAuthMethod_Prompts_Item) AsOpencodeProviderAuthMethodPrompts0() (OpencodeProviderAuthMethodPrompts0, error) {
+	var body OpencodeProviderAuthMethodPrompts0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeProviderAuthMethodPrompts0 overwrites any union data inside the OpencodeProviderAuthMethod_Prompts_Item as the provided OpencodeProviderAuthMethodPrompts0
+func (t *OpencodeProviderAuthMethod_Prompts_Item) FromOpencodeProviderAuthMethodPrompts0(v OpencodeProviderAuthMethodPrompts0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeProviderAuthMethodPrompts0 performs a merge with any union data inside the OpencodeProviderAuthMethod_Prompts_Item, using the provided OpencodeProviderAuthMethodPrompts0
+func (t *OpencodeProviderAuthMethod_Prompts_Item) MergeOpencodeProviderAuthMethodPrompts0(v OpencodeProviderAuthMethodPrompts0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeProviderAuthMethodPrompts1 returns the union data inside the OpencodeProviderAuthMethod_Prompts_Item as a OpencodeProviderAuthMethodPrompts1
+func (t OpencodeProviderAuthMethod_Prompts_Item) AsOpencodeProviderAuthMethodPrompts1() (OpencodeProviderAuthMethodPrompts1, error) {
+	var body OpencodeProviderAuthMethodPrompts1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeProviderAuthMethodPrompts1 overwrites any union data inside the OpencodeProviderAuthMethod_Prompts_Item as the provided OpencodeProviderAuthMethodPrompts1
+func (t *OpencodeProviderAuthMethod_Prompts_Item) FromOpencodeProviderAuthMethodPrompts1(v OpencodeProviderAuthMethodPrompts1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeProviderAuthMethodPrompts1 performs a merge with any union data inside the OpencodeProviderAuthMethod_Prompts_Item, using the provided OpencodeProviderAuthMethodPrompts1
+func (t *OpencodeProviderAuthMethod_Prompts_Item) MergeOpencodeProviderAuthMethodPrompts1(v OpencodeProviderAuthMethodPrompts1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeProviderAuthMethod_Prompts_Item) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeProviderAuthMethod_Prompts_Item) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsOpencodeProviderConfigModelsInterleaved0 returns the union data inside the OpencodeProviderConfig_Models_Interleaved as a OpencodeProviderConfigModelsInterleaved0
 func (t OpencodeProviderConfig_Models_Interleaved) AsOpencodeProviderConfigModelsInterleaved0() (OpencodeProviderConfigModelsInterleaved0, error) {
 	var body OpencodeProviderConfigModelsInterleaved0
@@ -25364,6 +31891,68 @@ func (t OpencodeProviderConfig_Options_Timeout) MarshalJSON() ([]byte, error) {
 }
 
 func (t *OpencodeProviderConfig_Options_Timeout) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOpencodeReferenceLocalSource returns the union data inside the OpencodeReferenceSource as a OpencodeReferenceLocalSource
+func (t OpencodeReferenceSource) AsOpencodeReferenceLocalSource() (OpencodeReferenceLocalSource, error) {
+	var body OpencodeReferenceLocalSource
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeReferenceLocalSource overwrites any union data inside the OpencodeReferenceSource as the provided OpencodeReferenceLocalSource
+func (t *OpencodeReferenceSource) FromOpencodeReferenceLocalSource(v OpencodeReferenceLocalSource) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeReferenceLocalSource performs a merge with any union data inside the OpencodeReferenceSource, using the provided OpencodeReferenceLocalSource
+func (t *OpencodeReferenceSource) MergeOpencodeReferenceLocalSource(v OpencodeReferenceLocalSource) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeReferenceGitSource returns the union data inside the OpencodeReferenceSource as a OpencodeReferenceGitSource
+func (t OpencodeReferenceSource) AsOpencodeReferenceGitSource() (OpencodeReferenceGitSource, error) {
+	var body OpencodeReferenceGitSource
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeReferenceGitSource overwrites any union data inside the OpencodeReferenceSource as the provided OpencodeReferenceGitSource
+func (t *OpencodeReferenceSource) FromOpencodeReferenceGitSource(v OpencodeReferenceGitSource) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeReferenceGitSource performs a merge with any union data inside the OpencodeReferenceSource, using the provided OpencodeReferenceGitSource
+func (t *OpencodeReferenceSource) MergeOpencodeReferenceGitSource(v OpencodeReferenceGitSource) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeReferenceSource) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeReferenceSource) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -26106,6 +32695,224 @@ func (t *OpencodeSessionDurableEvent) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsOpencodeProviderAuthError returns the union data inside the OpencodeSessionError_Data_Error as a OpencodeProviderAuthError
+func (t OpencodeSessionError_Data_Error) AsOpencodeProviderAuthError() (OpencodeProviderAuthError, error) {
+	var body OpencodeProviderAuthError
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeProviderAuthError overwrites any union data inside the OpencodeSessionError_Data_Error as the provided OpencodeProviderAuthError
+func (t *OpencodeSessionError_Data_Error) FromOpencodeProviderAuthError(v OpencodeProviderAuthError) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeProviderAuthError performs a merge with any union data inside the OpencodeSessionError_Data_Error, using the provided OpencodeProviderAuthError
+func (t *OpencodeSessionError_Data_Error) MergeOpencodeProviderAuthError(v OpencodeProviderAuthError) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeUnknownError returns the union data inside the OpencodeSessionError_Data_Error as a OpencodeUnknownError
+func (t OpencodeSessionError_Data_Error) AsOpencodeUnknownError() (OpencodeUnknownError, error) {
+	var body OpencodeUnknownError
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeUnknownError overwrites any union data inside the OpencodeSessionError_Data_Error as the provided OpencodeUnknownError
+func (t *OpencodeSessionError_Data_Error) FromOpencodeUnknownError(v OpencodeUnknownError) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeUnknownError performs a merge with any union data inside the OpencodeSessionError_Data_Error, using the provided OpencodeUnknownError
+func (t *OpencodeSessionError_Data_Error) MergeOpencodeUnknownError(v OpencodeUnknownError) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeMessageOutputLengthError returns the union data inside the OpencodeSessionError_Data_Error as a OpencodeMessageOutputLengthError
+func (t OpencodeSessionError_Data_Error) AsOpencodeMessageOutputLengthError() (OpencodeMessageOutputLengthError, error) {
+	var body OpencodeMessageOutputLengthError
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeMessageOutputLengthError overwrites any union data inside the OpencodeSessionError_Data_Error as the provided OpencodeMessageOutputLengthError
+func (t *OpencodeSessionError_Data_Error) FromOpencodeMessageOutputLengthError(v OpencodeMessageOutputLengthError) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeMessageOutputLengthError performs a merge with any union data inside the OpencodeSessionError_Data_Error, using the provided OpencodeMessageOutputLengthError
+func (t *OpencodeSessionError_Data_Error) MergeOpencodeMessageOutputLengthError(v OpencodeMessageOutputLengthError) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeMessageAbortedError returns the union data inside the OpencodeSessionError_Data_Error as a OpencodeMessageAbortedError
+func (t OpencodeSessionError_Data_Error) AsOpencodeMessageAbortedError() (OpencodeMessageAbortedError, error) {
+	var body OpencodeMessageAbortedError
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeMessageAbortedError overwrites any union data inside the OpencodeSessionError_Data_Error as the provided OpencodeMessageAbortedError
+func (t *OpencodeSessionError_Data_Error) FromOpencodeMessageAbortedError(v OpencodeMessageAbortedError) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeMessageAbortedError performs a merge with any union data inside the OpencodeSessionError_Data_Error, using the provided OpencodeMessageAbortedError
+func (t *OpencodeSessionError_Data_Error) MergeOpencodeMessageAbortedError(v OpencodeMessageAbortedError) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeStructuredOutputError returns the union data inside the OpencodeSessionError_Data_Error as a OpencodeStructuredOutputError
+func (t OpencodeSessionError_Data_Error) AsOpencodeStructuredOutputError() (OpencodeStructuredOutputError, error) {
+	var body OpencodeStructuredOutputError
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeStructuredOutputError overwrites any union data inside the OpencodeSessionError_Data_Error as the provided OpencodeStructuredOutputError
+func (t *OpencodeSessionError_Data_Error) FromOpencodeStructuredOutputError(v OpencodeStructuredOutputError) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeStructuredOutputError performs a merge with any union data inside the OpencodeSessionError_Data_Error, using the provided OpencodeStructuredOutputError
+func (t *OpencodeSessionError_Data_Error) MergeOpencodeStructuredOutputError(v OpencodeStructuredOutputError) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeContextOverflowError returns the union data inside the OpencodeSessionError_Data_Error as a OpencodeContextOverflowError
+func (t OpencodeSessionError_Data_Error) AsOpencodeContextOverflowError() (OpencodeContextOverflowError, error) {
+	var body OpencodeContextOverflowError
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeContextOverflowError overwrites any union data inside the OpencodeSessionError_Data_Error as the provided OpencodeContextOverflowError
+func (t *OpencodeSessionError_Data_Error) FromOpencodeContextOverflowError(v OpencodeContextOverflowError) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeContextOverflowError performs a merge with any union data inside the OpencodeSessionError_Data_Error, using the provided OpencodeContextOverflowError
+func (t *OpencodeSessionError_Data_Error) MergeOpencodeContextOverflowError(v OpencodeContextOverflowError) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeContentFilterError returns the union data inside the OpencodeSessionError_Data_Error as a OpencodeContentFilterError
+func (t OpencodeSessionError_Data_Error) AsOpencodeContentFilterError() (OpencodeContentFilterError, error) {
+	var body OpencodeContentFilterError
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeContentFilterError overwrites any union data inside the OpencodeSessionError_Data_Error as the provided OpencodeContentFilterError
+func (t *OpencodeSessionError_Data_Error) FromOpencodeContentFilterError(v OpencodeContentFilterError) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeContentFilterError performs a merge with any union data inside the OpencodeSessionError_Data_Error, using the provided OpencodeContentFilterError
+func (t *OpencodeSessionError_Data_Error) MergeOpencodeContentFilterError(v OpencodeContentFilterError) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeAPIError returns the union data inside the OpencodeSessionError_Data_Error as a OpencodeAPIError
+func (t OpencodeSessionError_Data_Error) AsOpencodeAPIError() (OpencodeAPIError, error) {
+	var body OpencodeAPIError
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeAPIError overwrites any union data inside the OpencodeSessionError_Data_Error as the provided OpencodeAPIError
+func (t *OpencodeSessionError_Data_Error) FromOpencodeAPIError(v OpencodeAPIError) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeAPIError performs a merge with any union data inside the OpencodeSessionError_Data_Error, using the provided OpencodeAPIError
+func (t *OpencodeSessionError_Data_Error) MergeOpencodeAPIError(v OpencodeAPIError) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeSessionError_Data_Error) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeSessionError_Data_Error) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsOpencodeSessionMessageAgentSwitched returns the union data inside the OpencodeSessionMessage as a OpencodeSessionMessageAgentSwitched
 func (t OpencodeSessionMessage) AsOpencodeSessionMessageAgentSwitched() (OpencodeSessionMessageAgentSwitched, error) {
 	var body OpencodeSessionMessageAgentSwitched
@@ -26645,6 +33452,94 @@ func (t *OpencodeSessionStatus) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsOpencodeSkillV2DirectorySource returns the union data inside the OpencodeSkillV2Source as a OpencodeSkillV2DirectorySource
+func (t OpencodeSkillV2Source) AsOpencodeSkillV2DirectorySource() (OpencodeSkillV2DirectorySource, error) {
+	var body OpencodeSkillV2DirectorySource
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSkillV2DirectorySource overwrites any union data inside the OpencodeSkillV2Source as the provided OpencodeSkillV2DirectorySource
+func (t *OpencodeSkillV2Source) FromOpencodeSkillV2DirectorySource(v OpencodeSkillV2DirectorySource) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSkillV2DirectorySource performs a merge with any union data inside the OpencodeSkillV2Source, using the provided OpencodeSkillV2DirectorySource
+func (t *OpencodeSkillV2Source) MergeOpencodeSkillV2DirectorySource(v OpencodeSkillV2DirectorySource) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSkillV2UrlSource returns the union data inside the OpencodeSkillV2Source as a OpencodeSkillV2UrlSource
+func (t OpencodeSkillV2Source) AsOpencodeSkillV2UrlSource() (OpencodeSkillV2UrlSource, error) {
+	var body OpencodeSkillV2UrlSource
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSkillV2UrlSource overwrites any union data inside the OpencodeSkillV2Source as the provided OpencodeSkillV2UrlSource
+func (t *OpencodeSkillV2Source) FromOpencodeSkillV2UrlSource(v OpencodeSkillV2UrlSource) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSkillV2UrlSource performs a merge with any union data inside the OpencodeSkillV2Source, using the provided OpencodeSkillV2UrlSource
+func (t *OpencodeSkillV2Source) MergeOpencodeSkillV2UrlSource(v OpencodeSkillV2UrlSource) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSkillV2EmbeddedSource returns the union data inside the OpencodeSkillV2Source as a OpencodeSkillV2EmbeddedSource
+func (t OpencodeSkillV2Source) AsOpencodeSkillV2EmbeddedSource() (OpencodeSkillV2EmbeddedSource, error) {
+	var body OpencodeSkillV2EmbeddedSource
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSkillV2EmbeddedSource overwrites any union data inside the OpencodeSkillV2Source as the provided OpencodeSkillV2EmbeddedSource
+func (t *OpencodeSkillV2Source) FromOpencodeSkillV2EmbeddedSource(v OpencodeSkillV2EmbeddedSource) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSkillV2EmbeddedSource performs a merge with any union data inside the OpencodeSkillV2Source, using the provided OpencodeSkillV2EmbeddedSource
+func (t *OpencodeSkillV2Source) MergeOpencodeSkillV2EmbeddedSource(v OpencodeSkillV2EmbeddedSource) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeSkillV2Source) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeSkillV2Source) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsOpencodeToolStatePending returns the union data inside the OpencodeToolState as a OpencodeToolStatePending
 func (t OpencodeToolState) AsOpencodeToolStatePending() (OpencodeToolStatePending, error) {
 	var body OpencodeToolStatePending
@@ -26790,6 +33685,2563 @@ func (t OpencodeToolState) MarshalJSON() ([]byte, error) {
 }
 
 func (t *OpencodeToolState) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOpencodeModelsDevRefreshed returns the union data inside the OpencodeV2Event as a OpencodeModelsDevRefreshed
+func (t OpencodeV2Event) AsOpencodeModelsDevRefreshed() (OpencodeModelsDevRefreshed, error) {
+	var body OpencodeModelsDevRefreshed
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeModelsDevRefreshed overwrites any union data inside the OpencodeV2Event as the provided OpencodeModelsDevRefreshed
+func (t *OpencodeV2Event) FromOpencodeModelsDevRefreshed(v OpencodeModelsDevRefreshed) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeModelsDevRefreshed performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeModelsDevRefreshed
+func (t *OpencodeV2Event) MergeOpencodeModelsDevRefreshed(v OpencodeModelsDevRefreshed) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationUpdated returns the union data inside the OpencodeV2Event as a OpencodeIntegrationUpdated
+func (t OpencodeV2Event) AsOpencodeIntegrationUpdated() (OpencodeIntegrationUpdated, error) {
+	var body OpencodeIntegrationUpdated
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationUpdated overwrites any union data inside the OpencodeV2Event as the provided OpencodeIntegrationUpdated
+func (t *OpencodeV2Event) FromOpencodeIntegrationUpdated(v OpencodeIntegrationUpdated) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationUpdated performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeIntegrationUpdated
+func (t *OpencodeV2Event) MergeOpencodeIntegrationUpdated(v OpencodeIntegrationUpdated) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeIntegrationConnectionUpdated returns the union data inside the OpencodeV2Event as a OpencodeIntegrationConnectionUpdated
+func (t OpencodeV2Event) AsOpencodeIntegrationConnectionUpdated() (OpencodeIntegrationConnectionUpdated, error) {
+	var body OpencodeIntegrationConnectionUpdated
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeIntegrationConnectionUpdated overwrites any union data inside the OpencodeV2Event as the provided OpencodeIntegrationConnectionUpdated
+func (t *OpencodeV2Event) FromOpencodeIntegrationConnectionUpdated(v OpencodeIntegrationConnectionUpdated) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeIntegrationConnectionUpdated performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeIntegrationConnectionUpdated
+func (t *OpencodeV2Event) MergeOpencodeIntegrationConnectionUpdated(v OpencodeIntegrationConnectionUpdated) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeCatalogUpdated returns the union data inside the OpencodeV2Event as a OpencodeCatalogUpdated
+func (t OpencodeV2Event) AsOpencodeCatalogUpdated() (OpencodeCatalogUpdated, error) {
+	var body OpencodeCatalogUpdated
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeCatalogUpdated overwrites any union data inside the OpencodeV2Event as the provided OpencodeCatalogUpdated
+func (t *OpencodeV2Event) FromOpencodeCatalogUpdated(v OpencodeCatalogUpdated) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeCatalogUpdated performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeCatalogUpdated
+func (t *OpencodeV2Event) MergeOpencodeCatalogUpdated(v OpencodeCatalogUpdated) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionCreated returns the union data inside the OpencodeV2Event as a OpencodeSessionCreated
+func (t OpencodeV2Event) AsOpencodeSessionCreated() (OpencodeSessionCreated, error) {
+	var body OpencodeSessionCreated
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionCreated overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionCreated
+func (t *OpencodeV2Event) FromOpencodeSessionCreated(v OpencodeSessionCreated) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionCreated performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionCreated
+func (t *OpencodeV2Event) MergeOpencodeSessionCreated(v OpencodeSessionCreated) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionUpdated returns the union data inside the OpencodeV2Event as a OpencodeSessionUpdated
+func (t OpencodeV2Event) AsOpencodeSessionUpdated() (OpencodeSessionUpdated, error) {
+	var body OpencodeSessionUpdated
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionUpdated overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionUpdated
+func (t *OpencodeV2Event) FromOpencodeSessionUpdated(v OpencodeSessionUpdated) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionUpdated performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionUpdated
+func (t *OpencodeV2Event) MergeOpencodeSessionUpdated(v OpencodeSessionUpdated) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionDeleted returns the union data inside the OpencodeV2Event as a OpencodeSessionDeleted
+func (t OpencodeV2Event) AsOpencodeSessionDeleted() (OpencodeSessionDeleted, error) {
+	var body OpencodeSessionDeleted
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionDeleted overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionDeleted
+func (t *OpencodeV2Event) FromOpencodeSessionDeleted(v OpencodeSessionDeleted) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionDeleted performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionDeleted
+func (t *OpencodeV2Event) MergeOpencodeSessionDeleted(v OpencodeSessionDeleted) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeMessageUpdated returns the union data inside the OpencodeV2Event as a OpencodeMessageUpdated
+func (t OpencodeV2Event) AsOpencodeMessageUpdated() (OpencodeMessageUpdated, error) {
+	var body OpencodeMessageUpdated
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeMessageUpdated overwrites any union data inside the OpencodeV2Event as the provided OpencodeMessageUpdated
+func (t *OpencodeV2Event) FromOpencodeMessageUpdated(v OpencodeMessageUpdated) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeMessageUpdated performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeMessageUpdated
+func (t *OpencodeV2Event) MergeOpencodeMessageUpdated(v OpencodeMessageUpdated) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeMessageRemoved returns the union data inside the OpencodeV2Event as a OpencodeMessageRemoved
+func (t OpencodeV2Event) AsOpencodeMessageRemoved() (OpencodeMessageRemoved, error) {
+	var body OpencodeMessageRemoved
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeMessageRemoved overwrites any union data inside the OpencodeV2Event as the provided OpencodeMessageRemoved
+func (t *OpencodeV2Event) FromOpencodeMessageRemoved(v OpencodeMessageRemoved) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeMessageRemoved performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeMessageRemoved
+func (t *OpencodeV2Event) MergeOpencodeMessageRemoved(v OpencodeMessageRemoved) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeMessagePartUpdated returns the union data inside the OpencodeV2Event as a OpencodeMessagePartUpdated
+func (t OpencodeV2Event) AsOpencodeMessagePartUpdated() (OpencodeMessagePartUpdated, error) {
+	var body OpencodeMessagePartUpdated
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeMessagePartUpdated overwrites any union data inside the OpencodeV2Event as the provided OpencodeMessagePartUpdated
+func (t *OpencodeV2Event) FromOpencodeMessagePartUpdated(v OpencodeMessagePartUpdated) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeMessagePartUpdated performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeMessagePartUpdated
+func (t *OpencodeV2Event) MergeOpencodeMessagePartUpdated(v OpencodeMessagePartUpdated) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeMessagePartRemoved returns the union data inside the OpencodeV2Event as a OpencodeMessagePartRemoved
+func (t OpencodeV2Event) AsOpencodeMessagePartRemoved() (OpencodeMessagePartRemoved, error) {
+	var body OpencodeMessagePartRemoved
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeMessagePartRemoved overwrites any union data inside the OpencodeV2Event as the provided OpencodeMessagePartRemoved
+func (t *OpencodeV2Event) FromOpencodeMessagePartRemoved(v OpencodeMessagePartRemoved) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeMessagePartRemoved performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeMessagePartRemoved
+func (t *OpencodeV2Event) MergeOpencodeMessagePartRemoved(v OpencodeMessagePartRemoved) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextAgentSwitched returns the union data inside the OpencodeV2Event as a OpencodeSessionNextAgentSwitched
+func (t OpencodeV2Event) AsOpencodeSessionNextAgentSwitched() (OpencodeSessionNextAgentSwitched, error) {
+	var body OpencodeSessionNextAgentSwitched
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextAgentSwitched overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextAgentSwitched
+func (t *OpencodeV2Event) FromOpencodeSessionNextAgentSwitched(v OpencodeSessionNextAgentSwitched) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextAgentSwitched performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextAgentSwitched
+func (t *OpencodeV2Event) MergeOpencodeSessionNextAgentSwitched(v OpencodeSessionNextAgentSwitched) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextModelSwitched returns the union data inside the OpencodeV2Event as a OpencodeSessionNextModelSwitched
+func (t OpencodeV2Event) AsOpencodeSessionNextModelSwitched() (OpencodeSessionNextModelSwitched, error) {
+	var body OpencodeSessionNextModelSwitched
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextModelSwitched overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextModelSwitched
+func (t *OpencodeV2Event) FromOpencodeSessionNextModelSwitched(v OpencodeSessionNextModelSwitched) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextModelSwitched performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextModelSwitched
+func (t *OpencodeV2Event) MergeOpencodeSessionNextModelSwitched(v OpencodeSessionNextModelSwitched) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextMoved returns the union data inside the OpencodeV2Event as a OpencodeSessionNextMoved
+func (t OpencodeV2Event) AsOpencodeSessionNextMoved() (OpencodeSessionNextMoved, error) {
+	var body OpencodeSessionNextMoved
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextMoved overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextMoved
+func (t *OpencodeV2Event) FromOpencodeSessionNextMoved(v OpencodeSessionNextMoved) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextMoved performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextMoved
+func (t *OpencodeV2Event) MergeOpencodeSessionNextMoved(v OpencodeSessionNextMoved) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextPrompted returns the union data inside the OpencodeV2Event as a OpencodeSessionNextPrompted
+func (t OpencodeV2Event) AsOpencodeSessionNextPrompted() (OpencodeSessionNextPrompted, error) {
+	var body OpencodeSessionNextPrompted
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextPrompted overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextPrompted
+func (t *OpencodeV2Event) FromOpencodeSessionNextPrompted(v OpencodeSessionNextPrompted) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextPrompted performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextPrompted
+func (t *OpencodeV2Event) MergeOpencodeSessionNextPrompted(v OpencodeSessionNextPrompted) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextPromptAdmitted returns the union data inside the OpencodeV2Event as a OpencodeSessionNextPromptAdmitted
+func (t OpencodeV2Event) AsOpencodeSessionNextPromptAdmitted() (OpencodeSessionNextPromptAdmitted, error) {
+	var body OpencodeSessionNextPromptAdmitted
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextPromptAdmitted overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextPromptAdmitted
+func (t *OpencodeV2Event) FromOpencodeSessionNextPromptAdmitted(v OpencodeSessionNextPromptAdmitted) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextPromptAdmitted performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextPromptAdmitted
+func (t *OpencodeV2Event) MergeOpencodeSessionNextPromptAdmitted(v OpencodeSessionNextPromptAdmitted) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextContextUpdated returns the union data inside the OpencodeV2Event as a OpencodeSessionNextContextUpdated
+func (t OpencodeV2Event) AsOpencodeSessionNextContextUpdated() (OpencodeSessionNextContextUpdated, error) {
+	var body OpencodeSessionNextContextUpdated
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextContextUpdated overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextContextUpdated
+func (t *OpencodeV2Event) FromOpencodeSessionNextContextUpdated(v OpencodeSessionNextContextUpdated) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextContextUpdated performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextContextUpdated
+func (t *OpencodeV2Event) MergeOpencodeSessionNextContextUpdated(v OpencodeSessionNextContextUpdated) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextSynthetic returns the union data inside the OpencodeV2Event as a OpencodeSessionNextSynthetic
+func (t OpencodeV2Event) AsOpencodeSessionNextSynthetic() (OpencodeSessionNextSynthetic, error) {
+	var body OpencodeSessionNextSynthetic
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextSynthetic overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextSynthetic
+func (t *OpencodeV2Event) FromOpencodeSessionNextSynthetic(v OpencodeSessionNextSynthetic) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextSynthetic performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextSynthetic
+func (t *OpencodeV2Event) MergeOpencodeSessionNextSynthetic(v OpencodeSessionNextSynthetic) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextShellStarted returns the union data inside the OpencodeV2Event as a OpencodeSessionNextShellStarted
+func (t OpencodeV2Event) AsOpencodeSessionNextShellStarted() (OpencodeSessionNextShellStarted, error) {
+	var body OpencodeSessionNextShellStarted
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextShellStarted overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextShellStarted
+func (t *OpencodeV2Event) FromOpencodeSessionNextShellStarted(v OpencodeSessionNextShellStarted) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextShellStarted performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextShellStarted
+func (t *OpencodeV2Event) MergeOpencodeSessionNextShellStarted(v OpencodeSessionNextShellStarted) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextShellEnded returns the union data inside the OpencodeV2Event as a OpencodeSessionNextShellEnded
+func (t OpencodeV2Event) AsOpencodeSessionNextShellEnded() (OpencodeSessionNextShellEnded, error) {
+	var body OpencodeSessionNextShellEnded
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextShellEnded overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextShellEnded
+func (t *OpencodeV2Event) FromOpencodeSessionNextShellEnded(v OpencodeSessionNextShellEnded) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextShellEnded performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextShellEnded
+func (t *OpencodeV2Event) MergeOpencodeSessionNextShellEnded(v OpencodeSessionNextShellEnded) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextStepStarted returns the union data inside the OpencodeV2Event as a OpencodeSessionNextStepStarted
+func (t OpencodeV2Event) AsOpencodeSessionNextStepStarted() (OpencodeSessionNextStepStarted, error) {
+	var body OpencodeSessionNextStepStarted
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextStepStarted overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextStepStarted
+func (t *OpencodeV2Event) FromOpencodeSessionNextStepStarted(v OpencodeSessionNextStepStarted) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextStepStarted performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextStepStarted
+func (t *OpencodeV2Event) MergeOpencodeSessionNextStepStarted(v OpencodeSessionNextStepStarted) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextStepEnded returns the union data inside the OpencodeV2Event as a OpencodeSessionNextStepEnded
+func (t OpencodeV2Event) AsOpencodeSessionNextStepEnded() (OpencodeSessionNextStepEnded, error) {
+	var body OpencodeSessionNextStepEnded
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextStepEnded overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextStepEnded
+func (t *OpencodeV2Event) FromOpencodeSessionNextStepEnded(v OpencodeSessionNextStepEnded) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextStepEnded performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextStepEnded
+func (t *OpencodeV2Event) MergeOpencodeSessionNextStepEnded(v OpencodeSessionNextStepEnded) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextStepFailed returns the union data inside the OpencodeV2Event as a OpencodeSessionNextStepFailed
+func (t OpencodeV2Event) AsOpencodeSessionNextStepFailed() (OpencodeSessionNextStepFailed, error) {
+	var body OpencodeSessionNextStepFailed
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextStepFailed overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextStepFailed
+func (t *OpencodeV2Event) FromOpencodeSessionNextStepFailed(v OpencodeSessionNextStepFailed) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextStepFailed performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextStepFailed
+func (t *OpencodeV2Event) MergeOpencodeSessionNextStepFailed(v OpencodeSessionNextStepFailed) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextTextStarted returns the union data inside the OpencodeV2Event as a OpencodeSessionNextTextStarted
+func (t OpencodeV2Event) AsOpencodeSessionNextTextStarted() (OpencodeSessionNextTextStarted, error) {
+	var body OpencodeSessionNextTextStarted
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextTextStarted overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextTextStarted
+func (t *OpencodeV2Event) FromOpencodeSessionNextTextStarted(v OpencodeSessionNextTextStarted) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextTextStarted performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextTextStarted
+func (t *OpencodeV2Event) MergeOpencodeSessionNextTextStarted(v OpencodeSessionNextTextStarted) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextTextDelta returns the union data inside the OpencodeV2Event as a OpencodeSessionNextTextDelta
+func (t OpencodeV2Event) AsOpencodeSessionNextTextDelta() (OpencodeSessionNextTextDelta, error) {
+	var body OpencodeSessionNextTextDelta
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextTextDelta overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextTextDelta
+func (t *OpencodeV2Event) FromOpencodeSessionNextTextDelta(v OpencodeSessionNextTextDelta) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextTextDelta performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextTextDelta
+func (t *OpencodeV2Event) MergeOpencodeSessionNextTextDelta(v OpencodeSessionNextTextDelta) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextTextEnded returns the union data inside the OpencodeV2Event as a OpencodeSessionNextTextEnded
+func (t OpencodeV2Event) AsOpencodeSessionNextTextEnded() (OpencodeSessionNextTextEnded, error) {
+	var body OpencodeSessionNextTextEnded
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextTextEnded overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextTextEnded
+func (t *OpencodeV2Event) FromOpencodeSessionNextTextEnded(v OpencodeSessionNextTextEnded) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextTextEnded performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextTextEnded
+func (t *OpencodeV2Event) MergeOpencodeSessionNextTextEnded(v OpencodeSessionNextTextEnded) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextReasoningStarted returns the union data inside the OpencodeV2Event as a OpencodeSessionNextReasoningStarted
+func (t OpencodeV2Event) AsOpencodeSessionNextReasoningStarted() (OpencodeSessionNextReasoningStarted, error) {
+	var body OpencodeSessionNextReasoningStarted
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextReasoningStarted overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextReasoningStarted
+func (t *OpencodeV2Event) FromOpencodeSessionNextReasoningStarted(v OpencodeSessionNextReasoningStarted) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextReasoningStarted performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextReasoningStarted
+func (t *OpencodeV2Event) MergeOpencodeSessionNextReasoningStarted(v OpencodeSessionNextReasoningStarted) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextReasoningDelta returns the union data inside the OpencodeV2Event as a OpencodeSessionNextReasoningDelta
+func (t OpencodeV2Event) AsOpencodeSessionNextReasoningDelta() (OpencodeSessionNextReasoningDelta, error) {
+	var body OpencodeSessionNextReasoningDelta
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextReasoningDelta overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextReasoningDelta
+func (t *OpencodeV2Event) FromOpencodeSessionNextReasoningDelta(v OpencodeSessionNextReasoningDelta) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextReasoningDelta performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextReasoningDelta
+func (t *OpencodeV2Event) MergeOpencodeSessionNextReasoningDelta(v OpencodeSessionNextReasoningDelta) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextReasoningEnded returns the union data inside the OpencodeV2Event as a OpencodeSessionNextReasoningEnded
+func (t OpencodeV2Event) AsOpencodeSessionNextReasoningEnded() (OpencodeSessionNextReasoningEnded, error) {
+	var body OpencodeSessionNextReasoningEnded
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextReasoningEnded overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextReasoningEnded
+func (t *OpencodeV2Event) FromOpencodeSessionNextReasoningEnded(v OpencodeSessionNextReasoningEnded) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextReasoningEnded performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextReasoningEnded
+func (t *OpencodeV2Event) MergeOpencodeSessionNextReasoningEnded(v OpencodeSessionNextReasoningEnded) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextToolInputStarted returns the union data inside the OpencodeV2Event as a OpencodeSessionNextToolInputStarted
+func (t OpencodeV2Event) AsOpencodeSessionNextToolInputStarted() (OpencodeSessionNextToolInputStarted, error) {
+	var body OpencodeSessionNextToolInputStarted
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextToolInputStarted overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextToolInputStarted
+func (t *OpencodeV2Event) FromOpencodeSessionNextToolInputStarted(v OpencodeSessionNextToolInputStarted) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextToolInputStarted performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextToolInputStarted
+func (t *OpencodeV2Event) MergeOpencodeSessionNextToolInputStarted(v OpencodeSessionNextToolInputStarted) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextToolInputDelta returns the union data inside the OpencodeV2Event as a OpencodeSessionNextToolInputDelta
+func (t OpencodeV2Event) AsOpencodeSessionNextToolInputDelta() (OpencodeSessionNextToolInputDelta, error) {
+	var body OpencodeSessionNextToolInputDelta
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextToolInputDelta overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextToolInputDelta
+func (t *OpencodeV2Event) FromOpencodeSessionNextToolInputDelta(v OpencodeSessionNextToolInputDelta) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextToolInputDelta performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextToolInputDelta
+func (t *OpencodeV2Event) MergeOpencodeSessionNextToolInputDelta(v OpencodeSessionNextToolInputDelta) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextToolInputEnded returns the union data inside the OpencodeV2Event as a OpencodeSessionNextToolInputEnded
+func (t OpencodeV2Event) AsOpencodeSessionNextToolInputEnded() (OpencodeSessionNextToolInputEnded, error) {
+	var body OpencodeSessionNextToolInputEnded
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextToolInputEnded overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextToolInputEnded
+func (t *OpencodeV2Event) FromOpencodeSessionNextToolInputEnded(v OpencodeSessionNextToolInputEnded) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextToolInputEnded performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextToolInputEnded
+func (t *OpencodeV2Event) MergeOpencodeSessionNextToolInputEnded(v OpencodeSessionNextToolInputEnded) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextToolCalled returns the union data inside the OpencodeV2Event as a OpencodeSessionNextToolCalled
+func (t OpencodeV2Event) AsOpencodeSessionNextToolCalled() (OpencodeSessionNextToolCalled, error) {
+	var body OpencodeSessionNextToolCalled
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextToolCalled overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextToolCalled
+func (t *OpencodeV2Event) FromOpencodeSessionNextToolCalled(v OpencodeSessionNextToolCalled) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextToolCalled performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextToolCalled
+func (t *OpencodeV2Event) MergeOpencodeSessionNextToolCalled(v OpencodeSessionNextToolCalled) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextToolProgress returns the union data inside the OpencodeV2Event as a OpencodeSessionNextToolProgress
+func (t OpencodeV2Event) AsOpencodeSessionNextToolProgress() (OpencodeSessionNextToolProgress, error) {
+	var body OpencodeSessionNextToolProgress
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextToolProgress overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextToolProgress
+func (t *OpencodeV2Event) FromOpencodeSessionNextToolProgress(v OpencodeSessionNextToolProgress) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextToolProgress performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextToolProgress
+func (t *OpencodeV2Event) MergeOpencodeSessionNextToolProgress(v OpencodeSessionNextToolProgress) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextToolSuccess returns the union data inside the OpencodeV2Event as a OpencodeSessionNextToolSuccess
+func (t OpencodeV2Event) AsOpencodeSessionNextToolSuccess() (OpencodeSessionNextToolSuccess, error) {
+	var body OpencodeSessionNextToolSuccess
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextToolSuccess overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextToolSuccess
+func (t *OpencodeV2Event) FromOpencodeSessionNextToolSuccess(v OpencodeSessionNextToolSuccess) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextToolSuccess performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextToolSuccess
+func (t *OpencodeV2Event) MergeOpencodeSessionNextToolSuccess(v OpencodeSessionNextToolSuccess) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextToolFailed returns the union data inside the OpencodeV2Event as a OpencodeSessionNextToolFailed
+func (t OpencodeV2Event) AsOpencodeSessionNextToolFailed() (OpencodeSessionNextToolFailed, error) {
+	var body OpencodeSessionNextToolFailed
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextToolFailed overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextToolFailed
+func (t *OpencodeV2Event) FromOpencodeSessionNextToolFailed(v OpencodeSessionNextToolFailed) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextToolFailed performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextToolFailed
+func (t *OpencodeV2Event) MergeOpencodeSessionNextToolFailed(v OpencodeSessionNextToolFailed) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextRetried returns the union data inside the OpencodeV2Event as a OpencodeSessionNextRetried
+func (t OpencodeV2Event) AsOpencodeSessionNextRetried() (OpencodeSessionNextRetried, error) {
+	var body OpencodeSessionNextRetried
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextRetried overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextRetried
+func (t *OpencodeV2Event) FromOpencodeSessionNextRetried(v OpencodeSessionNextRetried) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextRetried performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextRetried
+func (t *OpencodeV2Event) MergeOpencodeSessionNextRetried(v OpencodeSessionNextRetried) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextCompactionStarted returns the union data inside the OpencodeV2Event as a OpencodeSessionNextCompactionStarted
+func (t OpencodeV2Event) AsOpencodeSessionNextCompactionStarted() (OpencodeSessionNextCompactionStarted, error) {
+	var body OpencodeSessionNextCompactionStarted
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextCompactionStarted overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextCompactionStarted
+func (t *OpencodeV2Event) FromOpencodeSessionNextCompactionStarted(v OpencodeSessionNextCompactionStarted) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextCompactionStarted performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextCompactionStarted
+func (t *OpencodeV2Event) MergeOpencodeSessionNextCompactionStarted(v OpencodeSessionNextCompactionStarted) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextCompactionDelta returns the union data inside the OpencodeV2Event as a OpencodeSessionNextCompactionDelta
+func (t OpencodeV2Event) AsOpencodeSessionNextCompactionDelta() (OpencodeSessionNextCompactionDelta, error) {
+	var body OpencodeSessionNextCompactionDelta
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextCompactionDelta overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextCompactionDelta
+func (t *OpencodeV2Event) FromOpencodeSessionNextCompactionDelta(v OpencodeSessionNextCompactionDelta) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextCompactionDelta performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextCompactionDelta
+func (t *OpencodeV2Event) MergeOpencodeSessionNextCompactionDelta(v OpencodeSessionNextCompactionDelta) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextCompactionEnded returns the union data inside the OpencodeV2Event as a OpencodeSessionNextCompactionEnded
+func (t OpencodeV2Event) AsOpencodeSessionNextCompactionEnded() (OpencodeSessionNextCompactionEnded, error) {
+	var body OpencodeSessionNextCompactionEnded
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextCompactionEnded overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextCompactionEnded
+func (t *OpencodeV2Event) FromOpencodeSessionNextCompactionEnded(v OpencodeSessionNextCompactionEnded) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextCompactionEnded performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextCompactionEnded
+func (t *OpencodeV2Event) MergeOpencodeSessionNextCompactionEnded(v OpencodeSessionNextCompactionEnded) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextRevertStaged returns the union data inside the OpencodeV2Event as a OpencodeSessionNextRevertStaged
+func (t OpencodeV2Event) AsOpencodeSessionNextRevertStaged() (OpencodeSessionNextRevertStaged, error) {
+	var body OpencodeSessionNextRevertStaged
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextRevertStaged overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextRevertStaged
+func (t *OpencodeV2Event) FromOpencodeSessionNextRevertStaged(v OpencodeSessionNextRevertStaged) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextRevertStaged performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextRevertStaged
+func (t *OpencodeV2Event) MergeOpencodeSessionNextRevertStaged(v OpencodeSessionNextRevertStaged) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextRevertCleared returns the union data inside the OpencodeV2Event as a OpencodeSessionNextRevertCleared
+func (t OpencodeV2Event) AsOpencodeSessionNextRevertCleared() (OpencodeSessionNextRevertCleared, error) {
+	var body OpencodeSessionNextRevertCleared
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextRevertCleared overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextRevertCleared
+func (t *OpencodeV2Event) FromOpencodeSessionNextRevertCleared(v OpencodeSessionNextRevertCleared) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextRevertCleared performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextRevertCleared
+func (t *OpencodeV2Event) MergeOpencodeSessionNextRevertCleared(v OpencodeSessionNextRevertCleared) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionNextRevertCommitted returns the union data inside the OpencodeV2Event as a OpencodeSessionNextRevertCommitted
+func (t OpencodeV2Event) AsOpencodeSessionNextRevertCommitted() (OpencodeSessionNextRevertCommitted, error) {
+	var body OpencodeSessionNextRevertCommitted
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionNextRevertCommitted overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionNextRevertCommitted
+func (t *OpencodeV2Event) FromOpencodeSessionNextRevertCommitted(v OpencodeSessionNextRevertCommitted) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionNextRevertCommitted performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionNextRevertCommitted
+func (t *OpencodeV2Event) MergeOpencodeSessionNextRevertCommitted(v OpencodeSessionNextRevertCommitted) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeMessagePartDelta returns the union data inside the OpencodeV2Event as a OpencodeMessagePartDelta
+func (t OpencodeV2Event) AsOpencodeMessagePartDelta() (OpencodeMessagePartDelta, error) {
+	var body OpencodeMessagePartDelta
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeMessagePartDelta overwrites any union data inside the OpencodeV2Event as the provided OpencodeMessagePartDelta
+func (t *OpencodeV2Event) FromOpencodeMessagePartDelta(v OpencodeMessagePartDelta) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeMessagePartDelta performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeMessagePartDelta
+func (t *OpencodeV2Event) MergeOpencodeMessagePartDelta(v OpencodeMessagePartDelta) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionDiff returns the union data inside the OpencodeV2Event as a OpencodeSessionDiff
+func (t OpencodeV2Event) AsOpencodeSessionDiff() (OpencodeSessionDiff, error) {
+	var body OpencodeSessionDiff
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionDiff overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionDiff
+func (t *OpencodeV2Event) FromOpencodeSessionDiff(v OpencodeSessionDiff) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionDiff performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionDiff
+func (t *OpencodeV2Event) MergeOpencodeSessionDiff(v OpencodeSessionDiff) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionError returns the union data inside the OpencodeV2Event as a OpencodeSessionError
+func (t OpencodeV2Event) AsOpencodeSessionError() (OpencodeSessionError, error) {
+	var body OpencodeSessionError
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionError overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionError
+func (t *OpencodeV2Event) FromOpencodeSessionError(v OpencodeSessionError) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionError performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionError
+func (t *OpencodeV2Event) MergeOpencodeSessionError(v OpencodeSessionError) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeInstallationUpdated returns the union data inside the OpencodeV2Event as a OpencodeInstallationUpdated
+func (t OpencodeV2Event) AsOpencodeInstallationUpdated() (OpencodeInstallationUpdated, error) {
+	var body OpencodeInstallationUpdated
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeInstallationUpdated overwrites any union data inside the OpencodeV2Event as the provided OpencodeInstallationUpdated
+func (t *OpencodeV2Event) FromOpencodeInstallationUpdated(v OpencodeInstallationUpdated) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeInstallationUpdated performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeInstallationUpdated
+func (t *OpencodeV2Event) MergeOpencodeInstallationUpdated(v OpencodeInstallationUpdated) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeInstallationUpdateAvailable returns the union data inside the OpencodeV2Event as a OpencodeInstallationUpdateAvailable
+func (t OpencodeV2Event) AsOpencodeInstallationUpdateAvailable() (OpencodeInstallationUpdateAvailable, error) {
+	var body OpencodeInstallationUpdateAvailable
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeInstallationUpdateAvailable overwrites any union data inside the OpencodeV2Event as the provided OpencodeInstallationUpdateAvailable
+func (t *OpencodeV2Event) FromOpencodeInstallationUpdateAvailable(v OpencodeInstallationUpdateAvailable) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeInstallationUpdateAvailable performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeInstallationUpdateAvailable
+func (t *OpencodeV2Event) MergeOpencodeInstallationUpdateAvailable(v OpencodeInstallationUpdateAvailable) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeFileEdited returns the union data inside the OpencodeV2Event as a OpencodeFileEdited
+func (t OpencodeV2Event) AsOpencodeFileEdited() (OpencodeFileEdited, error) {
+	var body OpencodeFileEdited
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeFileEdited overwrites any union data inside the OpencodeV2Event as the provided OpencodeFileEdited
+func (t *OpencodeV2Event) FromOpencodeFileEdited(v OpencodeFileEdited) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeFileEdited performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeFileEdited
+func (t *OpencodeV2Event) MergeOpencodeFileEdited(v OpencodeFileEdited) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeReferenceUpdated returns the union data inside the OpencodeV2Event as a OpencodeReferenceUpdated
+func (t OpencodeV2Event) AsOpencodeReferenceUpdated() (OpencodeReferenceUpdated, error) {
+	var body OpencodeReferenceUpdated
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeReferenceUpdated overwrites any union data inside the OpencodeV2Event as the provided OpencodeReferenceUpdated
+func (t *OpencodeV2Event) FromOpencodeReferenceUpdated(v OpencodeReferenceUpdated) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeReferenceUpdated performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeReferenceUpdated
+func (t *OpencodeV2Event) MergeOpencodeReferenceUpdated(v OpencodeReferenceUpdated) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodePermissionV2Asked returns the union data inside the OpencodeV2Event as a OpencodePermissionV2Asked
+func (t OpencodeV2Event) AsOpencodePermissionV2Asked() (OpencodePermissionV2Asked, error) {
+	var body OpencodePermissionV2Asked
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodePermissionV2Asked overwrites any union data inside the OpencodeV2Event as the provided OpencodePermissionV2Asked
+func (t *OpencodeV2Event) FromOpencodePermissionV2Asked(v OpencodePermissionV2Asked) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodePermissionV2Asked performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodePermissionV2Asked
+func (t *OpencodeV2Event) MergeOpencodePermissionV2Asked(v OpencodePermissionV2Asked) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodePermissionV2Replied returns the union data inside the OpencodeV2Event as a OpencodePermissionV2Replied
+func (t OpencodeV2Event) AsOpencodePermissionV2Replied() (OpencodePermissionV2Replied, error) {
+	var body OpencodePermissionV2Replied
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodePermissionV2Replied overwrites any union data inside the OpencodeV2Event as the provided OpencodePermissionV2Replied
+func (t *OpencodeV2Event) FromOpencodePermissionV2Replied(v OpencodePermissionV2Replied) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodePermissionV2Replied performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodePermissionV2Replied
+func (t *OpencodeV2Event) MergeOpencodePermissionV2Replied(v OpencodePermissionV2Replied) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodePluginAdded returns the union data inside the OpencodeV2Event as a OpencodePluginAdded
+func (t OpencodeV2Event) AsOpencodePluginAdded() (OpencodePluginAdded, error) {
+	var body OpencodePluginAdded
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodePluginAdded overwrites any union data inside the OpencodeV2Event as the provided OpencodePluginAdded
+func (t *OpencodeV2Event) FromOpencodePluginAdded(v OpencodePluginAdded) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodePluginAdded performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodePluginAdded
+func (t *OpencodeV2Event) MergeOpencodePluginAdded(v OpencodePluginAdded) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeProjectDirectoriesUpdated returns the union data inside the OpencodeV2Event as a OpencodeProjectDirectoriesUpdated
+func (t OpencodeV2Event) AsOpencodeProjectDirectoriesUpdated() (OpencodeProjectDirectoriesUpdated, error) {
+	var body OpencodeProjectDirectoriesUpdated
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeProjectDirectoriesUpdated overwrites any union data inside the OpencodeV2Event as the provided OpencodeProjectDirectoriesUpdated
+func (t *OpencodeV2Event) FromOpencodeProjectDirectoriesUpdated(v OpencodeProjectDirectoriesUpdated) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeProjectDirectoriesUpdated performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeProjectDirectoriesUpdated
+func (t *OpencodeV2Event) MergeOpencodeProjectDirectoriesUpdated(v OpencodeProjectDirectoriesUpdated) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeFileWatcherUpdated returns the union data inside the OpencodeV2Event as a OpencodeFileWatcherUpdated
+func (t OpencodeV2Event) AsOpencodeFileWatcherUpdated() (OpencodeFileWatcherUpdated, error) {
+	var body OpencodeFileWatcherUpdated
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeFileWatcherUpdated overwrites any union data inside the OpencodeV2Event as the provided OpencodeFileWatcherUpdated
+func (t *OpencodeV2Event) FromOpencodeFileWatcherUpdated(v OpencodeFileWatcherUpdated) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeFileWatcherUpdated performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeFileWatcherUpdated
+func (t *OpencodeV2Event) MergeOpencodeFileWatcherUpdated(v OpencodeFileWatcherUpdated) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodePtyCreated returns the union data inside the OpencodeV2Event as a OpencodePtyCreated
+func (t OpencodeV2Event) AsOpencodePtyCreated() (OpencodePtyCreated, error) {
+	var body OpencodePtyCreated
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodePtyCreated overwrites any union data inside the OpencodeV2Event as the provided OpencodePtyCreated
+func (t *OpencodeV2Event) FromOpencodePtyCreated(v OpencodePtyCreated) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodePtyCreated performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodePtyCreated
+func (t *OpencodeV2Event) MergeOpencodePtyCreated(v OpencodePtyCreated) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodePtyUpdated returns the union data inside the OpencodeV2Event as a OpencodePtyUpdated
+func (t OpencodeV2Event) AsOpencodePtyUpdated() (OpencodePtyUpdated, error) {
+	var body OpencodePtyUpdated
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodePtyUpdated overwrites any union data inside the OpencodeV2Event as the provided OpencodePtyUpdated
+func (t *OpencodeV2Event) FromOpencodePtyUpdated(v OpencodePtyUpdated) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodePtyUpdated performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodePtyUpdated
+func (t *OpencodeV2Event) MergeOpencodePtyUpdated(v OpencodePtyUpdated) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodePtyExited returns the union data inside the OpencodeV2Event as a OpencodePtyExited
+func (t OpencodeV2Event) AsOpencodePtyExited() (OpencodePtyExited, error) {
+	var body OpencodePtyExited
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodePtyExited overwrites any union data inside the OpencodeV2Event as the provided OpencodePtyExited
+func (t *OpencodeV2Event) FromOpencodePtyExited(v OpencodePtyExited) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodePtyExited performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodePtyExited
+func (t *OpencodeV2Event) MergeOpencodePtyExited(v OpencodePtyExited) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodePtyDeleted returns the union data inside the OpencodeV2Event as a OpencodePtyDeleted
+func (t OpencodeV2Event) AsOpencodePtyDeleted() (OpencodePtyDeleted, error) {
+	var body OpencodePtyDeleted
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodePtyDeleted overwrites any union data inside the OpencodeV2Event as the provided OpencodePtyDeleted
+func (t *OpencodeV2Event) FromOpencodePtyDeleted(v OpencodePtyDeleted) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodePtyDeleted performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodePtyDeleted
+func (t *OpencodeV2Event) MergeOpencodePtyDeleted(v OpencodePtyDeleted) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeQuestionV2Asked returns the union data inside the OpencodeV2Event as a OpencodeQuestionV2Asked
+func (t OpencodeV2Event) AsOpencodeQuestionV2Asked() (OpencodeQuestionV2Asked, error) {
+	var body OpencodeQuestionV2Asked
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeQuestionV2Asked overwrites any union data inside the OpencodeV2Event as the provided OpencodeQuestionV2Asked
+func (t *OpencodeV2Event) FromOpencodeQuestionV2Asked(v OpencodeQuestionV2Asked) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeQuestionV2Asked performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeQuestionV2Asked
+func (t *OpencodeV2Event) MergeOpencodeQuestionV2Asked(v OpencodeQuestionV2Asked) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeQuestionV2Replied returns the union data inside the OpencodeV2Event as a OpencodeQuestionV2Replied
+func (t OpencodeV2Event) AsOpencodeQuestionV2Replied() (OpencodeQuestionV2Replied, error) {
+	var body OpencodeQuestionV2Replied
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeQuestionV2Replied overwrites any union data inside the OpencodeV2Event as the provided OpencodeQuestionV2Replied
+func (t *OpencodeV2Event) FromOpencodeQuestionV2Replied(v OpencodeQuestionV2Replied) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeQuestionV2Replied performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeQuestionV2Replied
+func (t *OpencodeV2Event) MergeOpencodeQuestionV2Replied(v OpencodeQuestionV2Replied) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeQuestionV2Rejected returns the union data inside the OpencodeV2Event as a OpencodeQuestionV2Rejected
+func (t OpencodeV2Event) AsOpencodeQuestionV2Rejected() (OpencodeQuestionV2Rejected, error) {
+	var body OpencodeQuestionV2Rejected
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeQuestionV2Rejected overwrites any union data inside the OpencodeV2Event as the provided OpencodeQuestionV2Rejected
+func (t *OpencodeV2Event) FromOpencodeQuestionV2Rejected(v OpencodeQuestionV2Rejected) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeQuestionV2Rejected performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeQuestionV2Rejected
+func (t *OpencodeV2Event) MergeOpencodeQuestionV2Rejected(v OpencodeQuestionV2Rejected) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeTodoUpdated returns the union data inside the OpencodeV2Event as a OpencodeTodoUpdated
+func (t OpencodeV2Event) AsOpencodeTodoUpdated() (OpencodeTodoUpdated, error) {
+	var body OpencodeTodoUpdated
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeTodoUpdated overwrites any union data inside the OpencodeV2Event as the provided OpencodeTodoUpdated
+func (t *OpencodeV2Event) FromOpencodeTodoUpdated(v OpencodeTodoUpdated) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeTodoUpdated performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeTodoUpdated
+func (t *OpencodeV2Event) MergeOpencodeTodoUpdated(v OpencodeTodoUpdated) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeLspUpdated returns the union data inside the OpencodeV2Event as a OpencodeLspUpdated
+func (t OpencodeV2Event) AsOpencodeLspUpdated() (OpencodeLspUpdated, error) {
+	var body OpencodeLspUpdated
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeLspUpdated overwrites any union data inside the OpencodeV2Event as the provided OpencodeLspUpdated
+func (t *OpencodeV2Event) FromOpencodeLspUpdated(v OpencodeLspUpdated) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeLspUpdated performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeLspUpdated
+func (t *OpencodeV2Event) MergeOpencodeLspUpdated(v OpencodeLspUpdated) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodePermissionAsked returns the union data inside the OpencodeV2Event as a OpencodePermissionAsked
+func (t OpencodeV2Event) AsOpencodePermissionAsked() (OpencodePermissionAsked, error) {
+	var body OpencodePermissionAsked
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodePermissionAsked overwrites any union data inside the OpencodeV2Event as the provided OpencodePermissionAsked
+func (t *OpencodeV2Event) FromOpencodePermissionAsked(v OpencodePermissionAsked) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodePermissionAsked performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodePermissionAsked
+func (t *OpencodeV2Event) MergeOpencodePermissionAsked(v OpencodePermissionAsked) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodePermissionReplied returns the union data inside the OpencodeV2Event as a OpencodePermissionReplied
+func (t OpencodeV2Event) AsOpencodePermissionReplied() (OpencodePermissionReplied, error) {
+	var body OpencodePermissionReplied
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodePermissionReplied overwrites any union data inside the OpencodeV2Event as the provided OpencodePermissionReplied
+func (t *OpencodeV2Event) FromOpencodePermissionReplied(v OpencodePermissionReplied) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodePermissionReplied performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodePermissionReplied
+func (t *OpencodeV2Event) MergeOpencodePermissionReplied(v OpencodePermissionReplied) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeTuiPromptAppend returns the union data inside the OpencodeV2Event as a OpencodeTuiPromptAppend
+func (t OpencodeV2Event) AsOpencodeTuiPromptAppend() (OpencodeTuiPromptAppend, error) {
+	var body OpencodeTuiPromptAppend
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeTuiPromptAppend overwrites any union data inside the OpencodeV2Event as the provided OpencodeTuiPromptAppend
+func (t *OpencodeV2Event) FromOpencodeTuiPromptAppend(v OpencodeTuiPromptAppend) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeTuiPromptAppend performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeTuiPromptAppend
+func (t *OpencodeV2Event) MergeOpencodeTuiPromptAppend(v OpencodeTuiPromptAppend) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeTuiCommandExecute returns the union data inside the OpencodeV2Event as a OpencodeTuiCommandExecute
+func (t OpencodeV2Event) AsOpencodeTuiCommandExecute() (OpencodeTuiCommandExecute, error) {
+	var body OpencodeTuiCommandExecute
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeTuiCommandExecute overwrites any union data inside the OpencodeV2Event as the provided OpencodeTuiCommandExecute
+func (t *OpencodeV2Event) FromOpencodeTuiCommandExecute(v OpencodeTuiCommandExecute) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeTuiCommandExecute performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeTuiCommandExecute
+func (t *OpencodeV2Event) MergeOpencodeTuiCommandExecute(v OpencodeTuiCommandExecute) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeTuiToastShow returns the union data inside the OpencodeV2Event as a OpencodeTuiToastShow
+func (t OpencodeV2Event) AsOpencodeTuiToastShow() (OpencodeTuiToastShow, error) {
+	var body OpencodeTuiToastShow
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeTuiToastShow overwrites any union data inside the OpencodeV2Event as the provided OpencodeTuiToastShow
+func (t *OpencodeV2Event) FromOpencodeTuiToastShow(v OpencodeTuiToastShow) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeTuiToastShow performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeTuiToastShow
+func (t *OpencodeV2Event) MergeOpencodeTuiToastShow(v OpencodeTuiToastShow) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeTuiSessionSelect returns the union data inside the OpencodeV2Event as a OpencodeTuiSessionSelect
+func (t OpencodeV2Event) AsOpencodeTuiSessionSelect() (OpencodeTuiSessionSelect, error) {
+	var body OpencodeTuiSessionSelect
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeTuiSessionSelect overwrites any union data inside the OpencodeV2Event as the provided OpencodeTuiSessionSelect
+func (t *OpencodeV2Event) FromOpencodeTuiSessionSelect(v OpencodeTuiSessionSelect) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeTuiSessionSelect performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeTuiSessionSelect
+func (t *OpencodeV2Event) MergeOpencodeTuiSessionSelect(v OpencodeTuiSessionSelect) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeMcpToolsChanged returns the union data inside the OpencodeV2Event as a OpencodeMcpToolsChanged
+func (t OpencodeV2Event) AsOpencodeMcpToolsChanged() (OpencodeMcpToolsChanged, error) {
+	var body OpencodeMcpToolsChanged
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeMcpToolsChanged overwrites any union data inside the OpencodeV2Event as the provided OpencodeMcpToolsChanged
+func (t *OpencodeV2Event) FromOpencodeMcpToolsChanged(v OpencodeMcpToolsChanged) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeMcpToolsChanged performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeMcpToolsChanged
+func (t *OpencodeV2Event) MergeOpencodeMcpToolsChanged(v OpencodeMcpToolsChanged) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeMcpBrowserOpenFailed returns the union data inside the OpencodeV2Event as a OpencodeMcpBrowserOpenFailed
+func (t OpencodeV2Event) AsOpencodeMcpBrowserOpenFailed() (OpencodeMcpBrowserOpenFailed, error) {
+	var body OpencodeMcpBrowserOpenFailed
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeMcpBrowserOpenFailed overwrites any union data inside the OpencodeV2Event as the provided OpencodeMcpBrowserOpenFailed
+func (t *OpencodeV2Event) FromOpencodeMcpBrowserOpenFailed(v OpencodeMcpBrowserOpenFailed) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeMcpBrowserOpenFailed performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeMcpBrowserOpenFailed
+func (t *OpencodeV2Event) MergeOpencodeMcpBrowserOpenFailed(v OpencodeMcpBrowserOpenFailed) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeCommandExecuted returns the union data inside the OpencodeV2Event as a OpencodeCommandExecuted
+func (t OpencodeV2Event) AsOpencodeCommandExecuted() (OpencodeCommandExecuted, error) {
+	var body OpencodeCommandExecuted
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeCommandExecuted overwrites any union data inside the OpencodeV2Event as the provided OpencodeCommandExecuted
+func (t *OpencodeV2Event) FromOpencodeCommandExecuted(v OpencodeCommandExecuted) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeCommandExecuted performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeCommandExecuted
+func (t *OpencodeV2Event) MergeOpencodeCommandExecuted(v OpencodeCommandExecuted) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeProjectUpdated returns the union data inside the OpencodeV2Event as a OpencodeProjectUpdated
+func (t OpencodeV2Event) AsOpencodeProjectUpdated() (OpencodeProjectUpdated, error) {
+	var body OpencodeProjectUpdated
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeProjectUpdated overwrites any union data inside the OpencodeV2Event as the provided OpencodeProjectUpdated
+func (t *OpencodeV2Event) FromOpencodeProjectUpdated(v OpencodeProjectUpdated) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeProjectUpdated performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeProjectUpdated
+func (t *OpencodeV2Event) MergeOpencodeProjectUpdated(v OpencodeProjectUpdated) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodesessionStatus returns the union data inside the OpencodeV2Event as a OpencodesessionStatus
+func (t OpencodeV2Event) AsOpencodesessionStatus() (OpencodesessionStatus, error) {
+	var body OpencodesessionStatus
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodesessionStatus overwrites any union data inside the OpencodeV2Event as the provided OpencodesessionStatus
+func (t *OpencodeV2Event) FromOpencodesessionStatus(v OpencodesessionStatus) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodesessionStatus performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodesessionStatus
+func (t *OpencodeV2Event) MergeOpencodesessionStatus(v OpencodesessionStatus) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionIdle returns the union data inside the OpencodeV2Event as a OpencodeSessionIdle
+func (t OpencodeV2Event) AsOpencodeSessionIdle() (OpencodeSessionIdle, error) {
+	var body OpencodeSessionIdle
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionIdle overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionIdle
+func (t *OpencodeV2Event) FromOpencodeSessionIdle(v OpencodeSessionIdle) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionIdle performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionIdle
+func (t *OpencodeV2Event) MergeOpencodeSessionIdle(v OpencodeSessionIdle) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeQuestionAsked returns the union data inside the OpencodeV2Event as a OpencodeQuestionAsked
+func (t OpencodeV2Event) AsOpencodeQuestionAsked() (OpencodeQuestionAsked, error) {
+	var body OpencodeQuestionAsked
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeQuestionAsked overwrites any union data inside the OpencodeV2Event as the provided OpencodeQuestionAsked
+func (t *OpencodeV2Event) FromOpencodeQuestionAsked(v OpencodeQuestionAsked) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeQuestionAsked performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeQuestionAsked
+func (t *OpencodeV2Event) MergeOpencodeQuestionAsked(v OpencodeQuestionAsked) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodequestionReplied returns the union data inside the OpencodeV2Event as a OpencodequestionReplied
+func (t OpencodeV2Event) AsOpencodequestionReplied() (OpencodequestionReplied, error) {
+	var body OpencodequestionReplied
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodequestionReplied overwrites any union data inside the OpencodeV2Event as the provided OpencodequestionReplied
+func (t *OpencodeV2Event) FromOpencodequestionReplied(v OpencodequestionReplied) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodequestionReplied performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodequestionReplied
+func (t *OpencodeV2Event) MergeOpencodequestionReplied(v OpencodequestionReplied) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodequestionRejected returns the union data inside the OpencodeV2Event as a OpencodequestionRejected
+func (t OpencodeV2Event) AsOpencodequestionRejected() (OpencodequestionRejected, error) {
+	var body OpencodequestionRejected
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodequestionRejected overwrites any union data inside the OpencodeV2Event as the provided OpencodequestionRejected
+func (t *OpencodeV2Event) FromOpencodequestionRejected(v OpencodequestionRejected) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodequestionRejected performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodequestionRejected
+func (t *OpencodeV2Event) MergeOpencodequestionRejected(v OpencodequestionRejected) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeSessionCompacted returns the union data inside the OpencodeV2Event as a OpencodeSessionCompacted
+func (t OpencodeV2Event) AsOpencodeSessionCompacted() (OpencodeSessionCompacted, error) {
+	var body OpencodeSessionCompacted
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeSessionCompacted overwrites any union data inside the OpencodeV2Event as the provided OpencodeSessionCompacted
+func (t *OpencodeV2Event) FromOpencodeSessionCompacted(v OpencodeSessionCompacted) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeSessionCompacted performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeSessionCompacted
+func (t *OpencodeV2Event) MergeOpencodeSessionCompacted(v OpencodeSessionCompacted) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeVcsBranchUpdated returns the union data inside the OpencodeV2Event as a OpencodeVcsBranchUpdated
+func (t OpencodeV2Event) AsOpencodeVcsBranchUpdated() (OpencodeVcsBranchUpdated, error) {
+	var body OpencodeVcsBranchUpdated
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeVcsBranchUpdated overwrites any union data inside the OpencodeV2Event as the provided OpencodeVcsBranchUpdated
+func (t *OpencodeV2Event) FromOpencodeVcsBranchUpdated(v OpencodeVcsBranchUpdated) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeVcsBranchUpdated performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeVcsBranchUpdated
+func (t *OpencodeV2Event) MergeOpencodeVcsBranchUpdated(v OpencodeVcsBranchUpdated) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeWorkspaceReady returns the union data inside the OpencodeV2Event as a OpencodeWorkspaceReady
+func (t OpencodeV2Event) AsOpencodeWorkspaceReady() (OpencodeWorkspaceReady, error) {
+	var body OpencodeWorkspaceReady
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeWorkspaceReady overwrites any union data inside the OpencodeV2Event as the provided OpencodeWorkspaceReady
+func (t *OpencodeV2Event) FromOpencodeWorkspaceReady(v OpencodeWorkspaceReady) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeWorkspaceReady performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeWorkspaceReady
+func (t *OpencodeV2Event) MergeOpencodeWorkspaceReady(v OpencodeWorkspaceReady) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeWorkspaceFailed returns the union data inside the OpencodeV2Event as a OpencodeWorkspaceFailed
+func (t OpencodeV2Event) AsOpencodeWorkspaceFailed() (OpencodeWorkspaceFailed, error) {
+	var body OpencodeWorkspaceFailed
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeWorkspaceFailed overwrites any union data inside the OpencodeV2Event as the provided OpencodeWorkspaceFailed
+func (t *OpencodeV2Event) FromOpencodeWorkspaceFailed(v OpencodeWorkspaceFailed) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeWorkspaceFailed performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeWorkspaceFailed
+func (t *OpencodeV2Event) MergeOpencodeWorkspaceFailed(v OpencodeWorkspaceFailed) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeWorkspaceStatus returns the union data inside the OpencodeV2Event as a OpencodeWorkspaceStatus
+func (t OpencodeV2Event) AsOpencodeWorkspaceStatus() (OpencodeWorkspaceStatus, error) {
+	var body OpencodeWorkspaceStatus
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeWorkspaceStatus overwrites any union data inside the OpencodeV2Event as the provided OpencodeWorkspaceStatus
+func (t *OpencodeV2Event) FromOpencodeWorkspaceStatus(v OpencodeWorkspaceStatus) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeWorkspaceStatus performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeWorkspaceStatus
+func (t *OpencodeV2Event) MergeOpencodeWorkspaceStatus(v OpencodeWorkspaceStatus) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeWorktreeReady returns the union data inside the OpencodeV2Event as a OpencodeWorktreeReady
+func (t OpencodeV2Event) AsOpencodeWorktreeReady() (OpencodeWorktreeReady, error) {
+	var body OpencodeWorktreeReady
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeWorktreeReady overwrites any union data inside the OpencodeV2Event as the provided OpencodeWorktreeReady
+func (t *OpencodeV2Event) FromOpencodeWorktreeReady(v OpencodeWorktreeReady) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeWorktreeReady performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeWorktreeReady
+func (t *OpencodeV2Event) MergeOpencodeWorktreeReady(v OpencodeWorktreeReady) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeWorktreeFailed returns the union data inside the OpencodeV2Event as a OpencodeWorktreeFailed
+func (t OpencodeV2Event) AsOpencodeWorktreeFailed() (OpencodeWorktreeFailed, error) {
+	var body OpencodeWorktreeFailed
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeWorktreeFailed overwrites any union data inside the OpencodeV2Event as the provided OpencodeWorktreeFailed
+func (t *OpencodeV2Event) FromOpencodeWorktreeFailed(v OpencodeWorktreeFailed) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeWorktreeFailed performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeWorktreeFailed
+func (t *OpencodeV2Event) MergeOpencodeWorktreeFailed(v OpencodeWorktreeFailed) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeServerConnected returns the union data inside the OpencodeV2Event as a OpencodeServerConnected
+func (t OpencodeV2Event) AsOpencodeServerConnected() (OpencodeServerConnected, error) {
+	var body OpencodeServerConnected
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeServerConnected overwrites any union data inside the OpencodeV2Event as the provided OpencodeServerConnected
+func (t *OpencodeV2Event) FromOpencodeServerConnected(v OpencodeServerConnected) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeServerConnected performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeServerConnected
+func (t *OpencodeV2Event) MergeOpencodeServerConnected(v OpencodeServerConnected) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeGlobalDisposed returns the union data inside the OpencodeV2Event as a OpencodeGlobalDisposed
+func (t OpencodeV2Event) AsOpencodeGlobalDisposed() (OpencodeGlobalDisposed, error) {
+	var body OpencodeGlobalDisposed
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeGlobalDisposed overwrites any union data inside the OpencodeV2Event as the provided OpencodeGlobalDisposed
+func (t *OpencodeV2Event) FromOpencodeGlobalDisposed(v OpencodeGlobalDisposed) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeGlobalDisposed performs a merge with any union data inside the OpencodeV2Event, using the provided OpencodeGlobalDisposed
+func (t *OpencodeV2Event) MergeOpencodeGlobalDisposed(v OpencodeGlobalDisposed) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeV2Event) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeV2Event) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOpencodeWorkspaceTimeUsed0 returns the union data inside the OpencodeWorkspace_TimeUsed as a OpencodeWorkspaceTimeUsed0
+func (t OpencodeWorkspace_TimeUsed) AsOpencodeWorkspaceTimeUsed0() (OpencodeWorkspaceTimeUsed0, error) {
+	var body OpencodeWorkspaceTimeUsed0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeWorkspaceTimeUsed0 overwrites any union data inside the OpencodeWorkspace_TimeUsed as the provided OpencodeWorkspaceTimeUsed0
+func (t *OpencodeWorkspace_TimeUsed) FromOpencodeWorkspaceTimeUsed0(v OpencodeWorkspaceTimeUsed0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeWorkspaceTimeUsed0 performs a merge with any union data inside the OpencodeWorkspace_TimeUsed, using the provided OpencodeWorkspaceTimeUsed0
+func (t *OpencodeWorkspace_TimeUsed) MergeOpencodeWorkspaceTimeUsed0(v OpencodeWorkspaceTimeUsed0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeWorkspaceTimeUsed1 returns the union data inside the OpencodeWorkspace_TimeUsed as a OpencodeWorkspaceTimeUsed1
+func (t OpencodeWorkspace_TimeUsed) AsOpencodeWorkspaceTimeUsed1() (OpencodeWorkspaceTimeUsed1, error) {
+	var body OpencodeWorkspaceTimeUsed1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeWorkspaceTimeUsed1 overwrites any union data inside the OpencodeWorkspace_TimeUsed as the provided OpencodeWorkspaceTimeUsed1
+func (t *OpencodeWorkspace_TimeUsed) FromOpencodeWorkspaceTimeUsed1(v OpencodeWorkspaceTimeUsed1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeWorkspaceTimeUsed1 performs a merge with any union data inside the OpencodeWorkspace_TimeUsed, using the provided OpencodeWorkspaceTimeUsed1
+func (t *OpencodeWorkspace_TimeUsed) MergeOpencodeWorkspaceTimeUsed1(v OpencodeWorkspaceTimeUsed1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeWorkspaceTimeUsed2 returns the union data inside the OpencodeWorkspace_TimeUsed as a OpencodeWorkspaceTimeUsed2
+func (t OpencodeWorkspace_TimeUsed) AsOpencodeWorkspaceTimeUsed2() (OpencodeWorkspaceTimeUsed2, error) {
+	var body OpencodeWorkspaceTimeUsed2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeWorkspaceTimeUsed2 overwrites any union data inside the OpencodeWorkspace_TimeUsed as the provided OpencodeWorkspaceTimeUsed2
+func (t *OpencodeWorkspace_TimeUsed) FromOpencodeWorkspaceTimeUsed2(v OpencodeWorkspaceTimeUsed2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeWorkspaceTimeUsed2 performs a merge with any union data inside the OpencodeWorkspace_TimeUsed, using the provided OpencodeWorkspaceTimeUsed2
+func (t *OpencodeWorkspace_TimeUsed) MergeOpencodeWorkspaceTimeUsed2(v OpencodeWorkspaceTimeUsed2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeWorkspaceTimeUsed3 returns the union data inside the OpencodeWorkspace_TimeUsed as a OpencodeWorkspaceTimeUsed3
+func (t OpencodeWorkspace_TimeUsed) AsOpencodeWorkspaceTimeUsed3() (OpencodeWorkspaceTimeUsed3, error) {
+	var body OpencodeWorkspaceTimeUsed3
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeWorkspaceTimeUsed3 overwrites any union data inside the OpencodeWorkspace_TimeUsed as the provided OpencodeWorkspaceTimeUsed3
+func (t *OpencodeWorkspace_TimeUsed) FromOpencodeWorkspaceTimeUsed3(v OpencodeWorkspaceTimeUsed3) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeWorkspaceTimeUsed3 performs a merge with any union data inside the OpencodeWorkspace_TimeUsed, using the provided OpencodeWorkspaceTimeUsed3
+func (t *OpencodeWorkspace_TimeUsed) MergeOpencodeWorkspaceTimeUsed3(v OpencodeWorkspaceTimeUsed3) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpencodeWorkspaceTimeUsed4 returns the union data inside the OpencodeWorkspace_TimeUsed as a OpencodeWorkspaceTimeUsed4
+func (t OpencodeWorkspace_TimeUsed) AsOpencodeWorkspaceTimeUsed4() (OpencodeWorkspaceTimeUsed4, error) {
+	var body OpencodeWorkspaceTimeUsed4
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpencodeWorkspaceTimeUsed4 overwrites any union data inside the OpencodeWorkspace_TimeUsed as the provided OpencodeWorkspaceTimeUsed4
+func (t *OpencodeWorkspace_TimeUsed) FromOpencodeWorkspaceTimeUsed4(v OpencodeWorkspaceTimeUsed4) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpencodeWorkspaceTimeUsed4 performs a merge with any union data inside the OpencodeWorkspace_TimeUsed, using the provided OpencodeWorkspaceTimeUsed4
+func (t *OpencodeWorkspace_TimeUsed) MergeOpencodeWorkspaceTimeUsed4(v OpencodeWorkspaceTimeUsed4) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t OpencodeWorkspace_TimeUsed) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *OpencodeWorkspace_TimeUsed) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsCreateSkillImportDecision returns the union data inside the SkillImportDecision as a CreateSkillImportDecision
+func (t SkillImportDecision) AsCreateSkillImportDecision() (CreateSkillImportDecision, error) {
+	var body CreateSkillImportDecision
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCreateSkillImportDecision overwrites any union data inside the SkillImportDecision as the provided CreateSkillImportDecision
+func (t *SkillImportDecision) FromCreateSkillImportDecision(v CreateSkillImportDecision) error {
+	v.Action = "create"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCreateSkillImportDecision performs a merge with any union data inside the SkillImportDecision, using the provided CreateSkillImportDecision
+func (t *SkillImportDecision) MergeCreateSkillImportDecision(v CreateSkillImportDecision) error {
+	v.Action = "create"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOverwriteSkillImportDecision returns the union data inside the SkillImportDecision as a OverwriteSkillImportDecision
+func (t SkillImportDecision) AsOverwriteSkillImportDecision() (OverwriteSkillImportDecision, error) {
+	var body OverwriteSkillImportDecision
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOverwriteSkillImportDecision overwrites any union data inside the SkillImportDecision as the provided OverwriteSkillImportDecision
+func (t *SkillImportDecision) FromOverwriteSkillImportDecision(v OverwriteSkillImportDecision) error {
+	v.Action = "overwrite"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOverwriteSkillImportDecision performs a merge with any union data inside the SkillImportDecision, using the provided OverwriteSkillImportDecision
+func (t *SkillImportDecision) MergeOverwriteSkillImportDecision(v OverwriteSkillImportDecision) error {
+	v.Action = "overwrite"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsRenameSkillImportDecision returns the union data inside the SkillImportDecision as a RenameSkillImportDecision
+func (t SkillImportDecision) AsRenameSkillImportDecision() (RenameSkillImportDecision, error) {
+	var body RenameSkillImportDecision
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromRenameSkillImportDecision overwrites any union data inside the SkillImportDecision as the provided RenameSkillImportDecision
+func (t *SkillImportDecision) FromRenameSkillImportDecision(v RenameSkillImportDecision) error {
+	v.Action = "rename"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeRenameSkillImportDecision performs a merge with any union data inside the SkillImportDecision, using the provided RenameSkillImportDecision
+func (t *SkillImportDecision) MergeRenameSkillImportDecision(v RenameSkillImportDecision) error {
+	v.Action = "rename"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t SkillImportDecision) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"action"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t SkillImportDecision) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "create":
+		return t.AsCreateSkillImportDecision()
+	case "overwrite":
+		return t.AsOverwriteSkillImportDecision()
+	case "rename":
+		return t.AsRenameSkillImportDecision()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t SkillImportDecision) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *SkillImportDecision) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -27214,6 +36666,74 @@ type ClientInterface interface {
 
 	// WatchExternalAgents request
 	WatchExternalAgents(ctx context.Context, params *WatchExternalAgentsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListGuardrailConnections request
+	ListGuardrailConnections(ctx context.Context, params *ListGuardrailConnectionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateGuardrailConnectionWithBody request with any body
+	CreateGuardrailConnectionWithBody(ctx context.Context, params *CreateGuardrailConnectionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateGuardrailConnection(ctx context.Context, params *CreateGuardrailConnectionParams, body CreateGuardrailConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteGuardrailConnection request
+	DeleteGuardrailConnection(ctx context.Context, name string, params *DeleteGuardrailConnectionParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetGuardrailConnection request
+	GetGuardrailConnection(ctx context.Context, name string, params *GetGuardrailConnectionParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateGuardrailConnectionWithBody request with any body
+	UpdateGuardrailConnectionWithBody(ctx context.Context, name string, params *UpdateGuardrailConnectionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateGuardrailConnection(ctx context.Context, name string, params *UpdateGuardrailConnectionParams, body UpdateGuardrailConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DiscoverGuardrailConnectionResourcesWithBody request with any body
+	DiscoverGuardrailConnectionResourcesWithBody(ctx context.Context, name string, params *DiscoverGuardrailConnectionResourcesParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	DiscoverGuardrailConnectionResources(ctx context.Context, name string, params *DiscoverGuardrailConnectionResourcesParams, body DiscoverGuardrailConnectionResourcesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetEffectiveGuardrailsWithBody request with any body
+	GetEffectiveGuardrailsWithBody(ctx context.Context, params *GetEffectiveGuardrailsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	GetEffectiveGuardrails(ctx context.Context, params *GetEffectiveGuardrailsParams, body GetEffectiveGuardrailsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListGuardrailEvents request
+	ListGuardrailEvents(ctx context.Context, params *ListGuardrailEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetGuardrailEventChart request
+	GetGuardrailEventChart(ctx context.Context, params *GetGuardrailEventChartParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListGuardrailEventSources request
+	ListGuardrailEventSources(ctx context.Context, params *ListGuardrailEventSourcesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetGuardrailEvent request
+	GetGuardrailEvent(ctx context.Context, eventId string, params *GetGuardrailEventParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListGuardrailPolicies request
+	ListGuardrailPolicies(ctx context.Context, params *ListGuardrailPoliciesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateGuardrailPolicyWithBody request with any body
+	CreateGuardrailPolicyWithBody(ctx context.Context, params *CreateGuardrailPolicyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateGuardrailPolicy(ctx context.Context, params *CreateGuardrailPolicyParams, body CreateGuardrailPolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteGuardrailPolicy request
+	DeleteGuardrailPolicy(ctx context.Context, name string, params *DeleteGuardrailPolicyParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetGuardrailPolicy request
+	GetGuardrailPolicy(ctx context.Context, name string, params *GetGuardrailPolicyParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateGuardrailPolicyWithBody request with any body
+	UpdateGuardrailPolicyWithBody(ctx context.Context, name string, params *UpdateGuardrailPolicyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateGuardrailPolicy(ctx context.Context, name string, params *UpdateGuardrailPolicyParams, body UpdateGuardrailPolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetGuardrailSettings request
+	GetGuardrailSettings(ctx context.Context, params *GetGuardrailSettingsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateGuardrailSettingsWithBody request with any body
+	UpdateGuardrailSettingsWithBody(ctx context.Context, params *UpdateGuardrailSettingsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateGuardrailSettings(ctx context.Context, params *UpdateGuardrailSettingsParams, body UpdateGuardrailSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListInferencePools request
 	ListInferencePools(ctx context.Context, params *ListInferencePoolsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -28999,6 +38519,306 @@ func (c *Client) GetEventTrailEvent(ctx context.Context, eventId EventTrailEvent
 
 func (c *Client) WatchExternalAgents(ctx context.Context, params *WatchExternalAgentsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWatchExternalAgentsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListGuardrailConnections(ctx context.Context, params *ListGuardrailConnectionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListGuardrailConnectionsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateGuardrailConnectionWithBody(ctx context.Context, params *CreateGuardrailConnectionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateGuardrailConnectionRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateGuardrailConnection(ctx context.Context, params *CreateGuardrailConnectionParams, body CreateGuardrailConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateGuardrailConnectionRequest(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteGuardrailConnection(ctx context.Context, name string, params *DeleteGuardrailConnectionParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteGuardrailConnectionRequest(c.Server, name, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetGuardrailConnection(ctx context.Context, name string, params *GetGuardrailConnectionParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetGuardrailConnectionRequest(c.Server, name, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateGuardrailConnectionWithBody(ctx context.Context, name string, params *UpdateGuardrailConnectionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateGuardrailConnectionRequestWithBody(c.Server, name, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateGuardrailConnection(ctx context.Context, name string, params *UpdateGuardrailConnectionParams, body UpdateGuardrailConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateGuardrailConnectionRequest(c.Server, name, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DiscoverGuardrailConnectionResourcesWithBody(ctx context.Context, name string, params *DiscoverGuardrailConnectionResourcesParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDiscoverGuardrailConnectionResourcesRequestWithBody(c.Server, name, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DiscoverGuardrailConnectionResources(ctx context.Context, name string, params *DiscoverGuardrailConnectionResourcesParams, body DiscoverGuardrailConnectionResourcesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDiscoverGuardrailConnectionResourcesRequest(c.Server, name, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetEffectiveGuardrailsWithBody(ctx context.Context, params *GetEffectiveGuardrailsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetEffectiveGuardrailsRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetEffectiveGuardrails(ctx context.Context, params *GetEffectiveGuardrailsParams, body GetEffectiveGuardrailsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetEffectiveGuardrailsRequest(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListGuardrailEvents(ctx context.Context, params *ListGuardrailEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListGuardrailEventsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetGuardrailEventChart(ctx context.Context, params *GetGuardrailEventChartParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetGuardrailEventChartRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListGuardrailEventSources(ctx context.Context, params *ListGuardrailEventSourcesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListGuardrailEventSourcesRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetGuardrailEvent(ctx context.Context, eventId string, params *GetGuardrailEventParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetGuardrailEventRequest(c.Server, eventId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListGuardrailPolicies(ctx context.Context, params *ListGuardrailPoliciesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListGuardrailPoliciesRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateGuardrailPolicyWithBody(ctx context.Context, params *CreateGuardrailPolicyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateGuardrailPolicyRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateGuardrailPolicy(ctx context.Context, params *CreateGuardrailPolicyParams, body CreateGuardrailPolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateGuardrailPolicyRequest(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteGuardrailPolicy(ctx context.Context, name string, params *DeleteGuardrailPolicyParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteGuardrailPolicyRequest(c.Server, name, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetGuardrailPolicy(ctx context.Context, name string, params *GetGuardrailPolicyParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetGuardrailPolicyRequest(c.Server, name, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateGuardrailPolicyWithBody(ctx context.Context, name string, params *UpdateGuardrailPolicyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateGuardrailPolicyRequestWithBody(c.Server, name, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateGuardrailPolicy(ctx context.Context, name string, params *UpdateGuardrailPolicyParams, body UpdateGuardrailPolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateGuardrailPolicyRequest(c.Server, name, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetGuardrailSettings(ctx context.Context, params *GetGuardrailSettingsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetGuardrailSettingsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateGuardrailSettingsWithBody(ctx context.Context, params *UpdateGuardrailSettingsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateGuardrailSettingsRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateGuardrailSettings(ctx context.Context, params *UpdateGuardrailSettingsParams, body UpdateGuardrailSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateGuardrailSettingsRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -35485,6 +45305,1241 @@ func NewWatchExternalAgentsRequest(server string, params *WatchExternalAgentsPar
 	if err != nil {
 		return nil, err
 	}
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewListGuardrailConnectionsRequest generates requests for ListGuardrailConnections
+func NewListGuardrailConnectionsRequest(server string, params *ListGuardrailConnectionsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/guardrails/connections")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewCreateGuardrailConnectionRequest calls the generic CreateGuardrailConnection builder with application/json body
+func NewCreateGuardrailConnectionRequest(server string, params *CreateGuardrailConnectionParams, body CreateGuardrailConnectionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateGuardrailConnectionRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewCreateGuardrailConnectionRequestWithBody generates requests for CreateGuardrailConnection with any type of body
+func NewCreateGuardrailConnectionRequestWithBody(server string, params *CreateGuardrailConnectionParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/guardrails/connections")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewDeleteGuardrailConnectionRequest generates requests for DeleteGuardrailConnection
+func NewDeleteGuardrailConnectionRequest(server string, name string, params *DeleteGuardrailConnectionParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/guardrails/connections/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewGetGuardrailConnectionRequest generates requests for GetGuardrailConnection
+func NewGetGuardrailConnectionRequest(server string, name string, params *GetGuardrailConnectionParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/guardrails/connections/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewUpdateGuardrailConnectionRequest calls the generic UpdateGuardrailConnection builder with application/json body
+func NewUpdateGuardrailConnectionRequest(server string, name string, params *UpdateGuardrailConnectionParams, body UpdateGuardrailConnectionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateGuardrailConnectionRequestWithBody(server, name, params, "application/json", bodyReader)
+}
+
+// NewUpdateGuardrailConnectionRequestWithBody generates requests for UpdateGuardrailConnection with any type of body
+func NewUpdateGuardrailConnectionRequestWithBody(server string, name string, params *UpdateGuardrailConnectionParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/guardrails/connections/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewDiscoverGuardrailConnectionResourcesRequest calls the generic DiscoverGuardrailConnectionResources builder with application/json body
+func NewDiscoverGuardrailConnectionResourcesRequest(server string, name string, params *DiscoverGuardrailConnectionResourcesParams, body DiscoverGuardrailConnectionResourcesJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewDiscoverGuardrailConnectionResourcesRequestWithBody(server, name, params, "application/json", bodyReader)
+}
+
+// NewDiscoverGuardrailConnectionResourcesRequestWithBody generates requests for DiscoverGuardrailConnectionResources with any type of body
+func NewDiscoverGuardrailConnectionResourcesRequestWithBody(server string, name string, params *DiscoverGuardrailConnectionResourcesParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/guardrails/connections/%s/resources", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewGetEffectiveGuardrailsRequest calls the generic GetEffectiveGuardrails builder with application/json body
+func NewGetEffectiveGuardrailsRequest(server string, params *GetEffectiveGuardrailsParams, body GetEffectiveGuardrailsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewGetEffectiveGuardrailsRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewGetEffectiveGuardrailsRequestWithBody generates requests for GetEffectiveGuardrails with any type of body
+func NewGetEffectiveGuardrailsRequestWithBody(server string, params *GetEffectiveGuardrailsParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/guardrails/effective")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewListGuardrailEventsRequest generates requests for ListGuardrailEvents
+func NewListGuardrailEventsRequest(server string, params *ListGuardrailEventsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/guardrails/events")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.WorkspaceId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace_id", runtime.ParamLocationQuery, *params.WorkspaceId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AgentName != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "agent_name", runtime.ParamLocationQuery, *params.AgentName); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.ClientId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "client_id", runtime.ParamLocationQuery, *params.ClientId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Action != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "action", runtime.ParamLocationQuery, *params.Action); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Phase != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "phase", runtime.ParamLocationQuery, *params.Phase); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.TraceId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "trace_id", runtime.ParamLocationQuery, *params.TraceId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SessionId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "session_id", runtime.ParamLocationQuery, *params.SessionId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.From != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "from", runtime.ParamLocationQuery, *params.From); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.To != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "to", runtime.ParamLocationQuery, *params.To); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "cursor", runtime.ParamLocationQuery, *params.Cursor); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewGetGuardrailEventChartRequest generates requests for GetGuardrailEventChart
+func NewGetGuardrailEventChartRequest(server string, params *GetGuardrailEventChartParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/guardrails/events/chart")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.WorkspaceId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workspace_id", runtime.ParamLocationQuery, *params.WorkspaceId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AgentName != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "agent_name", runtime.ParamLocationQuery, *params.AgentName); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.ClientId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "client_id", runtime.ParamLocationQuery, *params.ClientId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Action != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "action", runtime.ParamLocationQuery, *params.Action); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Phase != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "phase", runtime.ParamLocationQuery, *params.Phase); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.TraceId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "trace_id", runtime.ParamLocationQuery, *params.TraceId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SessionId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "session_id", runtime.ParamLocationQuery, *params.SessionId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.From != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "from", runtime.ParamLocationQuery, *params.From); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.To != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "to", runtime.ParamLocationQuery, *params.To); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewListGuardrailEventSourcesRequest generates requests for ListGuardrailEventSources
+func NewListGuardrailEventSourcesRequest(server string, params *ListGuardrailEventSourcesParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/guardrails/events/sources")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewGetGuardrailEventRequest generates requests for GetGuardrailEvent
+func NewGetGuardrailEventRequest(server string, eventId string, params *GetGuardrailEventParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "eventId", runtime.ParamLocationPath, eventId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/guardrails/events/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewListGuardrailPoliciesRequest generates requests for ListGuardrailPolicies
+func NewListGuardrailPoliciesRequest(server string, params *ListGuardrailPoliciesParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/guardrails/policies")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewCreateGuardrailPolicyRequest calls the generic CreateGuardrailPolicy builder with application/json body
+func NewCreateGuardrailPolicyRequest(server string, params *CreateGuardrailPolicyParams, body CreateGuardrailPolicyJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateGuardrailPolicyRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewCreateGuardrailPolicyRequestWithBody generates requests for CreateGuardrailPolicy with any type of body
+func NewCreateGuardrailPolicyRequestWithBody(server string, params *CreateGuardrailPolicyParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/guardrails/policies")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewDeleteGuardrailPolicyRequest generates requests for DeleteGuardrailPolicy
+func NewDeleteGuardrailPolicyRequest(server string, name string, params *DeleteGuardrailPolicyParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/guardrails/policies/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewGetGuardrailPolicyRequest generates requests for GetGuardrailPolicy
+func NewGetGuardrailPolicyRequest(server string, name string, params *GetGuardrailPolicyParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/guardrails/policies/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewUpdateGuardrailPolicyRequest calls the generic UpdateGuardrailPolicy builder with application/json body
+func NewUpdateGuardrailPolicyRequest(server string, name string, params *UpdateGuardrailPolicyParams, body UpdateGuardrailPolicyJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateGuardrailPolicyRequestWithBody(server, name, params, "application/json", bodyReader)
+}
+
+// NewUpdateGuardrailPolicyRequestWithBody generates requests for UpdateGuardrailPolicy with any type of body
+func NewUpdateGuardrailPolicyRequestWithBody(server string, name string, params *UpdateGuardrailPolicyParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/guardrails/policies/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewGetGuardrailSettingsRequest generates requests for GetGuardrailSettings
+func NewGetGuardrailSettingsRequest(server string, params *GetGuardrailSettingsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/guardrails/settings")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XAgentZWorkspaceID != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-AgentZ-Workspace-ID", runtime.ParamLocationHeader, *params.XAgentZWorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-AgentZ-Workspace-ID", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewUpdateGuardrailSettingsRequest calls the generic UpdateGuardrailSettings builder with application/json body
+func NewUpdateGuardrailSettingsRequest(server string, params *UpdateGuardrailSettingsParams, body UpdateGuardrailSettingsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateGuardrailSettingsRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewUpdateGuardrailSettingsRequestWithBody generates requests for UpdateGuardrailSettings with any type of body
+func NewUpdateGuardrailSettingsRequestWithBody(server string, params *UpdateGuardrailSettingsParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/guardrails/settings")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	if params != nil {
 
@@ -48060,6 +59115,74 @@ type ClientWithResponsesInterface interface {
 	// WatchExternalAgentsWithResponse request
 	WatchExternalAgentsWithResponse(ctx context.Context, params *WatchExternalAgentsParams, reqEditors ...RequestEditorFn) (*WatchExternalAgentsResp, error)
 
+	// ListGuardrailConnectionsWithResponse request
+	ListGuardrailConnectionsWithResponse(ctx context.Context, params *ListGuardrailConnectionsParams, reqEditors ...RequestEditorFn) (*ListGuardrailConnectionsResp, error)
+
+	// CreateGuardrailConnectionWithBodyWithResponse request with any body
+	CreateGuardrailConnectionWithBodyWithResponse(ctx context.Context, params *CreateGuardrailConnectionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateGuardrailConnectionResp, error)
+
+	CreateGuardrailConnectionWithResponse(ctx context.Context, params *CreateGuardrailConnectionParams, body CreateGuardrailConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateGuardrailConnectionResp, error)
+
+	// DeleteGuardrailConnectionWithResponse request
+	DeleteGuardrailConnectionWithResponse(ctx context.Context, name string, params *DeleteGuardrailConnectionParams, reqEditors ...RequestEditorFn) (*DeleteGuardrailConnectionResp, error)
+
+	// GetGuardrailConnectionWithResponse request
+	GetGuardrailConnectionWithResponse(ctx context.Context, name string, params *GetGuardrailConnectionParams, reqEditors ...RequestEditorFn) (*GetGuardrailConnectionResp, error)
+
+	// UpdateGuardrailConnectionWithBodyWithResponse request with any body
+	UpdateGuardrailConnectionWithBodyWithResponse(ctx context.Context, name string, params *UpdateGuardrailConnectionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateGuardrailConnectionResp, error)
+
+	UpdateGuardrailConnectionWithResponse(ctx context.Context, name string, params *UpdateGuardrailConnectionParams, body UpdateGuardrailConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateGuardrailConnectionResp, error)
+
+	// DiscoverGuardrailConnectionResourcesWithBodyWithResponse request with any body
+	DiscoverGuardrailConnectionResourcesWithBodyWithResponse(ctx context.Context, name string, params *DiscoverGuardrailConnectionResourcesParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DiscoverGuardrailConnectionResourcesResp, error)
+
+	DiscoverGuardrailConnectionResourcesWithResponse(ctx context.Context, name string, params *DiscoverGuardrailConnectionResourcesParams, body DiscoverGuardrailConnectionResourcesJSONRequestBody, reqEditors ...RequestEditorFn) (*DiscoverGuardrailConnectionResourcesResp, error)
+
+	// GetEffectiveGuardrailsWithBodyWithResponse request with any body
+	GetEffectiveGuardrailsWithBodyWithResponse(ctx context.Context, params *GetEffectiveGuardrailsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*GetEffectiveGuardrailsResp, error)
+
+	GetEffectiveGuardrailsWithResponse(ctx context.Context, params *GetEffectiveGuardrailsParams, body GetEffectiveGuardrailsJSONRequestBody, reqEditors ...RequestEditorFn) (*GetEffectiveGuardrailsResp, error)
+
+	// ListGuardrailEventsWithResponse request
+	ListGuardrailEventsWithResponse(ctx context.Context, params *ListGuardrailEventsParams, reqEditors ...RequestEditorFn) (*ListGuardrailEventsResp, error)
+
+	// GetGuardrailEventChartWithResponse request
+	GetGuardrailEventChartWithResponse(ctx context.Context, params *GetGuardrailEventChartParams, reqEditors ...RequestEditorFn) (*GetGuardrailEventChartResp, error)
+
+	// ListGuardrailEventSourcesWithResponse request
+	ListGuardrailEventSourcesWithResponse(ctx context.Context, params *ListGuardrailEventSourcesParams, reqEditors ...RequestEditorFn) (*ListGuardrailEventSourcesResp, error)
+
+	// GetGuardrailEventWithResponse request
+	GetGuardrailEventWithResponse(ctx context.Context, eventId string, params *GetGuardrailEventParams, reqEditors ...RequestEditorFn) (*GetGuardrailEventResp, error)
+
+	// ListGuardrailPoliciesWithResponse request
+	ListGuardrailPoliciesWithResponse(ctx context.Context, params *ListGuardrailPoliciesParams, reqEditors ...RequestEditorFn) (*ListGuardrailPoliciesResp, error)
+
+	// CreateGuardrailPolicyWithBodyWithResponse request with any body
+	CreateGuardrailPolicyWithBodyWithResponse(ctx context.Context, params *CreateGuardrailPolicyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateGuardrailPolicyResp, error)
+
+	CreateGuardrailPolicyWithResponse(ctx context.Context, params *CreateGuardrailPolicyParams, body CreateGuardrailPolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateGuardrailPolicyResp, error)
+
+	// DeleteGuardrailPolicyWithResponse request
+	DeleteGuardrailPolicyWithResponse(ctx context.Context, name string, params *DeleteGuardrailPolicyParams, reqEditors ...RequestEditorFn) (*DeleteGuardrailPolicyResp, error)
+
+	// GetGuardrailPolicyWithResponse request
+	GetGuardrailPolicyWithResponse(ctx context.Context, name string, params *GetGuardrailPolicyParams, reqEditors ...RequestEditorFn) (*GetGuardrailPolicyResp, error)
+
+	// UpdateGuardrailPolicyWithBodyWithResponse request with any body
+	UpdateGuardrailPolicyWithBodyWithResponse(ctx context.Context, name string, params *UpdateGuardrailPolicyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateGuardrailPolicyResp, error)
+
+	UpdateGuardrailPolicyWithResponse(ctx context.Context, name string, params *UpdateGuardrailPolicyParams, body UpdateGuardrailPolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateGuardrailPolicyResp, error)
+
+	// GetGuardrailSettingsWithResponse request
+	GetGuardrailSettingsWithResponse(ctx context.Context, params *GetGuardrailSettingsParams, reqEditors ...RequestEditorFn) (*GetGuardrailSettingsResp, error)
+
+	// UpdateGuardrailSettingsWithBodyWithResponse request with any body
+	UpdateGuardrailSettingsWithBodyWithResponse(ctx context.Context, params *UpdateGuardrailSettingsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateGuardrailSettingsResp, error)
+
+	UpdateGuardrailSettingsWithResponse(ctx context.Context, params *UpdateGuardrailSettingsParams, body UpdateGuardrailSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateGuardrailSettingsResp, error)
+
 	// ListInferencePoolsWithResponse request
 	ListInferencePoolsWithResponse(ctx context.Context, params *ListInferencePoolsParams, reqEditors ...RequestEditorFn) (*ListInferencePoolsResp, error)
 
@@ -50427,6 +61550,430 @@ func (r WatchExternalAgentsResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r WatchExternalAgentsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListGuardrailConnectionsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Items []GuardrailConnection `json:"items"`
+	}
+	JSONDefault *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListGuardrailConnectionsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListGuardrailConnectionsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateGuardrailConnectionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *GuardrailConnection
+	JSONDefault  *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateGuardrailConnectionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateGuardrailConnectionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteGuardrailConnectionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSONDefault  *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteGuardrailConnectionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteGuardrailConnectionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetGuardrailConnectionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GuardrailConnection
+	JSONDefault  *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetGuardrailConnectionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetGuardrailConnectionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateGuardrailConnectionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GuardrailConnection
+	JSONDefault  *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateGuardrailConnectionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateGuardrailConnectionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DiscoverGuardrailConnectionResourcesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GuardrailResourceDiscovery
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON429      *Error
+	JSON500      *InternalError
+	JSON502      *BadGateway
+	JSON503      *Error
+	JSON504      *GatewayTimeout
+}
+
+// Status returns HTTPResponse.Status
+func (r DiscoverGuardrailConnectionResourcesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DiscoverGuardrailConnectionResourcesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetEffectiveGuardrailsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GuardrailEffective
+	JSONDefault  *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetEffectiveGuardrailsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetEffectiveGuardrailsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListGuardrailEventsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ListGuardrailEventsResponse
+	JSONDefault  *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListGuardrailEventsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListGuardrailEventsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetGuardrailEventChartResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GuardrailEventChart
+	JSONDefault  *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetGuardrailEventChartResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetGuardrailEventChartResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListGuardrailEventSourcesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GuardrailEventSources
+	JSONDefault  *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListGuardrailEventSourcesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListGuardrailEventSourcesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetGuardrailEventResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GuardrailEvent
+	JSONDefault  *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetGuardrailEventResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetGuardrailEventResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListGuardrailPoliciesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Items []GuardrailPolicy `json:"items"`
+	}
+	JSONDefault *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListGuardrailPoliciesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListGuardrailPoliciesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateGuardrailPolicyResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *GuardrailPolicy
+	JSONDefault  *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateGuardrailPolicyResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateGuardrailPolicyResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteGuardrailPolicyResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSONDefault  *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteGuardrailPolicyResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteGuardrailPolicyResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetGuardrailPolicyResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GuardrailPolicy
+	JSONDefault  *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetGuardrailPolicyResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetGuardrailPolicyResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateGuardrailPolicyResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GuardrailPolicy
+	JSONDefault  *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateGuardrailPolicyResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateGuardrailPolicyResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetGuardrailSettingsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GuardrailSettings
+	JSONDefault  *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetGuardrailSettingsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetGuardrailSettingsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateGuardrailSettingsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GuardrailSettings
+	JSONDefault  *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateGuardrailSettingsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateGuardrailSettingsResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -55793,6 +67340,224 @@ func (c *ClientWithResponses) WatchExternalAgentsWithResponse(ctx context.Contex
 		return nil, err
 	}
 	return ParseWatchExternalAgentsResp(rsp)
+}
+
+// ListGuardrailConnectionsWithResponse request returning *ListGuardrailConnectionsResp
+func (c *ClientWithResponses) ListGuardrailConnectionsWithResponse(ctx context.Context, params *ListGuardrailConnectionsParams, reqEditors ...RequestEditorFn) (*ListGuardrailConnectionsResp, error) {
+	rsp, err := c.ListGuardrailConnections(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListGuardrailConnectionsResp(rsp)
+}
+
+// CreateGuardrailConnectionWithBodyWithResponse request with arbitrary body returning *CreateGuardrailConnectionResp
+func (c *ClientWithResponses) CreateGuardrailConnectionWithBodyWithResponse(ctx context.Context, params *CreateGuardrailConnectionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateGuardrailConnectionResp, error) {
+	rsp, err := c.CreateGuardrailConnectionWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateGuardrailConnectionResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateGuardrailConnectionWithResponse(ctx context.Context, params *CreateGuardrailConnectionParams, body CreateGuardrailConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateGuardrailConnectionResp, error) {
+	rsp, err := c.CreateGuardrailConnection(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateGuardrailConnectionResp(rsp)
+}
+
+// DeleteGuardrailConnectionWithResponse request returning *DeleteGuardrailConnectionResp
+func (c *ClientWithResponses) DeleteGuardrailConnectionWithResponse(ctx context.Context, name string, params *DeleteGuardrailConnectionParams, reqEditors ...RequestEditorFn) (*DeleteGuardrailConnectionResp, error) {
+	rsp, err := c.DeleteGuardrailConnection(ctx, name, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteGuardrailConnectionResp(rsp)
+}
+
+// GetGuardrailConnectionWithResponse request returning *GetGuardrailConnectionResp
+func (c *ClientWithResponses) GetGuardrailConnectionWithResponse(ctx context.Context, name string, params *GetGuardrailConnectionParams, reqEditors ...RequestEditorFn) (*GetGuardrailConnectionResp, error) {
+	rsp, err := c.GetGuardrailConnection(ctx, name, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetGuardrailConnectionResp(rsp)
+}
+
+// UpdateGuardrailConnectionWithBodyWithResponse request with arbitrary body returning *UpdateGuardrailConnectionResp
+func (c *ClientWithResponses) UpdateGuardrailConnectionWithBodyWithResponse(ctx context.Context, name string, params *UpdateGuardrailConnectionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateGuardrailConnectionResp, error) {
+	rsp, err := c.UpdateGuardrailConnectionWithBody(ctx, name, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateGuardrailConnectionResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateGuardrailConnectionWithResponse(ctx context.Context, name string, params *UpdateGuardrailConnectionParams, body UpdateGuardrailConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateGuardrailConnectionResp, error) {
+	rsp, err := c.UpdateGuardrailConnection(ctx, name, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateGuardrailConnectionResp(rsp)
+}
+
+// DiscoverGuardrailConnectionResourcesWithBodyWithResponse request with arbitrary body returning *DiscoverGuardrailConnectionResourcesResp
+func (c *ClientWithResponses) DiscoverGuardrailConnectionResourcesWithBodyWithResponse(ctx context.Context, name string, params *DiscoverGuardrailConnectionResourcesParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DiscoverGuardrailConnectionResourcesResp, error) {
+	rsp, err := c.DiscoverGuardrailConnectionResourcesWithBody(ctx, name, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDiscoverGuardrailConnectionResourcesResp(rsp)
+}
+
+func (c *ClientWithResponses) DiscoverGuardrailConnectionResourcesWithResponse(ctx context.Context, name string, params *DiscoverGuardrailConnectionResourcesParams, body DiscoverGuardrailConnectionResourcesJSONRequestBody, reqEditors ...RequestEditorFn) (*DiscoverGuardrailConnectionResourcesResp, error) {
+	rsp, err := c.DiscoverGuardrailConnectionResources(ctx, name, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDiscoverGuardrailConnectionResourcesResp(rsp)
+}
+
+// GetEffectiveGuardrailsWithBodyWithResponse request with arbitrary body returning *GetEffectiveGuardrailsResp
+func (c *ClientWithResponses) GetEffectiveGuardrailsWithBodyWithResponse(ctx context.Context, params *GetEffectiveGuardrailsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*GetEffectiveGuardrailsResp, error) {
+	rsp, err := c.GetEffectiveGuardrailsWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetEffectiveGuardrailsResp(rsp)
+}
+
+func (c *ClientWithResponses) GetEffectiveGuardrailsWithResponse(ctx context.Context, params *GetEffectiveGuardrailsParams, body GetEffectiveGuardrailsJSONRequestBody, reqEditors ...RequestEditorFn) (*GetEffectiveGuardrailsResp, error) {
+	rsp, err := c.GetEffectiveGuardrails(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetEffectiveGuardrailsResp(rsp)
+}
+
+// ListGuardrailEventsWithResponse request returning *ListGuardrailEventsResp
+func (c *ClientWithResponses) ListGuardrailEventsWithResponse(ctx context.Context, params *ListGuardrailEventsParams, reqEditors ...RequestEditorFn) (*ListGuardrailEventsResp, error) {
+	rsp, err := c.ListGuardrailEvents(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListGuardrailEventsResp(rsp)
+}
+
+// GetGuardrailEventChartWithResponse request returning *GetGuardrailEventChartResp
+func (c *ClientWithResponses) GetGuardrailEventChartWithResponse(ctx context.Context, params *GetGuardrailEventChartParams, reqEditors ...RequestEditorFn) (*GetGuardrailEventChartResp, error) {
+	rsp, err := c.GetGuardrailEventChart(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetGuardrailEventChartResp(rsp)
+}
+
+// ListGuardrailEventSourcesWithResponse request returning *ListGuardrailEventSourcesResp
+func (c *ClientWithResponses) ListGuardrailEventSourcesWithResponse(ctx context.Context, params *ListGuardrailEventSourcesParams, reqEditors ...RequestEditorFn) (*ListGuardrailEventSourcesResp, error) {
+	rsp, err := c.ListGuardrailEventSources(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListGuardrailEventSourcesResp(rsp)
+}
+
+// GetGuardrailEventWithResponse request returning *GetGuardrailEventResp
+func (c *ClientWithResponses) GetGuardrailEventWithResponse(ctx context.Context, eventId string, params *GetGuardrailEventParams, reqEditors ...RequestEditorFn) (*GetGuardrailEventResp, error) {
+	rsp, err := c.GetGuardrailEvent(ctx, eventId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetGuardrailEventResp(rsp)
+}
+
+// ListGuardrailPoliciesWithResponse request returning *ListGuardrailPoliciesResp
+func (c *ClientWithResponses) ListGuardrailPoliciesWithResponse(ctx context.Context, params *ListGuardrailPoliciesParams, reqEditors ...RequestEditorFn) (*ListGuardrailPoliciesResp, error) {
+	rsp, err := c.ListGuardrailPolicies(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListGuardrailPoliciesResp(rsp)
+}
+
+// CreateGuardrailPolicyWithBodyWithResponse request with arbitrary body returning *CreateGuardrailPolicyResp
+func (c *ClientWithResponses) CreateGuardrailPolicyWithBodyWithResponse(ctx context.Context, params *CreateGuardrailPolicyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateGuardrailPolicyResp, error) {
+	rsp, err := c.CreateGuardrailPolicyWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateGuardrailPolicyResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateGuardrailPolicyWithResponse(ctx context.Context, params *CreateGuardrailPolicyParams, body CreateGuardrailPolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateGuardrailPolicyResp, error) {
+	rsp, err := c.CreateGuardrailPolicy(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateGuardrailPolicyResp(rsp)
+}
+
+// DeleteGuardrailPolicyWithResponse request returning *DeleteGuardrailPolicyResp
+func (c *ClientWithResponses) DeleteGuardrailPolicyWithResponse(ctx context.Context, name string, params *DeleteGuardrailPolicyParams, reqEditors ...RequestEditorFn) (*DeleteGuardrailPolicyResp, error) {
+	rsp, err := c.DeleteGuardrailPolicy(ctx, name, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteGuardrailPolicyResp(rsp)
+}
+
+// GetGuardrailPolicyWithResponse request returning *GetGuardrailPolicyResp
+func (c *ClientWithResponses) GetGuardrailPolicyWithResponse(ctx context.Context, name string, params *GetGuardrailPolicyParams, reqEditors ...RequestEditorFn) (*GetGuardrailPolicyResp, error) {
+	rsp, err := c.GetGuardrailPolicy(ctx, name, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetGuardrailPolicyResp(rsp)
+}
+
+// UpdateGuardrailPolicyWithBodyWithResponse request with arbitrary body returning *UpdateGuardrailPolicyResp
+func (c *ClientWithResponses) UpdateGuardrailPolicyWithBodyWithResponse(ctx context.Context, name string, params *UpdateGuardrailPolicyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateGuardrailPolicyResp, error) {
+	rsp, err := c.UpdateGuardrailPolicyWithBody(ctx, name, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateGuardrailPolicyResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateGuardrailPolicyWithResponse(ctx context.Context, name string, params *UpdateGuardrailPolicyParams, body UpdateGuardrailPolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateGuardrailPolicyResp, error) {
+	rsp, err := c.UpdateGuardrailPolicy(ctx, name, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateGuardrailPolicyResp(rsp)
+}
+
+// GetGuardrailSettingsWithResponse request returning *GetGuardrailSettingsResp
+func (c *ClientWithResponses) GetGuardrailSettingsWithResponse(ctx context.Context, params *GetGuardrailSettingsParams, reqEditors ...RequestEditorFn) (*GetGuardrailSettingsResp, error) {
+	rsp, err := c.GetGuardrailSettings(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetGuardrailSettingsResp(rsp)
+}
+
+// UpdateGuardrailSettingsWithBodyWithResponse request with arbitrary body returning *UpdateGuardrailSettingsResp
+func (c *ClientWithResponses) UpdateGuardrailSettingsWithBodyWithResponse(ctx context.Context, params *UpdateGuardrailSettingsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateGuardrailSettingsResp, error) {
+	rsp, err := c.UpdateGuardrailSettingsWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateGuardrailSettingsResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateGuardrailSettingsWithResponse(ctx context.Context, params *UpdateGuardrailSettingsParams, body UpdateGuardrailSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateGuardrailSettingsResp, error) {
+	rsp, err := c.UpdateGuardrailSettings(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateGuardrailSettingsResp(rsp)
 }
 
 // ListInferencePoolsWithResponse request returning *ListInferencePoolsResp
@@ -61241,6 +73006,646 @@ func ParseWatchExternalAgentsResp(rsp *http.Response) (*WatchExternalAgentsResp,
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListGuardrailConnectionsResp parses an HTTP response from a ListGuardrailConnectionsWithResponse call
+func ParseListGuardrailConnectionsResp(rsp *http.Response) (*ListGuardrailConnectionsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListGuardrailConnectionsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Items []GuardrailConnection `json:"items"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateGuardrailConnectionResp parses an HTTP response from a CreateGuardrailConnectionWithResponse call
+func ParseCreateGuardrailConnectionResp(rsp *http.Response) (*CreateGuardrailConnectionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateGuardrailConnectionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest GuardrailConnection
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteGuardrailConnectionResp parses an HTTP response from a DeleteGuardrailConnectionWithResponse call
+func ParseDeleteGuardrailConnectionResp(rsp *http.Response) (*DeleteGuardrailConnectionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteGuardrailConnectionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetGuardrailConnectionResp parses an HTTP response from a GetGuardrailConnectionWithResponse call
+func ParseGetGuardrailConnectionResp(rsp *http.Response) (*GetGuardrailConnectionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetGuardrailConnectionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GuardrailConnection
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateGuardrailConnectionResp parses an HTTP response from a UpdateGuardrailConnectionWithResponse call
+func ParseUpdateGuardrailConnectionResp(rsp *http.Response) (*UpdateGuardrailConnectionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateGuardrailConnectionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GuardrailConnection
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDiscoverGuardrailConnectionResourcesResp parses an HTTP response from a DiscoverGuardrailConnectionResourcesWithResponse call
+func ParseDiscoverGuardrailConnectionResourcesResp(rsp *http.Response) (*DiscoverGuardrailConnectionResourcesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DiscoverGuardrailConnectionResourcesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GuardrailResourceDiscovery
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest BadGateway
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 504:
+		var dest GatewayTimeout
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON504 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetEffectiveGuardrailsResp parses an HTTP response from a GetEffectiveGuardrailsWithResponse call
+func ParseGetEffectiveGuardrailsResp(rsp *http.Response) (*GetEffectiveGuardrailsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetEffectiveGuardrailsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GuardrailEffective
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListGuardrailEventsResp parses an HTTP response from a ListGuardrailEventsWithResponse call
+func ParseListGuardrailEventsResp(rsp *http.Response) (*ListGuardrailEventsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListGuardrailEventsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ListGuardrailEventsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetGuardrailEventChartResp parses an HTTP response from a GetGuardrailEventChartWithResponse call
+func ParseGetGuardrailEventChartResp(rsp *http.Response) (*GetGuardrailEventChartResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetGuardrailEventChartResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GuardrailEventChart
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListGuardrailEventSourcesResp parses an HTTP response from a ListGuardrailEventSourcesWithResponse call
+func ParseListGuardrailEventSourcesResp(rsp *http.Response) (*ListGuardrailEventSourcesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListGuardrailEventSourcesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GuardrailEventSources
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetGuardrailEventResp parses an HTTP response from a GetGuardrailEventWithResponse call
+func ParseGetGuardrailEventResp(rsp *http.Response) (*GetGuardrailEventResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetGuardrailEventResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GuardrailEvent
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListGuardrailPoliciesResp parses an HTTP response from a ListGuardrailPoliciesWithResponse call
+func ParseListGuardrailPoliciesResp(rsp *http.Response) (*ListGuardrailPoliciesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListGuardrailPoliciesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Items []GuardrailPolicy `json:"items"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateGuardrailPolicyResp parses an HTTP response from a CreateGuardrailPolicyWithResponse call
+func ParseCreateGuardrailPolicyResp(rsp *http.Response) (*CreateGuardrailPolicyResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateGuardrailPolicyResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest GuardrailPolicy
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteGuardrailPolicyResp parses an HTTP response from a DeleteGuardrailPolicyWithResponse call
+func ParseDeleteGuardrailPolicyResp(rsp *http.Response) (*DeleteGuardrailPolicyResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteGuardrailPolicyResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetGuardrailPolicyResp parses an HTTP response from a GetGuardrailPolicyWithResponse call
+func ParseGetGuardrailPolicyResp(rsp *http.Response) (*GetGuardrailPolicyResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetGuardrailPolicyResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GuardrailPolicy
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateGuardrailPolicyResp parses an HTTP response from a UpdateGuardrailPolicyWithResponse call
+func ParseUpdateGuardrailPolicyResp(rsp *http.Response) (*UpdateGuardrailPolicyResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateGuardrailPolicyResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GuardrailPolicy
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetGuardrailSettingsResp parses an HTTP response from a GetGuardrailSettingsWithResponse call
+func ParseGetGuardrailSettingsResp(rsp *http.Response) (*GetGuardrailSettingsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetGuardrailSettingsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GuardrailSettings
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateGuardrailSettingsResp parses an HTTP response from a UpdateGuardrailSettingsWithResponse call
+func ParseUpdateGuardrailSettingsResp(rsp *http.Response) (*UpdateGuardrailSettingsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateGuardrailSettingsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GuardrailSettings
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
 
 	}
 
@@ -69725,6 +82130,60 @@ type ServerInterface interface {
 	// Watch external agent registration and consent changes.
 	// (POST /api/external-agent/watch)
 	WatchExternalAgents(w http.ResponseWriter, r *http.Request, params WatchExternalAgentsParams)
+
+	// (GET /api/guardrails/connections)
+	ListGuardrailConnections(w http.ResponseWriter, r *http.Request, params ListGuardrailConnectionsParams)
+
+	// (POST /api/guardrails/connections)
+	CreateGuardrailConnection(w http.ResponseWriter, r *http.Request, params CreateGuardrailConnectionParams)
+
+	// (DELETE /api/guardrails/connections/{name})
+	DeleteGuardrailConnection(w http.ResponseWriter, r *http.Request, name string, params DeleteGuardrailConnectionParams)
+
+	// (GET /api/guardrails/connections/{name})
+	GetGuardrailConnection(w http.ResponseWriter, r *http.Request, name string, params GetGuardrailConnectionParams)
+
+	// (PUT /api/guardrails/connections/{name})
+	UpdateGuardrailConnection(w http.ResponseWriter, r *http.Request, name string, params UpdateGuardrailConnectionParams)
+	// Browse cloud resources using a saved scoped connection.
+	// (POST /api/guardrails/connections/{name}/resources)
+	DiscoverGuardrailConnectionResources(w http.ResponseWriter, r *http.Request, name string, params DiscoverGuardrailConnectionResourcesParams)
+
+	// (POST /api/guardrails/effective)
+	GetEffectiveGuardrails(w http.ResponseWriter, r *http.Request, params GetEffectiveGuardrailsParams)
+	// List guardrail interventions in the authorized scope.
+	// (GET /api/guardrails/events)
+	ListGuardrailEvents(w http.ResponseWriter, r *http.Request, params ListGuardrailEventsParams)
+	// Count the complete filtered range in bounded time buckets.
+	// (GET /api/guardrails/events/chart)
+	GetGuardrailEventChart(w http.ResponseWriter, r *http.Request, params GetGuardrailEventChartParams)
+	// List sources with retained guardrail events in the authorized scope.
+	// (GET /api/guardrails/events/sources)
+	ListGuardrailEventSources(w http.ResponseWriter, r *http.Request, params ListGuardrailEventSourcesParams)
+	// Read a guardrail evaluation and its safe context.
+	// (GET /api/guardrails/events/{eventId})
+	GetGuardrailEvent(w http.ResponseWriter, r *http.Request, eventId string, params GetGuardrailEventParams)
+
+	// (GET /api/guardrails/policies)
+	ListGuardrailPolicies(w http.ResponseWriter, r *http.Request, params ListGuardrailPoliciesParams)
+
+	// (POST /api/guardrails/policies)
+	CreateGuardrailPolicy(w http.ResponseWriter, r *http.Request, params CreateGuardrailPolicyParams)
+
+	// (DELETE /api/guardrails/policies/{name})
+	DeleteGuardrailPolicy(w http.ResponseWriter, r *http.Request, name string, params DeleteGuardrailPolicyParams)
+
+	// (GET /api/guardrails/policies/{name})
+	GetGuardrailPolicy(w http.ResponseWriter, r *http.Request, name string, params GetGuardrailPolicyParams)
+
+	// (PUT /api/guardrails/policies/{name})
+	UpdateGuardrailPolicy(w http.ResponseWriter, r *http.Request, name string, params UpdateGuardrailPolicyParams)
+
+	// (GET /api/guardrails/settings)
+	GetGuardrailSettings(w http.ResponseWriter, r *http.Request, params GetGuardrailSettingsParams)
+
+	// (PUT /api/guardrails/settings)
+	UpdateGuardrailSettings(w http.ResponseWriter, r *http.Request, params UpdateGuardrailSettingsParams)
 	// List paginated inference Pools.
 	// (GET /api/inference/pool)
 	ListInferencePools(w http.ResponseWriter, r *http.Request, params ListInferencePoolsParams)
@@ -70642,6 +83101,101 @@ func (_ Unimplemented) GetEventTrailEvent(w http.ResponseWriter, r *http.Request
 // Watch external agent registration and consent changes.
 // (POST /api/external-agent/watch)
 func (_ Unimplemented) WatchExternalAgents(w http.ResponseWriter, r *http.Request, params WatchExternalAgentsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /api/guardrails/connections)
+func (_ Unimplemented) ListGuardrailConnections(w http.ResponseWriter, r *http.Request, params ListGuardrailConnectionsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /api/guardrails/connections)
+func (_ Unimplemented) CreateGuardrailConnection(w http.ResponseWriter, r *http.Request, params CreateGuardrailConnectionParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (DELETE /api/guardrails/connections/{name})
+func (_ Unimplemented) DeleteGuardrailConnection(w http.ResponseWriter, r *http.Request, name string, params DeleteGuardrailConnectionParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /api/guardrails/connections/{name})
+func (_ Unimplemented) GetGuardrailConnection(w http.ResponseWriter, r *http.Request, name string, params GetGuardrailConnectionParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (PUT /api/guardrails/connections/{name})
+func (_ Unimplemented) UpdateGuardrailConnection(w http.ResponseWriter, r *http.Request, name string, params UpdateGuardrailConnectionParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Browse cloud resources using a saved scoped connection.
+// (POST /api/guardrails/connections/{name}/resources)
+func (_ Unimplemented) DiscoverGuardrailConnectionResources(w http.ResponseWriter, r *http.Request, name string, params DiscoverGuardrailConnectionResourcesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /api/guardrails/effective)
+func (_ Unimplemented) GetEffectiveGuardrails(w http.ResponseWriter, r *http.Request, params GetEffectiveGuardrailsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List guardrail interventions in the authorized scope.
+// (GET /api/guardrails/events)
+func (_ Unimplemented) ListGuardrailEvents(w http.ResponseWriter, r *http.Request, params ListGuardrailEventsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Count the complete filtered range in bounded time buckets.
+// (GET /api/guardrails/events/chart)
+func (_ Unimplemented) GetGuardrailEventChart(w http.ResponseWriter, r *http.Request, params GetGuardrailEventChartParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List sources with retained guardrail events in the authorized scope.
+// (GET /api/guardrails/events/sources)
+func (_ Unimplemented) ListGuardrailEventSources(w http.ResponseWriter, r *http.Request, params ListGuardrailEventSourcesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Read a guardrail evaluation and its safe context.
+// (GET /api/guardrails/events/{eventId})
+func (_ Unimplemented) GetGuardrailEvent(w http.ResponseWriter, r *http.Request, eventId string, params GetGuardrailEventParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /api/guardrails/policies)
+func (_ Unimplemented) ListGuardrailPolicies(w http.ResponseWriter, r *http.Request, params ListGuardrailPoliciesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /api/guardrails/policies)
+func (_ Unimplemented) CreateGuardrailPolicy(w http.ResponseWriter, r *http.Request, params CreateGuardrailPolicyParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (DELETE /api/guardrails/policies/{name})
+func (_ Unimplemented) DeleteGuardrailPolicy(w http.ResponseWriter, r *http.Request, name string, params DeleteGuardrailPolicyParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /api/guardrails/policies/{name})
+func (_ Unimplemented) GetGuardrailPolicy(w http.ResponseWriter, r *http.Request, name string, params GetGuardrailPolicyParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (PUT /api/guardrails/policies/{name})
+func (_ Unimplemented) UpdateGuardrailPolicy(w http.ResponseWriter, r *http.Request, name string, params UpdateGuardrailPolicyParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /api/guardrails/settings)
+func (_ Unimplemented) GetGuardrailSettings(w http.ResponseWriter, r *http.Request, params GetGuardrailSettingsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (PUT /api/guardrails/settings)
+func (_ Unimplemented) UpdateGuardrailSettings(w http.ResponseWriter, r *http.Request, params UpdateGuardrailSettingsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -74623,6 +87177,1066 @@ func (siw *ServerInterfaceWrapper) WatchExternalAgents(w http.ResponseWriter, r 
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.WatchExternalAgents(w, r, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListGuardrailConnections operation middleware
+func (siw *ServerInterfaceWrapper) ListGuardrailConnections(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"guardrail_connection.read"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListGuardrailConnectionsParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListGuardrailConnections(w, r, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateGuardrailConnection operation middleware
+func (siw *ServerInterfaceWrapper) CreateGuardrailConnection(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"guardrail_connection.create"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateGuardrailConnectionParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateGuardrailConnection(w, r, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteGuardrailConnection operation middleware
+func (siw *ServerInterfaceWrapper) DeleteGuardrailConnection(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "name" -------------
+	var name string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "name", chi.URLParam(r, "name"), &name, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"guardrail_connection.delete"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteGuardrailConnectionParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteGuardrailConnection(w, r, name, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetGuardrailConnection operation middleware
+func (siw *ServerInterfaceWrapper) GetGuardrailConnection(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "name" -------------
+	var name string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "name", chi.URLParam(r, "name"), &name, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"guardrail_connection.read"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetGuardrailConnectionParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetGuardrailConnection(w, r, name, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateGuardrailConnection operation middleware
+func (siw *ServerInterfaceWrapper) UpdateGuardrailConnection(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "name" -------------
+	var name string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "name", chi.URLParam(r, "name"), &name, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"guardrail_connection.modify"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateGuardrailConnectionParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateGuardrailConnection(w, r, name, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DiscoverGuardrailConnectionResources operation middleware
+func (siw *ServerInterfaceWrapper) DiscoverGuardrailConnectionResources(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "name" -------------
+	var name string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "name", chi.URLParam(r, "name"), &name, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"guardrail_connection.read"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DiscoverGuardrailConnectionResourcesParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DiscoverGuardrailConnectionResources(w, r, name, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetEffectiveGuardrails operation middleware
+func (siw *ServerInterfaceWrapper) GetEffectiveGuardrails(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"guardrail_policy.read"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetEffectiveGuardrailsParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetEffectiveGuardrails(w, r, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListGuardrailEvents operation middleware
+func (siw *ServerInterfaceWrapper) ListGuardrailEvents(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"guardrail_event.read"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListGuardrailEventsParams
+
+	// ------------- Optional query parameter "workspace_id" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace_id", r.URL.Query(), &params.WorkspaceId)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace_id", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "agent_name" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "agent_name", r.URL.Query(), &params.AgentName)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agent_name", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "client_id" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "client_id", r.URL.Query(), &params.ClientId)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "client_id", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "action" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "action", r.URL.Query(), &params.Action)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "action", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "phase" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "phase", r.URL.Query(), &params.Phase)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "phase", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "trace_id" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "trace_id", r.URL.Query(), &params.TraceId)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "trace_id", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "session_id" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "session_id", r.URL.Query(), &params.SessionId)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "session_id", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "from", r.URL.Query(), &params.From)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "to", r.URL.Query(), &params.To)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "cursor", r.URL.Query(), &params.Cursor)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListGuardrailEvents(w, r, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetGuardrailEventChart operation middleware
+func (siw *ServerInterfaceWrapper) GetGuardrailEventChart(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"guardrail_event.read"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetGuardrailEventChartParams
+
+	// ------------- Optional query parameter "workspace_id" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workspace_id", r.URL.Query(), &params.WorkspaceId)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspace_id", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "agent_name" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "agent_name", r.URL.Query(), &params.AgentName)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agent_name", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "client_id" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "client_id", r.URL.Query(), &params.ClientId)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "client_id", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "action" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "action", r.URL.Query(), &params.Action)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "action", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "phase" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "phase", r.URL.Query(), &params.Phase)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "phase", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "trace_id" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "trace_id", r.URL.Query(), &params.TraceId)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "trace_id", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "session_id" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "session_id", r.URL.Query(), &params.SessionId)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "session_id", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "from", r.URL.Query(), &params.From)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "to", r.URL.Query(), &params.To)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		return
+	}
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetGuardrailEventChart(w, r, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListGuardrailEventSources operation middleware
+func (siw *ServerInterfaceWrapper) ListGuardrailEventSources(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"guardrail_event.read"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListGuardrailEventSourcesParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListGuardrailEventSources(w, r, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetGuardrailEvent operation middleware
+func (siw *ServerInterfaceWrapper) GetGuardrailEvent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"guardrail_event.read"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetGuardrailEventParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetGuardrailEvent(w, r, eventId, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListGuardrailPolicies operation middleware
+func (siw *ServerInterfaceWrapper) ListGuardrailPolicies(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"guardrail_policy.read"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListGuardrailPoliciesParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListGuardrailPolicies(w, r, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateGuardrailPolicy operation middleware
+func (siw *ServerInterfaceWrapper) CreateGuardrailPolicy(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"guardrail_policy.create"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateGuardrailPolicyParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateGuardrailPolicy(w, r, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteGuardrailPolicy operation middleware
+func (siw *ServerInterfaceWrapper) DeleteGuardrailPolicy(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "name" -------------
+	var name string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "name", chi.URLParam(r, "name"), &name, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"guardrail_policy.delete"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteGuardrailPolicyParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteGuardrailPolicy(w, r, name, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetGuardrailPolicy operation middleware
+func (siw *ServerInterfaceWrapper) GetGuardrailPolicy(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "name" -------------
+	var name string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "name", chi.URLParam(r, "name"), &name, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"guardrail_policy.read"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetGuardrailPolicyParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetGuardrailPolicy(w, r, name, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateGuardrailPolicy operation middleware
+func (siw *ServerInterfaceWrapper) UpdateGuardrailPolicy(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "name" -------------
+	var name string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "name", chi.URLParam(r, "name"), &name, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"guardrail_policy.modify"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateGuardrailPolicyParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateGuardrailPolicy(w, r, name, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetGuardrailSettings operation middleware
+func (siw *ServerInterfaceWrapper) GetGuardrailSettings(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"guardrail_policy.read"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetGuardrailSettingsParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetGuardrailSettings(w, r, params)
+	}))
+
+	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
+		handler = siw.HandlerMiddlewares[i](handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateGuardrailSettings operation middleware
+func (siw *ServerInterfaceWrapper) UpdateGuardrailSettings(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, GatewayBearerScopes, []string{"guardrail_policy.modify"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateGuardrailSettingsParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-AgentZ-Workspace-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-AgentZ-Workspace-ID")]; found {
+		var XAgentZWorkspaceID WorkspaceIDHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-AgentZ-Workspace-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-AgentZ-Workspace-ID", valueList[0], &XAgentZWorkspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-AgentZ-Workspace-ID", Err: err})
+			return
+		}
+
+		params.XAgentZWorkspaceID = &XAgentZWorkspaceID
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateGuardrailSettings(w, r, params)
 	}))
 
 	for i := len(siw.HandlerMiddlewares) - 1; i >= 0; i-- {
@@ -84310,6 +97924,60 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/api/external-agent/watch", wrapper.WatchExternalAgents)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/guardrails/connections", wrapper.ListGuardrailConnections)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/guardrails/connections", wrapper.CreateGuardrailConnection)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/guardrails/connections/{name}", wrapper.DeleteGuardrailConnection)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/guardrails/connections/{name}", wrapper.GetGuardrailConnection)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/guardrails/connections/{name}", wrapper.UpdateGuardrailConnection)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/guardrails/connections/{name}/resources", wrapper.DiscoverGuardrailConnectionResources)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/guardrails/effective", wrapper.GetEffectiveGuardrails)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/guardrails/events", wrapper.ListGuardrailEvents)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/guardrails/events/chart", wrapper.GetGuardrailEventChart)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/guardrails/events/sources", wrapper.ListGuardrailEventSources)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/guardrails/events/{eventId}", wrapper.GetGuardrailEvent)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/guardrails/policies", wrapper.ListGuardrailPolicies)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/guardrails/policies", wrapper.CreateGuardrailPolicy)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/guardrails/policies/{name}", wrapper.DeleteGuardrailPolicy)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/guardrails/policies/{name}", wrapper.GetGuardrailPolicy)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/guardrails/policies/{name}", wrapper.UpdateGuardrailPolicy)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/guardrails/settings", wrapper.GetGuardrailSettings)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/guardrails/settings", wrapper.UpdateGuardrailSettings)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/inference/pool", wrapper.ListInferencePools)
 	})
 	r.Group(func(r chi.Router) {
@@ -84841,991 +98509,1157 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
+	"Z8mvnSn0zyCaEObaebQooq/NVi5CKKiZXHDcmnMEWe8xA3mkM0HEJLaPs512y2mq5kIbvomP20HNbfp8",
+	"X3JiDFp53HD3en5RMWw6vWC9byrkQ5+r9Bm1z2t6kxUaGTGufNM7T2gloMnDdSpYgwr4N4HZHoP+dzC3",
+	"/Ba62gl6uc3nBmH6XIVpg83n7NAx1G1/SZpx1ks/NqfJ6rdqAlIJRm1ykWMbnLz8/s2PH+5vFrHVGTBR",
+	"1OXAX+c8wp4+EnzKZplsyRK95UwPrOKZWIUz69nBm4a9vOt3u/HJr1OZVTYyHr/oi5ndxck/MKNzZkaG",
+	"XjCasN/OOrrKMJP9WZK3U3aKMMgTpRgv3DzlTCq06aRSLFKX7//yluToWUu/nSlXXbRlZ7NyyYJ+tn10",
+	"vnvx4j+++u67r//07X98++K7775qa7ET/sAEpkI+R+TDonjeXdw723gHTsIp0D1QI7+ZgZf0IVCjBOhn",
+	"x0383i+njg2PiSoCGLxRqhzAMCJKS6ALw9lc6IInj7W87A6Z36CNPEXggk2a7Eoa3mU6zfTf7Jw9ghc6",
+	"sRGEAiyyg43UxXtf/HWzy/qOjAq/YNjVLU+zoNff9sYP3pwWrgNgXe2LzW1uMLnOQQX1zvMhjGAII7iI",
+	"MAL/jGcoGFht7mCK5vhLTncbS3vclap4xHmZj3UXkmHiRjEVU8K0IohfeaCBk8oemZ6LTBMJS0Mr+KwS",
+	"q9BS5+Nt/nBPzs+ri5cd/50Wr/Hr9LmWSAnLdqslMlDbZ6a2ZhffHcur+NdMrWo3EhhzoLomZ0z74zIN",
+	"3Lq8SYBer5HmyQrJtv/19nWbiXCgwydaLc9pblVIKD3aeVv0NsnF24FT9MBwd8akeVFLlC8lvi6gUIwN",
+	"Ao+/mP/tWjnQjPVsyS0U6CJLpX6+un9HZUBrrW/x5jr3vg2l0vRbxUhp+czb6hep40UDyzgjlnE2rMFA",
+	"V30pwp6WBnMUHAMSGun38xX6Guj38f1J3TWBpwlk9t/qVKtrYAsDWzgyWzhUKa6ifp8afyn+w0nbPYgU",
+	"SCVEBin9F9fOkKZSLLG+ZAx8ZbhPfgfbtrosFTZEahQ/P28qP2hnJgLyAoMSPAMpZ/YLjlujySNdKby+",
+	"2r5uFeNTvtbx45sLmPPF5Hbpa9m+ysDMDn7idU/JttVT1+Z/bGOM5F+kdvIBGmYixSNalAjoOZnhil3f",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

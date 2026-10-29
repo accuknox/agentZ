@@ -239,15 +239,18 @@ func (s *Service) resolveResourceScope(ctx context.Context, claims gatewayClaims
 }
 
 type resourceCapabilitySet struct {
-	skill             gatewayapi.ResourceCapabilities
-	mcp               gatewayapi.ResourceCapabilities
-	sandbox           gatewayapi.ResourceCapabilities
-	inferenceProvider gatewayapi.ResourceCapabilities
-	inferencePool     gatewayapi.ResourceCapabilities
-	apiKey            gatewayapi.ResourceCapabilities
-	observability     gatewayapi.ResourceCapabilities
-	externalAgent     gatewayapi.ResourceCapabilities
-	canAuthorAgents   bool
+	guardrailConnection gatewayapi.ResourceCapabilities
+	guardrailPolicy     gatewayapi.ResourceCapabilities
+	guardrailEvent      gatewayapi.ResourceCapabilities
+	skill               gatewayapi.ResourceCapabilities
+	mcp                 gatewayapi.ResourceCapabilities
+	sandbox             gatewayapi.ResourceCapabilities
+	inferenceProvider   gatewayapi.ResourceCapabilities
+	inferencePool       gatewayapi.ResourceCapabilities
+	apiKey              gatewayapi.ResourceCapabilities
+	observability       gatewayapi.ResourceCapabilities
+	externalAgent       gatewayapi.ResourceCapabilities
+	canAuthorAgents     bool
 }
 
 func resourceScope(workspaceID string) gatewayapi.ResourceScope {
@@ -274,6 +277,22 @@ func (s *Service) resolveResourceCapabilities(ctx context.Context, claims gatewa
 func resourceCapabilities(effective authorization.Effective, organizationID, workspaceID string) resourceCapabilitySet {
 	scope := authorization.Scope{OrganizationID: organizationID, WorkspaceID: workspaceID}
 	capabilities := resourceCapabilitySet{}
+	capabilities.guardrailConnection = gatewayapi.ResourceCapabilities{
+		Read:   effective.Allows(scope, authorization.OperationListGuardrailConnections),
+		Create: effective.Allows(scope, authorization.OperationCreateGuardrailConnection),
+		Modify: effective.Allows(scope, authorization.OperationUpdateGuardrailConnection),
+		Delete: effective.Allows(scope, authorization.OperationDeleteGuardrailConnection),
+	}
+	capabilities.guardrailPolicy = gatewayapi.ResourceCapabilities{
+		Read:   effective.Allows(scope, authorization.OperationListGuardrailPolicies),
+		Create: effective.Allows(scope, authorization.OperationCreateGuardrailPolicy),
+		Modify: effective.Allows(scope, authorization.OperationUpdateGuardrailPolicy),
+		Delete: effective.Allows(scope, authorization.OperationDeleteGuardrailPolicy),
+	}
+	capabilities.guardrailEvent = gatewayapi.ResourceCapabilities{
+		Read: effective.Allows(scope, authorization.OperationListGuardrailEvents),
+	}
+
 	capabilities.skill = gatewayapi.ResourceCapabilities{
 		Read:   effective.Allows(scope, authorization.OperationListSkills),
 		Create: effective.Allows(scope, authorization.OperationCreateSkill),

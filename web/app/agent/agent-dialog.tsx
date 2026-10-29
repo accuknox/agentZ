@@ -360,7 +360,7 @@ export function AgentDialog({
           </Button>
         </DialogTrigger>
       ) : null}
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg" showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>{mode === "create" ? "New agent" : "Update agent"}</DialogTitle>
           <DialogDescription>

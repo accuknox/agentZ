@@ -106,16 +106,7 @@ const runStatusMeta = {
   }
 >
 
-export function RunsTable({
-  agentName,
-  basePath,
-  workflowName,
-  workflowRuns,
-  hasNextPage,
-  nextPageToken,
-  deleteWorkflowRunAction,
-  workspaceId,
-}: {
+type RunsTableProps = {
   agentName: string
   basePath: string
   workflowName: string
@@ -129,8 +120,20 @@ export function RunsTable({
     formData: FormData
   ) => Promise<DeleteWorkflowRunActionState>
   workspaceId: string
-}) {
+}
+
+export function RunsTable(props: RunsTableProps) {
   "use no memo"
+  const {
+    agentName,
+    basePath,
+    workflowName,
+    workflowRuns,
+    hasNextPage,
+    nextPageToken,
+    deleteWorkflowRunAction,
+    workspaceId,
+  } = props
 
   const query = useQuery(
     queryOptions({
@@ -238,16 +241,7 @@ export function RunsTable({
   )
 }
 
-function createColumns({
-  agentName,
-  basePath,
-  canGoPrevious,
-  deleteWorkflowRunAction,
-  goPrevious,
-  pageRowCount,
-  workflowName,
-  workspaceId,
-}: {
+type createColumnsProps = {
   agentName: string
   basePath: string
   canGoPrevious: boolean
@@ -261,7 +255,20 @@ function createColumns({
   pageRowCount: number
   workflowName: string
   workspaceId: string
-}): ColumnDef<WorkflowRunSummary>[] {
+}
+
+function createColumns(props: createColumnsProps): ColumnDef<WorkflowRunSummary>[] {
+  const {
+    agentName,
+    basePath,
+    canGoPrevious,
+    deleteWorkflowRunAction,
+    goPrevious,
+    pageRowCount,
+    workflowName,
+    workspaceId,
+  } = props
+
   return [
     {
       accessorKey: "name",
@@ -318,7 +325,14 @@ function createColumns({
   ]
 }
 
-function RunStatusBadge({ reason, status }: { reason: string; status: WorkflowRunStatus }) {
+type RunStatusBadgeProps = {
+  reason: string
+  status: WorkflowRunStatus
+}
+
+function RunStatusBadge(props: RunStatusBadgeProps) {
+  const { reason, status } = props
+
   const meta = runStatusMeta[status]
   const icon = <meta.icon data-icon="inline-start" />
   const badge = (
@@ -340,17 +354,7 @@ function RunStatusBadge({ reason, status }: { reason: string; status: WorkflowRu
   )
 }
 
-function RunActions({
-  agentName,
-  basePath,
-  canGoPrevious,
-  deleteWorkflowRunAction,
-  goPrevious,
-  isOnlyRow,
-  item,
-  workflowName,
-  workspaceId,
-}: {
+type RunActionsProps = {
   agentName: string
   basePath: string
   canGoPrevious: boolean
@@ -365,7 +369,21 @@ function RunActions({
   item: WorkflowRunSummary
   workflowName: string
   workspaceId: string
-}) {
+}
+
+function RunActions(props: RunActionsProps) {
+  const {
+    agentName,
+    basePath,
+    canGoPrevious,
+    deleteWorkflowRunAction,
+    goPrevious,
+    isOnlyRow,
+    item,
+    workflowName,
+    workspaceId,
+  } = props
+
   const [deleteOpen, setDeleteOpen] = React.useState(false)
   const [menuOpen, setMenuOpen] = React.useState(false)
   const detailQuery = useQuery(
@@ -463,17 +481,16 @@ function runGraphHref(
   return `${basePath}/workflows/triggers/runs/graph?${params.toString()}` as Route
 }
 
-function OpenSessionMenuItem({
-  agentName,
-  basePath,
-  detail,
-  isFetching,
-}: {
+type OpenSessionMenuItemProps = {
   agentName: string
   basePath: string
   detail?: WorkflowRunDetail
   isFetching: boolean
-}) {
+}
+
+function OpenSessionMenuItem(props: OpenSessionMenuItemProps) {
+  const { agentName, basePath, detail, isFetching } = props
+
   if (isFetching) {
     return (
       <DropdownMenuItem disabled>
@@ -505,17 +522,7 @@ function OpenSessionMenuItem({
   )
 }
 
-function DeleteRunDialog({
-  agentName,
-  canGoPrevious,
-  deleteWorkflowRunAction,
-  goPrevious,
-  isOnlyRow,
-  item,
-  open,
-  setOpen,
-  workflowName,
-}: {
+type DeleteRunDialogProps = {
   agentName: string
   canGoPrevious: boolean
   deleteWorkflowRunAction: (
@@ -530,7 +537,21 @@ function DeleteRunDialog({
   open: boolean
   setOpen: React.Dispatch<React.SetStateAction<boolean>>
   workflowName: string
-}) {
+}
+
+function DeleteRunDialog(props: DeleteRunDialogProps) {
+  const {
+    agentName,
+    canGoPrevious,
+    deleteWorkflowRunAction,
+    goPrevious,
+    isOnlyRow,
+    item,
+    open,
+    setOpen,
+    workflowName,
+  } = props
+
   const router = useRouter()
   const [state, formAction, pending] = React.useActionState(
     deleteWorkflowRunAction.bind(null, agentName, workflowName),
@@ -557,7 +578,7 @@ function DeleteRunDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent>
+      <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>Delete {item.name}?</DialogTitle>
           <DialogDescription>

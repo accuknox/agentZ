@@ -142,6 +142,15 @@ var baseOperationCapabilities = map[string][]string{
 	"api_key.workflow_invoke": {
 		"invokeWorkflowWebhook",
 	},
+	"guardrail_connection.create": {"createGuardrailConnection"},
+	"guardrail_connection.modify": {"updateGuardrailConnection"},
+	"guardrail_connection.delete": {"deleteGuardrailConnection"},
+	"guardrail_connection.read":   {"getGuardrailConnection", "listGuardrailConnections", "discoverGuardrailConnectionResources"},
+	"guardrail_policy.create":     {"createGuardrailPolicy"},
+	"guardrail_policy.modify":     {"updateGuardrailPolicy", "updateGuardrailSettings"},
+	"guardrail_policy.delete":     {"deleteGuardrailPolicy"},
+	"guardrail_policy.read":       {"getGuardrailPolicy", "listGuardrailPolicies", "getGuardrailSettings", "getEffectiveGuardrails"},
+	"guardrail_event.read":        {"listGuardrailEvents", "getGuardrailEvent", "getGuardrailEventChart", "listGuardrailEventSources"},
 	"inference_pool.create": {
 		"createInferencePool",
 	},

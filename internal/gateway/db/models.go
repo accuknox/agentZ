@@ -455,19 +455,23 @@ func (ns NullEventTrailResult) Value() (driver.Value, error) {
 type EventTrailTarget string
 
 const (
-	EventTrailTargetOrganization           EventTrailTarget = "organization"
-	EventTrailTargetOrganizationMembership EventTrailTarget = "organization_membership"
-	EventTrailTargetTeam                   EventTrailTarget = "team"
-	EventTrailTargetMcpConnection          EventTrailTarget = "mcp_connection"
-	EventTrailTargetInferenceProvider      EventTrailTarget = "inference_provider"
-	EventTrailTargetInferencePool          EventTrailTarget = "inference_pool"
-	EventTrailTargetRole                   EventTrailTarget = "role"
-	EventTrailTargetSandbox                EventTrailTarget = "sandbox"
-	EventTrailTargetSkill                  EventTrailTarget = "skill"
-	EventTrailTargetAgent                  EventTrailTarget = "agent"
-	EventTrailTargetApiKey                 EventTrailTarget = "api_key"
-	EventTrailTargetWorkspaceAccess        EventTrailTarget = "workspace_access"
-	EventTrailTargetWorkspace              EventTrailTarget = "workspace"
+	EventTrailTargetOrganization             EventTrailTarget = "organization"
+	EventTrailTargetOrganizationMembership   EventTrailTarget = "organization_membership"
+	EventTrailTargetTeam                     EventTrailTarget = "team"
+	EventTrailTargetMcpConnection            EventTrailTarget = "mcp_connection"
+	EventTrailTargetInferenceProvider        EventTrailTarget = "inference_provider"
+	EventTrailTargetInferencePool            EventTrailTarget = "inference_pool"
+	EventTrailTargetRole                     EventTrailTarget = "role"
+	EventTrailTargetSandbox                  EventTrailTarget = "sandbox"
+	EventTrailTargetSkill                    EventTrailTarget = "skill"
+	EventTrailTargetAgent                    EventTrailTarget = "agent"
+	EventTrailTargetApiKey                   EventTrailTarget = "api_key"
+	EventTrailTargetWorkspaceAccess          EventTrailTarget = "workspace_access"
+	EventTrailTargetWorkspace                EventTrailTarget = "workspace"
+	EventTrailTargetGuardrailConnection      EventTrailTarget = "guardrail_connection"
+	EventTrailTargetGuardrailPolicy          EventTrailTarget = "guardrail_policy"
+	EventTrailTargetGuardrailSettings        EventTrailTarget = "guardrail_settings"
+	EventTrailTargetExternalAccessGuardrails EventTrailTarget = "external_access_guardrails"
 )
 
 func (e *EventTrailTarget) Scan(src interface{}) error {
@@ -602,14 +606,17 @@ func (ns NullPermissionAction) Value() (driver.Value, error) {
 type PermissionResource string
 
 const (
-	PermissionResourceMcpConnection     PermissionResource = "mcp_connection"
-	PermissionResourceSkill             PermissionResource = "skill"
-	PermissionResourceSandbox           PermissionResource = "sandbox"
-	PermissionResourceInferenceProvider PermissionResource = "inference_provider"
-	PermissionResourceInferencePool     PermissionResource = "inference_pool"
-	PermissionResourceAgent             PermissionResource = "agent"
-	PermissionResourceApiKey            PermissionResource = "api_key"
-	PermissionResourceObservability     PermissionResource = "observability"
+	PermissionResourceMcpConnection       PermissionResource = "mcp_connection"
+	PermissionResourceSkill               PermissionResource = "skill"
+	PermissionResourceSandbox             PermissionResource = "sandbox"
+	PermissionResourceInferenceProvider   PermissionResource = "inference_provider"
+	PermissionResourceInferencePool       PermissionResource = "inference_pool"
+	PermissionResourceAgent               PermissionResource = "agent"
+	PermissionResourceApiKey              PermissionResource = "api_key"
+	PermissionResourceObservability       PermissionResource = "observability"
+	PermissionResourceGuardrailConnection PermissionResource = "guardrail_connection"
+	PermissionResourceGuardrailPolicy     PermissionResource = "guardrail_policy"
+	PermissionResourceGuardrailEvent      PermissionResource = "guardrail_event"
 )
 
 func (e *PermissionResource) Scan(src interface{}) error {
@@ -687,49 +694,6 @@ func (ns NullSystemRole) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.SystemRole), nil
-}
-
-type ThemePreference string
-
-const (
-	ThemePreferenceSystem ThemePreference = "system"
-	ThemePreferenceLight  ThemePreference = "light"
-	ThemePreferenceDark   ThemePreference = "dark"
-)
-
-func (e *ThemePreference) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = ThemePreference(s)
-	case string:
-		*e = ThemePreference(s)
-	default:
-		return fmt.Errorf("unsupported scan type for ThemePreference: %T", src)
-	}
-	return nil
-}
-
-type NullThemePreference struct {
-	ThemePreference ThemePreference `json:"theme_preference"`
-	Valid           bool            `json:"valid"` // Valid is true if ThemePreference is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullThemePreference) Scan(value interface{}) error {
-	if value == nil {
-		ns.ThemePreference, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.ThemePreference.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullThemePreference) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.ThemePreference), nil
 }
 
 type WorkspaceState string
@@ -818,22 +782,6 @@ func (ns NullWorkspaceType) Value() (driver.Value, error) {
 	return string(ns.WorkspaceType), nil
 }
 
-type Account struct {
-	ID                    string           `json:"id"`
-	AccountID             string           `json:"account_id"`
-	ProviderID            string           `json:"provider_id"`
-	UserID                string           `json:"user_id"`
-	AccessToken           pgtype.Text      `json:"access_token"`
-	RefreshToken          pgtype.Text      `json:"refresh_token"`
-	IDToken               pgtype.Text      `json:"id_token"`
-	AccessTokenExpiresAt  pgtype.Timestamp `json:"access_token_expires_at"`
-	RefreshTokenExpiresAt pgtype.Timestamp `json:"refresh_token_expires_at"`
-	Scope                 pgtype.Text      `json:"scope"`
-	Password              pgtype.Text      `json:"password"`
-	CreatedAt             pgtype.Timestamp `json:"created_at"`
-	UpdatedAt             pgtype.Timestamp `json:"updated_at"`
-}
-
 type Agent struct {
 	TenantNamespace string    `json:"tenant_namespace"`
 	AgentName       string    `json:"agent_name"`
@@ -867,48 +815,6 @@ type AgentShareGrant struct {
 	Capability AgentShareCapability `json:"capability"`
 }
 
-type ApiKeyScope struct {
-	ApiKeyID       string             `json:"api_key_id"`
-	OrganizationID string             `json:"organization_id"`
-	WorkspaceID    string             `json:"workspace_id"`
-	CreatorUserID  string             `json:"creator_user_id"`
-	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
-	RevokedReason  pgtype.Text        `json:"revoked_reason"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-}
-
-type ApiKeyTarget struct {
-	ApiKeyID     string           `json:"api_key_id"`
-	TargetType   ApiKeyTargetType `json:"target_type"`
-	AgentName    string           `json:"agent_name"`
-	WorkflowName string           `json:"workflow_name"`
-}
-
-type Apikey struct {
-	ID                  string           `json:"id"`
-	ConfigID            string           `json:"config_id"`
-	Name                pgtype.Text      `json:"name"`
-	Start               pgtype.Text      `json:"start"`
-	ReferenceID         string           `json:"reference_id"`
-	Prefix              pgtype.Text      `json:"prefix"`
-	Key                 string           `json:"key"`
-	RefillInterval      pgtype.Int4      `json:"refill_interval"`
-	RefillAmount        pgtype.Int4      `json:"refill_amount"`
-	LastRefillAt        pgtype.Timestamp `json:"last_refill_at"`
-	Enabled             pgtype.Bool      `json:"enabled"`
-	RateLimitEnabled    pgtype.Bool      `json:"rate_limit_enabled"`
-	RateLimitTimeWindow pgtype.Int4      `json:"rate_limit_time_window"`
-	RateLimitMax        pgtype.Int4      `json:"rate_limit_max"`
-	RequestCount        pgtype.Int4      `json:"request_count"`
-	Remaining           pgtype.Int4      `json:"remaining"`
-	LastRequest         pgtype.Timestamp `json:"last_request"`
-	ExpiresAt           pgtype.Timestamp `json:"expires_at"`
-	CreatedAt           pgtype.Timestamp `json:"created_at"`
-	UpdatedAt           pgtype.Timestamp `json:"updated_at"`
-	Permissions         pgtype.Text      `json:"permissions"`
-	Metadata            pgtype.Text      `json:"metadata"`
-}
-
 type ChatInput struct {
 	ID             uuid.UUID   `json:"id"`
 	Sequence       pgtype.Int8 `json:"sequence"`
@@ -928,36 +834,6 @@ type ChatInput struct {
 	Error          string      `json:"error"`
 	CreatedAt      time.Time   `json:"created_at"`
 	UpdatedAt      time.Time   `json:"updated_at"`
-}
-
-type ChatInputSession struct {
-	WorkspaceID string `json:"workspace_id"`
-	AgentName   string `json:"agent_name"`
-	SessionID   string `json:"session_id"`
-	Stopping    bool   `json:"stopping"`
-}
-
-type ChatSession struct {
-	WorkspaceID     string             `json:"workspace_id"`
-	AgentName       string             `json:"agent_name"`
-	SessionID       string             `json:"session_id"`
-	ParentSessionID pgtype.Text        `json:"parent_session_id"`
-	Title           string             `json:"title"`
-	Kind            ChatSessionKind    `json:"kind"`
-	Status          ChatSessionStatus  `json:"status"`
-	SourceCreatedAt pgtype.Timestamptz `json:"source_created_at"`
-	SourceUpdatedAt pgtype.Timestamptz `json:"source_updated_at"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
-}
-
-type ChatSessionParticipant struct {
-	WorkspaceID     string             `json:"workspace_id"`
-	AgentName       string             `json:"agent_name"`
-	SessionID       string             `json:"session_id"`
-	UserID          string             `json:"user_id"`
-	FirstMessagedAt pgtype.Timestamptz `json:"first_messaged_at"`
-	LastMessagedAt  pgtype.Timestamptz `json:"last_messaged_at"`
 }
 
 type CleanupJob struct {
@@ -1056,41 +932,6 @@ type DelegationGrant struct {
 	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
 }
 
-type DelegationMcpSession struct {
-	ID        string             `json:"id"`
-	GrantID   string             `json:"grant_id"`
-	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
-}
-
-type DelegationTransaction struct {
-	ID                 string             `json:"id"`
-	ClientID           string             `json:"client_id"`
-	UserID             string             `json:"user_id"`
-	SessionID          string             `json:"session_id"`
-	AuthorizationQuery string             `json:"authorization_query"`
-	GrantID            pgtype.Text        `json:"grant_id"`
-	Scopes             []string           `json:"scopes"`
-	Resources          []string           `json:"resources"`
-	ExpiresAt          pgtype.Timestamptz `json:"expires_at"`
-}
-
-type DeviceCode struct {
-	ID              string           `json:"id"`
-	DeviceCode      string           `json:"device_code"`
-	UserCode        string           `json:"user_code"`
-	UserID          pgtype.Text      `json:"user_id"`
-	ExpiresAt       pgtype.Timestamp `json:"expires_at"`
-	Status          string           `json:"status"`
-	LastPolledAt    pgtype.Timestamp `json:"last_polled_at"`
-	PollingInterval pgtype.Int4      `json:"polling_interval"`
-	ClientID        pgtype.Text      `json:"client_id"`
-	Scope           pgtype.Text      `json:"scope"`
-	Resources       []string         `json:"resources"`
-	OauthClientID   pgtype.Text      `json:"oauth_client_id"`
-	ReferenceID     pgtype.Text      `json:"reference_id"`
-	SessionID       pgtype.Text      `json:"session_id"`
-}
-
 type EventTrailEvent struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`
@@ -1116,14 +957,6 @@ type ExternalAgent struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
-type GithubAuthorization struct {
-	State     string             `json:"state"`
-	UserID    string             `json:"user_id"`
-	SessionID string             `json:"session_id"`
-	Verifier  string             `json:"verifier"`
-	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
-}
-
 type GithubConnection struct {
 	UserID           string             `json:"user_id"`
 	GithubUserID     int64              `json:"github_user_id"`
@@ -1133,252 +966,6 @@ type GithubConnection struct {
 	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
 	RefreshExpiresAt pgtype.Timestamptz `json:"refresh_expires_at"`
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
-}
-
-type Invitation struct {
-	ID             string           `json:"id"`
-	OrganizationID string           `json:"organization_id"`
-	Email          string           `json:"email"`
-	Role           pgtype.Text      `json:"role"`
-	TeamID         pgtype.Text      `json:"team_id"`
-	Status         string           `json:"status"`
-	ExpiresAt      pgtype.Timestamp `json:"expires_at"`
-	CreatedAt      pgtype.Timestamp `json:"created_at"`
-	InviterID      string           `json:"inviter_id"`
-}
-
-type InvitationRole struct {
-	InvitationID   string             `json:"invitation_id"`
-	RoleID         string             `json:"role_id"`
-	OrganizationID string             `json:"organization_id"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-}
-
-type InvitationTeam struct {
-	InvitationID   string             `json:"invitation_id"`
-	TeamID         string             `json:"team_id"`
-	OrganizationID string             `json:"organization_id"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-}
-
-type Jwk struct {
-	ID         string           `json:"id"`
-	PublicKey  string           `json:"public_key"`
-	PrivateKey string           `json:"private_key"`
-	CreatedAt  pgtype.Timestamp `json:"created_at"`
-	ExpiresAt  pgtype.Timestamp `json:"expires_at"`
-	Alg        pgtype.Text      `json:"alg"`
-	Crv        pgtype.Text      `json:"crv"`
-}
-
-type LastAccessibleContext struct {
-	UserID         string             `json:"user_id"`
-	OrganizationID string             `json:"organization_id"`
-	WorkspaceID    pgtype.Text        `json:"workspace_id"`
-	Route          string             `json:"route"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
-}
-
-type Member struct {
-	ID             string           `json:"id"`
-	OrganizationID string           `json:"organization_id"`
-	UserID         string           `json:"user_id"`
-	Role           string           `json:"role"`
-	CreatedAt      pgtype.Timestamp `json:"created_at"`
-	DisabledAt     pgtype.Timestamp `json:"disabled_at"`
-}
-
-type MemberRole struct {
-	MemberID       string             `json:"member_id"`
-	RoleID         string             `json:"role_id"`
-	OrganizationID string             `json:"organization_id"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-}
-
-type MemberRoleAssignment struct {
-	MemberID       string      `json:"member_id"`
-	UserID         string      `json:"user_id"`
-	OrganizationID string      `json:"organization_id"`
-	RoleID         string      `json:"role_id"`
-	TeamID         pgtype.Text `json:"team_id"`
-}
-
-type OauthAccessToken struct {
-	ID                      string           `json:"id"`
-	Token                   string           `json:"token"`
-	ClientID                string           `json:"client_id"`
-	SessionID               pgtype.Text      `json:"session_id"`
-	UserID                  pgtype.Text      `json:"user_id"`
-	ReferenceID             pgtype.Text      `json:"reference_id"`
-	AuthorizationCodeID     pgtype.Text      `json:"authorization_code_id"`
-	Resources               []string         `json:"resources"`
-	RequestedUserInfoClaims []string         `json:"requested_user_info_claims"`
-	RefreshID               pgtype.Text      `json:"refresh_id"`
-	ExpiresAt               pgtype.Timestamp `json:"expires_at"`
-	CreatedAt               pgtype.Timestamp `json:"created_at"`
-	Revoked                 pgtype.Timestamp `json:"revoked"`
-	Confirmation            []byte           `json:"confirmation"`
-	Scopes                  []string         `json:"scopes"`
-}
-
-type OauthClient struct {
-	ID                               string           `json:"id"`
-	ClientID                         string           `json:"client_id"`
-	ClientSecret                     pgtype.Text      `json:"client_secret"`
-	ClientDiscoveryID                pgtype.Text      `json:"client_discovery_id"`
-	Disabled                         pgtype.Bool      `json:"disabled"`
-	SkipConsent                      pgtype.Bool      `json:"skip_consent"`
-	EnableEndSession                 pgtype.Bool      `json:"enable_end_session"`
-	SubjectType                      pgtype.Text      `json:"subject_type"`
-	Scopes                           []string         `json:"scopes"`
-	ClientCredentialsScopes          []string         `json:"client_credentials_scopes"`
-	UserID                           pgtype.Text      `json:"user_id"`
-	CreatedAt                        pgtype.Timestamp `json:"created_at"`
-	UpdatedAt                        pgtype.Timestamp `json:"updated_at"`
-	Name                             pgtype.Text      `json:"name"`
-	Uri                              pgtype.Text      `json:"uri"`
-	Icon                             pgtype.Text      `json:"icon"`
-	Contacts                         []string         `json:"contacts"`
-	Tos                              pgtype.Text      `json:"tos"`
-	Policy                           pgtype.Text      `json:"policy"`
-	SoftwareID                       pgtype.Text      `json:"software_id"`
-	SoftwareVersion                  pgtype.Text      `json:"software_version"`
-	SoftwareStatement                pgtype.Text      `json:"software_statement"`
-	RedirectUris                     []string         `json:"redirect_uris"`
-	PostLogoutRedirectUris           []string         `json:"post_logout_redirect_uris"`
-	BackchannelLogoutUri             pgtype.Text      `json:"backchannel_logout_uri"`
-	BackchannelLogoutSessionRequired pgtype.Bool      `json:"backchannel_logout_session_required"`
-	TokenEndpointAuthMethod          pgtype.Text      `json:"token_endpoint_auth_method"`
-	ApplicationType                  pgtype.Text      `json:"application_type"`
-	Jwks                             pgtype.Text      `json:"jwks"`
-	JwksUri                          pgtype.Text      `json:"jwks_uri"`
-	GrantTypes                       []string         `json:"grant_types"`
-	ResponseTypes                    []string         `json:"response_types"`
-	RequirePkce                      pgtype.Bool      `json:"require_pkce"`
-	DpopBoundAccessTokens            pgtype.Bool      `json:"dpop_bound_access_tokens"`
-	ReferenceID                      pgtype.Text      `json:"reference_id"`
-	Metadata                         []byte           `json:"metadata"`
-}
-
-type OauthClientAssertion struct {
-	ID        string           `json:"id"`
-	ExpiresAt pgtype.Timestamp `json:"expires_at"`
-}
-
-type OauthClientOrigin struct {
-	ClientID string `json:"client_id"`
-	Origin   string `json:"origin"`
-}
-
-type OauthClientResource struct {
-	ID         string           `json:"id"`
-	ClientID   string           `json:"client_id"`
-	ResourceID string           `json:"resource_id"`
-	Metadata   []byte           `json:"metadata"`
-	CreatedAt  pgtype.Timestamp `json:"created_at"`
-}
-
-type OauthConsent struct {
-	ID                      string           `json:"id"`
-	ClientID                string           `json:"client_id"`
-	UserID                  pgtype.Text      `json:"user_id"`
-	ReferenceID             pgtype.Text      `json:"reference_id"`
-	Resources               []string         `json:"resources"`
-	RequestedUserInfoClaims []string         `json:"requested_user_info_claims"`
-	Scopes                  []string         `json:"scopes"`
-	CreatedAt               pgtype.Timestamp `json:"created_at"`
-	UpdatedAt               pgtype.Timestamp `json:"updated_at"`
-}
-
-type OauthRefreshToken struct {
-	ID                      string           `json:"id"`
-	Token                   string           `json:"token"`
-	ClientID                string           `json:"client_id"`
-	SessionID               pgtype.Text      `json:"session_id"`
-	UserID                  string           `json:"user_id"`
-	ReferenceID             pgtype.Text      `json:"reference_id"`
-	AuthorizationCodeID     pgtype.Text      `json:"authorization_code_id"`
-	Resources               []string         `json:"resources"`
-	RequestedUserInfoClaims []string         `json:"requested_user_info_claims"`
-	ExpiresAt               pgtype.Timestamp `json:"expires_at"`
-	CreatedAt               pgtype.Timestamp `json:"created_at"`
-	Revoked                 pgtype.Timestamp `json:"revoked"`
-	RotatedAt               pgtype.Timestamp `json:"rotated_at"`
-	RotationReplayResponse  pgtype.Text      `json:"rotation_replay_response"`
-	RotationReplayExpiresAt pgtype.Timestamp `json:"rotation_replay_expires_at"`
-	AuthTime                pgtype.Timestamp `json:"auth_time"`
-	Confirmation            []byte           `json:"confirmation"`
-	Scopes                  []string         `json:"scopes"`
-}
-
-type OauthResource struct {
-	ID                            string           `json:"id"`
-	Identifier                    string           `json:"identifier"`
-	Name                          string           `json:"name"`
-	AccessTokenTtl                pgtype.Int4      `json:"access_token_ttl"`
-	RefreshTokenTtl               pgtype.Int4      `json:"refresh_token_ttl"`
-	SigningAlgorithm              pgtype.Text      `json:"signing_algorithm"`
-	SigningKeyID                  pgtype.Text      `json:"signing_key_id"`
-	AllowedScopes                 []string         `json:"allowed_scopes"`
-	CustomClaims                  []byte           `json:"custom_claims"`
-	DpopBoundAccessTokensRequired pgtype.Bool      `json:"dpop_bound_access_tokens_required"`
-	Disabled                      pgtype.Bool      `json:"disabled"`
-	CreatedAt                     pgtype.Timestamp `json:"created_at"`
-	UpdatedAt                     pgtype.Timestamp `json:"updated_at"`
-	PolicyVersion                 pgtype.Int4      `json:"policy_version"`
-	Metadata                      []byte           `json:"metadata"`
-}
-
-type ObserverAppOperation struct {
-	ID                int64         `json:"id"`
-	OrganizationID    string        `json:"organization_id"`
-	WorkspaceID       string        `json:"workspace_id"`
-	ClientID          string        `json:"client_id"`
-	AppName           string        `json:"app_name"`
-	GrantID           string        `json:"grant_id"`
-	UserID            string        `json:"user_id"`
-	ResourceKind      string        `json:"resource_kind"`
-	ResourceNamespace string        `json:"resource_namespace"`
-	ResourceName      string        `json:"resource_name"`
-	ResourceUid       string        `json:"resource_uid"`
-	TargetID          string        `json:"target_id"`
-	TraceID           []byte        `json:"trace_id"`
-	SpanID            []byte        `json:"span_id"`
-	ParentSpanID      []byte        `json:"parent_span_id"`
-	StartTime         time.Time     `json:"start_time"`
-	EndTime           time.Time     `json:"end_time"`
-	DurationNs        int64         `json:"duration_ns"`
-	Name              string        `json:"name"`
-	SpanClass         string        `json:"span_class"`
-	OperationName     string        `json:"operation_name"`
-	StatusCode        string        `json:"status_code"`
-	ErrorType         string        `json:"error_type"`
-	ErrorMessage      string        `json:"error_message"`
-	Model             string        `json:"model"`
-	ToolName          string        `json:"tool_name"`
-	SessionID         string        `json:"session_id"`
-	AgentKind         string        `json:"agent_kind"`
-	TurnID            string        `json:"turn_id"`
-	ToolCallID        string        `json:"tool_call_id"`
-	RunID             pgtype.Int8   `json:"run_id"`
-	SourceOperationID pgtype.Int8   `json:"source_operation_id"`
-	ResultID          pgtype.Int8   `json:"result_id"`
-	InputTokens       pgtype.Int8   `json:"input_tokens"`
-	OutputTokens      pgtype.Int8   `json:"output_tokens"`
-	ReasoningTokens   pgtype.Int8   `json:"reasoning_tokens"`
-	CachedInputTokens pgtype.Int8   `json:"cached_input_tokens"`
-	CachedWriteTokens pgtype.Int8   `json:"cached_write_tokens"`
-	CostUsd           pgtype.Float8 `json:"cost_usd"`
-	IngestedAt        time.Time     `json:"ingested_at"`
-}
-
-type ObserverAppOperationPayload struct {
-	OperationID    int64  `json:"operation_id"`
-	InputMessages  []byte `json:"input_messages"`
-	OutputMessages []byte `json:"output_messages"`
-	ToolArguments  []byte `json:"tool_arguments"`
-	ToolResult     []byte `json:"tool_result"`
-	ToolError      []byte `json:"tool_error"`
 }
 
 type ObserverAppSpan struct {
@@ -1425,283 +1012,23 @@ type ObserverAppSpan struct {
 	Visible           pgtype.Bool   `json:"visible"`
 }
 
-type ObserverAppToolResult struct {
-	ID                int64     `json:"id"`
-	OrganizationID    string    `json:"organization_id"`
-	WorkspaceID       string    `json:"workspace_id"`
-	ClientID          string    `json:"client_id"`
-	UserID            string    `json:"user_id"`
-	SessionID         string    `json:"session_id"`
-	ToolCallID        string    `json:"tool_call_id"`
-	SourceOperationID int64     `json:"source_operation_id"`
-	SourceStartTime   time.Time `json:"source_start_time"`
-	SourceOrdinal     int64     `json:"source_ordinal"`
-	Protocol          string    `json:"protocol"`
-	IsError           bool      `json:"is_error"`
-}
-
-type ObserverFileEvent struct {
-	ID                int64     `json:"id"`
-	TenantNamespace   string    `json:"tenant_namespace"`
-	AgentName         string    `json:"agent_name"`
-	EventTime         time.Time `json:"event_time"`
-	IngestedAt        time.Time `json:"ingested_at"`
-	PodNamespace      string    `json:"pod_namespace"`
-	PodName           string    `json:"pod_name"`
-	FilePathAccessed  string    `json:"file_path_accessed"`
-	Process           string    `json:"process"`
-	CommandInvocation string    `json:"command_invocation"`
-	Action            string    `json:"action"`
-	Source            string    `json:"source"`
-}
-
-type ObserverMcpToolInvocation struct {
-	ID                int64     `json:"id"`
-	TenantNamespace   string    `json:"tenant_namespace"`
-	AgentName         string    `json:"agent_name"`
-	TraceID           []byte    `json:"trace_id"`
-	SpanID            []byte    `json:"span_id"`
-	StartTime         time.Time `json:"start_time"`
-	EndTime           time.Time `json:"end_time"`
-	DurationNs        int64     `json:"duration_ns"`
-	McpConnectionName string    `json:"mcp_connection_name"`
-	ToolName          string    `json:"tool_name"`
-	SessionID         string    `json:"session_id"`
-	Failed            bool      `json:"failed"`
-	IngestedAt        time.Time `json:"ingested_at"`
-}
-
-type ObserverMcpToolInvocationsDefault struct {
-	ID                int64     `json:"id"`
-	TenantNamespace   string    `json:"tenant_namespace"`
-	AgentName         string    `json:"agent_name"`
-	TraceID           []byte    `json:"trace_id"`
-	SpanID            []byte    `json:"span_id"`
-	StartTime         time.Time `json:"start_time"`
-	EndTime           time.Time `json:"end_time"`
-	DurationNs        int64     `json:"duration_ns"`
-	McpConnectionName string    `json:"mcp_connection_name"`
-	ToolName          string    `json:"tool_name"`
-	SessionID         string    `json:"session_id"`
-	Failed            bool      `json:"failed"`
-	IngestedAt        time.Time `json:"ingested_at"`
-}
-
-type ObserverMcpToolLastCalled struct {
-	TenantNamespace   string    `json:"tenant_namespace"`
-	AgentName         string    `json:"agent_name"`
-	McpConnectionName string    `json:"mcp_connection_name"`
-	ToolName          string    `json:"tool_name"`
-	LastCalledAt      time.Time `json:"last_called_at"`
-	UpdatedAt         time.Time `json:"updated_at"`
-}
-
-type ObserverNetworkEvent struct {
-	ID                int64     `json:"id"`
-	TenantNamespace   string    `json:"tenant_namespace"`
-	AgentName         string    `json:"agent_name"`
-	EventTime         time.Time `json:"event_time"`
-	IngestedAt        time.Time `json:"ingested_at"`
-	PodNamespace      string    `json:"pod_namespace"`
-	PodName           string    `json:"pod_name"`
-	DestinationDomain string    `json:"destination_domain"`
-	DestinationIp     string    `json:"destination_ip"`
-	DestinationPort   int64     `json:"destination_port"`
-	Protocol          string    `json:"protocol"`
-	Action            string    `json:"action"`
-	Source            string    `json:"source"`
-}
-
-type ObserverProcessEvent struct {
-	ID                int64     `json:"id"`
-	TenantNamespace   string    `json:"tenant_namespace"`
-	AgentName         string    `json:"agent_name"`
-	EventTime         time.Time `json:"event_time"`
-	IngestedAt        time.Time `json:"ingested_at"`
-	PodNamespace      string    `json:"pod_namespace"`
-	PodName           string    `json:"pod_name"`
-	Process           string    `json:"process"`
-	ParentProcess     string    `json:"parent_process"`
-	CommandInvocation string    `json:"command_invocation"`
-	Action            string    `json:"action"`
-	Source            string    `json:"source"`
-}
-
-type ObserverTrace struct {
-	TraceID           []byte    `json:"trace_id"`
-	TenantNamespace   string    `json:"tenant_namespace"`
-	AgentName         string    `json:"agent_name"`
-	RootSpanID        []byte    `json:"root_span_id"`
-	StartedAt         time.Time `json:"started_at"`
-	EndedAt           time.Time `json:"ended_at"`
-	DurationNs        int64     `json:"duration_ns"`
-	SpanCount         int64     `json:"span_count"`
-	ErrorCount        int64     `json:"error_count"`
-	ToolCount         int64     `json:"tool_count"`
-	ModelCount        int64     `json:"model_count"`
-	InputTokens       int64     `json:"input_tokens"`
-	OutputTokens      int64     `json:"output_tokens"`
-	CachedInputTokens int64     `json:"cached_input_tokens"`
-	CachedWriteTokens int64     `json:"cached_write_tokens"`
-	CostUsd           float64   `json:"cost_usd"`
-	StatusCode        string    `json:"status_code"`
-	UpdatedAt         time.Time `json:"updated_at"`
-}
-
-type ObserverTraceSession struct {
-	TraceID           []byte    `json:"trace_id"`
-	SessionID         string    `json:"session_id"`
-	TenantNamespace   string    `json:"tenant_namespace"`
-	AgentName         string    `json:"agent_name"`
-	RootSpanID        []byte    `json:"root_span_id"`
-	StartedAt         time.Time `json:"started_at"`
-	EndedAt           time.Time `json:"ended_at"`
-	DurationNs        int64     `json:"duration_ns"`
-	SpanCount         int64     `json:"span_count"`
-	ErrorCount        int64     `json:"error_count"`
-	ToolCount         int64     `json:"tool_count"`
-	ModelCount        int64     `json:"model_count"`
-	InputTokens       int64     `json:"input_tokens"`
-	OutputTokens      int64     `json:"output_tokens"`
-	CachedInputTokens int64     `json:"cached_input_tokens"`
-	CachedWriteTokens int64     `json:"cached_write_tokens"`
-	CostUsd           float64   `json:"cost_usd"`
-	StatusCode        string    `json:"status_code"`
-	UpdatedAt         time.Time `json:"updated_at"`
-}
-
-type ObserverTraceSpan struct {
-	ID                 int64     `json:"id"`
-	TenantNamespace    string    `json:"tenant_namespace"`
-	AgentName          string    `json:"agent_name"`
-	SessionID          string    `json:"session_id"`
-	TraceID            []byte    `json:"trace_id"`
-	SpanID             []byte    `json:"span_id"`
-	ParentSpanID       []byte    `json:"parent_span_id"`
-	StartTime          time.Time `json:"start_time"`
-	EndTime            time.Time `json:"end_time"`
-	DurationNs         int64     `json:"duration_ns"`
-	Name               string    `json:"name"`
-	SpanClass          string    `json:"span_class"`
-	OperationName      string    `json:"operation_name"`
-	Kind               string    `json:"kind"`
-	StatusCode         string    `json:"status_code"`
-	ErrorType          string    `json:"error_type"`
-	ErrorMessage       string    `json:"error_message"`
-	Model              string    `json:"model"`
-	ToolName           string    `json:"tool_name"`
-	InputTokens        int64     `json:"input_tokens"`
-	OutputTokens       int64     `json:"output_tokens"`
-	CachedInputTokens  int64     `json:"cached_input_tokens"`
-	CachedWriteTokens  int64     `json:"cached_write_tokens"`
-	CostUsd            float64   `json:"cost_usd"`
-	LlmFinishReason    string    `json:"llm_finish_reason"`
-	ResourceAttributes []byte    `json:"resource_attributes"`
-	SpanAttributes     []byte    `json:"span_attributes"`
-	IngestedAt         time.Time `json:"ingested_at"`
-}
-
-type ObserverTraceSpanPayload struct {
+type ObserverGuardrailEvent struct {
+	ID             string    `json:"id"`
+	OrganizationID string    `json:"organization_id"`
+	WorkspaceID    string    `json:"workspace_id"`
+	OccurredAt     time.Time `json:"occurred_at"`
+	ExpiresAt      time.Time `json:"expires_at"`
+	SandboxName    string    `json:"sandbox_name"`
+	AgentName      string    `json:"agent_name"`
+	ClientID       string    `json:"client_id"`
+	SessionID      string    `json:"session_id"`
+	Model          string    `json:"model"`
 	TraceID        []byte    `json:"trace_id"`
 	SpanID         []byte    `json:"span_id"`
-	StartTime      time.Time `json:"start_time"`
-	InputMessages  []byte    `json:"input_messages"`
-	OutputMessages []byte    `json:"output_messages"`
-	ToolArguments  []byte    `json:"tool_arguments"`
-	ToolResult     []byte    `json:"tool_result"`
-}
-
-type ObserverTraceSpanPayloadsDefault struct {
-	TraceID        []byte    `json:"trace_id"`
-	SpanID         []byte    `json:"span_id"`
-	StartTime      time.Time `json:"start_time"`
-	InputMessages  []byte    `json:"input_messages"`
-	OutputMessages []byte    `json:"output_messages"`
-	ToolArguments  []byte    `json:"tool_arguments"`
-	ToolResult     []byte    `json:"tool_result"`
-}
-
-type ObserverTraceSpansDefault struct {
-	ID                 int64     `json:"id"`
-	TenantNamespace    string    `json:"tenant_namespace"`
-	AgentName          string    `json:"agent_name"`
-	SessionID          string    `json:"session_id"`
-	TraceID            []byte    `json:"trace_id"`
-	SpanID             []byte    `json:"span_id"`
-	ParentSpanID       []byte    `json:"parent_span_id"`
-	StartTime          time.Time `json:"start_time"`
-	EndTime            time.Time `json:"end_time"`
-	DurationNs         int64     `json:"duration_ns"`
-	Name               string    `json:"name"`
-	SpanClass          string    `json:"span_class"`
-	OperationName      string    `json:"operation_name"`
-	Kind               string    `json:"kind"`
-	StatusCode         string    `json:"status_code"`
-	ErrorType          string    `json:"error_type"`
-	ErrorMessage       string    `json:"error_message"`
-	Model              string    `json:"model"`
-	ToolName           string    `json:"tool_name"`
-	InputTokens        int64     `json:"input_tokens"`
-	OutputTokens       int64     `json:"output_tokens"`
-	CachedInputTokens  int64     `json:"cached_input_tokens"`
-	CachedWriteTokens  int64     `json:"cached_write_tokens"`
-	CostUsd            float64   `json:"cost_usd"`
-	LlmFinishReason    string    `json:"llm_finish_reason"`
-	ResourceAttributes []byte    `json:"resource_attributes"`
-	SpanAttributes     []byte    `json:"span_attributes"`
-	IngestedAt         time.Time `json:"ingested_at"`
-}
-
-type Organization struct {
-	ID        string           `json:"id"`
-	Name      string           `json:"name"`
-	Slug      string           `json:"slug"`
-	Logo      pgtype.Text      `json:"logo"`
-	CreatedAt pgtype.Timestamp `json:"created_at"`
-	Metadata  pgtype.Text      `json:"metadata"`
-}
-
-type OrganizationDelegation struct {
-	OrganizationID string `json:"organization_id"`
-	Enabled        bool   `json:"enabled"`
-}
-
-type OrganizationInvitation struct {
-	ID             string           `json:"id"`
-	OrganizationID string           `json:"organization_id"`
-	TokenHash      string           `json:"token_hash"`
-	Status         string           `json:"status"`
-	ExpiresAt      pgtype.Timestamp `json:"expires_at"`
-	InviterID      string           `json:"inviter_id"`
-	AcceptedBy     pgtype.Text      `json:"accepted_by"`
-	AcceptedAt     pgtype.Timestamp `json:"accepted_at"`
-	CreatedAt      pgtype.Timestamp `json:"created_at"`
-}
-
-type OrganizationRole struct {
-	ID             string           `json:"id"`
-	OrganizationID string           `json:"organization_id"`
-	Role           string           `json:"role"`
-	Permission     string           `json:"permission"`
-	CreatedAt      pgtype.Timestamp `json:"created_at"`
-	UpdatedAt      pgtype.Timestamp `json:"updated_at"`
-}
-
-type PermissionGrant struct {
-	RoleID         string             `json:"role_id"`
-	OrganizationID string             `json:"organization_id"`
-	WorkspaceID    pgtype.Text        `json:"workspace_id"`
-	Resource       PermissionResource `json:"resource"`
-	Action         PermissionAction   `json:"action"`
-	Locked         bool               `json:"locked"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-}
-
-type RateLimit struct {
-	ID          string `json:"id"`
-	Key         string `json:"key"`
-	Count       int32  `json:"count"`
-	LastRequest int64  `json:"last_request"`
+	Revision       string    `json:"revision"`
+	Phase          string    `json:"phase"`
+	Action         string    `json:"action"`
+	Evaluation     []byte    `json:"evaluation"`
 }
 
 type RoleScope struct {
@@ -1713,113 +1040,6 @@ type RoleScope struct {
 	Immutable      bool               `json:"immutable"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
-}
-
-type Session struct {
-	ID                   string           `json:"id"`
-	ExpiresAt            pgtype.Timestamp `json:"expires_at"`
-	Token                string           `json:"token"`
-	CreatedAt            pgtype.Timestamp `json:"created_at"`
-	UpdatedAt            pgtype.Timestamp `json:"updated_at"`
-	IpAddress            pgtype.Text      `json:"ip_address"`
-	UserAgent            pgtype.Text      `json:"user_agent"`
-	UserID               string           `json:"user_id"`
-	ActiveOrganizationID pgtype.Text      `json:"active_organization_id"`
-	ActiveTeamID         pgtype.Text      `json:"active_team_id"`
-}
-
-type SocialAdmissionDefaultRole struct {
-	OrganizationID string `json:"organization_id"`
-	RoleID         string `json:"role_id"`
-}
-
-type SocialAdmissionDefaultTeam struct {
-	OrganizationID string `json:"organization_id"`
-	TeamID         string `json:"team_id"`
-}
-
-type SocialAdmissionGithubRule struct {
-	ID                 string      `json:"id"`
-	OrganizationID     string      `json:"organization_id"`
-	GithubOrganization string      `json:"github_organization"`
-	GithubTeam         pgtype.Text `json:"github_team"`
-}
-
-type SocialAdmissionGoogleDomain struct {
-	OrganizationID string `json:"organization_id"`
-	Domain         string `json:"domain"`
-}
-
-type SocialAdmissionPolicy struct {
-	OrganizationID string             `json:"organization_id"`
-	Enabled        bool               `json:"enabled"`
-	GoogleEnabled  bool               `json:"google_enabled"`
-	GithubEnabled  bool               `json:"github_enabled"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
-}
-
-type Team struct {
-	ID             string           `json:"id"`
-	Name           string           `json:"name"`
-	MemberCount    int32            `json:"member_count"`
-	OrganizationID string           `json:"organization_id"`
-	CreatedAt      pgtype.Timestamp `json:"created_at"`
-	UpdatedAt      pgtype.Timestamp `json:"updated_at"`
-}
-
-type TeamMember struct {
-	ID            string           `json:"id"`
-	TeamID        string           `json:"team_id"`
-	UserID        string           `json:"user_id"`
-	MembershipKey pgtype.Text      `json:"membership_key"`
-	CreatedAt     pgtype.Timestamp `json:"created_at"`
-}
-
-type TeamRole struct {
-	TeamID         string             `json:"team_id"`
-	RoleID         string             `json:"role_id"`
-	OrganizationID string             `json:"organization_id"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-}
-
-type TwoFactor struct {
-	ID                      string           `json:"id"`
-	Secret                  string           `json:"secret"`
-	BackupCodes             string           `json:"backup_codes"`
-	UserID                  string           `json:"user_id"`
-	Verified                pgtype.Bool      `json:"verified"`
-	FailedVerificationCount pgtype.Int4      `json:"failed_verification_count"`
-	LockedUntil             pgtype.Timestamp `json:"locked_until"`
-}
-
-type User struct {
-	ID               string           `json:"id"`
-	Name             string           `json:"name"`
-	Email            string           `json:"email"`
-	EmailVerified    bool             `json:"email_verified"`
-	Image            pgtype.Text      `json:"image"`
-	CreatedAt        pgtype.Timestamp `json:"created_at"`
-	UpdatedAt        pgtype.Timestamp `json:"updated_at"`
-	TwoFactorEnabled pgtype.Bool      `json:"two_factor_enabled"`
-}
-
-type UserPreference struct {
-	UserID         string           `json:"user_id"`
-	Theme          ThemePreference  `json:"theme"`
-	UpdateSandbox  bool             `json:"update_sandbox"`
-	ShowTourButton bool             `json:"show_tour_button"`
-	CreatedAt      pgtype.Timestamp `json:"created_at"`
-	UpdatedAt      pgtype.Timestamp `json:"updated_at"`
-}
-
-type Verification struct {
-	ID         string           `json:"id"`
-	Identifier string           `json:"identifier"`
-	Value      string           `json:"value"`
-	ExpiresAt  pgtype.Timestamp `json:"expires_at"`
-	CreatedAt  pgtype.Timestamp `json:"created_at"`
-	UpdatedAt  pgtype.Timestamp `json:"updated_at"`
 }
 
 type Workspace struct {
@@ -1847,19 +1067,4 @@ type WorkspaceChatPreference struct {
 	CreatedAt           pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
 	GroupBy             ChatSessionGroupBy `json:"group_by"`
-}
-
-type WorkspaceInheritedResource struct {
-	WorkspaceID    string             `json:"workspace_id"`
-	OrganizationID string             `json:"organization_id"`
-	Resource       PermissionResource `json:"resource"`
-	ResourceName   string             `json:"resource_name"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-}
-
-type WorkspaceSlugHistory struct {
-	OrganizationID string             `json:"organization_id"`
-	WorkspaceID    string             `json:"workspace_id"`
-	Slug           string             `json:"slug"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }

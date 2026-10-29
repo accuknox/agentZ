@@ -28,7 +28,7 @@ export default function AuthorizePage(props: PageProps<"/oauth/authorize">) {
       <Suspense
         fallback={
           <AuthorizationState
-            title="Connecting to AgentZ"
+            title="Connecting your account"
             description="Loading the application's access request…"
             pending
           />
@@ -126,7 +126,7 @@ async function AuthorizeContent({ searchParams }: PageProps<"/oauth/authorize">)
     return (
       <AuthorizationState
         title="This app is unavailable"
-        description="This application can no longer connect to AgentZ. Contact the app owner for help."
+        description="We can no longer connect this application. Contact its owner for help."
       />
     )
   if (

@@ -167,7 +167,7 @@ export function encodeSelectionHistory(history: SelectionHistory): string {
   return encoded
 }
 
-/** Selection changes invalidate cursors, while unrelated filters remain in the URL. */
+/** Selection changes invalidate cursors and details tied to the previous resource. */
 export function selectionURL(
   pathname: string,
   search: URLSearchParams,
@@ -195,6 +195,10 @@ export function selectionURL(
       "telemetry_token_stack",
     ]) {
       next.delete(key)
+    }
+    // A trace link belongs to its original source and session.
+    if (pathname.endsWith("/lens/traces")) {
+      for (const key of ["trace_id", "span_id", "operation_id", "section"]) next.delete(key)
     }
   }
   const query = next.toString()

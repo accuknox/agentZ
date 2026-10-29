@@ -21,7 +21,7 @@ import type {
   ListEventTrailEventsResponse,
 } from "@/lib/gateway/client"
 import type { EventsChartData } from "@/data/types"
-import { ResultBadge } from "./event-trail-event"
+import { ResultBadge, targetLabels } from "./event-trail-event"
 import { EventTrailFilters } from "./event-trail-filters"
 
 const layout: Record<string, AdminColumnLayout> = {
@@ -72,7 +72,9 @@ export function EventTrailEvents({
         header: "Event",
         cell: ({ row }) => (
           <>
-            <span className="font-mono text-sm font-medium">{row.original.action}</span>
+            <span className="font-mono text-sm font-medium">
+              {row.original.action.replace("guardrail_connection", "guardrail_provider")}
+            </span>
             <span className="mt-1 block text-xs text-muted-foreground md:hidden">
               {row.original.actor.name ??
                 row.original.actor.email ??
@@ -93,7 +95,9 @@ export function EventTrailEvents({
             >
               {row.original.target.name ?? row.original.target.id}
             </span>
-            <span className="text-xs text-muted-foreground">{row.original.target.type}</span>
+            <span className="text-xs text-muted-foreground">
+              {targetLabels[row.original.target.type] ?? row.original.target.type}
+            </span>
           </>
         ),
       },
@@ -153,7 +157,9 @@ export function EventTrailEvents({
               nextPageToken={eventTrail.next_page_token}
             />
           }
-          rowAriaLabel={(event) => `View event trail event: ${event.action}`}
+          rowAriaLabel={(event) =>
+            `View event trail event: ${event.action.replace("guardrail_connection", "guardrail_provider")}`
+          }
           rows={eventTrail.events}
           table={table}
         />

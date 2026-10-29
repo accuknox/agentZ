@@ -74,6 +74,10 @@ const (
 
 // TenantSpec defines the desired state of Tenant.
 type TenantSpec struct {
+	// Guardrails configures the mandatory organization baseline and audit controls.
+	// +optional
+	Guardrails GuardrailSettings `json:"guardrails,omitempty"`
+
 	// OrganizationID is the immutable Better Auth Organisation ID represented by
 	// this Tenant.
 	// +kubebuilder:validation:MinLength=1

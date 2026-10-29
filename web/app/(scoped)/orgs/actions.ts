@@ -713,6 +713,8 @@ export async function createWorkspaceAction(
       sandboxes: formData.getAll("inherited_sandboxes"),
       mcp_connections: formData.getAll("inherited_mcp_connections"),
       inference_providers: formData.getAll("inherited_inference_providers"),
+      guardrail_connections: formData.getAll("inherited_guardrail_connections"),
+      guardrail_policies: formData.getAll("inherited_guardrail_policies"),
     },
   })
   if (!parsed.success) {
@@ -764,13 +766,16 @@ export async function replaceWorkspaceInheritanceAction(
   if (result.error) {
     return { error: result.error.message }
   }
-  const resourceTag: Record<InheritedResourceType, string> = {
+  const resourceTag: Record<InheritedResourceType, string | undefined> = {
+    guardrail_connection: undefined,
+    guardrail_policy: undefined,
     inference_provider: inferenceProvidersTag,
     mcp_connection: mcpsTag,
     sandbox: sandboxesTag,
     skill: skillsTag,
   }
-  updateTag(resourceTag[resourceType])
+  const tag = resourceTag[resourceType]
+  if (tag) updateTag(tag)
   revalidatePath(`/orgs/${orgSlug}/workspaces/manage/${workspaceSlug}/inherited`, "layout")
   return { saved: true }
 }

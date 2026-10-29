@@ -74,7 +74,7 @@ async function AcceptInvitationContent({
       ? "Your membership is disabled"
       : "This invitation is no longer available"
   const description = ready
-    ? `${invitation.inviterName} invited you to join ${invitation.organizationName} in AgentZ.`
+    ? `${invitation.inviterName} invited you to join ${invitation.organizationName}.`
     : invitation.kind === "disabled"
       ? "An Organisation administrator must restore your membership before you can rejoin."
       : "The link has expired, was cancelled, or has already been accepted."

@@ -54,17 +54,7 @@ const statusMeta = {
   }
 >
 
-export function InheritedResourceForm({
-  displayNames,
-  iconSources,
-  label,
-  orgSlug,
-  resourceType,
-  resources,
-  sortBy,
-  sortOrder,
-  workspaceSlug,
-}: {
+type InheritedResourceFormProps = {
   displayNames?: Record<string, string>
   iconSources: Record<string, string>
   label: string
@@ -74,8 +64,21 @@ export function InheritedResourceForm({
   sortBy: InheritedResourceSortByQuery
   sortOrder: InheritedResourceSortOrderQuery
   workspaceSlug: string
-}) {
+}
+
+export function InheritedResourceForm(props: InheritedResourceFormProps) {
   "use no memo"
+  const {
+    displayNames,
+    iconSources,
+    label,
+    orgSlug,
+    resourceType,
+    resources,
+    sortBy,
+    sortOrder,
+    workspaceSlug,
+  } = props
 
   const sorting: SortingState = [{ id: sortBy, desc: sortOrder === "desc" }]
   const { onSortingChange } = useServerSorting({
@@ -227,13 +230,23 @@ export function InheritedResourceForm({
               {row.original.consumers.map((consumer) => {
                 let pathname = `/orgs/${orgSlug}/workspaces/${workspaceSlug}`
                 let query: { agent?: string } | undefined
-                if (consumer.kind === "Agent") {
-                  pathname = `${pathname}/sessions/new`
-                  query = { agent: consumer.name }
-                } else if (consumer.kind === "Sandbox") {
-                  pathname = `${pathname}/sandboxes/update/${encodeURIComponent(consumer.name)}`
-                } else if (consumer.kind === "Inference Pool") {
-                  pathname = `${pathname}/inference/pools`
+                switch (consumer.kind) {
+                  case "Agent":
+                    pathname = `${pathname}/sessions/new`
+                    query = { agent: consumer.name }
+                    break
+                  case "Sandbox":
+                    pathname = `${pathname}/sandboxes/update/${encodeURIComponent(consumer.name)}`
+                    break
+                  case "Inference Pool":
+                    pathname = `${pathname}/inference/pools`
+                    break
+                  case "Guardrail Policy":
+                    pathname = `${pathname}/guardrails/policies/${encodeURIComponent(consumer.name)}`
+                    break
+                  case "External Agent":
+                    pathname = `${pathname}/external-agents`
+                    break
                 }
                 return (
                   <li key={`${consumer.kind}:${consumer.name}`}>

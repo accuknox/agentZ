@@ -68,10 +68,17 @@ type sandboxMutationAuthorizationCase struct {
 	wantStatus int
 }
 
+// GatewayCreateEventTrailEvent accepts audit records from sandbox mutations.
+func (*sandboxQueries) GatewayCreateEventTrailEvent(context.Context, gatewaydb.GatewayCreateEventTrailEventParams) (gatewaydb.EventTrailEvent, error) {
+	return gatewaydb.EventTrailEvent{}, nil
+}
+
+// GatewayResolvePermissions returns the fixture permissions.
 func (q *sandboxQueries) GatewayResolvePermissions(context.Context, gatewaydb.GatewayResolvePermissionsParams) ([]gatewaydb.GatewayResolvePermissionsRow, error) {
 	return q.permissions, nil
 }
 
+// GatewayGetWorkspace returns the fixture workspace only within its organization.
 func (q *sandboxQueries) GatewayGetWorkspace(_ context.Context, arg gatewaydb.GatewayGetWorkspaceParams) (gatewaydb.Workspace, error) {
 	if arg.ID == q.workspace.ID && arg.OrganizationID == q.workspace.OrganizationID {
 		return q.workspace, nil
@@ -79,10 +86,12 @@ func (q *sandboxQueries) GatewayGetWorkspace(_ context.Context, arg gatewaydb.Ga
 	return gatewaydb.Workspace{}, pgx.ErrNoRows
 }
 
+// GatewayListWorkspaceInheritedResources returns no inherited resources for the fixture.
 func (q *sandboxQueries) GatewayListWorkspaceInheritedResources(context.Context, gatewaydb.GatewayListWorkspaceInheritedResourcesParams) ([]gatewaydb.GatewayListWorkspaceInheritedResourcesRow, error) {
 	return []gatewaydb.GatewayListWorkspaceInheritedResourcesRow{}, nil
 }
 
+// GatewayListUsersByID returns the authenticated fixture user.
 func (q *sandboxQueries) GatewayListUsersByID(context.Context, []string) ([]gatewaydb.GatewayListUsersByIDRow, error) {
 	return []gatewaydb.GatewayListUsersByIDRow{{
 		ID:    testUserID,
@@ -410,6 +419,11 @@ func sandboxTestService(t *testing.T, queries gatewaydb.Querier) *Service {
 		testOrganizationID,
 	)
 	objects := []ctrlclient.Object{
+		&agentzv1alpha1.Tenant{
+			ObjectMeta: metav1.ObjectMeta{Name: organizationNamespace},
+			Spec:       agentzv1alpha1.TenantSpec{OrganizationID: testOrganizationID},
+			Status:     agentzv1alpha1.TenantStatus{Namespace: organizationNamespace},
+		},
 		&corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: organizationNamespace,

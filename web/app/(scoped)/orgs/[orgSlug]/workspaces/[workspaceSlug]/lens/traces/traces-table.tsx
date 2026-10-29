@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useSearchParams } from "next/navigation"
 import { getCoreRowModel, type ColumnDef, useReactTable } from "@tanstack/react-table"
 import {
   Brain,
@@ -167,8 +168,11 @@ export function TracesTable({
 }) {
   "use no memo"
 
+  const searchParams = useSearchParams()
+  const initialTraceID = searchParams.get("trace_id")
+  const initialTrace = data?.traces.find((trace) => trace.traceId === initialTraceID)
   const requestVersion = React.useRef(0)
-  const [selectedTrace, setSelectedTrace] = React.useState<TraceListItem | undefined>()
+  const [selectedTrace, setSelectedTrace] = React.useState<TraceListItem | undefined>(initialTrace)
   const [spans, setSpans] = React.useState<ListSpansActionData | undefined>()
   const [telemetryTab, setTelemetryTab] = React.useState<RuntimeTelemetryTab>("process")
   const [telemetryPage, setTelemetryPage] = React.useState<RuntimeTelemetryTabActionData>()
@@ -182,6 +186,25 @@ export function TracesTable({
   const [spanTokenStack, setSpanTokenStack] = React.useState<string[]>([])
   const [telemetryPageToken, setTelemetryPageToken] = React.useState<string | undefined>()
   const [telemetryTokenStack, setTelemetryTokenStack] = React.useState<string[]>([])
+
+  React.useEffect(() => {
+    if (!initialTrace) return
+    const version = ++requestVersion.current
+    let cancelled = false
+    startTransition(async () => {
+      const result = await listSpansAction(
+        { subject: initialTrace.subject, traceID: initialTrace.traceId },
+        { limit: 50 },
+        workspaceId
+      )
+      if (cancelled || version !== requestVersion.current) return
+      setSpans(result.data)
+      setSpansError(result.error)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [initialTrace, workspaceId, startTransition])
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
   const table = useReactTable({
@@ -420,6 +443,34 @@ function TraceInspector({
   const [focusedDetail, setFocusedDetail] = React.useState<SpanDetailActionData>()
   const [focusError, setFocusError] = React.useState<Error>()
   const [, startInspectTransition] = React.useTransition()
+  const searchParams = useSearchParams()
+  const focusedSpanID = searchParams.get("span_id")
+  const focusedTraceID = searchParams.get("trace_id")
+  const operationID = Number(searchParams.get("operation_id"))
+
+  React.useEffect(() => {
+    if (
+      !trace ||
+      trace.traceId !== focusedTraceID ||
+      !focusedSpanID ||
+      !Number.isSafeInteger(operationID) ||
+      operationID < 1
+    )
+      return
+    let cancelled = false
+    startInspectTransition(async () => {
+      const result = await getSpanDetailAction(
+        { subject: trace.subject, traceID: trace.traceId, spanID: focusedSpanID, operationID },
+        workspaceId
+      )
+      if (cancelled) return
+      setFocusedDetail(result.data)
+      setFocusError(result.error)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [trace, focusedTraceID, focusedSpanID, operationID, workspaceId, startInspectTransition])
 
   function inspect(span: AppSpan | Span) {
     if (!trace) return
@@ -767,6 +818,18 @@ function SpanJSONSections({
   detail?: SpanDetailActionData
   trace?: TraceListItem
 }) {
+  const searchParams = useSearchParams()
+  const focusedSection =
+    searchParams.get("span_id") === span?.spanId ? searchParams.get("section") : null
+  React.useEffect(() => {
+    if (!focusedSection || !detail) return
+    const frame = requestAnimationFrame(() => {
+      const panel = document.getElementById(`trace-payload-${focusedSection}`)
+      panel?.scrollIntoView({ block: "start", behavior: "instant" })
+      panel?.focus({ preventScroll: true })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [focusedSection, detail])
   if (!span) {
     return (
       <div className="flex flex-col gap-5">
@@ -820,7 +883,15 @@ function SpanJSONSections({
       ) : null}
       {detail?.payload.map((section) =>
         section.empty ? null : (
-          <TraceContentPanel key={section.key} title={section.label} {...section.content} />
+          <div
+            key={section.key}
+            id={`trace-payload-${section.key}`}
+            tabIndex={-1}
+            data-focused={focusedSection === section.key}
+            className="scroll-mt-4 rounded-lg outline-none data-[focused=true]:border-2 data-[focused=true]:border-dashed data-[focused=true]:border-primary/40 data-[focused=true]:p-3"
+          >
+            <TraceContentPanel title={section.label} {...section.content} />
+          </div>
         )
       )}
       <JSONPanel title="Usage" rows={rows} />

@@ -6,10 +6,11 @@
 !**/*.go
 !**/*.hcl
 !**/*.tmpl
+!**/*.cel
 !internal/authorization/*.cedar
 !internal/workflow/input-schema.json
 !internal/controller/agent/prompts/
-!internal/inference/chat-text-content.cel
+!internal/launcher/codex_prompt.gen.md
 !internal/**/db/migrations/*.sql
 **/*_test.go
 **/node_modules/**

@@ -8,7 +8,8 @@ import type { Route } from "next"
 import Link from "next/link"
 import { useRouter } from "@bprogress/next/app"
 import { startTransition, useActionState, useState } from "react"
-import { Box, CircleAlert, Code2, Layers, Plus, Wrench } from "lucide-react"
+import { Box, CircleAlert, Code2, Layers, Plus, Wrench, BrickWallShield } from "lucide-react"
+import { GuardrailProviderIcon } from "@/app/(app)/guardrails/provider-shared"
 import { ProviderIcon } from "@/app/(app)/inference/providers/provider-shared"
 import { renderMcpServerIcon } from "@/app/(app)/mcps/catalog"
 import { createWorkspaceAction, type CreateWorkspaceFormState } from "@/app/(scoped)/orgs/actions"
@@ -39,32 +40,25 @@ import {
   MultiSelectDropdown,
   type MultiSelectDropdownOption,
 } from "@/components/ui/multi-select-dropdown"
-import type {
-  InferenceProvider,
-  McpConnectionSummary,
-  SelectedOrganizationResources,
-  WorkspaceMemberCandidate,
-} from "@/lib/gateway/client"
+import type { SelectedOrganizationResources, WorkspaceMemberCandidate } from "@/lib/gateway/client"
 import { zCreateWorkspaceRequest } from "@/lib/gateway/client/zod.gen"
+import type { getWorkspaceCreation } from "@/data/workspaces"
 import { workspaceNameSchema } from "@/data/schema"
 import { toast } from "sonner"
 
-type WorkspaceCreationResources = {
-  skills: SelectedOrganizationResources["skills"]
-  sandboxes: SelectedOrganizationResources["sandboxes"]
-  mcp_connections: Pick<McpConnectionSummary, "endpoint_url" | "name">[]
-  inference_providers: Pick<InferenceProvider, "catalog_provider" | "display_name" | "id">[]
-}
+type WorkspaceCreationResources = NonNullable<
+  Awaited<ReturnType<typeof getWorkspaceCreation>>["resources"]
+>
 
-export function WorkspaceForm({
-  candidates,
-  orgSlug,
-  resources,
-}: {
+type WorkspaceFormProps = {
   candidates: WorkspaceMemberCandidate[]
   orgSlug: string
   resources: WorkspaceCreationResources
-}) {
+}
+
+export function WorkspaceForm(props: WorkspaceFormProps) {
+  const { candidates, orgSlug, resources } = props
+
   const router = useRouter()
   const [confirmationOpen, setConfirmationOpen] = useState(false)
   const form = useForm<z.infer<typeof zCreateWorkspaceRequest>>({
@@ -78,6 +72,8 @@ export function WorkspaceForm({
       type: "general",
       admin_member_ids: [],
       selected_organization_resources: {
+        guardrail_connections: [],
+        guardrail_policies: [],
         skills: [],
         sandboxes: [],
         mcp_connections: [],
@@ -108,6 +104,16 @@ export function WorkspaceForm({
     value: candidate.member_id,
   }))
   const resourceOptions = {
+    guardrail_connections: resources.guardrail_connections.map((item) => ({
+      iconElement: <GuardrailProviderIcon provider={item.provider} />,
+      label: item.displayName,
+      value: item.name,
+    })),
+    guardrail_policies: resources.guardrail_policies.map((item) => ({
+      icon: BrickWallShield,
+      label: item.displayName,
+      value: item.name,
+    })),
     skills: resources.skills.map((name) => ({ icon: Wrench, label: name, value: name })),
     sandboxes: resources.sandboxes.map((name) => ({ icon: Box, label: name, value: name })),
     mcp_connections: resources.mcp_connections.map(({ endpoint_url, name }) => ({
@@ -143,7 +149,7 @@ export function WorkspaceForm({
           formData.set("type", values.type ?? "general")
           for (const id of values.admin_member_ids) formData.append("admin_member_ids", id)
           for (const { field, key } of inheritanceCategories)
-            for (const name of values.selected_organization_resources[key])
+            for (const name of values.selected_organization_resources[key] ?? [])
               formData.append(field, name)
           startTransition(() => formAction(formData))
         })}
@@ -292,7 +298,7 @@ export function WorkspaceForm({
       </form>
 
       <Dialog onOpenChange={setConfirmationOpen} open={confirmationOpen}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="sm:max-w-2xl" showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>Confirm workspace creation</DialogTitle>
             <DialogDescription>
@@ -354,6 +360,16 @@ export function WorkspaceForm({
 }
 
 const inheritanceCategories = [
+  {
+    field: "inherited_guardrail_connections",
+    key: "guardrail_connections",
+    label: "Guardrail providers",
+  },
+  {
+    field: "inherited_guardrail_policies",
+    key: "guardrail_policies",
+    label: "Guardrail Policies",
+  },
   { field: "inherited_skills", key: "skills", label: "Skills" },
   { field: "inherited_sandboxes", key: "sandboxes", label: "Sandboxes" },
   {

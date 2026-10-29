@@ -88,12 +88,18 @@ kubectl apply --server-side --force-conflicts -f \
   https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.0/standard-install.yaml
 ```
 
-```
+```bash
+export AGENTZ_VERSION=v0.30.0
+
 helm upgrade -i --create-namespace \
   --namespace agentgateway-system \
   --version v1.6.0 agentgateway-crds oci://cr.agentgateway.dev/charts/agentgateway-crds
 
-helm upgrade -i -n agentgateway-system agentgateway oci://cr.agentgateway.dev/charts/agentgateway --version v1.6.0
+helm upgrade -i -n agentgateway-system agentgateway oci://cr.agentgateway.dev/charts/agentgateway \
+  --version v1.6.0 \
+  --set proxy.image.registry=public.ecr.aws \
+  --set proxy.image.repository=k9v9d5v2/agentz/agentgateway \
+  --set proxy.image.tag="${AGENTZ_VERSION}"
 ```
 
 Read more: <https://agentgateway.dev/docs/kubernetes/latest/documentation/install/helm/>
@@ -192,8 +198,12 @@ path "auth/kubernetes/role/extauth-*" {
   capabilities = ["create", "read", "update", "delete"]
 }
 
-path "kv/metadata/*" {
+path "kv/metadata/+/*" {
   capabilities = ["delete"]
+}
+
+path "kv/metadata/+/guardrail-connections/*" {
+  capabilities = ["list", "delete"]
 }
 HCL
 
@@ -204,6 +214,10 @@ path "kv/data/+/*" {
 
 path "kv/metadata/+/*" {
   capabilities = ["delete"]
+}
+
+path "kv/data/+/guardrail-connections/*" {
+  capabilities = ["create", "read", "update", "delete"]
 }
 
 path "kv/data/+/inference-provider-oauth-tickets/*" {
@@ -220,6 +234,14 @@ path "kv/metadata/+/inference-provider-oauth-tickets/*" {
 HCL
 
 cat > inference-policy.hcl <<'HCL'
+path "kv/data/+/guardrail-connections/*" {
+  capabilities = ["read"]
+}
+
+path "kv/metadata/+/guardrail-connections/*" {
+  capabilities = ["read"]
+}
+
 path "kv/data/+/inference-providers/+" {
   capabilities = ["read"]
 }
@@ -276,7 +298,6 @@ export AGENTZ_HOST=agentz.example.com
 export S3_HOST=s3.agentz.example.com
 export ACME_EMAIL=ops@example.com
 export ADMIN_EMAIL=you@example.com
-export AGENTZ_VERSION=v0.30.0
 
 kubectl rollout status deployment/cert-manager-webhook -n cert-manager --timeout=180s
 
@@ -507,7 +528,6 @@ manager:
   config:
     agentImage: public.ecr.aws/k9v9d5v2/agentz/agent:${AGENTZ_VERSION}
     agentInitImage: public.ecr.aws/k9v9d5v2/agentz/init:${AGENTZ_VERSION}
-    delegationImage: public.ecr.aws/k9v9d5v2/agentz/agentgateway:${AGENTZ_VERSION}
     skillsS3Endpoint: http://rustfs-svc.rustfs.svc.cluster.local:9000
 gateway:
   image:

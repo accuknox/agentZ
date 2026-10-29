@@ -1,0 +1,192 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.22.0
+  name: guardrailpolicies.agentz.accuknox.com
+spec:
+  group: agentz.accuknox.com
+  names:
+    kind: GuardrailPolicy
+    listKind: GuardrailPolicyList
+    plural: guardrailpolicies
+    singular: guardrailpolicy
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: GuardrailPolicy is a reusable ordered set of prompt checks.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: GuardrailPolicySpec defines reusable ordered detector checks.
+            properties:
+              checks:
+                description: Checks is evaluated in authored order within each phase.
+                items:
+                  description: GuardrailCheck is one ordered input or output evaluation.
+                  properties:
+                    action:
+                      description: Action selects a regex action. Remote checks enforce their provider-native verdict.
+                      enum:
+                      - deny
+                      - mask
+                      type: string
+                    connection:
+                      description: Connection selects a reusable detector; absent for regex checks.
+                      properties:
+                        name:
+                          description: Name is the immutable Kubernetes metadata name of the resource.
+                          maxLength: 63
+                          minLength: 1
+                          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                          type: string
+                        scope:
+                          description: Scope selects the current Organisation or Workspace namespace.
+                          enum:
+                          - Organisation
+                          - Workspace
+                          type: string
+                      required:
+                      - name
+                      - scope
+                      type: object
+                    failureMode:
+                      description: FailureMode controls checker errors; webhook providers must implement the native verdict contract.
+                      enum:
+                      - closed
+                      - open
+                      type: string
+                    guardrailId:
+                      description: GuardrailID references an existing AWS guardrail.
+                      type: string
+                    guardrailVersion:
+                      description: GuardrailVersion is the explicitly selected AWS guardrail version.
+                      type: string
+                    id:
+                      description: ID remains stable across edits for audit correlation.
+                      minLength: 1
+                      type: string
+                    mode:
+                      description: Mode controls enforcement independently of operational failure handling.
+                      enum:
+                      - enforce
+                      - audit
+                      type: string
+                    name:
+                      description: Name is a safe administrator-defined label.
+                      type: string
+                    phase:
+                      description: Phase selects input or output evaluation.
+                      enum:
+                      - input
+                      - output
+                      type: string
+                    regex:
+                      description: Regex configures a local regex check.
+                      properties:
+                        builtins:
+                          description: Builtins selects AgentGateway sensitive-data recognizers.
+                          items:
+                            enum:
+                            - Email
+                            - PhoneNumber
+                            - Ssn
+                            - CreditCard
+                            - CaSin
+                            type: string
+                          type: array
+                          x-kubernetes-list-type: set
+                        patterns:
+                          description: Patterns are custom regular expressions.
+                          items:
+                            type: string
+                          type: array
+                      type: object
+                    safeExplanation:
+                      description: SafeExplanation is displayed without exposing detector evidence.
+                      type: string
+                    scopes:
+                      description: Scopes selects supported textual content classes.
+                      items:
+                        type: string
+                      minItems: 1
+                      type: array
+                    template:
+                      description: Template references an existing Google Model Armor template.
+                      type: string
+                  required:
+                  - action
+                  - failureMode
+                  - id
+                  - mode
+                  - name
+                  - phase
+                  - scopes
+                  type: object
+                minItems: 1
+                type: array
+              createdByUserID:
+                description: CreatedByUserID is the immutable Better Auth User ID that created the resource.
+                maxLength: 128
+                minLength: 1
+                type: string
+              description:
+                description: Description explains policy intent.
+                type: string
+              displayName:
+                description: DisplayName is the human-readable policy label.
+                minLength: 1
+                type: string
+              lastModifiedByUserID:
+                description: LastModifiedByUserID is the Better Auth User ID that last changed the resource.
+                maxLength: 128
+                minLength: 1
+                type: string
+            required:
+            - checks
+            - createdByUserID
+            - displayName
+            - lastModifiedByUserID
+            type: object
+          status:
+            description: GuardrailResourceStatus reports the desired revision and reconciliation state.
+            properties:
+              message:
+                description: Message is a safe readiness explanation.
+                type: string
+              observedGeneration:
+                description: ObservedGeneration is the latest reconciled desired generation.
+                format: int64
+                type: integer
+              revision:
+                description: Revision identifies the effective configuration.
+                type: string
+              state:
+                description: State is Pending, Ready, or Error.
+                type: string
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

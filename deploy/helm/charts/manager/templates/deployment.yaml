@@ -89,7 +89,6 @@ spec:
             - --workflowrun-orphan-retention={{ .Values.config.workflowRunOrphanRetention }}
             - --controller-image={{ default $image .Values.config.controllerImage }}
             - --gateway-url={{ required "manager.config.gatewayURL is required for standalone installs" $gatewayURL }}
-            - --delegation-image={{ .Values.config.delegationImage }}
             - --delegation-trace-port={{ .Values.config.delegationTracePort }}
             - --agentgateway-trace-mode={{ required "manager.config.agentgatewayTraceMode is required" .Values.config.agentgatewayTraceMode }}
             {{- if eq .Values.config.agentgatewayTraceMode "service" }}

@@ -489,12 +489,7 @@ type OpenSessionMenuItemProps = {
 }
 
 function OpenSessionMenuItem(props: OpenSessionMenuItemProps) {
-  const {
-    agentName,
-    basePath,
-    detail,
-    isFetching,
-  } = props
+  const { agentName, basePath, detail, isFetching } = props
 
   if (isFetching) {
     return (

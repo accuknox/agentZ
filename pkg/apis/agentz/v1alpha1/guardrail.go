@@ -5,8 +5,8 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 // GuardrailConnectionFinalizer protects projected credentials until all copies are removed.
 const GuardrailConnectionFinalizer = "agentz.accuknox.com/guardrail-connection"
 
-// GuardrailProvider identifies the detector protocol.
-// +kubebuilder:validation:Enum=OpenAI;Bedrock;ModelArmor;Webhook
+// GuardrailProvider identifies a detector service or the custom webhook protocol.
+// +kubebuilder:validation:Enum=AccuKnox;OpenAI;Bedrock;ModelArmor;Webhook
 type GuardrailProvider string
 
 // GuardrailAssignment selects additions after the mandatory organization baseline.
@@ -35,7 +35,7 @@ type GuardrailConnectionSpec struct {
 	// Provider selects the supported detector protocol.
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="provider is immutable"
 	Provider GuardrailProvider `json:"provider"`
-	// Endpoint overrides the detector base URL; required for custom webhooks.
+	// Endpoint is the root URL for AccuKnox and custom webhook services.
 	// +optional
 	Endpoint string `json:"endpoint,omitempty"`
 	// Region selects the AWS or Google location.

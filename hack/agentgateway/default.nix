@@ -1,7 +1,7 @@
 { pkgs }:
 
 let
-  version = "1.6.0-agentz.4";
+  version = "1.6.0-agentz.5";
   revision = "ea5608642b9d5c94c5baf5fd9f2f9849b808e963";
   src = pkgs.fetchFromGitHub {
     owner = "agentgateway";
@@ -51,7 +51,7 @@ pkgs.rustPlatform.buildRustPackage {
   '';
   env = {
     VERSION = version;
-    GIT_REVISION = "${revision}-agentz.4";
+    GIT_REVISION = "${revision}-agentz.5";
   } // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isAarch64 {
     JEMALLOC_SYS_WITH_LG_PAGE = "16";
   };

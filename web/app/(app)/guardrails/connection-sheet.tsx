@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation"
 import { ChevronsUpDown, CircleAlert, Save } from "lucide-react"
 import { toast } from "sonner"
 import { GuardrailProviderIcon, guardrailProviderLabels } from "./provider-shared"
-import type { GuardrailConnection, CreateGuardrailConnectionData } from "@/lib/gateway/client"
+import type { GuardrailConnection } from "@/lib/gateway/client"
 import { saveGuardrailConnectionAction, type GuardrailActionScope } from "@/data/guardrail.actions"
 import { zGuardrailConnectionInputWritable } from "@/lib/gateway/client/zod.gen"
 import { LoadingButton } from "@/components/interior/loading-button"
@@ -87,6 +87,8 @@ const awsRegions = [
   ["us-gov-west-1", "AWS GovCloud (US-West)"],
 ] as const
 
+const accuknoxEndpoint = "https://pf-agw-whk.accuknox.com"
+
 type ConnectionSheetProps = {
   connection?: GuardrailConnection
   scope: GuardrailActionScope
@@ -100,20 +102,25 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
   const idPrefix = useId()
   const router = useRouter()
   const queryClient = useQueryClient()
-  const [provider, setProvider] = useState<CreateGuardrailConnectionData["body"]["provider"]>(
+  const [provider, setProvider] = useState<GuardrailConnection["provider"]>(
     connection?.provider ?? "Bedrock"
   )
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState("")
-  const [connectionID, setConnectionID] = useState(connection?.name)
-  const [detailsOpen, setDetailsOpen] = useState(false)
+  const [connectionID] = useState(
+    () =>
+      connection?.name ?? `provider-${customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789")(16)}`
+  )
+  const [advanced, setAdvanced] = useState(false)
   const [region, setRegion] = useState(connection?.region || "us-east-1")
   const [regionOpen, setRegionOpen] = useState(false)
   const readOnly = connection !== undefined && !connection.canModify
+  const credentialsRequired = provider !== "Webhook" && !connection?.credentialsConfigured
   let title = "Add guardrail provider"
   if (connection) title = "Edit guardrail provider"
   if (readOnly) title = "Guardrail provider"
   const providerDescriptions = {
+    AccuKnox: "",
     Bedrock: "Choose an existing guardrail after connecting. Detection rules stay in AWS.",
     ModelArmor:
       "Browse your Google Cloud projects and choose a Model Armor template after connecting.",
@@ -121,6 +128,7 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
     Webhook: "",
   }
   const credentialLabels = {
+    AccuKnox: "Bearer token",
     ModelArmor: "Google credential JSON",
     Webhook: "Bearer token",
     OpenAI: "API key",
@@ -169,39 +177,30 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
               "sessionToken",
               "googleCredentialsJson",
             ] as const
-            const parsedCredentials = zGuardrailConnectionInputWritable.shape.credentials
-              .unwrap()
-              .safeParse(
-                Object.fromEntries(
-                  credentialFields.map((field) => [field, formData.get(field) || undefined])
-                )
-              )
-            if (!parsedCredentials.success) {
-              setError(parsedCredentials.error.issues[0]?.message ?? "Check provider credentials")
-              return
-            }
-            const credentials = parsedCredentials.data
-            const replacingCredentials = Object.values(credentials).some(
-              (value) => value !== undefined
+            const credentials = Object.fromEntries(
+              credentialFields.map((field) => [field, formData.get(field) || undefined])
             )
-            const incompleteAWSKeys = !credentials.accessKeyId || !credentials.secretAccessKey
-            if (provider === "Bedrock" && replacingCredentials && incompleteAWSKeys) {
-              setError(
-                "Provide both the AWS access key ID and secret access key when replacing credentials."
-              )
-              return
-            }
+            const replacingCredentials = Object.values(credentials).some(Boolean)
+            let endpoint = formData.get("endpoint") || undefined
+            if (provider === "AccuKnox") endpoint ??= accuknoxEndpoint
             const parsed = zGuardrailConnectionInputWritable.safeParse({
               name: connectionID,
               displayName: formData.get("displayName"),
               description: formData.get("description"),
               provider,
-              endpoint: formData.get("endpoint") ?? undefined,
+              endpoint,
               region: formData.get("region") ?? undefined,
               credentials: replacingCredentials ? credentials : undefined,
             })
             if (!parsed.success) {
               setError(parsed.error.issues[0]?.message ?? "Check provider fields")
+              return
+            }
+            const keys = parsed.data.credentials
+            if (provider === "Bedrock" && keys && (!keys.accessKeyId || !keys.secretAccessKey)) {
+              setError(
+                "Provide both the AWS access key ID and secret access key when replacing credentials."
+              )
               return
             }
             startTransition(async () => {
@@ -221,9 +220,12 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
                 predicate: (query) => query.queryKey[0] === "guardrail-resources",
               })
               toast.success(connection ? "Provider saved" : "Provider created")
-              onSaved?.(result.data)
-              router.refresh()
-              onClose()
+              // Re-enter after awaiting so dismissal waits for refreshed data.
+              startTransition(() => {
+                onSaved?.(result.data)
+                router.refresh()
+                onClose()
+              })
             })
           }}
         >
@@ -238,12 +240,6 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
                 id={`${idPrefix}-guardrail-provider-display`}
                 maxLength={128}
                 name="displayName"
-                onChange={() => {
-                  if (connectionID === undefined)
-                    setConnectionID(
-                      `provider-${customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789")(16)}`
-                    )
-                }}
                 required
                 placeholder="Company guardrail service"
               />
@@ -255,41 +251,25 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
               <Select
                 disabled={readOnly || pending || connection !== undefined}
                 value={provider}
-                onValueChange={(value) => {
-                  switch (value) {
-                    case "OpenAI":
-                    case "Bedrock":
-                    case "ModelArmor":
-                    case "Webhook":
-                      setProvider(value)
-                  }
-                }}
+                onValueChange={(value) =>
+                  setProvider(zGuardrailConnectionInputWritable.shape.provider.parse(value))
+                }
               >
                 <SelectTrigger id={`${idPrefix}-guardrail-provider-provider`} className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    <SelectItem value="Bedrock">
-                      <GuardrailProviderIcon provider="Bedrock" />
-                      {guardrailProviderLabels.Bedrock}
-                    </SelectItem>
-                    <SelectItem value="OpenAI">
-                      <GuardrailProviderIcon provider="OpenAI" />
-                      {guardrailProviderLabels.OpenAI}
-                    </SelectItem>
-                    <SelectItem value="ModelArmor">
-                      <GuardrailProviderIcon provider="ModelArmor" />
-                      {guardrailProviderLabels.ModelArmor}
-                    </SelectItem>
-                    <SelectItem value="Webhook">
-                      <GuardrailProviderIcon provider="Webhook" />
-                      {guardrailProviderLabels.Webhook}
-                    </SelectItem>
+                    {zGuardrailConnectionInputWritable.shape.provider.options.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        <GuardrailProviderIcon provider={value} />
+                        {guardrailProviderLabels[value]}
+                      </SelectItem>
+                    ))}
                   </SelectGroup>
                 </SelectContent>
               </Select>
-              {!connection && provider !== "Webhook" ? (
+              {!connection && providerDescriptions[provider] ? (
                 <FieldDescription>{providerDescriptions[provider]}</FieldDescription>
               ) : null}
             </Field>
@@ -433,7 +413,7 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
                     <Field>
                       <FieldLabel
                         htmlFor={`${idPrefix}-guardrail-provider-secret`}
-                        required={provider !== "Webhook" && !connection?.credentialsConfigured}
+                        required={credentialsRequired}
                       >
                         {credentialLabels[provider]}
                       </FieldLabel>
@@ -455,14 +435,12 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
                           id={`${idPrefix}-guardrail-provider-secret`}
                           name="apiKey"
                           type="password"
-                          required={provider !== "Webhook" && !connection?.credentialsConfigured}
+                          required={credentialsRequired}
                         />
                       )}
-                      {provider !== "OpenAI" ? (
+                      {provider === "ModelArmor" ? (
                         <FieldDescription>
-                          {provider === "Webhook"
-                            ? "Optional."
-                            : "Use supported Google ADC credential JSON."}
+                          Use supported Google ADC credential JSON.
                         </FieldDescription>
                       ) : null}
                     </Field>
@@ -487,13 +465,37 @@ export function ConnectionSheet(props: ConnectionSheetProps) {
             <Accordion
               collapsible
               type="single"
-              value={detailsOpen ? "details" : ""}
-              onValueChange={(value) => setDetailsOpen(value === "details")}
+              value={advanced ? "advanced" : ""}
+              onValueChange={(value) => setAdvanced(value === "advanced")}
             >
-              <AccordionItem value="details">
-                <AccordionTrigger>Details</AccordionTrigger>
-                <AccordionContent forceMount hidden={!detailsOpen}>
+              <AccordionItem value="advanced">
+                <AccordionTrigger>Advanced</AccordionTrigger>
+                <AccordionContent forceMount hidden={!advanced}>
                   <FieldGroup>
+                    {provider === "AccuKnox" ? (
+                      <Field>
+                        <FieldLabel htmlFor={`${idPrefix}-guardrail-provider-endpoint`}>
+                          Webhook service URL
+                        </FieldLabel>
+                        <Input
+                          defaultValue={
+                            connection?.endpoint !== accuknoxEndpoint ? connection?.endpoint : ""
+                          }
+                          disabled={readOnly || pending}
+                          id={`${idPrefix}-guardrail-provider-endpoint`}
+                          name="endpoint"
+                          onInvalid={() => setAdvanced(true)}
+                          placeholder={accuknoxEndpoint}
+                          type="url"
+                        />
+                        {!readOnly ? (
+                          <FieldDescription>
+                            Leave blank to use {accuknoxEndpoint}. Overrides must be a root URL
+                            without a path or query.
+                          </FieldDescription>
+                        ) : null}
+                      </Field>
+                    ) : null}
                     <Field>
                       <FieldLabel htmlFor={`${idPrefix}-guardrail-provider-description`}>
                         Description

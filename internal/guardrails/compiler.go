@@ -52,14 +52,14 @@ func ValidateConnection(spec api.GuardrailConnectionSpec) error {
 		return errors.New("provider display name is required")
 	}
 	switch spec.Provider {
-	case "Webhook":
+	case "AccuKnox", "Webhook":
 		u, err := url.Parse(spec.Endpoint)
 		valid := err == nil && u.Hostname() != "" && (u.Scheme == "http" || u.Scheme == "https")
 		if !valid || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
-			return errors.New("custom webhook endpoint must be an HTTP or HTTPS URL without credentials, query, or fragment")
+			return errors.New("webhook endpoint must be an HTTP or HTTPS URL without credentials, query, or fragment")
 		}
 		if u.Path != "" && u.Path != "/" {
-			return errors.New("custom webhook endpoint must use its root; AgentGateway calls /request and /response")
+			return errors.New("webhook endpoint must use its root; AgentGateway calls /request and /response")
 		}
 	case "Bedrock":
 		if spec.Region == "" {
@@ -375,7 +375,7 @@ func (b *Bundle) compile(namespace string) error {
 				}
 				request.GoogleModelArmor = armor
 				response.GoogleModelArmor = armor
-			case "Webhook":
+			case "AccuKnox", "Webhook":
 				context.Guard = "webhook"
 				webhook := &agw.Webhook{
 					BackendRef: gwv1.BackendObjectReference{

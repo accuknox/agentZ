@@ -22,9 +22,7 @@ function buildWorkflowInputsSchema(schema: WorkflowInputs | undefined) {
 
   for (const [name, input] of Object.entries(schema ?? {})) {
     const value = buildWorkflowInputSchema(input)
-    shape[name] = input.required
-      ? value
-      : value.optional()
+    shape[name] = input.required ? value : value.optional()
   }
 
   return z.strictObject(shape)

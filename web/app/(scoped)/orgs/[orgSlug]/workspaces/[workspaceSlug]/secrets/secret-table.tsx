@@ -144,12 +144,7 @@ export function SecretTable({
   return (
     <AdminDataGrid
       ariaLabel="Secrets"
-      emptyState={
-        <AdministrationState
-          kind={canCreate ? "welcome" : "empty"}
-          title="No secrets"
-        />
-      }
+      emptyState={<AdministrationState kind={canCreate ? "welcome" : "empty"} title="No secrets" />}
       layout={layout}
       pagination={<TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />}
       rows={rows}

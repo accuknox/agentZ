@@ -41,7 +41,7 @@ export const zGuardrailConnectionInput = z.object({
     .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
   displayName: z.string().min(1).max(128),
   description: z.string().max(2048).optional(),
-  provider: z.enum(["OpenAI", "Bedrock", "ModelArmor", "Webhook"]),
+  provider: z.enum(["AccuKnox", "OpenAI", "Bedrock", "ModelArmor", "Webhook"]),
   endpoint: z.string().optional(),
   region: z.string().optional(),
 })
@@ -53,7 +53,7 @@ export const zGuardrailDiscoveredResource = z.object({
 })
 
 export const zGuardrailResourceDiscovery = z.object({
-  provider: z.enum(["OpenAI", "Bedrock", "ModelArmor", "Webhook"]),
+  provider: z.enum(["AccuKnox", "OpenAI", "Bedrock", "ModelArmor", "Webhook"]),
   kind: z.enum(["guardrails", "versions", "projects", "locations", "templates"]),
   items: z.array(zGuardrailDiscoveredResource),
   nextPageToken: z.string().optional(),
@@ -684,7 +684,7 @@ export const zGuardrailConnection = z.object({
   name: z.string(),
   displayName: z.string(),
   description: z.string(),
-  provider: z.enum(["OpenAI", "Bedrock", "ModelArmor", "Webhook"]),
+  provider: z.enum(["AccuKnox", "OpenAI", "Bedrock", "ModelArmor", "Webhook"]),
   endpoint: z.string(),
   region: z.string(),
   scope: zResourceScope,
@@ -3348,6 +3348,7 @@ export const zGuardrailRuntimeEvaluation = z.object({
   action: z.enum(["failOpen", "audit", "mask", "reject"]),
   guardrailId: z.string().optional(),
   guardrailVersion: z.string().optional(),
+  error: z.string().max(4096).optional(),
   context: zGuardrailContext.optional(),
 })
 
@@ -3938,7 +3939,7 @@ export const zGuardrailConnectionInputWritable = z.object({
     .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/),
   displayName: z.string().min(1).max(128),
   description: z.string().max(2048).optional(),
-  provider: z.enum(["OpenAI", "Bedrock", "ModelArmor", "Webhook"]),
+  provider: z.enum(["AccuKnox", "OpenAI", "Bedrock", "ModelArmor", "Webhook"]),
   endpoint: z.string().optional(),
   region: z.string().optional(),
   credentials: zGuardrailCredentials.optional(),

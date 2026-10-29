@@ -379,7 +379,7 @@ index 5b974c1..6c0138b 100644
  		(
  			request
 diff --git a/crates/llm/src/conversion/bedrock.rs b/crates/llm/src/conversion/bedrock.rs
-index 2895b0a..592f530 100644
+index 2895b0a..cd470f4 100644
 --- a/crates/llm/src/conversion/bedrock.rs
 +++ b/crates/llm/src/conversion/bedrock.rs
 @@ -1196,6 +1196,7 @@ pub mod from_completions {
@@ -396,7 +396,7 @@ index 2895b0a..592f530 100644
  		let message_id = message_id.to_string();
 -		let body = parse::aws_sse::transform(b, buffer_limit, move |f| {
 -			let res = bedrock::ConverseStreamOutput::deserialize(f).ok()?;
-+		let body = parse::aws_sse::transform_with_events(b, buffer_limit, move |event| {
++		let body = parse::aws_sse::transform(b, buffer_limit, move |event| {
 +			let f = match event {
 +				parse::aws_sse::StreamEvent::Item(item) => item,
 +				other => {
@@ -446,7 +446,7 @@ index 2895b0a..592f530 100644
  			crate::conversion::messages::StreamingToolCalls::new(log_content.tool_calls);
  		let model = model.to_string();
 -		parse::aws_sse::transform_multi(b, buffer_limit, move |aws_event| {
-+		parse::aws_sse::transform_multi_with_events(b, buffer_limit, move |notification| {
++		parse::aws_sse::transform_multi(b, buffer_limit, move |notification| {
 +			let aws_event = match notification {
 +				parse::aws_sse::StreamEvent::Item(item) => item,
 +				other => {
@@ -493,7 +493,7 @@ index 2895b0a..592f530 100644
  		};
  
 -		parse::aws_sse::transform_multi(b, buffer_limit, move |aws_event| {
-+		parse::aws_sse::transform_multi_with_events(b, buffer_limit, move |notification| {
++		parse::aws_sse::transform_multi(b, buffer_limit, move |notification| {
 +			let aws_event = match notification {
 +				parse::aws_sse::StreamEvent::Item(item) => item,
 +				other => {
@@ -531,13 +531,15 @@ diff --git a/crates/llm/src/conversion/completions.rs b/crates/llm/src/conversio
 index c9ce063..9bae031 100644
 --- a/crates/llm/src/conversion/completions.rs
 +++ b/crates/llm/src/conversion/completions.rs
-@@ -7,5 +7,14 @@ use http::Response;
+@@ -5,10 +5,19 @@ use agent_http::Body;
+ use bytes::Bytes;
+ use http::Response;
  use itertools::Itertools;
 -use tracing::debug;
  
 +use crate::parse::sse::SseJsonEvent;
  use crate::{StreamingUsageGuard, logged_response_parsing, parse, types};
-+
+ 
 +#[derive(serde::Deserialize)]
 +#[serde(untagged)]
 +pub(crate) enum CapturedStreamEvent {
@@ -546,7 +548,10 @@ index c9ce063..9bae031 100644
 +	},
 +	Chunk(types::completions::typed::StreamResponse),
 +}
-
++
+ #[cfg(test)]
+ #[path = "completions_tests.rs"]
+ mod tests;
 @@ -125,6 +134,7 @@ pub mod from_messages {
  		});
  		let anthropic = translate_response_internal(resp)?;
@@ -1211,7 +1216,7 @@ index 7daf173..861abec 100644
  						// Fall through to namespace restoration for the terminal events too.
  						if !flushed {
 diff --git a/crates/llm/src/conversion/responses.rs b/crates/llm/src/conversion/responses.rs
-index 24540d8..1466251 100644
+index 24540d8..0f87884 100644
 --- a/crates/llm/src/conversion/responses.rs
 +++ b/crates/llm/src/conversion/responses.rs
 @@ -5,6 +5,7 @@ use agent_core::strng::{self, Strng};
@@ -1222,7 +1227,7 @@ index 24540d8..1466251 100644
  use crate::types::detect;
  use crate::{OutputMessage, OutputMessagePart, StreamingUsageGuard, parse, types};
  
-@@ -25,107 +26,291 @@ pub fn passthrough_stream(
+@@ -25,108 +26,284 @@ pub fn passthrough_stream(
  	mut log: StreamingUsageGuard,
  	log_content: crate::LogContentFields,
  ) -> Body {
@@ -1286,7 +1291,17 @@ index 24540d8..1466251 100644
 +				}
 +				r.response.completion = Some(text);
 +			}
-+			merge_pending_tool_calls(tools, pending);
++			if let (Some(parts), Some(pending)) = (tools.as_mut(), pending.as_mut()) {
++				for (index, (id, name, args)) in std::mem::take(pending) {
++					parts
++						.entry(index)
++						.or_insert_with(|| OutputMessagePart::ToolCall {
++							id: strng::new(id),
++							name: strng::new(name),
++							arguments: crate::conversion::tool_arguments_to_input(&args),
++						});
++				}
++			}
 +			r.response.output_messages = take_output_messages(tools, finish_reason.clone());
 +		});
 +	}
@@ -1577,27 +1592,11 @@ index 24540d8..1466251 100644
  		}
  	})
  }
-+fn merge_pending_tool_calls(
-+	parts: &mut Option<BTreeMap<u32, OutputMessagePart>>,
-+	pending: &mut Option<BTreeMap<u32, (String, String, String)>>,
-+) {
-+	let (Some(parts), Some(pending)) = (parts, pending) else {
-+		return;
-+	};
-+	for (index, (id, name, args)) in std::mem::take(pending) {
-+		parts
-+			.entry(index)
-+			.or_insert_with(|| OutputMessagePart::ToolCall {
-+				id: strng::new(id),
-+				name: strng::new(name),
-+				arguments: crate::conversion::tool_arguments_to_input(&args),
-+			});
-+	}
-+}
- 
+-
  fn take_output_messages(
  	tool_calls: &mut Option<BTreeMap<u32, OutputMessagePart>>,
-@@ -738,6 +923,7 @@ pub mod from_messages {
+ 	finish_reason: Option<Strng>,
+@@ -738,6 +915,7 @@ pub mod from_messages {
  		});
  		let anthropic = translate_response_internal(resp)?;
  		Ok(Box::new(super::super::ResponseWithProviderUsage {
@@ -1605,7 +1604,7 @@ index 24540d8..1466251 100644
  			response: anthropic,
  			provider_usage,
  		}))
-@@ -1248,6 +1434,7 @@ pub mod from_messages {
+@@ -1248,6 +1426,7 @@ pub mod from_messages {
  		}
  
  		let mut state = StreamState::default();
@@ -1613,7 +1612,7 @@ index 24540d8..1466251 100644
  		let mut completion = log_content.completion.then(String::new);
  		let mut tool_calls = log_content.tool_calls.then(BTreeMap::new);
  
-@@ -1261,7 +1448,19 @@ pub mod from_messages {
+@@ -1261,7 +1440,19 @@ pub mod from_messages {
  				return events;
  			}
  			match evt {
@@ -1634,7 +1633,7 @@ index 24540d8..1466251 100644
  				SseJsonEvent::Done => {
  					flush_message_end(
  						&mut state,
-@@ -1485,6 +1684,7 @@ pub mod from_messages {
+@@ -1485,6 +1676,7 @@ pub mod from_messages {
  						},
  					},
  					responses::ResponseStreamEvent::ResponseCompleted(completed) => {
@@ -1642,7 +1641,7 @@ index 24540d8..1466251 100644
  						record_response_metadata(&mut state, &log, &completed.response);
  						state.pending_stop_reason = Some(if state.saw_tool_call {
  							messages::StopReason::ToolUse
-@@ -1503,6 +1703,7 @@ pub mod from_messages {
+@@ -1503,6 +1695,7 @@ pub mod from_messages {
  						);
  					},
  					responses::ResponseStreamEvent::ResponseIncomplete(incomplete) => {
@@ -1650,7 +1649,7 @@ index 24540d8..1466251 100644
  						record_response_metadata(&mut state, &log, &incomplete.response);
  						state.pending_stop_reason = incomplete
  							.response
-@@ -1519,6 +1720,16 @@ pub mod from_messages {
+@@ -1519,6 +1712,16 @@ pub mod from_messages {
  						);
  					},
  					responses::ResponseStreamEvent::ResponseFailed(failed) => {
@@ -1667,7 +1666,7 @@ index 24540d8..1466251 100644
  						record_response_metadata(&mut state, &log, &failed.response);
  						tracing::warn!(
  							"Responses stream failed during messages translation; emitting error event"
-@@ -1548,6 +1759,13 @@ pub mod from_messages {
+@@ -1548,6 +1751,13 @@ pub mod from_messages {
  						);
  					},
  					responses::ResponseStreamEvent::ResponseError(error) => {
@@ -1681,7 +1680,7 @@ index 24540d8..1466251 100644
  						tracing::warn!(
  							"Responses stream error during messages translation: {}",
  							error.message
-@@ -1578,6 +1796,9 @@ pub mod from_messages {
+@@ -1578,6 +1788,9 @@ pub mod from_messages {
  					r.response.output_messages = super::take_output_messages(&mut tool_calls, None);
  				});
  			}
@@ -1896,10 +1895,10 @@ index 275de62..90c419a 100644
  	MissingField(Strng),
  	#[error("model not found")]
 diff --git a/crates/llm/src/parse/aws_sse.rs b/crates/llm/src/parse/aws_sse.rs
-index c2f878b..0685eba 100644
+index c2f878b..25b33bf 100644
 --- a/crates/llm/src/parse/aws_sse.rs
 +++ b/crates/llm/src/parse/aws_sse.rs
-@@ -135,37 +135,105 @@ impl Decoder for EventStreamCodec {
+@@ -135,37 +135,83 @@ impl Decoder for EventStreamCodec {
  	}
  }
  
@@ -1927,17 +1926,7 @@ index c2f878b..0685eba 100644
 +pub fn transform<O: Serialize + 'static>(
  	b: Body,
  	buffer_limit: usize,
- 	mut f: impl FnMut(Message) -> Option<O> + Send + 'static,
-+) -> Body {
-+	transform_with_events(b, buffer_limit, move |event| match event {
-+		StreamEvent::Item(item) => f(item),
-+		_ => None,
-+	})
-+}
-+
-+pub fn transform_with_events<O: Serialize + 'static>(
-+	b: Body,
-+	buffer_limit: usize,
+-	mut f: impl FnMut(Message) -> Option<O> + Send + 'static,
 +	f: impl FnMut(StreamEvent) -> Option<O> + Send + 'static,
  ) -> Body {
  	let decoder = EventStreamCodec::with_max_size(buffer_limit);
@@ -1973,17 +1962,7 @@ index c2f878b..0685eba 100644
 +pub fn transform_multi<O: Serialize + 'static>(
  	b: Body,
  	buffer_limit: usize,
- 	mut f: impl FnMut(Message) -> Vec<(&'static str, O)> + Send + 'static,
-+) -> Body {
-+	transform_multi_with_events(b, buffer_limit, move |event| match event {
-+		StreamEvent::Item(item) => f(item),
-+		_ => Vec::new(),
-+	})
-+}
-+
-+pub fn transform_multi_with_events<O: Serialize + 'static>(
-+	b: Body,
-+	buffer_limit: usize,
+-	mut f: impl FnMut(Message) -> Vec<(&'static str, O)> + Send + 'static,
 +	f: impl FnMut(StreamEvent) -> Vec<(&'static str, O)> + Send + 'static,
  ) -> Body {
  	let decoder = EventStreamCodec::with_max_size(buffer_limit);
@@ -2013,42 +1992,65 @@ index c2f878b..0685eba 100644
  			.into_iter()
  			.filter_map(|(event_name, event)| {
  				serde_json::to_vec(&event)
+diff --git a/crates/llm/src/parse/parse_tests.rs b/crates/llm/src/parse/parse_tests.rs
+index 1339a1a..910a63e 100644
+--- a/crates/llm/src/parse/parse_tests.rs
++++ b/crates/llm/src/parse/parse_tests.rs
+@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
+ use tokio_sse_codec::{Event, Frame, SseDecoder};
+ use tokio_util::codec::Decoder;
+ 
++use super::passthrough::PassthroughEvent;
+ use super::{passthrough, sse};
+ 
+ #[tokio::test]
+@@ -34,11 +35,10 @@ async fn test_parser() {
+ 	let events = Arc::new(Mutex::new(vec![]));
+ 	let ev_clone = events.clone();
+ 	let body = passthrough::parser(body, decoder, move |o| match o {
+-		Frame::Comment(_) => {},
+-		Frame::Event(Event::<Bytes> { data, .. }) => {
++		PassthroughEvent::Eof | PassthroughEvent::Item(Frame::Comment(_) | Frame::Retry(_)) => {},
++		PassthroughEvent::Item(Frame::Event(Event::<Bytes> { data, .. })) => {
+ 			events.clone().lock().unwrap().push(data);
+ 		},
+-		Frame::Retry(_) => {},
+ 	});
+ 	let got = body.collect().await.unwrap();
+ 	assert_eq!(Some(&trailers), got.trailers());
+@@ -83,6 +83,9 @@ async fn test_sse_json() {
+ 	let events = Arc::new(Mutex::new(vec![]));
+ 	let ev_clone = events.clone();
+ 	let body = passthrough::parser(body, decoder, move |o| {
++		let PassthroughEvent::Item(o) = o else {
++			return;
++		};
+ 		events
+ 			.clone()
+ 			.lock()
 diff --git a/crates/llm/src/parse/passthrough.rs b/crates/llm/src/parse/passthrough.rs
-index 12d15bb..4131f79 100644
+index 12d15bb..498415c 100644
 --- a/crates/llm/src/parse/passthrough.rs
 +++ b/crates/llm/src/parse/passthrough.rs
-@@ -18,11 +18,29 @@ pin_project! {
+@@ -18,11 +18,16 @@ pin_project! {
  	}
  }
  
--pub fn parser<D, F>(body: Body, decoder: D, handler: F) -> Body
 +pub enum PassthroughEvent<T> {
 +	Item(T),
 +	Eof,
 +}
 +
-+pub fn parser<D, F>(body: Body, decoder: D, mut handler: F) -> Body
+ pub fn parser<D, F>(body: Body, decoder: D, handler: F) -> Body
  where
  	D: Decoder + Send + 'static,
  	D::Error: Send + Into<axum_core::BoxError> + 'static,
- 	F: FnMut(D::Item) + Send + 'static,
-+{
-+	parser_with_events(body, decoder, move |event| {
-+		if let PassthroughEvent::Item(item) = event {
-+			handler(item);
-+		}
-+	})
-+}
-+
-+pub fn parser_with_events<D, F>(body: Body, decoder: D, handler: F) -> Body
-+where
-+	D: Decoder + Send + 'static,
-+	D::Error: Send + Into<axum_core::BoxError> + 'static,
+-	F: FnMut(D::Item) + Send + 'static,
 +	F: FnMut(PassthroughEvent<D::Item>) + Send + 'static,
  {
  	// Safe: parsing consumes a separate copy of the data; original frames,
  	// including trailers, are forwarded unchanged and in order.
-@@ -41,7 +59,7 @@ impl<D, F> HttpBody for PassthroughBody<D, F>
+@@ -41,7 +46,7 @@ impl<D, F> HttpBody for PassthroughBody<D, F>
  where
  	D: Decoder + Send + 'static,
  	D::Error: Send + Into<axum_core::BoxError> + 'static,
@@ -2057,7 +2059,7 @@ index 12d15bb..4131f79 100644
  {
  	type Data = Bytes;
  	type Error = axum_core::Error;
-@@ -65,7 +83,7 @@ where
+@@ -65,7 +70,7 @@ where
  				};
  				match decode {
  					Ok(Some(decoded_item)) => {
@@ -2066,7 +2068,7 @@ index 12d15bb..4131f79 100644
  					},
  					Ok(None) => {
  						// Nothing more to decode!
-@@ -111,7 +129,12 @@ where
+@@ -111,7 +116,12 @@ where
  			&mut *this.decoder,
  			this.handler,
  		) {
@@ -2081,7 +2083,7 @@ index 12d15bb..4131f79 100644
  		}
  	}
 diff --git a/crates/llm/src/parse/sse.rs b/crates/llm/src/parse/sse.rs
-index e762205..e3aa73c 100644
+index e762205..b810a11 100644
 --- a/crates/llm/src/parse/sse.rs
 +++ b/crates/llm/src/parse/sse.rs
 @@ -7,7 +7,7 @@ use serde::de::DeserializeOwned;
@@ -2089,7 +2091,7 @@ index e762205..e3aa73c 100644
  use tokio_util::codec::BytesCodec;
  
 -use super::passthrough::parser as passthrough_parser;
-+use super::passthrough::{PassthroughEvent, parser_with_events as passthrough_parser};
++use super::passthrough::{PassthroughEvent, parser as passthrough_parser};
  use super::transform::{TransformEvent, parser as transform_parser};
  
  /// Append an OpenAI `[DONE]` event after a body closes successfully.

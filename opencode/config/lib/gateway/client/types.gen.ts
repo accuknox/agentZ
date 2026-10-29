@@ -56,7 +56,7 @@ export type GuardrailConnectionInput = {
   name: string
   displayName: string
   description?: string
-  provider: "OpenAI" | "Bedrock" | "ModelArmor" | "Webhook"
+  provider: "AccuKnox" | "OpenAI" | "Bedrock" | "ModelArmor" | "Webhook"
   endpoint?: string
   region?: string
 }
@@ -65,7 +65,7 @@ export type GuardrailConnection = {
   name: string
   displayName: string
   description: string
-  provider: "OpenAI" | "Bedrock" | "ModelArmor" | "Webhook"
+  provider: "AccuKnox" | "OpenAI" | "Bedrock" | "ModelArmor" | "Webhook"
   endpoint: string
   region: string
   scope: ResourceScope
@@ -93,7 +93,7 @@ export type GuardrailDiscoveredResource = {
 }
 
 export type GuardrailResourceDiscovery = {
-  provider: "OpenAI" | "Bedrock" | "ModelArmor" | "Webhook"
+  provider: "AccuKnox" | "OpenAI" | "Bedrock" | "ModelArmor" | "Webhook"
   kind: "guardrails" | "versions" | "projects" | "locations" | "templates"
   items: Array<GuardrailDiscoveredResource>
   nextPageToken?: string
@@ -2998,6 +2998,10 @@ export type GuardrailRuntimeEvaluation = {
   action: "failOpen" | "audit" | "mask" | "reject"
   guardrailId?: string
   guardrailVersion?: string
+  /**
+   * Checker failure recorded for investigation. Never included in model-facing rejection details.
+   */
+  error?: string
   context?: GuardrailContext
 }
 
@@ -3535,7 +3539,7 @@ export type GuardrailConnectionInputWritable = {
   name: string
   displayName: string
   description?: string
-  provider: "OpenAI" | "Bedrock" | "ModelArmor" | "Webhook"
+  provider: "AccuKnox" | "OpenAI" | "Bedrock" | "ModelArmor" | "Webhook"
   endpoint?: string
   region?: string
   credentials?: GuardrailCredentials

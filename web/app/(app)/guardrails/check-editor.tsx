@@ -104,7 +104,10 @@ export function CheckEditor(props: CheckEditorProps) {
   let detector = ""
   if (check.connection) detector = `${check.connection.scope}/${check.connection.name}`
   if (check.regex) detector = "regex"
-  const providerMasks = connection?.provider === "Bedrock" || connection?.provider === "Webhook"
+  const providerMasks =
+    connection?.provider === "AccuKnox" ||
+    connection?.provider === "Bedrock" ||
+    connection?.provider === "Webhook"
   const fixedScopes = connection !== undefined && connection.provider !== "Bedrock"
   const maskSelected = !!check.regex && check.mode === "enforce" && check.action === "mask"
   let maskUnavailable = ""
@@ -116,7 +119,7 @@ export function CheckEditor(props: CheckEditorProps) {
   if (connection?.provider === "Bedrock")
     actionDescription =
       "Enforce applies the AWS guardrail's verdict, including anonymization. Configure masking in the selected AWS guardrail version."
-  if (connection?.provider === "Webhook")
+  if (connection?.provider === "AccuKnox" || connection?.provider === "Webhook")
     actionDescription =
       "Enforce applies the webhook's verdict, including replacement content returned with a mask response."
   if (connection?.provider === "OpenAI" || connection?.provider === "ModelArmor")

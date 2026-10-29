@@ -104,7 +104,8 @@ func guardrailEventsFromSpan(sp *tracepb.Span) ([]guardrailEvent, error) {
 		if evaluation.Guard == "" {
 			return nil, errors.New("guardrail evaluation has no guard kind")
 		}
-		// The generated type excludes inspected content and provider diagnostics.
+		// Re-encoding through the generated contract drops inspected content
+		// and unrecognized provider fields before event storage.
 		encoded, err := json.Marshal(evaluation)
 		if err != nil {
 			return nil, fmt.Errorf("encode guardrail evaluation: %w", err)

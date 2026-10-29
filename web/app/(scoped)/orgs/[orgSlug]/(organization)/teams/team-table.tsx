@@ -71,12 +71,7 @@ export function TeamTable({
   return (
     <AdminDataGrid
       ariaLabel="Teams"
-      emptyState={
-        <AdministrationState
-          kind="welcome"
-          title="No teams"
-        />
-      }
+      emptyState={<AdministrationState kind="welcome" title="No teams" />}
       layout={layout}
       pagination={
         <TokenTablePagination hasNextPage={Boolean(nextPageToken)} nextPageToken={nextPageToken} />

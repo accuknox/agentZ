@@ -129,12 +129,7 @@ export function APIKeysTable({
   return (
     <AdminDataGrid
       ariaLabel="API keys"
-      emptyState={
-        <AdministrationState
-          kind="empty"
-          title="No API keys"
-        />
-      }
+      emptyState={<AdministrationState kind="empty" title="No API keys" />}
       layout={columnLayout}
       rows={keys}
       table={table}

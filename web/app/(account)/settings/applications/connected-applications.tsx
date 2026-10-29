@@ -170,12 +170,7 @@ export function ConnectedApplications({
         layout={layout}
         onRowActivate={setDetails}
         rowAriaLabel={(application) => `View access for ${application.name}`}
-        emptyState={
-          <AdministrationState
-            kind="empty"
-            title="No connected applications"
-          />
-        }
+        emptyState={<AdministrationState kind="empty" title="No connected applications" />}
       />
       {details ? (
         <ApplicationAccessSheet

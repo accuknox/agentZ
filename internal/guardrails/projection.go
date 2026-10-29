@@ -118,7 +118,7 @@ func (b *Bundle) ProjectConnections(ctx context.Context, c client.Client, namesp
 				}
 			}
 			targets = append(targets, networkpolicy.Target{Host: "oauth2.googleapis.com", Port: 443})
-		case "Webhook":
+		case "AccuKnox", "Webhook":
 			endpoint, err := url.Parse(connection.Spec.Endpoint)
 			if err != nil {
 				return nil, err

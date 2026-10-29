@@ -17,11 +17,7 @@ type NewSandboxPageProps = {
 }
 
 export default function NewSandboxPage(props: NewSandboxPageProps) {
-  const {
-    basePath,
-    providersHref,
-    workspaceId,
-  } = props
+  const { basePath, providersHref, workspaceId } = props
 
   return (
     <main className="flex min-h-0 flex-1 flex-col gap-6 pb-4 sm:pb-6">
@@ -38,11 +34,7 @@ export default function NewSandboxPage(props: NewSandboxPageProps) {
 }
 
 async function NewSandboxWizard(props: NewSandboxPageProps) {
-  const {
-    basePath,
-    providersHref,
-    workspaceId,
-  } = props
+  const { basePath, providersHref, workspaceId } = props
 
   const [result, skills, providers, pools, policies, guardrailSettings] = await Promise.all([
     listMcpConnectionsCachedQuery(

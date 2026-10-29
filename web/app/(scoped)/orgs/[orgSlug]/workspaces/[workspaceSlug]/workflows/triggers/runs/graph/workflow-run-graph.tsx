@@ -22,12 +22,7 @@ type WorkflowRunGraphProps = {
 }
 
 export function WorkflowRunGraph(props: WorkflowRunGraphProps) {
-  const {
-    agentName,
-    workflow,
-    workflowRun,
-    workspaceId,
-  } = props
+  const { agentName, workflow, workflowRun, workspaceId } = props
 
   const query = useQuery(
     queryOptions({

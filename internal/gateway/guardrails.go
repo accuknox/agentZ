@@ -226,7 +226,7 @@ func (s *Service) serveGuardrailConnections(w http.ResponseWriter, r *http.Reque
 		credentials := input.Credentials
 		data := map[string]any{}
 		switch spec.Provider {
-		case "OpenAI", "Webhook":
+		case "AccuKnox", "OpenAI", "Webhook":
 			var token string
 			if credentials.ApiKey != nil {
 				token = *credentials.ApiKey
@@ -280,6 +280,13 @@ func (s *Service) serveGuardrailConnections(w http.ResponseWriter, r *http.Reque
 		apiutil.WriteError(w, r, apiutil.NewError(
 			http.StatusBadRequest, "invalid_request",
 			"OpenAI moderation requires an API key", errBadRequest,
+		))
+		return
+	}
+	if spec.Provider == "AccuKnox" && spec.SecretName == "" {
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest, "invalid_request",
+			"AccuKnox prompt firewall requires a bearer token", errBadRequest,
 		))
 		return
 	}

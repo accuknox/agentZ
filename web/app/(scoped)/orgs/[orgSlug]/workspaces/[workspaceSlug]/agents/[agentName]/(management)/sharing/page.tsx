@@ -75,10 +75,7 @@ async function AgentSharingContent({
         />
       </div>
       {detail.shares.length === 0 ? (
-        <AdministrationState
-          kind="empty"
-          title="No shares yet"
-        />
+        <AdministrationState kind="empty" title="No shares yet" />
       ) : (
         <AgentSharesTable
           actionScope={actionScope}

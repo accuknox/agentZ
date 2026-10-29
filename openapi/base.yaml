@@ -5783,7 +5783,7 @@ components:
         name: {type: string, pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$', maxLength: 63}
         displayName: {type: string, minLength: 1, maxLength: 128}
         description: {type: string, maxLength: 2048}
-        provider: {type: string, enum: [OpenAI, Bedrock, ModelArmor, Webhook]}
+        provider: {type: string, enum: [AccuKnox, OpenAI, Bedrock, ModelArmor, Webhook]}
         endpoint: {type: string}
         region: {type: string}
         credentials: {$ref: '#/components/schemas/GuardrailCredentials'}
@@ -5795,7 +5795,7 @@ components:
         name: {type: string}
         displayName: {type: string}
         description: {type: string}
-        provider: {type: string, enum: [OpenAI, Bedrock, ModelArmor, Webhook]}
+        provider: {type: string, enum: [AccuKnox, OpenAI, Bedrock, ModelArmor, Webhook]}
         endpoint: {type: string}
         region: {type: string}
         scope: {$ref: '#/components/schemas/ResourceScope'}
@@ -5829,7 +5829,7 @@ components:
       type: object
       additionalProperties: false
       properties:
-        provider: {type: string, enum: [OpenAI, Bedrock, ModelArmor, Webhook]}
+        provider: {type: string, enum: [AccuKnox, OpenAI, Bedrock, ModelArmor, Webhook]}
         kind: {type: string, enum: [guardrails, versions, projects, locations, templates]}
         items: {type: array, items: {$ref: '#/components/schemas/GuardrailDiscoveredResource'}}
         nextPageToken: {type: string}
@@ -12095,6 +12095,10 @@ components:
         action: {type: string, enum: [failOpen, audit, mask, reject]}
         guardrailId: {type: string}
         guardrailVersion: {type: string}
+        error:
+          type: string
+          maxLength: 4096
+          description: Checker failure recorded for investigation. Never included in model-facing rejection details.
         context: {$ref: '#/components/schemas/GuardrailContext'}
       required: [phase, guard, action]
     GuardrailEvent:

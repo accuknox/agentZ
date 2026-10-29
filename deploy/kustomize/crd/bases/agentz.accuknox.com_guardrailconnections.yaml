@@ -55,7 +55,7 @@ spec:
                 minLength: 1
                 type: string
               endpoint:
-                description: Endpoint overrides the detector base URL; required for custom webhooks.
+                description: Endpoint is the root URL for AccuKnox and custom webhook services.
                 type: string
               lastModifiedByUserID:
                 description: LastModifiedByUserID is the Better Auth User ID that last changed the resource.
@@ -65,6 +65,7 @@ spec:
               provider:
                 description: Provider selects the supported detector protocol.
                 enum:
+                - AccuKnox
                 - OpenAI
                 - Bedrock
                 - ModelArmor

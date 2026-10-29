@@ -4209,6 +4209,7 @@ components:
           type: string
         provider:
           enum:
+          - AccuKnox
           - OpenAI
           - Bedrock
           - ModelArmor
@@ -4253,6 +4254,7 @@ components:
           type: string
         provider:
           enum:
+          - AccuKnox
           - OpenAI
           - Bedrock
           - ModelArmor
@@ -4632,6 +4634,7 @@ components:
           type: string
         provider:
           enum:
+          - AccuKnox
           - OpenAI
           - Bedrock
           - ModelArmor
@@ -4687,6 +4690,10 @@ components:
           type: string
         context:
           $ref: '#/components/schemas/GuardrailContext'
+        error:
+          description: Checker failure recorded for investigation. Never included in model-facing rejection details.
+          maxLength: 4096
+          type: string
         guard:
           type: string
         guardrailId:

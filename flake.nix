@@ -22,7 +22,7 @@
             src = ./.;
             subPackages = [ "cmd/agentz" ];
             ldflags = [ "-s" "-w" ];
-            vendorHash = "sha256-c+OagHyu8JNlOO6MNCjjjIysW6m8C4LYnZAKoYqx0pg=";
+            vendorHash = "sha256-GIlqRsyQNf8rbHrvD4nDDslFLtR9TYPkKCDy+1XtRjg=";
           };
           nodeModules = pkgs.stdenvNoCC.mkDerivation {
             pname = "opencode-config-node_modules";

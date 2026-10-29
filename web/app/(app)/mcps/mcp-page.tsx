@@ -7,6 +7,7 @@ import { deleteScopedMcpFormAction, submitScopedMcpFormAction } from "@/data/mcp
 import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
 import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 import { McpTable } from "./mcp-table"
+import { mcpOAuthCallbackURL } from "@/lib/mcp-oauth-callback-url"
 import { McpSheet } from "./mcp-sheet"
 import { NewMcpButton } from "./new-mcp-button"
 import { resourceLabels } from "@/lib/resource-labels"
@@ -61,7 +62,9 @@ export async function McpPage({
   if (!canCreate) return content
 
   return (
-    <McpSheet submitMcpAction={submitScopedMcpFormAction.bind(null, scope)}>{content}</McpSheet>
+    <McpSheet oauthCallbackURL={mcpOAuthCallbackURL()} submitMcpAction={submitScopedMcpFormAction.bind(null, scope)}>
+      {content}
+    </McpSheet>
   )
 }
 

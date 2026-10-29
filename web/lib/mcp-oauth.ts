@@ -27,6 +27,7 @@ import {
 import { serverWebBaseURL } from "@/lib/gateway/server-base-url"
 import { dayjs } from "@/lib/format"
 import {
+  mcpOAuthCallbackPath,
   oauthBroadcastChannelName,
   oauthErrorFieldNames,
   oauthPendingCookieBudget,
@@ -422,7 +423,7 @@ export async function requirePublicOAuthDiscoveryState(discoveryState: StoredOAu
 }
 
 function redirectURL() {
-  return new URL("/mcps/oauth/callback", serverWebBaseURL())
+  return new URL(mcpOAuthCallbackPath, serverWebBaseURL())
 }
 
 function oauthClientMetadata(redirectURL: URL): OAuthClientMetadata {

@@ -70,6 +70,7 @@ import {
 } from "@/components/ui/sheet"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
+import { CopyButton } from "@/components/interior/copy-button"
 import { DisabledReason } from "@/components/ui/tooltip"
 import { type McpFormState, type SubmitMcpFormAction } from "@/data/mcp.actions"
 import { mcpFormSchema, type McpFormInput, type McpFormValues } from "@/data/mcp.schema"
@@ -649,9 +650,11 @@ function ServerURLField({
 
 export function McpSheet({
   children,
+  oauthCallbackURL,
   submitMcpAction,
 }: {
   children: React.ReactNode
+  oauthCallbackURL: string
   submitMcpAction: SubmitMcpAction
 }) {
   const [open, setOpen] = React.useState(false)
@@ -1289,6 +1292,19 @@ export function McpSheet({
                         {errors.oauth_client_secret ? (
                           <FieldError errors={[errors.oauth_client_secret]} />
                         ) : null}
+                      </Field>
+                      <Field>
+                        <FieldLabel>OAuth callback URL</FieldLabel>
+                        <InputGroup>
+                          <InputGroupInput readOnly value={oauthCallbackURL} />
+                          <InputGroupAddon align="inline-end">
+                            <CopyButton content={oauthCallbackURL} label="Copy OAuth callback URL" />
+                          </InputGroupAddon>
+                        </InputGroup>
+                        <FieldDescription>
+                          Register this redirect URI with your OAuth provider when creating the client
+                          ID and secret.
+                        </FieldDescription>
                       </Field>
                     </FieldGroup>
                   </AccordionContent>

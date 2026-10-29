@@ -5,6 +5,8 @@ export const oauthBroadcastChannelName = "agentz:mcp-oauth"
 
 export const oauthPendingCookieBudget = 3000
 
+export const mcpOAuthCallbackPath = "/mcps/oauth/callback"
+
 export const oauthErrorFieldNames = ["oauth_client_id", "oauth_client_secret"] as const
 
 export type OAuthErrorFieldName = (typeof oauthErrorFieldNames)[number]

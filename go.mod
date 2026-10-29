@@ -22,7 +22,7 @@ require (
 	github.com/envoyproxy/go-control-plane/envoy v1.39.1-0.20260829101913-1e3cf565f8ea
 	github.com/external-secrets/external-secrets/apis v0.0.0-20260626113040-e215053f3e68
 	github.com/getkin/kin-openapi v0.149.0
-	github.com/go-chi/chi/v5 v5.3.0
+	github.com/go-chi/chi/v5 v5.4.0
 	github.com/go-chi/cors v1.2.2
 	github.com/go-logr/logr v1.4.4
 	github.com/golang-jwt/jwt/v5 v5.3.1

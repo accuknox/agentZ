@@ -65,7 +65,8 @@ func (s *Service) delegationReady(ctx context.Context, grant gatewaydb.Delegatio
 		if foreignParent {
 			continue
 		}
-		ready = conditionsReady(parent.Conditions, route.Generation, string(gwv1.RouteConditionAccepted), string(gwv1.RouteConditionResolvedRefs))
+		ready = conditionsReady(parent.Conditions, route.Generation,
+			string(gwv1.RouteConditionAccepted), string(gwv1.RouteConditionResolvedRefs))
 		if ready {
 			break
 		}
@@ -267,7 +268,10 @@ func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.Delegat
 			Port: target.LLM.Port,
 		})
 		for _, host := range target.AdditionalHosts {
-			ownerEgress[selected.Namespace] = append(ownerEgress[selected.Namespace], networkpolicy.Target{Host: host, Port: 443})
+			ownerEgress[selected.Namespace] = append(ownerEgress[selected.Namespace], networkpolicy.Target{
+				Host: host,
+				Port: 443,
+			})
 		}
 		backend := &agw.AgentgatewayBackend{
 			TypeMeta: metav1.TypeMeta{
@@ -381,14 +385,21 @@ func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.Delegat
 			if err != nil {
 				return err
 			}
-			ownerEgress[selected.Namespace] = append(ownerEgress[selected.Namespace], networkpolicy.Target{Host: target.Host, Port: target.Port})
+			ownerEgress[selected.Namespace] = append(ownerEgress[selected.Namespace], networkpolicy.Target{
+				Host: target.Host,
+				Port: target.Port,
+			})
 			aggregationEgress = append(aggregationEgress, networkpolicy.ServiceEgress(selected.Namespace, mcp.GatewayName, 8080)...)
 			transport := &agw.BackendSimple{
-				TLS:  &agw.BackendTLS{Sni: &target.Host},
-				HTTP: &agw.BackendHTTP{Version: new(agw.HTTPVersion1)},
+				TLS: &agw.BackendTLS{Sni: &target.Host},
+				HTTP: &agw.BackendHTTP{
+					Version: new(agw.HTTPVersion1),
+				},
 			}
 			if connection.Spec.Endpoint.Timeout != nil {
-				transport.HTTP.RequestTimeout = &agw.Duration{Duration: connection.Spec.Endpoint.Timeout.Duration}
+				transport.HTTP.RequestTimeout = &agw.Duration{
+					Duration: connection.Spec.Endpoint.Timeout.Duration,
+				}
 			}
 			innerName := fmt.Sprintf("d-%s-mcp-%d", grant.ID, index)
 			section := gwv1.SectionName(selected.Id)
@@ -466,7 +477,13 @@ func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.Delegat
 		objects = append(
 			objects,
 			outer,
-			delegationRoute(s.cfg.DelegationNamespace, "delegations", name, "/delegations/"+grant.ID+"/mcp", gwv1.PathMatchExact),
+			delegationRoute(
+				s.cfg.DelegationNamespace,
+				"delegations",
+				name,
+				"/delegations/"+grant.ID+"/mcp",
+				gwv1.PathMatchExact,
+			),
 		)
 	}
 	if len(aggregationEgress) > 0 {
@@ -498,8 +515,16 @@ func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.Delegat
 					IngressCommonRule: ciliumapi.IngressCommonRule{
 						FromEndpoints: []ciliumapi.EndpointSelector{
 							ciliumapi.NewESFromLabels(
-								ciliumlabels.NewLabel("io.cilium.k8s.policy.serviceaccount", s.cfg.GatewayServiceAccountName, ciliumlabels.LabelSourceK8s),
-								ciliumlabels.NewLabel("io.kubernetes.pod.namespace", s.cfg.GatewayServiceAccountNamespace, ciliumlabels.LabelSourceK8s),
+								ciliumlabels.NewLabel(
+									"io.cilium.k8s.policy.serviceaccount",
+									s.cfg.GatewayServiceAccountName,
+									ciliumlabels.LabelSourceK8s,
+								),
+								ciliumlabels.NewLabel(
+									"io.kubernetes.pod.namespace",
+									s.cfg.GatewayServiceAccountNamespace,
+									ciliumlabels.LabelSourceK8s,
+								),
 							),
 							ciliumapi.NewESFromLabels(
 								ciliumlabels.NewLabel("gateway.networking.k8s.io/gateway-name", "delegations", ciliumlabels.LabelSourceK8s),
@@ -508,7 +533,12 @@ func (s *Service) projectDelegation(ctx context.Context, grant gatewaydb.Delegat
 							),
 						},
 					},
-					ToPorts: []ciliumapi.PortRule{{Ports: []ciliumapi.PortProtocol{{Port: "8080", Protocol: ciliumapi.ProtoTCP}}}},
+					ToPorts: []ciliumapi.PortRule{{
+						Ports: []ciliumapi.PortProtocol{{
+							Port:     "8080",
+							Protocol: ciliumapi.ProtoTCP,
+						}},
+					}},
 				}},
 			},
 		}
@@ -640,7 +670,12 @@ func delegationRoute(namespace, gateway, name, path string, matchType gwv1.PathM
 				}},
 			},
 			Rules: []gwv1.HTTPRouteRule{{
-				Matches: []gwv1.HTTPRouteMatch{{Path: &gwv1.HTTPPathMatch{Type: &matchType, Value: &path}}},
+				Matches: []gwv1.HTTPRouteMatch{{
+					Path: &gwv1.HTTPPathMatch{
+						Type:  &matchType,
+						Value: &path,
+					},
+				}},
 				Filters: filters,
 				BackendRefs: []gwv1.HTTPBackendRef{{
 					BackendRef: gwv1.BackendRef{
@@ -690,7 +725,9 @@ func delegationTelemetry(grant gatewaydb.DelegationGrant, appName, agentKind str
 			Traffic: &agw.Traffic{
 				Transformation: &agw.TransformationOrConditional{
 					Request: &agw.Transform{
-						Metadata: map[string]agw.CELExpression{"agentz_observability": agw.CELExpression(data)},
+						Metadata: map[string]agw.CELExpression{
+							"agentz_observability": agw.CELExpression(data),
+						},
 					},
 				},
 			},

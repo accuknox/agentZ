@@ -83,13 +83,25 @@ func mapKubeHTTPError(action string, err error) *apiutil.APIError {
 			if cause.Field == "" {
 				continue
 			}
-			fields = append(fields, gatewayapi.FieldError{Field: cause.Field, Message: cause.Message})
+			fields = append(
+				fields,
+				gatewayapi.FieldError{
+					Field:   cause.Field,
+					Message: cause.Message,
+				},
+			)
 		}
 		if len(fields) == 0 {
 			return apiutil.NewError(http.StatusBadRequest, "invalid_request", action+" is invalid", err)
 		}
 
-		return apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", err, fields...)
+		return apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			err,
+			fields...,
+		)
 	}
 
 	return apiutil.NewError(http.StatusInternalServerError, "internal_error", "request failed", err)

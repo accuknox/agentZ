@@ -34,12 +34,25 @@ func (s *Service) CreateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", errBadRequest, fields...),
+			apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				fields...,
+			),
 		)
 		return
 	}
 
-	fields, err = workflow.ValidateScheduleInputs(r.Context(), s.db, ns, agentName, workflowName, req.Inputs)
+	fields, err = workflow.ValidateScheduleInputs(
+		r.Context(),
+		s.db,
+		ns,
+		agentName,
+		workflowName,
+		req.Inputs,
+	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
@@ -48,12 +61,25 @@ func (s *Service) CreateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", errBadRequest, fields...),
+			apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				fields...,
+			),
 		)
 		return
 	}
 
-	resp, err := workflow.CreateSchedule(r.Context(), s.k8sClient, ns, agentName, workflowName, req)
+	resp, err := workflow.CreateSchedule(
+		r.Context(),
+		s.k8sClient,
+		ns,
+		agentName,
+		workflowName,
+		req,
+	)
 	if err != nil {
 		apiutil.WriteError(w, r, mapKubeHTTPError("create workflow schedule", err))
 		return
@@ -76,7 +102,13 @@ func (s *Service) ListAgentWorkflowSchedules(w http.ResponseWriter, r *http.Requ
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", errBadRequest, fields...),
+			apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				fields...,
+			),
 		)
 		return
 	}
@@ -86,7 +118,16 @@ func (s *Service) ListAgentWorkflowSchedules(w http.ResponseWriter, r *http.Requ
 		limit = int(*params.Limit)
 	}
 	if limit < 1 || limit > 200 {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "limit must be between 1 and 200", errBadRequest))
+		apiutil.WriteError(
+			w,
+			r,
+			apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"limit must be between 1 and 200",
+				errBadRequest,
+			),
+		)
 		return
 	}
 
@@ -103,13 +144,25 @@ func (s *Service) ListAgentWorkflowSchedules(w http.ResponseWriter, r *http.Requ
 		sortOrder = gatewayapi.SortOrderQuery(*params.SortOrder)
 	}
 
-	items, nextOffset, err := workflow.ListSchedules(r.Context(), s.k8sClient, ns, agentName, "", sortBy, sortOrder, limit, offset)
+	items, nextOffset, err := workflow.ListSchedules(
+		r.Context(),
+		s.k8sClient,
+		ns,
+		agentName,
+		"",
+		sortBy,
+		sortOrder,
+		limit,
+		offset,
+	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, fmt.Errorf("list workflow schedules: %w", err))
 		return
 	}
 
-	resp := gatewayapi.ListWorkflowSchedulesResponse{WorkflowSchedules: items}
+	resp := gatewayapi.ListWorkflowSchedulesResponse{
+		WorkflowSchedules: items,
+	}
 	if nextOffset > 0 {
 		resp.NextPageToken = encodeOffsetToken(nextOffset)
 	}
@@ -131,7 +184,13 @@ func (s *Service) ListWorkflowSchedules(w http.ResponseWriter, r *http.Request, 
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", errBadRequest, fields...),
+			apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				fields...,
+			),
 		)
 		return
 	}
@@ -141,7 +200,16 @@ func (s *Service) ListWorkflowSchedules(w http.ResponseWriter, r *http.Request, 
 		limit = int(*params.Limit)
 	}
 	if limit < 1 || limit > 200 {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "limit must be between 1 and 200", errBadRequest))
+		apiutil.WriteError(
+			w,
+			r,
+			apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"limit must be between 1 and 200",
+				errBadRequest,
+			),
+		)
 		return
 	}
 
@@ -158,13 +226,25 @@ func (s *Service) ListWorkflowSchedules(w http.ResponseWriter, r *http.Request, 
 		sortOrder = gatewayapi.SortOrderQuery(*params.SortOrder)
 	}
 
-	items, nextOffset, err := workflow.ListSchedules(r.Context(), s.k8sClient, ns, agentName, workflowName, sortBy, sortOrder, limit, offset)
+	items, nextOffset, err := workflow.ListSchedules(
+		r.Context(),
+		s.k8sClient,
+		ns,
+		agentName,
+		workflowName,
+		sortBy,
+		sortOrder,
+		limit,
+		offset,
+	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, fmt.Errorf("list workflow schedules: %w", err))
 		return
 	}
 
-	resp := gatewayapi.ListWorkflowSchedulesResponse{WorkflowSchedules: items}
+	resp := gatewayapi.ListWorkflowSchedulesResponse{
+		WorkflowSchedules: items,
+	}
 	if nextOffset > 0 {
 		resp.NextPageToken = encodeOffsetToken(nextOffset)
 	}
@@ -187,12 +267,25 @@ func (s *Service) DeleteWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", errBadRequest, fields...),
+			apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				fields...,
+			),
 		)
 		return
 	}
 
-	err = workflow.DeleteSchedule(r.Context(), s.k8sClient, ns, agentName, workflowName, scheduleName)
+	err = workflow.DeleteSchedule(
+		r.Context(),
+		s.k8sClient,
+		ns,
+		agentName,
+		workflowName,
+		scheduleName,
+	)
 	if err != nil {
 		if errors.Is(err, workflow.ErrScheduleAgentMismatch) {
 			apiutil.WriteError(
@@ -230,17 +323,35 @@ func (s *Service) UpdateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 	agentName := strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 	scheduleName = strings.TrimSpace(scheduleName)
-	fields := workflow.ValidateScheduleUpdateRequest(agentName, workflowName, scheduleName, &req)
+	fields := workflow.ValidateScheduleUpdateRequest(
+		agentName,
+		workflowName,
+		scheduleName,
+		&req,
+	)
 	if len(fields) > 0 {
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", errBadRequest, fields...),
+			apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				fields...,
+			),
 		)
 		return
 	}
 
-	fields, err = workflow.ValidateScheduleInputs(r.Context(), s.db, ns, agentName, workflowName, req.Inputs)
+	fields, err = workflow.ValidateScheduleInputs(
+		r.Context(),
+		s.db,
+		ns,
+		agentName,
+		workflowName,
+		req.Inputs,
+	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
@@ -249,12 +360,26 @@ func (s *Service) UpdateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", errBadRequest, fields...),
+			apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				fields...,
+			),
 		)
 		return
 	}
 
-	resp, err := workflow.UpdateSchedule(r.Context(), s.k8sClient, ns, agentName, workflowName, scheduleName, req)
+	resp, err := workflow.UpdateSchedule(
+		r.Context(),
+		s.k8sClient,
+		ns,
+		agentName,
+		workflowName,
+		scheduleName,
+		req,
+	)
 	if err != nil {
 		if errors.Is(err, workflow.ErrScheduleAgentMismatch) {
 			apiutil.WriteError(
@@ -292,12 +417,25 @@ func (s *Service) CreateWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", errBadRequest, fields...),
+			apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				fields...,
+			),
 		)
 		return
 	}
 
-	resp, err := workflow.CreateScheduledRun(r.Context(), s.k8sClient, ns, agtName, workflowName, scheduleName)
+	resp, err := workflow.CreateScheduledRun(
+		r.Context(),
+		s.k8sClient,
+		ns,
+		agtName,
+		workflowName,
+		scheduleName,
+	)
 	if err != nil {
 		if errors.Is(err, workflow.ErrWorkflowRunScopeMismatch) {
 			apiutil.WriteError(

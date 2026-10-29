@@ -161,13 +161,22 @@ func newResolver(ctx context.Context, targetOverride string) (*resolver, error) 
 	}
 	_, err = mcpInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj any) {
-			r.broadcastMCPConnectionEvent(mcpConnectionWatchEventChanged, mcpConnectionFromInformerObject(obj))
+			r.broadcastMCPConnectionEvent(
+				mcpConnectionWatchEventChanged,
+				mcpConnectionFromInformerObject(obj),
+			)
 		},
 		UpdateFunc: func(_, newObj any) {
-			r.broadcastMCPConnectionEvent(mcpConnectionWatchEventChanged, mcpConnectionFromInformerObject(newObj))
+			r.broadcastMCPConnectionEvent(
+				mcpConnectionWatchEventChanged,
+				mcpConnectionFromInformerObject(newObj),
+			)
 		},
 		DeleteFunc: func(obj any) {
-			r.broadcastMCPConnectionEvent(mcpConnectionWatchEventDeleted, mcpConnectionFromInformerObject(obj))
+			r.broadcastMCPConnectionEvent(
+				mcpConnectionWatchEventDeleted,
+				mcpConnectionFromInformerObject(obj),
+			)
 		},
 	})
 	if err != nil {
@@ -298,7 +307,10 @@ func (r *resolver) broadcastAgentEvent(typ agentWatchEventType, agt *agentzv1alp
 	if agt == nil {
 		return
 	}
-	evt := agentWatchEvent{Type: typ, Agent: agt.DeepCopy()}
+	evt := agentWatchEvent{
+		Type:  typ,
+		Agent: agt.DeepCopy(),
+	}
 
 	r.watchMu.Lock()
 	defer r.watchMu.Unlock()
@@ -314,7 +326,10 @@ func (r *resolver) broadcastWorkflowRunEvent(typ workflowRunWatchEventType, run 
 	if run == nil {
 		return
 	}
-	evt := workflowRunWatchEvent{Type: typ, Run: run.DeepCopy()}
+	evt := workflowRunWatchEvent{
+		Type: typ,
+		Run:  run.DeepCopy(),
+	}
 
 	r.watchMu.Lock()
 	defer r.watchMu.Unlock()
@@ -330,7 +345,10 @@ func (r *resolver) broadcastSecretEvent(typ secretWatchEventType, secret *agentz
 	if secret == nil {
 		return
 	}
-	evt := secretWatchEvent{Type: typ, Secret: secret.DeepCopy()}
+	evt := secretWatchEvent{
+		Type:   typ,
+		Secret: secret.DeepCopy(),
+	}
 
 	r.watchMu.Lock()
 	defer r.watchMu.Unlock()
@@ -346,7 +364,10 @@ func (r *resolver) broadcastMCPConnectionEvent(typ mcpConnectionWatchEventType, 
 	if conn == nil {
 		return
 	}
-	evt := mcpConnectionWatchEvent{Type: typ, Connection: conn.DeepCopy()}
+	evt := mcpConnectionWatchEvent{
+		Type:       typ,
+		Connection: conn.DeepCopy(),
+	}
 
 	r.watchMu.Lock()
 	defer r.watchMu.Unlock()
@@ -372,7 +393,10 @@ func (r *resolver) resolveAgent(_ context.Context, namespace, agentName string) 
 	if err != nil {
 		return nil, errAgentNotFound
 	}
-	return &resolvedAgent{Target: r.agentTarget(agt), Agent: agt.DeepCopy()}, nil
+	return &resolvedAgent{
+		Target: r.agentTarget(agt),
+		Agent:  agt.DeepCopy(),
+	}, nil
 }
 
 func (r *resolver) agentTarget(agt *agentzv1alpha1.Agent) string {
@@ -468,7 +492,10 @@ func statusFromAgent(agt *agentzv1alpha1.Agent) *agentStatusView {
 		Message:   "Agent status is unknown",
 	}
 
-	cond := apimeta.FindStatusCondition(agt.Status.Conditions, agentzv1alpha1.ConditionTypeReady.String())
+	cond := apimeta.FindStatusCondition(
+		agt.Status.Conditions,
+		agentzv1alpha1.ConditionTypeReady.String(),
+	)
 	if cond != nil && cond.Status == "True" {
 		view.Phase = agentPhaseReady
 		view.Reason = cond.Reason
@@ -476,7 +503,10 @@ func statusFromAgent(agt *agentzv1alpha1.Agent) *agentStatusView {
 		return view
 	}
 
-	cond = apimeta.FindStatusCondition(agt.Status.Conditions, agentzv1alpha1.ConditionTypeDegraded.String())
+	cond = apimeta.FindStatusCondition(
+		agt.Status.Conditions,
+		agentzv1alpha1.ConditionTypeDegraded.String(),
+	)
 	if cond != nil && cond.Status == "True" {
 		view.Phase = agentPhaseDegraded
 		view.Reason = cond.Reason
@@ -484,7 +514,10 @@ func statusFromAgent(agt *agentzv1alpha1.Agent) *agentStatusView {
 		return view
 	}
 
-	cond = apimeta.FindStatusCondition(agt.Status.Conditions, agentzv1alpha1.ConditionTypeProgressing.String())
+	cond = apimeta.FindStatusCondition(
+		agt.Status.Conditions,
+		agentzv1alpha1.ConditionTypeProgressing.String(),
+	)
 	if cond != nil {
 		view.Phase = agentPhaseProgressing
 		view.Reason = cond.Reason

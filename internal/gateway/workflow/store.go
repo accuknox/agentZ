@@ -263,7 +263,11 @@ func DeleteMany(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlclient.Cl
 		}
 		err := k8sClient.Delete(ctx, schedule)
 		if err != nil && !apierrors.IsNotFound(err) {
-			return nil, fmt.Errorf("delete workflow schedule %q: %w", schedule.Name, err)
+			return nil, fmt.Errorf(
+				"delete workflow schedule %q: %w",
+				schedule.Name,
+				err,
+			)
 		}
 	}
 
@@ -355,12 +359,18 @@ func Get(ctx context.Context, pool *pgxpool.Pool, tenantNamespace string, agtNam
 
 	preferredToolsByNode := map[string][]string{}
 	for _, toolRow := range toolRows {
-		preferredToolsByNode[toolRow.NodeName] = append(preferredToolsByNode[toolRow.NodeName], toolRow.ToolName)
+		preferredToolsByNode[toolRow.NodeName] = append(
+			preferredToolsByNode[toolRow.NodeName],
+			toolRow.ToolName,
+		)
 	}
 
 	preferredSkillsByNode := map[string][]string{}
 	for _, skillRow := range skillRows {
-		preferredSkillsByNode[skillRow.NodeName] = append(preferredSkillsByNode[skillRow.NodeName], skillRow.SkillName)
+		preferredSkillsByNode[skillRow.NodeName] = append(
+			preferredSkillsByNode[skillRow.NodeName],
+			skillRow.SkillName,
+		)
 	}
 
 	nodes := make([]gatewayapi.WorkflowNode, 0, len(nodeRows))
@@ -518,7 +528,10 @@ func inputContractJSON(inputs *gatewayapi.WorkflowInputs, arbitraryJSON *gateway
 		return nil, nil
 	}
 
-	raw, err := json.Marshal(storedInputContract{Inputs: inputs, ArbitraryJSON: arbitraryJSON})
+	raw, err := json.Marshal(storedInputContract{
+		Inputs:        inputs,
+		ArbitraryJSON: arbitraryJSON,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("marshal workflow input contract: %w", err)
 	}

@@ -23,11 +23,27 @@ func (s *Service) GetWorkflow(w http.ResponseWriter, r *http.Request, agtName ga
 
 	fields := workflowstore.ValidateLookupRequest(agtName, workflowName)
 	if len(fields) > 0 {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", nil, fields...))
+		apiutil.WriteError(
+			w,
+			r,
+			apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				nil,
+				fields...,
+			),
+		)
 		return
 	}
 
-	workflow, err := workflowstore.Get(r.Context(), s.db, ns, agtName, workflowName)
+	workflow, err := workflowstore.Get(
+		r.Context(),
+		s.db,
+		ns,
+		agtName,
+		workflowName,
+	)
 	if err != nil {
 		apiutil.WriteError(w, r, workflowstore.MapGetError(err))
 		return
@@ -109,7 +125,17 @@ func (s *Service) CreateWorkflow(w http.ResponseWriter, r *http.Request, agtName
 		return
 	}
 	if len(fields) > 0 {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", nil, fields...))
+		apiutil.WriteError(
+			w,
+			r,
+			apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				nil,
+				fields...,
+			),
+		)
 		return
 	}
 
@@ -162,11 +188,28 @@ func (s *Service) DeleteWorkflows(w http.ResponseWriter, r *http.Request, agtNam
 
 	fields := workflowstore.ValidateDeleteRequest(agtName, req.WorkflowNames)
 	if len(fields) > 0 {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", nil, fields...))
+		apiutil.WriteError(
+			w,
+			r,
+			apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				nil,
+				fields...,
+			),
+		)
 		return
 	}
 
-	missing, err := workflowstore.DeleteMany(r.Context(), s.db, s.k8sClient, ns, agtName, req.WorkflowNames)
+	missing, err := workflowstore.DeleteMany(
+		r.Context(),
+		s.db,
+		s.k8sClient,
+		ns,
+		agtName,
+		req.WorkflowNames,
+	)
 	if err != nil {
 		apiutil.WriteError(w, r, workflowstore.MapDeleteError(err, missing))
 		return
@@ -189,13 +232,32 @@ func (s *Service) ListWorkflowSummaries(w http.ResponseWriter, r *http.Request, 
 
 	fields := workflowstore.ValidateListRequest(agtName)
 	if len(fields) > 0 {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", nil, fields...))
+		apiutil.WriteError(
+			w,
+			r,
+			apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				nil,
+				fields...,
+			),
+		)
 		return
 	}
 
 	summaries, err := workflowstore.ListSummaries(r.Context(), s.db, ns, agtName)
 	if err != nil {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusInternalServerError, "internal_error", "request failed", err))
+		apiutil.WriteError(
+			w,
+			r,
+			apiutil.NewError(
+				http.StatusInternalServerError,
+				"internal_error",
+				"request failed",
+				err,
+			),
+		)
 		return
 	}
 

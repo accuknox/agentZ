@@ -84,7 +84,12 @@ func ValidateScheduleUpdateRequest(agtName string, wfName string, name string, r
 	req.Schedule = specInput.schedule
 	req.TimeZone = specInput.timeZone
 
-	return validateScheduleRequest(strings.TrimSpace(agtName), strings.TrimSpace(wfName), strings.TrimSpace(name), specInput)
+	return validateScheduleRequest(
+		strings.TrimSpace(agtName),
+		strings.TrimSpace(wfName),
+		strings.TrimSpace(name),
+		specInput,
+	)
 }
 
 // ValidateScheduleLookup checks the names identifying a schedule.
@@ -118,7 +123,10 @@ func ValidateScheduleInputs(ctx context.Context, db *pgxpool.Pool, tenantNamespa
 
 	fields, err := ValidateRunInputs(ctx, db, tenantNamespace, agtName, wfName, raw)
 	if errors.Is(err, ErrWorkflowNotFound) {
-		return []gatewayapi.FieldError{{Field: "workflowName", Message: "referenced workflow was not found"}}, nil
+		return []gatewayapi.FieldError{{
+			Field:   "workflowName",
+			Message: "referenced workflow was not found",
+		}}, nil
 	}
 	return fields, err
 }
@@ -140,7 +148,13 @@ func ValidateRunInputs(ctx context.Context, db *pgxpool.Pool, tenantNamespace st
 
 	fields := make([]gatewayapi.FieldError, 0, len(issues))
 	for _, issue := range issues {
-		fields = append(fields, gatewayapi.FieldError{Field: issue.Field, Message: issue.Message})
+		fields = append(
+			fields,
+			gatewayapi.FieldError{
+				Field:   issue.Field,
+				Message: issue.Message,
+			},
+		)
 	}
 	return fields, nil
 }
@@ -163,10 +177,17 @@ func CreateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 	}
 
 	agt := &agentzv1alpha1.Agent{}
-	agtKey := ctrlclient.ObjectKey{Name: agtName, Namespace: ns}
+	agtKey := ctrlclient.ObjectKey{
+		Name:      agtName,
+		Namespace: ns,
+	}
 	err = k8sClient.Get(ctx, agtKey, agt)
 	if err != nil {
-		return gatewayapi.WorkflowSchedule{}, fmt.Errorf("get agent %q: %w", agtName, err)
+		return gatewayapi.WorkflowSchedule{}, fmt.Errorf(
+			"get agent %q: %w",
+			agtName,
+			err,
+		)
 	}
 
 	schedule := &agentzv1alpha1.WorkflowSchedule{
@@ -178,7 +199,10 @@ func CreateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 			Name:      req.Name,
 			Namespace: ns,
 			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(agt, agentzv1alpha1.SchemeGroupVersion.WithKind("Agent")),
+				*metav1.NewControllerRef(
+					agt,
+					agentzv1alpha1.SchemeGroupVersion.WithKind("Agent"),
+				),
 			},
 		},
 	}
@@ -369,18 +393,36 @@ func validateScheduleRequest(agtName string, wfName string, name string, specInp
 	fields = append(fields, validateScheduleDNSLabel("workflowName", wfName)...)
 	fields = append(fields, validateScheduleDNSLabel("scheduleName", name)...)
 	if specInput.schedule == "" {
-		fields = append(fields, gatewayapi.FieldError{Field: "schedule", Message: "required"})
+		fields = append(
+			fields,
+			gatewayapi.FieldError{
+				Field:   "schedule",
+				Message: "required",
+			},
+		)
 	}
 	if specInput.schedule != "" {
 		err := inputworkflow.ValidateCronSchedule(specInput.schedule)
 		if err != nil {
-			fields = append(fields, gatewayapi.FieldError{Field: "schedule", Message: err.Error()})
+			fields = append(
+				fields,
+				gatewayapi.FieldError{
+					Field:   "schedule",
+					Message: err.Error(),
+				},
+			)
 		}
 	}
 	if specInput.timeZone != nil {
 		err := inputworkflow.ValidateTimeZone(*specInput.timeZone)
 		if err != nil {
-			fields = append(fields, gatewayapi.FieldError{Field: "time_zone", Message: err.Error()})
+			fields = append(
+				fields,
+				gatewayapi.FieldError{
+					Field:   "time_zone",
+					Message: err.Error(),
+				},
+			)
 		}
 	}
 	return fields
@@ -415,13 +457,22 @@ func applyScheduleSpec(spec *agentzv1alpha1.WorkflowScheduleSpec, agtName string
 
 func validateScheduleDNSLabel(fieldName string, value string) []gatewayapi.FieldError {
 	if value == "" {
-		return []gatewayapi.FieldError{{Field: fieldName, Message: "required"}}
+		return []gatewayapi.FieldError{{
+			Field:   fieldName,
+			Message: "required",
+		}}
 	}
 	if len(value) > 32 {
-		return []gatewayapi.FieldError{{Field: fieldName, Message: "must be at most 32 characters"}}
+		return []gatewayapi.FieldError{{
+			Field:   fieldName,
+			Message: "must be at most 32 characters",
+		}}
 	}
 	if errs := validation.IsDNS1123Label(value); len(errs) > 0 {
-		return []gatewayapi.FieldError{{Field: fieldName, Message: "must be a valid DNS label"}}
+		return []gatewayapi.FieldError{{
+			Field:   fieldName,
+			Message: "must be a valid DNS label",
+		}}
 	}
 	return nil
 }

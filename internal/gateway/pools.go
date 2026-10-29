@@ -60,12 +60,25 @@ func (s *Service) createInferencePoolEventTrail(ctx context.Context, access reso
 	case authorization.OperationDeleteInferencePool:
 		action = "delete"
 	}
-	return s.createResourceEventTrail(ctx, access, gatewaydb.EventTrailTargetInferencePool, name, "inference_pool", action, result)
+	return s.createResourceEventTrail(
+		ctx,
+		access,
+		gatewaydb.EventTrailTargetInferencePool,
+		name,
+		"inference_pool",
+		action,
+		result,
+	)
 }
 
 // ListInferencePools handles GET /api/inference/pool.
 func (s *Service) ListInferencePools(w http.ResponseWriter, r *http.Request, params gatewayapi.ListInferencePoolsParams) {
-	access, apiErr := s.resolveInferencePoolAccess(r.Context(), params.XAgentZWorkspaceID, "", authorization.OperationListInferencePools)
+	access, apiErr := s.resolveInferencePoolAccess(
+		r.Context(),
+		params.XAgentZWorkspaceID,
+		"",
+		authorization.OperationListInferencePools,
+	)
 	if apiErr != nil {
 		apiutil.WriteError(w, r, apiErr)
 		return
@@ -101,7 +114,12 @@ func (s *Service) ListInferencePools(w http.ResponseWriter, r *http.Request, par
 
 // WatchInferencePools handles POST /api/inference/pool/watch.
 func (s *Service) WatchInferencePools(w http.ResponseWriter, r *http.Request, params gatewayapi.WatchInferencePoolsParams) {
-	access, apiErr := s.resolveInferencePoolAccess(r.Context(), params.XAgentZWorkspaceID, "", authorization.OperationWatchInferencePools)
+	access, apiErr := s.resolveInferencePoolAccess(
+		r.Context(),
+		params.XAgentZWorkspaceID,
+		"",
+		authorization.OperationWatchInferencePools,
+	)
 	if apiErr != nil {
 		apiutil.WriteError(w, r, apiErr)
 		return
@@ -120,7 +138,16 @@ func (s *Service) WatchInferencePools(w http.ResponseWriter, r *http.Request, pa
 	}
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusInternalServerError, "internal_error", "streaming is unavailable", nil))
+		apiutil.WriteError(
+			w,
+			r,
+			apiutil.NewError(
+				http.StatusInternalServerError,
+				"internal_error",
+				"streaming is unavailable",
+				nil,
+			),
+		)
 		return
 	}
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -155,13 +182,19 @@ func (s *Service) WatchInferencePools(w http.ResponseWriter, r *http.Request, pa
 	if !writeChanges() {
 		return
 	}
-	pools, err := s.agentz.AgentzV1alpha1().InferencePools(ns).Watch(r.Context(), metav1.ListOptions{})
+	pools, err := s.agentz.AgentzV1alpha1().InferencePools(ns).Watch(
+		r.Context(),
+		metav1.ListOptions{},
+	)
 	if err != nil {
 		apiutil.RecordRequestError(w, "internal_error", fmt.Errorf("watch inference pools: %w", err))
 		return
 	}
 	defer pools.Stop()
-	sandboxes, err := s.agentz.AgentzV1alpha1().Sandboxes(ns).Watch(r.Context(), metav1.ListOptions{})
+	sandboxes, err := s.agentz.AgentzV1alpha1().Sandboxes(ns).Watch(
+		r.Context(),
+		metav1.ListOptions{},
+	)
 	if err != nil {
 		apiutil.RecordRequestError(w, "internal_error", fmt.Errorf("watch pool usage: %w", err))
 		return
@@ -235,7 +268,12 @@ func (s *Service) CreateInferencePool(w http.ResponseWriter, r *http.Request, pa
 		return
 	}
 	name := "ipl-" + strings.ReplaceAll(uuid.NewString()[:13], "-", "")
-	access, apiErr := s.resolveInferencePoolAccess(r.Context(), params.XAgentZWorkspaceID, "", authorization.OperationCreateInferencePool)
+	access, apiErr := s.resolveInferencePoolAccess(
+		r.Context(),
+		params.XAgentZWorkspaceID,
+		"",
+		authorization.OperationCreateInferencePool,
+	)
 	if apiErr != nil {
 		if access.claims.OrganizationID != "" {
 			trailErr := s.createInferencePoolEventTrail(r.Context(), access, name, access.failureResult())
@@ -252,7 +290,12 @@ func (s *Service) CreateInferencePool(w http.ResponseWriter, r *http.Request, pa
 		if eventTrailed {
 			return
 		}
-		err := s.createInferencePoolEventTrail(context.WithoutCancel(r.Context()), access, name, gatewaydb.EventTrailResultFailed)
+		err := s.createInferencePoolEventTrail(
+			context.WithoutCancel(r.Context()),
+			access,
+			name,
+			gatewaydb.EventTrailResultFailed,
+		)
 		if err != nil {
 			slog.ErrorContext(r.Context(), "event trail failed Inference Pool create", slog.Any("err", err))
 		}
@@ -289,7 +332,12 @@ func (s *Service) CreateInferencePool(w http.ResponseWriter, r *http.Request, pa
 
 // GetInferencePool handles GET /api/inference/pool/{poolName}.
 func (s *Service) GetInferencePool(w http.ResponseWriter, r *http.Request, poolName gatewayapi.InferencePoolNamePath, params gatewayapi.GetInferencePoolParams) {
-	access, apiErr := s.resolveInferencePoolAccess(r.Context(), params.XAgentZWorkspaceID, "", authorization.OperationGetInferencePool)
+	access, apiErr := s.resolveInferencePoolAccess(
+		r.Context(),
+		params.XAgentZWorkspaceID,
+		"",
+		authorization.OperationGetInferencePool,
+	)
 	if apiErr != nil {
 		apiutil.WriteError(w, r, apiErr)
 		return
@@ -325,7 +373,12 @@ func (s *Service) UpdateInferencePool(w http.ResponseWriter, r *http.Request, po
 		if eventTrailed {
 			return
 		}
-		err := s.createInferencePoolEventTrail(context.WithoutCancel(r.Context()), access, poolName, gatewaydb.EventTrailResultFailed)
+		err := s.createInferencePoolEventTrail(
+			context.WithoutCancel(r.Context()),
+			access,
+			poolName,
+			gatewaydb.EventTrailResultFailed,
+		)
 		if err != nil {
 			slog.ErrorContext(r.Context(), "event trail failed Inference Pool update", slog.Any("err", err))
 		}
@@ -348,7 +401,11 @@ func (s *Service) UpdateInferencePool(w http.ResponseWriter, r *http.Request, po
 				http.StatusConflict,
 				"conflict",
 				"pool changed since it was loaded",
-				apierrors.NewConflict(agentzv1alpha1.Resource("inferencepools"), current.Name, fmt.Errorf("resource version does not match")),
+				apierrors.NewConflict(
+					agentzv1alpha1.Resource("inferencepools"),
+					current.Name,
+					fmt.Errorf("resource version does not match"),
+				),
 			),
 		)
 		return
@@ -379,7 +436,12 @@ func (s *Service) UpdateInferencePool(w http.ResponseWriter, r *http.Request, po
 		return
 	}
 	eventTrailed = true
-	trailErr := s.createInferencePoolEventTrail(r.Context(), access, poolName, gatewaydb.EventTrailResultSucceeded)
+	trailErr := s.createInferencePoolEventTrail(
+		r.Context(),
+		access,
+		poolName,
+		gatewaydb.EventTrailResultSucceeded,
+	)
 	if trailErr != nil {
 		apiutil.WriteInternalError(w, r, trailErr)
 		return
@@ -415,7 +477,12 @@ func (s *Service) DeleteInferencePool(w http.ResponseWriter, r *http.Request, po
 		if eventTrailed {
 			return
 		}
-		trailErr := s.createInferencePoolEventTrail(context.WithoutCancel(r.Context()), access, poolName, gatewaydb.EventTrailResultFailed)
+		trailErr := s.createInferencePoolEventTrail(
+			context.WithoutCancel(r.Context()),
+			access,
+			poolName,
+			gatewaydb.EventTrailResultFailed,
+		)
 		if trailErr != nil {
 			slog.ErrorContext(r.Context(), "event trail failed Inference Pool delete", slog.Any("trailErr", trailErr))
 		}
@@ -432,7 +499,13 @@ func (s *Service) DeleteInferencePool(w http.ResponseWriter, r *http.Request, po
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(http.StatusConflict, "pool_referenced", "pool is referenced by one or more sandboxes", errBadRequest, fields...),
+			apiutil.NewError(
+				http.StatusConflict,
+				"pool_referenced",
+				"pool is referenced by one or more sandboxes",
+				errBadRequest,
+				fields...,
+			),
 		)
 		return
 	}
@@ -441,7 +514,12 @@ func (s *Service) DeleteInferencePool(w http.ResponseWriter, r *http.Request, po
 		return
 	}
 	eventTrailed = true
-	trailErr := s.createInferencePoolEventTrail(r.Context(), access, poolName, gatewaydb.EventTrailResultSucceeded)
+	trailErr := s.createInferencePoolEventTrail(
+		r.Context(),
+		access,
+		poolName,
+		gatewaydb.EventTrailResultSucceeded,
+	)
 	if trailErr != nil {
 		apiutil.WriteInternalError(w, r, trailErr)
 		return
@@ -451,7 +529,12 @@ func (s *Service) DeleteInferencePool(w http.ResponseWriter, r *http.Request, po
 
 // GetInferencePoolUsage handles GET /api/inference/pool/{poolName}/usage.
 func (s *Service) GetInferencePoolUsage(w http.ResponseWriter, r *http.Request, poolName gatewayapi.InferencePoolNamePath, params gatewayapi.GetInferencePoolUsageParams) {
-	access, apiErr := s.resolveInferencePoolAccess(r.Context(), params.XAgentZWorkspaceID, "", authorization.OperationGetInferencePoolUsage)
+	access, apiErr := s.resolveInferencePoolAccess(
+		r.Context(),
+		params.XAgentZWorkspaceID,
+		"",
+		authorization.OperationGetInferencePoolUsage,
+	)
 	if apiErr != nil {
 		apiutil.WriteError(w, r, apiErr)
 		return
@@ -460,7 +543,10 @@ func (s *Service) GetInferencePoolUsage(w http.ResponseWriter, r *http.Request, 
 	if !ok {
 		return
 	}
-	apiutil.WriteJSON(w, http.StatusOK, gatewayapi.InferencePoolUsage{Pool: poolName, Sandboxes: usage})
+	apiutil.WriteJSON(w, http.StatusOK, gatewayapi.InferencePoolUsage{
+		Pool:      poolName,
+		Sandboxes: usage,
+	})
 }
 
 func (s *Service) poolAndUsage(w http.ResponseWriter, r *http.Request, access resourceAccess, poolName string) (*agentzv1alpha1.InferencePool, []string, bool) {

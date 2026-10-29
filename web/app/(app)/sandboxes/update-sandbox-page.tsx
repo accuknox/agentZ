@@ -28,7 +28,9 @@ type generateMetadataProps = {
 }
 
 export async function generateMetadata(props: generateMetadataProps): Promise<Metadata> {
-  const { params } = props
+  const {
+    params,
+  } = props
 
   const { name } = await params
 
@@ -38,7 +40,12 @@ export async function generateMetadata(props: generateMetadataProps): Promise<Me
 }
 
 export default async function UpdateSandboxPage(props: UpdateSandboxPageProps) {
-  const { basePath, params, providersHref, workspaceId } = props
+  const {
+    basePath,
+    params,
+    providersHref,
+    workspaceId,
+  } = props
 
   const { name } = await params
 
@@ -62,7 +69,12 @@ type UpdateSandboxContentProps = {
 }
 
 async function UpdateSandboxContent(props: UpdateSandboxContentProps) {
-  const { basePath, name, providersHref, workspaceId } = props
+  const {
+    basePath,
+    name,
+    providersHref,
+    workspaceId,
+  } = props
 
   const sandboxResult = listSandboxesCachedQuery({ limit: 200 }, workspaceId)
   const mcpResult = listMcpConnectionsCachedQuery(

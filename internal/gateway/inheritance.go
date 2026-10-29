@@ -97,7 +97,12 @@ func (s *Service) ReplaceWorkspaceInheritedResources(w http.ResponseWriter, r *h
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(http.StatusBadRequest, "invalid_request", "resource names must be non-empty and unique", errBadRequest),
+			apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"resource names must be non-empty and unique",
+				errBadRequest,
+			),
 		)
 		return
 	}
@@ -164,7 +169,16 @@ func (s *Service) ReplaceWorkspaceInheritedResources(w http.ResponseWriter, r *h
 	next := previous
 	kind, _, mapped := inheritedResourceKind(resourceType)
 	if !mapped {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "unknown inherited resource type", errBadRequest))
+		apiutil.WriteError(
+			w,
+			r,
+			apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"unknown inherited resource type",
+				errBadRequest,
+			),
+		)
 		return
 	}
 	next.Set(kind, names)
@@ -393,7 +407,10 @@ func (s *Service) persistWorkspaceResourceSelection(ctx context.Context, claims 
 			actorID:        claims.UserID,
 			action:         "workspace.inheritance.modify",
 			result:         gatewaydb.EventTrailResultSucceeded,
-			after:          []gatewayapi.EventTrailField{{Field: gatewayapi.EventTrailFieldName, Value: string(resourceType)}},
+			after: []gatewayapi.EventTrailField{{
+				Field: gatewayapi.EventTrailFieldName,
+				Value: string(resourceType),
+			}},
 		},
 	)
 	if err != nil {
@@ -416,7 +433,10 @@ func (s *Service) recordWorkspaceInheritanceFailure(r *http.Request, claims gate
 			actorID:        claims.UserID,
 			action:         "workspace.inheritance.modify",
 			result:         gatewaydb.EventTrailResultFailed,
-			after:          []gatewayapi.EventTrailField{{Field: gatewayapi.EventTrailFieldName, Value: string(resourceType)}},
+			after: []gatewayapi.EventTrailField{{
+				Field: gatewayapi.EventTrailFieldName,
+				Value: string(resourceType),
+			}},
 		},
 	)
 	if err != nil {
@@ -425,7 +445,10 @@ func (s *Service) recordWorkspaceInheritanceFailure(r *http.Request, claims gate
 }
 
 func (s *Service) validateOrganizationResourceSelection(ctx context.Context, organizationID string, selected agentzv1alpha1.SelectedOrganizationResources) ([]gatewayapi.FieldError, error) {
-	namespace := agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeOrganisation, organizationID)
+	namespace := agentzv1alpha1.ScopeNamespace(
+		agentzv1alpha1.ResourceScopeOrganisation,
+		organizationID,
+	)
 	fields := []gatewayapi.FieldError{}
 	kinds := []organizationResourceSelectionKind{
 		{
@@ -619,7 +642,10 @@ func (s *Service) workspaceInheritedResources(ctx context.Context, workspace gat
 		return nil, fmt.Errorf("unknown inherited resource type %q", resourceType)
 	}
 	selectedNames := selected.Names(kind)
-	organizationNamespace := agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeOrganisation, workspace.OrganizationID)
+	organizationNamespace := agentzv1alpha1.ScopeNamespace(
+		agentzv1alpha1.ResourceScopeOrganisation,
+		workspace.OrganizationID,
+	)
 	resources := []gatewayapi.WorkspaceInheritedResource{}
 	appendResource := func(name string, status gatewayapi.ResourceLifecycle, message string) {
 		resource := gatewayapi.WorkspaceInheritedResource{
@@ -727,7 +753,11 @@ func (s *Service) workspaceInheritedResources(ctx context.Context, workspace gat
 					}
 				}
 			}
-			appendResource(item.Name, status, message)
+			appendResource(
+				item.Name,
+				status,
+				message,
+			)
 		}
 	default:
 		return nil, fmt.Errorf("unknown inherited resource type %q", resourceType)
@@ -752,7 +782,10 @@ func (s *Service) workspaceInheritedResources(ctx context.Context, workspace gat
 func (s *Service) inheritedResourceConsumers(ctx context.Context, workspace gatewaydb.Workspace, resourceType gatewayapi.InheritedResourceType) (map[string][]gatewayapi.InheritedResourceConsumer, error) {
 	consumers := map[string][]gatewayapi.InheritedResourceConsumer{}
 	add := func(name string, kind gatewayapi.InheritedResourceConsumerKind, consumerName string) {
-		consumer := gatewayapi.InheritedResourceConsumer{Kind: kind, Name: consumerName}
+		consumer := gatewayapi.InheritedResourceConsumer{
+			Kind: kind,
+			Name: consumerName,
+		}
 		if !slices.Contains(consumers[name], consumer) {
 			consumers[name] = append(consumers[name], consumer)
 		}

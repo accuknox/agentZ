@@ -117,7 +117,16 @@ func (s *Service) proxyFilesystem(w http.ResponseWriter, r *http.Request, rawAge
 	skillRequest := strings.HasPrefix(upstreamPath, "/skill")
 	if skillRequest {
 		if statusFromAgent(resolved.Agent).Phase != agentPhaseReady {
-			apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "agent_not_ready", "agent is not ready", errBadRequest))
+			apiutil.WriteError(
+				w,
+				r,
+				apiutil.NewError(
+					http.StatusConflict,
+					"agent_not_ready",
+					"agent is not ready",
+					errBadRequest,
+				),
+			)
 			return
 		}
 	}
@@ -133,7 +142,11 @@ func (s *Service) proxyFilesystem(w http.ResponseWriter, r *http.Request, rawAge
 		if upstreamPath != "/raw" && (r.Method == http.MethodPost || r.Method == http.MethodPut) {
 			raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, filesystemProxyBodyLimit))
 			if err != nil {
-				apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "Invalid file request", err))
+				apiutil.WriteError(
+					w,
+					r,
+					apiutil.NewError(http.StatusBadRequest, "invalid_request", "Invalid file request", err),
+				)
 				return
 			}
 			switch {
@@ -155,7 +168,11 @@ func (s *Service) proxyFilesystem(w http.ResponseWriter, r *http.Request, rawAge
 				paths = []string{body.Path}
 			}
 			if err != nil {
-				apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "Invalid file request", err))
+				apiutil.WriteError(
+					w,
+					r,
+					apiutil.NewError(http.StatusBadRequest, "invalid_request", "Invalid file request", err),
+				)
 				return
 			}
 			r.Body = io.NopCloser(bytes.NewReader(raw))
@@ -191,7 +208,16 @@ func (s *Service) proxyFilesystem(w http.ResponseWriter, r *http.Request, rawAge
 	target, err := s.filesystemTarget(resolved)
 	if err != nil {
 		if skillRequest {
-			apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadGateway, "filesystem_unavailable", "agent filesystem is unavailable", err))
+			apiutil.WriteError(
+				w,
+				r,
+				apiutil.NewError(
+					http.StatusBadGateway,
+					"filesystem_unavailable",
+					"agent filesystem is unavailable",
+					err,
+				),
+			)
 			return
 		}
 		apiutil.WriteInternalError(w, r, err)
@@ -202,7 +228,12 @@ func (s *Service) proxyFilesystem(w http.ResponseWriter, r *http.Request, rawAge
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(http.StatusRequestEntityTooLarge, "request_too_large", "request body exceeds the maximum allowed size", nil),
+			apiutil.NewError(
+				http.StatusRequestEntityTooLarge,
+				"request_too_large",
+				"request body exceeds the maximum allowed size",
+				nil,
+			),
 		)
 		return
 	}
@@ -230,14 +261,24 @@ func (s *Service) proxyFilesystem(w http.ResponseWriter, r *http.Request, rawAge
 				apiutil.WriteError(
 					rw,
 					req,
-					apiutil.NewError(http.StatusRequestEntityTooLarge, "request_too_large", "request body exceeds the maximum allowed size", proxyErr),
+					apiutil.NewError(
+						http.StatusRequestEntityTooLarge,
+						"request_too_large",
+						"request body exceeds the maximum allowed size",
+						proxyErr,
+					),
 				)
 				return
 			}
 			apiutil.WriteError(
 				rw,
 				req,
-				apiutil.NewError(http.StatusBadGateway, "filesystem_unavailable", "agent filesystem is unavailable", proxyErr),
+				apiutil.NewError(
+					http.StatusBadGateway,
+					"filesystem_unavailable",
+					"agent filesystem is unavailable",
+					proxyErr,
+				),
 			)
 		},
 	}
@@ -251,7 +292,12 @@ func (s *Service) filesystemTarget(resolved *resolvedAgent) (*url.URL, error) {
 		if serviceName == "" {
 			serviceName = resolved.Agent.Name
 		}
-		address = fmt.Sprintf("%s.%s.svc.cluster.local:%d", serviceName, resolved.Agent.Namespace, filesystemPort)
+		address = fmt.Sprintf(
+			"%s.%s.svc.cluster.local:%d",
+			serviceName,
+			resolved.Agent.Namespace,
+			filesystemPort,
+		)
 	}
 	address = strings.TrimPrefix(address, "https://")
 	address = strings.TrimPrefix(address, "http://")

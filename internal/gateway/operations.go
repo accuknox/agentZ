@@ -142,7 +142,12 @@ func (s *Service) StartCodingOperation(w http.ResponseWriter, r *http.Request) {
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(http.StatusConflict, "operation_conflict", "Operation ID already belongs to another request", nil),
+			apiutil.NewError(
+				http.StatusConflict,
+				"operation_conflict",
+				"Operation ID already belongs to another request",
+				nil,
+			),
 		)
 		return
 	}
@@ -426,7 +431,9 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 		if _, err := s.codingWorkerAccess(ctx, project, input.AgentName); err != nil {
 			return gatewayapi.CodingGitResult{}, err
 		}
-		return s.codingFilesystem(ctx, access.namespace, row.CodingWorktree, row.CodingProject, false, request)
+		return s.codingFilesystem(
+			ctx, access.namespace, row.CodingWorktree, row.CodingProject, false, request,
+		)
 	}
 	current, err := local(gatewayapi.CodingGitRequest{
 		Operation:    gatewayapi.CodingGitStatus,
@@ -655,7 +662,14 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 	if err := publish("Checking remote branch"); err != nil {
 		return err
 	}
-	_, err = repo.run(ctx, true, "fetch", "--no-tags", repo.url, "+refs/heads/*:refs/remotes/origin/*")
+	_, err = repo.run(
+		ctx,
+		true,
+		"fetch",
+		"--no-tags",
+		repo.url,
+		"+refs/heads/*:refs/remotes/origin/*",
+	)
 	if err != nil {
 		return err
 	}
@@ -747,7 +761,10 @@ func (s *Service) executeCodingOperation(ctx context.Context, job gatewaydb.Codi
 		return err
 	}
 	base := "refs/remotes/origin/" + repository.GetDefaultBranch()
-	patch, err := repo.run(ctx, false, "diff", "--no-ext-diff", "--no-textconv", base+"..."+current.Head, "--")
+	patch, err := repo.run(
+		ctx, false, "diff", "--no-ext-diff", "--no-textconv",
+		base+"..."+current.Head, "--",
+	)
 	if err != nil || patch == "" {
 		return errors.New("no changes against the default branch")
 	}

@@ -40,7 +40,10 @@ import {
   MultiSelectDropdown,
   type MultiSelectDropdownOption,
 } from "@/components/ui/multi-select-dropdown"
-import type { SelectedOrganizationResources, WorkspaceMemberCandidate } from "@/lib/gateway/client"
+import type {
+  SelectedOrganizationResources,
+  WorkspaceMemberCandidate,
+} from "@/lib/gateway/client"
 import { zCreateWorkspaceRequest } from "@/lib/gateway/client/zod.gen"
 import type { getWorkspaceCreation } from "@/data/workspaces"
 import { workspaceNameSchema } from "@/data/schema"
@@ -57,7 +60,11 @@ type WorkspaceFormProps = {
 }
 
 export function WorkspaceForm(props: WorkspaceFormProps) {
-  const { candidates, orgSlug, resources } = props
+  const {
+    candidates,
+    orgSlug,
+    resources,
+  } = props
 
   const router = useRouter()
   const [confirmationOpen, setConfirmationOpen] = useState(false)

@@ -50,7 +50,9 @@ func (s *Service) resolveAgentAccess(ctx context.Context, name string, operation
 	}
 	if ok && auth.apiKeyID != "" {
 		if operation != authorization.OperationUseSharedAgent {
-			return access, resourceForbidden(fmt.Errorf("agent API key does not permit operation %q", operation))
+			return access, resourceForbidden(
+				fmt.Errorf("agent API key does not permit operation %q", operation),
+			)
 		}
 		access.userID = auth.userID
 		access.organizationID = auth.organizationID
@@ -101,7 +103,12 @@ func (s *Service) resolveAgentAccess(ctx context.Context, name string, operation
 		return access, resourceForbidden(errors.New("effective Agent permission is missing"))
 	}
 
-	namespace, owner, apiErr := s.resolveResourceScope(ctx, claims, claims.WorkspaceID, "Agent")
+	namespace, owner, apiErr := s.resolveResourceScope(
+		ctx,
+		claims,
+		claims.WorkspaceID,
+		"Agent",
+	)
 	if apiErr != nil {
 		return access, apiErr
 	}
@@ -227,7 +234,16 @@ func (s *Service) ListAgents(w http.ResponseWriter, r *http.Request, params gate
 		limit = int(*params.Limit)
 	}
 	if limit < 1 || limit > 200 {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "limit must be between 1 and 200", errBadRequest))
+		apiutil.WriteError(
+			w,
+			r,
+			apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"limit must be between 1 and 200",
+				errBadRequest,
+			),
+		)
 		return
 	}
 
@@ -255,7 +271,14 @@ func (s *Service) ListAgents(w http.ResponseWriter, r *http.Request, params gate
 	}
 	agentNames = usableAgentNames(agentNames, capabilities)
 	if len(agentNames) == 0 {
-		apiutil.WriteJSON(w, http.StatusOK, gatewayapi.ListAgentsResponse{Agents: []gatewayapi.Agent{}, NextPageToken: ""})
+		apiutil.WriteJSON(
+			w,
+			http.StatusOK,
+			gatewayapi.ListAgentsResponse{
+				Agents:        []gatewayapi.Agent{},
+				NextPageToken: "",
+			},
+		)
 		return
 	}
 	sortBy := gatewayapi.ListAgentsParamsSortByResourceSortCreatedAt
@@ -285,7 +308,14 @@ func (s *Service) ListAgents(w http.ResponseWriter, r *http.Request, params gate
 		return
 	}
 
-	apiutil.WriteJSON(w, http.StatusOK, gatewayapi.ListAgentsResponse{Agents: items, NextPageToken: next})
+	apiutil.WriteJSON(
+		w,
+		http.StatusOK,
+		gatewayapi.ListAgentsResponse{
+			Agents:        items,
+			NextPageToken: next,
+		},
+	)
 }
 
 // CreateAgent handles POST /api/agent.
@@ -309,7 +339,12 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		req.Memory != nil &&
 		req.Memory.Enabled
 	if codingMemoryEnabled {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusForbidden, "feature_disabled", "memory is disabled in coding workspaces", nil))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusForbidden,
+			"feature_disabled",
+			"memory is disabled in coding workspaces",
+			nil,
+		))
 		return
 	}
 
@@ -334,7 +369,13 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", errBadRequest, fields...),
+			apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				fields...,
+			),
 		)
 		return
 	}
@@ -427,7 +468,13 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	row, err := q.GatewayCreateAgent(r.Context(), gatewaydb.GatewayCreateAgentParams{TenantNamespace: ns, AgentName: name})
+	row, err := q.GatewayCreateAgent(
+		r.Context(),
+		gatewaydb.GatewayCreateAgentParams{
+			TenantNamespace: ns,
+			AgentName:       name,
+		},
+	)
 	if err != nil {
 		apiutil.WriteError(w, r, mapGatewayStoreError("create agent", err))
 		return
@@ -452,7 +499,11 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		CreatedByUserID:      access.claims.UserID,
 		LastModifiedByUserID: access.claims.UserID,
 	}
-	_, err = s.resolver.client.AgentzV1alpha1().Agents(ns).Create(r.Context(), agt, metav1.CreateOptions{})
+	_, err = s.resolver.client.AgentzV1alpha1().Agents(ns).Create(
+		r.Context(),
+		agt,
+		metav1.CreateOptions{},
+	)
 	if err != nil {
 		apiutil.WriteError(w, r, mapKubeHTTPError("create agent", err))
 		return
@@ -471,7 +522,11 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if err != nil {
-		deleteErr := s.resolver.client.AgentzV1alpha1().Agents(ns).Delete(r.Context(), name, metav1.DeleteOptions{})
+		deleteErr := s.resolver.client.AgentzV1alpha1().Agents(ns).Delete(
+			r.Context(),
+			name,
+			metav1.DeleteOptions{},
+		)
 		if deleteErr != nil && !apierrors.IsNotFound(deleteErr) {
 			err = fmt.Errorf("%w; rollback Kubernetes Agent: %v", err, deleteErr)
 		}
@@ -479,7 +534,11 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if commitErr := tx.Commit(r.Context()); commitErr != nil {
-		deleteErr := s.resolver.client.AgentzV1alpha1().Agents(ns).Delete(r.Context(), name, metav1.DeleteOptions{})
+		deleteErr := s.resolver.client.AgentzV1alpha1().Agents(ns).Delete(
+			r.Context(),
+			name,
+			metav1.DeleteOptions{},
+		)
 		err = fmt.Errorf("commit Agent creation: %w", commitErr)
 		if deleteErr != nil && !apierrors.IsNotFound(deleteErr) {
 			err = fmt.Errorf("commit Agent creation: %w; rollback Kubernetes Agent: %v", commitErr, deleteErr)
@@ -488,7 +547,11 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	actors, err := s.resourceActors(r.Context(), agt.Spec.CreatedByUserID, agt.Spec.LastModifiedByUserID)
+	actors, err := s.resourceActors(
+		r.Context(),
+		agt.Spec.CreatedByUserID,
+		agt.Spec.LastModifiedByUserID,
+	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
@@ -497,10 +560,14 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		w,
 		http.StatusCreated,
 		gatewayapi.Agent{
-			Name:           row.AgentName,
-			Sandbox:        req.Sandbox,
-			Opencode:       &gatewayapi.AgentOpencodeConfig{Instruction: &agt.Spec.Instruction},
-			Memory:         gatewayapi.AgentMemoryConfig{Enabled: agt.Spec.Memory.Enabled},
+			Name:    row.AgentName,
+			Sandbox: req.Sandbox,
+			Opencode: &gatewayapi.AgentOpencodeConfig{
+				Instruction: &agt.Spec.Instruction,
+			},
+			Memory: gatewayapi.AgentMemoryConfig{
+				Enabled: agt.Spec.Memory.Enabled,
+			},
 			Skills:         skills,
 			CreatedAt:      row.CreatedAt,
 			ModifiedAt:     row.UpdatedAt,
@@ -535,7 +602,12 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		req.Memory != nil &&
 		req.Memory.Enabled
 	if codingMemoryEnabled {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusForbidden, "feature_disabled", "memory is disabled in coding workspaces", nil))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusForbidden,
+			"feature_disabled",
+			"memory is disabled in coding workspaces",
+			nil,
+		))
 		return
 	}
 
@@ -588,7 +660,13 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 
-	row, err := s.queries.GatewayGetAgent(r.Context(), gatewaydb.GatewayGetAgentParams{TenantNamespace: ns, AgentName: name})
+	row, err := s.queries.GatewayGetAgent(
+		r.Context(),
+		gatewaydb.GatewayGetAgentParams{
+			TenantNamespace: ns,
+			AgentName:       name,
+		},
+	)
 	if err != nil {
 		apiutil.WriteError(w, r, mapGatewayStoreError("get agent", err))
 		return
@@ -598,14 +676,22 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 	err = retry.RetryOnConflict(
 		retry.DefaultRetry,
 		func() error {
-			agt, getErr := s.resolver.client.AgentzV1alpha1().Agents(ns).Get(r.Context(), row.AgentName, metav1.GetOptions{})
+			agt, getErr := s.resolver.client.AgentzV1alpha1().Agents(ns).Get(
+				r.Context(),
+				row.AgentName,
+				metav1.GetOptions{},
+			)
 			if getErr != nil {
 				return getErr
 			}
 			before = agt.DeepCopy()
 			applyUpdateAgentRequest(agt, req)
 			agt.Spec.LastModifiedByUserID = access.claims.UserID
-			updated, getErr = s.resolver.client.AgentzV1alpha1().Agents(ns).Update(r.Context(), agt, metav1.UpdateOptions{})
+			updated, getErr = s.resolver.client.AgentzV1alpha1().Agents(ns).Update(
+				r.Context(),
+				agt,
+				metav1.UpdateOptions{},
+			)
 			return getErr
 		},
 	)
@@ -662,7 +748,11 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 	if view := statusFromAgent(updated); view != nil {
 		status = statusFromView(view)
 	}
-	actors, err := s.resourceActors(r.Context(), updated.Spec.CreatedByUserID, updated.Spec.LastModifiedByUserID)
+	actors, err := s.resourceActors(
+		r.Context(),
+		updated.Spec.CreatedByUserID,
+		updated.Spec.LastModifiedByUserID,
+	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
@@ -671,10 +761,14 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		w,
 		http.StatusOK,
 		gatewayapi.Agent{
-			Name:           row.AgentName,
-			Sandbox:        resourceReferenceFromCRD(updated.Spec.SandboxRef),
-			Opencode:       &gatewayapi.AgentOpencodeConfig{Instruction: &updated.Spec.Instruction},
-			Memory:         gatewayapi.AgentMemoryConfig{Enabled: updated.Spec.Memory.Enabled},
+			Name:    row.AgentName,
+			Sandbox: resourceReferenceFromCRD(updated.Spec.SandboxRef),
+			Opencode: &gatewayapi.AgentOpencodeConfig{
+				Instruction: &updated.Spec.Instruction,
+			},
+			Memory: gatewayapi.AgentMemoryConfig{
+				Enabled: updated.Spec.Memory.Enabled,
+			},
 			CreatedAt:      row.CreatedAt,
 			ModifiedAt:     row.UpdatedAt,
 			LastActivity:   row.UpdatedAt,
@@ -690,13 +784,21 @@ func (s *Service) rollbackAgentUpdate(ctx context.Context, namespace string, bef
 	if before == nil {
 		return
 	}
-	current, err := s.resolver.client.AgentzV1alpha1().Agents(namespace).Get(ctx, before.Name, metav1.GetOptions{})
+	current, err := s.resolver.client.AgentzV1alpha1().Agents(namespace).Get(
+		ctx,
+		before.Name,
+		metav1.GetOptions{},
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to read Agent for update rollback", "agent", before.Name, "err", err)
 		return
 	}
 	before.ResourceVersion = current.ResourceVersion
-	_, err = s.resolver.client.AgentzV1alpha1().Agents(namespace).Update(ctx, before, metav1.UpdateOptions{})
+	_, err = s.resolver.client.AgentzV1alpha1().Agents(namespace).Update(
+		ctx,
+		before,
+		metav1.UpdateOptions{},
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to roll back Agent update", "agent", before.Name, "err", err)
 	}
@@ -723,7 +825,13 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 	defer tx.Rollback(r.Context())
 
 	q := gatewaydb.New(tx)
-	row, err := q.GatewayGetAgent(r.Context(), gatewaydb.GatewayGetAgentParams{TenantNamespace: ns, AgentName: agentName})
+	row, err := q.GatewayGetAgent(
+		r.Context(),
+		gatewaydb.GatewayGetAgentParams{
+			TenantNamespace: ns,
+			AgentName:       agentName,
+		},
+	)
 	if err != nil {
 		apiutil.WriteError(w, r, mapGatewayStoreError("get agent", err))
 		return
@@ -747,7 +855,9 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 	err = s.resolver.client.AgentzV1alpha1().Agents(ns).Delete(
 		r.Context(),
 		row.AgentName,
-		metav1.DeleteOptions{PropagationPolicy: new(metav1.DeletePropagationBackground)},
+		metav1.DeleteOptions{
+			PropagationPolicy: new(metav1.DeletePropagationBackground),
+		},
 	)
 	if err != nil && !apierrors.IsNotFound(err) {
 		apiutil.WriteError(w, r, mapKubeHTTPError("delete agent", err))
@@ -776,13 +886,28 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 
-	rows, err := q.GatewayDeleteAgent(r.Context(), gatewaydb.GatewayDeleteAgentParams{TenantNamespace: ns, AgentName: agentName})
+	rows, err := q.GatewayDeleteAgent(
+		r.Context(),
+		gatewaydb.GatewayDeleteAgentParams{
+			TenantNamespace: ns,
+			AgentName:       agentName,
+		},
+	)
 	if err != nil {
 		apiutil.WriteError(w, r, mapGatewayStoreError("delete agent", err))
 		return
 	}
 	if rows == 0 {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusNotFound, "not_found", "agent not found", errAgentNotFound))
+		apiutil.WriteError(
+			w,
+			r,
+			apiutil.NewError(
+				http.StatusNotFound,
+				"not_found",
+				"agent not found",
+				errAgentNotFound,
+			),
+		)
 		return
 	}
 	err = q.GatewayDeleteAgentChatSessions(
@@ -890,7 +1015,11 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 		return
 	}
 	if !owner && !access.effective.CanAdminister(scope) {
-		apiutil.WriteError(w, r, resourceForbidden(errors.New("agent ownership transfer requires owner or administrator authority")))
+		apiutil.WriteError(
+			w,
+			r,
+			resourceForbidden(errors.New("agent ownership transfer requires owner or administrator authority")),
+		)
 		return
 	}
 	tx, err := s.db.Begin(r.Context())
@@ -909,7 +1038,11 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		apiutil.WriteError(w, r, resourceForbidden(errors.New("agent ownership transfer requires an active Workspace")))
+		apiutil.WriteError(
+			w,
+			r,
+			resourceForbidden(errors.New("agent ownership transfer requires an active Workspace")),
+		)
 		return
 	}
 	if err != nil {
@@ -946,7 +1079,11 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 	hasWorkspace := effective.HasAccess(scope)
 	canCreate := effective.Allows(scope, authorization.OperationCreateAgent)
 	if !hasWorkspace || !canCreate {
-		apiutil.WriteError(w, r, resourceForbidden(errors.New("new owner requires independent Workspace access and Agent Author")))
+		apiutil.WriteError(
+			w,
+			r,
+			resourceForbidden(errors.New("new owner requires independent Workspace access and Agent Author")),
+		)
 		return
 	}
 
@@ -1065,7 +1202,14 @@ func (s *Service) ListAgentShares(w http.ResponseWriter, r *http.Request, agentN
 		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	apiutil.WriteJSON(w, http.StatusOK, gatewayapi.ListAgentSharesResponse{NextPageToken: next, Shares: shares})
+	apiutil.WriteJSON(
+		w,
+		http.StatusOK,
+		gatewayapi.ListAgentSharesResponse{
+			NextPageToken: next,
+			Shares:        shares,
+		},
+	)
 }
 
 // ListAgentAccessTargets handles GET /api/agent/{agentName}/access-targets.
@@ -1116,7 +1260,10 @@ func (s *Service) ListAgentAccessTargets(w http.ResponseWriter, r *http.Request,
 		key := row.Kind + "\x00" + row.ID
 		targetRows[key] = row
 		if row.Action.Valid {
-			targetActions[key] = append(targetActions[key], row.Action.PermissionAction)
+			targetActions[key] = append(
+				targetActions[key],
+				row.Action.PermissionAction,
+			)
 		}
 	}
 	shareCapabilities := []gatewaydb.AgentShareCapability{
@@ -1165,7 +1312,10 @@ func (s *Service) ListAgentAccessTargets(w http.ResponseWriter, r *http.Request,
 			}
 		}
 		canOwn := kind == gatewayapi.AgentAccessTargetKindUser &&
-			(row.Administrator || slices.Contains(targetActions[key], gatewaydb.PermissionActionAuthor))
+			(row.Administrator || slices.Contains(
+				targetActions[key],
+				gatewaydb.PermissionActionAuthor,
+			))
 		target := gatewayapi.AgentAccessTarget{
 			CanOwn:       canOwn,
 			Capabilities: capabilities,
@@ -1217,7 +1367,13 @@ func (s *Service) UpsertAgentShare(w http.ResponseWriter, r *http.Request, agent
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", errBadRequest, fields...),
+			apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				fields...,
+			),
 		)
 		return
 	}
@@ -1244,7 +1400,11 @@ func (s *Service) UpsertAgentShare(w http.ResponseWriter, r *http.Request, agent
 			return
 		}
 		if !exists {
-			apiutil.WriteError(w, r, resourceForbidden(errors.New("agent Share Team does not exist in this Organisation")))
+			apiutil.WriteError(
+				w,
+				r,
+				resourceForbidden(errors.New("agent Share Team does not exist in this Organisation")),
+			)
 			return
 		}
 	}
@@ -1317,7 +1477,11 @@ func (s *Service) DeleteAgentShare(w http.ResponseWriter, r *http.Request, agent
 	}
 	shareID = strings.TrimSpace(shareID)
 	if shareID == "" {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "shareId is required", errBadRequest))
+		apiutil.WriteError(
+			w,
+			r,
+			apiutil.NewError(http.StatusBadRequest, "invalid_request", "shareId is required", errBadRequest),
+		)
 		return
 	}
 
@@ -1420,7 +1584,16 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusInternalServerError, "internal_error", "streaming is unavailable", nil))
+		apiutil.WriteError(
+			w,
+			r,
+			apiutil.NewError(
+				http.StatusInternalServerError,
+				"internal_error",
+				"streaming is unavailable",
+				nil,
+			),
+		)
 		return
 	}
 
@@ -1575,7 +1748,10 @@ func (s *Service) agentCapabilityProjections(ctx context.Context, access resourc
 		relationship.Name = row.AgentName
 		relationship.OwnerUserID = row.OwnerUserID
 		if row.Capability.Valid {
-			relationship.ShareGrants = append(relationship.ShareGrants, row.Capability.AgentShareCapability)
+			relationship.ShareGrants = append(
+				relationship.ShareGrants,
+				row.Capability.AgentShareCapability,
+			)
 		}
 		relationships[row.AgentName] = relationship
 	}
@@ -1624,7 +1800,11 @@ func (s *Service) resolveNamedAgent(w http.ResponseWriter, r *http.Request, raw 
 	if !ok {
 		return "", resourceAccess{}, false
 	}
-	access, apiErr := s.resolveAgentAccess(r.Context(), name, authorization.OperationUseSharedAgent)
+	access, apiErr := s.resolveAgentAccess(
+		r.Context(),
+		name,
+		authorization.OperationUseSharedAgent,
+	)
 	if apiErr != nil {
 		apiutil.WriteError(w, r, apiErr)
 		return "", resourceAccess{}, false
@@ -1702,7 +1882,12 @@ func (s *Service) resolveAgentShareAuthority(ctx context.Context, access resourc
 		}
 		return agentShareDenied, nil
 	}
-	allowed, err := s.agentOperationAllowed(ctx, access, agentName, authorization.OperationShareNonAuthoredAgent)
+	allowed, err := s.agentOperationAllowed(
+		ctx,
+		access,
+		agentName,
+		authorization.OperationShareNonAuthoredAgent,
+	)
 	if err != nil || !allowed {
 		return agentShareDenied, err
 	}
@@ -1744,7 +1929,10 @@ func validateAgentShareTarget(req gatewayapi.UpsertAgentShareRequest, actorUserI
 
 func agentShareCapabilities(caps []gatewayapi.AgentShareCapability) ([]gatewaydb.AgentShareCapability, []gatewayapi.FieldError) {
 	if len(caps) == 0 {
-		return nil, []gatewayapi.FieldError{{Field: "capabilities", Message: "at least one capability is required"}}
+		return nil, []gatewayapi.FieldError{{
+			Field:   "capabilities",
+			Message: "at least one capability is required",
+		}}
 	}
 
 	out := make([]gatewaydb.AgentShareCapability, 0, len(caps))
@@ -1752,7 +1940,10 @@ func agentShareCapabilities(caps []gatewayapi.AgentShareCapability) ([]gatewaydb
 	for _, cap := range caps {
 		dbCap, ok := agentShareDBCapability(cap)
 		if !ok {
-			return nil, []gatewayapi.FieldError{{Field: "capabilities", Message: "contains an unknown capability"}}
+			return nil, []gatewayapi.FieldError{{
+				Field:   "capabilities",
+				Message: "contains an unknown capability",
+			}}
 		}
 		if _, ok := seen[dbCap]; ok {
 			continue
@@ -1920,10 +2111,16 @@ func (s *Service) createAgentShare(ctx context.Context, request agentShareMutati
 	if err != nil {
 		return gatewayapi.AgentShare{}, fmt.Errorf("recheck Agent Share relationships: %w", err)
 	}
-	relationship := authorization.Agent{Name: agentName, OwnerUserID: owner.OwnerUserID}
+	relationship := authorization.Agent{
+		Name:        agentName,
+		OwnerUserID: owner.OwnerUserID,
+	}
 	for _, row := range relationships {
 		if row.Capability.Valid {
-			relationship.ShareGrants = append(relationship.ShareGrants, row.Capability.AgentShareCapability)
+			relationship.ShareGrants = append(
+				relationship.ShareGrants,
+				row.Capability.AgentShareCapability,
+			)
 		}
 	}
 	actorCapabilities, err := effective.AgentCapabilities(scope, relationship)
@@ -2013,15 +2210,18 @@ func (s *Service) agentShares(ctx context.Context, query agentShareQuery) ([]gat
 	rows, err := s.queries.GatewayListAgentShares(
 		ctx,
 		gatewaydb.GatewayListAgentSharesParams{
-			OrganizationID:  query.access.claims.OrganizationID,
-			WorkspaceID:     query.access.workspaceID,
-			AgentName:       query.agentName,
-			ManageAll:       query.manageAll,
-			UserID:          query.access.claims.UserID,
-			CursorSet:       query.cursorSet,
-			CursorCreatedAt: pgtype.Timestamptz{Time: query.cursor.CreatedAt, Valid: query.cursorSet},
-			CursorID:        query.cursor.ID,
-			PageSize:        int32(query.limit + 1),
+			OrganizationID: query.access.claims.OrganizationID,
+			WorkspaceID:    query.access.workspaceID,
+			AgentName:      query.agentName,
+			ManageAll:      query.manageAll,
+			UserID:         query.access.claims.UserID,
+			CursorSet:      query.cursorSet,
+			CursorCreatedAt: pgtype.Timestamptz{
+				Time:  query.cursor.CreatedAt,
+				Valid: query.cursorSet,
+			},
+			CursorID: query.cursor.ID,
+			PageSize: int32(query.limit + 1),
 		},
 	)
 	if err != nil {
@@ -2031,7 +2231,10 @@ func (s *Service) agentShares(ctx context.Context, query agentShareQuery) ([]gat
 	if len(rows) > query.limit {
 		rows = rows[:query.limit]
 		last := rows[len(rows)-1]
-		next = encodeCursorPageToken(agentSharePageCursor{CreatedAt: last.CreatedAt.Time, ID: last.ID})
+		next = encodeCursorPageToken(agentSharePageCursor{
+			CreatedAt: last.CreatedAt.Time,
+			ID:        last.ID,
+		})
 	}
 	out := make([]gatewayapi.AgentShare, 0, len(rows))
 	for _, row := range rows {
@@ -2199,11 +2402,21 @@ func agentOwnerResponse(row gatewaydb.AgentOwner) gatewayapi.AgentOwner {
 }
 
 func agentNotFound(name string) *apiutil.APIError {
-	return apiutil.NewError(http.StatusNotFound, "not_found", "agent not found", fmt.Errorf("agent %q not found", name))
+	return apiutil.NewError(
+		http.StatusNotFound,
+		"not_found",
+		"agent not found",
+		fmt.Errorf("agent %q not found", name),
+	)
 }
 
 func agentShareNotFound(id string) *apiutil.APIError {
-	return apiutil.NewError(http.StatusNotFound, "not_found", "Agent Share not found", fmt.Errorf("agent Share %q not found", id))
+	return apiutil.NewError(
+		http.StatusNotFound,
+		"not_found",
+		"Agent Share not found",
+		fmt.Errorf("agent Share %q not found", id),
+	)
 }
 
 func (s *Service) listAgentItems(ctx context.Context, q gatewaydb.GatewayListAgentsByNameParams, caps map[string]gatewayapi.AgentCapabilities, offset int) ([]gatewayapi.Agent, string, error) {
@@ -2230,7 +2443,11 @@ func (s *Service) listAgentItems(ctx context.Context, q gatewaydb.GatewayListAge
 			return nil, "", fmt.Errorf("resolve agent %q: %w", row.AgentName, errAgentNotFound)
 		}
 		agents[row.AgentName] = resolved.Agent
-		userIDs = append(userIDs, resolved.Agent.Spec.CreatedByUserID, resolved.Agent.Spec.LastModifiedByUserID)
+		userIDs = append(
+			userIDs,
+			resolved.Agent.Spec.CreatedByUserID,
+			resolved.Agent.Spec.LastModifiedByUserID,
+		)
 	}
 	actors, err := s.resourceActors(ctx, userIDs...)
 	if err != nil {
@@ -2243,11 +2460,15 @@ func (s *Service) listAgentItems(ctx context.Context, q gatewaydb.GatewayListAge
 		items = append(
 			items,
 			gatewayapi.Agent{
-				Name:           row.AgentName,
-				Sandbox:        resourceReferenceFromCRD(agt.Spec.SandboxRef),
-				Opencode:       &gatewayapi.AgentOpencodeConfig{Instruction: &agt.Spec.Instruction},
-				Capabilities:   caps[row.AgentName],
-				Memory:         gatewayapi.AgentMemoryConfig{Enabled: agt.Spec.Memory.Enabled},
+				Name:    row.AgentName,
+				Sandbox: resourceReferenceFromCRD(agt.Spec.SandboxRef),
+				Opencode: &gatewayapi.AgentOpencodeConfig{
+					Instruction: &agt.Spec.Instruction,
+				},
+				Capabilities: caps[row.AgentName],
+				Memory: gatewayapi.AgentMemoryConfig{
+					Enabled: agt.Spec.Memory.Enabled,
+				},
 				LastActivity:   row.UpdatedAt,
 				CreatedAt:      row.CreatedAt,
 				ModifiedAt:     row.UpdatedAt,
@@ -2270,13 +2491,31 @@ func validateCreateAgentRequest(req gatewayapi.CreateAgentRequest) (string, []ga
 		fields = append(fields, gatewayapi.FieldError{Field: "name", Message: "required"})
 	}
 	if len(name) > 32 {
-		fields = append(fields, gatewayapi.FieldError{Field: "name", Message: "must be at most 32 characters"})
+		fields = append(
+			fields,
+			gatewayapi.FieldError{
+				Field:   "name",
+				Message: "must be at most 32 characters",
+			},
+		)
 	}
 	if errs := validation.IsDNS1123Label(name); name != "" && len(errs) > 0 {
-		fields = append(fields, gatewayapi.FieldError{Field: "name", Message: "must be a valid DNS label"})
+		fields = append(
+			fields,
+			gatewayapi.FieldError{
+				Field:   "name",
+				Message: "must be a valid DNS label",
+			},
+		)
 	}
 	if name == agentzv1alpha1.AgentNameMCPConnection {
-		fields = append(fields, gatewayapi.FieldError{Field: "name", Message: "reserved agent name"})
+		fields = append(
+			fields,
+			gatewayapi.FieldError{
+				Field:   "name",
+				Message: "reserved agent name",
+			},
+		)
 	}
 
 	return name, fields
@@ -2285,7 +2524,13 @@ func validateCreateAgentRequest(req gatewayapi.CreateAgentRequest) (string, []ga
 func validateAgentSandboxField(fields []gatewayapi.FieldError, ref gatewayapi.ResourceReference) []gatewayapi.FieldError {
 	name := ref.Name
 	if name == "" {
-		return append(fields, gatewayapi.FieldError{Field: "sandbox", Message: "required"})
+		return append(
+			fields,
+			gatewayapi.FieldError{
+				Field:   "sandbox",
+				Message: "required",
+			},
+		)
 	}
 	if len(name) > 32 {
 		fields = append(
@@ -2297,7 +2542,13 @@ func validateAgentSandboxField(fields []gatewayapi.FieldError, ref gatewayapi.Re
 		)
 	}
 	if errs := validation.IsDNS1123Label(name); len(errs) > 0 {
-		fields = append(fields, gatewayapi.FieldError{Field: "sandbox", Message: "must be a valid DNS label"})
+		fields = append(
+			fields,
+			gatewayapi.FieldError{
+				Field:   "sandbox",
+				Message: "must be a valid DNS label",
+			},
+		)
 	}
 	return fields
 }
@@ -2329,7 +2580,10 @@ func (s *Service) validateAgentSandbox(ctx context.Context, namespace string, re
 	key := types.NamespacedName{Namespace: resourceNamespace, Name: ref.Name}
 	if err := s.k8sClient.Get(ctx, key, &sandbox); err != nil {
 		if apierrors.IsNotFound(err) {
-			return []gatewayapi.FieldError{{Field: "sandbox", Message: "sandbox not found"}}, nil
+			return []gatewayapi.FieldError{{
+				Field:   "sandbox",
+				Message: "sandbox not found",
+			}}, nil
 		}
 		return nil, fmt.Errorf("get sandbox %q: %w", ref.Name, err)
 	}
@@ -2347,10 +2601,14 @@ func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, name
 			Kind:       "Agent",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            name,
-			Namespace:       namespace,
-			Labels:          map[string]string{labelManagedBy: "agentz-agent-gateway"},
-			OwnerReferences: []metav1.OwnerReference{owner},
+			Name:      name,
+			Namespace: namespace,
+			Labels: map[string]string{
+				labelManagedBy: "agentz-agent-gateway",
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				owner,
+			},
 		},
 		Spec: agentzv1alpha1.AgentSpec{
 			Image: s.cfg.AgentImage,
@@ -2523,7 +2781,11 @@ func agentModelCatalog(ctx context.Context, reader client.Reader, sandbox *agent
 	catalog := make([]gatewayapi.AgentModelCatalogEntry, 0, len(sandbox.Spec.Inference.Models))
 	providers := make(map[client.ObjectKey]string)
 	for _, model := range sandbox.Spec.Inference.Models {
-		members := []agentzv1alpha1.InferencePoolMember{{Scope: model.Scope, Provider: model.Provider, Model: model.Model}}
+		members := []agentzv1alpha1.InferencePoolMember{{
+			Scope:    model.Scope,
+			Provider: model.Provider,
+			Model:    model.Model,
+		}}
 		memberNamespace := sandbox.Namespace
 		if model.Provider == agentzv1alpha1.InferencePoolProvider {
 			namespace, err := scope.Namespace(ctx, reader, sandbox.Namespace, model.Scope)
@@ -2605,7 +2867,9 @@ func (s *Service) agentTools(w http.ResponseWriter, r *http.Request, name, toolN
 		apiutil.WriteError(w, r, apiErr)
 		return
 	}
-	access, apiErr := s.resolveAgentAccess(ctx, name, authorization.OperationUseSharedAgent)
+	access, apiErr := s.resolveAgentAccess(
+		ctx, name, authorization.OperationUseSharedAgent,
+	)
 	if apiErr != nil {
 		apiutil.WriteError(w, r, apiErr)
 		return
@@ -2617,14 +2881,18 @@ func (s *Service) agentTools(w http.ResponseWriter, r *http.Request, name, toolN
 		return
 	}
 	if !agt.DeletionTimestamp.IsZero() {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "conflict", "agent is being deleted", nil))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict, "conflict", "agent is being deleted", nil,
+		))
 		return
 	}
 	idx := slices.IndexFunc(agt.Spec.Tools, func(t agentzv1alpha1.AgentTool) bool {
 		return t.Name == toolName
 	})
 	if r.Method != http.MethodPost && toolName != "" && idx < 0 {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusNotFound, "not_found", "tool not found", nil))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusNotFound, "not_found", "tool not found", nil,
+		))
 		return
 	}
 	if r.Method == http.MethodGet {
@@ -2654,14 +2922,20 @@ func (s *Service) agentTools(w http.ResponseWriter, r *http.Request, name, toolN
 				return t.Name == toolName
 			})
 			if duplicate {
-				apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "conflict", "tool name is already in use", nil))
+				apiutil.WriteError(w, r, apiutil.NewError(
+					http.StatusConflict, "conflict",
+					"tool name is already in use", nil,
+				))
 				return
 			}
 			agt.Spec.Tools = append(agt.Spec.Tools, req.Tool)
 			action = "agent.tool.create"
 		default:
 			if req.Tool.Name != toolName {
-				apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "tool names cannot be changed", nil))
+				apiutil.WriteError(w, r, apiutil.NewError(
+					http.StatusBadRequest, "invalid_request",
+					"tool names cannot be changed", nil,
+				))
 				return
 			}
 			agt.Spec.Tools[idx] = req.Tool
@@ -2671,14 +2945,23 @@ func (s *Service) agentTools(w http.ResponseWriter, r *http.Request, name, toolN
 		if len(validation) > 0 {
 			fields := make([]gatewayapi.FieldError, 0, len(validation))
 			for _, e := range validation {
-				fields = append(fields, gatewayapi.FieldError{Field: e.Field, Message: e.Detail})
+				fields = append(fields, gatewayapi.FieldError{
+					Field:   e.Field,
+					Message: e.Detail,
+				})
 			}
-			apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "tool validation failed", nil, fields...))
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusBadRequest, "invalid_request",
+				"tool validation failed", nil, fields...,
+			))
 			return
 		}
 	}
 	if version == "" || version != agt.ResourceVersion {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "conflict", "agent changed; refresh the tools before saving again", nil))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict, "conflict",
+			"agent changed; refresh the tools before saving again", nil,
+		))
 		return
 	}
 
@@ -2724,7 +3007,9 @@ func (s *Service) agentTools(w http.ResponseWriter, r *http.Request, name, toolN
 		before.ResourceVersion = updated.ResourceVersion
 		_, rollbackErr := agents.Update(ctx, before, metav1.UpdateOptions{})
 		if rollbackErr != nil {
-			slog.ErrorContext(ctx, "tool update rollback failed", "agent", name, "error", rollbackErr)
+			slog.ErrorContext(ctx, "tool update rollback failed",
+				"agent", name, "error", rollbackErr,
+			)
 		}
 		apiutil.WriteInternalError(w, r, errors.Join(err, rollbackErr))
 		return

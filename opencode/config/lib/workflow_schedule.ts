@@ -3,7 +3,9 @@ import { z } from "zod"
 import { getWorkflow, listAgentWorkflowSchedules, zError } from "./gateway"
 import { zJsonValue } from "./gateway/client/zod.gen"
 import { formatRequestValidationError, workflowErrorOutput } from "./workflow"
-import { validateWorkflowRuntimeInputs } from "./workflow_inputs"
+import {
+  validateWorkflowRuntimeInputs,
+} from "./workflow_inputs"
 
 const arbitraryJSONTextSchema = z
   .string()
@@ -186,7 +188,9 @@ export async function listWorkflowSchedulesOnce(agentName: string, scheduleName:
     }
   }
 
-  const schedule = result.data.workflow_schedules.find((item) => item.name === scheduleName)
+  const schedule = result.data.workflow_schedules.find(
+    (item) => item.name === scheduleName
+  )
   if (!schedule) {
     return {
       ok: false as const,

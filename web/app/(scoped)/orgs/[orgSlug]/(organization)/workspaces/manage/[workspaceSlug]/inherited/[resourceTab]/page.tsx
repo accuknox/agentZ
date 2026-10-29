@@ -30,7 +30,10 @@ export default function InheritedResourcePage(
 async function InheritedResourceContent(
   props: PageProps<"/orgs/[orgSlug]/workspaces/manage/[workspaceSlug]/inherited/[resourceTab]">
 ) {
-  const { params, searchParams } = props
+  const {
+    params,
+    searchParams,
+  } = props
 
   const [{ orgSlug, resourceTab, workspaceSlug }, search] = await Promise.all([
     params,

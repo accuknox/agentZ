@@ -613,8 +613,16 @@ func TestDelegationReadinessRequiresCurrentAcceptedProjection(t *testing.T) {
 					ParentRef:      gwv1.ParentReference{Name: "delegations"},
 					ControllerName: "agentgateway.dev/agentgateway",
 					Conditions: []metav1.Condition{
-						{Type: "Accepted", Status: metav1.ConditionTrue, ObservedGeneration: 2},
-						{Type: "ResolvedRefs", Status: metav1.ConditionTrue, ObservedGeneration: 2},
+						{
+							Type:               "Accepted",
+							Status:             metav1.ConditionTrue,
+							ObservedGeneration: 2,
+						},
+						{
+							Type:               "ResolvedRefs",
+							Status:             metav1.ConditionTrue,
+							ObservedGeneration: 2,
+						},
 					},
 				}},
 			},
@@ -623,7 +631,11 @@ func TestDelegationReadinessRequiresCurrentAcceptedProjection(t *testing.T) {
 	backend := &agw.AgentgatewayBackend{
 		ObjectMeta: metadata,
 		Status: agw.AgentgatewayBackendStatus{
-			Conditions: []metav1.Condition{{Type: "Accepted", Status: metav1.ConditionTrue, ObservedGeneration: 1}},
+			Conditions: []metav1.Condition{{
+				Type:               "Accepted",
+				Status:             metav1.ConditionTrue,
+				ObservedGeneration: 1,
+			}},
 		},
 	}
 	objects := []ctrlclient.Object{route, backend}
@@ -920,7 +932,10 @@ func TestDelegatedInferenceUsesPrivateGateway(t *testing.T) {
 	}
 
 	route := &gwv1.HTTPRoute{
-		ObjectMeta: metav1.ObjectMeta{Name: "d-grant-1-model-0", Namespace: "private"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "d-grant-1-model-0",
+			Namespace: "private",
+		},
 	}
 	if err := service.k8sClient.Delete(t.Context(), route); err != nil {
 		t.Fatal(err)

@@ -66,7 +66,16 @@ func (s *Service) ListEventTrailEvents(w http.ResponseWriter, r *http.Request, p
 	}
 	clause, err := compileEventTrailFilters(req.Filters)
 	if err != nil {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", err.Error(), err))
+		apiutil.WriteError(
+			w,
+			r,
+			apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				err.Error(),
+				err,
+			),
+		)
 		return
 	}
 
@@ -133,7 +142,10 @@ func (s *Service) ListEventTrailEvents(w http.ResponseWriter, r *http.Request, p
 	if len(rows) > int(pageSize) {
 		rows = rows[:pageSize]
 		last := rows[len(rows)-1]
-		nextPageToken = encodeCursorPageToken(eventTrailCursor{CreatedAt: last.CreatedAt.Time, ID: last.ID})
+		nextPageToken = encodeCursorPageToken(eventTrailCursor{
+			CreatedAt: last.CreatedAt.Time,
+			ID:        last.ID,
+		})
 	}
 
 	events := make([]gatewayapi.EventTrailEvent, 0, len(rows))
@@ -146,7 +158,12 @@ func (s *Service) ListEventTrailEvents(w http.ResponseWriter, r *http.Request, p
 		events = append(events, event)
 	}
 
-	filters, err := s.eventTrailFilters(r.Context(), access.organizationID, access.workspaceID, retainedAfter)
+	filters, err := s.eventTrailFilters(
+		r.Context(),
+		access.organizationID,
+		access.workspaceID,
+		retainedAfter,
+	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
@@ -180,9 +197,12 @@ func (s *Service) GetEventTrailEvent(w http.ResponseWriter, r *http.Request, eve
 		gatewaydb.GatewayListEventTrailEventsParams{
 			OrganizationID:   access.organizationID,
 			ScopeWorkspaceID: access.workspaceID,
-			RetainedAfter:    pgtype.Timestamptz{Time: time.Now().Add(-eventTrailRetention), Valid: true},
-			EventID:          pgtype.Text{String: eventID, Valid: true},
-			PageSize:         1,
+			RetainedAfter: pgtype.Timestamptz{
+				Time:  time.Now().Add(-eventTrailRetention),
+				Valid: true,
+			},
+			EventID:  pgtype.Text{String: eventID, Valid: true},
+			PageSize: 1,
 		},
 	)
 	if err != nil {
@@ -232,7 +252,9 @@ func compileEventTrailFilters(filters []gatewayapi.EventTrailFilter) (eventTrail
 		}
 		for _, value := range values {
 			if value == "" || len(value) > 256 {
-				return eventTrailClause{}, errors.New("event trail filter values must contain 1 to 256 characters")
+				return eventTrailClause{}, errors.New(
+					"event trail filter values must contain 1 to 256 characters",
+				)
 			}
 		}
 
@@ -474,7 +496,10 @@ func (s *Service) eventTrailFilters(ctx context.Context, organizationID string, 
 
 	targetTypeFilters := make([]gatewayapi.EventTrailTargetType, 0, len(targetTypes))
 	for _, targetType := range targetTypes {
-		targetTypeFilters = append(targetTypeFilters, gatewayapi.EventTrailTargetType(targetType))
+		targetTypeFilters = append(
+			targetTypeFilters,
+			gatewayapi.EventTrailTargetType(targetType),
+		)
 	}
 
 	return gatewayapi.EventTrailFilters{
@@ -489,13 +514,21 @@ func eventTrailEventView(row gatewaydb.GatewayListEventTrailEventsRow) (gatewaya
 	before := []gatewayapi.EventTrailField{}
 	if len(row.Before) > 0 {
 		if err := json.Unmarshal(row.Before, &before); err != nil {
-			return gatewayapi.EventTrailEvent{}, fmt.Errorf("decode event trail event %q before summary: %w", row.ID, err)
+			return gatewayapi.EventTrailEvent{}, fmt.Errorf(
+				"decode event trail event %q before summary: %w",
+				row.ID,
+				err,
+			)
 		}
 	}
 	after := []gatewayapi.EventTrailField{}
 	if len(row.After) > 0 {
 		if err := json.Unmarshal(row.After, &after); err != nil {
-			return gatewayapi.EventTrailEvent{}, fmt.Errorf("decode event trail event %q after summary: %w", row.ID, err)
+			return gatewayapi.EventTrailEvent{}, fmt.Errorf(
+				"decode event trail event %q after summary: %w",
+				row.ID,
+				err,
+			)
 		}
 	}
 
@@ -557,7 +590,10 @@ func (s *Service) runEventTrailRetention(ctx context.Context) {
 	for {
 		deleted, err := s.queries.GatewayDeleteExpiredEventTrailEvents(
 			ctx,
-			pgtype.Timestamptz{Time: time.Now().Add(-eventTrailRetention), Valid: true},
+			pgtype.Timestamptz{
+				Time:  time.Now().Add(-eventTrailRetention),
+				Valid: true,
+			},
 		)
 		if err != nil {
 			slog.ErrorContext(ctx, "delete expired event trail events", slog.Any("err", err))

@@ -209,7 +209,11 @@ type WorkspaceSidebarProps = {
 }
 
 async function WorkspaceSidebar(props: WorkspaceSidebarProps) {
-  const { scope, showTourButton, userMenu } = props
+  const {
+    scope,
+    showTourButton,
+    userMenu,
+  } = props
 
   const { organization, workspace } = scope
   const workspacePath: WorkspacePath = `/orgs/${organization.slug}/workspaces/${workspace.slug}`
@@ -278,7 +282,13 @@ type WorkspaceChatSessionsProps = {
 }
 
 async function WorkspaceChatSessions(props: WorkspaceChatSessionsProps) {
-  const { agents, preferences, workspaceId, workspaceType, workspacePath } = props
+  const {
+    agents,
+    preferences,
+    workspaceId,
+    workspaceType,
+    workspacePath,
+  } = props
 
   const [sessions, actor] = await Promise.all([
     listChatSessions({

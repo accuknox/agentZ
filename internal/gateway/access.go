@@ -110,7 +110,10 @@ func (s *Service) resolveResourceAccess(ctx context.Context, req resourceAccessR
 	}
 	scopes, ok := ctx.Value(gatewayapi.GatewayBearerScopes).([]string)
 	if !ok || len(scopes) != 1 || scopes[0] != expectedScope {
-		return access, resourceForbidden(fmt.Errorf("%s operation mapping is missing, ambiguous, or unknown", req.resource))
+		return access, resourceForbidden(fmt.Errorf(
+			"%s operation mapping is missing, ambiguous, or unknown",
+			req.resource,
+		))
 	}
 
 	effective, err := authorization.New(s.queries).Resolve(
@@ -176,7 +179,10 @@ func (s *Service) resolveResourceScope(ctx context.Context, claims gatewayClaims
 			err := errors.New("organisation identity does not match bearer claims")
 			return "", metav1.OwnerReference{}, resourceForbidden(err)
 		}
-		return tenant.Status.Namespace, *metav1.NewControllerRef(tenant, agentzv1alpha1.SchemeGroupVersion.WithKind("Tenant")), nil
+		return tenant.Status.Namespace, *metav1.NewControllerRef(
+			tenant,
+			agentzv1alpha1.SchemeGroupVersion.WithKind("Tenant"),
+		), nil
 	}
 
 	row, err := s.queries.GatewayGetWorkspace(
@@ -226,7 +232,10 @@ func (s *Service) resolveResourceScope(ctx context.Context, claims gatewayClaims
 			fmt.Errorf("workspace %s scope identity is inconsistent", resource),
 		)
 	}
-	return row.Namespace, *metav1.NewControllerRef(workspace, agentzv1alpha1.SchemeGroupVersion.WithKind("Workspace")), nil
+	return row.Namespace, *metav1.NewControllerRef(
+		workspace,
+		agentzv1alpha1.SchemeGroupVersion.WithKind("Workspace"),
+	), nil
 }
 
 type resourceCapabilitySet struct {
@@ -316,7 +325,10 @@ func resourceCapabilities(effective authorization.Effective, organizationID, wor
 			Modify: delegate,
 			Delete: delegate,
 		}
-		capabilities.canAuthorAgents = effective.Allows(scope, authorization.OperationCreateAgent)
+		capabilities.canAuthorAgents = effective.Allows(
+			scope,
+			authorization.OperationCreateAgent,
+		)
 		capabilities.inferencePool = gatewayapi.ResourceCapabilities{
 			Read:   effective.Allows(scope, authorization.OperationListInferencePools),
 			Create: effective.Allows(scope, authorization.OperationCreateInferencePool),
@@ -336,11 +348,19 @@ func resourceCapabilities(effective authorization.Effective, organizationID, wor
 }
 
 func resourceForbidden(cause error) *apiutil.APIError {
-	return apiutil.NewError(http.StatusForbidden, "forbidden", "request is not authorized for the selected scope", cause)
+	return apiutil.NewError(
+		http.StatusForbidden,
+		"forbidden",
+		"request is not authorized for the selected scope",
+		cause,
+	)
 }
 
 func (s *Service) createResourceEventTrail(ctx context.Context, access resourceAccess, target gatewaydb.EventTrailTarget, id, category, action string, result gatewaydb.EventTrailResult) error {
-	fields, err := json.Marshal([]gatewayapi.EventTrailField{{Field: gatewayapi.EventTrailFieldName, Value: id}})
+	fields, err := json.Marshal([]gatewayapi.EventTrailField{{
+		Field: gatewayapi.EventTrailFieldName,
+		Value: id,
+	}})
 	if err != nil {
 		return fmt.Errorf("encode %s event trail summary: %w", category, err)
 	}

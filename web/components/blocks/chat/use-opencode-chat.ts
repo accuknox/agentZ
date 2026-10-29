@@ -319,7 +319,9 @@ export function applyEvent(store: OpencodeChatStore, event: StreamEvent): Openco
       const sessionID = event.properties.sessionID
       const nextTodos = { ...store.todos }
       nextTodos[sessionID] = event.properties.todos
-      if (event.properties.todos.length === 0) delete nextTodos[sessionID]
+      if (event.properties.todos.length === 0) {
+        delete nextTodos[sessionID]
+      }
       return { ...store, todos: nextTodos }
     }
 

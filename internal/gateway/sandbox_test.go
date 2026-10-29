@@ -93,14 +93,21 @@ func (q *sandboxQueries) GatewayListWorkspaceInheritedResources(context.Context,
 
 // GatewayListUsersByID returns the authenticated fixture user.
 func (q *sandboxQueries) GatewayListUsersByID(context.Context, []string) ([]gatewaydb.GatewayListUsersByIDRow, error) {
-	return []gatewaydb.GatewayListUsersByIDRow{{ID: testUserID, Name: "Test User", Email: "test@example.com"}}, nil
+	return []gatewaydb.GatewayListUsersByIDRow{{
+		ID:    testUserID,
+		Name:  "Test User",
+		Email: "test@example.com",
+	}}, nil
 }
 
 func TestGeneratedSandboxListSelectsAuthorizedNamespace(t *testing.T) {
 	t.Parallel()
 
 	tests := []generatedSandboxListCase{
-		{name: "Organisation", wantSandbox: "organization-sandbox"},
+		{
+			name:        "Organisation",
+			wantSandbox: "organization-sandbox",
+		},
 		{
 			name:         "Workspace",
 			workspaceID:  testWorkspaceID,
@@ -116,8 +123,11 @@ func TestGeneratedSandboxListSelectsAuthorizedNamespace(t *testing.T) {
 
 				queries := &sandboxQueries{
 					permissions: []gatewaydb.GatewayResolvePermissionsRow{{
-						Active:      true,
-						WorkspaceID: pgtype.Text{String: tt.permissionNS, Valid: tt.permissionNS != ""},
+						Active: true,
+						WorkspaceID: pgtype.Text{
+							String: tt.permissionNS,
+							Valid:  tt.permissionNS != "",
+						},
 						Resource: gatewaydb.NullPermissionResource{
 							PermissionResource: gatewaydb.PermissionResourceSandbox,
 							Valid:              true,
@@ -213,7 +223,10 @@ func TestSandboxMutationAuthorizationIncludesCreatorPrivilege(t *testing.T) {
 						PermissionResource: gatewaydb.PermissionResourceSandbox,
 						Valid:              true,
 					},
-					Action: gatewaydb.NullPermissionAction{PermissionAction: tt.action, Valid: true},
+					Action: gatewaydb.NullPermissionAction{
+						PermissionAction: tt.action,
+						Valid:            true,
+					},
 				}},
 			}
 			svc := sandboxTestService(t, queries)
@@ -222,7 +235,10 @@ func TestSandboxMutationAuthorizationIncludesCreatorPrivilege(t *testing.T) {
 				ctx,
 				authContextKey{},
 				requestAuth{
-					claims: &gatewayClaims{OrganizationID: testOrganizationID, UserID: tt.userID},
+					claims: &gatewayClaims{
+						OrganizationID: testOrganizationID,
+						UserID:         tt.userID,
+					},
 				},
 			)
 			ctx = context.WithValue(
@@ -242,7 +258,12 @@ func TestSandboxMutationAuthorizationIncludesCreatorPrivilege(t *testing.T) {
 			// The generated context key is a string constant owned by oapi-codegen.
 			ctx = context.WithValue(ctx, gatewayapi.GatewayBearerScopes, []string{scope}) //nolint:staticcheck
 
-			_, apiErr := svc.resolveSandboxAccess(ctx, "", "organization-sandbox", tt.operation)
+			_, apiErr := svc.resolveSandboxAccess(
+				ctx,
+				"",
+				"organization-sandbox",
+				tt.operation,
+			)
 			if tt.wantStatus == 0 && apiErr != nil {
 				t.Fatalf("error = %#v, want authorized", apiErr)
 			}
@@ -258,9 +279,15 @@ func TestValidateSandboxDependenciesAllowsWorkspaceReadForInheritedResources(t *
 
 	read := func(resource gatewaydb.PermissionResource) gatewaydb.GatewayResolvePermissionsRow {
 		return gatewaydb.GatewayResolvePermissionsRow{
-			Active:      true,
-			WorkspaceID: pgtype.Text{String: testWorkspaceID, Valid: true},
-			Resource:    gatewaydb.NullPermissionResource{PermissionResource: resource, Valid: true},
+			Active: true,
+			WorkspaceID: pgtype.Text{
+				String: testWorkspaceID,
+				Valid:  true,
+			},
+			Resource: gatewaydb.NullPermissionResource{
+				PermissionResource: resource,
+				Valid:              true,
+			},
 			Action: gatewaydb.NullPermissionAction{
 				PermissionAction: gatewaydb.PermissionActionRead,
 				Valid:            true,
@@ -276,7 +303,10 @@ func TestValidateSandboxDependenciesAllowsWorkspaceReadForInheritedResources(t *
 	}
 	effective, err := authorization.New(queries).Resolve(
 		context.Background(),
-		authorization.Subject{UserID: testUserID, OrganizationID: testOrganizationID},
+		authorization.Subject{
+			UserID:         testUserID,
+			OrganizationID: testOrganizationID,
+		},
 	)
 	if err != nil {
 		t.Fatalf("resolve permissions: %v", err)
@@ -286,7 +316,10 @@ func TestValidateSandboxDependenciesAllowsWorkspaceReadForInheritedResources(t *
 	ctx := context.Background()
 	sandbox := &agentzv1alpha1.Sandbox{
 		Spec: agentzv1alpha1.SandboxSpec{
-			Skills: []agentzv1alpha1.ResourceReference{{Scope: agentzv1alpha1.ResourceScopeOrganisation, Name: "skill"}},
+			Skills: []agentzv1alpha1.ResourceReference{{
+				Scope: agentzv1alpha1.ResourceScopeOrganisation,
+				Name:  "skill",
+			}},
 			MCPConnectionRefs: []agentzv1alpha1.MCPConnectionRef{{
 				ResourceReference: agentzv1alpha1.ResourceReference{
 					Scope: agentzv1alpha1.ResourceScopeOrganisation,
@@ -303,7 +336,10 @@ func TestValidateSandboxDependenciesAllowsWorkspaceReadForInheritedResources(t *
 		},
 	}
 	access := resourceAccess{
-		claims:      gatewayClaims{OrganizationID: testOrganizationID, UserID: testUserID},
+		claims: gatewayClaims{
+			OrganizationID: testOrganizationID,
+			UserID:         testUserID,
+		},
 		effective:   effective,
 		namespace:   testWorkspaceNS,
 		workspaceID: testWorkspaceID,
@@ -320,7 +356,10 @@ func TestValidateSandboxDependenciesAllowsWorkspaceReadForInheritedResources(t *
 func TestUpdateSecretSandboxHostsAllowsInheritedSandbox(t *testing.T) {
 	t.Parallel()
 
-	organizationNamespace := agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeOrganisation, testOrganizationID)
+	organizationNamespace := agentzv1alpha1.ScopeNamespace(
+		agentzv1alpha1.ResourceScopeOrganisation,
+		testOrganizationID,
+	)
 	agt := &agentzv1alpha1.Agent{
 		ObjectMeta: metav1.ObjectMeta{Name: "agent", Namespace: testWorkspaceNS},
 		Spec: agentzv1alpha1.AgentSpec{
@@ -345,7 +384,13 @@ func TestUpdateSecretSandboxHostsAllowsInheritedSandbox(t *testing.T) {
 	client := agentzfake.NewSimpleClientset(agt, sandbox)
 	svc := &Service{resolver: &resolver{client: client}}
 
-	warning, apiErr := svc.updateSecretSandboxHosts(context.Background(), testWorkspaceNS, agt.Name, "user-2", []string{"api.example.com"})
+	warning, apiErr := svc.updateSecretSandboxHosts(
+		context.Background(),
+		testWorkspaceNS,
+		agt.Name,
+		"user-2",
+		[]string{"api.example.com"},
+	)
 	if apiErr != nil {
 		t.Fatalf("updateSecretSandboxHosts() error = %v, want inherited sandbox unchanged", apiErr)
 	}
@@ -369,7 +414,10 @@ func sandboxTestService(t *testing.T, queries gatewaydb.Querier) *Service {
 	if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatalf("add AgentZ scheme: %v", err)
 	}
-	organizationNamespace := agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeOrganisation, testOrganizationID)
+	organizationNamespace := agentzv1alpha1.ScopeNamespace(
+		agentzv1alpha1.ResourceScopeOrganisation,
+		testOrganizationID,
+	)
 	objects := []ctrlclient.Object{
 		&agentzv1alpha1.Tenant{
 			ObjectMeta: metav1.ObjectMeta{Name: organizationNamespace},
@@ -378,8 +426,10 @@ func sandboxTestService(t *testing.T, queries gatewaydb.Querier) *Service {
 		},
 		&corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:   organizationNamespace,
-				Labels: map[string]string{agentzv1alpha1.TenantNameLabel: organizationNamespace},
+				Name: organizationNamespace,
+				Labels: map[string]string{
+					agentzv1alpha1.TenantNameLabel: organizationNamespace,
+				},
 			},
 		},
 		&corev1.Namespace{
@@ -392,7 +442,10 @@ func sandboxTestService(t *testing.T, queries gatewaydb.Querier) *Service {
 			},
 		},
 		&agentzv1alpha1.Sandbox{
-			ObjectMeta: metav1.ObjectMeta{Name: "organization-sandbox", Namespace: testOrgNamespace},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "organization-sandbox",
+				Namespace: testOrgNamespace,
+			},
 			Spec: agentzv1alpha1.SandboxSpec{
 				ResourceAudit: agentzv1alpha1.ResourceAudit{
 					CreatedByUserID:      testUserID,
@@ -401,7 +454,10 @@ func sandboxTestService(t *testing.T, queries gatewaydb.Querier) *Service {
 			},
 		},
 		&agentzv1alpha1.Sandbox{
-			ObjectMeta: metav1.ObjectMeta{Name: "workspace-sandbox", Namespace: testWorkspaceNS},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "workspace-sandbox",
+				Namespace: testWorkspaceNS,
+			},
 			Spec: agentzv1alpha1.SandboxSpec{
 				ResourceAudit: agentzv1alpha1.ResourceAudit{
 					CreatedByUserID:      testUserID,

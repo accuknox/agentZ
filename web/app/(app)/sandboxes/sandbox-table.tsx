@@ -81,7 +81,10 @@ export function SandboxTable({
     <AdminDataGrid
       ariaLabel="Sandboxes"
       emptyState={
-        <AdministrationState kind={canCreate ? "welcome" : "empty"} title="No sandboxes" />
+        <AdministrationState
+          kind={canCreate ? "welcome" : "empty"}
+          title="No sandboxes"
+        />
       }
       layout={layout}
       pagination={<TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />}

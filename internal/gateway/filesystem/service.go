@@ -91,7 +91,12 @@ func Serve(ctx context.Context, cfg Config) error {
 
 	errCh := make(chan error, 1)
 	go func() {
-		slog.InfoContext(ctx, "starting workspace filesystem server", slog.String("addr", cfg.Addr), slog.String("root", cfg.Root))
+		slog.InfoContext(
+			ctx,
+			"starting workspace filesystem server",
+			slog.String("addr", cfg.Addr),
+			slog.String("root", cfg.Root),
+		)
 		errCh <- srv.ListenAndServe()
 	}()
 
@@ -234,7 +239,12 @@ func (s *service) writeFile(w http.ResponseWriter, r *http.Request) {
 		}
 		err := s.root.Remove(tmp)
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			slog.ErrorContext(r.Context(), "remove temporary file", slog.String("path", req.Path), slog.Any("err", err))
+			slog.ErrorContext(
+				r.Context(),
+				"remove temporary file",
+				slog.String("path", req.Path),
+				slog.Any("err", err),
+			)
 		}
 	}()
 
@@ -274,7 +284,14 @@ func (s *service) writeFile(w http.ResponseWriter, r *http.Request) {
 			if restoreErr != nil {
 				removeTmp = false
 			}
-			writeFailure(w, r, internalFailure("validate replaced file", errors.Join(err, restoreErr)))
+			writeFailure(
+				w,
+				r,
+				internalFailure(
+					"validate replaced file",
+					errors.Join(err, restoreErr),
+				),
+			)
 			return
 		}
 		current.Path = req.Path
@@ -286,7 +303,11 @@ func (s *service) writeFile(w http.ResponseWriter, r *http.Request) {
 				}
 				if restoreErr != nil {
 					removeTmp = false
-					writeFailure(w, r, internalFailure("restore version-conflicted file", restoreErr))
+					writeFailure(
+						w,
+						r,
+						internalFailure("restore version-conflicted file", restoreErr),
+					)
 					return
 				}
 			}
@@ -387,7 +408,12 @@ func (s *service) writeRaw(w http.ResponseWriter, r *http.Request) {
 		}
 		err := s.root.Remove(tmp)
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			slog.ErrorContext(r.Context(), "remove temporary raw file", slog.String("path", name), slog.Any("err", err))
+			slog.ErrorContext(
+				r.Context(),
+				"remove temporary raw file",
+				slog.String("path", name),
+				slog.Any("err", err),
+			)
 		}
 	}()
 
@@ -754,7 +780,14 @@ func writeFailure(w http.ResponseWriter, r *http.Request, ferr *failure) {
 		)
 		return
 	}
-	writeJSON(w, ferr.status, gatewayapi.Error{Code: ferr.code, Message: ferr.message})
+	writeJSON(
+		w,
+		ferr.status,
+		gatewayapi.Error{
+			Code:    ferr.code,
+			Message: ferr.message,
+		},
+	)
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

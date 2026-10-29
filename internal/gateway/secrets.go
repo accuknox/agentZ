@@ -58,13 +58,28 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agtName gate
 		return
 	}
 
-	exists, err := s.queries.GatewayAgentExists(r.Context(), gatewaydb.GatewayAgentExistsParams{TenantNamespace: ns, AgentName: name})
+	exists, err := s.queries.GatewayAgentExists(
+		r.Context(),
+		gatewaydb.GatewayAgentExistsParams{
+			TenantNamespace: ns,
+			AgentName:       name,
+		},
+	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if !exists {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusNotFound, "not_found", "agent not found", errAgentNotFound))
+		apiutil.WriteError(
+			w,
+			r,
+			apiutil.NewError(
+				http.StatusNotFound,
+				"not_found",
+				"agent not found",
+				errAgentNotFound,
+			),
+		)
 		return
 	}
 
@@ -85,7 +100,13 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agtName gate
 
 	var warning *gatewayapi.SecretWarning
 	if params.UpdateSandbox != nil && *params.UpdateSandbox {
-		warning, apiErr = s.updateSecretSandboxHosts(r.Context(), ns, name, claims.UserID, secret.Spec.Hosts)
+		warning, apiErr = s.updateSecretSandboxHosts(
+			r.Context(),
+			ns,
+			name,
+			claims.UserID,
+			secret.Spec.Hosts,
+		)
 		if apiErr != nil {
 			apiutil.WriteError(w, r, apiErr)
 			return
@@ -111,7 +132,11 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agtName gate
 		return
 	}
 
-	actors, err := s.resourceActors(r.Context(), secret.Spec.CreatedByUserID, secret.Spec.LastModifiedByUserID)
+	actors, err := s.resourceActors(
+		r.Context(),
+		secret.Spec.CreatedByUserID,
+		secret.Spec.LastModifiedByUserID,
+	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
@@ -127,7 +152,11 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agtName gate
 }
 
 func (s *Service) updateSecretSandboxHosts(ctx context.Context, ns, agtName, userID string, secretHosts []string) (*gatewayapi.SecretWarning, *apiutil.APIError) {
-	agt, err := s.resolver.client.AgentzV1alpha1().Agents(ns).Get(ctx, agtName, metav1.GetOptions{})
+	agt, err := s.resolver.client.AgentzV1alpha1().Agents(ns).Get(
+		ctx,
+		agtName,
+		metav1.GetOptions{},
+	)
 	if err != nil {
 		return nil, mapKubeHTTPError("get agent", err)
 	}
@@ -170,7 +199,11 @@ func (s *Service) updateSecretSandboxHosts(ctx context.Context, ns, agtName, use
 	err = retry.RetryOnConflict(
 		retry.DefaultRetry,
 		func() error {
-			sandbox, err := s.resolver.client.AgentzV1alpha1().Sandboxes(ns).Get(ctx, sandboxName, metav1.GetOptions{})
+			sandbox, err := s.resolver.client.AgentzV1alpha1().Sandboxes(ns).Get(
+				ctx,
+				sandboxName,
+				metav1.GetOptions{},
+			)
 			if err != nil {
 				return err
 			}
@@ -200,7 +233,11 @@ func (s *Service) updateSecretSandboxHosts(ctx context.Context, ns, agtName, use
 
 			sandbox.Spec.AllowedHosts = merged
 			sandbox.Spec.LastModifiedByUserID = userID
-			_, err = s.resolver.client.AgentzV1alpha1().Sandboxes(ns).Update(ctx, sandbox, metav1.UpdateOptions{})
+			_, err = s.resolver.client.AgentzV1alpha1().Sandboxes(ns).Update(
+				ctx,
+				sandbox,
+				metav1.UpdateOptions{},
+			)
 			return err
 		},
 	)
@@ -229,13 +266,28 @@ func (s *Service) DeleteSecret(w http.ResponseWriter, r *http.Request, agentName
 		return
 	}
 
-	exists, err := s.queries.GatewayAgentExists(r.Context(), gatewaydb.GatewayAgentExistsParams{TenantNamespace: ns, AgentName: name})
+	exists, err := s.queries.GatewayAgentExists(
+		r.Context(),
+		gatewaydb.GatewayAgentExistsParams{
+			TenantNamespace: ns,
+			AgentName:       name,
+		},
+	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if !exists {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusNotFound, "not_found", "agent not found", errAgentNotFound))
+		apiutil.WriteError(
+			w,
+			r,
+			apiutil.NewError(
+				http.StatusNotFound,
+				"not_found",
+				"agent not found",
+				errAgentNotFound,
+			),
+		)
 		return
 	}
 
@@ -281,7 +333,10 @@ func (s *Service) DeleteSecret(w http.ResponseWriter, r *http.Request, agentName
 					"invalid_request",
 					"request validation failed",
 					errBadRequest,
-					gatewayapi.FieldError{Field: fmt.Sprintf("keys[%d]", i), Message: "required"},
+					gatewayapi.FieldError{
+						Field:   fmt.Sprintf("keys[%d]", i),
+						Message: "required",
+					},
 				),
 			)
 			return
@@ -324,13 +379,28 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 
-	exists, err := s.queries.GatewayAgentExists(r.Context(), gatewaydb.GatewayAgentExistsParams{TenantNamespace: ns, AgentName: name})
+	exists, err := s.queries.GatewayAgentExists(
+		r.Context(),
+		gatewaydb.GatewayAgentExistsParams{
+			TenantNamespace: ns,
+			AgentName:       name,
+		},
+	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if !exists {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusNotFound, "not_found", "agent not found", errAgentNotFound))
+		apiutil.WriteError(
+			w,
+			r,
+			apiutil.NewError(
+				http.StatusNotFound,
+				"not_found",
+				"agent not found",
+				errAgentNotFound,
+			),
+		)
 		return
 	}
 
@@ -372,7 +442,11 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 	}
 	userIDs := make([]string, 0, (end-start)*2)
 	for _, item := range items[start:end] {
-		userIDs = append(userIDs, item.Spec.CreatedByUserID, item.Spec.LastModifiedByUserID)
+		userIDs = append(
+			userIDs,
+			item.Spec.CreatedByUserID,
+			item.Spec.LastModifiedByUserID,
+		)
 	}
 	actors, err := s.resourceActors(r.Context(), userIDs...)
 	if err != nil {
@@ -403,13 +477,28 @@ func (s *Service) WatchSecrets(w http.ResponseWriter, r *http.Request, agentName
 		return
 	}
 
-	exists, err := s.queries.GatewayAgentExists(r.Context(), gatewaydb.GatewayAgentExistsParams{TenantNamespace: ns, AgentName: name})
+	exists, err := s.queries.GatewayAgentExists(
+		r.Context(),
+		gatewaydb.GatewayAgentExistsParams{
+			TenantNamespace: ns,
+			AgentName:       name,
+		},
+	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
 	}
 	if !exists {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusNotFound, "not_found", "agent not found", errAgentNotFound))
+		apiutil.WriteError(
+			w,
+			r,
+			apiutil.NewError(
+				http.StatusNotFound,
+				"not_found",
+				"agent not found",
+				errAgentNotFound,
+			),
+		)
 		return
 	}
 
@@ -431,7 +520,10 @@ func (s *Service) WatchSecrets(w http.ResponseWriter, r *http.Request, agentName
 						"invalid_request",
 						"request validation failed",
 						errBadRequest,
-						gatewayapi.FieldError{Field: fmt.Sprintf("keys[%d]", i), Message: "required"},
+						gatewayapi.FieldError{
+							Field:   fmt.Sprintf("keys[%d]", i),
+							Message: "required",
+						},
 					),
 				)
 				return
@@ -520,7 +612,11 @@ func (s *Service) WatchSecrets(w http.ResponseWriter, r *http.Request, agentName
 				}
 			}
 			filtered = append(filtered, item)
-			userIDs = append(userIDs, item.Spec.CreatedByUserID, item.Spec.LastModifiedByUserID)
+			userIDs = append(
+				userIDs,
+				item.Spec.CreatedByUserID,
+				item.Spec.LastModifiedByUserID,
+			)
 		}
 		actors, err := s.resourceActors(r.Context(), userIDs...)
 		if err != nil {
@@ -670,7 +766,9 @@ func (s *Service) secretFromRequest(ns string, tenant *agentzv1alpha1.Tenant, ag
 		}
 
 		spec.Type = agentzv1alpha1.SecretTypeOAuth
-		spec.OAuth = &agentzv1alpha1.SecretOAuthSpec{Scopes: append([]string{}, req.Oauth.Scopes...)}
+		spec.OAuth = &agentzv1alpha1.SecretOAuthSpec{
+			Scopes: append([]string{}, req.Oauth.Scopes...),
+		}
 		if req.Oauth.Provider != nil {
 			spec.OAuth.Provider = strings.TrimSpace(*req.Oauth.Provider)
 		}
@@ -953,7 +1051,17 @@ func (s *Service) syncAgentEnv(ctx context.Context, agentName, userID string, ad
 
 func mapOpenBaoError(err error) *apiutil.APIError {
 	if errors.Is(err, baoapi.ErrSecretNotFound) {
-		return apiutil.NewError(http.StatusNotFound, "not_found", "secret not found", errors.New("openbao secret not found"))
+		return apiutil.NewError(
+			http.StatusNotFound,
+			"not_found",
+			"secret not found",
+			errors.New("openbao secret not found"),
+		)
 	}
-	return apiutil.NewError(http.StatusInternalServerError, "internal_error", "request failed", errors.New("openbao request failed"))
+	return apiutil.NewError(
+		http.StatusInternalServerError,
+		"internal_error",
+		"request failed",
+		errors.New("openbao request failed"),
+	)
 }

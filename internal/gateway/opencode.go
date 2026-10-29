@@ -86,12 +86,26 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 			apiutil.WriteError(
 				w,
 				r,
-				apiutil.NewError(http.StatusMethodNotAllowed, "method_not_allowed", "method is not allowed for this route", nil),
+				apiutil.NewError(
+					http.StatusMethodNotAllowed,
+					"method_not_allowed",
+					"method is not allowed for this route",
+					nil,
+				),
 			)
 			return
 		}
 
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusNotFound, "not_found", "route not found", nil))
+		apiutil.WriteError(
+			w,
+			r,
+			apiutil.NewError(
+				http.StatusNotFound,
+				"not_found",
+				"route not found",
+				nil,
+			),
+		)
 		return
 	}
 	endpoint := strings.TrimPrefix(route.Path, opencodePrefix+"/{agentName}")
@@ -121,7 +135,12 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 			apiutil.WriteError(
 				w,
 				r,
-				apiutil.NewError(http.StatusRequestEntityTooLarge, "request_too_large", "request body exceeds the maximum allowed size", nil),
+				apiutil.NewError(
+					http.StatusRequestEntityTooLarge,
+					"request_too_large",
+					"request body exceeds the maximum allowed size",
+					nil,
+				),
 			)
 			return
 		}
@@ -131,7 +150,10 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 	if query.Get("directory") == "" && r.Header.Get("X-Opencode-Directory") != "" {
 		directory, err := url.PathUnescape(r.Header.Get("X-Opencode-Directory"))
 		if err != nil {
-			apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_directory", "Invalid checkout directory", err))
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusBadRequest, "invalid_directory",
+				"Invalid checkout directory", err,
+			))
 			return
 		}
 		query.Set("directory", directory)
@@ -178,7 +200,9 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 	}
 	sessionID := route.Params["sessionID"]
 	if sessionID != "" && changesInput {
-		release, err := s.lockChatInputs(r.Context(), access.workspaceID, agentName, sessionID, "")
+		release, err := s.lockChatInputs(
+			r.Context(), access.workspaceID, agentName, sessionID, "",
+		)
 		if err != nil {
 			apiutil.WriteError(w, r, mapGatewayStoreError("submit input", err))
 			return
@@ -230,7 +254,16 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 
 	resolved, err := s.resolver.resolveAgent(r.Context(), access.namespace, agentName)
 	if err != nil {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusNotFound, "not_found", "agent not found", err))
+		apiutil.WriteError(
+			w,
+			r,
+			apiutil.NewError(
+				http.StatusNotFound,
+				"not_found",
+				"agent not found",
+				err,
+			),
+		)
 		return
 	}
 
@@ -247,12 +280,30 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 
 	path, rawPath, err := openCodeUpstreamPath(r.URL, agentName)
 	if err != nil {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusNotFound, "not_found", "route not found", err))
+		apiutil.WriteError(
+			w,
+			r,
+			apiutil.NewError(
+				http.StatusNotFound,
+				"not_found",
+				"route not found",
+				err,
+			),
+		)
 		return
 	}
 
 	if err := attributeOpenCodePrompt(r, route, auth); err != nil {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "bad_request", "invalid OpenCode prompt", err))
+		apiutil.WriteError(
+			w,
+			r,
+			apiutil.NewError(
+				http.StatusBadRequest,
+				"bad_request",
+				"invalid OpenCode prompt",
+				err,
+			),
+		)
 		return
 	}
 	proxy := &httputil.ReverseProxy{
@@ -278,14 +329,21 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 			preq.SetXForwarded()
 			preq.Out.Header.Set("X-Request-ID", requestID(preq.In))
 		},
-		ModifyResponse: s.openCodeModifyResponse(r.Context(), route, target, auth, access.workspaceID, agentName),
-		FlushInterval:  -1,
+		ModifyResponse: s.openCodeModifyResponse(
+			r.Context(), route, target, auth, access.workspaceID, agentName,
+		),
+		FlushInterval: -1,
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, proxyErr error) {
 			if _, ok := errors.AsType[*http.MaxBytesError](proxyErr); ok {
 				apiutil.WriteError(
 					rw,
 					req,
-					apiutil.NewError(http.StatusRequestEntityTooLarge, "request_too_large", "request body exceeds the maximum allowed size", proxyErr),
+					apiutil.NewError(
+						http.StatusRequestEntityTooLarge,
+						"request_too_large",
+						"request body exceeds the maximum allowed size",
+						proxyErr,
+					),
 				)
 				return
 			}
@@ -295,7 +353,16 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			apiutil.WriteError(rw, req, apiutil.NewError(http.StatusBadGateway, "proxy_error", "request failed", proxyErr))
+			apiutil.WriteError(
+				rw,
+				req,
+				apiutil.NewError(
+					http.StatusBadGateway,
+					"proxy_error",
+					"request failed",
+					proxyErr,
+				),
+			)
 		},
 	}
 
@@ -324,7 +391,10 @@ func (s *Service) streamOpenCodeEvents(w http.ResponseWriter, r *http.Request, r
 	client.Timeout = 0
 	resp, err := client.Do(req)
 	if err != nil {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadGateway, "event_failed", "Could not connect to agent events", err))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadGateway, "event_failed",
+			"Could not connect to agent events", err,
+		))
 		return
 	}
 	defer resp.Body.Close()
@@ -401,7 +471,8 @@ func (s *Service) streamOpenCodeEvents(w http.ResponseWriter, r *http.Request, r
 			}
 		}
 		if err != nil {
-			slog.ErrorContext(r.Context(), "persist agent event", "agent", agentName, "session", sessionID, "error", err)
+			slog.ErrorContext(r.Context(), "persist agent event",
+				"agent", agentName, "session", sessionID, "error", err)
 			return
 		}
 		data = []byte(frame.Data)
@@ -737,7 +808,9 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 				"Could not save the workspace record for session %s. Read this session to retry persistence before creating another.",
 				sessionID,
 			)
-			return apiutil.NewError(http.StatusBadGateway, "session_persistence_failed", message, err)
+			return apiutil.NewError(
+				http.StatusBadGateway, "session_persistence_failed", message, err,
+			)
 		}
 		if err := s.recordOpenCodePrompt(ctx, route, auth, workspaceID, agentName); err != nil {
 			return err

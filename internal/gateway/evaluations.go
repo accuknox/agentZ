@@ -197,12 +197,14 @@ func (s *Service) validateEvaluationModels(ctx context.Context, namespace, agent
 	if variants {
 		upstream, err := s.agentClient(ctx, namespace, agentName, s.outboundHTTP)
 		if err != nil {
-			return nil, apiutil.NewError(503, "model_catalog_unavailable", "Could not load the agent's model variants; try again", err)
+			return nil, apiutil.NewError(503, "model_catalog_unavailable",
+				"Could not load the agent's model variants; try again", err)
 		}
 		catalog, err := upstream.ConfigProvidersWithResponse(ctx, agentName, nil)
 		unavailable := err != nil || catalog.JSON200 == nil || catalog.JSON200.Providers == nil
 		if unavailable {
-			return nil, apiutil.NewError(503, "model_catalog_unavailable", "Could not load the agent's model variants; try again", err)
+			return nil, apiutil.NewError(503, "model_catalog_unavailable",
+				"Could not load the agent's model variants; try again", err)
 		}
 		providers = catalog.JSON200.Providers
 	}
@@ -451,7 +453,10 @@ func (s *Service) runEvaluations(ctx context.Context, cleanup bool) {
 			if err != nil {
 				slog.ErrorContext(ctx, "delete workflow evaluation", "id", job.ID, "error", err)
 			}
-			err = q.RunEvaluationRelease(ctx, workflowdb.RunEvaluationReleaseParams{ID: job.ID, LeaseToken: job.LeaseToken})
+			err = q.RunEvaluationRelease(ctx, workflowdb.RunEvaluationReleaseParams{
+				ID:         job.ID,
+				LeaseToken: job.LeaseToken,
+			})
 			if err != nil {
 				slog.ErrorContext(ctx, "release evaluation cleanup", "id", job.ID, "error", err)
 			}
@@ -528,7 +533,10 @@ func (s *Service) advanceEvaluation(ctx context.Context, job workflowdb.Workflow
 		workspaceID: job.WorkspaceID,
 		operation:   authorization.OperationUseSharedAgent,
 	}
-	effective, err := authorization.New(s.queries).Resolve(ctx, authorization.Subject{UserID: job.OwnerID, OrganizationID: job.OrganizationID})
+	effective, err := authorization.New(s.queries).Resolve(ctx, authorization.Subject{
+		UserID:         job.OwnerID,
+		OrganizationID: job.OrganizationID,
+	})
 	if err != nil {
 		return err
 	}
@@ -637,7 +645,12 @@ func (s *Service) advanceEvaluation(ctx context.Context, job workflowdb.Workflow
 			execution := judgment.execution
 			execution.State = gatewayapi.EvaluationExecutionStateCompleted
 			if judgment.err != nil {
-				slog.WarnContext(ctx, "judge workflow execution", "run", execution.RunName, "error", judgment.err)
+				slog.WarnContext(
+					ctx,
+					"judge workflow execution",
+					"run", execution.RunName,
+					"error", judgment.err,
+				)
 				execution.State = gatewayapi.EvaluationExecutionStateError
 				execution.Message = new("Judging failed. Retry with a judge that supports the full transcript.")
 			}
@@ -679,7 +692,10 @@ func (s *Service) advanceEvaluationRuns(ctx context.Context, job workflowdb.Work
 			continue
 		}
 		var run agentzv1alpha1.WorkflowRun
-		runKey := client.ObjectKey{Namespace: job.TenantNamespace, Name: execution.RunName}
+		runKey := client.ObjectKey{
+			Namespace: job.TenantNamespace,
+			Name:      execution.RunName,
+		}
 		err := s.k8sClient.Get(ctx, runKey, &run)
 		if apierrors.IsNotFound(err) && execution.State == gatewayapi.EvaluationExecutionStateQueued {
 			definition, err := json.Marshal(result.Workflow)
@@ -848,7 +864,10 @@ func (s *Service) deleteEvaluation(ctx context.Context, job workflowdb.WorkflowR
 			break
 		}
 	}
-	_, err = workflowdb.New(s.db).RunEvaluationDelete(ctx, workflowdb.RunEvaluationDeleteParams{ID: job.ID, LeaseToken: job.LeaseToken})
+	_, err = workflowdb.New(s.db).RunEvaluationDelete(ctx, workflowdb.RunEvaluationDeleteParams{
+		ID:         job.ID,
+		LeaseToken: job.LeaseToken,
+	})
 	return err
 }
 
@@ -864,7 +883,10 @@ func (s *Service) cancelEvaluation(ctx context.Context, job workflowdb.WorkflowR
 			continue
 		}
 		var run agentzv1alpha1.WorkflowRun
-		runKey := client.ObjectKey{Namespace: job.TenantNamespace, Name: execution.RunName}
+		runKey := client.ObjectKey{
+			Namespace: job.TenantNamespace,
+			Name:      execution.RunName,
+		}
 		err := s.k8sClient.Get(ctx, runKey, &run)
 		if apierrors.IsNotFound(err) {
 			execution.State = gatewayapi.EvaluationExecutionStateCancelled
@@ -1088,9 +1110,12 @@ func (s *Service) judgeEvaluation(ctx context.Context, namespace string, evaluat
 		},
 	}
 	session, err := upstream.SessionCreateWithResponse(ctx, evaluation.Workflow.AgentName, nil, gatewayapi.SessionCreateJSONRequestBody{
-		Title:      new("Judge workflow execution"),
-		Metadata:   &map[string]any{"agentz.evaluation_id": evaluation.Id.String()},
-		Model:      &gatewayapi.OpencodeModelRef{ProviderID: judge.ProviderId, Id: judge.ModelId},
+		Title:    new("Judge workflow execution"),
+		Metadata: &map[string]any{"agentz.evaluation_id": evaluation.Id.String()},
+		Model: &gatewayapi.OpencodeModelRef{
+			ProviderID: judge.ProviderId,
+			Id:         judge.ModelId,
+		},
 		Permission: &permissions,
 	})
 	if err != nil {
@@ -1165,7 +1190,9 @@ func (s *Service) judgeEvaluation(ctx context.Context, namespace string, evaluat
 		if err != nil {
 			return err
 		}
-		messageID := fmt.Sprintf("msg_%012x%s", (time.Now().UnixMilli()<<12)&0xffffffffffff, rand.Text()[:14])
+		messageID := fmt.Sprintf(
+			"msg_%012x%s", (time.Now().UnixMilli()<<12)&0xffffffffffff, rand.Text()[:14],
+		)
 		response, err := upstream.SessionPromptWithResponse(
 			ctx, evaluation.Workflow.AgentName, session.JSON200.Id, nil,
 			gatewayapi.SessionPromptJSONRequestBody{
@@ -1250,7 +1277,10 @@ func scoreEvaluation(evaluation *gatewayapi.WorkflowEvaluation) {
 					medians[i] = (values[middle-1] + values[middle]) / 2
 				}
 			}
-			evaluation.References = &gatewayapi.EvaluationReferences{Tokens: medians[0], ToolCalls: medians[1]}
+			evaluation.References = &gatewayapi.EvaluationReferences{
+				Tokens:    medians[0],
+				ToolCalls: medians[1],
+			}
 		}
 	}
 	for i := range evaluation.Executions {

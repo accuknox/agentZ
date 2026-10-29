@@ -342,7 +342,12 @@ export function TwoFactorSettings({
           showCloseButton={mode === "loading" || (mode === "reauth" && provider !== "credential")}
         >
           {mode === "setup" && setup ? (
-            <SetupDialog error={error} pending={verifying} setup={setup} onVerifyAction={verify} />
+            <SetupDialog
+              error={error}
+              pending={verifying}
+              setup={setup}
+              onVerifyAction={verify}
+            />
           ) : null}
           {mode === "loading" ? <LoadingDialog /> : null}
           {mode === "reauth" ? (

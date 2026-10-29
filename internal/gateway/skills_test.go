@@ -167,7 +167,10 @@ func TestSkillDeleteRequiresDetachment(t *testing.T) {
 			agt := &agentzv1alpha1.Agent{
 				ObjectMeta: metav1.ObjectMeta{Name: "consumer", Namespace: testWorkspaceNS},
 				Spec: agentzv1alpha1.AgentSpec{
-					Skills: []agentzv1alpha1.ResourceReference{{Name: "used", Scope: agentzv1alpha1.ResourceScopeWorkspace}},
+					Skills: []agentzv1alpha1.ResourceReference{{
+						Name:  "used",
+						Scope: agentzv1alpha1.ResourceScopeWorkspace,
+					}},
 				},
 			}
 			if err := svc.k8sClient.Create(t.Context(), agt); err != nil {
@@ -180,7 +183,8 @@ func TestSkillDeleteRequiresDetachment(t *testing.T) {
 			})
 			statuses := []int{http.StatusConflict, http.StatusNoContent}
 			for _, status := range statuses {
-				req := httptest.NewRequest(http.MethodDelete, path, strings.NewReader(`{"skill_names":["free","used"]}`))
+				req := httptest.NewRequest(http.MethodDelete, path,
+					strings.NewReader(`{"skill_names":["free","used"]}`))
 				req.Header.Set("X-AgentZ-Workspace-ID", testWorkspaceID)
 				req.Header.Set("Content-Type", "application/json")
 				res := httptest.NewRecorder()

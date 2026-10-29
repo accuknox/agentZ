@@ -67,7 +67,13 @@ func (s *Service) ListWorkspaces(w http.ResponseWriter, r *http.Request, params 
 		return
 	}
 	organizationScope := authorization.Scope{OrganizationID: claims.OrganizationID}
-	rows, err := s.workspaceAccessPage(r.Context(), claims, cursor, cursorSet, limit+1)
+	rows, err := s.workspaceAccessPage(
+		r.Context(),
+		claims,
+		cursor,
+		cursorSet,
+		limit+1,
+	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
@@ -76,12 +82,23 @@ func (s *Service) ListWorkspaces(w http.ResponseWriter, r *http.Request, params 
 	if len(rows) > limit {
 		rows = rows[:limit]
 		last := rows[len(rows)-1].Workspace
-		next = encodeCursorPageToken(workspacePageCursor{Name: last.Name, ID: last.ID})
+		next = encodeCursorPageToken(workspacePageCursor{
+			Name: last.Name,
+			ID:   last.ID,
+		})
 	}
 	workspaces := make([]gatewayapi.Workspace, 0, len(rows))
 	for _, row := range rows {
 		capabilities := resourceCapabilities(effective, claims.OrganizationID, row.Workspace.ID)
-		workspaces = append(workspaces, workspaceView(row.Workspace, row.WorkspaceAdminCount, row.CanAdminister, capabilities))
+		workspaces = append(
+			workspaces,
+			workspaceView(
+				row.Workspace,
+				row.WorkspaceAdminCount,
+				row.CanAdminister,
+				capabilities,
+			),
+		)
 	}
 
 	apiutil.WriteJSON(
@@ -153,7 +170,13 @@ func (s *Service) ListWorkspaceMemberCandidates(w http.ResponseWriter, r *http.R
 		}
 		members = append(members, member)
 	}
-	apiutil.WriteJSON(w, http.StatusOK, gatewayapi.ListWorkspaceMemberCandidatesResponse{Members: members})
+	apiutil.WriteJSON(
+		w,
+		http.StatusOK,
+		gatewayapi.ListWorkspaceMemberCandidatesResponse{
+			Members: members,
+		},
+	)
 }
 
 // CreateWorkspace handles POST /api/workspace.
@@ -195,7 +218,10 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		workspaceSlug = "workspace"
 	}
 	workspaceSlug += "-" + workspaceUUID[:8]
-	namespace := agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeWorkspace, id)
+	namespace := agentzv1alpha1.ScopeNamespace(
+		agentzv1alpha1.ResourceScopeWorkspace,
+		id,
+	)
 
 	tx, err := s.db.Begin(r.Context())
 	if err != nil {
@@ -264,7 +290,11 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		GuardrailConnections: slices.Clone(req.SelectedOrganizationResources.GuardrailConnections),
 		GuardrailPolicies:    slices.Clone(req.SelectedOrganizationResources.GuardrailPolicies),
 	}
-	fields, err := s.validateOrganizationResourceSelection(r.Context(), claims.OrganizationID, selected)
+	fields, err := s.validateOrganizationResourceSelection(
+		r.Context(),
+		claims.OrganizationID,
+		selected,
+	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
@@ -293,7 +323,13 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		apiutil.WriteError(
 			w,
 			r,
-			apiutil.NewError(http.StatusBadRequest, "invalid_request", "selected Organisation resources are invalid", errBadRequest, fields...),
+			apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"selected Organisation resources are invalid",
+				errBadRequest,
+				fields...,
+			),
 		)
 		return
 	}
@@ -434,7 +470,11 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := s.ensureWorkspaceResource(r.Context(), row); err != nil {
 		reason := fmt.Sprintf("create Workspace resource: %v", err)
-		row, err = s.failWorkspaceProvisioning(r.Context(), row, reason)
+		row, err = s.failWorkspaceProvisioning(
+			r.Context(),
+			row,
+			reason,
+		)
 		if err != nil {
 			apiutil.WriteInternalError(w, r, err)
 			return
@@ -467,7 +507,16 @@ func (s *Service) GetWorkspace(w http.ResponseWriter, r *http.Request, workspace
 				apiutil.WriteInternalError(w, r, err)
 				return
 			}
-			apiutil.WriteJSON(w, http.StatusOK, workspaceView(row.Workspace, row.WorkspaceAdminCount, row.CanAdminister, capabilities))
+			apiutil.WriteJSON(
+				w,
+				http.StatusOK,
+				workspaceView(
+					row.Workspace,
+					row.WorkspaceAdminCount,
+					row.CanAdminister,
+					capabilities,
+				),
+			)
 			return
 		}
 	}
@@ -578,7 +627,16 @@ func (s *Service) ResolveWorkspaceSlug(w http.ResponseWriter, r *http.Request, w
 				apiutil.WriteInternalError(w, r, err)
 				return
 			}
-			apiutil.WriteJSON(w, http.StatusOK, workspaceView(row.Workspace, row.WorkspaceAdminCount, row.CanAdminister, capabilities))
+			apiutil.WriteJSON(
+				w,
+				http.StatusOK,
+				workspaceView(
+					row.Workspace,
+					row.WorkspaceAdminCount,
+					row.CanAdminister,
+					capabilities,
+				),
+			)
 			return
 		}
 	}
@@ -747,7 +805,11 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 	}
 	if err := s.ensureWorkspaceResource(r.Context(), current); err != nil {
 		reason := fmt.Sprintf("update Workspace resource: %v", err)
-		current, err = s.failWorkspaceProvisioning(r.Context(), current, reason)
+		current, err = s.failWorkspaceProvisioning(
+			r.Context(),
+			current,
+			reason,
+		)
 		if err != nil {
 			apiutil.WriteInternalError(w, r, err)
 			return
@@ -765,7 +827,16 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 				apiutil.WriteInternalError(w, r, err)
 				return
 			}
-			apiutil.WriteJSON(w, http.StatusOK, workspaceView(current, row.WorkspaceAdminCount, row.CanAdminister, capabilities))
+			apiutil.WriteJSON(
+				w,
+				http.StatusOK,
+				workspaceView(
+					current,
+					row.WorkspaceAdminCount,
+					row.CanAdminister,
+					capabilities,
+				),
+			)
 			return
 		}
 	}
@@ -1095,7 +1166,10 @@ func (s *Service) requireWorkspaceFeatures(next http.Handler) http.Handler {
 
 func (s *Service) ensureWorkspaceResource(ctx context.Context, row gatewaydb.Workspace) error {
 	tenant := &agentzv1alpha1.Tenant{}
-	tenantName := agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeOrganisation, row.OrganizationID)
+	tenantName := agentzv1alpha1.ScopeNamespace(
+		agentzv1alpha1.ResourceScopeOrganisation,
+		row.OrganizationID,
+	)
 	err := s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Name: tenantName}, tenant)
 	if err != nil {
 		return err
@@ -1104,7 +1178,11 @@ func (s *Service) ensureWorkspaceResource(ctx context.Context, row gatewaydb.Wor
 	var workspace agentzv1alpha1.Workspace
 	err = s.k8sClient.Get(ctx, key, &workspace)
 	if apierrors.IsNotFound(err) {
-		selected, err := s.workspaceResourceSelection(ctx, row.ID, row.OrganizationID)
+		selected, err := s.workspaceResourceSelection(
+			ctx,
+			row.ID,
+			row.OrganizationID,
+		)
 		if err != nil {
 			return err
 		}
@@ -1115,8 +1193,13 @@ func (s *Service) ensureWorkspaceResource(ctx context.Context, row gatewaydb.Wor
 					agentzv1alpha1.TenantOrganizationIDLabel: tenant.Name,
 					agentzv1alpha1.WorkspaceNameLabel:        row.Namespace,
 				},
-				Annotations:     map[string]string{agentzv1alpha1.WorkspaceIDAnnotation: row.ID},
-				OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(tenant, agentzv1alpha1.SchemeGroupVersion.WithKind("Tenant"))},
+				Annotations: map[string]string{
+					agentzv1alpha1.WorkspaceIDAnnotation: row.ID,
+				},
+				OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(
+					tenant,
+					agentzv1alpha1.SchemeGroupVersion.WithKind("Tenant"),
+				)},
 			},
 			Spec: agentzv1alpha1.WorkspaceSpec{
 				Type:                          agentzv1alpha1.WorkspaceType(row.Type),
@@ -1162,7 +1245,11 @@ func (s *Service) recoverWorkspaceProvisioning(ctx context.Context) error {
 			continue
 		}
 		reason := fmt.Sprintf("recover Workspace resource: %v", err)
-		_, failErr := s.failWorkspaceProvisioning(ctx, row, reason)
+		_, failErr := s.failWorkspaceProvisioning(
+			ctx,
+			row,
+			reason,
+		)
 		if failErr != nil {
 			return failErr
 		}

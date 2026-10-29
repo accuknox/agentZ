@@ -117,7 +117,12 @@ export function AgentTable({
   return (
     <AdminDataGrid
       ariaLabel="Agents"
-      emptyState={<AdministrationState kind={canCreate ? "welcome" : "empty"} title="No agents" />}
+      emptyState={
+        <AdministrationState
+          kind={canCreate ? "welcome" : "empty"}
+          title="No agents"
+        />
+      }
       layout={layout}
       pagination={<TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />}
       rowHref={(agent) =>

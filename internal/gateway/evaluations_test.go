@@ -215,14 +215,19 @@ func TestEvaluationParallelRuns(t *testing.T) {
 				if len(runs.Items) != concurrency {
 					t.Fatalf("attempt %d: created %d runs, limit %d", attempt, len(runs.Items), concurrency)
 				}
-				listed, next, err := workflow.ListRuns(ctx, k8s, "test", "agent", "workflow", gatewayapi.ListWorkflowRunsParams{}, 1, 0)
+				listed, next, err := workflow.ListRuns(
+					ctx, k8s, "test", "agent", "workflow",
+					gatewayapi.ListWorkflowRunsParams{}, 1, 0,
+				)
 				if err != nil {
 					t.Fatal(err)
 				}
 				if len(listed) != 0 || next != 0 {
 					t.Fatal("evaluation runs appeared in trigger history")
 				}
-				_, err = workflow.GetRun(ctx, k8s, "test", "agent", "workflow", runs.Items[0].Name)
+				_, err = workflow.GetRun(
+					ctx, k8s, "test", "agent", "workflow", runs.Items[0].Name,
+				)
 				if err != nil {
 					t.Fatalf("evaluation run detail unavailable: %v", err)
 				}
@@ -324,7 +329,10 @@ func TestEvaluationDeletion(t *testing.T) {
 				Labels:     map[string]string{"agentz.accuknox.com/evaluation": id},
 				Finalizers: []string{"test/session-cleanup"},
 			},
-			Spec: agentzv1alpha1.WorkflowRunSpec{AgentName: "agent", WorkflowName: "workflow"},
+			Spec: agentzv1alpha1.WorkflowRunSpec{
+				AgentName:    "agent",
+				WorkflowName: "workflow",
+			},
 		}
 		if name == "completed" {
 			run.Status.Phase = agentzv1alpha1.WorkflowRunPhaseSucceeded

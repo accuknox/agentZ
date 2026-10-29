@@ -56,7 +56,13 @@ func (s *service) listSkills(w http.ResponseWriter, r *http.Request) {
 
 	entries, err := fs.ReadDir(s.root.FS(), mutableSkillsRoot)
 	if errors.Is(err, fs.ErrNotExist) {
-		writeJSON(w, http.StatusOK, gatewayapi.ListMutableSkillsResponse{Skills: []gatewayapi.MutableSkillSummary{}})
+		writeJSON(
+			w,
+			http.StatusOK,
+			gatewayapi.ListMutableSkillsResponse{
+				Skills: []gatewayapi.MutableSkillSummary{},
+			},
+		)
 		return
 	}
 	if err != nil {

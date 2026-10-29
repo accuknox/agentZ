@@ -172,8 +172,8 @@ export function GuardrailEventDetail({
     heading = evaluation.action === "reject" ? "Guardrail failed closed" : "Guardrail failed open"
     consequence =
       evaluation.action === "reject"
-        ? "Checker error; request rejected."
-        : "Checker error; processing continued."
+        ? "Checker error: request rejected."
+        : "Checker error: processing continued."
   }
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">

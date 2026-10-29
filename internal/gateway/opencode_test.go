@@ -63,7 +63,10 @@ func TestPTYWebSocketAuthentication(t *testing.T) {
 
 // TestAPIKeyPromptIdentity prevents key IDs from replacing their owner's identity.
 func TestAPIKeyPromptIdentity(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, "/session/ses_test/message", strings.NewReader(`{"parts":[{"type":"text","text":"hello"}]}`))
+	req := httptest.NewRequest(
+		http.MethodPost, "/session/ses_test/message",
+		strings.NewReader(`{"parts":[{"type":"text","text":"hello"}]}`),
+	)
 	auth := requestAuth{
 		actorType: requestActorAPIKey,
 		actorID:   "key_test",

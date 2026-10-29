@@ -357,7 +357,9 @@ func (repo *codingRepository) run(ctx context.Context, remote bool, args ...stri
 	}
 	if remote {
 		options = append(options, "-c", "protocol.https.allow=always", "-c", "http.followRedirects=false")
-		credentials := base64.StdEncoding.EncodeToString([]byte("x-access-token:" + repo.token))
+		credentials := base64.StdEncoding.EncodeToString(
+			[]byte("x-access-token:" + repo.token),
+		)
 		env = append(
 			env,
 			"GIT_CONFIG_COUNT=1",
@@ -404,7 +406,9 @@ func (repo *codingRepository) run(ctx context.Context, remote bool, args ...stri
 	if err != nil {
 		if repo.token != "" {
 			credentials := base64.StdEncoding.EncodeToString([]byte("x-access-token:" + repo.token))
-			redact := strings.NewReplacer(repo.token, "[REDACTED]", credentials, "[REDACTED]")
+			redact := strings.NewReplacer(
+				repo.token, "[REDACTED]", credentials, "[REDACTED]",
+			)
 			detail = redact.Replace(detail)
 		}
 		if detail == "" {

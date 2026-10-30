@@ -66,6 +66,20 @@ spec:
               definition:
                 description: Definition freezes the workflow graph for evaluation executions.
                 x-kubernetes-preserve-unknown-fields: true
+              delivery:
+                description: Delivery keeps this run bound to its original conversation.
+                properties:
+                  generation:
+                    description: Generation prevents delivery after conversation deletion.
+                    format: int64
+                    type: integer
+                  sessionID:
+                    description: SessionID is the Pulse destination root.
+                    type: string
+                required:
+                - generation
+                - sessionID
+                type: object
               inputs:
                 description: Inputs contains execution inputs copied into this run.
                 x-kubernetes-preserve-unknown-fields: true
@@ -184,6 +198,9 @@ spec:
               message:
                 description: Message contains the current error or completion summary.
                 type: string
+              noChange:
+                description: NoChange suppresses a successful run's conversation handoff when there is nothing to report.
+                type: boolean
               nodes:
                 description: Nodes tracks execution status for each node in the workflow graph.
                 items:

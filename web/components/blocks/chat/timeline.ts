@@ -1,3 +1,4 @@
+import type { ChatBackground } from "@/lib/gateway/client"
 import type { AssistantMessage, Message, Part, ToolPart, UserMessage } from "@opencode-ai/sdk/v2"
 import { attachmentFromPart, type ChatAttachment } from "@/components/blocks/chat/attachments"
 import { describeMessageError } from "@/components/blocks/chat/errors"
@@ -34,6 +35,7 @@ export type TimelineRow =
       createdAt: number
       entries: RenderEntry[]
       isStreaming: boolean
+      origin?: ChatBackground["origin"]
       key: string
       type: "assistant"
     }
@@ -157,6 +159,8 @@ function renderParts(parts: Part[], textByPart: Record<string, string>): RenderE
 }
 
 type ProjectInput = {
+  background?: ChatBackground[]
+  classifyBackground?: boolean
   isBusy: boolean
   isRetrying: boolean
   messages: Message[]
@@ -181,6 +185,7 @@ function projectTurn(input: {
   isActive: boolean
   messageID: string
   guardrailMessageID?: string
+  origin?: ChatBackground["origin"]
 }): string | undefined {
   const { assistants, compacted, out, partsByMessage, textByPart, turnKey, isActive } = input
 
@@ -204,6 +209,7 @@ function projectTurn(input: {
           isStreaming: false,
           key: `${turnKey}:${segment}`,
           type: "assistant",
+          origin: input.origin,
         })
         entries = []
         segment += 1
@@ -228,6 +234,7 @@ function projectTurn(input: {
       isStreaming: isActive && !error,
       key: interruption ? `${turnKey}:${segment}` : turnKey,
       type: "assistant",
+      origin: input.origin,
     })
   }
 
@@ -253,6 +260,7 @@ export function projectTimeline(input: ProjectInput): {
   rows: TimelineRow[]
 } {
   const out: TimelineRow[] = []
+  const backgroundByMessage = new Map(input.background?.map((item) => [item.message_id, item]))
 
   const userText = (messageID: string) =>
     (input.partsByMessage[messageID] ?? [])
@@ -265,11 +273,60 @@ export function projectTimeline(input: ProjectInput): {
   // depend on assistants staying adjacent to their user prompt.
   const turns: { assistants: AssistantMessage[]; user: UserMessage }[] = []
   const turnsByUserID = new Map<string, (typeof turns)[number]>()
+  let backgroundTurn: (typeof turns)[number] | undefined
+  let compactionID: string | undefined
+  let compacted = false
   for (const message of input.messages) {
     if (message.role === "user") {
+      const parts = input.partsByMessage[message.id] ?? []
+      if (backgroundTurn) {
+        const background = backgroundByMessage.get(backgroundTurn.user.id)
+        const original = input.partsByMessage[backgroundTurn.user.id]?.find(
+          (part) => part.id === background?.part_id
+        )
+        const inputID =
+          original?.type === "text" ? original.metadata?.["agentz.dev/input-id"] : undefined
+        const continuation = parts.some(
+          (part) =>
+            part.type === "text" &&
+            part.synthetic &&
+            (part.metadata?.compaction_continue === true ||
+              (inputID !== undefined && part.metadata?.["agentz.dev/input-id"] === inputID))
+        )
+        if (parts.some((part) => part.type === "compaction" && part.auto)) {
+          compactionID = message.id
+          compacted = false
+          turnsByUserID.set(message.id, backgroundTurn)
+          continue
+        }
+        if (compacted && continuation) {
+          backgroundTurn.assistants = backgroundTurn.assistants.filter(
+            (assistant) => !assistant.error
+          )
+          turnsByUserID.set(message.id, backgroundTurn)
+          compactionID = undefined
+          compacted = false
+          continue
+        }
+      }
       const turn = { assistants: [], user: message }
       turns.push(turn)
       turnsByUserID.set(message.id, turn)
+      const pendingBackground =
+        input.classifyBackground &&
+        parts.some(
+          (part) => part.type === "text" && part.synthetic && part.metadata?.["agentz.dev/input-id"]
+        )
+      backgroundTurn =
+        backgroundByMessage.get(message.id)?.origin === "pulse" || pendingBackground
+          ? turn
+          : undefined
+      compactionID = undefined
+      compacted = false
+      continue
+    }
+    if (backgroundTurn && message.summary && message.parentID === compactionID) {
+      compacted = !!message.time.completed && !message.error
       continue
     }
     const turn = turnsByUserID.get(message.parentID)
@@ -283,7 +340,8 @@ export function projectTimeline(input: ProjectInput): {
   const reverted: RevertedMessage[] = []
   const visible = turns.filter((turn) => {
     if (input.revertMessageID && turn.user.id >= input.revertMessageID) {
-      reverted.push({ id: turn.user.id, text: userText(turn.user.id) })
+      if (!backgroundByMessage.has(turn.user.id))
+        reverted.push({ id: turn.user.id, text: userText(turn.user.id) })
       return false
     }
     return true
@@ -298,6 +356,50 @@ export function projectTimeline(input: ProjectInput): {
   let guardrailMessageID: string | undefined
   visible.forEach((turn, index) => {
     const userParts = input.partsByMessage[turn.user.id] ?? []
+    const background = backgroundByMessage.get(turn.user.id)
+    if (background) {
+      if (
+        !background.completed ||
+        background.outcome === "quiet" ||
+        background.outcome === "canceled"
+      )
+        return
+      if (background.outcome === "failed") {
+        if (background.error)
+          out.push({
+            type: "assistant-error",
+            key: `background-error:${turn.user.id}`,
+            body: background.error,
+            label: background.origin === "pulse" ? "Pulse check failed" : "Workflow update failed",
+            partialOutput: false,
+          })
+        return
+      }
+      if (background.origin === "workflow_result") {
+        const part = userParts.find((part) => part.id === background.part_id)
+        if (part?.type === "text")
+          out.push({
+            type: "assistant",
+            key: `workflow:${turn.user.id}`,
+            createdAt: turn.user.time.created,
+            isStreaming: false,
+            origin: "workflow_result",
+            entries: [{ type: "text", key: part.id, content: part.text }],
+          })
+        return
+      }
+    }
+    // Wait for the server's classification before showing a newly arrived synthetic turn.
+    // Client metadata never supplies trusted origin or completion status.
+    if (
+      !background &&
+      input.classifyBackground &&
+      userParts.every((part) => part.type !== "text" || part.synthetic) &&
+      userParts.some(
+        (part) => part.type === "text" && part.synthetic && part.metadata?.["agentz.dev/input-id"]
+      )
+    )
+      return
     const attachments = userParts
       .filter((part): part is Extract<Part, { type: "text" }> => part.type === "text")
       .flatMap((part) => {
@@ -318,7 +420,7 @@ export function projectTimeline(input: ProjectInput): {
     }
 
     const text = userText(turn.user.id)
-    if (text || attachments.length > 0) {
+    if (!background && (text || attachments.length > 0)) {
       out.push({
         actor,
         attachments,
@@ -349,6 +451,7 @@ export function projectTimeline(input: ProjectInput): {
       turnKey: `assistant:${turn.user.id}`,
       messageID: turn.user.id,
       guardrailMessageID,
+      origin: background?.origin,
     })
     if (blockedMessageID) {
       // Later requests include the rejected prompt. Reverting only the newest
@@ -360,6 +463,18 @@ export function projectTimeline(input: ProjectInput): {
       guardrailMessageID = undefined
     }
   })
+
+  for (const background of input.background ?? []) {
+    if (background.outcome !== "failed" || !background.error) continue
+    if (turnsByUserID.has(background.message_id)) continue
+    out.push({
+      type: "assistant-error",
+      key: `background-error:${background.part_id}`,
+      body: background.error,
+      label: background.origin === "pulse" ? "Pulse check failed" : "Workflow update failed",
+      partialOutput: false,
+    })
+  }
 
   return { guardrailMessageID, reverted, rows: out }
 }

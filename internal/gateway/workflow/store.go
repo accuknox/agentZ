@@ -96,6 +96,7 @@ func Create(ctx context.Context, pool *pgxpool.Pool, tenantNamespace string, agt
 		return workflowdb.Workflow{}, err
 	}
 
+	replace := req.Replace != nil && *req.Replace
 	row, err := queries.WorkflowCreate(
 		ctx,
 		workflowdb.WorkflowCreateParams{
@@ -105,12 +106,21 @@ func Create(ctx context.Context, pool *pgxpool.Pool, tenantNamespace string, agt
 			Title:           req.Title,
 			Summary:         req.Summary,
 			InputSchema:     inputsJSON,
+			ReplaceExisting: replace,
 		},
 	)
 	if err != nil {
 		return workflowdb.Workflow{}, fmt.Errorf("create workflow: %w", err)
 	}
 
+	if replace {
+		err := queries.WorkflowClearNodes(ctx, workflowdb.WorkflowClearNodesParams{
+			TenantNamespace: tenantNamespace, AgentName: agtName, WorkflowName: req.WorkflowName,
+		})
+		if err != nil {
+			return workflowdb.Workflow{}, fmt.Errorf("replace workflow graph: %w", err)
+		}
+	}
 	nodesJSON, preferredToolsJSON, preferredSkillsJSON, err := marshalNodes(req.Nodes)
 	if err != nil {
 		return workflowdb.Workflow{}, err
@@ -292,7 +302,12 @@ func DeleteMany(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlclient.Cl
 
 // Get reconstructs a stored workflow graph from its related workflow tables.
 func Get(ctx context.Context, pool *pgxpool.Pool, tenantNamespace string, agtName string, wfName string) (gatewayapi.Workflow, error) {
-	queries := workflowdb.New(pool)
+	tx, err := pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return gatewayapi.Workflow{}, fmt.Errorf("read workflow: %w", err)
+	}
+	defer tx.Rollback(ctx)
+	queries := workflowdb.New(tx)
 
 	row, err := queries.WorkflowGet(
 		ctx,

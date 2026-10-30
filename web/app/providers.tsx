@@ -1,10 +1,10 @@
 "use client"
 
 import "@/lib/gateway/client-interceptors"
+import { authClient } from "@/lib/auth-client"
 import { getQueryClient } from "@/lib/utils"
 import { QueryClientProvider } from "@tanstack/react-query"
 import { ProgressProvider } from "@bprogress/next/app"
-import { ThemeProvider } from "next-themes"
 import type { CSSProperties, ReactNode } from "react"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { SidebarProvider } from "@/components/ui/sidebar"
@@ -22,8 +22,10 @@ export default function Providers({
   children: ReactNode
   sidebarDefaultOpen: boolean
 }) {
+  const { data: session } = authClient.useSession()
+  const identity = session?.user.id ?? "anonymous"
   return (
-    <QueryClientProvider client={getQueryClient()}>
+    <QueryClientProvider key={identity} client={getQueryClient(identity)}>
       <ProgressProvider
         height="2px"
         color="var(--primary)"
@@ -31,21 +33,14 @@ export default function Providers({
         shallowRouting
         delay={100}
       >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <ScopeTransitionProvider>
-            <TooltipProvider delayDuration={450}>
-              <SidebarProvider defaultOpen={sidebarDefaultOpen} style={sidebarStyle}>
-                {children}
-              </SidebarProvider>
-            </TooltipProvider>
-          </ScopeTransitionProvider>
-          <Toaster />
-        </ThemeProvider>
+        <ScopeTransitionProvider>
+          <TooltipProvider delayDuration={450}>
+            <SidebarProvider defaultOpen={sidebarDefaultOpen} style={sidebarStyle}>
+              {children}
+            </SidebarProvider>
+          </TooltipProvider>
+        </ScopeTransitionProvider>
+        <Toaster />
       </ProgressProvider>
     </QueryClientProvider>
   )

@@ -1860,7 +1860,14 @@ export function ProviderSheet({
               }
             >
               {isSubscription ? (
-                <div className="flex flex-col gap-4 rounded-lg border p-4">
+                <div
+                  className={cn(
+                    "flex flex-col gap-5 rounded-xl",
+                    provider || subscriptionOAuth.status === "connected"
+                      ? "border p-4"
+                      : "items-center border-2 border-dashed border-muted-foreground/50 bg-muted/20 px-6 py-8 text-center"
+                  )}
+                >
                   {provider || subscriptionOAuth.status === "connected" ? (
                     <div role="status" className="flex items-start gap-3">
                       <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-success/10 text-success">
@@ -1874,11 +1881,14 @@ export function ProviderSheet({
                     </div>
                   ) : (
                     <>
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="flex flex-col gap-1">
+                      <div className="flex max-w-sm flex-col items-center gap-5">
+                        <div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+                          <KeyRound aria-hidden className="size-6" />
+                        </div>
+                        <div className="flex flex-col gap-2">
                           <p className="text-sm font-medium">Connect {providerKindLabels[kind]}</p>
                           <p className="text-sm text-muted-foreground">
-                            Complete sign-in in a new tab. We will detect when it finishes.
+                            This page updates automatically when you finish signing in.
                           </p>
                         </div>
                         {subscriptionOAuth.status !== "challenge" ? (
@@ -1889,18 +1899,18 @@ export function ProviderSheet({
                             onClick={connectSubscription}
                             disabled={pending || subscriptionOAuth.status === "starting"}
                           >
-                            <Cable />
+                            <Cable data-icon="inline-start" />
                             {"Connect"}
                           </LoadingButton>
                         ) : null}
                       </div>
                       {subscriptionOAuth.status === "challenge" ? (
-                        <div className="flex flex-col items-start gap-3">
+                        <div className="flex w-full max-w-sm flex-col items-center gap-4">
                           <p className="text-sm text-muted-foreground">
                             Enter this one-time code on the provider sign-in page.
                           </p>
-                          <div className="flex items-center gap-3 rounded-md bg-muted/50 px-3 py-2">
-                            <code className="text-lg font-semibold tracking-widest">
+                          <div className="flex max-w-full items-center gap-3 rounded-lg bg-background px-4 py-3">
+                            <code className="min-w-0 text-lg font-semibold tracking-widest break-all tabular-nums">
                               {subscriptionOAuth.userCode}
                             </code>
                             <CopyButton
@@ -1908,21 +1918,21 @@ export function ProviderSheet({
                               label="Copy sign-in code"
                             />
                           </div>
-                          <Button type="button" variant="outline" asChild>
+                          <Button type="button" asChild>
                             <a
                               href={subscriptionOAuth.verificationUri}
                               target="_blank"
                               rel="noreferrer"
                             >
-                              Continue to {providerKindLabels[kind]} <ExternalLink />
+                              Continue to {providerKindLabels[kind]}
+                              <ExternalLink data-icon="inline-end" />
                             </a>
                           </Button>
                           <p
                             role="status"
                             className="flex items-center gap-2 text-xs text-muted-foreground"
                           >
-                            <Spinner aria-hidden className="size-3" /> Waiting for you to finish
-                            signing in...
+                            <Spinner aria-hidden className="size-3" /> Waiting for sign-in...
                           </p>
                         </div>
                       ) : null}

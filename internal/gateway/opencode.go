@@ -123,12 +123,10 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		apiutil.WriteError(w, r, apiErr)
 		return
 	}
-	auth, authenticated := requestAuthState(r.Context())
-	stop := route.ID == "session.abort" || route.ID == "v2.session.interrupt"
-	if authenticated && auth.actorType != requestActorSystem && stop {
-		s.stopOpenCodeSession(w, r, route, agentName)
-		return
-	}
+	scopeAuth, _ := requestAuthState(r.Context())
+	scopeAuth.workspaceID = access.workspaceID
+	scopeAuth.tenantNamespace = access.namespace
+	r = r.WithContext(context.WithValue(r.Context(), authContextKey{}, scopeAuth))
 	switch r.Method {
 	case http.MethodPost, http.MethodPatch, http.MethodPut, http.MethodDelete:
 		if r.ContentLength > opencodeProxyBodyLimitBytes {
@@ -146,6 +144,32 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, opencodeProxyBodyLimitBytes)
 	}
+	if route.ID == "session.create" {
+		ctx, release, err := gatewayLocks(r.Context(), s.controlDB)
+		if err != nil {
+			apiutil.WriteInternalError(w, r, err)
+			return
+		}
+		if release != nil {
+			defer release()
+		}
+		r = r.WithContext(ctx)
+	}
+	pulseRelease, pulseErr := s.enforcePulseChat(r, access, route, agentName)
+	if pulseRelease != nil {
+		defer pulseRelease()
+	}
+	if pulseErr != nil {
+		apiutil.WriteError(w, r, mapGatewayStoreError("get conversation", pulseErr))
+		return
+	}
+	auth, authenticated := requestAuthState(r.Context())
+	stop := route.ID == "session.abort" || route.ID == "v2.session.interrupt"
+	if authenticated && auth.actorType != requestActorSystem && stop {
+		s.stopOpenCodeSession(w, r, route, agentName)
+		return
+	}
+
 	query := r.URL.Query()
 	if query.Get("directory") == "" && r.Header.Get("X-Opencode-Directory") != "" {
 		directory, err := url.PathUnescape(r.Header.Get("X-Opencode-Directory"))
@@ -200,11 +224,50 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 	}
 	sessionID := route.Params["sessionID"]
 	if sessionID != "" && changesInput {
+		ctx, releaseLocks, err := gatewayLocks(r.Context(), s.controlDB)
+		if err != nil {
+			apiutil.WriteInternalError(w, r, err)
+			return
+		}
+		if releaseLocks != nil {
+			defer releaseLocks()
+		}
+		r = r.WithContext(ctx)
 		release, err := s.lockChatInputs(
 			r.Context(), access.workspaceID, agentName, sessionID, "",
 		)
 		if err != nil {
 			apiutil.WriteError(w, r, mapGatewayStoreError("submit input", err))
+			return
+		}
+		root, pulse, guardErr := s.authorizeChat(r.Context(), access, agentName, sessionID)
+		if guardErr != nil {
+			release()
+			apiutil.WriteError(w, r, mapGatewayStoreError("get conversation", guardErr))
+			return
+		}
+		if route.ID == "session.delete" && pulse && root.SessionID == sessionID {
+			_, err := s.queries.GatewayDeletePulseChat(r.Context(), gatewaydb.GatewayDeletePulseChatParams{
+				WorkspaceID: access.workspaceID,
+				AgentName:   agentName,
+				SessionID:   sessionID,
+			})
+			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+				release()
+				apiutil.WriteInternalError(w, r, err)
+				return
+			}
+			s.notifyChatInput(r.Context(), gatewaydb.ChatInput{
+				WorkspaceID: access.workspaceID,
+				AgentName:   agentName,
+				SessionID:   sessionID,
+			})
+			release()
+			if err := s.cleanPulseChat(r.Context(), access, root); err != nil {
+				apiutil.WriteInternalError(w, r, err)
+				return
+			}
+			apiutil.WriteJSON(w, http.StatusOK, true)
 			return
 		}
 		switch {
@@ -422,6 +485,10 @@ func (s *Service) streamOpenCodeEvents(w http.ResponseWriter, r *http.Request, r
 			}
 			return
 		}
+		_, apiErr := s.resolveAgentAccess(r.Context(), agentName, authorization.OperationUseSharedAgent)
+		if apiErr != nil {
+			return
+		}
 		data := []byte(frame.Data)
 		if nativeGlobal {
 			var envelope gatewayapi.OpencodeGlobalEvent
@@ -553,21 +620,55 @@ func replaceOpenCodeRequest(r *http.Request, body any) error {
 	return nil
 }
 
-// attributeOpenCodePrompt binds the authenticated gateway principal to
-// OpenCode prompts without changing unrecognized or synthetic ingress routes.
+// attributeOpenCodePrompt keeps actor and internal continuation metadata server-owned.
 func attributeOpenCodePrompt(r *http.Request, route *opencodeRouteMatch, auth requestAuth) error {
+	if route.ID == "part.update" {
+		var body gatewayapi.PartUpdateJSONRequestBody
+		if err := apiutil.DecodeJSONBody(r, &body, false); err != nil {
+			return err
+		}
+		kind, err := body.Discriminator()
+		if err != nil {
+			return err
+		}
+		if kind == "text" {
+			part, err := body.AsOpencodeTextPart()
+			if err != nil {
+				return err
+			}
+			metadata := make(map[string]any)
+			if part.Metadata != nil {
+				metadata = *part.Metadata
+			}
+			delete(metadata, "agentz.dev/input-id")
+			delete(metadata, "compaction_continue")
+			metadata[opencodeActorMetadataKey] = requestMessageActor(auth)
+			part.Metadata = &metadata
+			if err := body.FromOpencodeTextPart(part); err != nil {
+				return err
+			}
+		}
+		return replaceOpenCodeRequest(r, body)
+	}
 	if r.Method != http.MethodPost || auth.actorID == "" {
 		return nil
 	}
 	if route.ID != "session.prompt" && route.ID != "session.prompt_async" {
 		return nil
 	}
-
 	var body gatewayapi.SessionPromptJSONBody
 	if err := apiutil.DecodeJSONBody(r, &body, false); err != nil {
 		return err
 	}
+	parts, err := attributePrompt(body.Parts, auth, "")
+	if err != nil {
+		return err
+	}
+	body.Parts = parts
+	return replaceOpenCodeRequest(r, body)
+}
 
+func requestMessageActor(auth requestAuth) opencodeMessageActor {
 	name := auth.actorName
 	if name == "" {
 		name = auth.actorID
@@ -580,42 +681,49 @@ func attributeOpenCodePrompt(r *http.Request, route *opencodeRouteMatch, auth re
 	}
 	// API keys identify their creator to the agent and other participants.
 	// The request still retains the key actor for audit attribution.
-	if auth.userID != "" {
+	if auth.userID != "" && auth.actorType != requestActorSystem {
 		actor.Type = requestActorUser
 		actor.ID = auth.userID
 		actor.Name = auth.userName
 	}
+	return actor
+}
+
+// attributePrompt owns actor metadata and trusted queue identity for both ingress paths.
+func attributePrompt(parts []gatewayapi.OpencodePromptPartInput, auth requestAuth, inputID string) ([]gatewayapi.OpencodePromptPartInput, error) {
+	actor := requestMessageActor(auth)
 	var attached bool
-	for i := range body.Parts {
-		partType, err := body.Parts[i].Discriminator()
+	for i := range parts {
+		partType, err := parts[i].Discriminator()
 		if err != nil {
-			return fmt.Errorf("read prompt part type: %w", err)
+			return nil, fmt.Errorf("read prompt part type: %w", err)
 		}
 		if partType != string(gatewayapi.OpencodeTextPartInputTypeText) {
 			continue
 		}
 
-		part, err := body.Parts[i].AsOpencodeTextPartInput()
+		part, err := parts[i].AsOpencodeTextPartInput()
 		if err != nil {
-			return fmt.Errorf("decode text prompt part: %w", err)
+			return nil, fmt.Errorf("decode text prompt part: %w", err)
 		}
 		metadata := make(map[string]any)
 		if part.Metadata != nil {
 			metadata = *part.Metadata
 		}
-		if attached {
-			if _, exists := metadata[opencodeActorMetadataKey]; !exists {
-				continue
-			}
-			delete(metadata, opencodeActorMetadataKey)
+		delete(metadata, "agentz.dev/input-id")
+		delete(metadata, "compaction_continue")
+		if inputID != "" {
+			metadata["agentz.dev/input-id"] = inputID
 		}
+		delete(metadata, opencodeActorMetadataKey)
 		if !attached {
 			metadata[opencodeActorMetadataKey] = actor
 			attached = true
 		}
+
 		part.Metadata = &metadata
-		if err := body.Parts[i].FromOpencodeTextPartInput(part); err != nil {
-			return fmt.Errorf("encode text prompt part: %w", err)
+		if err := parts[i].FromOpencodeTextPartInput(part); err != nil {
+			return nil, fmt.Errorf("encode text prompt part: %w", err)
 		}
 	}
 	if !attached {
@@ -631,12 +739,12 @@ func attributeOpenCodePrompt(r *http.Request, route *opencodeRouteMatch, auth re
 		}
 		var input gatewayapi.OpencodePromptPartInput
 		if err := input.FromOpencodeTextPartInput(part); err != nil {
-			return fmt.Errorf("encode actor prompt part: %w", err)
+			return nil, fmt.Errorf("encode actor prompt part: %w", err)
 		}
-		body.Parts = append(body.Parts, input)
+		parts = append(parts, input)
 	}
 
-	return replaceOpenCodeRequest(r, body)
+	return parts, nil
 }
 
 // openCodeModifyResponse persists native mutations without changing their wire contracts.
@@ -653,6 +761,7 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 		if contentType == "text/event-stream" || strings.HasPrefix(contentType, "text/event-stream;") {
 			return nil
 		}
+
 		// Upstream may already have committed when the client disconnects.
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 		defer cancel()
@@ -904,7 +1013,7 @@ func (s *Service) storeOpenCodeSessionStatusResponse(ctx context.Context, resp *
 	if err != nil {
 		return fmt.Errorf("sync chat session statuses: %w", err)
 	}
-	return nil
+	return replaceOpenCodeResponse(resp, statuses)
 }
 
 func (s *Service) refreshOpenCodeSession(ctx context.Context, target *url.URL, workspaceID, agentName, sessionID string) error {
@@ -965,6 +1074,20 @@ func (s *Service) storeOpenCodeSession(ctx context.Context, workspaceID, agentNa
 	var parentID pgtype.Text
 	if session.ParentID != nil {
 		parentID = pgtype.Text{String: *session.ParentID, Valid: true}
+	}
+	if strings.HasPrefix(session.Id, pulseSessionPrefix) {
+		root, err := s.queries.GatewayGetChatSession(ctx, gatewaydb.GatewayGetChatSessionParams{
+			WorkspaceID: workspaceID, AgentName: agentName, SessionID: session.Id,
+		})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if !root.Pulse || root.Deleting {
+			return nil
+		}
 	}
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
@@ -1046,7 +1169,7 @@ func replaceOpenCodeResponse(resp *http.Response, value any) error {
 }
 
 func decodeOpenCodeResponse[T any](resp *http.Response) (T, error) {
-	const responseLimit = 1024 * 1024
+	const responseLimit = opencodeProxyBodyLimitBytes
 
 	var value T
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, responseLimit+1))

@@ -1,14 +1,7 @@
 "use client"
 
 import { LoadingButton } from "@/components/interior/loading-button"
-import {
-  Fragment,
-  startTransition,
-  useActionState,
-  useEffect,
-  useEffectEvent,
-  useState,
-} from "react"
+import { useEffect, useEffectEvent, useState, useTransition } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Box, Plus, Save, Wrench, CircleAlert } from "lucide-react"
@@ -45,8 +38,7 @@ import {
   type AgentActionScope,
 } from "@/data/agent.actions"
 import { listSandboxesAction } from "@/data/sandbox.actions"
-import { createAgentSimpleFormSchema } from "@/data/schema"
-import type { CreateAgentFormState } from "@/data/types"
+import { createAgentSimpleFormSchema, type AgentFormValues } from "@/data/schema"
 import type {
   Agent,
   AgentOpencodeConfig,
@@ -54,7 +46,6 @@ import type {
   Sandbox,
   Skill,
 } from "@/lib/gateway/client"
-import type * as z from "zod"
 import { toast } from "sonner"
 
 const AgentInstructions = dynamic(() => import("./agent-instructions"), {
@@ -73,6 +64,7 @@ type AgentDialogProps = {
   initialNextSandboxPageToken: string
   agentName?: string
   initialSandboxName?: string
+  initialPulseIntervalSeconds?: Agent["pulse_interval_seconds"]
   initialMemoryEnabled?: boolean
   initialSkills?: Agent["skills"]
   initialInstruction?: AgentOpencodeConfig["instruction"]
@@ -80,8 +72,6 @@ type AgentDialogProps = {
   onOpenChangeAction?: (open: boolean) => void
   trigger?: React.ReactNode
 }
-
-type AgentFormValues = z.infer<typeof createAgentSimpleFormSchema>
 
 function SandboxSelect({
   "aria-invalid": ariaInvalid,
@@ -225,6 +215,7 @@ export function AgentDialog({
   agentName,
   initialSandboxName,
   initialMemoryEnabled = false,
+  initialPulseIntervalSeconds = 1800,
   initialSkills = [],
   initialInstruction = "",
   open,
@@ -232,6 +223,7 @@ export function AgentDialog({
   trigger,
 }: AgentDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false)
+  const [isPending, startTransition] = useTransition()
   const router = useRouter()
   const dialogOpen = open ?? internalOpen
   const hasSandboxes = sandboxes.length > 0
@@ -241,6 +233,7 @@ export function AgentDialog({
     sandboxName: initialSandboxName ?? (mode === "create" ? (sandboxes[0]?.name ?? "") : ""),
     skills: initialSkills,
     memoryEnabled: actionScope.workspaceType !== "coding" && initialMemoryEnabled,
+    pulseIntervalSeconds: initialPulseIntervalSeconds,
     instruction: initialInstruction,
   }
   const form = useForm<AgentFormValues>({
@@ -249,14 +242,31 @@ export function AgentDialog({
     reValidateMode: "onBlur",
     values: defaultValues,
   })
-  const [, action, isPending] = useActionState<CreateAgentFormState, FormData>(
-    async (state, formData) => {
-      // Multipart encoding rewrites newlines; pass Markdown as an action argument.
-      const instruction = form.getValues("instruction")
+  const skills = new Map(
+    [...immutableSkills, ...initialSkills].map(({ scope, name }) => [
+      JSON.stringify([scope, name]),
+      { scope, name },
+    ])
+  )
+  const selectedSandboxName = useWatch({
+    control: form.control,
+    name: "sandboxName",
+    defaultValue: defaultValues.sandboxName,
+  })
+  const selectedSandbox = sandboxes.find((sandbox) => sandbox.name === selectedSandboxName)
+  const sandboxScope: ResourceScope = selectedSandbox?.scope ?? defaultValues.sandboxScope
+
+  const submit = async () => {
+    form.clearErrors()
+    const valid = await form.trigger()
+    if (!valid) return
+
+    const values = { ...form.getValues(), sandboxScope }
+    startTransition(async () => {
       const result =
         mode === "update" && agentName
-          ? await updateAgentFormAction(actionScope, agentName, instruction, state, formData)
-          : await createAgentFormAction(actionScope, instruction, state, formData)
+          ? await updateAgentFormAction(actionScope, agentName, values)
+          : await createAgentFormAction(actionScope, values)
       if (result.error) {
         const messages = new Map<keyof AgentFormValues | "root", string[]>()
         const errors = result.error.errors?.length
@@ -275,6 +285,10 @@ export function AgentDialog({
             case "sandboxScope":
             case "sandboxName":
               field = "sandboxName"
+              break
+            case "pulse_interval_seconds":
+            case "pulseIntervalSeconds":
+              field = "pulseIntervalSeconds"
               break
             case "memory":
             case "memoryEnabled":
@@ -302,39 +316,6 @@ export function AgentDialog({
         setInternalOpen(false)
         router.refresh()
       }
-      return result
-    },
-    {}
-  )
-  const selectedSkills = useWatch({
-    control: form.control,
-    name: "skills",
-    defaultValue: initialSkills,
-  })
-  const skills = new Map(
-    [...immutableSkills, ...initialSkills].map(({ scope, name }) => [
-      JSON.stringify([scope, name]),
-      { scope, name },
-    ])
-  )
-  const selectedSandboxName = useWatch({
-    control: form.control,
-    name: "sandboxName",
-    defaultValue: defaultValues.sandboxName,
-  })
-  const selectedSandbox = sandboxes.find((sandbox) => sandbox.name === selectedSandboxName)
-  const sandboxScope: ResourceScope = selectedSandbox?.scope ?? defaultValues.sandboxScope
-
-  const submit = async (formData: FormData) => {
-    form.clearErrors()
-
-    const valid = await form.trigger()
-    if (!valid) {
-      return
-    }
-
-    startTransition(() => {
-      action(formData)
     })
   }
 
@@ -370,13 +351,6 @@ export function AgentDialog({
           </DialogDescription>
         </DialogHeader>
         <form id="agent-form-simple" action={submit} className="space-y-5" noValidate>
-          <input type="hidden" name="sandboxScope" value={sandboxScope} />
-          {selectedSkills.map((skill) => (
-            <Fragment key={JSON.stringify([skill.scope, skill.name])}>
-              <input type="hidden" name="skillScopes" value={skill.scope} />
-              <input type="hidden" name="skillNames" value={skill.name} />
-            </Fragment>
-          ))}
           <FieldGroup>
             {mode === "create" ? (
               <Controller
@@ -519,6 +493,46 @@ export function AgentDialog({
             />
             {actionScope.workspaceType !== "coding" && (
               <Controller
+                name="pulseIntervalSeconds"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor="agent-form-check-interval">
+                      Pulse check interval
+                    </FieldLabel>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="agent-form-check-interval"
+                        ref={field.ref}
+                        type="number"
+                        min={1}
+                        max={10080}
+                        step={1}
+                        value={Number.isNaN(field.value) ? "" : field.value / 60}
+                        onChange={(event) => field.onChange(event.currentTarget.valueAsNumber * 60)}
+                        onBlur={field.onBlur}
+                        disabled={isPending}
+                        aria-invalid={fieldState.invalid}
+                        aria-describedby="agent-form-check-interval-description agent-form-check-interval-error"
+                        className="w-24"
+                      />
+                      <span className="text-muted-foreground">minutes</span>
+                    </div>
+                    <FieldDescription id="agent-form-check-interval-description">
+                      The agent checks back at this interval to continue your tasks and share
+                      updates.
+                    </FieldDescription>
+                    <FieldError id="agent-form-check-interval-error">
+                      {fieldState.invalid
+                        ? "Enter a whole number of minutes between 1 and 10,080."
+                        : null}
+                    </FieldError>
+                  </Field>
+                )}
+              />
+            )}
+            {actionScope.workspaceType !== "coding" && (
+              <Controller
                 name="memoryEnabled"
                 control={form.control}
                 render={({ field, fieldState }) => (
@@ -530,7 +544,6 @@ export function AgentDialog({
                       </FieldDescription>
                       <FieldError errors={[fieldState.error]} />
                     </div>
-                    {field.value ? <input type="hidden" name={field.name} /> : null}
                     <Switch
                       id="agent-form-memory"
                       ref={field.ref}

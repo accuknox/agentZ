@@ -8,9 +8,17 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/accuknox/agentz/internal/authorization"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/accuknox/agentz/internal/gateway/apiutil"
+	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	"github.com/accuknox/agentz/internal/gateway/workflow"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
@@ -34,6 +42,11 @@ func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request,
 	agentName := strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 	runName = strings.TrimSpace(runName)
+	boundRun, bindingErr := s.getWorkflowRun(r.Context(), ns, agentName, workflowName, runName)
+	if bindingErr != nil {
+		apiutil.WriteError(w, r, mapKubeHTTPError("get workflow run", bindingErr))
+		return
+	}
 
 	var message string
 	if req.Message != nil {
@@ -59,6 +72,15 @@ func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
+	access, apiErr := s.resolveAgentAccess(r.Context(), agentName, authorization.OperationUseSharedAgent)
+	if apiErr != nil {
+		apiutil.WriteError(w, r, apiErr)
+		return
+	}
+	if req.NoChange != nil && *req.NoChange && req.Phase != gatewayapi.WorkflowRunTerminalPhaseSucceeded {
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "Only successful runs may report no change", nil))
+		return
+	}
 	err = workflow.PatchRunStatus(
 		r.Context(),
 		s.k8sClient,
@@ -100,6 +122,17 @@ func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
+	if boundRun.Spec.Delivery != nil {
+		err = s.k8sClient.Get(r.Context(), ctrlclient.ObjectKeyFromObject(boundRun), boundRun)
+		if err != nil {
+			apiutil.WriteInternalError(w, r, err)
+			return
+		}
+		if err := s.enqueueWorkflowSession(r.Context(), access, boundRun); err != nil {
+			apiutil.WriteInternalError(w, r, err)
+			return
+		}
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -119,6 +152,12 @@ func (s *Service) PatchWorkflowRunNodeStatus(w http.ResponseWriter, r *http.Requ
 	agentName := strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 	runName = strings.TrimSpace(runName)
+	_, bindingErr := s.getWorkflowRun(r.Context(), ns, agentName, workflowName, runName)
+	if bindingErr != nil {
+		apiutil.WriteError(w, r, mapKubeHTTPError("get workflow run", bindingErr))
+		return
+	}
+
 	nodeName = strings.TrimSpace(nodeName)
 
 	var message string
@@ -469,6 +508,11 @@ func (s *Service) ListWorkflowRuns(w http.ResponseWriter, r *http.Request, agtNa
 		return
 	}
 
+	destinations, err := s.workflowDestinations(r.Context(), agentName)
+	if err != nil {
+		apiutil.WriteError(w, r, mapGatewayStoreError("list workflow destinations", err))
+		return
+	}
 	items, nextOffset, err := workflow.ListRuns(
 		r.Context(),
 		s.k8sClient,
@@ -478,6 +522,7 @@ func (s *Service) ListWorkflowRuns(w http.ResponseWriter, r *http.Request, agtNa
 		params,
 		limit,
 		offset,
+		destinations,
 	)
 	if err != nil {
 		apiutil.WriteError(w, r, mapKubeHTTPError("list workflow runs", err))
@@ -582,6 +627,10 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 	defer cancel()
 
 	writeChanges := func() bool {
+		destinations, err := s.workflowDestinations(r.Context(), agentName)
+		if err != nil {
+			return false
+		}
 		items := make([]gatewayapi.WorkflowRunDetail, 0, max(1, len(runFilter)))
 		if len(runFilter) == 0 {
 			listedItems, _, err := workflow.ListRuns(
@@ -593,6 +642,7 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 				gatewayapi.ListWorkflowRunsParams{},
 				200,
 				0,
+				destinations,
 			)
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				return false
@@ -602,6 +652,10 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 				return false
 			}
 			for _, item := range listedItems {
+				if _, err := s.getWorkflowRun(r.Context(), ns, agentName, workflowName, item.Name); err != nil {
+					return false
+				}
+
 				detail, err := workflow.GetRun(
 					r.Context(),
 					s.k8sClient,
@@ -625,6 +679,10 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 		}
 
 		for runName := range runFilter {
+			if _, err := s.getWorkflowRun(r.Context(), ns, agentName, workflowName, runName); err != nil {
+				continue
+			}
+
 			detail, err := workflow.GetRun(
 				r.Context(),
 				s.k8sClient,
@@ -696,6 +754,16 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 					}
 				}
 
+				access, apiErr := s.resolveAgentAccess(r.Context(), agentName, authorization.OperationUseSharedAgent)
+				if apiErr != nil {
+					return
+				}
+				if evt.Run.Spec.Delivery != nil {
+					err = s.authorizeWorkflowDelivery(r.Context(), access, agentName, evt.Run.Spec.Delivery)
+					if err != nil {
+						return
+					}
+				}
 				item, found := prev[evt.Run.Name]
 				delete(prev, evt.Run.Name)
 				delete(prevRaw, evt.Run.Name)
@@ -722,6 +790,11 @@ func (s *Service) GetWorkflowRun(w http.ResponseWriter, r *http.Request, agtName
 	agentName := strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 	runName = strings.TrimSpace(runName)
+	_, bindingErr := s.getWorkflowRun(r.Context(), ns, agentName, workflowName, runName)
+	if bindingErr != nil {
+		apiutil.WriteError(w, r, mapKubeHTTPError("get workflow run", bindingErr))
+		return
+	}
 
 	fields := workflow.ValidateLookupRequest(agentName, workflowName)
 	fields = append(fields, workflow.ValidateRunName(runName)...)
@@ -783,6 +856,11 @@ func (s *Service) DeleteWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 	agentName := strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 	runName = strings.TrimSpace(runName)
+	_, bindingErr := s.getWorkflowRun(r.Context(), ns, agentName, workflowName, runName)
+	if bindingErr != nil {
+		apiutil.WriteError(w, r, mapKubeHTTPError("get workflow run", bindingErr))
+		return
+	}
 
 	fields := workflow.ValidateLookupRequest(agentName, workflowName)
 	fields = append(fields, workflow.ValidateRunName(runName)...)
@@ -831,4 +909,121 @@ func (s *Service) DeleteWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Service) getWorkflowRun(ctx context.Context, namespace, agent, workflowName, name string) (*agentzv1alpha1.WorkflowRun, error) {
+	run := &agentzv1alpha1.WorkflowRun{}
+	err := s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Namespace: namespace, Name: name}, run)
+	if err != nil {
+		return nil, err
+	}
+	if run.Spec.AgentName != agent || run.Spec.WorkflowName != workflowName {
+		return nil, pgx.ErrNoRows
+	}
+	if run.Spec.Delivery == nil {
+		return run, nil
+	}
+	access, apiErr := s.resolveAgentAccess(ctx, agent, authorization.OperationUseSharedAgent)
+	if apiErr != nil {
+		return nil, apiErr
+	}
+	if err := s.authorizeWorkflowDelivery(ctx, access, agent, run.Spec.Delivery); err != nil {
+		return nil, err
+	}
+	return run, nil
+}
+
+// DeliverWorkflowSession hands the root a reference to canonical OpenCode execution history.
+func (s *Service) DeliverWorkflowSession(w http.ResponseWriter, r *http.Request, agent, workflowName, name string) {
+	namespace, err := tenantNamespace(r.Context())
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+	run, err := s.getWorkflowRun(r.Context(), namespace, agent, workflowName, name)
+	if err != nil {
+		apiutil.WriteError(w, r, mapKubeHTTPError("get workflow run", err))
+		return
+	}
+	access, apiErr := s.resolveAgentAccess(r.Context(), agent, authorization.OperationUseSharedAgent)
+	if apiErr != nil {
+		apiutil.WriteError(w, r, apiErr)
+		return
+	}
+	if err := s.enqueueWorkflowSession(r.Context(), access, run); err != nil {
+		apiutil.WriteError(w, r, mapGatewayStoreError("deliver workflow session", err))
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Service) enqueueWorkflowSession(ctx context.Context, access resourceAccess, run *agentzv1alpha1.WorkflowRun) error {
+	if run.Spec.Delivery == nil {
+		return nil
+	}
+	err := s.authorizeWorkflowDelivery(ctx, access, run.Spec.AgentName, run.Spec.Delivery)
+	if !run.Status.Phase.Terminal() {
+		return err
+	}
+	quiet := run.Status.Phase == agentzv1alpha1.WorkflowRunPhaseSucceeded && run.Status.NoChange
+	if errors.Is(err, pgx.ErrNoRows) || quiet {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	aborted := apimeta.FindStatusCondition(run.Status.Conditions, agentzv1alpha1.WorkflowRunConditionSessionAborted)
+	if aborted != nil && aborted.Status != metav1.ConditionTrue {
+		return nil
+	}
+	if run.Status.SessionID != "" {
+		client, err := s.agentClient(ctx, access.namespace, run.Spec.AgentName, s.outboundHTTP)
+		if err != nil {
+			return err
+		}
+		status, err := client.SessionStatusWithResponse(ctx, run.Spec.AgentName, nil)
+		if err != nil {
+			return err
+		}
+		if status.JSON200 == nil {
+			return errors.New("cannot confirm workflow session completion")
+		}
+		if state, ok := (*status.JSON200)[run.Status.SessionID]; ok {
+			kind, err := state.Discriminator()
+			if err != nil {
+				return err
+			}
+			if kind != "idle" {
+				return nil
+			}
+		}
+	}
+	release, err := s.lockChatInputs(ctx, access.workspaceID, run.Spec.AgentName, run.Spec.Delivery.SessionID, "")
+	if err != nil {
+		return err
+	}
+	defer release()
+	if err := s.authorizeWorkflowDelivery(ctx, access, run.Spec.AgentName, run.Spec.Delivery); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		return err
+	}
+	text := fmt.Sprintf("Workflow %s run %s finished with status %s. OpenCode session: %s.",
+		run.Spec.WorkflowName, run.Name, run.Status.Phase, run.Status.SessionID)
+	if run.Status.SessionID == "" {
+		text = fmt.Sprintf("Workflow %s run %s never started an execution session. %s", run.Spec.WorkflowName, run.Name, run.Status.Message)
+	}
+	condition := apimeta.FindStatusCondition(run.Status.Conditions, agentzv1alpha1.WorkflowRunConditionReady)
+	if condition != nil && condition.Reason == agentzv1alpha1.WorkflowRunReasonCanceled {
+		text += " Cancellation was requested. Do not resume or repair this canceled work."
+	}
+	content, err := json.Marshal(gatewayapi.ChatInputContent{Text: text, Attachments: []gatewayapi.ChatAttachment{}})
+	if err != nil {
+		return err
+	}
+	return s.queries.GatewayEnqueueWorkflowSession(ctx, gatewaydb.GatewayEnqueueWorkflowSessionParams{
+		WorkspaceID: access.workspaceID, AgentName: run.Spec.AgentName, SessionID: run.Spec.Delivery.SessionID, Generation: run.Spec.Delivery.Generation,
+		RunUid: pgtype.Text{String: string(run.UID), Valid: true}, Content: content,
+	})
 }

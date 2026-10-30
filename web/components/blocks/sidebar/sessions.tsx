@@ -564,7 +564,9 @@ function NavSessionsContent({
   useEffect(() => {
     if (!watch.data) return
     void queryClient.invalidateQueries({
-      predicate: (query) => query.queryKey[0] === "chatInputs" && query.queryKey[1] === workspaceId,
+      predicate: (query) =>
+        (query.queryKey[0] === "chatInputs" || query.queryKey[0] === "chatBackground") &&
+        query.queryKey[1] === workspaceId,
     })
     void queryClient.invalidateQueries({ queryKey: chatSessionKeys.workspace(workspaceId) })
   }, [queryClient, watch.data, workspaceId])
@@ -1742,6 +1744,9 @@ function SessionCard({
             <DialogTitle>Delete chat?</DialogTitle>
             <DialogDescription>
               Deleting <span className="font-medium">{session.title}</span> cannot be undone.
+              {session.pulse
+                ? " Pulse checks and bound workflow schedules will stop, including active bound runs."
+                : null}
             </DialogDescription>
           </DialogHeader>
           {pendingState.error ? (

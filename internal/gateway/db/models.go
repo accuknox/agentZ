@@ -100,6 +100,93 @@ func (ns NullApiKeyTargetType) Value() (driver.Value, error) {
 	return string(ns.ApiKeyTargetType), nil
 }
 
+type ChatBackgroundOutcome string
+
+const (
+	ChatBackgroundOutcomeQuiet    ChatBackgroundOutcome = "quiet"
+	ChatBackgroundOutcomeUpdate   ChatBackgroundOutcome = "update"
+	ChatBackgroundOutcomeFailed   ChatBackgroundOutcome = "failed"
+	ChatBackgroundOutcomeCanceled ChatBackgroundOutcome = "canceled"
+)
+
+func (e *ChatBackgroundOutcome) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatBackgroundOutcome(s)
+	case string:
+		*e = ChatBackgroundOutcome(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatBackgroundOutcome: %T", src)
+	}
+	return nil
+}
+
+type NullChatBackgroundOutcome struct {
+	ChatBackgroundOutcome ChatBackgroundOutcome `json:"chat_background_outcome"`
+	Valid                 bool                  `json:"valid"` // Valid is true if ChatBackgroundOutcome is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatBackgroundOutcome) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatBackgroundOutcome, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatBackgroundOutcome.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatBackgroundOutcome) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatBackgroundOutcome), nil
+}
+
+type ChatInputOrigin string
+
+const (
+	ChatInputOriginUser           ChatInputOrigin = "user"
+	ChatInputOriginPulse          ChatInputOrigin = "pulse"
+	ChatInputOriginWorkflowResult ChatInputOrigin = "workflow_result"
+)
+
+func (e *ChatInputOrigin) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatInputOrigin(s)
+	case string:
+		*e = ChatInputOrigin(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatInputOrigin: %T", src)
+	}
+	return nil
+}
+
+type NullChatInputOrigin struct {
+	ChatInputOrigin ChatInputOrigin `json:"chat_input_origin"`
+	Valid           bool            `json:"valid"` // Valid is true if ChatInputOrigin is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatInputOrigin) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatInputOrigin, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatInputOrigin.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatInputOrigin) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatInputOrigin), nil
+}
+
 type ChatSessionGroupBy string
 
 const (
@@ -783,10 +870,11 @@ func (ns NullWorkspaceType) Value() (driver.Value, error) {
 }
 
 type Agent struct {
-	TenantNamespace string    `json:"tenant_namespace"`
-	AgentName       string    `json:"agent_name"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	PulseIntervalSeconds int32     `json:"pulse_interval_seconds"`
+	TenantNamespace      string    `json:"tenant_namespace"`
+	AgentName            string    `json:"agent_name"`
+	CreatedAt            time.Time `json:"created_at"`
+	UpdatedAt            time.Time `json:"updated_at"`
 }
 
 type AgentOwner struct {
@@ -816,24 +904,50 @@ type AgentShareGrant struct {
 }
 
 type ChatInput struct {
-	ID             uuid.UUID   `json:"id"`
-	Sequence       pgtype.Int8 `json:"sequence"`
-	WorkspaceID    string      `json:"workspace_id"`
-	AgentName      string      `json:"agent_name"`
-	SessionID      string      `json:"session_id"`
-	OrganizationID string      `json:"organization_id"`
-	AuthorID       string      `json:"author_id"`
-	AuthorName     string      `json:"author_name"`
-	Directory      string      `json:"directory"`
-	Resume         bool        `json:"resume"`
-	Content        []byte      `json:"content"`
-	Delivery       string      `json:"delivery"`
-	State          string      `json:"state"`
-	Revision       int64       `json:"revision"`
-	MessageID      string      `json:"message_id"`
-	Error          string      `json:"error"`
-	CreatedAt      time.Time   `json:"created_at"`
-	UpdatedAt      time.Time   `json:"updated_at"`
+	ID             uuid.UUID                 `json:"id"`
+	Sequence       pgtype.Int8               `json:"sequence"`
+	WorkspaceID    string                    `json:"workspace_id"`
+	AgentName      string                    `json:"agent_name"`
+	SessionID      string                    `json:"session_id"`
+	OrganizationID string                    `json:"organization_id"`
+	AuthorID       string                    `json:"author_id"`
+	AuthorName     string                    `json:"author_name"`
+	Directory      string                    `json:"directory"`
+	Resume         bool                      `json:"resume"`
+	Content        []byte                    `json:"content"`
+	Delivery       string                    `json:"delivery"`
+	State          string                    `json:"state"`
+	Revision       int64                     `json:"revision"`
+	MessageID      string                    `json:"message_id"`
+	Error          string                    `json:"error"`
+	CreatedAt      time.Time                 `json:"created_at"`
+	UpdatedAt      time.Time                 `json:"updated_at"`
+	Origin         ChatInputOrigin           `json:"origin"`
+	SourceID       pgtype.Text               `json:"source_id"`
+	PartID         pgtype.Text               `json:"part_id"`
+	Generation     int64                     `json:"generation"`
+	CompletedAt    pgtype.Timestamptz        `json:"completed_at"`
+	Outcome        NullChatBackgroundOutcome `json:"outcome"`
+}
+
+type ChatSession struct {
+	WorkspaceID        string             `json:"workspace_id"`
+	AgentName          string             `json:"agent_name"`
+	SessionID          string             `json:"session_id"`
+	ParentSessionID    pgtype.Text        `json:"parent_session_id"`
+	Title              string             `json:"title"`
+	Kind               ChatSessionKind    `json:"kind"`
+	Status             ChatSessionStatus  `json:"status"`
+	SourceCreatedAt    pgtype.Timestamptz `json:"source_created_at"`
+	SourceUpdatedAt    pgtype.Timestamptz `json:"source_updated_at"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	Pulse              bool               `json:"pulse"`
+	NextCheckAt        pgtype.Timestamptz `json:"next_check_at"`
+	CheckRequestedAt   pgtype.Timestamptz `json:"check_requested_at"`
+	Deleting           bool               `json:"deleting"`
+	CleanupCompletedAt pgtype.Timestamptz `json:"cleanup_completed_at"`
+	Generation         int64              `json:"generation"`
 }
 
 type CleanupJob struct {

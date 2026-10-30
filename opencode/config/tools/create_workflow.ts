@@ -32,6 +32,12 @@ const workflowInputSchema = tool.schema.object({
 })
 
 const createWorkflowArgs = {
+  replace: tool.schema
+    .boolean()
+    .optional()
+    .describe(
+      "Replace an existing workflow atomically while preserving its schedules. Read its definition first."
+    ),
   inputs: tool.schema
     .record(tool.schema.string().min(1), workflowInputSchema)
     .optional()
@@ -118,7 +124,7 @@ const createWorkflowArgs = {
 }
 
 const description = `
-Create a reusable workflow DAG.
+Create or replace a reusable workflow DAG.
 
 Load and follow the built-in "workflow-creator" skill before using this tool (VERY IMPORTANT).
 
@@ -130,7 +136,7 @@ For recurring automation or scheduled execution, create or update a skill or scr
 
 If you have not yet exercised the task successfully, keep working instead of calling this tool.
 
-If the service reports "workflow_name" already in use, surface the conflict. Do not rename the workflow automatically.
+Use replace: true only to revise an existing workflow after reading its definition. Replacement preserves schedules. Ordinary creation still reports duplicate-name conflicts; do not rename or delete a workflow to bypass them.
 `.trim()
 
 export default tool({
@@ -161,7 +167,7 @@ export default tool({
         message: issue.message,
       }))
       context.metadata({
-        title: "Workflow creation failed",
+        title: "Workflow save failed",
         metadata: {
           agent_name: agentName,
           workflow_name: args.workflow_name,
@@ -169,14 +175,14 @@ export default tool({
           issues,
         },
       })
-      return formatRequestValidationError("Workflow creation request validation failed.", issues)
+      return formatRequestValidationError("Workflow save request validation failed.", issues)
     }
 
     const body = bodyResult.data
     const validationIssues = validateWorkflowDefinition(body)
     if (validationIssues.length > 0) {
       context.metadata({
-        title: "Workflow creation failed",
+        title: "Workflow save failed",
         metadata: {
           agent_name: agentName,
           workflow_name: body.workflow_name,
@@ -197,7 +203,7 @@ export default tool({
     })
     if (result.data) {
       context.metadata({
-        title: `Workflow ${result.data.workflow_name} created`,
+        title: `Workflow ${result.data.workflow_name} saved`,
         metadata: {
           agent_name: result.data.agent_name,
           workflow_name: result.data.workflow_name,
@@ -206,7 +212,7 @@ export default tool({
         },
       })
       return (
-        `Created workflow ${result.data.workflow_name} for agent ` +
+        `Saved workflow ${result.data.workflow_name} for agent ` +
         `${result.data.agent_name} with ${result.data.nodes.length} nodes ` +
         `and ${result.data.edges.length} edges.`
       )
@@ -215,17 +221,17 @@ export default tool({
     const error = zError.safeParse(result.error)
     if (!error.success) {
       context.metadata({
-        title: "Workflow creation failed",
+        title: "Workflow save failed",
         metadata: { agent_name: agentName, reason: "unexpected_error" },
       })
       return (
-        `Workflow creation failed for agent ${agentName}, and the service ` +
+        `Workflow save failed for agent ${agentName}, and the service ` +
         "returned an unexpected error shape."
       )
     }
 
     context.metadata({
-      title: "Workflow creation failed",
+      title: "Workflow save failed",
       metadata: {
         agent_name: agentName,
         workflow_name: args.workflow_name,

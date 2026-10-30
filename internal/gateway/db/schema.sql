@@ -32,6 +32,24 @@ CREATE TABLE chat_sessions (
   source_updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  long_running BOOLEAN NOT NULL DEFAULT false,
+  owner_id TEXT REFERENCES users(id),
+  private_root_session_id TEXT,
+  proactive_interval_seconds INTEGER,
+  proactive_paused BOOLEAN NOT NULL DEFAULT false,
+  next_check_at TIMESTAMPTZ,
+  deleting BOOLEAN NOT NULL DEFAULT false,
+  generation BIGINT NOT NULL DEFAULT 0,
+  CONSTRAINT chat_sessions_private_binding_ck CHECK (
+    (owner_id IS NULL) = (private_root_session_id IS NULL)
+  ),
+  CONSTRAINT chat_sessions_proactivity_ck CHECK (
+    (long_running AND kind = 'chat' AND parent_session_id IS NULL
+      AND owner_id IS NOT NULL AND private_root_session_id = session_id
+      AND proactive_interval_seconds IS NOT NULL AND proactive_interval_seconds >= 60 AND next_check_at IS NOT NULL)
+    OR (NOT long_running AND proactive_interval_seconds IS NULL
+      AND next_check_at IS NULL AND NOT proactive_paused)
+  ),
   CONSTRAINT chat_sessions_workspace_id_agent_name_session_id_pk
     PRIMARY KEY(workspace_id, agent_name, session_id),
   CONSTRAINT chat_sessions_workspace_id_workspaces_id_fk
@@ -181,4 +199,68 @@ CREATE TABLE chat_input_sessions (
   PRIMARY KEY (workspace_id, agent_name, session_id),
   FOREIGN KEY (workspace_id, agent_name, session_id)
     REFERENCES chat_sessions(workspace_id, agent_name, session_id) ON DELETE CASCADE
+);
+
+CREATE INDEX chat_sessions_due_idx ON chat_sessions(next_check_at)
+WHERE long_running AND NOT proactive_paused AND NOT deleting;
+CREATE INDEX chat_sessions_private_root_idx
+ON chat_sessions(workspace_id, agent_name, private_root_session_id)
+WHERE private_root_session_id IS NOT NULL;
+
+CREATE TYPE chat_input_origin AS ENUM ('user', 'proactive', 'workflow_result');
+CREATE TYPE chat_background_outcome AS ENUM ('quiet', 'update', 'failed', 'canceled');
+ALTER TABLE chat_inputs
+  ADD COLUMN origin chat_input_origin NOT NULL DEFAULT 'user',
+  ADD COLUMN source_id TEXT,
+  ADD COLUMN part_id TEXT,
+  ADD COLUMN generation BIGINT NOT NULL DEFAULT 0,
+  ADD COLUMN background JSONB,
+  ADD COLUMN completed_at TIMESTAMPTZ,
+  ADD COLUMN outcome chat_background_outcome,
+  ADD CONSTRAINT chat_inputs_background_ck CHECK (
+    (origin = 'user' AND source_id IS NULL AND part_id IS NULL
+      AND background IS NULL AND completed_at IS NULL AND outcome IS NULL)
+    OR (origin <> 'user' AND source_id IS NOT NULL AND part_id IS NOT NULL)
+  ),
+  ADD CONSTRAINT chat_inputs_completion_ck CHECK (
+    (completed_at IS NULL) = (outcome IS NULL)
+  );
+CREATE UNIQUE INDEX chat_inputs_source_idx
+ON chat_inputs(workspace_id, agent_name, session_id, origin, source_id)
+WHERE origin <> 'user';
+CREATE UNIQUE INDEX chat_inputs_proactive_idx
+ON chat_inputs(workspace_id, agent_name, session_id)
+WHERE origin = 'proactive' AND completed_at IS NULL;
+
+CREATE TABLE chat_creations (
+  id UUID PRIMARY KEY,
+  workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+  agent_name TEXT NOT NULL,
+  owner_id TEXT NOT NULL REFERENCES users(id),
+  request JSONB NOT NULL,
+  session_id TEXT NOT NULL,
+  state TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending', 'uncertain', 'created', 'failed')),
+  error TEXT NOT NULL DEFAULT '' CHECK (length(error) <= 2000),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (workspace_id, agent_name, session_id)
+);
+
+CREATE TABLE workflow_reports (
+  run_uid TEXT PRIMARY KEY,
+  namespace TEXT NOT NULL,
+  run_name TEXT NOT NULL,
+  workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+  agent_name TEXT NOT NULL,
+  session_id TEXT NOT NULL,
+  owner_id TEXT NOT NULL REFERENCES users(id),
+  generation BIGINT NOT NULL,
+  requested_phase TEXT NOT NULL,
+  status_message TEXT NOT NULL,
+  result JSONB NOT NULL,
+  payload_hash TEXT NOT NULL,
+  state TEXT NOT NULL DEFAULT 'prepared' CHECK (state IN ('prepared', 'ready', 'suppressed', 'conflict')),
+  chat_input_id UUID UNIQUE REFERENCES chat_inputs(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

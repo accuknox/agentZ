@@ -149,6 +149,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 			row, getErr := s.queries.GatewayGetChatSessionGroup(
 				r.Context(),
 				gatewaydb.GatewayGetChatSessionGroupParams{
+					ViewerID:    pgtype.Text{String: access.claims.UserID, Valid: true},
 					WorkspaceID: access.workspaceID,
 					AgentName:   *params.ActiveAgentName,
 					SessionID:   *params.ActiveSessionId,
@@ -299,6 +300,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		filterRows, filterErr := s.queries.GatewayListChatSessionFilterUsers(
 			r.Context(),
 			gatewaydb.GatewayListChatSessionFilterUsersParams{
+				ViewerID:            pgtype.Text{String: access.claims.UserID, Valid: true},
 				OwnerID:             ownerID,
 				AgentNames:          agentNames,
 				WorkspaceID:         access.workspaceID,
@@ -385,6 +387,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		groups, searchErr := s.searchChatSessionGroups(
 			r.Context(),
 			gatewaydb.GatewaySearchGroupedChatSessionsParams{
+				ViewerID:            pgtype.Text{String: access.claims.UserID, Valid: true},
 				OwnerID:             ownerID,
 				PageSize:            limit + 1,
 				GroupBy:             string(groupBy),
@@ -417,6 +420,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 			values, err = s.queries.GatewayListChatSessionDateGroups(
 				r.Context(),
 				gatewaydb.GatewayListChatSessionDateGroupsParams{
+					ViewerID:            pgtype.Text{String: access.claims.UserID, Valid: true},
 					OwnerID:             ownerID,
 					TodayStart:          today,
 					YesterdayStart:      yesterday,
@@ -439,6 +443,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		sessions, next, listErr := s.listChatSessionPage(
 			r.Context(),
 			gatewaydb.GatewayListChatSessionsParams{
+				ViewerID:            pgtype.Text{String: access.claims.UserID, Valid: true},
 				ProjectID:           projectID,
 				OwnerID:             ownerID,
 				AgentNames:          agentNames,

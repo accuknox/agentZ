@@ -603,8 +603,6 @@ components:
     Agent:
       additionalProperties: false
       properties:
-        automatic_check_interval_seconds:
-          $ref: '#/components/schemas/AutomaticCheckIntervalSeconds'
         capabilities:
           $ref: '#/components/schemas/AgentCapabilities'
         created_at:
@@ -626,6 +624,8 @@ components:
           $ref: '#/components/schemas/AgentName'
         opencode:
           $ref: '#/components/schemas/AgentOpencodeConfig'
+        pulse_interval_seconds:
+          $ref: '#/components/schemas/PulseIntervalSeconds'
         sandbox:
           $ref: '#/components/schemas/ResourceReference'
         skills:
@@ -635,7 +635,7 @@ components:
         status:
           $ref: '#/components/schemas/AgentStatus'
       required:
-      - automatic_check_interval_seconds
+      - pulse_interval_seconds
       - name
       - sandbox
       - created_by
@@ -1359,13 +1359,6 @@ components:
       required:
       - points
       type: object
-    AutomaticCheckIntervalSeconds:
-      description: Seconds between automatic checks for this agent's long-running conversations, in whole minutes. Defaults to 1800.
-      format: int32
-      maximum: 604800
-      minimum: 60
-      multipleOf: 60
-      type: integer
     AzureInferenceProviderRead:
       properties:
         azure:
@@ -1542,7 +1535,7 @@ components:
           type: string
         origin:
           enum:
-          - proactive
+          - pulse
           - workflow_result
           type: string
         outcome:
@@ -1689,25 +1682,25 @@ components:
       - items
       - stopping
       type: object
-    ChatProactivity:
+    ChatPulse:
       additionalProperties: false
       properties:
+        enabled:
+          type: boolean
         interval_seconds:
           format: int32
           type: integer
-        long_running:
-          type: boolean
         next_check_at:
           format: date-time
           type: string
         paused:
           type: boolean
       required:
-      - long_running
+      - enabled
       - paused
       - interval_seconds
       type: object
-    ChatProactivityUpdate:
+    ChatPulseUpdate:
       additionalProperties: false
       properties:
         paused:
@@ -1725,14 +1718,14 @@ components:
           type: string
         kind:
           $ref: '#/components/schemas/ChatSessionKind'
-        long_running:
-          type: boolean
         participants:
           items:
             $ref: '#/components/schemas/ChatSessionParticipant'
           type: array
         project_id:
           type: string
+        pulse:
+          type: boolean
         session_id:
           type: string
         status:
@@ -2593,8 +2586,6 @@ components:
     CreateAgentRequest:
       additionalProperties: false
       properties:
-        automatic_check_interval_seconds:
-          $ref: '#/components/schemas/AutomaticCheckIntervalSeconds'
         env:
           additionalProperties:
             type: string
@@ -2605,6 +2596,8 @@ components:
           $ref: '#/components/schemas/AgentName'
         opencode:
           $ref: '#/components/schemas/AgentOpencodeConfig'
+        pulse_interval_seconds:
+          $ref: '#/components/schemas/PulseIntervalSeconds'
         sandbox:
           $ref: '#/components/schemas/ResourceReference'
         skills:
@@ -2851,7 +2844,7 @@ components:
       additionalProperties: false
       properties:
         context_session_id:
-          description: Authenticated agent tool context used to bind a long-running root.
+          description: Authenticated agent tool context used to bind a Pulse root.
           type: string
         delivery:
           $ref: '#/components/schemas/WorkflowDelivery'
@@ -6126,22 +6119,6 @@ components:
       - can_create
       - can_enter_organization
       - next_page_token
-      type: object
-    LongRunningChatRequest:
-      additionalProperties: false
-      properties:
-        agent:
-          type: string
-        agent_name:
-          $ref: '#/components/schemas/AgentName'
-        id:
-          format: uuid
-          type: string
-        model:
-          $ref: '#/components/schemas/OpencodeModelRef'
-      required:
-      - id
-      - agent_name
       type: object
     MCPConnectionAuth:
       additionalProperties: false
@@ -25547,6 +25524,29 @@ components:
       - accepted_records
       - replayed
       type: object
+    PulseChatRequest:
+      additionalProperties: false
+      properties:
+        agent:
+          type: string
+        agent_name:
+          $ref: '#/components/schemas/AgentName'
+        id:
+          format: uuid
+          type: string
+        model:
+          $ref: '#/components/schemas/OpencodeModelRef'
+      required:
+      - id
+      - agent_name
+      type: object
+    PulseIntervalSeconds:
+      description: Seconds between Pulse checks for this agent's conversations, in whole minutes. Defaults to 1800.
+      format: int32
+      maximum: 604800
+      minimum: 60
+      multipleOf: 60
+      type: integer
     PutSecretsResponse:
       additionalProperties: false
       properties:
@@ -26609,8 +26609,6 @@ components:
       additionalProperties: false
       minProperties: 1
       properties:
-        automatic_check_interval_seconds:
-          $ref: '#/components/schemas/AutomaticCheckIntervalSeconds'
         env:
           additionalProperties:
             type: string
@@ -26619,6 +26617,8 @@ components:
           $ref: '#/components/schemas/AgentMemoryConfig'
         opencode:
           $ref: '#/components/schemas/AgentOpencodeConfig'
+        pulse_interval_seconds:
+          $ref: '#/components/schemas/PulseIntervalSeconds'
         sandbox:
           $ref: '#/components/schemas/ResourceReference'
         skills:
@@ -29059,12 +29059,12 @@ paths:
       tags:
       - chat-sessions
     post:
-      operationId: createLongRunningChat
+      operationId: createPulseChat
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LongRunningChatRequest'
+              $ref: '#/components/schemas/PulseChatRequest'
         required: true
       responses:
         "200":
@@ -29084,7 +29084,7 @@ paths:
       security:
       - GatewayBearer:
         - agent.use_shared
-      summary: Create an owner-only long-running conversation in a General workspace.
+      summary: Create an owner-only Pulse conversation in a General workspace.
       tags:
       - chat-sessions
   /api/chat-session-preference:
@@ -29289,9 +29289,9 @@ paths:
       summary: Remove or retry your queued message.
       tags:
       - chat-sessions
-  /api/chat-session/{agentName}/{sessionId}/proactivity:
+  /api/chat-session/{agentName}/{sessionId}/pulse:
     get:
-      operationId: getChatProactivity
+      operationId: getChatPulse
       parameters:
       - in: path
         name: agentName
@@ -29308,7 +29308,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ChatProactivity'
+                $ref: '#/components/schemas/ChatPulse'
           description: Authorized conversation state.
         "400":
           $ref: '#/components/responses/BadRequest'
@@ -29325,7 +29325,7 @@ paths:
       tags:
       - chat-sessions
     patch:
-      operationId: updateChatProactivity
+      operationId: updateChatPulse
       parameters:
       - in: path
         name: agentName
@@ -29341,14 +29341,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ChatProactivityUpdate'
+              $ref: '#/components/schemas/ChatPulseUpdate'
         required: true
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ChatProactivity'
+                $ref: '#/components/schemas/ChatPulse'
           description: Authorized conversation state.
         "400":
           $ref: '#/components/responses/BadRequest'

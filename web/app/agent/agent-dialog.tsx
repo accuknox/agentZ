@@ -64,7 +64,7 @@ type AgentDialogProps = {
   initialNextSandboxPageToken: string
   agentName?: string
   initialSandboxName?: string
-  initialAutomaticCheckIntervalSeconds?: Agent["automatic_check_interval_seconds"]
+  initialPulseIntervalSeconds?: Agent["pulse_interval_seconds"]
   initialMemoryEnabled?: boolean
   initialSkills?: Agent["skills"]
   initialInstruction?: AgentOpencodeConfig["instruction"]
@@ -215,7 +215,7 @@ export function AgentDialog({
   agentName,
   initialSandboxName,
   initialMemoryEnabled = false,
-  initialAutomaticCheckIntervalSeconds = 1800,
+  initialPulseIntervalSeconds = 1800,
   initialSkills = [],
   initialInstruction = "",
   open,
@@ -233,7 +233,7 @@ export function AgentDialog({
     sandboxName: initialSandboxName ?? (mode === "create" ? (sandboxes[0]?.name ?? "") : ""),
     skills: initialSkills,
     memoryEnabled: actionScope.workspaceType !== "coding" && initialMemoryEnabled,
-    automaticCheckIntervalSeconds: initialAutomaticCheckIntervalSeconds,
+    pulseIntervalSeconds: initialPulseIntervalSeconds,
     instruction: initialInstruction,
   }
   const form = useForm<AgentFormValues>({
@@ -286,9 +286,9 @@ export function AgentDialog({
             case "sandboxName":
               field = "sandboxName"
               break
-            case "automatic_check_interval_seconds":
-            case "automaticCheckIntervalSeconds":
-              field = "automaticCheckIntervalSeconds"
+            case "pulse_interval_seconds":
+            case "pulseIntervalSeconds":
+              field = "pulseIntervalSeconds"
               break
             case "memory":
             case "memoryEnabled":
@@ -493,12 +493,12 @@ export function AgentDialog({
             />
             {actionScope.workspaceType !== "coding" && (
               <Controller
-                name="automaticCheckIntervalSeconds"
+                name="pulseIntervalSeconds"
                 control={form.control}
                 render={({ field, fieldState }) => (
                   <Field data-invalid={fieldState.invalid}>
                     <FieldLabel htmlFor="agent-form-check-interval">
-                      Automatic check interval
+                      Pulse check interval
                     </FieldLabel>
                     <div className="flex items-center gap-2">
                       <Input
@@ -519,8 +519,8 @@ export function AgentDialog({
                       <span className="text-muted-foreground">minutes</span>
                     </div>
                     <FieldDescription id="agent-form-check-interval-description">
-                      Applies to all long-running conversations with this agent. Each conversation
-                      can be paused independently.
+                      The agent checks back at this interval to continue your tasks and share
+                      updates.
                     </FieldDescription>
                     <FieldError id="agent-form-check-interval-error">
                       {fieldState.invalid

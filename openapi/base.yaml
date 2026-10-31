@@ -676,14 +676,14 @@ paths:
               schema: {$ref: '#/components/schemas/Error'}
   /api/chat-session:
     post:
-      operationId: createLongRunningChat
-      summary: Create an owner-only long-running conversation in a General workspace.
+      operationId: createPulseChat
+      summary: Create an owner-only Pulse conversation in a General workspace.
       tags: [chat-sessions]
       requestBody:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/LongRunningChatRequest'}
+            schema: {$ref: '#/components/schemas/PulseChatRequest'}
       responses:
         '200':
           description: Canonical native session, including on exact retries.
@@ -731,9 +731,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /api/chat-session/{agentName}/{sessionId}/proactivity:
+  /api/chat-session/{agentName}/{sessionId}/pulse:
     get:
-      operationId: getChatProactivity
+      operationId: getChatPulse
       summary: Manage owner-authorized conversation background activity.
       tags: [chat-sessions]
       parameters:
@@ -744,14 +744,14 @@ paths:
           description: Authorized conversation state.
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/ChatProactivity'}
+              schema: {$ref: '#/components/schemas/ChatPulse'}
         '400': {$ref: '#/components/responses/BadRequest'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
 
     patch:
-      operationId: updateChatProactivity
+      operationId: updateChatPulse
       summary: Manage owner-authorized conversation background activity.
       tags: [chat-sessions]
       parameters:
@@ -761,13 +761,13 @@ paths:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/ChatProactivityUpdate'}
+            schema: {$ref: '#/components/schemas/ChatPulseUpdate'}
       responses:
         '200':
           description: Authorized conversation state.
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/ChatProactivity'}
+              schema: {$ref: '#/components/schemas/ChatPulse'}
         '400': {$ref: '#/components/responses/BadRequest'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
@@ -6469,7 +6469,7 @@ components:
           nullable: true
       required: [id, name, email, image]
 
-    LongRunningChatRequest:
+    PulseChatRequest:
       type: object
       additionalProperties: false
       required: [id, agent_name]
@@ -6478,18 +6478,18 @@ components:
         agent_name: {$ref: '#/components/schemas/AgentName'}
         agent: {type: string}
         model: {$ref: 'https://raw.githubusercontent.com/anomalyco/opencode/a3647eb025c7615159d417dcc49fc39fdaeba65b/packages/sdk/openapi.json#/components/schemas/ModelRef'}
-    ChatProactivityUpdate:
+    ChatPulseUpdate:
       type: object
       additionalProperties: false
       required: [paused]
       properties:
         paused: {type: boolean}
-    ChatProactivity:
+    ChatPulse:
       type: object
       additionalProperties: false
-      required: [long_running, paused, interval_seconds]
+      required: [enabled, paused, interval_seconds]
       properties:
-        long_running: {type: boolean}
+        enabled: {type: boolean}
         paused: {type: boolean}
         interval_seconds: {type: integer, format: int32}
         next_check_at: {type: string, format: date-time}
@@ -6503,7 +6503,7 @@ components:
       properties:
         message_id: {type: string}
         part_id: {type: string}
-        origin: {type: string, enum: [proactive, workflow_result]}
+        origin: {type: string, enum: [pulse, workflow_result]}
         completed: {type: boolean}
         outcome: {type: string, enum: [quiet, update, failed, canceled]}
         error: {type: string}
@@ -6511,7 +6511,7 @@ components:
       type: object
       additionalProperties: false
       properties:
-        long_running: {type: boolean}
+        pulse: {type: boolean}
         project_id: {type: string}
         agent_name:
           $ref: '#/components/schemas/AgentName'
@@ -7371,13 +7371,13 @@ components:
           pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
       required: [scope, name]
 
-    AutomaticCheckIntervalSeconds:
+    PulseIntervalSeconds:
       type: integer
       format: int32
       minimum: 60
       maximum: 604800
       multipleOf: 60
-      description: Seconds between automatic checks for this agent's long-running conversations, in whole minutes. Defaults to 1800.
+      description: Seconds between Pulse checks for this agent's conversations, in whole minutes. Defaults to 1800.
 
     AgentMemoryConfig:
       type: object
@@ -7738,8 +7738,8 @@ components:
       type: object
       additionalProperties: false
       properties:
-        automatic_check_interval_seconds:
-          $ref: '#/components/schemas/AutomaticCheckIntervalSeconds'
+        pulse_interval_seconds:
+          $ref: '#/components/schemas/PulseIntervalSeconds'
         name:
           $ref: '#/components/schemas/AgentName'
         sandbox:
@@ -7770,7 +7770,7 @@ components:
         capabilities:
           $ref: '#/components/schemas/AgentCapabilities'
       required:
-      - automatic_check_interval_seconds
+      - pulse_interval_seconds
       - name
       - sandbox
       - created_by
@@ -8349,8 +8349,8 @@ components:
       type: object
       additionalProperties: false
       properties:
-        automatic_check_interval_seconds:
-          $ref: '#/components/schemas/AutomaticCheckIntervalSeconds'
+        pulse_interval_seconds:
+          $ref: '#/components/schemas/PulseIntervalSeconds'
         name:
           $ref: '#/components/schemas/AgentName'
         memory:
@@ -8812,7 +8812,7 @@ components:
       type: object
       additionalProperties: false
       properties:
-        context_session_id: {type: string, description: Authenticated agent tool context used to bind a long-running root.}
+        context_session_id: {type: string, description: Authenticated agent tool context used to bind a Pulse root.}
         delivery: {$ref: '#/components/schemas/WorkflowDelivery'}
         name:
           $ref: '#/components/schemas/WorkflowScheduleName'
@@ -9070,8 +9070,8 @@ components:
       type: object
       additionalProperties: false
       properties:
-        automatic_check_interval_seconds:
-          $ref: '#/components/schemas/AutomaticCheckIntervalSeconds'
+        pulse_interval_seconds:
+          $ref: '#/components/schemas/PulseIntervalSeconds'
         env:
           type: object
           additionalProperties:

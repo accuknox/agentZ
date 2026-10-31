@@ -469,15 +469,15 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var interval pgtype.Int4
-	if req.AutomaticCheckIntervalSeconds != nil {
-		interval = pgtype.Int4{Int32: *req.AutomaticCheckIntervalSeconds, Valid: true}
+	if req.PulseIntervalSeconds != nil {
+		interval = pgtype.Int4{Int32: *req.PulseIntervalSeconds, Valid: true}
 	}
 	row, err := q.GatewayCreateAgent(
 		r.Context(),
 		gatewaydb.GatewayCreateAgentParams{
-			TenantNamespace:               ns,
-			AgentName:                     name,
-			AutomaticCheckIntervalSeconds: interval,
+			TenantNamespace:      ns,
+			AgentName:            name,
+			PulseIntervalSeconds: interval,
 		},
 	)
 	if err != nil {
@@ -565,9 +565,9 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		w,
 		http.StatusCreated,
 		gatewayapi.Agent{
-			AutomaticCheckIntervalSeconds: row.AutomaticCheckIntervalSeconds,
-			Name:                          row.AgentName,
-			Sandbox:                       req.Sandbox,
+			PulseIntervalSeconds: row.PulseIntervalSeconds,
+			Name:                 row.AgentName,
+			Sandbox:              req.Sandbox,
 			Opencode: &gatewayapi.AgentOpencodeConfig{
 				Instruction: &agt.Spec.Instruction,
 			},
@@ -725,16 +725,16 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 	var interval pgtype.Int4
-	if req.AutomaticCheckIntervalSeconds != nil {
-		interval = pgtype.Int4{Int32: *req.AutomaticCheckIntervalSeconds, Valid: true}
+	if req.PulseIntervalSeconds != nil {
+		interval = pgtype.Int4{Int32: *req.PulseIntervalSeconds, Valid: true}
 	}
 	row, err = q.GatewayTouchAgent(
 		r.Context(),
 		gatewaydb.GatewayTouchAgentParams{
-			TenantNamespace:               ns,
-			AgentName:                     name,
-			UpdatedAt:                     time.Now().UTC(),
-			AutomaticCheckIntervalSeconds: interval,
+			TenantNamespace:      ns,
+			AgentName:            name,
+			UpdatedAt:            time.Now().UTC(),
+			PulseIntervalSeconds: interval,
 		},
 	)
 	if err != nil {
@@ -742,7 +742,7 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		apiutil.WriteError(w, r, mapGatewayStoreError("update agent", err))
 		return
 	}
-	if row.AutomaticCheckIntervalSeconds != previous.AutomaticCheckIntervalSeconds {
+	if row.PulseIntervalSeconds != previous.PulseIntervalSeconds {
 		err = q.GatewayRescheduleAgentChecks(r.Context(), gatewaydb.GatewayRescheduleAgentChecksParams{
 			TenantNamespace: ns,
 			AgentName:       name,
@@ -760,8 +760,8 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 			access: access,
 			name:   name,
 			action: "agent.modify",
-			before: agentConfigurationEventTrailFields(name, before, previous.AutomaticCheckIntervalSeconds),
-			after:  agentConfigurationEventTrailFields(name, updated, row.AutomaticCheckIntervalSeconds),
+			before: agentConfigurationEventTrailFields(name, before, previous.PulseIntervalSeconds),
+			after:  agentConfigurationEventTrailFields(name, updated, row.PulseIntervalSeconds),
 		},
 	)
 	if err != nil {
@@ -794,9 +794,9 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		w,
 		http.StatusOK,
 		gatewayapi.Agent{
-			AutomaticCheckIntervalSeconds: row.AutomaticCheckIntervalSeconds,
-			Name:                          row.AgentName,
-			Sandbox:                       resourceReferenceFromCRD(updated.Spec.SandboxRef),
+			PulseIntervalSeconds: row.PulseIntervalSeconds,
+			Name:                 row.AgentName,
+			Sandbox:              resourceReferenceFromCRD(updated.Spec.SandboxRef),
 			Opencode: &gatewayapi.AgentOpencodeConfig{
 				Instruction: &updated.Spec.Instruction,
 			},
@@ -1700,7 +1700,7 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 				prevItem.Name == item.Name &&
 				prevItem.Sandbox == item.Sandbox &&
 				prevItem.Memory == item.Memory &&
-				prevItem.AutomaticCheckIntervalSeconds == item.AutomaticCheckIntervalSeconds &&
+				prevItem.PulseIntervalSeconds == item.PulseIntervalSeconds &&
 				*prevItem.Opencode.Instruction == *item.Opencode.Instruction &&
 				prevItem.LastActivity.Equal(item.LastActivity) &&
 				prevItem.CreatedAt.Equal(item.CreatedAt) &&
@@ -2391,7 +2391,7 @@ func agentConfigurationEventTrailFields(agentName string, agent *agentzv1alpha1.
 	}
 	slices.Sort(skills)
 	state := fmt.Sprintf(
-		"sandbox=%s/%s; memory=%t; skills=%s; automatic_check_interval_seconds=%d",
+		"sandbox=%s/%s; memory=%t; skills=%s; pulse_interval_seconds=%d",
 		agent.Spec.SandboxRef.Scope,
 		agent.Spec.SandboxRef.Name,
 		agent.Spec.Memory.Enabled,
@@ -2496,9 +2496,9 @@ func (s *Service) listAgentItems(ctx context.Context, q gatewaydb.GatewayListAge
 		items = append(
 			items,
 			gatewayapi.Agent{
-				AutomaticCheckIntervalSeconds: row.AutomaticCheckIntervalSeconds,
-				Name:                          row.AgentName,
-				Sandbox:                       resourceReferenceFromCRD(agt.Spec.SandboxRef),
+				PulseIntervalSeconds: row.PulseIntervalSeconds,
+				Name:                 row.AgentName,
+				Sandbox:              resourceReferenceFromCRD(agt.Spec.SandboxRef),
 				Opencode: &gatewayapi.AgentOpencodeConfig{
 					Instruction: &agt.Spec.Instruction,
 				},
@@ -2686,7 +2686,7 @@ func updateAgentRequestHasChanges(req gatewayapi.UpdateAgentRequest) bool {
 	if req.Skills != nil {
 		return true
 	}
-	return req.AutomaticCheckIntervalSeconds != nil
+	return req.PulseIntervalSeconds != nil
 }
 
 func applyUpdateAgentRequest(agt *agentzv1alpha1.Agent, req gatewayapi.UpdateAgentRequest) {

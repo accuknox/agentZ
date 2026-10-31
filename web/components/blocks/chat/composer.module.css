@@ -56,6 +56,76 @@
     content: "";
   }
 
+  .pulse {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+  }
+
+  /* Activation hands the signal to a heartbeat that lasts while Pulse is enabled. */
+  @media (prefers-reduced-motion: no-preference) {
+    .pulse[aria-checked="true"]::before {
+      position: absolute;
+      z-index: -1;
+      inset: 0;
+      background: linear-gradient(
+        90deg,
+        transparent,
+        color-mix(in oklab, var(--primary) 22%, transparent),
+        transparent
+      );
+      pointer-events: none;
+      content: "";
+      animation: pulse-handoff 420ms ease-out both;
+    }
+
+    .pulse[aria-checked="true"] .pulseDot {
+      animation:
+        pulse-ready 220ms ease-out 280ms both,
+        pulse-heartbeat 2s ease-in-out 500ms infinite;
+    }
+  }
+
+  @keyframes pulse-handoff {
+    from {
+      transform: translateX(-100%);
+      opacity: 0;
+    }
+    25% {
+      opacity: 1;
+    }
+    to {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+  }
+
+  @keyframes pulse-ready {
+    from {
+      transform: scale(0.6);
+      opacity: 0.35;
+    }
+    60% {
+      transform: scale(1.6);
+      opacity: 1;
+    }
+    to {
+      transform: scale(1);
+    }
+  }
+
+  @keyframes pulse-heartbeat {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(0.75);
+      opacity: 0.5;
+    }
+  }
+
   @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
     .shell::before {
       background: var(--chat-composer-glass-surface);

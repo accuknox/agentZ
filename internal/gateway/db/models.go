@@ -148,7 +148,7 @@ type ChatInputOrigin string
 
 const (
 	ChatInputOriginUser           ChatInputOrigin = "user"
-	ChatInputOriginProactive      ChatInputOrigin = "proactive"
+	ChatInputOriginPulse          ChatInputOrigin = "pulse"
 	ChatInputOriginWorkflowResult ChatInputOrigin = "workflow_result"
 )
 
@@ -870,11 +870,11 @@ func (ns NullWorkspaceType) Value() (driver.Value, error) {
 }
 
 type Agent struct {
-	AutomaticCheckIntervalSeconds int32     `json:"automatic_check_interval_seconds"`
-	TenantNamespace               string    `json:"tenant_namespace"`
-	AgentName                     string    `json:"agent_name"`
-	CreatedAt                     time.Time `json:"created_at"`
-	UpdatedAt                     time.Time `json:"updated_at"`
+	PulseIntervalSeconds int32     `json:"pulse_interval_seconds"`
+	TenantNamespace      string    `json:"tenant_namespace"`
+	AgentName            string    `json:"agent_name"`
+	CreatedAt            time.Time `json:"created_at"`
+	UpdatedAt            time.Time `json:"updated_at"`
 }
 
 type AgentOwner struct {
@@ -943,10 +943,10 @@ type ChatSession struct {
 	SourceUpdatedAt      pgtype.Timestamptz `json:"source_updated_at"`
 	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
-	LongRunning          bool               `json:"long_running"`
+	Pulse                bool               `json:"pulse"`
 	OwnerID              pgtype.Text        `json:"owner_id"`
 	PrivateRootSessionID pgtype.Text        `json:"private_root_session_id"`
-	ProactivePaused      bool               `json:"proactive_paused"`
+	PulsePaused          bool               `json:"pulse_paused"`
 	NextCheckAt          pgtype.Timestamptz `json:"next_check_at"`
 	Deleting             bool               `json:"deleting"`
 	CleanupCompletedAt   pgtype.Timestamptz `json:"cleanup_completed_at"`

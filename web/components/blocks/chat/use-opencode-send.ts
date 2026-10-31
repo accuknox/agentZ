@@ -10,11 +10,11 @@ import type { Session } from "@opencode-ai/sdk/v2"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import {
-  createLongRunningChat,
+  createPulseChat,
   listChatInputs,
   submitChatInput,
   updateChatInput,
-  type LongRunningChatRequest,
+  type PulseChatRequest,
   type ChatInput,
   type ChatInputRequest,
   type ChatInputs,
@@ -64,13 +64,13 @@ export function useOpencodeSend(
   sessionID: string | undefined,
   onSessionCreated: ((sessionID: string) => void) | undefined,
   createSession: CreateSession | undefined,
-  longRunning = false
+  pulse = false
 ) {
   const queryClient = useQueryClient()
   const [pendingSessionID, setPendingSessionID] = useState<string>()
   const resolvedSessionID = sessionID ?? pendingSessionID
   const createdSession = useRef(sessionID)
-  const creationIntent = useRef<LongRunningChatRequest | undefined>(undefined)
+  const creationIntent = useRef<PulseChatRequest | undefined>(undefined)
   const [creationStarted, setCreationStarted] = useState(false)
   const promoted = useRef(Boolean(sessionID))
   const prepared = useRef(new Map<string, { sessionID: string; body: ChatInputRequest }>())
@@ -139,7 +139,7 @@ export function useOpencodeSend(
         if (!id) {
           let session: Session
           setCreationStarted(true)
-          if (longRunning || creationIntent.current) {
+          if (pulse || creationIntent.current) {
             creationIntent.current ??= {
               id: uuidv4(),
               agent_name: agentName,
@@ -150,7 +150,7 @@ export function useOpencodeSend(
                 variant: input.variant,
               },
             }
-            const result = await createLongRunningChat({
+            const result = await createPulseChat({
               body: creationIntent.current,
               headers: { "X-AgentZ-Workspace-ID": workspaceId },
               baseUrl: await getGatewayBaseURL(),

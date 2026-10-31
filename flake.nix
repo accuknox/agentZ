@@ -55,7 +55,7 @@
             # Optional native packages differ by platform; sharing a hash
             # would let an Arm build reuse x64 node_modules from the cache.
             outputHash = {
-              x86_64-linux = "sha256-1njC/e3AOpXCKlSYF9JGFHasjd8LM/Q12e/5IU/Tm/4=";
+              x86_64-linux = "sha256-+EvARH/vqMA3kqfBuVKK+xBsrg6PwwQRp0kY/4X3fRU=";
               aarch64-linux = "sha256-PXgl3XfvgFJ8W9bT3uqHOvfsLnW4y+sVQrbWKTUr0wQ=";
             }.${system};
           };

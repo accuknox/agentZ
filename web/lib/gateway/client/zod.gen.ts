@@ -123,12 +123,12 @@ export const zChatSessionParticipant = z.object({
   image: z.string().nullable(),
 })
 
-export const zChatProactivityUpdate = z.object({
+export const zChatPulseUpdate = z.object({
   paused: z.boolean(),
 })
 
-export const zChatProactivity = z.object({
-  long_running: z.boolean(),
+export const zChatPulse = z.object({
+  enabled: z.boolean(),
   paused: z.boolean(),
   interval_seconds: z
     .int()
@@ -140,7 +140,7 @@ export const zChatProactivity = z.object({
 export const zChatBackground = z.object({
   message_id: z.string(),
   part_id: z.string(),
-  origin: z.enum(["proactive", "workflow_result"]),
+  origin: z.enum(["pulse", "workflow_result"]),
   completed: z.boolean(),
   outcome: z.enum(["quiet", "update", "failed", "canceled"]).optional(),
   error: z.string(),
@@ -684,7 +684,7 @@ export const zAgentName = z
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
 
 export const zChatSession = z.object({
-  long_running: z.boolean().optional(),
+  pulse: z.boolean().optional(),
   project_id: z.string().optional(),
   agent_name: zAgentName,
   session_id: z.string(),
@@ -798,9 +798,9 @@ export const zGuardrailEffective = z.object({
 })
 
 /**
- * Seconds between automatic checks for this agent's long-running conversations, in whole minutes. Defaults to 1800.
+ * Seconds between Pulse checks for this agent's conversations, in whole minutes. Defaults to 1800.
  */
-export const zAutomaticCheckIntervalSeconds = z.int().gte(60).lte(604800)
+export const zPulseIntervalSeconds = z.int().gte(60).lte(604800)
 
 export const zAgentMemoryConfig = z.object({
   enabled: z.boolean(),
@@ -1395,7 +1395,7 @@ export const zAgentOpencodeConfig = z.object({
 })
 
 export const zAgent = z.object({
-  automatic_check_interval_seconds: zAutomaticCheckIntervalSeconds,
+  pulse_interval_seconds: zPulseIntervalSeconds,
   name: zAgentName,
   sandbox: zResourceReference,
   created_by: zResourceActor,
@@ -1416,7 +1416,7 @@ export const zListAgentsResponse = z.object({
 })
 
 export const zCreateAgentRequest = z.object({
-  automatic_check_interval_seconds: zAutomaticCheckIntervalSeconds.optional(),
+  pulse_interval_seconds: zPulseIntervalSeconds.optional(),
   name: zAgentName,
   memory: zAgentMemoryConfig.optional(),
   env: z.record(z.string(), z.string()).optional(),
@@ -1426,7 +1426,7 @@ export const zCreateAgentRequest = z.object({
 })
 
 export const zUpdateAgentRequest = z.object({
-  automatic_check_interval_seconds: zAutomaticCheckIntervalSeconds.optional(),
+  pulse_interval_seconds: zPulseIntervalSeconds.optional(),
   env: z.record(z.string(), z.string()).optional(),
   memory: zAgentMemoryConfig.optional(),
   sandbox: zResourceReference.optional(),
@@ -3530,7 +3530,7 @@ export const zModelRef = z.object({
   variant: z.string().optional(),
 })
 
-export const zLongRunningChatRequest = z.object({
+export const zPulseChatRequest = z.object({
   id: z.uuid(),
   agent_name: zAgentName,
   agent: z.string().optional(),
@@ -4545,17 +4545,17 @@ export const zListChatSessionsResponse2 = zListChatSessionsResponse
 /**
  * Canonical native session, including on exact retries.
  */
-export const zCreateLongRunningChatResponse = zSession
+export const zCreatePulseChatResponse = zSession
 
 /**
  * Authorized conversation state.
  */
-export const zGetChatProactivityResponse = zChatProactivity
+export const zGetChatPulseResponse = zChatPulse
 
 /**
  * Authorized conversation state.
  */
-export const zUpdateChatProactivityResponse = zChatProactivity
+export const zUpdateChatPulseResponse = zChatPulse
 
 /**
  * Authorized conversation state.

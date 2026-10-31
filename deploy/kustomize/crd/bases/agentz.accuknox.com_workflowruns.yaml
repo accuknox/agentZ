@@ -2,7 +2,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.22.0
+    controller-gen.kubebuilder.io/version: v0.20.1
   name: workflowruns.agentz.accuknox.com
 spec:
   group: agentz.accuknox.com
@@ -77,7 +77,7 @@ spec:
                     description: OwnerID is the authorizing human, revalidated before execution and delivery.
                     type: string
                   sessionID:
-                    description: SessionID is the long-running destination root.
+                    description: SessionID is the Pulse destination root.
                     type: string
                 required:
                 - generation

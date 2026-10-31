@@ -361,7 +361,7 @@ func (s *Service) stopOpenCodeSession(w http.ResponseWriter, r *http.Request, ro
 			return
 		}
 	}
-	canceled, err := s.queries.GatewayCancelProactiveChecks(r.Context(), gatewaydb.GatewayCancelProactiveChecksParams{
+	canceled, err := s.queries.GatewayCancelPulseChecks(r.Context(), gatewaydb.GatewayCancelPulseChecksParams{
 		WorkspaceID: access.workspaceID,
 		AgentName:   agent,
 		SessionID:   session,
@@ -380,12 +380,12 @@ func (s *Service) stopOpenCodeSession(w http.ResponseWriter, r *http.Request, ro
 			apiutil.WriteInternalError(w, r, getErr)
 			return
 		}
-		_, err = s.queries.GatewayUpdateProactivity(r.Context(), gatewaydb.GatewayUpdateProactivityParams{
+		_, err = s.queries.GatewayUpdatePulse(r.Context(), gatewaydb.GatewayUpdatePulseParams{
 			WorkspaceID: access.workspaceID,
 			AgentName:   agent,
 			SessionID:   session,
 			OwnerID:     root.OwnerID,
-			Paused:      root.ProactivePaused,
+			Paused:      root.PulsePaused,
 		})
 		if err != nil {
 			apiutil.WriteInternalError(w, r, err)
@@ -859,7 +859,7 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 			})
 			return saveErr
 		}
-		if row.Origin == gatewaydb.ChatInputOriginProactive && root.ProactivePaused && row.MessageID == "" {
+		if row.Origin == gatewaydb.ChatInputOriginPulse && root.PulsePaused && row.MessageID == "" {
 			return nil
 		}
 	}
@@ -1057,8 +1057,8 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 			ModelID:    session.JSON200.Model.Id,
 		}
 		body.Variant = session.JSON200.Model.Variant
-		if row.Origin == gatewaydb.ChatInputOriginProactive {
-			instruction := proactiveInstruction
+		if row.Origin == gatewaydb.ChatInputOriginPulse {
+			instruction := pulseInstruction
 			body.System = &instruction
 		}
 		if row.Origin == gatewaydb.ChatInputOriginWorkflowResult {

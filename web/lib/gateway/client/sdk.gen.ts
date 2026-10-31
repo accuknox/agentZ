@@ -44,12 +44,12 @@ import type {
   CreateInferenceProviderOAuthTicketErrors,
   CreateInferenceProviderOAuthTicketResponses,
   CreateInferenceProviderResponses,
-  CreateLongRunningChatData,
-  CreateLongRunningChatErrors,
-  CreateLongRunningChatResponses,
   CreateMcpConnectionData,
   CreateMcpConnectionErrors,
   CreateMcpConnectionResponses,
+  CreatePulseChatData,
+  CreatePulseChatErrors,
+  CreatePulseChatResponses,
   CreateSandboxData,
   CreateSandboxErrors,
   CreateSandboxResponses,
@@ -158,9 +158,9 @@ import type {
   GetAppTraceChartData,
   GetAppTraceChartErrors,
   GetAppTraceChartResponses,
-  GetChatProactivityData,
-  GetChatProactivityErrors,
-  GetChatProactivityResponses,
+  GetChatPulseData,
+  GetChatPulseErrors,
+  GetChatPulseResponses,
   GetChatSessionPreferenceData,
   GetChatSessionPreferenceErrors,
   GetChatSessionPreferenceResponses,
@@ -488,9 +488,9 @@ import type {
   UpdateChatInputData,
   UpdateChatInputErrors,
   UpdateChatInputResponses,
-  UpdateChatProactivityData,
-  UpdateChatProactivityErrors,
-  UpdateChatProactivityResponses,
+  UpdateChatPulseData,
+  UpdateChatPulseErrors,
+  UpdateChatPulseResponses,
   UpdateChatSessionPreferenceData,
   UpdateChatSessionPreferenceErrors,
   UpdateChatSessionPreferenceResponses,
@@ -976,16 +976,12 @@ export const listChatSessions = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Create an owner-only long-running conversation in a General workspace.
+ * Create an owner-only Pulse conversation in a General workspace.
  */
-export const createLongRunningChat = <ThrowOnError extends boolean = false>(
-  options: Options<CreateLongRunningChatData, ThrowOnError>
+export const createPulseChat = <ThrowOnError extends boolean = false>(
+  options: Options<CreatePulseChatData, ThrowOnError>
 ) =>
-  (options.client ?? client).post<
-    CreateLongRunningChatResponses,
-    CreateLongRunningChatErrors,
-    ThrowOnError
-  >({
+  (options.client ?? client).post<CreatePulseChatResponses, CreatePulseChatErrors, ThrowOnError>({
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/chat-session",
     ...options,
@@ -998,32 +994,24 @@ export const createLongRunningChat = <ThrowOnError extends boolean = false>(
 /**
  * Manage owner-authorized conversation background activity.
  */
-export const getChatProactivity = <ThrowOnError extends boolean = false>(
-  options: Options<GetChatProactivityData, ThrowOnError>
+export const getChatPulse = <ThrowOnError extends boolean = false>(
+  options: Options<GetChatPulseData, ThrowOnError>
 ) =>
-  (options.client ?? client).get<
-    GetChatProactivityResponses,
-    GetChatProactivityErrors,
-    ThrowOnError
-  >({
+  (options.client ?? client).get<GetChatPulseResponses, GetChatPulseErrors, ThrowOnError>({
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/chat-session/{agentName}/{sessionId}/proactivity",
+    url: "/api/chat-session/{agentName}/{sessionId}/pulse",
     ...options,
   })
 
 /**
  * Manage owner-authorized conversation background activity.
  */
-export const updateChatProactivity = <ThrowOnError extends boolean = false>(
-  options: Options<UpdateChatProactivityData, ThrowOnError>
+export const updateChatPulse = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateChatPulseData, ThrowOnError>
 ) =>
-  (options.client ?? client).patch<
-    UpdateChatProactivityResponses,
-    UpdateChatProactivityErrors,
-    ThrowOnError
-  >({
+  (options.client ?? client).patch<UpdateChatPulseResponses, UpdateChatPulseErrors, ThrowOnError>({
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/chat-session/{agentName}/{sessionId}/proactivity",
+    url: "/api/chat-session/{agentName}/{sessionId}/pulse",
     ...options,
     headers: {
       "Content-Type": "application/json",

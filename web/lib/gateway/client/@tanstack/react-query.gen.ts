@@ -21,8 +21,8 @@ import {
   createInferencePool,
   createInferenceProvider,
   createInferenceProviderOAuthTicket,
-  createLongRunningChat,
   createMcpConnection,
+  createPulseChat,
   createSandbox,
   createSkill,
   createWorkflow,
@@ -59,7 +59,7 @@ import {
   getAppMcpGraph,
   getAppOperation,
   getAppTraceChart,
-  getChatProactivity,
+  getChatPulse,
   getChatSessionPreference,
   getCodingOperation,
   getCodingProject,
@@ -170,7 +170,7 @@ import {
   updateAgent,
   updateAgentTool,
   updateChatInput,
-  updateChatProactivity,
+  updateChatPulse,
   updateChatSessionPreference,
   updateCodingProjectPreference,
   updateGuardrailConnection,
@@ -224,12 +224,12 @@ import type {
   CreateInferenceProviderOAuthTicketError,
   CreateInferenceProviderOAuthTicketResponse2,
   CreateInferenceProviderResponse,
-  CreateLongRunningChatData,
-  CreateLongRunningChatError,
-  CreateLongRunningChatResponse,
   CreateMcpConnectionData,
   CreateMcpConnectionError,
   CreateMcpConnectionResponse,
+  CreatePulseChatData,
+  CreatePulseChatError,
+  CreatePulseChatResponse,
   CreateSandboxData,
   CreateSandboxError,
   CreateSandboxResponse,
@@ -337,9 +337,9 @@ import type {
   GetAppTraceChartData,
   GetAppTraceChartError,
   GetAppTraceChartResponse,
-  GetChatProactivityData,
-  GetChatProactivityError,
-  GetChatProactivityResponse,
+  GetChatPulseData,
+  GetChatPulseError,
+  GetChatPulseResponse,
   GetChatSessionPreferenceData,
   GetChatSessionPreferenceError,
   GetChatSessionPreferenceResponse,
@@ -667,9 +667,9 @@ import type {
   UpdateChatInputData,
   UpdateChatInputError,
   UpdateChatInputResponse,
-  UpdateChatProactivityData,
-  UpdateChatProactivityError,
-  UpdateChatProactivityResponse,
+  UpdateChatPulseData,
+  UpdateChatPulseError,
+  UpdateChatPulseResponse,
   UpdateChatSessionPreferenceData,
   UpdateChatSessionPreferenceError,
   UpdateChatSessionPreferenceResponse,
@@ -1499,22 +1499,22 @@ export const listChatSessionsOptions = (options?: Options<ListChatSessionsData>)
   })
 
 /**
- * Create an owner-only long-running conversation in a General workspace.
+ * Create an owner-only Pulse conversation in a General workspace.
  */
-export const createLongRunningChatMutation = (
-  options?: Partial<Options<CreateLongRunningChatData>>
+export const createPulseChatMutation = (
+  options?: Partial<Options<CreatePulseChatData>>
 ): UseMutationOptions<
-  CreateLongRunningChatResponse,
-  CreateLongRunningChatError,
-  Options<CreateLongRunningChatData>
+  CreatePulseChatResponse,
+  CreatePulseChatError,
+  Options<CreatePulseChatData>
 > => {
   const mutationOptions: UseMutationOptions<
-    CreateLongRunningChatResponse,
-    CreateLongRunningChatError,
-    Options<CreateLongRunningChatData>
+    CreatePulseChatResponse,
+    CreatePulseChatError,
+    Options<CreatePulseChatData>
   > = {
     mutationFn: async (fnOptions) => {
-      const { data } = await createLongRunningChat({
+      const { data } = await createPulseChat({
         ...options,
         ...fnOptions,
         throwOnError: true,
@@ -1525,21 +1525,21 @@ export const createLongRunningChatMutation = (
   return mutationOptions
 }
 
-export const getChatProactivityQueryKey = (options: Options<GetChatProactivityData>) =>
-  createQueryKey("getChatProactivity", options)
+export const getChatPulseQueryKey = (options: Options<GetChatPulseData>) =>
+  createQueryKey("getChatPulse", options)
 
 /**
  * Manage owner-authorized conversation background activity.
  */
-export const getChatProactivityOptions = (options: Options<GetChatProactivityData>) =>
+export const getChatPulseOptions = (options: Options<GetChatPulseData>) =>
   queryOptions<
-    GetChatProactivityResponse,
-    GetChatProactivityError,
-    GetChatProactivityResponse,
-    ReturnType<typeof getChatProactivityQueryKey>
+    GetChatPulseResponse,
+    GetChatPulseError,
+    GetChatPulseResponse,
+    ReturnType<typeof getChatPulseQueryKey>
   >({
     queryFn: async ({ queryKey, signal }) => {
-      const { data } = await getChatProactivity({
+      const { data } = await getChatPulse({
         ...options,
         ...queryKey[0],
         signal,
@@ -1547,26 +1547,26 @@ export const getChatProactivityOptions = (options: Options<GetChatProactivityDat
       })
       return data
     },
-    queryKey: getChatProactivityQueryKey(options),
+    queryKey: getChatPulseQueryKey(options),
   })
 
 /**
  * Manage owner-authorized conversation background activity.
  */
-export const updateChatProactivityMutation = (
-  options?: Partial<Options<UpdateChatProactivityData>>
+export const updateChatPulseMutation = (
+  options?: Partial<Options<UpdateChatPulseData>>
 ): UseMutationOptions<
-  UpdateChatProactivityResponse,
-  UpdateChatProactivityError,
-  Options<UpdateChatProactivityData>
+  UpdateChatPulseResponse,
+  UpdateChatPulseError,
+  Options<UpdateChatPulseData>
 > => {
   const mutationOptions: UseMutationOptions<
-    UpdateChatProactivityResponse,
-    UpdateChatProactivityError,
-    Options<UpdateChatProactivityData>
+    UpdateChatPulseResponse,
+    UpdateChatPulseError,
+    Options<UpdateChatPulseData>
   > = {
     mutationFn: async (fnOptions) => {
-      const { data } = await updateChatProactivity({
+      const { data } = await updateChatPulse({
         ...options,
         ...fnOptions,
         throwOnError: true,

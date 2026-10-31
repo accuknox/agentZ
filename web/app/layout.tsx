@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { Archivo } from "next/font/google"
 import { cookies } from "next/headers"
 import { connection } from "next/server"
+import { ThemeProvider } from "next-themes"
 import { Suspense } from "react"
 import { AgentZTransition } from "@/components/scope-transition"
 import { getEnv } from "@/lib/env"
@@ -60,15 +61,22 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       suppressHydrationWarning
     >
       <body className="min-h-svh bg-background text-foreground">
-        <a
-          className="fixed top-2 left-2 z-50 -translate-y-16 rounded-md bg-background px-3 py-2 text-sm font-medium text-foreground shadow-sm transition-transform focus-visible:translate-y-0 focus-visible:ring-2 focus-visible:ring-ring"
-          href="#main-content"
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
         >
-          Skip to content
-        </a>
-        <Suspense fallback={<AgentZTransition />}>
-          <RequestProviders>{children}</RequestProviders>
-        </Suspense>
+          <a
+            className="fixed top-2 left-2 z-50 -translate-y-16 rounded-md bg-background px-3 py-2 text-sm font-medium text-foreground shadow-sm transition-transform focus-visible:translate-y-0 focus-visible:ring-2 focus-visible:ring-ring"
+            href="#main-content"
+          >
+            Skip to content
+          </a>
+          <Suspense fallback={<AgentZTransition />}>
+            <RequestProviders>{children}</RequestProviders>
+          </Suspense>
+        </ThemeProvider>
       </body>
     </html>
   )

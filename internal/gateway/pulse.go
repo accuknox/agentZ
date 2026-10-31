@@ -36,7 +36,7 @@ type privateNativeCursor struct {
 	Session   string `json:"session"`
 }
 
-const longRunningSessionPrefix = "ses_lr_"
+const pulseSessionPrefix = "ses_pulse_"
 
 // privateChatRoot follows native ancestry before classifying an unindexed child.
 // A reserved native ID without its SQL receipt is never imported as shared history.
@@ -64,7 +64,7 @@ func (s *Service) privateChatRoot(ctx context.Context, access resourceAccess, ag
 			})
 			return root, true, err
 		}
-		if strings.HasPrefix(session, longRunningSessionPrefix) {
+		if strings.HasPrefix(session, pulseSessionPrefix) {
 			return root, true, pgx.ErrNoRows
 		}
 		if err == nil && !row.ParentSessionID.Valid {
@@ -151,9 +151,9 @@ func (s *Service) authorizeChat(ctx context.Context, access resourceAccess, agen
 	return root, true, nil
 }
 
-// CreateLongRunningChat reserves ownership before the native session can publish events.
-func (s *Service) CreateLongRunningChat(w http.ResponseWriter, r *http.Request) {
-	var input gatewayapi.LongRunningChatRequest
+// CreatePulseChat reserves ownership before the native session can publish events.
+func (s *Service) CreatePulseChat(w http.ResponseWriter, r *http.Request) {
+	var input gatewayapi.PulseChatRequest
 	if !decodeJSONBody(w, r, &input, false) {
 		return
 	}
@@ -176,7 +176,7 @@ func (s *Service) CreateLongRunningChat(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if workspace.Type != gatewaydb.WorkspaceTypeGeneral {
-		apiutil.WriteError(w, r, resourceForbidden(errors.New("long-running conversations require a General workspace")))
+		apiutil.WriteError(w, r, resourceForbidden(errors.New("pulse conversations require a General workspace")))
 		return
 	}
 	ctx, releaseLocks, err := gatewayLocks(r.Context(), s.controlDB)
@@ -199,13 +199,13 @@ func (s *Service) CreateLongRunningChat(w http.ResponseWriter, r *http.Request) 
 		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	receipt, err := s.queries.GatewayReserveLongRunningChat(r.Context(), gatewaydb.GatewayReserveLongRunningChatParams{
+	receipt, err := s.queries.GatewayReservePulseChat(r.Context(), gatewaydb.GatewayReservePulseChatParams{
 		ID:          input.Id,
 		WorkspaceID: access.workspaceID,
 		AgentName:   input.AgentName,
 		OwnerID:     access.userID,
 		Request:     raw,
-		SessionID:   longRunningSessionPrefix + strings.ReplaceAll(input.Id.String(), "-", ""),
+		SessionID:   pulseSessionPrefix + strings.ReplaceAll(input.Id.String(), "-", ""),
 	})
 	if err != nil {
 		apiutil.WriteError(w, r, apiutil.NewError(
@@ -284,30 +284,30 @@ func (s *Service) CreateLongRunningChat(w http.ResponseWriter, r *http.Request) 
 	apiutil.WriteJSON(w, http.StatusOK, native.JSON200)
 }
 
-// GetChatProactivity returns immutable mode and owner-visible timing settings.
-func (s *Service) GetChatProactivity(w http.ResponseWriter, r *http.Request, agent, session string) {
+// GetChatPulse returns immutable mode and owner-visible timing settings.
+func (s *Service) GetChatPulse(w http.ResponseWriter, r *http.Request, agent, session string) {
 	access, _, _, err := s.chatInputAccess(r.Context(), agent, session)
 	if err != nil {
 		apiutil.WriteError(w, r, mapGatewayStoreError("get conversation", err))
 		return
 	}
-	row, err := s.queries.GatewayGetChatProactivity(r.Context(), gatewaydb.GatewayGetChatProactivityParams{
+	row, err := s.queries.GatewayGetChatPulse(r.Context(), gatewaydb.GatewayGetChatPulseParams{
 		WorkspaceID: access.workspaceID,
 		AgentName:   agent,
 		SessionID:   session,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		apiutil.WriteJSON(w, http.StatusOK, gatewayapi.ChatProactivity{})
+		apiutil.WriteJSON(w, http.StatusOK, gatewayapi.ChatPulse{})
 		return
 	}
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	result := gatewayapi.ChatProactivity{
-		LongRunning:     row.LongRunning,
-		Paused:          row.ProactivePaused,
-		IntervalSeconds: row.AutomaticCheckIntervalSeconds,
+	result := gatewayapi.ChatPulse{
+		Enabled:         row.Pulse,
+		Paused:          row.PulsePaused,
+		IntervalSeconds: row.PulseIntervalSeconds,
 	}
 	if row.NextCheckAt.Valid {
 		result.NextCheckAt = &row.NextCheckAt.Time
@@ -315,9 +315,9 @@ func (s *Service) GetChatProactivity(w http.ResponseWriter, r *http.Request, age
 	apiutil.WriteJSON(w, http.StatusOK, result)
 }
 
-// UpdateChatProactivity pauses or resumes checks without changing agent cadence or ownership.
-func (s *Service) UpdateChatProactivity(w http.ResponseWriter, r *http.Request, agent, session string) {
-	var input gatewayapi.ChatProactivityUpdate
+// UpdateChatPulse pauses or resumes checks without changing agent cadence or ownership.
+func (s *Service) UpdateChatPulse(w http.ResponseWriter, r *http.Request, agent, session string) {
+	var input gatewayapi.ChatPulseUpdate
 	if !decodeJSONBody(w, r, &input, false) {
 		return
 	}
@@ -332,7 +332,7 @@ func (s *Service) UpdateChatProactivity(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	defer release()
-	row, err := s.queries.GatewayUpdateProactivity(r.Context(), gatewaydb.GatewayUpdateProactivityParams{
+	row, err := s.queries.GatewayUpdatePulse(r.Context(), gatewaydb.GatewayUpdatePulseParams{
 		WorkspaceID: access.workspaceID,
 		AgentName:   agent,
 		SessionID:   session,
@@ -348,10 +348,10 @@ func (s *Service) UpdateChatProactivity(w http.ResponseWriter, r *http.Request, 
 		AgentName:   agent,
 		SessionID:   session,
 	})
-	apiutil.WriteJSON(w, http.StatusOK, gatewayapi.ChatProactivity{
-		LongRunning:     row.LongRunning,
-		Paused:          row.ProactivePaused,
-		IntervalSeconds: row.AutomaticCheckIntervalSeconds,
+	apiutil.WriteJSON(w, http.StatusOK, gatewayapi.ChatPulse{
+		Enabled:         row.Pulse,
+		Paused:          row.PulsePaused,
+		IntervalSeconds: row.PulseIntervalSeconds,
 		NextCheckAt:     &row.NextCheckAt.Time,
 	})
 }
@@ -499,7 +499,7 @@ func (s *Service) enforcePrivateChat(r *http.Request, access resourceAccess, rou
 		if err := apiutil.DecodeJSONBody(r, &body, true); err != nil {
 			return release, err
 		}
-		if body.Id != nil && strings.HasPrefix(*body.Id, longRunningSessionPrefix) {
+		if body.Id != nil && strings.HasPrefix(*body.Id, pulseSessionPrefix) {
 			return release, pgx.ErrNoRows
 		}
 		return release, replaceOpenCodeRequest(r, body)
@@ -568,7 +568,7 @@ func (s *Service) enforcePrivateChat(r *http.Request, access resourceAccess, rou
 				return release, pgx.ErrNoRows
 			}
 			for _, session := range *sessions.JSON200 {
-				if strings.HasPrefix(session.Id, longRunningSessionPrefix) {
+				if strings.HasPrefix(session.Id, pulseSessionPrefix) {
 					private = true
 					break
 				}
@@ -815,7 +815,7 @@ func (s *Service) filterPrivateChatResponse(ctx context.Context, resp *http.Resp
 	return nil
 }
 
-const proactiveInstruction = `This is an automatic check for this long-running conversation.
+const pulseInstruction = `This is a Pulse check for this conversation.
 Review the conversation and work already requested by its owner.
 Continue only work authorized by the owner's requests or standing instructions.
 Offer genuinely new work for the owner to accept; do not start it yet.
@@ -826,13 +826,13 @@ If you performed meaningful work, report its outcome instead of NO_UPDATE.`
 
 func (s *Service) runBackgroundChecks(ctx context.Context, cursor int64) (int64, error) {
 	content, err := json.Marshal(gatewayapi.ChatInputContent{
-		Text:        "Run the automatic check now. First carry out unfinished work the owner authorized for this check, including standing instructions. Report completed work or blockers. If no authorized work remains and there is no new update or useful offer, return exactly NO_UPDATE. Do not send an acknowledgement or a no-work summary.",
+		Text:        "Run the Pulse check now. First carry out unfinished work the owner authorized for this check, including standing instructions. Report completed work or blockers. If no authorized work remains and there is no new update or useful offer, return exactly NO_UPDATE. Do not send an acknowledgement or a no-work summary.",
 		Attachments: []gatewayapi.ChatAttachment{},
 	})
 	if err != nil {
 		return cursor, err
 	}
-	if err = s.queries.GatewayEnqueueProactiveChecks(ctx, content); err != nil {
+	if err = s.queries.GatewayEnqueuePulseChecks(ctx, content); err != nil {
 		return cursor, err
 	}
 	rows, err := s.queries.GatewayOutstandingBackgroundInputs(ctx, cursor)
@@ -907,7 +907,7 @@ func (s *Service) completeBackgroundInput(ctx context.Context, access resourceAc
 		return nil
 	}
 	outcome := gatewaydb.ChatBackgroundOutcomeUpdate
-	if row.Origin == gatewaydb.ChatInputOriginProactive {
+	if row.Origin == gatewaydb.ChatInputOriginPulse {
 		history, err := client.SessionMessagesWithResponse(
 			ctx, row.AgentName, row.SessionID, &gatewayapi.SessionMessagesParams{Directory: &directory},
 		)
@@ -915,7 +915,7 @@ func (s *Service) completeBackgroundInput(ctx context.Context, access resourceAc
 			return err
 		}
 		if history.JSON200 == nil {
-			return errors.New("cannot read proactive completion")
+			return errors.New("cannot read pulse completion")
 		}
 		superseded := false
 		terminal := false
@@ -988,7 +988,7 @@ func (s *Service) completeBackgroundInput(ctx context.Context, access resourceAc
 		if failed {
 			_, err = s.queries.GatewayFailBackgroundInput(ctx, gatewaydb.GatewayFailBackgroundInputParams{
 				ID:    row.ID,
-				Error: "The automatic check failed. The next check will run at the configured interval.",
+				Error: "The Pulse check failed. The next check will run at the configured interval.",
 			})
 			return err
 		}
@@ -1024,7 +1024,7 @@ func (s *Service) completeBackgroundInput(ctx context.Context, access resourceAc
 			}
 			_, err = s.queries.GatewayFailBackgroundInput(ctx, gatewaydb.GatewayFailBackgroundInputParams{
 				ID:    row.ID,
-				Error: "The automatic check ended without a confirmed result. It will not be replayed.",
+				Error: "The Pulse check ended without a confirmed result. It will not be replayed.",
 			})
 			return err
 		}
@@ -1052,7 +1052,7 @@ func (s *Service) authorizeWorkflowDelivery(ctx context.Context, access resource
 	if err != nil {
 		return err
 	}
-	current := root.LongRunning && !root.Deleting && root.Generation == delivery.Generation
+	current := root.Pulse && !root.Deleting && root.Generation == delivery.Generation
 	if !current || root.OwnerID.String != delivery.OwnerID {
 		return pgx.ErrNoRows
 	}

@@ -3,7 +3,7 @@ import ipaddr from "ipaddr.js"
 import {
   zGuardrailAssignment,
   zAgentName,
-  zAutomaticCheckIntervalSeconds,
+  zPulseIntervalSeconds,
   zAgentOpencodeConfig,
   zMcpConnectionName,
   zResourceReference,
@@ -460,7 +460,7 @@ export const createAgentSimpleFormSchema = z.object({
   sandboxName: sandboxNameSchema,
   skills: z.array(zResourceReference.extend({ name: zSkillName })),
   memoryEnabled: z.boolean(),
-  automaticCheckIntervalSeconds: zAutomaticCheckIntervalSeconds.multipleOf(60),
+  pulseIntervalSeconds: zPulseIntervalSeconds.multipleOf(60),
   instruction: zAgentOpencodeConfig.shape.instruction.unwrap(),
 })
 

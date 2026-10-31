@@ -53,7 +53,7 @@ var baseOperationCapabilities = map[string][]string{
 		"listSecrets", "watchSecrets",
 	},
 	"agent.use_shared": {
-		"createLongRunningChat", "getChatProactivity", "updateChatProactivity", "listChatBackground",
+		"createPulseChat", "getChatPulse", "updateChatPulse", "listChatBackground",
 		"listChatInputs",
 		"submitChatInput",
 		"updateChatInput",

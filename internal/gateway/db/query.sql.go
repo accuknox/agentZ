@@ -48,7 +48,7 @@ const gatewayActivateWorkflowReport = `-- name: GatewayActivateWorkflowReport :o
 WITH receipt AS (
  SELECT r.run_uid, r.namespace, r.run_name, r.workspace_id, r.agent_name, r.session_id, r.owner_id, r.generation, r.requested_phase, r.status_message, r.result, r.payload_hash, r.state, r.chat_input_id, r.created_at, r.updated_at FROM workflow_reports r JOIN chat_sessions s
  ON s.workspace_id = r.workspace_id AND s.agent_name = r.agent_name AND s.session_id = r.session_id
- WHERE r.run_uid = $1 AND r.state IN ('prepared','ready') AND s.long_running
+ WHERE r.run_uid = $1 AND r.state IN ('prepared','ready') AND s.pulse
  AND NOT s.deleting AND s.owner_id = r.owner_id AND s.generation = r.generation
  FOR UPDATE OF r
 ), input AS (
@@ -297,21 +297,21 @@ func (q *Queries) GatewayBindCodingSession(ctx context.Context, arg GatewayBindC
 	return err
 }
 
-const gatewayCancelProactiveChecks = `-- name: GatewayCancelProactiveChecks :many
+const gatewayCancelPulseChecks = `-- name: GatewayCancelPulseChecks :many
 UPDATE chat_inputs SET completed_at = now(), outcome = 'canceled', state = 'removed',
   revision = revision + 1, updated_at = now()
 WHERE workspace_id = $1 AND agent_name = $2 AND session_id = $3
-  AND origin = 'proactive' AND completed_at IS NULL RETURNING id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, message_id, error, created_at, updated_at, origin, source_id, part_id, generation, background, completed_at, outcome
+  AND origin = 'pulse' AND completed_at IS NULL RETURNING id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, message_id, error, created_at, updated_at, origin, source_id, part_id, generation, background, completed_at, outcome
 `
 
-type GatewayCancelProactiveChecksParams struct {
+type GatewayCancelPulseChecksParams struct {
 	WorkspaceID string `json:"workspace_id"`
 	AgentName   string `json:"agent_name"`
 	SessionID   string `json:"session_id"`
 }
 
-func (q *Queries) GatewayCancelProactiveChecks(ctx context.Context, arg GatewayCancelProactiveChecksParams) ([]ChatInput, error) {
-	rows, err := q.db.Query(ctx, gatewayCancelProactiveChecks, arg.WorkspaceID, arg.AgentName, arg.SessionID)
+func (q *Queries) GatewayCancelPulseChecks(ctx context.Context, arg GatewayCancelPulseChecksParams) ([]ChatInput, error) {
+	rows, err := q.db.Query(ctx, gatewayCancelPulseChecks, arg.WorkspaceID, arg.AgentName, arg.SessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -704,7 +704,7 @@ func (q *Queries) GatewayCodingWorktreeBound(ctx context.Context, worktreeID str
 
 const gatewayCompleteBackgroundInput = `-- name: GatewayCompleteBackgroundInput :one
 WITH settings AS MATERIALIZED (
- SELECT a.automatic_check_interval_seconds, a.tenant_namespace, a.agent_name, a.created_at, a.updated_at FROM agents a JOIN workspaces w ON w.namespace = a.tenant_namespace
+ SELECT a.pulse_interval_seconds, a.tenant_namespace, a.agent_name, a.created_at, a.updated_at FROM agents a JOIN workspaces w ON w.namespace = a.tenant_namespace
  JOIN chat_inputs i ON i.workspace_id = w.id AND i.agent_name = a.agent_name
  WHERE i.id = $1 FOR SHARE OF a
 ), completed AS (
@@ -713,8 +713,8 @@ WITH settings AS MATERIALIZED (
   FROM settings a WHERE chat_inputs.id = $1 AND origin <> 'user' AND completed_at IS NULL
   RETURNING chat_inputs.id, chat_inputs.sequence, chat_inputs.workspace_id, chat_inputs.agent_name, chat_inputs.session_id, chat_inputs.organization_id, chat_inputs.author_id, chat_inputs.author_name, chat_inputs.directory, chat_inputs.resume, chat_inputs.content, chat_inputs.delivery, chat_inputs.state, chat_inputs.revision, chat_inputs.message_id, chat_inputs.error, chat_inputs.created_at, chat_inputs.updated_at, chat_inputs.origin, chat_inputs.source_id, chat_inputs.part_id, chat_inputs.generation, chat_inputs.background, chat_inputs.completed_at, chat_inputs.outcome
 ), scheduled AS (
-  UPDATE chat_sessions s SET next_check_at = now() + make_interval(secs => a.automatic_check_interval_seconds)
-  FROM completed i CROSS JOIN settings a WHERE i.origin = 'proactive' AND s.workspace_id = i.workspace_id
+  UPDATE chat_sessions s SET next_check_at = now() + make_interval(secs => a.pulse_interval_seconds)
+  FROM completed i CROSS JOIN settings a WHERE i.origin = 'pulse' AND s.workspace_id = i.workspace_id
     AND s.agent_name = i.agent_name AND s.session_id = i.session_id AND NOT s.deleting
 )
 SELECT id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, message_id, error, created_at, updated_at, origin, source_id, part_id, generation, background, completed_at, outcome FROM completed
@@ -815,22 +815,22 @@ func (q *Queries) GatewayCompleteCleanupJob(ctx context.Context, arg GatewayComp
 }
 
 const gatewayCreateAgent = `-- name: GatewayCreateAgent :one
-INSERT INTO agents(tenant_namespace, agent_name, automatic_check_interval_seconds)
+INSERT INTO agents(tenant_namespace, agent_name, pulse_interval_seconds)
 VALUES ($1, $2, COALESCE($3::integer, 1800))
-RETURNING automatic_check_interval_seconds, tenant_namespace, agent_name, created_at, updated_at
+RETURNING pulse_interval_seconds, tenant_namespace, agent_name, created_at, updated_at
 `
 
 type GatewayCreateAgentParams struct {
-	TenantNamespace               string      `json:"tenant_namespace"`
-	AgentName                     string      `json:"agent_name"`
-	AutomaticCheckIntervalSeconds pgtype.Int4 `json:"automatic_check_interval_seconds"`
+	TenantNamespace      string      `json:"tenant_namespace"`
+	AgentName            string      `json:"agent_name"`
+	PulseIntervalSeconds pgtype.Int4 `json:"pulse_interval_seconds"`
 }
 
 func (q *Queries) GatewayCreateAgent(ctx context.Context, arg GatewayCreateAgentParams) (Agent, error) {
-	row := q.db.QueryRow(ctx, gatewayCreateAgent, arg.TenantNamespace, arg.AgentName, arg.AutomaticCheckIntervalSeconds)
+	row := q.db.QueryRow(ctx, gatewayCreateAgent, arg.TenantNamespace, arg.AgentName, arg.PulseIntervalSeconds)
 	var i Agent
 	err := row.Scan(
-		&i.AutomaticCheckIntervalSeconds,
+		&i.PulseIntervalSeconds,
 		&i.TenantNamespace,
 		&i.AgentName,
 		&i.CreatedAt,
@@ -1669,11 +1669,11 @@ func (q *Queries) GatewayDeleteOldCodingOperations(ctx context.Context) error {
 
 const gatewayDeletePrivateChat = `-- name: GatewayDeletePrivateChat :one
 WITH changed AS (
-  UPDATE chat_sessions s SET deleting = true, proactive_paused = true,
+  UPDATE chat_sessions s SET deleting = true, pulse_paused = true,
     generation = generation + 1, updated_at = now()
   WHERE s.workspace_id = $1 AND s.agent_name = $2 AND s.session_id = $3
-    AND long_running AND NOT deleting
-  RETURNING s.workspace_id, s.agent_name, s.session_id, s.parent_session_id, s.title, s.kind, s.status, s.source_created_at, s.source_updated_at, s.created_at, s.updated_at, s.long_running, s.owner_id, s.private_root_session_id, s.proactive_paused, s.next_check_at, s.deleting, s.cleanup_completed_at, s.generation
+    AND pulse AND NOT deleting
+  RETURNING s.workspace_id, s.agent_name, s.session_id, s.parent_session_id, s.title, s.kind, s.status, s.source_created_at, s.source_updated_at, s.created_at, s.updated_at, s.pulse, s.owner_id, s.private_root_session_id, s.pulse_paused, s.next_check_at, s.deleting, s.cleanup_completed_at, s.generation
 ), canceled AS (
   UPDATE chat_inputs SET state = 'removed', completed_at = now(), outcome = 'canceled',
     revision = revision + 1, updated_at = now()
@@ -1681,7 +1681,7 @@ WITH changed AS (
     AND chat_inputs.agent_name = c.agent_name AND chat_inputs.session_id = c.session_id
     AND chat_inputs.origin <> 'user' AND chat_inputs.completed_at IS NULL
 )
-SELECT workspace_id, agent_name, session_id, parent_session_id, title, kind, status, source_created_at, source_updated_at, created_at, updated_at, long_running, owner_id, private_root_session_id, proactive_paused, next_check_at, deleting, cleanup_completed_at, generation FROM changed
+SELECT workspace_id, agent_name, session_id, parent_session_id, title, kind, status, source_created_at, source_updated_at, created_at, updated_at, pulse, owner_id, private_root_session_id, pulse_paused, next_check_at, deleting, cleanup_completed_at, generation FROM changed
 `
 
 type GatewayDeletePrivateChatParams struct {
@@ -1702,10 +1702,10 @@ type GatewayDeletePrivateChatRow struct {
 	SourceUpdatedAt      pgtype.Timestamptz `json:"source_updated_at"`
 	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
-	LongRunning          bool               `json:"long_running"`
+	Pulse                bool               `json:"pulse"`
 	OwnerID              pgtype.Text        `json:"owner_id"`
 	PrivateRootSessionID pgtype.Text        `json:"private_root_session_id"`
-	ProactivePaused      bool               `json:"proactive_paused"`
+	PulsePaused          bool               `json:"pulse_paused"`
 	NextCheckAt          pgtype.Timestamptz `json:"next_check_at"`
 	Deleting             bool               `json:"deleting"`
 	CleanupCompletedAt   pgtype.Timestamptz `json:"cleanup_completed_at"`
@@ -1727,10 +1727,10 @@ func (q *Queries) GatewayDeletePrivateChat(ctx context.Context, arg GatewayDelet
 		&i.SourceUpdatedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.LongRunning,
+		&i.Pulse,
 		&i.OwnerID,
 		&i.PrivateRootSessionID,
-		&i.ProactivePaused,
+		&i.PulsePaused,
 		&i.NextCheckAt,
 		&i.Deleting,
 		&i.CleanupCompletedAt,
@@ -1814,37 +1814,37 @@ func (q *Queries) GatewayDeletingCodingWorktree(ctx context.Context, arg Gateway
 	return err
 }
 
-const gatewayEnqueueProactiveChecks = `-- name: GatewayEnqueueProactiveChecks :exec
+const gatewayEnqueuePulseChecks = `-- name: GatewayEnqueuePulseChecks :exec
 WITH due AS (
-  SELECT s.workspace_id, s.agent_name, s.session_id, s.parent_session_id, s.title, s.kind, s.status, s.source_created_at, s.source_updated_at, s.created_at, s.updated_at, s.long_running, s.owner_id, s.private_root_session_id, s.proactive_paused, s.next_check_at, s.deleting, s.cleanup_completed_at, s.generation, w.organization_id, u.name AS owner_name
+  SELECT s.workspace_id, s.agent_name, s.session_id, s.parent_session_id, s.title, s.kind, s.status, s.source_created_at, s.source_updated_at, s.created_at, s.updated_at, s.pulse, s.owner_id, s.private_root_session_id, s.pulse_paused, s.next_check_at, s.deleting, s.cleanup_completed_at, s.generation, w.organization_id, u.name AS owner_name
   FROM chat_sessions s JOIN workspaces w ON w.id = s.workspace_id
   JOIN users u ON u.id = s.owner_id
-  WHERE s.long_running AND NOT s.deleting AND NOT s.proactive_paused
+  WHERE s.pulse AND NOT s.deleting AND NOT s.pulse_paused
     AND w.type = 'general' AND s.next_check_at <= now()
     AND EXISTS (SELECT 1 FROM chat_creations c WHERE c.workspace_id = s.workspace_id
       AND c.agent_name = s.agent_name AND c.session_id = s.session_id AND c.state = 'created')
     AND NOT EXISTS (SELECT 1 FROM chat_inputs i WHERE i.workspace_id = s.workspace_id
       AND i.agent_name = s.agent_name AND i.session_id = s.session_id
-      AND i.origin = 'proactive' AND i.completed_at IS NULL)
+      AND i.origin = 'pulse' AND i.completed_at IS NULL)
   ORDER BY s.next_check_at, s.workspace_id, s.agent_name, s.session_id
   LIMIT 32 FOR UPDATE OF s SKIP LOCKED
 )
 INSERT INTO chat_inputs(id, workspace_id, agent_name, session_id, organization_id,
   author_id, author_name, directory, content, delivery, origin, source_id, part_id, generation)
 SELECT gen_random_uuid(), workspace_id, agent_name, session_id, organization_id,
-  owner_id, owner_name, '/home/agentz', $1, 'queue', 'proactive',
+  owner_id, owner_name, '/home/agentz', $1, 'queue', 'pulse',
   gen_random_uuid()::text, 'prt_' || replace(gen_random_uuid()::text, '-', ''), generation
 FROM due ON CONFLICT DO NOTHING
 `
 
-func (q *Queries) GatewayEnqueueProactiveChecks(ctx context.Context, content []byte) error {
-	_, err := q.db.Exec(ctx, gatewayEnqueueProactiveChecks, content)
+func (q *Queries) GatewayEnqueuePulseChecks(ctx context.Context, content []byte) error {
+	_, err := q.db.Exec(ctx, gatewayEnqueuePulseChecks, content)
 	return err
 }
 
 const gatewayFailBackgroundInput = `-- name: GatewayFailBackgroundInput :one
 WITH settings AS MATERIALIZED (
- SELECT a.automatic_check_interval_seconds, a.tenant_namespace, a.agent_name, a.created_at, a.updated_at FROM agents a JOIN workspaces w ON w.namespace = a.tenant_namespace
+ SELECT a.pulse_interval_seconds, a.tenant_namespace, a.agent_name, a.created_at, a.updated_at FROM agents a JOIN workspaces w ON w.namespace = a.tenant_namespace
  JOIN chat_inputs i ON i.workspace_id = w.id AND i.agent_name = a.agent_name
  WHERE i.id = $1 FOR SHARE OF a
 ), failed AS (
@@ -1852,8 +1852,8 @@ WITH settings AS MATERIALIZED (
   state = 'failed', revision = revision + 1, updated_at = now()
  FROM settings a WHERE chat_inputs.id = $1 AND origin <> 'user' AND completed_at IS NULL RETURNING chat_inputs.id, chat_inputs.sequence, chat_inputs.workspace_id, chat_inputs.agent_name, chat_inputs.session_id, chat_inputs.organization_id, chat_inputs.author_id, chat_inputs.author_name, chat_inputs.directory, chat_inputs.resume, chat_inputs.content, chat_inputs.delivery, chat_inputs.state, chat_inputs.revision, chat_inputs.message_id, chat_inputs.error, chat_inputs.created_at, chat_inputs.updated_at, chat_inputs.origin, chat_inputs.source_id, chat_inputs.part_id, chat_inputs.generation, chat_inputs.background, chat_inputs.completed_at, chat_inputs.outcome
 ), scheduled AS (
- UPDATE chat_sessions s SET next_check_at = now() + make_interval(secs => a.automatic_check_interval_seconds)
- FROM failed i CROSS JOIN settings a WHERE i.origin = 'proactive' AND s.workspace_id = i.workspace_id
+ UPDATE chat_sessions s SET next_check_at = now() + make_interval(secs => a.pulse_interval_seconds)
+ FROM failed i CROSS JOIN settings a WHERE i.origin = 'pulse' AND s.workspace_id = i.workspace_id
  AND s.agent_name = i.agent_name AND s.session_id = i.session_id AND NOT s.deleting
 )
 SELECT id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, message_id, error, created_at, updated_at, origin, source_id, part_id, generation, background, completed_at, outcome FROM failed
@@ -2176,7 +2176,7 @@ func (q *Queries) GatewayGetAPIKeyScopeByKey(ctx context.Context, arg GatewayGet
 }
 
 const gatewayGetAgent = `-- name: GatewayGetAgent :one
-SELECT automatic_check_interval_seconds, tenant_namespace, agent_name, created_at, updated_at
+SELECT pulse_interval_seconds, tenant_namespace, agent_name, created_at, updated_at
 FROM agents
 WHERE tenant_namespace = $1
   AND agent_name = $2
@@ -2191,7 +2191,7 @@ func (q *Queries) GatewayGetAgent(ctx context.Context, arg GatewayGetAgentParams
 	row := q.db.QueryRow(ctx, gatewayGetAgent, arg.TenantNamespace, arg.AgentName)
 	var i Agent
 	err := row.Scan(
-		&i.AutomaticCheckIntervalSeconds,
+		&i.PulseIntervalSeconds,
 		&i.TenantNamespace,
 		&i.AgentName,
 		&i.CreatedAt,
@@ -2615,40 +2615,40 @@ func (q *Queries) GatewayGetChatInput(ctx context.Context, arg GatewayGetChatInp
 	return i, err
 }
 
-const gatewayGetChatProactivity = `-- name: GatewayGetChatProactivity :one
-SELECT s.long_running, s.proactive_paused, s.next_check_at, a.automatic_check_interval_seconds
+const gatewayGetChatPulse = `-- name: GatewayGetChatPulse :one
+SELECT s.pulse, s.pulse_paused, s.next_check_at, a.pulse_interval_seconds
 FROM chat_sessions s JOIN workspaces w ON w.id = s.workspace_id
 JOIN agents a ON a.tenant_namespace = w.namespace AND a.agent_name = s.agent_name
 WHERE s.workspace_id = $1 AND s.agent_name = $2 AND s.session_id = $3
 `
 
-type GatewayGetChatProactivityParams struct {
+type GatewayGetChatPulseParams struct {
 	WorkspaceID string `json:"workspace_id"`
 	AgentName   string `json:"agent_name"`
 	SessionID   string `json:"session_id"`
 }
 
-type GatewayGetChatProactivityRow struct {
-	LongRunning                   bool               `json:"long_running"`
-	ProactivePaused               bool               `json:"proactive_paused"`
-	NextCheckAt                   pgtype.Timestamptz `json:"next_check_at"`
-	AutomaticCheckIntervalSeconds int32              `json:"automatic_check_interval_seconds"`
+type GatewayGetChatPulseRow struct {
+	Pulse                bool               `json:"pulse"`
+	PulsePaused          bool               `json:"pulse_paused"`
+	NextCheckAt          pgtype.Timestamptz `json:"next_check_at"`
+	PulseIntervalSeconds int32              `json:"pulse_interval_seconds"`
 }
 
-func (q *Queries) GatewayGetChatProactivity(ctx context.Context, arg GatewayGetChatProactivityParams) (GatewayGetChatProactivityRow, error) {
-	row := q.db.QueryRow(ctx, gatewayGetChatProactivity, arg.WorkspaceID, arg.AgentName, arg.SessionID)
-	var i GatewayGetChatProactivityRow
+func (q *Queries) GatewayGetChatPulse(ctx context.Context, arg GatewayGetChatPulseParams) (GatewayGetChatPulseRow, error) {
+	row := q.db.QueryRow(ctx, gatewayGetChatPulse, arg.WorkspaceID, arg.AgentName, arg.SessionID)
+	var i GatewayGetChatPulseRow
 	err := row.Scan(
-		&i.LongRunning,
-		&i.ProactivePaused,
+		&i.Pulse,
+		&i.PulsePaused,
 		&i.NextCheckAt,
-		&i.AutomaticCheckIntervalSeconds,
+		&i.PulseIntervalSeconds,
 	)
 	return i, err
 }
 
 const gatewayGetChatSession = `-- name: GatewayGetChatSession :one
-SELECT workspace_id, agent_name, session_id, parent_session_id, title, kind, status, source_created_at, source_updated_at, created_at, updated_at, long_running, owner_id, private_root_session_id, proactive_paused, next_check_at, deleting, cleanup_completed_at, generation FROM chat_sessions
+SELECT workspace_id, agent_name, session_id, parent_session_id, title, kind, status, source_created_at, source_updated_at, created_at, updated_at, pulse, owner_id, private_root_session_id, pulse_paused, next_check_at, deleting, cleanup_completed_at, generation FROM chat_sessions
 WHERE workspace_id = $1 AND agent_name = $2 AND session_id = $3
 `
 
@@ -2673,10 +2673,10 @@ func (q *Queries) GatewayGetChatSession(ctx context.Context, arg GatewayGetChatS
 		&i.SourceUpdatedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.LongRunning,
+		&i.Pulse,
 		&i.OwnerID,
 		&i.PrivateRootSessionID,
-		&i.ProactivePaused,
+		&i.PulsePaused,
 		&i.NextCheckAt,
 		&i.Deleting,
 		&i.CleanupCompletedAt,
@@ -2698,7 +2698,7 @@ WHERE sessions.workspace_id = $1
   AND sessions.parent_session_id IS NULL
   AND ($4::text IS NULL OR project.owner_id = $4)
   AND NOT sessions.deleting
-  AND (NOT sessions.long_running OR EXISTS (
+  AND (NOT sessions.pulse OR EXISTS (
     SELECT 1 FROM chat_creations creation
     WHERE creation.workspace_id = sessions.workspace_id AND creation.agent_name = sessions.agent_name
       AND creation.session_id = sessions.session_id AND creation.state = 'created'
@@ -4275,7 +4275,7 @@ func (q *Queries) GatewayListAgentShares(ctx context.Context, arg GatewayListAge
 }
 
 const gatewayListAgents = `-- name: GatewayListAgents :many
-SELECT automatic_check_interval_seconds, tenant_namespace, agent_name, created_at, updated_at
+SELECT pulse_interval_seconds, tenant_namespace, agent_name, created_at, updated_at
 FROM agents
 WHERE tenant_namespace = $1
 ORDER BY
@@ -4316,7 +4316,7 @@ func (q *Queries) GatewayListAgents(ctx context.Context, arg GatewayListAgentsPa
 	for rows.Next() {
 		var i Agent
 		if err := rows.Scan(
-			&i.AutomaticCheckIntervalSeconds,
+			&i.PulseIntervalSeconds,
 			&i.TenantNamespace,
 			&i.AgentName,
 			&i.CreatedAt,
@@ -4333,7 +4333,7 @@ func (q *Queries) GatewayListAgents(ctx context.Context, arg GatewayListAgentsPa
 }
 
 const gatewayListAgentsByName = `-- name: GatewayListAgentsByName :many
-SELECT automatic_check_interval_seconds, tenant_namespace, agent_name, created_at, updated_at
+SELECT pulse_interval_seconds, tenant_namespace, agent_name, created_at, updated_at
 FROM agents
 WHERE tenant_namespace = $1
   AND agent_name = ANY($2::text[])
@@ -4377,7 +4377,7 @@ func (q *Queries) GatewayListAgentsByName(ctx context.Context, arg GatewayListAg
 	for rows.Next() {
 		var i Agent
 		if err := rows.Scan(
-			&i.AutomaticCheckIntervalSeconds,
+			&i.PulseIntervalSeconds,
 			&i.TenantNamespace,
 			&i.AgentName,
 			&i.CreatedAt,
@@ -4868,7 +4868,7 @@ WHERE sessions.workspace_id = $4
   AND sessions.parent_session_id IS NULL
   AND ($6::text IS NULL OR project.owner_id = $6)
   AND NOT sessions.deleting
-  AND (NOT sessions.long_running OR EXISTS (
+  AND (NOT sessions.pulse OR EXISTS (
     SELECT 1 FROM chat_creations creation
     WHERE creation.workspace_id = sessions.workspace_id AND creation.agent_name = sessions.agent_name
       AND creation.session_id = sessions.session_id AND creation.state = 'created'
@@ -4952,7 +4952,7 @@ WHERE participants.workspace_id = $1
   AND sessions.parent_session_id IS NULL
   AND ($3::text IS NULL OR project.owner_id = $3)
   AND NOT sessions.deleting
-  AND (NOT sessions.long_running OR EXISTS (
+  AND (NOT sessions.pulse OR EXISTS (
     SELECT 1 FROM chat_creations creation
     WHERE creation.workspace_id = sessions.workspace_id AND creation.agent_name = sessions.agent_name
       AND creation.session_id = sessions.session_id AND creation.state = 'created'
@@ -5020,7 +5020,7 @@ SELECT
   sessions.title,
   sessions.kind,
   sessions.status,
-  sessions.long_running,
+  sessions.pulse,
   sessions.source_created_at,
   sessions.source_updated_at,
   COALESCE((
@@ -5050,7 +5050,7 @@ WHERE ($1::text IS NULL OR project.id = $1)
   AND sessions.parent_session_id IS NULL
   AND ($4::text IS NULL OR project.owner_id = $4)
   AND NOT sessions.deleting
-  AND (NOT sessions.long_running OR EXISTS (
+  AND (NOT sessions.pulse OR EXISTS (
     SELECT 1 FROM chat_creations creation
     WHERE creation.workspace_id = sessions.workspace_id AND creation.agent_name = sessions.agent_name
       AND creation.session_id = sessions.session_id AND creation.state = 'created'
@@ -5147,7 +5147,7 @@ type GatewayListChatSessionsRow struct {
 	Title            string             `json:"title"`
 	Kind             ChatSessionKind    `json:"kind"`
 	Status           ChatSessionStatus  `json:"status"`
-	LongRunning      bool               `json:"long_running"`
+	Pulse            bool               `json:"pulse"`
 	SourceCreatedAt  pgtype.Timestamptz `json:"source_created_at"`
 	SourceUpdatedAt  pgtype.Timestamptz `json:"source_updated_at"`
 	ParticipantsJson string             `json:"participants_json"`
@@ -5190,7 +5190,7 @@ func (q *Queries) GatewayListChatSessions(ctx context.Context, arg GatewayListCh
 			&i.Title,
 			&i.Kind,
 			&i.Status,
-			&i.LongRunning,
+			&i.Pulse,
 			&i.SourceCreatedAt,
 			&i.SourceUpdatedAt,
 			&i.ParticipantsJson,
@@ -7476,7 +7476,7 @@ func (q *Queries) GatewayLockActiveWorkspace(ctx context.Context, arg GatewayLoc
 }
 
 const gatewayLockAgent = `-- name: GatewayLockAgent :one
-SELECT automatic_check_interval_seconds, tenant_namespace, agent_name, created_at, updated_at FROM agents
+SELECT pulse_interval_seconds, tenant_namespace, agent_name, created_at, updated_at FROM agents
 WHERE tenant_namespace = $1 AND agent_name = $2
 FOR UPDATE
 `
@@ -7490,7 +7490,7 @@ func (q *Queries) GatewayLockAgent(ctx context.Context, arg GatewayLockAgentPara
 	row := q.db.QueryRow(ctx, gatewayLockAgent, arg.TenantNamespace, arg.AgentName)
 	var i Agent
 	err := row.Scan(
-		&i.AutomaticCheckIntervalSeconds,
+		&i.PulseIntervalSeconds,
 		&i.TenantNamespace,
 		&i.AgentName,
 		&i.CreatedAt,
@@ -7915,9 +7915,9 @@ func (q *Queries) GatewayPrepareWorkflowReport(ctx context.Context, arg GatewayP
 }
 
 const gatewayPrivateChatRoots = `-- name: GatewayPrivateChatRoots :many
-SELECT s.workspace_id, s.agent_name, s.session_id, s.parent_session_id, s.title, s.kind, s.status, s.source_created_at, s.source_updated_at, s.created_at, s.updated_at, s.long_running, s.owner_id, s.private_root_session_id, s.proactive_paused, s.next_check_at, s.deleting, s.cleanup_completed_at, s.generation, w.organization_id, w.namespace
+SELECT s.workspace_id, s.agent_name, s.session_id, s.parent_session_id, s.title, s.kind, s.status, s.source_created_at, s.source_updated_at, s.created_at, s.updated_at, s.pulse, s.owner_id, s.private_root_session_id, s.pulse_paused, s.next_check_at, s.deleting, s.cleanup_completed_at, s.generation, w.organization_id, w.namespace
 FROM chat_sessions s JOIN workspaces w ON w.id = s.workspace_id
-WHERE s.long_running AND s.cleanup_completed_at IS NULL AND (s.workspace_id || '/' || s.agent_name || '/' || s.session_id) > $1::text
+WHERE s.pulse AND s.cleanup_completed_at IS NULL AND (s.workspace_id || '/' || s.agent_name || '/' || s.session_id) > $1::text
 ORDER BY s.workspace_id, s.agent_name, s.session_id LIMIT 128
 `
 
@@ -7948,10 +7948,10 @@ func (q *Queries) GatewayPrivateChatRoots(ctx context.Context, afterKey string) 
 			&i.ChatSession.SourceUpdatedAt,
 			&i.ChatSession.CreatedAt,
 			&i.ChatSession.UpdatedAt,
-			&i.ChatSession.LongRunning,
+			&i.ChatSession.Pulse,
 			&i.ChatSession.OwnerID,
 			&i.ChatSession.PrivateRootSessionID,
-			&i.ChatSession.ProactivePaused,
+			&i.ChatSession.PulsePaused,
 			&i.ChatSession.NextCheckAt,
 			&i.ChatSession.Deleting,
 			&i.ChatSession.CleanupCompletedAt,
@@ -8141,10 +8141,10 @@ func (q *Queries) GatewayRenameCodingProject(ctx context.Context, arg GatewayRen
 }
 
 const gatewayRescheduleAgentChecks = `-- name: GatewayRescheduleAgentChecks :exec
-UPDATE chat_sessions s SET next_check_at = now() + make_interval(secs => a.automatic_check_interval_seconds), updated_at = now()
+UPDATE chat_sessions s SET next_check_at = now() + make_interval(secs => a.pulse_interval_seconds), updated_at = now()
 FROM agents a JOIN workspaces w ON w.namespace = a.tenant_namespace
 WHERE a.tenant_namespace = $1 AND a.agent_name = $2
-  AND s.workspace_id = w.id AND s.agent_name = a.agent_name AND s.long_running AND NOT s.deleting
+  AND s.workspace_id = w.id AND s.agent_name = a.agent_name AND s.pulse AND NOT s.deleting
 `
 
 type GatewayRescheduleAgentChecksParams struct {
@@ -8157,9 +8157,9 @@ func (q *Queries) GatewayRescheduleAgentChecks(ctx context.Context, arg GatewayR
 	return err
 }
 
-const gatewayReserveLongRunningChat = `-- name: GatewayReserveLongRunningChat :one
+const gatewayReservePulseChat = `-- name: GatewayReservePulseChat :one
 WITH settings AS MATERIALIZED (
-  SELECT a.automatic_check_interval_seconds, a.tenant_namespace, a.agent_name, a.created_at, a.updated_at FROM agents a JOIN workspaces w ON w.namespace = a.tenant_namespace
+  SELECT a.pulse_interval_seconds, a.tenant_namespace, a.agent_name, a.created_at, a.updated_at FROM agents a JOIN workspaces w ON w.namespace = a.tenant_namespace
   WHERE w.id = $1 AND a.agent_name = $2 FOR SHARE OF a
 ), intent AS (
   INSERT INTO chat_creations(id, workspace_id, agent_name, owner_id, request, session_id)
@@ -8174,20 +8174,20 @@ WITH settings AS MATERIALIZED (
   RETURNING id, workspace_id, agent_name, owner_id, request, session_id, state, created_at, updated_at
 ), root AS (
   INSERT INTO chat_sessions(workspace_id, agent_name, session_id, title,
-    source_created_at, source_updated_at, long_running, owner_id,
+    source_created_at, source_updated_at, pulse, owner_id,
     private_root_session_id, next_check_at)
   SELECT intent.workspace_id, intent.agent_name, intent.session_id, 'New conversation', now(), now(),
-    true, intent.owner_id, intent.session_id, now() + make_interval(secs => a.automatic_check_interval_seconds)
+    true, intent.owner_id, intent.session_id, now() + make_interval(secs => a.pulse_interval_seconds)
   FROM intent CROSS JOIN settings a
   ON CONFLICT (workspace_id, agent_name, session_id) DO UPDATE SET session_id = chat_sessions.session_id
-  WHERE chat_sessions.long_running AND NOT chat_sessions.deleting
+  WHERE chat_sessions.pulse AND NOT chat_sessions.deleting
     AND chat_sessions.owner_id = EXCLUDED.owner_id
   RETURNING session_id
 )
 SELECT intent.id, intent.workspace_id, intent.agent_name, intent.owner_id, intent.request, intent.session_id, intent.state, intent.created_at, intent.updated_at FROM intent JOIN root ON root.session_id = intent.session_id
 `
 
-type GatewayReserveLongRunningChatParams struct {
+type GatewayReservePulseChatParams struct {
 	WorkspaceID string    `json:"workspace_id"`
 	AgentName   string    `json:"agent_name"`
 	ID          uuid.UUID `json:"id"`
@@ -8196,7 +8196,7 @@ type GatewayReserveLongRunningChatParams struct {
 	SessionID   string    `json:"session_id"`
 }
 
-type GatewayReserveLongRunningChatRow struct {
+type GatewayReservePulseChatRow struct {
 	ID          uuid.UUID `json:"id"`
 	WorkspaceID string    `json:"workspace_id"`
 	AgentName   string    `json:"agent_name"`
@@ -8208,8 +8208,8 @@ type GatewayReserveLongRunningChatRow struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
-func (q *Queries) GatewayReserveLongRunningChat(ctx context.Context, arg GatewayReserveLongRunningChatParams) (GatewayReserveLongRunningChatRow, error) {
-	row := q.db.QueryRow(ctx, gatewayReserveLongRunningChat,
+func (q *Queries) GatewayReservePulseChat(ctx context.Context, arg GatewayReservePulseChatParams) (GatewayReservePulseChatRow, error) {
+	row := q.db.QueryRow(ctx, gatewayReservePulseChat,
 		arg.WorkspaceID,
 		arg.AgentName,
 		arg.ID,
@@ -8217,7 +8217,7 @@ func (q *Queries) GatewayReserveLongRunningChat(ctx context.Context, arg Gateway
 		arg.Request,
 		arg.SessionID,
 	)
-	var i GatewayReserveLongRunningChatRow
+	var i GatewayReservePulseChatRow
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
@@ -8730,7 +8730,7 @@ WITH filtered_sessions AS (
     sessions.title,
     sessions.kind,
     sessions.status,
-    sessions.long_running,
+    sessions.pulse,
     sessions.source_created_at,
     sessions.source_updated_at,
     (CASE $2::text
@@ -8754,7 +8754,7 @@ LEFT JOIN coding_projects AS project ON project.id = tree.project_id
     AND sessions.parent_session_id IS NULL
   AND ($8::text IS NULL OR project.owner_id = $8)
   AND NOT sessions.deleting
-  AND (NOT sessions.long_running OR EXISTS (
+  AND (NOT sessions.pulse OR EXISTS (
     SELECT 1 FROM chat_creations creation
     WHERE creation.workspace_id = sessions.workspace_id AND creation.agent_name = sessions.agent_name
       AND creation.session_id = sessions.session_id AND creation.state = 'created'
@@ -8793,7 +8793,7 @@ SELECT
   sessions.title,
   sessions.kind,
   sessions.status,
-  sessions.long_running,
+  sessions.pulse,
   sessions.source_created_at,
   sessions.source_updated_at,
   sessions.group_value,
@@ -8815,7 +8815,7 @@ SELECT
   ), '[]'::jsonb)::text AS participants_json
 FROM group_values
 CROSS JOIN LATERAL (
-  SELECT filtered_sessions.workspace_id, filtered_sessions.agent_name, filtered_sessions.session_id, filtered_sessions.parent_session_id, filtered_sessions.title, filtered_sessions.kind, filtered_sessions.status, filtered_sessions.long_running, filtered_sessions.source_created_at, filtered_sessions.source_updated_at, filtered_sessions.group_value
+  SELECT filtered_sessions.workspace_id, filtered_sessions.agent_name, filtered_sessions.session_id, filtered_sessions.parent_session_id, filtered_sessions.title, filtered_sessions.kind, filtered_sessions.status, filtered_sessions.pulse, filtered_sessions.source_created_at, filtered_sessions.source_updated_at, filtered_sessions.group_value
   FROM filtered_sessions
   WHERE filtered_sessions.group_value = group_values.group_value
   ORDER BY
@@ -8868,7 +8868,7 @@ type GatewaySearchGroupedChatSessionsRow struct {
 	Title            string             `json:"title"`
 	Kind             ChatSessionKind    `json:"kind"`
 	Status           ChatSessionStatus  `json:"status"`
-	LongRunning      bool               `json:"long_running"`
+	Pulse            bool               `json:"pulse"`
 	SourceCreatedAt  pgtype.Timestamptz `json:"source_created_at"`
 	SourceUpdatedAt  pgtype.Timestamptz `json:"source_updated_at"`
 	GroupValue       string             `json:"group_value"`
@@ -8905,7 +8905,7 @@ func (q *Queries) GatewaySearchGroupedChatSessions(ctx context.Context, arg Gate
 			&i.Title,
 			&i.Kind,
 			&i.Status,
-			&i.LongRunning,
+			&i.Pulse,
 			&i.SourceCreatedAt,
 			&i.SourceUpdatedAt,
 			&i.GroupValue,
@@ -9058,29 +9058,29 @@ func (q *Queries) GatewayTeamExists(ctx context.Context, arg GatewayTeamExistsPa
 const gatewayTouchAgent = `-- name: GatewayTouchAgent :one
 UPDATE agents
 SET updated_at = $1,
-  automatic_check_interval_seconds = COALESCE($2::integer, automatic_check_interval_seconds)
+  pulse_interval_seconds = COALESCE($2::integer, pulse_interval_seconds)
 WHERE tenant_namespace = $3
   AND agent_name = $4
-RETURNING automatic_check_interval_seconds, tenant_namespace, agent_name, created_at, updated_at
+RETURNING pulse_interval_seconds, tenant_namespace, agent_name, created_at, updated_at
 `
 
 type GatewayTouchAgentParams struct {
-	UpdatedAt                     time.Time   `json:"updated_at"`
-	AutomaticCheckIntervalSeconds pgtype.Int4 `json:"automatic_check_interval_seconds"`
-	TenantNamespace               string      `json:"tenant_namespace"`
-	AgentName                     string      `json:"agent_name"`
+	UpdatedAt            time.Time   `json:"updated_at"`
+	PulseIntervalSeconds pgtype.Int4 `json:"pulse_interval_seconds"`
+	TenantNamespace      string      `json:"tenant_namespace"`
+	AgentName            string      `json:"agent_name"`
 }
 
 func (q *Queries) GatewayTouchAgent(ctx context.Context, arg GatewayTouchAgentParams) (Agent, error) {
 	row := q.db.QueryRow(ctx, gatewayTouchAgent,
 		arg.UpdatedAt,
-		arg.AutomaticCheckIntervalSeconds,
+		arg.PulseIntervalSeconds,
 		arg.TenantNamespace,
 		arg.AgentName,
 	)
 	var i Agent
 	err := row.Scan(
-		&i.AutomaticCheckIntervalSeconds,
+		&i.PulseIntervalSeconds,
 		&i.TenantNamespace,
 		&i.AgentName,
 		&i.CreatedAt,
@@ -9455,30 +9455,30 @@ func (q *Queries) GatewayUpdateCodingRepository(ctx context.Context, arg Gateway
 	return err
 }
 
-const gatewayUpdateProactivity = `-- name: GatewayUpdateProactivity :one
+const gatewayUpdatePulse = `-- name: GatewayUpdatePulse :one
 WITH settings AS MATERIALIZED (
-  SELECT a.automatic_check_interval_seconds, a.tenant_namespace, a.agent_name, a.created_at, a.updated_at FROM agents a JOIN workspaces w ON w.namespace = a.tenant_namespace
+  SELECT a.pulse_interval_seconds, a.tenant_namespace, a.agent_name, a.created_at, a.updated_at FROM agents a JOIN workspaces w ON w.namespace = a.tenant_namespace
   WHERE w.id = $1 AND a.agent_name = $2 FOR SHARE OF a
 ), changed AS (
-  UPDATE chat_sessions s SET proactive_paused = $3,
-    next_check_at = now() + make_interval(secs => a.automatic_check_interval_seconds), updated_at = now()
+  UPDATE chat_sessions s SET pulse_paused = $3,
+    next_check_at = now() + make_interval(secs => a.pulse_interval_seconds), updated_at = now()
   FROM settings a
   WHERE s.workspace_id = $1 AND s.agent_name = $2 AND s.session_id = $4
-    AND long_running AND owner_id = $5 AND NOT deleting
-  RETURNING s.workspace_id, s.agent_name, s.session_id, s.parent_session_id, s.title, s.kind, s.status, s.source_created_at, s.source_updated_at, s.created_at, s.updated_at, s.long_running, s.owner_id, s.private_root_session_id, s.proactive_paused, s.next_check_at, s.deleting, s.cleanup_completed_at, s.generation, a.automatic_check_interval_seconds
+    AND pulse AND owner_id = $5 AND NOT deleting
+  RETURNING s.workspace_id, s.agent_name, s.session_id, s.parent_session_id, s.title, s.kind, s.status, s.source_created_at, s.source_updated_at, s.created_at, s.updated_at, s.pulse, s.owner_id, s.private_root_session_id, s.pulse_paused, s.next_check_at, s.deleting, s.cleanup_completed_at, s.generation, a.pulse_interval_seconds
 ), canceled AS (
   UPDATE chat_inputs SET state = 'removed', completed_at = now(), outcome = 'canceled',
     revision = revision + 1, updated_at = now()
   FROM changed c
   WHERE chat_inputs.workspace_id = c.workspace_id AND chat_inputs.agent_name = c.agent_name
-    AND chat_inputs.session_id = c.session_id AND c.proactive_paused
-    AND chat_inputs.origin = 'proactive' AND chat_inputs.state IN ('queued', 'failed', 'recovered', 'removed')
+    AND chat_inputs.session_id = c.session_id AND c.pulse_paused
+    AND chat_inputs.origin = 'pulse' AND chat_inputs.state IN ('queued', 'failed', 'recovered', 'removed')
     AND chat_inputs.message_id = '' AND chat_inputs.completed_at IS NULL
 )
-SELECT long_running, proactive_paused, next_check_at, automatic_check_interval_seconds FROM changed
+SELECT pulse, pulse_paused, next_check_at, pulse_interval_seconds FROM changed
 `
 
-type GatewayUpdateProactivityParams struct {
+type GatewayUpdatePulseParams struct {
 	WorkspaceID string      `json:"workspace_id"`
 	AgentName   string      `json:"agent_name"`
 	Paused      bool        `json:"paused"`
@@ -9486,27 +9486,27 @@ type GatewayUpdateProactivityParams struct {
 	OwnerID     pgtype.Text `json:"owner_id"`
 }
 
-type GatewayUpdateProactivityRow struct {
-	LongRunning                   bool               `json:"long_running"`
-	ProactivePaused               bool               `json:"proactive_paused"`
-	NextCheckAt                   pgtype.Timestamptz `json:"next_check_at"`
-	AutomaticCheckIntervalSeconds int32              `json:"automatic_check_interval_seconds"`
+type GatewayUpdatePulseRow struct {
+	Pulse                bool               `json:"pulse"`
+	PulsePaused          bool               `json:"pulse_paused"`
+	NextCheckAt          pgtype.Timestamptz `json:"next_check_at"`
+	PulseIntervalSeconds int32              `json:"pulse_interval_seconds"`
 }
 
-func (q *Queries) GatewayUpdateProactivity(ctx context.Context, arg GatewayUpdateProactivityParams) (GatewayUpdateProactivityRow, error) {
-	row := q.db.QueryRow(ctx, gatewayUpdateProactivity,
+func (q *Queries) GatewayUpdatePulse(ctx context.Context, arg GatewayUpdatePulseParams) (GatewayUpdatePulseRow, error) {
+	row := q.db.QueryRow(ctx, gatewayUpdatePulse,
 		arg.WorkspaceID,
 		arg.AgentName,
 		arg.Paused,
 		arg.SessionID,
 		arg.OwnerID,
 	)
-	var i GatewayUpdateProactivityRow
+	var i GatewayUpdatePulseRow
 	err := row.Scan(
-		&i.LongRunning,
-		&i.ProactivePaused,
+		&i.Pulse,
+		&i.PulsePaused,
 		&i.NextCheckAt,
-		&i.AutomaticCheckIntervalSeconds,
+		&i.PulseIntervalSeconds,
 	)
 	return i, err
 }
@@ -9671,7 +9671,7 @@ func (q *Queries) GatewayUpsertWorkspaceChatPreference(ctx context.Context, arg 
 const gatewayWorkflowDestinations = `-- name: GatewayWorkflowDestinations :many
 SELECT session_id, generation FROM chat_sessions
 WHERE workspace_id = $1 AND agent_name = $2 AND owner_id = $3
- AND long_running AND NOT deleting
+ AND pulse AND NOT deleting
 `
 
 type GatewayWorkflowDestinationsParams struct {

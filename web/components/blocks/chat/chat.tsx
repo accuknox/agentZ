@@ -32,7 +32,6 @@ import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuCheckboxItem,
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
@@ -80,13 +79,7 @@ import {
 import type { ProviderModelItem } from "@/data/types"
 import type { ChatInput, ChatSessionPreference, CodingTextRequest } from "@/lib/gateway/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
-import {
-  getChatProactivity,
-  updateChatProactivity,
-  listChatBackground,
-  type ChatProactivityUpdate,
-  updateChatSessionPreference,
-} from "@/lib/gateway/client"
+import { getChatPulse, listChatBackground, updateChatSessionPreference } from "@/lib/gateway/client"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { readAgentFileRawOptions } from "@/lib/gateway/client/@tanstack/react-query.gen"
 import { formatByteSize } from "@/lib/format"
@@ -118,7 +111,6 @@ import {
   PencilRulerIcon,
   PaperclipIcon,
   Settings2Icon,
-  InfinityIcon,
   Undo2Icon,
   CircleAlert,
   BookmarkIcon,
@@ -541,7 +533,7 @@ export default function Chat({
   const { data: authSession } = authClient.useSession()
   const draftKey = ["chatDraft", workspaceId, agentName, authSession?.user.id, sessionId]
   const draftMessage = queryClient.getQueryData<PromptInputMessage>(draftKey) ?? initialMessage
-  const [longRunning, setLongRunning] = useState(false)
+  const [pulseEnabled, setPulseEnabled] = useState(false)
   const {
     abortMessage,
     resolvedSessionID,
@@ -567,22 +559,16 @@ export default function Chat({
       onSessionCreated?.(id)
     },
     createSession,
-    longRunning
+    pulseEnabled
   )
-  const proactivityKey = [
-    "chatProactivity",
-    workspaceId,
-    authSession?.user.id,
-    agentName,
-    resolvedSessionID,
-  ]
-  const proactivity = useQuery(
+  const pulseKey = ["chatPulse", workspaceId, authSession?.user.id, agentName, resolvedSessionID]
+  const pulse = useQuery(
     queryOptions({
-      queryKey: proactivityKey,
+      queryKey: pulseKey,
       enabled: Boolean(resolvedSessionID) && !coding,
       queryFn: async () => {
         if (!resolvedSessionID) throw new Error("Chat has not been created")
-        const result = await getChatProactivity({
+        const result = await getChatPulse({
           baseUrl: await getGatewayBaseURL(),
           headers: { "X-AgentZ-Workspace-ID": workspaceId },
           path: { agentName, sessionId: resolvedSessionID },
@@ -610,22 +596,6 @@ export default function Chat({
       refetchInterval: 1_000,
     })
   )
-  const changeProactivity = useMutation({
-    mutationFn: async (body: ChatProactivityUpdate) => {
-      if (!resolvedSessionID) throw new Error("Chat has not been created")
-      const result = await updateChatProactivity({
-        baseUrl: await getGatewayBaseURL(),
-        headers: { "X-AgentZ-Workspace-ID": workspaceId },
-        path: { agentName, sessionId: resolvedSessionID },
-        body,
-      })
-      if (result.error) throw new Error(result.error.message)
-      return result.data
-    },
-    onSuccess: (data) => queryClient.setQueryData(proactivityKey, data),
-    onError: (error) =>
-      toast.error("Could not update automatic checks", { description: error.message }),
-  })
   const preferenceKey = ["chatSessionPreference", workspaceId, authSession?.user.id] as const
   const rememberAgent = useMutation({
     mutationFn: async ({
@@ -2017,73 +1987,55 @@ export default function Chat({
                 <button
                   type="button"
                   role="switch"
-                  aria-checked={longRunning}
-                  aria-label="Long-running"
+                  aria-checked={pulseEnabled}
+                  aria-label="Pulse"
                   disabled={creationStarted || sendState === "submitted"}
                   title="Automatic follow-ups in an owner-only conversation. Agent files and memory remain shared."
-                  onClick={() => setLongRunning((value) => !value)}
+                  onClick={() => setPulseEnabled((value) => !value)}
                   className={cn(
+                    styles.pulse,
                     "ml-auto inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs transition-colors disabled:opacity-50",
-                    longRunning
+                    pulseEnabled
                       ? "bg-primary/10 text-primary"
                       : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
                   )}
                 >
-                  <InfinityIcon className="size-3.5" />
-                  Long-running
+                  Pulse
                   <span
                     className={cn(
+                      styles.pulseDot,
                       "size-1.5 rounded-full",
-                      longRunning ? "bg-primary" : "bg-muted-foreground/30"
+                      pulseEnabled ? "bg-primary" : "bg-muted-foreground/30"
                     )}
                   />
                 </button>
               ) : null}
-              {!coding && (proactivity.data?.long_running || (hasSession && longRunning)) ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      aria-label="Long-running conversation settings"
-                      className="ml-auto inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs text-primary transition-colors hover:bg-primary/10"
-                    >
-                      <InfinityIcon className="size-3.5" />
-                      Long-running
-                      <span className="text-muted-foreground">
-                        {proactivity.data?.paused
-                          ? "Paused"
-                          : `${(proactivity.data?.interval_seconds ?? 1800) / 60}m`}
-                      </span>
-                      <ChevronDownIcon className="size-3" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" side="top" className="w-64">
-                    <DropdownMenuLabel>Automatic checks</DropdownMenuLabel>
-                    <p className="px-2 pb-2 text-xs leading-relaxed text-muted-foreground">
-                      Continues work you authorized and offers new work for you to accept.
-                    </p>
-                    <DropdownMenuCheckboxItem
-                      checked={!proactivity.data?.paused}
-                      disabled={changeProactivity.isPending || !proactivity.data}
-                      onCheckedChange={(enabled) =>
-                        changeProactivity.mutate({
-                          paused: !enabled,
-                        })
-                      }
-                    >
-                      Automatic checks on
-                    </DropdownMenuCheckboxItem>
-                    <DropdownMenuSeparator />
-                    <p className="px-2 py-1 text-xs leading-relaxed text-muted-foreground">
-                      Checks run every {(proactivity.data?.interval_seconds ?? 1800) / 60} minutes,
-                      configured in agent settings.
-                    </p>
-                    <DropdownMenuSeparator />
-                    <p className="px-2 py-1 text-xs leading-relaxed text-muted-foreground">
-                      Workflow schedules have their own timing and pause controls.
-                    </p>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+              {!coding && (pulse.data?.enabled || (hasSession && pulseEnabled)) ? (
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={!pulse.data?.paused}
+                  aria-label="Pulse"
+                  disabled
+                  className={cn(
+                    styles.pulse,
+                    "ml-auto inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs text-primary"
+                  )}
+                >
+                  Pulse
+                  <span className="text-muted-foreground">
+                    {pulse.data?.paused
+                      ? "Paused"
+                      : `${(pulse.data?.interval_seconds ?? 1800) / 60}m`}
+                  </span>
+                  <span
+                    className={cn(
+                      styles.pulseDot,
+                      "size-1.5 rounded-full",
+                      pulse.data?.paused ? "bg-muted-foreground/30" : "bg-primary"
+                    )}
+                  />
+                </button>
               ) : null}
               {composerContext?.(inputDisabled || hasSession || sendState === "submitted")}
             </div>
@@ -2418,8 +2370,7 @@ function TimelineRowView({
         >
           {row.origin ? (
             <div className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-              <InfinityIcon className="size-3.5" />
-              {row.origin === "proactive" ? "Automatic check" : "Workflow update"}
+              {row.origin === "pulse" ? "Pulse check" : "Workflow update"}
             </div>
           ) : null}
           {groups.map((group, groupIndex) => {

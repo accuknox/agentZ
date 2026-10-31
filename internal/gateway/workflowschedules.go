@@ -555,7 +555,7 @@ func (s *Service) workflowDelivery(ctx context.Context, agent string, input *gat
 	if err != nil {
 		return nil, err
 	}
-	if !root.LongRunning || root.SessionID != input.SessionId {
+	if !root.Pulse || root.SessionID != input.SessionId {
 		return nil, pgx.ErrNoRows
 	}
 	delivery := &agentzv1alpha1.WorkflowDelivery{

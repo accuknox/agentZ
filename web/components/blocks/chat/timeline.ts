@@ -321,10 +321,7 @@ export function projectTimeline(input: ProjectInput): {
             type: "assistant-error",
             key: `background-error:${turn.user.id}`,
             body: background.error,
-            label:
-              background.origin === "proactive"
-                ? "Automatic check failed"
-                : "Workflow update failed",
+            label: background.origin === "pulse" ? "Pulse check failed" : "Workflow update failed",
             partialOutput: false,
           })
         return
@@ -425,8 +422,7 @@ export function projectTimeline(input: ProjectInput): {
       type: "assistant-error",
       key: `background-error:${background.part_id}`,
       body: background.error,
-      label:
-        background.origin === "proactive" ? "Automatic check failed" : "Workflow update failed",
+      label: background.origin === "pulse" ? "Pulse check failed" : "Workflow update failed",
       partialOutput: false,
     })
   }

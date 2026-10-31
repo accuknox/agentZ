@@ -116,7 +116,7 @@ type WorkflowRunModel struct {
 // WorkflowDelivery binds scheduled execution to one owner's conversation generation.
 // The gateway resolves this authority; clients cannot choose an owner.
 type WorkflowDelivery struct {
-	// SessionID is the long-running destination root.
+	// SessionID is the Pulse destination root.
 	SessionID string `json:"sessionID"`
 	// OwnerID is the authorizing human, revalidated before execution and delivery.
 	OwnerID string `json:"ownerID"`

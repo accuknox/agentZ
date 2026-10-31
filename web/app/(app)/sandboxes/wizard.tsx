@@ -1428,19 +1428,19 @@ function ModelsStep({
       noValidate
     >
       {providers.length === 0 && pools.length === 0 ? (
-        <Empty className="gap-3 p-8">
+        <Empty className="min-h-72 flex-none gap-6 border-2 border-dashed border-muted-foreground/50 bg-muted/20 px-6 py-10 sm:py-12">
           <EmptyHeader>
-            <EmptyMedia>
-              <Brain className="size-8 text-muted-foreground" aria-hidden="true" />
+            <EmptyMedia className="size-12 rounded-full bg-primary/10 text-primary">
+              <Brain className="size-6" aria-hidden="true" />
             </EmptyMedia>
-            <EmptyTitle>No inference providers are configured</EmptyTitle>
+            <EmptyTitle>Connect an inference provider</EmptyTitle>
             <EmptyDescription>
-              Add a provider in a new tab, then refresh this catalog. Your draft will stay here.
+              Your draft stays here while you configure a provider in a new tab.
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
-            <div className="flex gap-2">
-              <Button asChild variant="outline">
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button asChild>
                 <Link href={providersHref} target="_blank" rel="noreferrer">
                   Open provider setup
                   <ExternalLink data-icon="inline-end" />
@@ -1473,7 +1473,7 @@ function ModelsStep({
                   })
                 }
               >
-                <RefreshCw /> Refresh
+                <RefreshCw data-icon="inline-start" /> Refresh
               </LoadingButton>
             </div>
             {refreshError ? (

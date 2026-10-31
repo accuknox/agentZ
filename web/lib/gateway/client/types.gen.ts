@@ -313,19 +313,19 @@ export type ChatSessionParticipant = {
   image: string | null
 }
 
-export type LongRunningChatRequest = {
+export type PulseChatRequest = {
   id: string
   agent_name: AgentName
   agent?: string
   model?: ModelRef
 }
 
-export type ChatProactivityUpdate = {
+export type ChatPulseUpdate = {
   paused: boolean
 }
 
-export type ChatProactivity = {
-  long_running: boolean
+export type ChatPulse = {
+  enabled: boolean
   paused: boolean
   interval_seconds: number
   next_check_at?: string
@@ -336,14 +336,14 @@ export type ChatBackgroundList = Array<ChatBackground>
 export type ChatBackground = {
   message_id: string
   part_id: string
-  origin: "proactive" | "workflow_result"
+  origin: "pulse" | "workflow_result"
   completed: boolean
   outcome?: "quiet" | "update" | "failed" | "canceled"
   error: string
 }
 
 export type ChatSession = {
-  long_running?: boolean
+  pulse?: boolean
   project_id?: string
   agent_name: AgentName
   session_id: string
@@ -726,9 +726,9 @@ export type ResourceReference = {
 }
 
 /**
- * Seconds between automatic checks for this agent's long-running conversations, in whole minutes. Defaults to 1800.
+ * Seconds between Pulse checks for this agent's conversations, in whole minutes. Defaults to 1800.
  */
-export type AutomaticCheckIntervalSeconds = number
+export type PulseIntervalSeconds = number
 
 export type AgentMemoryConfig = {
   enabled: boolean
@@ -893,7 +893,7 @@ export type ListWorkflowWebhookTriggersResponse = {
 }
 
 export type Agent = {
-  automatic_check_interval_seconds: AutomaticCheckIntervalSeconds
+  pulse_interval_seconds: PulseIntervalSeconds
   name: AgentName
   sandbox: ResourceReference
   created_by: ResourceActor
@@ -1125,7 +1125,7 @@ export type UpdateSkillRequest = {
 export type AgentStatus = "UNSPECIFIED" | "PROGRESSING" | "DEGRADED" | "DELETED" | "IDLE"
 
 export type CreateAgentRequest = {
-  automatic_check_interval_seconds?: AutomaticCheckIntervalSeconds
+  pulse_interval_seconds?: PulseIntervalSeconds
   name: AgentName
   memory?: AgentMemoryConfig
   env?: {
@@ -1363,7 +1363,7 @@ export type WorkflowWebhookTrigger = {
 
 export type CreateWorkflowScheduleRequest = {
   /**
-   * Authenticated agent tool context used to bind a long-running root.
+   * Authenticated agent tool context used to bind a Pulse root.
    */
   context_session_id?: string
   delivery?: WorkflowDelivery
@@ -1459,7 +1459,7 @@ export type DeleteWorkflowsRequest = {
 }
 
 export type UpdateAgentRequest = {
-  automatic_check_interval_seconds?: AutomaticCheckIntervalSeconds
+  pulse_interval_seconds?: PulseIntervalSeconds
   env?: {
     [key: string]: string
   }
@@ -5046,14 +5046,14 @@ export type ListChatSessionsResponses = {
 
 export type ListChatSessionsResponse2 = ListChatSessionsResponses[keyof ListChatSessionsResponses]
 
-export type CreateLongRunningChatData = {
-  body: LongRunningChatRequest
+export type CreatePulseChatData = {
+  body: PulseChatRequest
   path?: never
   query?: never
   url: "/api/chat-session"
 }
 
-export type CreateLongRunningChatErrors = {
+export type CreatePulseChatErrors = {
   /**
    * Request validation failed.
    */
@@ -5073,30 +5073,28 @@ export type CreateLongRunningChatErrors = {
   500: Error
 }
 
-export type CreateLongRunningChatError =
-  CreateLongRunningChatErrors[keyof CreateLongRunningChatErrors]
+export type CreatePulseChatError = CreatePulseChatErrors[keyof CreatePulseChatErrors]
 
-export type CreateLongRunningChatResponses = {
+export type CreatePulseChatResponses = {
   /**
    * Canonical native session, including on exact retries.
    */
   200: Session
 }
 
-export type CreateLongRunningChatResponse =
-  CreateLongRunningChatResponses[keyof CreateLongRunningChatResponses]
+export type CreatePulseChatResponse = CreatePulseChatResponses[keyof CreatePulseChatResponses]
 
-export type GetChatProactivityData = {
+export type GetChatPulseData = {
   body?: never
   path: {
     agentName: string
     sessionId: string
   }
   query?: never
-  url: "/api/chat-session/{agentName}/{sessionId}/proactivity"
+  url: "/api/chat-session/{agentName}/{sessionId}/pulse"
 }
 
-export type GetChatProactivityErrors = {
+export type GetChatPulseErrors = {
   /**
    * Request validation failed.
    */
@@ -5116,29 +5114,28 @@ export type GetChatProactivityErrors = {
   500: Error
 }
 
-export type GetChatProactivityError = GetChatProactivityErrors[keyof GetChatProactivityErrors]
+export type GetChatPulseError = GetChatPulseErrors[keyof GetChatPulseErrors]
 
-export type GetChatProactivityResponses = {
+export type GetChatPulseResponses = {
   /**
    * Authorized conversation state.
    */
-  200: ChatProactivity
+  200: ChatPulse
 }
 
-export type GetChatProactivityResponse =
-  GetChatProactivityResponses[keyof GetChatProactivityResponses]
+export type GetChatPulseResponse = GetChatPulseResponses[keyof GetChatPulseResponses]
 
-export type UpdateChatProactivityData = {
-  body: ChatProactivityUpdate
+export type UpdateChatPulseData = {
+  body: ChatPulseUpdate
   path: {
     agentName: string
     sessionId: string
   }
   query?: never
-  url: "/api/chat-session/{agentName}/{sessionId}/proactivity"
+  url: "/api/chat-session/{agentName}/{sessionId}/pulse"
 }
 
-export type UpdateChatProactivityErrors = {
+export type UpdateChatPulseErrors = {
   /**
    * Request validation failed.
    */
@@ -5158,18 +5155,16 @@ export type UpdateChatProactivityErrors = {
   500: Error
 }
 
-export type UpdateChatProactivityError =
-  UpdateChatProactivityErrors[keyof UpdateChatProactivityErrors]
+export type UpdateChatPulseError = UpdateChatPulseErrors[keyof UpdateChatPulseErrors]
 
-export type UpdateChatProactivityResponses = {
+export type UpdateChatPulseResponses = {
   /**
    * Authorized conversation state.
    */
-  200: ChatProactivity
+  200: ChatPulse
 }
 
-export type UpdateChatProactivityResponse =
-  UpdateChatProactivityResponses[keyof UpdateChatProactivityResponses]
+export type UpdateChatPulseResponse = UpdateChatPulseResponses[keyof UpdateChatPulseResponses]
 
 export type ListChatBackgroundData = {
   body?: never

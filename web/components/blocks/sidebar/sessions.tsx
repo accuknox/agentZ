@@ -1742,8 +1742,8 @@ function SessionCard({
             <DialogTitle>Delete chat?</DialogTitle>
             <DialogDescription>
               Deleting <span className="font-medium">{session.title}</span> cannot be undone.
-              {session.long_running
-                ? " Automatic checks and bound workflow schedules will stop, including active bound runs."
+              {session.pulse
+                ? " Pulse checks and bound workflow schedules will stop, including active bound runs."
                 : null}
             </DialogDescription>
           </DialogHeader>

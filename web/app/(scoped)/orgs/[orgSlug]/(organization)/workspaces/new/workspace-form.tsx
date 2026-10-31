@@ -26,7 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -199,9 +199,6 @@ export function WorkspaceForm(props: WorkspaceFormProps) {
                     </SelectGroup>
                   </SelectContent>
                 </Select>
-                <FieldDescription>
-                  Coding adds GitHub projects and Git worktrees. The type cannot be changed later.
-                </FieldDescription>
               </Field>
             )}
           />

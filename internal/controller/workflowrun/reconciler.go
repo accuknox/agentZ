@@ -369,6 +369,21 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 	permission := gatewayapi.OpencodePermissionRuleset{
 		{
 			Action:     gatewayapi.OpencodePermissionActionDeny,
+			Permission: "memory_add_note",
+			Pattern:    "*",
+		},
+		{
+			Action:     gatewayapi.OpencodePermissionActionDeny,
+			Permission: "memory_reset",
+			Pattern:    "*",
+		},
+		{
+			Action:     gatewayapi.OpencodePermissionActionDeny,
+			Permission: "memory_mode",
+			Pattern:    "*",
+		},
+		{
+			Action:     gatewayapi.OpencodePermissionActionDeny,
 			Permission: "question",
 			Pattern:    "*",
 		},
@@ -798,6 +813,9 @@ func buildPromptRequest(run *agentzv1alpha1.WorkflowRun) (gatewayapi.SessionProm
 	}
 	body.Parts = []gatewayapi.OpencodePromptPartInput{part}
 	body.Tools = &map[string]bool{
+		"memory_add_note":        false,
+		"memory_reset":           false,
+		"memory_mode":            false,
 		"get_workflow":           run.Spec.Definition == nil,
 		"question":               false,
 		"set_workflowrun_status": true,

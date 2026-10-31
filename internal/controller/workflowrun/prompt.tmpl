@@ -22,3 +22,6 @@ Inputs JSON:
 {{if .Definition}}Frozen workflow JSON:
 {{.Definition}}
 {{end}}
+If this run reports into a conversation, include its useful outcome in set_workflowrun_status.result.
+Use kind "update" with concise text and source links. Use kind "no_change" only when there is no useful update.
+The result is inserted directly into the destination conversation; another model will not rewrite it.

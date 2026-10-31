@@ -160,7 +160,7 @@ func ValidateRunInputs(ctx context.Context, db *pgxpool.Pool, tenantNamespace st
 }
 
 // CreateSchedule stores a schedule owned by its agent and returns the stored object.
-func CreateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, req gatewayapi.CreateWorkflowScheduleRequest) (gatewayapi.WorkflowSchedule, error) {
+func CreateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, req gatewayapi.CreateWorkflowScheduleRequest, delivery *agentzv1alpha1.WorkflowDelivery) (gatewayapi.WorkflowSchedule, error) {
 	specInput := scheduleSpecInput{
 		schedule:                   req.Schedule,
 		timeZone:                   req.TimeZone,
@@ -207,6 +207,7 @@ func CreateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 		},
 	}
 	applyScheduleSpec(&schedule.Spec, agtName, wfName, specInput, inputsJSON)
+	schedule.Spec.Delivery = delivery
 
 	if err := k8sClient.Create(ctx, schedule); err != nil {
 		return gatewayapi.WorkflowSchedule{}, err
@@ -219,7 +220,7 @@ func CreateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 }
 
 // ListSchedules returns a sorted page of schedules for an agent and optional workflow.
-func ListSchedules(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, sortBy gatewayapi.WorkflowScheduleSortByQuery, sortOrder gatewayapi.SortOrderQuery, limit int, offset int) ([]gatewayapi.WorkflowSchedule, int, error) {
+func ListSchedules(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, sortBy gatewayapi.WorkflowScheduleSortByQuery, sortOrder gatewayapi.SortOrderQuery, limit int, offset int, ownerID string, destinations map[string]int64) ([]gatewayapi.WorkflowSchedule, int, error) {
 	list := &agentzv1alpha1.WorkflowScheduleList{}
 	if err := k8sClient.List(ctx, list, ctrlclient.InNamespace(ns)); err != nil {
 		return nil, 0, err
@@ -228,6 +229,12 @@ func ListSchedules(ctx context.Context, k8sClient ctrlclient.Client, ns string, 
 	items := make([]gatewayapi.WorkflowSchedule, 0, len(list.Items))
 	for i := range list.Items {
 		schedule := &list.Items[i]
+		if delivery := schedule.Spec.Delivery; delivery != nil {
+			generation, visible := destinations[delivery.SessionID]
+			if delivery.OwnerID != ownerID || !visible || generation != delivery.Generation {
+				continue
+			}
+		}
 		if schedule.Spec.AgentName != agtName {
 			continue
 		}
@@ -292,7 +299,7 @@ func DeleteSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 }
 
 // UpdateSchedule replaces a schedule specification, retrying concurrent updates.
-func UpdateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, name string, req gatewayapi.UpdateWorkflowScheduleRequest) (gatewayapi.WorkflowSchedule, error) {
+func UpdateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, name string, req gatewayapi.UpdateWorkflowScheduleRequest, delivery *agentzv1alpha1.WorkflowDelivery) (gatewayapi.WorkflowSchedule, error) {
 	current := &agentzv1alpha1.WorkflowSchedule{}
 	key := ctrlclient.ObjectKey{Name: name, Namespace: ns}
 	if err := k8sClient.Get(ctx, key, current); err != nil {
@@ -329,6 +336,9 @@ func UpdateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 			}
 
 			applyScheduleSpec(&current.Spec, agtName, wfName, specInput, inputsJSON)
+			if delivery != nil {
+				current.Spec.Delivery = delivery
+			}
 
 			if err := k8sClient.Update(ctx, current); err != nil {
 				return err
@@ -366,6 +376,9 @@ func scheduleViewFromCRD(schedule *agentzv1alpha1.WorkflowSchedule) (gatewayapi.
 		TimeoutSeconds: schedule.Spec.TimeoutSeconds,
 		Suspend:        schedule.Spec.Suspend,
 		CreatedAt:      schedule.CreationTimestamp.Time,
+	}
+	if schedule.Spec.Delivery != nil {
+		view.Delivery = &gatewayapi.WorkflowDelivery{SessionId: schedule.Spec.Delivery.SessionID}
 	}
 	if schedule.Spec.TimeZone != "" {
 		view.TimeZone = &schedule.Spec.TimeZone

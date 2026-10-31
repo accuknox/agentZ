@@ -962,6 +962,7 @@ type ChatSession struct {
 	ProactivePaused          bool               `json:"proactive_paused"`
 	NextCheckAt              pgtype.Timestamptz `json:"next_check_at"`
 	Deleting                 bool               `json:"deleting"`
+	CleanupCompletedAt       pgtype.Timestamptz `json:"cleanup_completed_at"`
 	Generation               int64              `json:"generation"`
 }
 
@@ -1169,6 +1170,25 @@ type RoleScope struct {
 	Immutable      bool               `json:"immutable"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type WorkflowReport struct {
+	RunUid         string      `json:"run_uid"`
+	Namespace      string      `json:"namespace"`
+	RunName        string      `json:"run_name"`
+	WorkspaceID    string      `json:"workspace_id"`
+	AgentName      string      `json:"agent_name"`
+	SessionID      string      `json:"session_id"`
+	OwnerID        string      `json:"owner_id"`
+	Generation     int64       `json:"generation"`
+	RequestedPhase string      `json:"requested_phase"`
+	StatusMessage  string      `json:"status_message"`
+	Result         []byte      `json:"result"`
+	PayloadHash    string      `json:"payload_hash"`
+	State          string      `json:"state"`
+	ChatInputID    pgtype.UUID `json:"chat_input_id"`
+	CreatedAt      time.Time   `json:"created_at"`
+	UpdatedAt      time.Time   `json:"updated_at"`
 }
 
 type Workspace struct {

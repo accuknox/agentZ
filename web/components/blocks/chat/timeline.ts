@@ -1,3 +1,4 @@
+import type { ChatBackground } from "@/lib/gateway/client"
 import type { AssistantMessage, Message, Part, ToolPart, UserMessage } from "@opencode-ai/sdk/v2"
 import { attachmentFromPart, type ChatAttachment } from "@/components/blocks/chat/attachments"
 import { describeMessageError } from "@/components/blocks/chat/errors"
@@ -34,6 +35,7 @@ export type TimelineRow =
       createdAt: number
       entries: RenderEntry[]
       isStreaming: boolean
+      origin?: ChatBackground["origin"]
       key: string
       type: "assistant"
     }
@@ -157,6 +159,8 @@ function renderParts(parts: Part[], textByPart: Record<string, string>): RenderE
 }
 
 type ProjectInput = {
+  background?: ChatBackground[]
+  classifyBackground?: boolean
   isBusy: boolean
   isRetrying: boolean
   messages: Message[]
@@ -283,7 +287,8 @@ export function projectTimeline(input: ProjectInput): {
   const reverted: RevertedMessage[] = []
   const visible = turns.filter((turn) => {
     if (input.revertMessageID && turn.user.id >= input.revertMessageID) {
-      reverted.push({ id: turn.user.id, text: userText(turn.user.id) })
+      if (!input.background?.some((item) => item.message_id === turn.user.id))
+        reverted.push({ id: turn.user.id, text: userText(turn.user.id) })
       return false
     }
     return true
@@ -298,6 +303,53 @@ export function projectTimeline(input: ProjectInput): {
   let guardrailMessageID: string | undefined
   visible.forEach((turn, index) => {
     const userParts = input.partsByMessage[turn.user.id] ?? []
+    const background = input.background?.find((item) => item.message_id === turn.user.id)
+    if (background) {
+      if (
+        !background.completed ||
+        background.outcome === "quiet" ||
+        background.outcome === "canceled"
+      )
+        return
+      if (background.outcome === "failed") {
+        if (background.error)
+          out.push({
+            type: "assistant-error",
+            key: `background-error:${turn.user.id}`,
+            body: background.error,
+            label:
+              background.origin === "proactive"
+                ? "Automatic check failed"
+                : "Workflow update failed",
+            partialOutput: false,
+          })
+        return
+      }
+      if (background.origin === "workflow_result") {
+        const part = userParts.find((part) => part.id === background.part_id)
+        if (part?.type === "text")
+          out.push({
+            type: "assistant",
+            key: `workflow:${turn.user.id}`,
+            createdAt: turn.user.time.created,
+            isStreaming: false,
+            origin: "workflow_result",
+            entries: [{ type: "text", key: part.id, content: part.text }],
+          })
+        return
+      }
+    }
+    // Wait for the server's classification before showing a newly arrived synthetic turn.
+    // Client metadata never supplies trusted origin or completion status.
+    if (
+      !background &&
+      input.classifyBackground &&
+      userParts.some(
+        (part) => part.type === "text" && part.synthetic && part.metadata?.["agentz.dev/input-id"]
+      )
+    )
+      return
+    const rowStart = out.length
     const attachments = userParts
       .filter((part): part is Extract<Part, { type: "text" }> => part.type === "text")
       .flatMap((part) => {
@@ -318,7 +370,7 @@ export function projectTimeline(input: ProjectInput): {
     }
 
     const text = userText(turn.user.id)
-    if (text || attachments.length > 0) {
+    if (!background && (text || attachments.length > 0)) {
       out.push({
         actor,
         attachments,
@@ -350,6 +402,11 @@ export function projectTimeline(input: ProjectInput): {
       messageID: turn.user.id,
       guardrailMessageID,
     })
+    if (background?.origin === "proactive") {
+      for (const row of out.slice(rowStart)) {
+        if (row.type === "assistant") row.origin = "proactive"
+      }
+    }
     if (blockedMessageID) {
       // Later requests include the rejected prompt. Reverting only the newest
       // failure would leave the original blocked message in the conversation.
@@ -360,6 +417,19 @@ export function projectTimeline(input: ProjectInput): {
       guardrailMessageID = undefined
     }
   })
+
+  for (const background of input.background ?? []) {
+    if (background.outcome !== "failed" || !background.error) continue
+    if (input.messages.some((message) => message.id === background.message_id)) continue
+    out.push({
+      type: "assistant-error",
+      key: `background-error:${background.part_id}`,
+      body: background.error,
+      label:
+        background.origin === "proactive" ? "Automatic check failed" : "Workflow update failed",
+      partialOutput: false,
+    })
+  }
 
   return { guardrailMessageID, reverted, rows: out }
 }

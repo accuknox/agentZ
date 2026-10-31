@@ -384,3 +384,140 @@ test("guardrail feedback names the policy and content for buffered and streamed 
     assert.equal(buffered.label, `${content} blocked by policy named "quickies \\"PII\\""`)
   }
 })
+
+test("a pending automatic check buffers its response and leaves a human steer visible", () => {
+  const { rows } = projectTimeline({
+    messages: [user, assistant, steer],
+    partsByMessage: parts,
+    textByPart: {},
+    isBusy: true,
+    isRetrying: false,
+    background: [
+      { message_id: user.id, part_id: "part1", origin: "proactive", completed: false, error: "" },
+    ],
+  })
+  assert.deepEqual(
+    rows.map((row) => row.type),
+    ["user"]
+  )
+  assert.equal(rows[0]?.type === "user" ? rows[0].messageID : undefined, steer.id)
+})
+
+test("a quiet automatic check has no trigger or result bubble", () => {
+  const { rows } = projectTimeline({
+    messages: [user, { ...assistant, time: { created: 2, completed: 4 } }],
+    partsByMessage: parts,
+    textByPart: {},
+    isBusy: false,
+    isRetrying: false,
+    background: [
+      {
+        message_id: user.id,
+        part_id: "part1",
+        origin: "proactive",
+        completed: true,
+        outcome: "quiet",
+        error: "",
+      },
+    ],
+  })
+  assert.deepEqual(rows, [])
+})
+
+test("a completed useful automatic check appears once with its origin", () => {
+  const { rows } = projectTimeline({
+    messages: [user, { ...assistant, time: { created: 2, completed: 4 } }],
+    partsByMessage: parts,
+    textByPart: {},
+    isBusy: false,
+    isRetrying: false,
+    background: [
+      {
+        message_id: user.id,
+        part_id: "part1",
+        origin: "proactive",
+        completed: true,
+        outcome: "update",
+        error: "",
+      },
+    ],
+  })
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0]?.type === "assistant" ? rows[0].origin : undefined, "proactive")
+})
+
+test("a verified context-only workflow result renders without an assistant child", () => {
+  const { rows } = projectTimeline({
+    messages: [user, steer],
+    partsByMessage: parts,
+    textByPart: {},
+    isBusy: false,
+    isRetrying: false,
+    background: [
+      {
+        message_id: user.id,
+        part_id: "part1",
+        origin: "workflow_result",
+        completed: true,
+        outcome: "update",
+        error: "",
+      },
+    ],
+  })
+  assert.deepEqual(
+    rows.map((row) => row.type),
+    ["assistant", "user"]
+  )
+  assert.equal(rows[0]?.type === "assistant" ? rows[0].origin : undefined, "workflow_result")
+})
+
+test("an unclassified internal trigger cannot flash streaming text", () => {
+  const trigger: TextPart = {
+    id: "trigger",
+    sessionID: user.sessionID,
+    messageID: user.id,
+    type: "text",
+    text: "Check for useful updates",
+    synthetic: true,
+    metadata: { "agentz.dev/input-id": "pending" },
+  }
+  const { rows } = projectTimeline({
+    messages: [user, assistant],
+    partsByMessage: { ...parts, [user.id]: [trigger] },
+    textByPart: {},
+    isBusy: true,
+    isRetrying: false,
+    classifyBackground: true,
+    background: [],
+  })
+  assert.deepEqual(rows, [])
+})
+
+test("background admission failures remain visible without a native message", () => {
+  const { rows } = projectTimeline({
+    messages: [],
+    partsByMessage: {},
+    textByPart: {},
+    isBusy: false,
+    isRetrying: false,
+    background: [
+      {
+        message_id: "",
+        part_id: "failed-part",
+        origin: "workflow_result",
+        completed: true,
+        outcome: "failed",
+        error: "The result could not be delivered.",
+      },
+    ],
+  })
+  assert.deepEqual(rows, [
+    {
+      type: "assistant-error",
+      key: "background-error:failed-part",
+      body: "The result could not be delivered.",
+      label: "Workflow update failed",
+      partialOutput: false,
+    },
+  ])
+})

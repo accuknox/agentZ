@@ -21,6 +21,7 @@ import {
   createInferencePool,
   createInferenceProvider,
   createInferenceProviderOAuthTicket,
+  createLongRunningChat,
   createMcpConnection,
   createSandbox,
   createSkill,
@@ -58,6 +59,7 @@ import {
   getAppMcpGraph,
   getAppOperation,
   getAppTraceChart,
+  getChatProactivity,
   getChatSessionPreference,
   getCodingOperation,
   getCodingProject,
@@ -99,6 +101,7 @@ import {
   listAppSessions,
   listAppSpans,
   listAppTraces,
+  listChatBackground,
   listChatInputs,
   listChatSessions,
   listCodingOperations,
@@ -150,6 +153,7 @@ import {
   queryDashboard,
   readAgentFile,
   readAgentFileRaw,
+  reconcileWorkflowReport,
   refreshCodingRepository,
   refreshInferenceProviderModels,
   renameAgentEntry,
@@ -166,6 +170,7 @@ import {
   updateAgent,
   updateAgentTool,
   updateChatInput,
+  updateChatProactivity,
   updateChatSessionPreference,
   updateCodingProjectPreference,
   updateGuardrailConnection,
@@ -219,6 +224,9 @@ import type {
   CreateInferenceProviderOAuthTicketError,
   CreateInferenceProviderOAuthTicketResponse2,
   CreateInferenceProviderResponse,
+  CreateLongRunningChatData,
+  CreateLongRunningChatError,
+  CreateLongRunningChatResponse,
   CreateMcpConnectionData,
   CreateMcpConnectionError,
   CreateMcpConnectionResponse,
@@ -329,6 +337,9 @@ import type {
   GetAppTraceChartData,
   GetAppTraceChartError,
   GetAppTraceChartResponse,
+  GetChatProactivityData,
+  GetChatProactivityError,
+  GetChatProactivityResponse,
   GetChatSessionPreferenceData,
   GetChatSessionPreferenceError,
   GetChatSessionPreferenceResponse,
@@ -452,6 +463,9 @@ import type {
   ListAppTracesData,
   ListAppTracesError,
   ListAppTracesResponse2,
+  ListChatBackgroundData,
+  ListChatBackgroundError,
+  ListChatBackgroundResponse,
   ListChatInputsData,
   ListChatInputsError,
   ListChatInputsResponse,
@@ -602,6 +616,9 @@ import type {
   ReadAgentFileRawError,
   ReadAgentFileRawResponse,
   ReadAgentFileResponse,
+  ReconcileWorkflowReportData,
+  ReconcileWorkflowReportError,
+  ReconcileWorkflowReportResponse,
   RefreshCodingRepositoryData,
   RefreshCodingRepositoryError,
   RefreshCodingRepositoryResponse,
@@ -650,6 +667,9 @@ import type {
   UpdateChatInputData,
   UpdateChatInputError,
   UpdateChatInputResponse,
+  UpdateChatProactivityData,
+  UpdateChatProactivityError,
+  UpdateChatProactivityResponse,
   UpdateChatSessionPreferenceData,
   UpdateChatSessionPreferenceError,
   UpdateChatSessionPreferenceResponse,
@@ -1476,6 +1496,110 @@ export const listChatSessionsOptions = (options?: Options<ListChatSessionsData>)
       return data
     },
     queryKey: listChatSessionsQueryKey(options),
+  })
+
+/**
+ * Create an owner-only long-running conversation in a General workspace.
+ */
+export const createLongRunningChatMutation = (
+  options?: Partial<Options<CreateLongRunningChatData>>
+): UseMutationOptions<
+  CreateLongRunningChatResponse,
+  CreateLongRunningChatError,
+  Options<CreateLongRunningChatData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    CreateLongRunningChatResponse,
+    CreateLongRunningChatError,
+    Options<CreateLongRunningChatData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createLongRunningChat({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const getChatProactivityQueryKey = (options: Options<GetChatProactivityData>) =>
+  createQueryKey("getChatProactivity", options)
+
+/**
+ * Manage owner-authorized conversation background activity.
+ */
+export const getChatProactivityOptions = (options: Options<GetChatProactivityData>) =>
+  queryOptions<
+    GetChatProactivityResponse,
+    GetChatProactivityError,
+    GetChatProactivityResponse,
+    ReturnType<typeof getChatProactivityQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getChatProactivity({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getChatProactivityQueryKey(options),
+  })
+
+/**
+ * Manage owner-authorized conversation background activity.
+ */
+export const updateChatProactivityMutation = (
+  options?: Partial<Options<UpdateChatProactivityData>>
+): UseMutationOptions<
+  UpdateChatProactivityResponse,
+  UpdateChatProactivityError,
+  Options<UpdateChatProactivityData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UpdateChatProactivityResponse,
+    UpdateChatProactivityError,
+    Options<UpdateChatProactivityData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await updateChatProactivity({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const listChatBackgroundQueryKey = (options: Options<ListChatBackgroundData>) =>
+  createQueryKey("listChatBackground", options)
+
+/**
+ * Manage owner-authorized conversation background activity.
+ */
+export const listChatBackgroundOptions = (options: Options<ListChatBackgroundData>) =>
+  queryOptions<
+    ListChatBackgroundResponse,
+    ListChatBackgroundError,
+    ListChatBackgroundResponse,
+    ReturnType<typeof listChatBackgroundQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listChatBackground({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listChatBackgroundQueryKey(options),
   })
 
 export const listChatInputsQueryKey = (options: Options<ListChatInputsData>) =>
@@ -4583,6 +4707,33 @@ export const getWorkflowRunOptions = (options: Options<GetWorkflowRunData>) =>
     },
     queryKey: getWorkflowRunQueryKey(options),
   })
+
+/**
+ * Reconcile a bound run's durable completion receipt.
+ */
+export const reconcileWorkflowReportMutation = (
+  options?: Partial<Options<ReconcileWorkflowReportData>>
+): UseMutationOptions<
+  ReconcileWorkflowReportResponse,
+  ReconcileWorkflowReportError,
+  Options<ReconcileWorkflowReportData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    ReconcileWorkflowReportResponse,
+    ReconcileWorkflowReportError,
+    Options<ReconcileWorkflowReportData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await reconcileWorkflowReport({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
 
 /**
  * Set a WorkflowRun terminal status.

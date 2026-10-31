@@ -528,6 +528,7 @@ func CreateScheduledRun(ctx context.Context, k8sClient ctrlclient.Client, ns str
 			},
 		},
 		Spec: agentzv1alpha1.WorkflowRunSpec{
+			Delivery:       schedule.Spec.Delivery,
 			AgentName:      schedule.Spec.AgentName,
 			WorkflowName:   schedule.Spec.WorkflowName,
 			Inputs:         apiextensionsv1.JSON{Raw: schedule.Spec.Inputs.Raw},
@@ -536,6 +537,10 @@ func CreateScheduledRun(ctx context.Context, k8sClient ctrlclient.Client, ns str
 				Name: schedule.Name,
 			},
 		},
+	}
+
+	if run.Spec.Delivery != nil {
+		run.Finalizers = append(run.Finalizers, agentzv1alpha1.WorkflowRunSessionFinalizer)
 	}
 
 	return createRun(ctx, k8sClient, run)
@@ -650,7 +655,7 @@ func ListWebhookTriggers(ctx context.Context, k8sClient ctrlclient.Client, ns st
 }
 
 // ListRuns lists non-evaluation runs for a workflow's trigger history.
-func ListRuns(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, params gatewayapi.ListWorkflowRunsParams, limit int, offset int) ([]gatewayapi.WorkflowRunSummary, int, error) {
+func ListRuns(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, params gatewayapi.ListWorkflowRunsParams, limit int, offset int, ownerID string, destinations map[string]int64) ([]gatewayapi.WorkflowRunSummary, int, error) {
 	list := &agentzv1alpha1.WorkflowRunList{}
 	if err := k8sClient.List(ctx, list, ctrlclient.InNamespace(ns)); err != nil {
 		return nil, 0, err
@@ -669,6 +674,12 @@ func ListRuns(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtNa
 	items := make([]gatewayapi.WorkflowRunSummary, 0, len(list.Items))
 	for i := range list.Items {
 		run := &list.Items[i]
+		if delivery := run.Spec.Delivery; delivery != nil {
+			generation, visible := destinations[delivery.SessionID]
+			if delivery.OwnerID != ownerID || !visible || generation != delivery.Generation {
+				continue
+			}
+		}
 		if run.Spec.AgentName != agtName {
 			continue
 		}

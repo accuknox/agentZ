@@ -55,7 +55,7 @@ const (
 	DefaultOrphanRetention = 7 * 24 * time.Hour
 )
 
-const workflowRunFinalizer = "agentz.accuknox.com/workflowrun-session"
+const workflowRunFinalizer = agentzv1alpha1.WorkflowRunSessionFinalizer
 
 //go:embed prompt.tmpl
 var promptTemplateText string
@@ -90,6 +90,38 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	if run.Spec.Delivery != nil {
+		if !run.DeletionTimestamp.IsZero() && !run.Status.Phase.Terminal() {
+			err := r.failRun(ctx, run, agentzv1alpha1.WorkflowRunReasonFailed, "Workflow run canceled")
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+			if err := r.Get(ctx, req.NamespacedName, run); err != nil {
+				return ctrl.Result{}, client.IgnoreNotFound(err)
+			}
+		}
+		response, reportErr := r.GatewayClient.ReconcileWorkflowReportWithResponse(
+			ctx, run.Spec.AgentName, run.Spec.WorkflowName, run.Name, gwreq.RequestEditor(r.TokenPath, run.Namespace),
+		)
+		if reportErr != nil {
+			return ctrl.Result{}, reportErr
+		}
+		if response.StatusCode() != http.StatusNoContent {
+			if response.StatusCode() == http.StatusNotFound || response.StatusCode() == http.StatusForbidden {
+				if !run.Status.Phase.Terminal() && run.DeletionTimestamp.IsZero() {
+					return ctrl.Result{}, r.failRun(
+						ctx, run, agentzv1alpha1.WorkflowRunReasonGatewayError, "Conversation destination is no longer available",
+					)
+				}
+			} else {
+				return ctrl.Result{}, fmt.Errorf("reconcile workflow receipt: %s", response.Status())
+			}
+		}
+		// Prepared results may have completed the run during gateway reconciliation.
+		if err := r.Get(ctx, req.NamespacedName, run); err != nil {
+			return ctrl.Result{}, client.IgnoreNotFound(err)
+		}
+	}
 	if !run.DeletionTimestamp.IsZero() {
 		err = r.finalizeRun(ctx, run)
 		if err != nil {
@@ -439,11 +471,21 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 	if evaluation := run.Labels["agentz.accuknox.com/evaluation"]; evaluation != "" {
 		metadata = &map[string]any{"agentz.evaluation_id": evaluation}
 	}
+	var parentID *string
+	if run.Spec.Delivery != nil {
+		parentID = &run.Spec.Delivery.SessionID
+		if metadata == nil {
+			metadata = &map[string]any{}
+		}
+		(*metadata)["agentz.dev/workflow-run"] = run.Name
+		(*metadata)["agentz.dev/workflow-uid"] = string(run.UID)
+	}
 	createResp, err := r.GatewayClient.SessionCreateWithResponse(
 		ctx,
 		run.Spec.AgentName,
 		nil,
 		gatewayapi.SessionCreateJSONRequestBody{
+			ParentID:   parentID,
 			Title:      &title,
 			Permission: &permission,
 			Metadata:   metadata,

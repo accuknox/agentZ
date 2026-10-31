@@ -109,6 +109,7 @@ func RunSchedule(ctx context.Context, cfg Config) error {
 			},
 		},
 		Spec: agentzv1alpha1.WorkflowRunSpec{
+			Delivery:       schedule.Spec.Delivery,
 			AgentName:      cfg.AgentName,
 			WorkflowName:   cfg.WorkflowName,
 			Inputs:         apiextensionsv1.JSON{Raw: rawInputs},
@@ -117,6 +118,10 @@ func RunSchedule(ctx context.Context, cfg Config) error {
 				Name: cfg.ScheduleName,
 			},
 		},
+	}
+
+	if run.Spec.Delivery != nil {
+		run.Finalizers = append(run.Finalizers, agentzv1alpha1.WorkflowRunSessionFinalizer)
 	}
 
 	err = k8sClient.Create(ctx, run)

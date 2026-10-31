@@ -68,6 +68,25 @@ spec:
                 description: Definition freezes the workflow graph for evaluation
                   executions.
                 x-kubernetes-preserve-unknown-fields: true
+              delivery:
+                description: Delivery keeps this run bound to its original conversation.
+                properties:
+                  generation:
+                    description: Generation prevents delivery after conversation deletion.
+                    format: int64
+                    type: integer
+                  ownerID:
+                    description: OwnerID is the authorizing human, revalidated before
+                      execution and delivery.
+                    type: string
+                  sessionID:
+                    description: SessionID is the long-running destination root.
+                    type: string
+                required:
+                - generation
+                - ownerID
+                - sessionID
+                type: object
               inputs:
                 description: Inputs contains execution inputs copied into this run.
                 x-kubernetes-preserve-unknown-fields: true

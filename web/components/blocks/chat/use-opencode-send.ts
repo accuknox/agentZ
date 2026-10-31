@@ -10,9 +10,11 @@ import type { Session } from "@opencode-ai/sdk/v2"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import {
+  createLongRunningChat,
   listChatInputs,
   submitChatInput,
   updateChatInput,
+  type LongRunningChatRequest,
   type ChatInput,
   type ChatInputRequest,
   type ChatInputs,
@@ -61,12 +63,15 @@ export function useOpencodeSend(
   workspaceId: string,
   sessionID: string | undefined,
   onSessionCreated: ((sessionID: string) => void) | undefined,
-  createSession: CreateSession | undefined
+  createSession: CreateSession | undefined,
+  longRunning = false
 ) {
   const queryClient = useQueryClient()
   const [pendingSessionID, setPendingSessionID] = useState<string>()
   const resolvedSessionID = sessionID ?? pendingSessionID
   const createdSession = useRef(sessionID)
+  const creationIntent = useRef<LongRunningChatRequest | undefined>(undefined)
+  const [creationStarted, setCreationStarted] = useState(false)
   const promoted = useRef(Boolean(sessionID))
   const prepared = useRef(new Map<string, { sessionID: string; body: ChatInputRequest }>())
   const submission = useRef<Promise<void>>(Promise.resolve())
@@ -133,7 +138,27 @@ export function useOpencodeSend(
         let id = input.sessionID ?? createdSession.current
         if (!id) {
           let session: Session
-          if (createSession) {
+          setCreationStarted(true)
+          if (longRunning || creationIntent.current) {
+            creationIntent.current ??= {
+              id: uuidv4(),
+              agent_name: agentName,
+              agent: input.agent,
+              model: {
+                id: input.model.modelID,
+                providerID: input.model.providerID,
+                variant: input.variant,
+              },
+            }
+            const result = await createLongRunningChat({
+              body: creationIntent.current,
+              headers: { "X-AgentZ-Workspace-ID": workspaceId },
+              baseUrl: await getGatewayBaseURL(),
+              throwOnError: false,
+            })
+            if (result.error) throw new Error(result.error.message)
+            session = result.data
+          } else if (createSession) {
             session = await createSession({
               text: input.text,
               model: input.model,
@@ -216,6 +241,8 @@ export function useOpencodeSend(
     onError: (error) => toast.error("Message was not saved", { description: error.message }),
   })
   return {
+    creationStarted,
+    resolvedSessionID,
     abortMessage: abort.mutateAsync,
     hasSession: Boolean(resolvedSessionID),
     // A persisted stop holds sending, but must still allow cancellation retries.

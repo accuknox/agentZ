@@ -7,9 +7,15 @@ import {
   type PatchWorkflowRunStatusRequest,
   zError,
 } from "../lib/gateway"
+import { zWorkflowResult } from "../lib/gateway/client/zod.gen"
 import { workflowAgentName } from "../lib/workflow"
 
 const args = {
+  result: zWorkflowResult
+    .optional()
+    .describe(
+      "Outcome for a bound conversation, with optional artifact references. Use no_change only for a successful run with nothing useful to report."
+    ),
   mode: tool.schema
     .enum(["run", "node"])
     .describe(
@@ -112,6 +118,7 @@ export default tool({
       const body = {
         phase: input.phase,
         message: input.message,
+        result: input.result,
       } satisfies PatchWorkflowRunStatusRequest
       const result = await patchWorkflowRunStatus({
         path: {

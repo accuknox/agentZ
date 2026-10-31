@@ -32,6 +32,7 @@ import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuCheckboxItem,
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
@@ -79,7 +80,13 @@ import {
 import type { ProviderModelItem } from "@/data/types"
 import type { ChatInput, ChatSessionPreference, CodingTextRequest } from "@/lib/gateway/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
-import { updateChatSessionPreference } from "@/lib/gateway/client"
+import {
+  getChatProactivity,
+  updateChatProactivity,
+  listChatBackground,
+  type ChatProactivityUpdate,
+  updateChatSessionPreference,
+} from "@/lib/gateway/client"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { readAgentFileRawOptions } from "@/lib/gateway/client/@tanstack/react-query.gen"
 import { formatByteSize } from "@/lib/format"
@@ -111,6 +118,7 @@ import {
   PencilRulerIcon,
   PaperclipIcon,
   Settings2Icon,
+  InfinityIcon,
   Undo2Icon,
   CircleAlert,
   BookmarkIcon,
@@ -533,6 +541,91 @@ export default function Chat({
   const { data: authSession } = authClient.useSession()
   const draftKey = ["chatDraft", workspaceId, agentName, authSession?.user.id, sessionId]
   const draftMessage = queryClient.getQueryData<PromptInputMessage>(draftKey) ?? initialMessage
+  const [longRunning, setLongRunning] = useState(false)
+  const {
+    abortMessage,
+    resolvedSessionID,
+    creationStarted,
+    canStop,
+    canSubmit,
+    hasSession,
+    isStopping,
+    sendMessage,
+    sendState,
+    pending: pendingMessages,
+    queue,
+    queueError,
+    updateInput,
+  } = useOpencodeSend(
+    agentName,
+    workspaceId,
+    sessionId,
+    (id) => {
+      // The session route remounts the composer after checkout creation.
+      const nextDraftKey = [...draftKey.slice(0, -1), id]
+      queryClient.setQueryData(nextDraftKey, composerRef.current?.getMessage())
+      onSessionCreated?.(id)
+    },
+    createSession,
+    longRunning
+  )
+  const proactivityKey = [
+    "chatProactivity",
+    workspaceId,
+    authSession?.user.id,
+    agentName,
+    resolvedSessionID,
+  ]
+  const proactivity = useQuery(
+    queryOptions({
+      queryKey: proactivityKey,
+      enabled: Boolean(resolvedSessionID) && !coding,
+      queryFn: async () => {
+        if (!resolvedSessionID) throw new Error("Chat has not been created")
+        const result = await getChatProactivity({
+          baseUrl: await getGatewayBaseURL(),
+          headers: { "X-AgentZ-Workspace-ID": workspaceId },
+          path: { agentName, sessionId: resolvedSessionID },
+        })
+        if (result.error) throw new Error(result.error.message)
+        return result.data
+      },
+      refetchInterval: 10_000,
+    })
+  )
+  const background = useQuery(
+    queryOptions({
+      queryKey: ["chatBackground", workspaceId, authSession?.user.id, agentName, resolvedSessionID],
+      enabled: Boolean(resolvedSessionID) && !coding,
+      queryFn: async () => {
+        if (!resolvedSessionID) throw new Error("Chat has not been created")
+        const result = await listChatBackground({
+          baseUrl: await getGatewayBaseURL(),
+          headers: { "X-AgentZ-Workspace-ID": workspaceId },
+          path: { agentName, sessionId: resolvedSessionID },
+        })
+        if (result.error) throw new Error(result.error.message)
+        return result.data
+      },
+      refetchInterval: 1_000,
+    })
+  )
+  const changeProactivity = useMutation({
+    mutationFn: async (body: ChatProactivityUpdate) => {
+      if (!resolvedSessionID) throw new Error("Chat has not been created")
+      const result = await updateChatProactivity({
+        baseUrl: await getGatewayBaseURL(),
+        headers: { "X-AgentZ-Workspace-ID": workspaceId },
+        path: { agentName, sessionId: resolvedSessionID },
+        body,
+      })
+      if (result.error) throw new Error(result.error.message)
+      return result.data
+    },
+    onSuccess: (data) => queryClient.setQueryData(proactivityKey, data),
+    onError: (error) =>
+      toast.error("Could not update automatic checks", { description: error.message }),
+  })
   const preferenceKey = ["chatSessionPreference", workspaceId, authSession?.user.id] as const
   const rememberAgent = useMutation({
     mutationFn: async ({
@@ -581,7 +674,7 @@ export default function Chat({
     streamError,
     textByPart,
     todos,
-  } = useOpencodeChat(agentName, workspaceId, sessionId)
+  } = useOpencodeChat(agentName, workspaceId, resolvedSessionID)
 
   const questionTool = questionRequest?.tool
   const planApproval =
@@ -597,7 +690,11 @@ export default function Chat({
   // session.agent. Raw user history owns the mode, including after reconnect.
   const lastUser = messages.findLast(
     (message) =>
-      message.role === "user" && (!session?.revert || message.id < session.revert.messageID)
+      message.role === "user" &&
+      !background.data?.some(
+        (input) => input.message_id === message.id && input.origin === "workflow_result"
+      ) &&
+      (!session?.revert || message.id < session.revert.messageID)
   )
   // A revert can precede the loaded page. Fetch its preceding user turn
   // before choosing a mode rather than falling back to stale session metadata.
@@ -839,30 +936,6 @@ export default function Chat({
     ? messages.filter((message) => message.id < revertMessageID)
     : messages
   const contextUsage = getAssistantUsage(contextMessages, models)
-  const {
-    abortMessage,
-    canStop,
-    canSubmit,
-    hasSession,
-    isStopping,
-    sendMessage,
-    sendState,
-    pending: pendingMessages,
-    queue,
-    queueError,
-    updateInput,
-  } = useOpencodeSend(
-    agentName,
-    workspaceId,
-    sessionId,
-    (id) => {
-      // The session route remounts the composer after checkout creation.
-      const nextDraftKey = [...draftKey.slice(0, -1), id]
-      queryClient.setQueryData(nextDraftKey, composerRef.current?.getMessage())
-      onSessionCreated?.(id)
-    },
-    createSession
-  )
 
   useEffect(() => {
     if (models.length === 0 || !modelStorageReady) return
@@ -1146,6 +1219,8 @@ export default function Chat({
   const { guardrailMessageID, reverted, rows } = useMemo(
     () =>
       projectTimeline({
+        background: background.data,
+        classifyBackground: !coding,
         isBusy,
         isRetrying: sessionStatus?.type === "retry",
         messages,
@@ -1153,7 +1228,16 @@ export default function Chat({
         revertMessageID: session?.revert?.messageID,
         textByPart,
       }),
-    [isBusy, messages, partsByMessage, session?.revert?.messageID, sessionStatus?.type, textByPart]
+    [
+      background.data,
+      coding,
+      isBusy,
+      messages,
+      partsByMessage,
+      session?.revert?.messageID,
+      sessionStatus?.type,
+      textByPart,
+    ]
   )
   // The first loaded rejection may itself include an older blocked prompt.
   // Find its preceding turn so automatic recovery removes the original cause.
@@ -1893,7 +1977,12 @@ export default function Chat({
               )}
             >
               <Select
-                disabled={hasSession || sendState === "submitted" || agentNames.length < 2}
+                disabled={
+                  hasSession ||
+                  creationStarted ||
+                  sendState === "submitted" ||
+                  agentNames.length < 2
+                }
                 onValueChange={(name) => {
                   onAgentChange(name)
                   const previous =
@@ -1924,6 +2013,97 @@ export default function Chat({
                   </SelectGroup>
                 </SelectContent>
               </Select>
+              {!coding && !hasSession ? (
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={longRunning}
+                  aria-label="Long-running"
+                  disabled={creationStarted || sendState === "submitted"}
+                  title="Automatic follow-ups in an owner-only conversation. Agent files and memory remain shared."
+                  onClick={() => setLongRunning((value) => !value)}
+                  className={cn(
+                    "ml-auto inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs transition-colors disabled:opacity-50",
+                    longRunning
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                  )}
+                >
+                  <InfinityIcon className="size-3.5" />
+                  Long-running
+                  <span
+                    className={cn(
+                      "size-1.5 rounded-full",
+                      longRunning ? "bg-primary" : "bg-muted-foreground/30"
+                    )}
+                  />
+                </button>
+              ) : null}
+              {!coding && (proactivity.data?.long_running || (hasSession && longRunning)) ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="Long-running conversation settings"
+                      className="ml-auto inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs text-primary transition-colors hover:bg-primary/10"
+                    >
+                      <InfinityIcon className="size-3.5" />
+                      Long-running
+                      <span className="text-muted-foreground">
+                        {proactivity.data?.paused
+                          ? "Paused"
+                          : `${(proactivity.data?.interval_seconds ?? 1800) / 60}m`}
+                      </span>
+                      <ChevronDownIcon className="size-3" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" side="top" className="w-64">
+                    <DropdownMenuLabel>Automatic checks</DropdownMenuLabel>
+                    <p className="px-2 pb-2 text-xs leading-relaxed text-muted-foreground">
+                      Continues work you authorized and offers new work for you to accept.
+                    </p>
+                    <DropdownMenuCheckboxItem
+                      checked={!proactivity.data?.paused}
+                      disabled={changeProactivity.isPending || !proactivity.data}
+                      onCheckedChange={(enabled) =>
+                        changeProactivity.mutate({
+                          paused: !enabled,
+                          interval_seconds: proactivity.data?.interval_seconds ?? 1800,
+                        })
+                      }
+                    >
+                      Automatic checks on
+                    </DropdownMenuCheckboxItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                      Check interval
+                    </DropdownMenuLabel>
+                    {[300, 900, 1800, 3600, 21600].map((seconds) => (
+                      <DropdownMenuItem
+                        key={seconds}
+                        disabled={changeProactivity.isPending || !proactivity.data}
+                        onSelect={() =>
+                          changeProactivity.mutate({
+                            paused: proactivity.data?.paused ?? false,
+                            interval_seconds: seconds,
+                          })
+                        }
+                      >
+                        {seconds < 3600
+                          ? `Every ${seconds / 60} minutes`
+                          : `Every ${seconds / 3600} ${seconds === 3600 ? "hour" : "hours"}`}
+                        {proactivity.data?.interval_seconds === seconds ? (
+                          <CheckIcon className="ml-auto size-3.5" />
+                        ) : null}
+                      </DropdownMenuItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                    <p className="px-2 py-1 text-xs leading-relaxed text-muted-foreground">
+                      Workflow schedules have their own timing and pause controls.
+                    </p>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : null}
               {composerContext?.(inputDisabled || hasSession || sendState === "submitted")}
             </div>
           </div>
@@ -2255,6 +2435,12 @@ function TimelineRowView({
             ) : null
           }
         >
+          {row.origin ? (
+            <div className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <InfinityIcon className="size-3.5" />
+              {row.origin === "proactive" ? "Automatic check" : "Workflow update"}
+            </div>
+          ) : null}
           {groups.map((group, groupIndex) => {
             const spacing = groupIndex === lastGroupIndex ? undefined : "pb-2"
 

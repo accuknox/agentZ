@@ -261,8 +261,11 @@ func TestLongRunningStorage(t *testing.T) {
 	check(err)
 	must(len(rows) == 1, "resumed root admits one future check")
 	_, err = q.GatewayCompleteBackgroundInput(ctx, db.GatewayCompleteBackgroundInputParams{
-		ID:      rows[0].ID,
-		Outcome: db.NullChatBackgroundOutcome{ChatBackgroundOutcome: db.ChatBackgroundOutcomeQuiet, Valid: true},
+		ID: rows[0].ID,
+		Outcome: db.NullChatBackgroundOutcome{
+			ChatBackgroundOutcome: db.ChatBackgroundOutcomeQuiet,
+			Valid:                 true,
+		},
 	})
 	check(err)
 	root, err = q.GatewayGetChatSession(ctx, db.GatewayGetChatSessionParams{
@@ -272,6 +275,90 @@ func TestLongRunningStorage(t *testing.T) {
 	})
 	check(err)
 	must(root.NextCheckAt.Time.After(time.Now().Add(59*time.Second)), "completion schedules fixed delay")
+
+	reportRequest := db.GatewayPrepareWorkflowReportParams{
+		RunUid:         "run-test",
+		Namespace:      "lr-general",
+		RunName:        "release",
+		WorkspaceID:    "lr-general",
+		AgentName:      "agent",
+		SessionID:      "ses_lr_test",
+		OwnerID:        "lr-a",
+		Generation:     root.Generation,
+		RequestedPhase: "Succeeded",
+		StatusMessage:  "Done",
+		Result:         []byte(`{"kind":"update","text":"Release passed"}`),
+		PayloadHash:    "first-result",
+	}
+	report, err := q.GatewayPrepareWorkflowReport(ctx, reportRequest)
+	check(err)
+	retryReport, err := q.GatewayPrepareWorkflowReport(ctx, reportRequest)
+	check(err)
+	must(report.RunUid == retryReport.RunUid, "exact report retry retains one receipt")
+	reportRequest.PayloadHash = "different-result"
+	_, err = q.GatewayPrepareWorkflowReport(ctx, reportRequest)
+	must(err == pgx.ErrNoRows, "conflicting report cannot replace prepared content")
+	var deliveredIDs []uuid.UUID
+	var reportMu sync.Mutex
+	reportErrors := make(chan error, 12)
+	for range 12 {
+		wg.Go(func() {
+			ready, err := q.GatewayActivateWorkflowReport(ctx, db.GatewayActivateWorkflowReportParams{
+				RunUid:  report.RunUid,
+				Content: []byte(`{"text":"Release passed","attachments":[]}`),
+			})
+			if err != nil {
+				reportErrors <- err
+				return
+			}
+			reportMu.Lock()
+			deliveredIDs = append(deliveredIDs, ready.ChatInputID.Bytes)
+			reportMu.Unlock()
+		})
+	}
+	wg.Wait()
+	close(reportErrors)
+	for err := range reportErrors {
+		check(err)
+	}
+	must(len(deliveredIDs) == 12, "all replicas reconcile the same report")
+	for _, id := range deliveredIDs {
+		must(id == deliveredIDs[0], "report activation creates one context input")
+	}
+
+	check(q.GatewayRecoverChatInputs(ctx, db.GatewayRecoverChatInputsParams{WorkspaceID: "lr-general", AgentName: "agent", SessionID: "ses_lr_test"}))
+	workflowInput, err := q.GatewayGetChatInput(ctx, db.GatewayGetChatInputParams{ID: deliveredIDs[0], WorkspaceID: "lr-general", AgentName: "agent", SessionID: "ses_lr_test"})
+	check(err)
+	must(workflowInput.State == "queued", "Stop leaves explicit workflow delivery queued")
+	_, err = q.GatewayFailBackgroundInput(ctx, db.GatewayFailBackgroundInputParams{ID: workflowInput.ID, Error: "Permanent admission failure"})
+	check(err)
+	reportRequest.RunUid = "run-after-failure"
+	reportRequest.PayloadHash = "next-result"
+	_, err = q.GatewayPrepareWorkflowReport(ctx, reportRequest)
+	check(err)
+	nextReport, err := q.GatewayActivateWorkflowReport(ctx, db.GatewayActivateWorkflowReportParams{RunUid: reportRequest.RunUid, Content: []byte(`{"text":"Next release update","attachments":[]}`)})
+	check(err)
+	head, err = q.GatewayHeadChatInput(ctx, db.GatewayHeadChatInputParams{WorkspaceID: "lr-general", AgentName: "agent", SessionID: "ses_lr_test"})
+	check(err)
+	must(head.ID == nextReport.ChatInputID.Bytes, "completed background failures cannot block later context")
+	heads, err = q.GatewayPendingChatInputs(ctx)
+	check(err)
+	must(len(heads) == 1 && heads[0].ID == nextReport.ChatInputID.Bytes, "worker excludes completed background inputs")
+	listener, err := pgx.ConnectConfig(ctx, config.ConnConfig)
+	check(err)
+	defer listener.Close(ctx)
+	_, err = listener.Exec(ctx, "LISTEN agentz_chat_sessions")
+	check(err)
+	check(q.GatewayNotifyChatInputs(ctx, db.GatewayNotifyChatInputsParams{
+		WorkspaceID: "lr-general",
+		AgentName:   "agent",
+		SessionID:   pgtype.Text{String: "ses_lr_test", Valid: true},
+	}))
+	notificationCtx, cancelNotification := context.WithTimeout(ctx, time.Second)
+	notification, err := listener.WaitForNotification(notificationCtx)
+	cancelNotification()
+	check(err)
+	must(notification.Payload == "lr-general/lr-a", "private queue invalidation is owner-scoped")
 	deleted, err := q.GatewayDeletePrivateChat(ctx, db.GatewayDeletePrivateChatParams{
 		WorkspaceID: "lr-general",
 		AgentName:   "agent",
@@ -287,4 +374,18 @@ func TestLongRunningStorage(t *testing.T) {
 		IntervalSeconds: pgtype.Int4{Int32: 60, Valid: true},
 	})
 	must(err == pgx.ErrNoRows, "stale settings cannot restore deleted root")
+	check(q.GatewayFinishPrivateChatCleanup(ctx, db.GatewayFinishPrivateChatCleanupParams{
+		WorkspaceID: "lr-general",
+		AgentName:   "agent",
+		SessionID:   "ses_lr_test",
+	}))
+	repair, err := q.GatewayPrivateChatRoots(ctx, "")
+	check(err)
+	must(len(repair) == 0, "completed cleanup retains its tombstone without repeated native disposal")
+	_, err = q.GatewayGetChatSession(ctx, db.GatewayGetChatSessionParams{
+		WorkspaceID: "lr-general",
+		AgentName:   "agent",
+		SessionID:   "ses_lr_test",
+	})
+	check(err)
 }

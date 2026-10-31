@@ -123,6 +123,32 @@ export const zChatSessionParticipant = z.object({
   image: z.string().nullable(),
 })
 
+export const zChatProactivityUpdate = z.object({
+  paused: z.boolean(),
+  interval_seconds: z.int().gte(60).lte(604800),
+})
+
+export const zChatProactivity = z.object({
+  long_running: z.boolean(),
+  paused: z.boolean(),
+  interval_seconds: z
+    .int()
+    .min(-2147483648, { error: "Invalid value: Expected int32 to be >= -2147483648" })
+    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
+  next_check_at: z.iso.datetime({ offset: true }).optional(),
+})
+
+export const zChatBackground = z.object({
+  message_id: z.string(),
+  part_id: z.string(),
+  origin: z.enum(["proactive", "workflow_result"]),
+  completed: z.boolean(),
+  outcome: z.enum(["quiet", "update", "failed", "canceled"]).optional(),
+  error: z.string(),
+})
+
+export const zChatBackgroundList = z.array(zChatBackground)
+
 export const zChatAttachment = z.object({
   id: z.string().min(1),
   filename: z.string().min(1),
@@ -659,6 +685,7 @@ export const zAgentName = z
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
 
 export const zChatSession = z.object({
+  long_running: z.boolean().optional(),
   project_id: z.string().optional(),
   agent_name: zAgentName,
   session_id: z.string(),
@@ -921,11 +948,6 @@ export const zWorkflowRunNodePatchPhase = z.enum(["Running", "Succeeded", "Faile
 
 export const zWorkflowRunStatus = z.enum(["Pending", "Running", "Succeeded", "Failed", "Unacked"])
 
-export const zPatchWorkflowRunStatusRequest = z.object({
-  phase: zWorkflowRunTerminalPhase,
-  message: z.string().max(4096).optional(),
-})
-
 export const zPatchWorkflowRunNodeStatusRequest = z.object({
   phase: zWorkflowRunNodePatchPhase,
   message: z.string().max(4096).optional(),
@@ -1171,6 +1193,22 @@ export const zAgentTools = z.object({
   applied: z.boolean(),
   status: zAgentStatus,
   message: z.string(),
+})
+
+export const zWorkflowDelivery = z.object({
+  session_id: z.string().min(1),
+})
+
+export const zWorkflowResult = z.object({
+  kind: z.enum(["update", "no_change"]),
+  text: z.string().max(32768).optional(),
+  artifacts: z.array(zChatAttachment).max(3).optional(),
+})
+
+export const zPatchWorkflowRunStatusRequest = z.object({
+  result: zWorkflowResult.optional(),
+  phase: zWorkflowRunTerminalPhase,
+  message: z.string().max(4096).optional(),
 })
 
 /**
@@ -1744,6 +1782,7 @@ export const zError = z.object({
 })
 
 export const zWorkflowSchedule = z.object({
+  delivery: zWorkflowDelivery.optional(),
   name: zWorkflowScheduleName,
   agent_name: zAgentName,
   workflow_name: zWorkflowName,
@@ -1800,6 +1839,8 @@ export const zWorkflowRunDetail = z.object({
 })
 
 export const zCreateWorkflowScheduleRequest = z.object({
+  context_session_id: z.string().optional(),
+  delivery: zWorkflowDelivery.optional(),
   name: zWorkflowScheduleName,
   schedule: z.string().min(1),
   time_zone: z.string().optional(),
@@ -1811,6 +1852,7 @@ export const zCreateWorkflowScheduleRequest = z.object({
 })
 
 export const zUpdateWorkflowScheduleRequest = z.object({
+  delivery: zWorkflowDelivery.optional(),
   schedule: z.string().min(1),
   time_zone: z.string().optional(),
   inputs: zJsonValue.optional(),
@@ -3475,6 +3517,19 @@ export const zMessageOutputLengthError = z.object({
   data: z.record(z.string(), z.unknown()),
 })
 
+export const zModelRef = z.object({
+  id: z.string(),
+  providerID: z.string(),
+  variant: z.string().optional(),
+})
+
+export const zLongRunningChatRequest = z.object({
+  id: z.uuid(),
+  agent_name: zAgentName,
+  agent: z.string().optional(),
+  model: zModelRef.optional(),
+})
+
 export const zOutputFormatJsonSchema = z.object({
   type: z.enum(["json_schema"]),
   schema: zJsonSchema,
@@ -4481,6 +4536,26 @@ export const zWatchCodingResponse = zWatchChatSessionsEvent
 export const zListChatSessionsResponse2 = zListChatSessionsResponse
 
 /**
+ * Canonical native session, including on exact retries.
+ */
+export const zCreateLongRunningChatResponse = zSession
+
+/**
+ * Authorized conversation state.
+ */
+export const zGetChatProactivityResponse = zChatProactivity
+
+/**
+ * Authorized conversation state.
+ */
+export const zUpdateChatProactivityResponse = zChatProactivity
+
+/**
+ * Authorized conversation state.
+ */
+export const zListChatBackgroundResponse = zChatBackgroundList
+
+/**
  * Stream of chat inbox invalidations.
  */
 export const zWatchChatSessionsResponse = zWatchChatSessionsEvent
@@ -5099,6 +5174,11 @@ export const zDeleteWorkflowRunResponse = z.void()
  * Workflow run details.
  */
 export const zGetWorkflowRunResponse = zWorkflowRunDetail
+
+/**
+ * The delivery binding or completion receipt is reconciled.
+ */
+export const zReconcileWorkflowReportResponse = z.void()
 
 /**
  * WorkflowRun status updated.

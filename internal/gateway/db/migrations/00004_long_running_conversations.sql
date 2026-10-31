@@ -7,6 +7,7 @@ ALTER TABLE chat_sessions
   ADD COLUMN proactive_paused BOOLEAN NOT NULL DEFAULT false,
   ADD COLUMN next_check_at TIMESTAMPTZ,
   ADD COLUMN deleting BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN cleanup_completed_at TIMESTAMPTZ,
   ADD COLUMN generation BIGINT NOT NULL DEFAULT 0,
   ADD CONSTRAINT chat_sessions_private_binding_ck CHECK (
     (owner_id IS NULL) = (private_root_session_id IS NULL)
@@ -102,4 +103,4 @@ ALTER TABLE chat_sessions
   DROP CONSTRAINT chat_sessions_private_binding_ck,
   DROP COLUMN long_running, DROP COLUMN owner_id, DROP COLUMN private_root_session_id,
   DROP COLUMN proactive_interval_seconds, DROP COLUMN proactive_paused,
-  DROP COLUMN next_check_at, DROP COLUMN deleting, DROP COLUMN generation;
+  DROP COLUMN next_check_at, DROP COLUMN cleanup_completed_at, DROP COLUMN deleting, DROP COLUMN generation;

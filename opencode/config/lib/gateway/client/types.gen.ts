@@ -313,7 +313,38 @@ export type ChatSessionParticipant = {
   image: string | null
 }
 
+export type LongRunningChatRequest = {
+  id: string
+  agent_name: AgentName
+  agent?: string
+  model?: ModelRef
+}
+
+export type ChatProactivityUpdate = {
+  paused: boolean
+  interval_seconds: number
+}
+
+export type ChatProactivity = {
+  long_running: boolean
+  paused: boolean
+  interval_seconds: number
+  next_check_at?: string
+}
+
+export type ChatBackgroundList = Array<ChatBackground>
+
+export type ChatBackground = {
+  message_id: string
+  part_id: string
+  origin: "proactive" | "workflow_result"
+  completed: boolean
+  outcome?: "quiet" | "update" | "failed" | "canceled"
+  error: string
+}
+
 export type ChatSession = {
+  long_running?: boolean
   project_id?: string
   agent_name: AgentName
   session_id: string
@@ -801,6 +832,7 @@ export type WorkflowRunNodePatchPhase = "Running" | "Succeeded" | "Failed"
 export type WorkflowRunStatus = "Pending" | "Running" | "Succeeded" | "Failed" | "Unacked"
 
 export type PatchWorkflowRunStatusRequest = {
+  result?: WorkflowResult
   phase: WorkflowRunTerminalPhase
   message?: string
 }
@@ -1115,7 +1147,18 @@ export type Workflow = {
   updated_at: string
 }
 
+export type WorkflowDelivery = {
+  session_id: string
+}
+
+export type WorkflowResult = {
+  kind: "update" | "no_change"
+  text?: string
+  artifacts?: Array<ChatAttachment>
+}
+
 export type WorkflowSchedule = {
+  delivery?: WorkflowDelivery
   name: WorkflowScheduleName
   agent_name: AgentName
   workflow_name: WorkflowName
@@ -1303,6 +1346,11 @@ export type WorkflowWebhookTrigger = {
 }
 
 export type CreateWorkflowScheduleRequest = {
+  /**
+   * Authenticated agent tool context used to bind a long-running root.
+   */
+  context_session_id?: string
+  delivery?: WorkflowDelivery
   name: WorkflowScheduleName
   schedule: string
   time_zone?: string
@@ -1314,6 +1362,7 @@ export type CreateWorkflowScheduleRequest = {
 }
 
 export type UpdateWorkflowScheduleRequest = {
+  delivery?: WorkflowDelivery
   schedule: string
   time_zone?: string
   inputs?: JsonValue
@@ -3188,6 +3237,12 @@ export type MessageOutputLengthError = {
   }
 }
 
+export type ModelRef = {
+  id: string
+  providerID: string
+  variant?: string
+}
+
 export type OutputFormat = OutputFormatText | OutputFormatJsonSchema
 
 export type OutputFormatJsonSchema = {
@@ -4965,6 +5020,173 @@ export type ListChatSessionsResponses = {
 }
 
 export type ListChatSessionsResponse2 = ListChatSessionsResponses[keyof ListChatSessionsResponses]
+
+export type CreateLongRunningChatData = {
+  body: LongRunningChatRequest
+  path?: never
+  query?: never
+  url: "/api/chat-session"
+}
+
+export type CreateLongRunningChatErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type CreateLongRunningChatError =
+  CreateLongRunningChatErrors[keyof CreateLongRunningChatErrors]
+
+export type CreateLongRunningChatResponses = {
+  /**
+   * Canonical native session, including on exact retries.
+   */
+  200: Session
+}
+
+export type CreateLongRunningChatResponse =
+  CreateLongRunningChatResponses[keyof CreateLongRunningChatResponses]
+
+export type GetChatProactivityData = {
+  body?: never
+  path: {
+    agentName: string
+    sessionId: string
+  }
+  query?: never
+  url: "/api/chat-session/{agentName}/{sessionId}/proactivity"
+}
+
+export type GetChatProactivityErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetChatProactivityError = GetChatProactivityErrors[keyof GetChatProactivityErrors]
+
+export type GetChatProactivityResponses = {
+  /**
+   * Authorized conversation state.
+   */
+  200: ChatProactivity
+}
+
+export type GetChatProactivityResponse =
+  GetChatProactivityResponses[keyof GetChatProactivityResponses]
+
+export type UpdateChatProactivityData = {
+  body: ChatProactivityUpdate
+  path: {
+    agentName: string
+    sessionId: string
+  }
+  query?: never
+  url: "/api/chat-session/{agentName}/{sessionId}/proactivity"
+}
+
+export type UpdateChatProactivityErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type UpdateChatProactivityError =
+  UpdateChatProactivityErrors[keyof UpdateChatProactivityErrors]
+
+export type UpdateChatProactivityResponses = {
+  /**
+   * Authorized conversation state.
+   */
+  200: ChatProactivity
+}
+
+export type UpdateChatProactivityResponse =
+  UpdateChatProactivityResponses[keyof UpdateChatProactivityResponses]
+
+export type ListChatBackgroundData = {
+  body?: never
+  path: {
+    agentName: string
+    sessionId: string
+  }
+  query?: never
+  url: "/api/chat-session/{agentName}/{sessionId}/background"
+}
+
+export type ListChatBackgroundErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListChatBackgroundError = ListChatBackgroundErrors[keyof ListChatBackgroundErrors]
+
+export type ListChatBackgroundResponses = {
+  /**
+   * Authorized conversation state.
+   */
+  200: ChatBackgroundList
+}
+
+export type ListChatBackgroundResponse =
+  ListChatBackgroundResponses[keyof ListChatBackgroundResponses]
 
 export type WatchChatSessionsData = {
   body?: never
@@ -11195,6 +11417,51 @@ export type GetWorkflowRunResponses = {
 }
 
 export type GetWorkflowRunResponse = GetWorkflowRunResponses[keyof GetWorkflowRunResponses]
+
+export type ReconcileWorkflowReportData = {
+  body?: never
+  path: {
+    agentName: string
+    workflowName: string
+    runName: string
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/run/{runName}/report/reconcile"
+}
+
+export type ReconcileWorkflowReportErrors = {
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ReconcileWorkflowReportError =
+  ReconcileWorkflowReportErrors[keyof ReconcileWorkflowReportErrors]
+
+export type ReconcileWorkflowReportResponses = {
+  /**
+   * The delivery binding or completion receipt is reconciled.
+   */
+  204: void
+}
+
+export type ReconcileWorkflowReportResponse =
+  ReconcileWorkflowReportResponses[keyof ReconcileWorkflowReportResponses]
 
 export type PatchWorkflowRunStatusData = {
   body: PatchWorkflowRunStatusRequest

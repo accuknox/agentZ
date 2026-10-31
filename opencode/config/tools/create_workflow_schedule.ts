@@ -103,6 +103,7 @@ export default tool({
     }
 
     const bodyInput = {
+      context_session_id: context.sessionID,
       name: args.name,
       schedule: args.schedule.trim(),
       inputs: resolved.value,

@@ -2,6 +2,8 @@
 
 import { LoadingButton } from "@/components/interior/loading-button"
 import * as React from "react"
+import Link from "next/link"
+import { useParams } from "next/navigation"
 import { toast } from "sonner"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm, useWatch, type Control, type Resolver } from "react-hook-form"
@@ -149,6 +151,7 @@ type ScheduleSheetUpdateProps = {
 type ScheduleSheetProps = ScheduleSheetCreateProps | ScheduleSheetUpdateProps
 
 export function ScheduleSheet(props: ScheduleSheetProps) {
+  const { orgSlug, workspaceSlug } = useParams<{ orgSlug: string; workspaceSlug: string }>()
   const { agentName, getWorkflowInputContractAction, mode, onOpenChangeAction, open, workflows } =
     props
   const scheduleItem = mode === "update" ? props.scheduleItem : null
@@ -412,6 +415,20 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
         </SheetHeader>
         <form action={submitAction} className="flex flex-1 flex-col gap-4 px-4 pb-4" noValidate>
           <FieldGroup>
+            {scheduleItem?.delivery ? (
+              <Field>
+                <FieldLabel>Report destination</FieldLabel>
+                <Link
+                  className="text-sm text-primary underline underline-offset-4"
+                  href={`/orgs/${orgSlug}/workspaces/${workspaceSlug}/agents/${agentName}/sessions/${scheduleItem.delivery.session_id}`}
+                >
+                  Open linked conversation
+                </Link>
+                <FieldDescription>
+                  This schedule keeps its own timing when automatic conversation checks are paused.
+                </FieldDescription>
+              </Field>
+            ) : null}
             <Controller
               name="name"
               control={form.control}

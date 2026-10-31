@@ -39,6 +39,7 @@ CREATE TABLE chat_sessions (
   proactive_paused BOOLEAN NOT NULL DEFAULT false,
   next_check_at TIMESTAMPTZ,
   deleting BOOLEAN NOT NULL DEFAULT false,
+  cleanup_completed_at TIMESTAMPTZ,
   generation BIGINT NOT NULL DEFAULT 0,
   CONSTRAINT chat_sessions_private_binding_ck CHECK (
     (owner_id IS NULL) = (private_root_session_id IS NULL)

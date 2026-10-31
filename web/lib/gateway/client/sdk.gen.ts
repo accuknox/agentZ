@@ -44,6 +44,9 @@ import type {
   CreateInferenceProviderOAuthTicketErrors,
   CreateInferenceProviderOAuthTicketResponses,
   CreateInferenceProviderResponses,
+  CreateLongRunningChatData,
+  CreateLongRunningChatErrors,
+  CreateLongRunningChatResponses,
   CreateMcpConnectionData,
   CreateMcpConnectionErrors,
   CreateMcpConnectionResponses,
@@ -155,6 +158,9 @@ import type {
   GetAppTraceChartData,
   GetAppTraceChartErrors,
   GetAppTraceChartResponses,
+  GetChatProactivityData,
+  GetChatProactivityErrors,
+  GetChatProactivityResponses,
   GetChatSessionPreferenceData,
   GetChatSessionPreferenceErrors,
   GetChatSessionPreferenceResponses,
@@ -278,6 +284,9 @@ import type {
   ListAppTracesData,
   ListAppTracesErrors,
   ListAppTracesResponses,
+  ListChatBackgroundData,
+  ListChatBackgroundErrors,
+  ListChatBackgroundResponses,
   ListChatInputsData,
   ListChatInputsErrors,
   ListChatInputsResponses,
@@ -428,6 +437,9 @@ import type {
   ReadAgentFileRawErrors,
   ReadAgentFileRawResponses,
   ReadAgentFileResponses,
+  ReconcileWorkflowReportData,
+  ReconcileWorkflowReportErrors,
+  ReconcileWorkflowReportResponses,
   RefreshCodingRepositoryData,
   RefreshCodingRepositoryErrors,
   RefreshCodingRepositoryResponses,
@@ -476,6 +488,9 @@ import type {
   UpdateChatInputData,
   UpdateChatInputErrors,
   UpdateChatInputResponses,
+  UpdateChatProactivityData,
+  UpdateChatProactivityErrors,
+  UpdateChatProactivityResponses,
   UpdateChatSessionPreferenceData,
   UpdateChatSessionPreferenceErrors,
   UpdateChatSessionPreferenceResponses,
@@ -957,6 +972,78 @@ export const listChatSessions = <ThrowOnError extends boolean = false>(
   (options?.client ?? client).get<ListChatSessionsResponses, ListChatSessionsErrors, ThrowOnError>({
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/chat-session",
+    ...options,
+  })
+
+/**
+ * Create an owner-only long-running conversation in a General workspace.
+ */
+export const createLongRunningChat = <ThrowOnError extends boolean = false>(
+  options: Options<CreateLongRunningChatData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    CreateLongRunningChatResponses,
+    CreateLongRunningChatErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/chat-session",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Manage owner-authorized conversation background activity.
+ */
+export const getChatProactivity = <ThrowOnError extends boolean = false>(
+  options: Options<GetChatProactivityData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    GetChatProactivityResponses,
+    GetChatProactivityErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/chat-session/{agentName}/{sessionId}/proactivity",
+    ...options,
+  })
+
+/**
+ * Manage owner-authorized conversation background activity.
+ */
+export const updateChatProactivity = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateChatProactivityData, ThrowOnError>
+) =>
+  (options.client ?? client).patch<
+    UpdateChatProactivityResponses,
+    UpdateChatProactivityErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/chat-session/{agentName}/{sessionId}/proactivity",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Manage owner-authorized conversation background activity.
+ */
+export const listChatBackground = <ThrowOnError extends boolean = false>(
+  options: Options<ListChatBackgroundData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListChatBackgroundResponses,
+    ListChatBackgroundErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/chat-session/{agentName}/{sessionId}/background",
     ...options,
   })
 
@@ -3050,6 +3137,22 @@ export const getWorkflowRun = <ThrowOnError extends boolean = false>(
   (options.client ?? client).get<GetWorkflowRunResponses, GetWorkflowRunErrors, ThrowOnError>({
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/workflow/{agentName}/{workflowName}/run/{runName}",
+    ...options,
+  })
+
+/**
+ * Reconcile a bound run's durable completion receipt.
+ */
+export const reconcileWorkflowReport = <ThrowOnError extends boolean = false>(
+  options: Options<ReconcileWorkflowReportData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    ReconcileWorkflowReportResponses,
+    ReconcileWorkflowReportErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workflow/{agentName}/{workflowName}/run/{runName}/report/reconcile",
     ...options,
   })
 

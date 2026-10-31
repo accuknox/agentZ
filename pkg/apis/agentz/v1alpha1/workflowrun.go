@@ -23,6 +23,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// WorkflowRunSessionFinalizer retains execution history until its completion receipt is durable.
+const WorkflowRunSessionFinalizer = "agentz.accuknox.com/workflowrun-session"
+
 const (
 	// WorkflowRunPhaseUnknown is the zero value for WorkflowRun phase.
 	WorkflowRunPhaseUnknown WorkflowRunPhase = ""
@@ -110,8 +113,23 @@ type WorkflowRunModel struct {
 	Variant string `json:"variant,omitempty"`
 }
 
+// WorkflowDelivery binds scheduled execution to one owner's conversation generation.
+// The gateway resolves this authority; clients cannot choose an owner.
+type WorkflowDelivery struct {
+	// SessionID is the long-running destination root.
+	SessionID string `json:"sessionID"`
+	// OwnerID is the authorizing human, revalidated before execution and delivery.
+	OwnerID string `json:"ownerID"`
+	// Generation prevents delivery after conversation deletion.
+	Generation int64 `json:"generation"`
+}
+
 // WorkflowRunSpec defines the desired state of WorkflowRun.
 type WorkflowRunSpec struct {
+	// Delivery keeps this run bound to its original conversation.
+	// +optional
+	Delivery *WorkflowDelivery `json:"delivery,omitempty"`
+
 	// Model overrides the model for this execution only.
 	// +optional
 	Model *WorkflowRunModel `json:"model,omitempty"`

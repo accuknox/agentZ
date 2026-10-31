@@ -8,7 +8,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/accuknox/agentz/internal/authorization"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
@@ -34,6 +36,11 @@ func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request,
 	agentName := strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 	runName = strings.TrimSpace(runName)
+	boundRun, bindingErr := s.conversationRun(r.Context(), ns, agentName, workflowName, runName)
+	if bindingErr != nil {
+		apiutil.WriteError(w, r, mapKubeHTTPError("get workflow run", bindingErr))
+		return
+	}
 
 	var message string
 	if req.Message != nil {
@@ -59,16 +66,43 @@ func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	err = workflow.PatchRunStatus(
-		r.Context(),
-		s.k8sClient,
-		ns,
-		agentName,
-		workflowName,
-		runName,
-		req,
-		message,
-	)
+	access, apiErr := s.resolveAgentAccess(r.Context(), agentName, authorization.OperationUseSharedAgent)
+	if apiErr != nil {
+		apiutil.WriteError(w, r, apiErr)
+		return
+	}
+	terminalReceipt := boundRun.Spec.Delivery != nil && boundRun.Status.Phase.Terminal()
+	if boundRun.Spec.Delivery != nil {
+		running := boundRun.Status.Phase == agentzv1alpha1.WorkflowRunPhaseRunning
+		if !running && !terminalReceipt {
+			apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "conflict", "Workflow run has not started", nil))
+			return
+		}
+		if terminalReceipt && string(boundRun.Status.Phase) != string(req.Phase) {
+			apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "conflict", "Workflow run already has a different terminal status", nil))
+			return
+		}
+	}
+	if err := s.prepareWorkflowReport(r.Context(), access, boundRun, req); err != nil {
+		if apiErr, ok := errors.AsType[*apiutil.APIError](err); ok {
+			apiutil.WriteError(w, r, apiErr)
+		} else {
+			apiutil.WriteInternalError(w, r, err)
+		}
+		return
+	}
+	if !terminalReceipt {
+		err = workflow.PatchRunStatus(
+			r.Context(),
+			s.k8sClient,
+			ns,
+			agentName,
+			workflowName,
+			runName,
+			req,
+			message,
+		)
+	}
 	if err != nil {
 		var phaseErr *workflow.RunPhaseConflictError
 		switch {
@@ -100,6 +134,16 @@ func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
+	if boundRun.Spec.Delivery != nil {
+		if err := s.k8sClient.Get(r.Context(), ctrlclient.ObjectKeyFromObject(boundRun), boundRun); err != nil {
+			apiutil.WriteInternalError(w, r, err)
+			return
+		}
+		if err := s.reconcileWorkflowReport(r.Context(), access, boundRun); err != nil {
+			apiutil.WriteInternalError(w, r, err)
+			return
+		}
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -119,6 +163,12 @@ func (s *Service) PatchWorkflowRunNodeStatus(w http.ResponseWriter, r *http.Requ
 	agentName := strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 	runName = strings.TrimSpace(runName)
+	_, bindingErr := s.conversationRun(r.Context(), ns, agentName, workflowName, runName)
+	if bindingErr != nil {
+		apiutil.WriteError(w, r, mapKubeHTTPError("get workflow run", bindingErr))
+		return
+	}
+
 	nodeName = strings.TrimSpace(nodeName)
 
 	var message string
@@ -421,6 +471,7 @@ func (s *Service) ListWorkflowWebhookTriggers(w http.ResponseWriter, r *http.Req
 
 // ListWorkflowRuns handles GET /api/workflow/{agentName}/{workflowName}/run.
 func (s *Service) ListWorkflowRuns(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName, params gatewayapi.ListWorkflowRunsParams) {
+	actor, _ := requestAuthState(r.Context())
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
@@ -469,6 +520,11 @@ func (s *Service) ListWorkflowRuns(w http.ResponseWriter, r *http.Request, agtNa
 		return
 	}
 
+	destinations, err := s.workflowDestinations(r.Context(), agentName)
+	if err != nil {
+		apiutil.WriteError(w, r, mapGatewayStoreError("list workflow destinations", err))
+		return
+	}
 	items, nextOffset, err := workflow.ListRuns(
 		r.Context(),
 		s.k8sClient,
@@ -478,6 +534,8 @@ func (s *Service) ListWorkflowRuns(w http.ResponseWriter, r *http.Request, agtNa
 		params,
 		limit,
 		offset,
+		actor.userID,
+		destinations,
 	)
 	if err != nil {
 		apiutil.WriteError(w, r, mapKubeHTTPError("list workflow runs", err))
@@ -495,6 +553,7 @@ func (s *Service) ListWorkflowRuns(w http.ResponseWriter, r *http.Request, agtNa
 //
 //nolint:gocyclo
 func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName) {
+	actor, _ := requestAuthState(r.Context())
 	ns, err := tenantNamespace(r.Context())
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
@@ -582,6 +641,10 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 	defer cancel()
 
 	writeChanges := func() bool {
+		destinations, err := s.workflowDestinations(r.Context(), agentName)
+		if err != nil {
+			return false
+		}
 		items := make([]gatewayapi.WorkflowRunDetail, 0, max(1, len(runFilter)))
 		if len(runFilter) == 0 {
 			listedItems, _, err := workflow.ListRuns(
@@ -593,6 +656,8 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 				gatewayapi.ListWorkflowRunsParams{},
 				200,
 				0,
+				actor.userID,
+				destinations,
 			)
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				return false
@@ -602,6 +667,10 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 				return false
 			}
 			for _, item := range listedItems {
+				if _, err := s.conversationRun(r.Context(), ns, agentName, workflowName, item.Name); err != nil {
+					return false
+				}
+
 				detail, err := workflow.GetRun(
 					r.Context(),
 					s.k8sClient,
@@ -625,6 +694,10 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 		}
 
 		for runName := range runFilter {
+			if _, err := s.conversationRun(r.Context(), ns, agentName, workflowName, runName); err != nil {
+				continue
+			}
+
 			detail, err := workflow.GetRun(
 				r.Context(),
 				s.k8sClient,
@@ -696,6 +769,18 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 					}
 				}
 
+				access, apiErr := s.resolveAgentAccess(r.Context(), agentName, authorization.OperationUseSharedAgent)
+				if apiErr != nil {
+					return
+				}
+				if evt.Run.Spec.Delivery != nil {
+					if evt.Run.Spec.Delivery.OwnerID != actor.userID {
+						continue
+					}
+					if err := s.authorizeWorkflowDelivery(r.Context(), access, agentName, evt.Run.Spec.Delivery); err != nil {
+						return
+					}
+				}
 				item, found := prev[evt.Run.Name]
 				delete(prev, evt.Run.Name)
 				delete(prevRaw, evt.Run.Name)
@@ -722,6 +807,11 @@ func (s *Service) GetWorkflowRun(w http.ResponseWriter, r *http.Request, agtName
 	agentName := strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 	runName = strings.TrimSpace(runName)
+	_, bindingErr := s.conversationRun(r.Context(), ns, agentName, workflowName, runName)
+	if bindingErr != nil {
+		apiutil.WriteError(w, r, mapKubeHTTPError("get workflow run", bindingErr))
+		return
+	}
 
 	fields := workflow.ValidateLookupRequest(agentName, workflowName)
 	fields = append(fields, workflow.ValidateRunName(runName)...)
@@ -783,6 +873,11 @@ func (s *Service) DeleteWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 	agentName := strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 	runName = strings.TrimSpace(runName)
+	_, bindingErr := s.conversationRun(r.Context(), ns, agentName, workflowName, runName)
+	if bindingErr != nil {
+		apiutil.WriteError(w, r, mapKubeHTTPError("get workflow run", bindingErr))
+		return
+	}
 
 	fields := workflow.ValidateLookupRequest(agentName, workflowName)
 	fields = append(fields, workflow.ValidateRunName(runName)...)

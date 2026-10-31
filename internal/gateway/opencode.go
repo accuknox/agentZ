@@ -59,6 +59,10 @@ type opencodeRoute struct {
 }
 
 type opencodeRouteMatch struct {
+	CatalogLimit  *int
+	CatalogCursor string
+	InputID       string
+
 	ID        string
 	Method    string
 	Path      string
@@ -123,12 +127,10 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		apiutil.WriteError(w, r, apiErr)
 		return
 	}
-	auth, authenticated := requestAuthState(r.Context())
-	stop := route.ID == "session.abort" || route.ID == "v2.session.interrupt"
-	if authenticated && auth.actorType != requestActorSystem && stop {
-		s.stopOpenCodeSession(w, r, route, agentName)
-		return
-	}
+	scopeAuth, _ := requestAuthState(r.Context())
+	scopeAuth.workspaceID = access.workspaceID
+	scopeAuth.tenantNamespace = access.namespace
+	r = r.WithContext(context.WithValue(r.Context(), authContextKey{}, scopeAuth))
 	switch r.Method {
 	case http.MethodPost, http.MethodPatch, http.MethodPut, http.MethodDelete:
 		if r.ContentLength > opencodeProxyBodyLimitBytes {
@@ -146,6 +148,32 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, opencodeProxyBodyLimitBytes)
 	}
+	if route.ID == "session.create" {
+		ctx, release, err := gatewayLocks(r.Context(), s.controlDB)
+		if err != nil {
+			apiutil.WriteInternalError(w, r, err)
+			return
+		}
+		if release != nil {
+			defer release()
+		}
+		r = r.WithContext(ctx)
+	}
+	privateRelease, privateErr := s.enforcePrivateChat(r, access, route, agentName)
+	if privateRelease != nil {
+		defer privateRelease()
+	}
+	if privateErr != nil {
+		apiutil.WriteError(w, r, mapGatewayStoreError("get conversation", privateErr))
+		return
+	}
+	auth, authenticated := requestAuthState(r.Context())
+	stop := route.ID == "session.abort" || route.ID == "v2.session.interrupt"
+	if authenticated && auth.actorType != requestActorSystem && stop {
+		s.stopOpenCodeSession(w, r, route, agentName)
+		return
+	}
+
 	query := r.URL.Query()
 	if query.Get("directory") == "" && r.Header.Get("X-Opencode-Directory") != "" {
 		directory, err := url.PathUnescape(r.Header.Get("X-Opencode-Directory"))
@@ -200,12 +228,51 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 	}
 	sessionID := route.Params["sessionID"]
 	if sessionID != "" && changesInput {
+		ctx, releaseLocks, err := gatewayLocks(r.Context(), s.controlDB)
+		if err != nil {
+			apiutil.WriteInternalError(w, r, err)
+			return
+		}
+		if releaseLocks != nil {
+			defer releaseLocks()
+		}
+		r = r.WithContext(ctx)
 		release, err := s.lockChatInputs(
 			r.Context(), access.workspaceID, agentName, sessionID, "",
 		)
 		if err != nil {
 			apiutil.WriteError(w, r, mapGatewayStoreError("submit input", err))
 			return
+		}
+		if _, _, guardErr := s.authorizeChat(r.Context(), access, agentName, sessionID); guardErr != nil {
+			release()
+			apiutil.WriteError(w, r, mapGatewayStoreError("get conversation", guardErr))
+			return
+		}
+		if route.ID == "session.delete" {
+			root, private, lookupErr := s.privateChatRoot(r.Context(), access, agentName, sessionID)
+			if lookupErr != nil {
+				release()
+				apiutil.WriteError(w, r, mapGatewayStoreError("delete conversation", lookupErr))
+				return
+			}
+			if private && root.SessionID == sessionID {
+				_, lookupErr = s.queries.GatewayDeletePrivateChat(r.Context(), gatewaydb.GatewayDeletePrivateChatParams{
+					WorkspaceID: access.workspaceID,
+					AgentName:   agentName,
+					SessionID:   sessionID,
+				})
+				if lookupErr != nil && !errors.Is(lookupErr, pgx.ErrNoRows) {
+					release()
+					apiutil.WriteInternalError(w, r, lookupErr)
+					return
+				}
+				s.notifyChatInput(r.Context(), gatewaydb.ChatInput{
+					WorkspaceID: access.workspaceID,
+					AgentName:   agentName,
+					SessionID:   sessionID,
+				})
+			}
 		}
 		switch {
 		case !input:
@@ -475,6 +542,19 @@ func (s *Service) streamOpenCodeEvents(w http.ResponseWriter, r *http.Request, r
 				"agent", agentName, "session", sessionID, "error", err)
 			return
 		}
+		eventSession, eventErr := openCodeEventSession(event)
+		if eventErr != nil {
+			continue
+		}
+		if eventSession != "" {
+			_, _, eventErr = s.authorizeChat(r.Context(), access, agentName, eventSession)
+			if errors.Is(eventErr, pgx.ErrNoRows) {
+				continue
+			}
+			if eventErr != nil {
+				return
+			}
+		}
 		data = []byte(frame.Data)
 		if route.ID == "global.event" && !nativeGlobal {
 			var envelope gatewayapi.OpencodeGlobalEvent
@@ -580,7 +660,7 @@ func attributeOpenCodePrompt(r *http.Request, route *opencodeRouteMatch, auth re
 	}
 	// API keys identify their creator to the agent and other participants.
 	// The request still retains the key actor for audit attribution.
-	if auth.userID != "" {
+	if auth.userID != "" && auth.actorType != requestActorSystem {
 		actor.Type = requestActorUser
 		actor.ID = auth.userID
 		actor.Name = auth.userName
@@ -603,16 +683,17 @@ func attributeOpenCodePrompt(r *http.Request, route *opencodeRouteMatch, auth re
 		if part.Metadata != nil {
 			metadata = *part.Metadata
 		}
-		if attached {
-			if _, exists := metadata[opencodeActorMetadataKey]; !exists {
-				continue
-			}
-			delete(metadata, opencodeActorMetadataKey)
+		delete(metadata, "agentz.dev/input-id")
+		if route.InputID != "" {
+			metadata["agentz.dev/input-id"] = route.InputID
 		}
-		if !attached {
+		if attached {
+			delete(metadata, opencodeActorMetadataKey)
+		} else {
 			metadata[opencodeActorMetadataKey] = actor
 			attached = true
 		}
+
 		part.Metadata = &metadata
 		if err := body.Parts[i].FromOpencodeTextPartInput(part); err != nil {
 			return fmt.Errorf("encode text prompt part: %w", err)
@@ -652,6 +733,9 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 		contentType := resp.Header.Get("Content-Type")
 		if contentType == "text/event-stream" || strings.HasPrefix(contentType, "text/event-stream;") {
 			return nil
+		}
+		if err := s.filterPrivateChatResponse(ctx, resp, route, workspaceID, agentName); err != nil {
+			return err
 		}
 		// Upstream may already have committed when the client disconnects.
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
@@ -904,7 +988,27 @@ func (s *Service) storeOpenCodeSessionStatusResponse(ctx context.Context, resp *
 	if err != nil {
 		return fmt.Errorf("sync chat session statuses: %w", err)
 	}
-	return nil
+	for session := range statuses {
+		auth, _ := requestAuthState(ctx)
+		namespace, err := tenantNamespace(ctx)
+		if err != nil {
+			return err
+		}
+		_, _, err = s.authorizeChat(ctx, resourceAccess{
+			workspaceID:    workspaceID,
+			organizationID: auth.organizationID,
+			namespace:      namespace,
+			userID:         auth.userID,
+		}, agentName, session)
+		if errors.Is(err, pgx.ErrNoRows) {
+			delete(statuses, session)
+			continue
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return replaceOpenCodeResponse(resp, statuses)
 }
 
 func (s *Service) refreshOpenCodeSession(ctx context.Context, target *url.URL, workspaceID, agentName, sessionID string) error {
@@ -966,6 +1070,18 @@ func (s *Service) storeOpenCodeSession(ctx context.Context, workspaceID, agentNa
 	if session.ParentID != nil {
 		parentID = pgtype.Text{String: *session.ParentID, Valid: true}
 	}
+	var root gatewaydb.ChatSession
+	private := false
+	if session.ParentID != nil {
+		namespace, err := tenantNamespace(ctx)
+		if err != nil {
+			return err
+		}
+		root, private, err = s.privateChatRoot(ctx, resourceAccess{workspaceID: workspaceID, namespace: namespace}, agentName, *session.ParentID)
+		if err != nil {
+			return err
+		}
+	}
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
 		return err
@@ -1006,16 +1122,22 @@ func (s *Service) storeOpenCodeSession(ctx context.Context, workspaceID, agentNa
 			}
 		}
 	}
+	var privateRoot pgtype.Text
+	if private {
+		privateRoot = pgtype.Text{String: root.SessionID, Valid: true}
+	}
 	err = q.GatewayUpsertChatSession(
 		ctx,
 		gatewaydb.GatewayUpsertChatSessionParams{
-			WorkspaceID:     workspaceID,
-			AgentName:       agentName,
-			SessionID:       session.Id,
-			ParentSessionID: parentID,
-			Title:           session.Title,
-			Kind:            kind,
-			Status:          gatewaydb.ChatSessionStatusIdle,
+			PrivateOwnerID:       root.OwnerID,
+			PrivateRootSessionID: privateRoot,
+			WorkspaceID:          workspaceID,
+			AgentName:            agentName,
+			SessionID:            session.Id,
+			ParentSessionID:      parentID,
+			Title:                session.Title,
+			Kind:                 kind,
+			Status:               gatewaydb.ChatSessionStatusIdle,
 			SourceCreatedAt: pgtype.Timestamptz{
 				Time:  time.UnixMilli(int64(session.Time.Created)),
 				Valid: true,
@@ -1046,7 +1168,7 @@ func replaceOpenCodeResponse(resp *http.Response, value any) error {
 }
 
 func decodeOpenCodeResponse[T any](resp *http.Response) (T, error) {
-	const responseLimit = 1024 * 1024
+	const responseLimit = opencodeProxyBodyLimitBytes
 
 	var value T
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, responseLimit+1))

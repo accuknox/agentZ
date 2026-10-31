@@ -521,6 +521,7 @@ func (s *Service) listChatSessionPage(ctx context.Context, q gatewaydb.GatewayLi
 			AgentName:    row.AgentName,
 			SessionId:    row.SessionID,
 			Title:        row.Title,
+			LongRunning:  &row.LongRunning,
 			Kind:         gatewayapi.ChatSessionKind(row.Kind),
 			Status:       gatewayapi.ChatSessionStatus(row.Status),
 			CreatedAt:    row.SourceCreatedAt.Time,
@@ -571,6 +572,7 @@ func (s *Service) searchChatSessionGroups(ctx context.Context, q gatewaydb.Gatew
 			AgentName:    row.AgentName,
 			SessionId:    row.SessionID,
 			Title:        row.Title,
+			LongRunning:  &row.LongRunning,
 			Kind:         gatewayapi.ChatSessionKind(row.Kind),
 			Status:       gatewayapi.ChatSessionStatus(row.Status),
 			CreatedAt:    row.SourceCreatedAt.Time,
@@ -750,11 +752,7 @@ func (s *Service) WatchChatSessions(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(http.StatusOK)
 
-	key := access.workspaceID
-	auth, _ := requestAuthState(r.Context())
-	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding {
-		key += "/" + access.claims.UserID
-	}
+	key := access.workspaceID + "/" + access.userID
 	events, cancel := s.chatSessionEvents.subscribe(key)
 	defer cancel()
 	heartbeat := time.NewTicker(15 * time.Second)
@@ -933,14 +931,20 @@ func (e *chatSessionEvents) subscribe(workspaceID string) (<-chan uint64, func()
 func (e *chatSessionEvents) publish(workspaceID string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	for ch, revision := range e.watchers[workspaceID] {
-		revision++
-		e.watchers[workspaceID][ch] = revision
-		select {
-		case ch <- revision:
-		default:
+	for key, watchers := range e.watchers {
+		if key != workspaceID && (strings.Contains(workspaceID, "/") || !strings.HasPrefix(key, workspaceID+"/")) {
+			continue
+		}
+		for ch, revision := range watchers {
+			revision++
+			watchers[ch] = revision
+			select {
+			case ch <- revision:
+			default:
+			}
 		}
 	}
+
 }
 
 func (s *Service) runChatSessionNotifications(ctx context.Context) {

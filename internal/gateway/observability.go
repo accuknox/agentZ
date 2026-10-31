@@ -44,6 +44,10 @@ func (s *Service) authorizeObservability(w http.ResponseWriter, r *http.Request,
 	if sessionID == nil {
 		return access.namespace, true
 	}
+	if _, _, err := s.authorizeChat(r.Context(), access, agentName, strings.TrimSpace(*sessionID)); err != nil {
+		apiutil.WriteError(w, r, mapGatewayStoreError("get conversation", err))
+		return "", false
+	}
 	workspace, err := s.queries.GatewayGetWorkspace(r.Context(), gatewaydb.GatewayGetWorkspaceParams{
 		ID:             access.workspaceID,
 		OrganizationID: access.organizationID,

@@ -218,6 +218,7 @@ func TestEvaluationParallelRuns(t *testing.T) {
 				listed, next, err := workflow.ListRuns(
 					ctx, k8s, "test", "agent", "workflow",
 					gatewayapi.ListWorkflowRunsParams{}, 1, 0,
+					"", nil,
 				)
 				if err != nil {
 					t.Fatal(err)
@@ -359,5 +360,67 @@ func TestEvaluationDeletion(t *testing.T) {
 	job.WorkflowName = "other-workflow"
 	if err := service.deleteEvaluation(t.Context(), job); err == nil {
 		t.Fatal("cleanup accepted runs belonging to another workflow")
+	}
+}
+
+// TestWorkflowListsFilterDeliveryBeforePagination excludes unavailable generations and foreign owners.
+func TestWorkflowListsFilterDeliveryBeforePagination(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := agentzv1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	k8s := fake.NewClientBuilder().WithScheme(scheme).Build()
+	bindings := map[string]*agentzv1alpha1.WorkflowDelivery{
+		"aaa-foreign": {SessionID: "root", OwnerID: "other", Generation: 7},
+		"aab-stale":   {SessionID: "root", OwnerID: "owner", Generation: 6},
+		"aac-deleted": {SessionID: "deleted", OwnerID: "owner", Generation: 7},
+		"current":     {SessionID: "root", OwnerID: "owner", Generation: 7},
+		"public":      nil,
+	}
+	for name, delivery := range bindings {
+		run := &agentzv1alpha1.WorkflowRun{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "workspace"},
+			Spec: agentzv1alpha1.WorkflowRunSpec{
+				AgentName:    "agent",
+				WorkflowName: "release",
+				Delivery:     delivery,
+			},
+		}
+		schedule := &agentzv1alpha1.WorkflowSchedule{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "workspace"},
+			Spec: agentzv1alpha1.WorkflowScheduleSpec{
+				AgentName:    "agent",
+				WorkflowName: "release",
+				Delivery:     delivery,
+			},
+		}
+		if err := k8s.Create(t.Context(), run); err != nil {
+			t.Fatal(err)
+		}
+		if err := k8s.Create(t.Context(), schedule); err != nil {
+			t.Fatal(err)
+		}
+	}
+	destinations := map[string]int64{"root": 7}
+	runs, next, err := workflow.ListRuns(t.Context(), k8s, "workspace", "agent", "release", gatewayapi.ListWorkflowRunsParams{}, 1, 0, "owner", destinations)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) != 1 || runs[0].Name != "current" || next != 1 {
+		t.Fatalf("first visible run page: %+v, next %d", runs, next)
+	}
+	runs, next, err = workflow.ListRuns(t.Context(), k8s, "workspace", "agent", "release", gatewayapi.ListWorkflowRunsParams{}, 1, next, "owner", destinations)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) != 1 || runs[0].Name != "public" || next != 0 {
+		t.Fatalf("last visible run page: %+v, next %d", runs, next)
+	}
+	schedules, next, err := workflow.ListSchedules(t.Context(), k8s, "workspace", "agent", "release", gatewayapi.WorkflowScheduleSortByQueryWorkflowScheduleSortName, gatewayapi.SortOrderQueryAsc, 1, 0, "owner", destinations)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(schedules) != 1 || schedules[0].Name != "current" || next != 1 {
+		t.Fatalf("first visible schedule page: %+v, next %d", schedules, next)
 	}
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import "@/lib/gateway/client-interceptors"
+import { authClient } from "@/lib/auth-client"
 import { getQueryClient } from "@/lib/utils"
 import { QueryClientProvider } from "@tanstack/react-query"
 import { ProgressProvider } from "@bprogress/next/app"
@@ -22,8 +23,12 @@ export default function Providers({
   children: ReactNode
   sidebarDefaultOpen: boolean
 }) {
+  const { data: session } = authClient.useSession()
   return (
-    <QueryClientProvider client={getQueryClient()}>
+    <QueryClientProvider
+      key={session?.user.id ?? "anonymous"}
+      client={getQueryClient(session?.user.id ?? "anonymous")}
+    >
       <ProgressProvider
         height="2px"
         color="var(--primary)"

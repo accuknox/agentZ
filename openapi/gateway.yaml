@@ -1521,6 +1521,40 @@ components:
       - path
       - size
       type: object
+    ChatBackground:
+      additionalProperties: false
+      properties:
+        completed:
+          type: boolean
+        error:
+          type: string
+        message_id:
+          type: string
+        origin:
+          enum:
+          - proactive
+          - workflow_result
+          type: string
+        outcome:
+          enum:
+          - quiet
+          - update
+          - failed
+          - canceled
+          type: string
+        part_id:
+          type: string
+      required:
+      - message_id
+      - part_id
+      - origin
+      - completed
+      - error
+      type: object
+    ChatBackgroundList:
+      items:
+        $ref: '#/components/schemas/ChatBackground'
+      type: array
     ChatInput:
       properties:
         author:
@@ -1645,6 +1679,38 @@ components:
       - items
       - stopping
       type: object
+    ChatProactivity:
+      additionalProperties: false
+      properties:
+        interval_seconds:
+          format: int32
+          type: integer
+        long_running:
+          type: boolean
+        next_check_at:
+          format: date-time
+          type: string
+        paused:
+          type: boolean
+      required:
+      - long_running
+      - paused
+      - interval_seconds
+      type: object
+    ChatProactivityUpdate:
+      additionalProperties: false
+      properties:
+        interval_seconds:
+          format: int32
+          maximum: 604800
+          minimum: 60
+          type: integer
+        paused:
+          type: boolean
+      required:
+      - paused
+      - interval_seconds
+      type: object
     ChatSession:
       additionalProperties: false
       properties:
@@ -1655,6 +1721,8 @@ components:
           type: string
         kind:
           $ref: '#/components/schemas/ChatSessionKind'
+        long_running:
+          type: boolean
         participants:
           items:
             $ref: '#/components/schemas/ChatSessionParticipant'
@@ -2776,6 +2844,11 @@ components:
     CreateWorkflowScheduleRequest:
       additionalProperties: false
       properties:
+        context_session_id:
+          description: Authenticated agent tool context used to bind a long-running root.
+          type: string
+        delivery:
+          $ref: '#/components/schemas/WorkflowDelivery'
         failed_runs_history_limit:
           format: int32
           maximum: 10
@@ -6047,6 +6120,22 @@ components:
       - can_create
       - can_enter_organization
       - next_page_token
+      type: object
+    LongRunningChatRequest:
+      additionalProperties: false
+      properties:
+        agent:
+          type: string
+        agent_name:
+          $ref: '#/components/schemas/AgentName'
+        id:
+          format: uuid
+          type: string
+        model:
+          $ref: '#/components/schemas/OpencodeModelRef'
+      required:
+      - id
+      - agent_name
       type: object
     MCPConnectionAuth:
       additionalProperties: false
@@ -16299,6 +16388,19 @@ components:
       - metadata
       - always
       type: object
+    OpencodePermissionRequestsResponse:
+      additionalProperties: false
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/OpencodePermissionV2Request'
+          type: array
+        location:
+          $ref: '#/components/schemas/OpencodeLocationInfo'
+      required:
+      - location
+      - data
+      type: object
     OpencodePermissionRule:
       additionalProperties: false
       properties:
@@ -17805,6 +17907,19 @@ components:
       - id
       - sessionID
       - questions
+      type: object
+    OpencodeQuestionRequestsResponse:
+      additionalProperties: false
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/OpencodeQuestionV2Request'
+          type: array
+        location:
+          $ref: '#/components/schemas/OpencodeLocationInfo'
+      required:
+      - location
+      - data
       type: object
     OpencodeQuestionTool:
       additionalProperties: false
@@ -25286,6 +25401,8 @@ components:
           type: string
         phase:
           $ref: '#/components/schemas/WorkflowRunTerminalPhase'
+        result:
+          $ref: '#/components/schemas/WorkflowResult'
       required:
       - phase
       type: object
@@ -26574,6 +26691,8 @@ components:
     UpdateWorkflowScheduleRequest:
       additionalProperties: false
       properties:
+        delivery:
+          $ref: '#/components/schemas/WorkflowDelivery'
         failed_runs_history_limit:
           format: int32
           maximum: 10
@@ -26885,6 +27004,15 @@ components:
           minLength: 1
           type: string
       type: object
+    WorkflowDelivery:
+      additionalProperties: false
+      properties:
+        session_id:
+          minLength: 1
+          type: string
+      required:
+      - session_id
+      type: object
     WorkflowEdge:
       additionalProperties: false
       properties:
@@ -27142,6 +27270,25 @@ components:
       minLength: 1
       pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
       type: string
+    WorkflowResult:
+      additionalProperties: false
+      properties:
+        artifacts:
+          items:
+            $ref: '#/components/schemas/ChatAttachment'
+          maxItems: 3
+          type: array
+        kind:
+          enum:
+          - update
+          - no_change
+          type: string
+        text:
+          maxLength: 32768
+          type: string
+      required:
+      - kind
+      type: object
     WorkflowRunDetail:
       additionalProperties: false
       properties:
@@ -27321,6 +27468,8 @@ components:
         created_at:
           format: date-time
           type: string
+        delivery:
+          $ref: '#/components/schemas/WorkflowDelivery'
         failed_runs_history_limit:
           format: int32
           maximum: 10
@@ -28901,6 +29050,35 @@ paths:
       summary: List the current Workspace chat inbox.
       tags:
       - chat-sessions
+    post:
+      operationId: createLongRunningChat
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LongRunningChatRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpencodeSession'
+          description: Canonical native session, including on exact retries.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Create an owner-only long-running conversation in a General workspace.
+      tags:
+      - chat-sessions
   /api/chat-session-preference:
     get:
       operationId: getChatSessionPreference
@@ -28954,6 +29132,41 @@ paths:
       - GatewayBearer:
         - agent.use_shared
       summary: Replace the caller's Workspace chat preferences.
+      tags:
+      - chat-sessions
+  /api/chat-session/{agentName}/{sessionId}/background:
+    get:
+      operationId: listChatBackground
+      parameters:
+      - in: path
+        name: agentName
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: sessionId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatBackgroundList'
+          description: Authorized conversation state.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Manage owner-authorized conversation background activity.
       tags:
       - chat-sessions
   /api/chat-session/{agentName}/{sessionId}/input:
@@ -29066,6 +29279,81 @@ paths:
       - GatewayBearer:
         - agent.use_shared
       summary: Remove or retry your queued message.
+      tags:
+      - chat-sessions
+  /api/chat-session/{agentName}/{sessionId}/proactivity:
+    get:
+      operationId: getChatProactivity
+      parameters:
+      - in: path
+        name: agentName
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: sessionId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatProactivity'
+          description: Authorized conversation state.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Manage owner-authorized conversation background activity.
+      tags:
+      - chat-sessions
+    patch:
+      operationId: updateChatProactivity
+      parameters:
+      - in: path
+        name: agentName
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: sessionId
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatProactivityUpdate'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatProactivity'
+          description: Authorized conversation state.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Manage owner-authorized conversation background activity.
       tags:
       - chat-sessions
   /api/chat-session/watch:
@@ -32901,18 +33189,7 @@ paths:
           content:
             application/json:
               schema:
-                additionalProperties: false
-                properties:
-                  data:
-                    items:
-                      $ref: '#/components/schemas/OpencodePermissionV2Request'
-                    type: array
-                  location:
-                    $ref: '#/components/schemas/OpencodeLocationInfo'
-                required:
-                - location
-                - data
-                type: object
+                $ref: '#/components/schemas/OpencodePermissionRequestsResponse'
           description: Success
         "400":
           content:
@@ -33811,18 +34088,7 @@ paths:
           content:
             application/json:
               schema:
-                additionalProperties: false
-                properties:
-                  data:
-                    items:
-                      $ref: '#/components/schemas/OpencodeQuestionV2Request'
-                    type: array
-                  location:
-                    $ref: '#/components/schemas/OpencodeLocationInfo'
-                required:
-                - location
-                - data
-                type: object
+                $ref: '#/components/schemas/OpencodeQuestionRequestsResponse'
           description: Success
         "400":
           content:
@@ -45505,6 +45771,42 @@ paths:
       - GatewayBearer:
         - workflow_run.report
       summary: Set a WorkflowRun node status.
+      tags:
+      - workflow-runs
+  /api/workflow/{agentName}/{workflowName}/run/{runName}/report/reconcile:
+    post:
+      operationId: reconcileWorkflowReport
+      parameters:
+      - in: path
+        name: agentName
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: workflowName
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: runName
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: The delivery binding or completion receipt is reconciled.
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - workflow_run.report
+      summary: Reconcile a bound run's durable completion receipt.
       tags:
       - workflow-runs
   /api/workflow/{agentName}/{workflowName}/run/{runName}/status:

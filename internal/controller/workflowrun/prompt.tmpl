@@ -9,7 +9,7 @@ Requirements:
 6. After executing each workflow node, call set_workflowrun_status with mode "node", that node name, and phase "Succeeded" or "Failed".
 7. Execute the workflow end-to-end using the provided inputs.
 8. Do not ask for clarification.
-9. NEVER modify persistent memory or the journal. Do not use memory actions "add", "replace", "remove", or "batch", or the journal action "append". Read-only actions remain allowed.
+9. Do not call memory_add_note, memory_reset, or memory_mode. Memory retrieval and inspection remain allowed. Background learning runs automatically.
 10. When the workflow finishes, call set_workflowrun_status with mode "run" exactly once.
 11. If execution succeeds, call set_workflowrun_status with mode "run" and phase "Succeeded".
 12. If execution fails, call set_workflowrun_status with mode "run", phase "Failed", and include a concise message.

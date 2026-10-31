@@ -28,6 +28,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	"github.com/accuknox/agentz/internal/mcp"
 	"github.com/accuknox/agentz/internal/skill"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
@@ -247,6 +248,27 @@ func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]by
 	cfg.Agent["plan"] = plan
 	cfg.Model = envCfg.Model
 	cfg.SmallModel = envCfg.SmallModel
+	if general && agt.Spec.Memory.Enabled {
+		var plugin gatewayapi.OpencodeConfig_Plugin_Item
+		err := plugin.FromOpencodeConfigPlugin1(gatewayapi.OpencodeConfigPlugin1{
+			"file:///etc/opencode/node_modules/opencode-codex-memory/dist/src/index.js",
+			map[string]any{
+				"version":                "v2",
+				"dual_write":             false,
+				"generate_memories":      true,
+				"use_memories":           true,
+				"dedicated_tools":        true,
+				"min_rollout_idle_hours": 1,
+				"home":                   agentHomeDir + "/.local/share/opencode",
+			},
+		})
+		if err != nil {
+			return nil, nil, fmt.Errorf("marshal memory plugin: %w", err)
+		}
+		cfg.Plugin = []gatewayapi.OpencodeConfig_Plugin_Item{plugin}
+		cfg.Permission["memory_reset"] = "ask"
+		cfg.Permission["memory_mode"] = "ask"
+	}
 	instructionFiles, err := renderOpencodeInstructions(agt, envCfg.WorkspaceType)
 	if err != nil {
 		return nil, nil, err
@@ -284,8 +306,6 @@ func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]by
 		"publish_dashboard_data":   general,
 		"skill":                    true,
 		"list_skills":              true,
-		"memory":                   general && agt.Spec.Memory.Enabled,
-		"journal":                  general && agt.Spec.Memory.Enabled,
 	}
 
 	if envCfg.MCPURL != "" {
@@ -324,17 +344,18 @@ func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]by
 }
 
 type opencodeConfigFile struct {
-	Schema           string                            `json:"$schema"`
-	Model            string                            `json:"model,omitempty"`
-	SmallModel       string                            `json:"small_model,omitempty"`
-	Agent            map[string]opencodeAgentFile      `json:"agent,omitempty"`
-	Instructions     []string                          `json:"instructions,omitempty"`
-	Skills           *opencodeSkillsFile               `json:"skills,omitempty"`
-	Provider         map[string]*opencodeProviderFile  `json:"provider,omitempty"`
-	EnabledProviders []string                          `json:"enabled_providers,omitempty"`
-	MCP              map[string]opencodeMCPRemoteFile  `json:"mcp,omitempty"`
-	Permission       map[string]opencodePermissionRule `json:"permission,omitempty"`
-	Tools            map[string]bool                   `json:"tools,omitempty"`
+	Schema           string                                  `json:"$schema"`
+	Model            string                                  `json:"model,omitempty"`
+	SmallModel       string                                  `json:"small_model,omitempty"`
+	Plugin           []gatewayapi.OpencodeConfig_Plugin_Item `json:"plugin,omitempty"`
+	Agent            map[string]opencodeAgentFile            `json:"agent,omitempty"`
+	Instructions     []string                                `json:"instructions,omitempty"`
+	Skills           *opencodeSkillsFile                     `json:"skills,omitempty"`
+	Provider         map[string]*opencodeProviderFile        `json:"provider,omitempty"`
+	EnabledProviders []string                                `json:"enabled_providers,omitempty"`
+	MCP              map[string]opencodeMCPRemoteFile        `json:"mcp,omitempty"`
+	Permission       map[string]opencodePermissionRule       `json:"permission,omitempty"`
+	Tools            map[string]bool                         `json:"tools,omitempty"`
 }
 
 type opencodeAgentFile struct {

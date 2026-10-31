@@ -526,7 +526,7 @@ export function AgentDialog({
                     <div className="min-w-0 flex-1 space-y-0.5">
                       <FieldLabel htmlFor="agent-form-memory">Persistent memory</FieldLabel>
                       <FieldDescription>
-                        Allow this Agent to save facts and journal entries across sessions.
+                        Recall past sessions and learn in the background using additional model calls.
                       </FieldDescription>
                       <FieldError errors={[fieldState.error]} />
                     </div>

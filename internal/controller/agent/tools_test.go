@@ -7,6 +7,38 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
+// TestMemoryAvailability keeps memory opt-in and unavailable in coding workspaces.
+func TestMemoryAvailability(t *testing.T) {
+	t.Parallel()
+	kinds := []agentzv1alpha1.WorkspaceType{
+		agentzv1alpha1.WorkspaceTypeGeneral,
+		agentzv1alpha1.WorkspaceTypeCoding,
+	}
+	for _, kind := range kinds {
+		for _, enabled := range []bool{false, true} {
+			agt := &agentzv1alpha1.Agent{}
+			agt.Spec.Memory.Enabled = enabled
+			raw, _, err := renderOpencodeConfig(agt, sandboxConfig{WorkspaceType: kind})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var cfg opencodeConfigFile
+			err = json.Unmarshal(raw, &cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := enabled && kind == agentzv1alpha1.WorkspaceTypeGeneral
+			loaded := len(cfg.Plugin) != 0
+			if loaded != want {
+				t.Fatalf("%s enabled=%t: memory loaded=%t", kind, enabled, loaded)
+			}
+			if want && (cfg.Permission["memory_reset"] != "ask" || cfg.Permission["memory_mode"] != "ask") {
+				t.Fatal("memory controls bypass user approval")
+			}
+		}
+	}
+}
+
 // TestToolPermissions keeps trusted scripts executable while protecting Plan mode.
 func TestToolPermissions(t *testing.T) {
 	t.Parallel()

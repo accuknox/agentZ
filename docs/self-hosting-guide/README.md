@@ -513,6 +513,43 @@ The values in the next section enable only email/password sign-in for
 `ADMIN_EMAIL`. For GitHub/Google sign in, please refer [this](./social-login.md)
 guide.
 
+## Persistent agent memory
+
+Enable **Persistent memory** when creating or editing an Agent in a general
+workspace. Memory is off by default and unavailable in coding workspaces.
+Each Agent shares memory across its sessions and participants, with storage
+isolated on that Agent's home PVC.
+
+Memory uses the unmodified `opencode-codex-memory@0.10.0` plugin with Memory V2.
+It saves explicit notes immediately and learns from conversations, including
+workflow runs, after at least one hour of inactivity. Extraction starts on a
+later conversation or idle event while the runtime is running. Consolidation
+has an upstream six-hour cooldown, so learned facts may take longer to appear
+in a new conversation. Learning makes additional inference calls using the
+sandbox's small model when configured and its main model for consolidation.
+
+Ask the Agent to check memory status with `memory_inspect`, save a note with
+`memory_add_note`, or retrieve information with `memory_search`, `memory_list`,
+and `memory_read`. `memory_mode` controls learning for individual sessions.
+Workflow runs can retrieve memory but cannot call note, reset, or mode tools.
+`memory_reset` requests permission before clearing learned memory.
+
+The runtime stores memory under `/home/agentz/.local/share/opencode`:
+
+- `memory.db` holds shared session metadata and is required for Memory V2.
+- `memory_v2.db` holds V2 extraction and consolidation state.
+- `memories_v2/` holds the summary, session recaps, notes, and internal history.
+
+Back up both databases, their SQLite sidecar files, and the complete memory
+directory together while the runtime is stopped. Disabling memory stops
+learning and recall without deleting data; enabling it again resumes the
+same store. Codex sharing, Claude imports, and dual-write are disabled.
+
+This replaces the former curated memory and journal without migration.
+Files under `/home/agentz/.agentz/memory` are no longer read and may be removed
+by an administrator after stopping the Agent. Existing conversations within
+upstream's default ten-day eligibility window can still contribute learning.
+
 ## Install AgentZ
 
 Create the values file:

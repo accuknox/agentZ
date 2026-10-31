@@ -239,11 +239,13 @@ spec:
                 minLength: 1
                 type: string
               memory:
-                description: Memory configures persistent, agent-curated memory.
+                description: Memory configures cross-session recall and background
+                  learning.
                 properties:
                   enabled:
-                    description: Enabled makes curated memory available across Agent
-                      sessions.
+                    description: |-
+                      Enabled allows recall and background learning across Agent sessions.
+                      Learning uses the sandbox's configured inference models.
                     type: boolean
                 type: object
               nixStoreSize:

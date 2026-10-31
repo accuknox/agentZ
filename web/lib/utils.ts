@@ -6,21 +6,18 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-let browserIdentity: string | undefined
-let browserQueryClient: QueryClient | undefined = undefined
+let browserQueryClient: { identity: string; client: QueryClient } | undefined
 
 export function getQueryClient(identity: string) {
   if (environmentManager.isServer()) {
     // Server: always make a new query client
     return makeQueryClient()
   }
-  if (identity !== browserIdentity) {
-    browserQueryClient?.clear()
-    browserQueryClient = undefined
-    browserIdentity = identity
+  if (!browserQueryClient || browserQueryClient.identity !== identity) {
+    browserQueryClient?.client.clear()
+    browserQueryClient = { identity, client: makeQueryClient() }
   }
-  browserQueryClient ??= makeQueryClient()
-  return browserQueryClient
+  return browserQueryClient.client
 }
 
 function makeQueryClient() {

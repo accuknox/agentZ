@@ -185,6 +185,7 @@ function projectTurn(input: {
   isActive: boolean
   messageID: string
   guardrailMessageID?: string
+  origin?: ChatBackground["origin"]
 }): string | undefined {
   const { assistants, compacted, out, partsByMessage, textByPart, turnKey, isActive } = input
 
@@ -208,6 +209,7 @@ function projectTurn(input: {
           isStreaming: false,
           key: `${turnKey}:${segment}`,
           type: "assistant",
+          origin: input.origin,
         })
         entries = []
         segment += 1
@@ -232,6 +234,7 @@ function projectTurn(input: {
       isStreaming: isActive && !error,
       key: interruption ? `${turnKey}:${segment}` : turnKey,
       type: "assistant",
+      origin: input.origin,
     })
   }
 
@@ -257,6 +260,7 @@ export function projectTimeline(input: ProjectInput): {
   rows: TimelineRow[]
 } {
   const out: TimelineRow[] = []
+  const backgroundByMessage = new Map(input.background?.map((item) => [item.message_id, item]))
 
   const userText = (messageID: string) =>
     (input.partsByMessage[messageID] ?? [])
@@ -287,7 +291,7 @@ export function projectTimeline(input: ProjectInput): {
   const reverted: RevertedMessage[] = []
   const visible = turns.filter((turn) => {
     if (input.revertMessageID && turn.user.id >= input.revertMessageID) {
-      if (!input.background?.some((item) => item.message_id === turn.user.id))
+      if (!backgroundByMessage.has(turn.user.id))
         reverted.push({ id: turn.user.id, text: userText(turn.user.id) })
       return false
     }
@@ -303,7 +307,7 @@ export function projectTimeline(input: ProjectInput): {
   let guardrailMessageID: string | undefined
   visible.forEach((turn, index) => {
     const userParts = input.partsByMessage[turn.user.id] ?? []
-    const background = input.background?.find((item) => item.message_id === turn.user.id)
+    const background = backgroundByMessage.get(turn.user.id)
     if (background) {
       if (
         !background.completed ||
@@ -344,12 +348,12 @@ export function projectTimeline(input: ProjectInput): {
     if (
       !background &&
       input.classifyBackground &&
+      userParts.every((part) => part.type !== "text" || part.synthetic) &&
       userParts.some(
         (part) => part.type === "text" && part.synthetic && part.metadata?.["agentz.dev/input-id"]
       )
     )
       return
-    const rowStart = out.length
     const attachments = userParts
       .filter((part): part is Extract<Part, { type: "text" }> => part.type === "text")
       .flatMap((part) => {
@@ -401,12 +405,8 @@ export function projectTimeline(input: ProjectInput): {
       turnKey: `assistant:${turn.user.id}`,
       messageID: turn.user.id,
       guardrailMessageID,
+      origin: background?.origin,
     })
-    if (background?.origin === "proactive") {
-      for (const row of out.slice(rowStart)) {
-        if (row.type === "assistant") row.origin = "proactive"
-      }
-    }
     if (blockedMessageID) {
       // Later requests include the rejected prompt. Reverting only the newest
       // failure would leave the original blocked message in the conversation.
@@ -420,7 +420,7 @@ export function projectTimeline(input: ProjectInput): {
 
   for (const background of input.background ?? []) {
     if (background.outcome !== "failed" || !background.error) continue
-    if (input.messages.some((message) => message.id === background.message_id)) continue
+    if (turnsByUserID.has(background.message_id)) continue
     out.push({
       type: "assistant-error",
       key: `background-error:${background.part_id}`,

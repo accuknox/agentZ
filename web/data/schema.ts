@@ -464,6 +464,8 @@ export const createAgentSimpleFormSchema = z.object({
   instruction: zAgentOpencodeConfig.shape.instruction.unwrap(),
 })
 
+export type AgentFormValues = z.infer<typeof createAgentSimpleFormSchema>
+
 export const createSandboxFormSchema = z.object({
   guardrails: zGuardrailAssignment.optional(),
   name: sandboxNameSchema,

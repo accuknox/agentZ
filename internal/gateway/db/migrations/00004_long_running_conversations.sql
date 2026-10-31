@@ -1,9 +1,11 @@
 -- +goose Up
+ALTER TABLE agents ADD COLUMN automatic_check_interval_seconds INTEGER NOT NULL DEFAULT 1800
+  CHECK (automatic_check_interval_seconds BETWEEN 60 AND 604800 AND automatic_check_interval_seconds % 60 = 0);
+
 ALTER TABLE chat_sessions
   ADD COLUMN long_running BOOLEAN NOT NULL DEFAULT false,
   ADD COLUMN owner_id TEXT REFERENCES users(id),
   ADD COLUMN private_root_session_id TEXT,
-  ADD COLUMN proactive_interval_seconds INTEGER,
   ADD COLUMN proactive_paused BOOLEAN NOT NULL DEFAULT false,
   ADD COLUMN next_check_at TIMESTAMPTZ,
   ADD COLUMN deleting BOOLEAN NOT NULL DEFAULT false,
@@ -15,9 +17,8 @@ ALTER TABLE chat_sessions
   ADD CONSTRAINT chat_sessions_proactivity_ck CHECK (
     (long_running AND kind = 'chat' AND parent_session_id IS NULL
       AND owner_id IS NOT NULL AND private_root_session_id = session_id
-      AND proactive_interval_seconds IS NOT NULL AND proactive_interval_seconds >= 60 AND next_check_at IS NOT NULL)
-    OR (NOT long_running AND proactive_interval_seconds IS NULL
-      AND next_check_at IS NULL AND NOT proactive_paused)
+      AND next_check_at IS NOT NULL)
+    OR (NOT long_running AND next_check_at IS NULL AND NOT proactive_paused)
   );
 
 CREATE INDEX chat_sessions_due_idx ON chat_sessions(next_check_at)
@@ -58,8 +59,7 @@ CREATE TABLE chat_creations (
   owner_id TEXT NOT NULL REFERENCES users(id),
   request JSONB NOT NULL,
   session_id TEXT NOT NULL,
-  state TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending', 'uncertain', 'created', 'failed')),
-  error TEXT NOT NULL DEFAULT '' CHECK (length(error) <= 2000),
+  state TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending', 'uncertain', 'created')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (workspace_id, agent_name, session_id)
@@ -102,5 +102,6 @@ ALTER TABLE chat_sessions
   DROP CONSTRAINT chat_sessions_proactivity_ck,
   DROP CONSTRAINT chat_sessions_private_binding_ck,
   DROP COLUMN long_running, DROP COLUMN owner_id, DROP COLUMN private_root_session_id,
-  DROP COLUMN proactive_interval_seconds, DROP COLUMN proactive_paused,
+  DROP COLUMN proactive_paused,
   DROP COLUMN next_check_at, DROP COLUMN cleanup_completed_at, DROP COLUMN deleting, DROP COLUMN generation;
+ALTER TABLE agents DROP COLUMN automatic_check_interval_seconds;

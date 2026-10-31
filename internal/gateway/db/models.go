@@ -903,19 +903,6 @@ type AgentShareGrant struct {
 	Capability AgentShareCapability `json:"capability"`
 }
 
-type ChatCreation struct {
-	ID          uuid.UUID `json:"id"`
-	WorkspaceID string    `json:"workspace_id"`
-	AgentName   string    `json:"agent_name"`
-	OwnerID     string    `json:"owner_id"`
-	Request     []byte    `json:"request"`
-	SessionID   string    `json:"session_id"`
-	State       string    `json:"state"`
-	Error       string    `json:"error"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-}
-
 type ChatInput struct {
 	ID             uuid.UUID                 `json:"id"`
 	Sequence       pgtype.Int8               `json:"sequence"`

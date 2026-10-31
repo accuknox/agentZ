@@ -1,13 +1,11 @@
 package gateway
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -246,25 +244,26 @@ func (s *Service) CreateLongRunningChat(w http.ResponseWriter, r *http.Request) 
 		if createErr == nil && result.JSON200 == nil {
 			createErr = fmt.Errorf("native creation returned %s", result.Status())
 		}
-		state, diagnostic := "created", ""
+		state := "created"
 		if createErr != nil {
-			state, diagnostic = "uncertain", "Native creation is uncertain. Retry this same draft to reconcile it."
+			state = "uncertain"
 		}
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 15*time.Second)
 		defer cancel()
-		_, err = s.queries.GatewayFinishChatCreation(ctx, gatewaydb.GatewayFinishChatCreationParams{
+		err = s.queries.GatewayFinishChatCreation(ctx, gatewaydb.GatewayFinishChatCreationParams{
 			ID:          input.Id,
 			WorkspaceID: access.workspaceID,
 			OwnerID:     access.userID,
 			State:       state,
-			Error:       diagnostic,
 		})
 		if err != nil {
 			apiutil.WriteInternalError(w, r, err)
 			return
 		}
 		if createErr != nil {
-			apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadGateway, "creation_uncertain", diagnostic, createErr))
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusBadGateway, "creation_uncertain", "Native creation is uncertain. Retry this same draft to reconcile it.", createErr,
+			))
 			return
 		}
 	}
@@ -375,7 +374,6 @@ func (s *Service) ListChatBackground(w http.ResponseWriter, r *http.Request, age
 	}
 	result := make([]gatewayapi.ChatBackground, 0, len(rows))
 	for _, row := range rows {
-
 		item := gatewayapi.ChatBackground{
 			MessageId: row.MessageID,
 			PartId:    row.PartID.String,
@@ -412,7 +410,7 @@ func (s *Service) enforcePrivateChat(r *http.Request, access resourceAccess, rou
 		if err != nil {
 			return release, err
 		}
-		if route.ID == "permission.reply" || route.ID == "permission.respond" {
+		if approval {
 			requests, err := client.PermissionListWithResponse(r.Context(), agent, nil)
 			if err != nil {
 				return release, err
@@ -433,19 +431,19 @@ func (s *Service) enforcePrivateChat(r *http.Request, access resourceAccess, rou
 					return release, err
 				}
 			}
-		} else {
-			requests, err := client.QuestionListWithResponse(r.Context(), agent, nil)
-			if err != nil {
+			return release, pgx.ErrNoRows
+		}
+		requests, err := client.QuestionListWithResponse(r.Context(), agent, nil)
+		if err != nil {
+			return release, err
+		}
+		if requests.JSON200 == nil {
+			return release, pgx.ErrNoRows
+		}
+		for _, request := range *requests.JSON200 {
+			if request.Id == route.Params["requestID"] {
+				_, _, err = s.authorizeChat(r.Context(), access, agent, request.SessionID)
 				return release, err
-			}
-			if requests.JSON200 == nil {
-				return release, pgx.ErrNoRows
-			}
-			for _, request := range *requests.JSON200 {
-				if request.Id == route.Params["requestID"] {
-					_, _, err = s.authorizeChat(r.Context(), access, agent, request.SessionID)
-					return release, err
-				}
 			}
 		}
 		return release, pgx.ErrNoRows
@@ -494,12 +492,7 @@ func (s *Service) enforcePrivateChat(r *http.Request, access resourceAccess, rou
 			}
 		}
 
-		raw, err := json.Marshal(body)
-		if err != nil {
-			return release, err
-		}
-		r.Body = io.NopCloser(bytes.NewReader(raw))
-		r.ContentLength = int64(len(raw))
+		return release, replaceOpenCodeRequest(r, body)
 	}
 	if route.ID == "v2.session.create" {
 		var body gatewayapi.V2SessionCreateJSONBody
@@ -509,12 +502,7 @@ func (s *Service) enforcePrivateChat(r *http.Request, access resourceAccess, rou
 		if body.Id != nil && strings.HasPrefix(*body.Id, longRunningSessionPrefix) {
 			return release, pgx.ErrNoRows
 		}
-		raw, err := json.Marshal(body)
-		if err != nil {
-			return release, err
-		}
-		r.Body = io.NopCloser(bytes.NewReader(raw))
-		r.ContentLength = int64(len(raw))
+		return release, replaceOpenCodeRequest(r, body)
 	}
 	if route.ID == "session.list" || route.ID == "v2.session.list" {
 		private, err := s.queries.GatewayAgentHasPrivateChats(r.Context(), gatewaydb.GatewayAgentHasPrivateChatsParams{
@@ -844,7 +832,7 @@ func (s *Service) runBackgroundChecks(ctx context.Context, cursor int64) (int64,
 	if err != nil {
 		return cursor, err
 	}
-	if _, err = s.queries.GatewayEnqueueProactiveChecks(ctx, content); err != nil {
+	if err = s.queries.GatewayEnqueueProactiveChecks(ctx, content); err != nil {
 		return cursor, err
 	}
 	rows, err := s.queries.GatewayOutstandingBackgroundInputs(ctx, cursor)
@@ -859,8 +847,7 @@ func (s *Service) runBackgroundChecks(ctx context.Context, cursor int64) (int64,
 			return cursor, nil
 		}
 		cursor = row.Sequence.Int64
-		checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		ownerCtx := context.WithValue(checkCtx, authContextKey{}, requestAuth{
+		ownerCtx := context.WithValue(ctx, authContextKey{}, requestAuth{
 			claims: &gatewayClaims{
 				UserID:         row.AuthorID,
 				OrganizationID: row.OrganizationID,
@@ -876,17 +863,14 @@ func (s *Service) runBackgroundChecks(ctx context.Context, cursor int64) (int64,
 		})
 		access, directory, _, err := s.chatInputAccess(ownerCtx, row.AgentName, row.SessionID)
 		if err != nil {
-			cancel()
 			continue
 		}
 		release, err := s.lockChatInputs(ownerCtx, row.WorkspaceID, row.AgentName, row.SessionID, "")
 		if err != nil {
-			cancel()
 			continue
 		}
 		err = s.completeBackgroundInput(ownerCtx, access, directory, row)
 		release()
-		cancel()
 		if err != nil {
 			slog.ErrorContext(ctx, "reconcile internal turn", "input", row.ID, "error", err)
 		}
@@ -1205,4 +1189,25 @@ func (s *Service) cleanPrivateChat(ctx context.Context, access resourceAccess, r
 		AgentName:   root.AgentName,
 		SessionID:   root.SessionID,
 	})
+}
+
+// workflowDestinations limits lists before pagination and revalidates open watches.
+func (s *Service) workflowDestinations(ctx context.Context, agent string) (map[string]int64, error) {
+	access, apiErr := s.resolveAgentAccess(ctx, agent, authorization.OperationUseSharedAgent)
+	if apiErr != nil {
+		return nil, apiErr
+	}
+	rows, err := s.queries.GatewayWorkflowDestinations(ctx, gatewaydb.GatewayWorkflowDestinationsParams{
+		WorkspaceID: access.workspaceID,
+		AgentName:   agent,
+		OwnerID:     pgtype.Text{String: access.userID, Valid: true},
+	})
+	if err != nil {
+		return nil, err
+	}
+	destinations := make(map[string]int64, len(rows))
+	for _, row := range rows {
+		destinations[row.SessionID] = row.Generation
+	}
+	return destinations, nil
 }

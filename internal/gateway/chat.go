@@ -928,11 +928,13 @@ func (e *chatSessionEvents) subscribe(workspaceID string) (<-chan uint64, func()
 	return ch, cancel
 }
 
-func (e *chatSessionEvents) publish(workspaceID string) {
+func (e *chatSessionEvents) publish(scope string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	broadcast := !strings.Contains(scope, "/")
 	for key, watchers := range e.watchers {
-		if key != workspaceID && (strings.Contains(workspaceID, "/") || !strings.HasPrefix(key, workspaceID+"/")) {
+		matches := key == scope || broadcast && strings.HasPrefix(key, scope+"/")
+		if !matches {
 			continue
 		}
 		for ch, revision := range watchers {
@@ -944,7 +946,6 @@ func (e *chatSessionEvents) publish(workspaceID string) {
 			}
 		}
 	}
-
 }
 
 func (s *Service) runChatSessionNotifications(ctx context.Context) {

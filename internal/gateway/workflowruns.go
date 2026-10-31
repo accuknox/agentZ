@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/accuknox/agentz/internal/authorization"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -36,7 +38,7 @@ func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request,
 	agentName := strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 	runName = strings.TrimSpace(runName)
-	boundRun, bindingErr := s.conversationRun(r.Context(), ns, agentName, workflowName, runName)
+	boundRun, bindingErr := s.getWorkflowRun(r.Context(), ns, agentName, workflowName, runName)
 	if bindingErr != nil {
 		apiutil.WriteError(w, r, mapKubeHTTPError("get workflow run", bindingErr))
 		return
@@ -84,11 +86,7 @@ func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request,
 		}
 	}
 	if err := s.prepareWorkflowReport(r.Context(), access, boundRun, req); err != nil {
-		if apiErr, ok := errors.AsType[*apiutil.APIError](err); ok {
-			apiutil.WriteError(w, r, apiErr)
-		} else {
-			apiutil.WriteInternalError(w, r, err)
-		}
+		apiutil.WriteError(w, r, mapGatewayStoreError("prepare workflow report", err))
 		return
 	}
 	if !terminalReceipt {
@@ -135,7 +133,8 @@ func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request,
 	}
 
 	if boundRun.Spec.Delivery != nil {
-		if err := s.k8sClient.Get(r.Context(), ctrlclient.ObjectKeyFromObject(boundRun), boundRun); err != nil {
+		err = s.k8sClient.Get(r.Context(), ctrlclient.ObjectKeyFromObject(boundRun), boundRun)
+		if err != nil {
 			apiutil.WriteInternalError(w, r, err)
 			return
 		}
@@ -163,7 +162,7 @@ func (s *Service) PatchWorkflowRunNodeStatus(w http.ResponseWriter, r *http.Requ
 	agentName := strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 	runName = strings.TrimSpace(runName)
-	_, bindingErr := s.conversationRun(r.Context(), ns, agentName, workflowName, runName)
+	_, bindingErr := s.getWorkflowRun(r.Context(), ns, agentName, workflowName, runName)
 	if bindingErr != nil {
 		apiutil.WriteError(w, r, mapKubeHTTPError("get workflow run", bindingErr))
 		return
@@ -667,7 +666,7 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 				return false
 			}
 			for _, item := range listedItems {
-				if _, err := s.conversationRun(r.Context(), ns, agentName, workflowName, item.Name); err != nil {
+				if _, err := s.getWorkflowRun(r.Context(), ns, agentName, workflowName, item.Name); err != nil {
 					return false
 				}
 
@@ -694,7 +693,7 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 		}
 
 		for runName := range runFilter {
-			if _, err := s.conversationRun(r.Context(), ns, agentName, workflowName, runName); err != nil {
+			if _, err := s.getWorkflowRun(r.Context(), ns, agentName, workflowName, runName); err != nil {
 				continue
 			}
 
@@ -777,7 +776,8 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 					if evt.Run.Spec.Delivery.OwnerID != actor.userID {
 						continue
 					}
-					if err := s.authorizeWorkflowDelivery(r.Context(), access, agentName, evt.Run.Spec.Delivery); err != nil {
+					err = s.authorizeWorkflowDelivery(r.Context(), access, agentName, evt.Run.Spec.Delivery)
+					if err != nil {
 						return
 					}
 				}
@@ -807,7 +807,7 @@ func (s *Service) GetWorkflowRun(w http.ResponseWriter, r *http.Request, agtName
 	agentName := strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 	runName = strings.TrimSpace(runName)
-	_, bindingErr := s.conversationRun(r.Context(), ns, agentName, workflowName, runName)
+	_, bindingErr := s.getWorkflowRun(r.Context(), ns, agentName, workflowName, runName)
 	if bindingErr != nil {
 		apiutil.WriteError(w, r, mapKubeHTTPError("get workflow run", bindingErr))
 		return
@@ -873,7 +873,7 @@ func (s *Service) DeleteWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 	agentName := strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 	runName = strings.TrimSpace(runName)
-	_, bindingErr := s.conversationRun(r.Context(), ns, agentName, workflowName, runName)
+	_, bindingErr := s.getWorkflowRun(r.Context(), ns, agentName, workflowName, runName)
 	if bindingErr != nil {
 		apiutil.WriteError(w, r, mapKubeHTTPError("get workflow run", bindingErr))
 		return
@@ -926,4 +926,30 @@ func (s *Service) DeleteWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Service) getWorkflowRun(ctx context.Context, namespace, agent, workflowName, name string) (*agentzv1alpha1.WorkflowRun, error) {
+	run := &agentzv1alpha1.WorkflowRun{}
+	err := s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Namespace: namespace, Name: name}, run)
+	if err != nil {
+		return nil, err
+	}
+	if run.Spec.AgentName != agent || run.Spec.WorkflowName != workflowName {
+		return nil, pgx.ErrNoRows
+	}
+	if run.Spec.Delivery == nil {
+		return run, nil
+	}
+	access, apiErr := s.resolveAgentAccess(ctx, agent, authorization.OperationUseSharedAgent)
+	if apiErr != nil {
+		return nil, apiErr
+	}
+	auth, _ := requestAuthState(ctx)
+	if auth.actorType != requestActorSystem && auth.userID != run.Spec.Delivery.OwnerID {
+		return nil, pgx.ErrNoRows
+	}
+	if err := s.authorizeWorkflowDelivery(ctx, access, agent, run.Spec.Delivery); err != nil {
+		return nil, err
+	}
+	return run, nil
 }

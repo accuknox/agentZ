@@ -55,8 +55,6 @@ const (
 	DefaultOrphanRetention = 7 * 24 * time.Hour
 )
 
-const workflowRunFinalizer = agentzv1alpha1.WorkflowRunSessionFinalizer
-
 //go:embed prompt.tmpl
 var promptTemplateText string
 
@@ -106,16 +104,16 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if reportErr != nil {
 			return ctrl.Result{}, reportErr
 		}
-		if response.StatusCode() != http.StatusNoContent {
-			if response.StatusCode() == http.StatusNotFound || response.StatusCode() == http.StatusForbidden {
-				if !run.Status.Phase.Terminal() && run.DeletionTimestamp.IsZero() {
-					return ctrl.Result{}, r.failRun(
-						ctx, run, agentzv1alpha1.WorkflowRunReasonGatewayError, "Conversation destination is no longer available",
-					)
-				}
-			} else {
-				return ctrl.Result{}, fmt.Errorf("reconcile workflow receipt: %s", response.Status())
+		switch response.StatusCode() {
+		case http.StatusNoContent:
+		case http.StatusNotFound, http.StatusForbidden:
+			if !run.Status.Phase.Terminal() && run.DeletionTimestamp.IsZero() {
+				return ctrl.Result{}, r.failRun(
+					ctx, run, agentzv1alpha1.WorkflowRunReasonGatewayError, "Conversation destination is no longer available",
+				)
 			}
+		default:
+			return ctrl.Result{}, fmt.Errorf("reconcile workflow receipt: %s", response.Status())
 		}
 		// Prepared results may have completed the run during gateway reconciliation.
 		if err := r.Get(ctx, req.NamespacedName, run); err != nil {
@@ -140,7 +138,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, nil
 	}
 
-	if !ctrlutil.ContainsFinalizer(run, workflowRunFinalizer) {
+	if !ctrlutil.ContainsFinalizer(run, agentzv1alpha1.WorkflowRunSessionFinalizer) {
 		err = r.addFinalizer(ctx, run)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("add workflow run finalizer: %w", err)
@@ -260,17 +258,17 @@ func (r *Reconciler) addFinalizer(ctx context.Context, run *agentzv1alpha1.Workf
 			if err != nil {
 				return err
 			}
-			if ctrlutil.ContainsFinalizer(current, workflowRunFinalizer) {
+			if ctrlutil.ContainsFinalizer(current, agentzv1alpha1.WorkflowRunSessionFinalizer) {
 				return nil
 			}
-			ctrlutil.AddFinalizer(current, workflowRunFinalizer)
+			ctrlutil.AddFinalizer(current, agentzv1alpha1.WorkflowRunSessionFinalizer)
 			return r.Update(ctx, current)
 		},
 	)
 }
 
 func (r *Reconciler) finalizeRun(ctx context.Context, run *agentzv1alpha1.WorkflowRun) error {
-	if !ctrlutil.ContainsFinalizer(run, workflowRunFinalizer) {
+	if !ctrlutil.ContainsFinalizer(run, agentzv1alpha1.WorkflowRunSessionFinalizer) {
 		return nil
 	}
 	if run.Status.SessionID != "" {
@@ -307,10 +305,10 @@ func (r *Reconciler) finalizeRun(ctx context.Context, run *agentzv1alpha1.Workfl
 				}
 				return err
 			}
-			if !ctrlutil.ContainsFinalizer(current, workflowRunFinalizer) {
+			if !ctrlutil.ContainsFinalizer(current, agentzv1alpha1.WorkflowRunSessionFinalizer) {
 				return nil
 			}
-			ctrlutil.RemoveFinalizer(current, workflowRunFinalizer)
+			ctrlutil.RemoveFinalizer(current, agentzv1alpha1.WorkflowRunSessionFinalizer)
 			err = r.Update(ctx, current)
 			if apierrors.IsNotFound(err) || errors.Is(err, context.Canceled) {
 				return nil

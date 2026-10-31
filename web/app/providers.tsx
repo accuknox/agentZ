@@ -24,11 +24,9 @@ export default function Providers({
   sidebarDefaultOpen: boolean
 }) {
   const { data: session } = authClient.useSession()
+  const identity = session?.user.id ?? "anonymous"
   return (
-    <QueryClientProvider
-      key={session?.user.id ?? "anonymous"}
-      client={getQueryClient(session?.user.id ?? "anonymous")}
-    >
+    <QueryClientProvider key={identity} client={getQueryClient(identity)}>
       <ProgressProvider
         height="2px"
         color="var(--primary)"

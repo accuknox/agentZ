@@ -3313,30 +3313,13 @@ WITH settings AS MATERIALIZED (
 )
 SELECT intent.* FROM intent JOIN root ON root.session_id = intent.session_id;
 
--- name: GatewayFinishChatCreation :one
-UPDATE chat_creations SET state = @state, error = @error, updated_at = now()
-WHERE id = @id AND workspace_id = @workspace_id AND owner_id = @owner_id
-RETURNING *;
+-- name: GatewayFinishChatCreation :exec
+UPDATE chat_creations SET state = @state, updated_at = now()
+WHERE id = @id AND workspace_id = @workspace_id AND owner_id = @owner_id;
 
 -- name: GatewayGetChatSession :one
 SELECT * FROM chat_sessions
 WHERE workspace_id = @workspace_id AND agent_name = @agent_name AND session_id = @session_id;
-
--- name: GatewayResolvePrivateChat :one
-WITH RECURSIVE ancestors(session_id) AS (
-  SELECT @session_id::text
-  UNION
-  SELECT s.parent_session_id FROM chat_sessions s
-  JOIN ancestors a ON a.session_id = s.session_id
-  WHERE s.workspace_id = @workspace_id AND s.agent_name = @agent_name
-    AND s.parent_session_id IS NOT NULL
-)
-SELECT root.* FROM ancestors a
-JOIN chat_sessions s ON s.session_id = a.session_id
-JOIN chat_sessions root ON root.workspace_id = s.workspace_id
-  AND root.agent_name = s.agent_name AND root.session_id = s.private_root_session_id
-WHERE s.workspace_id = @workspace_id AND s.agent_name = @agent_name
-LIMIT 1;
 
 -- name: GatewayGetChatProactivity :one
 SELECT s.long_running, s.proactive_paused, s.next_check_at, a.automatic_check_interval_seconds
@@ -3372,7 +3355,7 @@ WITH settings AS MATERIALIZED (
 )
 SELECT long_running, proactive_paused, next_check_at, automatic_check_interval_seconds FROM changed;
 
--- name: GatewayEnqueueProactiveChecks :many
+-- name: GatewayEnqueueProactiveChecks :exec
 WITH due AS (
   SELECT s.*, w.organization_id, u.name AS owner_name
   FROM chat_sessions s JOIN workspaces w ON w.id = s.workspace_id
@@ -3392,7 +3375,7 @@ INSERT INTO chat_inputs(id, workspace_id, agent_name, session_id, organization_i
 SELECT gen_random_uuid(), workspace_id, agent_name, session_id, organization_id,
   owner_id, owner_name, '/home/agentz', @content, 'queue', 'proactive',
   gen_random_uuid()::text, 'prt_' || replace(gen_random_uuid()::text, '-', ''), generation
-FROM due ON CONFLICT DO NOTHING RETURNING *;
+FROM due ON CONFLICT DO NOTHING;
 
 -- name: GatewayOutstandingBackgroundInputs :many
 SELECT * FROM chat_inputs WHERE origin <> 'user' AND completed_at IS NULL
@@ -3441,8 +3424,8 @@ SELECT EXISTS (SELECT 1 FROM chat_sessions WHERE workspace_id = @workspace_id
   AND agent_name = @agent_name AND owner_id IS NOT NULL)::boolean;
 
 -- name: GatewayPrivateChatRoots :many
-SELECT sqlc.embed(s), w.organization_id, w.namespace, u.name AS owner_name
-FROM chat_sessions s JOIN workspaces w ON w.id = s.workspace_id JOIN users u ON u.id = s.owner_id
+SELECT sqlc.embed(s), w.organization_id, w.namespace
+FROM chat_sessions s JOIN workspaces w ON w.id = s.workspace_id
 WHERE s.long_running AND s.cleanup_completed_at IS NULL AND (s.workspace_id || '/' || s.agent_name || '/' || s.session_id) > @after_key::text
 ORDER BY s.workspace_id, s.agent_name, s.session_id LIMIT 128;
 

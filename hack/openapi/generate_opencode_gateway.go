@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-"go/format"
+	"go/format"
 	"io"
 	"maps"
 	"net/http"
@@ -992,17 +992,17 @@ func applyOAPICodegenFixups(doc map[string]any) error {
 	if !ok {
 		return fmt.Errorf("upstream spec has no paths")
 	}
- responseNames:=map[string]string{
-  "/api/permission/request":"PermissionRequestsResponse",
-  "/api/question/request":"QuestionRequestsResponse",
- }
- for path,name:=range responseNames {
-  operation:=paths[path].(map[string]any)["get"].(map[string]any)
-  response:=operation["responses"].(map[string]any)["200"].(map[string]any)
-  body:=response["content"].(map[string]any)["application/json"].(map[string]any)
-  schemas[name]=body["schema"]
-  body["schema"]=map[string]any{"$ref":"#/components/schemas/"+name}
- }
+	responseNames := map[string]string{
+		"/api/permission/request": "PermissionRequestsResponse",
+		"/api/question/request":   "QuestionRequestsResponse",
+	}
+	for path, name := range responseNames {
+		operation := paths[path].(map[string]any)["get"].(map[string]any)
+		response := operation["responses"].(map[string]any)["200"].(map[string]any)
+		body := response["content"].(map[string]any)["application/json"].(map[string]any)
+		schemas[name] = body["schema"]
+		body["schema"] = map[string]any{"$ref": "#/components/schemas/" + name}
+	}
 
 	// The legacy session API repeats ModelRef inline. Reuse its schema so
 	// callers can pass the same generated model type to both session APIs.
@@ -1118,7 +1118,7 @@ func writeRoutesGo(path string, manifest routeManifest, doc map[string]any) erro
 	names := slices.Sorted(maps.Keys(schemas))
 	buf.WriteString("\nfunc openCodeEventSession(event gatewayapi.OpencodeEvent) (string, error) {\nkind, err := event.Discriminator()\nif err != nil { return \"\", err }\nswitch kind {\n")
 	eventKinds := make(map[string]bool)
-for _, name := range names {
+	for _, name := range names {
 		if !strings.HasPrefix(name, "OpencodeEvent") {
 			continue
 		}
@@ -1130,18 +1130,25 @@ for _, name := range names {
 		if !ok {
 			continue
 		}
-discriminator,ok:=properties["type"].(map[string]any)
- if !ok { continue }
- values,ok:=discriminator["enum"].([]any)
- if !ok || len(values)!=1 { continue }
- kind:=values[0].(string)
- if eventKinds[kind] { continue }; eventKinds[kind]=true
- payload,_:=properties["properties"].(map[string]any)
- fields,_:=payload["properties"].(map[string]any)
- if _,ok:=fields["sessionID"]; !ok {
- fmt.Fprintf(&buf,"case %q: return \"\",nil\n",kind)
- continue
- }
+		discriminator, ok := properties["type"].(map[string]any)
+		if !ok {
+			continue
+		}
+		values, ok := discriminator["enum"].([]any)
+		if !ok || len(values) != 1 {
+			continue
+		}
+		kind := values[0].(string)
+		if eventKinds[kind] {
+			continue
+		}
+		eventKinds[kind] = true
+		payload, _ := properties["properties"].(map[string]any)
+		fields, _ := payload["properties"].(map[string]any)
+		if _, ok := fields["sessionID"]; !ok {
+			fmt.Fprintf(&buf, "case %q: return \"\",nil\n", kind)
+			continue
+		}
 		goName := ""
 		for _, word := range strings.FieldsFunc(name, func(r rune) bool { return r == '.' || r == '-' }) {
 			goName += strings.ToUpper(word[:1]) + word[1:]
@@ -1154,17 +1161,19 @@ discriminator,ok:=properties["type"].(map[string]any)
 				required = true
 			}
 		}
-		if required {
-			buf.WriteString("return value.Properties.SessionID, err\n")
-		} else {
+		if !required {
 			buf.WriteString("if err != nil || value.Properties.SessionID == nil { return \"\", err }; return *value.Properties.SessionID, nil\n")
+			continue
 		}
+		buf.WriteString("return value.Properties.SessionID, err\n")
 	}
 	buf.WriteString("}\nreturn \"\", fmt.Errorf(\"unclassified native event %q\",kind)\n}\n")
 
-	source,err:=format.Source(buf.Bytes())
-if err!=nil { return fmt.Errorf("format generated routes: %w",err) }
-if err := os.WriteFile(path, source, 0o644); err != nil {
+	source, err := format.Source(buf.Bytes())
+	if err != nil {
+		return fmt.Errorf("format generated routes: %w", err)
+	}
+	if err := os.WriteFile(path, source, 0o644); err != nil {
 		return fmt.Errorf("write route source: %w", err)
 	}
 	return nil

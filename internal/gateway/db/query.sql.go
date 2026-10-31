@@ -1814,7 +1814,7 @@ func (q *Queries) GatewayDeletingCodingWorktree(ctx context.Context, arg Gateway
 	return err
 }
 
-const gatewayEnqueueProactiveChecks = `-- name: GatewayEnqueueProactiveChecks :many
+const gatewayEnqueueProactiveChecks = `-- name: GatewayEnqueueProactiveChecks :exec
 WITH due AS (
   SELECT s.workspace_id, s.agent_name, s.session_id, s.parent_session_id, s.title, s.kind, s.status, s.source_created_at, s.source_updated_at, s.created_at, s.updated_at, s.long_running, s.owner_id, s.private_root_session_id, s.proactive_paused, s.next_check_at, s.deleting, s.cleanup_completed_at, s.generation, w.organization_id, u.name AS owner_name
   FROM chat_sessions s JOIN workspaces w ON w.id = s.workspace_id
@@ -1834,53 +1834,12 @@ INSERT INTO chat_inputs(id, workspace_id, agent_name, session_id, organization_i
 SELECT gen_random_uuid(), workspace_id, agent_name, session_id, organization_id,
   owner_id, owner_name, '/home/agentz', $1, 'queue', 'proactive',
   gen_random_uuid()::text, 'prt_' || replace(gen_random_uuid()::text, '-', ''), generation
-FROM due ON CONFLICT DO NOTHING RETURNING id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, message_id, error, created_at, updated_at, origin, source_id, part_id, generation, background, completed_at, outcome
+FROM due ON CONFLICT DO NOTHING
 `
 
-func (q *Queries) GatewayEnqueueProactiveChecks(ctx context.Context, content []byte) ([]ChatInput, error) {
-	rows, err := q.db.Query(ctx, gatewayEnqueueProactiveChecks, content)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ChatInput{}
-	for rows.Next() {
-		var i ChatInput
-		if err := rows.Scan(
-			&i.ID,
-			&i.Sequence,
-			&i.WorkspaceID,
-			&i.AgentName,
-			&i.SessionID,
-			&i.OrganizationID,
-			&i.AuthorID,
-			&i.AuthorName,
-			&i.Directory,
-			&i.Resume,
-			&i.Content,
-			&i.Delivery,
-			&i.State,
-			&i.Revision,
-			&i.MessageID,
-			&i.Error,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Origin,
-			&i.SourceID,
-			&i.PartID,
-			&i.Generation,
-			&i.Background,
-			&i.CompletedAt,
-			&i.Outcome,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+func (q *Queries) GatewayEnqueueProactiveChecks(ctx context.Context, content []byte) error {
+	_, err := q.db.Exec(ctx, gatewayEnqueueProactiveChecks, content)
+	return err
 }
 
 const gatewayFailBackgroundInput = `-- name: GatewayFailBackgroundInput :one
@@ -2094,42 +2053,26 @@ func (q *Queries) GatewayFindGuardrailTraceSource(ctx context.Context, arg Gatew
 	return items, nil
 }
 
-const gatewayFinishChatCreation = `-- name: GatewayFinishChatCreation :one
-UPDATE chat_creations SET state = $1, error = $2, updated_at = now()
-WHERE id = $3 AND workspace_id = $4 AND owner_id = $5
-RETURNING id, workspace_id, agent_name, owner_id, request, session_id, state, error, created_at, updated_at
+const gatewayFinishChatCreation = `-- name: GatewayFinishChatCreation :exec
+UPDATE chat_creations SET state = $1, updated_at = now()
+WHERE id = $2 AND workspace_id = $3 AND owner_id = $4
 `
 
 type GatewayFinishChatCreationParams struct {
 	State       string    `json:"state"`
-	Error       string    `json:"error"`
 	ID          uuid.UUID `json:"id"`
 	WorkspaceID string    `json:"workspace_id"`
 	OwnerID     string    `json:"owner_id"`
 }
 
-func (q *Queries) GatewayFinishChatCreation(ctx context.Context, arg GatewayFinishChatCreationParams) (ChatCreation, error) {
-	row := q.db.QueryRow(ctx, gatewayFinishChatCreation,
+func (q *Queries) GatewayFinishChatCreation(ctx context.Context, arg GatewayFinishChatCreationParams) error {
+	_, err := q.db.Exec(ctx, gatewayFinishChatCreation,
 		arg.State,
-		arg.Error,
 		arg.ID,
 		arg.WorkspaceID,
 		arg.OwnerID,
 	)
-	var i ChatCreation
-	err := row.Scan(
-		&i.ID,
-		&i.WorkspaceID,
-		&i.AgentName,
-		&i.OwnerID,
-		&i.Request,
-		&i.SessionID,
-		&i.State,
-		&i.Error,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
+	return err
 }
 
 const gatewayFinishPrivateChatCleanup = `-- name: GatewayFinishPrivateChatCleanup :exec
@@ -7972,8 +7915,8 @@ func (q *Queries) GatewayPrepareWorkflowReport(ctx context.Context, arg GatewayP
 }
 
 const gatewayPrivateChatRoots = `-- name: GatewayPrivateChatRoots :many
-SELECT s.workspace_id, s.agent_name, s.session_id, s.parent_session_id, s.title, s.kind, s.status, s.source_created_at, s.source_updated_at, s.created_at, s.updated_at, s.long_running, s.owner_id, s.private_root_session_id, s.proactive_paused, s.next_check_at, s.deleting, s.cleanup_completed_at, s.generation, w.organization_id, w.namespace, u.name AS owner_name
-FROM chat_sessions s JOIN workspaces w ON w.id = s.workspace_id JOIN users u ON u.id = s.owner_id
+SELECT s.workspace_id, s.agent_name, s.session_id, s.parent_session_id, s.title, s.kind, s.status, s.source_created_at, s.source_updated_at, s.created_at, s.updated_at, s.long_running, s.owner_id, s.private_root_session_id, s.proactive_paused, s.next_check_at, s.deleting, s.cleanup_completed_at, s.generation, w.organization_id, w.namespace
+FROM chat_sessions s JOIN workspaces w ON w.id = s.workspace_id
 WHERE s.long_running AND s.cleanup_completed_at IS NULL AND (s.workspace_id || '/' || s.agent_name || '/' || s.session_id) > $1::text
 ORDER BY s.workspace_id, s.agent_name, s.session_id LIMIT 128
 `
@@ -7982,7 +7925,6 @@ type GatewayPrivateChatRootsRow struct {
 	ChatSession    ChatSession `json:"chat_session"`
 	OrganizationID string      `json:"organization_id"`
 	Namespace      string      `json:"namespace"`
-	OwnerName      string      `json:"owner_name"`
 }
 
 func (q *Queries) GatewayPrivateChatRoots(ctx context.Context, afterKey string) ([]GatewayPrivateChatRootsRow, error) {
@@ -8016,7 +7958,6 @@ func (q *Queries) GatewayPrivateChatRoots(ctx context.Context, afterKey string) 
 			&i.ChatSession.Generation,
 			&i.OrganizationID,
 			&i.Namespace,
-			&i.OwnerName,
 		); err != nil {
 			return nil, err
 		}
@@ -8230,7 +8171,7 @@ WITH settings AS MATERIALIZED (
     AND chat_creations.agent_name = EXCLUDED.agent_name
     AND chat_creations.owner_id = EXCLUDED.owner_id
     AND chat_creations.request = EXCLUDED.request
-  RETURNING id, workspace_id, agent_name, owner_id, request, session_id, state, error, created_at, updated_at
+  RETURNING id, workspace_id, agent_name, owner_id, request, session_id, state, created_at, updated_at
 ), root AS (
   INSERT INTO chat_sessions(workspace_id, agent_name, session_id, title,
     source_created_at, source_updated_at, long_running, owner_id,
@@ -8243,7 +8184,7 @@ WITH settings AS MATERIALIZED (
     AND chat_sessions.owner_id = EXCLUDED.owner_id
   RETURNING session_id
 )
-SELECT intent.id, intent.workspace_id, intent.agent_name, intent.owner_id, intent.request, intent.session_id, intent.state, intent.error, intent.created_at, intent.updated_at FROM intent JOIN root ON root.session_id = intent.session_id
+SELECT intent.id, intent.workspace_id, intent.agent_name, intent.owner_id, intent.request, intent.session_id, intent.state, intent.created_at, intent.updated_at FROM intent JOIN root ON root.session_id = intent.session_id
 `
 
 type GatewayReserveLongRunningChatParams struct {
@@ -8263,7 +8204,6 @@ type GatewayReserveLongRunningChatRow struct {
 	Request     []byte    `json:"request"`
 	SessionID   string    `json:"session_id"`
 	State       string    `json:"state"`
-	Error       string    `json:"error"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
@@ -8286,7 +8226,6 @@ func (q *Queries) GatewayReserveLongRunningChat(ctx context.Context, arg Gateway
 		&i.Request,
 		&i.SessionID,
 		&i.State,
-		&i.Error,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -8474,56 +8413,6 @@ func (q *Queries) GatewayResolvePermissions(ctx context.Context, arg GatewayReso
 		return nil, err
 	}
 	return items, nil
-}
-
-const gatewayResolvePrivateChat = `-- name: GatewayResolvePrivateChat :one
-WITH RECURSIVE ancestors(session_id) AS (
-  SELECT $3::text
-  UNION
-  SELECT s.parent_session_id FROM chat_sessions s
-  JOIN ancestors a ON a.session_id = s.session_id
-  WHERE s.workspace_id = $1 AND s.agent_name = $2
-    AND s.parent_session_id IS NOT NULL
-)
-SELECT root.workspace_id, root.agent_name, root.session_id, root.parent_session_id, root.title, root.kind, root.status, root.source_created_at, root.source_updated_at, root.created_at, root.updated_at, root.long_running, root.owner_id, root.private_root_session_id, root.proactive_paused, root.next_check_at, root.deleting, root.cleanup_completed_at, root.generation FROM ancestors a
-JOIN chat_sessions s ON s.session_id = a.session_id
-JOIN chat_sessions root ON root.workspace_id = s.workspace_id
-  AND root.agent_name = s.agent_name AND root.session_id = s.private_root_session_id
-WHERE s.workspace_id = $1 AND s.agent_name = $2
-LIMIT 1
-`
-
-type GatewayResolvePrivateChatParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	AgentName   string `json:"agent_name"`
-	SessionID   string `json:"session_id"`
-}
-
-func (q *Queries) GatewayResolvePrivateChat(ctx context.Context, arg GatewayResolvePrivateChatParams) (ChatSession, error) {
-	row := q.db.QueryRow(ctx, gatewayResolvePrivateChat, arg.WorkspaceID, arg.AgentName, arg.SessionID)
-	var i ChatSession
-	err := row.Scan(
-		&i.WorkspaceID,
-		&i.AgentName,
-		&i.SessionID,
-		&i.ParentSessionID,
-		&i.Title,
-		&i.Kind,
-		&i.Status,
-		&i.SourceCreatedAt,
-		&i.SourceUpdatedAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.LongRunning,
-		&i.OwnerID,
-		&i.PrivateRootSessionID,
-		&i.ProactivePaused,
-		&i.NextCheckAt,
-		&i.Deleting,
-		&i.CleanupCompletedAt,
-		&i.Generation,
-	)
-	return i, err
 }
 
 const gatewayResolveWorkspaceSlug = `-- name: GatewayResolveWorkspaceSlug :one

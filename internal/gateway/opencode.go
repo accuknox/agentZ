@@ -61,7 +61,6 @@ type opencodeRoute struct {
 type opencodeRouteMatch struct {
 	CatalogLimit  *int
 	CatalogCursor string
-	InputID       string
 
 	ID        string
 	Method    string
@@ -244,35 +243,28 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 			apiutil.WriteError(w, r, mapGatewayStoreError("submit input", err))
 			return
 		}
-		if _, _, guardErr := s.authorizeChat(r.Context(), access, agentName, sessionID); guardErr != nil {
+		root, private, guardErr := s.authorizeChat(r.Context(), access, agentName, sessionID)
+		if guardErr != nil {
 			release()
 			apiutil.WriteError(w, r, mapGatewayStoreError("get conversation", guardErr))
 			return
 		}
-		if route.ID == "session.delete" {
-			root, private, lookupErr := s.privateChatRoot(r.Context(), access, agentName, sessionID)
-			if lookupErr != nil {
+		if route.ID == "session.delete" && private && root.SessionID == sessionID {
+			_, err := s.queries.GatewayDeletePrivateChat(r.Context(), gatewaydb.GatewayDeletePrivateChatParams{
+				WorkspaceID: access.workspaceID,
+				AgentName:   agentName,
+				SessionID:   sessionID,
+			})
+			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 				release()
-				apiutil.WriteError(w, r, mapGatewayStoreError("delete conversation", lookupErr))
+				apiutil.WriteInternalError(w, r, err)
 				return
 			}
-			if private && root.SessionID == sessionID {
-				_, lookupErr = s.queries.GatewayDeletePrivateChat(r.Context(), gatewaydb.GatewayDeletePrivateChatParams{
-					WorkspaceID: access.workspaceID,
-					AgentName:   agentName,
-					SessionID:   sessionID,
-				})
-				if lookupErr != nil && !errors.Is(lookupErr, pgx.ErrNoRows) {
-					release()
-					apiutil.WriteInternalError(w, r, lookupErr)
-					return
-				}
-				s.notifyChatInput(r.Context(), gatewaydb.ChatInput{
-					WorkspaceID: access.workspaceID,
-					AgentName:   agentName,
-					SessionID:   sessionID,
-				})
-			}
+			s.notifyChatInput(r.Context(), gatewaydb.ChatInput{
+				WorkspaceID: access.workspaceID,
+				AgentName:   agentName,
+				SessionID:   sessionID,
+			})
 		}
 		switch {
 		case !input:
@@ -633,8 +625,7 @@ func replaceOpenCodeRequest(r *http.Request, body any) error {
 	return nil
 }
 
-// attributeOpenCodePrompt binds the authenticated gateway principal to
-// OpenCode prompts without changing unrecognized or synthetic ingress routes.
+// attributeOpenCodePrompt binds the authenticated principal to native HTTP prompts.
 func attributeOpenCodePrompt(r *http.Request, route *opencodeRouteMatch, auth requestAuth) error {
 	if r.Method != http.MethodPost || auth.actorID == "" {
 		return nil
@@ -642,12 +633,20 @@ func attributeOpenCodePrompt(r *http.Request, route *opencodeRouteMatch, auth re
 	if route.ID != "session.prompt" && route.ID != "session.prompt_async" {
 		return nil
 	}
-
 	var body gatewayapi.SessionPromptJSONBody
 	if err := apiutil.DecodeJSONBody(r, &body, false); err != nil {
 		return err
 	}
+	parts, err := attributePrompt(body.Parts, auth, "")
+	if err != nil {
+		return err
+	}
+	body.Parts = parts
+	return replaceOpenCodeRequest(r, body)
+}
 
+// attributePrompt owns actor metadata and trusted queue identity for both ingress paths.
+func attributePrompt(parts []gatewayapi.OpencodePromptPartInput, auth requestAuth, inputID string) ([]gatewayapi.OpencodePromptPartInput, error) {
 	name := auth.actorName
 	if name == "" {
 		name = auth.actorID
@@ -666,37 +665,36 @@ func attributeOpenCodePrompt(r *http.Request, route *opencodeRouteMatch, auth re
 		actor.Name = auth.userName
 	}
 	var attached bool
-	for i := range body.Parts {
-		partType, err := body.Parts[i].Discriminator()
+	for i := range parts {
+		partType, err := parts[i].Discriminator()
 		if err != nil {
-			return fmt.Errorf("read prompt part type: %w", err)
+			return nil, fmt.Errorf("read prompt part type: %w", err)
 		}
 		if partType != string(gatewayapi.OpencodeTextPartInputTypeText) {
 			continue
 		}
 
-		part, err := body.Parts[i].AsOpencodeTextPartInput()
+		part, err := parts[i].AsOpencodeTextPartInput()
 		if err != nil {
-			return fmt.Errorf("decode text prompt part: %w", err)
+			return nil, fmt.Errorf("decode text prompt part: %w", err)
 		}
 		metadata := make(map[string]any)
 		if part.Metadata != nil {
 			metadata = *part.Metadata
 		}
 		delete(metadata, "agentz.dev/input-id")
-		if route.InputID != "" {
-			metadata["agentz.dev/input-id"] = route.InputID
+		if inputID != "" {
+			metadata["agentz.dev/input-id"] = inputID
 		}
-		if attached {
-			delete(metadata, opencodeActorMetadataKey)
-		} else {
+		delete(metadata, opencodeActorMetadataKey)
+		if !attached {
 			metadata[opencodeActorMetadataKey] = actor
 			attached = true
 		}
 
 		part.Metadata = &metadata
-		if err := body.Parts[i].FromOpencodeTextPartInput(part); err != nil {
-			return fmt.Errorf("encode text prompt part: %w", err)
+		if err := parts[i].FromOpencodeTextPartInput(part); err != nil {
+			return nil, fmt.Errorf("encode text prompt part: %w", err)
 		}
 	}
 	if !attached {
@@ -712,12 +710,12 @@ func attributeOpenCodePrompt(r *http.Request, route *opencodeRouteMatch, auth re
 		}
 		var input gatewayapi.OpencodePromptPartInput
 		if err := input.FromOpencodeTextPartInput(part); err != nil {
-			return fmt.Errorf("encode actor prompt part: %w", err)
+			return nil, fmt.Errorf("encode actor prompt part: %w", err)
 		}
-		body.Parts = append(body.Parts, input)
+		parts = append(parts, input)
 	}
 
-	return replaceOpenCodeRequest(r, body)
+	return parts, nil
 }
 
 // openCodeModifyResponse persists native mutations without changing their wire contracts.

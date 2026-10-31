@@ -240,8 +240,7 @@ CREATE TABLE chat_creations (
   owner_id TEXT NOT NULL REFERENCES users(id),
   request JSONB NOT NULL,
   session_id TEXT NOT NULL,
-  state TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending', 'uncertain', 'created', 'failed')),
-  error TEXT NOT NULL DEFAULT '' CHECK (length(error) <= 2000),
+  state TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending', 'uncertain', 'created')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (workspace_id, agent_name, session_id)

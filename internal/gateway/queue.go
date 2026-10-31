@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"path"
@@ -992,21 +991,24 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 		var user gatewayapi.OpencodeUserMessage
 		var assistant gatewayapi.OpencodeAssistantMessage
 		for _, message := range *history.JSON200 {
-			// These generated views expose the protocol's role discriminator.
-			candidate, err := message.Info.AsOpencodeUserMessage()
+			role, err := message.Info.Discriminator()
 			if err != nil {
 				return err
 			}
-			if candidate.Role == gatewayapi.OpencodeUserMessageRoleUser {
-				if contextOnly[candidate.Id] {
-					continue
+			switch role {
+			case "user":
+				candidate, err := message.Info.AsOpencodeUserMessage()
+				if err != nil {
+					return err
 				}
-				user = candidate
-				continue
-			}
-			assistant, err = message.Info.AsOpencodeAssistantMessage()
-			if err != nil {
-				return err
+				if !contextOnly[candidate.Id] {
+					user = candidate
+				}
+			case "assistant":
+				assistant, err = message.Info.AsOpencodeAssistantMessage()
+				if err != nil {
+					return err
+				}
 			}
 		}
 		if user.Id != "" {
@@ -1117,37 +1119,22 @@ Use analyze_file when you need the contents of this file.
 		rand.Text()[:14],
 	)
 	body.MessageID = &row.MessageID
-	raw, err := json.Marshal(body)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://agent", bytes.NewReader(raw))
-	if err != nil {
-		return err
-	}
 	auth, _ := requestAuthState(ctx)
-	route := &opencodeRouteMatch{
-		Method:  http.MethodPost,
-		ID:      "session.prompt_async",
-		InputID: row.ID.String(),
-		Params:  map[string]string{"sessionID": row.SessionID},
-	}
 	promptAuth := auth
 	if row.Origin != gatewaydb.ChatInputOriginUser {
 		promptAuth.actorType = requestActorSystem
 		promptAuth.actorID = string(row.Origin)
 		promptAuth.actorName = "AgentZ"
 	}
-	if err := attributeOpenCodePrompt(req, route, promptAuth); err != nil {
+	body.Parts, err = attributePrompt(body.Parts, promptAuth, row.ID.String())
+	if err != nil {
+		return err
+	}
+	raw, err := json.Marshal(body)
+	if err != nil {
 		return err
 	}
 	if row.Origin != gatewaydb.ChatInputOriginUser {
-		raw, err = io.ReadAll(req.Body)
-		if err != nil {
-			return err
-		}
-		req.Body = io.NopCloser(bytes.NewReader(raw))
 		saved, err := s.queries.GatewaySaveBackgroundPrompt(ctx, gatewaydb.GatewaySaveBackgroundPromptParams{
 			ID:         row.ID,
 			Background: raw,
@@ -1166,7 +1153,7 @@ Use analyze_file when you need the contents of this file.
 	}
 	if row.Origin == gatewaydb.ChatInputOriginWorkflowResult {
 		response, err := client.SessionPromptWithBodyWithResponse(ctx, row.AgentName, row.SessionID,
-			&gatewayapi.SessionPromptParams{Directory: &directory}, "application/json", req.Body)
+			&gatewayapi.SessionPromptParams{Directory: &directory}, "application/json", bytes.NewReader(raw))
 		if err != nil {
 			return err
 		}
@@ -1179,7 +1166,7 @@ Use analyze_file when you need the contents of this file.
 	response, err := client.SessionPromptAsyncWithBodyWithResponse(
 		ctx, row.AgentName, row.SessionID,
 		&gatewayapi.SessionPromptAsyncParams{Directory: &directory},
-		"application/json", req.Body,
+		"application/json", bytes.NewReader(raw),
 	)
 	// Keep uncertain admission for reconciliation.
 	if err != nil {
@@ -1202,6 +1189,11 @@ Use analyze_file when you need the contents of this file.
 	}
 	if row.Origin != gatewaydb.ChatInputOriginUser {
 		return nil
+	}
+	route := &opencodeRouteMatch{
+		Method: http.MethodPost,
+		ID:     "session.prompt_async",
+		Params: map[string]string{"sessionID": row.SessionID},
 	}
 	return s.recordOpenCodePrompt(ctx, route, auth, row.WorkspaceID, row.AgentName)
 }

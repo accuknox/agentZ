@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/accuknox/agentz/internal/authorization"
@@ -21,31 +20,6 @@ import (
 	"github.com/accuknox/agentz/internal/gateway/workflow"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
-
-func (s *Service) conversationRun(ctx context.Context, namespace, agent, workflowName, name string) (*agentzv1alpha1.WorkflowRun, error) {
-	run := &agentzv1alpha1.WorkflowRun{}
-	if err := s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Namespace: namespace, Name: name}, run); err != nil {
-		return nil, err
-	}
-	if run.Spec.AgentName != agent || run.Spec.WorkflowName != workflowName {
-		return nil, pgx.ErrNoRows
-	}
-	if run.Spec.Delivery == nil {
-		return run, nil
-	}
-	access, apiErr := s.resolveAgentAccess(ctx, agent, authorization.OperationUseSharedAgent)
-	if apiErr != nil {
-		return nil, apiErr
-	}
-	auth, _ := requestAuthState(ctx)
-	if auth.actorType != requestActorSystem && auth.userID != run.Spec.Delivery.OwnerID {
-		return nil, pgx.ErrNoRows
-	}
-	if err := s.authorizeWorkflowDelivery(ctx, access, agent, run.Spec.Delivery); err != nil {
-		return nil, err
-	}
-	return run, nil
-}
 
 func (s *Service) prepareWorkflowReport(ctx context.Context, access resourceAccess, run *agentzv1alpha1.WorkflowRun, req gatewayapi.PatchWorkflowRunStatusRequest) error {
 	if run.Spec.Delivery == nil {
@@ -59,17 +33,16 @@ func (s *Service) prepareWorkflowReport(ctx context.Context, access resourceAcce
 		}
 		result = &gatewayapi.WorkflowResult{Kind: gatewayapi.Update, Text: &text}
 	}
-	if result.Kind == gatewayapi.Update && (result.Text == nil || strings.TrimSpace(*result.Text) == "" || len(*result.Text) > 32768) {
-		return apiutil.NewError(http.StatusBadRequest, "invalid_result", "An update requires nonempty text of at most 32768 bytes", nil)
-	}
-	if result.Kind != gatewayapi.Update && result.Kind != gatewayapi.NoChange {
-		return apiutil.NewError(http.StatusBadRequest, "invalid_result", "Unknown workflow result kind", nil)
-	}
-	if result.Kind == gatewayapi.Update {
-		content := gatewayapi.ChatInputContent{
-			Text:        *result.Text,
-			Attachments: []gatewayapi.ChatAttachment{},
+	switch result.Kind {
+	case gatewayapi.NoChange:
+		if req.Phase != gatewayapi.WorkflowRunTerminalPhaseSucceeded {
+			return apiutil.NewError(http.StatusBadRequest, "invalid_result", "Only successful runs may report no change", nil)
 		}
+	case gatewayapi.Update:
+		if result.Text == nil || strings.TrimSpace(*result.Text) == "" || len(*result.Text) > 32768 {
+			return apiutil.NewError(http.StatusBadRequest, "invalid_result", "An update requires nonempty text of at most 32768 bytes", nil)
+		}
+		content := gatewayapi.ChatInputContent{Text: *result.Text}
 		if result.Artifacts != nil {
 			content.Attachments = *result.Artifacts
 		}
@@ -78,9 +51,8 @@ func (s *Service) prepareWorkflowReport(ctx context.Context, access resourceAcce
 				http.StatusBadRequest, "invalid_result", "Workflow artifacts must use valid paths relative to the agent home", err,
 			)
 		}
-	}
-	if result.Kind == gatewayapi.NoChange && req.Phase != gatewayapi.WorkflowRunTerminalPhaseSucceeded {
-		return apiutil.NewError(http.StatusBadRequest, "invalid_result", "Only successful runs may report no change", nil)
+	default:
+		return apiutil.NewError(http.StatusBadRequest, "invalid_result", "Unknown workflow result kind", nil)
 	}
 	raw, err := json.Marshal(result)
 	if err != nil {
@@ -128,7 +100,8 @@ func (s *Service) ReconcileWorkflowReport(w http.ResponseWriter, r *http.Request
 		return
 	}
 	run := &agentzv1alpha1.WorkflowRun{}
-	if err := s.k8sClient.Get(r.Context(), ctrlclient.ObjectKey{Namespace: namespace, Name: name}, run); err != nil {
+	err = s.k8sClient.Get(r.Context(), ctrlclient.ObjectKey{Namespace: namespace, Name: name}, run)
+	if err != nil {
 		apiutil.WriteError(w, r, mapKubeHTTPError("get workflow run", err))
 		return
 	}
@@ -170,23 +143,23 @@ func (s *Service) reconcileWorkflowReport(ctx context.Context, access resourceAc
 		if bindingErr != nil {
 			return bindingErr
 		}
-		if err == nil && report.State == "prepared" {
-			message := report.StatusMessage
-			req := gatewayapi.PatchWorkflowRunStatusRequest{
-				Phase:   gatewayapi.WorkflowRunTerminalPhase(report.RequestedPhase),
-				Message: &message,
-			}
-			patchErr := workflow.PatchRunStatus(
-				ctx, s.k8sClient, run.Namespace, run.Spec.AgentName, run.Spec.WorkflowName, run.Name, req, message,
-			)
-			if patchErr != nil {
-				return patchErr
-			}
-			if err := s.k8sClient.Get(ctx, ctrlclient.ObjectKeyFromObject(run), run); err != nil {
-				return err
-			}
-		} else {
+		if err != nil || report.State != "prepared" {
 			return nil
+		}
+
+		message := report.StatusMessage
+		req := gatewayapi.PatchWorkflowRunStatusRequest{
+			Phase:   gatewayapi.WorkflowRunTerminalPhase(report.RequestedPhase),
+			Message: &message,
+		}
+		patchErr := workflow.PatchRunStatus(
+			ctx, s.k8sClient, run.Namespace, run.Spec.AgentName, run.Spec.WorkflowName, run.Name, req, message,
+		)
+		if patchErr != nil {
+			return patchErr
+		}
+		if err := s.k8sClient.Get(ctx, ctrlclient.ObjectKeyFromObject(run), run); err != nil {
+			return err
 		}
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -231,7 +204,8 @@ func (s *Service) reconcileWorkflowReport(ctx context.Context, access resourceAc
 		return err
 	}
 	defer release()
-	if err := s.authorizeWorkflowDelivery(ctx, access, run.Spec.AgentName, run.Spec.Delivery); err != nil {
+	err = s.authorizeWorkflowDelivery(ctx, access, run.Spec.AgentName, run.Spec.Delivery)
+	if err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
@@ -259,89 +233,4 @@ func (s *Service) reconcileWorkflowReport(ctx context.Context, access resourceAc
 		Content: raw,
 	})
 	return err
-}
-
-func (s *Service) workflowDelivery(ctx context.Context, agent string, input *gatewayapi.WorkflowDelivery) (*agentzv1alpha1.WorkflowDelivery, error) {
-	if input == nil {
-		return nil, nil
-	}
-	access, apiErr := s.resolveAgentAccess(ctx, agent, authorization.OperationUseSharedAgent)
-	if apiErr != nil {
-		return nil, apiErr
-	}
-	auth, _ := requestAuthState(ctx)
-	var root gatewaydb.ChatSession
-	var private bool
-	var err error
-	// The agent tool context identifies a conversation within its shared runtime.
-	if auth.actorType == requestActorSystem {
-		root, err = s.queries.GatewayGetChatSession(ctx, gatewaydb.GatewayGetChatSessionParams{
-			WorkspaceID: access.workspaceID,
-			AgentName:   agent,
-			SessionID:   input.SessionId,
-		})
-		private = err == nil && root.LongRunning
-	} else {
-		root, private, err = s.authorizeChat(ctx, access, agent, input.SessionId)
-	}
-
-	if err != nil {
-		return nil, err
-	}
-	if !private || !root.LongRunning || root.SessionID != input.SessionId {
-		return nil, pgx.ErrNoRows
-	}
-	delivery := &agentzv1alpha1.WorkflowDelivery{
-		SessionID:  root.SessionID,
-		OwnerID:    root.OwnerID.String,
-		Generation: root.Generation,
-	}
-	if err := s.authorizeWorkflowDelivery(ctx, access, agent, delivery); err != nil {
-		return nil, err
-	}
-	return delivery, nil
-}
-
-func (s *Service) authorizeWorkflowSchedule(ctx context.Context, namespace, agent, workflowName, name string) error {
-	schedule := &agentzv1alpha1.WorkflowSchedule{}
-	if err := s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Namespace: namespace, Name: name}, schedule); err != nil {
-		return err
-	}
-	if schedule.Spec.AgentName != agent || schedule.Spec.WorkflowName != workflowName {
-		return pgx.ErrNoRows
-	}
-	if schedule.Spec.Delivery == nil {
-		return nil
-	}
-	auth, _ := requestAuthState(ctx)
-	if auth.actorType != requestActorSystem && auth.userID != schedule.Spec.Delivery.OwnerID {
-		return pgx.ErrNoRows
-	}
-	access, apiErr := s.resolveAgentAccess(ctx, agent, authorization.OperationUseSharedAgent)
-	if apiErr != nil {
-		return apiErr
-	}
-	err := s.authorizeWorkflowDelivery(ctx, access, agent, schedule.Spec.Delivery)
-	return err
-}
-
-// workflowDestinations limits lists before pagination and revalidates open watches.
-func (s *Service) workflowDestinations(ctx context.Context, agent string) (map[string]int64, error) {
-	access, apiErr := s.resolveAgentAccess(ctx, agent, authorization.OperationUseSharedAgent)
-	if apiErr != nil {
-		return nil, apiErr
-	}
-	rows, err := s.queries.GatewayWorkflowDestinations(ctx, gatewaydb.GatewayWorkflowDestinationsParams{
-		WorkspaceID: access.workspaceID,
-		AgentName:   agent,
-		OwnerID:     pgtype.Text{String: access.userID, Valid: true},
-	})
-	if err != nil {
-		return nil, err
-	}
-	destinations := make(map[string]int64, len(rows))
-	for _, row := range rows {
-		destinations[row.SessionID] = row.Generation
-	}
-	return destinations, nil
 }

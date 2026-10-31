@@ -2,6 +2,7 @@ package agent
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
@@ -18,7 +19,7 @@ func TestMemoryAvailability(t *testing.T) {
 		for _, enabled := range []bool{false, true} {
 			agt := &agentzv1alpha1.Agent{}
 			agt.Spec.Memory.Enabled = enabled
-			raw, _, err := renderOpencodeConfig(agt, sandboxConfig{WorkspaceType: kind})
+			raw, files, err := renderOpencodeConfig(agt, sandboxConfig{WorkspaceType: kind})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -31,6 +32,15 @@ func TestMemoryAvailability(t *testing.T) {
 			loaded := len(cfg.Plugin) != 0
 			if loaded != want {
 				t.Fatalf("%s enabled=%t: memory loaded=%t", kind, enabled, loaded)
+			}
+			var recall bool
+			for _, file := range files {
+				if file.Path == opencodePhilosophyPath {
+					recall = strings.Contains(file.Content, "## Memory recall")
+				}
+			}
+			if recall != want {
+				t.Fatalf("%s enabled=%t: memory guidance included=%t", kind, enabled, recall)
 			}
 			if want && (cfg.Permission["memory_reset"] != "ask" || cfg.Permission["memory_mode"] != "ask") {
 				t.Fatal("memory controls bypass user approval")

@@ -483,12 +483,14 @@ func packageJobHash(image, nixCacheEndpoint string, store skill.Config, envCfg s
 }
 
 func renderOpencodeInstructions(agt *agentzv1alpha1.Agent, workspaceType agentzv1alpha1.WorkspaceType) ([]opencodeInstructionFile, error) {
+	coding := workspaceType == agentzv1alpha1.WorkspaceTypeCoding
 	var philosophy strings.Builder
 	err := philosophyTemplate.Execute(
 		&philosophy,
 		philosophyData{
 			AgentName: agt.Name,
-			Coding:    workspaceType == agentzv1alpha1.WorkspaceTypeCoding,
+			Coding:    coding,
+			Memory:    agt.Spec.Memory.Enabled && !coding,
 		},
 	)
 	if err != nil {

@@ -292,7 +292,7 @@ func (s *Service) GetChatProactivity(w http.ResponseWriter, r *http.Request, age
 		apiutil.WriteError(w, r, mapGatewayStoreError("get conversation", err))
 		return
 	}
-	row, err := s.queries.GatewayGetChatSession(r.Context(), gatewaydb.GatewayGetChatSessionParams{
+	row, err := s.queries.GatewayGetChatProactivity(r.Context(), gatewaydb.GatewayGetChatProactivityParams{
 		WorkspaceID: access.workspaceID,
 		AgentName:   agent,
 		SessionID:   session,
@@ -308,7 +308,7 @@ func (s *Service) GetChatProactivity(w http.ResponseWriter, r *http.Request, age
 	result := gatewayapi.ChatProactivity{
 		LongRunning:     row.LongRunning,
 		Paused:          row.ProactivePaused,
-		IntervalSeconds: row.ProactiveIntervalSeconds.Int32,
+		IntervalSeconds: row.AutomaticCheckIntervalSeconds,
 	}
 	if row.NextCheckAt.Valid {
 		result.NextCheckAt = &row.NextCheckAt.Time
@@ -316,16 +316,10 @@ func (s *Service) GetChatProactivity(w http.ResponseWriter, r *http.Request, age
 	apiutil.WriteJSON(w, http.StatusOK, result)
 }
 
-// UpdateChatProactivity changes cadence without changing mode or ownership.
+// UpdateChatProactivity pauses or resumes checks without changing agent cadence or ownership.
 func (s *Service) UpdateChatProactivity(w http.ResponseWriter, r *http.Request, agent, session string) {
 	var input gatewayapi.ChatProactivityUpdate
 	if !decodeJSONBody(w, r, &input, false) {
-		return
-	}
-	if input.IntervalSeconds < 60 || input.IntervalSeconds > 604800 {
-		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusBadRequest, "invalid_interval", "Check interval must be between one minute and seven days", nil,
-		))
 		return
 	}
 	access, _, _, err := s.chatInputAccess(r.Context(), agent, session)
@@ -340,12 +334,11 @@ func (s *Service) UpdateChatProactivity(w http.ResponseWriter, r *http.Request, 
 	}
 	defer release()
 	row, err := s.queries.GatewayUpdateProactivity(r.Context(), gatewaydb.GatewayUpdateProactivityParams{
-		WorkspaceID:     access.workspaceID,
-		AgentName:       agent,
-		SessionID:       session,
-		OwnerID:         pgtype.Text{String: access.userID, Valid: true},
-		Paused:          input.Paused,
-		IntervalSeconds: pgtype.Int4{Int32: input.IntervalSeconds, Valid: true},
+		WorkspaceID: access.workspaceID,
+		AgentName:   agent,
+		SessionID:   session,
+		OwnerID:     pgtype.Text{String: access.userID, Valid: true},
+		Paused:      input.Paused,
 	})
 	if err != nil {
 		apiutil.WriteError(w, r, mapGatewayStoreError("update conversation", err))
@@ -359,7 +352,7 @@ func (s *Service) UpdateChatProactivity(w http.ResponseWriter, r *http.Request, 
 	apiutil.WriteJSON(w, http.StatusOK, gatewayapi.ChatProactivity{
 		LongRunning:     row.LongRunning,
 		Paused:          row.ProactivePaused,
-		IntervalSeconds: row.ProactiveIntervalSeconds.Int32,
+		IntervalSeconds: row.AutomaticCheckIntervalSeconds,
 		NextCheckAt:     &row.NextCheckAt.Time,
 	})
 }

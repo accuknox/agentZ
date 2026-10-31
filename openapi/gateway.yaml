@@ -603,6 +603,8 @@ components:
     Agent:
       additionalProperties: false
       properties:
+        automatic_check_interval_seconds:
+          $ref: '#/components/schemas/AutomaticCheckIntervalSeconds'
         capabilities:
           $ref: '#/components/schemas/AgentCapabilities'
         created_at:
@@ -633,6 +635,7 @@ components:
         status:
           $ref: '#/components/schemas/AgentStatus'
       required:
+      - automatic_check_interval_seconds
       - name
       - sandbox
       - created_by
@@ -1356,6 +1359,13 @@ components:
       required:
       - points
       type: object
+    AutomaticCheckIntervalSeconds:
+      description: Seconds between automatic checks for this agent's long-running conversations, in whole minutes. Defaults to 1800.
+      format: int32
+      maximum: 604800
+      minimum: 60
+      multipleOf: 60
+      type: integer
     AzureInferenceProviderRead:
       properties:
         azure:
@@ -1700,16 +1710,10 @@ components:
     ChatProactivityUpdate:
       additionalProperties: false
       properties:
-        interval_seconds:
-          format: int32
-          maximum: 604800
-          minimum: 60
-          type: integer
         paused:
           type: boolean
       required:
       - paused
-      - interval_seconds
       type: object
     ChatSession:
       additionalProperties: false
@@ -2589,6 +2593,8 @@ components:
     CreateAgentRequest:
       additionalProperties: false
       properties:
+        automatic_check_interval_seconds:
+          $ref: '#/components/schemas/AutomaticCheckIntervalSeconds'
         env:
           additionalProperties:
             type: string
@@ -26603,6 +26609,8 @@ components:
       additionalProperties: false
       minProperties: 1
       properties:
+        automatic_check_interval_seconds:
+          $ref: '#/components/schemas/AutomaticCheckIntervalSeconds'
         env:
           additionalProperties:
             type: string

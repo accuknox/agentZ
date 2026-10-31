@@ -210,6 +210,7 @@ function AgentActions({
           agentName={agent.name}
           initialSandboxName={agent.sandbox.name}
           initialMemoryEnabled={agent.memory.enabled}
+          initialAutomaticCheckIntervalSeconds={agent.automatic_check_interval_seconds}
           initialSkills={agent.skills}
           initialInstruction={agent.opencode?.instruction}
           immutableSkills={immutableSkills}

@@ -139,22 +139,28 @@ WHERE key = sqlc.arg(key)
   );
 
 -- name: GatewayCreateAgent :one
-INSERT INTO agents(tenant_namespace, agent_name)
-VALUES ($1, $2)
-RETURNING tenant_namespace, agent_name, created_at, updated_at;
+INSERT INTO agents(tenant_namespace, agent_name, automatic_check_interval_seconds)
+VALUES (@tenant_namespace, @agent_name, COALESCE(sqlc.narg(automatic_check_interval_seconds)::integer, 1800))
+RETURNING *;
 
 -- name: GatewayGetAgent :one
-SELECT tenant_namespace, agent_name, created_at, updated_at
+SELECT *
 FROM agents
 WHERE tenant_namespace = $1
   AND agent_name = $2;
 
+-- name: GatewayLockAgent :one
+SELECT * FROM agents
+WHERE tenant_namespace = @tenant_namespace AND agent_name = @agent_name
+FOR UPDATE;
+
 -- name: GatewayTouchAgent :one
 UPDATE agents
-SET updated_at = sqlc.arg(updated_at)
+SET updated_at = sqlc.arg(updated_at),
+  automatic_check_interval_seconds = COALESCE(sqlc.narg(automatic_check_interval_seconds)::integer, automatic_check_interval_seconds)
 WHERE tenant_namespace = sqlc.arg(tenant_namespace)
   AND agent_name = sqlc.arg(agent_name)
-RETURNING tenant_namespace, agent_name, created_at, updated_at;
+RETURNING *;
 
 -- name: GatewayDeleteAgent :execrows
 DELETE FROM agents
@@ -745,7 +751,7 @@ ON CONFLICT (workspace_id, user_id) DO UPDATE SET
 RETURNING *;
 
 -- name: GatewayListAgents :many
-SELECT tenant_namespace, agent_name, created_at, updated_at
+SELECT *
 FROM agents
 WHERE tenant_namespace = $1
 ORDER BY
@@ -762,7 +768,7 @@ ORDER BY
 LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 
 -- name: GatewayListAgentsByName :many
-SELECT tenant_namespace, agent_name, created_at, updated_at
+SELECT *
 FROM agents
 WHERE tenant_namespace = $1
   AND agent_name = ANY($2::text[])
@@ -3279,10 +3285,14 @@ ORDER BY operation_id
 LIMIT 2;
 
 -- name: GatewayReserveLongRunningChat :one
-WITH intent AS (
+WITH settings AS MATERIALIZED (
+  SELECT a.* FROM agents a JOIN workspaces w ON w.namespace = a.tenant_namespace
+  WHERE w.id = @workspace_id AND a.agent_name = @agent_name FOR SHARE OF a
+), intent AS (
   INSERT INTO chat_creations(id, workspace_id, agent_name, owner_id, request, session_id)
   SELECT @id, w.id, @agent_name, @owner_id, @request, @session_id
-  FROM workspaces w WHERE w.id = @workspace_id AND w.type = 'general'
+  FROM workspaces w JOIN settings a ON a.tenant_namespace = w.namespace
+  WHERE w.id = @workspace_id AND w.type = 'general'
   ON CONFLICT (id) DO UPDATE SET id = chat_creations.id
   WHERE chat_creations.workspace_id = EXCLUDED.workspace_id
     AND chat_creations.agent_name = EXCLUDED.agent_name
@@ -3292,10 +3302,10 @@ WITH intent AS (
 ), root AS (
   INSERT INTO chat_sessions(workspace_id, agent_name, session_id, title,
     source_created_at, source_updated_at, long_running, owner_id,
-    private_root_session_id, proactive_interval_seconds, next_check_at)
-  SELECT workspace_id, agent_name, session_id, 'New conversation', now(), now(),
-    true, owner_id, session_id, 1800, now() + interval '30 minutes'
-  FROM intent
+    private_root_session_id, next_check_at)
+  SELECT intent.workspace_id, intent.agent_name, intent.session_id, 'New conversation', now(), now(),
+    true, intent.owner_id, intent.session_id, now() + make_interval(secs => a.automatic_check_interval_seconds)
+  FROM intent CROSS JOIN settings a
   ON CONFLICT (workspace_id, agent_name, session_id) DO UPDATE SET session_id = chat_sessions.session_id
   WHERE chat_sessions.long_running AND NOT chat_sessions.deleting
     AND chat_sessions.owner_id = EXCLUDED.owner_id
@@ -3328,14 +3338,29 @@ JOIN chat_sessions root ON root.workspace_id = s.workspace_id
 WHERE s.workspace_id = @workspace_id AND s.agent_name = @agent_name
 LIMIT 1;
 
+-- name: GatewayGetChatProactivity :one
+SELECT s.long_running, s.proactive_paused, s.next_check_at, a.automatic_check_interval_seconds
+FROM chat_sessions s JOIN workspaces w ON w.id = s.workspace_id
+JOIN agents a ON a.tenant_namespace = w.namespace AND a.agent_name = s.agent_name
+WHERE s.workspace_id = @workspace_id AND s.agent_name = @agent_name AND s.session_id = @session_id;
+
+-- name: GatewayRescheduleAgentChecks :exec
+UPDATE chat_sessions s SET next_check_at = now() + make_interval(secs => a.automatic_check_interval_seconds), updated_at = now()
+FROM agents a JOIN workspaces w ON w.namespace = a.tenant_namespace
+WHERE a.tenant_namespace = @tenant_namespace AND a.agent_name = @agent_name
+  AND s.workspace_id = w.id AND s.agent_name = a.agent_name AND s.long_running AND NOT s.deleting;
+
 -- name: GatewayUpdateProactivity :one
-WITH changed AS (
+WITH settings AS MATERIALIZED (
+  SELECT a.* FROM agents a JOIN workspaces w ON w.namespace = a.tenant_namespace
+  WHERE w.id = @workspace_id AND a.agent_name = @agent_name FOR SHARE OF a
+), changed AS (
   UPDATE chat_sessions s SET proactive_paused = @paused,
-    proactive_interval_seconds = @interval_seconds,
-    next_check_at = now() + make_interval(secs => @interval_seconds::integer), updated_at = now()
+    next_check_at = now() + make_interval(secs => a.automatic_check_interval_seconds), updated_at = now()
+  FROM settings a
   WHERE s.workspace_id = @workspace_id AND s.agent_name = @agent_name AND s.session_id = @session_id
     AND long_running AND owner_id = @owner_id AND NOT deleting
-  RETURNING s.*
+  RETURNING s.*, a.automatic_check_interval_seconds
 ), canceled AS (
   UPDATE chat_inputs SET state = 'removed', completed_at = now(), outcome = 'canceled',
     revision = revision + 1, updated_at = now()
@@ -3345,7 +3370,7 @@ WITH changed AS (
     AND chat_inputs.origin = 'proactive' AND chat_inputs.state IN ('queued', 'failed', 'recovered', 'removed')
     AND chat_inputs.message_id = '' AND chat_inputs.completed_at IS NULL
 )
-SELECT * FROM changed;
+SELECT long_running, proactive_paused, next_check_at, automatic_check_interval_seconds FROM changed;
 
 -- name: GatewayEnqueueProactiveChecks :many
 WITH due AS (
@@ -3374,14 +3399,18 @@ SELECT * FROM chat_inputs WHERE origin <> 'user' AND completed_at IS NULL
   AND message_id <> '' AND sequence > @after_sequence::bigint ORDER BY sequence LIMIT 8;
 
 -- name: GatewayCompleteBackgroundInput :one
-WITH completed AS (
+WITH settings AS MATERIALIZED (
+ SELECT a.* FROM agents a JOIN workspaces w ON w.namespace = a.tenant_namespace
+ JOIN chat_inputs i ON i.workspace_id = w.id AND i.agent_name = a.agent_name
+ WHERE i.id = @id FOR SHARE OF a
+), completed AS (
   UPDATE chat_inputs SET completed_at = now(), outcome = @outcome,
     revision = revision + 1, updated_at = now()
-  WHERE id = @id AND origin <> 'user' AND completed_at IS NULL
-  RETURNING *
+  FROM settings a WHERE chat_inputs.id = @id AND origin <> 'user' AND completed_at IS NULL
+  RETURNING chat_inputs.*
 ), scheduled AS (
-  UPDATE chat_sessions s SET next_check_at = now() + make_interval(secs => s.proactive_interval_seconds)
-  FROM completed i WHERE i.origin = 'proactive' AND s.workspace_id = i.workspace_id
+  UPDATE chat_sessions s SET next_check_at = now() + make_interval(secs => a.automatic_check_interval_seconds)
+  FROM completed i CROSS JOIN settings a WHERE i.origin = 'proactive' AND s.workspace_id = i.workspace_id
     AND s.agent_name = i.agent_name AND s.session_id = i.session_id AND NOT s.deleting
 )
 SELECT * FROM completed;
@@ -3424,13 +3453,17 @@ WHERE workspace_id = @workspace_id AND agent_name = @agent_name AND session_id =
   AND origin = 'proactive' AND completed_at IS NULL RETURNING *;
 
 -- name: GatewayFailBackgroundInput :one
-WITH failed AS (
+WITH settings AS MATERIALIZED (
+ SELECT a.* FROM agents a JOIN workspaces w ON w.namespace = a.tenant_namespace
+ JOIN chat_inputs i ON i.workspace_id = w.id AND i.agent_name = a.agent_name
+ WHERE i.id = @id FOR SHARE OF a
+), failed AS (
  UPDATE chat_inputs SET completed_at = now(), outcome = 'failed', error = @error,
   state = 'failed', revision = revision + 1, updated_at = now()
- WHERE id = @id AND origin <> 'user' AND completed_at IS NULL RETURNING *
+ FROM settings a WHERE chat_inputs.id = @id AND origin <> 'user' AND completed_at IS NULL RETURNING chat_inputs.*
 ), scheduled AS (
- UPDATE chat_sessions s SET next_check_at = now() + make_interval(secs => s.proactive_interval_seconds)
- FROM failed i WHERE i.origin = 'proactive' AND s.workspace_id = i.workspace_id
+ UPDATE chat_sessions s SET next_check_at = now() + make_interval(secs => a.automatic_check_interval_seconds)
+ FROM failed i CROSS JOIN settings a WHERE i.origin = 'proactive' AND s.workspace_id = i.workspace_id
  AND s.agent_name = i.agent_name AND s.session_id = i.session_id AND NOT s.deleting
 )
 SELECT * FROM failed;

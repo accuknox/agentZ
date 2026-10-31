@@ -6481,10 +6481,9 @@ components:
     ChatProactivityUpdate:
       type: object
       additionalProperties: false
-      required: [paused, interval_seconds]
+      required: [paused]
       properties:
         paused: {type: boolean}
-        interval_seconds: {type: integer, format: int32, minimum: 60, maximum: 604800}
     ChatProactivity:
       type: object
       additionalProperties: false
@@ -7372,6 +7371,14 @@ components:
           pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
       required: [scope, name]
 
+    AutomaticCheckIntervalSeconds:
+      type: integer
+      format: int32
+      minimum: 60
+      maximum: 604800
+      multipleOf: 60
+      description: Seconds between automatic checks for this agent's long-running conversations, in whole minutes. Defaults to 1800.
+
     AgentMemoryConfig:
       type: object
       additionalProperties: false
@@ -7731,6 +7738,8 @@ components:
       type: object
       additionalProperties: false
       properties:
+        automatic_check_interval_seconds:
+          $ref: '#/components/schemas/AutomaticCheckIntervalSeconds'
         name:
           $ref: '#/components/schemas/AgentName'
         sandbox:
@@ -7761,6 +7770,7 @@ components:
         capabilities:
           $ref: '#/components/schemas/AgentCapabilities'
       required:
+      - automatic_check_interval_seconds
       - name
       - sandbox
       - created_by
@@ -8339,6 +8349,8 @@ components:
       type: object
       additionalProperties: false
       properties:
+        automatic_check_interval_seconds:
+          $ref: '#/components/schemas/AutomaticCheckIntervalSeconds'
         name:
           $ref: '#/components/schemas/AgentName'
         memory:
@@ -9058,6 +9070,8 @@ components:
       type: object
       additionalProperties: false
       properties:
+        automatic_check_interval_seconds:
+          $ref: '#/components/schemas/AutomaticCheckIntervalSeconds'
         env:
           type: object
           additionalProperties:

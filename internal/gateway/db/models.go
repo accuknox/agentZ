@@ -870,10 +870,11 @@ func (ns NullWorkspaceType) Value() (driver.Value, error) {
 }
 
 type Agent struct {
-	TenantNamespace string    `json:"tenant_namespace"`
-	AgentName       string    `json:"agent_name"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	AutomaticCheckIntervalSeconds int32     `json:"automatic_check_interval_seconds"`
+	TenantNamespace               string    `json:"tenant_namespace"`
+	AgentName                     string    `json:"agent_name"`
+	CreatedAt                     time.Time `json:"created_at"`
+	UpdatedAt                     time.Time `json:"updated_at"`
 }
 
 type AgentOwner struct {
@@ -944,26 +945,25 @@ type ChatInput struct {
 }
 
 type ChatSession struct {
-	WorkspaceID              string             `json:"workspace_id"`
-	AgentName                string             `json:"agent_name"`
-	SessionID                string             `json:"session_id"`
-	ParentSessionID          pgtype.Text        `json:"parent_session_id"`
-	Title                    string             `json:"title"`
-	Kind                     ChatSessionKind    `json:"kind"`
-	Status                   ChatSessionStatus  `json:"status"`
-	SourceCreatedAt          pgtype.Timestamptz `json:"source_created_at"`
-	SourceUpdatedAt          pgtype.Timestamptz `json:"source_updated_at"`
-	CreatedAt                pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
-	LongRunning              bool               `json:"long_running"`
-	OwnerID                  pgtype.Text        `json:"owner_id"`
-	PrivateRootSessionID     pgtype.Text        `json:"private_root_session_id"`
-	ProactiveIntervalSeconds pgtype.Int4        `json:"proactive_interval_seconds"`
-	ProactivePaused          bool               `json:"proactive_paused"`
-	NextCheckAt              pgtype.Timestamptz `json:"next_check_at"`
-	Deleting                 bool               `json:"deleting"`
-	CleanupCompletedAt       pgtype.Timestamptz `json:"cleanup_completed_at"`
-	Generation               int64              `json:"generation"`
+	WorkspaceID          string             `json:"workspace_id"`
+	AgentName            string             `json:"agent_name"`
+	SessionID            string             `json:"session_id"`
+	ParentSessionID      pgtype.Text        `json:"parent_session_id"`
+	Title                string             `json:"title"`
+	Kind                 ChatSessionKind    `json:"kind"`
+	Status               ChatSessionStatus  `json:"status"`
+	SourceCreatedAt      pgtype.Timestamptz `json:"source_created_at"`
+	SourceUpdatedAt      pgtype.Timestamptz `json:"source_updated_at"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+	LongRunning          bool               `json:"long_running"`
+	OwnerID              pgtype.Text        `json:"owner_id"`
+	PrivateRootSessionID pgtype.Text        `json:"private_root_session_id"`
+	ProactivePaused      bool               `json:"proactive_paused"`
+	NextCheckAt          pgtype.Timestamptz `json:"next_check_at"`
+	Deleting             bool               `json:"deleting"`
+	CleanupCompletedAt   pgtype.Timestamptz `json:"cleanup_completed_at"`
+	Generation           int64              `json:"generation"`
 }
 
 type CleanupJob struct {

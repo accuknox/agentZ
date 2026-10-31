@@ -2068,35 +2068,16 @@ export default function Chat({
                       onCheckedChange={(enabled) =>
                         changeProactivity.mutate({
                           paused: !enabled,
-                          interval_seconds: proactivity.data?.interval_seconds ?? 1800,
                         })
                       }
                     >
                       Automatic checks on
                     </DropdownMenuCheckboxItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                      Check interval
-                    </DropdownMenuLabel>
-                    {[300, 900, 1800, 3600, 21600].map((seconds) => (
-                      <DropdownMenuItem
-                        key={seconds}
-                        disabled={changeProactivity.isPending || !proactivity.data}
-                        onSelect={() =>
-                          changeProactivity.mutate({
-                            paused: proactivity.data?.paused ?? false,
-                            interval_seconds: seconds,
-                          })
-                        }
-                      >
-                        {seconds < 3600
-                          ? `Every ${seconds / 60} minutes`
-                          : `Every ${seconds / 3600} ${seconds === 3600 ? "hour" : "hours"}`}
-                        {proactivity.data?.interval_seconds === seconds ? (
-                          <CheckIcon className="ml-auto size-3.5" />
-                        ) : null}
-                      </DropdownMenuItem>
-                    ))}
+                    <p className="px-2 py-1 text-xs leading-relaxed text-muted-foreground">
+                      Checks run every {(proactivity.data?.interval_seconds ?? 1800) / 60} minutes,
+                      configured in agent settings.
+                    </p>
                     <DropdownMenuSeparator />
                     <p className="px-2 py-1 text-xs leading-relaxed text-muted-foreground">
                       Workflow schedules have their own timing and pause controls.

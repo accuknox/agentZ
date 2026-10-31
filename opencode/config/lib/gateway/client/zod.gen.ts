@@ -125,7 +125,6 @@ export const zChatSessionParticipant = z.object({
 
 export const zChatProactivityUpdate = z.object({
   paused: z.boolean(),
-  interval_seconds: z.int().gte(60).lte(604800),
 })
 
 export const zChatProactivity = z.object({
@@ -828,6 +827,11 @@ export const zGuardrailEffective = z.object({
   checks: z.array(zGuardrailEffectiveCheck),
 })
 
+/**
+ * Seconds between automatic checks for this agent's long-running conversations, in whole minutes. Defaults to 1800.
+ */
+export const zAutomaticCheckIntervalSeconds = z.int().gte(60).lte(604800)
+
 export const zAgentMemoryConfig = z.object({
   enabled: z.boolean(),
 })
@@ -1439,6 +1443,7 @@ export const zAgentOpencodeConfig = z.object({
 })
 
 export const zAgent = z.object({
+  automatic_check_interval_seconds: zAutomaticCheckIntervalSeconds,
   name: zAgentName,
   sandbox: zResourceReference,
   created_by: zResourceActor,
@@ -1459,6 +1464,7 @@ export const zListAgentsResponse = z.object({
 })
 
 export const zCreateAgentRequest = z.object({
+  automatic_check_interval_seconds: zAutomaticCheckIntervalSeconds.optional(),
   name: zAgentName,
   memory: zAgentMemoryConfig.optional(),
   env: z.record(z.string(), z.string()).optional(),
@@ -1468,6 +1474,7 @@ export const zCreateAgentRequest = z.object({
 })
 
 export const zUpdateAgentRequest = z.object({
+  automatic_check_interval_seconds: zAutomaticCheckIntervalSeconds.optional(),
   env: z.record(z.string(), z.string()).optional(),
   memory: zAgentMemoryConfig.optional(),
   sandbox: zResourceReference.optional(),

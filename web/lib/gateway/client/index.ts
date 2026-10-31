@@ -239,6 +239,7 @@ export type {
   AppTraceChartPoint,
   AppTraceChartResponse,
   AssistantMessage,
+  AutomaticCheckIntervalSeconds,
   AzureInferenceProviderRead,
   AzureInferenceProviderWrite,
   AzureInferenceProviderWriteWritable,

@@ -121,12 +121,14 @@ const agentFormDataSchema = createAgentSimpleFormSchema.extend({
 export async function createAgentFormAction(
   scope: AgentActionScope,
   instruction: string,
+  automaticCheckIntervalSeconds: number,
   _: CreateAgentFormState,
   formData: FormData
 ): Promise<CreateAgentFormState> {
   const parsed = agentFormDataSchema.safeParse({
     ...Object.fromEntries(formData),
     instruction,
+    automaticCheckIntervalSeconds,
     skills: { names: formData.getAll("skillNames"), scopes: formData.getAll("skillScopes") },
     memoryEnabled: formData.has("memoryEnabled"),
   })
@@ -140,6 +142,7 @@ export async function createAgentFormAction(
       sandbox: { scope: parsed.data.sandboxScope, name: parsed.data.sandboxName },
       skills: parsed.data.skills,
       memory: { enabled: parsed.data.memoryEnabled },
+      automatic_check_interval_seconds: parsed.data.automaticCheckIntervalSeconds,
       opencode: { instruction: parsed.data.instruction },
     },
     client: getGatewayServerClient(scope.workspaceId),
@@ -157,12 +160,14 @@ export async function updateAgentFormAction(
   scope: AgentActionScope,
   agentName: string,
   instruction: string,
+  automaticCheckIntervalSeconds: number,
   _: CreateAgentFormState,
   formData: FormData
 ): Promise<CreateAgentFormState> {
   const parsed = agentFormDataSchema.omit({ name: true }).safeParse({
     ...Object.fromEntries(formData),
     instruction,
+    automaticCheckIntervalSeconds,
     skills: { names: formData.getAll("skillNames"), scopes: formData.getAll("skillScopes") },
     memoryEnabled: formData.has("memoryEnabled"),
   })
@@ -175,6 +180,7 @@ export async function updateAgentFormAction(
       sandbox: { scope: parsed.data.sandboxScope, name: parsed.data.sandboxName },
       skills: parsed.data.skills,
       memory: { enabled: parsed.data.memoryEnabled },
+      automatic_check_interval_seconds: parsed.data.automaticCheckIntervalSeconds,
       opencode: { instruction: parsed.data.instruction },
     },
     client: getGatewayServerClient(scope.workspaceId),

@@ -97,8 +97,10 @@ func TestLongRunningStorage(t *testing.T) {
 		SessionID:   receipt.SessionID,
 	})
 	check(err)
-	must(root.LongRunning && root.OwnerID.String == "lr-a" && root.ProactiveIntervalSeconds.Int32 == 1800,
-		"atomic owner reservation and default cadence")
+	must(root.LongRunning && root.OwnerID.String == "lr-a", "atomic owner reservation")
+	agent, err := q.GatewayGetAgent(ctx, db.GatewayGetAgentParams{TenantNamespace: "lr-general", AgentName: "agent"})
+	check(err)
+	must(agent.AutomaticCheckIntervalSeconds == 1800, "default cadence belongs to agent")
 	must(root.NextCheckAt.Time.After(time.Now().Add(29*time.Minute)), "first check is delayed")
 	request.SessionID = "ses_lr_retry_unused"
 	retry, err := q.GatewayReserveLongRunningChat(ctx, request)
@@ -219,21 +221,19 @@ func TestLongRunningStorage(t *testing.T) {
 	_, err = pool.Exec(ctx, fixtures[2])
 	check(err)
 	_, err = q.GatewayUpdateProactivity(ctx, db.GatewayUpdateProactivityParams{
-		WorkspaceID:     "lr-general",
-		AgentName:       "agent",
-		SessionID:       "ses_lr_test",
-		OwnerID:         pgtype.Text{String: "lr-b", Valid: true},
-		Paused:          true,
-		IntervalSeconds: pgtype.Int4{Int32: 1800, Valid: true},
+		WorkspaceID: "lr-general",
+		AgentName:   "agent",
+		SessionID:   "ses_lr_test",
+		OwnerID:     pgtype.Text{String: "lr-b", Valid: true},
+		Paused:      true,
 	})
 	must(err == pgx.ErrNoRows, "foreign owner cannot pause")
 	_, err = q.GatewayUpdateProactivity(ctx, db.GatewayUpdateProactivityParams{
-		WorkspaceID:     "lr-general",
-		AgentName:       "agent",
-		SessionID:       "ses_lr_test",
-		OwnerID:         pgtype.Text{String: "lr-a", Valid: true},
-		Paused:          true,
-		IntervalSeconds: pgtype.Int4{Int32: 600, Valid: true},
+		WorkspaceID: "lr-general",
+		AgentName:   "agent",
+		SessionID:   "ses_lr_test",
+		OwnerID:     pgtype.Text{String: "lr-a", Valid: true},
+		Paused:      true,
 	})
 	check(err)
 	background, err = q.GatewayListChatBackground(ctx, db.GatewayListChatBackgroundParams{
@@ -247,12 +247,38 @@ func TestLongRunningStorage(t *testing.T) {
 	rows, err = q.GatewayEnqueueProactiveChecks(ctx, input)
 	check(err)
 	must(len(rows) == 0, "paused root does not enqueue")
-	_, err = q.GatewayUpdateProactivity(ctx, db.GatewayUpdateProactivityParams{
-		WorkspaceID:     "lr-general",
+	policyTx, err := pool.Begin(ctx)
+	check(err)
+	defer policyTx.Rollback(ctx)
+	policy := db.New(policyTx)
+	_, err = policy.GatewayLockAgent(ctx, db.GatewayLockAgentParams{TenantNamespace: "lr-general", AgentName: "agent"})
+	check(err)
+	_, err = policy.GatewayTouchAgent(ctx, db.GatewayTouchAgentParams{
+		TenantNamespace:               "lr-general",
+		AgentName:                     "agent",
+		UpdatedAt:                     time.Now(),
+		AutomaticCheckIntervalSeconds: pgtype.Int4{Int32: 600, Valid: true},
+	})
+	check(err)
+	check(policy.GatewayRescheduleAgentChecks(ctx, db.GatewayRescheduleAgentChecksParams{
+		TenantNamespace: "lr-general",
 		AgentName:       "agent",
-		SessionID:       "ses_lr_test",
-		OwnerID:         pgtype.Text{String: "lr-a", Valid: true},
-		IntervalSeconds: pgtype.Int4{Int32: 60, Valid: true},
+	}))
+	check(policyTx.Commit(ctx))
+	settings, err := q.GatewayGetChatProactivity(ctx, db.GatewayGetChatProactivityParams{
+		WorkspaceID: "lr-general",
+		AgentName:   "agent",
+		SessionID:   "ses_lr_test",
+	})
+	check(err)
+	must(settings.ProactivePaused && settings.AutomaticCheckIntervalSeconds == 600,
+		"agent cadence update preserves conversation pause")
+	must(settings.NextCheckAt.Time.After(time.Now().Add(599*time.Second)), "existing root rescheduled with agent cadence")
+	_, err = q.GatewayUpdateProactivity(ctx, db.GatewayUpdateProactivityParams{
+		WorkspaceID: "lr-general",
+		AgentName:   "agent",
+		SessionID:   "ses_lr_test",
+		OwnerID:     pgtype.Text{String: "lr-a", Valid: true},
 	})
 	check(err)
 	_, err = pool.Exec(ctx, fixtures[1])
@@ -260,21 +286,62 @@ func TestLongRunningStorage(t *testing.T) {
 	rows, err = q.GatewayEnqueueProactiveChecks(ctx, input)
 	check(err)
 	must(len(rows) == 1, "resumed root admits one future check")
-	_, err = q.GatewayCompleteBackgroundInput(ctx, db.GatewayCompleteBackgroundInputParams{
-		ID: rows[0].ID,
-		Outcome: db.NullChatBackgroundOutcome{
-			ChatBackgroundOutcome: db.ChatBackgroundOutcomeQuiet,
-			Valid:                 true,
-		},
+	// A check completing during a policy update must wait for the new agent cadence.
+	policyTx, err = pool.Begin(ctx)
+	check(err)
+	defer policyTx.Rollback(ctx)
+	policy = db.New(policyTx)
+	_, err = policy.GatewayTouchAgent(ctx, db.GatewayTouchAgentParams{
+		TenantNamespace:               "lr-general",
+		AgentName:                     "agent",
+		UpdatedAt:                     time.Now(),
+		AutomaticCheckIntervalSeconds: pgtype.Int4{Int32: 1200, Valid: true},
 	})
 	check(err)
+	check(policy.GatewayRescheduleAgentChecks(ctx, db.GatewayRescheduleAgentChecksParams{
+		TenantNamespace: "lr-general",
+		AgentName:       "agent",
+	}))
+	completionCtx, cancelCompletion := context.WithTimeout(ctx, 5*time.Second)
+	defer cancelCompletion()
+	started := make(chan struct{})
+	completed := make(chan error, 1)
+	go func() {
+		close(started)
+		_, err := q.GatewayCompleteBackgroundInput(completionCtx, db.GatewayCompleteBackgroundInputParams{
+			ID: rows[0].ID,
+			Outcome: db.NullChatBackgroundOutcome{
+				ChatBackgroundOutcome: db.ChatBackgroundOutcomeQuiet,
+				Valid:                 true,
+			},
+		})
+		completed <- err
+	}()
+	<-started
+	select {
+	case err := <-completed:
+		t.Fatalf("completion overtook uncommitted agent cadence: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+	check(policyTx.Commit(ctx))
+	check(<-completed)
 	root, err = q.GatewayGetChatSession(ctx, db.GatewayGetChatSessionParams{
 		WorkspaceID: "lr-general",
 		AgentName:   "agent",
 		SessionID:   "ses_lr_test",
 	})
 	check(err)
-	must(root.NextCheckAt.Time.After(time.Now().Add(59*time.Second)), "completion schedules fixed delay")
+	must(root.NextCheckAt.Time.After(time.Now().Add(1199*time.Second)) && root.NextCheckAt.Time.Before(time.Now().Add(1201*time.Second)),
+		"completion schedules fixed delay using the committed agent cadence")
+	_, err = q.GatewayTouchAgent(ctx, db.GatewayTouchAgentParams{
+		TenantNamespace: "lr-general",
+		AgentName:       "agent",
+		UpdatedAt:       time.Now(),
+	})
+	check(err)
+	agent, err = q.GatewayGetAgent(ctx, db.GatewayGetAgentParams{TenantNamespace: "lr-general", AgentName: "agent"})
+	check(err)
+	must(agent.AutomaticCheckIntervalSeconds == 1200, "metadata-only touch preserves configured cadence")
 
 	reportRequest := db.GatewayPrepareWorkflowReportParams{
 		RunUid:         "run-test",
@@ -326,19 +393,38 @@ func TestLongRunningStorage(t *testing.T) {
 		must(id == deliveredIDs[0], "report activation creates one context input")
 	}
 
-	check(q.GatewayRecoverChatInputs(ctx, db.GatewayRecoverChatInputsParams{WorkspaceID: "lr-general", AgentName: "agent", SessionID: "ses_lr_test"}))
-	workflowInput, err := q.GatewayGetChatInput(ctx, db.GatewayGetChatInputParams{ID: deliveredIDs[0], WorkspaceID: "lr-general", AgentName: "agent", SessionID: "ses_lr_test"})
+	check(q.GatewayRecoverChatInputs(ctx, db.GatewayRecoverChatInputsParams{
+		WorkspaceID: "lr-general",
+		AgentName:   "agent",
+		SessionID:   "ses_lr_test",
+	}))
+	workflowInput, err := q.GatewayGetChatInput(ctx, db.GatewayGetChatInputParams{
+		ID:          deliveredIDs[0],
+		WorkspaceID: "lr-general",
+		AgentName:   "agent",
+		SessionID:   "ses_lr_test",
+	})
 	check(err)
 	must(workflowInput.State == "queued", "Stop leaves explicit workflow delivery queued")
-	_, err = q.GatewayFailBackgroundInput(ctx, db.GatewayFailBackgroundInputParams{ID: workflowInput.ID, Error: "Permanent admission failure"})
+	_, err = q.GatewayFailBackgroundInput(ctx, db.GatewayFailBackgroundInputParams{
+		ID:    workflowInput.ID,
+		Error: "Permanent admission failure",
+	})
 	check(err)
 	reportRequest.RunUid = "run-after-failure"
 	reportRequest.PayloadHash = "next-result"
 	_, err = q.GatewayPrepareWorkflowReport(ctx, reportRequest)
 	check(err)
-	nextReport, err := q.GatewayActivateWorkflowReport(ctx, db.GatewayActivateWorkflowReportParams{RunUid: reportRequest.RunUid, Content: []byte(`{"text":"Next release update","attachments":[]}`)})
+	nextReport, err := q.GatewayActivateWorkflowReport(ctx, db.GatewayActivateWorkflowReportParams{
+		RunUid:  reportRequest.RunUid,
+		Content: []byte(`{"text":"Next release update","attachments":[]}`),
+	})
 	check(err)
-	head, err = q.GatewayHeadChatInput(ctx, db.GatewayHeadChatInputParams{WorkspaceID: "lr-general", AgentName: "agent", SessionID: "ses_lr_test"})
+	head, err = q.GatewayHeadChatInput(ctx, db.GatewayHeadChatInputParams{
+		WorkspaceID: "lr-general",
+		AgentName:   "agent",
+		SessionID:   "ses_lr_test",
+	})
 	check(err)
 	must(head.ID == nextReport.ChatInputID.Bytes, "completed background failures cannot block later context")
 	heads, err = q.GatewayPendingChatInputs(ctx)
@@ -367,11 +453,10 @@ func TestLongRunningStorage(t *testing.T) {
 	check(err)
 	must(deleted.Deleting && deleted.Generation == 1, "deletion creates generation barrier")
 	_, err = q.GatewayUpdateProactivity(ctx, db.GatewayUpdateProactivityParams{
-		WorkspaceID:     "lr-general",
-		AgentName:       "agent",
-		SessionID:       "ses_lr_test",
-		OwnerID:         pgtype.Text{String: "lr-a", Valid: true},
-		IntervalSeconds: pgtype.Int4{Int32: 60, Valid: true},
+		WorkspaceID: "lr-general",
+		AgentName:   "agent",
+		SessionID:   "ses_lr_test",
+		OwnerID:     pgtype.Text{String: "lr-a", Valid: true},
 	})
 	must(err == pgx.ErrNoRows, "stale settings cannot restore deleted root")
 	check(q.GatewayFinishPrivateChatCleanup(ctx, db.GatewayFinishPrivateChatCleanupParams{
@@ -382,6 +467,13 @@ func TestLongRunningStorage(t *testing.T) {
 	repair, err := q.GatewayPrivateChatRoots(ctx, "")
 	check(err)
 	must(len(repair) == 0, "completed cleanup retains its tombstone without repeated native disposal")
+	migration, err := os.ReadFile(filepath.Join("migrations", "00005_agent_check_interval.sql"))
+	check(err)
+	steps := strings.SplitN(string(migration), "-- +goose Down", 2)
+	_, err = pool.Exec(ctx, steps[1])
+	check(err)
+	_, err = pool.Exec(ctx, steps[0])
+	check(err)
 	_, err = q.GatewayGetChatSession(ctx, db.GatewayGetChatSessionParams{
 		WorkspaceID: "lr-general",
 		AgentName:   "agent",

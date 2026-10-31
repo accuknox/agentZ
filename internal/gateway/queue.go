@@ -382,12 +382,11 @@ func (s *Service) stopOpenCodeSession(w http.ResponseWriter, r *http.Request, ro
 			return
 		}
 		_, err = s.queries.GatewayUpdateProactivity(r.Context(), gatewaydb.GatewayUpdateProactivityParams{
-			WorkspaceID:     access.workspaceID,
-			AgentName:       agent,
-			SessionID:       session,
-			OwnerID:         root.OwnerID,
-			IntervalSeconds: root.ProactiveIntervalSeconds,
-			Paused:          root.ProactivePaused,
+			WorkspaceID: access.workspaceID,
+			AgentName:   agent,
+			SessionID:   session,
+			OwnerID:     root.OwnerID,
+			Paused:      root.ProactivePaused,
 		})
 		if err != nil {
 			apiutil.WriteInternalError(w, r, err)

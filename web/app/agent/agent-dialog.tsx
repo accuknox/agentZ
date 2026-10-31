@@ -73,6 +73,7 @@ type AgentDialogProps = {
   initialNextSandboxPageToken: string
   agentName?: string
   initialSandboxName?: string
+  initialAutomaticCheckIntervalSeconds?: Agent["automatic_check_interval_seconds"]
   initialMemoryEnabled?: boolean
   initialSkills?: Agent["skills"]
   initialInstruction?: AgentOpencodeConfig["instruction"]
@@ -225,6 +226,7 @@ export function AgentDialog({
   agentName,
   initialSandboxName,
   initialMemoryEnabled = false,
+  initialAutomaticCheckIntervalSeconds = 1800,
   initialSkills = [],
   initialInstruction = "",
   open,
@@ -241,6 +243,7 @@ export function AgentDialog({
     sandboxName: initialSandboxName ?? (mode === "create" ? (sandboxes[0]?.name ?? "") : ""),
     skills: initialSkills,
     memoryEnabled: actionScope.workspaceType !== "coding" && initialMemoryEnabled,
+    automaticCheckIntervalSeconds: initialAutomaticCheckIntervalSeconds,
     instruction: initialInstruction,
   }
   const form = useForm<AgentFormValues>({
@@ -253,10 +256,18 @@ export function AgentDialog({
     async (state, formData) => {
       // Multipart encoding rewrites newlines; pass Markdown as an action argument.
       const instruction = form.getValues("instruction")
+      const interval = form.getValues("automaticCheckIntervalSeconds")
       const result =
         mode === "update" && agentName
-          ? await updateAgentFormAction(actionScope, agentName, instruction, state, formData)
-          : await createAgentFormAction(actionScope, instruction, state, formData)
+          ? await updateAgentFormAction(
+              actionScope,
+              agentName,
+              instruction,
+              interval,
+              state,
+              formData
+            )
+          : await createAgentFormAction(actionScope, instruction, interval, state, formData)
       if (result.error) {
         const messages = new Map<keyof AgentFormValues | "root", string[]>()
         const errors = result.error.errors?.length
@@ -275,6 +286,10 @@ export function AgentDialog({
             case "sandboxScope":
             case "sandboxName":
               field = "sandboxName"
+              break
+            case "automatic_check_interval_seconds":
+            case "automaticCheckIntervalSeconds":
+              field = "automaticCheckIntervalSeconds"
               break
             case "memory":
             case "memoryEnabled":
@@ -517,6 +532,46 @@ export function AgentDialog({
                 )
               }}
             />
+            {actionScope.workspaceType !== "coding" && (
+              <Controller
+                name="automaticCheckIntervalSeconds"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor="agent-form-check-interval">
+                      Automatic check interval
+                    </FieldLabel>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="agent-form-check-interval"
+                        ref={field.ref}
+                        type="number"
+                        min={1}
+                        max={10080}
+                        step={1}
+                        value={Number.isNaN(field.value) ? "" : field.value / 60}
+                        onChange={(event) => field.onChange(event.currentTarget.valueAsNumber * 60)}
+                        onBlur={field.onBlur}
+                        disabled={isPending}
+                        aria-invalid={fieldState.invalid}
+                        aria-describedby="agent-form-check-interval-description agent-form-check-interval-error"
+                        className="w-24"
+                      />
+                      <span className="text-muted-foreground">minutes</span>
+                    </div>
+                    <FieldDescription id="agent-form-check-interval-description">
+                      Applies to all long-running conversations with this agent. Each conversation
+                      can be paused independently.
+                    </FieldDescription>
+                    <FieldError id="agent-form-check-interval-error">
+                      {fieldState.invalid
+                        ? "Enter a whole number of minutes between 1 and 10,080."
+                        : null}
+                    </FieldError>
+                  </Field>
+                )}
+              />
+            )}
             {actionScope.workspaceType !== "coding" && (
               <Controller
                 name="memoryEnabled"

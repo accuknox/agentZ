@@ -82,6 +82,7 @@ type Querier interface {
 	GatewayGetAppOperations(ctx context.Context, arg GatewayGetAppOperationsParams) ([]GatewayGetAppOperationsRow, error)
 	GatewayGetAppTraceChart(ctx context.Context, arg GatewayGetAppTraceChartParams) ([]GatewayGetAppTraceChartRow, error)
 	GatewayGetChatInput(ctx context.Context, arg GatewayGetChatInputParams) (ChatInput, error)
+	GatewayGetChatProactivity(ctx context.Context, arg GatewayGetChatProactivityParams) (GatewayGetChatProactivityRow, error)
 	GatewayGetChatSession(ctx context.Context, arg GatewayGetChatSessionParams) (ChatSession, error)
 	GatewayGetChatSessionGroup(ctx context.Context, arg GatewayGetChatSessionGroupParams) (GatewayGetChatSessionGroupRow, error)
 	GatewayGetCodingOperation(ctx context.Context, arg GatewayGetCodingOperationParams) (CodingOperation, error)
@@ -160,6 +161,7 @@ type Querier interface {
 	GatewayListenExternalAgents(ctx context.Context) error
 	GatewayLockActiveOrganizationMember(ctx context.Context, arg GatewayLockActiveOrganizationMemberParams) (string, error)
 	GatewayLockActiveWorkspace(ctx context.Context, arg GatewayLockActiveWorkspaceParams) (string, error)
+	GatewayLockAgent(ctx context.Context, arg GatewayLockAgentParams) (Agent, error)
 	GatewayLockAgentOwner(ctx context.Context, arg GatewayLockAgentOwnerParams) (AgentOwner, error)
 	GatewayLockAgentShares(ctx context.Context, arg GatewayLockAgentSharesParams) ([]AgentShare, error)
 	GatewayLockCodingIdentity(ctx context.Context, id string) (string, error)
@@ -183,6 +185,7 @@ type Querier interface {
 	GatewayRecoverChatInputs(ctx context.Context, arg GatewayRecoverChatInputsParams) error
 	GatewayRefreshCodingConnection(ctx context.Context, arg GatewayRefreshCodingConnectionParams) error
 	GatewayRenameCodingProject(ctx context.Context, arg GatewayRenameCodingProjectParams) (int64, error)
+	GatewayRescheduleAgentChecks(ctx context.Context, arg GatewayRescheduleAgentChecksParams) error
 	GatewayReserveLongRunningChat(ctx context.Context, arg GatewayReserveLongRunningChatParams) (GatewayReserveLongRunningChatRow, error)
 	GatewayResolveCodingSession(ctx context.Context, arg GatewayResolveCodingSessionParams) (GatewayResolveCodingSessionRow, error)
 	GatewayResolvePermissions(ctx context.Context, arg GatewayResolvePermissionsParams) ([]GatewayResolvePermissionsRow, error)

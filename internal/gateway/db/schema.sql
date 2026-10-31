@@ -1,4 +1,6 @@
 CREATE TABLE agents(
+  automatic_check_interval_seconds INTEGER NOT NULL DEFAULT 1800
+    CHECK (automatic_check_interval_seconds BETWEEN 60 AND 604800 AND automatic_check_interval_seconds % 60 = 0),
   tenant_namespace TEXT NOT NULL
     CHECK (tenant_namespace <> ''),
   agent_name TEXT NOT NULL
@@ -35,7 +37,6 @@ CREATE TABLE chat_sessions (
   long_running BOOLEAN NOT NULL DEFAULT false,
   owner_id TEXT REFERENCES users(id),
   private_root_session_id TEXT,
-  proactive_interval_seconds INTEGER,
   proactive_paused BOOLEAN NOT NULL DEFAULT false,
   next_check_at TIMESTAMPTZ,
   deleting BOOLEAN NOT NULL DEFAULT false,
@@ -47,9 +48,8 @@ CREATE TABLE chat_sessions (
   CONSTRAINT chat_sessions_proactivity_ck CHECK (
     (long_running AND kind = 'chat' AND parent_session_id IS NULL
       AND owner_id IS NOT NULL AND private_root_session_id = session_id
-      AND proactive_interval_seconds IS NOT NULL AND proactive_interval_seconds >= 60 AND next_check_at IS NOT NULL)
-    OR (NOT long_running AND proactive_interval_seconds IS NULL
-      AND next_check_at IS NULL AND NOT proactive_paused)
+      AND next_check_at IS NOT NULL)
+    OR (NOT long_running AND next_check_at IS NULL AND NOT proactive_paused)
   ),
   CONSTRAINT chat_sessions_workspace_id_agent_name_session_id_pk
     PRIMARY KEY(workspace_id, agent_name, session_id),

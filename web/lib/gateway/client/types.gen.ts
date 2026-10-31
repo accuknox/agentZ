@@ -322,7 +322,6 @@ export type LongRunningChatRequest = {
 
 export type ChatProactivityUpdate = {
   paused: boolean
-  interval_seconds: number
 }
 
 export type ChatProactivity = {
@@ -726,6 +725,11 @@ export type ResourceReference = {
   name: string
 }
 
+/**
+ * Seconds between automatic checks for this agent's long-running conversations, in whole minutes. Defaults to 1800.
+ */
+export type AutomaticCheckIntervalSeconds = number
+
 export type AgentMemoryConfig = {
   enabled: boolean
 }
@@ -889,6 +893,7 @@ export type ListWorkflowWebhookTriggersResponse = {
 }
 
 export type Agent = {
+  automatic_check_interval_seconds: AutomaticCheckIntervalSeconds
   name: AgentName
   sandbox: ResourceReference
   created_by: ResourceActor
@@ -1120,6 +1125,7 @@ export type UpdateSkillRequest = {
 export type AgentStatus = "UNSPECIFIED" | "PROGRESSING" | "DEGRADED" | "DELETED" | "IDLE"
 
 export type CreateAgentRequest = {
+  automatic_check_interval_seconds?: AutomaticCheckIntervalSeconds
   name: AgentName
   memory?: AgentMemoryConfig
   env?: {
@@ -1453,6 +1459,7 @@ export type DeleteWorkflowsRequest = {
 }
 
 export type UpdateAgentRequest = {
+  automatic_check_interval_seconds?: AutomaticCheckIntervalSeconds
   env?: {
     [key: string]: string
   }

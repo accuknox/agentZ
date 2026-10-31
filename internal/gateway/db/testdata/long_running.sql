@@ -5,6 +5,7 @@ VALUES ('lr-org', 'Long-running test', 'lr-org', now());
 INSERT INTO workspaces(id, organization_id, name, slug, namespace, type)
 VALUES ('lr-general', 'lr-org', 'General', 'general', 'lr-general', 'general'),
        ('lr-coding', 'lr-org', 'Coding', 'coding', 'lr-coding', 'coding');
+INSERT INTO agents(tenant_namespace, agent_name) VALUES ('lr-general', 'agent');
 INSERT INTO chat_sessions(workspace_id, agent_name, session_id, title, source_created_at, source_updated_at)
 VALUES ('lr-general', 'agent', 'ses_ordinary', 'Shared', now(), now());
 

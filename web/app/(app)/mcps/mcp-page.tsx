@@ -62,7 +62,10 @@ export async function McpPage({
   if (!canCreate) return content
 
   return (
-    <McpSheet oauthCallbackURL={mcpOAuthCallbackURL()} submitMcpAction={submitScopedMcpFormAction.bind(null, scope)}>
+    <McpSheet
+      oauthCallbackURL={mcpOAuthCallbackURL()}
+      submitMcpAction={submitScopedMcpFormAction.bind(null, scope)}
+    >
       {content}
     </McpSheet>
   )

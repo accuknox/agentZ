@@ -1298,12 +1298,15 @@ export function McpSheet({
                         <InputGroup>
                           <InputGroupInput readOnly value={oauthCallbackURL} />
                           <InputGroupAddon align="inline-end">
-                            <CopyButton content={oauthCallbackURL} label="Copy OAuth callback URL" />
+                            <CopyButton
+                              content={oauthCallbackURL}
+                              label="Copy OAuth callback URL"
+                            />
                           </InputGroupAddon>
                         </InputGroup>
                         <FieldDescription>
-                          Register this redirect URI with your OAuth provider when creating the client
-                          ID and secret.
+                          Register this redirect URI with your OAuth provider when creating the
+                          client ID and secret.
                         </FieldDescription>
                       </Field>
                     </FieldGroup>

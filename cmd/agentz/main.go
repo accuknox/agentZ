@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"os"
 	"strings"
@@ -102,6 +103,7 @@ var (
 	controllerImage                                  string
 	gatewayURL                                       string
 
+	inferenceMaxBufferSize                        string
 	agentgatewayTraceMode                         string
 	agentgatewayTraceServiceName                  string
 	agentgatewayTraceServiceNamespace             string
@@ -347,6 +349,15 @@ var managerCmd = &cli.Command{
 			Usage:       "Gateway base URL exposed to Agent workflow tools",
 			Value:       "http://localhost:8090",
 			Destination: &gatewayURL,
+			Config: cli.StringConfig{
+				TrimSpace: true,
+			},
+		},
+		&cli.StringFlag{
+			Name:        "inference-max-buffer-size",
+			Usage:       "Inference gateway body buffer size as a Kubernetes quantity",
+			Value:       "32Mi",
+			Destination: &inferenceMaxBufferSize,
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
@@ -818,6 +829,14 @@ var managerCmd = &cli.Command{
 	},
 	Action: func(ctx context.Context, _ *cli.Command) error {
 		setupLog := slog.Default().With("logger", "setup")
+
+		bufferSize, err := resource.ParseQuantity(inferenceMaxBufferSize)
+		if err != nil {
+			return fmt.Errorf("invalid inference-max-buffer-size: %w", err)
+		}
+		if bufferSize.CmpInt64(1) < 0 || bufferSize.CmpInt64(math.MaxUint32) > 0 {
+			return fmt.Errorf("inference-max-buffer-size must be between 1 and %d bytes", math.MaxUint32)
+		}
 
 		// if the enable-http2 flag is false (the default), http/2 should be
 		// disabled due to its vulnerabilities. More specifically, disabling
@@ -1314,10 +1333,13 @@ var managerCmd = &cli.Command{
 		}
 
 		sandboxReconciler := &sandboxcontroller.Reconciler{
-			Client:             mgr.GetClient(),
-			Scheme:             mgr.GetScheme(),
-			AgentGateway:       agClient,
-			TraceBackend:       appTraceBackend,
+			Client:       mgr.GetClient(),
+			Scheme:       mgr.GetScheme(),
+			AgentGateway: agClient,
+			TraceBackend: appTraceBackend,
+			InferenceMaxBufferSize: &agentgatewayv1alpha1.ByteSize{
+				Value: &bufferSize,
+			},
 			GuardrailStoreName: inferenceSecretStoreName,
 		}
 		if err := sandboxReconciler.SetupWithManager(mgr); err != nil {

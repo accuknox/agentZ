@@ -29,22 +29,21 @@ import type {
   Session,
   Todo,
 } from "@opencode-ai/sdk/v2"
-import { queryOptions, useQuery } from "@tanstack/react-query"
-import { useCallback, useEffect, useId, useRef, useState } from "react"
+import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { sessionInfoQueryOptions } from "./use-opencode-chat"
 
 const CUSTOM_ANSWER_KEY = "__custom__"
-const QUESTION_CACHE_MAX = 8
 
 // In-flight question answers survive navigation away and back within the same
 // request id. Cleared on reply/reject so a future identical-looking request
 // doesn't accidentally reuse a stale choice.
-type QuestionCacheEntry = {
+type QuestionDraft = {
   answers: Record<number, string[]>
   custom: Record<number, string>
   tab: number
 }
-const questionCache = new Map<string, QuestionCacheEntry>()
 
 export function PlanDock({
   agentName,
@@ -137,18 +136,30 @@ export function PlanDock({
 }
 
 export function QuestionDock({
+  agentName,
+  workspaceId,
+  userID,
   onReject,
   onSubmit,
   pending,
   request,
 }: {
+  agentName: string
+  workspaceId: string
+  userID: string
   onReject: () => Promise<void>
   onSubmit: (answers: QuestionAnswer[]) => Promise<void>
   pending: boolean
   request: QuestionRequest
 }) {
-  const [entry, setEntry] = useState<QuestionCacheEntry>(
-    () => questionCache.get(request.id) ?? { answers: {}, custom: {}, tab: 0 }
+  const queryClient = useQueryClient()
+  const draftKey = useMemo(
+    () =>
+      ["chatQuestionDraft", workspaceId, agentName, request.sessionID, userID, request.id] as const,
+    [workspaceId, agentName, request.sessionID, userID, request.id]
+  )
+  const [entry, setEntry] = useState<QuestionDraft>(
+    () => queryClient.getQueryData<QuestionDraft>(draftKey) ?? { answers: {}, custom: {}, tab: 0 }
   )
   const [open, setOpen] = useState(true)
   const replied = useRef(false)
@@ -177,18 +188,15 @@ export function QuestionDock({
   const isLast = tab === questions.length - 1
 
   // Keep drafts through navigation and failed requests. Only an accepted reply
-  // or dismissal clears them; the cache holds at most eight active requests.
+  // or dismissal clears them. Query owns expiry and identity-boundary cleanup.
   useEffect(
     () => () => {
       if (replied.current) return
-      questionCache.delete(request.id)
-      questionCache.set(request.id, entry)
-      if (questionCache.size > QUESTION_CACHE_MAX) {
-        const oldest = questionCache.keys().next().value
-        if (oldest) questionCache.delete(oldest)
-      }
+      const session = sessionInfoQueryOptions(agentName, workspaceId, request.sessionID)
+      if (!queryClient.getQueryData(session.queryKey)) return
+      queryClient.setQueryData(draftKey, entry)
     },
-    [entry, request.id]
+    [agentName, draftKey, entry, queryClient, request.sessionID, workspaceId]
   )
 
   const advance = async () => {
@@ -200,7 +208,7 @@ export function QuestionDock({
     try {
       await onSubmit(answers)
       replied.current = true
-      questionCache.delete(request.id)
+      queryClient.removeQueries({ queryKey: draftKey, exact: true })
     } catch {
       // The mutation reports the error; keep the selected answers for retry.
     }
@@ -210,7 +218,7 @@ export function QuestionDock({
     try {
       await onReject()
       replied.current = true
-      questionCache.delete(request.id)
+      queryClient.removeQueries({ queryKey: draftKey, exact: true })
     } catch {
       // Dismissal failures retain the same draft as submission failures.
     }
@@ -242,11 +250,12 @@ export function QuestionDock({
     <Collapsible
       open={open}
       onOpenChange={setOpen}
-      className="mx-auto mb-2 w-full max-w-3xl overflow-clip rounded-xl border bg-card shadow-xs"
+      className="mx-auto mb-2 flex min-h-0 w-full max-w-3xl flex-col overflow-clip rounded-xl border bg-card shadow-xs"
     >
       <section
         aria-label="Agent questions"
         aria-busy={pending}
+        className="flex min-h-0 flex-col"
         onKeyDown={(event) => {
           if (event.defaultPrevented || event.nativeEvent.isComposing || event.repeat || pending)
             return
@@ -269,7 +278,7 @@ export function QuestionDock({
           }
         }}
       >
-        <CollapsibleTrigger className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-xs text-muted-foreground outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset">
+        <CollapsibleTrigger className="flex w-full shrink-0 items-center gap-2 px-3.5 py-2.5 text-left text-xs text-muted-foreground outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset">
           <MessageCircleQuestionIcon aria-hidden="true" className="size-3.5 shrink-0" />
           <span className="mr-auto min-w-0 truncate font-medium">{question.header}</span>
           {!open ? <span className="min-w-0 flex-1 truncate">{question.question}</span> : null}
@@ -283,7 +292,7 @@ export function QuestionDock({
             className={cn("size-3.5 shrink-0 transition-transform", open && "rotate-180")}
           />
         </CollapsibleTrigger>
-        <CollapsibleContent>
+        <CollapsibleContent className="flex min-h-0 flex-col">
           {questions.length > 1 ? (
             <nav aria-label="Questions" className="flex gap-1 overflow-x-auto border-t px-3 py-2">
               {questions.map((item, index) => (
@@ -310,7 +319,7 @@ export function QuestionDock({
               ))}
             </nav>
           ) : null}
-          <div className="max-h-[min(26rem,40svh)] overflow-y-auto overscroll-contain px-3 pb-3">
+          <div className="max-h-[min(24rem,40dvh)] min-h-0 overflow-y-auto overscroll-contain px-3 pb-3">
             <p
               id={`${id}-question`}
               className="px-0.5 pb-2 text-sm leading-relaxed wrap-break-word"
@@ -412,7 +421,7 @@ export function QuestionDock({
               })}
             </fieldset>
           </div>
-          <div className="flex items-center justify-between gap-2 border-t px-3 py-2">
+          <div className="flex shrink-0 items-center justify-between gap-2 border-t px-3 py-2">
             <Button disabled={pending} onClick={() => void reject()} size="sm" variant="ghost">
               Dismiss
             </Button>

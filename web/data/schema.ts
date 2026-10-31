@@ -3,6 +3,7 @@ import ipaddr from "ipaddr.js"
 import {
   zGuardrailAssignment,
   zAgentName,
+  zAgentAppearance,
   zAgentOpencodeConfig,
   zMcpConnectionName,
   zResourceReference,
@@ -455,6 +456,7 @@ export const sandboxAllowedHostSchema = z
 
 export const createAgentSimpleFormSchema = z.object({
   name: agentNameInputSchema,
+  appearance: zAgentAppearance,
   sandboxScope: zResourceScope,
   sandboxName: sandboxNameSchema,
   skills: z.array(zResourceReference.extend({ name: zSkillName })),

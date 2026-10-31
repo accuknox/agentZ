@@ -17,6 +17,7 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
+  keepPreviousData,
   type InfiniteData,
   type QueryClient,
 } from "@tanstack/react-query"
@@ -45,7 +46,15 @@ import {
   CircleAlert,
 } from "lucide-react"
 import { nanoid } from "nanoid"
-import { useActionState, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
+import {
+  memo,
+  useActionState,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { Projects, ProjectPicker, type ProjectActions } from "@/components/blocks/coding/projects"
@@ -92,7 +101,12 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { PresenceAvatars } from "@/components/interior/presence-avatars"
-import { sessionDiffQueryOptions } from "@/components/blocks/chat/use-opencode-chat"
+import {
+  sessionDiffQueryOptions,
+  sessionInfoQueryOptions,
+  sessionMessagesQueryOptions,
+  removeSessionState,
+} from "@/components/blocks/chat/use-opencode-chat"
 import { MultiSelectDropdown } from "@/components/ui/multi-select-dropdown"
 import {
   Select,
@@ -244,6 +258,7 @@ function chatSessionsOptions(
       return result.data
     },
     getNextPageParam: (page) => (page.has_next_page ? page.next_page_token : undefined),
+    placeholderData: keepPreviousData,
     staleTime: Infinity,
   })
 }
@@ -253,6 +268,7 @@ async function removeChatSessionFromCache(
   workspaceId: string,
   session: Pick<ChatSession, "agent_name" | "session_id">
 ) {
+  await removeSessionState(queryClient, session.agent_name, workspaceId, session.session_id)
   const queryKey = chatSessionKeys.workspace(workspaceId)
   await queryClient.cancelQueries({ queryKey })
   queryClient.setQueriesData<InfiniteData<ListChatSessionsResponse>>(
@@ -547,22 +563,26 @@ function NavSessionsContent({
     channel.onmessage = (
       event: MessageEvent<Pick<ChatSession, "agent_name" | "session_id"> & { source?: string }>
     ) => {
-      // The deleting tab already opens a fresh draft with its chosen agent.
       if (event.data.source === chatDeletionSource) return
       void removeChatSessionFromCache(queryClient, workspaceId, event.data)
-      const agent = encodeURIComponent(event.data.agent_name)
-      const session = encodeURIComponent(event.data.session_id)
-      if (location.pathname === `${workspacePath}/agents/${agent}/sessions/${session}`) {
-        router.replace(`${workspacePath}/sessions/new`)
-      }
     }
     return () => channel.close()
-  }, [queryClient, workspaceId, workspacePath, router])
+  }, [queryClient, workspaceId])
 
   const watch = useQuery(chatSessionWatchOptions(workspaceId, userId))
 
   useEffect(() => {
     if (!watch.data) return
+    // A draft has no native chat stream. Mark inactive snapshots uncertain so
+    // returning to them validates changes made by other users while away.
+    void queryClient.invalidateQueries({
+      type: "inactive",
+      predicate: (query) =>
+        query.queryKey[0] === "opencode" &&
+        query.queryKey[2] === workspaceId &&
+        (query.queryKey[1] === "sessionInfo" || query.queryKey[1] === "sessionMessages"),
+      refetchType: "none",
+    })
     void queryClient.invalidateQueries({
       predicate: (query) => query.queryKey[0] === "chatInputs" && query.queryKey[1] === workspaceId,
     })
@@ -781,9 +801,19 @@ function NavSessionsContent({
               if (project) void newProjectChat(project)
               return
             }
-            const path = `${workspacePath}/sessions/new?draft=${nanoid()}`
-            window.history.pushState(null, "", path)
-            router.refresh({ showProgress: false })
+            const search = new URLSearchParams({ draft: nanoid() })
+            const agent = preferences.last_agent_name ?? activeAgentName
+            if (agent) search.set("agent", agent)
+            const path = `${workspacePath}/sessions/new?${search}` as Route
+            if (
+              [...document.querySelectorAll("[data-agentz-chat]")].some((chat) =>
+                chat.checkVisibility()
+              )
+            ) {
+              window.history.pushState(null, "", path)
+              return
+            }
+            router.push(path, { showProgress: false })
           }}
           size="sm"
           variant="ghost"
@@ -979,7 +1009,10 @@ function NavSessionsContent({
             ? rows.map((session) => (
                 <SessionCard
                   key={`${session.agent_name}:${session.session_id}`}
-                  path={path}
+                  active={
+                    path ===
+                    `${workspacePath}/agents/${encodeURIComponent(session.agent_name)}/sessions/${encodeURIComponent(session.session_id)}`
+                  }
                   session={session}
                   workspaceType={workspaceType}
                   workspaceId={workspaceId}
@@ -1276,8 +1309,16 @@ function SessionGroup({
             className="mr-1 size-7 shrink-0 text-sidebar-muted-foreground hover:text-sidebar-accent-foreground"
             onClick={() => {
               const query = new URLSearchParams({ agent: agentName, draft: nanoid() })
-              window.history.pushState(null, "", `${workspacePath}/sessions/new?${query}`)
-              router.refresh({ showProgress: false })
+              const path = `${workspacePath}/sessions/new?${query}` as Route
+              if (
+                [...document.querySelectorAll("[data-agentz-chat]")].some((chat) =>
+                  chat.checkVisibility()
+                )
+              ) {
+                window.history.pushState(null, "", path)
+                return
+              }
+              router.push(path, { showProgress: false })
             }}
             size="icon-sm"
             variant="ghost"
@@ -1311,7 +1352,10 @@ function SessionGroup({
           {sessions.map((session) => (
             <SessionCard
               key={`${session.agent_name}:${session.session_id}`}
-              path={path}
+              active={
+                path ===
+                `${workspacePath}/agents/${encodeURIComponent(session.agent_name)}/sessions/${encodeURIComponent(session.session_id)}`
+              }
               session={session}
               showAgent={group.group_by !== "agent"}
               workspaceType={workspaceType}
@@ -1539,15 +1583,15 @@ function SessionCheckout({ session, workspaceId }: { session: ChatSession; works
   )
 }
 
-function SessionCard({
-  path,
+const SessionCard = memo(function SessionCard({
+  active,
   session,
   showAgent = true,
   workspaceId,
   workspaceType,
   workspacePath,
 }: {
-  path: string
+  active: boolean
   session: ChatSession
   showAgent?: boolean
   workspaceId: string
@@ -1558,9 +1602,6 @@ function SessionCard({
   const href =
     `${workspacePath}/agents/${encodeURIComponent(session.agent_name)}/sessions/${encodeURIComponent(session.session_id)}` as Route
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const [titleOverflows, setTitleOverflows] = useState(false)
-  const titleRef = useRef<HTMLSpanElement>(null)
-  const router = useRouter()
   const queryClient = useQueryClient()
   const [pendingState, action, isPending] = useActionState<DeleteSessionFormState, FormData>(
     async (state, formData) => {
@@ -1583,16 +1624,6 @@ function SessionCard({
       toast.success("Chat deleted")
       setConfirmingDelete(false)
 
-      if (path === href) {
-        const search = new URLSearchParams({
-          agent: session.agent_name,
-          draft: nanoid(),
-        })
-        router.push(`${workspacePath}/sessions/new?${search}` as Route, {
-          showProgress: false,
-        })
-      }
-
       void queryClient.invalidateQueries({ queryKey: chatSessionKeys.workspace(workspaceId) })
       return result
     },
@@ -1600,7 +1631,6 @@ function SessionCard({
   )
 
   const { setOpenMobile } = useSidebar()
-  const active = path === href
   const groupedByAgent = !coding && !showAgent
   const status =
     session.status === "idle" ? (
@@ -1626,18 +1656,6 @@ function SessionCard({
       />
     ) : null
 
-  useEffect(() => {
-    const title = titleRef.current
-    if (!title) return
-
-    const observer = new ResizeObserver(() => {
-      setTitleOverflows(title.scrollWidth > title.clientWidth)
-    })
-    observer.observe(title)
-
-    return () => observer.disconnect()
-  }, [groupedByAgent, session.title])
-
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -1648,7 +1666,48 @@ function SessionCard({
           )}
         >
           <Link
-            onClick={() => setOpenMobile(false)}
+            prefetch={false}
+            onPointerEnter={() => {
+              void queryClient
+                .fetchQuery(
+                  sessionInfoQueryOptions(session.agent_name, workspaceId, session.session_id)
+                )
+                .then((info) => {
+                  if (!info) return
+                  return queryClient.prefetchInfiniteQuery(
+                    sessionMessagesQueryOptions(
+                      session.agent_name,
+                      workspaceId,
+                      session.session_id,
+                      info.directory
+                    )
+                  )
+                })
+                .catch(() => {
+                  /* Opening the chat owns visible errors. */
+                })
+            }}
+            onClick={(event) => {
+              setOpenMobile(false)
+              if (
+                event.button !== 0 ||
+                event.metaKey ||
+                event.ctrlKey ||
+                event.shiftKey ||
+                event.altKey
+              )
+                return
+              if (
+                ![...document.querySelectorAll("[data-agentz-chat]")].some((chat) =>
+                  chat.checkVisibility()
+                )
+              )
+                return
+              event.preventDefault()
+              // The chat shell follows the URL; session APIs still authorize
+              // every read. Switching chats need not round-trip through RSC.
+              window.history.pushState(null, "", href)
+            }}
             aria-label={`Open ${session.title}`}
             aria-current={active ? "page" : undefined}
             className="absolute inset-0 rounded-[inherit] outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-inset"
@@ -1693,26 +1752,9 @@ function SessionCard({
                       active && "text-sidebar-foreground"
                     )}
                   >
-                    <span
-                      className={cn(
-                        "block truncate",
-                        titleOverflows && "motion-safe:group-hover/session:invisible"
-                      )}
-                      ref={titleRef}
-                    >
+                    <span className="block truncate" title={session.title}>
                       {session.title}
                     </span>
-                    {titleOverflows ? (
-                      <span
-                        aria-hidden="true"
-                        className="absolute inset-y-0 left-0 hidden w-max items-center motion-safe:group-hover/session:flex"
-                      >
-                        <span className="flex w-max animate-session-title-marquee items-center gap-8 whitespace-nowrap">
-                          <span>{session.title}</span>
-                          <span>{session.title}</span>
-                        </span>
-                      </span>
-                    ) : null}
                   </h3>
                   {avatars}
                 </div>
@@ -1737,7 +1779,7 @@ function SessionCard({
         </ContextMenuGroup>
       </ContextMenuContent>
       <Dialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
-        <DialogContent showCloseButton={false}>
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete chat?</DialogTitle>
             <DialogDescription>
@@ -1773,21 +1815,30 @@ function SessionCard({
       </Dialog>
     </ContextMenu>
   )
-}
+})
 
 function chatSessionWatchOptions(workspaceId: string, userId: string) {
   return queryOptions({
     queryKey: ["watchChatSessions", workspaceId, userId],
-    queryFn: streamedQuery<WatchChatSessionsEvent, string, ["watchChatSessions", string, string]>({
-      initialValue: "",
-      reducer: (_, event) => event.revision,
-      streamFn: async ({ signal }) => {
+    queryFn: streamedQuery<WatchChatSessionsEvent, number, ["watchChatSessions", string, string]>({
+      initialValue: 0,
+      refetchMode: "append",
+      reducer: (revision) => revision + 1,
+      streamFn: async function* ({ signal, client }) {
         const result = await watchChatSessions({
           baseUrl: await getGatewayBaseURL(),
           headers: { "X-AgentZ-Workspace-ID": workspaceId },
           signal,
         })
-        return result.stream
+        for await (const event of result.stream) {
+          if (event.revision === "0") {
+            void client.invalidateQueries({
+              queryKey: watchAgentsQueryOptions(workspaceId).queryKey,
+            })
+          }
+          yield event
+        }
+        if (!signal.aborted) throw new Error("Chat session watch closed")
       },
     }),
     refetchOnMount: "always",

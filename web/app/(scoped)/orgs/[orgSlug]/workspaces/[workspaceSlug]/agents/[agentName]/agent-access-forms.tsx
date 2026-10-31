@@ -247,7 +247,7 @@ function AgentShareDialogForm({
       : undefined
 
   return (
-    <DialogContent className="sm:max-w-2xl" showCloseButton={false}>
+    <DialogContent className="sm:max-w-2xl">
       <DialogHeader>
         <DialogTitle>
           {editing ? "Edit" : "Share"} {agentName}

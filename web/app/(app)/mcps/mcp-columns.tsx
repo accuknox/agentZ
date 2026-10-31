@@ -278,7 +278,7 @@ function DeleteMcpDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent showCloseButton={false}>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Delete {connection.name}?</DialogTitle>
           <DialogDescription>

@@ -280,7 +280,7 @@ function DeleteSessionButton({
         </DropdownMenu>
       </div>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent showCloseButton={false}>
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Revoke session?</DialogTitle>
             <DialogDescription>

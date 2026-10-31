@@ -634,7 +634,7 @@ function EditSkillDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent showCloseButton={false}>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{skill ? `Change version for ${skill.name}` : "Change version"}</DialogTitle>
         </DialogHeader>
@@ -719,7 +719,7 @@ function DeleteDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent showCloseButton={false}>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>This permanently deletes the selected skill.</DialogDescription>

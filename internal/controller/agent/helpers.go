@@ -268,6 +268,7 @@ func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]by
 	}
 	slices.Sort(cfg.EnabledProviders)
 	cfg.Tools = map[string]bool{
+		"report_progress":          true,
 		"create_workflow":          general,
 		"create_workflow_schedule": general,
 		"list_workflow_schedules":  general,
@@ -371,6 +372,11 @@ type opencodeModelFile struct {
 	Limit       opencodeModelLimitFile      `json:"limit"`
 	Modalities  opencodeModelModalitiesFile `json:"modalities"`
 	Provider    *opencodeModelProviderFile  `json:"provider,omitempty"`
+	Options     *opencodeModelOptionsFile   `json:"options,omitempty"`
+}
+
+type opencodeModelOptionsFile struct {
+	ReasoningSummary string `json:"reasoningSummary,omitempty"`
 }
 
 type opencodeModelProviderFile struct {

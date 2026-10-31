@@ -7236,6 +7236,36 @@ components:
           pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
       required: [scope, name]
 
+    MascotBreed:
+      type: string
+      enum: [mochi, ziglet, slinky, mallow, pip, pi]
+      x-go-type: agentzv1alpha1.MascotBreed
+      x-go-type-import:
+        path: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1
+        name: agentzv1alpha1
+
+    MascotColor:
+      type: string
+      enum: [cream, lilac, peach, rose, coral, amber, lime, mint, sky, slate]
+      x-go-type: agentzv1alpha1.MascotColor
+      x-go-type-import:
+        path: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1
+        name: agentzv1alpha1
+
+    AgentAppearance:
+      type: object
+      additionalProperties: false
+      x-go-type: agentzv1alpha1.AgentAppearance
+      x-go-type-import:
+        path: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1
+        name: agentzv1alpha1
+      properties:
+        breed:
+          $ref: '#/components/schemas/MascotBreed'
+        color:
+          $ref: '#/components/schemas/MascotColor'
+      required: [breed, color]
+
     AgentMemoryConfig:
       type: object
       additionalProperties: false
@@ -7594,6 +7624,8 @@ components:
       type: object
       additionalProperties: false
       properties:
+        appearance:
+          $ref: '#/components/schemas/AgentAppearance'
         name:
           $ref: '#/components/schemas/AgentName'
         sandbox:
@@ -8202,6 +8234,8 @@ components:
       type: object
       additionalProperties: false
       properties:
+        appearance:
+          $ref: '#/components/schemas/AgentAppearance'
         name:
           $ref: '#/components/schemas/AgentName'
         memory:
@@ -8900,6 +8934,8 @@ components:
       type: object
       additionalProperties: false
       properties:
+        appearance:
+          $ref: '#/components/schemas/AgentAppearance'
         env:
           type: object
           additionalProperties:

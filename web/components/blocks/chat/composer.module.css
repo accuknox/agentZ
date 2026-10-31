@@ -1,84 +1,93 @@
-@layer components {
+.shell {
+  --chat-composer-outline: color-mix(in oklab, var(--primary) 12%, var(--border));
+  isolation: isolate;
+  padding-bottom: 0;
+}
+/* Composed pickers own their disabled state, including pending operations. */
+.shell:has(.context :enabled) {
+  padding-bottom: 2.25rem;
+}
+.host {
+  background: color-mix(in oklab, var(--muted) 80%, var(--background));
+  border: 1px solid var(--chat-composer-outline);
+  box-shadow:
+    0 14px 28px -12px rgb(0 0 0 / 22%),
+    0 2px 6px -3px rgb(0 0 0 / 8%);
+}
+.body {
+  min-height: 11rem;
+  grid-template-rows: minmax(6rem, auto) 2.5rem;
+  row-gap: 0.75rem;
+  padding-top: 1rem;
+  padding-bottom: 0.75rem;
+}
+.body textarea {
+  min-height: 6rem;
+  max-height: 12rem;
+}
+@media (min-width: 40rem) {
+  .body {
+    padding-top: 1.25rem;
+    padding-bottom: 1rem;
+  }
+}
+/* Attachments precede the body, so only an empty text-only draft collapses. */
+.body[data-reading]:first-child:has(textarea:placeholder-shown) {
+  min-height: 0;
+  grid-template-rows: minmax(2.5rem, auto) 2rem;
+  row-gap: 0.5rem;
+  padding-block: 0.625rem;
+
+  textarea {
+    min-height: 2.5rem;
+    max-height: 2.5rem;
+    padding-top: 0.5rem;
+    width: calc(100% - 8rem);
+    padding-right: 0;
+    white-space: nowrap;
+  }
+  .actions {
+    transform: translateY(-2.75rem);
+  }
+}
+.context {
+  border: 1px solid var(--chat-composer-outline);
+  border-top: 0;
+  border-radius: 0 0 18px 18px;
+  background: var(--muted);
+  opacity: 0;
+  visibility: hidden;
+}
+.context:has(:enabled) {
+  opacity: 1;
+  visibility: visible;
+}
+@media (prefers-reduced-motion: no-preference) {
   .shell {
-    --glass-blur: 12px;
-    --glass-opacity: 80%;
-    --glass-saturation: 1.14;
-    --chat-composer-glass-surface: #efeff4;
-    --chat-composer-context-surface: #e7e8eb;
-    --chat-composer-outline: color-mix(in oklab, var(--primary) 12%, transparent);
-    isolation: isolate;
+    transition: padding-bottom 80ms ease-out;
   }
-
-  .shell::before {
-    pointer-events: none;
-    position: absolute;
-    z-index: 0;
-    inset: 0 0 2.25rem;
-    border-radius: 22px;
-    background: color-mix(
-      in srgb,
-      var(--chat-composer-glass-surface) var(--glass-opacity),
-      transparent
-    );
-    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
-    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
-    content: "";
+  .body {
+    transition:
+      min-height 80ms ease-out,
+      grid-template-rows 80ms ease-out,
+      row-gap 80ms ease-out,
+      padding 80ms ease-out;
   }
-
-  .host {
-    box-shadow:
-      0 6px 14px -10px rgb(0 0 0 / 12%),
-      0 16px 40px -16px rgb(0 0 0 / 8%);
+  .body textarea {
+    transition:
+      min-height 80ms ease-out,
+      max-height 80ms ease-out,
+      padding 80ms ease-out;
   }
-
-  .host::after {
-    pointer-events: none;
-    position: absolute;
-    z-index: 1;
-    inset: 0;
-    border: 1px solid var(--chat-composer-outline);
-    border-radius: inherit;
-    content: "";
+  .actions {
+    transition: transform 80ms ease-out;
   }
-
   .context {
-    isolation: isolate;
+    transition:
+      opacity 80ms ease-out,
+      visibility 0s linear 80ms;
   }
-
-  .context::before {
-    position: absolute;
-    z-index: -1;
-    inset: 0;
-    inset-block-start: 0.25rem;
-    border-end-start-radius: 16px;
-    border-end-end-radius: 16px;
-    background: var(--chat-composer-context-surface);
-    content: "";
-  }
-
-  @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
-    .shell::before {
-      background: var(--chat-composer-glass-surface);
-    }
-  }
-
-  :global(.dark) .shell {
-    --glass-blur: 16px;
-    --glass-saturation: 1.08;
-    --chat-composer-glass-surface: color-mix(in oklab, var(--primary) 3%, var(--background));
-    --chat-composer-context-surface: color-mix(
-      in oklab,
-      white 6%,
-      var(--chat-composer-glass-surface)
-    );
-    --chat-composer-outline: color-mix(in srgb, white 7%, transparent);
-  }
-
-  :global(.dark) .host {
-    box-shadow: 0 12px 24px -18px rgb(0 0 0 / 70%);
-  }
-
-  :global(.dark) .host::after {
-    box-shadow: inset 0 1px rgb(255 255 255 / 3%);
+  .context:has(:enabled) {
+    transition-delay: 0s;
   }
 }

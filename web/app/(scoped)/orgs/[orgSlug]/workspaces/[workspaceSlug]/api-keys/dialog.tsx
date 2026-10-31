@@ -173,7 +173,7 @@ function CreateAPIKeyDialog({
   }
 
   return (
-    <DialogContent className="sm:max-w-md" showCloseButton={!!state.key}>
+    <DialogContent className="sm:max-w-md">
       <DialogHeader>
         <DialogTitle>{state.key ? "Copy your API key" : "Create API key"}</DialogTitle>
         <DialogDescription>

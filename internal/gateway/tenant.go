@@ -912,6 +912,41 @@ func requestAuthState(ctx context.Context) (requestAuth, bool) {
 	return auth, ok
 }
 
+// authorizeStream ties external streams to live authority and bearer expiry.
+// Changes close the connection so reconnect goes through normal authorization.
+func (s *Service) authorizeStream(ctx context.Context) (context.Context, context.CancelFunc, *apiutil.APIError) {
+	auth, _ := requestAuthState(ctx)
+	if auth.actorType == requestActorSystem {
+		ctx, cancel := context.WithCancel(ctx)
+		return ctx, cancel, nil
+	}
+	events, unsubscribe := s.streamAuthEvents.subscribe("")
+	// The broker sends a subscription snapshot before subsequent changes.
+	// Authorization below reads current grants after this checkpoint.
+	<-events
+	if !s.streamsReady.Load() {
+		unsubscribe()
+		return nil, nil, apiutil.NewError(http.StatusServiceUnavailable,
+			"authorization_unavailable", "Stream authorization is unavailable", nil)
+	}
+	var cancel context.CancelFunc
+	switch {
+	case auth.claims != nil && auth.claims.ExpiresAt != nil:
+		ctx, cancel = context.WithDeadline(ctx, auth.claims.ExpiresAt.Time)
+	default:
+		ctx, cancel = context.WithCancel(ctx)
+	}
+	go func() {
+		defer unsubscribe()
+		select {
+		case <-events:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	return ctx, cancel, nil
+}
+
 func tenantState(ctx context.Context) (tenantRequest, bool) {
 	req, ok := ctx.Value(tenantContextKey{}).(tenantRequest)
 	return req, ok

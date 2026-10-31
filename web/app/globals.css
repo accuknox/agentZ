@@ -57,7 +57,6 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --animate-session-title-marquee: session-title-marquee 9s linear infinite;
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -264,54 +263,32 @@
   }
 }
 
-@keyframes session-progress-whip {
-  0% {
-    transform: translate3d(-130%, 0, 0) scaleX(0.35);
-    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
-  }
-  48% {
-    transform: translate3d(80%, 0, 0) scaleX(1);
-    animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
-  }
-  100% {
-    transform: translate3d(330%, 0, 0) scaleX(0.35);
-  }
+.activity-shimmer {
+  color: var(--muted-foreground);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--foreground) 40%, transparent) 44%,
+    var(--foreground) 50%,
+    color-mix(in srgb, var(--foreground) 40%, transparent) 56%
+  );
+  background-size: 300% 100%;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: activity-shimmer 1.2s linear infinite;
 }
-
-@keyframes session-title-marquee {
+@keyframes activity-shimmer {
   from {
-    transform: translate3d(0, 0, 0);
+    background-position: 100% 0;
   }
   to {
-    transform: translate3d(calc(-50% - 1rem), 0, 0);
+    background-position: 0% 0;
   }
 }
-
-@layer components {
-  [data-component="session-progress"] {
-    position: absolute;
-    inset: 0 0 auto;
-    height: 2px;
-    overflow: hidden;
-    pointer-events: none;
-    opacity: 1;
-    transition: opacity 220ms ease-out;
-    z-index: 50;
-  }
-
-  [data-component="session-progress"][data-state="hiding"] {
-    opacity: 0;
-  }
-
-  [data-component="session-progress-bar"] {
-    width: 34%;
-    height: 100%;
-    border-radius: 999px;
-    background: var(--session-progress-color, var(--primary));
-    opacity: 0.4;
-    transform: translate3d(-130%, 0, 0) scaleX(0.35);
-    animation: session-progress-whip var(--session-progress-ms, 1800ms) infinite;
-    will-change: transform;
+@media (prefers-reduced-motion: reduce), (forced-colors: active) {
+  .activity-shimmer {
+    animation: none;
+    background: none;
+    -webkit-text-fill-color: currentColor;
   }
 }
 

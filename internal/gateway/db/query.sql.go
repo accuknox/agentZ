@@ -6739,6 +6739,15 @@ func (q *Queries) GatewayListenExternalAgents(ctx context.Context) error {
 	return err
 }
 
+const gatewayListenStreamAuthorization = `-- name: GatewayListenStreamAuthorization :exec
+LISTEN agentz_stream_authorization
+`
+
+func (q *Queries) GatewayListenStreamAuthorization(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, gatewayListenStreamAuthorization)
+	return err
+}
+
 const gatewayLockActiveOrganizationMember = `-- name: GatewayLockActiveOrganizationMember :one
 SELECT id
 FROM members

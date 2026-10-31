@@ -197,21 +197,11 @@ function Sidebar({
           className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-muted-foreground"
           style={mobileStyle}
           side={side}
-          showCloseButton={false}
         >
           <SheetHeader className="sr-only">
             <SheetTitle>Sidebar</SheetTitle>
             <SheetDescription>Use this panel to navigate on mobile.</SheetDescription>
           </SheetHeader>
-          <Button
-            aria-label="Close Sidebar"
-            className="absolute top-3 right-3 z-10 md:hidden"
-            onClick={() => setOpenMobile(false)}
-            size="icon-sm"
-            variant="ghost"
-          >
-            <PanelLeftCloseIcon data-icon="inline-start" />
-          </Button>
           <div className="flex h-full w-full flex-col [&_[data-sidebar=header]]:pr-12">
             {children}
           </div>

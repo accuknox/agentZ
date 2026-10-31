@@ -51,14 +51,15 @@ export function watchAgentsQueryOptions(
         }
         return next
       },
-      streamFn: async ({ signal }) => {
+      streamFn: async function* ({ signal }) {
         const result = await watchAgents({
           baseUrl: await getGatewayBaseURL(),
           body: agentNames === undefined ? undefined : { agent_names: agentNames },
           headers: { "X-AgentZ-Workspace-ID": workspaceId },
           signal,
         })
-        return result.stream
+        yield* result.stream
+        if (!signal.aborted) throw new Error("Agent watch closed")
       },
     }),
     queryKey: ["watchAgents", workspaceId, agentNames] as const,

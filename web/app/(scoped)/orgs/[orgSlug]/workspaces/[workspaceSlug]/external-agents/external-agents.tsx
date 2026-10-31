@@ -454,7 +454,7 @@ export function ExternalAgents({
           if (!open && !pending) setConfirmation(undefined)
         }}
       >
-        <DialogContent showCloseButton={false}>
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>
               {confirmation?.operation === "delete" ? "Delete agent?" : "Disconnect agent?"}

@@ -126,6 +126,7 @@ export async function createAgentFormAction(
 ): Promise<CreateAgentFormState> {
   const parsed = agentFormDataSchema.safeParse({
     ...Object.fromEntries(formData),
+    appearance: { breed: formData.get("breed"), color: formData.get("color") },
     instruction,
     skills: { names: formData.getAll("skillNames"), scopes: formData.getAll("skillScopes") },
     memoryEnabled: formData.has("memoryEnabled"),
@@ -137,6 +138,7 @@ export async function createAgentFormAction(
   const result = await createAgent({
     body: {
       name: parsed.data.name,
+      appearance: parsed.data.appearance,
       sandbox: { scope: parsed.data.sandboxScope, name: parsed.data.sandboxName },
       skills: parsed.data.skills,
       memory: { enabled: parsed.data.memoryEnabled },
@@ -162,6 +164,7 @@ export async function updateAgentFormAction(
 ): Promise<CreateAgentFormState> {
   const parsed = agentFormDataSchema.omit({ name: true }).safeParse({
     ...Object.fromEntries(formData),
+    appearance: { breed: formData.get("breed"), color: formData.get("color") },
     instruction,
     skills: { names: formData.getAll("skillNames"), scopes: formData.getAll("skillScopes") },
     memoryEnabled: formData.has("memoryEnabled"),
@@ -172,6 +175,7 @@ export async function updateAgentFormAction(
 
   const result = await updateAgent({
     body: {
+      appearance: parsed.data.appearance,
       sandbox: { scope: parsed.data.sandboxScope, name: parsed.data.sandboxName },
       skills: parsed.data.skills,
       memory: { enabled: parsed.data.memoryEnabled },

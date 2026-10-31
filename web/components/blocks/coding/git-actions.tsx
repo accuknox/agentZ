@@ -346,7 +346,7 @@ export function GitActions({ thread, workspaceId }: { thread: CodingThread; work
         </DropdownMenu>
       </ButtonGroup>
       <Dialog open={dialog} onOpenChange={setDialog}>
-        <DialogContent showCloseButton={false}>
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Commit changes</DialogTitle>
             <DialogDescription>

@@ -197,6 +197,7 @@ export const userPreferences = pgTable("user_preferences", {
   theme: themePreference("theme").default("system").notNull(),
   updateSandbox: boolean("update_sandbox").default(false).notNull(),
   showTourButton: boolean("show_tour_button").default(true).notNull(),
+  showReasoningAndTools: boolean("show_reasoning_and_tools").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()

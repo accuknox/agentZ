@@ -34,6 +34,7 @@ func Validate(tools []agentzv1alpha1.AgentTool, p *field.Path) field.ErrorList {
 	// OpenCode permits overriding built-ins. Uploaded tools must not change
 	// platform behavior or impersonate gateway MCP tools, including future ones.
 	reserved := []string{
+		"report_progress",
 		"bash", "shell", "read", "write", "edit", "glob", "grep", "task",
 		"webfetch", "websearch", "todowrite", "question", "lsp", "apply_patch",
 		"plan_enter", "plan_exit", "invalid", "execute", "skill", "list_skills",

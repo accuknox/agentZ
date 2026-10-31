@@ -53,6 +53,37 @@ spec:
           spec:
             description: spec defines the desired state of Agent.
             properties:
+              appearance:
+                description: Appearance identifies the Agent across shared chat surfaces.
+                properties:
+                  breed:
+                    description: Breed selects the character and its animation poses.
+                    enum:
+                    - mochi
+                    - ziglet
+                    - slinky
+                    - mallow
+                    - pip
+                    - pi
+                    type: string
+                  color:
+                    description: Color selects the character's theme-aware palette.
+                    enum:
+                    - cream
+                    - lilac
+                    - peach
+                    - rose
+                    - coral
+                    - amber
+                    - lime
+                    - mint
+                    - sky
+                    - slate
+                    type: string
+                required:
+                - breed
+                - color
+                type: object
               createdByUserID:
                 description: CreatedByUserID is the immutable Better Auth User ID that created the resource.
                 maxLength: 128

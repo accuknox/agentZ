@@ -3,7 +3,7 @@
 import { HoldToConfirm } from "@/components/interior/hold-to-confirm"
 
 import * as React from "react"
-import type { ColumnDef } from "@tanstack/react-table"
+import type { CellContext, ColumnDef } from "@tanstack/react-table"
 import Link from "next/link"
 import {
   CheckCircle2,
@@ -64,101 +64,77 @@ const agentStatusMeta = {
   }
 >
 
-export function createAgentColumns(
-  deleteAgentAction: DeleteAgentAction,
-  immutableSkills: Skill[],
-  sandboxes: Sandbox[],
-  initialHasNextSandboxPage: boolean,
-  initialNextSandboxPageToken: string,
-  actionScope: AgentActionScope,
-  showActions: boolean
-): ColumnDef<Agent>[] {
-  const columns: ColumnDef<Agent>[] = [
-    {
-      accessorKey: "name",
-      enableSorting: true,
-      header: "Name",
-      cell: ({ row }) => {
-        const agent = row.original
-
-        return <span className="font-medium">{agent.name}</span>
-      },
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => {
-        const status = row.original.status
-        const meta = agentStatusMeta[status]
-
-        return (
-          <Badge variant={meta.variant}>
-            <meta.icon
-              aria-hidden="true"
-              className={status === "PROGRESSING" ? "motion-safe:animate-spin" : undefined}
-              data-icon="inline-start"
-            />
-            {meta.label}
-          </Badge>
-        )
-      },
-    },
-    {
-      accessorKey: "created_by",
-      header: "Created by",
-      cell: ({ row }) => <UserAvatar {...row.original.created_by} />,
-    },
-    {
-      accessorKey: "last_modified_by",
-      header: "Modified by",
-      cell: ({ row }) => <UserAvatar {...row.original.last_modified_by} />,
-    },
-    {
-      accessorKey: "created_at",
-      enableSorting: true,
-      header: "Created at",
-      cell: ({ row }) => <RelativeDateTime value={row.getValue("created_at")} />,
-    },
-    {
-      id: "actions",
-      cell: ({ row }) => {
-        const agent = row.original
-
-        return (
-          <AgentActions
-            agent={agent}
-            deleteAgentAction={deleteAgentAction}
-            immutableSkills={immutableSkills}
-            sandboxes={sandboxes}
-            initialHasNextSandboxPage={initialHasNextSandboxPage}
-            initialNextSandboxPageToken={initialNextSandboxPageToken}
-            actionScope={actionScope}
-          />
-        )
-      },
-    },
-  ]
-  if (!showActions) columns.pop()
-  return columns
-}
-
-function AgentActions({
-  agent,
-  deleteAgentAction,
-  immutableSkills,
-  sandboxes,
-  initialHasNextSandboxPage,
-  initialNextSandboxPageToken,
-  actionScope,
-}: {
-  agent: Agent
+export const AgentTableContext = React.createContext<{
   deleteAgentAction: DeleteAgentAction
   immutableSkills: Skill[]
   sandboxes: Sandbox[]
   initialHasNextSandboxPage: boolean
   initialNextSandboxPageToken: string
   actionScope: AgentActionScope
-}) {
+} | null>(null)
+
+// Stable cell components preserve open dialogs when server data refreshes.
+export const agentColumns: ColumnDef<Agent>[] = [
+  {
+    accessorKey: "name",
+    enableSorting: true,
+    header: "Name",
+    cell: ({ row }) => {
+      const agent = row.original
+
+      return <span className="font-medium">{agent.name}</span>
+    },
+  },
+  {
+    accessorKey: "status",
+    header: "Status",
+    cell: ({ row }) => {
+      const status = row.original.status
+      const meta = agentStatusMeta[status]
+
+      return (
+        <Badge variant={meta.variant}>
+          <meta.icon
+            aria-hidden="true"
+            className={status === "PROGRESSING" ? "motion-safe:animate-spin" : undefined}
+            data-icon="inline-start"
+          />
+          {meta.label}
+        </Badge>
+      )
+    },
+  },
+  {
+    accessorKey: "created_by",
+    header: "Created by",
+    cell: ({ row }) => <UserAvatar {...row.original.created_by} />,
+  },
+  {
+    accessorKey: "last_modified_by",
+    header: "Modified by",
+    cell: ({ row }) => <UserAvatar {...row.original.last_modified_by} />,
+  },
+  {
+    accessorKey: "created_at",
+    enableSorting: true,
+    header: "Created at",
+    cell: ({ row }) => <RelativeDateTime value={row.getValue("created_at")} />,
+  },
+  { id: "actions", cell: AgentActions },
+]
+
+function AgentActions({ row }: CellContext<Agent, unknown>) {
+  const context = React.useContext(AgentTableContext)
+  if (!context) throw new Error("AgentTableContext is missing")
+  const {
+    deleteAgentAction,
+    immutableSkills,
+    sandboxes,
+    initialHasNextSandboxPage,
+    initialNextSandboxPageToken,
+    actionScope,
+  } = context
+  const agent = row.original
   const [deleteOpen, setDeleteOpen] = React.useState(false)
   const [editOpen, setEditOpen] = React.useState(false)
 
@@ -179,24 +155,13 @@ function AgentActions({
             </Link>
           </DropdownMenuItem>
           {agent.capabilities.modify ? (
-            <DropdownMenuItem
-              onSelect={(event) => {
-                event.preventDefault()
-                setEditOpen(true)
-              }}
-            >
+            <DropdownMenuItem onSelect={() => setEditOpen(true)}>
               <Pencil />
               Edit
             </DropdownMenuItem>
           ) : null}
           {agent.capabilities.delete ? (
-            <DropdownMenuItem
-              variant="destructive"
-              onSelect={(event) => {
-                event.preventDefault()
-                setDeleteOpen(true)
-              }}
-            >
+            <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
               <Trash2 />
               Delete
             </DropdownMenuItem>
@@ -208,6 +173,7 @@ function AgentActions({
           mode="update"
           actionScope={actionScope}
           agentName={agent.name}
+          initialAppearance={agent.appearance}
           initialSandboxName={agent.sandbox.name}
           initialMemoryEnabled={agent.memory.enabled}
           initialSkills={agent.skills}
@@ -257,7 +223,7 @@ function DeleteAgentDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent showCloseButton={false}>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Delete {agent.name}?</DialogTitle>
           <DialogDescription>

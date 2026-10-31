@@ -145,6 +145,7 @@ type Querier interface {
 	GatewayListenChatSessions(ctx context.Context) error
 	GatewayListenCoding(ctx context.Context) error
 	GatewayListenExternalAgents(ctx context.Context) error
+	GatewayListenStreamAuthorization(ctx context.Context) error
 	GatewayLockActiveOrganizationMember(ctx context.Context, arg GatewayLockActiveOrganizationMemberParams) (string, error)
 	GatewayLockActiveWorkspace(ctx context.Context, arg GatewayLockActiveWorkspaceParams) (string, error)
 	GatewayLockAgentOwner(ctx context.Context, arg GatewayLockAgentOwnerParams) (AgentOwner, error)

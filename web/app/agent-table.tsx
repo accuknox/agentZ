@@ -1,6 +1,5 @@
 "use client"
 
-import * as React from "react"
 import type { Route } from "next"
 import { useQuery } from "@tanstack/react-query"
 import { getCoreRowModel, type SortingState, useReactTable } from "@tanstack/react-table"
@@ -11,7 +10,7 @@ import type {
   Skill,
   SortOrderQuery,
 } from "@/lib/gateway/client"
-import { createAgentColumns } from "@/app/agent-columns"
+import { agentColumns, AgentTableContext } from "@/app/agent-columns"
 import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
 import { AdministrationState } from "@/components/administration"
 import { watchAgentsQueryOptions } from "@/components/agent-readiness"
@@ -82,49 +81,49 @@ export function AgentTable({
   })
   const rows = query.data ?? agents
 
-  const columns = React.useMemo(
-    () =>
-      createAgentColumns(
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
+  const table = useReactTable({
+    data: rows,
+    columns: agentColumns,
+    getRowId: (agent) => agent.name,
+    getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
+    manualSorting: true,
+    onSortingChange,
+    state: {
+      sorting,
+      columnVisibility: {
+        actions: rows.some((agent) => agent.capabilities.modify || agent.capabilities.delete),
+      },
+    },
+  })
+
+  return (
+    <AgentTableContext
+      value={{
         deleteAgentAction,
         immutableSkills,
         sandboxes,
         initialHasNextSandboxPage,
         initialNextSandboxPageToken,
         actionScope,
-        agents.some((agent) => agent.capabilities.modify || agent.capabilities.delete)
-      ),
-    [
-      deleteAgentAction,
-      immutableSkills,
-      sandboxes,
-      initialHasNextSandboxPage,
-      initialNextSandboxPageToken,
-      actionScope,
-      agents,
-    ]
-  )
-  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
-  const table = useReactTable({
-    data: rows,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-    manualPagination: true,
-    manualSorting: true,
-    onSortingChange,
-    state: { sorting },
-  })
-
-  return (
-    <AdminDataGrid
-      ariaLabel="Agents"
-      emptyState={<AdministrationState kind={canCreate ? "welcome" : "empty"} title="No agents" />}
-      layout={layout}
-      pagination={<TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />}
-      rowHref={(agent) =>
-        `${actionScope.workspacePath}/agents/${encodeURIComponent(agent.name)}` as Route
-      }
-      rows={rows}
-      table={table}
-    />
+      }}
+    >
+      <AdminDataGrid
+        ariaLabel="Agents"
+        emptyState={
+          <AdministrationState kind={canCreate ? "welcome" : "empty"} title="No agents" />
+        }
+        layout={layout}
+        pagination={
+          <TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />
+        }
+        rowHref={(agent) =>
+          `${actionScope.workspacePath}/agents/${encodeURIComponent(agent.name)}` as Route
+        }
+        rows={rows}
+        table={table}
+      />
+    </AgentTableContext>
   )
 }

@@ -118,6 +118,15 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if route.ID == "event.subscribe" || route.ID == "global.event" {
+		ctx, cancel, apiErr := s.authorizeStream(r.Context())
+		if apiErr != nil {
+			apiutil.WriteError(w, r, apiErr)
+			return
+		}
+		defer cancel()
+		r = r.WithContext(ctx)
+	}
 	access, apiErr := s.resolveAgentAccess(r.Context(), agentName, route.Operation)
 	if apiErr != nil {
 		apiutil.WriteError(w, r, apiErr)
@@ -416,6 +425,9 @@ func (s *Service) streamOpenCodeEvents(w http.ResponseWriter, r *http.Request, r
 	upstream := *target
 	upstream.Path = ""
 	for frame, err := range sse.Read(resp.Body, &sse.ReadConfig{MaxEventSize: opencodeProxyBodyLimitBytes}) {
+		if r.Context().Err() != nil {
+			return
+		}
 		if err != nil {
 			if r.Context().Err() == nil {
 				slog.ErrorContext(r.Context(), "read agent events", "agent", agentName, "error", err)

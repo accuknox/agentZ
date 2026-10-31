@@ -8,8 +8,10 @@ import {
   useEffect,
   useEffectEvent,
   useState,
+  useId,
+  useRef,
 } from "react"
-import { Controller, useForm, useWatch } from "react-hook-form"
+import { Controller, useForm, useWatch, type Control } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Box, Plus, Save, Wrench, CircleAlert } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -20,13 +22,31 @@ import {
   Dialog,
   DialogClose,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from "@/components/ui/field"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { AgentPresence } from "@/components/interior/agent-presence"
+import {
+  defaultAgentAppearance,
+  mascotNames,
+  mascotColorNames,
+  mascots,
+  mascotColors,
+} from "@/data/mascots"
+import { cn } from "@/lib/utils"
+import mascotStyles from "@/components/interior/agent-presence.module.css"
 import { Input } from "@/components/ui/input"
 import { MultiSelectDropdown } from "@/components/ui/multi-select-dropdown"
 import {
@@ -72,6 +92,7 @@ type AgentDialogProps = {
   initialHasNextSandboxPage: boolean
   initialNextSandboxPageToken: string
   agentName?: string
+  initialAppearance?: Agent["appearance"]
   initialSandboxName?: string
   initialMemoryEnabled?: boolean
   initialSkills?: Agent["skills"]
@@ -82,6 +103,121 @@ type AgentDialogProps = {
 }
 
 type AgentFormValues = z.infer<typeof createAgentSimpleFormSchema>
+
+function AgentAppearanceFields({
+  control,
+  disabled,
+}: {
+  control: Control<AgentFormValues>
+  disabled: boolean
+}) {
+  const name = useWatch({ control, name: "name" })
+  const id = useId()
+
+  return (
+    <Controller
+      name="appearance"
+      control={control}
+      render={({ field, fieldState }) => {
+        const value = field.value
+        const character = mascots[value.breed]
+        return (
+          <Field data-invalid={fieldState.invalid}>
+            <div className="flex items-center gap-4 pb-4">
+              <AgentPresence mascot={value.breed} color={value.color} state="working" size={80} />
+              <div className="flex min-w-0 flex-col gap-1">
+                <div className="truncate text-base font-semibold">{name || "Your agent"}</div>
+                <div className="text-sm text-muted-foreground">
+                  {character.name} · {mascotColors[value.color].name}
+                </div>
+              </div>
+            </div>
+            <input type="hidden" name="breed" value={value.breed} />
+            <input type="hidden" name="color" value={value.color} />
+            <FieldGroup className="gap-4">
+              <FieldSet>
+                <FieldLegend id={`${id}-mascot`} className="sr-only">
+                  Mascot
+                </FieldLegend>
+                <RadioGroup
+                  aria-labelledby={`${id}-mascot`}
+                  value={value.breed}
+                  disabled={disabled}
+                  className="grid-cols-3 gap-2"
+                >
+                  {mascotNames.map((name) => (
+                    <FieldLabel
+                      key={name}
+                      htmlFor={`${id}-${name}`}
+                      className="w-full cursor-pointer flex-col gap-1.5 rounded-xl border border-border p-2 text-muted-foreground transition-colors hover:bg-muted/50 has-[:disabled]:pointer-events-none has-[:disabled]:opacity-50 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[[data-state=checked]]:border-primary/60 has-[[data-state=checked]]:bg-muted/50 has-[[data-state=checked]]:text-foreground"
+                    >
+                      <RadioGroupItem
+                        id={`${id}-${name}`}
+                        value={name}
+                        className="sr-only absolute"
+                        onClick={() => {
+                          if (name !== value.breed) field.onChange({ ...value, breed: name })
+                        }}
+                      />
+                      <AgentPresence
+                        mascot={name}
+                        color={value.color}
+                        state={value.breed === name ? "working" : "idle"}
+                        size={40}
+                      />
+                      {mascots[name].name}
+                      <span className="min-h-[2lh] text-center text-xs leading-snug font-normal text-muted-foreground">
+                        {mascots[name].description}
+                      </span>
+                    </FieldLabel>
+                  ))}
+                </RadioGroup>
+              </FieldSet>
+              <FieldSet>
+                <FieldLegend id={`${id}-color`} className="sr-only">
+                  Color
+                </FieldLegend>
+                <RadioGroup
+                  aria-labelledby={`${id}-color`}
+                  value={value.color}
+                  disabled={disabled}
+                  className="grid-cols-5 justify-items-center gap-2"
+                >
+                  {mascotColorNames.map((color) => (
+                    <FieldLabel
+                      key={color}
+                      htmlFor={`${id}-${color}`}
+                      title={mascotColors[color].name}
+                      className="cursor-pointer rounded-full p-1.5 ring-offset-background transition-shadow hover:ring-2 hover:ring-border has-[:disabled]:pointer-events-none has-[:disabled]:opacity-50 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ring has-[[data-state=checked]]:ring-2 has-[[data-state=checked]]:ring-foreground"
+                    >
+                      <RadioGroupItem
+                        id={`${id}-${color}`}
+                        value={color}
+                        className="sr-only absolute"
+                        onClick={() => {
+                          if (color !== value.color) field.onChange({ ...value, color })
+                        }}
+                      />
+                      <span
+                        className={cn(
+                          "size-7 rounded-full border border-foreground/10",
+                          mascotStyles.swatch
+                        )}
+                        style={mascotColors[color].style}
+                      />
+                      <span className="sr-only">{mascotColors[color].name}</span>
+                    </FieldLabel>
+                  ))}
+                </RadioGroup>
+              </FieldSet>
+            </FieldGroup>
+            <FieldError errors={[fieldState.error]} />
+          </Field>
+        )
+      }}
+    />
+  )
+}
 
 function SandboxSelect({
   "aria-invalid": ariaInvalid,
@@ -146,25 +282,6 @@ function SandboxSelect({
     setNextPageToken(result.nextPageToken)
   })
 
-  const selectedIsLoaded = sandboxes.some((sandbox) => sandbox.name === value)
-  const options =
-    value && !selectedIsLoaded
-      ? [
-          {
-            name: value,
-            packages: [],
-            created_at: "",
-            metadata: {
-              allowed_host_count: 0,
-              package_count: 0,
-              referenced_by_agent: false,
-            },
-            allowed_hosts: [],
-          },
-          ...sandboxes,
-        ]
-      : sandboxes
-
   useEffect(() => {
     if (!sentinel || !hasNextPage) return
 
@@ -188,7 +305,13 @@ function SandboxSelect({
       </SelectTrigger>
       <SelectContent className="max-h-72">
         <SelectGroup>
-          {options.map((sandbox) => (
+          {value && !sandboxes.some((sandbox) => sandbox.name === value) ? (
+            <SelectItem value={value}>
+              <Box />
+              {value}
+            </SelectItem>
+          ) : null}
+          {sandboxes.map((sandbox) => (
             <SelectItem key={sandbox.name} value={sandbox.name}>
               <Box />
               {sandbox.name}
@@ -215,7 +338,36 @@ function SandboxSelect({
   )
 }
 
-export function AgentDialog({
+export function AgentDialog(props: AgentDialogProps) {
+  const [dialog, setDialog] = useState({ open: false, id: 0 })
+  const onOpenChange = (open: boolean) => {
+    setDialog(({ id }) => ({ open, id: id + 1 }))
+    props.onOpenChangeAction?.(open)
+  }
+
+  return (
+    <Dialog open={props.open ?? dialog.open} onOpenChange={onOpenChange}>
+      {props.trigger ? (
+        <DialogTrigger asChild>{props.trigger}</DialogTrigger>
+      ) : props.mode === "create" ? (
+        <DialogTrigger asChild>
+          <Button>
+            <Plus />
+            New agent
+          </Button>
+        </DialogTrigger>
+      ) : null}
+      <DialogContent
+        className="flex flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl"
+        aria-describedby={undefined}
+      >
+        <AgentForm key={dialog.id} {...props} onCloseAction={() => onOpenChange(false)} />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function AgentForm({
   actionScope,
   mode,
   sandboxes,
@@ -223,20 +375,27 @@ export function AgentDialog({
   initialHasNextSandboxPage,
   initialNextSandboxPageToken,
   agentName,
+  initialAppearance = defaultAgentAppearance,
   initialSandboxName,
   initialMemoryEnabled = false,
   initialSkills = [],
   initialInstruction = "",
-  open,
-  onOpenChangeAction,
-  trigger,
-}: AgentDialogProps) {
-  const [internalOpen, setInternalOpen] = useState(false)
+  onCloseAction,
+}: Omit<AgentDialogProps, "open" | "onOpenChangeAction" | "trigger"> & {
+  onCloseAction: () => void
+}) {
   const router = useRouter()
-  const dialogOpen = open ?? internalOpen
+  const active = useRef(false)
+  useEffect(() => {
+    active.current = true
+    return () => {
+      active.current = false
+    }
+  }, [])
   const hasSandboxes = sandboxes.length > 0
   const defaultValues: AgentFormValues = {
     name: agentName ?? "",
+    appearance: initialAppearance,
     sandboxScope: "Organisation",
     sandboxName: initialSandboxName ?? (mode === "create" ? (sandboxes[0]?.name ?? "") : ""),
     skills: initialSkills,
@@ -247,16 +406,25 @@ export function AgentDialog({
     resolver: zodResolver(createAgentSimpleFormSchema),
     mode: "onSubmit",
     reValidateMode: "onBlur",
-    values: defaultValues,
+    defaultValues,
   })
   const [, action, isPending] = useActionState<CreateAgentFormState, FormData>(
     async (state, formData) => {
       // Multipart encoding rewrites newlines; pass Markdown as an action argument.
       const instruction = form.getValues("instruction")
-      const result =
-        mode === "update" && agentName
-          ? await updateAgentFormAction(actionScope, agentName, instruction, state, formData)
-          : await createAgentFormAction(actionScope, instruction, state, formData)
+      let result: CreateAgentFormState
+      try {
+        result =
+          mode === "update" && agentName
+            ? await updateAgentFormAction(actionScope, agentName, instruction, state, formData)
+            : await createAgentFormAction(actionScope, instruction, state, formData)
+      } catch {
+        result = {
+          error: { code: "network_error", message: "Could not save the agent. Try again." },
+        }
+      }
+      // A save can finish after dismissal and must not close a newly opened form.
+      if (!active.current) return result
       if (result.error) {
         const messages = new Map<keyof AgentFormValues | "root", string[]>()
         const errors = result.error.errors?.length
@@ -267,6 +435,9 @@ export function AgentDialog({
           switch (error.field.split(/[.[]/, 1)[0]) {
             case "name":
               field = mode === "create" ? "name" : "root"
+              break
+            case "appearance":
+              field = "appearance"
               break
             case "skills":
               field = "skills"
@@ -296,10 +467,8 @@ export function AgentDialog({
         }
       }
       if (result.success) {
-        form.reset(defaultValues)
         toast.success(mode === "update" ? "Agent updated" : "Agent created")
-        onOpenChangeAction?.(false)
-        setInternalOpen(false)
+        onCloseAction()
         router.refresh()
       }
       return result
@@ -338,239 +507,219 @@ export function AgentDialog({
     })
   }
 
-  const onOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen) {
-      form.reset(defaultValues)
-      form.clearErrors()
-    }
-
-    setInternalOpen(nextOpen)
-    onOpenChangeAction?.(nextOpen)
-  }
-
   return (
-    <Dialog open={dialogOpen} onOpenChange={onOpenChange}>
-      {trigger ? (
-        <DialogTrigger asChild>{trigger}</DialogTrigger>
-      ) : mode === "create" ? (
-        <DialogTrigger asChild>
-          <Button>
-            <Plus />
-            New agent
-          </Button>
-        </DialogTrigger>
-      ) : null}
-      <DialogContent className="sm:max-w-lg" showCloseButton={false}>
-        <DialogHeader>
-          <DialogTitle>{mode === "create" ? "New agent" : "Update agent"}</DialogTitle>
-          <DialogDescription>
-            {mode === "create"
-              ? "Create an agent with a name and sandbox."
-              : "Update this agent's configuration."}
-          </DialogDescription>
-        </DialogHeader>
-        <form id="agent-form-simple" action={submit} className="space-y-5" noValidate>
-          <input type="hidden" name="sandboxScope" value={sandboxScope} />
-          {selectedSkills.map((skill) => (
-            <Fragment key={JSON.stringify([skill.scope, skill.name])}>
-              <input type="hidden" name="skillScopes" value={skill.scope} />
-              <input type="hidden" name="skillNames" value={skill.name} />
-            </Fragment>
-          ))}
-          <FieldGroup>
-            {mode === "create" ? (
-              <Controller
-                name="name"
-                control={form.control}
-                render={({ field, fieldState }) => (
-                  <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel htmlFor="agent-form-name" required>
-                      Agent name
-                    </FieldLabel>
-                    <Input
-                      id="agent-form-name"
-                      name={field.name}
-                      ref={field.ref}
-                      value={field.value}
-                      onBlur={field.onBlur}
-                      onChange={field.onChange}
-                      aria-invalid={fieldState.invalid}
-                      aria-required="true"
-                      placeholder="coding-agent"
-                      aria-describedby="agent-form-name-error"
-                    />
-                    {fieldState.invalid && (
-                      <FieldError errors={[fieldState.error]} id="agent-form-name-error" />
-                    )}
-                  </Field>
-                )}
-              />
-            ) : (
-              <Field>
-                <FieldLabel htmlFor="agent-form-name-readonly">Agent name</FieldLabel>
-                <Input id="agent-form-name-readonly" value={agentName ?? ""} disabled />
-              </Field>
-            )}
+    <>
+      <DialogHeader className="shrink-0 px-6 py-5">
+        <DialogTitle>{mode === "create" ? "New agent" : "Update agent"}</DialogTitle>
+      </DialogHeader>
+      <form
+        id="agent-form-simple"
+        action={submit}
+        className="relative grid min-h-0 overflow-y-auto overscroll-contain md:grid-cols-[minmax(0,1fr)_22rem]"
+        noValidate
+      >
+        <input type="hidden" name="sandboxScope" value={sandboxScope} />
+        {selectedSkills.map((skill) => (
+          <Fragment key={JSON.stringify([skill.scope, skill.name])}>
+            <input type="hidden" name="skillScopes" value={skill.scope} />
+            <input type="hidden" name="skillNames" value={skill.name} />
+          </Fragment>
+        ))}
+        <FieldGroup className="min-w-0 p-6 pt-0">
+          {mode === "create" ? (
             <Controller
-              name="sandboxName"
+              name="name"
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="agent-form-sandbox" required>
-                    Sandbox
+                  <FieldLabel htmlFor="agent-form-name" required>
+                    Agent name
                   </FieldLabel>
-                  <SandboxSelect
-                    disabled={!hasSandboxes}
-                    id="agent-form-sandbox"
+                  <Input
+                    id="agent-form-name"
                     name={field.name}
+                    ref={field.ref}
                     value={field.value}
-                    initialSandboxes={sandboxes}
-                    initialHasNextPage={initialHasNextSandboxPage}
-                    initialNextPageToken={initialNextSandboxPageToken}
-                    workspaceId={actionScope.workspaceId}
-                    onBlurAction={field.onBlur}
-                    onValueChangeAction={field.onChange}
+                    onBlur={field.onBlur}
+                    onChange={field.onChange}
                     aria-invalid={fieldState.invalid}
                     aria-required="true"
-                  />
-                  {!hasSandboxes ? (
-                    <FieldDescription>
-                      Create a sandbox{" "}
-                      <button
-                        type="button"
-                        className="text-foreground underline"
-                        onClick={() => {
-                          onOpenChange(false)
-                          router.push(`${actionScope.workspacePath}/sandboxes/new`)
-                        }}
-                      >
-                        here
-                      </button>{" "}
-                      before continuing.
-                    </FieldDescription>
-                  ) : null}
-                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-                </Field>
-              )}
-            />
-            <Controller
-              name="skills"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="agent-form-skills">Immutable skills</FieldLabel>
-                  <MultiSelectDropdown
-                    id="agent-form-skills"
-                    invalid={fieldState.invalid}
-                    options={Array.from(skills, ([value, skill]) => ({
-                      icon: Wrench,
-                      label: skill.name,
-                      badge: skill.scope,
-                      value,
-                    }))}
-                    value={field.value.map((skill) => JSON.stringify([skill.scope, skill.name]))}
-                    placeholder="Select skills"
-                    emptyMessage="No immutable skills"
-                    onBlurAction={field.onBlur}
-                    onValueChangeAction={(values) => {
-                      field.onChange(
-                        Array.from(skills)
-                          .filter(([key]) => values.includes(key))
-                          .map(([, skill]) => skill)
-                      )
-                    }}
-                    aria-describedby="agent-form-skills-error"
+                    placeholder="coding-agent"
+                    aria-describedby="agent-form-name-error"
                   />
                   {fieldState.invalid && (
-                    <FieldError errors={[fieldState.error]} id="agent-form-skills-error" />
+                    <FieldError errors={[fieldState.error]} id="agent-form-name-error" />
                   )}
                 </Field>
               )}
             />
-            <Controller
-              name="instruction"
-              control={form.control}
-              render={({ field, fieldState }) => {
-                const length = Array.from(field.value).length
-                const maxLength = 32000
-                return (
-                  <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel>Custom instructions</FieldLabel>
-                    <AgentInstructions
-                      key={initialInstruction}
-                      defaultMarkdown={initialInstruction}
-                      markdown={field.value}
-                      editorRef={field.ref}
-                      onBlurAction={field.onBlur}
-                      onChangeAction={field.onChange}
-                      readOnly={isPending}
-                    />
-                    <div
-                      className="text-right text-xs text-muted-foreground tabular-nums data-[over-limit=true]:text-destructive"
-                      data-over-limit={length > maxLength}
-                      aria-label="Instruction character count"
+          ) : (
+            <Field>
+              <FieldLabel htmlFor="agent-form-name-readonly">Agent name</FieldLabel>
+              <Input id="agent-form-name-readonly" value={agentName ?? ""} disabled />
+            </Field>
+          )}
+          <Controller
+            name="sandboxName"
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="agent-form-sandbox" required>
+                  Sandbox
+                </FieldLabel>
+                <SandboxSelect
+                  disabled={!hasSandboxes}
+                  id="agent-form-sandbox"
+                  name={field.name}
+                  value={field.value}
+                  initialSandboxes={sandboxes}
+                  initialHasNextPage={initialHasNextSandboxPage}
+                  initialNextPageToken={initialNextSandboxPageToken}
+                  workspaceId={actionScope.workspaceId}
+                  onBlurAction={field.onBlur}
+                  onValueChangeAction={field.onChange}
+                  aria-invalid={fieldState.invalid}
+                  aria-required="true"
+                />
+                {!hasSandboxes ? (
+                  <FieldDescription>
+                    Create a sandbox{" "}
+                    <button
+                      type="button"
+                      className="text-foreground underline"
+                      onClick={() => {
+                        onCloseAction()
+                        router.push(`${actionScope.workspacePath}/sandboxes/new`)
+                      }}
                     >
-                      {length.toLocaleString()} / {maxLength.toLocaleString()}
-                    </div>
-                    {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-                  </Field>
-                )
-              }}
-            />
-            {actionScope.workspaceType !== "coding" && (
-              <Controller
-                name="memoryEnabled"
-                control={form.control}
-                render={({ field, fieldState }) => (
-                  <Field orientation="horizontal" data-invalid={fieldState.invalid}>
-                    <div className="min-w-0 flex-1 space-y-0.5">
-                      <FieldLabel htmlFor="agent-form-memory">Persistent memory</FieldLabel>
-                      <FieldDescription>
-                        Allow this Agent to save facts and journal entries across sessions.
-                      </FieldDescription>
-                      <FieldError errors={[fieldState.error]} />
-                    </div>
-                    {field.value ? <input type="hidden" name={field.name} /> : null}
-                    <Switch
-                      id="agent-form-memory"
-                      ref={field.ref}
-                      checked={field.value}
-                      onBlur={field.onBlur}
-                      onCheckedChange={field.onChange}
-                      aria-label="Enable persistent memory"
-                      aria-invalid={fieldState.invalid}
-                    />
-                  </Field>
-                )}
-              />
+                      here
+                    </button>{" "}
+                    before continuing.
+                  </FieldDescription>
+                ) : null}
+                {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+              </Field>
             )}
-          </FieldGroup>
-        </form>
-        {form.formState.errors.root ? (
-          <Alert variant="destructive">
-            <CircleAlert aria-hidden="true" />
-            <AlertDescription>
-              <FieldError errors={[form.formState.errors.root]} />
-            </AlertDescription>
-          </Alert>
-        ) : null}
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="outline" disabled={isPending}>
-              Cancel
-            </Button>
-          </DialogClose>
-          <LoadingButton
-            pending={isPending}
-            type="submit"
-            form="agent-form-simple"
-            disabled={isPending || !hasSandboxes}
-          >
-            <Save data-icon="inline-start" />
-            {mode === "create" ? "Create agent" : "Update agent"}
-          </LoadingButton>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          />
+          <Controller
+            name="skills"
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="agent-form-skills">Immutable skills</FieldLabel>
+                <MultiSelectDropdown
+                  id="agent-form-skills"
+                  invalid={fieldState.invalid}
+                  options={Array.from(skills, ([value, skill]) => ({
+                    icon: Wrench,
+                    label: skill.name,
+                    badge: skill.scope,
+                    value,
+                  }))}
+                  value={field.value.map((skill) => JSON.stringify([skill.scope, skill.name]))}
+                  placeholder="Select skills"
+                  emptyMessage="No immutable skills"
+                  onBlurAction={field.onBlur}
+                  onValueChangeAction={(values) => {
+                    field.onChange(
+                      Array.from(skills)
+                        .filter(([key]) => values.includes(key))
+                        .map(([, skill]) => skill)
+                    )
+                  }}
+                  aria-describedby="agent-form-skills-error"
+                />
+                {fieldState.invalid && (
+                  <FieldError errors={[fieldState.error]} id="agent-form-skills-error" />
+                )}
+              </Field>
+            )}
+          />
+          <Controller
+            name="instruction"
+            control={form.control}
+            render={({ field, fieldState }) => {
+              const length = Array.from(field.value).length
+              const maxLength = 32000
+              return (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel>Custom instructions</FieldLabel>
+                  <AgentInstructions
+                    defaultMarkdown={field.value}
+                    markdown={field.value}
+                    editorRef={field.ref}
+                    onBlurAction={field.onBlur}
+                    onChangeAction={field.onChange}
+                    readOnly={isPending}
+                  />
+                  <div
+                    className="text-right text-xs text-muted-foreground tabular-nums data-[over-limit=true]:text-destructive"
+                    data-over-limit={length > maxLength}
+                    aria-label="Instruction character count"
+                  >
+                    {length.toLocaleString()} / {maxLength.toLocaleString()}
+                  </div>
+                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                </Field>
+              )
+            }}
+          />
+          {actionScope.workspaceType !== "coding" && (
+            <Controller
+              name="memoryEnabled"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field orientation="horizontal" data-invalid={fieldState.invalid}>
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <FieldLabel htmlFor="agent-form-memory">Persistent memory</FieldLabel>
+                    <FieldDescription>
+                      Allow this Agent to save facts and journal entries across sessions.
+                    </FieldDescription>
+                    <FieldError errors={[fieldState.error]} />
+                  </div>
+                  {field.value ? <input type="hidden" name={field.name} /> : null}
+                  <Switch
+                    id="agent-form-memory"
+                    ref={field.ref}
+                    checked={field.value}
+                    onBlur={field.onBlur}
+                    onCheckedChange={field.onChange}
+                    aria-label="Enable persistent memory"
+                    aria-invalid={fieldState.invalid}
+                  />
+                </Field>
+              )}
+            />
+          )}
+        </FieldGroup>
+        <aside className="min-w-0 border-2 border-x-0 border-b-0 border-dashed border-muted-foreground/50 p-6 md:border-y-0 md:border-l-2 md:pt-0">
+          <AgentAppearanceFields control={form.control} disabled={isPending} />
+        </aside>
+      </form>
+      {form.formState.errors.root ? (
+        <Alert variant="destructive" className="mx-6 mb-4 w-auto">
+          <CircleAlert aria-hidden="true" />
+          <AlertDescription>
+            <FieldError errors={[form.formState.errors.root]} />
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      <DialogFooter className="m-0 shrink-0 px-6 py-4">
+        <DialogClose asChild>
+          <Button type="button" variant="outline" disabled={isPending}>
+            Cancel
+          </Button>
+        </DialogClose>
+        <LoadingButton
+          pending={isPending}
+          type="submit"
+          form="agent-form-simple"
+          disabled={isPending || !hasSandboxes}
+        >
+          <Save data-icon="inline-start" />
+          {mode === "create" ? "Create agent" : "Update agent"}
+        </LoadingButton>
+      </DialogFooter>
+    </>
   )
 }

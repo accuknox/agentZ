@@ -427,7 +427,6 @@ export function OrganizationForm({ organization }: { organization: OrganizationS
               event.preventDefault()
             }
           }}
-          showCloseButton={false}
         >
           <DialogHeader>
             <DialogTitle>Position your profile picture</DialogTitle>

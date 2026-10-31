@@ -8,7 +8,7 @@ import type { TraceListItem } from "@/data/types"
 import type { AppSpan, Span } from "@/lib/gateway/client"
 import { dayjs, formatDurationMs } from "@/lib/format"
 import { ChatMessage, MessageResponse } from "@/components/ai-elements/message"
-import { ToolCard, ToolCode } from "@/components/blocks/chat/tool-parts"
+import { CodeBlockContent } from "@/components/ai-elements/code-block"
 import { CopyButton } from "@/components/interior/copy-button"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -196,41 +196,56 @@ export function TraceConversation({
                   data-message={step.key}
                   className={cn(messageClass, "px-1 py-0.5")}
                 >
-                  <ToolCard
-                    title={
-                      <span className="inline-flex items-center gap-2">
-                        <Wrench className="size-3.5 text-muted-foreground" />
-                        {label}
-                      </span>
-                    }
-                    arg={step.arguments.text.slice(0, 300)}
-                    tone={step.span.status_code === "ERROR" ? "error" : "neutral"}
-                    action={inspect}
-                  >
-                    <div className="my-2 flex min-w-0 flex-col gap-3">
-                      <div className="flex min-w-0 flex-col gap-1.5">
-                        <span className="text-xs text-muted-foreground">Input</span>
-                        <RecordedText {...step.arguments} />
-                      </div>
-                      {step.result ? (
-                        <div className="flex min-w-0 flex-col gap-1.5">
-                          <span className="text-xs text-muted-foreground">Output</span>
-                          <RecordedText {...step.result} />
-                        </div>
-                      ) : !step.error && !step.span.error_message ? (
-                        <p className="text-xs text-muted-foreground">No output captured.</p>
-                      ) : null}
-                      {step.error ? (
-                        <div role="alert" className="text-destructive">
-                          <RecordedText {...step.error} />
-                        </div>
-                      ) : step.span.error_message ? (
-                        <p role="alert" className="text-sm text-destructive">
-                          {step.span.error_message}
-                        </p>
-                      ) : null}
+                  <Collapsible className="group/tool">
+                    <div className="flex items-center gap-2">
+                      <CollapsibleTrigger asChild>
+                        <button
+                          type="button"
+                          className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left"
+                        >
+                          <Wrench className="size-3.5 shrink-0 text-muted-foreground" />
+                          <span
+                            className={cn(
+                              "shrink-0 text-sm font-medium",
+                              step.span.status_code === "ERROR" && "text-destructive"
+                            )}
+                          >
+                            {label}
+                          </span>
+                          <span className="truncate font-mono text-sm text-muted-foreground">
+                            {step.arguments.text.slice(0, 300)}
+                          </span>
+                          <ChevronRight className="ml-auto size-3.5 shrink-0 text-muted-foreground group-data-[state=open]/tool:rotate-90" />
+                        </button>
+                      </CollapsibleTrigger>
+                      {inspect}
                     </div>
-                  </ToolCard>
+                    <CollapsibleContent>
+                      <div className="my-2 flex min-w-0 flex-col gap-3 pl-3">
+                        <div className="flex min-w-0 flex-col gap-1.5">
+                          <span className="text-xs text-muted-foreground">Input</span>
+                          <RecordedText {...step.arguments} />
+                        </div>
+                        {step.result ? (
+                          <div className="flex min-w-0 flex-col gap-1.5">
+                            <span className="text-xs text-muted-foreground">Output</span>
+                            <RecordedText {...step.result} />
+                          </div>
+                        ) : !step.error && !step.span.error_message ? (
+                          <p className="text-xs text-muted-foreground">No output captured.</p>
+                        ) : null}
+                        {step.error ? (
+                          <div role="alert" className="text-destructive">
+                            <RecordedText {...step.error} />
+                          </div>
+                        ) : step.span.error_message ? (
+                          <p role="alert" className="text-sm text-destructive">
+                            {step.span.error_message}
+                          </p>
+                        ) : null}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
                 </div>
               )
             }
@@ -303,7 +318,13 @@ function RecordedText({ text, format }: { text: string; format: "markdown" | "js
   return (
     <div className="min-w-0 text-sm wrap-break-word">
       {format === "json" ? (
-        <ToolCode code={content} language="json" />
+        <div className="min-w-0 [&_pre]:p-0 [&_pre]:text-xs" data-language="json">
+          <CodeBlockContent
+            code={content}
+            language="json"
+            showLineNumbers={content.includes("\n")}
+          />
+        </div>
       ) : format === "markdown" ? (
         <MessageResponse mode="static">{content}</MessageResponse>
       ) : (

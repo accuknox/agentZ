@@ -391,7 +391,7 @@ export function Projects({
           if (!open && search.get("new") === "true") router.replace(`${workspacePath}/projects`)
         }}
       >
-        <DialogContent showCloseButton={false}>
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Add a GitHub project</DialogTitle>
             <DialogDescription>Projects and their chats are private to you.</DialogDescription>
@@ -586,7 +586,7 @@ export function Projects({
           }
         }}
       >
-        <DialogContent showCloseButton={false}>
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>{dialog === "rename" ? "Rename project" : "Delete project"}</DialogTitle>
             <DialogDescription>

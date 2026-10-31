@@ -729,6 +729,13 @@ func (s *Service) UpdateChatSessionPreference(w http.ResponseWriter, r *http.Req
 
 // WatchChatSessions handles GET /api/chat-session/watch.
 func (s *Service) WatchChatSessions(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel, apiErr := s.authorizeStream(r.Context())
+	if apiErr != nil {
+		apiutil.WriteError(w, r, apiErr)
+		return
+	}
+	defer cancel()
+	r = r.WithContext(ctx)
 	access, apiErr := s.resolveAgentAccess(r.Context(), "", authorization.OperationListAgents)
 	if apiErr != nil {
 		apiutil.WriteError(w, r, apiErr)
@@ -964,10 +971,23 @@ func (s *Service) listenForChatSessionNotifications(ctx context.Context) error {
 	if err := queries.GatewayListenChatSessions(ctx); err != nil {
 		return fmt.Errorf("listen for postgres chat session notifications: %w", err)
 	}
+	if err := queries.GatewayListenStreamAuthorization(ctx); err != nil {
+		return fmt.Errorf("listen for stream authorization changes: %w", err)
+	}
+	s.streamsReady.Store(true)
+	defer func() {
+		// A disconnected listener cannot vouch for any open stream's access.
+		s.streamsReady.Store(false)
+		s.streamAuthEvents.publish("")
+	}()
 	for {
 		notification, err := conn.Conn().WaitForNotification(ctx)
 		if err != nil {
 			return fmt.Errorf("wait for postgres chat session notification: %w", err)
+		}
+		if notification.Channel == "agentz_stream_authorization" {
+			s.streamAuthEvents.publish("")
+			continue
 		}
 		s.chatSessionEvents.publish(notification.Payload)
 	}

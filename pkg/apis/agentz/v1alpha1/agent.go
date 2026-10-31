@@ -73,6 +73,10 @@ const (
 type AgentSpec struct {
 	ResourceAudit `json:",inline"`
 
+	// Appearance identifies the Agent across shared chat surfaces.
+	// +optional
+	Appearance *AgentAppearance `json:"appearance,omitempty"`
+
 	// Image is the container image used for the Agent runtime.
 	// +optional
 	Image string `json:"image,omitempty"`
@@ -125,6 +129,22 @@ type AgentSpec struct {
 	// +kubebuilder:default="5Gi"
 	// +optional
 	NixStoreSize resource.Quantity `json:"nixStoreSize,omitempty"`
+}
+
+// MascotBreed selects an animated character.
+// +kubebuilder:validation:Enum=mochi;ziglet;slinky;mallow;pip;pi
+type MascotBreed string
+
+// MascotColor selects a palette with matching light and dark shades.
+// +kubebuilder:validation:Enum=cream;lilac;peach;rose;coral;amber;lime;mint;sky;slate
+type MascotColor string
+
+// AgentAppearance stores the shared visual identity without changing runtime configuration.
+type AgentAppearance struct {
+	// Breed selects the character and its animation poses.
+	Breed MascotBreed `json:"breed"`
+	// Color selects the character's theme-aware palette.
+	Color MascotColor `json:"color"`
 }
 
 // MemoryConfig defines persistent memory settings for an Agent.

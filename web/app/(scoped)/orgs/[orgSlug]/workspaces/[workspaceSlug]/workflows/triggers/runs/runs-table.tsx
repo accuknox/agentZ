@@ -578,7 +578,7 @@ function DeleteRunDialog(props: DeleteRunDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent showCloseButton={false}>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Delete {item.name}?</DialogTitle>
           <DialogDescription>

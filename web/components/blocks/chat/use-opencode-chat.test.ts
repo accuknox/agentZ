@@ -61,7 +61,6 @@ test("history hydration ahead of queued native events does not duplicate buffere
   const hydrated = buildStore(assistant.sessionID, [{ info: assistant, parts: [completed] }])
   const store = events.reduce(applyEvent, hydrated)
 
-  assert.equal(store.partTextAccumDelta[completed.id], text)
   assert.equal(store.part[assistant.id]?.find((part) => part.id === completed.id)?.type, "text")
   assert.deepEqual(store.part[assistant.id], [completed])
 })
@@ -70,6 +69,5 @@ test("native snapshots and deltas produce the same text without prior history", 
   const empty = buildStore(assistant.sessionID, [])
   const store = events.reduce(applyEvent, empty)
 
-  assert.equal(store.partTextAccumDelta[completed.id], text)
   assert.deepEqual(store.part[assistant.id], [completed])
 })

@@ -43,6 +43,13 @@
       "when": 1793126279509,
       "tag": "0005_guardrails",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793372965487,
+      "tag": "0006_chat_activity",
+      "breakpoints": true
     }
   ]
 }

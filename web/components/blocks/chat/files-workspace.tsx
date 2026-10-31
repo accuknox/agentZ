@@ -1011,7 +1011,7 @@ function WorkspaceBody({
         />
       ) : null}
       <Dialog open={confirmation !== null} onOpenChange={(open) => !open && setConfirmation(null)}>
-        <DialogContent showCloseButton={false}>
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>{confirmation?.title}</DialogTitle>
             <DialogDescription>{confirmation?.description}</DialogDescription>
@@ -1933,7 +1933,7 @@ function EntryDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && !pending && onClose()}>
-      <DialogContent showCloseButton={false}>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{label}</DialogTitle>
           <DialogDescription>

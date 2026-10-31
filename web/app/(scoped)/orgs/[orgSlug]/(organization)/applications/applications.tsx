@@ -513,7 +513,7 @@ export function Applications({
           if (!pending && !open) setConfirmation(undefined)
         }}
       >
-        <DialogContent showCloseButton={false}>
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>{confirmationTitle}</DialogTitle>
             <DialogDescription>{confirmationDescription}</DialogDescription>
@@ -646,7 +646,7 @@ function ApplicationEditor({
         if (!pending && !open) onClose()
       }}
     >
-      <SheetContent size="md" className="gap-0" showCloseButton={!pending}>
+      <SheetContent size="md" className="gap-0">
         <SheetHeader>
           <SheetTitle>{client ? "Edit application" : "Create application"}</SheetTitle>
           <SheetDescription>

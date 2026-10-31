@@ -20,6 +20,7 @@ import { getCurrentUserPreferences } from "@/data/user-preferences"
 import { getWorkspaceScope } from "@/data/workspaces"
 import { signInURL } from "@/lib/sign-in-redirect"
 import { WorkspaceState } from "./workspace-state"
+import { ChatActivityProvider } from "@/components/blocks/chat/display"
 
 export async function generateMetadata({
   params,
@@ -176,20 +177,25 @@ async function WorkspaceContent({
         {result.workspace.type === "coding" && result.workspace.state === "ready" ? (
           <CodingActivity workspaceId={result.workspace.id} />
         ) : null}
-        <AdministrationLayout>
-          {result.workspace.state === "ready" ? (
-            children
-          ) : (
-            <>
-              <AdministrationPageHeader title={result.workspace.name} />
-              <WorkspaceState
-                canRetry={result.scope.organization.superadmin}
-                orgSlug={result.scope.organization.slug}
-                workspace={result.workspace}
-              />
-            </>
-          )}
-        </AdministrationLayout>
+        <ChatActivityProvider
+          workspaceType={result.workspace.type}
+          showReasoningAndTools={preferences.showReasoningAndTools}
+        >
+          <AdministrationLayout>
+            {result.workspace.state === "ready" ? (
+              children
+            ) : (
+              <>
+                <AdministrationPageHeader title={result.workspace.name} />
+                <WorkspaceState
+                  canRetry={result.scope.organization.superadmin}
+                  orgSlug={result.scope.organization.slug}
+                  workspace={result.workspace}
+                />
+              </>
+            )}
+          </AdministrationLayout>
+        </ChatActivityProvider>
       </AppShell>
     </PageSelectionProvider>
   )

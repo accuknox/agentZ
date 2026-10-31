@@ -771,6 +771,26 @@ export const zGuardrailEffective = z.object({
   checks: z.array(zGuardrailEffectiveCheck),
 })
 
+export const zMascotBreed = z.enum(["mochi", "ziglet", "slinky", "mallow", "pip", "pi"])
+
+export const zMascotColor = z.enum([
+  "cream",
+  "lilac",
+  "peach",
+  "rose",
+  "coral",
+  "amber",
+  "lime",
+  "mint",
+  "sky",
+  "slate",
+])
+
+export const zAgentAppearance = z.object({
+  breed: zMascotBreed,
+  color: zMascotColor,
+})
+
 export const zAgentMemoryConfig = z.object({
   enabled: z.boolean(),
 })
@@ -1353,6 +1373,7 @@ export const zAgentOpencodeConfig = z.object({
 })
 
 export const zAgent = z.object({
+  appearance: zAgentAppearance.optional(),
   name: zAgentName,
   sandbox: zResourceReference,
   created_by: zResourceActor,
@@ -1373,6 +1394,7 @@ export const zListAgentsResponse = z.object({
 })
 
 export const zCreateAgentRequest = z.object({
+  appearance: zAgentAppearance.optional(),
   name: zAgentName,
   memory: zAgentMemoryConfig.optional(),
   env: z.record(z.string(), z.string()).optional(),
@@ -1382,6 +1404,7 @@ export const zCreateAgentRequest = z.object({
 })
 
 export const zUpdateAgentRequest = z.object({
+  appearance: zAgentAppearance.optional(),
   env: z.record(z.string(), z.string()).optional(),
   memory: zAgentMemoryConfig.optional(),
   sandbox: zResourceReference.optional(),

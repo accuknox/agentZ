@@ -2219,7 +2219,7 @@ export function ProviderSheet({
           onCloseAction={() => setEditingModel(undefined)}
         />
         <Dialog open={Boolean(impact)} onOpenChange={(next) => !next && setImpact(undefined)}>
-          <DialogContent showCloseButton={false}>
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>Update shared Pool contracts?</DialogTitle>
               <DialogDescription>

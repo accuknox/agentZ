@@ -14,6 +14,7 @@ import (
 	"os/signal"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -134,6 +135,8 @@ type Service struct {
 	skillStore          *skill.Client
 	skillImports        chan struct{}
 	chatSessionEvents   chatSessionEvents
+	streamAuthEvents    chatSessionEvents
+	streamsReady        atomic.Bool
 	chatInputWake       chan struct{}
 	codingEvents        chatSessionEvents
 	externalAgentEvents chatSessionEvents

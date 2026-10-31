@@ -603,6 +603,8 @@ components:
     Agent:
       additionalProperties: false
       properties:
+        appearance:
+          $ref: '#/components/schemas/AgentAppearance'
         capabilities:
           $ref: '#/components/schemas/AgentCapabilities'
         created_at:
@@ -683,6 +685,21 @@ components:
       x-enum-varnames:
       - AgentAccessTargetKindUser
       - AgentAccessTargetKindTeam
+    AgentAppearance:
+      additionalProperties: false
+      properties:
+        breed:
+          $ref: '#/components/schemas/MascotBreed'
+        color:
+          $ref: '#/components/schemas/MascotColor'
+      required:
+      - breed
+      - color
+      type: object
+      x-go-type: agentzv1alpha1.AgentAppearance
+      x-go-type-import:
+        name: agentzv1alpha1
+        path: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1
     AgentCapabilities:
       additionalProperties: false
       properties:
@@ -2521,6 +2538,8 @@ components:
     CreateAgentRequest:
       additionalProperties: false
       properties:
+        appearance:
+          $ref: '#/components/schemas/AgentAppearance'
         env:
           additionalProperties:
             type: string
@@ -6433,6 +6452,36 @@ components:
       - connection_id
       - name
       type: object
+    MascotBreed:
+      enum:
+      - mochi
+      - ziglet
+      - slinky
+      - mallow
+      - pip
+      - pi
+      type: string
+      x-go-type: agentzv1alpha1.MascotBreed
+      x-go-type-import:
+        name: agentzv1alpha1
+        path: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1
+    MascotColor:
+      enum:
+      - cream
+      - lilac
+      - peach
+      - rose
+      - coral
+      - amber
+      - lime
+      - mint
+      - sky
+      - slate
+      type: string
+      x-go-type: agentzv1alpha1.MascotColor
+      x-go-type-import:
+        name: agentzv1alpha1
+        path: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1
     MutableSkillImportPreviewItem:
       additionalProperties: false
       properties:
@@ -26486,6 +26535,8 @@ components:
       additionalProperties: false
       minProperties: 1
       properties:
+        appearance:
+          $ref: '#/components/schemas/AgentAppearance'
         env:
           additionalProperties:
             type: string

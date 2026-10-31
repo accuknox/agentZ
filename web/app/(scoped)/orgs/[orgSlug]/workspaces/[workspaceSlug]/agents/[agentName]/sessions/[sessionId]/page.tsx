@@ -2,7 +2,6 @@ import { RememberRoute, missingRoute } from "@/data/route-memory"
 import { getCodingThread, type Workspace } from "@/lib/gateway/client"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import type { Metadata } from "next"
-import Link from "next/link"
 import { cache, Suspense } from "react"
 import { ChatShell } from "@/components/blocks/chat/chat-shell"
 import { getWorkspaceScope } from "@/data/workspaces"
@@ -74,17 +73,6 @@ async function ChatPageContent({ params }: ChatPageProps) {
       <RememberRoute />
       <ChatShell
         codingThread={coding}
-        headerContext={
-          coding ? (
-            <Link
-              href={`/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}/sessions/new?${new URLSearchParams({ project: coding.worktree.project_id, agent: agentName })}`}
-              className="transition-colors hover:text-foreground"
-              title={coding.repository}
-            >
-              {coding.repository}
-            </Link>
-          ) : undefined
-        }
         agentName={agentName}
         sessionId={sessionId}
         title={title}

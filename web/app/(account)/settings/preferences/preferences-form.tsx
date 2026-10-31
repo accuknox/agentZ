@@ -21,33 +21,35 @@ export function PreferencesForm({
   const { setTheme } = useTheme()
   const [state, action, pending] = React.useActionState(
     async (state: PreferencesFormState, formData: FormData) => {
-      const result = await savePreferencesAction(state, formData)
-      if (result.saved) toast.success("Preferences updated")
-      return result
+      try {
+        const result = await savePreferencesAction(state, formData)
+        if (result.saved) toast.success("Preferences updated", { id: "preferences-updated" })
+        return result
+      } catch {
+        return {
+          error: "Could not save preferences. Try again.",
+          preferences: state.preferences,
+        }
+      }
     },
     initialState
   )
-  const [draft, setDraft] = React.useState(initialState.preferences)
-  const preferences = pending ? draft : state.preferences
+  const [preferences, setPreferences] = React.useOptimistic(state.preferences)
+
+  React.useEffect(() => {
+    setTheme(preferences.theme)
+  }, [preferences.theme, setTheme])
 
   function updatePreferences(next: PreferencesFormState["preferences"]) {
-    setDraft(next)
-
     const formData = new FormData()
     formData.set("theme", next.theme)
     formData.set("updateSandbox", String(next.updateSandbox))
     formData.set("showTourButton", String(next.showTourButton))
+    formData.set("showReasoningAndTools", String(next.showReasoningAndTools))
 
     React.startTransition(() => {
+      setPreferences(next)
       action(formData)
-    })
-  }
-
-  function onThemeChange(theme: ThemePreference) {
-    setTheme(theme)
-    updatePreferences({
-      ...preferences,
-      theme,
     })
   }
 
@@ -63,7 +65,7 @@ export function PreferencesForm({
           className="shrink-0"
           disabled={pending}
           value={preferences.theme}
-          onValueChange={onThemeChange}
+          onValueChange={(theme) => updatePreferences({ ...preferences, theme })}
           options={[
             {
               value: "system",
@@ -128,6 +130,26 @@ export function PreferencesForm({
           disabled={pending}
           onCheckedChange={(showTourButton) =>
             updatePreferences({ ...preferences, showTourButton })
+          }
+        />
+      </div>
+      <div className="flex items-start justify-between gap-6 py-2">
+        <div className="min-w-0 space-y-1">
+          <label className="text-base font-semibold tracking-normal" htmlFor="show-chat-activity">
+            Show reasoning and tool calls
+          </label>
+          <p className="text-sm text-muted-foreground" id="chat-activity-description">
+            Show expandable reasoning and tool activity in chats. Always enabled in coding
+            workspaces.
+          </p>
+        </div>
+        <Switch
+          id="show-chat-activity"
+          aria-describedby="chat-activity-description"
+          checked={preferences.showReasoningAndTools}
+          disabled={pending}
+          onCheckedChange={(showReasoningAndTools) =>
+            updatePreferences({ ...preferences, showReasoningAndTools })
           }
         />
       </div>

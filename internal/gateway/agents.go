@@ -560,8 +560,9 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		w,
 		http.StatusCreated,
 		gatewayapi.Agent{
-			Name:    row.AgentName,
-			Sandbox: req.Sandbox,
+			Appearance: agt.Spec.Appearance,
+			Name:       row.AgentName,
+			Sandbox:    req.Sandbox,
 			Opencode: &gatewayapi.AgentOpencodeConfig{
 				Instruction: &agt.Spec.Instruction,
 			},
@@ -646,7 +647,10 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 			return
 		}
 	}
-	if !updateAgentRequestHasChanges(req) {
+	empty := req.Appearance == nil && req.Env == nil &&
+		req.Sandbox == nil && req.Opencode == nil &&
+		req.Memory == nil && req.Skills == nil
+	if empty {
 		apiutil.WriteError(w, r, apiutil.NewError(
 			http.StatusBadRequest,
 			"invalid_request",
@@ -761,8 +765,9 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		w,
 		http.StatusOK,
 		gatewayapi.Agent{
-			Name:    row.AgentName,
-			Sandbox: resourceReferenceFromCRD(updated.Spec.SandboxRef),
+			Appearance: updated.Spec.Appearance,
+			Name:       row.AgentName,
+			Sandbox:    resourceReferenceFromCRD(updated.Spec.SandboxRef),
 			Opencode: &gatewayapi.AgentOpencodeConfig{
 				Instruction: &updated.Spec.Instruction,
 			},
@@ -1556,6 +1561,13 @@ func (s *Service) DeleteAgentShare(w http.ResponseWriter, r *http.Request, agent
 //
 //nolint:gocyclo
 func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
+	ctx, cancelStream, apiErr := s.authorizeStream(r.Context())
+	if apiErr != nil {
+		apiutil.WriteError(w, r, apiErr)
+		return
+	}
+	defer cancelStream()
+	r = r.WithContext(ctx)
 	access, apiErr := s.resolveAgentAccess(r.Context(), "", authorization.OperationWatchAgents)
 	if apiErr != nil {
 		apiutil.WriteError(w, r, apiErr)
@@ -1661,8 +1673,13 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 		changed := make([]gatewayapi.Agent, 0, len(items))
 		for _, item := range items {
 			prevItem, ok := prev[item.Name]
+			sameAppearance := prevItem.Appearance == item.Appearance
+			if prevItem.Appearance != nil && item.Appearance != nil {
+				sameAppearance = *prevItem.Appearance == *item.Appearance
+			}
 			// List projections always include the saved instruction, even when empty.
 			unchanged := ok &&
+				sameAppearance &&
 				prevItem.Name == item.Name &&
 				prevItem.Sandbox == item.Sandbox &&
 				prevItem.Memory == item.Memory &&
@@ -2460,8 +2477,9 @@ func (s *Service) listAgentItems(ctx context.Context, q gatewaydb.GatewayListAge
 		items = append(
 			items,
 			gatewayapi.Agent{
-				Name:    row.AgentName,
-				Sandbox: resourceReferenceFromCRD(agt.Spec.SandboxRef),
+				Appearance: agt.Spec.Appearance,
+				Name:       row.AgentName,
+				Sandbox:    resourceReferenceFromCRD(agt.Spec.SandboxRef),
 				Opencode: &gatewayapi.AgentOpencodeConfig{
 					Instruction: &agt.Spec.Instruction,
 				},
@@ -2611,8 +2629,9 @@ func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, name
 			},
 		},
 		Spec: agentzv1alpha1.AgentSpec{
-			Image: s.cfg.AgentImage,
-			Env:   env,
+			Appearance: req.Appearance,
+			Image:      s.cfg.AgentImage,
+			Env:        env,
 			Telemetry: agentzv1alpha1.TelemetryConfig{
 				Enabled:       true,
 				TraceEndpoint: s.cfg.AgentTraceEndpoint,
@@ -2633,26 +2652,10 @@ func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, name
 	return agt
 }
 
-func updateAgentRequestHasChanges(req gatewayapi.UpdateAgentRequest) bool {
-	if req.Env != nil {
-		return true
-	}
-	if req.Sandbox != nil {
-		return true
-	}
-	if req.Opencode != nil {
-		return true
-	}
-	if req.Memory != nil {
-		return true
-	}
-	if req.Skills != nil {
-		return true
-	}
-	return false
-}
-
 func applyUpdateAgentRequest(agt *agentzv1alpha1.Agent, req gatewayapi.UpdateAgentRequest) {
+	if req.Appearance != nil {
+		agt.Spec.Appearance = req.Appearance
+	}
 	if req.Env != nil {
 		agt.Spec.Env = envVarsFromMap(*req.Env)
 	}

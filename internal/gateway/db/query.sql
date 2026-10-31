@@ -668,6 +668,9 @@ ORDER BY users.name, users.email, users.id;
 -- name: GatewayListenChatSessions :exec
 LISTEN agentz_chat_sessions;
 
+-- name: GatewayListenStreamAuthorization :exec
+LISTEN agentz_stream_authorization;
+
 -- name: GatewayGetWorkspaceChatPreference :one
 SELECT *
 FROM workspace_chat_preferences

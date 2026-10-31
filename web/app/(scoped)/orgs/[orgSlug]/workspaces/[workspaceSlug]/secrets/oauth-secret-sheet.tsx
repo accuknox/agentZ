@@ -657,7 +657,6 @@ export function OAuthSecretSheet({
           }
           event.preventDefault()
         }}
-        showCloseButton={oauthPopupFlowId === undefined}
       >
         <SheetHeader>
           <SheetTitle>New OAuth secret</SheetTitle>

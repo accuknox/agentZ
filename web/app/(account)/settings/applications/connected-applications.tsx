@@ -185,7 +185,7 @@ export function ConnectedApplications({
           if (!pending && !open) setSelected(undefined)
         }}
       >
-        <DialogContent showCloseButton={false}>
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Disconnect {selected?.name}?</DialogTitle>
             <DialogDescription>

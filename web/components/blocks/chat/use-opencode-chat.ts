@@ -20,12 +20,14 @@ import {
   useQuery,
   useQueryClient,
   type QueryClient,
+  type Query,
+  type InfiniteData,
 } from "@tanstack/react-query"
 import { useCallback, useEffectEvent, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
-import { dayjs } from "@/lib/format"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { describeMessageError, opencodeErrorMessage } from "@/components/blocks/chat/errors"
+import { chatCache } from "./cache"
 
 type SessionMessageRecord = SessionMessagesResponse2[number]
 
@@ -41,9 +43,76 @@ type SessionMessagePageParam = {
 
 const historyMessagePageSize = 200
 
+/*
+ * Paragraph boundaries adapted from T3 Code's assistantStreaming.ts.
+ * MIT License. Copyright (c) 2026 T3 Tools Inc.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+const markdownFence = /^( *)(`{3,}|~{3,})/
+const markdownListItem = /^[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]/
+const markdownSection = /^ {0,3}(?:#{1,6}(?:[ \t]|$)|\*\*(?:[^*]|\*(?!\*))+\*\*:?$)/
+const markdownHeading = /^#{1,6}(?:[ \t]|$)/
+
+// Keep unfinished paragraphs, section headings and fences out of the rendered
+// prefix. The authoritative stream retains every character for completion.
+function readyAssistantText(text: string): string {
+  let fence = ""
+  let fenceIndent = 0
+  let boundary = 0
+  let start = 0
+  let title = false
+  for (;;) {
+    const newline = text.indexOf("\n", start)
+    const line = text.slice(start, newline < 0 ? text.length : newline).replace(/[ \t\r]+$/, "")
+    if (!fence && start > 0 && !title && markdownListItem.test(line)) boundary = start
+    if (newline < 0) break
+    const match = markdownFence.exec(line)
+    if (match) {
+      const marker = match[0].trimStart()
+      const indent = match[0].length - marker.length
+      if (!fence) {
+        fence = marker
+        fenceIndent = indent
+        title = false
+      } else if (
+        marker[0] === fence[0] &&
+        marker.length >= fence.length &&
+        indent <= fenceIndent + 3 &&
+        line.length === indent + marker.length
+      ) {
+        fence = ""
+        boundary = newline + 1
+      }
+    } else if (!fence && /^[ \t]*$/.test(line) && start > 0) {
+      if (!title) boundary = newline + 1
+    } else if (!fence) {
+      if (start > 0 && !title && markdownHeading.test(line)) boundary = start
+      title = markdownSection.test(line)
+    }
+    start = newline + 1
+  }
+  return text.slice(0, boundary)
+}
+
 type OpencodeChatStore = {
   part: Record<string, Part[]>
-  partTextAccumDelta: Record<string, string>
   message: Record<string, Message[]>
   // Todos are keyed by sessionID and cleared whenever the turn that produced
   // them completes. Empty arrays collapse to "no todos" so the dock hides.
@@ -57,31 +126,6 @@ type HitlStore = {
 }
 
 const emptyHitlStore: HitlStore = { permissions: {}, questions: {}, sessions: [] }
-
-type UseOpencodeChatResult = {
-  updateSession: (info: Session) => Promise<void>
-  blocked: boolean
-  loadError?: string
-  isBusy: boolean
-  isPending: boolean
-  hasEarlierMessages: boolean
-  isLoadingEarlier: boolean
-  isRefreshingHistory: boolean
-  loadEarlier: () => Promise<void>
-  messages: Message[]
-  partsByMessage: Record<string, Part[]>
-  permissionRequest?: PermissionRequest
-  permissions: PermissionRequest[]
-  questions: QuestionRequest[]
-  questionRequest?: QuestionRequest
-  session?: Session
-  sessionStatus?: SessionStatus
-  reload: () => void
-  reconnectStream: () => void
-  streamError?: string
-  textByPart: Record<string, string>
-  todos: Todo[]
-}
 
 const idleSessionStatus: SessionStatus = { type: "idle" }
 function deriveSessionIsBusy(
@@ -125,7 +169,6 @@ function upsertPart(parts: Part[], next: Part) {
 export function buildStore(sessionID: string, records: SessionMessageRecord[]) {
   const store: OpencodeChatStore = {
     part: {},
-    partTextAccumDelta: {},
     message: {},
     todos: {},
   }
@@ -135,11 +178,6 @@ export function buildStore(sessionID: string, records: SessionMessageRecord[]) {
 
   for (const record of records) {
     store.part[record.info.id] = record.parts
-
-    for (const part of record.parts) {
-      if (part.type !== "text" && part.type !== "reasoning") continue
-      store.partTextAccumDelta[part.id] = part.text
-    }
   }
 
   return store
@@ -153,7 +191,6 @@ function mergeHistoryPage(
   const known = new Set((store.message[sessionID] ?? []).map((message) => message.id))
   const messages = [...(store.message[sessionID] ?? [])]
   const part = { ...store.part }
-  const partTextAccumDelta = { ...store.partTextAccumDelta }
 
   for (const record of records) {
     if (known.has(record.info.id)) continue
@@ -161,10 +198,6 @@ function mergeHistoryPage(
     known.add(record.info.id)
     messages.push(record.info)
     part[record.info.id] = record.parts
-    for (const item of record.parts) {
-      if (item.type !== "text" && item.type !== "reasoning") continue
-      partTextAccumDelta[item.id] = item.text
-    }
   }
 
   messages.sort((x, y) => x.time.created - y.time.created)
@@ -172,7 +205,6 @@ function mergeHistoryPage(
     ...store,
     message: { ...store.message, [sessionID]: messages },
     part,
-    partTextAccumDelta,
   }
 }
 
@@ -256,9 +288,12 @@ export function applyEvent(store: OpencodeChatStore, event: StreamEvent): Openco
     case "message.removed": {
       const sessionID = event.properties.sessionID
       const messages = store.message[sessionID] ?? []
+      const part = { ...store.part }
+      delete part[event.properties.messageID]
 
       return {
         ...store,
+        part,
         message: {
           ...store.message,
           [sessionID]: messages.filter((message) => message.id !== event.properties.messageID),
@@ -269,15 +304,11 @@ export function applyEvent(store: OpencodeChatStore, event: StreamEvent): Openco
     case "message.part.updated": {
       const part = event.properties.part
       const parts = store.part[part.messageID] ?? []
-      if (part.type !== "text" && part.type !== "reasoning") {
-        return { ...store, part: { ...store.part, [part.messageID]: upsertPart(parts, part) } }
-      }
       // A part update is an authoritative snapshot. Queued stream events can
       // overlap a history read, so reset the delta base to this snapshot.
       return {
         ...store,
         part: { ...store.part, [part.messageID]: upsertPart(parts, part) },
-        partTextAccumDelta: { ...store.partTextAccumDelta, [part.id]: part.text },
       }
     }
 
@@ -289,28 +320,24 @@ export function applyEvent(store: OpencodeChatStore, event: StreamEvent): Openco
       if (field !== "text" || (part?.type !== "text" && part?.type !== "reasoning")) {
         return store
       }
-      const text = (store.partTextAccumDelta[partID] ?? "") + delta
+      const text = part.text + delta
       return {
         ...store,
         part: {
           ...store.part,
           [messageID]: parts.map((item) => (item.id === partID ? { ...part, text } : item)),
         },
-        partTextAccumDelta: { ...store.partTextAccumDelta, [partID]: text },
       }
     }
 
     case "message.part.removed": {
       const { messageID, partID } = event.properties
-      const nextText = { ...store.partTextAccumDelta }
-      delete nextText[partID]
       return {
         ...store,
         part: {
           ...store.part,
           [messageID]: (store.part[messageID] ?? []).filter((part) => part.id !== partID),
         },
-        partTextAccumDelta: nextText,
       }
     }
 
@@ -422,23 +449,25 @@ function applyHitlEvent(store: HitlStore, event: StreamEvent): HitlStore {
   }
 }
 
-function sessionMessagesBaseQueryKey(workspaceId: string, agentName: string, sessionID: string) {
-  return ["opencode", "sessionMessages", workspaceId, agentName, sessionID] as const
-}
-
 export function sessionInfoQueryOptions(agentName: string, workspaceId: string, sessionID: string) {
   return queryOptions({
     queryFn: async ({ signal, client: queryClient, queryKey }): Promise<Session | null> => {
       const client = await createAgentOpencodeClient(agentName, workspaceId)
       const result = await client.session.get({ sessionID }, { signal })
+      signal.throwIfAborted()
 
       if (result.error || !result.data) {
+        // The SDK omits the response when fetch fails before receiving HTTP.
+        const status = result.response?.status
+        if (status === 401 || status === 403 || status === 404) {
+          await removeSessionState(queryClient, agentName, workspaceId, sessionID)
+        }
         throw new Error(opencodeErrorMessage(result.error, "Failed to load session"))
       }
 
       // An event may have advanced metadata while this snapshot was in flight.
       const current = queryClient.getQueryData<Session | null>(queryKey)
-      if (current === null || (current && current.time.updated > result.data.time.updated)) {
+      if (current && current.time.updated > result.data.time.updated) {
         return current
       }
       return result.data
@@ -447,6 +476,69 @@ export function sessionInfoQueryOptions(agentName: string, workspaceId: string, 
     retry: false,
     staleTime: 60_000,
   })
+}
+
+// removeSessionState quarantines an unavailable chat and cancels reads before
+// clearing its transcript, drafts and previews. The metadata tombstone also
+// rejects delayed stream updates until a fresh authorized read succeeds.
+export async function removeSessionState(
+  queryClient: QueryClient,
+  agentName: string,
+  workspaceId: string,
+  sessionID: string
+) {
+  const info = sessionInfoQueryOptions(agentName, workspaceId, sessionID)
+  const matches = (query: Query) => {
+    const key = query.queryKey
+    if (key[0] === "opencode")
+      return key[2] === workspaceId && key[3] === agentName && key[4] === sessionID
+    if (key[0] === "chatInputs" || key[0] === "chatPreview" || key[0] === "chatQuestionDraft")
+      return key[1] === workspaceId && key[2] === agentName && key[3] === sessionID
+    return (
+      (key[0] === "chatDraft" || key[0] === "chatScroll" || key[0] === "chatPreparedInput") &&
+      key[1] === workspaceId &&
+      key[2] === agentName &&
+      key[4] === sessionID
+    )
+  }
+  await queryClient.cancelQueries({ predicate: matches })
+  queryClient.setQueryData(info.queryKey, null)
+  await queryClient.invalidateQueries({ queryKey: info.queryKey, exact: true, refetchType: "none" })
+  queryClient.removeQueries({
+    predicate: (query) => matches(query) && query.queryKey[1] !== "sessionInfo",
+  })
+  await chatCache.clear([workspaceId, agentName, sessionID])
+}
+
+// reconcileHistory preserves page boundaries while folding live records back
+// into cached history. Removed turns and their parts cannot reappear on return.
+function reconcileHistory(
+  history: InfiniteData<SessionMessagePage>,
+  sessionID: string,
+  store: OpencodeChatStore
+): InfiniteData<SessionMessagePage> {
+  const records = new Map(
+    (store.message[sessionID] ?? []).map((info) => [
+      info.id,
+      { info, parts: store.part[info.id] ?? [] },
+    ])
+  )
+  const older = new Set(
+    history.pages.slice(1).flatMap((page) => page.records.map(({ info }) => info.id))
+  )
+  return {
+    ...history,
+    pages: history.pages.map((page, index) => ({
+      ...page,
+      records:
+        index === 0
+          ? [...records.values()].filter(({ info }) => !older.has(info.id))
+          : page.records.flatMap(({ info }) => {
+              const record = records.get(info.id)
+              return record ? [record] : []
+            }),
+    })),
+  }
 }
 
 // Creation, stream events and revert responses all publish the same metadata.
@@ -517,7 +609,7 @@ export function sessionDiffQueryOptions(agentName: string, workspaceId: string, 
   })
 }
 
-function sessionMessagesQueryOptions(
+export function sessionMessagesQueryOptions(
   agentName: string,
   workspaceId: string,
   sessionID: string,
@@ -568,9 +660,17 @@ function sessionMessagesQueryOptions(
     getNextPageParam: (page): SessionMessagePageParam | undefined =>
       page.cursor ? { before: page.cursor, limit: historyMessagePageSize } : undefined,
     queryKey: [
-      ...sessionMessagesBaseQueryKey(workspaceId, agentName, sessionID),
+      "opencode",
+      "sessionMessages",
+      workspaceId,
+      agentName,
+      sessionID,
       directory,
     ] as const,
+    // The SSE connection owns reconciliation, including browser reconnects.
+    refetchOnMount: (query) => query.state.isInvalidated,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     retry: false,
     staleTime: 5_000,
   })
@@ -578,19 +678,12 @@ function sessionMessagesQueryOptions(
 
 function sessionTreeQueryOptions(agentName: string, workspaceId: string, directory: string) {
   return queryOptions({
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const client = await createAgentOpencodeClient(agentName, workspaceId)
       const [sessionResult, questionResult, permissionResult] = await Promise.all([
-        client.session.list({
-          directory,
-          limit: 1000,
-        }),
-        client.question.list({
-          directory,
-        }),
-        client.permission.list({
-          directory,
-        }),
+        client.session.list({ directory, limit: 1000 }, { signal }),
+        client.question.list({ directory }, { signal }),
+        client.permission.list({ directory }, { signal }),
       ])
 
       if (sessionResult.error) {
@@ -641,33 +734,48 @@ function sessionStatusQueryOptions(agentName: string, workspaceId: string, direc
 export function useOpencodeChat(
   agentName: string,
   workspaceId: string,
-  sessionID?: string
-): UseOpencodeChatResult {
+  sessionID?: string,
+  userID?: string
+) {
   const queryClient = useQueryClient()
   const [liveStore, setLiveStore] = useState<{
     store: OpencodeChatStore
     version: object
   }>()
-  const [hitlLive, setHitlLive] = useState<{ key: number; store: HitlStore }>()
   const [streamError, setStreamError] = useState<string>()
   const [streamEpoch, setStreamEpoch] = useState(0)
+  const sessionOptions = sessionInfoQueryOptions(agentName, workspaceId, sessionID ?? "")
+  const [openingSession] = useState(() => queryClient.getQueryState(sessionOptions.queryKey))
   const session = useQuery({
-    ...sessionInfoQueryOptions(agentName, workspaceId, sessionID ?? ""),
+    ...sessionOptions,
     enabled: Boolean(sessionID),
   })
+  const previewKey = JSON.stringify([userID, workspaceId, agentName, sessionID])
+  const historyOptions = sessionMessagesQueryOptions(
+    agentName,
+    workspaceId,
+    sessionID ?? "",
+    session.data?.directory ?? ""
+  )
+  const [openingHistory] = useState(() => queryClient.getQueryState(historyOptions.queryKey))
   const history = useInfiniteQuery({
-    ...sessionMessagesQueryOptions(
-      agentName,
-      workspaceId,
-      sessionID ?? "",
-      session.data?.directory ?? ""
-    ),
-    enabled: false,
+    ...historyOptions,
+    enabled: Boolean(sessionID && session.data?.directory),
   })
+  const preview = useQuery(
+    queryOptions({
+      queryKey: ["chatPreview", workspaceId, agentName, sessionID, previewKey],
+      queryFn: async () => (await chatCache.read(previewKey)) ?? null,
+      enabled: Boolean(userID && sessionID && !history.data),
+      staleTime: Infinity,
+      gcTime: 0,
+    })
+  )
   const { fetchNextPage: fetchNextHistoryPage } = history
+  const hitlOptions = sessionTreeQueryOptions(agentName, workspaceId, session.data?.directory ?? "")
   const hitl = useQuery({
-    ...sessionTreeQueryOptions(agentName, workspaceId, session.data?.directory ?? ""),
-    enabled: false,
+    ...hitlOptions,
+    enabled: Boolean(sessionID && session.data?.directory),
   })
   const refetchSession = session.refetch
   const refetchHistory = history.refetch
@@ -678,24 +786,35 @@ export function useOpencodeChat(
     session.data?.directory ?? ""
   )
   const sessionStatusKey = sessionStatusOptions.queryKey
-  const status = useQuery({ ...sessionStatusOptions, enabled: false })
+  const status = useQuery({
+    ...sessionStatusOptions,
+    enabled: Boolean(sessionID && session.data?.directory),
+  })
   const refetchStatus = status.refetch
+  const sessionUnavailable = session.data === null
+  const authorized = session.data !== null && session.data !== undefined
+  const sessionReady =
+    !openingSession?.isInvalidated || session.dataUpdatedAt !== openingSession.dataUpdatedAt
+  const historyReady =
+    !openingHistory?.isInvalidated || history.dataUpdatedAt !== openingHistory.dataUpdatedAt
+  const previewRecords =
+    authorized && !history.data && !openingSession?.isInvalidated ? preview.data : undefined
   const baseStore = useMemo(() => {
-    if (!sessionID) {
+    if (!sessionID || !authorized || !sessionReady || !historyReady) {
       return {
         part: {},
-        partTextAccumDelta: {},
         message: {},
         todos: {},
       }
     }
 
     const records = new Map<string, SessionMessageRecord>()
+    for (const record of previewRecords ?? []) records.set(record.info.id, record)
     for (const page of history.data?.pages ?? []) {
       for (const record of page.records) records.set(record.info.id, record)
     }
     return buildStore(sessionID, [...records.values()])
-  }, [history.data, sessionID])
+  }, [authorized, history.data, historyReady, sessionID, sessionReady, previewRecords])
   // Loading another history page retains the first page object, while an
   // authoritative refetch replaces it. Session metadata refetches must not
   // discard messages received from the live stream.
@@ -704,24 +823,27 @@ export function useOpencodeChat(
     () => ({ firstHistoryPage, sessionID }),
     [firstHistoryPage, sessionID]
   )
-  const store = liveStore?.version === baseStoreVersion ? liveStore.store : baseStore
+  const store = sessionUnavailable
+    ? baseStore
+    : liveStore?.version === baseStoreVersion
+      ? liveStore.store
+      : baseStore
 
-  // HITL state reconciles like the chat store: live events fold onto the
-  // refetched base, keyed to the fetch so a refetch drops stale events and the
-  // server's pending set stays authoritative.
-  const hitlBase = hitl.data ?? emptyHitlStore
-  const hitlKey = hitl.dataUpdatedAt
-  const hitlStore = hitlLive?.key === hitlKey ? hitlLive.store : hitlBase
+  const hitlStore = hitl.data ?? emptyHitlStore
 
   const flushEvents = useEffectEvent((events: StreamEvent[]) => {
     if (!sessionID) return
 
-    let hasStoreUpdate = false
+    const storeEvents: StreamEvent[] = []
     let refreshSession = false
     const changedDiffs = new Set<string>()
     const nextHitlEvents: StreamEvent[] = []
+    const inactive = new Map<string, StreamEvent[]>()
+    const removed = new Set<string>()
 
     for (const event of events) {
+      if (event.type === "message.removed" || event.type === "message.part.removed")
+        removed.add(event.properties.sessionID)
       switch (event.type) {
         case "message.updated":
           if (
@@ -776,7 +898,12 @@ export function useOpencodeChat(
         case "message.part.delta":
         case "message.part.removed":
         case "todo.updated":
-          hasStoreUpdate = true
+          if (event.properties.sessionID === sessionID) storeEvents.push(event)
+          else if (event.type !== "todo.updated") {
+            const events = inactive.get(event.properties.sessionID) ?? []
+            events.push(event)
+            inactive.set(event.properties.sessionID, events)
+          }
           break
         default:
           break
@@ -786,15 +913,7 @@ export function useOpencodeChat(
         void updateSessionInfo(queryClient, agentName, workspaceId, event.properties.info)
       }
       if (event.type === "session.deleted") {
-        const { queryKey } = sessionInfoQueryOptions(
-          agentName,
-          workspaceId,
-          event.properties.info.id
-        )
-        // A tombstone prevents a delayed response from resurrecting this session.
-        void queryClient.cancelQueries({ queryKey, exact: true }).then(() => {
-          queryClient.setQueryData(queryKey, null)
-        })
+        void removeSessionState(queryClient, agentName, workspaceId, event.properties.info.id)
       }
 
       switch (event.type) {
@@ -813,6 +932,25 @@ export function useOpencodeChat(
       }
     }
 
+    for (const id of removed) void chatCache.clear([workspaceId, agentName, id])
+
+    for (const [id, events] of inactive) {
+      const queryKey = sessionMessagesQueryOptions(agentName, workspaceId, id, "").queryKey.slice(
+        0,
+        -1
+      )
+      void queryClient.cancelQueries({ queryKey }).then(() => {
+        queryClient.setQueriesData<InfiniteData<SessionMessagePage>>({ queryKey }, (history) => {
+          if (!history) return history
+          const base = buildStore(
+            id,
+            history.pages.flatMap((page) => page.records)
+          )
+          return reconcileHistory(history, id, events.reduce(applyEvent, base))
+        })
+      })
+    }
+
     for (const id of changedDiffs) {
       const { queryKey } = sessionDiffQueryOptions(agentName, workspaceId, id)
       // Cancel initial reads too, so an older response cannot replace a diff
@@ -822,9 +960,9 @@ export function useOpencodeChat(
         .then(() => queryClient.invalidateQueries({ queryKey }))
     }
 
-    if (hasStoreUpdate) {
+    if (storeEvents.length > 0) {
       setLiveStore((current) => ({
-        store: events.reduce(
+        store: storeEvents.reduce(
           applyEvent,
           current?.version === baseStoreVersion ? current.store : baseStore
         ),
@@ -833,21 +971,18 @@ export function useOpencodeChat(
     }
 
     if (nextHitlEvents.length > 0) {
-      setHitlLive((current) => ({
-        key: hitlKey,
-        store: nextHitlEvents.reduce(
-          applyHitlEvent,
-          current?.key === hitlKey ? current.store : hitlBase
-        ),
-      }))
+      // A pending snapshot must not resurrect a question already answered
+      // while navigating back. Keep events in the same cache as snapshots.
+      void queryClient.cancelQueries({ queryKey: hitlOptions.queryKey, exact: true }).then(() => {
+        queryClient.setQueryData(hitlOptions.queryKey, (current) =>
+          current ? nextHitlEvents.reduce(applyHitlEvent, current) : current
+        )
+      })
     }
 
-    // Sending after a revert removes the reverted messages on the server.
-    // Reconcile history too so a missed removal event cannot resurrect them.
-    if (refreshSession) {
-      void refetchSession()
-      void refetchHistory()
-    }
+    // SSE already supplies final parts and removals. Refetching a moving
+    // history page on completion replaces mounted turns and their geometry.
+    if (refreshSession) void refetchSession()
   })
 
   useEffect(() => {
@@ -855,32 +990,23 @@ export function useOpencodeChat(
 
     const directory = session.data.directory
     const { queryKey } = sessionDiffQueryOptions(agentName, workspaceId, sessionID)
+    const sessionKey = sessionInfoQueryOptions(agentName, workspaceId, sessionID).queryKey.slice(
+      0,
+      -1
+    )
     const abortController = new AbortController()
     const queue: StreamEvent[] = []
     let flushTimer: ReturnType<typeof setTimeout> | undefined
     let reconnectTimer: ReturnType<typeof setTimeout> | undefined
-    let lastFlush = 0
 
     function flushQueue() {
-      if (queue.length === 0) return
       if (flushTimer) {
         clearTimeout(flushTimer)
         flushTimer = undefined
       }
-
+      if (queue.length === 0) return
       const events = queue.splice(0)
-      lastFlush = dayjs().valueOf()
       flushEvents(events)
-    }
-
-    function scheduleFlush() {
-      if (flushTimer) return
-
-      const elapsed = dayjs().valueOf() - lastFlush
-      const delay = elapsed >= 16 ? 0 : 16 - elapsed
-      flushTimer = setTimeout(() => {
-        flushQueue()
-      }, delay)
     }
 
     async function consume() {
@@ -893,6 +1019,11 @@ export function useOpencodeChat(
           {
             onSseError: () => {
               if (abortController.signal.aborted) return
+              void queryClient.invalidateQueries({
+                queryKey: sessionKey,
+                refetchType: "none",
+              })
+              void refetchSession()
               setStreamError("Connection lost. Reconnecting...")
             },
             signal: abortController.signal,
@@ -912,20 +1043,51 @@ export function useOpencodeChat(
             continue
           }
 
+          // Bound raw delta processing; visible paragraphs are gated below.
+          // Lifecycle events flush preceding text immediately, so approvals
+          // and final output never wait. Only adjacent deltas can safely merge.
+          if (event.type === "message.part.delta" && event.properties.field === "text") {
+            const previous = queue.at(-1)
+            if (
+              previous?.type === "message.part.delta" &&
+              previous.properties.sessionID === event.properties.sessionID &&
+              previous.properties.messageID === event.properties.messageID &&
+              previous.properties.partID === event.properties.partID &&
+              previous.properties.field === event.properties.field
+            ) {
+              queue[queue.length - 1] = {
+                ...event,
+                properties: {
+                  ...event.properties,
+                  delta: previous.properties.delta + event.properties.delta,
+                },
+              }
+            } else {
+              queue.push(event)
+            }
+            if (queue.length >= 512) flushQueue()
+            else flushTimer ??= setTimeout(flushQueue, 50)
+            continue
+          }
           queue.push(event)
-          scheduleFlush()
+          flushQueue()
         }
 
         flushQueue()
         if (abortController.signal.aborted) return
 
+        void queryClient.invalidateQueries({
+          queryKey: sessionKey,
+          refetchType: "none",
+        })
+        void refetchSession()
         setStreamError("Connection closed. Reconnecting...")
         reconnectTimer = setTimeout(() => {
           setStreamEpoch((current) => current + 1)
         }, 1_000)
       } catch {
         if (abortController.signal.aborted) return
-
+        flushQueue()
         setStreamError("Failed to subscribe to session events. Reconnecting...")
         reconnectTimer = setTimeout(() => {
           setStreamEpoch((current) => current + 1)
@@ -957,7 +1119,6 @@ export function useOpencodeChat(
     return sessionID ? (store.message[sessionID] ?? []) : []
   }, [sessionID, store.message])
   const partsByMessage = store.part
-  const textByPart = store.partTextAccumDelta
   const permissionRequest = firstVisibleRequest(
     hitlStore.permissions,
     hitlStore.sessions,
@@ -967,20 +1128,111 @@ export function useOpencodeChat(
     permissionRequest === undefined
       ? firstVisibleRequest(hitlStore.questions, hitlStore.sessions, sessionID)
       : undefined
-  const permissions = useMemo(() => {
-    if (!sessionID) return []
-    return visibleSessionIDs(hitlStore.sessions, sessionID).flatMap(
-      (id) => hitlStore.permissions[id] ?? []
-    )
-  }, [hitlStore.permissions, hitlStore.sessions, sessionID])
-  const questions = useMemo(() => {
-    if (!sessionID) return []
-    return visibleSessionIDs(hitlStore.sessions, sessionID).flatMap(
-      (id) => hitlStore.questions[id] ?? []
-    )
-  }, [hitlStore.questions, hitlStore.sessions, sessionID])
   const sessionStatus =
     sessionID && status.data ? (status.data[sessionID] ?? idleSessionStatus) : undefined
+  const isBusy = deriveSessionIsBusy(messages, sessionStatus, session.data ?? undefined)
+  const publishHistory = useEffectEvent(async (leaving: boolean) => {
+    if (
+      !sessionID ||
+      !firstHistoryPage ||
+      sessionUnavailable ||
+      !liveStore ||
+      liveStore.version !== baseStoreVersion
+    )
+      return
+    if (history.isFetching && !leaving) return
+    if (leaving) await queryClient.cancelQueries({ queryKey: historyOptions.queryKey, exact: true })
+    const info = sessionInfoQueryOptions(agentName, workspaceId, sessionID)
+    // Logout and deletion clear metadata before unmounting this view.
+    if (!queryClient.getQueryData(info.queryKey)) return
+    queryClient.setQueryData<InfiniteData<SessionMessagePage>>(
+      historyOptions.queryKey,
+      (current) => (current ? reconcileHistory(current, sessionID, liveStore.store) : current)
+    )
+  })
+  useEffect(() => {
+    if (!isBusy) void publishHistory(false)
+  }, [isBusy, liveStore, baseStoreVersion, history.isFetching])
+  useEffect(
+    () => () => {
+      void publishHistory(true)
+    },
+    [sessionID]
+  )
+  useEffect(() => {
+    if (!userID || !sessionID || !authorized || !history.data || session.error || isBusy) return
+    // Persist settled live text without refetching or serializing each chunk.
+    const records = messages.slice(-40).map((info) => ({
+      info,
+      parts: store.part[info.id] ?? [],
+    }))
+    return chatCache.schedule(previewKey, [workspaceId, agentName, sessionID], records)
+  }, [
+    userID,
+    sessionID,
+    authorized,
+    history.data,
+    session.error,
+    isBusy,
+    messages,
+    store.part,
+    previewKey,
+    workspaceId,
+    agentName,
+  ])
+  const bufferText =
+    isBusy && !permissionRequest && !questionRequest && sessionStatus?.type !== "retry"
+  const streamingParts = useMemo(
+    () =>
+      bufferText
+        ? messages.flatMap((message) =>
+            message.role === "assistant" && !message.time.completed && !message.error
+              ? (store.part[message.id] ?? []).filter(
+                  (part): part is Extract<Part, { type: "text" }> =>
+                    part.type === "text" && part.time?.end === undefined
+                )
+              : []
+          )
+        : [],
+    [bufferText, messages, store.part]
+  )
+  const [publishedText, setPublishedText] = useState<Record<string, { text: string; at: number }>>(
+    {}
+  )
+  const publishParagraphs = useEffectEvent(() => {
+    const now = performance.now()
+    const next: typeof publishedText = {}
+    let changed = false
+    for (const part of streamingParts) {
+      const previous = publishedText[part.id]
+      if (previous) next[part.id] = previous
+      if (previous && now - previous.at < 400) continue
+      const text = readyAssistantText(part.text)
+      if (!text || text === previous?.text) continue
+      next[part.id] = { text, at: now }
+      changed = true
+    }
+    if (changed) setPublishedText(next)
+  })
+  useEffect(() => {
+    if (streamingParts.length === 0) return
+    const now = performance.now()
+    const delay = Math.min(
+      ...streamingParts.map((part) =>
+        Math.max(0, 400 - (now - (publishedText[part.id]?.at ?? -400)))
+      )
+    )
+    const timer = setTimeout(publishParagraphs, delay)
+    return () => clearTimeout(timer)
+  }, [streamingParts, publishedText])
+  const textByPart = useMemo(() => {
+    const text: Record<string, string> = {}
+    for (const part of streamingParts) {
+      const prefix = publishedText[part.id]?.text ?? ""
+      text[part.id] = part.text.startsWith(prefix) ? prefix : ""
+    }
+    return text
+  }, [streamingParts, publishedText])
   const todos = useMemo(() => {
     if (!sessionID) return []
     return store.todos[sessionID] ?? []
@@ -1041,21 +1293,23 @@ export function useOpencodeChat(
       history.error?.message ??
       hitl.error?.message ??
       status.error?.message,
-    isBusy: deriveSessionIsBusy(messages, sessionStatus, session.data ?? undefined),
+    isBusy,
     hasEarlierMessages: history.hasNextPage,
     isLoadingEarlier: history.isFetchingNextPage,
     isRefreshingHistory: history.isFetching && !history.isFetchingNextPage,
-    isPending: Boolean(sessionID) && (session.isPending || history.isPending),
+    isPending:
+      Boolean(sessionID) &&
+      !sessionUnavailable &&
+      (session.isPending || history.isPending || !sessionReady || !historyReady),
     loadEarlier,
     messages,
     partsByMessage,
     permissionRequest,
-    permissions,
-    questions,
     questionRequest,
     reconnectStream,
     reload,
     session: session.data ?? undefined,
+    sessionUnavailable,
     sessionStatus,
     streamError,
     textByPart,

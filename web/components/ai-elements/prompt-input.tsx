@@ -48,13 +48,7 @@ interface AttachmentsContext {
   openFileDialog: () => void
 }
 
-type PromptInputLayoutContextValue = {
-  isMultiline: boolean
-  mobile: boolean
-  setMultiline: (value: boolean) => void
-}
-
-const PromptInputLayoutContext = createContext<PromptInputLayoutContextValue | null>(null)
+const PromptInputLayoutContext = createContext(false)
 
 const LocalAttachmentsContext = createContext<AttachmentsContext | null>(null)
 
@@ -98,6 +92,7 @@ type PromptInputProps = Omit<HTMLAttributes<HTMLFormElement>, "onSubmit" | "onEr
   controllerRef?: RefObject<PromptInputController | null>
   onError?: (code: "max_files" | "max_file_size") => void
   onSubmit: (message: PromptInputMessage, event: FormEvent<HTMLFormElement>) => void | Promise<void>
+  onSubmitError: (message: PromptInputMessage) => void
   onQueue?: (message: PromptInputMessage) => void | Promise<void>
 }
 
@@ -114,6 +109,7 @@ export const PromptInput = ({
   onMessageChange,
   onError,
   onSubmit,
+  onSubmitError,
   onQueue,
   children,
   ...props
@@ -121,7 +117,7 @@ export const PromptInput = ({
   const inputRef = useRef<HTMLInputElement | null>(null)
   const formRef = useRef<HTMLFormElement | null>(null)
   const queueSubmit = useRef(false)
-  const requestID = useRef(uuidv4())
+  const requestID = useRef(initialMessage?.requestID ?? uuidv4())
   const [items, setItems] = useState<PromptInputItem[]>(() =>
     (initialMessage?.files ?? []).map((file) => ({
       ...file,
@@ -130,7 +126,6 @@ export const PromptInput = ({
     }))
   )
   const [isDraggingFiles, setIsDraggingFiles] = useState(false)
-  const [isMultiline, setIsMultiline] = useState(false)
   const filesRef = useRef(items)
   const messageChange = useRef(onMessageChange)
   useEffect(() => {
@@ -152,9 +147,7 @@ export const PromptInput = ({
       requestID.current = uuidv4()
       const incoming = [...fileList]
       const sized =
-        typeof maxFileSize === "number"
-          ? incoming.filter((file) => file.size <= maxFileSize)
-          : incoming
+        maxFileSize !== undefined ? incoming.filter((file) => file.size <= maxFileSize) : incoming
       if (sized.length < incoming.length) {
         onError?.("max_file_size")
       }
@@ -163,10 +156,9 @@ export const PromptInput = ({
       }
 
       const current = filesRef.current
-      const capacity =
-        typeof maxFiles === "number" ? Math.max(0, maxFiles - current.length) : undefined
-      const capped = typeof capacity === "number" ? sized.slice(0, capacity) : sized
-      if (typeof capacity === "number" && sized.length > capacity) {
+      const capacity = maxFiles !== undefined ? Math.max(0, maxFiles - current.length) : undefined
+      const capped = capacity !== undefined ? sized.slice(0, capacity) : sized
+      if (capacity !== undefined && sized.length > capacity) {
         onError?.("max_files")
       }
 
@@ -199,24 +191,21 @@ export const PromptInput = ({
 
   const setMessage = useCallback(
     (message: PromptInputMessage) => {
+      requestID.current = message.requestID ?? uuidv4()
       const next = message.files.map((file) => ({
         ...file,
         id: nanoid(),
         ...(file.source === "local" ? { url: URL.createObjectURL(file.file) } : {}),
       }))
-      const retainedURLs = new Set(
-        next.filter((file) => file.source === "local").map((file) => file.url)
-      )
-      revokeLocalFiles(
-        filesRef.current.filter((file) => file.source === "local" && !retainedURLs.has(file.url))
-      )
+      // Each local file above owns a fresh URL, even when reusing a File.
+      revokeLocalFiles(filesRef.current)
       replaceItems(next)
 
       const textarea = formRef.current?.querySelector("textarea")
       if (textarea) {
         textarea.value = message.text
         // The textarea is uncontrolled; a native input event re-runs its
-        // autosize and multiline detection after a programmatic value change.
+        // autosize after a programmatic value change.
         textarea.dispatchEvent(new Event("input", { bubbles: true }))
         textarea.focus()
         const end = message.text.length
@@ -231,7 +220,7 @@ export const PromptInput = ({
     if (!form) return
     const changed = () => {
       const text = form.querySelector("textarea")?.value ?? ""
-      messageChange.current?.({ text, files: filesRef.current })
+      messageChange.current?.({ requestID: requestID.current, text, files: filesRef.current })
     }
     form.addEventListener("input", changed)
     return () => form.removeEventListener("input", changed)
@@ -240,7 +229,7 @@ export const PromptInput = ({
   useEffect(() => {
     if (!formRef.current) return
     const text = formRef.current.querySelector("textarea")?.value ?? ""
-    messageChange.current?.({ text, files: items })
+    messageChange.current?.({ requestID: requestID.current, text, files: items })
   }, [items])
 
   useEffect(() => {
@@ -248,6 +237,7 @@ export const PromptInput = ({
     controllerRef.current = {
       setMessage,
       getMessage: () => ({
+        requestID: requestID.current,
         text: formRef.current?.querySelector("textarea")?.value ?? "",
         files: filesRef.current,
       }),
@@ -339,15 +329,6 @@ export const PromptInput = ({
     }),
     [add, items, openFileDialog, remove]
   )
-  const layoutCtx = useMemo<PromptInputLayoutContextValue>(
-    () => ({
-      isMultiline,
-      mobile,
-      setMultiline: setIsMultiline,
-    }),
-    [isMultiline, mobile]
-  )
-
   const handleSubmit: FormEventHandler<HTMLFormElement> = useCallback(
     async (event) => {
       event.preventDefault()
@@ -372,30 +353,24 @@ export const PromptInput = ({
         textarea.value = ""
         textarea.style.removeProperty("height")
       }
-      setIsMultiline(false)
       replaceItems([])
+      messageChange.current?.({ requestID: requestID.current, text: "", files: [] })
       try {
         if (queued && onQueue) await onQueue(message)
         else await onSubmit(message, event)
         revokeLocalFiles(submitted)
       } catch {
-        const untouched = !textarea?.value && !filesRef.current.length
-        // Keep both the failed submission and edits made during the request.
-        replaceItems([...submitted, ...filesRef.current])
-        if (textarea && text) {
-          textarea.value = [text, textarea.value].filter(Boolean).join("\n\n")
-          textarea.dispatchEvent(new Event("input", { bubbles: true }))
-          textarea.focus()
-        }
-        if (untouched) requestID.current = submittedID
+        // The draft owner survives this form, including navigation during send.
+        onSubmitError(message)
+        revokeLocalFiles(submitted)
       }
     },
-    [disabled, onSubmit, onQueue, replaceItems]
+    [disabled, onSubmit, onQueue, onSubmitError, replaceItems]
   )
 
   return (
     <LocalAttachmentsContext.Provider value={attachmentsCtx}>
-      <PromptInputLayoutContext.Provider value={layoutCtx}>
+      <PromptInputLayoutContext.Provider value={mobile}>
         <input
           aria-label="Upload files"
           className="hidden"
@@ -407,8 +382,9 @@ export const PromptInput = ({
           type="file"
         />
         <form
-          onInputCapture={() => {
-            requestID.current = uuidv4()
+          onInputCapture={(event) => {
+            // Restoring a draft dispatches input for autosizing, not a new send.
+            if (event.isTrusted) requestID.current = uuidv4()
           }}
           className={cn("w-full", className)}
           inert={disabled}
@@ -418,10 +394,9 @@ export const PromptInput = ({
         >
           <div
             className={cn(
-              "relative flex min-h-32 w-full min-w-0 flex-col overflow-hidden rounded-[22px] sm:min-h-41",
+              "relative flex w-full min-w-0 flex-col overflow-hidden rounded-[22px]",
               isDraggingFiles && "ring-2 ring-primary/30"
             )}
-            data-multiline={isMultiline}
             data-slot="prompt-input-surface"
             role="group"
           >
@@ -439,15 +414,12 @@ export const PromptInput = ({
 }
 
 export const PromptInputBody = ({ className, ...props }: HTMLAttributes<HTMLDivElement>) => {
-  const layout = useContext(PromptInputLayoutContext)
-
   return (
     <div
       className={cn(
-        "group/prompt-body grid min-h-10 w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-x-2 gap-y-1.5 data-[multiline=true]:items-end data-[multiline=true]:gap-y-4",
+        "group/prompt-body grid min-h-10 w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-x-2 gap-y-1.5",
         className
       )}
-      data-multiline={layout?.isMultiline ?? false}
       {...props}
     />
   )
@@ -467,8 +439,8 @@ export const PromptInputTextarea = ({
   ...props
 }: PromptInputTextareaProps) => {
   const attachments = usePromptInputAttachments()
-  const layout = useContext(PromptInputLayoutContext)
-  const isMobile = useIsMobile() || (layout?.mobile ?? false)
+  const mobile = useContext(PromptInputLayoutContext)
+  const isMobile = useIsMobile() || mobile
   const [isComposing, setIsComposing] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const wasDisabledRef = useRef(Boolean(disabled))
@@ -489,35 +461,14 @@ export const PromptInputTextarea = ({
     })
   }, [isMobile])
 
-  const resizeTextarea = useCallback(
-    (element?: HTMLTextAreaElement | null) => {
-      const node = element ?? textareaRef.current
-      if (!node) return
-      const style = window.getComputedStyle(node)
-      const lineHeight = Number.parseFloat(style.lineHeight) || 24
-      const paddingBlock =
-        Number.parseFloat(style.paddingTop || "0") + Number.parseFloat(style.paddingBottom || "0")
-      const singleLineHeight = Math.ceil(lineHeight + paddingBlock)
-
-      if (node.value.length === 0) {
-        // The textarea height is a DOM concern, so direct style writes are
-        // intentional here instead of adding extra React state.
-        // eslint-disable-next-line react-hooks/immutability
-        node.style.height = `${singleLineHeight}px`
-        layout?.setMultiline(false)
-        return
-      }
-
-      node.style.height = `${singleLineHeight}px`
-      const scrollHeight = node.scrollHeight
-      node.style.height = `${Math.min(scrollHeight, 192)}px`
-
-      if (layout?.isMultiline) return
-
-      layout?.setMultiline(scrollHeight > singleLineHeight + 1)
-    },
-    [layout]
-  )
+  const resizeTextarea = useCallback((element?: HTMLTextAreaElement | null) => {
+    const node = element ?? textareaRef.current
+    if (!node || CSS.supports("field-sizing", "content")) return
+    // Older browsers need an imperative fallback; sizing never changes React
+    // layout state or the control row's geometry.
+    node.style.setProperty("height", "auto")
+    node.style.setProperty("height", `${node.scrollHeight}px`)
+  }, [])
 
   const setTextareaRef = useCallback(
     (node: HTMLTextAreaElement | null) => {
@@ -635,7 +586,7 @@ export const PromptInputTextarea = ({
       aria-label="Message"
       autoComplete="off"
       className={cn(
-        "max-h-48 min-h-7 px-1 py-0.5 text-base leading-6 whitespace-pre-wrap transition-[height] duration-150 ease-out placeholder:font-normal lg:text-[15px]",
+        "[field-sizing:content] max-h-48 min-h-7 px-1 py-0.5 text-base leading-6 whitespace-pre-wrap placeholder:font-normal lg:text-[15px]",
         className
       )}
       name="message"

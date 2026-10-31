@@ -12,7 +12,7 @@ export type ThemePreference = (typeof themePreferences)[number]
 
 export type UserPreferences = Pick<
   typeof schema.userPreferences.$inferSelect,
-  "theme" | "updateSandbox" | "showTourButton"
+  "theme" | "updateSandbox" | "showTourButton" | "showReasoningAndTools"
 >
 
 /**
@@ -22,6 +22,7 @@ const defaultUserPreferences: UserPreferences = {
   theme: "system",
   updateSandbox: false,
   showTourButton: true,
+  showReasoningAndTools: true,
 }
 
 /**
@@ -51,6 +52,7 @@ export const getCurrentUserPreferences = cache(
         theme: schema.userPreferences.theme,
         updateSandbox: schema.userPreferences.updateSandbox,
         showTourButton: schema.userPreferences.showTourButton,
+        showReasoningAndTools: schema.userPreferences.showReasoningAndTools,
       })
       .from(schema.userPreferences)
       .where(eq(schema.userPreferences.userId, session.user.id))

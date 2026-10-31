@@ -54,12 +54,10 @@ function SheetContent({
   style,
   side = "right",
   size = "default",
-  showCloseButton = true,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: "top" | "right" | "bottom" | "left"
   size?: keyof typeof sheetWidths
-  showCloseButton?: boolean
 }) {
   const focus = useModalFocusRestoration({ onOpenAutoFocus, onCloseAutoFocus })
   return (
@@ -83,14 +81,12 @@ function SheetContent({
         >
           <ModalPanel side={side}>
             {children}
-            {showCloseButton && (
-              <SheetPrimitive.Close data-slot="sheet-close" asChild>
-                <Button variant="ghost" className="absolute top-3 right-3" size="icon-sm">
-                  <XIcon />
-                  <span className="sr-only">Close</span>
-                </Button>
-              </SheetPrimitive.Close>
-            )}
+            <SheetPrimitive.Close data-slot="sheet-close" asChild>
+              <Button variant="ghost" className="absolute top-3 right-3" size="icon-sm">
+                <XIcon />
+                <span className="sr-only">Close</span>
+              </Button>
+            </SheetPrimitive.Close>
           </ModalPanel>
         </SheetPrimitive.Content>
       </SheetPortal>

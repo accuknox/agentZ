@@ -36,6 +36,8 @@ type SendMessageInput = PromptInputMessage & {
   delivery: ChatInputRequest["delivery"]
 }
 
+type PreparedInput = { sessionID: string; body: ChatInputRequest }
+
 function chatInputsOptions(workspaceId: string, agentName: string, sessionID?: string) {
   return queryOptions({
     queryKey: ["chatInputs", workspaceId, agentName, sessionID] as const,
@@ -68,14 +70,14 @@ export function useOpencodeSend(
   const resolvedSessionID = sessionID ?? pendingSessionID
   const createdSession = useRef(sessionID)
   const promoted = useRef(Boolean(sessionID))
-  const prepared = useRef(new Map<string, { sessionID: string; body: ChatInputRequest }>())
   const submission = useRef<Promise<void>>(Promise.resolve())
-  const [pending, setPending] = useState<{ id: string; input: SendMessageInput; status: string }[]>(
-    []
-  )
+  const [pending, setPending] = useState<
+    { id: string; input: SendMessageInput; progress?: string }[]
+  >([])
   const options = chatInputsOptions(workspaceId, agentName, resolvedSessionID)
   const queueKey = options.queryKey
   const queue = useQuery(options)
+  const owner = queryClient.getQueryCache().find({ queryKey: queueKey, exact: true })
   const abort = useMutation({
     mutationKey: ["chatStop", workspaceId, agentName, resolvedSessionID],
     mutationFn: async () => {
@@ -84,7 +86,9 @@ export function useOpencodeSend(
       const result = await client.session.abort({ sessionID: resolvedSessionID })
       if (result.error)
         throw new Error(opencodeErrorMessage(result.error, "Could not stop the run"))
-      await queryClient.invalidateQueries({ queryKey: queueKey, refetchType: "none" })
+      if (queryClient.getQueryCache().find({ queryKey: queueKey, exact: true }) !== owner)
+        return { items: [], stopping: false }
+      void queryClient.invalidateQueries({ queryKey: queueKey, refetchType: "none" })
       return queryClient.fetchQuery(options)
     },
     onError: (error) => toast.error("Could not stop the run", { description: error.message }),
@@ -105,6 +109,8 @@ export function useOpencodeSend(
         body: { revision: item.revision, action },
       })
       if (result.error) throw new Error(result.error.message)
+      if (queryClient.getQueryCache().find({ queryKey: queueKey, exact: true }) !== owner)
+        return result.data
       queryClient.setQueryData<ChatInputs>(
         queueKey,
         (current) =>
@@ -122,24 +128,27 @@ export function useOpencodeSend(
   const send = useMutation({
     mutationFn: async (input: SendMessageInput) => {
       const requestID = input.requestID ?? uuidv4()
-      setPending((current) => [...current, { id: requestID, input, status: "Saving message..." }])
+      setPending((current) => [...current, { id: requestID, input }])
       const previous = submission.current
       const next = Promise.withResolvers<void>()
       submission.current = next.promise
       await previous
       try {
+        if (queryClient.getQueryCache().find({ queryKey: queueKey, exact: true }) !== owner) return
         if (!input.model) throw new Error("Select a model before sending")
         if (!input.text.trim() && !input.files.length) throw new Error("Message cannot be empty")
-        let id = input.sessionID ?? createdSession.current
+        const preparedKey = ["chatPreparedInput", workspaceId, agentName, requestID] as const
+        let request = queryClient.getQueriesData<PreparedInput>({ queryKey: preparedKey })[0]?.[1]
+        let id = request?.sessionID ?? input.sessionID ?? createdSession.current
         if (!id) {
           let session: Session
           if (createSession) {
             session = await createSession({
               text: input.text,
               model: input.model,
-              onProgress: (status) =>
+              onProgress: (progress) =>
                 setPending((current) =>
-                  current.map((item) => (item.id === requestID ? { ...item, status } : item))
+                  current.map((item) => (item.id === requestID ? { ...item, progress } : item))
                 ),
             })
           } else {
@@ -156,18 +165,16 @@ export function useOpencodeSend(
             session = result.data
           }
           id = session.id
-          createdSession.current = id
-          setPendingSessionID(id)
+          if (queryClient.getQueryCache().find({ queryKey: queueKey, exact: true }) !== owner)
+            return
           await updateSessionInfo(queryClient, agentName, workspaceId, session)
         }
-        setPending((current) =>
-          current.map((item) =>
-            item.id === requestID ? { ...item, status: "Saving message..." } : item
-          )
-        )
-        let request = prepared.current.get(requestID)
+        createdSession.current = id
+        if (!sessionID) setPendingSessionID(id)
         if (!request) {
           const attachments = await uploadChatAttachments(agentName, workspaceId, id, input.files)
+          if (queryClient.getQueryCache().find({ queryKey: queueKey, exact: true }) !== owner)
+            return
           request = {
             sessionID: id,
             body: {
@@ -182,7 +189,10 @@ export function useOpencodeSend(
               },
             },
           }
-          prepared.current.set(requestID, request)
+          // The exact body must survive navigation. Re-uploading an attachment
+          // changes its path and would conflict with an accepted request ID.
+          const prepared = queryOptions({ queryKey: [...preparedKey, id] })
+          queryClient.setQueryData(prepared.queryKey, request)
         }
         const result = await submitChatInput({
           baseUrl: await getGatewayBaseURL(),
@@ -191,7 +201,10 @@ export function useOpencodeSend(
           body: request.body,
         })
         if (result.error) throw new Error(result.error.message)
-        prepared.current.delete(requestID)
+        queryClient.removeQueries({ queryKey: preparedKey })
+        // Navigation keeps the same cached query; logout or deletion removes
+        // it. A late acknowledgement must not recreate that private state.
+        if (queryClient.getQueryCache().find({ queryKey: queueKey, exact: true }) !== owner) return
         queryClient.setQueryData<ChatInputs>(
           chatInputsOptions(workspaceId, agentName, id).queryKey,
           (current) => ({

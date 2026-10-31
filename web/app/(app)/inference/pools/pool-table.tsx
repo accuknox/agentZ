@@ -421,7 +421,7 @@ function DeletePoolDialog({
         setOpen(next)
       }}
     >
-      <DialogContent showCloseButton={false}>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Delete {pool.display_name}?</DialogTitle>
           <DialogDescription>

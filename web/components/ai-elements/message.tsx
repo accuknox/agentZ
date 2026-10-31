@@ -13,7 +13,7 @@ import { code } from "@streamdown/code"
 import { math } from "@streamdown/math"
 import { mermaid } from "@streamdown/mermaid"
 import type { ComponentProps, HTMLAttributes, FC, ReactNode } from "react"
-import { Children, cloneElement, isValidElement, memo } from "react"
+import { Children, cloneElement, isValidElement, memo, useMemo } from "react"
 import { bundledLanguages } from "shiki"
 import type { BundledLanguage } from "shiki"
 import type { ExtraProps } from "streamdown"
@@ -260,13 +260,10 @@ const MarkdownLink = ({
 }
 
 export const MessageResponse = memo(
-  ({ className, onAgentFileOpen, plainCodeBlocks = false, ...props }: MessageResponseProps) => (
-    <Streamdown
-      className={cn(
-        "w-full min-w-0 space-y-[0.65rem] text-base leading-relaxed wrap-break-word text-foreground/80 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
-        className
-      )}
-      components={{
+  ({ className, onAgentFileOpen, plainCodeBlocks = false, ...props }: MessageResponseProps) => {
+    // Stable renderer identities let Streamdown reuse completed Markdown blocks.
+    const components = useMemo<ComponentProps<typeof Streamdown>["components"]>(
+      () => ({
         a: (linkProps) => <MarkdownLink {...linkProps} onAgentFileOpen={onAgentFileOpen} />,
         code: (codeProps) => <MarkdownCode {...codeProps} plainCodeBlocks={plainCodeBlocks} />,
         li: MarkdownLi,
@@ -274,16 +271,21 @@ export const MessageResponse = memo(
         p: MarkdownParagraph,
         pre: (preProps) => <MarkdownPre {...preProps} plainCodeBlocks={plainCodeBlocks} />,
         ul: MarkdownUl,
-      }}
-      plugins={streamdownPlugins}
-      {...props}
-    />
-  ),
-  (prevProps, nextProps) =>
-    prevProps.children === nextProps.children &&
-    nextProps.isAnimating === prevProps.isAnimating &&
-    nextProps.onAgentFileOpen === prevProps.onAgentFileOpen &&
-    nextProps.plainCodeBlocks === prevProps.plainCodeBlocks
+      }),
+      [onAgentFileOpen, plainCodeBlocks]
+    )
+    return (
+      <Streamdown
+        className={cn(
+          "w-full min-w-0 space-y-[0.65rem] text-base leading-relaxed wrap-break-word text-foreground/80 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
+          className
+        )}
+        components={components}
+        plugins={streamdownPlugins}
+        {...props}
+      />
+    )
+  }
 )
 
 MessageResponse.displayName = "MessageResponse"

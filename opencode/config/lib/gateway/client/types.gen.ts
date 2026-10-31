@@ -689,6 +689,16 @@ export type ResourceReference = {
   name: string
 }
 
+export type MascotBreed = "mochi" | "ziglet" | "slinky" | "mallow" | "pip" | "pi"
+
+export type MascotColor =
+  "cream" | "lilac" | "peach" | "rose" | "coral" | "amber" | "lime" | "mint" | "sky" | "slate"
+
+export type AgentAppearance = {
+  breed: MascotBreed
+  color: MascotColor
+}
+
 export type AgentMemoryConfig = {
   enabled: boolean
 }
@@ -851,6 +861,7 @@ export type ListWorkflowWebhookTriggersResponse = {
 }
 
 export type Agent = {
+  appearance?: AgentAppearance
   name: AgentName
   sandbox: ResourceReference
   created_by: ResourceActor
@@ -1082,6 +1093,7 @@ export type UpdateSkillRequest = {
 export type AgentStatus = "UNSPECIFIED" | "PROGRESSING" | "DEGRADED" | "DELETED" | "IDLE"
 
 export type CreateAgentRequest = {
+  appearance?: AgentAppearance
   name: AgentName
   memory?: AgentMemoryConfig
   env?: {
@@ -1394,6 +1406,7 @@ export type DeleteWorkflowsRequest = {
 }
 
 export type UpdateAgentRequest = {
+  appearance?: AgentAppearance
   env?: {
     [key: string]: string
   }

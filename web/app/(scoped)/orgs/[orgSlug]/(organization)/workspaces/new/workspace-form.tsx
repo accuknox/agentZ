@@ -298,7 +298,7 @@ export function WorkspaceForm(props: WorkspaceFormProps) {
       </form>
 
       <Dialog onOpenChange={setConfirmationOpen} open={confirmationOpen}>
-        <DialogContent className="sm:max-w-2xl" showCloseButton={false}>
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Confirm workspace creation</DialogTitle>
             <DialogDescription>

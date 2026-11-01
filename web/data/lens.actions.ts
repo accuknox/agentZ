@@ -196,7 +196,12 @@ export async function listTraceSessionFilterAction(
     for (;;) {
       const result = await listChatSessions({
         client,
-        query: { agent_name: agentName, limit: 50, page_token: pageToken },
+        query: {
+          agent_name: agentName,
+          limit: 50,
+          page_token: pageToken,
+          include_filter_options: false,
+        },
       })
       if (result.error) return { data: undefined, error: result.error }
       for (const session of result.data.sessions) {

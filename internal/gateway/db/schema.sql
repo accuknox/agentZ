@@ -26,6 +26,9 @@ CREATE TABLE chat_sessions (
   session_id TEXT NOT NULL,
   parent_session_id TEXT,
   title TEXT NOT NULL,
+  archived_at TIMESTAMPTZ,
+  snoozed_until TIMESTAMPTZ,
+  resumed_at TIMESTAMPTZ,
   kind chat_session_kind NOT NULL DEFAULT 'chat',
   status chat_session_status NOT NULL DEFAULT 'idle',
   source_created_at TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -182,3 +185,20 @@ CREATE TABLE chat_input_sessions (
   FOREIGN KEY (workspace_id, agent_name, session_id)
     REFERENCES chat_sessions(workspace_id, agent_name, session_id) ON DELETE CASCADE
 );
+
+CREATE INDEX chat_sessions_wake_idx ON chat_sessions(snoozed_until)
+WHERE snoozed_until IS NOT NULL;
+
+CREATE INDEX chat_sessions_active_idx ON chat_sessions(
+  workspace_id, source_updated_at DESC NULLS LAST, agent_name, session_id
+) WHERE archived_at IS NULL AND parent_session_id IS NULL;
+
+CREATE INDEX chat_sessions_shelves_idx ON chat_sessions(workspace_id, agent_name)
+WHERE parent_session_id IS NULL
+  AND (archived_at IS NOT NULL OR snoozed_until IS NOT NULL);
+
+CREATE INDEX chat_sessions_expiry_idx ON chat_sessions(
+  workspace_id, agent_name, GREATEST(source_updated_at, resumed_at)
+) INCLUDE (session_id)
+WHERE archived_at IS NULL AND parent_session_id IS NULL
+  AND snoozed_until IS NULL AND status = 'idle';

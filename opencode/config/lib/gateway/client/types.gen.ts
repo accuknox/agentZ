@@ -300,6 +300,13 @@ export type DelegationCatalog = {
 
 export type ChatSessionKind = "chat" | "workflow_run"
 
+export type ChatSessionShelf = "active" | "archived" | "snoozed"
+
+export type UpdateChatSessionRequest = {
+  shelf: ChatSessionShelf
+  snoozed_until?: string
+}
+
 export type ChatSessionStatus = "idle" | "busy" | "retry"
 
 export type ChatSessionGroupBy = "none" | "agent" | "status" | "date" | "project"
@@ -314,6 +321,8 @@ export type ChatSessionParticipant = {
 }
 
 export type ChatSession = {
+  archived: boolean
+  snoozed_until?: string
   project_id?: string
   agent_name: AgentName
   session_id: string
@@ -326,6 +335,8 @@ export type ChatSession = {
 }
 
 export type ListChatSessionsResponse = {
+  archived_count: number
+  snoozed_count: number
   sessions: Array<ChatSession>
   groups: Array<ChatSessionGroup>
   participant_filters: Array<ChatSessionParticipant>
@@ -861,6 +872,10 @@ export type ListWorkflowWebhookTriggersResponse = {
 }
 
 export type Agent = {
+  /**
+   * Idle hours before archival; zero disables automatic archival.
+   */
+  auto_archive_hours: number
   appearance?: AgentAppearance
   name: AgentName
   sandbox: ResourceReference
@@ -1093,6 +1108,10 @@ export type UpdateSkillRequest = {
 export type AgentStatus = "UNSPECIFIED" | "PROGRESSING" | "DEGRADED" | "DELETED" | "IDLE"
 
 export type CreateAgentRequest = {
+  /**
+   * Idle hours before archival; zero disables automatic archival.
+   */
+  auto_archive_hours?: number
   appearance?: AgentAppearance
   name: AgentName
   memory?: AgentMemoryConfig
@@ -1406,6 +1425,10 @@ export type DeleteWorkflowsRequest = {
 }
 
 export type UpdateAgentRequest = {
+  /**
+   * Idle hours before archival; zero disables automatic archival.
+   */
+  auto_archive_hours?: number
   appearance?: AgentAppearance
   env?: {
     [key: string]: string
@@ -4896,6 +4919,7 @@ export type ListChatSessionsData = {
   body?: never
   path?: never
   query?: {
+    shelf?: ChatSessionShelf
     project_id?: string
     /**
      * Maximum number of sessions to return.
@@ -4978,6 +5002,47 @@ export type ListChatSessionsResponses = {
 }
 
 export type ListChatSessionsResponse2 = ListChatSessionsResponses[keyof ListChatSessionsResponses]
+
+export type UpdateChatSessionData = {
+  body: UpdateChatSessionRequest
+  path: {
+    agentName: string
+    sessionId: string
+  }
+  query?: never
+  url: "/api/chat-session/{agentName}/{sessionId}"
+}
+
+export type UpdateChatSessionErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type UpdateChatSessionError = UpdateChatSessionErrors[keyof UpdateChatSessionErrors]
+
+export type UpdateChatSessionResponses = {
+  /**
+   * Session updated.
+   */
+  204: void
+}
+
+export type UpdateChatSessionResponse = UpdateChatSessionResponses[keyof UpdateChatSessionResponses]
 
 export type WatchChatSessionsData = {
   body?: never

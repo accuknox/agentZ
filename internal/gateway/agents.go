@@ -566,6 +566,7 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 			Opencode: &gatewayapi.AgentOpencodeConfig{
 				Instruction: &agt.Spec.Instruction,
 			},
+			AutoArchiveHours: agt.Spec.AutoArchiveHours,
 			Memory: gatewayapi.AgentMemoryConfig{
 				Enabled: agt.Spec.Memory.Enabled,
 			},
@@ -649,7 +650,7 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 	}
 	empty := req.Appearance == nil && req.Env == nil &&
 		req.Sandbox == nil && req.Opencode == nil &&
-		req.Memory == nil && req.Skills == nil
+		req.Memory == nil && req.Skills == nil && req.AutoArchiveHours == nil
 	if empty {
 		apiutil.WriteError(w, r, apiutil.NewError(
 			http.StatusBadRequest,
@@ -726,6 +727,14 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		apiutil.WriteError(w, r, mapGatewayStoreError("update agent", err))
 		return
 	}
+	if req.AutoArchiveHours != nil {
+		err = q.GatewayNotifyChatSessionPolicy(r.Context())
+		if err != nil {
+			s.rollbackAgentUpdate(r.Context(), ns, before)
+			apiutil.WriteInternalError(w, r, fmt.Errorf("notify session policy: %w", err))
+			return
+		}
+	}
 	err = createAgentEventTrail(
 		r.Context(),
 		q,
@@ -771,6 +780,7 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 			Opencode: &gatewayapi.AgentOpencodeConfig{
 				Instruction: &updated.Spec.Instruction,
 			},
+			AutoArchiveHours: updated.Spec.AutoArchiveHours,
 			Memory: gatewayapi.AgentMemoryConfig{
 				Enabled: updated.Spec.Memory.Enabled,
 			},
@@ -1683,6 +1693,7 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 				prevItem.Name == item.Name &&
 				prevItem.Sandbox == item.Sandbox &&
 				prevItem.Memory == item.Memory &&
+				prevItem.AutoArchiveHours == item.AutoArchiveHours &&
 				*prevItem.Opencode.Instruction == *item.Opencode.Instruction &&
 				prevItem.LastActivity.Equal(item.LastActivity) &&
 				prevItem.CreatedAt.Equal(item.CreatedAt) &&
@@ -2483,7 +2494,8 @@ func (s *Service) listAgentItems(ctx context.Context, q gatewaydb.GatewayListAge
 				Opencode: &gatewayapi.AgentOpencodeConfig{
 					Instruction: &agt.Spec.Instruction,
 				},
-				Capabilities: caps[row.AgentName],
+				Capabilities:     caps[row.AgentName],
+				AutoArchiveHours: agt.Spec.AutoArchiveHours,
 				Memory: gatewayapi.AgentMemoryConfig{
 					Enabled: agt.Spec.Memory.Enabled,
 				},
@@ -2642,6 +2654,9 @@ func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, name
 			},
 		},
 	}
+	if req.AutoArchiveHours != nil {
+		agt.Spec.AutoArchiveHours = *req.AutoArchiveHours
+	}
 	if req.Skills != nil {
 		agt.Spec.Skills = resourceReferencesToCRD(*req.Skills)
 	}
@@ -2664,6 +2679,9 @@ func applyUpdateAgentRequest(agt *agentzv1alpha1.Agent, req gatewayapi.UpdateAge
 			Scope: agentzv1alpha1.ResourceScope(req.Sandbox.Scope),
 			Name:  req.Sandbox.Name,
 		}
+	}
+	if req.AutoArchiveHours != nil {
+		agt.Spec.AutoArchiveHours = *req.AutoArchiveHours
 	}
 	if req.Skills != nil {
 		agt.Spec.Skills = resourceReferencesToCRD(*req.Skills)

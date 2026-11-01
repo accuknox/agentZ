@@ -1,6 +1,7 @@
 "use client"
 
 import { AnimatePresence } from "motion/react"
+import { Collapsible as CollapsiblePrimitive } from "radix-ui"
 import { ExpandingSearch } from "@/components/interior/expanding-search"
 import { LoadMore } from "@/components/interior/load-more"
 
@@ -12,16 +13,21 @@ import { GitHubDark, GitHubLight } from "@ridemountainpig/svgl-react"
 import {
   experimental_streamedQuery as streamedQuery,
   infiniteQueryOptions,
+  hashKey,
   queryOptions,
   useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
-  keepPreviousData,
   type InfiniteData,
   type QueryClient,
 } from "@tanstack/react-query"
 import {
+  Archive,
+  ArchiveRestore,
+  Copy,
+  AlarmClock,
+  AlarmClockOff,
   Activity,
   Bot,
   CalendarDays,
@@ -29,7 +35,6 @@ import {
   ChevronRight,
   CirclePause,
   FolderGit2,
-  Ellipsis,
   Pencil,
   Layers3,
   ListFilter,
@@ -49,7 +54,9 @@ import { nanoid } from "nanoid"
 import {
   memo,
   useActionState,
+  useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -60,11 +67,17 @@ import { toast } from "sonner"
 import { Projects, ProjectPicker, type ProjectActions } from "@/components/blocks/coding/projects"
 import { authClient } from "@/lib/auth-client"
 import { codingGitOptions, codingThreadOptions } from "@/lib/coding/review"
-import { codingDrafts } from "@/components/blocks/coding/drafts"
+import { createAgentOpencodeClient } from "@/lib/opencode/client"
+import { sessionDrafts, useSessionDrafts, type SessionDraft } from "@/components/blocks/chat/drafts"
 
 import { deleteAgentSessionAction } from "@/data/opencode.actions"
 import type { DeleteSessionFormState, ListAgentActionResponse, WorkspacePath } from "@/data/types"
-import { agentIsGettingReady, watchAgentsQueryOptions } from "@/components/agent-readiness"
+import {
+  AgentIcon,
+  agentIsGettingReady,
+  watchAgentsQueryOptions,
+} from "@/components/agent-readiness"
+import { AgentAvatar } from "@/components/interior/agent-presence"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
@@ -82,14 +95,16 @@ import {
   ContextMenuContent,
   ContextMenuGroup,
   ContextMenuItem,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Switch } from "@/components/ui/switch"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -124,6 +139,9 @@ import { dayjs, formatShortAge } from "@/lib/format"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import { cn } from "@/lib/utils"
 import {
+  updateChatSession,
+  type ChatSessionShelf,
+  type UpdateChatSessionRequest,
   listChatSessions,
   getChatSessionPreference,
   getCodingThread,
@@ -143,7 +161,9 @@ import {
 
 type PreferenceMutation = {
   next: ChatSessionPreference
-  previous: ChatSessionPreference
+  key: readonly [...ReturnType<typeof chatSessionKeys.preference>, string]
+  version: number
+  save: { version: number; value: ChatSessionPreference }
 }
 
 type NavSessionsProps = {
@@ -166,9 +186,7 @@ const chatSessionKeys = {
     workspaceId: string,
     preferences: ChatSessionPreference,
     search: string,
-    timeZone: string,
-    activeAgentName: string | undefined,
-    activeSessionId: string | undefined
+    timeZone: string
   ) =>
     [
       "chatSessions",
@@ -180,8 +198,6 @@ const chatSessionKeys = {
       preferences.group_by,
       search,
       timeZone,
-      activeAgentName,
-      activeSessionId,
     ] as const,
   group: (
     workspaceId: string,
@@ -214,20 +230,17 @@ function chatSessionsOptions(
   timeZone: string,
   activeAgentName: string | undefined,
   activeSessionId: string | undefined,
-  userId: string
+  userId: string,
+  shelf: ChatSessionShelf
 ) {
+  const queryKey = [
+    ...chatSessionKeys.list(workspaceId, preferences, search, timeZone),
+    userId,
+    shelf,
+    preferences.group_by === "none" ? null : { activeAgentName, activeSessionId },
+  ] as const
   return infiniteQueryOptions({
-    queryKey: [
-      ...chatSessionKeys.list(
-        workspaceId,
-        preferences,
-        search,
-        timeZone,
-        activeAgentName,
-        activeSessionId
-      ),
-      userId,
-    ],
+    queryKey,
     initialPageParam: undefined,
     queryFn: async ({
       pageParam,
@@ -240,15 +253,16 @@ function chatSessionsOptions(
         baseUrl: await getGatewayBaseURL(),
         headers: { "X-AgentZ-Workspace-ID": workspaceId },
         query: {
+          shelf,
           agent_name: preferences.agent_name ?? undefined,
           include_workflow_runs: preferences.include_workflow_runs,
           group_by: preferences.group_by,
           search: search || undefined,
           time_zone: preferences.group_by === "date" ? timeZone : undefined,
-          active_agent_name: activeAgentName,
-          active_session_id: activeSessionId,
+          active_agent_name: preferences.group_by === "none" ? undefined : activeAgentName,
+          active_session_id: preferences.group_by === "none" ? undefined : activeSessionId,
           limit: pageParam ? 25 : 10,
-          include_filter_options: pageParam === undefined,
+          include_filter_options: shelf === "active" && pageParam === undefined,
           page_token: pageParam,
           participant_user_id: preferences.participant_user_ids,
         },
@@ -258,7 +272,13 @@ function chatSessionsOptions(
       return result.data
     },
     getNextPageParam: (page) => (page.has_next_page ? page.next_page_token : undefined),
-    placeholderData: keepPreviousData,
+
+    // Selection only changes group expansion hints. Filters and shelves must
+    // never inherit another list's rows while their request is pending.
+    placeholderData: (previous, query) =>
+      query && hashKey(query.queryKey.slice(0, -1)) === hashKey(queryKey.slice(0, -1))
+        ? previous
+        : undefined,
     staleTime: Infinity,
   })
 }
@@ -268,7 +288,6 @@ async function removeChatSessionFromCache(
   workspaceId: string,
   session: Pick<ChatSession, "agent_name" | "session_id">
 ) {
-  await removeSessionState(queryClient, session.agent_name, workspaceId, session.session_id)
   const queryKey = chatSessionKeys.workspace(workspaceId)
   await queryClient.cancelQueries({ queryKey })
   queryClient.setQueriesData<InfiniteData<ListChatSessionsResponse>>(
@@ -403,6 +422,30 @@ function NavSessionsContent({
   const query = useSearchParams()
   const { isMobile, setOpenMobile } = useSidebar()
   const draftScope = `${userId}:${workspaceId}`
+  const drafts = useSessionDrafts(draftScope)
+  const discardDraft = (draft: SessionDraft) => {
+    if (sessionDrafts.get(draftScope, draft.id)?.submission) return
+    void navigator.locks.request(
+      `agentz-draft:${JSON.stringify([draftScope, draft.id])}`,
+      { ifAvailable: true },
+      (lock) => {
+        if (!lock) {
+          toast.error("This draft is being sent in another tab")
+          return
+        }
+        sessionDrafts.remove(draftScope, draft.id)
+        queryClient.removeQueries({
+          ...queryOptions({
+            queryKey: ["chatDraft", workspaceId, draft.agentName, userId, draft.id],
+          }),
+          exact: true,
+        })
+        if (query.get("draft") !== draft.id) return
+        const search = new URLSearchParams({ agent: draft.agentName, draft: nanoid() })
+        window.history.pushState(null, "", `${workspacePath}/sessions/new?${search}`)
+      }
+    )
+  }
   const [pickingProject, setPickingProject] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchText, setSearchText] = useState("")
@@ -467,7 +510,7 @@ function NavSessionsContent({
   }, [searchLength, trimmedSearch])
 
   const querySearch = trimmedSearch === search ? search : ""
-  const preferenceKey = [...chatSessionKeys.preference(workspaceId), userId]
+  const preferenceKey = [...chatSessionKeys.preference(workspaceId), userId] as const
   const preference = useQuery({
     ...queryOptions({
       queryKey: preferenceKey,
@@ -484,6 +527,7 @@ function NavSessionsContent({
     initialData: initialPreferences,
   })
   const preferences = preference.data
+  const preferenceSaves = useRef(new Map<string, PreferenceMutation["save"]>())
   const projects = useQuery(
     queryOptions({
       queryKey: ["chatSessions", workspaceId, "projects", userId],
@@ -513,6 +557,7 @@ function NavSessionsContent({
     preferences.participant_user_ids.every(
       (id, index) => id === initialPreferences.participant_user_ids[index]
     )
+  const watch = useQuery(chatSessionWatchOptions(workspaceId, userId))
   const sessions = useInfiniteQuery({
     ...chatSessionsOptions(
       workspaceId,
@@ -521,41 +566,44 @@ function NavSessionsContent({
       timeZone,
       activeAgentName,
       activeSessionId,
-      userId
+      userId,
+      "active"
     ),
     enabled:
       trimmedSearch === querySearch &&
       (searchLength === 0 || (searchLength >= 3 && searchLength <= 200)) &&
       (preferences.group_by !== "date" || timeZone !== ""),
     initialData:
+      !watch.data &&
       path === initialPath &&
       matchesInitialPreferences &&
       querySearch === "" &&
       preferences.group_by !== "date" &&
-      activeAgentName === undefined &&
-      activeSessionId === undefined
+      (preferences.group_by === "none" ||
+        (activeAgentName === undefined && activeSessionId === undefined))
         ? { pages: [initialSessions], pageParams: [undefined] }
         : undefined,
   })
   const mutation = useMutation({
-    scope: { id: `chat-preferences:${workspaceId}` },
-    mutationFn: async ({ next }: PreferenceMutation) => {
+    scope: { id: `chat-preferences:${userId}:${workspaceId}` },
+    mutationFn: async ({ next, key }: PreferenceMutation) => {
       const result = await updateChatSessionPreference({
         baseUrl: await getGatewayBaseURL(),
-        headers: { "X-AgentZ-Workspace-ID": workspaceId },
+        headers: { "X-AgentZ-Workspace-ID": key[1] },
         body: next,
       })
       if (result.error) throw result.error
       return result.data
     },
-    onError: (_, { next, previous }) => {
-      if (queryClient.getQueryData(preferenceKey) !== next) return
-      queryClient.setQueryData(preferenceKey, previous)
+    onError: (_, { key, save, version }) => {
+      if (save.version !== version) return
+      queryClient.setQueryData(key, save.value)
       toast.error("Could not save chat filters")
     },
-    onSuccess: (saved, { next }) => {
-      if (queryClient.getQueryData(preferenceKey) !== next) return
-      queryClient.setQueryData(preferenceKey, saved)
+    onSuccess: (value, { key, save, version }) => {
+      save.value = value
+      if (save.version !== version) return
+      queryClient.setQueryData(key, value)
     },
   })
   useEffect(() => {
@@ -564,12 +612,16 @@ function NavSessionsContent({
       event: MessageEvent<Pick<ChatSession, "agent_name" | "session_id"> & { source?: string }>
     ) => {
       if (event.data.source === chatDeletionSource) return
+      void removeSessionState(
+        queryClient,
+        event.data.agent_name,
+        workspaceId,
+        event.data.session_id
+      )
       void removeChatSessionFromCache(queryClient, workspaceId, event.data)
     }
     return () => channel.close()
   }, [queryClient, workspaceId])
-
-  const watch = useQuery(chatSessionWatchOptions(workspaceId, userId))
 
   useEffect(() => {
     if (!watch.data) return
@@ -586,7 +638,19 @@ function NavSessionsContent({
     void queryClient.invalidateQueries({
       predicate: (query) => query.queryKey[0] === "chatInputs" && query.queryKey[1] === workspaceId,
     })
-    void queryClient.invalidateQueries({ queryKey: chatSessionKeys.workspace(workspaceId) })
+    // Invalidation alone deduplicates an initial request without cached data.
+    // Cancel it first so a response from before the event cannot win the race.
+    void queryClient
+      .cancelQueries({ queryKey: chatSessionKeys.workspace(workspaceId) })
+      .then(() => {
+        // Inactive filter/shelf variants cannot display rows known to be
+        // uncertain. The displayed list and transcript previews stay cached.
+        queryClient.removeQueries({
+          queryKey: chatSessionKeys.workspace(workspaceId),
+          type: "inactive",
+        })
+        return queryClient.invalidateQueries({ queryKey: chatSessionKeys.workspace(workspaceId) })
+      })
   }, [queryClient, watch.data, workspaceId])
 
   useEffect(() => {
@@ -604,10 +668,15 @@ function NavSessionsContent({
   const updatePreferences = (update: (current: ChatSessionPreference) => ChatSessionPreference) => {
     const previous = queryClient.getQueryData<ChatSessionPreference>(preferenceKey) ?? preferences
     const next = update(previous)
+    const key = hashKey(preferenceKey)
+    const save = preferenceSaves.current.get(key) ?? { version: 0, value: previous }
+    preferenceSaves.current.set(key, save)
+    const version = ++save.version
     queryClient.setQueryData(preferenceKey, next)
-    mutation.mutate({ next, previous })
+    mutation.mutate({ next, key: preferenceKey, save, version })
   }
   const rows = sessions.data?.pages.flatMap((page) => page.sessions) ?? []
+
   const groups = sessions.data?.pages[0]?.groups ?? []
   const participantFilters =
     sessions.data?.pages[0]?.participant_filters ?? initialSessions.participant_filters
@@ -619,6 +688,10 @@ function NavSessionsContent({
   const searchTooLong = searchLength > 200
   const searchInvalid = searchTooShort || searchTooLong
   const searchSettling = searchLength >= 3 && searchLength <= 200 && trimmedSearch !== querySearch
+  const list = useSessionListMotion(
+    rows.map((session) => `${session.agent_name}:${session.session_id}`).join("\0"),
+    preferences.group_by === "none" && !searchInvalid && !searchSettling
+  )
 
   const newProjectChat = async (project: CodingProject) => {
     const usable = availableAgents.filter((agent) => agent.capabilities.use)
@@ -626,7 +699,7 @@ function NavSessionsContent({
       usable.find((agent) => agent.name === project.last_agent_name) ??
       usable.find((agent) => agent.name === preferences.last_agent_name) ??
       usable[0]
-    const draft = await codingDrafts.start(draftScope, project.id, agent?.name ?? "")
+    const draft = await sessionDrafts.start(draftScope, project.id, agent?.name ?? "")
     try {
       window.localStorage.setItem(
         expansionKey,
@@ -708,7 +781,7 @@ function NavSessionsContent({
               </SelectItem>
               {availableAgents.map((agent) => (
                 <SelectItem key={agent.name} value={agent.name}>
-                  <Bot />
+                  <AgentAvatar appearance={agent.appearance} />
                   {agent.name}
                 </SelectItem>
               ))}
@@ -747,13 +820,13 @@ function NavSessionsContent({
         <>
           <DropdownMenuSeparator className="-mx-3 w-[calc(100%+1.5rem)]" />
           <Field orientation="horizontal">
-            <Checkbox
+            <Switch
               checked={preferences.include_workflow_runs}
               id="chat-workflow-filter"
               onCheckedChange={(checked) =>
                 updatePreferences((current) => ({
                   ...current,
-                  include_workflow_runs: checked === true,
+                  include_workflow_runs: checked,
                 }))
               }
             />
@@ -764,8 +837,8 @@ function NavSessionsContent({
     </FieldGroup>
   )
   return (
-    <div className="flex flex-col">
-      <div className="flex items-center gap-1 px-(--sidebar-content-inset) pb-1">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex shrink-0 items-center gap-1 px-(--sidebar-content-inset) pb-1">
         <Button
           className="h-8 min-w-0 flex-1 justify-start gap-2 rounded-md px-2 text-sm font-medium text-sidebar-muted-foreground shadow-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground"
           data-tour="new-chat"
@@ -801,8 +874,10 @@ function NavSessionsContent({
               if (project) void newProjectChat(project)
               return
             }
-            const search = new URLSearchParams({ draft: nanoid() })
-            const agent = preferences.last_agent_name ?? activeAgentName
+            const agent =
+              preferences.last_agent_name ?? activeAgentName ?? availableAgents[0]?.name ?? ""
+            const draft = await sessionDrafts.start(draftScope, "", agent)
+            const search = new URLSearchParams({ draft: draft.id })
             if (agent) search.set("agent", agent)
             const path = `${workspacePath}/sessions/new?${search}` as Route
             if (
@@ -923,195 +998,304 @@ function NavSessionsContent({
         </DropdownMenu>
       </div>
 
-      <AnimatePresence initial={false}>
-        {searchOpen ? (
-          <ExpandingSearch className="relative px-(--sidebar-content-inset) pb-1">
-            <Search
-              aria-hidden="true"
-              className="absolute top-2 left-[calc(var(--sidebar-content-inset)+0.625rem)] size-4 text-sidebar-muted-foreground"
-            />
-            <Input
-              aria-controls="chat-session-results"
-              aria-label="Search chat titles"
-              className="h-8 border-sidebar-border bg-sidebar-control-surface pr-8 pl-8"
-              onChange={(event) => setSearchText(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key !== "Escape") return
-                setSearchOpen(false)
-                setSearchText("")
-                setSearch("")
-                searchTrigger.current?.focus({ preventScroll: true })
-              }}
-              placeholder="Search chats"
-              ref={searchInput}
-              value={searchText}
-            />
-            <Button
-              aria-label="Clear search"
-              className="absolute top-0 right-(--sidebar-content-inset) size-8 text-sidebar-muted-foreground hover:text-sidebar-accent-foreground"
-              onClick={() => {
-                setSearchOpen(false)
-                setSearchText("")
-                setSearch("")
-                searchTrigger.current?.focus({ preventScroll: true })
-              }}
-              size="icon-sm"
-              variant="ghost"
-            >
-              <X aria-hidden="true" />
-            </Button>
-          </ExpandingSearch>
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+        {drafts.length > 0 ? (
+          <ul
+            aria-label="Unsent drafts"
+            className="mx-(--sidebar-content-inset) mb-2 flex shrink-0 flex-col gap-0.5 border-b border-sidebar-border pb-2"
+          >
+            {drafts.map((draft) => (
+              <ContextMenu key={draft.id}>
+                <ContextMenuTrigger asChild>
+                  <li
+                    className={cn(
+                      "group/draft relative list-none rounded-lg py-0.5 transition-colors",
+                      query.get("draft") === draft.id
+                        ? "bg-sidebar-accent"
+                        : "bg-primary/5 focus-within:bg-primary/10 hover:bg-primary/10 data-[state=open]:bg-primary/10"
+                    )}
+                  >
+                    <Link
+                      prefetch={false}
+                      aria-label={`Open unsent draft: ${draft.message.text.trim().split("\n", 1)[0] || `${draft.message.files.length} attachment${draft.message.files.length === 1 ? "" : "s"}`}`}
+                      aria-current={query.get("draft") === draft.id ? "page" : undefined}
+                      className="block h-20 min-w-0 rounded-[inherit] px-(--sidebar-row-content-inset) py-(--sidebar-content-inset) pr-8 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-inset"
+                      onClick={(event) => {
+                        if (
+                          event.button ||
+                          event.metaKey ||
+                          event.ctrlKey ||
+                          event.shiftKey ||
+                          event.altKey
+                        )
+                          return
+                        if (
+                          ![...document.querySelectorAll("[data-agentz-chat]")].some((chat) =>
+                            chat.checkVisibility()
+                          )
+                        )
+                          return
+                        event.preventDefault()
+                        setOpenMobile(false)
+                        window.history.pushState(null, "", event.currentTarget.href)
+                      }}
+                      href={
+                        `${workspacePath}/sessions/new?${new URLSearchParams({ agent: draft.agentName, draft: draft.id, ...(draft.projectId ? { project: draft.projectId } : {}) })}` as Route
+                      }
+                    >
+                      <span className="flex h-5 items-center gap-1.5 text-xs text-sidebar-muted-foreground">
+                        <SquarePen aria-hidden className="size-3.5 shrink-0 text-primary" />
+                        {draft.agentName ? (
+                          <AgentIcon name={draft.agentName} workspaceId={workspaceId} />
+                        ) : null}
+                        <span className="truncate font-medium">
+                          {projects.data?.find((project) => project.id === draft.projectId)?.name ??
+                            draft.agentName}
+                        </span>
+                      </span>
+                      <span className="mt-0.5 block truncate text-sm leading-6 font-medium text-sidebar-foreground/90">
+                        {draft.message.text.trim().split("\n", 1)[0] ||
+                          `${draft.message.files.length} attachment${draft.message.files.length === 1 ? "" : "s"}`}
+                      </span>
+                    </Link>
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      className="absolute top-1 right-1 opacity-0 group-focus-within/draft:opacity-100 group-hover/draft:opacity-100 [@media(hover:none)]:opacity-100"
+                      aria-label="Discard draft"
+                      disabled={Boolean(draft.submission)}
+                      onClick={() => discardDraft(draft)}
+                    >
+                      <X className="size-3.5" />
+                    </Button>
+                  </li>
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  <ContextMenuItem
+                    variant="destructive"
+                    disabled={Boolean(draft.submission)}
+                    onSelect={() => discardDraft(draft)}
+                  >
+                    <Trash2 /> Discard draft
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
+            ))}
+          </ul>
         ) : null}
-      </AnimatePresence>
+        <AnimatePresence initial={false}>
+          {searchOpen ? (
+            <ExpandingSearch className="relative px-(--sidebar-content-inset) pb-1">
+              <Search
+                aria-hidden="true"
+                className="absolute top-2 left-[calc(var(--sidebar-content-inset)+0.625rem)] size-4 text-sidebar-muted-foreground"
+              />
+              <Input
+                aria-controls="chat-session-results"
+                aria-label="Search chat titles"
+                className="h-8 border-sidebar-border bg-sidebar-control-surface pr-8 pl-8"
+                onChange={(event) => setSearchText(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Escape") return
+                  setSearchOpen(false)
+                  setSearchText("")
+                  setSearch("")
+                  searchTrigger.current?.focus({ preventScroll: true })
+                }}
+                placeholder="Search chats"
+                ref={searchInput}
+                value={searchText}
+              />
+              <Button
+                aria-label="Clear search"
+                className="absolute top-0 right-(--sidebar-content-inset) size-8 text-sidebar-muted-foreground hover:text-sidebar-accent-foreground"
+                onClick={() => {
+                  setSearchOpen(false)
+                  setSearchText("")
+                  setSearch("")
+                  searchTrigger.current?.focus({ preventScroll: true })
+                }}
+                size="icon-sm"
+                variant="ghost"
+              >
+                <X aria-hidden="true" />
+              </Button>
+            </ExpandingSearch>
+          ) : null}
+        </AnimatePresence>
 
-      <div
-        aria-busy={
-          !searchInvalid && (sessions.isPending || searchSettling || sessions.isFetchingNextPage)
-        }
-        className="px-(--sidebar-content-inset) pb-2"
-        id="chat-session-results"
-      >
-        {searchTooShort ? (
-          <p className="px-2 py-3 text-sm text-sidebar-muted-foreground">
-            Type at least 3 characters
-          </p>
-        ) : null}
-        {searchTooLong ? (
-          <p className="px-2 py-3 text-sm text-sidebar-muted-foreground">
-            Search cannot exceed 200 characters
-          </p>
-        ) : null}
-        {!searchInvalid && (sessions.isPending || searchSettling) ? (
-          <SessionListSkeleton
-            groupBy={preferences.group_by}
-            searching={searchLength >= 3}
-            coding={workspaceType === "coding"}
-          />
-        ) : null}
-        {!searchInvalid && !sessions.isPending && !searchSettling && sessions.isError ? (
-          <Alert variant="destructive" className="px-1 py-3">
-            <CircleAlert aria-hidden="true" />
-            <AlertDescription>Could not load chats</AlertDescription>
-          </Alert>
-        ) : null}
-        {!searchInvalid &&
-        !sessions.isPending &&
-        !searchSettling &&
-        preferences.group_by === "none" &&
-        rows.length === 0 ? (
-          <div className="px-2 py-8 text-center text-sm text-sidebar-muted-foreground">
-            <Users className="mx-auto mb-2 size-5 opacity-60" aria-hidden="true" />
-            No chats found
-          </div>
-        ) : null}
-        <ul className="flex min-w-0 flex-col gap-0.5">
-          {preferences.group_by === "none" && !searchInvalid && !searchSettling
-            ? rows.map((session) => (
-                <SessionCard
-                  key={`${session.agent_name}:${session.session_id}`}
-                  active={
-                    path ===
-                    `${workspacePath}/agents/${encodeURIComponent(session.agent_name)}/sessions/${encodeURIComponent(session.session_id)}`
+        <div
+          aria-busy={
+            !searchInvalid && (sessions.isPending || searchSettling || sessions.isFetchingNextPage)
+          }
+          className="shrink-0 px-(--sidebar-content-inset) pb-2"
+          id="chat-session-results"
+        >
+          {searchTooShort ? (
+            <p className="px-2 py-3 text-sm text-sidebar-muted-foreground">
+              Type at least 3 characters
+            </p>
+          ) : null}
+          {searchTooLong ? (
+            <p className="px-2 py-3 text-sm text-sidebar-muted-foreground">
+              Search cannot exceed 200 characters
+            </p>
+          ) : null}
+          {!searchInvalid && (sessions.isPending || searchSettling) ? (
+            <SessionListSkeleton
+              groupBy={preferences.group_by}
+              searching={searchLength >= 3}
+              coding={workspaceType === "coding"}
+            />
+          ) : null}
+          {!searchInvalid && !sessions.isPending && !searchSettling && sessions.isError ? (
+            <Alert variant="destructive" className="px-1 py-3">
+              <CircleAlert aria-hidden="true" />
+              <AlertDescription>Could not load chats</AlertDescription>
+            </Alert>
+          ) : null}
+          {!searchInvalid &&
+          !sessions.isPending &&
+          !searchSettling &&
+          preferences.group_by === "none" &&
+          rows.length === 0 &&
+          drafts.length === 0 ? (
+            <div className="px-2 py-8 text-center text-sm text-sidebar-muted-foreground">
+              <Users className="mx-auto mb-2 size-5 opacity-60" aria-hidden="true" />
+              No chats found
+            </div>
+          ) : null}
+          <ul ref={list} className="relative flex min-w-0 flex-col gap-0.5">
+            {preferences.group_by === "none" && !searchInvalid && !searchSettling
+              ? rows.map((session) => (
+                  <SessionCard
+                    key={`${session.agent_name}:${session.session_id}`}
+                    active={
+                      path ===
+                      `${workspacePath}/agents/${encodeURIComponent(session.agent_name)}/sessions/${encodeURIComponent(session.session_id)}`
+                    }
+                    session={session}
+                    workspaceType={workspaceType}
+                    workspaceId={workspaceId}
+                    workspacePath={workspacePath}
+                  />
+                ))
+              : null}
+            {preferences.group_by === "none" && !searchInvalid && sessions.isFetchingNextPage
+              ? Array.from({ length: 2 }, (_, index) => (
+                  <SessionCardSkeleton
+                    key={`next-session-${index}`}
+                    showAgent
+                    coding={workspaceType === "coding"}
+                  />
+                ))
+              : null}
+          </ul>
+          {preferences.group_by === "none" && !searchInvalid && sessions.isFetchingNextPage ? (
+            <span className="sr-only" role="status">
+              Loading more chats
+            </span>
+          ) : null}
+          {preferences.group_by !== "none" && !searchInvalid && !searchSettling
+            ? groups.map((group) => (
+                <SessionGroup
+                  onNewChat={newProjectChat}
+                  projectActions={projectActions}
+                  userId={userId}
+                  activeAgentName={activeAgentName}
+                  activeSessionId={activeSessionId}
+                  agentStatus={
+                    group.agent_name
+                      ? availableAgents.find((agent) => agent.name === group.agent_name)?.status
+                      : undefined
                   }
-                  session={session}
+                  group={group}
+                  key={group.key}
+                  onOpenChange={(open) => {
+                    if (querySearch !== "") return
+                    if (group.project) {
+                      try {
+                        window.localStorage.setItem(
+                          expansionKey,
+                          JSON.stringify({ ...projectExpansion, [group.project.id]: open })
+                        )
+                        window.dispatchEvent(new StorageEvent("storage", { key: expansionKey }))
+                      } catch {
+                        toast.error("Could not remember expanded projects")
+                      }
+                      return
+                    }
+                    setGroupExpansion((current) => {
+                      const next = new Map(current)
+                      next.set(`${group.group_by}:${group.key}`, open)
+                      return next
+                    })
+                  }}
+                  open={
+                    group.project
+                      ? (projectExpansion[group.project.id] ??
+                        (group.contains_active || query.get("project") === group.project.id))
+                      : (groupExpansion.get(`${group.group_by}:${group.key}`) ??
+                        group.contains_active)
+                  }
+                  path={path}
+                  preferences={preferences}
+                  search={querySearch}
+                  timeZone={timeZone}
                   workspaceType={workspaceType}
                   workspaceId={workspaceId}
                   workspacePath={workspacePath}
                 />
               ))
             : null}
-          {preferences.group_by === "none" && !searchInvalid && sessions.isFetchingNextPage
-            ? Array.from({ length: 2 }, (_, index) => (
-                <SessionCardSkeleton
-                  key={`next-session-${index}`}
-                  showAgent
-                  coding={workspaceType === "coding"}
-                />
-              ))
-            : null}
-        </ul>
-        {preferences.group_by === "none" && !searchInvalid && sessions.isFetchingNextPage ? (
-          <span className="sr-only" role="status">
-            Loading more chats
-          </span>
-        ) : null}
-        {preferences.group_by !== "none" && !searchInvalid && !searchSettling
-          ? groups.map((group) => (
-              <SessionGroup
-                onNewChat={newProjectChat}
-                projectActions={projectActions}
-                userId={userId}
-                activeAgentName={activeAgentName}
-                activeSessionId={activeSessionId}
-                agentStatus={
-                  group.agent_name
-                    ? availableAgents.find((agent) => agent.name === group.agent_name)?.status
-                    : undefined
-                }
-                group={group}
-                key={group.key}
-                onOpenChange={(open) => {
-                  if (querySearch !== "") return
-                  if (group.project) {
-                    try {
-                      window.localStorage.setItem(
-                        expansionKey,
-                        JSON.stringify({ ...projectExpansion, [group.project.id]: open })
-                      )
-                      window.dispatchEvent(new StorageEvent("storage", { key: expansionKey }))
-                    } catch {
-                      toast.error("Could not remember expanded projects")
-                    }
-                    return
-                  }
-                  setGroupExpansion((current) => {
-                    const next = new Map(current)
-                    next.set(`${group.group_by}:${group.key}`, open)
-                    return next
-                  })
-                }}
-                open={
-                  group.project
-                    ? (projectExpansion[group.project.id] ??
-                      (group.contains_active || query.get("project") === group.project.id))
-                    : (groupExpansion.get(`${group.group_by}:${group.key}`) ??
-                      group.contains_active)
-                }
-                path={path}
-                preferences={preferences}
-                search={querySearch}
-                timeZone={timeZone}
-                workspaceType={workspaceType}
-                workspaceId={workspaceId}
-                workspacePath={workspacePath}
-              />
-            ))
-          : null}
-        {!sessions.isPending &&
-        !searchInvalid &&
-        !searchSettling &&
-        preferences.group_by !== "none" &&
-        groups.length === 0 ? (
-          <div className="px-2 py-8 text-center text-sm text-sidebar-muted-foreground">
-            <Users className="mx-auto mb-2 size-5 opacity-60" aria-hidden="true" />
-            No chats found
-          </div>
-        ) : null}
-        {preferences.group_by === "none" &&
-        !searchInvalid &&
-        !searchSettling &&
-        sessions.hasNextPage ? (
-          <LoadMore
-            pending={sessions.isFetchingNextPage}
-            className="mt-2 w-full text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground"
-            onClick={() => void sessions.fetchNextPage()}
-            size="sm"
-            variant="ghost"
-          >
-            <ChevronDown />
-            Load more
-          </LoadMore>
-        ) : null}
+          {!sessions.isPending &&
+          !searchInvalid &&
+          !searchSettling &&
+          preferences.group_by !== "none" &&
+          groups.length === 0 &&
+          drafts.length === 0 ? (
+            <div className="px-2 py-8 text-center text-sm text-sidebar-muted-foreground">
+              <Users className="mx-auto mb-2 size-5 opacity-60" aria-hidden="true" />
+              No chats found
+            </div>
+          ) : null}
+          {preferences.group_by === "none" &&
+          !searchInvalid &&
+          !searchSettling &&
+          sessions.hasNextPage ? (
+            <LoadMore
+              pending={sessions.isFetchingNextPage}
+              className="mt-2 w-full text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground"
+              onClick={() => void sessions.fetchNextPage()}
+              size="sm"
+              variant="ghost"
+            >
+              <ChevronDown />
+              Load more
+            </LoadMore>
+          ) : null}
+        </div>
+        <div className="mt-auto shrink-0 px-(--sidebar-content-inset) pt-2">
+          {(["snoozed", "archived"] as const).map((shelf) => (
+            <SessionShelf
+              key={shelf}
+              count={
+                (shelf === "snoozed"
+                  ? sessions.data?.pages[0]?.snoozed_count
+                  : sessions.data?.pages[0]?.archived_count) ?? 0
+              }
+              shelf={shelf}
+              userId={userId}
+              preferences={preferences}
+              search={querySearch}
+              timeZone={timeZone}
+              workspaceId={workspaceId}
+              workspaceType={workspaceType}
+              workspacePath={workspacePath}
+              path={path}
+            />
+          ))}
+        </div>
       </div>
       <ProjectPicker
         open={pickingProject}
@@ -1121,6 +1305,112 @@ function NavSessionsContent({
         workspacePath={workspacePath}
       />
     </div>
+  )
+}
+
+function SessionShelf({
+  count,
+  shelf,
+  userId,
+  preferences,
+  search,
+  timeZone,
+  workspaceId,
+  workspaceType,
+  workspacePath,
+  path,
+}: Pick<NavSessionsProps, "userId" | "workspaceId" | "workspaceType" | "workspacePath"> & {
+  shelf: Exclude<ChatSessionShelf, "active">
+  count: number
+  preferences: ChatSessionPreference
+  search: string
+  timeZone: string
+  path: string
+}) {
+  const [open, setOpen] = useState(false)
+  const pages = useInfiniteQuery({
+    ...chatSessionsOptions(
+      workspaceId,
+      { ...preferences, group_by: "none" },
+      search,
+      timeZone,
+      undefined,
+      undefined,
+      userId,
+      shelf
+    ),
+    enabled: open && count > 0,
+  })
+  const sessions = pages.data?.pages.flatMap((page) => page.sessions) ?? []
+  const list = useSessionListMotion(
+    sessions.map((session) => `${session.agent_name}:${session.session_id}`).join("\0"),
+    open && count > 0
+  )
+  const label = shelf === "snoozed" ? "Snoozed" : "Archived"
+  if (count === 0) return null
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger className="flex h-9 w-full items-center gap-2 rounded-md px-(--sidebar-row-content-inset) text-left text-sm font-medium text-sidebar-muted-foreground outline-none hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-inset">
+        <span className="flex-1">{label}</span>
+        <span className="font-normal tabular-nums">{count}</span>
+        <ChevronDown
+          aria-hidden
+          className={cn("size-3 shrink-0 transition-transform", !open && "-rotate-90")}
+        />
+      </CollapsibleTrigger>
+      <CollapsiblePrimitive.Content
+        data-slot="collapsible-content"
+        className="overflow-hidden duration-150 motion-safe:data-[state=closed]:animate-collapsible-up motion-safe:data-[state=open]:animate-collapsible-down"
+      >
+        {pages.isPending ? (
+          <ul aria-label="Loading sessions" className="flex min-w-0 flex-col gap-0.5">
+            {Array.from({ length: Math.min(count, 10) }, (_, index) => (
+              <SessionCardSkeleton key={index} showAgent={false} coding={false} compact />
+            ))}
+          </ul>
+        ) : null}
+        {pages.isError ? (
+          <p className="px-2 py-3 text-xs text-destructive">Could not load {label.toLowerCase()}</p>
+        ) : null}
+        {!pages.isPending && !pages.isError && sessions.length === 0 ? (
+          <p className="px-2 py-3 text-xs text-sidebar-muted-foreground">
+            No {label.toLowerCase()} chats
+          </p>
+        ) : null}
+        <ul ref={list} className="relative flex min-w-0 flex-col gap-0.5">
+          {sessions.map((session) => (
+            <SessionCard
+              key={`${session.agent_name}:${session.session_id}`}
+              active={
+                path ===
+                `${workspacePath}/agents/${encodeURIComponent(session.agent_name)}/sessions/${encodeURIComponent(session.session_id)}`
+              }
+              compact
+              session={session}
+              workspaceId={workspaceId}
+              workspaceType={workspaceType}
+              workspacePath={workspacePath}
+            />
+          ))}
+        </ul>
+        {pages.isPending && count > 10 ? (
+          <div aria-hidden className="flex h-7 items-center justify-center">
+            <Skeleton className="h-3 w-16 bg-sidebar-border" />
+          </div>
+        ) : null}
+        {pages.hasNextPage ? (
+          <LoadingButton
+            pending={pages.isFetchingNextPage}
+            size="sm"
+            variant="ghost"
+            className="w-full"
+            onClick={() => void pages.fetchNextPage()}
+          >
+            Load more
+          </LoadingButton>
+        ) : null}
+      </CollapsiblePrimitive.Content>
+    </Collapsible>
   )
 }
 
@@ -1216,124 +1506,128 @@ function SessionGroup({
     })
   )
   const sessions = pages.data?.pages.flatMap((page) => page.sessions) ?? []
+  const list = useSessionListMotion(
+    sessions.map((session) => `${session.agent_name}:${session.session_id}`).join("\0"),
+    expanded
+  )
 
   return (
     <Collapsible className="group/chat-group" onOpenChange={onOpenChange} open={expanded}>
-      <div className="relative flex h-8 items-center rounded-md transition-colors hover:bg-sidebar-accent">
-        <CollapsibleTrigger asChild>
-          <button
-            aria-label={`${expanded ? "Collapse" : "Expand"} ${group.label}`}
-            className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-md px-(--sidebar-row-content-inset) text-sm font-medium text-sidebar-muted-foreground outline-none hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-inset"
-            type="button"
-          >
+      <ContextMenu>
+        <ContextMenuTrigger asChild disabled={!group.project}>
+          <div className="relative flex h-8 items-center rounded-md transition-colors hover:bg-sidebar-accent">
+            <CollapsibleTrigger asChild>
+              <button
+                aria-label={`${expanded ? "Collapse" : "Expand"} ${group.label}`}
+                className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-md px-(--sidebar-row-content-inset) text-sm font-medium text-sidebar-muted-foreground outline-none hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-inset"
+                type="button"
+              >
+                {group.project ? (
+                  <>
+                    <GitHubLight aria-hidden="true" className="size-4 shrink-0 dark:hidden" />
+                    <GitHubDark aria-hidden="true" className="hidden size-4 shrink-0 dark:block" />
+                  </>
+                ) : null}
+                {group.group_by === "agent" && agentName ? (
+                  <AgentBadge status={agentStatus} name={agentName} workspaceId={workspaceId} />
+                ) : null}
+                {group.group_by === "date" ? (
+                  <CalendarDays aria-hidden="true" className="size-4 shrink-0" />
+                ) : null}
+                {group.status === "busy" ? (
+                  <LoaderCircle
+                    aria-hidden="true"
+                    className="size-4 shrink-0 text-primary motion-safe:animate-spin"
+                  />
+                ) : null}
+                {group.status === "retry" ? (
+                  <RotateCcw aria-hidden="true" className="size-4 shrink-0 text-destructive" />
+                ) : null}
+                {group.status === "idle" ? (
+                  <CirclePause aria-hidden="true" className="size-4 shrink-0 text-primary" />
+                ) : null}
+                <span className="min-w-0 flex-1 truncate text-left">{group.label}</span>
+                <ChevronRight
+                  aria-hidden="true"
+                  className="size-4 shrink-0 transition-transform duration-200 group-data-[state=open]/chat-group:rotate-90"
+                />
+              </button>
+            </CollapsibleTrigger>
             {group.project ? (
               <>
-                <GitHubLight aria-hidden="true" className="size-4 shrink-0 dark:hidden" />
-                <GitHubDark aria-hidden="true" className="hidden size-4 shrink-0 dark:block" />
-              </>
-            ) : null}
-            {group.group_by === "agent" ? <AgentBadge status={agentStatus} /> : null}
-            {group.group_by === "date" ? (
-              <CalendarDays aria-hidden="true" className="size-4 shrink-0" />
-            ) : null}
-            {group.status === "busy" ? (
-              <LoaderCircle
-                aria-hidden="true"
-                className="size-4 shrink-0 text-primary motion-safe:animate-spin"
-              />
-            ) : null}
-            {group.status === "retry" ? (
-              <RotateCcw aria-hidden="true" className="size-4 shrink-0 text-destructive" />
-            ) : null}
-            {group.status === "idle" ? (
-              <CirclePause aria-hidden="true" className="size-4 shrink-0 text-primary" />
-            ) : null}
-            <span className="min-w-0 flex-1 truncate text-left">{group.label}</span>
-            <ChevronRight
-              aria-hidden="true"
-              className="size-4 shrink-0 transition-transform duration-200 group-data-[state=open]/chat-group:rotate-90"
-            />
-          </button>
-        </CollapsibleTrigger>
-        {group.project ? (
-          <>
-            <Button
-              aria-label={`New chat in ${group.label}`}
-              title={`New chat in ${group.label}`}
-              variant="ghost"
-              size="icon-sm"
-              className="size-7 shrink-0"
-              onClick={() => {
-                if (group.project) void onNewChat(group.project)
-              }}
-            >
-              <Plus className="size-3.5" />
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
                 <Button
-                  aria-label={`Options for ${group.label}`}
+                  aria-label={`New chat in ${group.label}`}
+                  title={`New chat in ${group.label}`}
                   variant="ghost"
                   size="icon-sm"
-                  className="mr-1 size-7 shrink-0"
+                  className="size-7 shrink-0"
+                  onClick={() => {
+                    if (group.project) void onNewChat(group.project)
+                  }}
                 >
-                  <Ellipsis className="size-3.5" />
+                  <Plus className="size-3.5" />
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" side="right">
-                <DropdownMenuItem
-                  onSelect={() => {
-                    if (group.project) projectActions?.manage(group.project, "rename")
-                  }}
-                >
-                  <Pencil />
-                  Rename project
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  variant="destructive"
-                  onSelect={() => {
-                    if (group.project) projectActions?.manage(group.project, "delete")
-                  }}
-                >
-                  <Trash2 />
-                  Delete project
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </>
+              </>
+            ) : null}
+            {agentName ? (
+              <Button
+                aria-label={`New chat with ${agentName}`}
+                className="mr-1 size-7 shrink-0 text-sidebar-muted-foreground hover:text-sidebar-accent-foreground"
+                onClick={() => {
+                  const query = new URLSearchParams({ agent: agentName, draft: nanoid() })
+                  const path = `${workspacePath}/sessions/new?${query}` as Route
+                  if (
+                    [...document.querySelectorAll("[data-agentz-chat]")].some((chat) =>
+                      chat.checkVisibility()
+                    )
+                  ) {
+                    window.history.pushState(null, "", path)
+                    return
+                  }
+                  router.push(path, { showProgress: false })
+                }}
+                size="icon-sm"
+                variant="ghost"
+              >
+                <Plus aria-hidden="true" />
+              </Button>
+            ) : null}
+          </div>
+        </ContextMenuTrigger>
+        {group.project ? (
+          <ContextMenuContent>
+            <ContextMenuGroup>
+              <ContextMenuItem
+                onSelect={() => {
+                  if (group.project) projectActions?.manage(group.project, "rename")
+                }}
+              >
+                <Pencil />
+                Rename project
+              </ContextMenuItem>
+              <ContextMenuItem
+                variant="destructive"
+                onSelect={() => {
+                  if (group.project) projectActions?.manage(group.project, "delete")
+                }}
+              >
+                <Trash2 />
+                Delete project
+              </ContextMenuItem>
+            </ContextMenuGroup>
+          </ContextMenuContent>
         ) : null}
-        {agentName ? (
-          <Button
-            aria-label={`New chat with ${agentName}`}
-            className="mr-1 size-7 shrink-0 text-sidebar-muted-foreground hover:text-sidebar-accent-foreground"
-            onClick={() => {
-              const query = new URLSearchParams({ agent: agentName, draft: nanoid() })
-              const path = `${workspacePath}/sessions/new?${query}` as Route
-              if (
-                [...document.querySelectorAll("[data-agentz-chat]")].some((chat) =>
-                  chat.checkVisibility()
-                )
-              ) {
-                window.history.pushState(null, "", path)
-                return
-              }
-              router.push(path, { showProgress: false })
-            }}
-            size="icon-sm"
-            variant="ghost"
-          >
-            <Plus aria-hidden="true" />
-          </Button>
-        ) : null}
-      </div>
+      </ContextMenu>
       <CollapsibleContent aria-busy={pages.isPending || pages.isFetchingNextPage}>
         {pages.isPending ? (
           <span className="sr-only" role="status">
             Loading chats in {group.label}
           </span>
         ) : null}
-        <SidebarMenuSub className="mx-1.5 translate-x-0 gap-0.5 px-1.5 py-0 [&>li]:relative [&>li]:before:absolute [&>li]:before:top-1/2 [&>li]:before:right-full [&>li]:before:w-1.5 [&>li]:before:border-t [&>li]:before:border-sidebar-border [&>li:last-child]:after:absolute [&>li:last-child]:after:top-1/2 [&>li:last-child]:after:right-[calc(100%+0.375rem)] [&>li:last-child]:after:bottom-0 [&>li:last-child]:after:w-px [&>li:last-child]:after:bg-sidebar">
+        <SidebarMenuSub
+          ref={list}
+          className="relative mx-1.5 translate-x-0 gap-0.5 px-1.5 py-0 [&>li]:relative [&>li]:before:absolute [&>li]:before:top-1/2 [&>li]:before:right-full [&>li]:before:w-1.5 [&>li]:before:border-t [&>li]:before:border-sidebar-border [&>li:last-child]:after:absolute [&>li:last-child]:after:top-1/2 [&>li:last-child]:after:right-[calc(100%+0.375rem)] [&>li:last-child]:after:bottom-0 [&>li:last-child]:after:w-px [&>li:last-child]:after:bg-sidebar"
+        >
           {pages.isError ? (
             <SidebarMenuSubItem>
               <Alert variant="destructive" className="px-2 py-3">
@@ -1406,6 +1700,134 @@ function SessionGroup({
   )
 }
 
+// Like the reference sidebar, measure only order changes and animate native transforms.
+function useSessionListMotion(key: string, visible = true) {
+  const ref = useRef<HTMLUListElement>(null)
+  const positions = useRef(
+    new Map<HTMLLIElement, { top: number; left: number; width: number; height: number }>()
+  )
+  const running = useRef(new Map<HTMLLIElement, { animation: Animation; offset: number }>())
+  const exiting = useRef(new Set<HTMLLIElement>())
+
+  const cancel = useCallback(() => {
+    for (const { animation } of running.current.values()) animation.cancel()
+    running.current.clear()
+    for (const node of exiting.current) node.remove()
+    exiting.current.clear()
+  }, [])
+
+  useLayoutEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)")
+    const onChange = () => {
+      if (!media.matches) return
+      cancel()
+      positions.current.clear()
+    }
+    media.addEventListener("change", onChange)
+    return () => {
+      media.removeEventListener("change", onChange)
+      cancel()
+      positions.current.clear()
+    }
+  }, [cancel])
+
+  useLayoutEffect(() => {
+    const parent = ref.current
+    if (!parent || !visible) {
+      cancel()
+      positions.current.clear()
+      return
+    }
+    const next: typeof positions.current = new Map()
+    const offsets = new Map<HTMLLIElement, number>()
+    for (const [node, previous] of running.current) {
+      const progress = previous.animation.effect?.getComputedTiming().progress ?? 1
+      offsets.set(node, previous.offset * (1 - progress))
+    }
+    // Read all geometry before writing styles, avoiding a reflow for each row.
+    for (const node of parent.querySelectorAll<HTMLLIElement>(":scope > li:not([data-exiting])")) {
+      next.set(node, {
+        top: node.offsetTop,
+        left: node.offsetLeft,
+        width: node.offsetWidth,
+        height: node.offsetHeight,
+      })
+    }
+    const previous = positions.current
+    positions.current = key ? next : new Map()
+    let changed = 0
+    for (const node of previous.keys()) if (!next.has(node)) changed++
+    for (const node of next.keys()) if (!previous.has(node)) changed++
+    const animate =
+      key &&
+      previous.size > 0 &&
+      changed <= 40 &&
+      !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    const top = animate ? parent.getBoundingClientRect().top : 0
+    const height = parent.ownerDocument.documentElement.clientHeight
+    cancel()
+    if (!animate) return
+
+    const timing = { duration: 150, easing: "ease-out" }
+    for (const [node, position] of previous) {
+      if (next.has(node) || position.height === 0) continue
+      if (top + position.top >= height || top + position.top + position.height <= 0) continue
+      const clone = parent.ownerDocument.importNode(node, true)
+      clone.dataset.exiting = ""
+      clone.inert = true
+      clone.setAttribute("aria-hidden", "true")
+      clone.removeAttribute("id")
+      for (const child of clone.querySelectorAll("[id]")) child.removeAttribute("id")
+      Object.assign(clone.style, {
+        position: "absolute",
+        top: `${position.top + (offsets.get(node) ?? 0)}px`,
+        left: `${position.left}px`,
+        width: `${position.width}px`,
+        height: `${position.height}px`,
+        margin: "0",
+        pointerEvents: "none",
+      })
+      parent.append(clone)
+      exiting.current.add(clone)
+      const animation = clone.animate(
+        [
+          { opacity: 1, transform: "translateY(0)" },
+          { opacity: 0, transform: "translateY(40px)" },
+        ],
+        timing
+      )
+      running.current.set(clone, { animation, offset: 0 })
+      animation.onfinish = () => {
+        clone.remove()
+        exiting.current.delete(clone)
+        running.current.delete(clone)
+      }
+    }
+    for (const [node, position] of next) {
+      const old = previous.get(node)
+      // Offscreen rows need no animation or compositor layers.
+      const start = top + (old?.top ?? position.top)
+      const end = top + position.top
+      if (Math.min(start, end) >= height || Math.max(start, end) + position.height <= 0) continue
+      const offset =
+        (old ? old.top - position.top : -Math.min(40, position.height)) + (offsets.get(node) ?? 0)
+      if (offset === 0 || position.height === 0) continue
+      const animation = node.animate(
+        [
+          { transform: `translateY(${offset}px)`, opacity: old ? 1 : 0 },
+          { transform: "translateY(0)", opacity: 1 },
+        ],
+        timing
+      )
+      running.current.set(node, { animation, offset })
+      animation.onfinish = () => {
+        if (running.current.get(node)?.animation === animation) running.current.delete(node)
+      }
+    }
+  }, [cancel, key, visible])
+  return ref
+}
+
 function SessionListSkeleton({
   groupBy,
   searching = false,
@@ -1460,61 +1882,66 @@ function SessionListSkeleton({
   )
 }
 
-function SessionCardSkeleton({ showAgent, coding }: { showAgent: boolean; coding: boolean }) {
-  const groupedByAgent = !coding && !showAgent
-
+function SessionCardSkeleton({
+  showAgent,
+  coding,
+  compact = false,
+}: {
+  showAgent: boolean
+  coding: boolean
+  compact?: boolean
+}) {
+  if (compact)
+    return (
+      <li
+        aria-hidden
+        className="flex h-10 min-w-0 list-none items-center gap-2 px-(--sidebar-row-content-inset)"
+      >
+        <Skeleton className="size-4 shrink-0 rounded-sm bg-sidebar-border" />
+        <div className="flex h-5 min-w-0 flex-1 items-center">
+          <Skeleton className="h-3 w-4/5 bg-sidebar-border" />
+        </div>
+        <Skeleton className="h-3 w-5 shrink-0 bg-sidebar-border" />
+      </li>
+    )
   return (
-    <li aria-hidden="true" className="list-none rounded-md py-0.5">
+    <li aria-hidden="true" className="list-none rounded-lg py-0.5">
       <div
         className={cn(
           "px-(--sidebar-row-content-inset) py-(--sidebar-content-inset)",
           coding ? "h-20" : "h-16"
         )}
       >
-        {groupedByAgent ? (
-          <div className="grid h-full min-w-0 grid-cols-[minmax(0,1fr)_max-content] grid-rows-[1.25rem_1.5rem] gap-x-2 gap-y-1">
-            <div className="row-span-2 min-w-0 space-y-1">
-              <Skeleton className="h-4 w-full bg-sidebar-border" />
-              <Skeleton className="h-4 w-2/3 bg-sidebar-border" />
-            </div>
-            <Skeleton className="h-3 w-8 self-center justify-self-end bg-sidebar-border" />
-            <Skeleton className="size-6 rounded-full bg-sidebar-border ring-2 ring-sidebar" />
+        <div className="flex h-5 min-w-0 items-center gap-1.5">
+          {showAgent ? <Skeleton className="size-4 shrink-0 rounded-sm bg-sidebar-border" /> : null}
+          <div className="min-w-0 flex-1">
+            {showAgent ? <Skeleton className="h-3 w-16 bg-sidebar-border" /> : null}
           </div>
-        ) : (
-          <>
-            <div className="flex h-5 min-w-0 items-center gap-1.5">
-              <Skeleton className="size-3.5 shrink-0 rounded-sm bg-sidebar-border" />
-              <div className="min-w-0 flex-1">
-                <Skeleton className="h-3 w-20 bg-sidebar-border" />
-              </div>
-              <Skeleton className="h-3 w-8 shrink-0 bg-sidebar-border" />
-            </div>
-            <div className={cn("mt-1 flex min-w-0 items-center gap-2", coding ? "h-5" : "h-6")}>
-              <div className="min-w-0 flex-1">
-                <Skeleton className="h-4 w-3/4 bg-sidebar-border" />
-              </div>
-              {!coding ? (
-                <div className="flex shrink-0 space-x-[-7px]">
-                  <Skeleton className="size-6 rounded-full bg-sidebar-border ring-2 ring-sidebar" />
-                </div>
-              ) : null}
-            </div>
-            {coding ? (
-              <div className="flex h-5 min-w-0 items-center gap-2">
-                <div className="min-w-0 flex-1">
-                  <Skeleton className="h-3 w-2/3 bg-sidebar-border" />
-                </div>
-                <Skeleton className="h-3 w-[7ch] shrink-0 bg-sidebar-border" />
-              </div>
-            ) : null}
-          </>
-        )}
+          <Skeleton className="h-3 w-5 shrink-0 bg-sidebar-border" />
+        </div>
+        <div className={cn("mt-1 flex min-w-0 items-center gap-2", coding ? "h-5" : "h-6")}>
+          <Skeleton className="h-3.5 w-4/5 bg-sidebar-border" />
+        </div>
+        {coding ? (
+          <div className="flex h-5 items-center gap-2">
+            <Skeleton className="h-3 w-2/3 bg-sidebar-border" />
+            <Skeleton className="ml-auto h-3 w-[7ch] bg-sidebar-border" />
+          </div>
+        ) : null}
       </div>
     </li>
   )
 }
 
-function AgentBadge({ status }: { status: AgentStatus | undefined }) {
+function AgentBadge({
+  status,
+  name,
+  workspaceId,
+}: {
+  status: AgentStatus | undefined
+  name: string
+  workspaceId: string
+}) {
   if (status && agentIsGettingReady(status)) {
     return (
       <span className={status === "DEGRADED" ? "shrink-0 text-destructive" : "shrink-0"}>
@@ -1522,10 +1949,15 @@ function AgentBadge({ status }: { status: AgentStatus | undefined }) {
       </span>
     )
   }
-  if (status === "IDLE") {
-    return <Bot aria-label="Idle" className="size-4 shrink-0 text-primary" role="status" />
-  }
-  return <Bot aria-label="Unavailable" className="size-4 shrink-0 text-destructive" role="status" />
+  return (
+    <span
+      aria-label={status === "IDLE" ? "Idle" : "Unavailable"}
+      className={cn("shrink-0", status !== "IDLE" && "opacity-50")}
+      role="status"
+    >
+      <AgentIcon name={name} workspaceId={workspaceId} />
+    </span>
+  )
 }
 
 function SessionCheckout({ session, workspaceId }: { session: ChatSession; workspaceId: string }) {
@@ -1585,6 +2017,7 @@ function SessionCheckout({ session, workspaceId }: { session: ChatSession; works
 
 const SessionCard = memo(function SessionCard({
   active,
+  compact = false,
   session,
   showAgent = true,
   workspaceId,
@@ -1592,6 +2025,7 @@ const SessionCard = memo(function SessionCard({
   workspacePath,
 }: {
   active: boolean
+  compact?: boolean
   session: ChatSession
   showAgent?: boolean
   workspaceId: string
@@ -1613,6 +2047,7 @@ const SessionCard = memo(function SessionCard({
       )
       if (!result.success) return result
 
+      await removeSessionState(queryClient, session.agent_name, workspaceId, session.session_id)
       await removeChatSessionFromCache(queryClient, workspaceId, session)
       const channel = new BroadcastChannel(`chatSessionDeletion:${workspaceId}`)
       channel.postMessage({
@@ -1630,17 +2065,99 @@ const SessionCard = memo(function SessionCard({
     { success: false }
   )
 
+  const [renaming, setRenaming] = useState(false)
+  const [title, setTitle] = useState(session.title)
+  const renameCancelled = useRef(false)
+  const renameRequested = useRef(false)
+  const [snoozeTimes, setSnoozeTimes] = useState<{ label: string; at: Date }[]>([])
+  const edit = useMutation({
+    mutationFn: async (change: UpdateChatSessionRequest | { title: string }) => {
+      if ("title" in change) {
+        const client = await createAgentOpencodeClient(session.agent_name, workspaceId)
+        const result = await client.session.update({
+          sessionID: session.session_id,
+          title: change.title,
+        })
+        if (result.error) throw result.error
+        return
+      }
+      const result = await updateChatSession({
+        baseUrl: await getGatewayBaseURL(),
+        headers: { "X-AgentZ-Workspace-ID": workspaceId },
+        path: { agentName: session.agent_name, sessionId: session.session_id },
+        body: change,
+      })
+      if (result.error) throw result.error
+    },
+    onSuccess: async (_, change) => {
+      setRenaming(false)
+      // Every cached filter/group variant must forget the old shelf before
+      // navigation can reuse it. Keep the open transcript and composer intact.
+      if ("shelf" in change) await removeChatSessionFromCache(queryClient, workspaceId, session)
+      void queryClient.invalidateQueries({ queryKey: chatSessionKeys.workspace(workspaceId) })
+      void queryClient.invalidateQueries({
+        queryKey: sessionInfoQueryOptions(session.agent_name, workspaceId, session.session_id)
+          .queryKey,
+      })
+    },
+    onError: () => toast.error("Could not update chat. Try again."),
+  })
+  const snoozed = session.snoozed_until !== undefined
+  const sessionTitle = renaming ? (
+    <Input
+      autoFocus
+      aria-label="Thread title"
+      value={title}
+      maxLength={200}
+      disabled={edit.isPending}
+      dir="auto"
+      className="pointer-events-auto relative h-5 min-w-0 flex-1 rounded-sm px-1 py-0 text-sm font-medium shadow-none focus-visible:ring-0"
+      onFocus={(event) => event.currentTarget.select()}
+      onChange={(event) => setTitle(event.target.value)}
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => {
+        event.stopPropagation()
+        if (event.nativeEvent.isComposing) return
+        if (event.key === "Escape") {
+          event.preventDefault()
+          renameCancelled.current = true
+          setRenaming(false)
+        }
+        if (event.key === "Enter") {
+          event.preventDefault()
+          event.currentTarget.blur()
+        }
+      }}
+      onBlur={() => {
+        if (renameCancelled.current) return
+        setRenaming(false)
+        const next = title.trim()
+        if (next && next !== session.title) edit.mutate({ title: next })
+      }}
+    />
+  ) : (
+    <span data-session-title className="session-title block truncate" title={session.title}>
+      {session.title}
+    </span>
+  )
+
   const { setOpenMobile } = useSidebar()
-  const groupedByAgent = !coding && !showAgent
-  const status =
-    session.status === "idle" ? (
-      formatShortAge(new Date(session.updated_at).getTime())
-    ) : (
-      <span className="flex items-center gap-1 font-medium text-info" role="status">
-        <LoaderCircle aria-hidden="true" className="size-3 motion-safe:animate-spin" />
-        Working
-      </span>
-    )
+  const status = snoozed ? (
+    <span
+      className="inline-flex items-center gap-1"
+      title={`Wakes ${dayjs(session.snoozed_until).format("MMM D, h:mm A")}`}
+    >
+      <AlarmClock className="size-3" aria-hidden="true" />
+      {dayjs(session.snoozed_until).format("MMM D, HH:mm")}
+    </span>
+  ) : session.status === "idle" ? (
+    formatShortAge(new Date(session.updated_at).getTime())
+  ) : (
+    <span className="flex items-center gap-1 font-medium text-info" role="status">
+      <LoaderCircle aria-hidden="true" className="size-3 motion-safe:animate-spin" />
+      Working
+    </span>
+  )
   const avatars =
     session.participants.length > 0 ? (
       <PresenceAvatars
@@ -1657,17 +2174,49 @@ const SessionCard = memo(function SessionCard({
     ) : null
 
   return (
-    <ContextMenu>
+    <ContextMenu
+      onOpenChange={(open) => {
+        if (!open) return
+        const now = new Date()
+        const evening = new Date(now)
+        evening.setHours(18, 0, 0, 0)
+        const tomorrow = new Date(now)
+        tomorrow.setDate(tomorrow.getDate() + 1)
+        tomorrow.setHours(9, 0, 0, 0)
+        setSnoozeTimes(
+          [
+            { label: "In 1 hour", at: new Date(now.getTime() + 3600000) },
+            { label: "In 3 hours", at: new Date(now.getTime() + 10800000) },
+            { label: "This evening", at: evening },
+            { label: "Tomorrow", at: tomorrow },
+          ].filter((choice) => choice.at > now)
+        )
+      }}
+    >
       <ContextMenuTrigger asChild>
         <li
           className={cn(
-            "group/session relative list-none rounded-lg py-0.5 text-sidebar-muted-foreground transition-colors focus-within:bg-sidebar-accent focus-within:text-sidebar-accent-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground",
+            "group/session relative list-none rounded-lg text-sidebar-muted-foreground transition-colors focus-within:bg-sidebar-accent focus-within:text-sidebar-accent-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground",
+            !compact && "py-0.5",
+            compact &&
+              session.archived &&
+              !active &&
+              "[&_[data-mascot]]:opacity-50 [&_[data-mascot]]:grayscale hover:[&_[data-mascot]]:opacity-100 hover:[&_[data-mascot]]:grayscale-0",
             active && "bg-sidebar-accent text-sidebar-accent-foreground"
           )}
         >
           <Link
             prefetch={false}
-            onPointerEnter={() => {
+            onPointerEnter={(event) => {
+              const row = event.currentTarget.parentElement
+              const title = row?.querySelector<HTMLElement>("[data-session-title]")
+              if (title) {
+                const overflow = title.scrollWidth - title.clientWidth
+                title.style.setProperty("--title-travel", `${Math.max(0, overflow)}px`)
+                title.style.setProperty("--title-duration", `${Math.max(3, overflow / 30)}s`)
+                title.dataset.overflow = String(overflow > 0)
+              }
+
               void queryClient
                 .fetchQuery(
                   sessionInfoQueryOptions(session.agent_name, workspaceId, session.session_id)
@@ -1708,78 +2257,151 @@ const SessionCard = memo(function SessionCard({
               // every read. Switching chats need not round-trip through RSC.
               window.history.pushState(null, "", href)
             }}
+            title={session.title}
             aria-label={`Open ${session.title}`}
             aria-current={active ? "page" : undefined}
             className="absolute inset-0 rounded-[inherit] outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-inset"
             href={href}
           />
-          <div
-            className={cn(
-              "pointer-events-none relative px-(--sidebar-row-content-inset) py-(--sidebar-content-inset)",
-              coding ? "h-20" : "h-16"
-            )}
-          >
-            {groupedByAgent ? (
-              <div className="grid h-full min-w-0 grid-cols-[minmax(0,1fr)_max-content] grid-rows-[1.25rem_1.5rem] gap-x-2 gap-y-1">
+          {compact ? (
+            <div className="pointer-events-none relative flex h-10 min-w-0 items-center gap-2 px-(--sidebar-row-content-inset)">
+              <AgentIcon name={session.agent_name} workspaceId={workspaceId} />
+              <span
+                className={cn(
+                  "min-w-0 flex-1 overflow-hidden text-sm font-medium",
+                  !active && "text-sidebar-muted-foreground"
+                )}
+              >
+                {sessionTitle}
+              </span>
+              <span className="shrink-0 text-xs text-sidebar-muted-foreground tabular-nums group-focus-within/session:hidden group-hover/session:hidden [@media(hover:none)]:hidden">
+                {status}
+              </span>
+              <Button
+                aria-label={session.archived ? "Unarchive" : "Wake now"}
+                className="pointer-events-auto hidden group-focus-within/session:inline-flex group-hover/session:inline-flex [@media(hover:none)]:inline-flex"
+                disabled={edit.isPending}
+                size="icon-sm"
+                variant="ghost"
+                onClick={() => edit.mutate({ shelf: "active" })}
+              >
+                {session.archived ? <ArchiveRestore /> : <AlarmClockOff />}
+              </Button>
+            </div>
+          ) : (
+            <div
+              className={cn(
+                "pointer-events-none relative px-(--sidebar-row-content-inset) py-(--sidebar-content-inset)",
+                coding ? "h-20" : "h-16"
+              )}
+            >
+              <div className="flex h-5 min-w-0 items-center gap-1.5 text-xs text-sidebar-muted-foreground">
+                {showAgent ? (
+                  <AgentIcon name={session.agent_name} workspaceId={workspaceId} />
+                ) : null}
+                <span className="min-w-0 flex-1 truncate font-semibold">
+                  {showAgent ? session.agent_name : null}
+                </span>
+                <span className="shrink-0 tabular-nums">{status}</span>
+              </div>
+              <div className={cn("mt-1 flex min-w-0 items-center gap-2", coding ? "h-5" : "h-6")}>
                 <h3
                   className={cn(
-                    "row-span-2 min-w-0 overflow-hidden text-sm leading-5 font-semibold text-sidebar-foreground/80",
-                    active && "text-sidebar-foreground"
+                    "min-w-0 flex-1 overflow-hidden text-sm leading-5 font-semibold text-sidebar-foreground/80",
+                    active && "text-sidebar-foreground",
+                    session.archived && !active && "font-normal text-sidebar-muted-foreground"
                   )}
                 >
-                  <span className="line-clamp-2">{session.title}</span>
+                  {sessionTitle}
                 </h3>
-                <div className="self-center justify-self-end text-xs text-sidebar-muted-foreground tabular-nums">
-                  {status}
-                </div>
-                <div className="self-center justify-self-end">{avatars}</div>
+                {avatars}
               </div>
-            ) : (
-              <>
-                <div className="flex h-5 min-w-0 items-center gap-1.5 text-xs">
-                  <Bot aria-hidden="true" className="size-3.5 shrink-0 text-primary" />
-                  <span className="min-w-0 flex-1 truncate font-semibold text-sidebar-muted-foreground">
-                    {session.agent_name}
-                  </span>
-                  <div className="shrink-0 text-sidebar-muted-foreground tabular-nums">
-                    {status}
-                  </div>
-                </div>
-                <div className={cn("mt-1 flex min-w-0 items-center gap-2", coding ? "h-5" : "h-6")}>
-                  <h3
-                    className={cn(
-                      "relative min-w-0 flex-1 overflow-hidden text-sm leading-5 font-semibold text-sidebar-foreground/80",
-                      active && "text-sidebar-foreground"
-                    )}
-                  >
-                    <span className="block truncate" title={session.title}>
-                      {session.title}
-                    </span>
-                  </h3>
-                  {avatars}
-                </div>
-                {coding ? <SessionCheckout session={session} workspaceId={workspaceId} /> : null}
-              </>
-            )}
-          </div>
+              {coding ? <SessionCheckout session={session} workspaceId={workspaceId} /> : null}
+            </div>
+          )}
         </li>
       </ContextMenuTrigger>
-      <ContextMenuContent>
+      <ContextMenuContent
+        onCloseAutoFocus={(event) => {
+          if (!renameRequested.current) return
+          event.preventDefault()
+          renameRequested.current = false
+          setRenaming(true)
+        }}
+      >
         <ContextMenuGroup>
           <ContextMenuItem
-            onSelect={(event) => {
-              event.preventDefault()
-              setConfirmingDelete(true)
+            onSelect={() => {
+              void navigator.clipboard.writeText(session.session_id).then(
+                () => toast.success("Session ID copied"),
+                () => toast.error("Could not copy session ID")
+              )
             }}
-            variant="destructive"
           >
-            <Trash2 aria-hidden="true" />
+            <Copy />
+            Copy session ID
+          </ContextMenuItem>
+          <ContextMenuItem
+            disabled={edit.isPending}
+            onSelect={() => {
+              renameCancelled.current = false
+              renameRequested.current = true
+              setTitle(session.title)
+            }}
+          >
+            <Pencil />
+            Rename
+          </ContextMenuItem>
+          <ContextMenuItem
+            disabled={edit.isPending}
+            onSelect={() => edit.mutate({ shelf: session.archived ? "active" : "archived" })}
+          >
+            {session.archived ? <ArchiveRestore /> : <Archive />}
+            {session.archived ? "Unarchive" : "Archive"}
+          </ContextMenuItem>
+          {snoozed ? (
+            <ContextMenuItem
+              disabled={edit.isPending}
+              onSelect={() => edit.mutate({ shelf: "active" })}
+            >
+              <AlarmClockOff />
+              Wake now
+            </ContextMenuItem>
+          ) : (
+            <ContextMenuSub>
+              <ContextMenuSubTrigger disabled={edit.isPending}>
+                <AlarmClock />
+                Snooze
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent>
+                <ContextMenuGroup>
+                  {snoozeTimes.map((choice) => (
+                    <ContextMenuItem
+                      key={choice.label}
+                      onSelect={() =>
+                        edit.mutate({ shelf: "snoozed", snoozed_until: choice.at.toISOString() })
+                      }
+                    >
+                      {choice.label} (
+                      {choice.at.toLocaleTimeString(undefined, {
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                      )
+                    </ContextMenuItem>
+                  ))}
+                </ContextMenuGroup>
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+          )}
+          <ContextMenuItem variant="destructive" onSelect={() => setConfirmingDelete(true)}>
+            <Trash2 />
             Delete chat
           </ContextMenuItem>
         </ContextMenuGroup>
       </ContextMenuContent>
       <Dialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
-        <DialogContent>
+        <DialogContent showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>Delete chat?</DialogTitle>
             <DialogDescription>

@@ -1,5 +1,7 @@
 "use client"
 
+import { cn } from "@/lib/utils"
+
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
@@ -180,7 +182,10 @@ export function WorkspaceNavigation(props: WorkspaceNavigationProps) {
         {headerActions}
       </SidebarHeader>
       <SidebarContent
-        className="overflow-x-hidden group-data-[collapsible=icon]:overflow-y-auto"
+        className={cn(
+          "overflow-x-hidden group-data-[collapsible=icon]:overflow-y-auto",
+          !settings && "overflow-y-hidden"
+        )}
         data-tour="navigation"
       >
         {settings ? (

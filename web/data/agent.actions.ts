@@ -126,6 +126,7 @@ export async function createAgentFormAction(
 ): Promise<CreateAgentFormState> {
   const parsed = agentFormDataSchema.safeParse({
     ...Object.fromEntries(formData),
+    autoArchiveHours: Number(formData.get("autoArchiveHours")),
     appearance: { breed: formData.get("breed"), color: formData.get("color") },
     instruction,
     skills: { names: formData.getAll("skillNames"), scopes: formData.getAll("skillScopes") },
@@ -139,6 +140,7 @@ export async function createAgentFormAction(
     body: {
       name: parsed.data.name,
       appearance: parsed.data.appearance,
+      auto_archive_hours: parsed.data.autoArchiveHours,
       sandbox: { scope: parsed.data.sandboxScope, name: parsed.data.sandboxName },
       skills: parsed.data.skills,
       memory: { enabled: parsed.data.memoryEnabled },
@@ -164,6 +166,7 @@ export async function updateAgentFormAction(
 ): Promise<CreateAgentFormState> {
   const parsed = agentFormDataSchema.omit({ name: true }).safeParse({
     ...Object.fromEntries(formData),
+    autoArchiveHours: Number(formData.get("autoArchiveHours")),
     appearance: { breed: formData.get("breed"), color: formData.get("color") },
     instruction,
     skills: { names: formData.getAll("skillNames"), scopes: formData.getAll("skillScopes") },
@@ -176,6 +179,7 @@ export async function updateAgentFormAction(
   const result = await updateAgent({
     body: {
       appearance: parsed.data.appearance,
+      auto_archive_hours: parsed.data.autoArchiveHours,
       sandbox: { scope: parsed.data.sandboxScope, name: parsed.data.sandboxName },
       skills: parsed.data.skills,
       memory: { enabled: parsed.data.memoryEnabled },

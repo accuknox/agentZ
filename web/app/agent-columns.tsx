@@ -1,6 +1,7 @@
 "use client"
 
 import { HoldToConfirm } from "@/components/interior/hold-to-confirm"
+import { AgentAvatar } from "@/components/interior/agent-presence"
 
 import * as React from "react"
 import type { CellContext, ColumnDef } from "@tanstack/react-table"
@@ -82,7 +83,12 @@ export const agentColumns: ColumnDef<Agent>[] = [
     cell: ({ row }) => {
       const agent = row.original
 
-      return <span className="font-medium">{agent.name}</span>
+      return (
+        <span className="flex min-w-0 items-center gap-2 font-medium">
+          <AgentAvatar appearance={agent.appearance} size={20} />
+          <span className="truncate">{agent.name}</span>
+        </span>
+      )
     },
   },
   {
@@ -173,6 +179,7 @@ function AgentActions({ row }: CellContext<Agent, unknown>) {
           mode="update"
           actionScope={actionScope}
           agentName={agent.name}
+          initialAutoArchiveHours={agent.auto_archive_hours}
           initialAppearance={agent.appearance}
           initialSandboxName={agent.sandbox.name}
           initialMemoryEnabled={agent.memory.enabled}

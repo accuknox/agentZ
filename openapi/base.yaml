@@ -683,6 +683,7 @@ paths:
         use ALL semantics and are evaluated by the database before pagination.
       tags: [chat-sessions]
       parameters:
+      - {name: shelf, in: query, schema: {$ref: '#/components/schemas/ChatSessionShelf'}}
       - {name: project_id, in: query, schema: {type: string}}
       - $ref: '#/components/parameters/ChatSessionLimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
@@ -711,6 +712,27 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalError'
+
+  /api/chat-session/{agentName}/{sessionId}:
+    patch:
+      operationId: updateChatSession
+      summary: Move a session between inbox shelves.
+      tags: [chat-sessions]
+      parameters:
+      - {name: agentName, in: path, required: true, schema: {type: string}}
+      - {name: sessionId, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateChatSessionRequest'
+      responses:
+        '204': {description: Session updated.}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
 
   /api/chat-session/watch:
     get:
@@ -6330,6 +6352,18 @@ components:
       - ChatSessionKindChat
       - ChatSessionKindWorkflowRun
 
+    ChatSessionShelf:
+      type: string
+      enum: [active, archived, snoozed]
+      x-enum-varnames: [ChatSessionShelfActive, ChatSessionShelfArchived, ChatSessionShelfSnoozed]
+    UpdateChatSessionRequest:
+      type: object
+      additionalProperties: false
+      required: [shelf]
+      properties:
+        shelf: {$ref: '#/components/schemas/ChatSessionShelf'}
+        snoozed_until: {type: string, format: date-time}
+
     ChatSessionStatus:
       type: string
       enum: [idle, busy, retry]
@@ -6377,6 +6411,8 @@ components:
       type: object
       additionalProperties: false
       properties:
+        archived: {type: boolean}
+        snoozed_until: {type: string, format: date-time}
         project_id: {type: string}
         agent_name:
           $ref: '#/components/schemas/AgentName'
@@ -6399,6 +6435,7 @@ components:
           items:
             $ref: '#/components/schemas/ChatSessionParticipant'
       required:
+      - archived
       - agent_name
       - session_id
       - title
@@ -6412,6 +6449,12 @@ components:
       type: object
       additionalProperties: false
       properties:
+        archived_count:
+          type: integer
+          format: int64
+        snoozed_count:
+          type: integer
+          format: int64
         sessions:
           type: array
           items:
@@ -6428,7 +6471,7 @@ components:
           type: boolean
         next_page_token:
           type: string
-      required: [sessions, groups, participant_filters, has_next_page, next_page_token]
+      required: [archived_count, snoozed_count, sessions, groups, participant_filters, has_next_page, next_page_token]
 
     ChatSessionGroup:
       type: object
@@ -7624,6 +7667,12 @@ components:
       type: object
       additionalProperties: false
       properties:
+        auto_archive_hours:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 8760
+          description: Idle hours before archival; zero disables automatic archival.
         appearance:
           $ref: '#/components/schemas/AgentAppearance'
         name:
@@ -7656,6 +7705,7 @@ components:
         capabilities:
           $ref: '#/components/schemas/AgentCapabilities'
       required:
+      - auto_archive_hours
       - name
       - sandbox
       - created_by
@@ -8234,6 +8284,12 @@ components:
       type: object
       additionalProperties: false
       properties:
+        auto_archive_hours:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 8760
+          description: Idle hours before archival; zero disables automatic archival.
         appearance:
           $ref: '#/components/schemas/AgentAppearance'
         name:
@@ -8934,6 +8990,12 @@ components:
       type: object
       additionalProperties: false
       properties:
+        auto_archive_hours:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 8760
+          description: Idle hours before archival; zero disables automatic archival.
         appearance:
           $ref: '#/components/schemas/AgentAppearance'
         env:

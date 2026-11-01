@@ -138,6 +138,8 @@ type Service struct {
 	streamAuthEvents    chatSessionEvents
 	streamsReady        atomic.Bool
 	chatInputWake       chan struct{}
+	chatExpiryWake      chan struct{}
+	chatPoliciesDirty   atomic.Bool
 	codingEvents        chatSessionEvents
 	externalAgentEvents chatSessionEvents
 	catalog             *inference.Catalog
@@ -400,6 +402,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		skillStore:         skillStore,
 		skillImports:       make(chan struct{}, 4),
 		chatInputWake:      make(chan struct{}, 1),
+		chatExpiryWake:     make(chan struct{}, 1),
 		catalog:            inference.NewCatalog(nil),
 		openAPI:            openAPISpec,
 		outboundHTTP:       &http.Client{Timeout: 10 * time.Second},
@@ -416,6 +419,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		svc.listenCoding,
 		svc.runCleanupJobs,
 		svc.runChatSessionNotifications,
+		svc.runChatSessionExpiry,
 	}
 	for _, job := range backgroundJobs {
 		workers.Go(func() { job(runCtx) })

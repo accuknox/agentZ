@@ -181,6 +181,7 @@ async function Graph({
   return (
     <section className="flex min-h-0 min-w-0 flex-1">
       <McpGraph
+        workspaceId={workspaceId}
         subject={scope.subject}
         key={[
           scope.subject.kind !== "agent"

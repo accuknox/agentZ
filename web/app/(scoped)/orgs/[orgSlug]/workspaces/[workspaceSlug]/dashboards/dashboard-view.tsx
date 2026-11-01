@@ -1,5 +1,6 @@
 "use client"
 
+import { AgentIcon } from "@/components/agent-readiness"
 import * as React from "react"
 import { useProgress } from "@bprogress/next"
 import type { Route } from "next"
@@ -20,7 +21,6 @@ import {
   useReactTable,
 } from "@tanstack/react-table"
 import {
-  BotIcon,
   ChartArea,
   ChartBar,
   ChartNoAxesCombined,
@@ -197,7 +197,7 @@ export function DashboardView({
             <SelectGroup>
               {agents.map((agent) => (
                 <SelectItem key={agent} value={agent}>
-                  <BotIcon className="inline-block" />
+                  <AgentIcon name={agent} workspaceId={workspaceId} />
                   {agent}
                 </SelectItem>
               ))}

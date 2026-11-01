@@ -110,6 +110,13 @@ export const zDelegationMcp = z.object({
 
 export const zChatSessionKind = z.enum(["chat", "workflow_run"])
 
+export const zChatSessionShelf = z.enum(["active", "archived", "snoozed"])
+
+export const zUpdateChatSessionRequest = z.object({
+  shelf: zChatSessionShelf,
+  snoozed_until: z.iso.datetime({ offset: true }).optional(),
+})
+
 export const zChatSessionStatus = z.enum(["idle", "busy", "retry"])
 
 export const zChatSessionGroupBy = z.enum(["none", "agent", "status", "date", "project"])
@@ -659,6 +666,8 @@ export const zAgentName = z
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
 
 export const zChatSession = z.object({
+  archived: z.boolean(),
+  snoozed_until: z.iso.datetime({ offset: true }).optional(),
   project_id: z.string().optional(),
   agent_name: zAgentName,
   session_id: z.string(),
@@ -1373,6 +1382,7 @@ export const zAgentOpencodeConfig = z.object({
 })
 
 export const zAgent = z.object({
+  auto_archive_hours: z.int().gte(0).lte(8760),
   appearance: zAgentAppearance.optional(),
   name: zAgentName,
   sandbox: zResourceReference,
@@ -1394,6 +1404,7 @@ export const zListAgentsResponse = z.object({
 })
 
 export const zCreateAgentRequest = z.object({
+  auto_archive_hours: z.int().gte(0).lte(8760).optional(),
   appearance: zAgentAppearance.optional(),
   name: zAgentName,
   memory: zAgentMemoryConfig.optional(),
@@ -1404,6 +1415,7 @@ export const zCreateAgentRequest = z.object({
 })
 
 export const zUpdateAgentRequest = z.object({
+  auto_archive_hours: z.int().gte(0).lte(8760).optional(),
   appearance: zAgentAppearance.optional(),
   env: z.record(z.string(), z.string()).optional(),
   memory: zAgentMemoryConfig.optional(),
@@ -2993,6 +3005,22 @@ export const zChatSessionGroup = z.object({
 })
 
 export const zListChatSessionsResponse = z.object({
+  archived_count: z.coerce
+    .bigint()
+    .min(BigInt("-9223372036854775808"), {
+      error: "Invalid value: Expected int64 to be >= -9223372036854775808",
+    })
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+  snoozed_count: z.coerce
+    .bigint()
+    .min(BigInt("-9223372036854775808"), {
+      error: "Invalid value: Expected int64 to be >= -9223372036854775808",
+    })
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
   sessions: z.array(zChatSession),
   groups: z.array(zChatSessionGroup),
   participant_filters: z.array(zChatSessionParticipant),
@@ -4656,6 +4684,7 @@ export const zGetCodingOperationResponse = zCodingOperation
 export const zWatchCodingResponse = zWatchChatSessionsEvent
 
 export const zListChatSessionsQuery = z.object({
+  shelf: zChatSessionShelf.optional(),
   project_id: z.string().optional(),
   limit: z.int().gte(1).lte(50).optional().default(10),
   page_token: z.string().min(1).optional(),
@@ -4675,6 +4704,18 @@ export const zListChatSessionsQuery = z.object({
  * Paginated chat sessions and available participant filters.
  */
 export const zListChatSessionsResponse2 = zListChatSessionsResponse
+
+export const zUpdateChatSessionBody = zUpdateChatSessionRequest
+
+export const zUpdateChatSessionPath = z.object({
+  agentName: z.string(),
+  sessionId: z.string(),
+})
+
+/**
+ * Session updated.
+ */
+export const zUpdateChatSessionResponse = z.void()
 
 /**
  * Stream of chat inbox invalidations.

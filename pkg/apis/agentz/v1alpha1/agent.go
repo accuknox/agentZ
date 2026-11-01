@@ -71,6 +71,12 @@ const (
 // +kubebuilder:validation:XValidation:rule="!has(self.skills) || self.skills.all(s, s.name.matches('^[a-z0-9]+(-[a-z0-9]+)*$'))",message="skill names must use lowercase letters, digits, and single hyphens"
 // +kubebuilder:validation:XValidation:rule="self.createdByUserID == oldSelf.createdByUserID",message="createdByUserID is immutable"
 type AgentSpec struct {
+	// AutoArchiveHours archives idle sessions after this many hours. Zero disables it.
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=8760
+	// +optional
+	AutoArchiveHours int32 `json:"autoArchiveHours,omitempty"`
+
 	ResourceAudit `json:",inline"`
 
 	// Appearance identifies the Agent across shared chat surfaces.

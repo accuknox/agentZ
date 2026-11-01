@@ -85,6 +85,13 @@ spec:
                 - breed
                 - color
                 type: object
+              autoArchiveHours:
+                description: AutoArchiveHours archives idle sessions after this many
+                  hours. Zero disables it.
+                format: int32
+                maximum: 8760
+                minimum: 0
+                type: integer
               createdByUserID:
                 description: CreatedByUserID is the immutable Better Auth User ID
                   that created the resource.

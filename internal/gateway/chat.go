@@ -83,6 +83,10 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding {
 		ownerID = pgtype.Text{String: access.claims.UserID, Valid: true}
 	}
+	shelf := gatewayapi.ChatSessionShelfActive
+	if params.Shelf != nil {
+		shelf = *params.Shelf
+	}
 	groupBy := gatewayapi.ChatSessionGroupByNone
 	if params.GroupBy != nil {
 		groupBy = *params.GroupBy
@@ -295,6 +299,24 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 	}
 
 	includeFilterOptions := params.IncludeFilterOptions == nil || *params.IncludeFilterOptions
+	if includeFilterOptions && shelf == gatewayapi.ChatSessionShelfActive && len(agentNames) > 0 {
+		query := gatewaydb.GatewayCountChatSessionShelvesParams{
+			WorkspaceID:         access.workspaceID,
+			AgentNames:          agentNames,
+			OwnerID:             ownerID,
+			IncludeWorkflowRuns: includeWorkflowRuns,
+			SearchSet:           search != "",
+			Search:              search,
+			ParticipantUserIds:  participantIDs,
+		}
+		counts, countErr := s.queries.GatewayCountChatSessionShelves(r.Context(), query)
+		if countErr != nil {
+			apiutil.WriteInternalError(w, r, fmt.Errorf("count chat session shelves: %w", countErr))
+			return
+		}
+		response.ArchivedCount = counts.Archived
+		response.SnoozedCount = counts.Snoozed
+	}
 	if includeFilterOptions && len(agentNames) > 0 {
 		filterRows, filterErr := s.queries.GatewayListChatSessionFilterUsers(
 			r.Context(),
@@ -385,6 +407,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		groups, searchErr := s.searchChatSessionGroups(
 			r.Context(),
 			gatewaydb.GatewaySearchGroupedChatSessionsParams{
+				Shelf:               string(shelf),
 				OwnerID:             ownerID,
 				PageSize:            limit + 1,
 				GroupBy:             string(groupBy),
@@ -417,6 +440,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 			values, err = s.queries.GatewayListChatSessionDateGroups(
 				r.Context(),
 				gatewaydb.GatewayListChatSessionDateGroupsParams{
+					Shelf:               string(shelf),
 					OwnerID:             ownerID,
 					TodayStart:          today,
 					YesterdayStart:      yesterday,
@@ -439,6 +463,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		sessions, next, listErr := s.listChatSessionPage(
 			r.Context(),
 			gatewaydb.GatewayListChatSessionsParams{
+				Shelf:               string(shelf),
 				ProjectID:           projectID,
 				OwnerID:             ownerID,
 				AgentNames:          agentNames,
@@ -511,11 +536,17 @@ func (s *Service) listChatSessionPage(ctx context.Context, q gatewaydb.GatewayLi
 		if row.ProjectID.Valid {
 			projectID = &row.ProjectID.String
 		}
+		var snoozedUntil *time.Time
+		if row.SnoozedUntil.Valid {
+			snoozedUntil = &row.SnoozedUntil.Time
+		}
 		sessions = append(sessions, gatewayapi.ChatSession{
 			ProjectId:    projectID,
 			AgentName:    row.AgentName,
 			SessionId:    row.SessionID,
 			Title:        row.Title,
+			Archived:     row.ArchivedAt.Valid,
+			SnoozedUntil: snoozedUntil,
 			Kind:         gatewayapi.ChatSessionKind(row.Kind),
 			Status:       gatewayapi.ChatSessionStatus(row.Status),
 			CreatedAt:    row.SourceCreatedAt.Time,
@@ -562,10 +593,16 @@ func (s *Service) searchChatSessionGroups(ctx context.Context, q gatewaydb.Gatew
 		if decodeErr != nil {
 			return nil, fmt.Errorf("decode chat session participants: %w", decodeErr)
 		}
+		var snoozedUntil *time.Time
+		if row.SnoozedUntil.Valid {
+			snoozedUntil = &row.SnoozedUntil.Time
+		}
 		group.Sessions = append(group.Sessions, gatewayapi.ChatSession{
 			AgentName:    row.AgentName,
 			SessionId:    row.SessionID,
 			Title:        row.Title,
+			Archived:     row.ArchivedAt.Valid,
+			SnoozedUntil: snoozedUntil,
 			Kind:         gatewayapi.ChatSessionKind(row.Kind),
 			Status:       gatewayapi.ChatSessionStatus(row.Status),
 			CreatedAt:    row.SourceCreatedAt.Time,
@@ -989,6 +1026,108 @@ func (s *Service) listenForChatSessionNotifications(ctx context.Context) error {
 			s.streamAuthEvents.publish("")
 			continue
 		}
+		if notification.Payload == "" {
+			s.chatPoliciesDirty.Store(true)
+		}
+		select {
+		case s.chatExpiryWake <- struct{}{}:
+		default:
+		}
 		s.chatSessionEvents.publish(notification.Payload)
+	}
+}
+
+// UpdateChatSession persists shelf changes without changing provider history.
+func (s *Service) UpdateChatSession(w http.ResponseWriter, r *http.Request, agent string, session string) {
+	access, apiErr := s.resolveAgentAccess(r.Context(), agent, authorization.OperationUseSharedAgent)
+	if apiErr != nil {
+		apiutil.WriteError(w, r, apiErr)
+		return
+	}
+	var body gatewayapi.UpdateChatSessionRequest
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "Invalid session update", err))
+		return
+	}
+	var until pgtype.Timestamptz
+	switch body.Shelf {
+	case gatewayapi.ChatSessionShelfActive, gatewayapi.ChatSessionShelfArchived:
+		if body.SnoozedUntil != nil {
+			apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "Only snoozed sessions can have a wake time", errBadRequest))
+			return
+		}
+	case gatewayapi.ChatSessionShelfSnoozed:
+		now := time.Now()
+		valid := body.SnoozedUntil != nil &&
+			body.SnoozedUntil.After(now) &&
+			!body.SnoozedUntil.After(now.AddDate(1, 0, 0))
+		if !valid {
+			apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "Choose a future wake time within one year", errBadRequest))
+			return
+		}
+		until = pgtype.Timestamptz{Time: *body.SnoozedUntil, Valid: true}
+	default:
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "Invalid shelf", errBadRequest))
+		return
+	}
+	var owner pgtype.Text
+	auth, _ := requestAuthState(r.Context())
+	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding {
+		owner = pgtype.Text{String: access.userID, Valid: true}
+	}
+	_, err := s.queries.GatewayUpdateChatSession(r.Context(), gatewaydb.GatewayUpdateChatSessionParams{
+		WorkspaceID:  access.workspaceID,
+		AgentName:    agent,
+		SessionID:    session,
+		OwnerID:      owner,
+		Shelf:        string(body.Shelf),
+		SnoozedUntil: until,
+	})
+	if err != nil {
+		apiutil.WriteError(w, r, mapGatewayStoreError("update chat", err))
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// runChatSessionExpiry applies agent policies even when no browser is connected.
+func (s *Service) runChatSessionExpiry(ctx context.Context) {
+	timer := time.NewTimer(0)
+	defer timer.Stop()
+	var policies gatewaydb.GatewayExpireChatSessionsParams
+	var refreshed time.Time
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+		case <-s.chatExpiryWake:
+		}
+		if s.chatPoliciesDirty.Swap(false) || time.Since(refreshed) >= time.Minute {
+			var agents agentzv1alpha1.AgentList
+			err := s.k8sClient.List(ctx, &agents)
+			if err != nil {
+				slog.ErrorContext(ctx, "list session expiry policies", "error", err)
+				s.chatPoliciesDirty.Store(true)
+				timer.Reset(30 * time.Second)
+				continue
+			}
+			policies = gatewaydb.GatewayExpireChatSessionsParams{}
+			for _, agent := range agents.Items {
+				policies.Namespaces = append(policies.Namespaces, agent.Namespace)
+				policies.AgentNames = append(policies.AgentNames, agent.Name)
+				policies.Hours = append(policies.Hours, agent.Spec.AutoArchiveHours)
+			}
+			refreshed = time.Now()
+		}
+		next, err := s.queries.GatewayExpireChatSessions(ctx, policies)
+		delay := 30 * time.Second
+		if err != nil {
+			slog.ErrorContext(ctx, "expire chat sessions", "error", err)
+		}
+		if err == nil {
+			delay = min(delay, time.Until(next.NextWake))
+		}
+		timer.Reset(max(time.Millisecond, delay))
 	}
 }

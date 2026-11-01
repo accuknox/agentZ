@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { infiniteQueryOptions, useInfiniteQuery } from "@tanstack/react-query"
 import { ArrowUpRight, Bot, ChevronDown, ChevronRight, MessageSquare, Wrench } from "lucide-react"
+import { AgentIcon } from "@/components/agent-readiness"
 import { getTraceRecordingAction } from "@/data/lens.actions"
 import type { TraceListItem } from "@/data/types"
 import type { AppSpan, Span } from "@/lib/gateway/client"
@@ -134,6 +135,8 @@ export function TraceConversation({
                   <MessageSquare />
                 ) : item.step.kind === "tool" ? (
                   <Wrench />
+                ) : trace.subject.kind === "agent" ? (
+                  <AgentIcon name={trace.subject.name} workspaceId={workspaceId} />
                 ) : (
                   <Bot />
                 )

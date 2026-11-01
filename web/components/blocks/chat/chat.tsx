@@ -14,7 +14,7 @@ import {
   inferAttachmentMediaType,
 } from "@/components/ai-elements/attachments"
 import { ChatMessage, MessageResponse } from "@/components/ai-elements/message"
-import { AgentGettingReady, useAgentReadiness } from "@/components/agent-readiness"
+import { AgentGettingReady, AgentIcon, useAgentReadiness } from "@/components/agent-readiness"
 import { Separator } from "@/components/ui/separator"
 import { AgentPresence } from "@/components/interior/agent-presence"
 import { ProviderIcons } from "@/app/(app)/inference/providers/provider-shared"
@@ -109,7 +109,6 @@ import {
 import {
   ArrowUpIcon,
   SquareIcon,
-  BotIcon,
   CheckIcon,
   ChevronDownIcon,
   DownloadIcon,
@@ -129,6 +128,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -155,6 +155,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { LanguageModelUsage } from "ai"
+import { sessionDrafts, useSessionDraft, type SessionDraft } from "./drafts"
 
 type ChatScroll = {
   offset: number
@@ -168,11 +169,65 @@ type ChatDraft = PromptInputMessage & { restore?: true }
 function ChatPromptInput({
   draftKey,
   initialMessage,
-  onMessageChange,
   controllerRef,
+  savedDraft,
   ...props
-}: Omit<ComponentProps<typeof PromptInput>, "onSubmitError"> & { draftKey: QueryKey }) {
+}: Omit<ComponentProps<typeof PromptInput>, "onSubmitError"> & {
+  draftKey: QueryKey
+  savedDraft?: Pick<SessionDraft, "id" | "scope" | "agentName">
+}) {
   const queryClient = useQueryClient()
+  const draftID = savedDraft?.id
+  const draftScope = savedDraft?.scope
+  const draftAgent = savedDraft?.agentName
+  const storedDraft = useSessionDraft(draftScope ?? "", draftID ?? null)
+  const hydrated = useRef(false)
+  const edited = useRef(false)
+  const restoreDraft = useEffectEvent((stored: SessionDraft) => {
+    const current = controllerRef?.current?.getMessage()
+    if (edited.current && current) {
+      sessionDrafts.update(stored.scope, stored.id, { message: current })
+      return
+    }
+    controllerRef?.current?.setMessage(stored.message)
+    queryClient.setQueryData(draftKey, stored.message)
+  })
+  useEffect(() => {
+    hydrated.current = false
+    if (!draftID || !draftScope || !draftAgent) return
+    let mounted = true
+    let deactivate: (() => void) | undefined
+    void sessionDrafts.start(draftScope, "", draftAgent, draftID).then((draft) => {
+      if (!mounted) return
+      if (draft.id !== draftID) {
+        const url = new URL(window.location.href)
+        if (url.searchParams.get("draft") !== draftID) return
+        url.searchParams.set("draft", draft.id)
+        window.history.replaceState(null, "", `${url.pathname}${url.search}`)
+        return
+      }
+      deactivate = sessionDrafts.activate(draftScope, draftID)
+      hydrated.current = true
+      if (draft.agentName !== draftAgent)
+        sessionDrafts.update(draftScope, draftID, { agentName: draftAgent, sessionID: undefined })
+      restoreDraft(draft)
+    })
+    return () => {
+      mounted = false
+      hydrated.current = false
+      deactivate?.()
+    }
+  }, [draftID, draftScope, draftAgent])
+  useEffect(() => {
+    if (!hydrated.current || storedDraft || !draftID) return
+    const url = new URL(window.location.href)
+    // A remote discard must also retire its mounted composer. Promotion has
+    // already moved to the native session URL and must keep its live tree.
+    if (url.searchParams.get("draft") !== draftID) return
+    queryClient.removeQueries({ queryKey: draftKey, exact: true })
+    url.searchParams.set("draft", crypto.randomUUID())
+    window.history.replaceState(null, "", `${url.pathname}${url.search}`)
+  }, [draftID, draftKey, queryClient, storedDraft])
   const recovery = useQuery(
     queryOptions({
       queryKey: draftKey,
@@ -190,23 +245,53 @@ function ChatPromptInput({
     <PromptInput
       {...props}
       controllerRef={controllerRef}
+      onInput={(event) => {
+        edited.current = true
+        props.onInput?.(event)
+      }}
       initialMessage={queryClient.getQueryData<ChatDraft>(draftKey)}
       onMessageChange={(message) => {
         queryClient.setQueryData(draftKey, message)
-        onMessageChange?.(message)
+        if (savedDraft && hydrated.current)
+          sessionDrafts.update(savedDraft.scope, savedDraft.id, { message })
+      }}
+      onSubmit={async (message, event) => {
+        if (!savedDraft) return props.onSubmit(message, event)
+        // Hold the native browser lock through acknowledgement. Another tab
+        // must not create a second native session for the same local draft.
+        return navigator.locks.request(
+          `agentz-draft:${JSON.stringify([savedDraft.scope, savedDraft.id])}`,
+          { ifAvailable: true },
+          async (lock) => {
+            if (!lock) {
+              const error = new Error("This draft is being sent in another tab")
+              toast.error(error.message)
+              throw error
+            }
+            sessionDrafts.update(savedDraft.scope, savedDraft.id, { submission: message })
+            return props.onSubmit(message, event)
+          }
+        )
       }}
       onSubmitError={(message) => {
+        if (savedDraft && !sessionDrafts.get(savedDraft.scope, savedDraft.id)) return
         queryClient.setQueryData<ChatDraft>(draftKey, (current) => {
           // Logout and deletion remove the draft; a late failure must not
           // recreate private state after either boundary.
           if (!current) return
           const untouched = !current.text && !current.files.length
-          return {
+          const restored: ChatDraft = {
             requestID: untouched ? message.requestID : current.requestID,
             text: [message.text, current.text].filter(Boolean).join("\n\n"),
             files: [...message.files, ...current.files],
             restore: true,
           }
+          if (savedDraft)
+            sessionDrafts.update(savedDraft.scope, savedDraft.id, {
+              message: restored,
+              submission: undefined,
+            })
+          return restored
         })
       }}
     />
@@ -236,7 +321,6 @@ export type ChatProps = {
   agentNames: string[]
   chatPreferences?: ChatSessionPreference
   initialMessage?: PromptInputMessage
-  onDraftChange?: (message: PromptInputMessage) => void
   projectName?: string
   firstName?: string
   greetingIndex?: number
@@ -537,7 +621,6 @@ export default function Chat({
   draftMode,
   onDraftModeChange,
   onDraftModelChange,
-  onDraftChange,
   projectName,
   firstName,
   greetingIndex,
@@ -566,10 +649,9 @@ export default function Chat({
   const [initialScroll] = useState(() => queryClient.getQueryData<ChatScroll>(scrollQuery.queryKey))
   const scroll = useRef(initialScroll)
   const timelineHeaderHeight = useRef(0)
+  const timelineFooterHeight = useRef(0)
   const following = useRef(initialScroll?.atEnd ?? true)
-  const physicalEnd = useRef(initialScroll?.atEnd ?? true)
   const [timelineFollowing, setTimelineFollowing] = useState(initialScroll?.atEnd ?? true)
-  const [timelineAtEnd, setTimelineAtEnd] = useState(initialScroll?.atEnd ?? true)
   const scrollFrame = useRef<number | undefined>(undefined)
   const releaseFollow = () => {
     following.current = false
@@ -928,6 +1010,9 @@ export default function Chat({
       // Carry unsent input into the session draft scope on promotion.
       const nextDraftKey = [...draftKey.slice(0, -1), id]
       queryClient.setQueryData(nextDraftKey, composerRef.current?.getMessage())
+      if (draftId && authSession && !createSession) {
+        sessionDrafts.remove(`${authSession.user.id}:${workspaceId}`, draftId)
+      }
       onSessionCreated?.(id)
     },
     createSession
@@ -1163,19 +1248,24 @@ export default function Chat({
     if (delivery === "steer") {
       following.current = true
       setTimelineFollowing(true)
-      setTimelineAtEnd(true)
       if (scrollFrame.current !== undefined) cancelAnimationFrame(scrollFrame.current)
       scrollFrame.current = requestAnimationFrame(() => {
         if (following.current) void timelineRef.current?.scrollToEnd({ animated: false })
       })
     }
+    const localDraft =
+      !sessionId && draftId && authSession
+        ? sessionDrafts.get(`${authSession.user.id}:${workspaceId}`, draftId)
+        : undefined
     await sendMessage({
+      draft: localDraft,
       requestID: message.requestID,
       delivery,
       agent: coding ? mode : undefined,
       files: message.files,
       model: selectedModel,
-      sessionID: sessionId,
+      sessionID:
+        sessionId ?? (localDraft?.agentName === agentName ? localDraft.sessionID : undefined),
       text: message.text,
       variant: selectedReasoningVariant,
     })
@@ -1431,7 +1521,6 @@ export default function Chat({
     let height = Math.ceil(dock.getBoundingClientRect().height)
     let publishedHeight = height
     root.style.setProperty("--chat-composer-height", `${height}px`)
-    let frame: number | undefined
     const publishHeight = () => {
       // CSS owns intermediate geometry; publish the inset once it settles.
       const transitioning = dock
@@ -1444,14 +1533,14 @@ export default function Chat({
               animation.transitionProperty === "grid-template-rows")
         )
       if (transitioning || height === publishedHeight) return
-      const grew = height > publishedHeight
+      if (height < publishedHeight && !following.current) {
+        const node = timelineRef.current?.getScrollableNode()
+        // Keep the distance from the end when the footer shrinks, before
+        // the browser can clamp the user's small upward scroll to the end.
+        if (node) node.scrollTop -= publishedHeight - height
+      }
       publishedHeight = height
       root.style.setProperty("--chat-composer-height", `${height}px`)
-      if (!grew || !following.current) return
-      if (frame !== undefined) cancelAnimationFrame(frame)
-      frame = requestAnimationFrame(() => {
-        if (following.current) void timelineRef.current?.scrollToEnd({ animated: !reducedMotion })
-      })
     }
     const observer = new ResizeObserver(([entry]) => {
       const box = entry?.borderBoxSize[0]
@@ -1466,9 +1555,8 @@ export default function Chat({
       observer.disconnect()
       dock.removeEventListener("transitionend", publishHeight)
       dock.removeEventListener("transitioncancel", publishHeight)
-      if (frame !== undefined) cancelAnimationFrame(frame)
     }
-  }, [showStarter, reducedMotion])
+  }, [showStarter])
   useLayoutEffect(
     () => () => {
       if (scrollFrame.current !== undefined) cancelAnimationFrame(scrollFrame.current)
@@ -1584,8 +1672,17 @@ export default function Chat({
                 }
                 maintainScrollAtEndThreshold={1}
                 maintainVisibleContentPosition={{ data: true, size: true }}
-                onMetricsChange={({ headerSize }) => {
+                onMetricsChange={({ headerSize, footerSize }) => {
                   timelineHeaderHeight.current = headerSize
+                  const grew = footerSize > timelineFooterHeight.current
+                  timelineFooterHeight.current = footerSize
+                  if (!grew || !following.current || !timelineLoaded.current) return
+                  // The list must measure its new footer before following it.
+                  if (scrollFrame.current !== undefined) cancelAnimationFrame(scrollFrame.current)
+                  scrollFrame.current = requestAnimationFrame(() => {
+                    if (following.current)
+                      void timelineRef.current?.scrollToEnd({ animated: !reducedMotion })
+                  })
                 }}
                 onLoad={() => {
                   timelineLoaded.current = true
@@ -1636,14 +1733,13 @@ export default function Chat({
                   if (!timelineLoaded.current) return
                   const node = timelineRef.current?.getScrollableNode()
                   if (!node) return
-                  const atEnd = node.scrollTop + node.clientHeight >= node.scrollHeight - 40
-                  if (!following.current && atEnd && !physicalEnd.current) {
+                  const atEnd = Math.ceil(node.scrollTop + node.clientHeight) >= node.scrollHeight
+                  const scrolledDown = node.scrollTop > (scroll.current?.offset ?? node.scrollTop)
+                  if (!following.current && atEnd && scrolledDown) {
                     following.current = true
                     setTimelineFollowing(true)
                   }
-                  physicalEnd.current = atEnd
                   scroll.current = { offset: node.scrollTop, atEnd: following.current }
-                  setTimelineAtEnd(following.current || atEnd)
                 }}
                 ref={timelineRef}
                 renderItem={({ item }) => (
@@ -1671,7 +1767,7 @@ export default function Chat({
           </div>
         ) : null}
         <NewItemsPill
-          visible={!timelineAtEnd && !showStarter}
+          visible={!timelineFollowing && !showStarter}
           latestId={rows.findLast((row) => row.type === "user" || row.type === "assistant")?.key}
           scope={sessionId ?? "new"}
           className="absolute left-1/2 z-20 -translate-x-1/2"
@@ -1679,7 +1775,6 @@ export default function Chat({
           onClick={() => {
             following.current = true
             setTimelineFollowing(true)
-            setTimelineAtEnd(true)
             scrollFrame.current = requestAnimationFrame(() => {
               void timelineRef.current?.scrollToEnd({
                 animated: !reducedMotion,
@@ -1811,10 +1906,16 @@ export default function Chat({
           <div className={cn(styles.shell, "relative w-full shrink-0")}>
             <ChatPromptInput
               draftKey={draftKey}
+              savedDraft={
+                !sessionId && draftId && authSession
+                  ? {
+                      id: draftId,
+                      scope: `${authSession.user.id}:${workspaceId}`,
+                      agentName,
+                    }
+                  : undefined
+              }
               initialMessage={initialMessage}
-              onMessageChange={(message) => {
-                if (!sessionId) onDraftChange?.(message)
-              }}
               className={cn(styles.host, "relative z-10 rounded-3xl")}
               controllerRef={composerRef}
               disabled={inputDisabled}
@@ -2142,7 +2243,7 @@ export default function Chat({
                   <SelectGroup>
                     {agentNames.map((name) => (
                       <SelectItem key={name} value={name}>
-                        <BotIcon />
+                        <AgentIcon name={name} workspaceId={workspaceId} />
                         {name}
                       </SelectItem>
                     ))}

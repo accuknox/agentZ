@@ -1,6 +1,7 @@
 "use client"
 
-import { BotIcon, CalendarSync, Webhook } from "lucide-react"
+import { AgentAvatar } from "@/components/interior/agent-presence"
+import { CalendarSync, Webhook } from "lucide-react"
 import type { Agent } from "@/lib/gateway/client"
 import { useSelectResource } from "@/components/page-selection"
 import {
@@ -41,7 +42,7 @@ export function TriggersFilters({
             <SelectGroup>
               {agents.map((agent) => (
                 <SelectItem key={agent.name} value={agent.name}>
-                  <BotIcon />
+                  <AgentAvatar appearance={agent.appearance} />
                   {agent.name}
                 </SelectItem>
               ))}

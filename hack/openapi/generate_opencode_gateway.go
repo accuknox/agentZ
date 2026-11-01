@@ -53,6 +53,7 @@ var baseOperationCapabilities = map[string][]string{
 	},
 	"agent.use_shared": {
 		"listChatInputs",
+		"updateChatSession",
 		"submitChatInput",
 		"updateChatInput",
 		"listCodingProjects",

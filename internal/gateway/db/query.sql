@@ -156,6 +156,9 @@ WHERE tenant_namespace = sqlc.arg(tenant_namespace)
   AND agent_name = sqlc.arg(agent_name)
 RETURNING tenant_namespace, agent_name, created_at, updated_at;
 
+-- name: GatewayNotifyChatSessionPolicy :exec
+SELECT pg_notify('agentz_chat_sessions', '');
+
 -- name: GatewayDeleteAgent :execrows
 DELETE FROM agents
 WHERE tenant_namespace = $1
@@ -251,6 +254,8 @@ WITH RECURSIVE scoped(session_id) AS (
 ), changed AS (
 UPDATE chat_sessions
 SET
+  -- Completion starts inactivity even when the native timestamp stays old.
+  resumed_at = NOW(),
   status = (CASE
     WHEN session_id = ANY(sqlc.arg(retry_session_ids)::text[]) THEN 'retry'
     WHEN session_id = ANY(sqlc.arg(busy_session_ids)::text[]) THEN 'busy'
@@ -266,10 +271,30 @@ WHERE chat_sessions.workspace_id = sqlc.arg(workspace_id)
     WHEN session_id = ANY(sqlc.arg(busy_session_ids)::text[]) THEN 'busy'
     ELSE 'idle'
   END)::chat_session_status
-RETURNING chat_sessions.workspace_id, chat_sessions.agent_name, chat_sessions.session_id
+RETURNING chat_sessions.workspace_id, chat_sessions.agent_name,
+  chat_sessions.session_id, chat_sessions.parent_session_id
+), ancestors(session_id) AS (
+  SELECT parent_session_id FROM changed WHERE parent_session_id IS NOT NULL
+  UNION
+  SELECT parent.parent_session_id FROM chat_sessions parent
+  JOIN ancestors child ON child.session_id = parent.session_id
+  WHERE parent.workspace_id = sqlc.arg(workspace_id)
+    AND parent.agent_name = sqlc.arg(agent_name)
+    AND parent.parent_session_id IS NOT NULL
+), touched AS (
+  -- A child's completion starts inactivity for the entire conversation.
+  UPDATE chat_sessions SET resumed_at = NOW()
+  WHERE workspace_id = sqlc.arg(workspace_id) AND agent_name = sqlc.arg(agent_name)
+    AND session_id IN (SELECT session_id FROM ancestors)
+    AND session_id NOT IN (SELECT session_id FROM changed)
+  RETURNING workspace_id, agent_name, session_id
+), notifications AS (
+  SELECT workspace_id, agent_name, session_id FROM changed
+  UNION ALL
+  SELECT workspace_id, agent_name, session_id FROM touched
 )
 SELECT pg_notify('agentz_chat_sessions', changed.workspace_id || COALESCE('/' || project.owner_id, ''))
-FROM changed
+FROM notifications changed
 LEFT JOIN coding_threads thread ON thread.workspace_id = changed.workspace_id
   AND thread.agent_name = changed.agent_name AND thread.session_id = changed.session_id
 LEFT JOIN coding_worktrees tree ON tree.id = thread.worktree_id
@@ -303,6 +328,8 @@ RETURNING 1
 ), changed AS (
 UPDATE chat_sessions AS sessions
 SET
+  archived_at = NULL,
+  snoozed_until = NULL,
   source_updated_at = GREATEST(sessions.source_updated_at, sqlc.arg(messaged_at)),
   updated_at = NOW()
 WHERE sessions.workspace_id = sqlc.arg(workspace_id)
@@ -390,6 +417,8 @@ SELECT
   sessions.agent_name,
   sessions.session_id,
   sessions.title,
+  sessions.archived_at,
+  sessions.snoozed_until,
   sessions.kind,
   sessions.status,
   sessions.source_created_at,
@@ -419,6 +448,12 @@ WHERE (sqlc.narg(project_id)::text IS NULL OR project.id = sqlc.narg(project_id)
   AND sessions.workspace_id = sqlc.arg(workspace_id)
   AND sessions.agent_name = ANY(sqlc.arg(agent_names)::text[])
   AND sessions.parent_session_id IS NULL
+  AND CASE sqlc.arg(shelf)::text
+    WHEN 'archived' THEN sessions.archived_at IS NOT NULL
+    WHEN 'snoozed' THEN sessions.snoozed_until > now()
+    ELSE sessions.archived_at IS NULL
+      AND (sessions.snoozed_until IS NULL OR sessions.snoozed_until <= now())
+  END
   AND (sqlc.narg(owner_id)::text IS NULL OR project.owner_id = sqlc.narg(owner_id))
   AND (
     sqlc.arg(include_workflow_runs)::boolean
@@ -496,6 +531,12 @@ LEFT JOIN coding_projects AS project ON project.id = tree.project_id
 WHERE sessions.workspace_id = sqlc.arg(workspace_id)
   AND sessions.agent_name = ANY(sqlc.arg(agent_names)::text[])
   AND sessions.parent_session_id IS NULL
+  AND CASE sqlc.arg(shelf)::text
+    WHEN 'archived' THEN sessions.archived_at IS NOT NULL
+    WHEN 'snoozed' THEN sessions.snoozed_until > now()
+    ELSE sessions.archived_at IS NULL
+      AND (sessions.snoozed_until IS NULL OR sessions.snoozed_until <= now())
+  END
   AND (sqlc.narg(owner_id)::text IS NULL OR project.owner_id = sqlc.narg(owner_id))
   AND (
     sqlc.arg(include_workflow_runs)::boolean
@@ -523,6 +564,8 @@ WITH filtered_sessions AS (
     sessions.session_id,
     sessions.parent_session_id,
     sessions.title,
+    sessions.archived_at,
+    sessions.snoozed_until,
     sessions.kind,
     sessions.status,
     sessions.source_created_at,
@@ -546,6 +589,12 @@ LEFT JOIN coding_projects AS project ON project.id = tree.project_id
   WHERE sessions.workspace_id = sqlc.arg(workspace_id)
     AND sessions.agent_name = ANY(sqlc.arg(agent_names)::text[])
     AND sessions.parent_session_id IS NULL
+  AND CASE sqlc.arg(shelf)::text
+    WHEN 'archived' THEN sessions.archived_at IS NOT NULL
+    WHEN 'snoozed' THEN sessions.snoozed_until > now()
+    ELSE sessions.archived_at IS NULL
+      AND (sessions.snoozed_until IS NULL OR sessions.snoozed_until <= now())
+  END
   AND (sqlc.narg(owner_id)::text IS NULL OR project.owner_id = sqlc.narg(owner_id))
     AND (
       sqlc.arg(include_workflow_runs)::boolean
@@ -578,6 +627,8 @@ SELECT
   sessions.agent_name,
   sessions.session_id,
   sessions.title,
+  sessions.archived_at,
+  sessions.snoozed_until,
   sessions.kind,
   sessions.status,
   sessions.source_created_at,
@@ -642,6 +693,42 @@ WHERE sessions.workspace_id = sqlc.arg(workspace_id)
   AND sessions.session_id = sqlc.arg(session_id)
   AND sessions.parent_session_id IS NULL
   AND (sqlc.narg(owner_id)::text IS NULL OR project.owner_id = sqlc.narg(owner_id));
+
+-- name: GatewayCountChatSessionShelves :one
+SELECT
+  count(*) FILTER (WHERE sessions.archived_at IS NOT NULL) AS archived,
+  count(*) FILTER (WHERE sessions.snoozed_until > now()) AS snoozed
+FROM chat_sessions AS sessions
+LEFT JOIN coding_threads AS coding ON coding.workspace_id = sessions.workspace_id
+  AND coding.agent_name = sessions.agent_name AND coding.session_id = sessions.session_id
+LEFT JOIN coding_worktrees AS tree ON tree.id = coding.worktree_id
+LEFT JOIN coding_projects AS project ON project.id = tree.project_id
+WHERE sessions.workspace_id = sqlc.arg(workspace_id)
+  AND sessions.agent_name = ANY(sqlc.arg(agent_names)::text[])
+  AND sessions.parent_session_id IS NULL
+  AND (sessions.archived_at IS NOT NULL OR sessions.snoozed_until > now())
+  AND (sqlc.narg(owner_id)::text IS NULL OR project.owner_id = sqlc.narg(owner_id))
+  AND (
+    sqlc.arg(include_workflow_runs)::boolean
+    OR sessions.kind <> 'workflow_run'
+  )
+  AND (
+    NOT sqlc.arg(search_set)::boolean
+    OR sessions.title ILIKE
+      '%' || REPLACE(REPLACE(REPLACE(sqlc.arg(search)::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'
+      ESCAPE '\'
+  )
+  AND (
+    cardinality(sqlc.arg(participant_user_ids)::text[]) = 0
+    OR (
+      SELECT COUNT(DISTINCT participants.user_id)
+      FROM chat_session_participants AS participants
+      WHERE participants.workspace_id = sessions.workspace_id
+        AND participants.agent_name = sessions.agent_name
+        AND participants.session_id = sessions.session_id
+        AND participants.user_id = ANY(sqlc.arg(participant_user_ids)::text[])
+    ) = cardinality(sqlc.arg(participant_user_ids)::text[])
+  );
 
 -- name: GatewayListChatSessionFilterUsers :many
 SELECT DISTINCT users.id, users.name, users.email, users.image
@@ -3225,3 +3312,95 @@ SELECT * FROM candidates
 WHERE priority = (SELECT min(priority) FROM candidates)
 ORDER BY operation_id
 LIMIT 2;
+
+-- name: GatewayUpdateChatSession :one
+WITH changed AS (
+  UPDATE chat_sessions SET
+    archived_at = CASE WHEN @shelf::text = 'archived' THEN now() END,
+    snoozed_until = sqlc.narg(snoozed_until)::timestamptz,
+    resumed_at = now()
+  WHERE chat_sessions.workspace_id = @workspace_id AND chat_sessions.agent_name = @agent_name
+    AND chat_sessions.session_id = @session_id
+    AND (sqlc.narg(owner_id)::text IS NULL OR EXISTS (
+      SELECT 1 FROM coding_threads t
+      JOIN coding_worktrees w ON w.id = t.worktree_id
+      JOIN coding_projects p ON p.id = w.project_id
+      WHERE t.workspace_id = chat_sessions.workspace_id
+        AND t.agent_name = chat_sessions.agent_name
+        AND t.session_id = chat_sessions.session_id
+        AND p.owner_id = sqlc.narg(owner_id)))
+  RETURNING workspace_id, agent_name, session_id
+)
+SELECT pg_notify('agentz_chat_sessions', changed.workspace_id || COALESCE('/' || project.owner_id, ''))
+FROM changed
+LEFT JOIN coding_threads thread ON thread.workspace_id = changed.workspace_id
+  AND thread.agent_name = changed.agent_name AND thread.session_id = changed.session_id
+LEFT JOIN coding_worktrees tree ON tree.id = thread.worktree_id
+LEFT JOIN coding_projects project ON project.id = tree.project_id;
+
+-- name: GatewayExpireChatSessions :one
+WITH RECURSIVE policies AS (
+  SELECT unnest(@namespaces::text[]) AS namespace,
+    unnest(@agent_names::text[]) AS agent_name,
+    unnest(@hours::int[]) AS hours
+), candidates AS MATERIALIZED (
+  SELECT workspace_id, agent_name, session_id, 0 AS hours
+  FROM chat_sessions
+  WHERE archived_at IS NULL AND parent_session_id IS NULL
+    AND snoozed_until <= now()
+  UNION ALL
+  SELECT sessions.workspace_id, sessions.agent_name, sessions.session_id, policies.hours
+  FROM policies JOIN workspaces w ON w.namespace = policies.namespace
+  JOIN chat_sessions sessions ON sessions.workspace_id = w.id
+    AND sessions.agent_name = policies.agent_name
+  WHERE policies.hours > 0 AND sessions.archived_at IS NULL
+    AND sessions.parent_session_id IS NULL AND sessions.snoozed_until IS NULL
+    AND sessions.status = 'idle'
+    AND GREATEST(sessions.source_updated_at, sessions.resumed_at) < now() - make_interval(hours => policies.hours)
+), active AS (
+  SELECT workspace_id, agent_name, session_id FROM (
+    SELECT workspace_id, agent_name, session_id FROM chat_sessions
+    WHERE status <> 'idle'
+    UNION
+    SELECT workspace_id, agent_name, session_id FROM chat_inputs
+    WHERE state IN ('queued', 'sending')
+  ) inputs
+  UNION
+  SELECT parent.workspace_id, parent.agent_name, parent.session_id
+  FROM active running
+  JOIN chat_sessions child ON child.workspace_id = running.workspace_id
+    AND child.agent_name = running.agent_name AND child.session_id = running.session_id
+  JOIN chat_sessions parent ON parent.workspace_id = child.workspace_id
+    AND parent.agent_name = child.agent_name AND parent.session_id = child.parent_session_id
+), changed AS (
+  UPDATE chat_sessions sessions SET
+    archived_at = CASE WHEN sessions.snoozed_until IS NULL THEN now() END,
+    resumed_at = CASE WHEN sessions.snoozed_until IS NOT NULL THEN now() ELSE sessions.resumed_at END,
+    snoozed_until = NULL
+  FROM candidates
+  WHERE sessions.workspace_id = candidates.workspace_id
+    AND sessions.agent_name = candidates.agent_name
+    AND sessions.session_id = candidates.session_id
+    AND sessions.archived_at IS NULL AND sessions.parent_session_id IS NULL
+    AND (
+      sessions.snoozed_until <= now()
+      OR (sessions.snoozed_until IS NULL AND sessions.status = 'idle' AND candidates.hours > 0
+        AND GREATEST(sessions.source_updated_at, sessions.resumed_at) < now() - make_interval(hours => candidates.hours)
+        AND NOT EXISTS (SELECT 1 FROM active
+          WHERE active.workspace_id = sessions.workspace_id
+            AND active.agent_name = sessions.agent_name
+            AND active.session_id = sessions.session_id))
+    )
+  RETURNING sessions.workspace_id, sessions.agent_name, sessions.session_id
+), notified AS (
+  SELECT pg_notify('agentz_chat_sessions', changed.workspace_id || COALESCE('/' || project.owner_id, ''))
+  FROM changed
+  LEFT JOIN coding_threads thread ON thread.workspace_id = changed.workspace_id
+    AND thread.agent_name = changed.agent_name AND thread.session_id = changed.session_id
+  LEFT JOIN coding_worktrees tree ON tree.id = thread.worktree_id
+  LEFT JOIN coding_projects project ON project.id = tree.project_id
+)
+-- The aggregate forces execution of the notification CTE.
+SELECT (SELECT COUNT(*) FROM notified) AS notifications,
+  COALESCE(MIN(snoozed_until), now() + interval '30 seconds')::timestamptz AS next_wake FROM chat_sessions
+WHERE snoozed_until > now();

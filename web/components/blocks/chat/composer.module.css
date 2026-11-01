@@ -15,14 +15,14 @@
     0 2px 6px -3px rgb(0 0 0 / 8%);
 }
 .body {
-  min-height: 11rem;
-  grid-template-rows: minmax(6rem, auto) 2.5rem;
+  min-height: 0;
+  grid-template-rows: minmax(3rem, auto) 2.5rem;
   row-gap: 0.75rem;
   padding-top: 1rem;
   padding-bottom: 0.75rem;
 }
 .body textarea {
-  min-height: 6rem;
+  min-height: 3rem;
   max-height: 12rem;
 }
 @media (min-width: 40rem) {
@@ -33,7 +33,6 @@
 }
 /* Attachments precede the body, so only an empty text-only draft collapses. */
 .body[data-reading]:first-child:has(textarea:placeholder-shown) {
-  min-height: 0;
   grid-template-rows: minmax(2.5rem, auto) 2rem;
   row-gap: 0.5rem;
   padding-block: 0.625rem;

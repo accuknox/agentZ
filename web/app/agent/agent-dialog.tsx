@@ -11,7 +11,7 @@ import {
   useId,
   useRef,
 } from "react"
-import { Controller, useForm, useWatch, type Control } from "react-hook-form"
+import { Controller, Watch, useForm, useWatch, type Control } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Box, Plus, Save, Wrench, CircleAlert } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -92,6 +92,7 @@ type AgentDialogProps = {
   initialHasNextSandboxPage: boolean
   initialNextSandboxPageToken: string
   agentName?: string
+  initialAutoArchiveHours?: number
   initialAppearance?: Agent["appearance"]
   initialSandboxName?: string
   initialMemoryEnabled?: boolean
@@ -111,7 +112,6 @@ function AgentAppearanceFields({
   control: Control<AgentFormValues>
   disabled: boolean
 }) {
-  const name = useWatch({ control, name: "name" })
   const id = useId()
 
   return (
@@ -126,7 +126,14 @@ function AgentAppearanceFields({
             <div className="flex items-center gap-4 pb-4">
               <AgentPresence mascot={value.breed} color={value.color} state="working" size={80} />
               <div className="flex min-w-0 flex-col gap-1">
-                <div className="truncate text-base font-semibold">{name || "Your agent"}</div>
+                <Watch
+                  control={control}
+                  name="name"
+                  exact
+                  render={(name) => (
+                    <div className="truncate text-base font-semibold">{name || "Your agent"}</div>
+                  )}
+                />
                 <div className="text-sm text-muted-foreground">
                   {character.name} · {mascotColors[value.color].name}
                 </div>
@@ -359,6 +366,7 @@ export function AgentDialog(props: AgentDialogProps) {
       ) : null}
       <DialogContent
         className="flex flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl"
+        showCloseButton={false}
         aria-describedby={undefined}
       >
         <AgentForm key={dialog.id} {...props} onCloseAction={() => onOpenChange(false)} />
@@ -375,6 +383,7 @@ function AgentForm({
   initialHasNextSandboxPage,
   initialNextSandboxPageToken,
   agentName,
+  initialAutoArchiveHours = 0,
   initialAppearance = defaultAgentAppearance,
   initialSandboxName,
   initialMemoryEnabled = false,
@@ -396,6 +405,7 @@ function AgentForm({
   const defaultValues: AgentFormValues = {
     name: agentName ?? "",
     appearance: initialAppearance,
+    autoArchiveHours: initialAutoArchiveHours,
     sandboxScope: "Organisation",
     sandboxName: initialSandboxName ?? (mode === "create" ? (sandboxes[0]?.name ?? "") : ""),
     skills: initialSkills,
@@ -435,6 +445,9 @@ function AgentForm({
           switch (error.field.split(/[.[]/, 1)[0]) {
             case "name":
               field = mode === "create" ? "name" : "root"
+              break
+            case "auto_archive_hours":
+              field = "autoArchiveHours"
               break
             case "appearance":
               field = "appearance"
@@ -525,7 +538,7 @@ function AgentForm({
             <input type="hidden" name="skillNames" value={skill.name} />
           </Fragment>
         ))}
-        <FieldGroup className="min-w-0 p-6 pt-0">
+        <FieldGroup className="min-w-0 gap-3 px-6 pb-4">
           {mode === "create" ? (
             <Controller
               name="name"
@@ -664,35 +677,71 @@ function AgentForm({
               )
             }}
           />
-          {actionScope.workspaceType !== "coding" && (
+          <FieldGroup
+            className={cn(
+              "grid items-start",
+              actionScope.workspaceType !== "coding" && "@md/field-group:grid-cols-2"
+            )}
+          >
+            {actionScope.workspaceType !== "coding" && (
+              <Controller
+                name="memoryEnabled"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field orientation="horizontal" data-invalid={fieldState.invalid}>
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <FieldLabel htmlFor="agent-form-memory">Persistent memory</FieldLabel>
+                      <FieldDescription>
+                        Allow agent to save facts and journal entries across sessions.
+                      </FieldDescription>
+                      <FieldError errors={[fieldState.error]} />
+                    </div>
+                    {field.value ? <input type="hidden" name={field.name} /> : null}
+                    <Switch
+                      id="agent-form-memory"
+                      ref={field.ref}
+                      checked={field.value}
+                      onBlur={field.onBlur}
+                      onCheckedChange={field.onChange}
+                      aria-label="Enable persistent memory"
+                      aria-invalid={fieldState.invalid}
+                    />
+                  </Field>
+                )}
+              />
+            )}
             <Controller
-              name="memoryEnabled"
               control={form.control}
+              name="autoArchiveHours"
               render={({ field, fieldState }) => (
-                <Field orientation="horizontal" data-invalid={fieldState.invalid}>
-                  <div className="min-w-0 flex-1 space-y-0.5">
-                    <FieldLabel htmlFor="agent-form-memory">Persistent memory</FieldLabel>
-                    <FieldDescription>
-                      Allow this Agent to save facts and journal entries across sessions.
-                    </FieldDescription>
-                    <FieldError errors={[fieldState.error]} />
-                  </div>
-                  {field.value ? <input type="hidden" name={field.name} /> : null}
-                  <Switch
-                    id="agent-form-memory"
-                    ref={field.ref}
-                    checked={field.value}
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="autoArchiveHours">Auto-archive after inactivity</FieldLabel>
+                  <Input
+                    id="autoArchiveHours"
+                    name={field.name}
+                    type="number"
+                    min={0}
+                    max={8760}
+                    step={1}
+                    value={field.value}
+                    onChange={(event) =>
+                      field.onChange(event.target.value === "" ? 0 : event.target.valueAsNumber)
+                    }
                     onBlur={field.onBlur}
-                    onCheckedChange={field.onChange}
-                    aria-label="Enable persistent memory"
+                    ref={field.ref}
+                    disabled={isPending}
                     aria-invalid={fieldState.invalid}
                   />
+                  <FieldDescription>
+                    Hours. Set to 0 to disable. Running and snoozed sessions are excluded.
+                  </FieldDescription>
+                  <FieldError errors={[fieldState.error]} />
                 </Field>
               )}
             />
-          )}
+          </FieldGroup>
         </FieldGroup>
-        <aside className="min-w-0 border-2 border-x-0 border-b-0 border-dashed border-muted-foreground/50 p-6 md:border-y-0 md:border-l-2 md:pt-0">
+        <aside className="min-w-0 border-2 border-x-0 border-b-0 border-dashed border-muted-foreground/50 px-6 py-4 md:border-y-0 md:border-l-2 md:pt-0">
           <AgentAppearanceFields control={form.control} disabled={isPending} />
         </aside>
       </form>
@@ -704,7 +753,7 @@ function AgentForm({
           </AlertDescription>
         </Alert>
       ) : null}
-      <DialogFooter className="m-0 shrink-0 px-6 py-4">
+      <DialogFooter className="m-0 shrink-0 px-6 py-3">
         <DialogClose asChild>
           <Button type="button" variant="outline" disabled={isPending}>
             Cancel

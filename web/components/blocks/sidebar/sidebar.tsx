@@ -233,7 +233,7 @@ async function WorkspaceSidebar(props: WorkspaceSidebarProps) {
       throw new Error("Failed to load chat preferences")
     }
     chatSessions = (
-      <SidebarGroup className="shrink-0 px-0 py-1 group-data-[collapsible=icon]:hidden">
+      <SidebarGroup className="min-h-0 flex-1 px-0 py-1 group-data-[collapsible=icon]:hidden">
         <Suspense
           fallback={
             <NavSessionsSkeleton

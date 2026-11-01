@@ -23,6 +23,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -107,6 +108,7 @@ export const PromptInput = ({
   controllerRef,
   initialMessage,
   onMessageChange,
+  onInput,
   onError,
   onSubmit,
   onSubmitError,
@@ -216,23 +218,12 @@ export const PromptInput = ({
   )
 
   useEffect(() => {
-    const form = formRef.current
-    if (!form) return
-    const changed = () => {
-      const text = form.querySelector("textarea")?.value ?? ""
-      messageChange.current?.({ requestID: requestID.current, text, files: filesRef.current })
-    }
-    form.addEventListener("input", changed)
-    return () => form.removeEventListener("input", changed)
-  }, [])
-
-  useEffect(() => {
     if (!formRef.current) return
     const text = formRef.current.querySelector("textarea")?.value ?? ""
     messageChange.current?.({ requestID: requestID.current, text, files: items })
   }, [items])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!controllerRef) return
     controllerRef.current = {
       setMessage,
@@ -382,6 +373,11 @@ export const PromptInput = ({
           type="file"
         />
         <form
+          onInput={(event) => {
+            onInput?.(event)
+            const text = event.currentTarget.querySelector("textarea")?.value ?? ""
+            messageChange.current?.({ requestID: requestID.current, text, files: filesRef.current })
+          }}
           onInputCapture={(event) => {
             // Restoring a draft dispatches input for autosizing, not a new send.
             if (event.isTrusted) requestID.current = uuidv4()

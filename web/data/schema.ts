@@ -4,6 +4,7 @@ import {
   zGuardrailAssignment,
   zAgentName,
   zAgentAppearance,
+  zAgent,
   zAgentOpencodeConfig,
   zMcpConnectionName,
   zResourceReference,
@@ -457,6 +458,7 @@ export const sandboxAllowedHostSchema = z
 export const createAgentSimpleFormSchema = z.object({
   name: agentNameInputSchema,
   appearance: zAgentAppearance,
+  autoArchiveHours: zAgent.shape.auto_archive_hours,
   sandboxScope: zResourceScope,
   sandboxName: sandboxNameSchema,
   skills: z.array(zResourceReference.extend({ name: zSkillName })),

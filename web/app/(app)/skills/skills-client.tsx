@@ -1,5 +1,6 @@
 "use client"
 
+import { AgentAvatar } from "@/components/interior/agent-presence"
 import { HoldToConfirm } from "@/components/interior/hold-to-confirm"
 
 import { LoadingButton } from "@/components/interior/loading-button"
@@ -8,7 +9,6 @@ import { useRouter } from "@bprogress/next/app"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import {
-  BotIcon,
   Download,
   History,
   Lock,
@@ -433,7 +433,7 @@ function Skills({
                   ) : null}
                   {liveAgents.map((agent) => (
                     <SelectItem key={agent.name} value={agent.name}>
-                      <BotIcon className="inline-block" />
+                      <AgentAvatar appearance={agent.appearance} />
                       {agent.name}
                     </SelectItem>
                   ))}

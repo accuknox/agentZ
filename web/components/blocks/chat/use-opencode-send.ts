@@ -20,6 +20,7 @@ import {
 } from "@/lib/gateway/client"
 import { uploadChatAttachments } from "./attachments"
 import { opencodeErrorMessage } from "./errors"
+import { sessionDrafts, type SessionDraft } from "./drafts"
 import { updateSessionInfo } from "./use-opencode-chat"
 
 export type CreateSession = (input: {
@@ -29,6 +30,7 @@ export type CreateSession = (input: {
 }) => Promise<Session>
 
 type SendMessageInput = PromptInputMessage & {
+  draft?: Pick<SessionDraft, "scope" | "id">
   agent?: Session["agent"]
   model?: ProviderModelItem
   sessionID?: string
@@ -170,6 +172,7 @@ export function useOpencodeSend(
           await updateSessionInfo(queryClient, agentName, workspaceId, session)
         }
         createdSession.current = id
+        if (input.draft) sessionDrafts.update(input.draft.scope, input.draft.id, { sessionID: id })
         if (!sessionID) setPendingSessionID(id)
         if (!request) {
           const attachments = await uploadChatAttachments(agentName, workspaceId, id, input.files)

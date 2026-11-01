@@ -605,6 +605,12 @@ components:
       properties:
         appearance:
           $ref: '#/components/schemas/AgentAppearance'
+        auto_archive_hours:
+          description: Idle hours before archival; zero disables automatic archival.
+          format: int32
+          maximum: 8760
+          minimum: 0
+          type: integer
         capabilities:
           $ref: '#/components/schemas/AgentCapabilities'
         created_at:
@@ -635,6 +641,7 @@ components:
         status:
           $ref: '#/components/schemas/AgentStatus'
       required:
+      - auto_archive_hours
       - name
       - sandbox
       - created_by
@@ -1667,6 +1674,8 @@ components:
       properties:
         agent_name:
           $ref: '#/components/schemas/AgentName'
+        archived:
+          type: boolean
         created_at:
           format: date-time
           type: string
@@ -1680,6 +1689,9 @@ components:
           type: string
         session_id:
           type: string
+        snoozed_until:
+          format: date-time
+          type: string
         status:
           $ref: '#/components/schemas/ChatSessionStatus'
         title:
@@ -1688,6 +1700,7 @@ components:
           format: date-time
           type: string
       required:
+      - archived
       - agent_name
       - session_id
       - title
@@ -1815,6 +1828,16 @@ components:
       - group_by
       - last_agent_name
       type: object
+    ChatSessionShelf:
+      enum:
+      - active
+      - archived
+      - snoozed
+      type: string
+      x-enum-varnames:
+      - ChatSessionShelfActive
+      - ChatSessionShelfArchived
+      - ChatSessionShelfSnoozed
     ChatSessionStatus:
       enum:
       - idle
@@ -2540,6 +2563,12 @@ components:
       properties:
         appearance:
           $ref: '#/components/schemas/AgentAppearance'
+        auto_archive_hours:
+          description: Idle hours before archival; zero disables automatic archival.
+          format: int32
+          maximum: 8760
+          minimum: 0
+          type: integer
         env:
           additionalProperties:
             type: string
@@ -5665,6 +5694,9 @@ components:
     ListChatSessionsResponse:
       additionalProperties: false
       properties:
+        archived_count:
+          format: int64
+          type: integer
         groups:
           items:
             $ref: '#/components/schemas/ChatSessionGroup'
@@ -5681,7 +5713,12 @@ components:
           items:
             $ref: '#/components/schemas/ChatSession'
           type: array
+        snoozed_count:
+          format: int64
+          type: integer
       required:
+      - archived_count
+      - snoozed_count
       - sessions
       - groups
       - participant_filters
@@ -26537,6 +26574,12 @@ components:
       properties:
         appearance:
           $ref: '#/components/schemas/AgentAppearance'
+        auto_archive_hours:
+          description: Idle hours before archival; zero disables automatic archival.
+          format: int32
+          maximum: 8760
+          minimum: 0
+          type: integer
         env:
           additionalProperties:
             type: string
@@ -26551,6 +26594,17 @@ components:
           items:
             $ref: '#/components/schemas/ResourceReference'
           type: array
+      type: object
+    UpdateChatSessionRequest:
+      additionalProperties: false
+      properties:
+        shelf:
+          $ref: '#/components/schemas/ChatSessionShelf'
+        snoozed_until:
+          format: date-time
+          type: string
+      required:
+      - shelf
       type: object
     UpdateInferencePoolRequest:
       additionalProperties: false
@@ -28916,6 +28970,10 @@ paths:
       operationId: listChatSessions
       parameters:
       - in: query
+        name: shelf
+        schema:
+          $ref: '#/components/schemas/ChatSessionShelf'
+      - in: query
         name: project_id
         schema:
           type: string
@@ -29005,6 +29063,43 @@ paths:
       - GatewayBearer:
         - agent.use_shared
       summary: Replace the caller's Workspace chat preferences.
+      tags:
+      - chat-sessions
+  /api/chat-session/{agentName}/{sessionId}:
+    patch:
+      operationId: updateChatSession
+      parameters:
+      - in: path
+        name: agentName
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: sessionId
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateChatSessionRequest'
+        required: true
+      responses:
+        "204":
+          description: Session updated.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Move a session between inbox shelves.
       tags:
       - chat-sessions
   /api/chat-session/{agentName}/{sessionId}/input:

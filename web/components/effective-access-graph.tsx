@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { AgentIcon } from "@/components/agent-readiness"
 import dagre from "@dagrejs/dagre"
 import type { GraphLabel as DagreGraphLabel, NodeLabel as DagreNodeLabel } from "@dagrejs/dagre"
 import { BotIcon, Building2, Globe2, KeyRoundIcon, PanelsTopLeft, UsersIcon } from "lucide-react"
@@ -28,6 +29,7 @@ export type EffectiveAccessNodeData = {
   muted: boolean
   selected: boolean
   sourceIds: string[]
+  workspaceId?: string | null
 }
 
 type AccessSource = { id: string; workspaceId: string | null }
@@ -48,7 +50,11 @@ export function EffectiveAccessNode({ data }: NodeProps<Node<EffectiveAccessNode
     ) : data.kind === "team" ? (
       <UsersIcon aria-hidden="true" className="size-4" />
     ) : data.kind === "agent" ? (
-      <BotIcon aria-hidden="true" className="size-4" />
+      data.workspaceId ? (
+        <AgentIcon name={data.label} workspaceId={data.workspaceId} />
+      ) : (
+        <BotIcon aria-hidden="true" className="size-4" />
+      )
     ) : (
       <KeyRoundIcon aria-hidden="true" className="size-4" />
     )

@@ -166,6 +166,7 @@ import {
   updateAgent,
   updateAgentTool,
   updateChatInput,
+  updateChatSession,
   updateChatSessionPreference,
   updateCodingProjectPreference,
   updateGuardrailConnection,
@@ -650,9 +651,12 @@ import type {
   UpdateChatInputData,
   UpdateChatInputError,
   UpdateChatInputResponse,
+  UpdateChatSessionData,
+  UpdateChatSessionError,
   UpdateChatSessionPreferenceData,
   UpdateChatSessionPreferenceError,
   UpdateChatSessionPreferenceResponse,
+  UpdateChatSessionResponse,
   UpdateCodingProjectPreferenceData,
   UpdateCodingProjectPreferenceError,
   UpdateCodingProjectPreferenceResponse,
@@ -1477,6 +1481,33 @@ export const listChatSessionsOptions = (options?: Options<ListChatSessionsData>)
     },
     queryKey: listChatSessionsQueryKey(options),
   })
+
+/**
+ * Move a session between inbox shelves.
+ */
+export const updateChatSessionMutation = (
+  options?: Partial<Options<UpdateChatSessionData>>
+): UseMutationOptions<
+  UpdateChatSessionResponse,
+  UpdateChatSessionError,
+  Options<UpdateChatSessionData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UpdateChatSessionResponse,
+    UpdateChatSessionError,
+    Options<UpdateChatSessionData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await updateChatSession({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
 
 export const listChatInputsQueryKey = (options: Options<ListChatInputsData>) =>
   createQueryKey("listChatInputs", options)

@@ -1,5 +1,6 @@
 "use client"
 
+import { AgentAvatar } from "@/components/interior/agent-presence"
 import { LoadingButton } from "@/components/interior/loading-button"
 import * as React from "react"
 import { useRouter } from "next/navigation"
@@ -329,7 +330,7 @@ function CreateAPIKeyDialog({
                         onValueChangeAction={field.onChange}
                         options={
                           agents.map((agent) => ({
-                            icon: BotIcon,
+                            iconElement: <AgentAvatar appearance={agent.appearance} />,
                             label: agent.name,
                             value: agent.name,
                           })) satisfies MultiSelectDropdownOption[]
@@ -355,6 +356,7 @@ function CreateAPIKeyDialog({
                     Accessible Workflows
                   </FieldLabel>
                   <WorkflowTargetInput
+                    agents={agents}
                     invalid={!!form.formState.errors.workflowNames}
                     onTargetsChangeAction={(targets) => {
                       setWorkflowTargets(targets)
@@ -413,11 +415,13 @@ function CreateAPIKeyDialog({
 }
 
 function WorkflowTargetInput({
+  agents,
   invalid,
   onTargetsChangeAction,
   targets,
   workflowsByAgent,
 }: {
+  agents: Agent[]
   invalid: boolean
   onTargetsChangeAction: (targets: WorkflowTarget[]) => void
   targets: WorkflowTarget[]
@@ -462,68 +466,75 @@ function WorkflowTargetInput({
             <CommandEmpty>No accessible workflows found.</CommandEmpty>
             {workflowsByAgent
               .toSorted((left, right) => left.agentName.localeCompare(right.agentName))
-              .map((group) => (
-                <CommandGroup key={group.agentName} className="pt-2">
-                  <div className="flex items-center gap-2 px-2 pb-1 text-xs font-medium text-foreground">
-                    <BotIcon className="size-3.5 text-primary" />
-                    <span>{group.agentName}</span>
-                  </div>
-                  {group.workflows
-                    .toSorted((left, right) =>
-                      left.workflow_name.localeCompare(right.workflow_name)
-                    )
-                    .map((workflow) => {
-                      const checked = targets.some(
-                        (target) =>
-                          target.agentName === group.agentName &&
-                          target.workflowName === workflow.workflow_name
+              .map((group) => {
+                const agent = agents.find((agent) => agent.name === group.agentName)
+                return (
+                  <CommandGroup key={group.agentName} className="pt-2">
+                    <div className="flex items-center gap-2 px-2 pb-1 text-xs font-medium text-foreground">
+                      {agent ? (
+                        <AgentAvatar appearance={agent.appearance} />
+                      ) : (
+                        <BotIcon className="size-4 shrink-0" aria-hidden="true" />
+                      )}
+                      <span>{group.agentName}</span>
+                    </div>
+                    {group.workflows
+                      .toSorted((left, right) =>
+                        left.workflow_name.localeCompare(right.workflow_name)
                       )
-                      return (
-                        <CommandItem
-                          key={`${group.agentName}/${workflow.workflow_name}`}
-                          value={`${group.agentName} ${workflow.title} ${workflow.workflow_name}`}
-                          className="cursor-pointer items-start rounded-md"
-                          onMouseDown={(event) => event.preventDefault()}
-                          onSelect={() => {
-                            if (checked) {
+                      .map((workflow) => {
+                        const checked = targets.some(
+                          (target) =>
+                            target.agentName === group.agentName &&
+                            target.workflowName === workflow.workflow_name
+                        )
+                        return (
+                          <CommandItem
+                            key={`${group.agentName}/${workflow.workflow_name}`}
+                            value={`${group.agentName} ${workflow.title} ${workflow.workflow_name}`}
+                            className="cursor-pointer items-start rounded-md"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onSelect={() => {
+                              if (checked) {
+                                onTargetsChangeAction(
+                                  targets.filter(
+                                    (target) =>
+                                      target.agentName !== group.agentName ||
+                                      target.workflowName !== workflow.workflow_name
+                                  )
+                                )
+                                return
+                              }
                               onTargetsChangeAction(
-                                targets.filter(
-                                  (target) =>
-                                    target.agentName !== group.agentName ||
-                                    target.workflowName !== workflow.workflow_name
+                                [
+                                  ...targets,
+                                  {
+                                    agentName: group.agentName,
+                                    workflowName: workflow.workflow_name,
+                                  },
+                                ].toSorted(
+                                  (left, right) =>
+                                    left.agentName.localeCompare(right.agentName) ||
+                                    left.workflowName.localeCompare(right.workflowName)
                                 )
                               )
-                              return
-                            }
-                            onTargetsChangeAction(
-                              [
-                                ...targets,
-                                {
-                                  agentName: group.agentName,
-                                  workflowName: workflow.workflow_name,
-                                },
-                              ].toSorted(
-                                (left, right) =>
-                                  left.agentName.localeCompare(right.agentName) ||
-                                  left.workflowName.localeCompare(right.workflowName)
-                              )
-                            )
-                          }}
-                        >
-                          <SelectionIndicator checked={checked} />
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate font-medium">
-                              {workflow.title || workflow.workflow_name}
+                            }}
+                          >
+                            <SelectionIndicator checked={checked} />
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate font-medium">
+                                {workflow.title || workflow.workflow_name}
+                              </span>
+                              <span className="block truncate text-xs text-muted-foreground">
+                                {workflow.workflow_name}
+                              </span>
                             </span>
-                            <span className="block truncate text-xs text-muted-foreground">
-                              {workflow.workflow_name}
-                            </span>
-                          </span>
-                        </CommandItem>
-                      )
-                    })}
-                </CommandGroup>
-              ))}
+                          </CommandItem>
+                        )
+                      })}
+                  </CommandGroup>
+                )
+              })}
           </CommandList>
         </Command>
       </PopoverContent>

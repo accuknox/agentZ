@@ -476,9 +476,12 @@ import type {
   UpdateChatInputData,
   UpdateChatInputErrors,
   UpdateChatInputResponses,
+  UpdateChatSessionData,
+  UpdateChatSessionErrors,
   UpdateChatSessionPreferenceData,
   UpdateChatSessionPreferenceErrors,
   UpdateChatSessionPreferenceResponses,
+  UpdateChatSessionResponses,
   UpdateCodingProjectPreferenceData,
   UpdateCodingProjectPreferenceErrors,
   UpdateCodingProjectPreferenceResponses,
@@ -958,6 +961,26 @@ export const listChatSessions = <ThrowOnError extends boolean = false>(
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/chat-session",
     ...options,
+  })
+
+/**
+ * Move a session between inbox shelves.
+ */
+export const updateChatSession = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateChatSessionData, ThrowOnError>
+) =>
+  (options.client ?? client).patch<
+    UpdateChatSessionResponses,
+    UpdateChatSessionErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/chat-session/{agentName}/{sessionId}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
   })
 
 /**

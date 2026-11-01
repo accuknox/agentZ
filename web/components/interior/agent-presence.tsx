@@ -66,8 +66,34 @@ export function AgentPresence({
   )
 }
 
+// Identity icons stay still and never inherit another agent's chat appearance.
+export function AgentAvatar({
+  appearance,
+  size = 16,
+}: {
+  appearance: AgentAppearance | undefined
+  size?: number
+}) {
+  const identity = appearance ?? defaultAgentAppearance
+  return (
+    <Mascot
+      state="idle"
+      size={size}
+      mascot={identity.breed}
+      color={identity.color}
+      animated={false}
+    />
+  )
+}
+
 // Mascot uses native animation; one observer pauses hidden instances.
-function Mascot({ state, size, mascot, color }: Required<PresenceProps>) {
+function Mascot({
+  state,
+  size,
+  mascot,
+  color,
+  animated = true,
+}: Required<PresenceProps> & { animated?: boolean }) {
   const character = mascots[mascot]
   const palette = mascotColors[color]
   const [x, y, x2, y2] = character.eyes
@@ -76,6 +102,7 @@ function Mascot({ state, size, mascot, color }: Required<PresenceProps>) {
 
   // Cancel animations before detachment, when getAnimations still finds them.
   useLayoutEffect(() => {
+    if (!animated) return
     const target = ref.current
     if (!target) return
     if (!observer) {
@@ -98,9 +125,10 @@ function Mascot({ state, size, mascot, color }: Required<PresenceProps>) {
       observer = undefined
       document.removeEventListener("visibilitychange", updateVisibility)
     }
-  }, [])
+  }, [animated])
 
   useLayoutEffect(() => {
+    if (!animated) return
     const target = ref.current
     if (!target) return
     const media = window.matchMedia("(prefers-reduced-motion: reduce)")
@@ -320,7 +348,7 @@ function Mascot({ state, size, mascot, color }: Required<PresenceProps>) {
     start()
     media.addEventListener("change", start)
     return () => media.removeEventListener("change", start)
-  }, [character, mascot, size, state])
+  }, [animated, character, mascot, size, state])
 
   return (
     <span

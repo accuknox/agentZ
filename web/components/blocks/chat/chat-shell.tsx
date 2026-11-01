@@ -25,7 +25,6 @@ type ChatShellProps = Pick<
   | "createSession"
   | "composerContext"
   | "initialMessage"
-  | "onDraftChange"
   | "draftModel"
   | "onDraftModelChange"
   | "draftMode"
@@ -75,7 +74,6 @@ export function ChatShell({
   onDraftModelChange,
   draftMode,
   onDraftModeChange,
-  onDraftChange,
   onDraftPromoted,
   onDraftAgentChange,
   composerContext,
@@ -126,7 +124,8 @@ export function ChatShell({
   })
   const coding = initialThread !== undefined || createSession !== undefined
   const draftKey = search.get("draft")
-  const activeDraftId = draftId ?? draftKey ?? undefined
+  const [placeholderId] = useState(nanoid)
+  const activeDraftId = draftId ?? draftKey ?? placeholderId
   const draftPath = initialDraftPath ?? `${workspacePath}/sessions/new`
   const routeSessionId =
     pathname === draftPath
@@ -150,6 +149,13 @@ export function ChatShell({
       : undefined
   const chatKey = activePromotion?.chatKey ?? routeChatKey
   const activeSessionId = routeSessionId ?? activePromotion?.sessionId
+  useEffect(() => {
+    if (pathname !== draftPath || coding || draftKey) return
+    const url = new URL(window.location.href)
+    url.searchParams.set("agent", agentName)
+    url.searchParams.set("draft", activeDraftId)
+    window.history.replaceState(null, "", `${url.pathname}${url.search}`)
+  }, [activeDraftId, agentName, coding, draftKey, draftPath, pathname])
   const sessionTitle = useQuery({
     ...sessionInfoQueryOptions(agentName, workspaceId, activeSessionId ?? ""),
     enabled: Boolean(activeSessionId),
@@ -243,7 +249,6 @@ export function ChatShell({
               initialMessage={activeSessionId ? undefined : initialMessage}
               draftModel={activeSessionId ? undefined : draftModel}
               onDraftModelChange={activeSessionId ? undefined : onDraftModelChange}
-              onDraftChange={activeSessionId ? undefined : onDraftChange}
               composerContext={
                 codingThread
                   ? () => (

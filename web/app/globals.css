@@ -428,3 +428,21 @@ blockquote[data-streamdown="blockquote"] {
   border: 0;
   padding-inline: 0;
 }
+
+@keyframes session-title-scroll {
+  0%,
+  10.5% {
+    transform: translateX(0);
+  }
+  89.5%,
+  100% {
+    transform: translateX(calc(-1 * var(--title-travel)));
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .group\/session:hover .session-title[data-overflow="true"] {
+    overflow: visible;
+    text-overflow: clip;
+    animation: session-title-scroll var(--title-duration) linear alternate infinite;
+  }
+}

@@ -1,5 +1,6 @@
 "use client"
 
+import { AgentAvatar } from "@/components/interior/agent-presence"
 import * as React from "react"
 import { useSelectResource } from "@/components/page-selection"
 import { MessageSquareIcon } from "lucide-react"
@@ -131,7 +132,7 @@ export function LensFilters({
               ) : null}
               {agents.map((agent) => (
                 <SelectItem key={agent.name} value={`agent:${agent.name}`}>
-                  <LensSourceIcon kind="agent" />
+                  <AgentAvatar appearance={agent.appearance} />
                   {agent.name}
                 </SelectItem>
               ))}

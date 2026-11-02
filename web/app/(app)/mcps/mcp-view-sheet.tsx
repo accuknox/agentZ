@@ -1,8 +1,20 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
+import { reauthenticateMcpAction } from "@/data/mcp.actions"
+import { useOAuthPopup } from "@/lib/use-oauth-popup"
 import { queryOptions, useQuery } from "@tanstack/react-query"
-import { CircleAlert } from "lucide-react"
+import { CircleAlert, FingerprintPattern } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import {
@@ -56,6 +68,14 @@ export function McpViewSheet({
   scope: ResourceScope
   workspaceId?: string
 }) {
+  const router = useRouter()
+  const [token, setToken] = React.useState("")
+  const [clientId, setClientId] = React.useState("")
+  const [clientSecret, setClientSecret] = React.useState("")
+  const [error, setError] = React.useState("")
+  const [success, setSuccess] = React.useState(false)
+  const [pending, startTransition] = React.useTransition()
+  const popup = useOAuthPopup("mcp-reauthenticate")
   const query = useQuery(
     queryOptions({
       enabled: open,
@@ -117,6 +137,115 @@ export function McpViewSheet({
               )}
             </section>
 
+            {query.data.can_reauthenticate && (query.data.auth.bearer || query.data.auth.oauth) ? (
+              <form
+                className="flex flex-col items-start gap-3"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  const connection = query.data
+                  if (!connection) return
+                  setError("")
+                  setSuccess(false)
+                  startTransition(async () => {
+                    const result = await reauthenticateMcpAction(
+                      name,
+                      connection.resource_version,
+                      token,
+                      workspaceId,
+                      clientId || undefined,
+                      clientSecret || undefined
+                    )
+                    setToken("")
+                    setClientSecret("")
+                    if (result.error) {
+                      setError(result.error.message)
+                      return
+                    }
+                    if (result.oauth) {
+                      popup.open(result.oauth, {
+                        onError: setError,
+                        onSuccess: () => {
+                          setSuccess(true)
+                          void query.refetch()
+                          router.refresh()
+                        },
+                      })
+                      return
+                    }
+                    setSuccess(true)
+                    await query.refetch()
+                    router.refresh()
+                  })
+                }}
+              >
+                <h2 className="text-sm font-medium">Re-authenticate</h2>
+                {query.data.auth.bearer ? (
+                  <Field>
+                    <FieldLabel htmlFor="replacement-token">New token</FieldLabel>
+                    <Input
+                      id="replacement-token"
+                      type="password"
+                      autoComplete="new-password"
+                      required
+                      value={token}
+                      onChange={(event) => setToken(event.target.value)}
+                    />
+                  </Field>
+                ) : (
+                  <Accordion type="single" collapsible className="rounded-lg border px-4">
+                    <AccordionItem value="oauth-client-credentials">
+                      <AccordionTrigger className="py-4 hover:no-underline">
+                        OAuth client credentials
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <FieldGroup>
+                          <FieldDescription>
+                            Required when the server does not support dynamic client registration.
+                          </FieldDescription>
+                          <Field>
+                            <FieldLabel htmlFor="replacement-client">Client ID</FieldLabel>
+                            <Input
+                              id="replacement-client"
+                              autoComplete="off"
+                              value={clientId}
+                              onChange={(event) => setClientId(event.target.value)}
+                            />
+                          </Field>
+                          <Field>
+                            <FieldLabel htmlFor="replacement-secret">Client secret</FieldLabel>
+                            <Input
+                              id="replacement-secret"
+                              type="password"
+                              autoComplete="new-password"
+                              value={clientSecret}
+                              onChange={(event) => setClientSecret(event.target.value)}
+                            />
+                          </Field>
+                        </FieldGroup>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                )}
+                {error ? (
+                  <p role="alert" className="text-sm text-destructive">
+                    {error}
+                  </p>
+                ) : null}
+                {success ? (
+                  <p role="status" className="text-sm text-success">
+                    Credentials replaced.
+                  </p>
+                ) : null}
+                <Button
+                  className="self-end"
+                  type="submit"
+                  disabled={pending || Boolean(popup.flowId)}
+                >
+                  <FingerprintPattern data-icon="inline-start" />
+                  {pending ? "Connecting..." : "Re-authenticate"}
+                </Button>
+              </form>
+            ) : null}
             <section className="space-y-3">
               <h2 className="text-sm font-medium">Authentication</h2>
               {query.data.auth.oauth ? (

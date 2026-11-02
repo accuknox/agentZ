@@ -17,7 +17,7 @@ func ReadField[T any](ctx context.Context, kv *baoapi.KVv2, path, key string) (T
 	if err != nil {
 		return out, fmt.Errorf("read openbao secret %q: %w", path, err)
 	}
-	if secret == nil || secret.Data == nil {
+	if secret.Data == nil {
 		return out, fmt.Errorf("openbao secret %q is missing data", path)
 	}
 
@@ -53,10 +53,11 @@ func WriteField(ctx context.Context, kv *baoapi.KVv2, path, key string, value an
 		return fmt.Errorf("read openbao secret %q before write: %w", path, err)
 	}
 
-	data := map[string]any{}
-	if current != nil && current.Data != nil {
-		maps.Copy(data, current.Data)
+	if current.VersionMetadata == nil {
+		return fmt.Errorf("openbao secret %q is missing its version", path)
 	}
+	data := map[string]any{}
+	maps.Copy(data, current.Data)
 
 	payload, err := json.Marshal(value)
 	if err != nil {
@@ -64,7 +65,8 @@ func WriteField(ctx context.Context, kv *baoapi.KVv2, path, key string, value an
 	}
 	data[key] = string(payload)
 
-	if _, err := kv.Put(ctx, path, data); err != nil {
+	_, err = kv.Put(ctx, path, data, baoapi.WithCheckAndSet(current.VersionMetadata.Version))
+	if err != nil {
 		return fmt.Errorf("write openbao secret %q: %w", path, err)
 	}
 	return nil

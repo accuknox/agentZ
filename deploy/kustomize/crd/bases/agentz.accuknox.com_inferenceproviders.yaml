@@ -207,6 +207,10 @@ spec:
                 maxLength: 128
                 minLength: 1
                 type: string
+              credentialRevision:
+                description: CredentialRevision selects a replacement record without overwriting active credentials.
+                pattern: ^[a-f0-9-]{36}$
+                type: string
               displayName:
                 description: DisplayName is the editable human-readable provider label.
                 maxLength: 128

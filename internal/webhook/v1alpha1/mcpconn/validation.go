@@ -23,6 +23,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/google/uuid"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -95,7 +96,20 @@ func (v *Validator) ValidateUpdate(_ context.Context, oldConn, newConn *agentzv1
 		return nil, err
 	}
 
-	if apiequality.Semantic.DeepEqual(oldConn.Spec, newConn.Spec) {
+	// Reauthentication changes only the active credential reference and actor.
+	// Compare the remaining configuration so rotation cannot change its target.
+	previous := oldConn.DeepCopy()
+	previous.Spec.LastModifiedByUserID = newConn.Spec.LastModifiedByUserID
+	oldAuth, newAuth := previous.Spec.Auth, newConn.Spec.Auth
+	if oldAuth != nil && newAuth != nil {
+		if oldAuth.Bearer != nil && newAuth.Bearer != nil {
+			oldAuth.Bearer.SecretRef = newAuth.Bearer.SecretRef
+		}
+		if oldAuth.OAuth != nil && newAuth.OAuth != nil {
+			oldAuth.OAuth.SecretRef = newAuth.OAuth.SecretRef
+		}
+	}
+	if apiequality.Semantic.DeepEqual(previous.Spec, newConn.Spec) {
 		return nil, nil
 	}
 
@@ -379,7 +393,9 @@ func validateSecretRef(namespace, name string, ref *agentzv1alpha1.MCPConnection
 			),
 		)
 	}
-	if ref.Path != "" && ref.Path != wantPath {
+	suffix, hasRevision := strings.CutPrefix(ref.Path, wantPath+"/")
+	_, revisionErr := uuid.Parse(suffix)
+	if ref.Path != "" && ref.Path != wantPath && (!hasRevision || revisionErr != nil) {
 		fields = append(
 			fields,
 			field.Invalid(

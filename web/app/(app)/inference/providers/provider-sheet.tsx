@@ -10,6 +10,7 @@ import {
   CircleAlert,
   Cloud,
   ExternalLink,
+  FingerprintPattern,
   KeyRound,
   Pencil,
   Plus,
@@ -951,7 +952,7 @@ export function ProviderSheet({
           setSubmitError("")
           setSubmitErrors([])
           setSuggestions(result.connection.models)
-          models.replace(result.connection.models)
+          if (!provider) models.replace(result.connection.models)
           setModelCatalogState("idle")
         })
       }, interval * 1000)
@@ -962,7 +963,7 @@ export function ProviderSheet({
       cancelled = true
       clearTimeout(timer)
     }
-  }, [models, open, scope, subscriptionOAuth])
+  }, [models, open, provider, scope, subscriptionOAuth])
 
   const selectedCatalogEntry = catalog.find(
     (entry) => entry.provider_id === catalogProvider && entry.provider_kind === kind
@@ -975,7 +976,11 @@ export function ProviderSheet({
     setSubscriptionOAuth({ status: "starting" })
     setSubmitError("")
     startTransition(async () => {
-      const result = await startInferenceProviderOAuthAction(scope, kind)
+      const result = await startInferenceProviderOAuthAction(
+        scope,
+        kind,
+        provider ? { id: provider.id, resourceVersion: provider.resource_version } : undefined
+      )
       setSubscriptionOAuth(result)
       if (result.status !== "challenge") {
         return
@@ -995,6 +1000,10 @@ export function ProviderSheet({
             body: {
               provider: values,
               resource_version: provider.resource_version,
+              oauth_ticket:
+                subscriptionOAuth.status === "connected"
+                  ? subscriptionOAuth.connection.ticket
+                  : undefined,
             },
           })
         : await saveInferenceProviderAction(scope, {
@@ -1861,7 +1870,7 @@ export function ProviderSheet({
             >
               {isSubscription ? (
                 <div className="flex flex-col gap-4 rounded-lg border p-4">
-                  {provider || subscriptionOAuth.status === "connected" ? (
+                  {subscriptionOAuth.status === "connected" ? (
                     <div role="status" className="flex items-start gap-3">
                       <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-success/10 text-success">
                         <Check aria-hidden className="size-4" />
@@ -1876,21 +1885,28 @@ export function ProviderSheet({
                     <>
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="flex flex-col gap-1">
-                          <p className="text-sm font-medium">Connect {providerKindLabels[kind]}</p>
+                          <p className="text-sm font-medium">
+                            {provider ? "Re-authenticate" : "Connect"} {providerKindLabels[kind]}
+                          </p>
                           <p className="text-sm text-muted-foreground">
                             Complete sign-in in a new tab. We will detect when it finishes.
                           </p>
                         </div>
                         {subscriptionOAuth.status !== "challenge" ? (
                           <LoadingButton
+                            className="ml-auto"
                             pending={subscriptionOAuth.status === "starting"}
                             pendingLabel={"Connecting..."}
                             type="button"
                             onClick={connectSubscription}
                             disabled={pending || subscriptionOAuth.status === "starting"}
                           >
-                            <Cable />
-                            {"Connect"}
+                            {provider ? (
+                              <FingerprintPattern data-icon="inline-start" />
+                            ) : (
+                              <Cable data-icon="inline-start" />
+                            )}
+                            {provider ? "Re-authenticate" : "Connect"}
                           </LoadingButton>
                         ) : null}
                       </div>

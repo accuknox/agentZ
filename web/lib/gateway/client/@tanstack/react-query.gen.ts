@@ -150,6 +150,8 @@ import {
   queryDashboard,
   readAgentFile,
   readAgentFileRaw,
+  reauthenticateInferenceProviderOAuthTicket,
+  reauthenticateMcpConnection,
   refreshCodingRepository,
   refreshInferenceProviderModels,
   renameAgentEntry,
@@ -602,6 +604,12 @@ import type {
   ReadAgentFileRawError,
   ReadAgentFileRawResponse,
   ReadAgentFileResponse,
+  ReauthenticateInferenceProviderOAuthTicketData,
+  ReauthenticateInferenceProviderOAuthTicketError,
+  ReauthenticateInferenceProviderOAuthTicketResponse,
+  ReauthenticateMcpConnectionData,
+  ReauthenticateMcpConnectionError,
+  ReauthenticateMcpConnectionResponse,
   RefreshCodingRepositoryData,
   RefreshCodingRepositoryError,
   RefreshCodingRepositoryResponse,
@@ -3483,6 +3491,36 @@ export const createInferenceProviderOAuthTicketMutation = (
 }
 
 /**
+ * Store subscription credentials and return a single-use provider ticket.
+ *
+ * Credential material is written directly to OpenBao and is never included in this or any later API response.
+ *
+ */
+export const reauthenticateInferenceProviderOAuthTicketMutation = (
+  options?: Partial<Options<ReauthenticateInferenceProviderOAuthTicketData>>
+): UseMutationOptions<
+  ReauthenticateInferenceProviderOAuthTicketResponse,
+  ReauthenticateInferenceProviderOAuthTicketError,
+  Options<ReauthenticateInferenceProviderOAuthTicketData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    ReauthenticateInferenceProviderOAuthTicketResponse,
+    ReauthenticateInferenceProviderOAuthTicketError,
+    Options<ReauthenticateInferenceProviderOAuthTicketData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await reauthenticateInferenceProviderOAuthTicket({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
  * Delete an unreferenced inference provider.
  */
 export const deleteInferenceProviderMutation = (
@@ -4004,6 +4042,33 @@ export const getMcpConnectionOptions = (options: Options<GetMcpConnectionData>) 
     },
     queryKey: getMcpConnectionQueryKey(options),
   })
+
+/**
+ * Replace the complete MCP credential set.
+ */
+export const reauthenticateMcpConnectionMutation = (
+  options?: Partial<Options<ReauthenticateMcpConnectionData>>
+): UseMutationOptions<
+  ReauthenticateMcpConnectionResponse,
+  ReauthenticateMcpConnectionError,
+  Options<ReauthenticateMcpConnectionData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    ReauthenticateMcpConnectionResponse,
+    ReauthenticateMcpConnectionError,
+    Options<ReauthenticateMcpConnectionData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await reauthenticateMcpConnection({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
 
 /**
  * Delete workflow definitions.

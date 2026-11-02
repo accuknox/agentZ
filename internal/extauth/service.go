@@ -719,23 +719,14 @@ type authHeaderLocation struct {
 }
 
 func headerLocation(location *agentzv1alpha1.MCPConnectionAuthLocation) (authHeaderLocation, error) {
-	if location == nil {
-		return authHeaderLocation{
-			name:   "Authorization",
-			prefix: "",
-		}, nil
-	}
-	if location.QueryParameter != nil || location.Cookie != nil {
+	if location != nil && (location.QueryParameter != nil || location.Cookie != nil) {
 		return authHeaderLocation{}, fmt.Errorf(
 			"only header auth locations are supported: %w",
 			errCredentialUnavailable,
 		)
 	}
-	if location.Header == nil {
-		return authHeaderLocation{
-			name:   "Authorization",
-			prefix: "",
-		}, nil
+	if location == nil || location.Header == nil {
+		return authHeaderLocation{name: "Authorization"}, nil
 	}
 
 	name := strings.TrimSpace(location.Header.Name)

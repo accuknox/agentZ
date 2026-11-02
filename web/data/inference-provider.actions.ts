@@ -5,6 +5,7 @@ import { updateTag } from "next/cache"
 import * as z from "zod"
 import {
   createInferenceProviderOAuthTicket,
+  reauthenticateInferenceProviderOAuthTicket,
   createInferenceProvider,
   deleteInferenceProvider,
   getInferenceProviderUsage,
@@ -42,6 +43,7 @@ const inferenceOAuthCookieName = "agentz_inference_provider_oauth"
 const openAICodexClientID = "app_EMoamEEZ73f0CkXaXp7hrann"
 const oauthUserAgent = "agentz/1.0"
 const pendingInferenceOAuthSchema = z.object({
+  provider: z.object({ id: z.string().min(1), resourceVersion: z.string().min(1) }).optional(),
   kind: zCreateInferenceProviderOAuthTicketRequest.shape.kind,
   initiator: z.object({
     organizationId: z.string().min(1),
@@ -102,7 +104,8 @@ export type InferenceProviderActionScope = { workspaceId?: string }
 
 export async function startInferenceProviderOAuthAction(
   scope: InferenceProviderActionScope,
-  value: InferenceProviderKind
+  value: InferenceProviderKind,
+  provider?: z.infer<typeof pendingInferenceOAuthSchema>["provider"]
 ): Promise<InferenceOAuthChallenge | { status: "error"; message: string }> {
   const kind = pendingInferenceOAuthSchema.shape.kind.safeParse(value)
   if (!kind.success) {
@@ -133,6 +136,7 @@ export async function startInferenceProviderOAuthAction(
       await sealOAuthState(
         {
           kind: kind.data,
+          provider,
           initiator,
           workspaceId: scope.workspaceId,
           deviceAuthId: device.device_auth_id,
@@ -233,9 +237,10 @@ export async function pollInferenceProviderOAuthAction(
       return { status: "error", message: "OpenAI sign-in could not be completed" }
     }
     const tokens = openAITokenResponseSchema.parse(await tokenResponse.json())
-    const result = await createInferenceProviderOAuthTicket({
+    const options = {
       body: {
         kind: pending.kind,
+        resource_version: pending.provider?.resourceVersion,
         credentials: {
           access_token: tokens.access_token,
           refresh_token: tokens.refresh_token,
@@ -247,7 +252,13 @@ export async function pollInferenceProviderOAuthAction(
       },
       client: getGatewayServerClient(scope.workspaceId),
       headers: scope.workspaceId ? { "X-AgentZ-Workspace-ID": scope.workspaceId } : undefined,
-    })
+    }
+    const result = pending.provider
+      ? await reauthenticateInferenceProviderOAuthTicket({
+          ...options,
+          path: { providerName: pending.provider.id },
+        })
+      : await createInferenceProviderOAuthTicket(options)
     if (result.error) {
       return { status: "error", message: "Your subscription could not be connected" }
     }

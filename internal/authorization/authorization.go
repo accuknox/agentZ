@@ -98,6 +98,9 @@ const (
 	OperationGetMCPConnection Operation = "getMCPConnection"
 	// OperationCreateMCPConnection creates an MCP Connection resource.
 	OperationCreateMCPConnection Operation = "createMCPConnection"
+	// OperationReauthenticateMCPConnection replaces MCP credentials.
+	OperationReauthenticateMCPConnection Operation = "reauthenticateMCPConnection"
+
 	// OperationDeleteMCPConnection deletes an MCP Connection resource.
 	OperationDeleteMCPConnection Operation = "deleteMCPConnection"
 	// OperationListInferenceProviders lists Inference Provider resources.
@@ -118,6 +121,10 @@ const (
 	OperationCreateInferenceProvider Operation = "createInferenceProvider"
 	// OperationCreateInferenceProviderOAuthTicket creates Provider credentials.
 	OperationCreateInferenceProviderOAuthTicket Operation = "createInferenceProviderOAuthTicket"
+	// OperationReauthenticateInferenceProviderOAuthTicket authorizes
+	// subscription replacement sign-in.
+	OperationReauthenticateInferenceProviderOAuthTicket Operation = "reauthenticateInferenceProviderOAuthTicket"
+
 	// OperationUpdateInferenceProvider modifies an Inference Provider resource.
 	OperationUpdateInferenceProvider Operation = "updateInferenceProvider"
 	// OperationDeleteInferenceProvider deletes an Inference Provider resource.
@@ -571,6 +578,8 @@ func mapOperation(operation Operation) (gatewaydb.PermissionResource, gatewaydb.
 		return gatewaydb.PermissionResourceMcpConnection, gatewaydb.PermissionActionRead, true
 	case OperationCreateMCPConnection:
 		return gatewaydb.PermissionResourceMcpConnection, gatewaydb.PermissionActionCreate, true
+	case OperationReauthenticateMCPConnection:
+		return gatewaydb.PermissionResourceMcpConnection, gatewaydb.PermissionActionModify, true
 	case OperationDeleteMCPConnection:
 		return gatewaydb.PermissionResourceMcpConnection, gatewaydb.PermissionActionDelete, true
 	case OperationListInferenceProviders,
@@ -583,7 +592,7 @@ func mapOperation(operation Operation) (gatewaydb.PermissionResource, gatewaydb.
 		return gatewaydb.PermissionResourceInferenceProvider, gatewaydb.PermissionActionRead, true
 	case OperationCreateInferenceProvider, OperationCreateInferenceProviderOAuthTicket:
 		return gatewaydb.PermissionResourceInferenceProvider, gatewaydb.PermissionActionCreate, true
-	case OperationUpdateInferenceProvider:
+	case OperationUpdateInferenceProvider, OperationReauthenticateInferenceProviderOAuthTicket:
 		return gatewaydb.PermissionResourceInferenceProvider, gatewaydb.PermissionActionModify, true
 	case OperationDeleteInferenceProvider:
 		return gatewaydb.PermissionResourceInferenceProvider, gatewaydb.PermissionActionDelete, true

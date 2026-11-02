@@ -167,17 +167,20 @@ func TestSinkIsolatesRejectedEvents(t *testing.T) {
 			discarded := 0
 			for i := 0; i < tt.size; i++ {
 				id := fmt.Sprintf("good-%d", i)
-				if tt.allBad || i%3 == 0 {
+				rejected := tt.allBad || i%3 == 0
+				if rejected {
 					id = fmt.Sprintf("bad-%d", i)
 					discarded++
-				} else {
-					want[id] = 1
 				}
 				ev := event{app: &observerdb.InsertAppOperationParams{ClientID: id}}
 				if tt.copy {
 					ev = event{process: &processEvent{process: id}}
 				}
 				events <- ev
+				if rejected {
+					continue
+				}
+				want[id] = 1
 			}
 			// A later event must still be consumed after the retained batch recovers.
 			events <- event{app: &observerdb.InsertAppOperationParams{ClientID: "later"}}

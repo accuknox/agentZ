@@ -31,16 +31,6 @@ func mitmServerConfig(host string, ca *tls.Certificate, cache *certStore) (*tls.
 	}, nil
 }
 
-// upstreamTLSConfig returns a TLS config for connecting to the real upstream.
-// ALPN is forced to http/1.1 so the upstream speaks HTTP/1.1 plaintext that
-// we can parse and inject.
-func upstreamTLSConfig(host string) *tls.Config {
-	return &tls.Config{
-		ServerName: host,
-		NextProtos: []string{"http/1.1"},
-	}
-}
-
 // signHost creates a leaf certificate signed by the CA, valid for the given
 // hosts (DNS names or IPs).
 func signHost(ca tls.Certificate, hosts []string) (*tls.Certificate, error) {

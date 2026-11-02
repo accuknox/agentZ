@@ -1987,6 +1987,7 @@ export type InferenceProviderOAuthCredentials = {
 }
 
 export type CreateInferenceProviderOAuthTicketRequest = {
+  resource_version?: string
   kind: "OpenAICodex"
 }
 
@@ -2354,6 +2355,8 @@ export type McpConnectionTool = {
 }
 
 export type McpConnectionDetail = {
+  resource_version: string
+  can_reauthenticate: boolean
   /**
    * Whether the current principal may delete this connection in the selected scope.
    */
@@ -3576,6 +3579,7 @@ export type JsonObjectWritable = {
 }
 
 export type CreateInferenceProviderOAuthTicketRequestWritable = {
+  resource_version?: string
   kind: "OpenAICodex"
   credentials: InferenceProviderOAuthCredentials
 }
@@ -3687,6 +3691,7 @@ export type CreateInferenceProviderRequestWritable = {
 }
 
 export type UpdateInferenceProviderRequestWritable = {
+  oauth_ticket?: string
   resource_version: string
   provider: InferenceProviderWriteDiscriminatorWritable
 }
@@ -8988,6 +8993,66 @@ export type CreateInferenceProviderOAuthTicketResponses = {
 export type CreateInferenceProviderOAuthTicketResponse2 =
   CreateInferenceProviderOAuthTicketResponses[keyof CreateInferenceProviderOAuthTicketResponses]
 
+export type ReauthenticateInferenceProviderOAuthTicketData = {
+  body: CreateInferenceProviderOAuthTicketRequestWritable
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
+  path: {
+    /**
+     * Stable inference provider ID.
+     */
+    providerName: InferenceProviderName
+  }
+  query?: never
+  url: "/api/inference/provider/{providerName}/oauth-ticket"
+}
+
+export type ReauthenticateInferenceProviderOAuthTicketErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * The request Content-Type is not supported by this operation.
+   */
+  415: Error
+  /**
+   * The request body does not match the operation schema.
+   */
+  422: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ReauthenticateInferenceProviderOAuthTicketError =
+  ReauthenticateInferenceProviderOAuthTicketErrors[keyof ReauthenticateInferenceProviderOAuthTicketErrors]
+
+export type ReauthenticateInferenceProviderOAuthTicketResponses = {
+  /**
+   * Single-use provider ticket and non-secret model metadata.
+   */
+  201: CreateInferenceProviderOAuthTicketResponse
+}
+
+export type ReauthenticateInferenceProviderOAuthTicketResponse =
+  ReauthenticateInferenceProviderOAuthTicketResponses[keyof ReauthenticateInferenceProviderOAuthTicketResponses]
+
 export type DeleteInferenceProviderData = {
   body?: never
   headers?: {
@@ -10051,6 +10116,70 @@ export type GetMcpConnectionResponses = {
 }
 
 export type GetMcpConnectionResponse = GetMcpConnectionResponses[keyof GetMcpConnectionResponses]
+
+export type ReauthenticateMcpConnectionData = {
+  body: {
+    resource_version: string
+    credentials: McpConnectionCredentials
+  }
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
+  path: {
+    /**
+     * MCPConnection name.
+     */
+    name: McpConnectionName
+  }
+  query?: never
+  url: "/api/mcp-connection/{name}/reauthenticate"
+}
+
+export type ReauthenticateMcpConnectionErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ReauthenticateMcpConnectionError =
+  ReauthenticateMcpConnectionErrors[keyof ReauthenticateMcpConnectionErrors]
+
+export type ReauthenticateMcpConnectionResponses = {
+  /**
+   * Credentials replaced.
+   */
+  204: void
+}
+
+export type ReauthenticateMcpConnectionResponse =
+  ReauthenticateMcpConnectionResponses[keyof ReauthenticateMcpConnectionResponses]
 
 export type WatchMcpConnectionsData = {
   body?: WatchMcpConnectionsRequest

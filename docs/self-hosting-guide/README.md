@@ -242,11 +242,11 @@ path "kv/metadata/+/guardrail-connections/*" {
   capabilities = ["read"]
 }
 
-path "kv/data/+/inference-providers/+" {
+path "kv/data/+/inference-providers/*" {
   capabilities = ["read"]
 }
 
-path "kv/metadata/+/inference-providers/+" {
+path "kv/metadata/+/inference-providers/*" {
   capabilities = ["read"]
 }
 HCL

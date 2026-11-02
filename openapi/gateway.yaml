@@ -2588,6 +2588,9 @@ components:
           enum:
           - OpenAICodex
           type: string
+        resource_version:
+          minLength: 1
+          type: string
       required:
       - kind
       - credentials
@@ -6106,6 +6109,8 @@ components:
         can_delete:
           description: Whether the current principal may delete this connection in the selected scope.
           type: boolean
+        can_reauthenticate:
+          type: boolean
         created_at:
           format: date-time
           type: string
@@ -6121,6 +6126,8 @@ components:
           $ref: '#/components/schemas/MCPConnectionName'
         reason:
           $ref: '#/components/schemas/MCPConnectionReason'
+        resource_version:
+          type: string
         scope:
           $ref: '#/components/schemas/ResourceScope'
         status:
@@ -6145,6 +6152,8 @@ components:
       - tool_catalog_ready
       - tools
       - can_delete
+      - resource_version
+      - can_reauthenticate
       type: object
     MCPConnectionEndpoint:
       additionalProperties: false
@@ -26516,6 +26525,10 @@ components:
     UpdateInferenceProviderRequest:
       additionalProperties: false
       properties:
+        oauth_ticket:
+          minLength: 1
+          type: string
+          writeOnly: true
         provider:
           $ref: '#/components/schemas/InferenceProviderWriteDiscriminator'
         resource_version:
@@ -30653,6 +30666,45 @@ paths:
       summary: Refresh non-secret model metadata for a subscription provider.
       tags:
       - inference
+  /api/inference/provider/{providerName}/oauth-ticket:
+    post:
+      description: |
+        Credential material is written directly to OpenBao and is never included in this or any later API response.
+      operationId: reauthenticateInferenceProviderOAuthTicket
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
+      - $ref: '#/components/parameters/InferenceProviderNamePath'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInferenceProviderOAuthTicketRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateInferenceProviderOAuthTicketResponse'
+          description: Single-use provider ticket and non-secret model metadata.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "415":
+          $ref: '#/components/responses/UnsupportedMediaType'
+        "422":
+          $ref: '#/components/responses/UnprocessableContent'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - inference_provider.modify
+      summary: Store subscription credentials and return a single-use provider ticket.
+      tags:
+      - inference
   /api/inference/provider/{providerName}/usage:
     get:
       operationId: getInferenceProviderUsage
@@ -31519,6 +31571,49 @@ paths:
       - GatewayBearer:
         - mcp_connection.read
       summary: Get an MCPConnection resource.
+      tags:
+      - mcp-connections
+  /api/mcp-connection/{name}/reauthenticate:
+    post:
+      operationId: reauthenticateMCPConnection
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
+      - $ref: '#/components/parameters/MCPConnectionNamePath'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              additionalProperties: false
+              properties:
+                credentials:
+                  $ref: '#/components/schemas/MCPConnectionCredentials'
+                resource_version:
+                  minLength: 1
+                  type: string
+              required:
+              - resource_version
+              - credentials
+              type: object
+        required: true
+      responses:
+        "204":
+          description: Credentials replaced.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - mcp_connection.modify
+      summary: Replace the complete MCP credential set.
       tags:
       - mcp-connections
   /api/mcp-connection/watch:

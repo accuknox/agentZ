@@ -30,10 +30,23 @@ func TestValidate(t *testing.T) {
 	if errs := Validate([]agentzv1alpha1.AgentTool{valid}, p); len(errs) != 0 {
 		t.Fatal(errs)
 	}
+	memoryTools := []string{
+		"memory_read", "memory_search", "memory_list", "memory_add_note",
+		"memory_inspect", "memory_mode", "memory_reset",
+	}
+	for _, name := range memoryTools {
+		t.Run(name, func(t *testing.T) {
+			candidate := *valid.DeepCopy()
+			candidate.Name = name
+			if errs := Validate([]agentzv1alpha1.AgentTool{candidate}, p); len(errs) == 0 {
+				t.Fatal("uploaded tool can override memory")
+			}
+		})
+	}
 	cases := []invalidToolCase{
 		{"name", func(t *agentzv1alpha1.AgentTool) { t.Name = "../tool" }},
 		{"builtin", func(t *agentzv1alpha1.AgentTool) { t.Name = "bash" }},
-		{"platform", func(t *agentzv1alpha1.AgentTool) { t.Name = "memory" }},
+		{"platform", func(t *agentzv1alpha1.AgentTool) { t.Name = "analyze_file" }},
 		{"MCP", func(t *agentzv1alpha1.AgentTool) { t.Name = "gateway_future_tool" }},
 		{"blank description", func(t *agentzv1alpha1.AgentTool) { t.Description = " " }},
 		{"language", func(t *agentzv1alpha1.AgentTool) { t.Language = "ruby" }},

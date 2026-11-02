@@ -99,7 +99,7 @@ type AgentSpec struct {
 	// +optional
 	Telemetry TelemetryConfig `json:"telemetry,omitempty"`
 
-	// Memory configures persistent, agent-curated memory.
+	// Memory configures cross-session recall and background learning.
 	// +optional
 	Memory MemoryConfig `json:"memory,omitempty"`
 
@@ -129,7 +129,8 @@ type AgentSpec struct {
 
 // MemoryConfig defines persistent memory settings for an Agent.
 type MemoryConfig struct {
-	// Enabled makes curated memory available across Agent sessions.
+	// Enabled allows recall and background learning across Agent sessions.
+	// Learning uses the sandbox's configured inference models.
 	// +optional
 	Enabled bool `json:"enabled,omitempty"`
 }

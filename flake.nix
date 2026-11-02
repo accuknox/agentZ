@@ -55,8 +55,8 @@
             # Optional native packages differ by platform; sharing a hash
             # would let an Arm build reuse x64 node_modules from the cache.
             outputHash = {
-              x86_64-linux = "sha256-+EvARH/vqMA3kqfBuVKK+xBsrg6PwwQRp0kY/4X3fRU=";
-              aarch64-linux = "sha256-JHBgrFdu3vOritogW2kGSLERizokOaM0Glt/QGFZo7A=";
+              x86_64-linux = "sha256-qmCRy6+gTIoFIAZwm9InQR+0eXlVKGlU3bw/pSA9wdg=";
+              aarch64-linux = "sha256-OzmoVRpnJvvJX2gXmNHPeF0vUG3llsh4ScChdWwlUXY=";
             }.${system};
           };
           cfg = pkgs.runCommand "opencode-config" { } ''
@@ -94,8 +94,6 @@
                 "list_workflows": true,
                 "skill": true,
                 "list_skills": true,
-                "memory": false,
-                "journal": false,
                 "list_workflow_schedules": true,
                 "get_workflow": true,
                 "delete_workflows": true,

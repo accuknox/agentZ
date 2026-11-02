@@ -201,6 +201,14 @@
   ::-webkit-scrollbar-corner {
     background: transparent;
   }
+  [data-sidebar="sidebar"][data-hide-scrollbar],
+  [data-sidebar="sidebar"][data-hide-scrollbar] * {
+    scrollbar-width: none;
+  }
+  [data-sidebar="sidebar"][data-hide-scrollbar]::-webkit-scrollbar,
+  [data-sidebar="sidebar"][data-hide-scrollbar] *::-webkit-scrollbar {
+    display: none;
+  }
   body {
     @apply bg-background text-foreground;
   }
@@ -430,11 +438,9 @@ blockquote[data-streamdown="blockquote"] {
 }
 
 @keyframes session-title-scroll {
-  0%,
-  10.5% {
+  0% {
     transform: translateX(0);
   }
-  89.5%,
   100% {
     transform: translateX(calc(-1 * var(--title-travel)));
   }
@@ -444,5 +450,6 @@ blockquote[data-streamdown="blockquote"] {
     overflow: visible;
     text-overflow: clip;
     animation: session-title-scroll var(--title-duration) linear alternate infinite;
+    animation-delay: 200ms;
   }
 }

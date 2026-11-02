@@ -345,6 +345,8 @@ CREATE TABLE "user_preferences" (
 	"theme" "theme_preference" DEFAULT 'system' NOT NULL,
 	"update_sandbox" boolean DEFAULT false NOT NULL,
 	"show_tour_button" boolean DEFAULT true NOT NULL,
+	"hide_left_nav_scrollbar" boolean DEFAULT false NOT NULL,
+	"follow_up_behavior" text DEFAULT 'steer' NOT NULL,
 	"show_reasoning_and_tools" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL

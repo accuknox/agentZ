@@ -895,7 +895,7 @@ func (s *Service) storeOpenCodeSessionStatusResponse(ctx context.Context, resp *
 		}
 		switch kind {
 		case string(gatewayapi.Idle):
-		case string(gatewayapi.Retry):
+		case string(gatewayapi.OpencodeSessionStatus1TypeRetry):
 			retrySessionIDs = append(retrySessionIDs, sessionID)
 		case string(gatewayapi.Busy):
 			busySessionIDs = append(busySessionIDs, sessionID)

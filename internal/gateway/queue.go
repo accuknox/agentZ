@@ -236,7 +236,7 @@ func (s *Service) SubmitChatInput(w http.ResponseWriter, r *http.Request, agent 
 	apiutil.WriteJSON(w, http.StatusAccepted, result)
 }
 
-// UpdateChatInput removes or retries a message with authorship and revision checks.
+// UpdateChatInput changes an unsent message under authorship and revision checks.
 func (s *Service) UpdateChatInput(w http.ResponseWriter, r *http.Request, agent string, session string, id string) {
 	var input gatewayapi.ChatInputUpdate
 	if !decodeJSONBody(w, r, &input, false) {
@@ -287,6 +287,33 @@ func (s *Service) UpdateChatInput(w http.ResponseWriter, r *http.Request, agent 
 		return
 	}
 	switch input.Action {
+	case gatewayapi.ChatInputUpdateActionEdit:
+		if input.Content == nil {
+			apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_input", "Edited content is required.", nil))
+			return
+		}
+		if err := validateChatInput(*input.Content); err != nil {
+			apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_input", err.Error(), err))
+			return
+		}
+		var content gatewayapi.ChatInputContent
+		if err := json.Unmarshal(row.Content, &content); err != nil {
+			apiutil.WriteInternalError(w, r, err)
+			return
+		}
+		content.Text = input.Content.Text
+		content.Attachments = input.Content.Attachments
+		row.Content, err = json.Marshal(content)
+		if err != nil {
+			apiutil.WriteInternalError(w, r, err)
+			return
+		}
+	case gatewayapi.ChatInputUpdateActionSteer:
+		if row.State != string(gatewayapi.ChatInputStateQueued) {
+			apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "input_changed", "This message is no longer queued.", nil))
+			return
+		}
+		row.Delivery = string(gatewayapi.ChatInputDeliverySteer)
 	case gatewayapi.ChatInputUpdateActionRetry:
 		row.Resume = true
 		row.State = string(gatewayapi.ChatInputStateQueued)
@@ -527,6 +554,8 @@ func (s *Service) notifyChatInput(ctx context.Context, row gatewaydb.ChatInput) 
 func (s *Service) saveChatInput(ctx context.Context, row gatewaydb.ChatInput) (gatewaydb.ChatInput, error) {
 	saved, err := s.queries.GatewayUpdateChatInput(ctx, gatewaydb.GatewayUpdateChatInputParams{
 		ID:        row.ID,
+		Content:   row.Content,
+		Delivery:  row.Delivery,
 		Revision:  row.Revision,
 		State:     row.State,
 		Error:     row.Error,

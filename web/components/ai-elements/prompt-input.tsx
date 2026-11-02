@@ -1,11 +1,14 @@
 "use client"
 
+import { Button } from "@/components/ui/button"
 import { InputGroupButton, InputGroupTextarea } from "@/components/ui/input-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { nanoid } from "nanoid"
 import { v4 as uuidv4 } from "uuid"
+import type { ChatInputRequest } from "@/lib/gateway/client"
+import { ArrowUpIcon, CheckIcon, CornerUpRightIcon, ListPlusIcon, SquareIcon } from "lucide-react"
 import type {
   ChangeEventHandler,
   ClipboardEventHandler,
@@ -77,12 +80,13 @@ export interface PromptInputMessage {
 // refilling a reverted turn's text and attachments to edit and resend.
 export type PromptInputController = {
   setMessage: (message: PromptInputMessage) => void
-  submit: (queue?: boolean) => void
   getMessage: () => PromptInputMessage
 }
 
 type PromptInputProps = Omit<HTMLAttributes<HTMLFormElement>, "onSubmit" | "onError"> & {
   disabled?: boolean
+  submitDisabled?: boolean
+  clearOnSubmit?: boolean
   multiple?: boolean
   globalDrop?: boolean
   maxFiles?: number
@@ -92,14 +96,21 @@ type PromptInputProps = Omit<HTMLAttributes<HTMLFormElement>, "onSubmit" | "onEr
   onMessageChange?: (message: PromptInputMessage) => void
   controllerRef?: RefObject<PromptInputController | null>
   onError?: (code: "max_files" | "max_file_size") => void
-  onSubmit: (message: PromptInputMessage, event: FormEvent<HTMLFormElement>) => void | Promise<void>
+  delivery?: ChatInputRequest["delivery"]
+  alternateDelivery?: ChatInputRequest["delivery"]
+  onSubmit: (
+    message: PromptInputMessage,
+    event: FormEvent<HTMLFormElement>,
+    delivery: ChatInputRequest["delivery"]
+  ) => void | Promise<void>
   onSubmitError: (message: PromptInputMessage) => void
-  onQueue?: (message: PromptInputMessage) => void | Promise<void>
 }
 
 export const PromptInput = ({
   className,
   disabled = false,
+  submitDisabled = false,
+  clearOnSubmit = true,
   multiple,
   globalDrop,
   maxFiles,
@@ -112,13 +123,15 @@ export const PromptInput = ({
   onError,
   onSubmit,
   onSubmitError,
-  onQueue,
+  delivery = "steer",
+  alternateDelivery = delivery,
   children,
   ...props
 }: PromptInputProps) => {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const formRef = useRef<HTMLFormElement | null>(null)
-  const queueSubmit = useRef(false)
+  const requestedDelivery = useRef<ChatInputRequest["delivery"] | undefined>(undefined)
+  const [hasText, setHasText] = useState(Boolean(initialMessage?.text.trim()))
   const requestID = useRef(initialMessage?.requestID ?? uuidv4())
   const [items, setItems] = useState<PromptInputItem[]>(() =>
     (initialMessage?.files ?? []).map((file) => ({
@@ -232,10 +245,6 @@ export const PromptInput = ({
         text: formRef.current?.querySelector("textarea")?.value ?? "",
         files: filesRef.current,
       }),
-      submit: (queue = false) => {
-        queueSubmit.current = queue
-        formRef.current?.requestSubmit()
-      },
     }
     return () => {
       controllerRef.current = null
@@ -328,84 +337,106 @@ export const PromptInput = ({
       const textarea = form.querySelector("textarea")
       const text = textarea ? textarea.value : ""
 
-      const queued = queueSubmit.current
-      queueSubmit.current = false
-      if (disabled) return
+      const nextDelivery = requestedDelivery.current ?? delivery
+      requestedDelivery.current = undefined
+      if (disabled || submitDisabled) return
       const submitted = filesRef.current
       if (!text.trim() && !submitted.length) return
       const submittedID = requestID.current
-      requestID.current = uuidv4()
+      if (clearOnSubmit) requestID.current = uuidv4()
       const message = {
         requestID: submittedID,
         text,
         files: submitted.map(({ id: _id, ...file }) => file),
       }
-      if (textarea) {
-        textarea.value = ""
-        textarea.style.removeProperty("height")
+      if (clearOnSubmit) {
+        if (textarea) {
+          textarea.value = ""
+          textarea.style.removeProperty("height")
+        }
+        setHasText(false)
+        replaceItems([])
+        messageChange.current?.({ requestID: requestID.current, text: "", files: [] })
       }
-      replaceItems([])
-      messageChange.current?.({ requestID: requestID.current, text: "", files: [] })
       try {
-        if (queued && onQueue) await onQueue(message)
-        else await onSubmit(message, event)
-        revokeLocalFiles(submitted)
+        await onSubmit(message, event, nextDelivery)
+        if (clearOnSubmit) revokeLocalFiles(submitted)
       } catch {
-        // The draft owner survives this form, including navigation during send.
-        onSubmitError(message)
-        revokeLocalFiles(submitted)
+        // Edits stay in place until acknowledgement. Cleared submissions need
+        // recovery through their draft owner, including after navigation.
+        if (clearOnSubmit) {
+          onSubmitError(message)
+          revokeLocalFiles(submitted)
+        }
       }
     },
-    [disabled, onSubmit, onQueue, onSubmitError, replaceItems]
+    [disabled, submitDisabled, clearOnSubmit, delivery, onSubmit, onSubmitError, replaceItems]
   )
 
   return (
-    <LocalAttachmentsContext.Provider value={attachmentsCtx}>
-      <PromptInputLayoutContext.Provider value={mobile}>
-        <input
-          aria-label="Upload files"
-          className="hidden"
-          disabled={disabled}
-          multiple={multiple}
-          onChange={handleChange}
-          ref={inputRef}
-          title="Upload files"
-          type="file"
-        />
-        <form
-          onInput={(event) => {
-            onInput?.(event)
-            const text = event.currentTarget.querySelector("textarea")?.value ?? ""
-            messageChange.current?.({ requestID: requestID.current, text, files: filesRef.current })
-          }}
-          onInputCapture={(event) => {
-            // Restoring a draft dispatches input for autosizing, not a new send.
-            if (event.isTrusted) requestID.current = uuidv4()
-          }}
-          className={cn("w-full", className)}
-          inert={disabled}
-          onSubmit={handleSubmit}
-          ref={formRef}
-          {...props}
-        >
-          <div
-            className={cn(
-              "relative flex w-full min-w-0 flex-col overflow-hidden rounded-[22px]",
-              isDraggingFiles && "ring-2 ring-primary/30"
-            )}
-            data-slot="prompt-input-surface"
-            role="group"
+    <PromptInputDispatchContext
+      value={{
+        delivery,
+        alternateDelivery,
+        hasContent: hasText || items.length > 0,
+        submit: (nextDelivery) => {
+          requestedDelivery.current = nextDelivery
+          formRef.current?.requestSubmit()
+        },
+      }}
+    >
+      <LocalAttachmentsContext.Provider value={attachmentsCtx}>
+        <PromptInputLayoutContext.Provider value={mobile}>
+          <input
+            aria-label="Upload files"
+            className="hidden"
+            disabled={disabled}
+            multiple={multiple}
+            onChange={handleChange}
+            ref={inputRef}
+            title="Upload files"
+            type="file"
+          />
+          <form
+            onInput={(event) => {
+              onInput?.(event)
+              const text = event.currentTarget.querySelector("textarea")?.value ?? ""
+              setHasText(Boolean(text.trim()))
+              messageChange.current?.({
+                requestID: requestID.current,
+                text,
+                files: filesRef.current,
+              })
+            }}
+            onInputCapture={(event) => {
+              // Restoring a draft dispatches input for autosizing, not a new send.
+              if (event.isTrusted) requestID.current = uuidv4()
+            }}
+            className={cn("w-full", className)}
+            inert={disabled}
+            onSubmit={handleSubmit}
+            ref={formRef}
+            {...props}
           >
-            {children}
-            {isDraggingFiles ? (
-              <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[inherit] border-2 border-dashed border-primary bg-background/90 text-sm font-medium text-primary backdrop-blur-sm">
-                Drop files to attach
-              </div>
-            ) : null}
-          </div>
-        </form>
-      </PromptInputLayoutContext.Provider>
-    </LocalAttachmentsContext.Provider>
+            <div
+              className={cn(
+                "relative flex w-full min-w-0 flex-col overflow-hidden rounded-[22px]",
+                isDraggingFiles && "ring-2 ring-primary/30"
+              )}
+              data-slot="prompt-input-surface"
+              role="group"
+            >
+              {children}
+              {isDraggingFiles ? (
+                <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[inherit] border-2 border-dashed border-primary bg-background/90 text-sm font-medium text-primary backdrop-blur-sm">
+                  Drop files to attach
+                </div>
+              ) : null}
+            </div>
+          </form>
+        </PromptInputLayoutContext.Provider>
+      </LocalAttachmentsContext.Provider>
+    </PromptInputDispatchContext>
   )
 }
 
@@ -482,6 +513,8 @@ export const PromptInputTextarea = ({
     [ref]
   )
 
+  const dispatch = useContext(PromptInputDispatchContext)
+
   const handleKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = useCallback(
     (e) => {
       onKeyDown?.(e)
@@ -491,21 +524,17 @@ export const PromptInputTextarea = ({
       }
 
       if (e.key === "Enter") {
-        if (isComposing || e.nativeEvent.isComposing || e.repeat) {
+        if (isComposing || e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return
+        if (e.repeat) {
+          e.preventDefault()
           return
         }
-        if (e.shiftKey) {
+        if (e.shiftKey || e.altKey) {
           return
         }
         e.preventDefault()
 
-        const { form } = e.currentTarget
-        const submitButton = form?.querySelector<HTMLButtonElement>('button[type="submit"]')
-        if (submitButton?.disabled) {
-          return
-        }
-
-        form?.requestSubmit()
+        dispatch?.submit(e.ctrlKey || e.metaKey ? dispatch.alternateDelivery : dispatch.delivery)
       }
 
       if (e.key === "Backspace" && e.currentTarget.value === "" && attachments.files.length > 0) {
@@ -516,7 +545,7 @@ export const PromptInputTextarea = ({
         }
       }
     },
-    [onKeyDown, isComposing, attachments]
+    [onKeyDown, isComposing, attachments, dispatch]
   )
 
   const handlePaste: ClipboardEventHandler<HTMLTextAreaElement> = useCallback(
@@ -650,6 +679,97 @@ export const PromptInputButton = ({
       <TooltipContent side={side}>
         {tooltipContent}
         {shortcut && <span className="ml-2 text-muted-foreground">{shortcut}</span>}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+const PromptInputDispatchContext = createContext<{
+  delivery: ChatInputRequest["delivery"]
+  alternateDelivery: ChatInputRequest["delivery"]
+  hasContent: boolean
+  submit: (delivery: ChatInputRequest["delivery"]) => void
+} | null>(null)
+
+// Keep content and modifier subscriptions inside the composer, away from the
+// timeline and sidebar. The fixed control never changes the footer's geometry.
+export function PromptInputAction({
+  busy,
+  stopping,
+  disabled,
+  canStop,
+  editing,
+  onStop,
+}: {
+  busy: boolean
+  stopping: boolean
+  disabled: boolean
+  canStop: boolean
+  editing: boolean
+  onStop: () => void
+}) {
+  const dispatch = useContext(PromptInputDispatchContext)
+  const [alternate, setAlternate] = useState(false)
+  useEffect(() => {
+    const update = (event: KeyboardEvent) => setAlternate(event.ctrlKey || event.metaKey)
+    const reset = () => setAlternate(false)
+    window.addEventListener("keydown", update)
+    window.addEventListener("keyup", update)
+    window.addEventListener("blur", reset)
+    return () => {
+      window.removeEventListener("keydown", update)
+      window.removeEventListener("keyup", update)
+      window.removeEventListener("blur", reset)
+    }
+  }, [])
+  if (!dispatch) return null
+  const stop = busy && !dispatch.hasContent && !editing
+  const delivery = alternate ? dispatch.alternateDelivery : dispatch.delivery
+  let label = "Send message"
+  let icon = <ArrowUpIcon />
+  if (busy) {
+    label = delivery === "queue" ? "Queue message" : "Steer response"
+    icon = delivery === "queue" ? <ListPlusIcon /> : <CornerUpRightIcon />
+  }
+  if (editing) {
+    label = "Save queued message"
+    icon = <CheckIcon />
+  }
+  if (stop) {
+    label = stopping ? "Stopping" : "Stop run"
+    icon = <SquareIcon className="fill-current" />
+  }
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant={stop ? "destructive" : "default"}
+          size="icon"
+          className="size-9 shrink-0 rounded-full shadow-xs transition-colors duration-150 sm:size-8"
+          aria-label={label}
+          disabled={stop ? !canStop : disabled || !dispatch.hasContent}
+          onPointerDown={(event) => {
+            if (event.pointerType === "mouse") event.preventDefault()
+          }}
+          onClick={(event) => {
+            if (stop) {
+              onStop()
+              return
+            }
+            dispatch.submit(
+              event.ctrlKey || event.metaKey ? dispatch.alternateDelivery : dispatch.delivery
+            )
+          }}
+        >
+          {icon}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>
+        {label}
+        {busy && !stop && !editing && dispatch.delivery !== dispatch.alternateDelivery
+          ? ` · Ctrl+Enter to ${dispatch.alternateDelivery}`
+          : ""}
       </TooltipContent>
     </Tooltip>
   )

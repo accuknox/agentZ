@@ -323,6 +323,10 @@ export type ChatSessionParticipant = {
 export type ChatSession = {
   archived: boolean
   snoozed_until?: string
+  /**
+   * Last automatic snooze wake. Cleared by subsequent shelf changes.
+   */
+  woke_at?: string
   project_id?: string
   agent_name: AgentName
   session_id: string
@@ -404,7 +408,8 @@ export type ChatInputs = {
 
 export type ChatInputUpdate = {
   revision: number
-  action: "remove" | "retry"
+  action: "remove" | "retry" | "edit" | "steer"
+  content?: ChatInputContent
 }
 
 export type ChatSessionPreference = {
@@ -5028,6 +5033,11 @@ export type UpdateChatSessionErrors = {
    */
   404: Error
   /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -5191,7 +5201,7 @@ export type UpdateChatInputError = UpdateChatInputErrors[keyof UpdateChatInputEr
 
 export type UpdateChatInputResponses = {
   /**
-   * Remove or retry your queued message.
+   * Edit, steer, remove, or retry your queued message.
    */
   200: ChatInput
 }

@@ -536,6 +536,10 @@ func (s *Service) listChatSessionPage(ctx context.Context, q gatewaydb.GatewayLi
 		if row.ProjectID.Valid {
 			projectID = &row.ProjectID.String
 		}
+		var wokeAt *time.Time
+		if row.WokeAt.Valid {
+			wokeAt = &row.WokeAt.Time
+		}
 		var snoozedUntil *time.Time
 		if row.SnoozedUntil.Valid {
 			snoozedUntil = &row.SnoozedUntil.Time
@@ -547,6 +551,7 @@ func (s *Service) listChatSessionPage(ctx context.Context, q gatewaydb.GatewayLi
 			Title:        row.Title,
 			Archived:     row.ArchivedAt.Valid,
 			SnoozedUntil: snoozedUntil,
+			WokeAt:       wokeAt,
 			Kind:         gatewayapi.ChatSessionKind(row.Kind),
 			Status:       gatewayapi.ChatSessionStatus(row.Status),
 			CreatedAt:    row.SourceCreatedAt.Time,
@@ -593,6 +598,10 @@ func (s *Service) searchChatSessionGroups(ctx context.Context, q gatewaydb.Gatew
 		if decodeErr != nil {
 			return nil, fmt.Errorf("decode chat session participants: %w", decodeErr)
 		}
+		var wokeAt *time.Time
+		if row.WokeAt.Valid {
+			wokeAt = &row.WokeAt.Time
+		}
 		var snoozedUntil *time.Time
 		if row.SnoozedUntil.Valid {
 			snoozedUntil = &row.SnoozedUntil.Time
@@ -603,6 +612,7 @@ func (s *Service) searchChatSessionGroups(ctx context.Context, q gatewaydb.Gatew
 			Title:        row.Title,
 			Archived:     row.ArchivedAt.Valid,
 			SnoozedUntil: snoozedUntil,
+			WokeAt:       wokeAt,
 			Kind:         gatewayapi.ChatSessionKind(row.Kind),
 			Status:       gatewayapi.ChatSessionStatus(row.Status),
 			CreatedAt:    row.SourceCreatedAt.Time,
@@ -1075,7 +1085,7 @@ func (s *Service) UpdateChatSession(w http.ResponseWriter, r *http.Request, agen
 	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding {
 		owner = pgtype.Text{String: access.userID, Valid: true}
 	}
-	_, err := s.queries.GatewayUpdateChatSession(r.Context(), gatewaydb.GatewayUpdateChatSessionParams{
+	result, err := s.queries.GatewayUpdateChatSession(r.Context(), gatewaydb.GatewayUpdateChatSessionParams{
 		WorkspaceID:  access.workspaceID,
 		AgentName:    agent,
 		SessionID:    session,
@@ -1085,6 +1095,13 @@ func (s *Service) UpdateChatSession(w http.ResponseWriter, r *http.Request, agen
 	})
 	if err != nil {
 		apiutil.WriteError(w, r, mapGatewayStoreError("update chat", err))
+		return
+	}
+	if !result.Allowed {
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict, "invalid_transition",
+			"Wake or unarchive this chat before snoozing it", nil,
+		))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

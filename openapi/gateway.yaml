@@ -1648,7 +1648,11 @@ components:
           enum:
           - remove
           - retry
+          - edit
+          - steer
           type: string
+        content:
+          $ref: '#/components/schemas/ChatInputContent'
         revision:
           format: int64
           minimum: 1
@@ -1697,6 +1701,10 @@ components:
         title:
           type: string
         updated_at:
+          format: date-time
+          type: string
+        woke_at:
+          description: Last automatic snooze wake. Cleared by subsequent shelf changes.
           format: date-time
           type: string
       required:
@@ -29067,6 +29075,8 @@ paths:
       - chat-sessions
   /api/chat-session/{agentName}/{sessionId}:
     patch:
+      description: |
+        Active sessions can be snoozed or archived. Snoozed sessions can be woken or archived. Archived sessions must be unarchived before snoozing. Repeating an identical update succeeds without changing activity times.
       operationId: updateChatSession
       parameters:
       - in: path
@@ -29094,6 +29104,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
         "500":
           $ref: '#/components/responses/InternalError'
       security:
@@ -29199,7 +29211,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ChatInput'
-          description: Remove or retry your queued message.
+          description: Edit, steer, remove, or retry your queued message.
         "400":
           $ref: '#/components/responses/BadRequest'
         "401":
@@ -29211,7 +29223,7 @@ paths:
       security:
       - GatewayBearer:
         - agent.use_shared
-      summary: Remove or retry your queued message.
+      summary: Edit, steer, remove, or retry your queued message.
       tags:
       - chat-sessions
   /api/chat-session/watch:

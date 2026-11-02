@@ -1484,6 +1484,9 @@ export const listChatSessionsOptions = (options?: Options<ListChatSessionsData>)
 
 /**
  * Move a session between inbox shelves.
+ *
+ * Active sessions can be snoozed or archived. Snoozed sessions can be woken or archived. Archived sessions must be unarchived before snoozing. Repeating an identical update succeeds without changing activity times.
+ *
  */
 export const updateChatSessionMutation = (
   options?: Partial<Options<UpdateChatSessionData>>
@@ -1562,7 +1565,7 @@ export const submitChatInputMutation = (
 }
 
 /**
- * Remove or retry your queued message.
+ * Edit, steer, remove, or retry your queued message.
  */
 export const updateChatInputMutation = (
   options?: Partial<Options<UpdateChatInputData>>

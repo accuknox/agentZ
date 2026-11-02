@@ -1,5 +1,5 @@
 {
-  "id": "89cb7213-c43e-412f-9a24-bf1eb5cf3a9f",
+  "id": "2677d456-4552-47a3-a64f-70be029a7f6a",
   "prevId": "2de6d865-ef1a-4d69-8095-6496e22d4a33",
   "version": "7",
   "dialect": "postgresql",
@@ -2913,6 +2913,20 @@
           "primaryKey": false,
           "notNull": true,
           "default": true
+        },
+        "hide_left_nav_scrollbar": {
+          "name": "hide_left_nav_scrollbar",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "follow_up_behavior": {
+          "name": "follow_up_behavior",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'steer'"
         },
         "show_reasoning_and_tools": {
           "name": "show_reasoning_and_tools",

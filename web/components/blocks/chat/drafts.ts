@@ -4,7 +4,7 @@ import { openDB, type DBSchema } from "idb"
 import { useEffect, useSyncExternalStore } from "react"
 import { toast } from "sonner"
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input"
-import type { CodingProject, CodingTextRequest } from "@/lib/gateway/client"
+import type { ChatInput, CodingProject, CodingTextRequest } from "@/lib/gateway/client"
 import type { Session } from "@opencode-ai/sdk/v2"
 
 export type SessionDraft = {
@@ -20,9 +20,10 @@ export type SessionDraft = {
   baseRef?: string
   message: PromptInputMessage
   submission?: PromptInputMessage
+  queueEdit?: { item: ChatInput; sessionID: string; draft: PromptInputMessage }
 }
 
-export type DraftMetadata = Omit<SessionDraft, "message" | "submission">
+export type DraftMetadata = Omit<SessionDraft, "message" | "submission" | "queueEdit">
 
 interface DraftDatabase extends DBSchema {
   drafts: { key: [string, string]; value: SessionDraft; indexes: { scope: string } }
@@ -49,7 +50,7 @@ let channel: BroadcastChannel | undefined
 function publish(scope: string) {
   const previous = snapshots.get(scope) ?? empty
   const rows = [...records.values()]
-    .filter((draft) => draft.scope === scope)
+    .filter((draft) => draft.scope === scope && !draft.queueEdit)
     .flatMap((draft) => {
       if (active.has(JSON.stringify([scope, draft.id]))) {
         const row = previous.find((row) => row.id === draft.id)
@@ -98,7 +99,7 @@ async function openDrafts(): ReturnType<typeof openDB<DraftDatabase>> {
         // A remote edit must not replace this tab's unflushed input.
         if (!draft || writes.has(key) || writing.has(key)) return
         records.set(key, draft)
-        const { message: _message, submission: _submission, ...info } = draft
+        const { message: _message, submission: _submission, queueEdit: _queueEdit, ...info } = draft
         metadata.set(key, info)
         persisted.add(key)
         publish(data.scope)
@@ -169,7 +170,7 @@ export const sessionDrafts = {
       void tx.done.catch(() => {})
       for (const row of rows) {
         const message = row.submission ?? row.message
-        if (!message.text.trim() && !message.files.length && !row.sessionID) {
+        if (!message.text.trim() && !message.files.length && !row.sessionID && !row.queueEdit) {
           await tx.store.delete([scope, row.id])
           continue
         }
@@ -190,7 +191,7 @@ export const sessionDrafts = {
           : row
         const key = JSON.stringify([scope, row.id])
         records.set(key, draft)
-        const { message: _message, submission: _submission, ...info } = draft
+        const { message: _message, submission: _submission, queueEdit: _queueEdit, ...info } = draft
         metadata.set(key, info)
         persisted.add(key)
       }
@@ -229,6 +230,7 @@ export const sessionDrafts = {
             draft.projectId === projectId &&
             draft.agentName === agentName &&
             !draft.submission &&
+            !draft.queueEdit &&
             !draft.sessionID &&
             !draft.message.text.trim() &&
             !draft.message.files.length &&
@@ -246,7 +248,7 @@ export const sessionDrafts = {
     }
     const key = JSON.stringify([scope, draft.id])
     records.set(key, draft)
-    const { message: _message, submission: _submission, ...info } = draft
+    const { message: _message, submission: _submission, queueEdit: _queueEdit, ...info } = draft
     metadata.set(key, info)
     publish(scope)
     return draft
@@ -268,7 +270,7 @@ export const sessionDrafts = {
     records.set(key, draft)
     const contentOnly = Object.keys(change).every((key) => key === "message")
     if (!contentOnly) {
-      const { message: _message, submission: _submission, ...info } = draft
+      const { message: _message, submission: _submission, queueEdit: _queueEdit, ...info } = draft
       metadata.set(key, info)
     }
     if (!contentOnly || !active.has(key)) publish(scope)
@@ -305,7 +307,7 @@ export const sessionDrafts = {
           return
         }
         const message = draft.submission ?? draft.message
-        const keep = Boolean(message.text.trim() || message.files.length)
+        const keep = Boolean(message.text.trim() || message.files.length || draft.queueEdit)
         if (keep) {
           await store.put(draft)
         } else {

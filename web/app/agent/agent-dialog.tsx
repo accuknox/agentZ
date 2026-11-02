@@ -15,7 +15,9 @@ import { Controller, Watch, useForm, useWatch, type Control } from "react-hook-f
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Box, Plus, Save, Wrench, CircleAlert } from "lucide-react"
 import { useRouter } from "next/navigation"
-import dynamic from "next/dynamic"
+// The closed dialog keeps the editor unmounted; only its code loads here.
+// A lazy fallback would resize the dialog when the editor becomes ready.
+import AgentInstructions from "./agent-instructions"
 import { AlertDescription, Alert } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
@@ -76,11 +78,6 @@ import type {
 } from "@/lib/gateway/client"
 import type * as z from "zod"
 import { toast } from "sonner"
-
-const AgentInstructions = dynamic(() => import("./agent-instructions"), {
-  ssr: false,
-  loading: () => <div className="min-h-18 py-2 text-muted-foreground">Loading editor…</div>,
-})
 
 type Mode = "create" | "update"
 

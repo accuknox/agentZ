@@ -21,9 +21,11 @@ const sidebarStyle: CSSProperties & { "--sidebar-width": string } = {
 export default function Providers({
   children,
   sidebarDefaultOpen,
+  hideSidebarScrollbar,
 }: {
   children: ReactNode
   sidebarDefaultOpen: boolean
+  hideSidebarScrollbar: boolean
 }) {
   const queryClient = getQueryClient()
   const router = useRouter()
@@ -60,7 +62,11 @@ export default function Providers({
         >
           <ScopeTransitionProvider>
             <TooltipProvider delayDuration={450}>
-              <SidebarProvider defaultOpen={sidebarDefaultOpen} style={sidebarStyle}>
+              <SidebarProvider
+                defaultOpen={sidebarDefaultOpen}
+                hideScrollbar={hideSidebarScrollbar}
+                style={sidebarStyle}
+              >
                 {children}
               </SidebarProvider>
             </TooltipProvider>

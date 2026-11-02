@@ -99,16 +99,19 @@ export function useOpencodeSend(
     mutationFn: async ({
       item,
       action,
+      content,
     }: {
       item: ChatInput
       action: ChatInputUpdate["action"]
+      content?: ChatInputUpdate["content"]
     }) => {
       if (!resolvedSessionID) throw new Error("Chat has not been created")
+      await queryClient.cancelQueries({ queryKey: queueKey, exact: true })
       const result = await updateChatInput({
         baseUrl: await getGatewayBaseURL(),
         headers: { "X-AgentZ-Workspace-ID": workspaceId },
         path: { agentName, sessionId: resolvedSessionID, inputId: item.id },
-        body: { revision: item.revision, action },
+        body: { revision: item.revision, action, content },
       })
       if (result.error) throw new Error(result.error.message)
       if (queryClient.getQueryCache().find({ queryKey: queueKey, exact: true }) !== owner)
@@ -119,7 +122,11 @@ export function useOpencodeSend(
           current && {
             ...current,
             items: current.items.flatMap((entry) =>
-              entry.id !== item.id ? [entry] : result.data.state === "removed" ? [] : [result.data]
+              entry.id !== item.id || entry.revision > result.data.revision
+                ? [entry]
+                : result.data.state === "removed"
+                  ? []
+                  : [result.data]
             ),
           }
       )
@@ -197,6 +204,8 @@ export function useOpencodeSend(
           const prepared = queryOptions({ queryKey: [...preparedKey, id] })
           queryClient.setQueryData(prepared.queryKey, request)
         }
+        const target = chatInputsOptions(workspaceId, agentName, id)
+        const before = queryClient.getQueryState(target.queryKey)?.dataUpdatedAt
         const result = await submitChatInput({
           baseUrl: await getGatewayBaseURL(),
           headers: { "X-AgentZ-Workspace-ID": workspaceId },
@@ -208,9 +217,18 @@ export function useOpencodeSend(
         // Navigation keeps the same cached query; logout or deletion removes
         // it. A late acknowledgement must not recreate that private state.
         if (queryClient.getQueryCache().find({ queryKey: queueKey, exact: true }) !== owner) return
-        queryClient.setQueryData<ChatInputs>(
-          chatInputsOptions(workspaceId, agentName, id).queryKey,
-          (current) => ({
+        const current = queryClient.getQueryState<ChatInputs>(target.queryKey)
+        const existing = current?.data?.items.find((item) => item.id === result.data.id)
+        // A poll or another tab can observe removal or a newer revision before
+        // this acknowledgement arrives. Re-read instead of resurrecting it.
+        if (
+          current?.dataUpdatedAt !== before &&
+          (!existing || existing.revision > result.data.revision)
+        ) {
+          await queryClient.invalidateQueries({ queryKey: target.queryKey, refetchType: "none" })
+          await queryClient.fetchQuery(target)
+        } else {
+          queryClient.setQueryData<ChatInputs>(target.queryKey, (current) => ({
             stopping: current?.stopping ?? false,
             items: [
               ...(current?.items ?? []).filter((item) => item.id !== result.data.id),
@@ -218,8 +236,8 @@ export function useOpencodeSend(
                 ? []
                 : [result.data]),
             ],
-          })
-        )
+          }))
+        }
         if (!promoted.current) {
           promoted.current = true
           onSessionCreated?.(id)
@@ -243,6 +261,7 @@ export function useOpencodeSend(
     sendState: pending.length ? ("submitted" as const) : undefined,
     queue: queue.data?.items ?? [],
     queueError: queue.error?.message,
+    queueLoaded: queue.isSuccess,
     updateInput: update.mutateAsync,
   }
 }

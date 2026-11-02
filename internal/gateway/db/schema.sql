@@ -29,6 +29,7 @@ CREATE TABLE chat_sessions (
   archived_at TIMESTAMPTZ,
   snoozed_until TIMESTAMPTZ,
   resumed_at TIMESTAMPTZ,
+  woke_at TIMESTAMPTZ,
   kind chat_session_kind NOT NULL DEFAULT 'chat',
   status chat_session_status NOT NULL DEFAULT 'idle',
   source_created_at TIMESTAMP WITH TIME ZONE NOT NULL,

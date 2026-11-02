@@ -180,6 +180,7 @@ async function WorkspaceContent({
         <ChatActivityProvider
           workspaceType={result.workspace.type}
           showReasoningAndTools={preferences.showReasoningAndTools}
+          followUpBehavior={preferences.followUpBehavior}
         >
           <AdministrationLayout>
             {result.workspace.state === "ready" ? (

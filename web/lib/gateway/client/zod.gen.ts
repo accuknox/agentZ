@@ -168,7 +168,8 @@ export const zChatInputUpdate = z.object({
   revision: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),
-  action: z.enum(["remove", "retry"]),
+  action: z.enum(["remove", "retry", "edit", "steer"]),
+  content: zChatInputContent.optional(),
 })
 
 export const zWatchExternalAgentsEvent = z.object({
@@ -668,6 +669,7 @@ export const zAgentName = z
 export const zChatSession = z.object({
   archived: z.boolean(),
   snoozed_until: z.iso.datetime({ offset: true }).optional(),
+  woke_at: z.iso.datetime({ offset: true }).optional(),
   project_id: z.string().optional(),
   agent_name: zAgentName,
   session_id: z.string(),
@@ -4552,7 +4554,7 @@ export const zListChatInputsResponse = zChatInputs
 export const zSubmitChatInputResponse = zChatInput
 
 /**
- * Remove or retry your queued message.
+ * Edit, steer, remove, or retry your queued message.
  */
 export const zUpdateChatInputResponse = zChatInput
 

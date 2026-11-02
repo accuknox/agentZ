@@ -2,7 +2,7 @@
 
 import styles from "./composer.module.css"
 import { WorkGroup } from "./activity"
-import { ChatActivityContext } from "./display"
+import { ChatActivityContext, ChatFollowUpContext } from "./display"
 import { LegendList, type LegendListRef } from "@legendapp/list/react"
 import { getImageProps } from "next/image"
 import {
@@ -29,6 +29,7 @@ import {
   PromptInputBody,
   PromptInputButton,
   PromptInputTextarea,
+  PromptInputAction,
   usePromptInputAttachments,
 } from "@/components/ai-elements/prompt-input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -74,6 +75,7 @@ import {
   chatAttachmentConfig,
   chatAttachmentErrorMessage,
   promptFileFromPart,
+  uploadChatAttachments,
 } from "@/components/blocks/chat/attachments"
 import type { ProviderModelItem } from "@/data/types"
 import type { ChatInput, ChatSessionPreference, CodingTextRequest } from "@/lib/gateway/client"
@@ -107,8 +109,6 @@ import {
   type QueryKey,
 } from "@tanstack/react-query"
 import {
-  ArrowUpIcon,
-  SquareIcon,
   CheckIcon,
   ChevronDownIcon,
   DownloadIcon,
@@ -255,8 +255,8 @@ function ChatPromptInput({
         if (savedDraft && hydrated.current)
           sessionDrafts.update(savedDraft.scope, savedDraft.id, { message })
       }}
-      onSubmit={async (message, event) => {
-        if (!savedDraft) return props.onSubmit(message, event)
+      onSubmit={async (message, event, delivery) => {
+        if (!savedDraft) return props.onSubmit(message, event, delivery)
         // Hold the native browser lock through acknowledgement. Another tab
         // must not create a second native session for the same local draft.
         return navigator.locks.request(
@@ -268,8 +268,9 @@ function ChatPromptInput({
               toast.error(error.message)
               throw error
             }
-            sessionDrafts.update(savedDraft.scope, savedDraft.id, { submission: message })
-            return props.onSubmit(message, event)
+            if (props.clearOnSubmit !== false)
+              sessionDrafts.update(savedDraft.scope, savedDraft.id, { submission: message })
+            return props.onSubmit(message, event, delivery)
           }
         )
       }}
@@ -633,6 +634,7 @@ export default function Chat({
 }: ChatProps) {
   const queryClient = useQueryClient()
   const showWork = useContext(ChatActivityContext)
+  const followUpBehavior = useContext(ChatFollowUpContext)
   const reducedMotion = useReducedMotion()
   const agentReadiness = useAgentReadiness(agentName, workspaceId)
   const composerRef = useRef<PromptInputController | null>(null)
@@ -1001,6 +1003,7 @@ export default function Chat({
     pending: pendingMessages,
     queue,
     queueError,
+    queueLoaded,
     updateInput,
   } = useOpencodeSend(
     agentName,
@@ -1220,9 +1223,113 @@ export default function Chat({
     )
       restoreInput(recovered)
   }
+  const [storedQueueEdit, setQueueEdit] = useState<SessionDraft>()
+  const queueEditScope = `${authSession?.user.id}:${workspaceId}`
+  const editMetadata = useSessionDraft(queueEditScope, storedQueueEdit?.id ?? null)
+  const queueEdit = editMetadata ? storedQueueEdit : undefined
+  const editBusy = useRef(false)
+  const [editSaving, setEditSaving] = useState(false)
+  useEffect(() => {
+    if (!sessionId || !authSession) return
+    let mounted = true
+    void sessionDrafts
+      .load(queueEditScope)
+      .then((drafts) => {
+        if (!mounted) return
+        const edit = drafts.find(
+          (draft) => draft.agentName === agentName && draft.queueEdit?.sessionID === sessionId
+        )
+        if (!edit) return
+        // Preserve new typing if disk hydration finishes after the first input.
+        const current = composerRef.current?.getMessage()
+        const normal = queryClient.getQueryData<PromptInputMessage>(draftKey)
+        if (!normal?.text && !normal?.files.length)
+          queryClient.setQueryData(
+            draftKey,
+            current?.text || current?.files.length ? current : edit.queueEdit?.draft
+          )
+        setQueueEdit(edit)
+      })
+      .catch(() => toast.error("Could not recover queued-message edits"))
+    return () => {
+      mounted = false
+    }
+    // Route-scoped hydration runs once. Typing never subscribes the chat.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentName, queueEditScope, sessionId])
+  const beginQueueEdit = async (item: ChatInput) => {
+    if (!sessionId || queueEdit || editBusy.current || blocked) return
+    editBusy.current = true
+    try {
+      const draft = await sessionDrafts.start(queueEditScope, "", agentName, crypto.randomUUID())
+      const normal = composerRef.current?.getMessage() ?? { text: "", files: [] }
+      sessionDrafts.update(queueEditScope, draft.id, {
+        queueEdit: { item, sessionID: sessionId, draft: normal },
+        message: {
+          text: item.content.text,
+          files: item.content.attachments.map((file) => ({
+            ...file,
+            type: "file",
+            source: "workspace",
+          })),
+        },
+      })
+      const stored = sessionDrafts.get(queueEditScope, draft.id)
+      setQueueEdit(stored)
+    } finally {
+      editBusy.current = false
+    }
+  }
+  const closeQueueEdit = () => {
+    if (!queueEdit || editBusy.current) return
+    sessionDrafts.remove(queueEdit.scope, queueEdit.id)
+    const editKey = ["queueEdit", queueEdit.scope, queueEdit.id]
+    queryClient.removeQueries({
+      queryKey: editKey,
+      exact: true,
+    })
+    setQueueEdit(undefined)
+  }
+  const editStale =
+    queueEdit &&
+    queueLoaded &&
+    !queue.some(
+      (item) =>
+        item.id === queueEdit.queueEdit?.item.id &&
+        item.revision === queueEdit.queueEdit.item.revision &&
+        item.state !== "sending" &&
+        !item.message_id
+    )
+  const saveQueueEdit = async (message: PromptInputMessage) => {
+    const original = queueEdit?.queueEdit?.item
+    if (!original || !sessionId || editBusy.current) throw new Error("Edit is unavailable")
+    editBusy.current = true
+    setEditSaving(true)
+    try {
+      const attachments = await uploadChatAttachments(
+        agentName,
+        workspaceId,
+        sessionId,
+        message.files
+      )
+      await updateInput({
+        item: original,
+        action: "edit",
+        content: { ...original.content, text: message.text, attachments },
+      })
+      editBusy.current = false
+      closeQueueEdit()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save queued message")
+      throw error
+    } finally {
+      editBusy.current = false
+      setEditSaving(false)
+    }
+  }
   const handleSubmit = async (
     message: PromptInputMessage,
-    delivery: "steer" | "queue" = "steer"
+    delivery: ChatInput["delivery"] = "steer"
   ) => {
     if (
       sessionUnavailable ||
@@ -1483,6 +1590,21 @@ export default function Chat({
     agentReadiness.isGettingReady ||
     navigationPending ||
     (!sessionId && sendState === "submitted")
+  const running =
+    isBusy ||
+    activeSteers.length > 0 ||
+    pendingMessages.some(({ input }) => input.delivery === "steer")
+  const canSteer = !blocked && !session?.time.compacting
+  let defaultDelivery: ChatInput["delivery"] = "steer"
+  let alternateDelivery: ChatInput["delivery"] = "steer"
+  if (running) {
+    defaultDelivery = followUpBehavior
+    alternateDelivery = followUpBehavior === "steer" ? "queue" : "steer"
+  }
+  if (!canSteer) {
+    defaultDelivery = "queue"
+    alternateDelivery = "queue"
+  }
   const showStop = isBusy || isStopping || queue.some((item) => item.state !== "recovered")
   const submitDisabled =
     inputDisabled ||
@@ -1652,6 +1774,21 @@ export default function Chat({
                     className="mx-auto flex w-[calc(100%-2rem)] max-w-3xl flex-col gap-4 pt-2"
                     style={{ paddingBottom: "calc(var(--chat-composer-height, 0px) + 16px)" }}
                   >
+                    <ChatQueue
+                      items={inputs.filter((item) => !activeSteers.includes(item))}
+                      submissions={submissions.filter(({ input }) => input.delivery === "queue")}
+                      error={queueError}
+                      userID={authSession?.user.id}
+                      coding={coding}
+                      agentName={agentName}
+                      workspaceId={workspaceId}
+                      onUpdate={updateInput}
+                      onRestore={restoreInput}
+                      editingID={queueEdit?.queueEdit?.item.id}
+                      editDisabled={blocked || Boolean(queueEdit)}
+                      sendDisabled={blocked || isStopping || !canSubmit}
+                      onEdit={beginQueueEdit}
+                    />
                     <RevertDock
                       items={reverted}
                       onRestore={restoreMutation.mutate}
@@ -1845,15 +1982,7 @@ export default function Chat({
               ) : null}
             </div>
           ) : null}
-          <ChatQueue
-            items={inputs.filter((item) => !activeSteers.includes(item))}
-            submissions={submissions.filter(({ input }) => input.delivery === "queue")}
-            error={queueError}
-            userID={authSession?.user.id}
-            coding={coding}
-            onUpdate={updateInput}
-            onRestore={restoreInput}
-          />
+
           {recoveredError ? (
             <Alert className="mb-3" variant="destructive">
               <CircleAlert aria-hidden="true" />
@@ -1904,21 +2033,70 @@ export default function Chat({
             </div>
           ) : null}
           <div className={cn(styles.shell, "relative w-full shrink-0")}>
+            {queueEdit ? (
+              <div
+                className="flex items-center justify-between gap-3 px-4 pt-3 text-xs text-muted-foreground"
+                role="status"
+              >
+                <span>
+                  {editStale
+                    ? "This message changed or started. Your edits are saved locally."
+                    : "Editing queued message"}
+                </span>
+                <div className="flex gap-2">
+                  {editStale ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={editSaving}
+                      onClick={async () => {
+                        const message = composerRef.current?.getMessage()
+                        const recovered = await sessionDrafts.start(
+                          queueEdit.scope,
+                          "",
+                          agentName,
+                          crypto.randomUUID()
+                        )
+                        sessionDrafts.update(recovered.scope, recovered.id, { message })
+                        closeQueueEdit()
+                        toast.info("Edits recovered as a draft")
+                      }}
+                    >
+                      Keep as draft
+                    </Button>
+                  ) : null}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={editSaving}
+                    onClick={closeQueueEdit}
+                  >
+                    Cancel edit
+                  </Button>
+                </div>
+              </div>
+            ) : null}
             <ChatPromptInput
-              draftKey={draftKey}
+              key={queueEdit?.id ?? "composer"}
+              draftKey={queueEdit ? ["queueEdit", queueEdit.scope, queueEdit.id] : draftKey}
               savedDraft={
-                !sessionId && draftId && authSession
+                queueEdit ??
+                (!sessionId && draftId && authSession
                   ? {
                       id: draftId,
                       scope: `${authSession.user.id}:${workspaceId}`,
                       agentName,
                     }
-                  : undefined
+                  : undefined)
               }
-              initialMessage={initialMessage}
+              initialMessage={queueEdit?.message ?? initialMessage}
               className={cn(styles.host, "relative z-10 rounded-3xl")}
               controllerRef={composerRef}
-              disabled={inputDisabled}
+              disabled={inputDisabled || editSaving}
+              submitDisabled={submitDisabled || editSaving || Boolean(editStale)}
+              clearOnSubmit={!queueEdit}
               globalDrop
               maxFileSize={chatAttachmentConfig.maxFileSizeBytes}
               maxFiles={chatAttachmentConfig.maxFileCount}
@@ -1927,8 +2105,11 @@ export default function Chat({
               onError={(code) => {
                 toast.error(chatAttachmentErrorMessage(code))
               }}
-              onSubmit={(message) => handleSubmit(message)}
-              onQueue={(message) => handleSubmit(message, "queue")}
+              delivery={defaultDelivery}
+              alternateDelivery={alternateDelivery}
+              onSubmit={(message, _event, delivery) =>
+                queueEdit ? saveQueueEdit(message) : handleSubmit(message, delivery)
+              }
             >
               <PromptInputAttachmentsDisplay agentName={agentName} />
               <PromptInputBody
@@ -1974,27 +2155,6 @@ export default function Chat({
                   className="col-span-full col-start-1 row-start-1 self-stretch px-0 py-0 text-[15px] leading-6 placeholder:text-muted-foreground/80"
                   disabled={inputDisabled}
                   onKeyDown={(event) => {
-                    if (
-                      event.key === "Tab" &&
-                      !event.shiftKey &&
-                      !event.altKey &&
-                      !event.ctrlKey &&
-                      !event.metaKey &&
-                      !event.nativeEvent.isComposing
-                    ) {
-                      if (
-                        !event.currentTarget.value.trim() &&
-                        !composerRef.current?.getMessage().files.length
-                      )
-                        return
-                      if (event.repeat) {
-                        event.preventDefault()
-                        return
-                      }
-                      event.preventDefault()
-                      composerRef.current?.submit(true)
-                      return
-                    }
                     if (
                       !coding ||
                       modeDisabled ||
@@ -2193,21 +2353,14 @@ export default function Chat({
                         usedTokens={contextUsage.usedTokens}
                       />
                     ) : null}
-                    <Button
-                      type={showStop ? "button" : "submit"}
-                      variant={showStop ? "destructive" : "default"}
-                      size="icon"
-                      className="size-10 rounded-full shadow-none transition-colors disabled:opacity-40"
-                      aria-label={showStop ? "Stop run" : "Send message"}
-                      disabled={showStop ? inputDisabled || !canStop : submitDisabled || blocked}
-                      onClick={showStop ? () => void handleStop() : undefined}
-                    >
-                      {showStop ? (
-                        <SquareIcon className="size-3.5 fill-current" />
-                      ) : (
-                        <ArrowUpIcon className="size-4" />
-                      )}
-                    </Button>
+                    <PromptInputAction
+                      busy={showStop || running}
+                      stopping={isStopping}
+                      disabled={submitDisabled || editSaving || Boolean(editStale)}
+                      canStop={!inputDisabled && canStop}
+                      editing={Boolean(queueEdit)}
+                      onStop={() => void handleStop()}
+                    />
                   </div>
                 </div>
               </PromptInputBody>

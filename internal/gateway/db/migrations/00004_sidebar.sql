@@ -2,7 +2,8 @@
 ALTER TABLE chat_sessions
   ADD COLUMN archived_at TIMESTAMPTZ,
   ADD COLUMN snoozed_until TIMESTAMPTZ,
-  ADD COLUMN resumed_at TIMESTAMPTZ;
+  ADD COLUMN resumed_at TIMESTAMPTZ,
+  ADD COLUMN woke_at TIMESTAMPTZ;
 
 CREATE INDEX chat_sessions_wake_idx ON chat_sessions(snoozed_until)
 WHERE snoozed_until IS NOT NULL;
@@ -23,6 +24,7 @@ WHERE archived_at IS NULL AND parent_session_id IS NULL
 
 -- +goose Down
 ALTER TABLE chat_sessions
+  DROP COLUMN woke_at,
   DROP COLUMN resumed_at,
   DROP COLUMN snoozed_until,
   DROP COLUMN archived_at;

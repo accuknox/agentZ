@@ -12,7 +12,12 @@ export type ThemePreference = (typeof themePreferences)[number]
 
 export type UserPreferences = Pick<
   typeof schema.userPreferences.$inferSelect,
-  "theme" | "updateSandbox" | "showTourButton" | "showReasoningAndTools"
+  | "theme"
+  | "updateSandbox"
+  | "showTourButton"
+  | "showReasoningAndTools"
+  | "followUpBehavior"
+  | "hideLeftNavScrollbar"
 >
 
 /**
@@ -20,47 +25,42 @@ export type UserPreferences = Pick<
  */
 const defaultUserPreferences: UserPreferences = {
   theme: "system",
+  followUpBehavior: "steer",
   updateSandbox: false,
   showTourButton: true,
+  hideLeftNavScrollbar: false,
   showReasoningAndTools: true,
 }
 
-/**
- * getCurrentUserPreferences returns the current user's saved preferences.
- *
- * Authentication remains request-bound while sharing the session lookup with
- * the surrounding organization layout.
- */
-export const getCurrentUserPreferences = cache(
-  async ({
-    required = true,
-  }: {
-    required?: boolean
-  } = {}): Promise<UserPreferences> => {
-    const authSession = await getAuthSession()
-    if (!authSession) {
-      if (!required) {
-        return defaultUserPreferences
-      }
+// Root and page layouts share the read even when sign-in requirements differ.
+const readCurrentUserPreferences = cache(async (): Promise<UserPreferences | null> => {
+  const authSession = await getAuthSession()
+  if (!authSession) return null
+  const [row] = await getDB()
+    .select({
+      theme: schema.userPreferences.theme,
+      followUpBehavior: schema.userPreferences.followUpBehavior,
+      updateSandbox: schema.userPreferences.updateSandbox,
+      showTourButton: schema.userPreferences.showTourButton,
+      hideLeftNavScrollbar: schema.userPreferences.hideLeftNavScrollbar,
+      showReasoningAndTools: schema.userPreferences.showReasoningAndTools,
+    })
+    .from(schema.userPreferences)
+    .where(eq(schema.userPreferences.userId, authSession.session.user.id))
+    .limit(1)
 
-      throw new Error("unauthorized")
-    }
-    const { session } = authSession
+  return row ?? defaultUserPreferences
+})
 
-    const [row] = await getDB()
-      .select({
-        theme: schema.userPreferences.theme,
-        updateSandbox: schema.userPreferences.updateSandbox,
-        showTourButton: schema.userPreferences.showTourButton,
-        showReasoningAndTools: schema.userPreferences.showReasoningAndTools,
-      })
-      .from(schema.userPreferences)
-      .where(eq(schema.userPreferences.userId, session.user.id))
-      .limit(1)
-
-    return row ?? defaultUserPreferences
-  }
-)
+/** getCurrentUserPreferences returns the signed-in user's saved preferences. */
+export async function getCurrentUserPreferences({
+  required = true,
+}: { required?: boolean } = {}): Promise<UserPreferences> {
+  const preferences = await readCurrentUserPreferences()
+  if (preferences) return preferences
+  if (required) throw new Error("unauthorized")
+  return defaultUserPreferences
+}
 
 /**
  * saveCurrentUserPreferences upserts the current user's saved preferences.

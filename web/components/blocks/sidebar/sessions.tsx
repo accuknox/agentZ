@@ -1,6 +1,6 @@
 "use client"
 
-import { AnimatePresence } from "motion/react"
+import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { Collapsible as CollapsiblePrimitive } from "radix-ui"
 import { ExpandingSearch } from "@/components/interior/expanding-search"
 import { LoadMore } from "@/components/interior/load-more"
@@ -15,6 +15,7 @@ import {
   infiniteQueryOptions,
   hashKey,
   queryOptions,
+  replaceEqualDeep,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -286,12 +287,16 @@ function chatSessionsOptions(
 async function removeChatSessionFromCache(
   queryClient: QueryClient,
   workspaceId: string,
-  session: Pick<ChatSession, "agent_name" | "session_id">
+  session: Pick<ChatSession, "agent_name" | "session_id">,
+  keepShelf?: ChatSessionShelf
 ) {
   const queryKey = chatSessionKeys.workspace(workspaceId)
   await queryClient.cancelQueries({ queryKey })
   queryClient.setQueriesData<InfiniteData<ListChatSessionsResponse>>(
-    { queryKey, predicate: (query) => query.queryKey[2] === "list" },
+    {
+      queryKey,
+      predicate: (query) => query.queryKey[2] === "list" && query.queryKey.at(-2) !== keepShelf,
+    },
     (current) =>
       current && {
         ...current,
@@ -312,7 +317,7 @@ async function removeChatSessionFromCache(
       }
   )
   queryClient.setQueriesData<InfiniteData<ChatSessionGroup>>(
-    { queryKey, predicate: (query) => query.queryKey[2] === "group" },
+    { queryKey, predicate: (query) => query.queryKey[2] === "group" && keepShelf !== "active" },
     (current) =>
       current && {
         ...current,
@@ -690,7 +695,7 @@ function NavSessionsContent({
   const searchSettling = searchLength >= 3 && searchLength <= 200 && trimmedSearch !== querySearch
   const list = useSessionListMotion(
     rows.map((session) => `${session.agent_name}:${session.session_id}`).join("\0"),
-    preferences.group_by === "none" && !searchInvalid && !searchSettling
+    preferences.group_by === "none" && !sessions.isPending && !searchInvalid && !searchSettling
   )
 
   const newProjectChat = async (project: CodingProject) => {
@@ -1169,6 +1174,7 @@ function NavSessionsContent({
             {preferences.group_by === "none" && !searchInvalid && !searchSettling
               ? rows.map((session) => (
                   <SessionCard
+                    userId={userId}
                     key={`${session.agent_name}:${session.session_id}`}
                     active={
                       path ===
@@ -1275,7 +1281,7 @@ function NavSessionsContent({
             </LoadMore>
           ) : null}
         </div>
-        <div className="mt-auto shrink-0 px-(--sidebar-content-inset) pt-2">
+        <div data-session-shelves className="mt-auto shrink-0 px-(--sidebar-content-inset) pt-2">
           {(["snoozed", "archived"] as const).map((shelf) => (
             <SessionShelf
               key={shelf}
@@ -1328,6 +1334,7 @@ function SessionShelf({
   path: string
 }) {
   const [open, setOpen] = useState(false)
+  const reduced = useReducedMotion()
   const pages = useInfiniteQuery({
     ...chatSessionsOptions(
       workspaceId,
@@ -1344,73 +1351,89 @@ function SessionShelf({
   const sessions = pages.data?.pages.flatMap((page) => page.sessions) ?? []
   const list = useSessionListMotion(
     sessions.map((session) => `${session.agent_name}:${session.session_id}`).join("\0"),
-    open && count > 0
+    open && !pages.isPending,
+    "above"
   )
   const label = shelf === "snoozed" ? "Snoozed" : "Archived"
-  if (count === 0) return null
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger className="flex h-9 w-full items-center gap-2 rounded-md px-(--sidebar-row-content-inset) text-left text-sm font-medium text-sidebar-muted-foreground outline-none hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-inset">
-        <span className="flex-1">{label}</span>
-        <span className="font-normal tabular-nums">{count}</span>
-        <ChevronDown
-          aria-hidden
-          className={cn("size-3 shrink-0 transition-transform", !open && "-rotate-90")}
-        />
-      </CollapsibleTrigger>
-      <CollapsiblePrimitive.Content
-        data-slot="collapsible-content"
-        className="overflow-hidden duration-150 motion-safe:data-[state=closed]:animate-collapsible-up motion-safe:data-[state=open]:animate-collapsible-down"
-      >
-        {pages.isPending ? (
-          <ul aria-label="Loading sessions" className="flex min-w-0 flex-col gap-0.5">
-            {Array.from({ length: Math.min(count, 10) }, (_, index) => (
-              <SessionCardSkeleton key={index} showAgent={false} coding={false} compact />
-            ))}
-          </ul>
-        ) : null}
-        {pages.isError ? (
-          <p className="px-2 py-3 text-xs text-destructive">Could not load {label.toLowerCase()}</p>
-        ) : null}
-        {!pages.isPending && !pages.isError && sessions.length === 0 ? (
-          <p className="px-2 py-3 text-xs text-sidebar-muted-foreground">
-            No {label.toLowerCase()} chats
-          </p>
-        ) : null}
-        <ul ref={list} className="relative flex min-w-0 flex-col gap-0.5">
-          {sessions.map((session) => (
-            <SessionCard
-              key={`${session.agent_name}:${session.session_id}`}
-              active={
-                path ===
-                `${workspacePath}/agents/${encodeURIComponent(session.agent_name)}/sessions/${encodeURIComponent(session.session_id)}`
-              }
-              compact
-              session={session}
-              workspaceId={workspaceId}
-              workspaceType={workspaceType}
-              workspacePath={workspacePath}
-            />
-          ))}
-        </ul>
-        {pages.isPending && count > 10 ? (
-          <div aria-hidden className="flex h-7 items-center justify-center">
-            <Skeleton className="h-3 w-16 bg-sidebar-border" />
-          </div>
-        ) : null}
-        {pages.hasNextPage ? (
-          <LoadingButton
-            pending={pages.isFetchingNextPage}
-            size="sm"
-            variant="ghost"
-            className="w-full"
-            onClick={() => void pages.fetchNextPage()}
-          >
-            Load more
-          </LoadingButton>
-        ) : null}
-      </CollapsiblePrimitive.Content>
-    </Collapsible>
+    <AnimatePresence initial={false}>
+      {count > 0 ? (
+        <motion.div
+          key={shelf}
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: "auto", opacity: 1 }}
+          exit={{ height: 0, opacity: 0, pointerEvents: "none" }}
+          transition={{ duration: reduced ? 0 : 0.15, ease: "easeOut" }}
+          className="overflow-hidden"
+        >
+          <Collapsible open={open} onOpenChange={setOpen}>
+            <CollapsibleTrigger className="flex h-9 w-full items-center gap-2 rounded-md px-(--sidebar-row-content-inset) text-left text-sm font-medium text-sidebar-muted-foreground outline-none hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-inset">
+              <span className="flex-1">{label}</span>
+              <span className="font-normal tabular-nums">{count}</span>
+              <ChevronDown
+                aria-hidden
+                className={cn("size-3 shrink-0 transition-transform", !open && "-rotate-90")}
+              />
+            </CollapsibleTrigger>
+            <CollapsiblePrimitive.Content
+              data-slot="collapsible-content"
+              className="overflow-hidden duration-150 motion-safe:data-[state=closed]:animate-collapsible-up motion-safe:data-[state=open]:animate-collapsible-down"
+            >
+              {pages.isPending ? (
+                <ul aria-label="Loading sessions" className="flex min-w-0 flex-col gap-0.5">
+                  {Array.from({ length: Math.min(count, 10) }, (_, index) => (
+                    <SessionCardSkeleton key={index} showAgent={false} coding={false} compact />
+                  ))}
+                </ul>
+              ) : null}
+              {pages.isError ? (
+                <p className="px-2 py-3 text-xs text-destructive">
+                  Could not load {label.toLowerCase()}
+                </p>
+              ) : null}
+              {count > 0 && !pages.isFetching && !pages.isError && sessions.length === 0 ? (
+                <p className="px-2 py-3 text-xs text-sidebar-muted-foreground">
+                  No {label.toLowerCase()} chats
+                </p>
+              ) : null}
+              <ul ref={list} className="relative flex min-w-0 flex-col gap-0.5">
+                {sessions.map((session) => (
+                  <SessionCard
+                    userId={userId}
+                    key={`${session.agent_name}:${session.session_id}`}
+                    active={
+                      path ===
+                      `${workspacePath}/agents/${encodeURIComponent(session.agent_name)}/sessions/${encodeURIComponent(session.session_id)}`
+                    }
+                    compact
+                    session={session}
+                    workspaceId={workspaceId}
+                    workspaceType={workspaceType}
+                    workspacePath={workspacePath}
+                  />
+                ))}
+              </ul>
+              {pages.isPending && count > 10 ? (
+                <div aria-hidden className="flex h-7 items-center justify-center">
+                  <Skeleton className="h-3 w-16 bg-sidebar-border" />
+                </div>
+              ) : null}
+              {pages.hasNextPage ? (
+                <LoadingButton
+                  pending={pages.isFetchingNextPage}
+                  size="sm"
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => void pages.fetchNextPage()}
+                >
+                  Load more
+                </LoadingButton>
+              ) : null}
+            </CollapsiblePrimitive.Content>
+          </Collapsible>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
   )
 }
 
@@ -1508,7 +1531,7 @@ function SessionGroup({
   const sessions = pages.data?.pages.flatMap((page) => page.sessions) ?? []
   const list = useSessionListMotion(
     sessions.map((session) => `${session.agent_name}:${session.session_id}`).join("\0"),
-    expanded
+    expanded && !pages.isPending
   )
 
   return (
@@ -1645,6 +1668,7 @@ function SessionGroup({
           ) : null}
           {sessions.map((session) => (
             <SessionCard
+              userId={userId}
               key={`${session.agent_name}:${session.session_id}`}
               active={
                 path ===
@@ -1700,14 +1724,18 @@ function SessionGroup({
   )
 }
 
-// Like the reference sidebar, measure only order changes and animate native transforms.
-function useSessionListMotion(key: string, visible = true) {
+// Measure rows only on order changes and animate native transforms.
+function useSessionListMotion(key: string, visible = true, origin: "above" | "below" = "below") {
   const ref = useRef<HTMLUListElement>(null)
-  const positions = useRef(
-    new Map<HTMLLIElement, { top: number; left: number; width: number; height: number }>()
+  const positions = useRef<Map<
+    HTMLLIElement,
+    { top: number; left: number; width: number; height: number }
+  > | null>(null)
+  const running = useRef(
+    new Map<HTMLLIElement, { animation: Animation; offset: number; opacity: number }>()
   )
-  const running = useRef(new Map<HTMLLIElement, { animation: Animation; offset: number }>())
   const exiting = useRef(new Set<HTMLLIElement>())
+  const layout = useRef({ top: 0, left: 0, scrollTop: 0 })
 
   const cancel = useCallback(() => {
     for (const { animation } of running.current.values()) animation.cancel()
@@ -1721,13 +1749,19 @@ function useSessionListMotion(key: string, visible = true) {
     const onChange = () => {
       if (!media.matches) return
       cancel()
-      positions.current.clear()
+      positions.current = null
     }
+    const onResize = () => {
+      cancel()
+      positions.current = null
+    }
+    window.addEventListener("resize", onResize)
     media.addEventListener("change", onChange)
     return () => {
+      window.removeEventListener("resize", onResize)
       media.removeEventListener("change", onChange)
       cancel()
-      positions.current.clear()
+      positions.current = null
     }
   }, [cancel])
 
@@ -1735,14 +1769,17 @@ function useSessionListMotion(key: string, visible = true) {
     const parent = ref.current
     if (!parent || !visible) {
       cancel()
-      positions.current.clear()
+      positions.current = null
       return
     }
-    const next: typeof positions.current = new Map()
-    const offsets = new Map<HTMLLIElement, number>()
+    const next: NonNullable<typeof positions.current> = new Map()
+    const offsets = new Map<HTMLLIElement, { offset: number; opacity: number }>()
     for (const [node, previous] of running.current) {
-      const progress = previous.animation.effect?.getComputedTiming().progress ?? 1
-      offsets.set(node, previous.offset * (1 - progress))
+      const progress = previous.animation.effect?.getComputedTiming().progress ?? 0
+      offsets.set(node, {
+        offset: previous.offset * (1 - progress),
+        opacity: previous.opacity + (1 - previous.opacity) * progress,
+      })
     }
     // Read all geometry before writing styles, avoiding a reflow for each row.
     for (const node of parent.querySelectorAll<HTMLLIElement>(":scope > li:not([data-exiting])")) {
@@ -1754,49 +1791,75 @@ function useSessionListMotion(key: string, visible = true) {
       })
     }
     const previous = positions.current
-    positions.current = key ? next : new Map()
+    positions.current = next
     let changed = 0
-    for (const node of previous.keys()) if (!next.has(node)) changed++
-    for (const node of next.keys()) if (!previous.has(node)) changed++
+    for (const node of previous?.keys() ?? []) if (!next.has(node)) changed++
+    for (const node of next.keys()) if (!previous?.has(node)) changed++
     const animate =
-      key &&
-      previous.size > 0 &&
+      previous !== null &&
       changed <= 40 &&
       !window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    const top = animate ? parent.getBoundingClientRect().top : 0
+    const bounds = parent.getBoundingClientRect()
+    const scroller = parent.closest<HTMLElement>(".overflow-y-auto")
+    const scrollTop = scroller?.scrollTop ?? 0
+    const previousLayout = layout.current
+    layout.current = { top: bounds.top, left: bounds.left, scrollTop }
+    const top = bounds.top
+    const oldTop = previousLayout.top - (scrollTop - previousLayout.scrollTop)
     const height = parent.ownerDocument.documentElement.clientHeight
-    cancel()
-    if (!animate) return
-
+    // Shelf expansion moves the list without changing its row order.
+    const observer = new ResizeObserver(() => {
+      if (!parent.isConnected) {
+        observer.disconnect()
+        return
+      }
+      const rect = parent.getBoundingClientRect()
+      layout.current = { top: rect.top, left: rect.left, scrollTop: scroller?.scrollTop ?? 0 }
+    })
+    observer.observe(parent.closest("[data-session-shelves]") ?? parent)
+    if (!animate) {
+      cancel()
+      return () => observer.disconnect()
+    }
     const timing = { duration: 150, easing: "ease-out" }
     for (const [node, position] of previous) {
       if (next.has(node) || position.height === 0) continue
-      if (top + position.top >= height || top + position.top + position.height <= 0) continue
+      if (oldTop + position.top >= height || oldTop + position.top + position.height <= 0) continue
+      const current = offsets.get(node)
+      const travel = (origin === "above" ? -1 : 1) * Math.min(40, position.height)
       const clone = parent.ownerDocument.importNode(node, true)
       clone.dataset.exiting = ""
       clone.inert = true
       clone.setAttribute("aria-hidden", "true")
       clone.removeAttribute("id")
-      for (const child of clone.querySelectorAll("[id]")) child.removeAttribute("id")
+      for (const child of clone.querySelectorAll("[id]")) {
+        if (child.namespaceURI !== "http://www.w3.org/2000/svg") child.removeAttribute("id")
+      }
       Object.assign(clone.style, {
-        position: "absolute",
-        top: `${position.top + (offsets.get(node) ?? 0)}px`,
-        left: `${position.left}px`,
+        // Exit geometry must survive the source shelf shrinking underneath it.
+        position: "fixed",
+        top: `${oldTop + position.top + (current?.offset ?? 0)}px`,
+        left: `${previousLayout.left + position.left}px`,
+        zIndex: "50",
         width: `${position.width}px`,
         height: `${position.height}px`,
         margin: "0",
         pointerEvents: "none",
+        transform: "none",
+        transition: "none",
       })
-      parent.append(clone)
+      parent.ownerDocument.body.append(clone)
       exiting.current.add(clone)
       const animation = clone.animate(
         [
-          { opacity: 1, transform: "translateY(0)" },
-          { opacity: 0, transform: "translateY(40px)" },
+          { opacity: current?.opacity ?? 1, transform: "translateY(0)" },
+          { opacity: 0, transform: `translateY(${travel}px)` },
         ],
         timing
       )
-      running.current.set(clone, { animation, offset: 0 })
+      running.current.get(node)?.animation.cancel()
+      running.current.delete(node)
+      running.current.set(clone, { animation, offset: 0, opacity: 1 })
       animation.onfinish = () => {
         clone.remove()
         exiting.current.delete(clone)
@@ -1809,22 +1872,28 @@ function useSessionListMotion(key: string, visible = true) {
       const start = top + (old?.top ?? position.top)
       const end = top + position.top
       if (Math.min(start, end) >= height || Math.max(start, end) + position.height <= 0) continue
-      const offset =
-        (old ? old.top - position.top : -Math.min(40, position.height)) + (offsets.get(node) ?? 0)
-      if (offset === 0 || position.height === 0) continue
+      // Leave an in-flight entry alone when a second update changes another row.
+      if (old?.top === position.top && running.current.has(node)) continue
+      const offset = old
+        ? old.top - position.top + (offsets.get(node)?.offset ?? 0)
+        : (origin === "above" ? -1 : 1) * Math.min(40, position.height)
+      if ((old && offset === 0) || position.height === 0) continue
+      const opacity = offsets.get(node)?.opacity ?? (old ? 1 : 0)
+      running.current.get(node)?.animation.cancel()
       const animation = node.animate(
         [
-          { transform: `translateY(${offset}px)`, opacity: old ? 1 : 0 },
+          { transform: `translateY(${offset}px)`, opacity },
           { transform: "translateY(0)", opacity: 1 },
         ],
         timing
       )
-      running.current.set(node, { animation, offset })
+      running.current.set(node, { animation, offset, opacity })
       animation.onfinish = () => {
         if (running.current.get(node)?.animation === animation) running.current.delete(node)
       }
     }
-  }, [cancel, key, visible])
+    return () => observer.disconnect()
+  }, [cancel, key, origin, visible])
   return ref
 }
 
@@ -2015,8 +2084,90 @@ function SessionCheckout({ session, workspaceId }: { session: ChatSession; works
   )
 }
 
-const SessionCard = memo(function SessionCard({
+function SessionStatus({
+  session,
+  workspaceId,
+  userId,
+}: {
+  session: ChatSession
+  workspaceId: string
+  userId: string
+}) {
+  const wokeAt = session.woke_at
+  const storageKey = JSON.stringify([
+    "chat-wake",
+    userId,
+    workspaceId,
+    session.agent_name,
+    session.session_id,
+  ])
+  const [dismissed, setDismissed] = useState(false)
+  const savedWake = useSyncExternalStore(
+    useCallback(
+      (listener) => {
+        if (!wokeAt) return () => {}
+        const onStorage = (event: StorageEvent) => {
+          if (event.key === storageKey || event.key === null) listener()
+        }
+        window.addEventListener("storage", onStorage)
+        return () => window.removeEventListener("storage", onStorage)
+      },
+      [storageKey, wokeAt]
+    ),
+    () => {
+      if (!wokeAt) return null
+      try {
+        return window.localStorage.getItem(storageKey)
+      } catch {
+        return null
+      }
+    },
+    () => wokeAt ?? null
+  )
+  const woke = wokeAt && !dismissed && savedWake !== wokeAt
+
+  return session.snoozed_until ? (
+    <span
+      className="inline-flex items-center gap-1"
+      title={`Wakes ${dayjs(session.snoozed_until).format("MMM D, h:mm A")}`}
+    >
+      <AlarmClock className="size-3" aria-hidden="true" />
+      {dayjs(session.snoozed_until).format("MMM D, HH:mm")}
+    </span>
+  ) : session.status === "idle" && !session.archived && woke ? (
+    <button
+      type="button"
+      aria-label="Dismiss Woke notification"
+      className="pointer-events-auto relative inline-flex items-center gap-1 rounded-sm font-medium text-warning-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+      title={`Woke from snooze ${dayjs(wokeAt).format("MMM D, h:mm A")}`}
+      onClick={(event) => {
+        event.stopPropagation()
+        if (!wokeAt) return
+        try {
+          // A new wake timestamp must remain visible after an earlier dismissal.
+          window.localStorage.setItem(storageKey, wokeAt)
+          window.dispatchEvent(new StorageEvent("storage", { key: storageKey }))
+        } catch {
+          setDismissed(true)
+        }
+      }}
+    >
+      <AlarmClock aria-hidden="true" className="size-3" />
+      <span role="status">Woke</span>
+    </button>
+  ) : session.status === "idle" ? (
+    formatShortAge(new Date(session.updated_at).getTime())
+  ) : (
+    <span className="flex items-center gap-1 font-medium text-info" role="status">
+      <LoaderCircle aria-hidden="true" className="size-3 motion-safe:animate-spin" />
+      Working
+    </span>
+  )
+}
+
+function SessionCardView({
   active,
+  userId,
   compact = false,
   session,
   showAgent = true,
@@ -2025,6 +2176,7 @@ const SessionCard = memo(function SessionCard({
   workspacePath,
 }: {
   active: boolean
+  userId: string
   compact?: boolean
   session: ChatSession
   showAgent?: boolean
@@ -2091,9 +2243,9 @@ const SessionCard = memo(function SessionCard({
     },
     onSuccess: async (_, change) => {
       setRenaming(false)
-      // Every cached filter/group variant must forget the old shelf before
-      // navigation can reuse it. Keep the open transcript and composer intact.
-      if ("shelf" in change) await removeChatSessionFromCache(queryClient, workspaceId, session)
+      // SSE may already have populated the destination before this acknowledgement.
+      if ("shelf" in change)
+        await removeChatSessionFromCache(queryClient, workspaceId, session, change.shelf)
       void queryClient.invalidateQueries({ queryKey: chatSessionKeys.workspace(workspaceId) })
       void queryClient.invalidateQueries({
         queryKey: sessionInfoQueryOptions(session.agent_name, workspaceId, session.session_id)
@@ -2142,21 +2294,13 @@ const SessionCard = memo(function SessionCard({
   )
 
   const { setOpenMobile } = useSidebar()
-  const status = snoozed ? (
-    <span
-      className="inline-flex items-center gap-1"
-      title={`Wakes ${dayjs(session.snoozed_until).format("MMM D, h:mm A")}`}
-    >
-      <AlarmClock className="size-3" aria-hidden="true" />
-      {dayjs(session.snoozed_until).format("MMM D, HH:mm")}
-    </span>
-  ) : session.status === "idle" ? (
-    formatShortAge(new Date(session.updated_at).getTime())
-  ) : (
-    <span className="flex items-center gap-1 font-medium text-info" role="status">
-      <LoaderCircle aria-hidden="true" className="size-3 motion-safe:animate-spin" />
-      Working
-    </span>
+  const status = (
+    <SessionStatus
+      key={session.woke_at}
+      session={session}
+      workspaceId={workspaceId}
+      userId={userId}
+    />
   )
   const avatars =
     session.participants.length > 0 ? (
@@ -2213,7 +2357,7 @@ const SessionCard = memo(function SessionCard({
               if (title) {
                 const overflow = title.scrollWidth - title.clientWidth
                 title.style.setProperty("--title-travel", `${Math.max(0, overflow)}px`)
-                title.style.setProperty("--title-duration", `${Math.max(3, overflow / 30)}s`)
+                title.style.setProperty("--title-duration", `${Math.max(0.6, overflow / 50)}s`)
                 title.dataset.overflow = String(overflow > 0)
               }
 
@@ -2367,7 +2511,7 @@ const SessionCard = memo(function SessionCard({
               <AlarmClockOff />
               Wake now
             </ContextMenuItem>
-          ) : (
+          ) : !session.archived ? (
             <ContextMenuSub>
               <ContextMenuSubTrigger disabled={edit.isPending}>
                 <AlarmClock />
@@ -2393,7 +2537,7 @@ const SessionCard = memo(function SessionCard({
                 </ContextMenuGroup>
               </ContextMenuSubContent>
             </ContextMenuSub>
-          )}
+          ) : null}
           <ContextMenuItem variant="destructive" onSelect={() => setConfirmingDelete(true)}>
             <Trash2 />
             Delete chat
@@ -2437,7 +2581,13 @@ const SessionCard = memo(function SessionCard({
       </Dialog>
     </ContextMenu>
   )
-})
+}
+
+// Moving an array entry must not re-render every unchanged keyed card.
+const SessionCard = memo(
+  SessionCardView,
+  (previous, next) => replaceEqualDeep(previous, next) === previous
+)
 
 function chatSessionWatchOptions(workspaceId: string, userId: string) {
   return queryOptions({

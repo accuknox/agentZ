@@ -82,8 +82,13 @@ function SheetContent({
           <ModalPanel side={side}>
             {children}
             <SheetPrimitive.Close data-slot="sheet-close" asChild>
-              <Button variant="ghost" className="absolute top-3 right-3" size="icon-sm">
-                <XIcon />
+              <Button
+                type="button"
+                variant="ghost"
+                className="absolute top-3 right-3 z-10"
+                size="icon-sm"
+              >
+                <XIcon aria-hidden="true" />
                 <span className="sr-only">Close</span>
               </Button>
             </SheetPrimitive.Close>
@@ -98,7 +103,7 @@ function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="sheet-header"
-      className={cn("flex shrink-0 flex-col gap-0.5 border-b p-4 pr-12", className)}
+      className={cn("flex shrink-0 flex-col gap-0.5 border-b p-4", className, "pr-12")}
       {...props}
     />
   )

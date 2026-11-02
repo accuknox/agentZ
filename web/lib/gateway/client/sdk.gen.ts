@@ -965,6 +965,9 @@ export const listChatSessions = <ThrowOnError extends boolean = false>(
 
 /**
  * Move a session between inbox shelves.
+ *
+ * Active sessions can be snoozed or archived. Snoozed sessions can be woken or archived. Archived sessions must be unarchived before snoozing. Repeating an identical update succeeds without changing activity times.
+ *
  */
 export const updateChatSession = <ThrowOnError extends boolean = false>(
   options: Options<UpdateChatSessionData, ThrowOnError>
@@ -1030,7 +1033,7 @@ export const submitChatInput = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Remove or retry your queued message.
+ * Edit, steer, remove, or retry your queued message.
  */
 export const updateChatInput = <ThrowOnError extends boolean = false>(
   options: Options<UpdateChatInputData, ThrowOnError>

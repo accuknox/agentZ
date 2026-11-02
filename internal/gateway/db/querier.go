@@ -195,7 +195,7 @@ type Querier interface {
 	GatewayUnlockResource(ctx context.Context, arg GatewayUnlockResourceParams) (bool, error)
 	GatewayUnlockResources(ctx context.Context) error
 	GatewayUpdateChatInput(ctx context.Context, arg GatewayUpdateChatInputParams) (ChatInput, error)
-	GatewayUpdateChatSession(ctx context.Context, arg GatewayUpdateChatSessionParams) (interface{}, error)
+	GatewayUpdateChatSession(ctx context.Context, arg GatewayUpdateChatSessionParams) (GatewayUpdateChatSessionRow, error)
 	GatewayUpdateCodingBranch(ctx context.Context, arg GatewayUpdateCodingBranchParams) error
 	GatewayUpdateCodingOperation(ctx context.Context, arg GatewayUpdateCodingOperationParams) (int64, error)
 	GatewayUpdateCodingProjectPreference(ctx context.Context, arg GatewayUpdateCodingProjectPreferenceParams) (int64, error)

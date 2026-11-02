@@ -717,6 +717,10 @@ paths:
     patch:
       operationId: updateChatSession
       summary: Move a session between inbox shelves.
+      description: >
+        Active sessions can be snoozed or archived. Snoozed sessions can be woken
+        or archived. Archived sessions must be unarchived before snoozing.
+        Repeating an identical update succeeds without changing activity times.
       tags: [chat-sessions]
       parameters:
       - {name: agentName, in: path, required: true, schema: {type: string}}
@@ -732,6 +736,7 @@ paths:
         '400': {$ref: '#/components/responses/BadRequest'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
         '500': {$ref: '#/components/responses/InternalError'}
 
   /api/chat-session/watch:
@@ -806,7 +811,7 @@ paths:
     - {name: inputId, in: path, required: true, schema: {type: string}}
     patch:
       operationId: updateChatInput
-      summary: Remove or retry your queued message.
+      summary: Edit, steer, remove, or retry your queued message.
       tags: [chat-sessions]
       requestBody:
         required: true
@@ -815,7 +820,7 @@ paths:
             schema: {$ref: '#/components/schemas/ChatInputUpdate'}
       responses:
         '200':
-          description: Remove or retry your queued message.
+          description: Edit, steer, remove, or retry your queued message.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ChatInput'}
@@ -6413,6 +6418,10 @@ components:
       properties:
         archived: {type: boolean}
         snoozed_until: {type: string, format: date-time}
+        woke_at:
+          type: string
+          format: date-time
+          description: Last automatic snooze wake. Cleared by subsequent shelf changes.
         project_id: {type: string}
         agent_name:
           $ref: '#/components/schemas/AgentName'
@@ -6576,7 +6585,8 @@ components:
       required: [revision, action]
       properties:
         revision: {type: integer, format: int64, minimum: 1}
-        action: {type: string, enum: [remove, retry]}
+        action: {type: string, enum: [remove, retry, edit, steer]}
+        content: {$ref: '#/components/schemas/ChatInputContent'}
 
     ChatSessionPreference:
       type: object

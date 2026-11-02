@@ -393,6 +393,9 @@ func logStats(ctx context.Context, s *stats) {
 				slog.Uint64("filtered", vals.filtered),
 				slog.Uint64("flushed", vals.flushed),
 				slog.Uint64("failed", vals.failed),
+				slog.Uint64("discarded", vals.discarded),
+				slog.Uint64("pending", vals.pending),
+				slog.Int64("last_commit_unix_nano", vals.lastCommit),
 			)
 		}
 	}

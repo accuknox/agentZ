@@ -151,3 +151,43 @@ func (b *batch) add(ev event) {
 func (b *batch) count() int {
 	return len(b.processes) + len(b.files) + len(b.networks) + len(b.traces) + len(b.apps) + len(b.guardrails)
 }
+
+// split partitions slice headers without copying captured payloads.
+func (b batch) split(n int) (batch, batch) {
+	var left batch
+	k := min(n, len(b.processes))
+	left.processes = b.processes[:k:k]
+	b.processes = b.processes[k:]
+	n -= k
+	k = min(n, len(b.files))
+	left.files = b.files[:k:k]
+	b.files = b.files[k:]
+	n -= k
+	k = min(n, len(b.networks))
+	left.networks = b.networks[:k:k]
+	b.networks = b.networks[k:]
+	n -= k
+	k = min(n, len(b.traces))
+	left.traces = b.traces[:k:k]
+	b.traces = b.traces[k:]
+	n -= k
+	k = min(n, len(b.apps))
+	left.apps = b.apps[:k:k]
+	b.apps = b.apps[k:]
+	n -= k
+	k = min(n, len(b.guardrails))
+	left.guardrails = b.guardrails[:k:k]
+	b.guardrails = b.guardrails[k:]
+	return left, b
+}
+
+// release drops payload references in a completed partition while its siblings
+// may still retain the shared backing arrays.
+func (b batch) release() {
+	clear(b.processes)
+	clear(b.files)
+	clear(b.networks)
+	clear(b.traces)
+	clear(b.apps)
+	clear(b.guardrails)
+}

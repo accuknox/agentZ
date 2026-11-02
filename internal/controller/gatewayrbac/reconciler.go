@@ -45,8 +45,8 @@ type Config struct {
 // The manager must hold every permission delegated by this Role because
 // Kubernetes rejects RBAC privilege escalation during reconciliation.
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch
-// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents;skills;sandboxes;inferencepools;inferenceproviders,verbs=create;delete;get;list;update;watch
-// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=mcpconnections;secrets;workflowruns,verbs=create;delete;get;list;watch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=agents;skills;sandboxes;inferencepools;inferenceproviders;mcpconnections,verbs=create;delete;get;list;update;watch
+// +kubebuilder:rbac:groups=agentz.accuknox.com,resources=secrets;workflowruns,verbs=create;delete;get;list;watch
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=workflowschedules,verbs=create;delete;get;list;update
 // +kubebuilder:rbac:groups=agentz.accuknox.com,resources=workflowruns/status,verbs=get;patch;update
 
@@ -149,13 +149,20 @@ func rules() []rbacv1.PolicyRule {
 		{
 			APIGroups: []string{group},
 			Resources: []string{
-				"agents", "skills", "sandboxes", "inferencepools", "inferenceproviders", "guardrailconnections", "guardrailpolicies",
+				"agents",
+				"skills",
+				"sandboxes",
+				"inferencepools",
+				"inferenceproviders",
+				"guardrailconnections",
+				"guardrailpolicies",
+				"mcpconnections",
 			},
 			Verbs: []string{"create", "delete", "get", "list", "update", "watch"},
 		},
 		{
 			APIGroups: []string{group},
-			Resources: []string{"mcpconnections", "secrets", "workflowruns"},
+			Resources: []string{"secrets", "workflowruns"},
 			Verbs:     []string{"create", "delete", "get", "list", "watch"},
 		},
 		{

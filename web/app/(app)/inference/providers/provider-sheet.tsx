@@ -2,6 +2,7 @@
 
 import { LoadingButton } from "@/components/interior/loading-button"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { queryOptions, useQuery } from "@tanstack/react-query"
 import {
   Brain,
   Cable,
@@ -28,6 +29,7 @@ import {
   useController,
   useFieldArray,
   useForm,
+  useFormState,
   useWatch,
   type Control,
   type FieldPath,
@@ -94,16 +96,16 @@ import {
 import { formatCompactNumber } from "@/lib/format"
 import {
   type InferenceModel,
-  type InferenceModelModality,
   type InferenceProvider,
-  type InferenceProviderCatalogEntry,
   type InferenceProviderWriteDiscriminatorWritable,
 } from "@/lib/gateway/client"
 import {
   zInferenceModel,
+  zInferenceModelApi,
   zInferenceModelCapabilities,
   zInferenceModelLimits,
   zInferenceModelModalities,
+  zInferenceModelModality,
   zInferenceProviderWriteDiscriminatorWritable,
 } from "@/lib/gateway/client/zod.gen"
 import { ProviderIcon, providerKindLabels } from "./provider-shared"
@@ -117,15 +119,7 @@ const blankModel: InferenceModel = {
   limits: { context: 128000, output: 16384 },
 }
 
-const modalities = [
-  "text",
-  "audio",
-  "image",
-  "video",
-  "pdf",
-] as const satisfies readonly InferenceModelModality[]
-
-const capabilities = ["attachment", "reasoning", "temperature", "tool_call"] as const
+const capabilities = zInferenceModelCapabilities.keyof().options
 
 type SubscriptionOAuthState =
   | { status: "idle" | "starting" }
@@ -183,14 +177,20 @@ const providerModelSchema = z.object({
   modalities: z.object(
     {
       input: z
-        .array(z.enum(modalities, { error: "Select a supported input type" }), {
-          error: "Choose the model's supported input types",
-        })
+        .array(
+          z.enum(zInferenceModelModality.options, { error: "Select a supported input type" }),
+          {
+            error: "Choose the model's supported input types",
+          }
+        )
         .min(1, { error: "Select at least one input type" }),
       output: z
-        .array(z.enum(modalities, { error: "Select a supported output type" }), {
-          error: "Choose the model's supported output types",
-        })
+        .array(
+          z.enum(zInferenceModelModality.options, { error: "Select a supported output type" }),
+          {
+            error: "Choose the model's supported output types",
+          }
+        )
         .min(1, { error: "Select at least one output type" }),
     },
     { error: "Choose the model's supported input and output types" }
@@ -214,7 +214,7 @@ const providerModelSchema = z.object({
     { error: "Enter the model's token limits" }
   ),
   api: z
-    .enum(["ChatCompletions", "Responses", "Messages"], {
+    .enum(zInferenceModelApi.options, {
       error: "Choose an API format supported by this model",
     })
     .optional(),
@@ -832,7 +832,15 @@ export function ProviderSheet({
     resolver: zodResolver(formSchema),
     criteriaMode: "all",
   })
-  const models = useFieldArray({ control: form.control, name: "models", keyName: "key" })
+  const {
+    fields: modelFields,
+    replace: replaceModels,
+    remove: removeModel,
+  } = useFieldArray({
+    control: form.control,
+    name: "models",
+    keyName: "key",
+  })
   const kind = useWatch({ control: form.control, name: "kind", defaultValue: defaults.kind })
   const isSubscription = kind === "OpenAICodex"
   const compatibleField =
@@ -855,15 +863,9 @@ export function ProviderSheet({
     name: `${compatibleField}.auth_mode`,
   })
   const bedrockAuthMode = useWatch({ control: form.control, name: "bedrock.auth_mode" })
-  const [catalog, setCatalog] = React.useState<InferenceProviderCatalogEntry[]>([])
   const [providerPickerOpen, setProviderPickerOpen] = React.useState(false)
-  const [providerCatalogState, setProviderCatalogState] = React.useState<
-    "idle" | "loading" | "error"
-  >("loading")
-  const [suggestions, setSuggestions] = React.useState<InferenceModel[]>([])
-  const [modelCatalogState, setModelCatalogState] = React.useState<"idle" | "loading" | "error">(
-    "loading"
-  )
+  const formState = useFormState({ control: form.control })
+  const { getFieldState, getValues } = form
   const [editingModel, setEditingModel] = React.useState<number>()
   const [submitError, setSubmitError] = React.useState("")
   const [submitErrors, setSubmitErrors] = React.useState<string[]>([])
@@ -877,55 +879,59 @@ export function ProviderSheet({
   }>()
   const [pending, startTransition] = React.useTransition()
 
-  React.useEffect(() => {
-    if (!open) {
-      return
-    }
-
-    let ignore = false
-    void listInferenceProviderCatalogAction(scope).then((result) => {
-      if (ignore) {
-        return
-      }
-      if (result.error) {
-        setProviderCatalogState("error")
-        return
-      }
-      setCatalog(result.data.providers)
-      setProviderCatalogState("idle")
+  const providerCatalog = useQuery(
+    queryOptions({
+      queryKey: ["inferenceProviderCatalog", scope],
+      enabled: open,
+      queryFn: async () => {
+        const result = await listInferenceProviderCatalogAction(scope)
+        if (result.error) throw new Error(result.error.message)
+        return result.data.providers
+      },
+      retry: false,
+      refetchOnWindowFocus: false,
+      gcTime: 0,
     })
+  )
+  const catalog = providerCatalog.data ?? []
 
-    return () => {
-      ignore = true
-    }
-  }, [open, scope])
-
-  React.useEffect(() => {
-    if (!open || !catalogProvider || (isSubscription && !provider)) {
-      return
-    }
-
-    let ignore = false
-    const request =
-      isSubscription && provider
-        ? refreshInferenceProviderModelsAction(scope, provider.id)
-        : suggestInferenceModelsAction(scope, catalogProvider, kind)
-    void request.then((result) => {
-      if (ignore) {
-        return
-      }
-      if (result.error) {
-        setModelCatalogState("error")
-        return
-      }
-      setSuggestions(result.data.models)
-      setModelCatalogState("idle")
+  const providerID = provider?.id
+  const modelCatalog = useQuery(
+    queryOptions({
+      queryKey: [
+        "inferenceModels",
+        scope,
+        catalogProvider,
+        kind,
+        providerID,
+        provider?.resource_version,
+      ],
+      enabled:
+        open &&
+        Boolean(catalogProvider) &&
+        (!isSubscription || Boolean(providerID)) &&
+        subscriptionOAuth.status !== "connected",
+      queryFn: async () => {
+        const result =
+          kind === "OpenAICodex" && providerID
+            ? await refreshInferenceProviderModelsAction(scope, providerID)
+            : await suggestInferenceModelsAction(scope, catalogProvider, kind)
+        if (result.error) throw new Error(result.error.message)
+        return result.data
+      },
+      retry: false,
+      refetchOnWindowFocus: false,
+      gcTime: 0,
     })
-
-    return () => {
-      ignore = true
-    }
-  }, [catalogProvider, isSubscription, kind, open, provider, scope])
+  )
+  const suggestions =
+    subscriptionOAuth.status === "connected"
+      ? subscriptionOAuth.connection.models
+      : (modelCatalog.data?.models ?? [])
+  const unavailableModels =
+    subscriptionOAuth.status === "connected"
+      ? modelFields.filter((model) => !suggestions.some((available) => available.id === model.id))
+      : []
 
   React.useEffect(() => {
     if (!open || subscriptionOAuth.status !== "challenge") {
@@ -951,9 +957,11 @@ export function ProviderSheet({
           setSubscriptionOAuth(result)
           setSubmitError("")
           setSubmitErrors([])
-          setSuggestions(result.connection.models)
-          if (!provider) models.replace(result.connection.models)
-          setModelCatalogState("idle")
+          // Ticket validation compares complete models. Refresh selected
+          // metadata while retaining unavailable IDs for explicit removal.
+          const available = new Map(result.connection.models.map((model) => [model.id, model]))
+          const selected = provider ? getValues("models") : result.connection.models
+          replaceModels(selected.map((model) => available.get(model.id) ?? model))
         })
       }, interval * 1000)
     }
@@ -963,7 +971,7 @@ export function ProviderSheet({
       cancelled = true
       clearTimeout(timer)
     }
-  }, [models, open, provider, scope, subscriptionOAuth])
+  }, [getValues, open, provider, replaceModels, scope, subscriptionOAuth])
 
   const selectedCatalogEntry = catalog.find(
     (entry) => entry.provider_id === catalogProvider && entry.provider_kind === kind
@@ -1126,7 +1134,7 @@ export function ProviderSheet({
         >
           <FieldGroup>
             <FormSection icon={Tag} title="Identity">
-              <Field data-invalid={Boolean(form.formState.errors.display_name)}>
+              <Field data-invalid={Boolean(formState.errors.display_name)}>
                 <FieldLabel htmlFor="provider-display-name" required>
                   Display name
                 </FieldLabel>
@@ -1134,17 +1142,17 @@ export function ProviderSheet({
                   id="provider-display-name"
                   placeholder="Production OpenAI"
                   autoComplete="off"
-                  aria-invalid={Boolean(form.formState.errors.display_name)}
+                  aria-invalid={Boolean(formState.errors.display_name)}
                   {...form.register("display_name")}
                   aria-describedby="provider-display-name-error"
                   aria-required="true"
                 />
                 <FieldError
-                  errors={[form.formState.errors.display_name]}
+                  errors={[formState.errors.display_name]}
                   id="provider-display-name-error"
                 />
               </Field>
-              <Field data-invalid={Boolean(form.formState.errors.catalog_provider)}>
+              <Field data-invalid={Boolean(formState.errors.catalog_provider)}>
                 <FieldLabel required>Provider</FieldLabel>
                 <Controller
                   control={form.control}
@@ -1158,9 +1166,9 @@ export function ProviderSheet({
                           role="combobox"
                           aria-expanded={providerPickerOpen}
                           aria-invalid={Boolean(
-                            form.formState.errors.catalog_provider || form.formState.errors.kind
+                            formState.errors.catalog_provider || formState.errors.kind
                           )}
-                          disabled={Boolean(provider) || providerCatalogState === "loading"}
+                          disabled={Boolean(provider) || providerCatalog.isLoading}
                           className="w-full justify-between font-normal"
                         >
                           <span className="flex min-w-0 items-center gap-2">
@@ -1189,9 +1197,8 @@ export function ProviderSheet({
                                   key={`${entry.provider_id}:${entry.provider_kind}`}
                                   value={`${entry.name} ${entry.provider_id} ${providerKindLabels[entry.provider_kind]}`}
                                   onSelect={() => {
-                                    setModelCatalogState("loading")
                                     setSubscriptionOAuth({ status: "idle" })
-                                    const displayName = form.getFieldState("display_name").isDirty
+                                    const displayName = getFieldState("display_name").isDirty
                                       ? form.getValues("display_name")
                                       : entry.name
                                     const common = {
@@ -1209,7 +1216,6 @@ export function ProviderSheet({
                                         })
                                         break
                                       case "OpenAICodex":
-                                        setModelCatalogState("idle")
                                         form.reset({
                                           catalog_provider: "openai",
                                           display_name: displayName,
@@ -1308,10 +1314,8 @@ export function ProviderSheet({
                     </Popover>
                   )}
                 />
-                <FieldError
-                  errors={[form.formState.errors.catalog_provider, form.formState.errors.kind]}
-                />
-                {providerCatalogState === "error" ? (
+                <FieldError errors={[formState.errors.catalog_provider, formState.errors.kind]} />
+                {providerCatalog.isError ? (
                   <FieldDescription>
                     We could not load the provider catalog. Reopen the form to try again.
                   </FieldDescription>
@@ -1331,22 +1335,22 @@ export function ProviderSheet({
                     <FieldLabel required>Project</FieldLabel>
                     <Input
                       autoComplete="off"
-                      aria-invalid={form.getFieldState("vertex_ai.project").invalid}
+                      aria-invalid={getFieldState("vertex_ai.project", formState).invalid}
                       {...form.register("vertex_ai.project")}
                       aria-required="true"
                     />
-                    <FieldError errors={[form.getFieldState("vertex_ai.project").error]} />
+                    <FieldError errors={[getFieldState("vertex_ai.project", formState).error]} />
                   </Field>
                   <Field>
                     <FieldLabel required>Region</FieldLabel>
                     <Input
                       placeholder="us-central1"
                       autoComplete="off"
-                      aria-invalid={form.getFieldState("vertex_ai.region").invalid}
+                      aria-invalid={getFieldState("vertex_ai.region", formState).invalid}
                       {...form.register("vertex_ai.region")}
                       aria-required="true"
                     />
-                    <FieldError errors={[form.getFieldState("vertex_ai.region").error]} />
+                    <FieldError errors={[getFieldState("vertex_ai.region", formState).error]} />
                   </Field>
                 </>
               )}
@@ -1357,11 +1361,11 @@ export function ProviderSheet({
                     <Input
                       placeholder="us-east-1"
                       autoComplete="off"
-                      aria-invalid={form.getFieldState("bedrock.region").invalid}
+                      aria-invalid={getFieldState("bedrock.region", formState).invalid}
                       {...form.register("bedrock.region")}
                       aria-required="true"
                     />
-                    <FieldError errors={[form.getFieldState("bedrock.region").error]} />
+                    <FieldError errors={[getFieldState("bedrock.region", formState).error]} />
                   </Field>
                   <Field>
                     <FieldLabel required>Authentication</FieldLabel>
@@ -1402,7 +1406,7 @@ export function ProviderSheet({
                         </Select>
                       )}
                     />
-                    <FieldError errors={[form.getFieldState("bedrock.auth_mode").error]} />
+                    <FieldError errors={[getFieldState("bedrock.auth_mode", formState).error]} />
                   </Field>
                 </>
               )}
@@ -1445,28 +1449,28 @@ export function ProviderSheet({
                         </Select>
                       )}
                     />
-                    <FieldError errors={[form.getFieldState("azure.resource_type").error]} />
+                    <FieldError errors={[getFieldState("azure.resource_type", formState).error]} />
                   </Field>
                   <Field>
                     <FieldLabel required>Resource name</FieldLabel>
                     <Input
                       autoComplete="off"
-                      aria-invalid={form.getFieldState("azure.resource_name").invalid}
+                      aria-invalid={getFieldState("azure.resource_name", formState).invalid}
                       {...form.register("azure.resource_name")}
                       aria-required="true"
                     />
-                    <FieldError errors={[form.getFieldState("azure.resource_name").error]} />
+                    <FieldError errors={[getFieldState("azure.resource_name", formState).error]} />
                   </Field>
                   {azureResourceType === "Foundry" && (
                     <Field>
                       <FieldLabel required>Foundry project</FieldLabel>
                       <Input
                         autoComplete="off"
-                        aria-invalid={form.getFieldState("azure.project").invalid}
+                        aria-invalid={getFieldState("azure.project", formState).invalid}
                         {...form.register("azure.project")}
                         aria-required="true"
                       />
-                      <FieldError errors={[form.getFieldState("azure.project").error]} />
+                      <FieldError errors={[getFieldState("azure.project", formState).error]} />
                     </Field>
                   )}
                   <Field>
@@ -1474,11 +1478,11 @@ export function ProviderSheet({
                     <Input
                       placeholder="2025-04-01-preview"
                       autoComplete="off"
-                      aria-invalid={form.getFieldState("azure.api_version").invalid}
+                      aria-invalid={getFieldState("azure.api_version", formState).invalid}
                       {...form.register("azure.api_version")}
                       aria-required="true"
                     />
-                    <FieldError errors={[form.getFieldState("azure.api_version").error]} />
+                    <FieldError errors={[getFieldState("azure.api_version", formState).error]} />
                   </Field>
                   <Field>
                     <FieldLabel required>Authentication</FieldLabel>
@@ -1519,7 +1523,7 @@ export function ProviderSheet({
                         </Select>
                       )}
                     />
-                    <FieldError errors={[form.getFieldState("azure.auth_mode").error]} />
+                    <FieldError errors={[getFieldState("azure.auth_mode", formState).error]} />
                   </Field>
                 </>
               )}
@@ -1534,12 +1538,12 @@ export function ProviderSheet({
                       }
                       autoComplete="off"
                       spellCheck={false}
-                      aria-invalid={form.getFieldState(`${compatibleField}.base_url`).invalid}
+                      aria-invalid={getFieldState(`${compatibleField}.base_url`, formState).invalid}
                       {...form.register(`${compatibleField}.base_url`)}
                       aria-required="true"
                     />
                     <FieldError
-                      errors={[form.getFieldState(`${compatibleField}.base_url`).error]}
+                      errors={[getFieldState(`${compatibleField}.base_url`, formState).error]}
                     />
                     {selectedCatalogEntry?.base_url_template ? (
                       <FieldDescription>
@@ -1596,7 +1600,7 @@ export function ProviderSheet({
                       )}
                     />
                     <FieldError
-                      errors={[form.getFieldState(`${compatibleField}.auth_mode`).error]}
+                      errors={[getFieldState(`${compatibleField}.auth_mode`, formState).error]}
                     />
                   </Field>
                 </>
@@ -1618,12 +1622,14 @@ export function ProviderSheet({
                             <Input
                               type="url"
                               spellCheck={false}
-                              aria-invalid={form.getFieldState("openai.base_url").invalid}
+                              aria-invalid={getFieldState("openai.base_url", formState).invalid}
                               {...form.register("openai.base_url", {
                                 setValueAs: (value) => value || undefined,
                               })}
                             />
-                            <FieldError errors={[form.getFieldState("openai.base_url").error]} />
+                            <FieldError
+                              errors={[getFieldState("openai.base_url", formState).error]}
+                            />
                           </Field>
                         )}
                         {kind === "Anthropic" && (
@@ -1632,12 +1638,14 @@ export function ProviderSheet({
                             <Input
                               type="url"
                               spellCheck={false}
-                              aria-invalid={form.getFieldState("anthropic.base_url").invalid}
+                              aria-invalid={getFieldState("anthropic.base_url", formState).invalid}
                               {...form.register("anthropic.base_url", {
                                 setValueAs: (value) => value || undefined,
                               })}
                             />
-                            <FieldError errors={[form.getFieldState("anthropic.base_url").error]} />
+                            <FieldError
+                              errors={[getFieldState("anthropic.base_url", formState).error]}
+                            />
                           </Field>
                         )}
                         {kind === "Gemini" && (
@@ -1646,12 +1654,14 @@ export function ProviderSheet({
                             <Input
                               type="url"
                               spellCheck={false}
-                              aria-invalid={form.getFieldState("gemini.base_url").invalid}
+                              aria-invalid={getFieldState("gemini.base_url", formState).invalid}
                               {...form.register("gemini.base_url", {
                                 setValueAs: (value) => value || undefined,
                               })}
                             />
-                            <FieldError errors={[form.getFieldState("gemini.base_url").error]} />
+                            <FieldError
+                              errors={[getFieldState("gemini.base_url", formState).error]}
+                            />
                           </Field>
                         )}
                         {isCompatibleKind && (
@@ -1661,13 +1671,15 @@ export function ProviderSheet({
                               <Input
                                 placeholder="/v1/chat/completions"
                                 spellCheck={false}
-                                aria-invalid={form.getFieldState(`${compatibleField}.path`).invalid}
+                                aria-invalid={
+                                  getFieldState(`${compatibleField}.path`, formState).invalid
+                                }
                                 {...form.register(`${compatibleField}.path`, {
                                   setValueAs: (value) => value || undefined,
                                 })}
                               />
                               <FieldError
-                                errors={[form.getFieldState(`${compatibleField}.path`).error]}
+                                errors={[getFieldState(`${compatibleField}.path`, formState).error]}
                               />
                             </Field>
                             <Field>
@@ -1676,7 +1688,7 @@ export function ProviderSheet({
                                 placeholder="/v1"
                                 spellCheck={false}
                                 aria-invalid={
-                                  form.getFieldState(`${compatibleField}.path_prefix`).invalid
+                                  getFieldState(`${compatibleField}.path_prefix`, formState).invalid
                                 }
                                 {...form.register(`${compatibleField}.path_prefix`, {
                                   setValueAs: (value) => value || undefined,
@@ -1684,7 +1696,7 @@ export function ProviderSheet({
                               />
                               <FieldError
                                 errors={[
-                                  form.getFieldState(`${compatibleField}.path_prefix`).error,
+                                  getFieldState(`${compatibleField}.path_prefix`, formState).error,
                                 ]}
                               />
                             </Field>
@@ -1697,14 +1709,16 @@ export function ProviderSheet({
                                     placeholder="authorization"
                                     spellCheck={false}
                                     aria-invalid={
-                                      form.getFieldState(`${compatibleField}.auth_header`).invalid
+                                      getFieldState(`${compatibleField}.auth_header`, formState)
+                                        .invalid
                                     }
                                     {...form.register(`${compatibleField}.auth_header`)}
                                     aria-required="true"
                                   />
                                   <FieldError
                                     errors={[
-                                      form.getFieldState(`${compatibleField}.auth_header`).error,
+                                      getFieldState(`${compatibleField}.auth_header`, formState)
+                                        .error,
                                     ]}
                                   />
                                 </Field>
@@ -1714,13 +1728,15 @@ export function ProviderSheet({
                                     placeholder="Bearer "
                                     spellCheck={false}
                                     aria-invalid={
-                                      form.getFieldState(`${compatibleField}.auth_prefix`).invalid
+                                      getFieldState(`${compatibleField}.auth_prefix`, formState)
+                                        .invalid
                                     }
                                     {...form.register(`${compatibleField}.auth_prefix`)}
                                   />
                                   <FieldError
                                     errors={[
-                                      form.getFieldState(`${compatibleField}.auth_prefix`).error,
+                                      getFieldState(`${compatibleField}.auth_prefix`, formState)
+                                        .error,
                                     ]}
                                   />
                                 </Field>
@@ -1742,8 +1758,9 @@ export function ProviderSheet({
                                       placeholder="x-tenant"
                                       spellCheck={false}
                                       aria-invalid={
-                                        form.getFieldState(
-                                          `${compatibleField}.headers.${index}.name`
+                                        getFieldState(
+                                          `${compatibleField}.headers.${index}.name`,
+                                          formState
                                         ).invalid
                                       }
                                       {...form.register(`${compatibleField}.headers.${index}.name`)}
@@ -1752,8 +1769,9 @@ export function ProviderSheet({
                                       aria-label={`Header ${index + 1} value`}
                                       placeholder="public-value"
                                       aria-invalid={
-                                        form.getFieldState(
-                                          `${compatibleField}.headers.${index}.value`
+                                        getFieldState(
+                                          `${compatibleField}.headers.${index}.value`,
+                                          formState
                                         ).invalid
                                       }
                                       {...form.register(
@@ -1772,11 +1790,13 @@ export function ProviderSheet({
                                     <FieldError
                                       className="col-span-full"
                                       errors={[
-                                        form.getFieldState(
-                                          `${compatibleField}.headers.${index}.name`
+                                        getFieldState(
+                                          `${compatibleField}.headers.${index}.name`,
+                                          formState
                                         ).error,
-                                        form.getFieldState(
-                                          `${compatibleField}.headers.${index}.value`
+                                        getFieldState(
+                                          `${compatibleField}.headers.${index}.value`,
+                                          formState
                                         ).error,
                                       ]}
                                     />
@@ -1791,7 +1811,9 @@ export function ProviderSheet({
                                   <Plus /> Add header
                                 </Button>
                                 <FieldError
-                                  errors={[form.getFieldState(`${compatibleField}.headers`).error]}
+                                  errors={[
+                                    getFieldState(`${compatibleField}.headers`, formState).error,
+                                  ]}
                                 />
                               </div>
                             </Field>
@@ -1809,7 +1831,7 @@ export function ProviderSheet({
                                   </div>
                                   <Switch
                                     checked={field.value ?? false}
-                                    aria-invalid={form.getFieldState(field.name).invalid}
+                                    aria-invalid={getFieldState(field.name, formState).invalid}
                                     onCheckedChange={field.onChange}
                                   />
                                 </Field>
@@ -1817,8 +1839,10 @@ export function ProviderSheet({
                             />
                             <FieldError
                               errors={[
-                                form.getFieldState(`${compatibleField}.allow_private_endpoint`)
-                                  .error,
+                                getFieldState(
+                                  `${compatibleField}.allow_private_endpoint`,
+                                  formState
+                                ).error,
                               ]}
                             />
                             <Controller
@@ -1835,7 +1859,7 @@ export function ProviderSheet({
                                   </div>
                                   <Switch
                                     checked={field.value ?? false}
-                                    aria-invalid={form.getFieldState(field.name).invalid}
+                                    aria-invalid={getFieldState(field.name, formState).invalid}
                                     onCheckedChange={field.onChange}
                                   />
                                 </Field>
@@ -1843,7 +1867,8 @@ export function ProviderSheet({
                             />
                             <FieldError
                               errors={[
-                                form.getFieldState(`${compatibleField}.skip_tls_verify`).error,
+                                getFieldState(`${compatibleField}.skip_tls_verify`, formState)
+                                  .error,
                               ]}
                             />
                           </>
@@ -1964,11 +1989,11 @@ export function ProviderSheet({
                     type="password"
                     spellCheck={false}
                     autoComplete="new-password"
-                    aria-invalid={form.getFieldState("credentials.api_key").invalid}
+                    aria-invalid={getFieldState("credentials.api_key", formState).invalid}
                     {...form.register("credentials.api_key")}
                     aria-required={!provider}
                   />
-                  <FieldError errors={[form.getFieldState("credentials.api_key").error]} />
+                  <FieldError errors={[getFieldState("credentials.api_key", formState).error]} />
                 </Field>
               )}
               {kind === "VertexAI" && (
@@ -1982,11 +2007,13 @@ export function ProviderSheet({
                       type="password"
                       spellCheck={false}
                       autoComplete="new-password"
-                      aria-invalid={form.getFieldState("credentials.access_key").invalid}
+                      aria-invalid={getFieldState("credentials.access_key", formState).invalid}
                       {...form.register("credentials.access_key")}
                       aria-required={!provider}
                     />
-                    <FieldError errors={[form.getFieldState("credentials.access_key").error]} />
+                    <FieldError
+                      errors={[getFieldState("credentials.access_key", formState).error]}
+                    />
                   </Field>
                   <Field>
                     <FieldLabel required={!provider}>Secret key</FieldLabel>
@@ -1994,11 +2021,13 @@ export function ProviderSheet({
                       type="password"
                       spellCheck={false}
                       autoComplete="new-password"
-                      aria-invalid={form.getFieldState("credentials.secret_key").invalid}
+                      aria-invalid={getFieldState("credentials.secret_key", formState).invalid}
                       {...form.register("credentials.secret_key")}
                       aria-required={!provider}
                     />
-                    <FieldError errors={[form.getFieldState("credentials.secret_key").error]} />
+                    <FieldError
+                      errors={[getFieldState("credentials.secret_key", formState).error]}
+                    />
                   </Field>
                   <Field>
                     <FieldLabel>Session token</FieldLabel>
@@ -2006,10 +2035,12 @@ export function ProviderSheet({
                       type="password"
                       spellCheck={false}
                       autoComplete="new-password"
-                      aria-invalid={form.getFieldState("credentials.session_token").invalid}
+                      aria-invalid={getFieldState("credentials.session_token", formState).invalid}
                       {...form.register("credentials.session_token")}
                     />
-                    <FieldError errors={[form.getFieldState("credentials.session_token").error]} />
+                    <FieldError
+                      errors={[getFieldState("credentials.session_token", formState).error]}
+                    />
                   </Field>
                 </>
               )}
@@ -2020,11 +2051,13 @@ export function ProviderSheet({
                     type="password"
                     spellCheck={false}
                     autoComplete="new-password"
-                    aria-invalid={form.getFieldState("credentials.bearer_token").invalid}
+                    aria-invalid={getFieldState("credentials.bearer_token", formState).invalid}
                     {...form.register("credentials.bearer_token")}
                     aria-required={!provider}
                   />
-                  <FieldError errors={[form.getFieldState("credentials.bearer_token").error]} />
+                  <FieldError
+                    errors={[getFieldState("credentials.bearer_token", formState).error]}
+                  />
                 </Field>
               )}
               {kind === "Azure" && azureAuthMode === "ServicePrincipal" && (
@@ -2034,22 +2067,26 @@ export function ProviderSheet({
                     <Input
                       autoComplete="off"
                       spellCheck={false}
-                      aria-invalid={form.getFieldState("credentials.client_id").invalid}
+                      aria-invalid={getFieldState("credentials.client_id", formState).invalid}
                       {...form.register("credentials.client_id")}
                       aria-required={!provider}
                     />
-                    <FieldError errors={[form.getFieldState("credentials.client_id").error]} />
+                    <FieldError
+                      errors={[getFieldState("credentials.client_id", formState).error]}
+                    />
                   </Field>
                   <Field>
                     <FieldLabel required={!provider}>Tenant ID</FieldLabel>
                     <Input
                       autoComplete="off"
                       spellCheck={false}
-                      aria-invalid={form.getFieldState("credentials.tenant_id").invalid}
+                      aria-invalid={getFieldState("credentials.tenant_id", formState).invalid}
                       {...form.register("credentials.tenant_id")}
                       aria-required={!provider}
                     />
-                    <FieldError errors={[form.getFieldState("credentials.tenant_id").error]} />
+                    <FieldError
+                      errors={[getFieldState("credentials.tenant_id", formState).error]}
+                    />
                   </Field>
                   <Field>
                     <FieldLabel required={!provider}>Client secret</FieldLabel>
@@ -2057,11 +2094,13 @@ export function ProviderSheet({
                       type="password"
                       spellCheck={false}
                       autoComplete="new-password"
-                      aria-invalid={form.getFieldState("credentials.client_secret").invalid}
+                      aria-invalid={getFieldState("credentials.client_secret", formState).invalid}
                       {...form.register("credentials.client_secret")}
                       aria-required={!provider}
                     />
-                    <FieldError errors={[form.getFieldState("credentials.client_secret").error]} />
+                    <FieldError
+                      errors={[getFieldState("credentials.client_secret", formState).error]}
+                    />
                   </Field>
                 </>
               )}
@@ -2071,7 +2110,9 @@ export function ProviderSheet({
             </FormSection>
 
             <FormSection icon={Brain} title="Models">
-              <Field data-invalid={Boolean(form.formState.errors.models)}>
+              <Field
+                data-invalid={Boolean(formState.errors.models) || unavailableModels.length > 0}
+              >
                 <FieldLabel htmlFor="provider-models" required>
                   Models
                 </FieldLabel>
@@ -2079,10 +2120,10 @@ export function ProviderSheet({
                   allowCustomValues={!isSubscription}
                   disabled={isSubscription && !provider && subscriptionOAuth.status !== "connected"}
                   id="provider-models"
-                  invalid={Boolean(form.formState.errors.models)}
+                  invalid={Boolean(formState.errors.models) || unavailableModels.length > 0}
                   options={[
                     ...new Map(
-                      [...models.fields, ...suggestions].map((model) => [
+                      [...modelFields, ...suggestions].map((model) => [
                         model.id,
                         {
                           icon: Brain,
@@ -2104,10 +2145,10 @@ export function ProviderSheet({
                       ? "Connect your subscription to see available models."
                       : "No catalog models found. Enter a model ID."
                   }
-                  value={models.fields.map((model) => model.id)}
+                  value={modelFields.map((model) => model.id)}
                   onValueChangeAction={(modelIDs) => {
                     const current = form.getValues("models")
-                    models.replace(
+                    replaceModels(
                       modelIDs.map(
                         (modelID) =>
                           current.find((model) => model.id === modelID) ??
@@ -2122,9 +2163,13 @@ export function ProviderSheet({
                   aria-describedby="provider-models-error"
                   aria-required="true"
                 />
-                <FieldError errors={[form.formState.errors.models]} id="provider-models-error" />
+                <FieldError errors={[formState.errors.models]} id="provider-models-error">
+                  {unavailableModels.length > 0
+                    ? `Remove unavailable models before saving: ${unavailableModels.map((model) => model.id).join(", ")}`
+                    : undefined}
+                </FieldError>
               </Field>
-              {modelCatalogState === "loading" && (
+              {modelCatalog.isFetching && subscriptionOAuth.status !== "connected" && (
                 <p
                   aria-live="polite"
                   className="flex items-center gap-2 text-sm text-muted-foreground"
@@ -2133,19 +2178,27 @@ export function ProviderSheet({
                   Loading model catalog...
                 </p>
               )}
-              {modelCatalogState === "error" && (
+              {modelCatalog.isError && subscriptionOAuth.status !== "connected" && (
                 <Alert variant="warning">
                   <TriangleAlert aria-hidden="true" />
                   <AlertTitle>Model catalog unavailable</AlertTitle>
                   <AlertDescription>
-                    {isSubscription
-                      ? "Reconnect or reopen the form to retry."
-                      : "You can still enter model IDs manually."}
+                    <p>{modelCatalog.error.message}</p>
+                    {!isSubscription && <p>You can still enter model IDs manually.</p>}
                   </AlertDescription>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    aria-label="Retry model catalog"
+                    disabled={modelCatalog.isFetching}
+                    onClick={() => void modelCatalog.refetch()}
+                  >
+                    Retry
+                  </Button>
                 </Alert>
               )}
               <div className="space-y-1">
-                {models.fields.map((model, index) => (
+                {modelFields.map((model, index) => (
                   <div
                     key={model.key}
                     className="flex items-center gap-1 rounded-md px-2 py-1.5 hover:bg-muted/50"
@@ -2161,8 +2214,8 @@ export function ProviderSheet({
                       </div>
                       <FieldError
                         errors={[
-                          form.getFieldState(`models.${index}.id`).error,
-                          form.getFieldState(`models.${index}.display_name`).error,
+                          getFieldState(`models.${index}.id`, formState).error,
+                          getFieldState(`models.${index}.display_name`, formState).error,
                         ]}
                       />
                     </div>
@@ -2182,13 +2235,13 @@ export function ProviderSheet({
                       variant="destructive"
                       size="icon-sm"
                       aria-label={`Remove ${model.display_name}`}
-                      onClick={() => models.remove(index)}
+                      onClick={() => removeModel(index)}
                     >
                       <Trash2 />
                     </Button>
                   </div>
                 ))}
-                {models.fields.length === 0 && (
+                {modelFields.length === 0 && (
                   <p className="px-2 py-1.5 text-sm text-muted-foreground">
                     At least one model is required.
                   </p>
@@ -2219,6 +2272,7 @@ export function ProviderSheet({
                 type="submit"
                 disabled={
                   pending ||
+                  unavailableModels.length > 0 ||
                   (!provider && isSubscription && subscriptionOAuth.status !== "connected")
                 }
               >
@@ -2372,6 +2426,12 @@ function ModelMetadataDialog({
   editingModel?: number
   onCloseAction: () => void
 }) {
+  const formState = useFormState({
+    control: form.control,
+    name: editingModel === undefined ? undefined : `models.${editingModel}`,
+    disabled: editingModel === undefined,
+  })
+  const { getFieldState } = form
   return (
     <Dialog
       open={editingModel !== undefined}
@@ -2388,12 +2448,14 @@ function ModelMetadataDialog({
             <Field>
               <FieldLabel required>Display name</FieldLabel>
               <Input
-                aria-invalid={form.getFieldState(`models.${editingModel}.display_name`).invalid}
+                aria-invalid={
+                  getFieldState(`models.${editingModel}.display_name`, formState).invalid
+                }
                 {...form.register(`models.${editingModel}.display_name`)}
                 aria-required="true"
               />
               <FieldError
-                errors={[form.getFieldState(`models.${editingModel}.display_name`).error]}
+                errors={[getFieldState(`models.${editingModel}.display_name`, formState).error]}
               />
             </Field>
             <div className="grid grid-cols-3 gap-3">
@@ -2402,14 +2464,16 @@ function ModelMetadataDialog({
                 <Input
                   type="number"
                   min={1}
-                  aria-invalid={form.getFieldState(`models.${editingModel}.limits.context`).invalid}
+                  aria-invalid={
+                    getFieldState(`models.${editingModel}.limits.context`, formState).invalid
+                  }
                   {...form.register(`models.${editingModel}.limits.context`, {
                     valueAsNumber: true,
                   })}
                   aria-required="true"
                 />
                 <FieldError
-                  errors={[form.getFieldState(`models.${editingModel}.limits.context`).error]}
+                  errors={[getFieldState(`models.${editingModel}.limits.context`, formState).error]}
                 />
               </Field>
               <Field>
@@ -2433,7 +2497,7 @@ function ModelMetadataDialog({
                   )}
                 />
                 <FieldError
-                  errors={[form.getFieldState(`models.${editingModel}.limits.input`).error]}
+                  errors={[getFieldState(`models.${editingModel}.limits.input`, formState).error]}
                 />
               </Field>
               <Field>
@@ -2441,14 +2505,16 @@ function ModelMetadataDialog({
                 <Input
                   type="number"
                   min={1}
-                  aria-invalid={form.getFieldState(`models.${editingModel}.limits.output`).invalid}
+                  aria-invalid={
+                    getFieldState(`models.${editingModel}.limits.output`, formState).invalid
+                  }
                   {...form.register(`models.${editingModel}.limits.output`, {
                     valueAsNumber: true,
                   })}
                   aria-required="true"
                 />
                 <FieldError
-                  errors={[form.getFieldState(`models.${editingModel}.limits.output`).error]}
+                  errors={[getFieldState(`models.${editingModel}.limits.output`, formState).error]}
                 />
               </Field>
             </div>
@@ -2476,7 +2542,8 @@ function ModelMetadataDialog({
               <FieldError
                 errors={capabilities.map(
                   (capability) =>
-                    form.getFieldState(`models.${editingModel}.capabilities.${capability}`).error
+                    getFieldState(`models.${editingModel}.capabilities.${capability}`, formState)
+                      .error
                 )}
               />
             </Field>
@@ -2489,7 +2556,7 @@ function ModelMetadataDialog({
                   <Field>
                     <FieldLabel className="capitalize">{direction} data types</FieldLabel>
                     <div className="grid grid-cols-3 gap-2">
-                      {modalities.map((modality) => (
+                      {zInferenceModelModality.options.map((modality) => (
                         <label
                           key={modality}
                           className="flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm capitalize transition-colors hover:bg-muted/50 has-data-checked:border-primary/40 has-data-checked:bg-primary/5"
@@ -2511,7 +2578,8 @@ function ModelMetadataDialog({
                     </div>
                     <FieldError
                       errors={[
-                        form.getFieldState(`models.${editingModel}.modalities.${direction}`).error,
+                        getFieldState(`models.${editingModel}.modalities.${direction}`, formState)
+                          .error,
                       ]}
                     />
                   </Field>

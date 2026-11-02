@@ -993,8 +993,11 @@ func (s *Service) RefreshInferenceProviderModels(w http.ResponseWriter, r *http.
 		apiutil.WriteError(w, r, apiErr)
 		return
 	}
-	provider, _, ok := s.providerAndUsage(w, r, access.namespace, providerName)
-	if !ok {
+	provider := &agentzv1alpha1.InferenceProvider{}
+	key := ctrlclient.ObjectKey{Namespace: access.namespace, Name: providerName}
+	err := s.k8sClient.Get(r.Context(), key, provider)
+	if err != nil {
+		apiutil.WriteError(w, r, mapKubeHTTPError("get inference provider", err))
 		return
 	}
 	if provider.Spec.Kind != agentzv1alpha1.InferenceProviderKindOpenAICodex {
@@ -1015,11 +1018,14 @@ func (s *Service) RefreshInferenceProviderModels(w http.ResponseWriter, r *http.
 		provider.Spec.CredentialRevision,
 	)
 	secretRecord, err := s.baoKV.Get(r.Context(), path)
-	if err != nil {
+	if err != nil && !errors.Is(err, baoapi.ErrSecretNotFound) {
 		apiutil.WriteError(w, r, mapOpenBaoError(err))
 		return
 	}
-	record, err := inference.DecodeSubscriptionRecord(secretRecord.Data)
+	var record inference.SubscriptionRecord
+	if err == nil {
+		record, err = inference.DecodeSubscriptionRecord(secretRecord.Data)
+	}
 	if err != nil || record.Kind != provider.Spec.Kind {
 		apiutil.WriteError(
 			w,
@@ -1027,7 +1033,7 @@ func (s *Service) RefreshInferenceProviderModels(w http.ResponseWriter, r *http.
 			apiutil.NewError(
 				http.StatusServiceUnavailable,
 				"credentials_unavailable",
-				"subscription credentials are unavailable",
+				"Subscription credentials are unavailable. Re-authenticate and save this provider.",
 				err,
 			),
 		)

@@ -134,6 +134,7 @@ rules:
   resources:
   - inferencepools
   - inferenceproviders
+  - mcpconnections
   - sandboxes
   - skills
   - workflowruns
@@ -148,7 +149,6 @@ rules:
 - apiGroups:
   - agentz.accuknox.com
   resources:
-  - mcpconnections
   - secrets
   verbs:
   - create

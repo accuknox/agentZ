@@ -30660,6 +30660,18 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/InternalError'
+        "502":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Subscription model discovery or credential refresh failed.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Subscription credentials are unavailable. Re-authenticate and save the provider.
       security:
       - GatewayBearer:
         - inference_provider.read

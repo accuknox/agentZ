@@ -9317,6 +9317,14 @@ export type RefreshInferenceProviderModelsErrors = {
    * Unexpected server error.
    */
   500: Error
+  /**
+   * Subscription model discovery or credential refresh failed.
+   */
+  502: Error
+  /**
+   * Subscription credentials are unavailable. Re-authenticate and save the provider.
+   */
+  503: Error
 }
 
 export type RefreshInferenceProviderModelsError =

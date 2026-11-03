@@ -55,13 +55,21 @@ var chatTextContent agentgatewayv1alpha1.CELExpression
 //go:embed retryable_response.cel
 var retryableResponse agentgatewayv1alpha1.CELExpression
 
-// CredentialPath returns the OpenBao path for one provider's credential kind.
-func CredentialPath(namespace, name string, kind agentzv1alpha1.InferenceProviderKind) string {
+// SupersededCredentialsAnnotation retains old paths until runtime synchronization.
+const SupersededCredentialsAnnotation = "agentz.accuknox.com/superseded-credentials"
+
+// CredentialPath resolves a credential revision. An empty revision preserves
+// the legacy path until the provider is reauthenticated.
+func CredentialPath(namespace, name string, kind agentzv1alpha1.InferenceProviderKind, revision string) string {
 	dir := credentialPathDir
 	if kind == agentzv1alpha1.InferenceProviderKindOpenAICodex {
 		dir = SubscriptionCredentialPathDir
 	}
-	return namespace + "/" + dir + "/" + name
+	path := namespace + "/" + dir + "/" + name
+	if revision != "" {
+		path += "/" + revision
+	}
+	return path
 }
 
 // SubscriptionRecord is the complete credential record retained only in
@@ -211,7 +219,7 @@ func RenderRuntime(provider *agentzv1alpha1.InferenceProvider, storeName string,
 	}
 
 	data := make([]externalsecretsv1.ExternalSecretData, 0, len(target.secretKeys))
-	path := CredentialPath(provider.Namespace, provider.Name, provider.Spec.Kind)
+	path := CredentialPath(provider.Namespace, provider.Name, provider.Spec.Kind, provider.Spec.CredentialRevision)
 	if !target.extractCredentials {
 		for secretKey, property := range target.secretKeys {
 			data = append(

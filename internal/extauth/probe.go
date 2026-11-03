@@ -148,7 +148,6 @@ func (s *Service) probeMCPConnections(ctx context.Context) error {
 func (s *Service) probeMCPConnection(ctx context.Context, conn *agentzv1alpha1.MCPConnection) mcpProbeOutcome {
 	outcome := mcpProbeOutcome{
 		lastProbeTime: metav1.NewTime(time.Now().UTC()),
-		healthy:       false,
 		reason:        internalmcp.ReasonInternalError,
 		message:       "ext auth probe failed",
 	}
@@ -158,7 +157,8 @@ func (s *Service) probeMCPConnection(ctx context.Context, conn *agentzv1alpha1.M
 		Steps:    mcpProbeAttempts,
 	}
 
-	err := wait.ExponentialBackoffWithContext(
+	// The outcome retains the last result; backoff errors only stop retries.
+	wait.ExponentialBackoffWithContext(
 		ctx,
 		backoff,
 		func(ctx context.Context) (bool, error) {
@@ -173,15 +173,6 @@ func (s *Service) probeMCPConnection(ctx context.Context, conn *agentzv1alpha1.M
 			return false, nil
 		},
 	)
-	if err == nil || wait.Interrupted(err) {
-		return outcome
-	}
-
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		outcome.reason = internalmcp.ReasonInternalError
-		outcome.message = err.Error()
-		return outcome
-	}
 
 	return outcome
 }
@@ -189,7 +180,6 @@ func (s *Service) probeMCPConnection(ctx context.Context, conn *agentzv1alpha1.M
 func (s *Service) probeMCPConnectionOnce(ctx context.Context, conn *agentzv1alpha1.MCPConnection) mcpProbeOutcome {
 	outcome := mcpProbeOutcome{
 		lastProbeTime: metav1.NewTime(time.Now().UTC()),
-		healthy:       false,
 		reason:        internalmcp.ReasonInternalError,
 		message:       "ext auth probe failed",
 	}

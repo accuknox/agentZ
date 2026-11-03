@@ -159,9 +159,11 @@ export function McpTable({
           <AdministrationState kind={canCreate ? "welcome" : "empty"} title="No MCP connections" />
         }
         layout={columnLayout}
+        onRowActivate={setViewConnection}
         pagination={
           <TokenTablePagination hasNextPage={hasNextPage} nextPageToken={nextPageToken} />
         }
+        rowAriaLabel={(connection) => `View ${connection.name}`}
         rows={rows}
         table={table}
       />

@@ -104,7 +104,8 @@ spec:
                         description: |-
                           SecretRef identifies the canonical MCP OpenBao credential record.
                           Gateway-managed MCP connections always store credentials at
-                          <tenant>/mcp-connections/<connection-name> under the credentials field.
+                          <tenant>/mcp-connections/<connection-name>[/<revision>] under the
+                          credentials field.
                         properties:
                           key:
                             description: |-
@@ -114,7 +115,7 @@ spec:
                           path:
                             description: |-
                               Path is the OpenBao secret data path. MCP connections use
-                              <tenant>/mcp-connections/<connection-name>.
+                              <tenant>/mcp-connections/<connection-name>[/<revision>].
                             type: string
                         required:
                         - key
@@ -185,7 +186,8 @@ spec:
                         description: |-
                           SecretRef identifies the canonical MCP OpenBao credential record.
                           Gateway-managed MCP connections always store credentials at
-                          <tenant>/mcp-connections/<connection-name> under the credentials field.
+                          <tenant>/mcp-connections/<connection-name>[/<revision>] under the
+                          credentials field.
                         properties:
                           key:
                             description: |-
@@ -195,7 +197,7 @@ spec:
                           path:
                             description: |-
                               Path is the OpenBao secret data path. MCP connections use
-                              <tenant>/mcp-connections/<connection-name>.
+                              <tenant>/mcp-connections/<connection-name>[/<revision>].
                             type: string
                         required:
                         - key

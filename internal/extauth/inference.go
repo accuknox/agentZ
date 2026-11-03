@@ -225,6 +225,7 @@ func (s *Service) resolveInferenceSubscription(ctx context.Context, provider *ag
 		provider.Namespace,
 		provider.Name,
 		provider.Spec.Kind,
+		provider.Spec.CredentialRevision,
 	)
 	secret, err := s.kv.Get(ctx, path)
 	if err != nil {

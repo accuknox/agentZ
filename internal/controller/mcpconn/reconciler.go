@@ -121,7 +121,6 @@ func (r *MCPConnectionReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		ready:         ready,
 	}
 
-	requiresExtAuth := conn.Spec.Auth != nil && len(refs) > 0
 	if len(refs) == 0 {
 		err = r.deleteAuthPolicies(ctx, conn)
 		if err != nil {
@@ -141,7 +140,8 @@ func (r *MCPConnectionReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, nil
 	}
 
-	if requiresExtAuth && (extAuth == nil || !extAuth.ready) {
+	requiresExtAuth := conn.Spec.Auth != nil
+	if requiresExtAuth && !extAuth.ready {
 		err = fmt.Errorf("ext auth runtime is not ready")
 		statusErr := r.updateStatus(
 			ctx,
@@ -633,6 +633,14 @@ func (r *MCPConnectionReconciler) deleteRuntime(ctx context.Context, conn *agent
 	}
 
 	path := mcp.SecretPath(conn.Namespace, conn.Name)
+	if conn.Spec.Auth != nil {
+		if conn.Spec.Auth.Bearer != nil && conn.Spec.Auth.Bearer.SecretRef != nil {
+			path = conn.Spec.Auth.Bearer.SecretRef.Path
+		}
+		if conn.Spec.Auth.OAuth != nil && conn.Spec.Auth.OAuth.SecretRef != nil {
+			path = conn.Spec.Auth.OAuth.SecretRef.Path
+		}
+	}
 	err := r.Bao.KVv2(r.OpenBaoSecretMountPath).DeleteMetadata(ctx, path)
 	if err != nil && !errors.Is(err, baoapi.ErrSecretNotFound) {
 		return fmt.Errorf("delete mcp connection secret metadata %q: %w", path, err)

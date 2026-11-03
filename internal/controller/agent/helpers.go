@@ -301,19 +301,17 @@ func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]by
 	if len(envCfg.MCPRefs) == 1 {
 		singleMCPConnectionName = envCfg.MCPRefs[0].Name
 	}
-	if len(envCfg.MCPConsentPermissionIDs) > 0 {
-		for _, permissionID := range envCfg.MCPConsentPermissionIDs {
-			cfg.Permission[mcp.OpenCodeGatewayToolsetName+"_"+permissionID] = "ask"
-			if singleMCPConnectionName == "" {
-				continue
-			}
-			aliasPermissionID, ok := strings.CutPrefix(
-				permissionID,
-				singleMCPConnectionName+"_",
-			)
-			if ok && aliasPermissionID != "" {
-				cfg.Permission[mcp.OpenCodeGatewayToolsetName+"_"+aliasPermissionID] = "ask"
-			}
+	for _, permissionID := range envCfg.MCPConsentPermissionIDs {
+		cfg.Permission[mcp.OpenCodeGatewayToolsetName+"_"+permissionID] = "ask"
+		if singleMCPConnectionName == "" {
+			continue
+		}
+		aliasPermissionID, ok := strings.CutPrefix(
+			permissionID,
+			singleMCPConnectionName+"_",
+		)
+		if ok && aliasPermissionID != "" {
+			cfg.Permission[mcp.OpenCodeGatewayToolsetName+"_"+aliasPermissionID] = "ask"
 		}
 	}
 

@@ -60,10 +60,10 @@ rules:
       - set-workflowrun-status
       - update-workflow-schedule
   - apiGroups: ["agentz.accuknox.com"]
-    resources: ["guardrailconnections", "guardrailpolicies", "inferencepools", "inferenceproviders", "sandboxes"]
+    resources: ["guardrailconnections", "guardrailpolicies", "inferencepools", "inferenceproviders", "mcpconnections", "sandboxes"]
     verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
   - apiGroups: ["agentz.accuknox.com"]
-    resources: ["mcpconnections", "secrets"]
+    resources: ["secrets"]
     verbs: ["create", "delete", "get", "list", "patch", "watch"]
   - apiGroups: ["agentz.accuknox.com"]
     resources:

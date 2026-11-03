@@ -112,6 +112,8 @@ config:
   agentImage: ""
   agentInitImage: ""
   gatewayURL: ""
+  # Body buffer for inference gateway CEL authorization.
+  inferenceMaxBufferSize: 32Mi
   agentgatewayTraceMode: service
   agentgatewayTraceServiceName: ""
   agentgatewayTraceServiceNamespace: ""

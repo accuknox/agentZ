@@ -3046,6 +3046,44 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/inference/provider/{providerName}/oauth-ticket:
+    post:
+      operationId: reauthenticateInferenceProviderOAuthTicket
+      summary: Store subscription credentials and return a single-use provider ticket.
+      description: >
+        Credential material is written directly to OpenBao and is never
+        included in this or any later API response.
+      tags: [inference]
+      security:
+      - GatewayBearer: [inference_provider.modify]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
+      - $ref: '#/components/parameters/InferenceProviderNamePath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInferenceProviderOAuthTicketRequest'
+      responses:
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '201':
+          description: Single-use provider ticket and non-secret model metadata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateInferenceProviderOAuthTicketResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/inference/provider/{providerName}:
     parameters:
     - $ref: '#/components/parameters/InferenceProviderNamePath'
@@ -3198,6 +3236,16 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalError'
+        '502':
+          description: Subscription model discovery or credential refresh failed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        '503':
+          description: Subscription credentials are unavailable. Re-authenticate and save the provider.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
 
   /api/inference/provider/catalog:
     get:
@@ -3659,6 +3707,44 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/mcp-connection/{name}/reauthenticate:
+    post:
+      operationId: reauthenticateMCPConnection
+      summary: Replace the complete MCP credential set.
+      tags: [mcp-connections]
+      security:
+      - GatewayBearer: [mcp_connection.modify]
+      parameters:
+      - $ref: '#/components/parameters/WorkspaceIDHeader'
+      - $ref: '#/components/parameters/MCPConnectionNamePath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                resource_version: {type: string, minLength: 1}
+                credentials:
+                  $ref: '#/components/schemas/MCPConnectionCredentials'
+              required: [resource_version, credentials]
+      responses:
+        '204':
+          description: Credentials replaced.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -10429,6 +10515,7 @@ components:
       type: object
       additionalProperties: false
       properties:
+        resource_version: {type: string, minLength: 1}
         kind: {type: string, enum: [OpenAICodex]}
         credentials: {$ref: '#/components/schemas/InferenceProviderOAuthCredentials'}
       required: [kind, credentials]
@@ -10677,6 +10764,7 @@ components:
       type: object
       additionalProperties: false
       properties:
+        oauth_ticket: {type: string, minLength: 1, writeOnly: true}
         resource_version: {type: string, minLength: 1}
         provider: {$ref: '#/components/schemas/InferenceProviderWriteDiscriminator'}
       required: [resource_version, provider]
@@ -10984,6 +11072,8 @@ components:
       type: object
       additionalProperties: false
       properties:
+        resource_version: {type: string}
+        can_reauthenticate: {type: boolean}
         can_delete:
           type: boolean
           description: Whether the current principal may delete this connection in the selected scope.
@@ -11014,7 +11104,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/MCPConnectionTool'
-      required: [name, scope, created_by, last_modified_by, endpoint, auth, created_at, status, reason, message, tool_catalog_ready, tools, can_delete]
+      required: [name, scope, created_by, last_modified_by, endpoint, auth, created_at, status, reason, message, tool_catalog_ready, tools, can_delete, resource_version, can_reauthenticate]
 
     MCPConnectionSummary:
       type: object

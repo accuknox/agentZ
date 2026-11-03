@@ -2188,6 +2188,7 @@ export const zInferenceProviderOAuthCredentials = z.object({
 })
 
 export const zCreateInferenceProviderOAuthTicketRequest = z.object({
+  resource_version: z.string().min(1).optional(),
   kind: z.enum(["OpenAICodex"]),
 })
 
@@ -2637,6 +2638,8 @@ export const zMcpConnectionReason = z.enum([
 export const zMcpConnectionLifecycle = z.enum(["Accepted", "Ready", "Error"])
 
 export const zMcpConnectionDetail = z.object({
+  resource_version: z.string(),
+  can_reauthenticate: z.boolean(),
   can_delete: z.boolean(),
   name: zMcpConnectionName,
   scope: zResourceScope,
@@ -4016,6 +4019,7 @@ export const zWorkflowRunInputsWritable = zJsonValueWritable
 export const zJsonObjectWritable = z.record(z.string(), zJsonValueWritable)
 
 export const zCreateInferenceProviderOAuthTicketRequestWritable = z.object({
+  resource_version: z.string().min(1).optional(),
   kind: z.enum(["OpenAICodex"]),
   credentials: zInferenceProviderOAuthCredentials,
 })
@@ -4112,6 +4116,7 @@ export const zCreateInferenceProviderRequestWritable = z.object({
 })
 
 export const zUpdateInferenceProviderRequestWritable = z.object({
+  oauth_ticket: z.string().min(1).optional(),
   resource_version: z.string().min(1),
   provider: zInferenceProviderWriteDiscriminatorWritable,
 })
@@ -4939,6 +4944,12 @@ export const zCreateInferenceProviderOAuthTicketResponse2 =
   zCreateInferenceProviderOAuthTicketResponse
 
 /**
+ * Single-use provider ticket and non-secret model metadata.
+ */
+export const zReauthenticateInferenceProviderOAuthTicketResponse =
+  zCreateInferenceProviderOAuthTicketResponse
+
+/**
  * Provider deletion accepted.
  */
 export const zDeleteInferenceProviderResponse = z.void()
@@ -5047,6 +5058,11 @@ export const zDeleteMcpConnectionResponse = z.void()
  * MCPConnection.
  */
 export const zGetMcpConnectionResponse = zMcpConnectionDetail
+
+/**
+ * Credentials replaced.
+ */
+export const zReauthenticateMcpConnectionResponse = z.void()
 
 /**
  * Stream of MCP connection updates.

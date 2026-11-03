@@ -2,7 +2,7 @@ import { revalidateTag } from "next/cache"
 import { cookies } from "next/headers"
 import { agentSecretsTag, mcpsTag, secretsTag } from "@/data/cache"
 import { getCurrentUserPreferences } from "@/data/user-preferences"
-import { createMcpConnection, putSecret } from "@/lib/gateway/client"
+import { createMcpConnection, reauthenticateMcpConnection, putSecret } from "@/lib/gateway/client"
 import type { CreateSecretRequest } from "@/lib/gateway/client"
 import {
   completeOAuthFlow,
@@ -130,6 +130,20 @@ export async function GET(request: Request) {
         throw new Error("MCP connection could not be saved")
       }
 
+      revalidateTag(mcpsTag, { expire: 0 })
+    } else if (pending.operation.kind === "reauthenticate") {
+      const saved = await reauthenticateMcpConnection({
+        path: { name: pending.operation.form.name },
+        body: {
+          resource_version: pending.operation.resourceVersion,
+          credentials: { oauth: result.value.credentials },
+        },
+        client: getGatewayServerClient(pending.operation.workspaceId),
+        headers: pending.operation.workspaceId
+          ? { "X-AgentZ-Workspace-ID": pending.operation.workspaceId }
+          : undefined,
+      })
+      if (saved.error) throw new Error(saved.error.message)
       revalidateTag(mcpsTag, { expire: 0 })
     } else {
       const preferences = await getCurrentUserPreferences()

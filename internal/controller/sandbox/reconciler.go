@@ -60,10 +60,11 @@ import (
 // Reconciler reconciles Sandbox lifecycle protection and MCP runtime.
 type Reconciler struct {
 	client.Client
-	Scheme             *runtime.Scheme
-	AgentGateway       agentgatewayclientset.Interface
-	TraceBackend       TraceBackend
-	GuardrailStoreName string
+	Scheme                 *runtime.Scheme
+	AgentGateway           agentgatewayclientset.Interface
+	TraceBackend           TraceBackend
+	InferenceMaxBufferSize *agentgatewayv1alpha1.ByteSize
+	GuardrailStoreName     string
 }
 
 const (

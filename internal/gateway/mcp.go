@@ -6,12 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"net/http"
 	"slices"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	baoapi "github.com/openbao/openbao/api/v2"
 	"golang.org/x/oauth2"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -19,6 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/validation"
+	"k8s.io/client-go/util/retry"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/accuknox/agentz/internal/authorization"
@@ -41,7 +44,7 @@ func (s *Service) resolveMCPAccess(ctx context.Context, workspaceID, name string
 		authorization.OperationWatchMCPConnections,
 		authorization.OperationGetMCPConnection,
 		authorization.OperationCreateMCPConnection:
-	case authorization.OperationDeleteMCPConnection:
+	case authorization.OperationDeleteMCPConnection, authorization.OperationReauthenticateMCPConnection:
 		creatorFallback = authorization.OperationCreateMCPConnection
 	default:
 		return resourceAccess{workspaceID: workspaceID, operation: operation},
@@ -73,26 +76,16 @@ func (s *Service) resolveMCPAccess(ctx context.Context, workspaceID, name string
 }
 
 func (s *Service) createMCPEventTrail(ctx context.Context, access resourceAccess, name string, result gatewaydb.EventTrailResult) error {
-	return s.createResourceEventTrail(
-		ctx,
-		access,
-		gatewaydb.EventTrailTargetMcpConnection,
-		name,
-		"mcp_connection",
-		mcpOperationAction(access.operation),
-		result,
-	)
-}
-
-func mcpOperationAction(operation authorization.Operation) string {
-	switch operation {
+	action := "unmapped"
+	switch access.operation {
+	case authorization.OperationReauthenticateMCPConnection:
+		action = "reauthenticate"
 	case authorization.OperationCreateMCPConnection:
-		return "create"
+		action = "create"
 	case authorization.OperationDeleteMCPConnection:
-		return "delete"
-	default:
-		return "unmapped"
+		action = "delete"
 	}
+	return s.createResourceEventTrail(ctx, access, gatewaydb.EventTrailTargetMcpConnection, name, "mcp_connection", action, result)
 }
 
 func writeMCPAPIError(w http.ResponseWriter, r *http.Request, err *apiutil.APIError) {
@@ -560,6 +553,113 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request, pa
 	)
 }
 
+// ReauthenticateMCPConnection replaces credentials while preserving connection references.
+func (s *Service) ReauthenticateMCPConnection(w http.ResponseWriter, r *http.Request, name gatewayapi.MCPConnectionNamePath, params gatewayapi.ReauthenticateMCPConnectionParams) {
+	workspaceID := ""
+	if params.XAgentZWorkspaceID != nil {
+		workspaceID = *params.XAgentZWorkspaceID
+	}
+	access, apiErr := s.resolveMCPAccess(r.Context(), workspaceID, name, authorization.OperationReauthenticateMCPConnection)
+	result := gatewaydb.EventTrailResultFailed
+	if apiErr != nil {
+		result = access.failureResult()
+	}
+	defer func() {
+		if access.claims.OrganizationID == "" {
+			return
+		}
+		err := s.createMCPEventTrail(context.WithoutCancel(r.Context()), access, name, result)
+		if err != nil {
+			if result != gatewaydb.EventTrailResultSucceeded {
+				apiutil.RecordRequestError(w, "internal_error", err)
+				return
+			}
+			apiutil.WriteInternalError(w, r, err)
+			return
+		}
+		if result == gatewaydb.EventTrailResultSucceeded {
+			w.WriteHeader(http.StatusNoContent)
+		}
+	}()
+	if apiErr != nil {
+		apiutil.WriteError(w, r, apiErr)
+		return
+	}
+	var req gatewayapi.ReauthenticateMCPConnectionJSONRequestBody
+	if !decodeJSONBody(w, r, &req, false) {
+		return
+	}
+	conn := &agentzv1alpha1.MCPConnection{}
+	err := s.k8sClient.Get(r.Context(), ctrlclient.ObjectKey{Namespace: access.namespace, Name: name}, conn)
+	if err != nil {
+		apiutil.WriteError(w, r, mapKubeHTTPError("get MCP connection", err))
+		return
+	}
+	if req.ResourceVersion != fmt.Sprintf("%s:%d", conn.UID, conn.Generation) {
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "conflict", "connection changed; reload before retrying", nil))
+		return
+	}
+	if conn.Spec.Auth == nil {
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "connection has no authentication", nil))
+		return
+	}
+	oauth := req.Credentials.Oauth
+	if oauth != nil && (oauth.AccessToken == nil || strings.TrimSpace(*oauth.AccessToken) == "") {
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "OAuth replacement requires an access token", nil))
+		return
+	}
+	previous := conn.DeepCopy()
+	path := internalmcp.SecretPath(conn.Namespace, conn.Name) + "/" + uuid.NewString()
+	ref := &agentzv1alpha1.MCPConnectionSecretRef{Path: path, Key: internalmcp.SecretRecordKey}
+	if conn.Spec.Auth.Bearer != nil {
+		conn.Spec.Auth.Bearer.SecretRef = ref
+	}
+	if conn.Spec.Auth.OAuth != nil {
+		conn.Spec.Auth.OAuth.SecretRef = ref
+	}
+	apiErr = s.putMCPConnectionCredentials(r.Context(), conn.Spec, req.Credentials)
+	if apiErr != nil {
+		apiutil.WriteError(w, r, apiErr)
+		return
+	}
+	conn.Spec.LastModifiedByUserID = access.claims.UserID
+	// Status writes must not invalidate sign-in or race the final save.
+	// Kubernetes generation changes on spec edits, including secret revisions.
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		latest := &agentzv1alpha1.MCPConnection{}
+		err := s.k8sClient.Get(r.Context(), ctrlclient.ObjectKeyFromObject(conn), latest)
+		if err != nil {
+			return err
+		}
+		if latest.UID != previous.UID || latest.Generation != previous.Generation {
+			return apierrors.NewConflict(
+				agentzv1alpha1.Resource("mcpconnections"),
+				name,
+				errors.New("connection changed"),
+			)
+		}
+		latest.Spec = conn.Spec
+		return s.k8sClient.Update(r.Context(), latest)
+	})
+	if err != nil {
+		// An uncertain write may have activated this revision. Only clean up
+		// authoritative rejections so a transport failure cannot delete it.
+		if apierrors.IsConflict(err) || apierrors.IsInvalid(err) || apierrors.IsForbidden(err) {
+			cleanupErr := s.deleteMCPConnectionCredentials(context.WithoutCancel(r.Context()), *conn)
+			if cleanupErr != nil {
+				slog.ErrorContext(r.Context(), "clean up rejected MCP credentials", "err", cleanupErr)
+			}
+		}
+		apiutil.WriteError(w, r, mapKubeHTTPError("reauthenticate MCP connection", err))
+		return
+	}
+	result = gatewaydb.EventTrailResultSucceeded
+	err = s.deleteMCPConnectionCredentials(context.WithoutCancel(r.Context()), *previous)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "delete superseded MCP credentials", "err", err)
+	}
+}
+
 // GetMCPConnection handles GET /api/mcp-connection/{name}.
 func (s *Service) GetMCPConnection(w http.ResponseWriter, r *http.Request, name gatewayapi.MCPConnectionNamePath, params gatewayapi.GetMCPConnectionParams) {
 	var workspaceID string
@@ -800,7 +900,7 @@ func (s *Service) mcpConnectionSummary(access resourceAccess, conn agentzv1alpha
 	status, reason, message := s.mcpConnectionStatus(conn)
 	return gatewayapi.MCPConnectionSummary{
 		Scope:            resourceScope(access.workspaceID),
-		CanDelete:        mcpCanDelete(access, conn),
+		CanDelete:        mcpCanMutate(access, conn, authorization.OperationDeleteMCPConnection),
 		Name:             conn.Name,
 		AuthMode:         conn.Status.AuthMode,
 		EndpointUrl:      conn.Spec.Endpoint.URL,
@@ -870,33 +970,32 @@ func (s *Service) mcpConnectionDetail(access resourceAccess, scope gatewayapi.Re
 	for _, tool := range conn.Status.Tools {
 		tools = append(tools, gatewayapi.MCPConnectionTool{Name: tool.Name})
 	}
-	var canDelete bool
-	if scope == resourceScope(access.workspaceID) {
-		canDelete = mcpCanDelete(access, conn)
-	}
+	ownScope := scope == resourceScope(access.workspaceID)
 	return gatewayapi.MCPConnectionDetail{
-		Scope:            scope,
-		CanDelete:        canDelete,
-		Name:             conn.Name,
-		CreatedAt:        conn.CreationTimestamp.Time,
-		Endpoint:         endpoint,
-		Auth:             auth,
-		Status:           status,
-		Reason:           reason,
-		Message:          message,
-		ToolCatalogReady: conn.Status.ToolCatalogReady,
-		Tools:            tools,
-		CreatedBy:        actors[conn.Spec.CreatedByUserID],
-		LastModifiedBy:   actors[conn.Spec.LastModifiedByUserID],
+		Scope:             scope,
+		ResourceVersion:   fmt.Sprintf("%s:%d", conn.UID, conn.Generation),
+		CanReauthenticate: ownScope && mcpCanMutate(access, conn, authorization.OperationReauthenticateMCPConnection),
+		CanDelete:         ownScope && mcpCanMutate(access, conn, authorization.OperationDeleteMCPConnection),
+		Name:              conn.Name,
+		CreatedAt:         conn.CreationTimestamp.Time,
+		Endpoint:          endpoint,
+		Auth:              auth,
+		Status:            status,
+		Reason:            reason,
+		Message:           message,
+		ToolCatalogReady:  conn.Status.ToolCatalogReady,
+		Tools:             tools,
+		CreatedBy:         actors[conn.Spec.CreatedByUserID],
+		LastModifiedBy:    actors[conn.Spec.LastModifiedByUserID],
 	}
 }
 
-func mcpCanDelete(access resourceAccess, conn agentzv1alpha1.MCPConnection) bool {
+func mcpCanMutate(access resourceAccess, conn agentzv1alpha1.MCPConnection, operation authorization.Operation) bool {
 	scope := authorization.Scope{
 		OrganizationID: access.claims.OrganizationID,
 		WorkspaceID:    access.workspaceID,
 	}
-	if access.effective.Allows(scope, authorization.OperationDeleteMCPConnection) {
+	if access.effective.Allows(scope, operation) {
 		return true
 	}
 	return conn.Spec.CreatedByUserID == access.claims.UserID &&
@@ -1163,10 +1262,8 @@ func (s *Service) putMCPConnectionSecret(ctx context.Context, ref agentzv1alpha1
 	}
 
 	data := map[string]any{ref.Key: string(encoded)}
-	if _, err := s.baoKV.Put(ctx, ref.Path, data); err != nil {
-		return err
-	}
-	return nil
+	_, err = s.baoKV.Put(ctx, ref.Path, data)
+	return err
 }
 
 func (s *Service) putMCPConnectionCredentials(ctx context.Context, spec agentzv1alpha1.MCPConnectionSpec, req gatewayapi.MCPConnectionCredentials) *apiutil.APIError {

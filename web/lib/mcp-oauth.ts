@@ -37,25 +37,7 @@ import {
 } from "@/lib/mcp-oauth-shared"
 import { openOAuthState, sealOAuthState } from "@/lib/oauth-state"
 
-type PendingCreateOperation = {
-  kind: "create"
-  form: ParsedMcpForm
-  workspaceId?: string
-}
-
-type PendingSecretOperation = {
-  kind: "secret"
-  form: ParsedMcpForm
-  workspaceId: string
-  secret: {
-    agentName: string
-    key: string
-    hosts: string[]
-    provider?: string
-  }
-}
-
-export type PendingOAuthOperation = PendingCreateOperation | PendingSecretOperation
+export type PendingOAuthOperation = z.infer<typeof pendingOAuthOperationSchema>
 export type PendingOAuthInitiator = {
   organizationId: string
   sessionId: string
@@ -153,6 +135,12 @@ const parsedMcpFormSchema: z.ZodType<ParsedMcpForm> = z.object({
 })
 
 const pendingOAuthOperationSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("reauthenticate"),
+    form: parsedMcpFormSchema,
+    workspaceId: z.string().min(1).optional(),
+    resourceVersion: z.string().min(1),
+  }),
   z.object({
     kind: z.literal("create"),
     form: parsedMcpFormSchema,

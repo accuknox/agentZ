@@ -176,6 +176,7 @@ var baseOperationCapabilities = map[string][]string{
 	},
 	"inference_provider.modify": {
 		"updateInferenceProvider",
+		"reauthenticateInferenceProviderOAuthTicket",
 	},
 	"inference_provider.read": {
 		"getInferenceProvider",
@@ -189,6 +190,7 @@ var baseOperationCapabilities = map[string][]string{
 	"mcp_connection.create": {
 		"createMCPConnection",
 	},
+	"mcp_connection.modify": {"reauthenticateMCPConnection"},
 	"mcp_connection.delete": {
 		"deleteMCPConnection",
 	},

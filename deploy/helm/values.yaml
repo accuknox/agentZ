@@ -202,6 +202,10 @@ manager:
     # Base URL exposed to agents for gateway-backed workflow tools.
     gatewayURL: ""
 
+    # Body buffer for inference gateway CEL authorization. Use a Kubernetes
+    # quantity between 1 byte and 4294967295 bytes.
+    inferenceMaxBufferSize: 32Mi
+
     # AgentGateway trace target discovery mode: service or static.
     agentgatewayTraceMode: service
 

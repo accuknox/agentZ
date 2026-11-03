@@ -20,6 +20,17 @@ type dbStore struct {
 	pool *pgxpool.Pool
 }
 
+// recordError identifies a source event only when its statement is known.
+// COPY and aggregate failures are isolated by the sink instead.
+type recordError struct {
+	error
+	index int
+	stage string
+}
+
+// Unwrap exposes the database error for SQLSTATE classification.
+func (e *recordError) Unwrap() error { return e.error }
+
 func (s *dbStore) insertBatch(ctx context.Context, b batch) error {
 	if b.count() == 0 {
 		return nil
@@ -101,18 +112,24 @@ func (s *dbStore) insertBatch(ctx context.Context, b batch) error {
 
 	if len(b.traces) > 0 {
 		if err := insertTraceEventBatch(ctx, tx, b.traces); err != nil {
+			if record, ok := errors.AsType[*recordError](err); ok {
+				record.index += len(b.processes) + len(b.files) + len(b.networks)
+			}
 			return err
 		}
 	}
 
 	if len(b.apps) > 0 {
 		if err := insertAppOperationBatch(ctx, q, b.apps); err != nil {
+			if record, ok := errors.AsType[*recordError](err); ok {
+				record.index += len(b.processes) + len(b.files) + len(b.networks) + len(b.traces)
+			}
 			return err
 		}
 	}
 	guardrailScopes := make(map[string]observerdb.GetGuardrailSubjectScopeRow)
 	duplicateChanged := false
-	for _, ev := range b.guardrails {
+	for i, ev := range b.guardrails {
 		row := ev.row
 		scope, ok := guardrailScopes[ev.namespace]
 		if !ok {
@@ -137,7 +154,11 @@ func (s *dbStore) insertBatch(ctx context.Context, b batch) error {
 		row.ExpiresAt = row.OccurredAt.Add(30 * 24 * time.Hour)
 		inserted, err := q.InsertGuardrailEvent(ctx, row)
 		if err != nil {
-			return fmt.Errorf("insert guardrail event: %w", err)
+			return &recordError{
+				error: err,
+				index: len(b.processes) + len(b.files) + len(b.networks) + len(b.traces) + len(b.apps) + i,
+				stage: "insert guardrail event",
+			}
 		}
 		if len(ev.request) > 0 {
 			err = q.InsertGuardrailRequest(ctx, observerdb.InsertGuardrailRequestParams{
@@ -147,7 +168,11 @@ func (s *dbStore) insertBatch(ctx context.Context, b batch) error {
 				Body:      ev.request,
 			})
 			if err != nil {
-				return fmt.Errorf("insert guardrail request: %w", err)
+				return &recordError{
+					error: err,
+					index: len(b.processes) + len(b.files) + len(b.networks) + len(b.traces) + len(b.apps) + i,
+					stage: "insert guardrail request",
+				}
 			}
 		}
 		if inserted == 0 && !duplicateChanged {
@@ -266,18 +291,18 @@ func insertTraceEventBatch(ctx context.Context, tx pgx.Tx, traces []traceSpanEve
 	}
 
 	var batchErr error
-	q.InsertTraceSpan(ctx, spans).Exec(func(_ int, err error) {
+	q.InsertTraceSpan(ctx, spans).Exec(func(i int, err error) {
 		if err != nil && batchErr == nil {
-			batchErr = err
+			batchErr = &recordError{error: err, index: i, stage: "trace span"}
 		}
 	})
 	if batchErr != nil {
 		return fmt.Errorf("insert trace spans: %w", batchErr)
 	}
 
-	q.InsertTraceSpanPayload(ctx, payloads).Exec(func(_ int, err error) {
+	q.InsertTraceSpanPayload(ctx, payloads).Exec(func(i int, err error) {
 		if err != nil && batchErr == nil {
-			batchErr = err
+			batchErr = &recordError{error: err, index: i, stage: "trace payload"}
 		}
 	})
 	if batchErr != nil {
@@ -285,9 +310,18 @@ func insertTraceEventBatch(ctx context.Context, tx pgx.Tx, traces []traceSpanEve
 	}
 
 	if len(mcpInvocations) > 0 {
-		q.InsertMCPToolInvocation(ctx, mcpInvocations).Exec(func(_ int, err error) {
+		q.InsertMCPToolInvocation(ctx, mcpInvocations).Exec(func(i int, err error) {
 			if err != nil && batchErr == nil {
-				batchErr = err
+				for j, ev := range traces {
+					if ev.mcpToolCall == nil {
+						continue
+					}
+					if i == 0 {
+						batchErr = &recordError{error: err, index: j, stage: "MCP invocation"}
+						break
+					}
+					i--
+				}
 			}
 		})
 		if batchErr != nil {
@@ -384,9 +418,9 @@ func insertAppOperationBatch(ctx context.Context, q *observerdb.Queries, operati
 	})
 	ids := make([]int64, 0, len(operations))
 	var batchErr error
-	q.InsertAppOperation(ctx, operations).QueryRow(func(_ int, id int64, err error) {
-		if batchErr == nil {
-			batchErr = err
+	q.InsertAppOperation(ctx, operations).QueryRow(func(i int, id int64, err error) {
+		if err != nil && batchErr == nil {
+			batchErr = &recordError{error: err, index: i, stage: "app operation"}
 		}
 		if id != 0 {
 			ids = append(ids, id)

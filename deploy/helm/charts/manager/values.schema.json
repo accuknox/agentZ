@@ -85,6 +85,7 @@
         "agentImage": { "type": "string" },
         "agentInitImage": { "type": "string" },
         "gatewayURL": { "type": "string" },
+        "inferenceMaxBufferSize": { "type": "string", "minLength": 1 },
         "agentgatewayTraceMode": { "enum": ["service", "static"] },
         "agentgatewayTraceServiceName": { "type": "string" },
         "agentgatewayTraceServiceNamespace": { "type": "string" },

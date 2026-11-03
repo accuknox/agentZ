@@ -392,6 +392,11 @@ type CompatibleProviderConfig struct {
 // +kubebuilder:validation:XValidation:rule="self.kind == 'OpenAICodex' ? !has(self.openAI) && !has(self.anthropic) && !has(self.gemini) && !has(self.openAICompatible) && !has(self.anthropicCompatible) && !has(self.bedrock) && !has(self.vertexAI) && !has(self.azure) : true",message="subscription provider kinds do not accept endpoint configuration"
 // +kubebuilder:validation:XValidation:rule="self.createdByUserID == oldSelf.createdByUserID",message="createdByUserID is immutable"
 type InferenceProviderSpec struct {
+	// CredentialRevision selects a replacement record without overwriting active credentials.
+	// +optional
+	// +kubebuilder:validation:Pattern=`^[a-f0-9-]{36}$`
+	CredentialRevision string `json:"credentialRevision,omitempty"`
+
 	ResourceAudit `json:",inline"`
 
 	// CatalogProvider is the immutable OpenCode provider ID or custom.

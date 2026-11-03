@@ -87,7 +87,7 @@ const roleResourceCatalog: RoleResourceDefinition[] = [
     label: "MCP connections",
     organisation: true,
     workspace: true,
-    actions: ["read", "create", "delete", "delegate"],
+    actions: ["read", "create", "modify", "delete", "delegate"],
   },
   {
     resource: "inference_provider",

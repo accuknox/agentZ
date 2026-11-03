@@ -428,6 +428,12 @@ import type {
   ReadAgentFileRawErrors,
   ReadAgentFileRawResponses,
   ReadAgentFileResponses,
+  ReauthenticateInferenceProviderOAuthTicketData,
+  ReauthenticateInferenceProviderOAuthTicketErrors,
+  ReauthenticateInferenceProviderOAuthTicketResponses,
+  ReauthenticateMcpConnectionData,
+  ReauthenticateMcpConnectionErrors,
+  ReauthenticateMcpConnectionResponses,
   RefreshCodingRepositoryData,
   RefreshCodingRepositoryErrors,
   RefreshCodingRepositoryResponses,
@@ -2287,6 +2293,29 @@ export const createInferenceProviderOAuthTicket = <ThrowOnError extends boolean 
   })
 
 /**
+ * Store subscription credentials and return a single-use provider ticket.
+ *
+ * Credential material is written directly to OpenBao and is never included in this or any later API response.
+ *
+ */
+export const reauthenticateInferenceProviderOAuthTicket = <ThrowOnError extends boolean = false>(
+  options: Options<ReauthenticateInferenceProviderOAuthTicketData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    ReauthenticateInferenceProviderOAuthTicketResponses,
+    ReauthenticateInferenceProviderOAuthTicketErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference/provider/{providerName}/oauth-ticket",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
  * Delete an unreferenced inference provider.
  */
 export const deleteInferenceProvider = <ThrowOnError extends boolean = false>(
@@ -2657,6 +2686,26 @@ export const getMcpConnection = <ThrowOnError extends boolean = false>(
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/mcp-connection/{name}",
     ...options,
+  })
+
+/**
+ * Replace the complete MCP credential set.
+ */
+export const reauthenticateMcpConnection = <ThrowOnError extends boolean = false>(
+  options: Options<ReauthenticateMcpConnectionData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    ReauthenticateMcpConnectionResponses,
+    ReauthenticateMcpConnectionErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/mcp-connection/{name}/reauthenticate",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
   })
 
 /**

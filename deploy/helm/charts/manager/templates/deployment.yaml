@@ -90,6 +90,7 @@ spec:
             - --controller-image={{ default $image .Values.config.controllerImage }}
             - --gateway-url={{ required "manager.config.gatewayURL is required for standalone installs" $gatewayURL }}
             - --delegation-trace-port={{ .Values.config.delegationTracePort }}
+            - --inference-max-buffer-size={{ .Values.config.inferenceMaxBufferSize }}
             - --agentgateway-trace-mode={{ required "manager.config.agentgatewayTraceMode is required" .Values.config.agentgatewayTraceMode }}
             {{- if eq .Values.config.agentgatewayTraceMode "service" }}
             - --agentgateway-trace-service-name={{ required "manager.config.agentgatewayTraceServiceName is required for standalone installs" $traceServiceName }}

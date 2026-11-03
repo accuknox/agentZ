@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -162,8 +163,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			r.Client,
 			currentExternalSecret,
 			func() error {
-				exists := currentExternalSecret.UID != ""
-				if exists && !metav1.IsControlledBy(currentExternalSecret, provider) {
+				if currentExternalSecret.UID != "" && !metav1.IsControlledBy(currentExternalSecret, provider) {
 					return errors.New("provider external secret name is already in use")
 				}
 				currentExternalSecret.Labels = runtime.ExternalSecret.Labels
@@ -176,11 +176,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 		runtime.ExternalSecret = currentExternalSecret
 	}
-	var credentialsPending bool
-	if r.Recorder != nil && runtime.ExternalSecret != nil {
-		credentialsPending = !externalSecretReady(runtime.ExternalSecret)
-	}
-	if credentialsPending {
+	credentialsReady := runtime.ExternalSecret == nil || externalSecretReady(runtime.ExternalSecret)
+	if r.Recorder != nil && !credentialsReady {
 		r.Recorder.Eventf(
 			provider,
 			nil,
@@ -190,11 +187,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			"ExternalSecret has not materialized the expected credential keys",
 		)
 	}
-	var backendPending bool
-	if r.Recorder != nil {
-		backendPending = !backendAccepted(runtime.Backend)
-	}
-	if backendPending {
+	if r.Recorder != nil && !backendAccepted(runtime.Backend) {
 		r.Recorder.Eventf(
 			provider,
 			nil,
@@ -203,6 +196,18 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			"Reconcile",
 			"AgentGateway has not accepted the provider backend",
 		)
+	}
+	if credentialsReady {
+		if err := r.deleteSupersededCredentials(ctx, provider); err != nil {
+			return ctrl.Result{}, err
+		}
+		if provider.Annotations[inference.SupersededCredentialsAnnotation] != "" {
+			patch := client.MergeFromWithOptions(provider.DeepCopy(), client.MergeFromWithOptimisticLock{})
+			delete(provider.Annotations, inference.SupersededCredentialsAnnotation)
+			if err := r.Patch(ctx, provider, patch); err != nil {
+				return ctrl.Result{}, fmt.Errorf("clear superseded credentials: %w", err)
+			}
+		}
 	}
 	return ctrl.Result{}, r.updateStatus(ctx, provider, runtime, nil)
 }
@@ -344,6 +349,7 @@ func (r *Reconciler) reconcileDelete(ctx context.Context, provider *agentzv1alph
 		provider.Namespace,
 		provider.Name,
 		provider.Spec.Kind,
+		provider.Spec.CredentialRevision,
 	)
 	err = r.Bao.KVv2(mount).DeleteMetadata(ctx, path)
 	if err != nil && !errors.Is(err, baoapi.ErrSecretNotFound) {
@@ -353,12 +359,33 @@ func (r *Reconciler) reconcileDelete(ctx context.Context, provider *agentzv1alph
 			r.blockDeletion(ctx, provider, "FinalizerOpenBaoFailed", err),
 		)
 	}
+	if err := r.deleteSupersededCredentials(ctx, provider); err != nil {
+		return ctrl.Result{}, err
+	}
 	patch := client.MergeFrom(provider.DeepCopy())
 	ctrlutil.RemoveFinalizer(provider, agentzv1alpha1.InferenceProviderFinalizer)
 	if err := r.Patch(ctx, provider, patch); err != nil && !apierrors.IsNotFound(err) {
 		return ctrl.Result{}, fmt.Errorf("remove inference provider finalizer: %w", err)
 	}
 	return ctrl.Result{}, nil
+}
+
+func (r *Reconciler) deleteSupersededCredentials(ctx context.Context, provider *agentzv1alpha1.InferenceProvider) error {
+	paths := strings.Fields(provider.Annotations[inference.SupersededCredentialsAnnotation])
+	if len(paths) == 0 {
+		return nil
+	}
+	mount := strings.TrimSpace(r.Config.OpenBaoSecretMountPath)
+	if r.Bao == nil || mount == "" {
+		return errors.New("openbao configuration is required for credential cleanup")
+	}
+	for _, path := range paths {
+		err := r.Bao.KVv2(mount).DeleteMetadata(ctx, path)
+		if err != nil && !errors.Is(err, baoapi.ErrSecretNotFound) {
+			return fmt.Errorf("delete superseded provider credentials: %w", err)
+		}
+	}
+	return nil
 }
 
 func (r *Reconciler) blockDeletion(ctx context.Context, provider *agentzv1alpha1.InferenceProvider, reason string, reconcileErr error) error {
@@ -563,6 +590,12 @@ func (r *Reconciler) updateStatus(ctx context.Context, provider *agentzv1alpha1.
 }
 
 func externalSecretReady(secret *externalsecretsv1.ExternalSecret) bool {
+	// Ready can describe the previous spec while ESO reconciles a rotation.
+	// ESO prefixes its synchronization token with the observed generation.
+	generation, _, ok := strings.Cut(secret.Status.SyncedResourceVersion, "-")
+	if !ok || generation != strconv.FormatInt(secret.Generation, 10) {
+		return false
+	}
 	for _, condition := range secret.Status.Conditions {
 		if condition.Type == externalsecretsv1.ExternalSecretReady {
 			return condition.Status == corev1.ConditionTrue

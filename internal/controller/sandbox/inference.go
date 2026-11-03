@@ -422,6 +422,11 @@ func (r *Reconciler) reconcileInferenceGateway(ctx context.Context, namespace st
 					},
 				}},
 				Frontend: &agentgatewayv1alpha1.Frontend{
+					// CEL model authorization buffers the body before the LLM
+					// backend can apply its larger default buffer limit.
+					HTTP: &agentgatewayv1alpha1.FrontendHTTP{
+						MaxBufferSize: r.InferenceMaxBufferSize,
+					},
 					Tracing: r.inferenceTracing(namespace),
 				},
 			}

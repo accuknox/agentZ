@@ -103,7 +103,11 @@ func (p *proxy) handleTLS(ctx context.Context, client net.Conn, upstream net.Con
 	defer tlsClient.Close()
 
 	upstreamHost := stripPort(host)
-	tlsUpstream := tls.Client(upstream, upstreamTLSConfig(upstreamHost))
+	// Keep the upstream on HTTP/1.1 for request inspection.
+	tlsUpstream := tls.Client(upstream, &tls.Config{
+		ServerName: upstreamHost,
+		NextProtos: []string{"http/1.1"},
+	})
 	if err := tlsUpstream.HandshakeContext(ctx); err != nil {
 		slog.DebugContext(ctx, "tls upstream handshake failed", slog.Any("err", err))
 		return

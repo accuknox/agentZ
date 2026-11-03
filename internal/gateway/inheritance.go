@@ -844,7 +844,8 @@ func (s *Service) inheritedResourceConsumers(ctx context.Context, workspace gate
 	}
 	if resourceType == gatewayapi.InheritedResourceTypeGuardrailConnection {
 		policies := &agentzv1alpha1.GuardrailPolicyList{}
-		if err := s.k8sClient.List(ctx, policies, ctrlclient.InNamespace(workspace.Namespace)); err != nil {
+		err := s.k8sClient.List(ctx, policies, ctrlclient.InNamespace(workspace.Namespace))
+		if err != nil {
 			return nil, err
 		}
 		for _, policy := range policies.Items {

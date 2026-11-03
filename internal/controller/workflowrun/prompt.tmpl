@@ -22,3 +22,6 @@ Inputs JSON:
 {{if .Definition}}Frozen workflow JSON:
 {{.Definition}}
 {{end}}
+If this run reports into a conversation, its OpenCode session is handed back for inspection.
+Write the useful outcome, evidence, and artifact paths in this session before the terminal status call.
+Set no_change to true only for a successful run with nothing useful to report.

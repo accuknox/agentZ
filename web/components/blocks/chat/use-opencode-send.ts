@@ -10,9 +10,11 @@ import type { Session } from "@opencode-ai/sdk/v2"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import {
+  createPulseChat,
   listChatInputs,
   submitChatInput,
   updateChatInput,
+  type PulseChatRequest,
   type ChatInput,
   type ChatInputRequest,
   type ChatInputs,
@@ -65,12 +67,15 @@ export function useOpencodeSend(
   workspaceId: string,
   sessionID: string | undefined,
   onSessionCreated: ((sessionID: string) => void) | undefined,
-  createSession: CreateSession | undefined
+  createSession: CreateSession | undefined,
+  pulse = false
 ) {
   const queryClient = useQueryClient()
   const [pendingSessionID, setPendingSessionID] = useState<string>()
   const resolvedSessionID = sessionID ?? pendingSessionID
   const createdSession = useRef(sessionID)
+  const creationIntent = useRef<PulseChatRequest | undefined>(undefined)
+  const [creationStarted, setCreationStarted] = useState(false)
   const promoted = useRef(Boolean(sessionID))
   const submission = useRef<Promise<void>>(Promise.resolve())
   const [pending, setPending] = useState<
@@ -151,7 +156,27 @@ export function useOpencodeSend(
         let id = request?.sessionID ?? input.sessionID ?? createdSession.current
         if (!id) {
           let session: Session
-          if (createSession) {
+          setCreationStarted(true)
+          if (pulse || creationIntent.current) {
+            creationIntent.current ??= {
+              id: uuidv4(),
+              agent_name: agentName,
+              agent: input.agent,
+              model: {
+                id: input.model.modelID,
+                providerID: input.model.providerID,
+                variant: input.variant,
+              },
+            }
+            const result = await createPulseChat({
+              body: creationIntent.current,
+              headers: { "X-AgentZ-Workspace-ID": workspaceId },
+              baseUrl: await getGatewayBaseURL(),
+              throwOnError: false,
+            })
+            if (result.error) throw new Error(result.error.message)
+            session = result.data
+          } else if (createSession) {
             session = await createSession({
               text: input.text,
               model: input.model,
@@ -225,8 +250,9 @@ export function useOpencodeSend(
           current?.dataUpdatedAt !== before &&
           (!existing || existing.revision > result.data.revision)
         ) {
-          await queryClient.invalidateQueries({ queryKey: target.queryKey, refetchType: "none" })
-          await queryClient.fetchQuery(target)
+          // Admission has succeeded. Event-driven refreshes may cancel each
+          // other, but must not turn an accepted send into a failed draft.
+          await queryClient.invalidateQueries({ queryKey: target.queryKey, exact: true })
         } else {
           queryClient.setQueryData<ChatInputs>(target.queryKey, (current) => ({
             stopping: current?.stopping ?? false,
@@ -250,6 +276,8 @@ export function useOpencodeSend(
     onError: (error) => toast.error("Message was not saved", { description: error.message }),
   })
   return {
+    creationStarted,
+    resolvedSessionID,
     abortMessage: abort.mutateAsync,
     hasSession: Boolean(resolvedSessionID),
     // A persisted stop holds sending, but must still allow cancellation retries.

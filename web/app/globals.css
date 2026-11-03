@@ -369,8 +369,8 @@
   }
 
   .agent-instructions-content {
-    min-height: 72px;
-    max-height: 280px;
+    min-height: 112px;
+    max-height: 192px;
     padding: 8px;
     overflow-y: auto;
     overflow-wrap: anywhere;

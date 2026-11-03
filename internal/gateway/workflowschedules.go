@@ -1,13 +1,18 @@
 package gateway
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
+	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
+
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
+	"github.com/accuknox/agentz/internal/authorization"
 	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	"github.com/accuknox/agentz/internal/gateway/workflow"
@@ -72,6 +77,32 @@ func (s *Service) CreateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
+	if req.ContextSessionId != nil {
+		auth, _ := requestAuthState(r.Context())
+		if auth.actorType != requestActorSystem {
+			apiutil.WriteError(w, r, resourceForbidden(errors.New("tool context requires an authenticated agent")))
+			return
+		}
+		access, apiErr := s.resolveAgentAccess(r.Context(), agentName, authorization.OperationUseSharedAgent)
+		if apiErr != nil {
+			apiutil.WriteError(w, r, apiErr)
+			return
+		}
+		root, pulse, lookupErr := s.authorizeChat(r.Context(), access, agentName, *req.ContextSessionId)
+		if lookupErr != nil {
+			apiutil.WriteError(w, r, mapGatewayStoreError("get conversation", lookupErr))
+			return
+		}
+		if pulse && root.SessionID == *req.ContextSessionId {
+			req.Delivery = &gatewayapi.WorkflowDelivery{SessionId: root.SessionID}
+		}
+	}
+	delivery, release, bindingErr := s.workflowDelivery(r.Context(), agentName, req.Delivery)
+	if bindingErr != nil {
+		apiutil.WriteError(w, r, mapGatewayStoreError("bind conversation", bindingErr))
+		return
+	}
+	defer release()
 	resp, err := workflow.CreateSchedule(
 		r.Context(),
 		s.k8sClient,
@@ -79,6 +110,7 @@ func (s *Service) CreateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 		agentName,
 		workflowName,
 		req,
+		delivery,
 	)
 	if err != nil {
 		apiutil.WriteError(w, r, mapKubeHTTPError("create workflow schedule", err))
@@ -144,6 +176,11 @@ func (s *Service) ListAgentWorkflowSchedules(w http.ResponseWriter, r *http.Requ
 		sortOrder = gatewayapi.SortOrderQuery(*params.SortOrder)
 	}
 
+	destinations, err := s.workflowDestinations(r.Context(), agentName)
+	if err != nil {
+		apiutil.WriteError(w, r, mapGatewayStoreError("list workflow destinations", err))
+		return
+	}
 	items, nextOffset, err := workflow.ListSchedules(
 		r.Context(),
 		s.k8sClient,
@@ -154,6 +191,7 @@ func (s *Service) ListAgentWorkflowSchedules(w http.ResponseWriter, r *http.Requ
 		sortOrder,
 		limit,
 		offset,
+		destinations,
 	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, fmt.Errorf("list workflow schedules: %w", err))
@@ -226,6 +264,11 @@ func (s *Service) ListWorkflowSchedules(w http.ResponseWriter, r *http.Request, 
 		sortOrder = gatewayapi.SortOrderQuery(*params.SortOrder)
 	}
 
+	destinations, err := s.workflowDestinations(r.Context(), agentName)
+	if err != nil {
+		apiutil.WriteError(w, r, mapGatewayStoreError("list workflow destinations", err))
+		return
+	}
 	items, nextOffset, err := workflow.ListSchedules(
 		r.Context(),
 		s.k8sClient,
@@ -236,6 +279,7 @@ func (s *Service) ListWorkflowSchedules(w http.ResponseWriter, r *http.Request, 
 		sortOrder,
 		limit,
 		offset,
+		destinations,
 	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, fmt.Errorf("list workflow schedules: %w", err))
@@ -262,6 +306,12 @@ func (s *Service) DeleteWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 	agentName := strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 	scheduleName = strings.TrimSpace(scheduleName)
+	err = s.authorizeWorkflowSchedule(r.Context(), ns, agentName, workflowName, scheduleName)
+	if err != nil {
+		apiutil.WriteError(w, r, mapKubeHTTPError("get workflow schedule", err))
+		return
+	}
+
 	fields := workflow.ValidateScheduleLookup(agentName, workflowName, scheduleName)
 	if len(fields) > 0 {
 		apiutil.WriteError(
@@ -323,6 +373,12 @@ func (s *Service) UpdateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 	agentName := strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 	scheduleName = strings.TrimSpace(scheduleName)
+	err = s.authorizeWorkflowSchedule(r.Context(), ns, agentName, workflowName, scheduleName)
+	if err != nil {
+		apiutil.WriteError(w, r, mapKubeHTTPError("get workflow schedule", err))
+		return
+	}
+
 	fields := workflow.ValidateScheduleUpdateRequest(
 		agentName,
 		workflowName,
@@ -371,6 +427,12 @@ func (s *Service) UpdateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
+	delivery, release, bindingErr := s.workflowDelivery(r.Context(), agentName, req.Delivery)
+	if bindingErr != nil {
+		apiutil.WriteError(w, r, mapGatewayStoreError("bind conversation", bindingErr))
+		return
+	}
+	defer release()
 	resp, err := workflow.UpdateSchedule(
 		r.Context(),
 		s.k8sClient,
@@ -379,6 +441,7 @@ func (s *Service) UpdateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 		workflowName,
 		scheduleName,
 		req,
+		delivery,
 	)
 	if err != nil {
 		if errors.Is(err, workflow.ErrScheduleAgentMismatch) {
@@ -412,6 +475,12 @@ func (s *Service) CreateWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 	agtName = strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 	scheduleName = strings.TrimSpace(scheduleName)
+	err = s.authorizeWorkflowSchedule(r.Context(), ns, agtName, workflowName, scheduleName)
+	if err != nil {
+		apiutil.WriteError(w, r, mapKubeHTTPError("get workflow schedule", err))
+		return
+	}
+
 	fields := workflow.ValidateScheduleLookup(agtName, workflowName, scheduleName)
 	if len(fields) > 0 {
 		apiutil.WriteError(
@@ -455,4 +524,47 @@ func (s *Service) CreateWorkflowRun(w http.ResponseWriter, r *http.Request, agtN
 	}
 
 	apiutil.WriteJSON(w, http.StatusAccepted, resp)
+}
+
+func (s *Service) workflowDelivery(ctx context.Context, agent string, input *gatewayapi.WorkflowDelivery) (*agentzv1alpha1.WorkflowDelivery, func(), error) {
+	if input == nil {
+		return nil, func() {}, nil
+	}
+	access, apiErr := s.resolveAgentAccess(ctx, agent, authorization.OperationUseSharedAgent)
+	if apiErr != nil {
+		return nil, nil, apiErr
+	}
+	release, err := s.lockChatInputs(ctx, access.workspaceID, agent, input.SessionId, "")
+	if err != nil {
+		return nil, nil, err
+	}
+	root, pulse, err := s.authorizeChat(ctx, access, agent, input.SessionId)
+	if err != nil {
+		release()
+		return nil, nil, err
+	}
+	if !pulse {
+		release()
+		return nil, nil, pgx.ErrNoRows
+	}
+	return &agentzv1alpha1.WorkflowDelivery{SessionID: root.SessionID, Generation: root.Generation}, release, nil
+}
+
+func (s *Service) authorizeWorkflowSchedule(ctx context.Context, namespace, agent, workflowName, name string) error {
+	schedule := &agentzv1alpha1.WorkflowSchedule{}
+	err := s.k8sClient.Get(ctx, ctrlclient.ObjectKey{Namespace: namespace, Name: name}, schedule)
+	if err != nil {
+		return err
+	}
+	if schedule.Spec.AgentName != agent || schedule.Spec.WorkflowName != workflowName {
+		return pgx.ErrNoRows
+	}
+	if schedule.Spec.Delivery == nil {
+		return nil
+	}
+	access, apiErr := s.resolveAgentAccess(ctx, agent, authorization.OperationUseSharedAgent)
+	if apiErr != nil {
+		return apiErr
+	}
+	return s.authorizeWorkflowDelivery(ctx, access, agent, schedule.Spec.Delivery)
 }

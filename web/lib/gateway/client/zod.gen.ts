@@ -130,6 +130,26 @@ export const zChatSessionParticipant = z.object({
   image: z.string().nullable(),
 })
 
+export const zChatPulse = z.object({
+  enabled: z.boolean(),
+  interval_seconds: z
+    .int()
+    .min(-2147483648, { error: "Invalid value: Expected int32 to be >= -2147483648" })
+    .max(2147483647, { error: "Invalid value: Expected int32 to be <= 2147483647" }),
+  next_check_at: z.iso.datetime({ offset: true }).optional(),
+})
+
+export const zChatBackground = z.object({
+  message_id: z.string(),
+  part_id: z.string(),
+  origin: z.enum(["pulse", "workflow_result"]),
+  completed: z.boolean(),
+  outcome: z.enum(["quiet", "update", "failed", "canceled"]).optional(),
+  error: z.string(),
+})
+
+export const zChatBackgroundList = z.array(zChatBackground)
+
 export const zChatAttachment = z.object({
   id: z.string().min(1),
   filename: z.string().min(1),
@@ -670,6 +690,7 @@ export const zChatSession = z.object({
   archived: z.boolean(),
   snoozed_until: z.iso.datetime({ offset: true }).optional(),
   woke_at: z.iso.datetime({ offset: true }).optional(),
+  pulse: z.boolean().optional(),
   project_id: z.string().optional(),
   agent_name: zAgentName,
   session_id: z.string(),
@@ -801,6 +822,11 @@ export const zAgentAppearance = z.object({
   breed: zMascotBreed,
   color: zMascotColor,
 })
+
+/**
+ * Seconds between Pulse checks for this agent's conversations, in whole minutes. Defaults to 1800.
+ */
+export const zPulseIntervalSeconds = z.int().gte(60).lte(604800)
 
 export const zAgentMemoryConfig = z.object({
   enabled: z.boolean(),
@@ -953,6 +979,7 @@ export const zWorkflowRunNodePatchPhase = z.enum(["Running", "Succeeded", "Faile
 export const zWorkflowRunStatus = z.enum(["Pending", "Running", "Succeeded", "Failed", "Unacked"])
 
 export const zPatchWorkflowRunStatusRequest = z.object({
+  no_change: z.boolean().optional(),
   phase: zWorkflowRunTerminalPhase,
   message: z.string().max(4096).optional(),
 })
@@ -1204,6 +1231,10 @@ export const zAgentTools = z.object({
   message: z.string(),
 })
 
+export const zWorkflowDelivery = z.object({
+  session_id: z.string().min(1),
+})
+
 /**
  * Better Auth API key identifier.
  */
@@ -1386,6 +1417,7 @@ export const zAgentOpencodeConfig = z.object({
 export const zAgent = z.object({
   auto_archive_hours: z.int().gte(0).lte(8760),
   appearance: zAgentAppearance.optional(),
+  pulse_interval_seconds: zPulseIntervalSeconds,
   name: zAgentName,
   sandbox: zResourceReference,
   created_by: zResourceActor,
@@ -1408,6 +1440,7 @@ export const zListAgentsResponse = z.object({
 export const zCreateAgentRequest = z.object({
   auto_archive_hours: z.int().gte(0).lte(8760).optional(),
   appearance: zAgentAppearance.optional(),
+  pulse_interval_seconds: zPulseIntervalSeconds.optional(),
   name: zAgentName,
   memory: zAgentMemoryConfig.optional(),
   env: z.record(z.string(), z.string()).optional(),
@@ -1419,6 +1452,7 @@ export const zCreateAgentRequest = z.object({
 export const zUpdateAgentRequest = z.object({
   auto_archive_hours: z.int().gte(0).lte(8760).optional(),
   appearance: zAgentAppearance.optional(),
+  pulse_interval_seconds: zPulseIntervalSeconds.optional(),
   env: z.record(z.string(), z.string()).optional(),
   memory: zAgentMemoryConfig.optional(),
   sandbox: zResourceReference.optional(),
@@ -1781,6 +1815,7 @@ export const zError = z.object({
 })
 
 export const zWorkflowSchedule = z.object({
+  delivery: zWorkflowDelivery.optional(),
   name: zWorkflowScheduleName,
   agent_name: zAgentName,
   workflow_name: zWorkflowName,
@@ -1837,6 +1872,8 @@ export const zWorkflowRunDetail = z.object({
 })
 
 export const zCreateWorkflowScheduleRequest = z.object({
+  context_session_id: z.string().optional(),
+  delivery: zWorkflowDelivery.optional(),
   name: zWorkflowScheduleName,
   schedule: z.string().min(1),
   time_zone: z.string().optional(),
@@ -1848,6 +1885,7 @@ export const zCreateWorkflowScheduleRequest = z.object({
 })
 
 export const zUpdateWorkflowScheduleRequest = z.object({
+  delivery: zWorkflowDelivery.optional(),
   schedule: z.string().min(1),
   time_zone: z.string().optional(),
   inputs: zJsonValue.optional(),
@@ -1867,6 +1905,7 @@ export const zWorkflowArbitraryJson = z.object({
 })
 
 export const zCreateWorkflowRequest = z.object({
+  replace: z.boolean().optional(),
   workflow_name: zWorkflowName,
   title: z.string().min(1).max(256),
   summary: z.string().min(1).max(4096),
@@ -3531,6 +3570,19 @@ export const zMessageOutputLengthError = z.object({
   data: z.record(z.string(), z.unknown()),
 })
 
+export const zModelRef = z.object({
+  id: z.string(),
+  providerID: z.string(),
+  variant: z.string().optional(),
+})
+
+export const zPulseChatRequest = z.object({
+  id: z.uuid(),
+  agent_name: zAgentName,
+  agent: z.string().optional(),
+  model: zModelRef.optional(),
+})
+
 export const zOutputFormatJsonSchema = z.object({
   type: z.enum(["json_schema"]),
   schema: zJsonSchema,
@@ -4539,6 +4591,21 @@ export const zWatchCodingResponse = zWatchChatSessionsEvent
 export const zListChatSessionsResponse2 = zListChatSessionsResponse
 
 /**
+ * Canonical native session, including on exact retries.
+ */
+export const zCreatePulseChatResponse = zSession
+
+/**
+ * Authorized conversation state.
+ */
+export const zGetChatPulseResponse = zChatPulse
+
+/**
+ * Authorized conversation state.
+ */
+export const zListChatBackgroundResponse = zChatBackgroundList
+
+/**
  * Session updated.
  */
 export const zUpdateChatSessionResponse = z.void()
@@ -5173,6 +5240,11 @@ export const zDeleteWorkflowRunResponse = z.void()
  * Workflow run details.
  */
 export const zGetWorkflowRunResponse = zWorkflowRunDetail
+
+/**
+ * The delivery binding or completion receipt is reconciled.
+ */
+export const zDeliverWorkflowSessionResponse = z.void()
 
 /**
  * WorkflowRun status updated.

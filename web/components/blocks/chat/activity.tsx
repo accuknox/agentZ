@@ -15,6 +15,8 @@ import {
   CircleAlertIcon,
 } from "lucide-react"
 import { z } from "zod"
+import { fromMarkdown } from "mdast-util-from-markdown"
+import { toString } from "mdast-util-to-string"
 import { MessageResponse } from "@/components/ai-elements/message"
 import { CodeBlock } from "@/components/ai-elements/code-block"
 import { Shimmer } from "@/components/ai-elements/shimmer"
@@ -51,13 +53,13 @@ const tools: Record<
 }
 
 function toolPresentation(part: ToolPart) {
-  // Native tools own these input field contracts. Custom tools keep their title.
+  // Native tools own these input fields. Custom tool titles can be empty.
   const known = tools[part.tool]
   const target = known ? toolText.safeParse(part.state.input[known.field]) : undefined
-  const title =
-    part.state.status === "pending" || part.state.status === "error"
-      ? part.tool
-      : (part.state.title ?? part.tool)
+  const name = part.tool.replaceAll("_", " ")
+  let title = name.charAt(0).toUpperCase() + name.slice(1)
+  if (part.state.status === "running" || part.state.status === "completed")
+    title = part.state.title?.trim() || title
   return {
     icon: known?.icon ?? WrenchIcon,
     action: known?.action ?? "other",
@@ -242,10 +244,15 @@ export function WorkGroup({
         <div className="mb-0.5 flex gap-1.5 text-muted-foreground">
           <BrainIcon aria-hidden="true" className="mt-1 size-4 shrink-0" />
           <p className="line-clamp-4">
-            {thought.text
-              .trim()
-              .split(/\n\s*\n/)
-              .at(-1)}
+            {toString(
+              fromMarkdown(
+                thought.text
+                  .trim()
+                  .split(/\n\s*\n/)
+                  .at(-1) ?? ""
+              ),
+              { includeHtml: false }
+            )}
           </p>
         </div>
       ) : null}
@@ -295,12 +302,14 @@ function WorkEntry({ part, active, scope, onAgentFileOpen }: WorkEntryProps) {
   const presentation = part.type === "tool" ? toolPresentation(part) : undefined
   const Icon = failed ? CircleAlertIcon : (presentation?.icon ?? BrainIcon)
   let label = presentation?.label ?? (running ? "Thinking" : "Thought")
-  if (!expanded && part.type === "reasoning")
-    label =
+  if (!expanded && part.type === "reasoning") {
+    const text =
       part.text
         .trim()
         .split(/\n\s*\n/)
-        .at(-1) || label
+        .at(-1) ?? ""
+    label = toString(fromMarkdown(text), { includeHtml: false }) || label
+  }
   return (
     <div
       className="text-sm"

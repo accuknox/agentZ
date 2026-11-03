@@ -76,6 +76,8 @@
     "ipaddr.js": "^2.4.0",
     "jose": "^6.1.13",
     "lucide-react": "^1.21.0",
+    "mdast-util-from-markdown": "2.0.3",
+    "mdast-util-to-string": "4.0.0",
     "motion": "^12.42.0",
     "nanoid": "^5.1.16",
     "next": "16.4.1",

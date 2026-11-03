@@ -641,7 +641,9 @@ function NavSessionsContent({
       refetchType: "none",
     })
     void queryClient.invalidateQueries({
-      predicate: (query) => query.queryKey[0] === "chatInputs" && query.queryKey[1] === workspaceId,
+      predicate: (query) =>
+        (query.queryKey[0] === "chatInputs" || query.queryKey[0] === "chatBackground") &&
+        query.queryKey[1] === workspaceId,
     })
     // Invalidation alone deduplicates an initial request without cached data.
     // Cancel it first so a response from before the event cannot win the race.
@@ -2545,11 +2547,14 @@ function SessionCardView({
         </ContextMenuGroup>
       </ContextMenuContent>
       <Dialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
-        <DialogContent showCloseButton={false}>
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete chat?</DialogTitle>
             <DialogDescription>
               Deleting <span className="font-medium">{session.title}</span> cannot be undone.
+              {session.pulse
+                ? " Automatic follow-ups, linked schedules, and their active runs will stop."
+                : null}
             </DialogDescription>
           </DialogHeader>
           {pendingState.error ? (

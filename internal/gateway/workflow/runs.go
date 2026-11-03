@@ -252,6 +252,7 @@ func ValidateRunWatchNames(runNames *[]gatewayapi.WorkflowRunName) []gatewayapi.
 func PatchRunStatus(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, runName string, req gatewayapi.PatchWorkflowRunStatusRequest, msg string) error {
 	key := types.NamespacedName{Namespace: ns, Name: strings.TrimSpace(runName)}
 	phase := agentzv1alpha1.WorkflowRunPhase(req.Phase)
+	noChange := req.NoChange != nil && *req.NoChange
 	var resultErr error
 
 	err := retry.RetryOnConflict(
@@ -270,7 +271,7 @@ func PatchRunStatus(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 
 			if current.Status.Phase.Terminal() {
 				resultErr = ErrWorkflowRunTerminal
-				if current.Status.Phase == phase && current.Status.Message == msg {
+				if current.Status.Phase == phase && current.Status.Message == msg && current.Status.NoChange == noChange {
 					resultErr = nil
 				}
 				return nil
@@ -286,6 +287,7 @@ func PatchRunStatus(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 			patch := ctrlclient.MergeFromWithOptions(current.DeepCopy(), ctrlclient.MergeFromWithOptimisticLock{})
 			now := metav1.Now()
 			current.Status.Phase = phase
+			current.Status.NoChange = noChange
 			current.Status.Message = msg
 			current.Status.CompletedAt = &now
 			for i := range current.Status.Nodes {
@@ -341,43 +343,36 @@ func PatchRunNodeStatus(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlc
 				return nil
 			}
 
-			var workflow gatewayapi.Workflow
-			switch {
-			case current.Spec.Definition != nil:
-				if err := json.Unmarshal(current.Spec.Definition.Raw, &workflow); err != nil {
-					return fmt.Errorf("decode frozen workflow: %w", err)
+			nodes := current.Status.Nodes
+			known := slices.ContainsFunc(nodes, func(node agentzv1alpha1.WorkflowRunNodeStatus) bool {
+				return node.Name == nodeName
+			})
+			if !known {
+				var definition gatewayapi.Workflow
+				switch {
+				case current.Spec.Definition != nil:
+					if err := json.Unmarshal(current.Spec.Definition.Raw, &definition); err != nil {
+						return fmt.Errorf("decode frozen workflow: %w", err)
+					}
+				default:
+					var err error
+					definition, err = Get(ctx, pool, ns, agtName, wfName)
+					if err != nil {
+						return err
+					}
 				}
-			default:
-				var err error
-				workflow, err = Get(ctx, pool, ns, agtName, wfName)
-				if err != nil {
-					return err
+				defined := slices.ContainsFunc(definition.Nodes, func(node gatewayapi.WorkflowNode) bool {
+					return node.Name == nodeName
+				})
+				if !defined {
+					resultErr = ErrWorkflowRunNodeNotFound
+					return nil
 				}
+				nodes = append(nodes, agentzv1alpha1.WorkflowRunNodeStatus{
+					Name:  nodeName,
+					Phase: agentzv1alpha1.WorkflowRunNodePhaseDisabled,
+				})
 			}
-
-			nodes := make([]agentzv1alpha1.WorkflowRunNodeStatus, 0, len(workflow.Nodes))
-			existing := make(map[string]agentzv1alpha1.WorkflowRunNodeStatus, len(current.Status.Nodes))
-			for _, node := range current.Status.Nodes {
-				existing[node.Name] = node
-			}
-
-			var found bool
-			for _, node := range workflow.Nodes {
-				next := existing[node.Name]
-				if next.Name == "" {
-					next.Name = node.Name
-					next.Phase = agentzv1alpha1.WorkflowRunNodePhaseDisabled
-				}
-				if node.Name == nodeName {
-					found = true
-				}
-				nodes = append(nodes, next)
-			}
-			if !found {
-				resultErr = ErrWorkflowRunNodeNotFound
-				return nil
-			}
-
 			now := metav1.Now()
 			nodes, changed, err := applyNodeStatusPatch(
 				nodes,
@@ -528,6 +523,7 @@ func CreateScheduledRun(ctx context.Context, k8sClient ctrlclient.Client, ns str
 			},
 		},
 		Spec: agentzv1alpha1.WorkflowRunSpec{
+			Delivery:       schedule.Spec.Delivery,
 			AgentName:      schedule.Spec.AgentName,
 			WorkflowName:   schedule.Spec.WorkflowName,
 			Inputs:         apiextensionsv1.JSON{Raw: schedule.Spec.Inputs.Raw},
@@ -536,6 +532,10 @@ func CreateScheduledRun(ctx context.Context, k8sClient ctrlclient.Client, ns str
 				Name: schedule.Name,
 			},
 		},
+	}
+
+	if run.Spec.Delivery != nil {
+		run.Finalizers = append(run.Finalizers, agentzv1alpha1.WorkflowRunSessionFinalizer)
 	}
 
 	return createRun(ctx, k8sClient, run)
@@ -650,7 +650,7 @@ func ListWebhookTriggers(ctx context.Context, k8sClient ctrlclient.Client, ns st
 }
 
 // ListRuns lists non-evaluation runs for a workflow's trigger history.
-func ListRuns(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, params gatewayapi.ListWorkflowRunsParams, limit int, offset int) ([]gatewayapi.WorkflowRunSummary, int, error) {
+func ListRuns(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, params gatewayapi.ListWorkflowRunsParams, limit int, offset int, destinations map[string]int64) ([]gatewayapi.WorkflowRunSummary, int, error) {
 	list := &agentzv1alpha1.WorkflowRunList{}
 	if err := k8sClient.List(ctx, list, ctrlclient.InNamespace(ns)); err != nil {
 		return nil, 0, err
@@ -669,6 +669,12 @@ func ListRuns(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtNa
 	items := make([]gatewayapi.WorkflowRunSummary, 0, len(list.Items))
 	for i := range list.Items {
 		run := &list.Items[i]
+		if delivery := run.Spec.Delivery; delivery != nil {
+			generation, visible := destinations[delivery.SessionID]
+			if !visible || generation != delivery.Generation {
+				continue
+			}
+		}
 		if run.Spec.AgentName != agtName {
 			continue
 		}

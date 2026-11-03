@@ -47,6 +47,9 @@ import type {
   CreateMcpConnectionData,
   CreateMcpConnectionErrors,
   CreateMcpConnectionResponses,
+  CreatePulseChatData,
+  CreatePulseChatErrors,
+  CreatePulseChatResponses,
   CreateSandboxData,
   CreateSandboxErrors,
   CreateSandboxResponses,
@@ -128,6 +131,9 @@ import type {
   DeleteWorkflowsData,
   DeleteWorkflowsErrors,
   DeleteWorkflowsResponses,
+  DeliverWorkflowSessionData,
+  DeliverWorkflowSessionErrors,
+  DeliverWorkflowSessionResponses,
   DiscoverGuardrailConnectionResourcesData,
   DiscoverGuardrailConnectionResourcesErrors,
   DiscoverGuardrailConnectionResourcesResponses,
@@ -155,6 +161,9 @@ import type {
   GetAppTraceChartData,
   GetAppTraceChartErrors,
   GetAppTraceChartResponses,
+  GetChatPulseData,
+  GetChatPulseErrors,
+  GetChatPulseResponses,
   GetChatSessionPreferenceData,
   GetChatSessionPreferenceErrors,
   GetChatSessionPreferenceResponses,
@@ -278,6 +287,9 @@ import type {
   ListAppTracesData,
   ListAppTracesErrors,
   ListAppTracesResponses,
+  ListChatBackgroundData,
+  ListChatBackgroundErrors,
+  ListChatBackgroundResponses,
   ListChatInputsData,
   ListChatInputsErrors,
   ListChatInputsResponses,
@@ -966,6 +978,50 @@ export const listChatSessions = <ThrowOnError extends boolean = false>(
   (options?.client ?? client).get<ListChatSessionsResponses, ListChatSessionsErrors, ThrowOnError>({
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/chat-session",
+    ...options,
+  })
+
+/**
+ * Create a shared Pulse conversation in a General workspace.
+ */
+export const createPulseChat = <ThrowOnError extends boolean = false>(
+  options: Options<CreatePulseChatData, ThrowOnError>
+) =>
+  (options.client ?? client).post<CreatePulseChatResponses, CreatePulseChatErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/chat-session",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Read conversation background activity.
+ */
+export const getChatPulse = <ThrowOnError extends boolean = false>(
+  options: Options<GetChatPulseData, ThrowOnError>
+) =>
+  (options.client ?? client).get<GetChatPulseResponses, GetChatPulseErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/chat-session/{agentName}/{sessionId}/pulse",
+    ...options,
+  })
+
+/**
+ * Read conversation background activity.
+ */
+export const listChatBackground = <ThrowOnError extends boolean = false>(
+  options: Options<ListChatBackgroundData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListChatBackgroundResponses,
+    ListChatBackgroundErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/chat-session/{agentName}/{sessionId}/background",
     ...options,
   })
 
@@ -3125,6 +3181,22 @@ export const getWorkflowRun = <ThrowOnError extends boolean = false>(
   (options.client ?? client).get<GetWorkflowRunResponses, GetWorkflowRunErrors, ThrowOnError>({
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/workflow/{agentName}/{workflowName}/run/{runName}",
+    ...options,
+  })
+
+/**
+ * Deliver a completed workflow's OpenCode session reference.
+ */
+export const deliverWorkflowSession = <ThrowOnError extends boolean = false>(
+  options: Options<DeliverWorkflowSessionData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    DeliverWorkflowSessionResponses,
+    DeliverWorkflowSessionErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workflow/{agentName}/{workflowName}/run/{runName}/session/deliver",
     ...options,
   })
 

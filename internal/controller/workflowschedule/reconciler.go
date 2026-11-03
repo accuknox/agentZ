@@ -23,6 +23,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/accuknox/agentz/internal/workflow"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -33,6 +34,8 @@ import (
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
@@ -102,7 +105,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err != nil {
 		return ctrl.Result{}, r.failSchedule(ctx, schedule, err)
 	}
-	err = r.pruneRuns(ctx, schedule)
+	activeJobs, err := r.reconcileTriggers(ctx, schedule, cronJobName)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	err = r.pruneRuns(ctx, schedule, activeJobs)
 	if err != nil {
 		return ctrl.Result{}, r.failSchedule(ctx, schedule, err)
 	}
@@ -122,6 +129,13 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&agentzv1alpha1.WorkflowSchedule{}).
 		Owns(&batchv1.CronJob{}).
+		Watches(&batchv1.Job{}, handler.EnqueueRequestsFromMapFunc(func(_ context.Context, object client.Object) []reconcile.Request {
+			name := object.GetLabels()[workflowScheduleLabel]
+			if name == "" {
+				return nil
+			}
+			return []reconcile.Request{{NamespacedName: client.ObjectKey{Namespace: object.GetNamespace(), Name: name}}}
+		})).
 		Owns(&corev1.ServiceAccount{}).
 		Owns(&ciliumv2.CiliumNetworkPolicy{}).
 		Owns(&rbacv1.Role{}).
@@ -235,7 +249,7 @@ func (r *Reconciler) refreshStatus(ctx context.Context, schedule *agentzv1alpha1
 	)
 }
 
-func (r *Reconciler) pruneRuns(ctx context.Context, schedule *agentzv1alpha1.WorkflowSchedule) error {
+func (r *Reconciler) pruneRuns(ctx context.Context, schedule *agentzv1alpha1.WorkflowSchedule, activeJobs map[string]struct{}) error {
 	runs, err := r.listOwnedRuns(ctx, schedule)
 	if err != nil {
 		return err
@@ -244,6 +258,9 @@ func (r *Reconciler) pruneRuns(ctx context.Context, schedule *agentzv1alpha1.Wor
 	successful := []agentzv1alpha1.WorkflowRun{}
 	failed := []agentzv1alpha1.WorkflowRun{}
 	for _, run := range runs {
+		if _, active := activeJobs[run.Name]; active {
+			continue
+		}
 		switch run.Status.Phase {
 		case agentzv1alpha1.WorkflowRunPhaseSucceeded:
 			successful = append(successful, run)
@@ -326,4 +343,75 @@ func (r *Reconciler) updateStatus(ctx context.Context, schedule *agentzv1alpha1.
 	patch := client.MergeFrom(current.DeepCopy())
 	current.Status = *status
 	return r.Status().Patch(ctx, current, patch)
+}
+
+// reconcileTriggers records admission before pruning runs, recovering ticks that failed to admit one.
+func (r *Reconciler) reconcileTriggers(ctx context.Context, schedule *agentzv1alpha1.WorkflowSchedule, cronJobName string) (map[string]struct{}, error) {
+	cronJob := &batchv1.CronJob{}
+	err := r.Get(ctx, client.ObjectKey{Namespace: schedule.Namespace, Name: cronJobName}, cronJob)
+	if err != nil {
+		return nil, err
+	}
+	jobs := &batchv1.JobList{}
+	err = r.List(ctx, jobs, client.InNamespace(schedule.Namespace), client.MatchingLabels{workflowScheduleLabel: schedule.Name})
+	if err != nil {
+		return nil, err
+	}
+	activeJobs := make(map[string]struct{})
+	for _, job := range jobs.Items {
+		owner := metav1.GetControllerOf(&job)
+		if owner == nil || owner.UID != cronJob.UID {
+			continue
+		}
+		finished := slices.ContainsFunc(job.Status.Conditions, func(condition batchv1.JobCondition) bool {
+			return condition.Status == corev1.ConditionTrue && (condition.Type == batchv1.JobComplete || condition.Type == batchv1.JobFailed)
+		})
+		if !finished {
+			activeJobs[job.Name] = struct{}{}
+		}
+		if job.Annotations[triggerRunAnnotation] != "" {
+			continue
+		}
+		run := &agentzv1alpha1.WorkflowRun{}
+		err := r.Get(ctx, client.ObjectKey{Namespace: job.Namespace, Name: job.Name}, run)
+		if err != nil && !apierrors.IsNotFound(err) {
+			return nil, err
+		}
+		if apierrors.IsNotFound(err) {
+			message := ""
+			for _, condition := range job.Status.Conditions {
+				if condition.Type == batchv1.JobFailed && condition.Status == corev1.ConditionTrue {
+					message = fmt.Sprintf("Schedule trigger %s failed before admitting a workflow run. %s: %s",
+						job.Name, condition.Reason, condition.Message)
+					break
+				}
+			}
+			if message == "" {
+				continue
+			}
+			// A stale cached Job must not recover a run already admitted and pruned.
+			patch := client.MergeFromWithOptions(job.DeepCopy(), client.MergeFromWithOptimisticLock{})
+			if err := r.Patch(ctx, &job, patch); err != nil {
+				return nil, err
+			}
+			run = workflow.ScheduledRun(schedule, job.Name)
+			run.Annotations = map[string]string{agentzv1alpha1.WorkflowRunAnnotationTriggerFailure: message}
+			if err := r.Create(ctx, run); err != nil {
+				return nil, err
+			}
+		}
+		if !metav1.IsControlledBy(run, schedule) {
+			continue
+		}
+		before := job.DeepCopy()
+		if job.Annotations == nil {
+			job.Annotations = make(map[string]string)
+		}
+		job.Annotations[triggerRunAnnotation] = string(run.UID)
+		patch := client.MergeFromWithOptions(before, client.MergeFromWithOptimisticLock{})
+		if err := r.Patch(ctx, &job, patch); err != nil {
+			return nil, err
+		}
+	}
+	return activeJobs, nil
 }

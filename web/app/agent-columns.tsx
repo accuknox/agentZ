@@ -183,6 +183,7 @@ function AgentActions({ row }: CellContext<Agent, unknown>) {
           initialAppearance={agent.appearance}
           initialSandboxName={agent.sandbox.name}
           initialMemoryEnabled={agent.memory.enabled}
+          initialPulseIntervalSeconds={agent.pulse_interval_seconds}
           initialSkills={agent.skills}
           initialInstruction={agent.opencode?.instruction}
           immutableSkills={immutableSkills}

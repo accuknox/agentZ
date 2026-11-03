@@ -28,6 +28,8 @@ import { toast } from "sonner"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { describeMessageError, opencodeErrorMessage } from "@/components/blocks/chat/errors"
 import { chatCache } from "./cache"
+import { getChatPulse } from "@/lib/gateway/client"
+import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 
 type SessionMessageRecord = SessionMessagesResponse2[number]
 
@@ -478,6 +480,25 @@ export function sessionInfoQueryOptions(agentName: string, workspaceId: string, 
   })
 }
 
+// chatPulseOptions shares the immutable mode and timing snapshot with the header.
+export function chatPulseOptions(workspaceId: string, agentName: string, sessionID?: string) {
+  return queryOptions({
+    queryKey: ["chatPulse", workspaceId, agentName, sessionID] as const,
+    enabled: Boolean(sessionID),
+    queryFn: async () => {
+      if (!sessionID) throw new Error("Chat has not been created")
+      const result = await getChatPulse({
+        baseUrl: await getGatewayBaseURL(),
+        headers: { "X-AgentZ-Workspace-ID": workspaceId },
+        path: { agentName, sessionId: sessionID },
+      })
+      if (result.error) throw new Error(result.error.message)
+      return result.data
+    },
+    refetchInterval: (query) => (query.state.data?.enabled ? 10_000 : false),
+  })
+}
+
 // removeSessionState quarantines an unavailable chat and cancels reads before
 // clearing its transcript, drafts and previews. The metadata tombstone also
 // rejects delayed stream updates until a fresh authorized read succeeds.
@@ -492,7 +513,13 @@ export async function removeSessionState(
     const key = query.queryKey
     if (key[0] === "opencode")
       return key[2] === workspaceId && key[3] === agentName && key[4] === sessionID
-    if (key[0] === "chatInputs" || key[0] === "chatPreview" || key[0] === "chatQuestionDraft")
+    if (
+      key[0] === "chatInputs" ||
+      key[0] === "chatPreview" ||
+      key[0] === "chatQuestionDraft" ||
+      key[0] === "chatPulse" ||
+      key[0] === "chatBackground"
+    )
       return key[1] === workspaceId && key[2] === agentName && key[3] === sessionID
     return (
       (key[0] === "chatDraft" || key[0] === "chatScroll" || key[0] === "chatPreparedInput") &&

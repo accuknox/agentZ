@@ -22,6 +22,7 @@ import {
   createInferenceProvider,
   createInferenceProviderOAuthTicket,
   createMcpConnection,
+  createPulseChat,
   createSandbox,
   createSkill,
   createWorkflow,
@@ -49,6 +50,7 @@ import {
   deleteWorkflowRun,
   deleteWorkflows,
   deleteWorkflowSchedule,
+  deliverWorkflowSession,
   discoverGuardrailConnectionResources,
   ensureTenant,
   exportAgentMutableSkills,
@@ -58,6 +60,7 @@ import {
   getAppMcpGraph,
   getAppOperation,
   getAppTraceChart,
+  getChatPulse,
   getChatSessionPreference,
   getCodingOperation,
   getCodingProject,
@@ -99,6 +102,7 @@ import {
   listAppSessions,
   listAppSpans,
   listAppTraces,
+  listChatBackground,
   listChatInputs,
   listChatSessions,
   listCodingOperations,
@@ -225,6 +229,9 @@ import type {
   CreateMcpConnectionData,
   CreateMcpConnectionError,
   CreateMcpConnectionResponse,
+  CreatePulseChatData,
+  CreatePulseChatError,
+  CreatePulseChatResponse,
   CreateSandboxData,
   CreateSandboxError,
   CreateSandboxResponse,
@@ -305,6 +312,9 @@ import type {
   DeleteWorkflowsData,
   DeleteWorkflowsError,
   DeleteWorkflowsResponse,
+  DeliverWorkflowSessionData,
+  DeliverWorkflowSessionError,
+  DeliverWorkflowSessionResponse,
   DiscoverGuardrailConnectionResourcesData,
   DiscoverGuardrailConnectionResourcesError,
   DiscoverGuardrailConnectionResourcesResponse,
@@ -332,6 +342,9 @@ import type {
   GetAppTraceChartData,
   GetAppTraceChartError,
   GetAppTraceChartResponse,
+  GetChatPulseData,
+  GetChatPulseError,
+  GetChatPulseResponse,
   GetChatSessionPreferenceData,
   GetChatSessionPreferenceError,
   GetChatSessionPreferenceResponse,
@@ -455,6 +468,9 @@ import type {
   ListAppTracesData,
   ListAppTracesError,
   ListAppTracesResponse2,
+  ListChatBackgroundData,
+  ListChatBackgroundError,
+  ListChatBackgroundResponse,
   ListChatInputsData,
   ListChatInputsError,
   ListChatInputsResponse,
@@ -1488,6 +1504,83 @@ export const listChatSessionsOptions = (options?: Options<ListChatSessionsData>)
       return data
     },
     queryKey: listChatSessionsQueryKey(options),
+  })
+
+/**
+ * Create a shared Pulse conversation in a General workspace.
+ */
+export const createPulseChatMutation = (
+  options?: Partial<Options<CreatePulseChatData>>
+): UseMutationOptions<
+  CreatePulseChatResponse,
+  CreatePulseChatError,
+  Options<CreatePulseChatData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    CreatePulseChatResponse,
+    CreatePulseChatError,
+    Options<CreatePulseChatData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createPulseChat({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const getChatPulseQueryKey = (options: Options<GetChatPulseData>) =>
+  createQueryKey("getChatPulse", options)
+
+/**
+ * Read conversation background activity.
+ */
+export const getChatPulseOptions = (options: Options<GetChatPulseData>) =>
+  queryOptions<
+    GetChatPulseResponse,
+    GetChatPulseError,
+    GetChatPulseResponse,
+    ReturnType<typeof getChatPulseQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getChatPulse({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getChatPulseQueryKey(options),
+  })
+
+export const listChatBackgroundQueryKey = (options: Options<ListChatBackgroundData>) =>
+  createQueryKey("listChatBackground", options)
+
+/**
+ * Read conversation background activity.
+ */
+export const listChatBackgroundOptions = (options: Options<ListChatBackgroundData>) =>
+  queryOptions<
+    ListChatBackgroundResponse,
+    ListChatBackgroundError,
+    ListChatBackgroundResponse,
+    ReturnType<typeof listChatBackgroundQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listChatBackground({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listChatBackgroundQueryKey(options),
   })
 
 /**
@@ -4682,6 +4775,33 @@ export const getWorkflowRunOptions = (options: Options<GetWorkflowRunData>) =>
     },
     queryKey: getWorkflowRunQueryKey(options),
   })
+
+/**
+ * Deliver a completed workflow's OpenCode session reference.
+ */
+export const deliverWorkflowSessionMutation = (
+  options?: Partial<Options<DeliverWorkflowSessionData>>
+): UseMutationOptions<
+  DeliverWorkflowSessionResponse,
+  DeliverWorkflowSessionError,
+  Options<DeliverWorkflowSessionData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    DeliverWorkflowSessionResponse,
+    DeliverWorkflowSessionError,
+    Options<DeliverWorkflowSessionData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deliverWorkflowSession({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
 
 /**
  * Set a WorkflowRun terminal status.

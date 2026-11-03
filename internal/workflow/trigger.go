@@ -40,6 +40,7 @@ const pollInterval = 2 * time.Second
 // Config defines one CronJob-triggered WorkflowRun request.
 type Config struct {
 	Namespace      string
+	JobName        string
 	ScheduleName   string
 	AgentName      string
 	WorkflowName   string
@@ -94,32 +95,22 @@ func RunSchedule(ctx context.Context, cfg Config) error {
 		return fmt.Errorf("get workflow schedule: %w", err)
 	}
 
-	run := &agentzv1alpha1.WorkflowRun{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace:    cfg.Namespace,
-			GenerateName: cfg.ScheduleName + "-",
-			Labels: map[string]string{
-				"agentz.accuknox.com/workflow-schedule": cfg.ScheduleName,
-			},
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(
-					schedule,
-					agentzv1alpha1.SchemeGroupVersion.WithKind("WorkflowSchedule"),
-				),
-			},
-		},
-		Spec: agentzv1alpha1.WorkflowRunSpec{
-			AgentName:      cfg.AgentName,
-			WorkflowName:   cfg.WorkflowName,
-			Inputs:         apiextensionsv1.JSON{Raw: rawInputs},
-			TimeoutSeconds: cfg.TimeoutSeconds,
-			ScheduleRef: &corev1.LocalObjectReference{
-				Name: cfg.ScheduleName,
-			},
-		},
-	}
+	run := ScheduledRun(schedule, cfg.JobName)
+	run.Spec.AgentName = cfg.AgentName
+	run.Spec.WorkflowName = cfg.WorkflowName
+	run.Spec.Inputs = apiextensionsv1.JSON{Raw: rawInputs}
+	run.Spec.TimeoutSeconds = cfg.TimeoutSeconds
 
 	err = k8sClient.Create(ctx, run)
+	if apierrors.IsAlreadyExists(err) {
+		err = k8sClient.Get(ctx, client.ObjectKeyFromObject(run), run)
+		if err == nil {
+			owner := metav1.GetControllerOf(run)
+			if owner == nil || owner.UID != schedule.UID {
+				return fmt.Errorf("workflow trigger identity belongs to another schedule")
+			}
+		}
+	}
 	if err != nil {
 		return fmt.Errorf("create workflow run: %w", err)
 	}
@@ -228,4 +219,42 @@ func waitForRun(ctx context.Context, k8sClient client.Client, key types.Namespac
 		case <-ticker.C:
 		}
 	}
+}
+
+// ScheduledRun binds one schedule tick to a stable trigger identity and destination.
+func ScheduledRun(schedule *agentzv1alpha1.WorkflowSchedule, name string) *agentzv1alpha1.WorkflowRun {
+	run := &agentzv1alpha1.WorkflowRun{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: schedule.Namespace,
+			Name:      name,
+			Labels: map[string]string{
+				"agentz.accuknox.com/workflow-schedule": schedule.Name,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(
+					schedule,
+					agentzv1alpha1.SchemeGroupVersion.WithKind("WorkflowSchedule"),
+				),
+			},
+		},
+		Spec: agentzv1alpha1.WorkflowRunSpec{
+			Delivery:       schedule.Spec.Delivery,
+			AgentName:      schedule.Spec.AgentName,
+			WorkflowName:   schedule.Spec.WorkflowName,
+			Inputs:         schedule.Spec.Inputs,
+			TimeoutSeconds: schedule.Spec.TimeoutSeconds,
+			ScheduleRef: &corev1.LocalObjectReference{
+				Name: schedule.Name,
+			},
+		},
+	}
+
+	if name == "" {
+		run.GenerateName = schedule.Name + "-"
+	}
+	if run.Spec.Delivery != nil {
+		run.Finalizers = append(run.Finalizers, agentzv1alpha1.WorkflowRunSessionFinalizer)
+	}
+
+	return run
 }

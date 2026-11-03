@@ -53,6 +53,7 @@ import { useChatModelStorage } from "@/components/blocks/chat/use-chat-model-sto
 import { useFileWorkspace } from "@/components/blocks/chat/file-workspace-store"
 import { NewSessionGreeting } from "@/components/blocks/chat/new-session-greeting"
 import {
+  chatPulseOptions,
   sessionInfoQueryOptions,
   useOpencodeChat,
 } from "@/components/blocks/chat/use-opencode-chat"
@@ -80,7 +81,7 @@ import {
 import type { ProviderModelItem } from "@/data/types"
 import type { ChatInput, ChatSessionPreference, CodingTextRequest } from "@/lib/gateway/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
-import { updateChatSessionPreference } from "@/lib/gateway/client"
+import { listChatBackground, updateChatSessionPreference } from "@/lib/gateway/client"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import {
   listAgentModelCatalogOptions,
@@ -110,6 +111,7 @@ import {
 } from "@tanstack/react-query"
 import {
   CheckIcon,
+  ClockIcon,
   ChevronDownIcon,
   DownloadIcon,
   GaugeIcon,
@@ -671,6 +673,61 @@ export default function Chat({
     sessionId ?? draftId ?? "new",
   ]
   const draftMessage = queryClient.getQueryData<ChatDraft>(draftKey) ?? initialMessage
+  const [pulseEnabled, setPulseEnabled] = useState(false)
+  const {
+    abortMessage,
+    resolvedSessionID,
+    creationStarted,
+    canStop,
+    canSubmit,
+    hasSession,
+    isStopping,
+    sendMessage,
+    sendState,
+    pending: pendingMessages,
+    queue,
+    queueError,
+    queueLoaded,
+    updateInput,
+  } = useOpencodeSend(
+    agentName,
+    workspaceId,
+    sessionId,
+    (id) => {
+      // Carry unsent input into the session draft scope on promotion.
+      const nextDraftKey = [...draftKey.slice(0, -1), id]
+      queryClient.setQueryData(nextDraftKey, composerRef.current?.getMessage())
+      if (draftId && authSession && !createSession) {
+        sessionDrafts.remove(`${authSession.user.id}:${workspaceId}`, draftId)
+      }
+      onSessionCreated?.(id)
+    },
+    createSession,
+    pulseEnabled
+  )
+  const pulse = useQuery({
+    ...chatPulseOptions(workspaceId, agentName, resolvedSessionID),
+    enabled: Boolean(resolvedSessionID) && !coding,
+  })
+  const background = useQuery(
+    queryOptions({
+      queryKey: ["chatBackground", workspaceId, agentName, resolvedSessionID],
+      enabled: pulse.data?.enabled === true,
+      queryFn: async () => {
+        if (!resolvedSessionID) throw new Error("Chat has not been created")
+        const result = await listChatBackground({
+          baseUrl: await getGatewayBaseURL(),
+          headers: { "X-AgentZ-Workspace-ID": workspaceId },
+          path: { agentName, sessionId: resolvedSessionID },
+        })
+        if (result.error) throw new Error(result.error.message)
+        return result.data
+      },
+      refetchInterval: (query) =>
+        query.state.data?.some((item) => !item.completed) ? 1_000 : 60_000,
+    })
+  )
+
   const preferenceKey = ["chatSessionPreference", workspaceId, authSession?.user.id] as const
   const rememberAgent = useMutation({
     mutationFn: async ({
@@ -720,7 +777,7 @@ export default function Chat({
     streamError,
     textByPart,
     todos,
-  } = useOpencodeChat(agentName, workspaceId, sessionId, authSession?.user.id)
+  } = useOpencodeChat(agentName, workspaceId, resolvedSessionID, authSession?.user.id)
 
   const questionTool = questionRequest?.tool
   const planApproval =
@@ -736,7 +793,11 @@ export default function Chat({
   // session.agent. Raw user history owns the mode, including after reconnect.
   const lastUser = messages.findLast(
     (message) =>
-      message.role === "user" && (!session?.revert || message.id < session.revert.messageID)
+      message.role === "user" &&
+      !background.data?.some(
+        (input) => input.message_id === message.id && input.origin === "workflow_result"
+      ) &&
+      (!session?.revert || message.id < session.revert.messageID)
   )
   // A revert can precede the loaded page. Fetch its preceding user turn
   // before choosing a mode rather than falling back to stale session metadata.
@@ -992,34 +1053,6 @@ export default function Chat({
     ? messages.filter((message) => message.id < revertMessageID)
     : messages
   const contextUsage = getAssistantUsage(contextMessages, models)
-  const {
-    abortMessage,
-    canStop,
-    canSubmit,
-    hasSession,
-    isStopping,
-    sendMessage,
-    sendState,
-    pending: pendingMessages,
-    queue,
-    queueError,
-    queueLoaded,
-    updateInput,
-  } = useOpencodeSend(
-    agentName,
-    workspaceId,
-    sessionId,
-    (id) => {
-      // Carry unsent input into the session draft scope on promotion.
-      const nextDraftKey = [...draftKey.slice(0, -1), id]
-      queryClient.setQueryData(nextDraftKey, composerRef.current?.getMessage())
-      if (draftId && authSession && !createSession) {
-        sessionDrafts.remove(`${authSession.user.id}:${workspaceId}`, draftId)
-      }
-      onSessionCreated?.(id)
-    },
-    createSession
-  )
 
   useEffect(() => {
     if (models.length === 0 || !modelStorageReady) return
@@ -1412,19 +1445,45 @@ export default function Chat({
     [selectedModel, setVariant]
   )
 
+  const firstUser = messages.find((message) => message.role === "user")
+  const firstParts = firstUser ? (partsByMessage[firstUser.id] ?? []) : []
+  // A page can begin at a compaction continuation. Load its original turn
+  // before classifying background output.
+  const backgroundHistoryPending =
+    !coding &&
+    pulse.data?.enabled !== false &&
+    hasEarlierMessages &&
+    !background.data?.some((item) => item.message_id === firstUser?.id) &&
+    firstParts.every((part) => part.type !== "text" || part.synthetic) &&
+    firstParts.some(
+      (part) =>
+        (part.type === "compaction" && part.auto) ||
+        (part.type === "text" &&
+          (part.metadata?.compaction_continue || part.metadata?.["agentz.dev/input-id"]))
+    )
+  useEffect(() => {
+    if (backgroundHistoryPending && background.isSuccess && !isLoadingEarlier && !loadError)
+      void loadEarlier()
+  }, [backgroundHistoryPending, background.isSuccess, isLoadingEarlier, loadError, loadEarlier])
+
   const { activity, guardrailMessageID, reverted, rows } = useMemo(
     () =>
       projectTimeline({
+        background: background.data,
+        classifyBackground: !coding,
         showWork,
         isBusy,
         isRetrying: sessionStatus?.type === "retry",
-        messages,
+        messages: backgroundHistoryPending ? [] : messages,
         partsByMessage,
         revertMessageID: session?.revert?.messageID,
         textByPart,
       }),
     [
       showWork,
+      background.data,
+      backgroundHistoryPending,
+      coding,
       isBusy,
       messages,
       partsByMessage,
@@ -2372,7 +2431,12 @@ export default function Chat({
               )}
             >
               <Select
-                disabled={hasSession || sendState === "submitted" || agentNames.length < 2}
+                disabled={
+                  hasSession ||
+                  creationStarted ||
+                  sendState === "submitted" ||
+                  agentNames.length < 2
+                }
                 onValueChange={(name) => {
                   onAgentChange(name)
                   const previous =
@@ -2403,6 +2467,30 @@ export default function Chat({
                   </SelectGroup>
                 </SelectContent>
               </Select>
+              {!coding && !hasSession ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      role="switch"
+                      aria-checked={pulseEnabled}
+                      aria-label="Pulse"
+                      disabled={creationStarted || sendState === "submitted"}
+                      onClick={() => setPulseEnabled((value) => !value)}
+                      className={cn(
+                        "ml-auto h-7 gap-1.5 px-2 text-xs",
+                        pulseEnabled ? "text-primary" : "text-muted-foreground"
+                      )}
+                    >
+                      <ClockIcon aria-hidden="true" />
+                      Pulse
+                      {pulseEnabled ? <CheckIcon aria-hidden="true" /> : null}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Automatic follow-ups in this chat</TooltipContent>
+                </Tooltip>
+              ) : null}
               {composerContext?.(inputDisabled || hasSession || sendState === "submitted")}
             </div>
           </div>

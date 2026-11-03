@@ -62,8 +62,21 @@ Treat the workflow as a saved directed acyclic graph:
 
 ## Conflict Handling
 
-- If the service reports that `workflow_name` already exists, surface the conflict.
-- Do not rename the workflow automatically.
+- Read the existing definition before revising a workflow.
+- Use `create_workflow` with `replace: true` for an authorized revision. Replacement preserves schedules and updates the graph atomically.
+- Ordinary creation still rejects an existing name. Do not rename or delete a workflow to work around that conflict.
+
+## Recovering a failed workflow
+
+A handoff gives the failed OpenCode session ID. The transcript is the execution record; do not expect a second transcript in the gateway.
+
+```sh
+opencode export --pure SESSION_ID > /tmp/workflow-SESSION_ID.json
+```
+
+Read that JSON with the file tools or `jq`. Inspect the original request, `get_workflow` output, inputs, failed tool calls, completed actions, and artifact paths. If necessary, use `opencode db path` and read-only `opencode db` queries. Never write to OpenCode's database.
+
+Repair the script, skill, configuration, or saved graph within the participants' authorization. Check what already happened before retrying an interrupted action. Do not replay an entire workflow or transcript blindly. Verify the repaired procedure, preserve the historical failure, and report the repair or remaining blocker.
 
 ## Pre-Save Checklist
 

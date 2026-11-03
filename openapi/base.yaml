@@ -675,6 +675,25 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/Error'}
   /api/chat-session:
+    post:
+      operationId: createPulseChat
+      summary: Create a shared Pulse conversation in a General workspace.
+      tags: [chat-sessions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PulseChatRequest'}
+      responses:
+        '200':
+          description: Canonical native session, including on exact retries.
+          content:
+            application/json:
+              schema: {$ref: 'https://raw.githubusercontent.com/anomalyco/opencode/a3647eb025c7615159d417dcc49fc39fdaeba65b/packages/sdk/openapi.json#/components/schemas/Session'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
     get:
       operationId: listChatSessions
       summary: List the current Workspace chat inbox.
@@ -712,6 +731,44 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalError'
+
+  /api/chat-session/{agentName}/{sessionId}/pulse:
+    get:
+      operationId: getChatPulse
+      summary: Read conversation background activity.
+      tags: [chat-sessions]
+      parameters:
+      - {name: agentName, in: path, required: true, schema: {type: string}}
+      - {name: sessionId, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: Authorized conversation state.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ChatPulse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /api/chat-session/{agentName}/{sessionId}/background:
+    get:
+      operationId: listChatBackground
+      summary: Read conversation background activity.
+      tags: [chat-sessions]
+      parameters:
+      - {name: agentName, in: path, required: true, schema: {type: string}}
+      - {name: sessionId, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: Authorized conversation state.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ChatBackgroundList'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
 
   /api/chat-session/{agentName}/{sessionId}:
     patch:
@@ -4496,6 +4553,22 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /api/workflow/{agentName}/{workflowName}/run/{runName}/session/deliver:
+    post:
+      operationId: deliverWorkflowSession
+      summary: Deliver a completed workflow's OpenCode session reference.
+      tags: [workflow-runs]
+      parameters:
+      - {name: agentName, in: path, required: true, schema: {type: string}}
+      - {name: workflowName, in: path, required: true, schema: {type: string}}
+      - {name: runName, in: path, required: true, schema: {type: string}}
+      responses:
+        '204': {description: The delivery binding or completion receipt is reconciled.}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
   /api/workflow/{agentName}/{workflowName}/run/{runName}/status:
     patch:
       operationId: patchWorkflowRunStatus
@@ -6498,6 +6571,37 @@ components:
           nullable: true
       required: [id, name, email, image]
 
+    PulseChatRequest:
+      type: object
+      additionalProperties: false
+      required: [id, agent_name]
+      properties:
+        id: {type: string, format: uuid}
+        agent_name: {$ref: '#/components/schemas/AgentName'}
+        agent: {type: string}
+        model: {$ref: 'https://raw.githubusercontent.com/anomalyco/opencode/a3647eb025c7615159d417dcc49fc39fdaeba65b/packages/sdk/openapi.json#/components/schemas/ModelRef'}
+    ChatPulse:
+      type: object
+      additionalProperties: false
+      required: [enabled, interval_seconds]
+      properties:
+        enabled: {type: boolean}
+        interval_seconds: {type: integer, format: int32}
+        next_check_at: {type: string, format: date-time}
+    ChatBackgroundList:
+      type: array
+      items: {$ref: '#/components/schemas/ChatBackground'}
+    ChatBackground:
+      type: object
+      additionalProperties: false
+      required: [message_id, part_id, origin, completed, error]
+      properties:
+        message_id: {type: string}
+        part_id: {type: string}
+        origin: {type: string, enum: [pulse, workflow_result]}
+        completed: {type: boolean}
+        outcome: {type: string, enum: [quiet, update, failed, canceled]}
+        error: {type: string}
     ChatSession:
       type: object
       additionalProperties: false
@@ -6508,6 +6612,8 @@ components:
           type: string
           format: date-time
           description: Last automatic snooze wake. Cleared by subsequent shelf changes.
+
+        pulse: {type: boolean}
         project_id: {type: string}
         agent_name:
           $ref: '#/components/schemas/AgentName'
@@ -7405,6 +7511,14 @@ components:
           $ref: '#/components/schemas/MascotColor'
       required: [breed, color]
 
+    PulseIntervalSeconds:
+      type: integer
+      format: int32
+      minimum: 60
+      maximum: 604800
+      multipleOf: 60
+      description: Seconds between Pulse checks for this agent's conversations, in whole minutes. Defaults to 1800.
+
     AgentMemoryConfig:
       type: object
       additionalProperties: false
@@ -7645,6 +7759,7 @@ components:
       type: object
       additionalProperties: false
       properties:
+        no_change: {type: boolean, description: Suppress the conversation handoff for a successful run with nothing to report.}
         phase:
           $ref: '#/components/schemas/WorkflowRunTerminalPhase'
         message:
@@ -7771,6 +7886,9 @@ components:
           description: Idle hours before archival; zero disables automatic archival.
         appearance:
           $ref: '#/components/schemas/AgentAppearance'
+
+        pulse_interval_seconds:
+          $ref: '#/components/schemas/PulseIntervalSeconds'
         name:
           $ref: '#/components/schemas/AgentName'
         sandbox:
@@ -7802,6 +7920,8 @@ components:
           $ref: '#/components/schemas/AgentCapabilities'
       required:
       - auto_archive_hours
+
+      - pulse_interval_seconds
       - name
       - sandbox
       - created_by
@@ -8388,6 +8508,9 @@ components:
           description: Idle hours before archival; zero disables automatic archival.
         appearance:
           $ref: '#/components/schemas/AgentAppearance'
+
+        pulse_interval_seconds:
+          $ref: '#/components/schemas/PulseIntervalSeconds'
         name:
           $ref: '#/components/schemas/AgentName'
         memory:
@@ -8410,6 +8533,10 @@ components:
       type: object
       additionalProperties: false
       properties:
+        replace:
+          type: boolean
+          description: Atomically replace an existing workflow graph while preserving its identity and schedules.
+
         workflow_name:
           $ref: '#/components/schemas/WorkflowName'
         title:
@@ -8480,10 +8607,18 @@ components:
       - created_at
       - updated_at
 
+    WorkflowDelivery:
+      type: object
+      additionalProperties: false
+      required: [session_id]
+      properties:
+        session_id: {type: string, minLength: 1}
+
     WorkflowSchedule:
       type: object
       additionalProperties: false
       properties:
+        delivery: {$ref: '#/components/schemas/WorkflowDelivery'}
         name:
           $ref: '#/components/schemas/WorkflowScheduleName'
         agent_name:
@@ -8831,6 +8966,8 @@ components:
       type: object
       additionalProperties: false
       properties:
+        context_session_id: {type: string, description: Authenticated agent tool context used to bind a Pulse root.}
+        delivery: {$ref: '#/components/schemas/WorkflowDelivery'}
         name:
           $ref: '#/components/schemas/WorkflowScheduleName'
         schedule:
@@ -8866,6 +9003,7 @@ components:
       type: object
       additionalProperties: false
       properties:
+        delivery: {$ref: '#/components/schemas/WorkflowDelivery'}
         schedule:
           type: string
           minLength: 1
@@ -9094,6 +9232,9 @@ components:
           description: Idle hours before archival; zero disables automatic archival.
         appearance:
           $ref: '#/components/schemas/AgentAppearance'
+
+        pulse_interval_seconds:
+          $ref: '#/components/schemas/PulseIntervalSeconds'
         env:
           type: object
           additionalProperties:

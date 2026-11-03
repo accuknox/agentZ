@@ -52,10 +52,9 @@ function DialogContent({
   onKeyDown,
   onOpenAutoFocus,
   onCloseAutoFocus,
-  showCloseButton = true,
   style,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Content> & { showCloseButton?: boolean }) {
+}: React.ComponentProps<typeof DialogPrimitive.Content>) {
   const focus = useModalFocusRestoration({ onOpenAutoFocus, onCloseAutoFocus })
   return (
     <ModalPresence>
@@ -96,19 +95,17 @@ function DialogContent({
         >
           <ModalPanel>
             {children}
-            {showCloseButton ? (
-              <DialogPrimitive.Close data-slot="dialog-close" asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="absolute top-2 right-2 z-10"
-                  size="icon-sm"
-                >
-                  <XIcon aria-hidden="true" />
-                  <span className="sr-only">Close</span>
-                </Button>
-              </DialogPrimitive.Close>
-            ) : null}
+            <DialogPrimitive.Close data-slot="dialog-close" asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                className="absolute top-2 right-2 z-10"
+                size="icon-sm"
+              >
+                <XIcon aria-hidden="true" />
+                <span className="sr-only">Close</span>
+              </Button>
+            </DialogPrimitive.Close>
           </ModalPanel>
         </DialogPrimitive.Content>
       </DialogPortal>

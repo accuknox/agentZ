@@ -79,6 +79,7 @@ type Querier interface {
 	GatewayGetAppMCPGraph(ctx context.Context, arg GatewayGetAppMCPGraphParams) ([]GatewayGetAppMCPGraphRow, error)
 	GatewayGetAppOperations(ctx context.Context, arg GatewayGetAppOperationsParams) ([]GatewayGetAppOperationsRow, error)
 	GatewayGetAppTraceChart(ctx context.Context, arg GatewayGetAppTraceChartParams) ([]GatewayGetAppTraceChartRow, error)
+	GatewayGetBrowserSessionExpiry(ctx context.Context, arg GatewayGetBrowserSessionExpiryParams) (time.Time, error)
 	GatewayGetChatInput(ctx context.Context, arg GatewayGetChatInputParams) (ChatInput, error)
 	GatewayGetChatSession(ctx context.Context, arg GatewayGetChatSessionParams) (ChatSession, error)
 	GatewayGetChatSessionGroup(ctx context.Context, arg GatewayGetChatSessionGroupParams) (GatewayGetChatSessionGroupRow, error)
@@ -158,7 +159,6 @@ type Querier interface {
 	GatewayListenStreamAuthorization(ctx context.Context) error
 	GatewayLockActiveOrganizationMember(ctx context.Context, arg GatewayLockActiveOrganizationMemberParams) (string, error)
 	GatewayLockActiveWorkspace(ctx context.Context, arg GatewayLockActiveWorkspaceParams) (string, error)
-	GatewayLockAgent(ctx context.Context, arg GatewayLockAgentParams) (Agent, error)
 	GatewayLockAgentOwner(ctx context.Context, arg GatewayLockAgentOwnerParams) (AgentOwner, error)
 	GatewayLockAgentShares(ctx context.Context, arg GatewayLockAgentSharesParams) ([]AgentShare, error)
 	GatewayLockCodingIdentity(ctx context.Context, id string) (string, error)

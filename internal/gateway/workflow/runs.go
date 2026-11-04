@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
@@ -24,6 +23,7 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	inputworkflow "github.com/accuknox/agentz/internal/workflow"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -502,41 +502,7 @@ func CreateScheduledRun(ctx context.Context, k8sClient ctrlclient.Client, ns str
 		return gatewayapi.WorkflowRunSummary{}, err
 	}
 
-	run := &agentzv1alpha1.WorkflowRun{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: agentzv1alpha1.SchemeGroupVersion.String(),
-			Kind:       "WorkflowRun",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: ns,
-			Labels: map[string]string{
-				"agentz.accuknox.com/workflow-schedule": schedule.Name,
-			},
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(
-					schedule,
-					agentzv1alpha1.SchemeGroupVersion.WithKind("WorkflowSchedule"),
-				),
-			},
-		},
-		Spec: agentzv1alpha1.WorkflowRunSpec{
-			Delivery:       schedule.Spec.Delivery,
-			AgentName:      schedule.Spec.AgentName,
-			WorkflowName:   schedule.Spec.WorkflowName,
-			Inputs:         apiextensionsv1.JSON{Raw: schedule.Spec.Inputs.Raw},
-			TimeoutSeconds: schedule.Spec.TimeoutSeconds,
-			ScheduleRef: &corev1.LocalObjectReference{
-				Name: schedule.Name,
-			},
-		},
-	}
-
-	if run.Spec.Delivery != nil {
-		run.Finalizers = append(run.Finalizers, agentzv1alpha1.WorkflowRunSessionFinalizer)
-	}
-
-	return createRun(ctx, k8sClient, run)
+	return createRun(ctx, k8sClient, inputworkflow.ScheduledRun(schedule, name))
 }
 
 // CreateWebhookRun creates one direct workflow run from a webhook request.
@@ -730,22 +696,6 @@ func ListRuns(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtNa
 	return items[start:end], nextOffset, nil
 }
 
-// GetRun returns one workflow run detail.
-func GetRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, runName string) (gatewayapi.WorkflowRunDetail, error) {
-	run := &agentzv1alpha1.WorkflowRun{}
-	key := types.NamespacedName{Namespace: ns, Name: strings.TrimSpace(runName)}
-	if err := k8sClient.Get(ctx, key, run); err != nil {
-		return gatewayapi.WorkflowRunDetail{}, err
-	}
-	if run.Spec.AgentName != strings.TrimSpace(agtName) {
-		return gatewayapi.WorkflowRunDetail{}, ErrWorkflowRunScopeMismatch
-	}
-	if run.Spec.WorkflowName != strings.TrimSpace(wfName) {
-		return gatewayapi.WorkflowRunDetail{}, ErrWorkflowRunScopeMismatch
-	}
-	return runDetailFromCRD(run), nil
-}
-
 // DeleteRun deletes one workflow run.
 func DeleteRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, runName string) error {
 	run := &agentzv1alpha1.WorkflowRun{}
@@ -821,7 +771,8 @@ func runSummaryFromCRD(run *agentzv1alpha1.WorkflowRun) gatewayapi.WorkflowRunSu
 	return summary
 }
 
-func runDetailFromCRD(run *agentzv1alpha1.WorkflowRun) gatewayapi.WorkflowRunDetail {
+// RunDetail projects an already authorized run without fetching a second snapshot.
+func RunDetail(run *agentzv1alpha1.WorkflowRun) gatewayapi.WorkflowRunDetail {
 	inputs := gatewayapi.JSONValue{}
 	raw := run.Spec.Inputs.Raw
 	if len(raw) == 0 {

@@ -714,15 +714,6 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 	defer tx.Rollback(r.Context())
 
 	q := gatewaydb.New(tx)
-	_, err = q.GatewayLockAgent(r.Context(), gatewaydb.GatewayLockAgentParams{
-		TenantNamespace: ns,
-		AgentName:       name,
-	})
-	if err != nil {
-		s.rollbackAgentUpdate(r.Context(), ns, before)
-		apiutil.WriteError(w, r, mapGatewayStoreError("update agent", err))
-		return
-	}
 	row, err = q.GatewayTouchAgent(
 		r.Context(),
 		gatewaydb.GatewayTouchAgentParams{

@@ -2437,6 +2437,25 @@ func (q *Queries) GatewayGetAppTraceChart(ctx context.Context, arg GatewayGetApp
 	return items, nil
 }
 
+const gatewayGetBrowserSessionExpiry = `-- name: GatewayGetBrowserSessionExpiry :one
+SELECT (expires_at AT TIME ZONE 'UTC')::timestamptz AS expires_at
+FROM sessions
+WHERE id = $1 AND user_id = $2
+  AND expires_at AT TIME ZONE 'UTC' > now()
+`
+
+type GatewayGetBrowserSessionExpiryParams struct {
+	ID     string `json:"id"`
+	UserID string `json:"user_id"`
+}
+
+func (q *Queries) GatewayGetBrowserSessionExpiry(ctx context.Context, arg GatewayGetBrowserSessionExpiryParams) (time.Time, error) {
+	row := q.db.QueryRow(ctx, gatewayGetBrowserSessionExpiry, arg.ID, arg.UserID)
+	var expires_at time.Time
+	err := row.Scan(&expires_at)
+	return expires_at, err
+}
+
 const gatewayGetChatInput = `-- name: GatewayGetChatInput :one
 SELECT id, sequence, workspace_id, agent_name, session_id, organization_id, author_id, author_name, directory, resume, content, delivery, state, revision, message_id, error, created_at, updated_at, origin, source_id, part_id, generation, completed_at, outcome FROM chat_inputs WHERE id = $1 AND workspace_id = $2
   AND agent_name = $3 AND session_id = $4
@@ -3338,8 +3357,7 @@ ORDER BY CASE
   WHEN state = 'sending' OR message_id <> '' AND state = 'failed' THEN 0
   WHEN origin = 'user' AND delivery = 'steer' AND state = 'queued' THEN 1
   WHEN origin = 'user' THEN 2
-  WHEN origin = 'workflow_result' THEN 3
-  ELSE 4
+  ELSE 3
 END, sequence
 LIMIT 1
 `
@@ -7282,29 +7300,6 @@ func (q *Queries) GatewayLockActiveWorkspace(ctx context.Context, arg GatewayLoc
 	return id, err
 }
 
-const gatewayLockAgent = `-- name: GatewayLockAgent :one
-SELECT tenant_namespace, agent_name, created_at, updated_at FROM agents
-WHERE tenant_namespace = $1 AND agent_name = $2
-FOR UPDATE
-`
-
-type GatewayLockAgentParams struct {
-	TenantNamespace string `json:"tenant_namespace"`
-	AgentName       string `json:"agent_name"`
-}
-
-func (q *Queries) GatewayLockAgent(ctx context.Context, arg GatewayLockAgentParams) (Agent, error) {
-	row := q.db.QueryRow(ctx, gatewayLockAgent, arg.TenantNamespace, arg.AgentName)
-	var i Agent
-	err := row.Scan(
-		&i.TenantNamespace,
-		&i.AgentName,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const gatewayLockAgentOwner = `-- name: GatewayLockAgentOwner :one
 SELECT
   organization_id,
@@ -7694,8 +7689,7 @@ ORDER BY (workspace_id || '/' || agent_name || '/' || session_id),
   WHEN origin='user' AND delivery='steer' AND state='queued' THEN 1
   WHEN origin <> 'user' AND state='delivered' THEN 2
   WHEN origin='user' THEN 3
-  WHEN origin='workflow_result' THEN 4
-  ELSE 5
+  ELSE 4
  END, sequence
 LIMIT 64
 `

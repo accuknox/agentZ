@@ -3,7 +3,10 @@ ALTER TABLE chat_sessions
   ADD COLUMN archived_at TIMESTAMPTZ,
   ADD COLUMN snoozed_until TIMESTAMPTZ,
   ADD COLUMN resumed_at TIMESTAMPTZ,
-  ADD COLUMN woke_at TIMESTAMPTZ;
+  ADD COLUMN woke_at TIMESTAMPTZ,
+  ADD COLUMN deleting BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN cleanup_completed_at TIMESTAMPTZ,
+  ADD COLUMN generation BIGINT NOT NULL DEFAULT 0;
 
 CREATE INDEX chat_sessions_wake_idx ON chat_sessions(snoozed_until)
 WHERE snoozed_until IS NOT NULL;
@@ -21,11 +24,6 @@ CREATE INDEX chat_sessions_expiry_idx ON chat_sessions(
 ) INCLUDE (session_id)
 WHERE archived_at IS NULL AND parent_session_id IS NULL
   AND snoozed_until IS NULL AND status = 'idle';
-
-ALTER TABLE chat_sessions
-  ADD COLUMN deleting BOOLEAN NOT NULL DEFAULT false,
-  ADD COLUMN cleanup_completed_at TIMESTAMPTZ,
-  ADD COLUMN generation BIGINT NOT NULL DEFAULT 0;
 
 CREATE TYPE chat_input_origin AS ENUM ('user', 'workflow_result');
 CREATE TYPE chat_background_outcome AS ENUM ('quiet', 'update', 'failed', 'canceled');
@@ -58,9 +56,9 @@ ALTER TABLE chat_inputs
 DROP TYPE chat_background_outcome;
 DROP TYPE chat_input_origin;
 ALTER TABLE chat_sessions
-  DROP COLUMN cleanup_completed_at, DROP COLUMN deleting, DROP COLUMN generation;
-
-ALTER TABLE chat_sessions
+  DROP COLUMN cleanup_completed_at,
+  DROP COLUMN deleting,
+  DROP COLUMN generation,
   DROP COLUMN woke_at,
   DROP COLUMN resumed_at,
   DROP COLUMN snoozed_until,

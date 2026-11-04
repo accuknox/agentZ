@@ -54,8 +54,13 @@ function chatInputsOptions(workspaceId: string, agentName: string, sessionID?: s
       if (result.error) throw new Error(result.error.message)
       return result.data
     },
-    // Reconcile even when the browser misses a workspace invalidation.
-    refetchInterval: 2_000,
+    // Workspace events reconcile mutations immediately. Keep fast recovery
+    // while work is queued and a slower fallback for missed idle notifications.
+    refetchInterval: (query) =>
+      query.state.data?.stopping ||
+      query.state.data?.items.some((item) => item.state === "queued" || item.state === "sending")
+        ? 2_000
+        : 30_000,
     refetchIntervalInBackground: false,
   })
 }

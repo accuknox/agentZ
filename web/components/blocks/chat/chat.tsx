@@ -589,22 +589,64 @@ function StoredAttachment({
   )
 }
 
+const workingPhrases = [
+  "Turning the tiny gears",
+  "Following a little spark",
+  "Untangling a curious little knot",
+  "Fitting the pieces into place",
+  "Giving the idea a little wiggle",
+  "Connecting a few dots",
+  "Chasing a curious thought",
+  "Winding up the thinking cap",
+  "Sorting through the puzzle pieces",
+  "Taking a peek under the hood",
+  "Putting a thought on the workbench",
+  "Tracing a promising thread",
+  "Giving the gears a gentle nudge",
+  "Dusting off a useful idea",
+  "Finding the thread to pull",
+  "Lining up the little dominoes",
+  "Sketching a path through",
+  "Checking the hidden corners",
+  "Gathering a handful of clues",
+  "Making room for an aha",
+  "Stirring the thought pot",
+  "Trying a different puzzle piece",
+  "Following the breadcrumbs",
+  "Warming up the idea engine",
+  "Taking the scenic route through logic",
+  "Nudging a thought into focus",
+  "Tinkering with the possibilities",
+  "Measuring twice, thinking once",
+  "Rolling the idea around",
+  "Looking for the missing piece",
+  "Tugging gently at the loose ends",
+  "Giving a hunch a closer look",
+  "Turning the puzzle sideways",
+  "Rounding up a few thoughts",
+  "Finding a foothold in the details",
+  "Letting an idea stretch its legs",
+  "Peeking behind the question",
+  "Putting the clues in order",
+  "Testing the stepping stones",
+  "Smoothing out a wrinkle",
+  "Threading the little needle",
+  "Assembling a tiny aha machine",
+  "Tapping on a promising idea",
+  "Finding where the pieces click",
+  "Giving the details a second glance",
+  "Coaxing a thought into shape",
+  "Checking which way the clues point",
+  "Taking a pencil to the puzzle",
+  "Shaking the idea tree",
+  "Getting the little ducks in a row",
+]
+
 function WorkingShimmer({ text }: { text?: string }) {
   // Streaming updates must not reshuffle the fallback while it is visible.
-  const [fallback] = useState(() => {
-    switch (Math.floor(Math.random() * 5)) {
-      case 0:
-        return "Turning the tiny gears"
-      case 1:
-        return "Following a little spark"
-      case 2:
-        return "Untangling a curious little knot"
-      case 3:
-        return "Fitting the pieces into place"
-      default:
-        return "Giving the idea a little wiggle"
-    }
-  })
+  const [fallback] = useState(
+    () => workingPhrases[Math.floor(Math.random() * workingPhrases.length)]
+  )
 
   return <Shimmer className="min-w-0 truncate text-sm">{text ?? fallback}</Shimmer>
 }
@@ -1797,7 +1839,8 @@ export default function Chat({
                   "h-full min-h-0 overflow-x-hidden overscroll-y-contain [overflow-anchor:none]"
                 )}
                 data={timelineRows}
-                estimatedItemSize={initialScroll?.estimatedItemSize ?? 96}
+                // Leave capacity for short rows when earlier turns are loaded.
+                estimatedItemSize={Math.min(initialScroll?.estimatedItemSize ?? 48, 48)}
                 extraData={actorProfiles}
                 initialScrollAtEnd={initialScroll?.atEnd ?? true}
                 initialScrollOffset={initialAnchorIndex < 0 ? initialScroll?.offset : undefined}
@@ -2093,9 +2136,7 @@ export default function Chat({
                 />
               )}
             </div>
-          ) : (
-            <div aria-hidden="true" className="mb-3 h-12 shrink-0" hidden={showStarter} />
-          )}
+          ) : null}
           <motion.div
             layout={reducedMotion ? false : "position"}
             layoutDependency={showStarter}

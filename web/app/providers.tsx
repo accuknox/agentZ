@@ -7,12 +7,13 @@ import { ProgressProvider } from "@bprogress/next/app"
 import { ThemeProvider } from "next-themes"
 import { useEffect, useRef, type CSSProperties, type ReactNode } from "react"
 import { authClient } from "@/lib/auth-client"
+import { clearGatewayTokens } from "@/lib/gateway/browser-runtime"
 import { chatCache } from "@/components/blocks/chat/cache"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/sonner"
 import { ScopeTransitionProvider } from "@/components/scope-transition"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 
 const sidebarStyle: CSSProperties & { "--sidebar-width": string } = {
   "--sidebar-width": "20rem",
@@ -29,9 +30,13 @@ export default function Providers({
 }) {
   const queryClient = getQueryClient()
   const router = useRouter()
+  const organizationPath = usePathname().split("/").slice(0, 3).join("/")
   const { data: session, isPending } = authClient.useSession()
   const previousUser = useRef<string | null | undefined>(undefined)
   const userID = session?.user.id ?? null
+  useEffect(() => {
+    clearGatewayTokens()
+  }, [userID, session?.session.id, organizationPath])
   useEffect(() => {
     if (isPending) return
     const previous = previousUser.current

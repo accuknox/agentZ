@@ -4,13 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v5"
 	jwtrequest "github.com/golang-jwt/jwt/v5/request"
+	"github.com/jackc/pgx/v5"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -912,8 +915,8 @@ func requestAuthState(ctx context.Context) (requestAuth, bool) {
 	return auth, ok
 }
 
-// authorizeStream ties external streams to live authority and bearer expiry.
-// Changes close the connection so reconnect goes through normal authorization.
+// authorizeStream binds browser streams to their live login session. Legacy
+// bearers retain their expiry; authority changes reconnect all external streams.
 func (s *Service) authorizeStream(ctx context.Context) (context.Context, context.CancelFunc, *apiutil.APIError) {
 	auth, _ := requestAuthState(ctx)
 	if auth.actorType == requestActorSystem {
@@ -929,19 +932,66 @@ func (s *Service) authorizeStream(ctx context.Context) (context.Context, context
 		return nil, nil, apiutil.NewError(http.StatusServiceUnavailable,
 			"authorization_unavailable", "Stream authorization is unavailable", nil)
 	}
+	checkSession := func(ctx context.Context) (time.Time, error) {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		return s.queries.GatewayGetBrowserSessionExpiry(ctx, gatewaydb.GatewayGetBrowserSessionExpiryParams{
+			ID:     auth.claims.BrowserSessionID,
+			UserID: auth.claims.UserID,
+		})
+	}
+	var deadline time.Time
+	if auth.claims != nil && auth.claims.ExpiresAt != nil {
+		deadline = auth.claims.ExpiresAt.Time
+	}
+	browser := auth.claims != nil && auth.claims.BrowserSessionID != ""
+	if browser {
+		expiry, err := checkSession(ctx)
+		if err != nil {
+			unsubscribe()
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil, nil, apiutil.NewError(http.StatusUnauthorized,
+					"unauthorized", "Browser session has expired", err)
+			}
+			return nil, nil, apiutil.NewError(http.StatusServiceUnavailable,
+				"authorization_unavailable", "Stream authorization is unavailable", err)
+		}
+		deadline = expiry
+	}
 	var cancel context.CancelFunc
 	switch {
-	case auth.claims != nil && auth.claims.ExpiresAt != nil:
-		ctx, cancel = context.WithDeadline(ctx, auth.claims.ExpiresAt.Time)
-	default:
+	case deadline.IsZero():
 		ctx, cancel = context.WithCancel(ctx)
+	default:
+		ctx, cancel = context.WithDeadline(ctx, deadline)
 	}
 	go func() {
 		defer unsubscribe()
-		select {
-		case <-events:
-			cancel()
-		case <-ctx.Done():
+		var ticks <-chan time.Time
+		if browser {
+			// Session deletion is not part of the authority notification feed.
+			// Check it even on idle streams, and fail closed on store errors.
+			ticker := time.NewTicker(15 * time.Second)
+			defer ticker.Stop()
+			ticks = ticker.C
+		}
+		for {
+			select {
+			case <-events:
+				cancel()
+				return
+			case <-ctx.Done():
+				return
+			case <-ticks:
+				_, err := checkSession(ctx)
+				if err != nil {
+					if !errors.Is(err, pgx.ErrNoRows) && ctx.Err() == nil {
+						slog.ErrorContext(ctx, "revalidate stream session", "error", err)
+					}
+					cancel()
+					return
+				}
+			}
 		}
 	}()
 	return ctx, cancel, nil

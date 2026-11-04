@@ -45,28 +45,6 @@ type SessionMessagePageParam = {
 const historyMessagePageSize = 200
 let historyRevision = 0
 
-/*
- * Paragraph boundaries adapted from T3 Code's assistantStreaming.ts.
- * MIT License. Copyright (c) 2026 T3 Tools Inc.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
 const markdownFence = /^( *)(`{3,}|~{3,})/
 const markdownListItem = /^[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]/
 const markdownSection = /^ {0,3}(?:#{1,6}(?:[ \t]|$)|\*\*(?:[^*]|\*(?!\*))+\*\*:?$)/
@@ -164,7 +142,7 @@ function upsertPart(parts: Part[], next: Part) {
   return at < 0 ? [...parts, next] : [...parts.slice(0, at), next, ...parts.slice(at)]
 }
 
-export function buildStore(sessionID: string, records: SessionMessageRecord[]) {
+function buildStore(sessionID: string, records: SessionMessageRecord[]) {
   const store: OpencodeChatStore = {
     part: {},
     message: {},
@@ -219,21 +197,21 @@ function buildRequestMap<T extends { sessionID: string }>(items: T[]) {
   const result: Record<string, T[]> = {}
 
   for (const item of items) {
-    const existing = result[item.sessionID] ?? []
-    result[item.sessionID] = [...existing, item]
+    const requests = (result[item.sessionID] ??= [])
+    requests.push(item)
   }
 
   return result
 }
 
 function visibleSessionIDs(sessions: Session[], sessionID: string) {
-  const childMap = sessions.reduce((acc, item) => {
-    if (!item.parentID) return acc
-    const list = acc.get(item.parentID) ?? []
+  const childMap = new Map<string, string[]>()
+  for (const item of sessions) {
+    if (!item.parentID) continue
+    const list = childMap.get(item.parentID) ?? []
     list.push(item.id)
-    acc.set(item.parentID, list)
-    return acc
-  }, new Map<string, string[]>())
+    childMap.set(item.parentID, list)
+  }
 
   const result = [sessionID]
   const seen = new Set(result)
@@ -265,7 +243,7 @@ function firstVisibleRequest<T extends { sessionID: string }>(
   return undefined
 }
 
-export function applyEvent(store: OpencodeChatStore, event: StreamEvent): OpencodeChatStore {
+function applyEvent(store: OpencodeChatStore, event: StreamEvent): OpencodeChatStore {
   switch (event.type) {
     case "message.updated": {
       const sessionID = event.properties.sessionID

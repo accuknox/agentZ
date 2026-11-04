@@ -149,11 +149,6 @@ FROM agents
 WHERE tenant_namespace = $1
   AND agent_name = $2;
 
--- name: GatewayLockAgent :one
-SELECT * FROM agents
-WHERE tenant_namespace = @tenant_namespace AND agent_name = @agent_name
-FOR UPDATE;
-
 -- name: GatewayTouchAgent :one
 UPDATE agents
 SET updated_at = sqlc.arg(updated_at)
@@ -2880,8 +2875,7 @@ ORDER BY (workspace_id || '/' || agent_name || '/' || session_id),
   WHEN origin='user' AND delivery='steer' AND state='queued' THEN 1
   WHEN origin <> 'user' AND state='delivered' THEN 2
   WHEN origin='user' THEN 3
-  WHEN origin='workflow_result' THEN 4
-  ELSE 5
+  ELSE 4
  END, sequence
 LIMIT 64;
 
@@ -2920,8 +2914,7 @@ ORDER BY CASE
   WHEN state = 'sending' OR message_id <> '' AND state = 'failed' THEN 0
   WHEN origin = 'user' AND delivery = 'steer' AND state = 'queued' THEN 1
   WHEN origin = 'user' THEN 2
-  WHEN origin = 'workflow_result' THEN 3
-  ELSE 4
+  ELSE 3
 END, sequence
 LIMIT 1;
 
@@ -3005,6 +2998,12 @@ DELETE FROM delegation_transactions WHERE expires_at <= now();
 
 -- name: GatewayCheckDelegationSession :one
 SELECT EXISTS(SELECT 1 FROM sessions WHERE id = sqlc.arg(id) AND user_id = sqlc.arg(user_id) AND expires_at > now());
+
+-- name: GatewayGetBrowserSessionExpiry :one
+SELECT (expires_at AT TIME ZONE 'UTC')::timestamptz AS expires_at
+FROM sessions
+WHERE id = sqlc.arg(id) AND user_id = sqlc.arg(user_id)
+  AND expires_at AT TIME ZONE 'UTC' > now();
 
 -- name: GatewayListLensApps :many
 WITH subjects AS (

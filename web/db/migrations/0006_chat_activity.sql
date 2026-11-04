@@ -1,6 +1,7 @@
-ALTER TABLE "user_preferences" ADD COLUMN "hide_left_nav_scrollbar" boolean DEFAULT false NOT NULL;--> statement-breakpoint
-ALTER TABLE "user_preferences" ADD COLUMN "follow_up_behavior" text DEFAULT 'steer' NOT NULL;--> statement-breakpoint
-ALTER TABLE "user_preferences" ADD COLUMN "show_reasoning_and_tools" boolean DEFAULT true NOT NULL;
+ALTER TABLE user_preferences
+  ADD COLUMN hide_left_nav_scrollbar boolean DEFAULT false NOT NULL,
+  ADD COLUMN follow_up_behavior text DEFAULT 'steer' NOT NULL,
+  ADD COLUMN show_reasoning_and_tools boolean DEFAULT true NOT NULL;
 --> statement-breakpoint
 -- Authority changes reconnect live readers through normal authorization.
 -- Text chunks do not perform database permission checks.

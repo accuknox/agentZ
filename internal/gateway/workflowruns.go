@@ -648,57 +648,21 @@ func (s *Service) WatchWorkflowRuns(w http.ResponseWriter, r *http.Request, agtN
 				return false
 			}
 			for _, item := range listedItems {
-				if _, err := s.getWorkflowRun(r.Context(), ns, agentName, workflowName, item.Name); err != nil {
-					return false
-				}
-
-				detail, err := workflow.GetRun(
-					r.Context(),
-					s.k8sClient,
-					ns,
-					agentName,
-					workflowName,
-					item.Name,
-				)
-				if apierrors.IsNotFound(err) || errors.Is(err, workflow.ErrWorkflowRunScopeMismatch) {
-					continue
-				}
-				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-					return false
-				}
+				run, err := s.getWorkflowRun(r.Context(), ns, agentName, workflowName, item.Name)
 				if err != nil {
-					apiutil.RecordRequestError(w, "internal_error", err)
 					return false
 				}
-				items = append(items, detail)
+				items = append(items, workflow.RunDetail(run))
 			}
 		}
 
 		for runName := range runFilter {
-			if _, err := s.getWorkflowRun(r.Context(), ns, agentName, workflowName, runName); err != nil {
-				continue
-			}
-
-			detail, err := workflow.GetRun(
-				r.Context(),
-				s.k8sClient,
-				ns,
-				agentName,
-				workflowName,
-				runName,
-			)
-			if apierrors.IsNotFound(err) || errors.Is(err, workflow.ErrWorkflowRunScopeMismatch) {
-				continue
-			}
-			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-				return false
-			}
+			run, err := s.getWorkflowRun(r.Context(), ns, agentName, workflowName, runName)
 			if err != nil {
-				apiutil.RecordRequestError(w, "internal_error", err)
-				return false
+				continue
 			}
 
-			items = append(items, detail)
+			items = append(items, workflow.RunDetail(run))
 		}
 
 		changed := make([]gatewayapi.WorkflowRunDetail, 0, len(items))
@@ -786,7 +750,7 @@ func (s *Service) GetWorkflowRun(w http.ResponseWriter, r *http.Request, agtName
 	agentName := strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 	runName = strings.TrimSpace(runName)
-	_, bindingErr := s.getWorkflowRun(r.Context(), ns, agentName, workflowName, runName)
+	run, bindingErr := s.getWorkflowRun(r.Context(), ns, agentName, workflowName, runName)
 	if bindingErr != nil {
 		apiutil.WriteError(w, r, mapKubeHTTPError("get workflow run", bindingErr))
 		return
@@ -809,36 +773,7 @@ func (s *Service) GetWorkflowRun(w http.ResponseWriter, r *http.Request, agtName
 		return
 	}
 
-	detail, err := workflow.GetRun(
-		r.Context(),
-		s.k8sClient,
-		ns,
-		agentName,
-		workflowName,
-		runName,
-	)
-	if err != nil {
-		if errors.Is(err, workflow.ErrWorkflowRunScopeMismatch) {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusNotFound,
-					"not_found",
-					"workflow run not found",
-					apierrors.NewNotFound(
-						agentzv1alpha1.Resource("workflowrun"),
-						runName,
-					),
-				),
-			)
-			return
-		}
-		apiutil.WriteError(w, r, mapKubeHTTPError("get workflow run", err))
-		return
-	}
-
-	apiutil.WriteJSON(w, http.StatusOK, detail)
+	apiutil.WriteJSON(w, http.StatusOK, workflow.RunDetail(run))
 }
 
 // DeleteWorkflowRun handles DELETE /api/workflow/{agentName}/{workflowName}/run/{runName}.
@@ -962,7 +897,8 @@ func (s *Service) enqueueWorkflowSession(ctx context.Context, access resourceAcc
 		return err
 	}
 	defer release()
-	if err := s.authorizeWorkflowDelivery(ctx, access, run.Spec.AgentName, run.Spec.Delivery); err != nil {
+	err = s.authorizeWorkflowDelivery(ctx, access, run.Spec.AgentName, run.Spec.Delivery)
+	if err != nil {
 		return err
 	}
 	if !run.DeletionTimestamp.IsZero() {

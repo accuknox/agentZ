@@ -756,10 +756,7 @@ func (s *Service) advanceEvaluationRuns(ctx context.Context, job workflowdb.Work
 		if !run.Status.Phase.Terminal() {
 			continue
 		}
-		detail, err := workflow.GetRun(ctx, s.k8sClient, job.TenantNamespace, job.AgentName, job.WorkflowName, run.Name)
-		if err != nil {
-			return err
-		}
+		detail := workflow.RunDetail(&run)
 		execution.Run = &detail
 		execution.RunReason = new(detail.Reason)
 		if run.Status.SessionID == "" {

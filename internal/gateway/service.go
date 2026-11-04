@@ -1040,6 +1040,7 @@ type gatewayClaims struct {
 	ScopeID              string                `json:"scope_id"`
 	UserID               string                `json:"user_id"`
 	UserName             string                `json:"user_name"`
+	BrowserSessionID     string                `json:"browser_session_id,omitempty"`
 	Capabilities         *[]string             `json:"capabilities"`
 	AdministrativeBypass *bool                 `json:"administrative_bypass"`
 	AgentACL             *[]gatewayAgentAccess `json:"agent_acl"`

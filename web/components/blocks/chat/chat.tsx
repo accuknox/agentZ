@@ -640,12 +640,12 @@ const workingPhrases = [
   "Taking a pencil to the puzzle",
   "Shaking the idea tree",
   "Getting the little ducks in a row",
-]
+] as const
 
 function WorkingShimmer({ text }: { text?: string }) {
   // Streaming updates must not reshuffle the fallback while it is visible.
   const [fallback] = useState(
-    () => workingPhrases[Math.floor(Math.random() * workingPhrases.length)]
+    () => workingPhrases[Math.floor(Math.random() * workingPhrases.length)] ?? workingPhrases[0]
   )
 
   return <Shimmer className="min-w-0 truncate text-sm">{text ?? fallback}</Shimmer>

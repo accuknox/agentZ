@@ -62,6 +62,12 @@
   visibility: visible;
 }
 @media (prefers-reduced-motion: no-preference) {
+  .historyLoading {
+    animation: history-reveal 150ms ease-out 150ms both;
+  }
+  .historyReady {
+    animation: history-reveal 150ms ease-out both;
+  }
   .shell {
     transition: padding-bottom 80ms ease-out;
   }
@@ -88,5 +94,13 @@
   }
   .context:has(:enabled) {
     transition-delay: 0s;
+  }
+}
+@keyframes history-reveal {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }

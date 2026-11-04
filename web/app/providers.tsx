@@ -71,7 +71,7 @@ export default function Providers({
               </SidebarProvider>
             </TooltipProvider>
           </ScopeTransitionProvider>
-          <Toaster />
+          <Toaster position="top-right" />
         </ThemeProvider>
       </ProgressProvider>
     </QueryClientProvider>

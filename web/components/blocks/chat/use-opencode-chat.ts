@@ -34,6 +34,7 @@ type SessionMessageRecord = SessionMessagesResponse2[number]
 type SessionMessagePage = {
   cursor?: string
   records: SessionMessageRecord[]
+  revision: number
 }
 
 type SessionMessagePageParam = {
@@ -42,6 +43,7 @@ type SessionMessagePageParam = {
 }
 
 const historyMessagePageSize = 200
+let historyRevision = 0
 
 /*
  * Paragraph boundaries adapted from T3 Code's assistantStreaming.ts.
@@ -150,16 +152,12 @@ function upsertMessage(messages: Message[], next: Message) {
     return [...messages, next].sort((x, y) => x.time.created - y.time.created)
   }
 
-  return messages.map((message) => {
-    if (message.id === next.id) return next
-    return message
-  })
+  return messages.with(index, next)
 }
 
 function upsertPart(parts: Part[], next: Part) {
-  if (parts.some((part) => part.id === next.id)) {
-    return parts.map((part) => (part.id === next.id ? next : part))
-  }
+  const index = parts.findIndex((part) => part.id === next.id)
+  if (index >= 0) return parts.with(index, next)
   // Part ids are monotonic ascending, so insert at the sorted position to keep
   // chronological order even if a late update arrives out of sequence.
   const at = parts.findIndex((part) => part.id > next.id)
@@ -214,10 +212,7 @@ function upsertRequest<T extends { id: string }>(items: T[], next: T) {
     return [...items, next]
   }
 
-  return items.map((item) => {
-    if (item.id === next.id) return next
-    return item
-  })
+  return items.with(index, next)
 }
 
 function buildRequestMap<T extends { sessionID: string }>(items: T[]) {
@@ -655,7 +650,7 @@ export function sessionMessagesQueryOptions(
         records.push(...result.data)
         const cursor = result.response.headers.get("X-Next-Cursor") ?? undefined
         if (!cursor || result.data[0]?.info.role !== "assistant") {
-          return { cursor, records }
+          return { cursor, records, revision: ++historyRevision }
         }
 
         before = cursor
@@ -820,13 +815,13 @@ export function useOpencodeChat(
     }
     return buildStore(sessionID, [...records.values()])
   }, [authorized, history.data, historyReady, sessionID, sessionReady, previewRecords])
-  // Loading another history page retains the first page object, while an
-  // authoritative refetch replaces it. Session metadata refetches must not
-  // discard messages received from the live stream.
+  // Only server reads replace the live baseline. Publishing settled events
+  // into the cache must not discard events arriving during that publication.
   const firstHistoryPage = history.data?.pages[0]
+  const historyVersion = firstHistoryPage?.revision
   const baseStoreVersion = useMemo(
-    () => ({ firstHistoryPage, sessionID }),
-    [firstHistoryPage, sessionID]
+    () => ({ historyVersion, sessionID }),
+    [historyVersion, sessionID]
   )
   const store = sessionUnavailable
     ? baseStore

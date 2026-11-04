@@ -211,15 +211,14 @@ func (r *Reconciler) reconcileRunnerPolicy(ctx context.Context, schedule *agentz
 	return nil
 }
 
-func (r *Reconciler) reconcileCronJob(ctx context.Context, schedule *agentzv1alpha1.WorkflowSchedule) (string, error) {
-	name := schedule.Name
+func (r *Reconciler) reconcileCronJob(ctx context.Context, schedule *agentzv1alpha1.WorkflowSchedule) (*batchv1.CronJob, error) {
 	err := workflow.ValidateCronSchedule(schedule.Spec.Schedule)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	err = workflow.ValidateTimeZone(schedule.Spec.TimeZone)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	inputsJSON := "null"
@@ -227,12 +226,12 @@ func (r *Reconciler) reconcileCronJob(ctx context.Context, schedule *agentzv1alp
 		inputsJSON = string(schedule.Spec.Inputs.Raw)
 	}
 	if !json.Valid([]byte(inputsJSON)) {
-		return "", fmt.Errorf("workflow inputs are not valid json")
+		return nil, fmt.Errorf("workflow inputs are not valid json")
 	}
 
 	cronJob := &batchv1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
+			Name:      schedule.Name,
 			Namespace: schedule.Namespace,
 		},
 	}
@@ -285,7 +284,7 @@ func (r *Reconciler) reconcileCronJob(ctx context.Context, schedule *agentzv1alp
 		},
 	)
 	if err != nil {
-		return "", fmt.Errorf("create or patch cronjob: %w", err)
+		return nil, fmt.Errorf("create or patch cronjob: %w", err)
 	}
-	return name, nil
+	return cronJob, nil
 }

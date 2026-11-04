@@ -135,7 +135,7 @@ import {
   useState,
 } from "react"
 import { toast } from "sonner"
-import { useReducedMotion } from "motion/react"
+import { motion, useReducedMotion } from "motion/react"
 import { z } from "zod"
 import {
   Command,
@@ -174,7 +174,7 @@ function ChatPromptInput({
   ...props
 }: Omit<ComponentProps<typeof PromptInput>, "onSubmitError"> & {
   draftKey: QueryKey
-  savedDraft?: Pick<SessionDraft, "id" | "scope" | "agentName">
+  savedDraft?: Pick<SessionDraft, "id" | "scope" | "agentName" | "sessionID">
 }) {
   const queryClient = useQueryClient()
   const draftID = savedDraft?.id
@@ -256,7 +256,7 @@ function ChatPromptInput({
           sessionDrafts.update(savedDraft.scope, savedDraft.id, { message })
       }}
       onSubmit={async (message, event, delivery) => {
-        if (!savedDraft) return props.onSubmit(message, event, delivery)
+        if (!savedDraft || savedDraft.sessionID) return props.onSubmit(message, event, delivery)
         // Hold the native browser lock through acknowledgement. Another tab
         // must not create a second native session for the same local draft.
         return navigator.locks.request(
@@ -270,7 +270,8 @@ function ChatPromptInput({
             }
             if (props.clearOnSubmit !== false)
               sessionDrafts.update(savedDraft.scope, savedDraft.id, { submission: message })
-            return props.onSubmit(message, event, delivery)
+            await props.onSubmit(message, event, delivery)
+            sessionDrafts.update(savedDraft.scope, savedDraft.id, { submission: undefined })
           }
         )
       }}
@@ -1763,6 +1764,7 @@ export default function Chat({
     ? timelineRows.findIndex((row) => row.key === initialScroll.anchor?.key)
     : -1
 
+  const composerDraftID = sessionId ?? draftId
   return (
     <div
       className="absolute inset-0 flex min-h-0 flex-1 flex-col justify-end overflow-hidden"
@@ -1774,7 +1776,12 @@ export default function Chat({
         {!showStarter ? (
           <div className="relative h-full" aria-busy={showHistorySkeleton}>
             {showHistorySkeleton ? (
-              <div className="absolute inset-0 mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 pt-4">
+              <div
+                className={cn(
+                  styles.historyLoading,
+                  "absolute inset-0 mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 pt-4"
+                )}
+              >
                 <Skeleton className="h-16 w-full rounded-md" />
                 <Skeleton className="h-24 w-full rounded-md" />
                 <Skeleton className="h-16 w-2/3 rounded-md" />
@@ -1785,7 +1792,10 @@ export default function Chat({
                 aria-label="Chat transcript"
                 role="region"
                 tabIndex={0}
-                className="h-full min-h-0 overflow-x-hidden overscroll-y-contain [overflow-anchor:none]"
+                className={cn(
+                  styles.historyReady,
+                  "h-full min-h-0 overflow-x-hidden overscroll-y-contain [overflow-anchor:none]"
+                )}
                 data={timelineRows}
                 estimatedItemSize={initialScroll?.estimatedItemSize ?? 96}
                 extraData={actorProfiles}
@@ -2052,7 +2062,11 @@ export default function Chat({
                 row.isStreaming &&
                 row.entries.some((entry) => entry.type === "work")
             )) ? (
-            <div className="mb-3 flex min-h-12 items-center gap-2" role="status" aria-live="polite">
+            <div
+              className={cn(styles.historyReady, "mb-3 flex min-h-12 items-center gap-2")}
+              role="status"
+              aria-live="polite"
+            >
               <AgentPresence
                 state={
                   streamError || blocked || sessionStatus?.type === "retry"
@@ -2079,8 +2093,15 @@ export default function Chat({
                 />
               )}
             </div>
-          ) : null}
-          <div className={cn(styles.shell, "relative w-full shrink-0")}>
+          ) : (
+            <div aria-hidden="true" className="mb-3 h-12 shrink-0" hidden={showStarter} />
+          )}
+          <motion.div
+            layout={reducedMotion ? false : "position"}
+            layoutDependency={showStarter}
+            transition={{ layout: { duration: 0.18, ease: "easeOut" } }}
+            className={cn(styles.shell, "relative w-full shrink-0")}
+          >
             {queueEdit ? (
               <div
                 className="flex items-center justify-between gap-3 px-4 pt-3 text-xs text-muted-foreground"
@@ -2131,10 +2152,13 @@ export default function Chat({
               draftKey={queueEdit ? ["queueEdit", queueEdit.scope, queueEdit.id] : draftKey}
               savedDraft={
                 queueEdit ??
-                (!sessionId && draftId && authSession
+                ((!coding || !sessionId) && authSession && composerDraftID
                   ? {
-                      id: draftId,
-                      scope: `${authSession.user.id}:${workspaceId}`,
+                      id: composerDraftID,
+                      sessionID: sessionId,
+                      scope: sessionId
+                        ? `${authSession.user.id}:${workspaceId}:${agentName}:${sessionId}`
+                        : `${authSession.user.id}:${workspaceId}`,
                       agentName,
                     }
                   : undefined)
@@ -2458,7 +2482,7 @@ export default function Chat({
               </Select>
               {composerContext?.(inputDisabled || hasSession || sendState === "submitted")}
             </div>
-          </div>
+          </motion.div>
         </div>
       </div>
     </div>

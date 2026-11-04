@@ -66,6 +66,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+	if !schedule.DeletionTimestamp.IsZero() {
+		return ctrl.Result{}, nil
+	}
 
 	var workspace agentzv1alpha1.Workspace
 	err = r.Get(ctx, client.ObjectKey{Name: schedule.Namespace}, &workspace)
@@ -101,11 +104,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err != nil {
 		return ctrl.Result{}, r.failSchedule(ctx, schedule, err)
 	}
-	cronJobName, err := r.reconcileCronJob(ctx, schedule)
+	cronJob, err := r.reconcileCronJob(ctx, schedule)
 	if err != nil {
 		return ctrl.Result{}, r.failSchedule(ctx, schedule, err)
 	}
-	activeJobs, err := r.reconcileTriggers(ctx, schedule, cronJobName)
+	activeJobs, err := r.reconcileTriggers(ctx, schedule, cronJob)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -113,7 +116,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err != nil {
 		return ctrl.Result{}, r.failSchedule(ctx, schedule, err)
 	}
-	err = r.refreshStatus(ctx, schedule, cronJobName)
+	err = r.refreshStatus(ctx, schedule, cronJob)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return ctrl.Result{RequeueAfter: time.Second}, nil
@@ -192,17 +195,7 @@ func (r *Reconciler) failSchedule(ctx context.Context, schedule *agentzv1alpha1.
 	return err
 }
 
-func (r *Reconciler) refreshStatus(ctx context.Context, schedule *agentzv1alpha1.WorkflowSchedule, cronJobName string) error {
-	cronJob := &batchv1.CronJob{}
-	cronJobKey := client.ObjectKey{
-		Namespace: schedule.Namespace,
-		Name:      cronJobName,
-	}
-	err := r.Get(ctx, cronJobKey, cronJob)
-	if err != nil {
-		return fmt.Errorf("get cronjob: %w", err)
-	}
-
+func (r *Reconciler) refreshStatus(ctx context.Context, schedule *agentzv1alpha1.WorkflowSchedule, cronJob *batchv1.CronJob) error {
 	runs, err := r.listOwnedRuns(ctx, schedule)
 	if err != nil {
 		return err
@@ -221,7 +214,7 @@ func (r *Reconciler) refreshStatus(ctx context.Context, schedule *agentzv1alpha1
 		schedule,
 		func(status *agentzv1alpha1.WorkflowScheduleStatus) {
 			status.ObservedGeneration = schedule.Generation
-			status.CronJobName = cronJobName
+			status.CronJobName = cronJob.Name
 			status.LastScheduledAt = cronJob.Status.LastScheduleTime
 			status.LastRunName = ""
 			if lastRun != nil {
@@ -346,14 +339,9 @@ func (r *Reconciler) updateStatus(ctx context.Context, schedule *agentzv1alpha1.
 }
 
 // reconcileTriggers records admission before pruning runs, recovering ticks that failed to admit one.
-func (r *Reconciler) reconcileTriggers(ctx context.Context, schedule *agentzv1alpha1.WorkflowSchedule, cronJobName string) (map[string]struct{}, error) {
-	cronJob := &batchv1.CronJob{}
-	err := r.Get(ctx, client.ObjectKey{Namespace: schedule.Namespace, Name: cronJobName}, cronJob)
-	if err != nil {
-		return nil, err
-	}
+func (r *Reconciler) reconcileTriggers(ctx context.Context, schedule *agentzv1alpha1.WorkflowSchedule, cronJob *batchv1.CronJob) (map[string]struct{}, error) {
 	jobs := &batchv1.JobList{}
-	err = r.List(ctx, jobs, client.InNamespace(schedule.Namespace), client.MatchingLabels{workflowScheduleLabel: schedule.Name})
+	err := r.List(ctx, jobs, client.InNamespace(schedule.Namespace), client.MatchingLabels{workflowScheduleLabel: schedule.Name})
 	if err != nil {
 		return nil, err
 	}

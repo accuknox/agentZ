@@ -183,12 +183,7 @@ const chatDeletionSource = nanoid()
 const chatSessionKeys = {
   preference: (workspaceId: string) => ["chatSessionPreference", workspaceId] as const,
   workspace: (workspaceId: string) => ["chatSessions", workspaceId] as const,
-  list: (
-    workspaceId: string,
-    preferences: ChatSessionPreference,
-    search: string,
-    timeZone: string
-  ) =>
+  list: (workspaceId: string, preferences: ChatSessionPreference, timeZone: string) =>
     [
       "chatSessions",
       workspaceId,
@@ -197,7 +192,6 @@ const chatSessionKeys = {
       preferences.include_workflow_runs,
       preferences.participant_user_ids,
       preferences.group_by,
-      search,
       timeZone,
     ] as const,
   group: (
@@ -235,10 +229,14 @@ function chatSessionsOptions(
   shelf: ChatSessionShelf
 ) {
   const queryKey = [
-    ...chatSessionKeys.list(workspaceId, preferences, search, timeZone),
+    ...chatSessionKeys.list(workspaceId, preferences, timeZone),
     userId,
     shelf,
-    preferences.group_by === "none" ? null : { activeAgentName, activeSessionId },
+    {
+      search,
+      activeAgentName: preferences.group_by === "none" ? undefined : activeAgentName,
+      activeSessionId: preferences.group_by === "none" ? undefined : activeSessionId,
+    },
   ] as const
   return infiniteQueryOptions({
     queryKey,
@@ -270,12 +268,12 @@ function chatSessionsOptions(
         signal,
       })
       if (result.error) throw result.error
-      return result.data
+      return { ...result.data, search }
     },
     getNextPageParam: (page) => (page.has_next_page ? page.next_page_token : undefined),
 
-    // Selection only changes group expansion hints. Filters and shelves must
-    // never inherit another list's rows while their request is pending.
+    // Search and selection can retain rows while pending. Filters and shelves
+    // remain separate so their rows never cross authorization or filter scopes.
     placeholderData: (previous, query) =>
       query && hashKey(query.queryKey.slice(0, -1)) === hashKey(queryKey.slice(0, -1))
         ? previous
@@ -586,7 +584,7 @@ function NavSessionsContent({
       preferences.group_by !== "date" &&
       (preferences.group_by === "none" ||
         (activeAgentName === undefined && activeSessionId === undefined))
-        ? { pages: [initialSessions], pageParams: [undefined] }
+        ? { pages: [{ ...initialSessions, search: "" }], pageParams: [undefined] }
         : undefined,
   })
   const mutation = useMutation({
@@ -697,7 +695,7 @@ function NavSessionsContent({
   const searchSettling = searchLength >= 3 && searchLength <= 200 && trimmedSearch !== querySearch
   const list = useSessionListMotion(
     rows.map((session) => `${session.agent_name}:${session.session_id}`).join("\0"),
-    preferences.group_by === "none" && !sessions.isPending && !searchInvalid && !searchSettling
+    preferences.group_by === "none" && !sessions.isPending && !searchInvalid
   )
 
   const newProjectChat = async (project: CodingProject) => {
@@ -1133,9 +1131,17 @@ function NavSessionsContent({
 
         <div
           aria-busy={
-            !searchInvalid && (sessions.isPending || searchSettling || sessions.isFetchingNextPage)
+            !searchInvalid &&
+            (sessions.isPending ||
+              searchSettling ||
+              sessions.isPlaceholderData ||
+              sessions.isFetchingNextPage)
           }
-          className="shrink-0 px-(--sidebar-content-inset) pb-2"
+          inert={searchSettling || sessions.isPlaceholderData}
+          className={cn(
+            "shrink-0 px-(--sidebar-content-inset) pb-2 transition-opacity motion-reduce:transition-none",
+            (searchSettling || sessions.isPlaceholderData) && "opacity-60"
+          )}
           id="chat-session-results"
         >
           {searchTooShort ? (
@@ -1148,7 +1154,7 @@ function NavSessionsContent({
               Search cannot exceed 200 characters
             </p>
           ) : null}
-          {!searchInvalid && (sessions.isPending || searchSettling) ? (
+          {!searchInvalid && sessions.isPending ? (
             <SessionListSkeleton
               groupBy={preferences.group_by}
               searching={searchLength >= 3}
@@ -1163,17 +1169,18 @@ function NavSessionsContent({
           ) : null}
           {!searchInvalid &&
           !sessions.isPending &&
-          !searchSettling &&
           preferences.group_by === "none" &&
           rows.length === 0 &&
           drafts.length === 0 ? (
             <div className="px-2 py-8 text-center text-sm text-sidebar-muted-foreground">
               <Users className="mx-auto mb-2 size-5 opacity-60" aria-hidden="true" />
-              No chats found
+              {searchSettling || sessions.isPlaceholderData
+                ? "Searching chats..."
+                : "No chats found"}
             </div>
           ) : null}
           <ul ref={list} className="relative flex min-w-0 flex-col gap-0.5">
-            {preferences.group_by === "none" && !searchInvalid && !searchSettling
+            {preferences.group_by === "none" && !searchInvalid
               ? rows.map((session) => (
                   <SessionCard
                     userId={userId}
@@ -1204,7 +1211,7 @@ function NavSessionsContent({
               Loading more chats
             </span>
           ) : null}
-          {preferences.group_by !== "none" && !searchInvalid && !searchSettling
+          {preferences.group_by !== "none" && !searchInvalid
             ? groups.map((group) => (
                 <SessionGroup
                   onNewChat={newProjectChat}
@@ -1248,7 +1255,7 @@ function NavSessionsContent({
                   }
                   path={path}
                   preferences={preferences}
-                  search={querySearch}
+                  search={sessions.data?.pages[0]?.search ?? ""}
                   timeZone={timeZone}
                   workspaceType={workspaceType}
                   workspaceId={workspaceId}
@@ -1258,20 +1265,22 @@ function NavSessionsContent({
             : null}
           {!sessions.isPending &&
           !searchInvalid &&
-          !searchSettling &&
           preferences.group_by !== "none" &&
           groups.length === 0 &&
           drafts.length === 0 ? (
             <div className="px-2 py-8 text-center text-sm text-sidebar-muted-foreground">
               <Users className="mx-auto mb-2 size-5 opacity-60" aria-hidden="true" />
-              No chats found
+              {searchSettling || sessions.isPlaceholderData
+                ? "Searching chats..."
+                : "No chats found"}
             </div>
           ) : null}
           {preferences.group_by === "none" &&
           !searchInvalid &&
-          !searchSettling &&
-          sessions.hasNextPage ? (
+          (sessions.hasNextPage ||
+            (sessions.isPlaceholderData && sessions.data?.pages.at(-1)?.has_next_page)) ? (
             <LoadMore
+              disabled={searchSettling || sessions.isPlaceholderData}
               pending={sessions.isFetchingNextPage}
               className="mt-2 w-full text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground"
               onClick={() => void sessions.fetchNextPage()}
@@ -1988,7 +1997,9 @@ function SessionCardSkeleton({
           <div className="min-w-0 flex-1">
             {showAgent ? <Skeleton className="h-3 w-16 bg-sidebar-border" /> : null}
           </div>
-          <Skeleton className="h-3 w-5 shrink-0 bg-sidebar-border" />
+          <span className="flex min-w-18 shrink-0 justify-end">
+            <Skeleton className="h-3 w-5 bg-sidebar-border" />
+          </span>
         </div>
         <div className={cn("mt-1 flex min-w-0 items-center gap-2", coding ? "h-5" : "h-6")}>
           <Skeleton className="h-3.5 w-4/5 bg-sidebar-border" />
@@ -2160,7 +2171,10 @@ function SessionStatus({
   ) : session.status === "idle" ? (
     formatShortAge(new Date(session.updated_at).getTime())
   ) : (
-    <span className="flex items-center gap-1 font-medium text-info" role="status">
+    <span
+      className="flex items-center gap-1 font-medium text-info motion-safe:animate-in motion-safe:duration-150 motion-safe:fade-in-0"
+      role="status"
+    >
       <LoaderCircle aria-hidden="true" className="size-3 motion-safe:animate-spin" />
       Working
     </span>
@@ -2448,7 +2462,9 @@ function SessionCardView({
                 <span className="min-w-0 flex-1 truncate font-semibold">
                   {showAgent ? session.agent_name : null}
                 </span>
-                <span className="shrink-0 tabular-nums">{status}</span>
+                <span className="flex min-w-18 shrink-0 items-center justify-end tabular-nums">
+                  {status}
+                </span>
               </div>
               <div className={cn("mt-1 flex min-w-0 items-center gap-2", coding ? "h-5" : "h-6")}>
                 <h3

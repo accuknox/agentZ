@@ -9,6 +9,12 @@ import {
 import { workflowAgentName, workflowErrorOutput } from "../lib/workflow"
 
 const args = {
+  subscribe: tool.schema
+    .boolean()
+    .optional()
+    .describe(
+      "Notify this conversation of each workflow run. Delete the schedule to unsubscribe. Defaults to false."
+    ),
   name: tool.schema
     .string()
     .min(1)
@@ -51,6 +57,8 @@ Create a workflow schedule.
 Use this tool when the user wants a saved workflow to run on a cron schedule.
 
 Authoring rules:
+- Set subscribe=true to notify this conversation after each run, including failures.
+- Delete the schedule to unsubscribe.
 - name and workflow_name must be DNS labels up to 32 characters.
 - For a typed-input workflow, pass runtime values in inputs.
 - For an arbitrary_json workflow, pass one JSON-encoded value in arbitrary_json.
@@ -103,7 +111,7 @@ export default tool({
     }
 
     const bodyInput = {
-      context_session_id: context.sessionID,
+      context_session_id: args.subscribe ? context.sessionID : undefined,
       name: args.name,
       schedule: args.schedule.trim(),
       inputs: resolved.value,
@@ -151,7 +159,10 @@ export default tool({
       return (
         `Created workflow schedule ${result.data.name} for agent ` +
         `${result.data.agent_name}. It will run workflow ` +
-        `${result.data.workflow_name} on schedule ${result.data.schedule}.`
+        `${result.data.workflow_name} on schedule ${result.data.schedule}.` +
+        (result.data.delivery
+          ? " This conversation will receive each run result. Delete the schedule to unsubscribe."
+          : "")
       )
     }
 

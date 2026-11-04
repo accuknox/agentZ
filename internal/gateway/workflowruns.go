@@ -77,10 +77,6 @@ func (s *Service) PatchWorkflowRunStatus(w http.ResponseWriter, r *http.Request,
 		apiutil.WriteError(w, r, apiErr)
 		return
 	}
-	if req.NoChange != nil && *req.NoChange && req.Phase != gatewayapi.WorkflowRunTerminalPhaseSucceeded {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "Only successful runs may report no change", nil))
-		return
-	}
 	err = workflow.PatchRunStatus(
 		r.Context(),
 		s.k8sClient,
@@ -961,16 +957,35 @@ func (s *Service) enqueueWorkflowSession(ctx context.Context, access resourceAcc
 	if run.Spec.Delivery == nil {
 		return nil
 	}
-	err := s.authorizeWorkflowDelivery(ctx, access, run.Spec.AgentName, run.Spec.Delivery)
-	if !run.Status.Phase.Terminal() {
-		return err
-	}
-	quiet := run.Status.Phase == agentzv1alpha1.WorkflowRunPhaseSucceeded && run.Status.NoChange
-	if errors.Is(err, pgx.ErrNoRows) || quiet {
-		return nil
-	}
+	release, err := s.lockChatInputs(ctx, access.workspaceID, run.Spec.AgentName, run.Spec.Delivery.SessionID, "")
 	if err != nil {
 		return err
+	}
+	defer release()
+	if err := s.authorizeWorkflowDelivery(ctx, access, run.Spec.AgentName, run.Spec.Delivery); err != nil {
+		return err
+	}
+	if !run.DeletionTimestamp.IsZero() {
+		return pgx.ErrNoRows
+	}
+	if run.Spec.ScheduleRef != nil {
+		schedule := &agentzv1alpha1.WorkflowSchedule{}
+		key := ctrlclient.ObjectKey{Namespace: run.Namespace, Name: run.Spec.ScheduleRef.Name}
+		err := s.k8sClient.Get(ctx, key, schedule)
+		if apierrors.IsNotFound(err) {
+			return pgx.ErrNoRows
+		}
+		if err != nil {
+			return err
+		}
+		// A recreated schedule is a new subscription and cannot revive an old run.
+		owner := metav1.GetControllerOf(run)
+		if owner == nil || owner.UID != schedule.UID || !schedule.DeletionTimestamp.IsZero() {
+			return pgx.ErrNoRows
+		}
+	}
+	if !run.Status.Phase.Terminal() {
+		return nil
 	}
 	aborted := apimeta.FindStatusCondition(run.Status.Conditions, agentzv1alpha1.WorkflowRunConditionSessionAborted)
 	if aborted != nil && aborted.Status != metav1.ConditionTrue {
@@ -997,18 +1012,6 @@ func (s *Service) enqueueWorkflowSession(ctx context.Context, access resourceAcc
 				return nil
 			}
 		}
-	}
-	release, err := s.lockChatInputs(ctx, access.workspaceID, run.Spec.AgentName, run.Spec.Delivery.SessionID, "")
-	if err != nil {
-		return err
-	}
-	defer release()
-	err = s.authorizeWorkflowDelivery(ctx, access, run.Spec.AgentName, run.Spec.Delivery)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil
-		}
-		return err
 	}
 	text := fmt.Sprintf("Workflow %s run %s finished with status %s. OpenCode session: %s.",
 		run.Spec.WorkflowName, run.Name, run.Status.Phase, run.Status.SessionID)

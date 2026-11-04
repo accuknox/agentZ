@@ -148,7 +148,6 @@ type ChatInputOrigin string
 
 const (
 	ChatInputOriginUser           ChatInputOrigin = "user"
-	ChatInputOriginPulse          ChatInputOrigin = "pulse"
 	ChatInputOriginWorkflowResult ChatInputOrigin = "workflow_result"
 )
 
@@ -870,11 +869,10 @@ func (ns NullWorkspaceType) Value() (driver.Value, error) {
 }
 
 type Agent struct {
-	PulseIntervalSeconds int32     `json:"pulse_interval_seconds"`
-	TenantNamespace      string    `json:"tenant_namespace"`
-	AgentName            string    `json:"agent_name"`
-	CreatedAt            time.Time `json:"created_at"`
-	UpdatedAt            time.Time `json:"updated_at"`
+	TenantNamespace string    `json:"tenant_namespace"`
+	AgentName       string    `json:"agent_name"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 type AgentOwner struct {
@@ -946,9 +944,6 @@ type ChatSession struct {
 	SourceUpdatedAt    pgtype.Timestamptz `json:"source_updated_at"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
-	Pulse              bool               `json:"pulse"`
-	NextCheckAt        pgtype.Timestamptz `json:"next_check_at"`
-	CheckRequestedAt   pgtype.Timestamptz `json:"check_requested_at"`
 	Deleting           bool               `json:"deleting"`
 	CleanupCompletedAt pgtype.Timestamptz `json:"cleanup_completed_at"`
 	Generation         int64              `json:"generation"`

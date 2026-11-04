@@ -22,7 +22,6 @@ import {
   createInferenceProvider,
   createInferenceProviderOAuthTicket,
   createMcpConnection,
-  createPulseChat,
   createSandbox,
   createSkill,
   createWorkflow,
@@ -60,7 +59,6 @@ import {
   getAppMcpGraph,
   getAppOperation,
   getAppTraceChart,
-  getChatPulse,
   getChatSessionPreference,
   getCodingOperation,
   getCodingProject,
@@ -229,9 +227,6 @@ import type {
   CreateMcpConnectionData,
   CreateMcpConnectionError,
   CreateMcpConnectionResponse,
-  CreatePulseChatData,
-  CreatePulseChatError,
-  CreatePulseChatResponse,
   CreateSandboxData,
   CreateSandboxError,
   CreateSandboxResponse,
@@ -342,9 +337,6 @@ import type {
   GetAppTraceChartData,
   GetAppTraceChartError,
   GetAppTraceChartResponse,
-  GetChatPulseData,
-  GetChatPulseError,
-  GetChatPulseResponse,
   GetChatSessionPreferenceData,
   GetChatSessionPreferenceError,
   GetChatSessionPreferenceResponse,
@@ -1504,58 +1496,6 @@ export const listChatSessionsOptions = (options?: Options<ListChatSessionsData>)
       return data
     },
     queryKey: listChatSessionsQueryKey(options),
-  })
-
-/**
- * Create a shared Pulse conversation in a General workspace.
- */
-export const createPulseChatMutation = (
-  options?: Partial<Options<CreatePulseChatData>>
-): UseMutationOptions<
-  CreatePulseChatResponse,
-  CreatePulseChatError,
-  Options<CreatePulseChatData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    CreatePulseChatResponse,
-    CreatePulseChatError,
-    Options<CreatePulseChatData>
-  > = {
-    mutationFn: async (fnOptions) => {
-      const { data } = await createPulseChat({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      })
-      return data
-    },
-  }
-  return mutationOptions
-}
-
-export const getChatPulseQueryKey = (options: Options<GetChatPulseData>) =>
-  createQueryKey("getChatPulse", options)
-
-/**
- * Read conversation background activity.
- */
-export const getChatPulseOptions = (options: Options<GetChatPulseData>) =>
-  queryOptions<
-    GetChatPulseResponse,
-    GetChatPulseError,
-    GetChatPulseResponse,
-    ReturnType<typeof getChatPulseQueryKey>
-  >({
-    queryFn: async ({ queryKey, signal }) => {
-      const { data } = await getChatPulse({
-        ...options,
-        ...queryKey[0],
-        signal,
-        throwOnError: true,
-      })
-      return data
-    },
-    queryKey: getChatPulseQueryKey(options),
   })
 
 export const listChatBackgroundQueryKey = (options: Options<ListChatBackgroundData>) =>

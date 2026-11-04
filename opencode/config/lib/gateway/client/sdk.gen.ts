@@ -47,9 +47,6 @@ import type {
   CreateMcpConnectionData,
   CreateMcpConnectionErrors,
   CreateMcpConnectionResponses,
-  CreatePulseChatData,
-  CreatePulseChatErrors,
-  CreatePulseChatResponses,
   CreateSandboxData,
   CreateSandboxErrors,
   CreateSandboxResponses,
@@ -161,9 +158,6 @@ import type {
   GetAppTraceChartData,
   GetAppTraceChartErrors,
   GetAppTraceChartResponses,
-  GetChatPulseData,
-  GetChatPulseErrors,
-  GetChatPulseResponses,
   GetChatSessionPreferenceData,
   GetChatSessionPreferenceErrors,
   GetChatSessionPreferenceResponses,
@@ -978,34 +972,6 @@ export const listChatSessions = <ThrowOnError extends boolean = false>(
   (options?.client ?? client).get<ListChatSessionsResponses, ListChatSessionsErrors, ThrowOnError>({
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/chat-session",
-    ...options,
-  })
-
-/**
- * Create a shared Pulse conversation in a General workspace.
- */
-export const createPulseChat = <ThrowOnError extends boolean = false>(
-  options: Options<CreatePulseChatData, ThrowOnError>
-) =>
-  (options.client ?? client).post<CreatePulseChatResponses, CreatePulseChatErrors, ThrowOnError>({
-    security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/chat-session",
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  })
-
-/**
- * Read conversation background activity.
- */
-export const getChatPulse = <ThrowOnError extends boolean = false>(
-  options: Options<GetChatPulseData, ThrowOnError>
-) =>
-  (options.client ?? client).get<GetChatPulseResponses, GetChatPulseErrors, ThrowOnError>({
-    security: [{ scheme: "bearer", type: "http" }],
-    url: "/api/chat-session/{agentName}/{sessionId}/pulse",
     ...options,
   })
 

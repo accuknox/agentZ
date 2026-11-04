@@ -5,7 +5,6 @@ import {
   zAgentName,
   zAgentAppearance,
   zAgent,
-  zPulseIntervalSeconds,
   zAgentOpencodeConfig,
   zMcpConnectionName,
   zResourceReference,
@@ -464,7 +463,6 @@ export const createAgentSimpleFormSchema = z.object({
   sandboxName: sandboxNameSchema,
   skills: z.array(zResourceReference.extend({ name: zSkillName })),
   memoryEnabled: z.boolean(),
-  pulseIntervalSeconds: zPulseIntervalSeconds.multipleOf(60),
   instruction: zAgentOpencodeConfig.shape.instruction.unwrap(),
 })
 

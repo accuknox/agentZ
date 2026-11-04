@@ -164,12 +164,12 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		}
 		r = r.WithContext(ctx)
 	}
-	pulseRelease, pulseErr := s.enforcePulseChat(r, access, route, agentName)
-	if pulseRelease != nil {
-		defer pulseRelease()
+	guardRelease, guardErr := s.guardChat(r, access, route, agentName)
+	if guardRelease != nil {
+		defer guardRelease()
 	}
-	if pulseErr != nil {
-		apiutil.WriteError(w, r, mapGatewayStoreError("get conversation", pulseErr))
+	if guardErr != nil {
+		apiutil.WriteError(w, r, mapGatewayStoreError("get conversation", guardErr))
 		return
 	}
 	auth, authenticated := requestAuthState(r.Context())
@@ -249,14 +249,14 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 			apiutil.WriteError(w, r, mapGatewayStoreError("submit input", err))
 			return
 		}
-		root, pulse, guardErr := s.authorizeChat(r.Context(), access, agentName, sessionID)
+		root, eligible, guardErr := s.authorizeChat(r.Context(), access, agentName, sessionID)
 		if guardErr != nil {
 			release()
 			apiutil.WriteError(w, r, mapGatewayStoreError("get conversation", guardErr))
 			return
 		}
-		if route.ID == "session.delete" && pulse && root.SessionID == sessionID {
-			_, err := s.queries.GatewayDeletePulseChat(r.Context(), gatewaydb.GatewayDeletePulseChatParams{
+		if route.ID == "session.delete" && eligible && root.SessionID == sessionID {
+			_, err := s.queries.GatewayMarkChatDeleting(r.Context(), gatewaydb.GatewayMarkChatDeletingParams{
 				WorkspaceID: access.workspaceID,
 				AgentName:   agentName,
 				SessionID:   sessionID,
@@ -272,9 +272,9 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 				SessionID:   sessionID,
 			})
 			release()
-			if err := s.cleanPulseChat(r.Context(), access, root); err != nil {
-				apiutil.WriteInternalError(w, r, err)
-				return
+			if err := s.cleanChat(r.Context(), access, root); err != nil {
+				// The tombstone already accepted deletion; the cleanup worker retries it.
+				slog.ErrorContext(r.Context(), "defer conversation cleanup", "session", sessionID, "error", err)
 			}
 			apiutil.WriteJSON(w, http.StatusOK, true)
 			return
@@ -1086,22 +1086,6 @@ func (s *Service) storeOpenCodeSession(ctx context.Context, workspaceID, agentNa
 	var parentID pgtype.Text
 	if session.ParentID != nil {
 		parentID = pgtype.Text{String: *session.ParentID, Valid: true}
-	}
-	if strings.HasPrefix(session.Id, pulseSessionPrefix) {
-		root, err := s.queries.GatewayGetChatSession(ctx, gatewaydb.GatewayGetChatSessionParams{
-			WorkspaceID: workspaceID,
-			AgentName:   agentName,
-			SessionID:   session.Id,
-		})
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		if !root.Pulse || root.Deleting {
-			return nil
-		}
 	}
 	tx, err := s.db.Begin(ctx)
 	if err != nil {

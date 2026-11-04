@@ -2551,10 +2551,8 @@ function SessionCardView({
           <DialogHeader>
             <DialogTitle>Delete chat?</DialogTitle>
             <DialogDescription>
-              Deleting <span className="font-medium">{session.title}</span> cannot be undone.
-              {session.pulse
-                ? " Automatic follow-ups, linked schedules, and their active runs will stop."
-                : null}
+              Deleting <span className="font-medium">{session.title}</span> cannot be undone. Linked
+              workflow schedules and their runs will also be deleted.
             </DialogDescription>
           </DialogHeader>
           {pendingState.error ? (

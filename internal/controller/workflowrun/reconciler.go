@@ -87,20 +87,19 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	if !run.DeletionTimestamp.IsZero() {
+		err = r.finalizeRun(ctx, run)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("finalize workflow run: %w", err)
+		}
+		return ctrl.Result{}, nil
+	}
+
 	message := run.Annotations[agentzv1alpha1.WorkflowRunAnnotationTriggerFailure]
 	if message != "" && !run.Status.Phase.Terminal() {
 		return ctrl.Result{}, r.failRun(ctx, run, agentzv1alpha1.WorkflowRunReasonGatewayError, message)
 	}
 	if run.Spec.Delivery != nil {
-		if !run.DeletionTimestamp.IsZero() && !run.Status.Phase.Terminal() {
-			err := r.failRun(ctx, run, agentzv1alpha1.WorkflowRunReasonCanceled, "Workflow run canceled")
-			if err != nil {
-				return ctrl.Result{}, err
-			}
-			if err := r.Get(ctx, req.NamespacedName, run); err != nil {
-				return ctrl.Result{}, client.IgnoreNotFound(err)
-			}
-		}
 		if run.Status.Phase.Terminal() {
 			if err := r.syncTerminalStatus(ctx, run); err != nil {
 				return ctrl.Result{}, err
@@ -122,7 +121,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			switch response.StatusCode() {
 			case http.StatusNoContent:
 			case http.StatusNotFound, http.StatusForbidden:
-				if !run.Status.Phase.Terminal() && run.DeletionTimestamp.IsZero() {
+				if !run.Status.Phase.Terminal() {
 					return ctrl.Result{}, r.failRun(
 						ctx, run, agentzv1alpha1.WorkflowRunReasonGatewayError, "Conversation destination is no longer available",
 					)
@@ -143,13 +142,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if err := r.Get(ctx, req.NamespacedName, run); err != nil {
 			return ctrl.Result{}, client.IgnoreNotFound(err)
 		}
-	}
-	if !run.DeletionTimestamp.IsZero() {
-		err = r.finalizeRun(ctx, run)
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("finalize workflow run: %w", err)
-		}
-		return ctrl.Result{}, nil
 	}
 
 	var workspace agentzv1alpha1.Workspace

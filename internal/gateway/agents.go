@@ -468,16 +468,11 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var interval pgtype.Int4
-	if req.PulseIntervalSeconds != nil {
-		interval = pgtype.Int4{Int32: *req.PulseIntervalSeconds, Valid: true}
-	}
 	row, err := q.GatewayCreateAgent(
 		r.Context(),
 		gatewaydb.GatewayCreateAgentParams{
-			TenantNamespace:      ns,
-			AgentName:            name,
-			PulseIntervalSeconds: interval,
+			TenantNamespace: ns,
+			AgentName:       name,
 		},
 	)
 	if err != nil {
@@ -565,10 +560,9 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		w,
 		http.StatusCreated,
 		gatewayapi.Agent{
-			Appearance:           agt.Spec.Appearance,
-			Name:                 row.AgentName,
-			Sandbox:              req.Sandbox,
-			PulseIntervalSeconds: row.PulseIntervalSeconds,
+			Appearance: agt.Spec.Appearance,
+			Name:       row.AgentName,
+			Sandbox:    req.Sandbox,
 			Opencode: &gatewayapi.AgentOpencodeConfig{
 				Instruction: &agt.Spec.Instruction,
 			},
@@ -656,7 +650,7 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 	}
 	empty := req.Appearance == nil && req.Env == nil &&
 		req.Sandbox == nil && req.Opencode == nil &&
-		req.Memory == nil && req.Skills == nil && req.AutoArchiveHours == nil && req.PulseIntervalSeconds == nil
+		req.Memory == nil && req.Skills == nil && req.AutoArchiveHours == nil
 	if empty {
 		apiutil.WriteError(w, r, apiutil.NewError(
 			http.StatusBadRequest,
@@ -720,7 +714,7 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 	defer tx.Rollback(r.Context())
 
 	q := gatewaydb.New(tx)
-	previous, err := q.GatewayLockAgent(r.Context(), gatewaydb.GatewayLockAgentParams{
+	_, err = q.GatewayLockAgent(r.Context(), gatewaydb.GatewayLockAgentParams{
 		TenantNamespace: ns,
 		AgentName:       name,
 	})
@@ -729,17 +723,12 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		apiutil.WriteError(w, r, mapGatewayStoreError("update agent", err))
 		return
 	}
-	var interval pgtype.Int4
-	if req.PulseIntervalSeconds != nil {
-		interval = pgtype.Int4{Int32: *req.PulseIntervalSeconds, Valid: true}
-	}
 	row, err = q.GatewayTouchAgent(
 		r.Context(),
 		gatewaydb.GatewayTouchAgentParams{
-			TenantNamespace:      ns,
-			AgentName:            name,
-			UpdatedAt:            time.Now().UTC(),
-			PulseIntervalSeconds: interval,
+			TenantNamespace: ns,
+			AgentName:       name,
+			UpdatedAt:       time.Now().UTC(),
 		},
 	)
 	if err != nil {
@@ -755,17 +744,6 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 			return
 		}
 	}
-	if row.PulseIntervalSeconds != previous.PulseIntervalSeconds {
-		err = q.GatewayRescheduleAgentChecks(r.Context(), gatewaydb.GatewayRescheduleAgentChecksParams{
-			TenantNamespace: ns,
-			AgentName:       name,
-		})
-		if err != nil {
-			s.rollbackAgentUpdate(r.Context(), ns, before)
-			apiutil.WriteInternalError(w, r, err)
-			return
-		}
-	}
 
 	err = createAgentEventTrail(
 		r.Context(),
@@ -774,8 +752,8 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 			access: access,
 			name:   name,
 			action: "agent.modify",
-			before: agentConfigurationEventTrailFields(name, before, previous.PulseIntervalSeconds),
-			after:  agentConfigurationEventTrailFields(name, updated, row.PulseIntervalSeconds),
+			before: agentConfigurationEventTrailFields(name, before),
+			after:  agentConfigurationEventTrailFields(name, updated),
 		},
 	)
 	if err != nil {
@@ -808,10 +786,9 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		w,
 		http.StatusOK,
 		gatewayapi.Agent{
-			Appearance:           updated.Spec.Appearance,
-			Name:                 row.AgentName,
-			Sandbox:              resourceReferenceFromCRD(updated.Spec.SandboxRef),
-			PulseIntervalSeconds: row.PulseIntervalSeconds,
+			Appearance: updated.Spec.Appearance,
+			Name:       row.AgentName,
+			Sandbox:    resourceReferenceFromCRD(updated.Spec.SandboxRef),
 			Opencode: &gatewayapi.AgentOpencodeConfig{
 				Instruction: &updated.Spec.Instruction,
 			},
@@ -1729,7 +1706,6 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 				prevItem.Sandbox == item.Sandbox &&
 				prevItem.Memory == item.Memory &&
 				prevItem.AutoArchiveHours == item.AutoArchiveHours &&
-				prevItem.PulseIntervalSeconds == item.PulseIntervalSeconds &&
 				*prevItem.Opencode.Instruction == *item.Opencode.Instruction &&
 				prevItem.LastActivity.Equal(item.LastActivity) &&
 				prevItem.CreatedAt.Equal(item.CreatedAt) &&
@@ -2409,7 +2385,7 @@ func createAgentEventTrail(ctx context.Context, q gatewaydb.Querier, event agent
 	return nil
 }
 
-func agentConfigurationEventTrailFields(agentName string, agent *agentzv1alpha1.Agent, interval int32) []gatewayapi.EventTrailField {
+func agentConfigurationEventTrailFields(agentName string, agent *agentzv1alpha1.Agent) []gatewayapi.EventTrailField {
 	if agent == nil {
 		return []gatewayapi.EventTrailField{{Field: gatewayapi.EventTrailFieldName, Value: agentName}}
 	}
@@ -2420,12 +2396,11 @@ func agentConfigurationEventTrailFields(agentName string, agent *agentzv1alpha1.
 	}
 	slices.Sort(skills)
 	state := fmt.Sprintf(
-		"sandbox=%s/%s; memory=%t; skills=%s; pulse_interval_seconds=%d",
+		"sandbox=%s/%s; memory=%t; skills=%s",
 		agent.Spec.SandboxRef.Scope,
 		agent.Spec.SandboxRef.Name,
 		agent.Spec.Memory.Enabled,
 		strings.Join(skills, ","),
-		interval,
 	)
 	return []gatewayapi.EventTrailField{
 		{Field: gatewayapi.EventTrailFieldName, Value: agentName},
@@ -2525,10 +2500,9 @@ func (s *Service) listAgentItems(ctx context.Context, q gatewaydb.GatewayListAge
 		items = append(
 			items,
 			gatewayapi.Agent{
-				Appearance:           agt.Spec.Appearance,
-				Name:                 row.AgentName,
-				Sandbox:              resourceReferenceFromCRD(agt.Spec.SandboxRef),
-				PulseIntervalSeconds: row.PulseIntervalSeconds,
+				Appearance: agt.Spec.Appearance,
+				Name:       row.AgentName,
+				Sandbox:    resourceReferenceFromCRD(agt.Spec.SandboxRef),
 				Opencode: &gatewayapi.AgentOpencodeConfig{
 					Instruction: &agt.Spec.Instruction,
 				},

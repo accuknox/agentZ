@@ -82,7 +82,7 @@ func (s *Service) lockChatInputs(ctx context.Context, workspace, agent, session,
 			unlock()
 		}
 	}()
-	root, err := s.queries.GatewayPulseAncestor(ctx, gatewaydb.GatewayPulseAncestorParams{
+	root, err := s.queries.GatewayChatRoot(ctx, gatewaydb.GatewayChatRootParams{
 		WorkspaceID: workspace,
 		AgentName:   agent,
 		SessionID:   session,
@@ -425,29 +425,11 @@ func (s *Service) settleChatStop(ctx context.Context, access resourceAccess, age
 			return err
 		}
 	}
-	canceled, err := s.queries.GatewayCancelPulseChecks(ctx, gatewaydb.GatewayCancelPulseChecksParams{
-		WorkspaceID: access.workspaceID,
-		AgentName:   agent,
-		SessionID:   session,
-	})
-	if err != nil {
-		return err
-	}
-	if len(canceled) > 0 {
-		err = s.queries.GatewayReschedulePulse(ctx, gatewaydb.GatewayReschedulePulseParams{
-			WorkspaceID: access.workspaceID,
-			AgentName:   agent,
-			SessionID:   session,
-		})
-		if err != nil {
-			return err
-		}
-	}
 	client, err := s.agentClient(ctx, access.namespace, agent, s.outboundHTTP)
 	if err != nil {
 		return err
 	}
-	rows := canceled
+	var rows []gatewaydb.ChatInput
 	if indexed {
 		rows, err = s.queries.GatewayListChatInputs(ctx, gatewaydb.GatewayListChatInputsParams{
 			WorkspaceID: access.workspaceID,
@@ -458,7 +440,6 @@ func (s *Service) settleChatStop(ctx context.Context, access resourceAccess, age
 		if err != nil {
 			return err
 		}
-		rows = append(rows, canceled...)
 	}
 	deadline := time.Now().Add(10 * time.Second)
 	poll := time.NewTicker(250 * time.Millisecond)
@@ -625,9 +606,6 @@ func (s *Service) runChatInputs(ctx context.Context) {
 		case <-s.chatInputWake:
 		case <-ticker.C:
 		}
-		if err := s.queries.GatewayEnqueuePulseChecks(ctx); err != nil {
-			slog.ErrorContext(ctx, "enqueue pulse checks", "error", err)
-		}
 		rows, err := s.queries.GatewayPendingChatInputs(ctx, cursor)
 		if err != nil {
 			slog.ErrorContext(ctx, "read pending chat inputs", "error", err)
@@ -695,9 +673,6 @@ func (s *Service) reconcileChatInput(ctx context.Context, client *gatewayapi.Cli
 			var content gatewayapi.ChatInputContent
 			if err := json.Unmarshal(row.Content, &content); err != nil {
 				return row, err
-			}
-			if row.Origin == gatewaydb.ChatInputOriginPulse {
-				content.Text = pulsePrompt
 			}
 			text := gatewayapi.OpencodeTextPart{
 				Id:        row.PartID.String,
@@ -773,46 +748,12 @@ func (s *Service) reconcileChatInput(ctx context.Context, client *gatewayapi.Cli
 		row.State = string(gatewayapi.ChatInputStateDelivered)
 		row.Error = ""
 	case message.StatusCode() == http.StatusNotFound:
-		if row.Origin == gatewaydb.ChatInputOriginWorkflowResult {
-			var content gatewayapi.ChatInputContent
-			if err := json.Unmarshal(row.Content, &content); err != nil {
-				return row, err
-			}
-			var part gatewayapi.OpencodePromptPartInput
-			err := part.FromOpencodeTextPartInput(gatewayapi.OpencodeTextPartInput{
-				Id:        &row.PartID.String,
-				Type:      gatewayapi.OpencodeTextPartInputTypeText,
-				Text:      content.Text,
-				Synthetic: new(true),
-			})
-			if err != nil {
-				return row, err
-			}
-			body := gatewayapi.SessionPromptJSONRequestBody{
-				MessageID: &row.MessageID,
-				NoReply:   new(true),
-				Parts:     []gatewayapi.OpencodePromptPartInput{part},
-			}
-			row.State = string(gatewayapi.ChatInputStateSending)
-			row, err = s.saveChatInput(ctx, row)
-			if err != nil {
-				return row, err
-			}
-			response, err := client.SessionPromptWithResponse(ctx, row.AgentName, row.SessionID,
-				&gatewayapi.SessionPromptParams{Directory: &directory}, body)
-			if err != nil {
-				return row, err
-			}
-			if response.StatusCode() != http.StatusOK {
-				return row, fmt.Errorf("retry workflow session handoff: %s", response.Status())
-			}
-			return row, nil
-		}
 		row.State = string(gatewayapi.ChatInputStateFailed)
 		row.MessageID = ""
 		row.Error = "The agent did not receive this message. Retry or remove it."
-		if row.Origin == gatewaydb.ChatInputOriginPulse {
-			row.Error = "The Pulse check was not received. It will not be replayed. The next check will run at the configured interval."
+		if row.Origin != gatewaydb.ChatInputOriginUser {
+			row.State = string(gatewayapi.ChatInputStateQueued)
+			row.Error = ""
 		}
 	default:
 		return row, fmt.Errorf("could not confirm admission: %s", message.Status())
@@ -894,11 +835,11 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 		return err
 	}
 	if row.Origin != gatewaydb.ChatInputOriginUser {
-		root, pulse, err := s.authorizeChat(ctx, access, row.AgentName, row.SessionID)
+		root, eligible, err := s.authorizeChat(ctx, access, row.AgentName, row.SessionID)
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
-		if err != nil || !pulse || root.Generation != row.Generation || row.CompletedAt.Valid {
+		if err != nil || !eligible || root.Generation != row.Generation || row.CompletedAt.Valid {
 			if row.CompletedAt.Valid {
 				return nil
 			}
@@ -1024,20 +965,6 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 		if history.JSON200 == nil {
 			return errors.New("could not verify the previous turn")
 		}
-		contextInputs, err := s.queries.GatewayListChatBackground(ctx, gatewaydb.GatewayListChatBackgroundParams{
-			WorkspaceID: row.WorkspaceID,
-			AgentName:   row.AgentName,
-			SessionID:   row.SessionID,
-		})
-		if err != nil {
-			return err
-		}
-		contextOnly := make(map[string]bool)
-		for _, input := range contextInputs {
-			if input.Origin == gatewaydb.ChatInputOriginWorkflowResult && input.State == "delivered" {
-				contextOnly[input.MessageID] = true
-			}
-		}
 		var user gatewayapi.OpencodeUserMessage
 		var assistant gatewayapi.OpencodeAssistantMessage
 		for _, message := range *history.JSON200 {
@@ -1051,9 +978,7 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 				if err != nil {
 					return err
 				}
-				if !contextOnly[candidate.Id] {
-					user = candidate
-				}
+				user = candidate
 			case "assistant":
 				assistant, err = message.Info.AsOpencodeAssistantMessage()
 				if err != nil {
@@ -1062,10 +987,24 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 			}
 		}
 		unfinished := user.Id != "" && (assistant.ParentID != user.Id || assistant.Time.Completed == nil)
+		if user.Id != "" && !unfinished {
+			if assistant.Error != nil && !row.Resume && row.Origin == gatewaydb.ChatInputOriginUser {
+				row.State = string(gatewayapi.ChatInputStateFailed)
+				row.Error = "The previous run stopped with an error. Remove or retry this message to continue."
+				_, err = s.saveChatInput(ctx, row)
+				return err
+			}
+			finished := assistant.Finish != nil && *assistant.Finish != "tool-calls" && *assistant.Finish != "unknown"
+			unfinished = !row.Resume && assistant.Error == nil && !finished
+		}
 		if unfinished {
-			// A dead native process can leave an unfinished turn in otherwise idle
-			// history. Admit a new assessment, never replay the interrupted prompt.
-			if time.Since(time.UnixMilli(user.Time.Created)) < time.Minute {
+			// An interrupted tool turn can remain idle without a final response.
+			// Allow new work only after persistence settles and execution leases drain.
+			last := time.UnixMilli(user.Time.Created)
+			if assistant.Time.Completed != nil && assistant.ParentID == user.Id {
+				last = time.UnixMilli(int64(*assistant.Time.Completed))
+			}
+			if time.Since(last) < time.Minute {
 				return nil
 			}
 			active, err := s.queries.GatewayResourceBusy(ctx,
@@ -1074,28 +1013,10 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 				return err
 			}
 		}
-		if user.Id != "" && !unfinished {
-			if assistant.Error != nil && !row.Resume && row.Origin == gatewaydb.ChatInputOriginUser {
-				row.State = string(gatewayapi.ChatInputStateFailed)
-				row.Error = "The previous run stopped with an error. Remove or retry this message to continue."
-				_, err = s.saveChatInput(ctx, row)
-				return err
-			}
-			finished := false
-			if assistant.Finish != nil {
-				finished = *assistant.Finish != "tool-calls" && *assistant.Finish != "unknown"
-			}
-			if !row.Resume && assistant.Error == nil && !finished {
-				return nil
-			}
-		}
 	}
 	var content gatewayapi.ChatInputContent
 	if err := json.Unmarshal(row.Content, &content); err != nil {
 		return err
-	}
-	if row.Origin == gatewaydb.ChatInputOriginPulse {
-		content.Text = pulsePrompt
 	}
 	body := gatewayapi.SessionPromptAsyncJSONRequestBody{
 		Agent:   content.Agent,
@@ -1120,14 +1041,8 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 			ModelID:    session.JSON200.Model.Id,
 		}
 		body.Variant = session.JSON200.Model.Variant
-		if row.Origin == gatewaydb.ChatInputOriginPulse {
-			instruction := pulseInstruction
-			body.System = &instruction
-		}
-		if row.Origin == gatewaydb.ChatInputOriginWorkflowResult {
-			noReply := true
-			body.NoReply = &noReply
-		}
+		instruction := workflowNotificationInstruction
+		body.System = &instruction
 	}
 	for _, file := range content.Attachments {
 		filePath, _ := json.Marshal("/home/agentz/" + file.Path)
@@ -1193,31 +1108,9 @@ Use analyze_file when you need the contents of this file.
 	if err != nil {
 		return err
 	}
-	if row.Origin == gatewaydb.ChatInputOriginPulse {
-		err = s.queries.GatewayConsumePulseWake(ctx, gatewaydb.GatewayConsumePulseWakeParams{
-			WorkspaceID: row.WorkspaceID,
-			AgentName:   row.AgentName,
-			SessionID:   row.SessionID,
-		})
-		if err != nil {
-			return err
-		}
-	}
 	row.State = string(gatewayapi.ChatInputStateSending)
 	row, err = s.saveChatInput(ctx, row)
 	if err != nil {
-		return err
-	}
-	if row.Origin == gatewaydb.ChatInputOriginWorkflowResult {
-		response, err := client.SessionPromptWithBodyWithResponse(ctx, row.AgentName, row.SessionID,
-			&gatewayapi.SessionPromptParams{Directory: &directory}, "application/json", bytes.NewReader(raw))
-		if err != nil {
-			return err
-		}
-		if response.StatusCode() != http.StatusOK {
-			return fmt.Errorf("context insertion is uncertain: %s", response.Status())
-		}
-		_, err = s.reconcileChatInput(ctx, client, directory, row)
 		return err
 	}
 	response, err := client.SessionPromptAsyncWithBodyWithResponse(
@@ -1241,9 +1134,6 @@ Use analyze_file when you need the contents of this file.
 			"The agent rejected this message (%d). Remove or retry it.",
 			statusCode,
 		)
-		if row.Origin == gatewaydb.ChatInputOriginPulse {
-			row.Error = fmt.Sprintf("The agent rejected the Pulse check (%d). The next check will run at the configured interval.", statusCode)
-		}
 		_, err = s.saveChatInput(ctx, row)
 		return err
 	}

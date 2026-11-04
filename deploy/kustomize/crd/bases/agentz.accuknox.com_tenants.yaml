@@ -1,9 +1,8 @@
----
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.22.0
+    controller-gen.kubebuilder.io/version: v0.21.0
   name: tenants.agentz.accuknox.com
 spec:
   group: agentz.accuknox.com
@@ -77,26 +76,22 @@ spec:
                   existing Agent resources.
                 properties:
                   count:
-                    description: Count is the maximum number of Agents across the
-                      Organisation.
+                    description: Count is the maximum number of Agents across the Organisation.
                     format: int32
                     minimum: 1
                     type: integer
                   defaults:
-                    description: Defaults is copied to Agents created without explicit
-                      resources.
+                    description: Defaults is copied to Agents created without explicit resources.
                     properties:
                       qosClass:
-                        description: QoSClass determines how Resources are written
-                          to a new Agent.
+                        description: QoSClass determines how Resources are written to a new Agent.
                         enum:
                         - Guaranteed
                         - Burstable
                         - BestEffort
                         type: string
                       resources:
-                        description: Resources is the default whole-Pod CPU and memory
-                          allocation.
+                        description: Resources is the default whole-Pod CPU and memory allocation.
                         properties:
                           cpu:
                             anyOf:
@@ -109,8 +104,7 @@ spec:
                             anyOf:
                             - type: integer
                             - type: string
-                            description: Memory is measured in bytes using Kubernetes
-                              quantity syntax.
+                            description: Memory is measured in bytes using Kubernetes quantity syntax.
                             pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                             x-kubernetes-int-or-string: true
                         required:
@@ -122,8 +116,7 @@ spec:
                     - resources
                     type: object
                   resources:
-                    description: Resources is the Organisation-wide effective request
-                      budget.
+                    description: Resources is the Organisation-wide effective request budget.
                     properties:
                       cpu:
                         anyOf:
@@ -136,8 +129,7 @@ spec:
                         anyOf:
                         - type: integer
                         - type: string
-                        description: Memory is measured in bytes using Kubernetes
-                          quantity syntax.
+                        description: Memory is measured in bytes using Kubernetes quantity syntax.
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                         x-kubernetes-int-or-string: true
                     required:
@@ -158,8 +150,7 @@ spec:
                   limits for Agents in this Tenant.
                 properties:
                   dashboardsPerAgent:
-                    description: DashboardsPerAgent is the maximum number of dashboards
-                      owned by one Agent.
+                    description: DashboardsPerAgent is the maximum number of dashboards owned by one Agent.
                     format: int32
                     maximum: 25
                     minimum: 1
@@ -171,21 +162,18 @@ spec:
                         anyOf:
                         - type: integer
                         - type: string
-                        description: AcceptedBytesPerDay limits JSON bytes accepted
-                          from one Agent per day.
+                        description: AcceptedBytesPerDay limits JSON bytes accepted from one Agent per day.
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                         x-kubernetes-int-or-string: true
                       latestBytesPerAgent:
                         anyOf:
                         - type: integer
                         - type: string
-                        description: LatestBytesPerAgent limits current latest-widget
-                          data owned by one Agent.
+                        description: LatestBytesPerAgent limits current latest-widget data owned by one Agent.
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                         x-kubernetes-int-or-string: true
                       recordsPerRequest:
-                        description: RecordsPerRequest is the maximum number of records
-                          in one publish.
+                        description: RecordsPerRequest is the maximum number of records in one publish.
                         format: int32
                         minimum: 1
                         type: integer
@@ -197,20 +185,17 @@ spec:
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                         x-kubernetes-int-or-string: true
                       requestsPerMinutePerAgent:
-                        description: RequestsPerMinutePerAgent limits publish attempts
-                          by one Agent.
+                        description: RequestsPerMinutePerAgent limits publish attempts by one Agent.
                         format: int32
                         minimum: 1
                         type: integer
                       retainedTemporalRecords:
-                        description: RetainedTemporalRecords limits temporal records
-                          retained in this Tenant.
+                        description: RetainedTemporalRecords limits temporal records retained in this Tenant.
                         format: int64
                         minimum: 1
                         type: integer
                       temporalRecordsPerDay:
-                        description: TemporalRecordsPerDay limits temporal records
-                          accepted from one Agent per day.
+                        description: TemporalRecordsPerDay limits temporal records accepted from one Agent per day.
                         format: int64
                         minimum: 1
                         type: integer
@@ -227,26 +212,22 @@ spec:
                     description: Query limits dashboard reads.
                     properties:
                       cellsPerRequest:
-                        description: CellsPerRequest limits cells returned by one
-                          query.
+                        description: CellsPerRequest limits cells returned by one query.
                         format: int32
                         minimum: 1
                         type: integer
                       concurrentRequests:
-                        description: ConcurrentRequests limits active dashboard queries
-                          in this Tenant.
+                        description: ConcurrentRequests limits active dashboard queries in this Tenant.
                         format: int32
                         minimum: 1
                         type: integer
                       pointsPerSeries:
-                        description: PointsPerSeries limits returned points for one
-                          chart series.
+                        description: PointsPerSeries limits returned points for one chart series.
                         format: int32
                         minimum: 1
                         type: integer
                       requestsPerMinutePerUser:
-                        description: RequestsPerMinutePerUser limits query attempts
-                          by one user.
+                        description: RequestsPerMinutePerUser limits query attempts by one user.
                         format: int32
                         minimum: 1
                         type: integer
@@ -258,14 +239,12 @@ spec:
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                         x-kubernetes-int-or-string: true
                       returnedCellsPerHour:
-                        description: ReturnedCellsPerHour limits cells returned in
-                          this Tenant per hour.
+                        description: ReturnedCellsPerHour limits cells returned in this Tenant per hour.
                         format: int64
                         minimum: 1
                         type: integer
                       timeout:
-                        description: Timeout limits PostgreSQL execution time for
-                          one query.
+                        description: Timeout limits PostgreSQL execution time for one query.
                         type: string
                     required:
                     - cellsPerRequest
@@ -277,8 +256,7 @@ spec:
                     - timeout
                     type: object
                   widgetsPerDashboard:
-                    description: WidgetsPerDashboard is the maximum number of widgets
-                      in one dashboard.
+                    description: WidgetsPerDashboard is the maximum number of widgets in one dashboard.
                     format: int32
                     minimum: 1
                     type: integer
@@ -289,12 +267,10 @@ spec:
                 - widgetsPerDashboard
                 type: object
               guardrails:
-                description: Guardrails configures the mandatory organization baseline
-                  and audit controls.
+                description: Guardrails configures the mandatory organization baseline and audit controls.
                 properties:
                   mandatoryPolicies:
-                    description: MandatoryPolicies is the ordered organization policy
-                      baseline.
+                    description: MandatoryPolicies is the ordered organization policy baseline.
                     items:
                       type: string
                     type: array
@@ -352,8 +328,7 @@ spec:
                             anyOf:
                             - type: integer
                             - type: string
-                            description: Memory is measured in bytes using Kubernetes
-                              quantity syntax.
+                            description: Memory is measured in bytes using Kubernetes quantity syntax.
                             pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                             x-kubernetes-int-or-string: true
                         required:
@@ -374,8 +349,7 @@ spec:
                             anyOf:
                             - type: integer
                             - type: string
-                            description: Memory is measured in bytes using Kubernetes
-                              quantity syntax.
+                            description: Memory is measured in bytes using Kubernetes quantity syntax.
                             pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                             x-kubernetes-int-or-string: true
                         required:
@@ -396,8 +370,7 @@ spec:
                             anyOf:
                             - type: integer
                             - type: string
-                            description: Memory is measured in bytes using Kubernetes
-                              quantity syntax.
+                            description: Memory is measured in bytes using Kubernetes quantity syntax.
                             pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                             x-kubernetes-int-or-string: true
                         required:
@@ -414,11 +387,9 @@ spec:
                 - resources
                 type: object
               conditions:
-                description: Conditions represent the current state of the Tenant
-                  resource.
+                description: Conditions represent the current state of the Tenant resource.
                 items:
-                  description: Condition contains details for one aspect of the current
-                    state of this API Resource.
+                  description: Condition contains details for one aspect of the current state of this API Resource.
                   properties:
                     lastTransitionTime:
                       description: |-
@@ -478,12 +449,10 @@ spec:
                 description: DashboardQuota reports the effective dashboard limits.
                 properties:
                   limits:
-                    description: DashboardQuota limits dashboard definitions, ingestion,
-                      and queries.
+                    description: DashboardQuota limits dashboard definitions, ingestion, and queries.
                     properties:
                       dashboardsPerAgent:
-                        description: DashboardsPerAgent is the maximum number of dashboards
-                          owned by one Agent.
+                        description: DashboardsPerAgent is the maximum number of dashboards owned by one Agent.
                         format: int32
                         maximum: 25
                         minimum: 1
@@ -495,21 +464,18 @@ spec:
                             anyOf:
                             - type: integer
                             - type: string
-                            description: AcceptedBytesPerDay limits JSON bytes accepted
-                              from one Agent per day.
+                            description: AcceptedBytesPerDay limits JSON bytes accepted from one Agent per day.
                             pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                             x-kubernetes-int-or-string: true
                           latestBytesPerAgent:
                             anyOf:
                             - type: integer
                             - type: string
-                            description: LatestBytesPerAgent limits current latest-widget
-                              data owned by one Agent.
+                            description: LatestBytesPerAgent limits current latest-widget data owned by one Agent.
                             pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                             x-kubernetes-int-or-string: true
                           recordsPerRequest:
-                            description: RecordsPerRequest is the maximum number of
-                              records in one publish.
+                            description: RecordsPerRequest is the maximum number of records in one publish.
                             format: int32
                             minimum: 1
                             type: integer
@@ -517,25 +483,21 @@ spec:
                             anyOf:
                             - type: integer
                             - type: string
-                            description: RequestBytes is the maximum JSON request
-                              size.
+                            description: RequestBytes is the maximum JSON request size.
                             pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                             x-kubernetes-int-or-string: true
                           requestsPerMinutePerAgent:
-                            description: RequestsPerMinutePerAgent limits publish
-                              attempts by one Agent.
+                            description: RequestsPerMinutePerAgent limits publish attempts by one Agent.
                             format: int32
                             minimum: 1
                             type: integer
                           retainedTemporalRecords:
-                            description: RetainedTemporalRecords limits temporal records
-                              retained in this Tenant.
+                            description: RetainedTemporalRecords limits temporal records retained in this Tenant.
                             format: int64
                             minimum: 1
                             type: integer
                           temporalRecordsPerDay:
-                            description: TemporalRecordsPerDay limits temporal records
-                              accepted from one Agent per day.
+                            description: TemporalRecordsPerDay limits temporal records accepted from one Agent per day.
                             format: int64
                             minimum: 1
                             type: integer
@@ -552,26 +514,22 @@ spec:
                         description: Query limits dashboard reads.
                         properties:
                           cellsPerRequest:
-                            description: CellsPerRequest limits cells returned by
-                              one query.
+                            description: CellsPerRequest limits cells returned by one query.
                             format: int32
                             minimum: 1
                             type: integer
                           concurrentRequests:
-                            description: ConcurrentRequests limits active dashboard
-                              queries in this Tenant.
+                            description: ConcurrentRequests limits active dashboard queries in this Tenant.
                             format: int32
                             minimum: 1
                             type: integer
                           pointsPerSeries:
-                            description: PointsPerSeries limits returned points for
-                              one chart series.
+                            description: PointsPerSeries limits returned points for one chart series.
                             format: int32
                             minimum: 1
                             type: integer
                           requestsPerMinutePerUser:
-                            description: RequestsPerMinutePerUser limits query attempts
-                              by one user.
+                            description: RequestsPerMinutePerUser limits query attempts by one user.
                             format: int32
                             minimum: 1
                             type: integer
@@ -583,14 +541,12 @@ spec:
                             pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                             x-kubernetes-int-or-string: true
                           returnedCellsPerHour:
-                            description: ReturnedCellsPerHour limits cells returned
-                              in this Tenant per hour.
+                            description: ReturnedCellsPerHour limits cells returned in this Tenant per hour.
                             format: int64
                             minimum: 1
                             type: integer
                           timeout:
-                            description: Timeout limits PostgreSQL execution time
-                              for one query.
+                            description: Timeout limits PostgreSQL execution time for one query.
                             type: string
                         required:
                         - cellsPerRequest
@@ -602,8 +558,7 @@ spec:
                         - timeout
                         type: object
                       widgetsPerDashboard:
-                        description: WidgetsPerDashboard is the maximum number of
-                          widgets in one dashboard.
+                        description: WidgetsPerDashboard is the maximum number of widgets in one dashboard.
                         format: int32
                         minimum: 1
                         type: integer
@@ -617,8 +572,7 @@ spec:
                 - limits
                 type: object
               namespace:
-                description: Namespace is the isolated Kubernetes namespace for this
-                  tenant.
+                description: Namespace is the isolated Kubernetes namespace for this tenant.
                 type: string
               observedGeneration:
                 description: ObservedGeneration is the latest reconciled generation.

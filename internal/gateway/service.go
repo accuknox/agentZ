@@ -415,7 +415,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		svc.runEventTrailRetention,
 		svc.runDashboardRetention,
 		svc.runChatInputs,
-		svc.runPulseChats,
+		svc.runChatCleanup,
 		svc.runCoding,
 		svc.listenCoding,
 		svc.runCleanupJobs,

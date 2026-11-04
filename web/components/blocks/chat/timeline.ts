@@ -328,10 +328,7 @@ export function projectTimeline(input: ProjectInput): {
         parts.some(
           (part) => part.type === "text" && part.synthetic && part.metadata?.["agentz.dev/input-id"]
         )
-      backgroundTurn =
-        backgroundByMessage.get(message.id)?.origin === "pulse" || pendingBackground
-          ? turn
-          : undefined
+      backgroundTurn = backgroundByMessage.has(message.id) || pendingBackground ? turn : undefined
       compactionID = undefined
       compacted = false
       continue
@@ -408,13 +405,11 @@ export function projectTimeline(input: ProjectInput): {
             type: "assistant-error",
             key: `background-error:${turn.user.id}`,
             body: background.error,
-            label: background.origin === "pulse" ? "Pulse check failed" : "Workflow update failed",
+            label: "Workflow update failed",
             partialOutput: false,
           })
         return
       }
-      // A workflow handoff is runtime context. Its Pulse reply owns the result.
-      if (background.origin === "workflow_result") return
     }
     // Wait for the server's classification before showing a newly arrived synthetic turn.
     // Client metadata never supplies trusted origin or completion status.
@@ -502,7 +497,7 @@ export function projectTimeline(input: ProjectInput): {
       type: "assistant-error",
       key: `background-error:${background.part_id}`,
       body: background.error,
-      label: background.origin === "pulse" ? "Pulse check failed" : "Workflow update failed",
+      label: "Workflow update failed",
       partialOutput: false,
     })
   }

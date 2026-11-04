@@ -320,25 +320,11 @@ export type ChatSessionParticipant = {
   image: string | null
 }
 
-export type PulseChatRequest = {
-  id: string
-  agent_name: AgentName
-  agent?: string
-  model?: ModelRef
-}
-
-export type ChatPulse = {
-  enabled: boolean
-  interval_seconds: number
-  next_check_at?: string
-}
-
 export type ChatBackgroundList = Array<ChatBackground>
 
 export type ChatBackground = {
   message_id: string
   part_id: string
-  origin: "pulse" | "workflow_result"
   completed: boolean
   outcome?: "quiet" | "update" | "failed" | "canceled"
   error: string
@@ -351,7 +337,6 @@ export type ChatSession = {
    * Last automatic snooze wake. Cleared by subsequent shelf changes.
    */
   woke_at?: string
-  pulse?: boolean
   project_id?: string
   agent_name: AgentName
   session_id: string
@@ -740,11 +725,6 @@ export type AgentAppearance = {
   color: MascotColor
 }
 
-/**
- * Seconds between Pulse checks for this agent's conversations, in whole minutes. Defaults to 1800.
- */
-export type PulseIntervalSeconds = number
-
 export type AgentMemoryConfig = {
   enabled: boolean
 }
@@ -857,10 +837,6 @@ export type WorkflowRunNodePatchPhase = "Running" | "Succeeded" | "Failed"
 export type WorkflowRunStatus = "Pending" | "Running" | "Succeeded" | "Failed" | "Unacked"
 
 export type PatchWorkflowRunStatusRequest = {
-  /**
-   * Suppress the conversation handoff for a successful run with nothing to report.
-   */
-  no_change?: boolean
   phase: WorkflowRunTerminalPhase
   message?: string
 }
@@ -916,7 +892,6 @@ export type Agent = {
    */
   auto_archive_hours: number
   appearance?: AgentAppearance
-  pulse_interval_seconds: PulseIntervalSeconds
   name: AgentName
   sandbox: ResourceReference
   created_by: ResourceActor
@@ -1153,7 +1128,6 @@ export type CreateAgentRequest = {
    */
   auto_archive_hours?: number
   appearance?: AgentAppearance
-  pulse_interval_seconds?: PulseIntervalSeconds
   name: AgentName
   memory?: AgentMemoryConfig
   env?: {
@@ -1385,7 +1359,7 @@ export type WorkflowWebhookTrigger = {
 
 export type CreateWorkflowScheduleRequest = {
   /**
-   * Authenticated agent tool context used to bind a Pulse root.
+   * Authenticated agent tool context used to subscribe this thread.
    */
   context_session_id?: string
   delivery?: WorkflowDelivery
@@ -1486,7 +1460,6 @@ export type UpdateAgentRequest = {
    */
   auto_archive_hours?: number
   appearance?: AgentAppearance
-  pulse_interval_seconds?: PulseIntervalSeconds
   env?: {
     [key: string]: string
   }
@@ -3284,12 +3257,6 @@ export type MessageOutputLengthError = {
   }
 }
 
-export type ModelRef = {
-  id: string
-  providerID: string
-  variant?: string
-}
-
 export type OutputFormat = OutputFormatText | OutputFormatJsonSchema
 
 export type OutputFormatJsonSchema = {
@@ -5070,85 +5037,6 @@ export type ListChatSessionsResponses = {
 }
 
 export type ListChatSessionsResponse2 = ListChatSessionsResponses[keyof ListChatSessionsResponses]
-
-export type CreatePulseChatData = {
-  body: PulseChatRequest
-  path?: never
-  query?: never
-  url: "/api/chat-session"
-}
-
-export type CreatePulseChatErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * The authenticated principal lacks authority for this operation.
-   */
-  403: Error
-  /**
-   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
-   *
-   */
-  409: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type CreatePulseChatError = CreatePulseChatErrors[keyof CreatePulseChatErrors]
-
-export type CreatePulseChatResponses = {
-  /**
-   * Canonical native session, including on exact retries.
-   */
-  200: Session
-}
-
-export type CreatePulseChatResponse = CreatePulseChatResponses[keyof CreatePulseChatResponses]
-
-export type GetChatPulseData = {
-  body?: never
-  path: {
-    agentName: string
-    sessionId: string
-  }
-  query?: never
-  url: "/api/chat-session/{agentName}/{sessionId}/pulse"
-}
-
-export type GetChatPulseErrors = {
-  /**
-   * Request validation failed.
-   */
-  400: Error
-  /**
-   * The authenticated principal lacks authority for this operation.
-   */
-  403: Error
-  /**
-   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
-   *
-   */
-  404: Error
-  /**
-   * Unexpected server error.
-   */
-  500: Error
-}
-
-export type GetChatPulseError = GetChatPulseErrors[keyof GetChatPulseErrors]
-
-export type GetChatPulseResponses = {
-  /**
-   * Authorized conversation state.
-   */
-  200: ChatPulse
-}
-
-export type GetChatPulseResponse = GetChatPulseResponses[keyof GetChatPulseResponses]
 
 export type ListChatBackgroundData = {
   body?: never

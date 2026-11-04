@@ -10,10 +10,6 @@ import {
 import { workflowAgentName } from "../lib/workflow"
 
 const args = {
-  no_change: tool.schema
-    .boolean()
-    .optional()
-    .describe("Only for successful runs with nothing useful to report."),
   mode: tool.schema
     .enum(["run", "node"])
     .describe(
@@ -116,7 +112,6 @@ export default tool({
       const body = {
         phase: input.phase,
         message: input.message,
-        no_change: input.no_change,
       } satisfies PatchWorkflowRunStatusRequest
       const result = await patchWorkflowRunStatus({
         path: {

@@ -10,11 +10,9 @@ import type { Session } from "@opencode-ai/sdk/v2"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import {
-  createPulseChat,
   listChatInputs,
   submitChatInput,
   updateChatInput,
-  type PulseChatRequest,
   type ChatInput,
   type ChatInputRequest,
   type ChatInputs,
@@ -67,14 +65,12 @@ export function useOpencodeSend(
   workspaceId: string,
   sessionID: string | undefined,
   onSessionCreated: ((sessionID: string) => void) | undefined,
-  createSession: CreateSession | undefined,
-  pulse = false
+  createSession: CreateSession | undefined
 ) {
   const queryClient = useQueryClient()
   const [pendingSessionID, setPendingSessionID] = useState<string>()
   const resolvedSessionID = sessionID ?? pendingSessionID
   const createdSession = useRef(sessionID)
-  const creationIntent = useRef<PulseChatRequest | undefined>(undefined)
   const [creationStarted, setCreationStarted] = useState(false)
   const promoted = useRef(Boolean(sessionID))
   const submission = useRef<Promise<void>>(Promise.resolve())
@@ -157,26 +153,7 @@ export function useOpencodeSend(
         if (!id) {
           let session: Session
           setCreationStarted(true)
-          if (pulse || creationIntent.current) {
-            creationIntent.current ??= {
-              id: uuidv4(),
-              agent_name: agentName,
-              agent: input.agent,
-              model: {
-                id: input.model.modelID,
-                providerID: input.model.providerID,
-                variant: input.variant,
-              },
-            }
-            const result = await createPulseChat({
-              body: creationIntent.current,
-              headers: { "X-AgentZ-Workspace-ID": workspaceId },
-              baseUrl: await getGatewayBaseURL(),
-              throwOnError: false,
-            })
-            if (result.error) throw new Error(result.error.message)
-            session = result.data
-          } else if (createSession) {
+          if (createSession) {
             session = await createSession({
               text: input.text,
               model: input.model,

@@ -53,7 +53,6 @@ import { useChatModelStorage } from "@/components/blocks/chat/use-chat-model-sto
 import { useFileWorkspace } from "@/components/blocks/chat/file-workspace-store"
 import { NewSessionGreeting } from "@/components/blocks/chat/new-session-greeting"
 import {
-  chatPulseOptions,
   sessionInfoQueryOptions,
   useOpencodeChat,
 } from "@/components/blocks/chat/use-opencode-chat"
@@ -111,7 +110,6 @@ import {
 } from "@tanstack/react-query"
 import {
   CheckIcon,
-  ClockIcon,
   ChevronDownIcon,
   DownloadIcon,
   GaugeIcon,
@@ -673,7 +671,6 @@ export default function Chat({
     sessionId ?? draftId ?? "new",
   ]
   const draftMessage = queryClient.getQueryData<ChatDraft>(draftKey) ?? initialMessage
-  const [pulseEnabled, setPulseEnabled] = useState(false)
   const {
     abortMessage,
     resolvedSessionID,
@@ -702,17 +699,12 @@ export default function Chat({
       }
       onSessionCreated?.(id)
     },
-    createSession,
-    pulseEnabled
+    createSession
   )
-  const pulse = useQuery({
-    ...chatPulseOptions(workspaceId, agentName, resolvedSessionID),
-    enabled: Boolean(resolvedSessionID) && !coding,
-  })
   const background = useQuery(
     queryOptions({
       queryKey: ["chatBackground", workspaceId, agentName, resolvedSessionID],
-      enabled: pulse.data?.enabled === true,
+      enabled: Boolean(resolvedSessionID) && !coding,
       queryFn: async () => {
         if (!resolvedSessionID) throw new Error("Chat has not been created")
         const result = await listChatBackground({
@@ -794,9 +786,7 @@ export default function Chat({
   const lastUser = messages.findLast(
     (message) =>
       message.role === "user" &&
-      !background.data?.some(
-        (input) => input.message_id === message.id && input.origin === "workflow_result"
-      ) &&
+      !background.data?.some((input) => input.message_id === message.id) &&
       (!session?.revert || message.id < session.revert.messageID)
   )
   // A revert can precede the loaded page. Fetch its preceding user turn
@@ -1451,7 +1441,6 @@ export default function Chat({
   // before classifying background output.
   const backgroundHistoryPending =
     !coding &&
-    pulse.data?.enabled !== false &&
     hasEarlierMessages &&
     !background.data?.some((item) => item.message_id === firstUser?.id) &&
     firstParts.every((part) => part.type !== "text" || part.synthetic) &&
@@ -2467,30 +2456,6 @@ export default function Chat({
                   </SelectGroup>
                 </SelectContent>
               </Select>
-              {!coding && !hasSession ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      role="switch"
-                      aria-checked={pulseEnabled}
-                      aria-label="Pulse"
-                      disabled={creationStarted || sendState === "submitted"}
-                      onClick={() => setPulseEnabled((value) => !value)}
-                      className={cn(
-                        "ml-auto h-7 gap-1.5 px-2 text-xs",
-                        pulseEnabled ? "text-primary" : "text-muted-foreground"
-                      )}
-                    >
-                      <ClockIcon aria-hidden="true" />
-                      Pulse
-                      {pulseEnabled ? <CheckIcon aria-hidden="true" /> : null}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Automatic follow-ups in this chat</TooltipContent>
-                </Tooltip>
-              ) : null}
               {composerContext?.(inputDisabled || hasSession || sendState === "submitted")}
             </div>
           </div>

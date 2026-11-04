@@ -139,8 +139,8 @@ WHERE key = sqlc.arg(key)
   );
 
 -- name: GatewayCreateAgent :one
-INSERT INTO agents(tenant_namespace, agent_name, pulse_interval_seconds)
-VALUES (@tenant_namespace, @agent_name, COALESCE(sqlc.narg(pulse_interval_seconds)::integer, 1800))
+INSERT INTO agents(tenant_namespace, agent_name)
+VALUES (@tenant_namespace, @agent_name)
 RETURNING *;
 
 -- name: GatewayGetAgent :one
@@ -156,8 +156,7 @@ FOR UPDATE;
 
 -- name: GatewayTouchAgent :one
 UPDATE agents
-SET updated_at = sqlc.arg(updated_at),
-  pulse_interval_seconds = COALESCE(sqlc.narg(pulse_interval_seconds)::integer, pulse_interval_seconds)
+SET updated_at = sqlc.arg(updated_at)
 WHERE tenant_namespace = sqlc.arg(tenant_namespace)
   AND agent_name = sqlc.arg(agent_name)
 RETURNING *;
@@ -373,7 +372,7 @@ WITH RECURSIVE descendants(session_id) AS (
 ), changed AS (
   DELETE FROM chat_sessions
   WHERE workspace_id = @workspace_id AND agent_name = @agent_name
-    AND session_id IN (SELECT session_id FROM descendants) AND NOT pulse
+    AND session_id IN (SELECT session_id FROM descendants) AND NOT deleting
   RETURNING workspace_id, agent_name, session_id
 )
 SELECT pg_notify('agentz_chat_sessions', changed.workspace_id || COALESCE('/' || project.owner_id, ''))
@@ -428,7 +427,6 @@ SELECT
   sessions.woke_at,
   sessions.kind,
   sessions.status,
-  sessions.pulse,
   sessions.source_created_at,
   sessions.source_updated_at,
   COALESCE((
@@ -464,7 +462,7 @@ WHERE (sqlc.narg(project_id)::text IS NULL OR project.id = sqlc.narg(project_id)
   END
   AND (sqlc.narg(owner_id)::text IS NULL OR project.owner_id = sqlc.narg(owner_id))
   AND NOT sessions.deleting
-  AND (NOT sessions.pulse OR sessions.next_check_at IS NOT NULL)
+
   AND (
     sqlc.arg(include_workflow_runs)::boolean
     OR sessions.kind <> 'workflow_run'
@@ -549,7 +547,7 @@ WHERE sessions.workspace_id = sqlc.arg(workspace_id)
   END
   AND (sqlc.narg(owner_id)::text IS NULL OR project.owner_id = sqlc.narg(owner_id))
   AND NOT sessions.deleting
-  AND (NOT sessions.pulse OR sessions.next_check_at IS NOT NULL)
+
   AND (
     sqlc.arg(include_workflow_runs)::boolean
     OR sessions.kind <> 'workflow_run'
@@ -581,8 +579,7 @@ WITH filtered_sessions AS (
     sessions.woke_at,
     sessions.kind,
     sessions.status,
-    sessions.pulse,
-    sessions.source_created_at,
+      sessions.source_created_at,
     sessions.source_updated_at,
     (CASE sqlc.arg(group_by)::text
       WHEN 'agent' THEN sessions.agent_name
@@ -611,7 +608,7 @@ LEFT JOIN coding_projects AS project ON project.id = tree.project_id
   END
   AND (sqlc.narg(owner_id)::text IS NULL OR project.owner_id = sqlc.narg(owner_id))
   AND NOT sessions.deleting
-  AND (NOT sessions.pulse OR sessions.next_check_at IS NOT NULL)
+
     AND (
       sqlc.arg(include_workflow_runs)::boolean
       OR sessions.kind <> 'workflow_run'
@@ -648,7 +645,6 @@ SELECT
   sessions.woke_at,
   sessions.kind,
   sessions.status,
-  sessions.pulse,
   sessions.source_created_at,
   sessions.source_updated_at,
   sessions.group_value,
@@ -712,7 +708,7 @@ WHERE sessions.workspace_id = sqlc.arg(workspace_id)
   AND sessions.parent_session_id IS NULL
   AND (sqlc.narg(owner_id)::text IS NULL OR project.owner_id = sqlc.narg(owner_id))
   AND NOT sessions.deleting
-  AND (NOT sessions.pulse OR sessions.next_check_at IS NOT NULL);
+;
 
 -- name: GatewayCountChatSessionShelves :one
 SELECT
@@ -767,7 +763,7 @@ WHERE participants.workspace_id = sqlc.arg(workspace_id)
   AND sessions.parent_session_id IS NULL
   AND (sqlc.narg(owner_id)::text IS NULL OR project.owner_id = sqlc.narg(owner_id))
   AND NOT sessions.deleting
-  AND (NOT sessions.pulse OR sessions.next_check_at IS NOT NULL)
+
   AND (
     sqlc.arg(include_workflow_runs)::boolean
     OR sessions.kind <> 'workflow_run'
@@ -2873,10 +2869,6 @@ UPDATE chat_inputs SET state = @state, error = @error,
   message_id = @message_id, resume = @resume, revision = revision + 1, updated_at = now()
 WHERE id = @id AND revision = @revision RETURNING *;
 
--- name: GatewayConsumePulseWake :exec
-UPDATE chat_sessions SET check_requested_at = NULL
-WHERE workspace_id = @workspace_id AND agent_name = @agent_name AND session_id = @session_id;
-
 -- name: GatewayPendingChatInputs :many
 SELECT DISTINCT ON ((workspace_id || '/' || agent_name || '/' || session_id)) * FROM chat_inputs
 WHERE (state IN ('queued', 'sending', 'failed') AND (origin = 'user' OR completed_at IS NULL)
@@ -3466,29 +3458,11 @@ SELECT (SELECT COUNT(*) FROM notified) AS notifications,
   COALESCE(MIN(snoozed_until), now() + interval '30 seconds')::timestamptz AS next_wake FROM chat_sessions
 WHERE snoozed_until > now();
 
--- name: GatewayReservePulseChat :one
-INSERT INTO chat_sessions(workspace_id, agent_name, session_id, title, source_created_at, source_updated_at,
- pulse)
-SELECT @workspace_id, @agent_name, @session_id, 'New conversation', now(), now(), true
-FROM workspaces WHERE id= @workspace_id AND type='general'
-ON CONFLICT (workspace_id, agent_name, session_id) DO UPDATE SET session_id = chat_sessions.session_id
-WHERE chat_sessions.pulse AND NOT chat_sessions.deleting
-RETURNING chat_sessions.*;
-
--- name: GatewayFinishPulseChatCreation :exec
-WITH settings AS MATERIALIZED (
- SELECT a.* FROM agents a JOIN workspaces w ON w.namespace = a.tenant_namespace
- WHERE w.id = @workspace_id AND a.agent_name = @agent_name FOR SHARE OF a
-)
-UPDATE chat_sessions s SET next_check_at = COALESCE(s.next_check_at, now() + make_interval(secs => a.pulse_interval_seconds))
-FROM settings a WHERE s.workspace_id = @workspace_id AND s.agent_name = @agent_name AND s.session_id = @session_id
- AND NOT s.deleting;
-
 -- name: GatewayGetChatSession :one
 SELECT * FROM chat_sessions
 WHERE workspace_id = @workspace_id AND agent_name = @agent_name AND session_id = @session_id;
 
--- name: GatewayPulseAncestor :one
+-- name: GatewayChatRoot :one
 WITH RECURSIVE lineage AS (
   SELECT s.session_id, s.parent_session_id FROM chat_sessions s
   WHERE s.workspace_id = @workspace_id AND s.agent_name = @agent_name AND s.session_id = @session_id
@@ -3498,80 +3472,25 @@ WITH RECURSIVE lineage AS (
   WHERE p.workspace_id = @workspace_id AND p.agent_name = @agent_name
 )
 SELECT s.* FROM chat_sessions s JOIN lineage l ON l.session_id = s.session_id
-WHERE s.workspace_id = @workspace_id AND s.agent_name = @agent_name AND s.pulse LIMIT 1;
-
--- name: GatewayGetChatPulse :one
-SELECT s.pulse, s.next_check_at, a.pulse_interval_seconds
-FROM chat_sessions s JOIN workspaces w ON w.id = s.workspace_id
-JOIN agents a ON a.tenant_namespace = w.namespace AND a.agent_name = s.agent_name
-WHERE s.workspace_id = @workspace_id AND s.agent_name = @agent_name AND s.session_id = @session_id;
-
--- name: GatewayRescheduleAgentChecks :exec
-UPDATE chat_sessions s SET next_check_at = now() + make_interval(secs => a.pulse_interval_seconds), updated_at = now()
-FROM agents a JOIN workspaces w ON w.namespace = a.tenant_namespace
-WHERE a.tenant_namespace = @tenant_namespace AND a.agent_name = @agent_name
-  AND s.workspace_id = w.id AND s.agent_name = a.agent_name AND s.pulse AND s.next_check_at IS NOT NULL AND NOT s.deleting;
-
--- name: GatewayReschedulePulse :exec
-UPDATE chat_sessions s SET check_requested_at = NULL,
- next_check_at = now() + make_interval(secs => a.pulse_interval_seconds), updated_at = now()
-FROM agents a JOIN workspaces w ON w.namespace = a.tenant_namespace
-WHERE s.workspace_id = @workspace_id AND s.agent_name = @agent_name AND s.session_id = @session_id
- AND w.id = s.workspace_id AND a.agent_name = s.agent_name AND s.pulse AND NOT s.deleting;
-
--- name: GatewayEnqueuePulseChecks :exec
-WITH due AS (
-  SELECT s.*, w.organization_id, u.id AS author_id, u.name AS author_name
-  FROM chat_sessions s JOIN workspaces w ON w.id = s.workspace_id
-  JOIN agent_owners o ON o.workspace_id = s.workspace_id AND o.agent_name = s.agent_name
-  JOIN users u ON u.id = o.owner_user_id
-  WHERE s.pulse AND NOT s.deleting
-    AND w.type = 'general' AND s.next_check_at IS NOT NULL
-    AND (s.next_check_at <= now() OR s.check_requested_at IS NOT NULL)
-    AND NOT EXISTS (SELECT 1 FROM chat_inputs i WHERE i.workspace_id = s.workspace_id
-      AND i.agent_name = s.agent_name AND i.session_id = s.session_id
-      AND i.origin = 'pulse' AND i.completed_at IS NULL)
-  ORDER BY s.next_check_at, s.workspace_id, s.agent_name, s.session_id
-  LIMIT 32 FOR UPDATE OF s SKIP LOCKED
-)
-INSERT INTO chat_inputs(id, workspace_id, agent_name, session_id, organization_id,
-  author_id, author_name, directory, content, delivery, origin, source_id, part_id, generation)
-SELECT gen_random_uuid(), workspace_id, agent_name, session_id, organization_id,
-  author_id, author_name, '/home/agentz', '{}'::jsonb, 'queue', 'pulse',
-  gen_random_uuid()::text, 'prt_' || replace(gen_random_uuid()::text, '-', ''), generation
-FROM due ON CONFLICT DO NOTHING;
+WHERE s.workspace_id = @workspace_id AND s.agent_name = @agent_name AND s.kind = 'chat' AND s.parent_session_id IS NULL LIMIT 1;
 
 -- name: GatewayCompleteBackgroundInput :one
-WITH settings AS MATERIALIZED (
- SELECT a.* FROM agents a JOIN workspaces w ON w.namespace = a.tenant_namespace
- JOIN chat_inputs i ON i.workspace_id = w.id AND i.agent_name = a.agent_name
- WHERE i.id = @id FOR SHARE OF a
-), completed AS (
- UPDATE chat_inputs SET completed_at = now(), outcome = @outcome, content = '{}'::jsonb,
+UPDATE chat_inputs SET completed_at = now(), outcome = @outcome, content = '{}'::jsonb,
   revision = revision + 1, updated_at = now()
- FROM settings a WHERE chat_inputs.id = @id AND origin <> 'user' AND completed_at IS NULL
- RETURNING chat_inputs.*
-), scheduled AS (
- UPDATE chat_sessions s SET
-  check_requested_at = CASE WHEN i.origin = 'workflow_result' THEN now() ELSE s.check_requested_at END,
-  next_check_at = CASE WHEN i.origin = 'workflow_result' OR s.check_requested_at IS NOT NULL
-   THEN now() ELSE now() + make_interval(secs => a.pulse_interval_seconds) END
- FROM completed i CROSS JOIN settings a WHERE s.workspace_id = i.workspace_id
- AND s.agent_name = i.agent_name AND s.session_id = i.session_id AND NOT s.deleting
-)
-SELECT * FROM completed;
+ WHERE chat_inputs.id = @id AND origin <> 'user' AND completed_at IS NULL
+ RETURNING chat_inputs.*;
 
 -- name: GatewayListChatBackground :many
 SELECT * FROM chat_inputs
 WHERE workspace_id = @workspace_id AND agent_name = @agent_name AND session_id = @session_id
   AND origin <> 'user' ORDER BY sequence;
 
--- name: GatewayDeletePulseChat :one
+-- name: GatewayMarkChatDeleting :one
 WITH changed AS (
   UPDATE chat_sessions s SET deleting = true,
     generation = generation + 1, updated_at = now()
   WHERE s.workspace_id = @workspace_id AND s.agent_name = @agent_name AND s.session_id = @session_id
-    AND pulse AND NOT deleting
+    AND kind = 'chat' AND parent_session_id IS NULL AND NOT deleting
   RETURNING s.*
 ), removed AS (
  DELETE FROM chat_inputs i USING changed c
@@ -3579,38 +3498,20 @@ WITH changed AS (
 )
 SELECT * FROM changed;
 
--- name: GatewayPendingPulseChats :many
+-- name: GatewayPendingChatCleanup :many
 SELECT sqlc.embed(s), w.organization_id, w.namespace, COALESCE(o.owner_user_id, '')::text AS author_id
 FROM chat_sessions s JOIN workspaces w ON w.id = s.workspace_id
 LEFT JOIN agent_owners o ON o.workspace_id = s.workspace_id AND o.agent_name = s.agent_name
 LEFT JOIN chat_input_sessions i ON i.workspace_id = s.workspace_id
  AND i.agent_name = s.agent_name AND i.session_id = s.session_id
-WHERE s.pulse AND s.cleanup_completed_at IS NULL AND (s.deleting OR i.stopping)
+WHERE s.kind = 'chat' AND s.parent_session_id IS NULL AND s.cleanup_completed_at IS NULL AND (s.deleting OR i.stopping)
  AND (s.workspace_id || '/' || s.agent_name || '/' || s.session_id) > @after_key::text
 ORDER BY (s.workspace_id || '/' || s.agent_name || '/' || s.session_id) LIMIT 128;
 
--- name: GatewayCancelPulseChecks :many
-UPDATE chat_inputs SET completed_at = now(), outcome = 'canceled', state = 'removed',
-  revision = revision + 1, updated_at = now()
-WHERE workspace_id = @workspace_id AND agent_name = @agent_name AND session_id = @session_id
-  AND origin = 'pulse' AND completed_at IS NULL RETURNING *;
-
 -- name: GatewayFailBackgroundInput :one
-WITH settings AS MATERIALIZED (
- SELECT a.* FROM agents a JOIN workspaces w ON w.namespace = a.tenant_namespace
- JOIN chat_inputs i ON i.workspace_id = w.id AND i.agent_name = a.agent_name
- WHERE i.id = @id FOR SHARE OF a
-), failed AS (
- UPDATE chat_inputs SET completed_at = now(), outcome = 'failed', error = @error,
+UPDATE chat_inputs SET completed_at = now(), outcome = 'failed', error = @error,
   state = 'failed', revision = revision + 1, updated_at = now()
- FROM settings a WHERE chat_inputs.id = @id AND origin <> 'user' AND completed_at IS NULL RETURNING chat_inputs.*
-), scheduled AS (
- UPDATE chat_sessions s SET next_check_at = CASE WHEN s.check_requested_at IS NOT NULL THEN now()
-  ELSE now() + make_interval(secs => a.pulse_interval_seconds) END
- FROM failed i CROSS JOIN settings a WHERE i.origin = 'pulse' AND s.workspace_id = i.workspace_id
- AND s.agent_name = i.agent_name AND s.session_id = i.session_id AND NOT s.deleting
-)
-SELECT * FROM failed;
+ WHERE chat_inputs.id = @id AND origin <> 'user' AND completed_at IS NULL RETURNING chat_inputs.*;
 
 -- name: GatewayEnqueueWorkflowSession :exec
 INSERT INTO chat_inputs(id,workspace_id,agent_name,session_id,organization_id,author_id,
@@ -3622,14 +3523,14 @@ FROM chat_sessions s JOIN workspaces w ON w.id=s.workspace_id
 JOIN agent_owners o ON o.workspace_id=s.workspace_id AND o.agent_name=s.agent_name
 JOIN users u ON u.id=o.owner_user_id
 WHERE s.workspace_id= @workspace_id AND s.agent_name= @agent_name AND s.session_id= @session_id
- AND s.pulse AND NOT s.deleting AND s.generation= @generation
+ AND s.kind = 'chat' AND s.parent_session_id IS NULL AND NOT s.deleting AND s.generation= @generation
 ON CONFLICT (workspace_id,agent_name,session_id,origin,source_id) WHERE origin <> 'user' DO NOTHING;
 
--- name: GatewayFinishPulseChatCleanup :exec
+-- name: GatewayFinishChatCleanup :exec
 UPDATE chat_sessions SET cleanup_completed_at = now()
 WHERE workspace_id = @workspace_id AND agent_name = @agent_name AND session_id = @session_id AND deleting;
 
 -- name: GatewayWorkflowDestinations :many
 SELECT session_id, generation FROM chat_sessions
 WHERE workspace_id = @workspace_id AND agent_name = @agent_name
- AND pulse AND NOT deleting;
+ AND kind = 'chat' AND parent_session_id IS NULL AND NOT deleting;

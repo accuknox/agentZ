@@ -85,7 +85,6 @@ type AgentDialogProps = {
   initialAutoArchiveHours?: number
   initialAppearance?: Agent["appearance"]
   initialSandboxName?: string
-  initialPulseIntervalSeconds?: Agent["pulse_interval_seconds"]
   initialMemoryEnabled?: boolean
   initialSkills?: Agent["skills"]
   initialInstruction?: AgentOpencodeConfig["instruction"]
@@ -363,7 +362,6 @@ function AgentForm({
   initialAppearance = defaultAgentAppearance,
   initialSandboxName,
   initialMemoryEnabled = false,
-  initialPulseIntervalSeconds = 1800,
   initialSkills = [],
   initialInstruction = "",
   onCloseAction,
@@ -388,7 +386,6 @@ function AgentForm({
     skills: initialSkills,
     memoryEnabled: actionScope.workspaceType !== "coding" && initialMemoryEnabled,
     instruction: initialInstruction,
-    pulseIntervalSeconds: initialPulseIntervalSeconds,
   }
   const form = useForm<AgentFormValues>({
     resolver: zodResolver(createAgentSimpleFormSchema),
@@ -451,10 +448,6 @@ function AgentForm({
             case "sandboxScope":
             case "sandboxName":
               field = "sandboxName"
-              break
-            case "pulse_interval_seconds":
-            case "pulseIntervalSeconds":
-              field = "pulseIntervalSeconds"
               break
             case "memory":
             case "memoryEnabled":
@@ -639,48 +632,6 @@ function AgentForm({
             <FieldLegend className="sr-only">Behavior</FieldLegend>
             <Separator className="h-0 border-t-2 border-dashed border-muted-foreground/50 bg-transparent" />
             <FieldGroup className="gap-4 px-5 pt-4">
-              {actionScope.workspaceType !== "coding" && (
-                <Controller
-                  name="pulseIntervalSeconds"
-                  control={form.control}
-                  render={({ field, fieldState }) => (
-                    <Field orientation="horizontal" data-invalid={fieldState.invalid}>
-                      <FieldContent>
-                        <FieldLabel htmlFor="agent-form-check-interval">
-                          Automatic follow-ups
-                        </FieldLabel>
-                        <FieldDescription id="agent-form-check-interval-description">
-                          Check for updates in Pulse chats.
-                        </FieldDescription>
-                        <FieldError id="agent-form-check-interval-error">
-                          {fieldState.invalid
-                            ? "Enter a whole number of minutes between 1 and 10,080."
-                            : null}
-                        </FieldError>
-                      </FieldContent>
-                      <InputGroup className="w-28 shrink-0" data-disabled={isPending}>
-                        <InputGroupInput
-                          id="agent-form-check-interval"
-                          ref={field.ref}
-                          type="number"
-                          min={1}
-                          max={10080}
-                          step={1}
-                          value={Number.isNaN(field.value) ? "" : field.value / 60}
-                          onChange={(event) =>
-                            field.onChange(event.currentTarget.valueAsNumber * 60)
-                          }
-                          onBlur={field.onBlur}
-                          disabled={isPending}
-                          aria-invalid={fieldState.invalid}
-                          aria-describedby="agent-form-check-interval-description agent-form-check-interval-error"
-                        />
-                        <InputGroupAddon align="inline-end">min</InputGroupAddon>
-                      </InputGroup>
-                    </Field>
-                  )}
-                />
-              )}
               {actionScope.workspaceType !== "coding" && (
                 <Controller
                   name="memoryEnabled"

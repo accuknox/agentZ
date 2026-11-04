@@ -118,9 +118,9 @@ type WorkflowRunModel struct {
 	Variant string `json:"variant,omitempty"`
 }
 
-// WorkflowDelivery binds scheduled execution to a shared Pulse conversation generation.
+// WorkflowDelivery binds scheduled execution to a subscribed conversation generation.
 type WorkflowDelivery struct {
-	// SessionID is the Pulse destination root.
+	// SessionID is the subscribed conversation root.
 	SessionID string `json:"sessionID"`
 	// Generation prevents delivery after conversation deletion.
 	Generation int64 `json:"generation"`
@@ -169,10 +169,6 @@ type WorkflowRunSpec struct {
 
 // WorkflowRunStatus defines the observed state of WorkflowRun.
 type WorkflowRunStatus struct {
-	// NoChange suppresses a successful run's conversation handoff when there is nothing to report.
-	// +optional
-	NoChange bool `json:"noChange,omitempty"`
-
 	// Phase is the lifecycle state tracked by controllers and the agent.
 	// +kubebuilder:validation:Enum=Pending;Running;Unacked;Succeeded;Failed
 	// +optional

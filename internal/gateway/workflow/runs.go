@@ -252,7 +252,6 @@ func ValidateRunWatchNames(runNames *[]gatewayapi.WorkflowRunName) []gatewayapi.
 func PatchRunStatus(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, runName string, req gatewayapi.PatchWorkflowRunStatusRequest, msg string) error {
 	key := types.NamespacedName{Namespace: ns, Name: strings.TrimSpace(runName)}
 	phase := agentzv1alpha1.WorkflowRunPhase(req.Phase)
-	noChange := req.NoChange != nil && *req.NoChange
 	var resultErr error
 
 	err := retry.RetryOnConflict(
@@ -271,7 +270,7 @@ func PatchRunStatus(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 
 			if current.Status.Phase.Terminal() {
 				resultErr = ErrWorkflowRunTerminal
-				if current.Status.Phase == phase && current.Status.Message == msg && current.Status.NoChange == noChange {
+				if current.Status.Phase == phase && current.Status.Message == msg {
 					resultErr = nil
 				}
 				return nil
@@ -287,7 +286,6 @@ func PatchRunStatus(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 			patch := ctrlclient.MergeFromWithOptions(current.DeepCopy(), ctrlclient.MergeFromWithOptimisticLock{})
 			now := metav1.Now()
 			current.Status.Phase = phase
-			current.Status.NoChange = noChange
 			current.Status.Message = msg
 			current.Status.CompletedAt = &now
 			for i := range current.Status.Nodes {

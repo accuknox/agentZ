@@ -632,8 +632,6 @@ components:
           $ref: '#/components/schemas/AgentName'
         opencode:
           $ref: '#/components/schemas/AgentOpencodeConfig'
-        pulse_interval_seconds:
-          $ref: '#/components/schemas/PulseIntervalSeconds'
         sandbox:
           $ref: '#/components/schemas/ResourceReference'
         skills:
@@ -644,7 +642,6 @@ components:
           $ref: '#/components/schemas/AgentStatus'
       required:
       - auto_archive_hours
-      - pulse_interval_seconds
       - name
       - sandbox
       - created_by
@@ -1557,11 +1554,6 @@ components:
           type: string
         message_id:
           type: string
-        origin:
-          enum:
-          - pulse
-          - workflow_result
-          type: string
         outcome:
           enum:
           - quiet
@@ -1574,7 +1566,6 @@ components:
       required:
       - message_id
       - part_id
-      - origin
       - completed
       - error
       type: object
@@ -1710,21 +1701,6 @@ components:
       - items
       - stopping
       type: object
-    ChatPulse:
-      additionalProperties: false
-      properties:
-        enabled:
-          type: boolean
-        interval_seconds:
-          format: int32
-          type: integer
-        next_check_at:
-          format: date-time
-          type: string
-      required:
-      - enabled
-      - interval_seconds
-      type: object
     ChatSession:
       additionalProperties: false
       properties:
@@ -1743,8 +1719,6 @@ components:
           type: array
         project_id:
           type: string
-        pulse:
-          type: boolean
         session_id:
           type: string
         snoozed_until:
@@ -2641,8 +2615,6 @@ components:
           $ref: '#/components/schemas/AgentName'
         opencode:
           $ref: '#/components/schemas/AgentOpencodeConfig'
-        pulse_interval_seconds:
-          $ref: '#/components/schemas/PulseIntervalSeconds'
         sandbox:
           $ref: '#/components/schemas/ResourceReference'
         skills:
@@ -2895,7 +2867,7 @@ components:
       additionalProperties: false
       properties:
         context_session_id:
-          description: Authenticated agent tool context used to bind a Pulse root.
+          description: Authenticated agent tool context used to subscribe this thread.
           type: string
         delivery:
           $ref: '#/components/schemas/WorkflowDelivery'
@@ -25477,9 +25449,6 @@ components:
         message:
           maxLength: 4096
           type: string
-        no_change:
-          description: Suppress the conversation handoff for a successful run with nothing to report.
-          type: boolean
         phase:
           $ref: '#/components/schemas/WorkflowRunTerminalPhase'
       required:
@@ -25620,29 +25589,6 @@ components:
       - accepted_records
       - replayed
       type: object
-    PulseChatRequest:
-      additionalProperties: false
-      properties:
-        agent:
-          type: string
-        agent_name:
-          $ref: '#/components/schemas/AgentName'
-        id:
-          format: uuid
-          type: string
-        model:
-          $ref: '#/components/schemas/OpencodeModelRef'
-      required:
-      - id
-      - agent_name
-      type: object
-    PulseIntervalSeconds:
-      description: Seconds between Pulse checks for this agent's conversations, in whole minutes. Defaults to 1800.
-      format: int32
-      maximum: 604800
-      minimum: 60
-      multipleOf: 60
-      type: integer
     PutSecretsResponse:
       additionalProperties: false
       properties:
@@ -26721,8 +26667,6 @@ components:
           $ref: '#/components/schemas/AgentMemoryConfig'
         opencode:
           $ref: '#/components/schemas/AgentOpencodeConfig'
-        pulse_interval_seconds:
-          $ref: '#/components/schemas/PulseIntervalSeconds'
         sandbox:
           $ref: '#/components/schemas/ResourceReference'
         skills:
@@ -29162,35 +29106,6 @@ paths:
       summary: List the current Workspace chat inbox.
       tags:
       - chat-sessions
-    post:
-      operationId: createPulseChat
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PulseChatRequest'
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OpencodeSession'
-          description: Canonical native session, including on exact retries.
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "403":
-          $ref: '#/components/responses/Forbidden'
-        "409":
-          $ref: '#/components/responses/Conflict'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      security:
-      - GatewayBearer:
-        - agent.use_shared
-      summary: Create a shared Pulse conversation in a General workspace.
-      tags:
-      - chat-sessions
   /api/chat-session-preference:
     get:
       operationId: getChatSessionPreference
@@ -29432,41 +29347,6 @@ paths:
       - GatewayBearer:
         - agent.use_shared
       summary: Edit, steer, remove, or retry your queued message.
-      tags:
-      - chat-sessions
-  /api/chat-session/{agentName}/{sessionId}/pulse:
-    get:
-      operationId: getChatPulse
-      parameters:
-      - in: path
-        name: agentName
-        required: true
-        schema:
-          type: string
-      - in: path
-        name: sessionId
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ChatPulse'
-          description: Authorized conversation state.
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "403":
-          $ref: '#/components/responses/Forbidden'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      security:
-      - GatewayBearer:
-        - agent.use_shared
-      summary: Read conversation background activity.
       tags:
       - chat-sessions
   /api/chat-session/watch:

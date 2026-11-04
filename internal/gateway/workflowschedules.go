@@ -83,19 +83,7 @@ func (s *Service) CreateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 			apiutil.WriteError(w, r, resourceForbidden(errors.New("tool context requires an authenticated agent")))
 			return
 		}
-		access, apiErr := s.resolveAgentAccess(r.Context(), agentName, authorization.OperationUseSharedAgent)
-		if apiErr != nil {
-			apiutil.WriteError(w, r, apiErr)
-			return
-		}
-		root, pulse, lookupErr := s.authorizeChat(r.Context(), access, agentName, *req.ContextSessionId)
-		if lookupErr != nil {
-			apiutil.WriteError(w, r, mapGatewayStoreError("get conversation", lookupErr))
-			return
-		}
-		if pulse && root.SessionID == *req.ContextSessionId {
-			req.Delivery = &gatewayapi.WorkflowDelivery{SessionId: root.SessionID}
-		}
+		req.Delivery = &gatewayapi.WorkflowDelivery{SessionId: *req.ContextSessionId}
 	}
 	delivery, release, bindingErr := s.workflowDelivery(r.Context(), agentName, req.Delivery)
 	if bindingErr != nil {
@@ -538,12 +526,12 @@ func (s *Service) workflowDelivery(ctx context.Context, agent string, input *gat
 	if err != nil {
 		return nil, nil, err
 	}
-	root, pulse, err := s.authorizeChat(ctx, access, agent, input.SessionId)
+	root, eligible, err := s.authorizeChat(ctx, access, agent, input.SessionId)
 	if err != nil {
 		release()
 		return nil, nil, err
 	}
-	if !pulse {
+	if !eligible {
 		release()
 		return nil, nil, pgx.ErrNoRows
 	}

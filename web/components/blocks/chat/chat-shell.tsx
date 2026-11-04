@@ -9,9 +9,9 @@ import { useRouter } from "@bprogress/next/app"
 import { useEffect, useState, type ReactNode } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
-import { chatPulseOptions, sessionInfoQueryOptions } from "./use-opencode-chat"
+import { sessionInfoQueryOptions } from "./use-opencode-chat"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { ClockIcon, GitBranchIcon } from "lucide-react"
+import { GitBranchIcon } from "lucide-react"
 import { AgentAppearanceContext, AgentPresence } from "@/components/interior/agent-presence"
 import { defaultAgentAppearance } from "@/data/mascots"
 import { watchAgentsQueryOptions } from "@/components/agent-readiness"
@@ -19,9 +19,6 @@ import { authClient } from "@/lib/auth-client"
 import { codingGitOptions, codingThreadOptions } from "@/lib/coding/review"
 import { toast } from "sonner"
 import { nanoid } from "nanoid"
-import { Button } from "@/components/ui/button"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { RelativeDateTime } from "@/components/relative-date-time"
 
 type ChatShellProps = Pick<
   ChatProps,
@@ -184,11 +181,6 @@ export function ChatShell({
     workspacePath,
   ])
 
-  const pulse = useQuery({
-    ...chatPulseOptions(workspaceId, agentName, activeSessionId),
-    enabled: Boolean(activeSessionId) && !coding,
-  })
-
   const chatTitle = activeSessionId
     ? (sessionTitle.data ?? (activeSessionId === sessionId ? title : "Chat"))
     : "New chat"
@@ -236,38 +228,6 @@ export function ChatShell({
             </span>
             <h1 className="min-w-0 truncate text-sm font-semibold">{chatTitle}</h1>
             <div className="ml-auto flex shrink-0 items-center gap-1">
-              {pulse.data?.enabled ? (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 gap-1.5 px-2 text-xs text-muted-foreground"
-                      aria-label="Pulse details"
-                    >
-                      <ClockIcon aria-hidden="true" />
-                      <span className="hidden sm:inline">Pulse</span>
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent align="end" className="w-64 text-sm">
-                    <div className="flex flex-col gap-3">
-                      <p className="font-medium">Automatic follow-ups</p>
-                      <dl className="grid grid-cols-2 gap-2 text-xs">
-                        <dt className="text-muted-foreground">Check every</dt>
-                        <dd className="text-right">{pulse.data.interval_seconds / 60} minutes</dd>
-                        {pulse.data.next_check_at ? (
-                          <>
-                            <dt className="text-muted-foreground">Next check</dt>
-                            <dd className="text-right">
-                              <RelativeDateTime value={pulse.data.next_check_at} />
-                            </dd>
-                          </>
-                        ) : null}
-                      </dl>
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              ) : null}
               {headerActions}
               {codingThread ? (
                 <GitActions

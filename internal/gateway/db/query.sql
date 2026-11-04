@@ -717,6 +717,7 @@ LEFT JOIN coding_projects AS project ON project.id = tree.project_id
 WHERE sessions.workspace_id = sqlc.arg(workspace_id)
   AND sessions.agent_name = ANY(sqlc.arg(agent_names)::text[])
   AND sessions.parent_session_id IS NULL
+  AND NOT sessions.deleting
   AND (sessions.archived_at IS NOT NULL OR sessions.snoozed_until > now())
   AND (sqlc.narg(owner_id)::text IS NULL OR project.owner_id = sqlc.narg(owner_id))
   AND (
@@ -2893,10 +2894,22 @@ VALUES (@workspace_id, @agent_name, @session_id, @stopping)
 ON CONFLICT (workspace_id, agent_name, session_id) DO UPDATE SET stopping = EXCLUDED.stopping;
 
 -- name: GatewayRecoverChatInputs :exec
-UPDATE chat_inputs SET state = 'recovered', error = '',
-  revision = revision + 1, updated_at = now()
-WHERE workspace_id = @workspace_id AND agent_name = @agent_name AND session_id = @session_id
-  AND origin = 'user' AND state IN ('queued', 'failed') AND message_id = '';
+WITH canceled AS (
+  -- Background turns must not restart execution after Stop clears the barrier.
+  UPDATE chat_inputs AS background
+  SET state = 'removed', completed_at = now(), outcome = 'canceled',
+    content = '{}'::jsonb, error = '',
+    revision = background.revision + 1, updated_at = now()
+  WHERE background.workspace_id = @workspace_id
+    AND background.agent_name = @agent_name AND background.session_id = @session_id
+    AND background.origin <> 'user' AND background.completed_at IS NULL
+)
+UPDATE chat_inputs AS inputs SET state = 'recovered', error = '',
+  revision = inputs.revision + 1, updated_at = now()
+WHERE inputs.workspace_id = @workspace_id
+  AND inputs.agent_name = @agent_name AND inputs.session_id = @session_id
+  AND inputs.origin = 'user' AND inputs.state IN ('queued', 'failed')
+  AND inputs.message_id = '';
 
 -- name: GatewayNotifyChatInputs :exec
 SELECT pg_notify('agentz_chat_sessions', @workspace_id::text ||

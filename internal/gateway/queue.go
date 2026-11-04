@@ -99,12 +99,13 @@ func (s *Service) lockChatInputs(ctx context.Context, workspace, agent, session,
 		ctx = context.WithValue(ctx, gatewayLockKey{}, q)
 	}
 	if root.SessionID != "" && root.SessionID != session {
-		_, release, err := lockGatewayResource(ctx, s.controlDB,
+		q, release, err := lockGatewayResource(ctx, s.controlDB,
 			"session-admission/"+workspace+"/"+agent+"/"+root.SessionID, false)
 		if err != nil {
 			return nil, err
 		}
 		releases = append(releases, release)
+		ctx = context.WithValue(ctx, gatewayLockKey{}, q)
 		root, err = s.queries.GatewayGetChatSession(ctx, gatewaydb.GatewayGetChatSessionParams{
 			WorkspaceID: workspace,
 			AgentName:   agent,
@@ -224,6 +225,11 @@ func (s *Service) SubmitChatInput(w http.ResponseWriter, r *http.Request, agent 
 		return
 	}
 	defer release()
+	// Deletion can commit while admission waits for the lock.
+	if _, _, err := s.authorizeChat(r.Context(), access, agent, session); err != nil {
+		apiutil.WriteError(w, r, mapGatewayStoreError("submit message", err))
+		return
+	}
 	raw, err := json.Marshal(input.Content)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)

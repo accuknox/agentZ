@@ -675,6 +675,7 @@ LEFT JOIN coding_projects AS project ON project.id = tree.project_id
 WHERE sessions.workspace_id = $1
   AND sessions.agent_name = ANY($2::text[])
   AND sessions.parent_session_id IS NULL
+  AND NOT sessions.deleting
   AND (sessions.archived_at IS NOT NULL OR sessions.snoozed_until > now())
   AND ($3::text IS NULL OR project.owner_id = $3)
   AND (
@@ -7844,10 +7845,22 @@ func (q *Queries) GatewayRecordCodingMainCheckout(ctx context.Context, arg Gatew
 }
 
 const gatewayRecoverChatInputs = `-- name: GatewayRecoverChatInputs :exec
-UPDATE chat_inputs SET state = 'recovered', error = '',
-  revision = revision + 1, updated_at = now()
-WHERE workspace_id = $1 AND agent_name = $2 AND session_id = $3
-  AND origin = 'user' AND state IN ('queued', 'failed') AND message_id = ''
+WITH canceled AS (
+  -- Background turns must not restart execution after Stop clears the barrier.
+  UPDATE chat_inputs AS background
+  SET state = 'removed', completed_at = now(), outcome = 'canceled',
+    content = '{}'::jsonb, error = '',
+    revision = background.revision + 1, updated_at = now()
+  WHERE background.workspace_id = $1
+    AND background.agent_name = $2 AND background.session_id = $3
+    AND background.origin <> 'user' AND background.completed_at IS NULL
+)
+UPDATE chat_inputs AS inputs SET state = 'recovered', error = '',
+  revision = inputs.revision + 1, updated_at = now()
+WHERE inputs.workspace_id = $1
+  AND inputs.agent_name = $2 AND inputs.session_id = $3
+  AND inputs.origin = 'user' AND inputs.state IN ('queued', 'failed')
+  AND inputs.message_id = ''
 `
 
 type GatewayRecoverChatInputsParams struct {

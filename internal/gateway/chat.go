@@ -348,16 +348,12 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 
 	if groupBy == gatewayapi.ChatSessionGroupByProject {
 		if !ownerID.Valid {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusBadRequest,
-					"invalid_request",
-					"Project groups require a coding workspace",
-					errBadRequest,
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"Project groups require a coding workspace",
+				errBadRequest,
+			))
 			return
 		}
 		projects, err := s.queries.GatewayListCodingProjects(
@@ -743,16 +739,12 @@ func (s *Service) UpdateChatSessionPreference(w http.ResponseWriter, r *http.Req
 
 	projectGroup := body.GroupBy == gatewayapi.ChatSessionGroupByProject
 	if projectGroup && auth.workspaceType != agentzv1alpha1.WorkspaceTypeCoding {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"Project groups require a coding workspace",
-				errBadRequest,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"Project groups require a coding workspace",
+			errBadRequest,
+		))
 		return
 	}
 	row, err := s.queries.GatewayUpsertWorkspaceChatPreference(
@@ -1059,14 +1051,24 @@ func (s *Service) UpdateChatSession(w http.ResponseWriter, r *http.Request, agen
 	}
 	var body gatewayapi.UpdateChatSessionRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "Invalid session update", err))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"Invalid session update",
+			err,
+		))
 		return
 	}
 	var until pgtype.Timestamptz
 	switch body.Shelf {
 	case gatewayapi.ChatSessionShelfActive, gatewayapi.ChatSessionShelfArchived:
 		if body.SnoozedUntil != nil {
-			apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "Only snoozed sessions can have a wake time", errBadRequest))
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"Only snoozed sessions can have a wake time",
+				errBadRequest,
+			))
 			return
 		}
 	case gatewayapi.ChatSessionShelfSnoozed:
@@ -1075,12 +1077,22 @@ func (s *Service) UpdateChatSession(w http.ResponseWriter, r *http.Request, agen
 			body.SnoozedUntil.After(now) &&
 			!body.SnoozedUntil.After(now.AddDate(1, 0, 0))
 		if !valid {
-			apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "Choose a future wake time within one year", errBadRequest))
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"Choose a future wake time within one year",
+				errBadRequest,
+			))
 			return
 		}
 		until = pgtype.Timestamptz{Time: *body.SnoozedUntil, Valid: true}
 	default:
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "Invalid shelf", errBadRequest))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"Invalid shelf",
+			errBadRequest,
+		))
 		return
 	}
 	var owner pgtype.Text
@@ -1102,8 +1114,10 @@ func (s *Service) UpdateChatSession(w http.ResponseWriter, r *http.Request, agen
 	}
 	if !result.Allowed {
 		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusConflict, "invalid_transition",
-			"Wake or unarchive this chat before snoozing it", nil,
+			http.StatusConflict,
+			"invalid_transition",
+			"Wake or unarchive this chat before snoozing it",
+			nil,
 		))
 		return
 	}

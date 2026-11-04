@@ -49,7 +49,10 @@ func (s *Service) ListCodingRefs(w http.ResponseWriter, r *http.Request, project
 	}
 	if project.Deleting {
 		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusConflict, "deleting", "Project deletion has started", nil,
+			http.StatusConflict,
+			"deleting",
+			"Project deletion has started",
+			nil,
 		))
 		return
 	}
@@ -110,25 +113,22 @@ func (s *Service) ListCodingRefs(w http.ResponseWriter, r *http.Request, project
 	if params.Cursor != nil {
 		revision, value, ok := strings.Cut(*params.Cursor, ":")
 		if !ok || revision != snapshot.Revision {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusConflict,
-					"snapshot_changed",
-					"Branches changed; restart the search",
-					nil,
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusConflict,
+				"snapshot_changed",
+				"Branches changed; restart the search",
+				nil,
+			))
 			return
 		}
 		offset, err = strconv.Atoi(value)
 		if err != nil || offset < 0 || offset > len(refs) {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(http.StatusBadRequest, "invalid_cursor", "Invalid branch cursor", nil),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_cursor",
+				"Invalid branch cursor",
+				nil,
+			))
 			return
 		}
 	}
@@ -163,7 +163,10 @@ func (s *Service) RefreshCodingRepository(w http.ResponseWriter, r *http.Request
 	}
 	if project.Deleting {
 		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusConflict, "deleting", "Project deletion has started", nil,
+			http.StatusConflict,
+			"deleting",
+			"Project deletion has started",
+			nil,
 		))
 		return
 	}
@@ -224,7 +227,10 @@ func (s *Service) AdoptCodingWorktree(w http.ResponseWriter, r *http.Request, pr
 	}
 	if project.Deleting {
 		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusConflict, "deleting", "Project deletion has started", nil,
+			http.StatusConflict,
+			"deleting",
+			"Project deletion has started",
+			nil,
 		))
 		return
 	}
@@ -242,7 +248,12 @@ func (s *Service) AdoptCodingWorktree(w http.ResponseWriter, r *http.Request, pr
 		gatewayapi.CodingGitRequest{Operation: gatewayapi.CodingGitDiscover},
 	)
 	if err != nil {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "discovery_failed", err.Error(), err))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict,
+			"discovery_failed",
+			err.Error(),
+			err,
+		))
 		return
 	}
 	if result.Repository != nil {
@@ -273,16 +284,12 @@ func (s *Service) AdoptCodingWorktree(w http.ResponseWriter, r *http.Request, pr
 			return
 		}
 	}
-	apiutil.WriteError(
-		w,
-		r,
-		apiutil.NewError(
-			http.StatusConflict,
-			"worktree_unavailable",
-			"Worktree changed or is outside this project",
-			nil,
-		),
-	)
+	apiutil.WriteError(w, r, apiutil.NewError(
+		http.StatusConflict,
+		"worktree_unavailable",
+		"Worktree changed or is outside this project",
+		nil,
+	))
 }
 
 func (s *Service) refreshCodingSnapshot(ctx context.Context, snapshot gatewaydb.CodingSnapshot) {

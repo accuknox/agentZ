@@ -144,7 +144,12 @@ func delegatedModelCompatibility(kind agentzv1alpha1.InferenceProviderKind, mode
 func (s *Service) GetDelegationCatalog(w http.ResponseWriter, r *http.Request, params gatewayapi.GetDelegationCatalogParams) {
 	auth, ok := requestAuthState(r.Context())
 	if !ok || auth.claims == nil || auth.claims.WorkspaceID == "" {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusForbidden, "forbidden", "Select a workspace.", nil))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusForbidden,
+			"forbidden",
+			"Select a workspace.",
+			nil,
+		))
 		return
 	}
 	catalog, err := s.delegationCatalog(
@@ -1041,7 +1046,12 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 
 func (s *Service) delegationError(w http.ResponseWriter, r *http.Request, status int, code, message string) {
 	if r.URL.Path == "/api/mcp" || r.URL.Path == "/api/inference/v1/catalog" {
-		apiutil.WriteError(w, r, apiutil.NewError(status, code, message, nil))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			status,
+			code,
+			message,
+			nil,
+		))
 		return
 	}
 	if strings.HasPrefix(r.URL.Path, "/api/inference/v1/messages") {

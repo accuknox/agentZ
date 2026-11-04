@@ -108,16 +108,12 @@ func (s *Service) ListSandboxes(w http.ResponseWriter, r *http.Request, params g
 		limit = int(*params.Limit)
 	}
 	if limit < 1 || limit > 200 {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"limit must be between 1 and 200",
-				errBadRequest,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"limit must be between 1 and 200",
+			errBadRequest,
+		))
 		return
 	}
 
@@ -297,17 +293,13 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				fields...,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
 		return
 	}
 	var rawSkills []gatewayapi.ResourceReference
@@ -343,17 +335,13 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				fields...,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
 		return
 	}
 
@@ -440,17 +428,13 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				fields...,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
 		return
 	}
 	access, apiErr = s.resolveSandboxAccess(
@@ -529,17 +513,13 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				dependencyFields...,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			dependencyFields...,
+		))
 		return
 	}
 
@@ -586,17 +566,13 @@ func (s *Service) CreateSandbox(w http.ResponseWriter, r *http.Request, params g
 func (s *Service) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxName gatewayapi.SandboxName, params gatewayapi.DeleteSandboxParams) {
 	name := strings.TrimSpace(sandboxName)
 	if name == "" {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				gatewayapi.FieldError{Field: "name", Message: "required"},
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			gatewayapi.FieldError{Field: "name", Message: "required"},
+		))
 		return
 	}
 	var workspaceID string
@@ -688,16 +664,12 @@ func (s *Service) DeleteSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusConflict,
-				"sandbox_referenced",
-				"sandbox is referenced by agent "+agentNames[0],
-				errBadRequest,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict,
+			"sandbox_referenced",
+			"sandbox is referenced by agent "+agentNames[0],
+			errBadRequest,
+		))
 		return
 	}
 	access, apiErr = s.resolveSandboxAccess(
@@ -801,17 +773,13 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				fields...,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
 		return
 	}
 	allowedHosts := make([]string, 0, len(req.AllowedHosts))
@@ -903,17 +871,13 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				fields...,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
 		return
 	}
 	access, apiErr = s.resolveSandboxAccess(
@@ -987,17 +951,13 @@ func (s *Service) UpdateSandbox(w http.ResponseWriter, r *http.Request, sandboxN
 			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				dependencyFields...,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			dependencyFields...,
+		))
 		return
 	}
 
@@ -1695,18 +1655,14 @@ func (s *Service) validateSandboxDependencies(ctx context.Context, access resour
 }
 
 func writeAllowedHostsError(w http.ResponseWriter, r *http.Request, err error) {
-	apiutil.WriteError(
-		w,
-		r,
-		apiutil.NewError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"request validation failed",
-			errBadRequest,
-			gatewayapi.FieldError{
-				Field:   "allowed_hosts",
-				Message: err.Error(),
-			},
-		),
-	)
+	apiutil.WriteError(w, r, apiutil.NewError(
+		http.StatusBadRequest,
+		"invalid_request",
+		"request validation failed",
+		errBadRequest,
+		gatewayapi.FieldError{
+			Field:   "allowed_hosts",
+			Message: err.Error(),
+		},
+	))
 }

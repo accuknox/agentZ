@@ -205,10 +205,12 @@ func (s *Service) SubmitChatInput(w http.ResponseWriter, r *http.Request, agent 
 		return
 	}
 	if err := validateChatInput(input.Content); err != nil {
-		apiutil.WriteError(
-			w, r,
-			apiutil.NewError(http.StatusBadRequest, "invalid_input", err.Error(), err),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_input",
+			err.Error(),
+			err,
+		))
 		return
 	}
 	access, directory, project, err := s.chatInputAccess(r.Context(), agent, session)
@@ -241,15 +243,12 @@ func (s *Service) SubmitChatInput(w http.ResponseWriter, r *http.Request, agent 
 		Delivery:       string(input.Delivery),
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		apiutil.WriteError(
-			w, r,
-			apiutil.NewError(
-				http.StatusConflict,
-				"input_conflict",
-				"This request ID belongs to another message.",
-				err,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict,
+			"input_conflict",
+			"This request ID belongs to another message.",
+			err,
+		))
 		return
 	}
 	if err != nil {
@@ -304,25 +303,32 @@ func (s *Service) UpdateChatInput(w http.ResponseWriter, r *http.Request, agent 
 		editable = false
 	}
 	if row.Revision != input.Revision || row.MessageID != "" || !editable {
-		apiutil.WriteError(
-			w, r,
-			apiutil.NewError(
-				http.StatusConflict,
-				"input_changed",
-				"This message changed or is already being sent.",
-				nil,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict,
+			"input_changed",
+			"This message changed or is already being sent.",
+			nil,
+		))
 		return
 	}
 	switch input.Action {
 	case gatewayapi.ChatInputUpdateActionEdit:
 		if input.Content == nil {
-			apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_input", "Edited content is required.", nil))
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_input",
+				"Edited content is required.",
+				nil,
+			))
 			return
 		}
 		if err := validateChatInput(*input.Content); err != nil {
-			apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_input", err.Error(), err))
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_input",
+				err.Error(),
+				err,
+			))
 			return
 		}
 		var content gatewayapi.ChatInputContent
@@ -339,7 +345,12 @@ func (s *Service) UpdateChatInput(w http.ResponseWriter, r *http.Request, agent 
 		}
 	case gatewayapi.ChatInputUpdateActionSteer:
 		if row.State != string(gatewayapi.ChatInputStateQueued) {
-			apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "input_changed", "This message is no longer queued.", nil))
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusConflict,
+				"input_changed",
+				"This message is no longer queued.",
+				nil,
+			))
 			return
 		}
 		row.Delivery = string(gatewayapi.ChatInputDeliverySteer)
@@ -1041,29 +1052,28 @@ func (s *Service) deliverChatInput(ctx context.Context, row gatewaydb.ChatInput)
 			ModelID:    session.JSON200.Model.Id,
 		}
 		body.Variant = session.JSON200.Model.Variant
-		instruction := workflowNotificationInstruction
+		instruction := strings.TrimSpace(workflowNotificationInstruction)
 		body.System = &instruction
 	}
 	for _, file := range content.Attachments {
 		filePath, _ := json.Marshal("/home/agentz/" + file.Path)
 		filename, _ := json.Marshal(file.Filename)
 		mime, _ := json.Marshal(file.MediaType)
+		data := file
+		data.Path = string(filePath)
+		data.Filename = string(filename)
+		data.MediaType = string(mime)
+		var prompt strings.Builder
+		err := gatewayPrompts.ExecuteTemplate(&prompt, "attached-file.tmpl", data)
+		if err != nil {
+			return fmt.Errorf("render attached file prompt: %w", err)
+		}
 		synthetic := true
 		text := gatewayapi.OpencodeTextPartInput{
 			Type:      gatewayapi.OpencodeTextPartInputTypeText,
 			Synthetic: &synthetic,
 			Metadata:  &map[string]any{"agentz_attachment": file},
-			Text: fmt.Sprintf(
-				`<attached_file>
-path: %s
-name: %s
-media_type: %s
-size: %d bytes
-The path is exact. Copy it verbatim; do not shorten or remove directories.
-Use analyze_file when you need the contents of this file.
-</attached_file>`,
-				filePath, filename, mime, file.Size,
-			),
+			Text:      prompt.String(),
 		}
 		var part gatewayapi.OpencodePromptPartInput
 		if err := part.FromOpencodeTextPartInput(text); err != nil {

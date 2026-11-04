@@ -94,16 +94,12 @@ func (s *Service) ReplaceWorkspaceInheritedResources(w http.ResponseWriter, r *h
 	}
 	if invalid {
 		s.recordWorkspaceInheritanceFailure(r, claims, workspaceID, resourceType)
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"resource names must be non-empty and unique",
-				errBadRequest,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"resource names must be non-empty and unique",
+			errBadRequest,
+		))
 		return
 	}
 
@@ -122,17 +118,13 @@ func (s *Service) ReplaceWorkspaceInheritedResources(w http.ResponseWriter, r *h
 			continue
 		}
 		s.recordWorkspaceInheritanceFailure(r, claims, workspaceID, resourceType)
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"selected Organisation resource was not found",
-				errBadRequest,
-				gatewayapi.FieldError{Field: "names", Message: name + " was not found"},
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"selected Organisation resource was not found",
+			errBadRequest,
+			gatewayapi.FieldError{Field: "names", Message: name + " was not found"},
+		))
 		return
 	}
 	for _, resource := range resources {
@@ -144,20 +136,16 @@ func (s *Service) ReplaceWorkspaceInheritedResources(w http.ResponseWriter, r *h
 			consumerNames = append(consumerNames, fmt.Sprintf("%s %s", consumer.Kind, consumer.Name))
 		}
 		s.recordWorkspaceInheritanceFailure(r, claims, workspaceID, resourceType)
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusConflict,
-				"resource_consumed",
-				"an inherited resource is still consumed",
-				errBadRequest,
-				gatewayapi.FieldError{
-					Field:   "names",
-					Message: resource.Name + " is consumed by " + strings.Join(consumerNames, ", "),
-				},
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict,
+			"resource_consumed",
+			"an inherited resource is still consumed",
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field:   "names",
+				Message: resource.Name + " is consumed by " + strings.Join(consumerNames, ", "),
+			},
+		))
 		return
 	}
 
@@ -169,16 +157,12 @@ func (s *Service) ReplaceWorkspaceInheritedResources(w http.ResponseWriter, r *h
 	next := previous
 	kind, _, mapped := inheritedResourceKind(resourceType)
 	if !mapped {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"unknown inherited resource type",
-				errBadRequest,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"unknown inherited resource type",
+			errBadRequest,
+		))
 		return
 	}
 	next.Set(kind, names)
@@ -248,16 +232,12 @@ func (s *Service) authorizeWorkspaceInheritance(w http.ResponseWriter, r *http.R
 			)
 		}
 		if !allowed {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusForbidden,
-					"forbidden",
-					"Superadmin authority is required",
-					errors.New("workspace inheritance requires Superadmin authority"),
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusForbidden,
+				"forbidden",
+				"Superadmin authority is required",
+				errors.New("workspace inheritance requires Superadmin authority"),
+			))
 			return gatewayClaims{}, gatewaydb.Workspace{}, false
 		}
 		if errors.Is(getErr, pgx.ErrNoRows) {

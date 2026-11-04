@@ -154,8 +154,10 @@ func (s *Service) serveGuardrailConnections(w http.ResponseWriter, r *http.Reque
 				}
 				if ns == item.Namespace {
 					apiutil.WriteError(w, r, apiutil.NewError(
-						http.StatusConflict, "resource_in_use",
-						"provider is referenced by policy "+policy.Name, errors.New("referenced guardrail provider"),
+						http.StatusConflict,
+						"resource_in_use",
+						"provider is referenced by policy "+policy.Name,
+						errors.New("referenced guardrail provider"),
 					))
 					return
 				}
@@ -176,8 +178,10 @@ func (s *Service) serveGuardrailConnections(w http.ResponseWriter, r *http.Reque
 	}
 	if len(validation.IsDNS1123Label(input.Name)) > 0 || (name != "" && input.Name != name) {
 		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusBadRequest, "invalid_request",
-			"name must be a valid immutable resource name", errBadRequest,
+			http.StatusBadRequest,
+			"invalid_request",
+			"name must be a valid immutable resource name",
+			errBadRequest,
 		))
 		return
 	}
@@ -198,14 +202,24 @@ func (s *Service) serveGuardrailConnections(w http.ResponseWriter, r *http.Reque
 		spec.Region = *input.Region
 	}
 	if err := guardrails.ValidateConnection(spec); err != nil {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", err.Error(), err))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			err.Error(),
+			err,
+		))
 		return
 	}
 	if r.Method == http.MethodPost {
 		existing := &api.GuardrailConnection{}
 		err := s.k8sClient.Get(r.Context(), ctrlclient.ObjectKey{Namespace: access.namespace, Name: input.Name}, existing)
 		if err == nil {
-			apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "already_exists", "guardrail provider already exists", errBadRequest))
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusConflict,
+				"already_exists",
+				"guardrail provider already exists",
+				errBadRequest,
+			))
 			return
 		}
 		if !apierrors.IsNotFound(err) {
@@ -214,7 +228,12 @@ func (s *Service) serveGuardrailConnections(w http.ResponseWriter, r *http.Reque
 		}
 	}
 	if r.Method == http.MethodPut && spec.Provider != item.Spec.Provider {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "provider service is immutable", errBadRequest))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"provider service is immutable",
+			errBadRequest,
+		))
 		return
 	}
 	credentialPath := ""
@@ -235,7 +254,12 @@ func (s *Service) serveGuardrailConnections(w http.ResponseWriter, r *http.Reque
 				token = *credentials.Token
 			}
 			if strings.TrimSpace(token) == "" {
-				apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "a nonempty API key or bearer token is required", errBadRequest))
+				apiutil.WriteError(w, r, apiutil.NewError(
+					http.StatusBadRequest,
+					"invalid_request",
+					"a nonempty API key or bearer token is required",
+					errBadRequest,
+				))
 				return
 			}
 			data["token"] = token
@@ -244,8 +268,10 @@ func (s *Service) serveGuardrailConnections(w http.ResponseWriter, r *http.Reque
 			missingSecretKey := credentials.SecretAccessKey == nil || strings.TrimSpace(*credentials.SecretAccessKey) == ""
 			if missingAccessKey || missingSecretKey {
 				apiutil.WriteError(w, r, apiutil.NewError(
-					http.StatusBadRequest, "invalid_request",
-					"AWS credentials require both an access key ID and secret access key", errBadRequest,
+					http.StatusBadRequest,
+					"invalid_request",
+					"AWS credentials require both an access key ID and secret access key",
+					errBadRequest,
 				))
 				return
 			}
@@ -257,8 +283,10 @@ func (s *Service) serveGuardrailConnections(w http.ResponseWriter, r *http.Reque
 		case "ModelArmor":
 			if credentials.GoogleCredentialsJson == nil || !json.Valid([]byte(*credentials.GoogleCredentialsJson)) {
 				apiutil.WriteError(w, r, apiutil.NewError(
-					http.StatusBadRequest, "invalid_request",
-					"Google credentials must be valid ADC credential JSON on a Model Armor provider", errBadRequest,
+					http.StatusBadRequest,
+					"invalid_request",
+					"Google credentials must be valid ADC credential JSON on a Model Armor provider",
+					errBadRequest,
 				))
 				return
 			}
@@ -278,15 +306,19 @@ func (s *Service) serveGuardrailConnections(w http.ResponseWriter, r *http.Reque
 	}
 	if spec.Provider == "OpenAI" && spec.SecretName == "" {
 		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusBadRequest, "invalid_request",
-			"OpenAI moderation requires an API key", errBadRequest,
+			http.StatusBadRequest,
+			"invalid_request",
+			"OpenAI moderation requires an API key",
+			errBadRequest,
 		))
 		return
 	}
 	if spec.Provider == "AccuKnox" && spec.SecretName == "" {
 		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusBadRequest, "invalid_request",
-			"AccuKnox prompt firewall requires a bearer token", errBadRequest,
+			http.StatusBadRequest,
+			"invalid_request",
+			"AccuKnox prompt firewall requires a bearer token",
+			errBadRequest,
 		))
 		return
 	}
@@ -484,8 +516,10 @@ func (s *Service) serveGuardrailPolicies(w http.ResponseWriter, r *http.Request,
 		}
 		if item.Namespace == org && slices.Contains(tenant.Spec.Guardrails.MandatoryPolicies, item.Name) {
 			apiutil.WriteError(w, r, apiutil.NewError(
-				http.StatusConflict, "resource_in_use",
-				"policy is in the mandatory organization baseline", errBadRequest,
+				http.StatusConflict,
+				"resource_in_use",
+				"policy is in the mandatory organization baseline",
+				errBadRequest,
 			))
 			return
 		}
@@ -506,8 +540,10 @@ func (s *Service) serveGuardrailPolicies(w http.ResponseWriter, r *http.Request,
 				}
 				if ns == item.Namespace {
 					apiutil.WriteError(w, r, apiutil.NewError(
-						http.StatusConflict, "resource_in_use",
-						"policy is assigned to Sandbox "+sandbox.Name, errBadRequest,
+						http.StatusConflict,
+						"resource_in_use",
+						"policy is assigned to Sandbox "+sandbox.Name,
+						errBadRequest,
 					))
 					return
 				}
@@ -529,8 +565,10 @@ func (s *Service) serveGuardrailPolicies(w http.ResponseWriter, r *http.Request,
 				}
 				if ns == item.Namespace {
 					apiutil.WriteError(w, r, apiutil.NewError(
-						http.StatusConflict, "resource_in_use",
-						"policy is assigned to an external agent", errBadRequest,
+						http.StatusConflict,
+						"resource_in_use",
+						"policy is assigned to an external agent",
+						errBadRequest,
 					))
 					return
 				}
@@ -551,8 +589,10 @@ func (s *Service) serveGuardrailPolicies(w http.ResponseWriter, r *http.Request,
 	}
 	if len(validation.IsDNS1123Label(input.Name)) > 0 || (name != "" && input.Name != name) {
 		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusBadRequest, "invalid_request",
-			"name must be a valid immutable resource name", errBadRequest,
+			http.StatusBadRequest,
+			"invalid_request",
+			"name must be a valid immutable resource name",
+			errBadRequest,
 		))
 		return
 	}
@@ -580,7 +620,12 @@ func (s *Service) serveGuardrailPolicies(w http.ResponseWriter, r *http.Request,
 			apiutil.WriteError(w, r, mapKubeHTTPError("get detector provider", err))
 			return
 		}
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", err.Error(), err))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			err.Error(),
+			err,
+		))
 		return
 	}
 	spec.LastModifiedByUserID = access.claims.UserID
@@ -694,8 +739,10 @@ func (s *Service) serveGuardrailSettings(w http.ResponseWriter, r *http.Request)
 		for _, name := range input.MandatoryPolicies {
 			if seen[name] {
 				apiutil.WriteError(w, r, apiutil.NewError(
-					http.StatusBadRequest, "invalid_request",
-					"mandatory policy references must be unique", errBadRequest,
+					http.StatusBadRequest,
+					"invalid_request",
+					"mandatory policy references must be unique",
+					errBadRequest,
 				))
 				return
 			}
@@ -706,7 +753,12 @@ func (s *Service) serveGuardrailSettings(w http.ResponseWriter, r *http.Request)
 		}
 		err = s.validateGuardrailChange(r.Context(), access, tenant, nil)
 		if err != nil {
-			apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", err.Error(), err))
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				err.Error(),
+				err,
+			))
 			return
 		}
 		err = s.k8sClient.Update(r.Context(), tenant)
@@ -753,7 +805,12 @@ func (s *Service) GetEffectiveGuardrails(w http.ResponseWriter, r *http.Request,
 			Name:  *input.Sandbox,
 		})
 		if err != nil {
-			apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", err.Error(), err))
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				err.Error(),
+				err,
+			))
 			return
 		}
 		sandbox := &api.Sandbox{}
@@ -767,7 +824,12 @@ func (s *Service) GetEffectiveGuardrails(w http.ResponseWriter, r *http.Request,
 	}
 	bundle, err := guardrails.Resolve(r.Context(), s.k8sClient, contextNamespace, assignment)
 	if err != nil {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", err.Error(), err))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			err.Error(),
+			err,
+		))
 		return
 	}
 	checks := make([]gatewayapi.GuardrailEffectiveCheck, 0, len(bundle.Checks))

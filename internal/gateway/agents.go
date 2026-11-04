@@ -234,16 +234,12 @@ func (s *Service) ListAgents(w http.ResponseWriter, r *http.Request, params gate
 		limit = int(*params.Limit)
 	}
 	if limit < 1 || limit > 200 {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"limit must be between 1 and 200",
-				errBadRequest,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"limit must be between 1 and 200",
+			errBadRequest,
+		))
 		return
 	}
 
@@ -366,17 +362,13 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(fields) > 0 {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				fields...,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
 		return
 	}
 
@@ -916,16 +908,12 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 	if rows == 0 {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusNotFound,
-				"not_found",
-				"agent not found",
-				errAgentNotFound,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusNotFound,
+			"not_found",
+			"agent not found",
+			errAgentNotFound,
+		))
 		return
 	}
 	err = q.GatewayDeleteAgentChatSessions(
@@ -1033,11 +1021,7 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 		return
 	}
 	if !owner && !access.effective.CanAdminister(scope) {
-		apiutil.WriteError(
-			w,
-			r,
-			resourceForbidden(errors.New("agent ownership transfer requires owner or administrator authority")),
-		)
+		apiutil.WriteError(w, r, resourceForbidden(errors.New("agent ownership transfer requires owner or administrator authority")))
 		return
 	}
 	tx, err := s.db.Begin(r.Context())
@@ -1056,11 +1040,7 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		apiutil.WriteError(
-			w,
-			r,
-			resourceForbidden(errors.New("agent ownership transfer requires an active Workspace")),
-		)
+		apiutil.WriteError(w, r, resourceForbidden(errors.New("agent ownership transfer requires an active Workspace")))
 		return
 	}
 	if err != nil {
@@ -1097,11 +1077,7 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 	hasWorkspace := effective.HasAccess(scope)
 	canCreate := effective.Allows(scope, authorization.OperationCreateAgent)
 	if !hasWorkspace || !canCreate {
-		apiutil.WriteError(
-			w,
-			r,
-			resourceForbidden(errors.New("new owner requires independent Workspace access and Agent Author")),
-		)
+		apiutil.WriteError(w, r, resourceForbidden(errors.New("new owner requires independent Workspace access and Agent Author")))
 		return
 	}
 
@@ -1382,17 +1358,13 @@ func (s *Service) UpsertAgentShare(w http.ResponseWriter, r *http.Request, agent
 	caps, capFields := agentShareCapabilities(req.Capabilities)
 	fields = append(fields, capFields...)
 	if len(fields) > 0 {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				fields...,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
 		return
 	}
 
@@ -1418,11 +1390,7 @@ func (s *Service) UpsertAgentShare(w http.ResponseWriter, r *http.Request, agent
 			return
 		}
 		if !exists {
-			apiutil.WriteError(
-				w,
-				r,
-				resourceForbidden(errors.New("agent Share Team does not exist in this Organisation")),
-			)
+			apiutil.WriteError(w, r, resourceForbidden(errors.New("agent Share Team does not exist in this Organisation")))
 			return
 		}
 	}
@@ -1462,17 +1430,13 @@ func (s *Service) UpsertAgentShare(w http.ResponseWriter, r *http.Request, agent
 	)
 	if err != nil {
 		if errors.Is(err, errAgentShareOwnerTarget) {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusBadRequest,
-					"invalid_request",
-					err.Error(),
-					errBadRequest,
-					gatewayapi.FieldError{Field: "target_user_id", Message: err.Error()},
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				err.Error(),
+				errBadRequest,
+				gatewayapi.FieldError{Field: "target_user_id", Message: err.Error()},
+			))
 			return
 		}
 		issuedByOther := errors.Is(err, errAgentShareIssuedByOther)
@@ -1495,11 +1459,12 @@ func (s *Service) DeleteAgentShare(w http.ResponseWriter, r *http.Request, agent
 	}
 	shareID = strings.TrimSpace(shareID)
 	if shareID == "" {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(http.StatusBadRequest, "invalid_request", "shareId is required", errBadRequest),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"shareId is required",
+			errBadRequest,
+		))
 		return
 	}
 
@@ -1609,16 +1574,12 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusInternalServerError,
-				"internal_error",
-				"streaming is unavailable",
-				nil,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusInternalServerError,
+			"internal_error",
+			"streaming is unavailable",
+			nil,
+		))
 		return
 	}
 
@@ -2906,7 +2867,10 @@ func (s *Service) agentTools(w http.ResponseWriter, r *http.Request, name, toolN
 	}
 	if !agt.DeletionTimestamp.IsZero() {
 		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusConflict, "conflict", "agent is being deleted", nil,
+			http.StatusConflict,
+			"conflict",
+			"agent is being deleted",
+			nil,
 		))
 		return
 	}
@@ -2915,7 +2879,10 @@ func (s *Service) agentTools(w http.ResponseWriter, r *http.Request, name, toolN
 	})
 	if r.Method != http.MethodPost && toolName != "" && idx < 0 {
 		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusNotFound, "not_found", "tool not found", nil,
+			http.StatusNotFound,
+			"not_found",
+			"tool not found",
+			nil,
 		))
 		return
 	}
@@ -2947,8 +2914,10 @@ func (s *Service) agentTools(w http.ResponseWriter, r *http.Request, name, toolN
 			})
 			if duplicate {
 				apiutil.WriteError(w, r, apiutil.NewError(
-					http.StatusConflict, "conflict",
-					"tool name is already in use", nil,
+					http.StatusConflict,
+					"conflict",
+					"tool name is already in use",
+					nil,
 				))
 				return
 			}
@@ -2957,8 +2926,10 @@ func (s *Service) agentTools(w http.ResponseWriter, r *http.Request, name, toolN
 		default:
 			if req.Tool.Name != toolName {
 				apiutil.WriteError(w, r, apiutil.NewError(
-					http.StatusBadRequest, "invalid_request",
-					"tool names cannot be changed", nil,
+					http.StatusBadRequest,
+					"invalid_request",
+					"tool names cannot be changed",
+					nil,
 				))
 				return
 			}
@@ -2975,16 +2946,21 @@ func (s *Service) agentTools(w http.ResponseWriter, r *http.Request, name, toolN
 				})
 			}
 			apiutil.WriteError(w, r, apiutil.NewError(
-				http.StatusBadRequest, "invalid_request",
-				"tool validation failed", nil, fields...,
+				http.StatusBadRequest,
+				"invalid_request",
+				"tool validation failed",
+				nil,
+				fields...,
 			))
 			return
 		}
 	}
 	if version == "" || version != agt.ResourceVersion {
 		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusConflict, "conflict",
-			"agent changed; refresh the tools before saving again", nil,
+			http.StatusConflict,
+			"conflict",
+			"agent changed; refresh the tools before saving again",
+			nil,
 		))
 		return
 	}

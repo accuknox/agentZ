@@ -64,16 +64,12 @@ type tenantRequest struct {
 func (s *Service) GetTenant(w http.ResponseWriter, r *http.Request) {
 	auth, ok := requestAuthState(r.Context())
 	if !ok || auth.claims == nil {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusUnauthorized,
-				"unauthorized",
-				"missing bearer claims",
-				errors.New("missing bearer claims"),
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusUnauthorized,
+			"unauthorized",
+			"missing bearer claims",
+			errors.New("missing bearer claims"),
+		))
 		return
 	}
 
@@ -95,16 +91,12 @@ func (s *Service) GetTenant(w http.ResponseWriter, r *http.Request) {
 func (s *Service) EnsureTenant(w http.ResponseWriter, r *http.Request) {
 	auth, ok := requestAuthState(r.Context())
 	if !ok || auth.claims == nil {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusUnauthorized,
-				"unauthorized",
-				"missing bearer claims",
-				errors.New("missing bearer claims"),
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusUnauthorized,
+			"unauthorized",
+			"missing bearer claims",
+			errors.New("missing bearer claims"),
+		))
 		return
 	}
 
@@ -157,16 +149,12 @@ func (s *Service) EnsureTenant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if created.Spec.OrganizationID != auth.claims.OrganizationID {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusConflict,
-				"conflict",
-				"tenant identity conflicts with current state",
-				errors.New("tenant identity conflict"),
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict,
+			"conflict",
+			"tenant identity conflicts with current state",
+			errors.New("tenant identity conflict"),
+		))
 		return
 	}
 
@@ -268,16 +256,12 @@ func requireExplicitCapability(next http.Handler) http.Handler {
 			return
 		}
 
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusForbidden,
-				"forbidden",
-				"operation has no unambiguous capability mapping",
-				fmt.Errorf("generated operation capability mapping is missing or ambiguous"),
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusForbidden,
+			"forbidden",
+			"operation has no unambiguous capability mapping",
+			fmt.Errorf("generated operation capability mapping is missing or ambiguous"),
+		))
 	})
 }
 
@@ -294,16 +278,12 @@ func loadTenant(s *Service) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			auth, ok := requestAuthState(r.Context())
 			if !ok {
-				apiutil.WriteError(
-					w,
-					r,
-					apiutil.NewError(
-						http.StatusUnauthorized,
-						"unauthorized",
-						"missing request auth",
-						fmt.Errorf("missing request auth"),
-					),
-				)
+				apiutil.WriteError(w, r, apiutil.NewError(
+					http.StatusUnauthorized,
+					"unauthorized",
+					"missing request auth",
+					fmt.Errorf("missing request auth"),
+				))
 				return
 			}
 
@@ -338,16 +318,12 @@ func loadTenant(s *Service) func(http.Handler) http.Handler {
 					next.ServeHTTP(w, r)
 					return
 				}
-				apiutil.WriteError(
-					w,
-					r,
-					apiutil.NewError(
-						http.StatusNotFound,
-						"tenant_not_found",
-						"tenant is not initialized",
-						err,
-					),
-				)
+				apiutil.WriteError(w, r, apiutil.NewError(
+					http.StatusNotFound,
+					"tenant_not_found",
+					"tenant is not initialized",
+					err,
+				))
 			default:
 				if apiErr, ok := errors.AsType[*apiutil.APIError](err); ok {
 					apiutil.WriteError(w, r, apiErr)
@@ -368,16 +344,12 @@ func requireTenantReady(s *Service, next http.Handler) http.Handler {
 
 		req, ok := tenantState(r.Context())
 		if !ok || req.tenant == nil {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusNotFound,
-					"tenant_not_found",
-					"tenant is not initialized",
-					fmt.Errorf("missing tenant context"),
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusNotFound,
+				"tenant_not_found",
+				"tenant is not initialized",
+				fmt.Errorf("missing tenant context"),
+			))
 			return
 		}
 
@@ -396,16 +368,12 @@ func requireTenantReady(s *Service, next http.Handler) http.Handler {
 			return
 		}
 
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusConflict,
-				"tenant_not_ready",
-				"tenant is not ready",
-				fmt.Errorf("tenant %q is not ready", req.tenant.Name),
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict,
+			"tenant_not_ready",
+			"tenant is not ready",
+			fmt.Errorf("tenant %q is not ready", req.tenant.Name),
+		))
 	})
 }
 

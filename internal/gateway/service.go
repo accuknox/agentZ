@@ -882,17 +882,13 @@ func (s *Service) routes() http.Handler {
 					status = statusErr.StatusCode()
 				}
 				fields := openAPIRequestFields(err)
-				apiutil.WriteError(
-					w,
-					r,
-					apiutil.NewError(
-						status,
-						"invalid_request",
-						"request does not match the API contract; correct the listed fields and retry",
-						err,
-						fields...,
-					),
-				)
+				apiutil.WriteError(w, r, apiutil.NewError(
+					status,
+					"invalid_request",
+					"request does not match the API contract; correct the listed fields and retry",
+					err,
+					fields...,
+				))
 			},
 			DoNotValidateServers: true,
 		},
@@ -902,16 +898,12 @@ func (s *Service) routes() http.Handler {
 		gatewayapi.ChiServerOptions{
 			BaseRouter: apiRouter,
 			ErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
-				apiutil.WriteError(
-					w,
-					r,
-					apiutil.NewError(
-						http.StatusBadRequest,
-						"invalid_request",
-						"request is invalid",
-						err,
-					),
-				)
+				apiutil.WriteError(w, r, apiutil.NewError(
+					http.StatusBadRequest,
+					"invalid_request",
+					"request is invalid",
+					err,
+				))
 			},
 			Middlewares: []gatewayapi.MiddlewareFunc{
 				requireExplicitCapability,

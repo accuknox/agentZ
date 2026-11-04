@@ -246,7 +246,12 @@ func (s *Service) ListCodingRepositories(w http.ResponseWriter, r *http.Request,
 	}
 	identity, err := s.codingIdentity(r.Context(), access.claims.UserID)
 	if err != nil {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadGateway, "github_failed", err.Error(), err))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadGateway,
+			"github_failed",
+			err.Error(),
+			err,
+		))
 		return
 	}
 	page := 1
@@ -264,8 +269,10 @@ func (s *Service) ListCodingRepositories(w http.ResponseWriter, r *http.Request,
 	for repo, err := range identity.repositories(r.Context()) {
 		if err != nil {
 			apiutil.WriteError(w, r, apiutil.NewError(
-				http.StatusBadGateway, "github_failed",
-				"Could not list repositories accessible to the Coding GitHub App", err,
+				http.StatusBadGateway,
+				"github_failed",
+				"Could not list repositories accessible to the Coding GitHub App",
+				err,
 			))
 			return
 		}

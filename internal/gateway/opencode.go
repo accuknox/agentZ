@@ -83,29 +83,21 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 	route, methodAllowed := matchOpenCodeRoute(r.Method, r.URL.Path)
 	if route == nil {
 		if methodAllowed {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusMethodNotAllowed,
-					"method_not_allowed",
-					"method is not allowed for this route",
-					nil,
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusMethodNotAllowed,
+				"method_not_allowed",
+				"method is not allowed for this route",
+				nil,
+			))
 			return
 		}
 
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusNotFound,
-				"not_found",
-				"route not found",
-				nil,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusNotFound,
+			"not_found",
+			"route not found",
+			nil,
+		))
 		return
 	}
 	endpoint := strings.TrimPrefix(route.Path, opencodePrefix+"/{agentName}")
@@ -139,16 +131,12 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPost, http.MethodPatch, http.MethodPut, http.MethodDelete:
 		if r.ContentLength > opencodeProxyBodyLimitBytes {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusRequestEntityTooLarge,
-					"request_too_large",
-					"request body exceeds the maximum allowed size",
-					nil,
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusRequestEntityTooLarge,
+				"request_too_large",
+				"request body exceeds the maximum allowed size",
+				nil,
+			))
 			return
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, opencodeProxyBodyLimitBytes)
@@ -184,8 +172,10 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		directory, err := url.PathUnescape(r.Header.Get("X-Opencode-Directory"))
 		if err != nil {
 			apiutil.WriteError(w, r, apiutil.NewError(
-				http.StatusBadRequest, "invalid_directory",
-				"Invalid checkout directory", err,
+				http.StatusBadRequest,
+				"invalid_directory",
+				"Invalid checkout directory",
+				err,
 			))
 			return
 		}
@@ -298,8 +288,10 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				apiutil.WriteError(w, r, apiutil.NewError(
-					http.StatusConflict, "session_stopping",
-					"The session is stopping; retry Stop before sending another input", nil,
+					http.StatusConflict,
+					"session_stopping",
+					"The session is stopping; retry Stop before sending another input",
+					nil,
 				))
 				return
 			}
@@ -326,16 +318,12 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 
 	resolved, err := s.resolver.resolveAgent(r.Context(), access.namespace, agentName)
 	if err != nil {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusNotFound,
-				"not_found",
-				"agent not found",
-				err,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusNotFound,
+			"not_found",
+			"agent not found",
+			err,
+		))
 		return
 	}
 
@@ -352,30 +340,22 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 
 	path, rawPath, err := openCodeUpstreamPath(r.URL, agentName)
 	if err != nil {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusNotFound,
-				"not_found",
-				"route not found",
-				err,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusNotFound,
+			"not_found",
+			"route not found",
+			err,
+		))
 		return
 	}
 
 	if err := attributeOpenCodePrompt(r, route, auth); err != nil {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"bad_request",
-				"invalid OpenCode prompt",
-				err,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"bad_request",
+			"invalid OpenCode prompt",
+			err,
+		))
 		return
 	}
 	proxy := &httputil.ReverseProxy{
@@ -407,16 +387,12 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		FlushInterval: -1,
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, proxyErr error) {
 			if _, ok := errors.AsType[*http.MaxBytesError](proxyErr); ok {
-				apiutil.WriteError(
-					rw,
-					req,
-					apiutil.NewError(
-						http.StatusRequestEntityTooLarge,
-						"request_too_large",
-						"request body exceeds the maximum allowed size",
-						proxyErr,
-					),
-				)
+				apiutil.WriteError(rw, req, apiutil.NewError(
+					http.StatusRequestEntityTooLarge,
+					"request_too_large",
+					"request body exceeds the maximum allowed size",
+					proxyErr,
+				))
 				return
 			}
 
@@ -425,16 +401,12 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			apiutil.WriteError(
-				rw,
-				req,
-				apiutil.NewError(
-					http.StatusBadGateway,
-					"proxy_error",
-					"request failed",
-					proxyErr,
-				),
-			)
+			apiutil.WriteError(rw, req, apiutil.NewError(
+				http.StatusBadGateway,
+				"proxy_error",
+				"request failed",
+				proxyErr,
+			))
 		},
 	}
 
@@ -464,8 +436,10 @@ func (s *Service) streamOpenCodeEvents(w http.ResponseWriter, r *http.Request, r
 	resp, err := client.Do(req)
 	if err != nil {
 		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusBadGateway, "event_failed",
-			"Could not connect to agent events", err,
+			http.StatusBadGateway,
+			"event_failed",
+			"Could not connect to agent events",
+			err,
 		))
 		return
 	}

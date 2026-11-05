@@ -9,14 +9,13 @@ import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import * as z from "zod"
 import { createAPIKeyFormSchema } from "@/data/api-key.schema"
-import { getWorkspaceAPIKeyAccess } from "@/data/api-key.queries"
 import { apiKeysTag } from "@/data/cache"
 import type { CreateAPIKeyFormState, DeleteAPIKeyFormState } from "@/data/types"
 import { getDB, schema } from "@/db"
 import { agentAPIKeyConfigID, webhookAPIKeyConfigID } from "@/lib/api-key-config"
 import { getAuth } from "@/lib/auth"
 import { currentGatewayAuthContext } from "@/lib/gateway/auth"
-import { listAgents, listWorkflowSummaries } from "@/lib/gateway/client"
+import { getWorkspace, listAgents, listWorkflowSummaries } from "@/lib/gateway/client"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { dayjs } from "@/lib/format"
 import { signInURL } from "@/lib/sign-in-redirect"
@@ -56,12 +55,11 @@ export async function createAPIKeyFormAction(
     }
   }
 
-  const access = await getWorkspaceAPIKeyAccess(scope.workspaceId)
-  if (!access) {
-    return {
-      error: { code: "FORBIDDEN", message: "You cannot access this Workspace." },
-    }
-  }
+  const access = await getWorkspace({
+    client: getGatewayServerClient(),
+    path: { workspaceId: scope.workspaceId },
+  })
+  if (access.error) return { error: access.error }
 
   const authContext = await currentGatewayAuthContext()
   const { data, error } = await listAgents({
@@ -186,8 +184,11 @@ export async function createAPIKeyFormAction(
         .for("update")
         .limit(1)
       if (!member) throw new Error("active Membership is required")
-      const currentAccess = await getWorkspaceAPIKeyAccess(scope.workspaceId)
-      if (!currentAccess) {
+      const currentAccess = await getWorkspace({
+        client: getGatewayServerClient(),
+        path: { workspaceId: scope.workspaceId },
+      })
+      if (currentAccess.error) {
         throw new Error("Workspace access was revoked")
       }
 

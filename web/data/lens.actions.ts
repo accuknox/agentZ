@@ -213,13 +213,22 @@ export async function listTraceSessionFilterAction(
   }
 
   const client = await createAgentOpencodeClient(agentName, { workspaceId })
-  const sessionListResult = await client.session.list()
-  if (!sessionListResult.data) {
+  const sessionListResult = await client.session.list().catch(() => undefined)
+  if (sessionListResult?.response.status === 403) {
     return {
       data: undefined,
       error: {
-        code: sessionListResult.response.status === 404 ? "not_found" : "session_list_failed",
-        message: "Could not load trace sessions",
+        code: "forbidden",
+        message: "You do not have access to this agent's conversations.",
+      },
+    }
+  }
+  if (!sessionListResult?.data) {
+    return {
+      data: undefined,
+      error: {
+        code: sessionListResult?.response.status === 404 ? "not_found" : "agent_unavailable",
+        message: "This agent cannot respond right now. Contact the platform administrator.",
       },
     }
   }

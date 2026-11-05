@@ -1,9 +1,9 @@
 import { RememberRoute } from "@/data/route-memory"
+import { RequestError } from "@/components/request-error"
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import * as z from "zod"
 import { AdministrationPageHeader } from "@/components/administration"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { resolvePageSelection, type ResolvedPageSelection } from "@/data/page-selection"
 import { RememberPageSelection } from "@/components/page-selection"
@@ -18,7 +18,6 @@ import { lensDateRange } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspa
 import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 import { getWorkspaceScope } from "@/data/workspaces"
 import type { WorkspaceType } from "@/lib/gateway/client"
-import { CircleAlert } from "lucide-react"
 
 export const metadata: Metadata = {
   title: "MCP Observability",
@@ -52,11 +51,20 @@ export default async function McpPage({
 }) {
   const { orgSlug, workspaceSlug } = await params
   const workspace = await getWorkspaceScope(orgSlug, workspaceSlug)
+  if (workspace.kind === "error")
+    return <RequestError title="Could not load this workspace" error={workspace.error} />
   if (workspace.kind !== "ready") {
-    return <ErrorPanel message="Workspace is unavailable" />
+    return (
+      <RequestError title="Could not load MCP activity" description="Workspace is unavailable" />
+    )
   }
   if (!workspace.workspace.capabilities.observability.read) {
-    return <ErrorPanel message="You do not have Lens access in this Workspace" />
+    return (
+      <RequestError
+        title="Could not load MCP activity"
+        description="You do not have Lens access in this Workspace"
+      />
+    )
   }
 
   const resolved = resolveMcpSearchParams(searchParams)
@@ -105,16 +113,9 @@ async function Filters({
   selection: Promise<ResolvedPageSelection>
 }) {
   const [{ range }, scope] = await Promise.all([searchParams, selection])
-  if (scope.error)
-    return (
-      <>
-        <RememberPageSelection {...scope} />
-        <ErrorPanel message={scope.error.message} />
-      </>
-    )
   return (
     <>
-      <RememberRoute />
+      {!scope.error ? <RememberRoute /> : null}
       <RememberPageSelection {...scope} />
       <LensFilters
         workspaceId={scope.workspaceId}
@@ -152,7 +153,7 @@ async function Graph({
     return (
       <>
         <RememberPageSelection {...scope} />
-        <ErrorPanel message={scope.error.message} />
+        <RequestError title="Could not load MCP activity" error={scope.error} />
       </>
     )
   }
@@ -160,6 +161,8 @@ async function Graph({
   if (!scope.subject) {
     return <EmptyState message="No agents or apps available" />
   }
+  if (range.error)
+    return <RequestError resetFilters title="That date range is out of reach" error={range.error} />
 
   if (workspaceType === "coding" && scope.subject.kind === "agent" && !scope.selected.session_id) {
     return <EmptyState message="No conversations available" />
@@ -171,7 +174,7 @@ async function Graph({
     workspaceId
   )
   if (result.error) {
-    return <ErrorPanel message={result.error.message} />
+    return <RequestError title="Could not load MCP activity" error={result.error} />
   }
 
   if (result.data.connections.length === 0) {
@@ -218,15 +221,6 @@ async function resolveMcpSearchParams(
     sessionID: params.session_id,
     range: lensDateRange(params.from, params.to),
   }
-}
-
-function ErrorPanel({ message }: { message: string }) {
-  return (
-    <Alert className="px-6" variant="destructive">
-      <CircleAlert aria-hidden="true" />
-      <AlertDescription>{message}</AlertDescription>
-    </Alert>
-  )
 }
 
 function EmptyState({ message }: { message: string }) {

@@ -251,12 +251,12 @@ export function GuardrailEventFilters({
         }))}
         range={{
           from: dayjs(current.from).toDate(),
-          to: dayjs(current.to).subtract(1, "millisecond").toDate(),
+          to: dayjs(current.to).toDate(),
         }}
         onSelect={(range) =>
           update({
-            from: dayjs(range.from).startOf("day").toISOString(),
-            to: dayjs(range.to).add(1, "day").startOf("day").toISOString(),
+            from: range.from.toISOString(),
+            to: range.to.toISOString(),
           })
         }
       />

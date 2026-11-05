@@ -1,3 +1,4 @@
+import { RequestError } from "@/components/request-error"
 import { RememberRoute } from "@/data/route-memory"
 import type { Route } from "next"
 import { redirect } from "next/navigation"
@@ -13,6 +14,7 @@ export default async function OrganizationPage({
 }) {
   const { orgSlug } = await params
   const result = await getWorkspaceDirectory(orgSlug)
+  if (result.error) return <RequestError title="Could not load workspaces" error={result.error} />
   if (result.scope.kind !== "ready" || !result.directory) {
     return null
   }

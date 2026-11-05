@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/select"
 import { listAppSessionsAction } from "@/data/lens.actions"
 import type { TraceSessionFilterItem } from "@/data/types"
-import { dayjs, formatDateParam } from "@/lib/format"
+import { dayjs } from "@/lib/format"
 import { selectionURL } from "@/lib/page-selection"
 import type { Agent, LensApp } from "@/lib/gateway/client"
 import {
@@ -183,7 +183,7 @@ export function LensFilters({
         <DateRangePicker
           className="w-full sm:w-auto"
           onSelect={(range) =>
-            updateDate({ from: formatDateParam(range.from), to: formatDateParam(range.to) })
+            updateDate({ from: range.from.toISOString(), to: range.to.toISOString() })
           }
           range={{ from: dayjs(from).toDate(), to: dayjs(to).toDate() }}
         />

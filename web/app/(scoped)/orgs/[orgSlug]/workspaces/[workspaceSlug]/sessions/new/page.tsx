@@ -15,6 +15,7 @@ import {
   getChatSessionPreference,
 } from "@/lib/gateway/client"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
+import { AgentUnavailable, RequestError } from "@/components/request-error"
 
 export const metadata: Metadata = {
   title: { absolute: "New chat | AgentZ" },
@@ -33,6 +34,8 @@ export default async function NewChatPage({
     headers(),
   ])
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
+  if (scope.kind === "error")
+    return <RequestError title="Could not load this workspace" error={scope.error} />
   if (scope.kind !== "ready") return missingRoute()
 
   const [agentsResult, preference, authSession] = await Promise.all([
@@ -41,7 +44,12 @@ export default async function NewChatPage({
     getAuth().api.getSession({ headers: requestHeaders }),
   ])
   if (agentsResult.error || preference.error) {
-    throw new Error("Failed to prepare a new chat")
+    return (
+      <RequestError
+        title="Could not prepare a new conversation"
+        error={agentsResult.error ?? preference.error}
+      />
+    )
   }
   const agents = agentsResult.agents.filter((agent) => agent.capabilities.use)
   const selected =
@@ -61,6 +69,7 @@ export default async function NewChatPage({
       </main>
     )
   }
+  if (selected.status === "DEGRADED") return <AgentUnavailable agent={selected} />
   const firstName =
     authSession?.user.name?.trim().split(/\s+/, 1)[0] ||
     authSession?.user.email.split("@")[0]?.trim() ||
@@ -73,7 +82,8 @@ export default async function NewChatPage({
       const projects = await listCodingProjects({
         client: getGatewayServerClient(scope.workspace.id),
       })
-      if (projects.error) throw new Error("Could not load projects", { cause: projects.error })
+      if (projects.error)
+        return <RequestError title="Could not load projects" error={projects.error} />
       if (projects.data.length === 1 && projects.data[0]) {
         const next = new URLSearchParams({ project: projects.data[0].id })
         if (query.agent) next.set("agent", query.agent)
@@ -103,7 +113,8 @@ export default async function NewChatPage({
       path: { projectId: query.project },
     })
     if (project.response?.status === 404) return missingRoute()
-    if (project.error) throw new Error("Could not load project", { cause: project.error })
+    if (project.error)
+      return <RequestError title="Could not load this project" error={project.error} />
     return (
       <>
         <RememberRoute />

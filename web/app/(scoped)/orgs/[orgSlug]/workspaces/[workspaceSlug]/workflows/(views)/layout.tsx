@@ -1,3 +1,4 @@
+import { RequestError } from "@/components/request-error"
 import { Suspense } from "react"
 import { headers } from "next/headers"
 import { notFound } from "next/navigation"
@@ -39,6 +40,8 @@ async function Filters({
 }: Pick<LayoutProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/workflows">, "params">) {
   const [route, requestHeaders] = await Promise.all([params, headers()])
   const scope = await getWorkspaceScope(route.orgSlug, route.workspaceSlug)
+  if (scope.kind === "error")
+    return <RequestError title="Could not load this workspace" error={scope.error} />
   if (scope.kind !== "ready" || scope.workspace.type === "coding") notFound()
   // Seed the persistent controls from the initial request. Client navigation reads the URL.
   const url = new URL(requestHeaders.get("x-agentz-pathname") ?? "/", "http://agentz.local")
@@ -51,7 +54,13 @@ async function Filters({
     }
   )
   if (selection.error)
-    return <AdministrationState kind="failed" description={selection.error.message} />
+    return (
+      <AdministrationState
+        kind="failed"
+        title="Could not load workflow filters"
+        description={selection.error.message}
+      />
+    )
   return (
     <WorkflowsFilters
       agents={selection.agents}

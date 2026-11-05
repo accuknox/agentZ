@@ -1,9 +1,9 @@
+import { RequestError } from "@/components/request-error"
 import { RememberRoute } from "@/data/route-memory"
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { Suspense } from "react"
 import { AdministrationPageHeader } from "@/components/administration"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import * as z from "zod"
 import { Skeleton } from "@/components/ui/skeleton"
 import { listWebhookAPIKeyDisplaysCachedQuery } from "@/data/api-key.queries"
@@ -16,7 +16,6 @@ import { getWorkspaceScope } from "@/data/workspaces"
 import { RunsFilters } from "./runs-filters"
 import { RunsTable } from "./runs-table"
 import { searchParamStringSchema } from "@/lib/search-params"
-import { CircleAlert } from "lucide-react"
 
 export const metadata: Metadata = {
   title: "Workflow Runs",
@@ -59,6 +58,8 @@ async function WorkflowRunsContent({
 }: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/workflows/triggers/runs">) {
   const [route, search] = await Promise.all([params, searchParams])
   const workspace = await getWorkspaceScope(route.orgSlug, route.workspaceSlug)
+  if (workspace.kind === "error")
+    return <RequestError title="Could not load this workspace" error={workspace.error} />
   if (workspace.kind !== "ready" || workspace.workspace.type === "coding") {
     notFound()
   }
@@ -93,7 +94,7 @@ async function Filters({
     return (
       <>
         <RememberPageSelection {...state} />
-        <ErrorPanel message={state.error.message} />
+        <RequestError title="Could not load workflow runs" error={state.error} />
       </>
     )
   const displays =
@@ -129,7 +130,7 @@ async function Runs({
   selection: Promise<ResolvedPageSelection>
 }) {
   const { selected, requested, error } = await selection
-  if (error) return <ErrorPanel message={error.message} />
+  if (error) return <RequestError title="Could not load workflow runs" error={error} />
   if (!selected.agent_name) return <EmptyState message="No agents available" />
   if (!selected.workflow_name)
     return (
@@ -161,7 +162,8 @@ async function Runs({
         : { trigger_type: "Schedule", schedule_name: selected.schedule_name }),
     }
   )
-  if (result.error) return <ErrorPanel message={result.error.message} />
+  if (result.error)
+    return <RequestError title="Could not load workflow runs" error={result.error} />
   return (
     <RunsTable
       agentName={selected.agent_name}
@@ -199,15 +201,6 @@ function FiltersSkeleton() {
         </div>
       </div>
     </div>
-  )
-}
-
-function ErrorPanel({ message }: { message: string }) {
-  return (
-    <Alert className="px-6" variant="destructive">
-      <CircleAlert aria-hidden="true" />
-      <AlertDescription>{message}</AlertDescription>
-    </Alert>
   )
 }
 

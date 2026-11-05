@@ -40,6 +40,7 @@ import {
   listDashboardTableRows,
   queryDashboard,
   type Dashboard,
+  type Error as GatewayError,
   type DashboardSummary,
   type DashboardTableRow,
   type DashboardWidget,
@@ -68,6 +69,7 @@ import {
   dashboardWidgetWidthClasses,
 } from "./dashboard-skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { RequestError } from "@/components/request-error"
 
 const DashboardChart = dynamic(
   () => import("./dashboard-chart").then((module) => module.DashboardChart),
@@ -97,6 +99,7 @@ export function DashboardView({
   dashboards,
   from,
   initialData,
+  initialError,
   maxPoints,
   to,
   workspaceId,
@@ -106,6 +109,7 @@ export function DashboardView({
   dashboards: DashboardSummary[]
   from: string
   initialData?: QueryDashboardResponse
+  initialError?: GatewayError
   maxPoints: number
   to: string
   workspaceId: string
@@ -139,7 +143,7 @@ export function DashboardView({
   }, [navigationPending, progress])
 
   const widgetsQuery = useQuery(
-    queryOptions({
+    queryOptions<QueryDashboardResponse, GatewayError>({
       queryKey: dashboardQueryKey,
       queryFn: async ({ signal }) => {
         const { data, error } = await queryDashboard({
@@ -148,7 +152,7 @@ export function DashboardView({
           path: { agentName: dashboard.agent_name, dashboardName: dashboard.name },
           body: { from, to, max_points: maxPoints },
         })
-        if (error) throw new Error(error.message)
+        if (error) throw error
         return data
       },
       initialData,
@@ -246,11 +250,14 @@ export function DashboardView({
           </Button>
         </div>
       </div>
-      {widgetsQuery.error ? (
-        <Alert variant="destructive" className="px-6 py-3">
-          <CircleAlert aria-hidden="true" />
-          <AlertDescription>{widgetsQuery.error.message}</AlertDescription>
-        </Alert>
+      {widgetsQuery.error || (!widgetsQuery.data && initialError) ? (
+        <RequestError
+          title="Could not load dashboard data"
+          error={widgetsQuery.error ?? initialError}
+          onRetry={async () => {
+            await widgetsQuery.refetch()
+          }}
+        />
       ) : null}
       <div className="grid grid-cols-12 gap-2 bg-muted/30 p-2">
         {dashboard.widgets.map((widget) => (

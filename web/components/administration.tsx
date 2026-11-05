@@ -1,7 +1,14 @@
 import Link from "next/link"
-import Image from "next/image"
 import type { ComponentProps, ReactNode } from "react"
-import { FolderSearch, LoaderCircle, Trash2, Info } from "lucide-react"
+import {
+  FileQuestionMark,
+  FolderSearch,
+  LoaderCircle,
+  Trash2,
+  Info,
+  ShieldQuestion,
+} from "lucide-react"
+import { StateIllustration } from "@/components/state-illustration"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -14,6 +21,7 @@ import {
 } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SidebarTrigger } from "@/components/ui/sidebar"
+import { RequestError } from "@/components/request-error"
 export type AdministrationPageScope =
   | { kind: "organization"; organizationName: string }
   | { kind: "workspace"; organizationName: string; workspaceName: string }
@@ -127,6 +135,11 @@ export function AdministrationState({
   title?: string
 }) {
   let content: { icon: ReactNode; title: string }
+  if (kind === "failed") {
+    return (
+      <RequestError title={title ?? "This section needs a little help"} description={description} />
+    )
+  }
 
   switch (kind) {
     case "provisioning":
@@ -141,21 +154,15 @@ export function AdministrationState({
         title: "Deletion in progress",
       }
       break
-    case "failed":
-      content = {
-        icon: <Image alt="" height={112} src="/cry-emoji.svg" width={112} loading="eager" />,
-        title: "Page could not load",
-      }
-      break
     case "forbidden":
       content = {
-        icon: <Image alt="" height={112} src="/cry-emoji.svg" width={112} loading="eager" />,
+        icon: <StateIllustration icon={ShieldQuestion} />,
         title: "Access denied",
       }
       break
     case "not-found":
       content = {
-        icon: <Image alt="" height={112} src="/file-corrupted.svg" width={112} loading="eager" />,
+        icon: <StateIllustration icon={FileQuestionMark} badge="?" />,
         title: "Page not found",
       }
       break
@@ -167,8 +174,8 @@ export function AdministrationState({
   }
 
   const pending = kind === "provisioning" || kind === "deleting"
-  const urgent = kind === "failed" || kind === "forbidden"
-  const illustrated = kind === "failed" || kind === "forbidden" || kind === "not-found"
+  const urgent = kind === "forbidden"
+  const illustrated = kind === "forbidden" || kind === "not-found"
   const welcoming = kind === "welcome"
   const stateTitle = title ?? content.title
 

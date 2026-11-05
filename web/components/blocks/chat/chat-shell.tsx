@@ -19,6 +19,7 @@ import { authClient } from "@/lib/auth-client"
 import { codingGitOptions, codingThreadOptions } from "@/lib/coding/review"
 import { toast } from "sonner"
 import { nanoid } from "nanoid"
+import { AgentUnavailable } from "@/components/request-error"
 
 type ChatShellProps = Pick<
   ChatProps,
@@ -110,18 +111,12 @@ export function ChatShell({
     target[1] === "sessions" && target[0]
       ? decodeURIComponent(target[0])
       : (search.get("agent") ?? initialAgentName)
-  const { data: availableAgents } = useQuery({
-    ...watchAgentsQueryOptions(workspaceId),
-    select: (agents) => agents.filter((agent) => agent.capabilities.use).map((agent) => agent.name),
-  })
-  const agentNames = initialAgentNames ?? availableAgents ?? [agentName]
-  const { data: appearance } = useQuery({
-    ...watchAgentsQueryOptions(workspaceId),
-    select: (agents) => {
-      const agent = agents.find((agent) => agent.name === agentName)
-      return agent ? (agent.appearance ?? defaultAgentAppearance) : null
-    },
-  })
+  const { data: agents = [] } = useQuery(watchAgentsQueryOptions(workspaceId))
+  const agent = agents.find((agent) => agent.name === agentName)
+  const agentNames =
+    initialAgentNames ?? agents.filter((agent) => agent.capabilities.use).map((agent) => agent.name)
+  const appearance = agent ? (agent.appearance ?? defaultAgentAppearance) : null
+  const degraded = agent?.status === "DEGRADED"
   const coding = initialThread !== undefined || createSession !== undefined
   const draftKey = search.get("draft")
   const [placeholderId] = useState(nanoid)
@@ -239,71 +234,78 @@ export function ChatShell({
             </div>
           </header>
           <div className="@container/chat relative min-h-0 min-w-0 flex-1">
-            <Chat
-              key={chatKey}
-              coding={coding}
-              draftId={activeDraftId}
-              draftMode={draftMode}
-              onDraftModeChange={activeSessionId ? undefined : onDraftModeChange}
-              createSession={createSession}
-              initialMessage={activeSessionId ? undefined : initialMessage}
-              draftModel={activeSessionId ? undefined : draftModel}
-              onDraftModelChange={activeSessionId ? undefined : onDraftModelChange}
-              composerContext={
-                codingThread
-                  ? () => (
-                      <span
-                        className="flex h-7 max-w-60 min-w-0 items-center gap-1.5 text-xs text-muted-foreground"
-                        title={`${branch || "Detached HEAD"}\n${codingThread.worktree.directory}`}
-                      >
-                        <GitBranchIcon aria-hidden="true" className="size-3.5 shrink-0" />
-                        <span className="truncate">
-                          {branch || codingThread.worktree.directory.split("/").at(-1)}
+            {degraded ? (
+              <div className="absolute inset-0 z-10 grid place-items-center overflow-y-auto bg-background">
+                <AgentUnavailable agent={agent} />
+              </div>
+            ) : null}
+            <div className="contents" inert={degraded} aria-hidden={degraded || undefined}>
+              <Chat
+                key={chatKey}
+                coding={coding}
+                draftId={activeDraftId}
+                draftMode={draftMode}
+                onDraftModeChange={activeSessionId ? undefined : onDraftModeChange}
+                createSession={createSession}
+                initialMessage={activeSessionId ? undefined : initialMessage}
+                draftModel={activeSessionId ? undefined : draftModel}
+                onDraftModelChange={activeSessionId ? undefined : onDraftModelChange}
+                composerContext={
+                  codingThread
+                    ? () => (
+                        <span
+                          className="flex h-7 max-w-60 min-w-0 items-center gap-1.5 text-xs text-muted-foreground"
+                          title={`${branch || "Detached HEAD"}\n${codingThread.worktree.directory}`}
+                        >
+                          <GitBranchIcon aria-hidden="true" className="size-3.5 shrink-0" />
+                          <span className="truncate">
+                            {branch || codingThread.worktree.directory.split("/").at(-1)}
+                          </span>
                         </span>
-                      </span>
-                    )
-                  : composerContext
-              }
-              revertDisabled={codingThread?.worktree.shared}
-              agentName={agentName}
-              agentNames={agentNames}
-              chatPreferences={chatPreferences}
-              projectName={projectName}
-              firstName={firstName ?? actor?.user.name.trim().split(/\s+/, 1)[0]}
-              greetingIndex={greetingIndex}
-              onSessionCreated={(id) => {
-                setPromotedSession({ chatKey: routeChatKey, sessionId: id })
-                onDraftPromoted?.(id)
-
-                const url = new URL(window.location.href)
-                if (
-                  url.pathname !== draftPath ||
-                  url.searchParams.toString() !== search.toString()
-                ) {
-                  return
+                      )
+                    : composerContext
                 }
+                revertDisabled={codingThread?.worktree.shared}
+                agentName={agentName}
+                agentNames={agentNames}
+                chatPreferences={chatPreferences}
+                projectName={projectName}
+                firstName={firstName ?? actor?.user.name.trim().split(/\s+/, 1)[0]}
+                greetingIndex={greetingIndex}
+                onSessionCreated={(id) => {
+                  setPromotedSession({ chatKey: routeChatKey, sessionId: id })
+                  onDraftPromoted?.(id)
 
-                const sessionPath =
-                  `${workspacePath}/agents/${encodeURIComponent(agentName)}/sessions/` +
-                  encodeURIComponent(id)
-                window.history.replaceState(null, "", sessionPath)
-              }}
-              promptMobile={previewerOpen}
-              navigationPending={
-                activePromotion !== undefined && routeSessionId !== activePromotion.sessionId
-              }
-              sessionId={activeSessionId}
-              workspaceId={workspaceId}
-              onAgentChange={(name) => {
-                if (onDraftAgentChange) {
-                  onDraftAgentChange(name)
-                  return
+                  const url = new URL(window.location.href)
+                  if (
+                    url.pathname !== draftPath ||
+                    url.searchParams.toString() !== search.toString()
+                  ) {
+                    return
+                  }
+
+                  const sessionPath =
+                    `${workspacePath}/agents/${encodeURIComponent(agentName)}/sessions/` +
+                    encodeURIComponent(id)
+                  window.history.replaceState(null, "", sessionPath)
+                }}
+                promptMobile={previewerOpen}
+                navigationPending={
+                  activePromotion !== undefined && routeSessionId !== activePromotion.sessionId
                 }
-                const url = new URL(window.location.href)
-                url.searchParams.set("agent", name)
-                router.replace(`${url.pathname}${url.search}` as Route, { showProgress: false })
-              }}
-            />
+                sessionId={activeSessionId}
+                workspaceId={workspaceId}
+                onAgentChange={(name) => {
+                  if (onDraftAgentChange) {
+                    onDraftAgentChange(name)
+                    return
+                  }
+                  const url = new URL(window.location.href)
+                  url.searchParams.set("agent", name)
+                  router.replace(`${url.pathname}${url.search}` as Route, { showProgress: false })
+                }}
+              />
+            </div>
           </div>
         </div>
         {codingThread ? (

@@ -1,8 +1,8 @@
+import { RequestError } from "@/components/request-error"
 import { RememberRoute } from "@/data/route-memory"
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { Suspense } from "react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import * as z from "zod"
 import Workflow from "@/components/blocks/workflow/workflow"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -10,7 +10,6 @@ import { resolvePageSelection, type ResolvedPageSelection } from "@/data/page-se
 import { RememberPageSelection } from "@/components/page-selection"
 import { getWorkspaceScope } from "@/data/workspaces"
 import { searchParamStringSchema } from "@/lib/search-params"
-import { CircleAlert } from "lucide-react"
 
 export const metadata: Metadata = {
   title: "Workflow Graphs",
@@ -37,6 +36,8 @@ async function WorkspaceWorkflows({
 }: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/workflows/graphs">) {
   const [route, search] = await Promise.all([params, searchParams])
   const workspace = await getWorkspaceScope(route.orgSlug, route.workspaceSlug)
+  if (workspace.kind === "error")
+    return <RequestError title="Could not load this workspace" error={workspace.error} />
   if (workspace.kind !== "ready" || workspace.workspace.type === "coding") {
     notFound()
   }
@@ -57,7 +58,7 @@ async function WorkflowContent({ selection }: { selection: Promise<ResolvedPageS
     return (
       <>
         <RememberPageSelection {...state} />
-        <ErrorPanel message={error.message} />
+        <RequestError title="Could not load workflows" error={error} />
       </>
     )
   return (
@@ -133,15 +134,6 @@ function WorkflowNodeSkeleton({ isLast = false }: { isLast?: boolean }) {
         </div>
       </div>
     </div>
-  )
-}
-
-function ErrorPanel({ message }: { message: string }) {
-  return (
-    <Alert className="px-6" variant="destructive">
-      <CircleAlert aria-hidden="true" />
-      <AlertDescription>{message}</AlertDescription>
-    </Alert>
   )
 }
 

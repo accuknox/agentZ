@@ -1,6 +1,6 @@
 import { Suspense, type ReactNode } from "react"
 import { AdministrationPageHeader } from "@/components/administration"
-import { ErrorState } from "@/components/error-state"
+import { RequestError } from "@/components/request-error"
 import { Skeleton } from "@/components/ui/skeleton"
 import { listInferencePoolsPageCachedQuery } from "@/data/inference-pool.queries"
 import { listInferenceProvidersCachedQuery } from "@/data/inference-provider.queries"
@@ -44,7 +44,7 @@ async function Pools({
     return (
       <>
         <PageHeader />
-        <ErrorState description={pools.error.message} />
+        <RequestError title="Could not load inference pools" error={pools.error} />
       </>
     )
   }
@@ -52,7 +52,7 @@ async function Pools({
     return (
       <>
         <PageHeader />
-        <ErrorState description={providers.error.message} />
+        <RequestError title="Could not load model providers" error={providers.error} />
       </>
     )
   }

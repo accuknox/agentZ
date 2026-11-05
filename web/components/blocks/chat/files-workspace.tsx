@@ -43,7 +43,7 @@ import { MessageResponse } from "@/components/ai-elements/message"
 import { FileTree, FileTreeFile, FileTreeFolder } from "@/components/ai-elements/file-tree"
 import { type FileTab, useFileWorkspace } from "@/components/blocks/chat/file-workspace-store"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { ErrorState } from "@/components/error-state"
+import { RequestError } from "@/components/request-error"
 import { Button } from "@/components/ui/button"
 import {
   ContextMenu,
@@ -1404,11 +1404,11 @@ function EditorPane({
   if (statQuery.isError || (fileQuery.isError && !unsupportedText)) {
     return (
       <div className="flex h-full items-center justify-center p-6">
-        <ErrorState
-          kind="unreadable"
-          onRetry={() => {
-            void statQuery.refetch()
-            if (readText) void fileQuery.refetch()
+        <RequestError
+          title={`Could not open ${filename}`}
+          description="The file is unavailable or could not be read."
+          onRetry={async () => {
+            await Promise.all([statQuery.refetch(), readText ? fileQuery.refetch() : undefined])
           }}
         />
       </div>

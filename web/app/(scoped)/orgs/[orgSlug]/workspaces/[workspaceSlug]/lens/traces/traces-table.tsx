@@ -40,7 +40,7 @@ import type {
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
-import { ErrorState } from "@/components/error-state"
+import { RequestError } from "@/components/request-error"
 import { TablePagination, TokenTablePagination } from "@/components/table-pagination"
 import { Progress } from "@/components/interior/progress-bar"
 import { Sheet } from "@/components/ui/sheet"
@@ -323,7 +323,7 @@ export function TracesTable({
   }
 
   if (error) {
-    return <ErrorState error={new globalThis.Error(error.message)} />
+    return <RequestError title="Could not load traces" error={error} />
   }
 
   if (!data) {

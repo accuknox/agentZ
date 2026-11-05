@@ -1,3 +1,4 @@
+import { RequestError } from "@/components/request-error"
 import { Suspense } from "react"
 import { connection } from "next/server"
 import { RememberRoute } from "@/data/route-memory"
@@ -23,6 +24,8 @@ async function WorkspaceGuardrails(
   await connection()
   const { orgSlug, workspaceSlug, view } = await params
   const result = await getWorkspaceScope(orgSlug, workspaceSlug)
+  if (result.kind === "error")
+    return <RequestError title="Could not load this workspace" error={result.error} />
   if (result.kind !== "ready") return <AdministrationState kind="forbidden" />
   const capabilities = result.workspace.capabilities
   return (

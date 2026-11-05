@@ -6,7 +6,6 @@ import {
   type Dashboard,
   type DashboardSummary,
   type Error,
-  type QueryDashboardResponse,
 } from "@/lib/gateway/client"
 import { dashboardTag, dashboardsTag } from "@/data/cache"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
@@ -52,19 +51,18 @@ export async function getDashboardCachedQuery(
   return error ? { dashboard: undefined, error } : { dashboard: data, error: undefined }
 }
 
-export async function queryDashboardInitial(
+export function queryDashboardInitial(
   workspaceId: string,
   agentName: string,
   dashboardName: string,
   from: string,
   to: string,
   maxPoints: number
-): Promise<QueryDashboardResponse | undefined> {
-  const { data } = await queryDashboard({
+) {
+  return queryDashboard({
     client: getGatewayServerClient(workspaceId),
     headers: { "X-AgentZ-Workspace-ID": workspaceId },
     path: { agentName, dashboardName },
     body: { from, to, max_points: maxPoints },
   })
-  return data
 }

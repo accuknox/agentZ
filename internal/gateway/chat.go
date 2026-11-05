@@ -92,6 +92,9 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 	if params.GroupBy != nil {
 		groupBy = *params.GroupBy
 	}
+	if shelf == gatewayapi.ChatSessionShelfPinned {
+		groupBy = gatewayapi.ChatSessionGroupByNone
+	}
 	search := ""
 	if params.Search != nil {
 		search = strings.TrimSpace(*params.Search)
@@ -302,6 +305,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 	includeFilterOptions := params.IncludeFilterOptions == nil || *params.IncludeFilterOptions
 	if includeFilterOptions && shelf == gatewayapi.ChatSessionShelfActive && len(agentNames) > 0 {
 		query := gatewaydb.GatewayCountChatSessionShelvesParams{
+			ViewerID:            access.userID,
 			WorkspaceID:         access.workspaceID,
 			AgentNames:          agentNames,
 			OwnerID:             ownerID,
@@ -404,6 +408,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		groups, searchErr := s.searchChatSessionGroups(
 			r.Context(),
 			gatewaydb.GatewaySearchGroupedChatSessionsParams{
+				ViewerID:            access.userID,
 				Shelf:               string(shelf),
 				OwnerID:             ownerID,
 				PageSize:            limit + 1,
@@ -437,6 +442,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 			values, err = s.queries.GatewayListChatSessionDateGroups(
 				r.Context(),
 				gatewaydb.GatewayListChatSessionDateGroupsParams{
+					ViewerID:            access.userID,
 					Shelf:               string(shelf),
 					OwnerID:             ownerID,
 					TodayStart:          today,
@@ -460,6 +466,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		sessions, next, listErr := s.listChatSessionPage(
 			r.Context(),
 			gatewaydb.GatewayListChatSessionsParams{
+				ViewerID:            access.userID,
 				Shelf:               string(shelf),
 				ProjectID:           projectID,
 				OwnerID:             ownerID,
@@ -570,10 +577,16 @@ func (s *Service) listChatSessionPage(ctx context.Context, q gatewaydb.GatewayLi
 			snoozedUntil = &row.SnoozedUntil.Time
 		}
 		sessions = append(sessions, gatewayapi.ChatSession{
-			ProjectId:    projectID,
-			AgentName:    row.AgentName,
-			SessionId:    row.SessionID,
-			Title:        row.Title,
+			ProjectId: projectID,
+			AgentName: row.AgentName,
+			SessionId: row.SessionID,
+			Title:     row.Title,
+			State: gatewayapi.ChatSessionState{
+				Pinned:        row.Pinned,
+				Locked:        row.Locked,
+				Version:       row.StateVersion,
+				IsParticipant: row.IsParticipant,
+			},
 			Archived:     row.ArchivedAt.Valid,
 			SnoozedUntil: snoozedUntil,
 			WokeAt:       wokeAt,
@@ -632,9 +645,15 @@ func (s *Service) searchChatSessionGroups(ctx context.Context, q gatewaydb.Gatew
 			snoozedUntil = &row.SnoozedUntil.Time
 		}
 		group.Sessions = append(group.Sessions, gatewayapi.ChatSession{
-			AgentName:    row.AgentName,
-			SessionId:    row.SessionID,
-			Title:        row.Title,
+			AgentName: row.AgentName,
+			SessionId: row.SessionID,
+			Title:     row.Title,
+			State: gatewayapi.ChatSessionState{
+				Pinned:        row.Pinned,
+				Locked:        row.Locked,
+				Version:       row.StateVersion,
+				IsParticipant: row.IsParticipant,
+			},
 			Archived:     row.ArchivedAt.Valid,
 			SnoozedUntil: snoozedUntil,
 			WokeAt:       wokeAt,
@@ -1095,7 +1114,15 @@ func (s *Service) UpdateChatSession(w http.ResponseWriter, r *http.Request, agen
 		return
 	}
 	var until pgtype.Timestamptz
-	switch body.Shelf {
+	if body.Pinned != nil || body.Locked != nil {
+		s.setChatSessionState(w, r, access, agent, session, body)
+		return
+	}
+	if body.Shelf == nil || body.ExpectedVersion != nil {
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "Choose a shelf or a pin/lock update", nil))
+		return
+	}
+	switch *body.Shelf {
 	case gatewayapi.ChatSessionShelfActive, gatewayapi.ChatSessionShelfArchived:
 		if body.SnoozedUntil != nil {
 			apiutil.WriteError(w, r, apiutil.NewError(
@@ -1140,7 +1167,7 @@ func (s *Service) UpdateChatSession(w http.ResponseWriter, r *http.Request, agen
 		AgentName:    agent,
 		SessionID:    session,
 		OwnerID:      owner,
-		Shelf:        string(body.Shelf),
+		Shelf:        string(*body.Shelf),
 		SnoozedUntil: until,
 	})
 	if err != nil {
@@ -1199,4 +1226,178 @@ func (s *Service) runChatSessionExpiry(ctx context.Context) {
 		}
 		timer.Reset(max(time.Millisecond, delay))
 	}
+}
+
+// GetChatSessionState reads shared state without relying on sidebar filters.
+func (s *Service) GetChatSessionState(w http.ResponseWriter, r *http.Request, agent string, session string) {
+	access, apiErr := s.resolveAgentAccess(r.Context(), agent, authorization.OperationUseSharedAgent)
+	if apiErr != nil {
+		apiutil.WriteError(w, r, apiErr)
+		return
+	}
+	auth, _ := requestAuthState(r.Context())
+	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding {
+		if _, err := s.resolveCodingSession(r.Context(), access, agent, session); err != nil {
+			apiutil.WriteError(w, r, mapGatewayStoreError("get chat", err))
+			return
+		}
+	}
+	row, err := s.queries.GatewayGetChatSessionState(r.Context(), gatewaydb.GatewayGetChatSessionStateParams{
+		WorkspaceID: access.workspaceID,
+		AgentName:   agent,
+		SessionID:   session,
+		ViewerID:    access.userID,
+	})
+	if err != nil {
+		apiutil.WriteError(w, r, mapGatewayStoreError("get chat state", err))
+		return
+	}
+	state := gatewayapi.ChatSessionState{
+		Pinned:        row.Pinned,
+		Locked:        row.Locked,
+		Version:       row.StateVersion,
+		IsParticipant: row.IsParticipant,
+	}
+	if row.StateChangedAt.Valid {
+		state.ChangedAt = &row.StateChangedAt.Time
+	}
+	if row.StateChangedBy.Valid {
+		actors, err := s.resourceActors(r.Context(), row.StateChangedBy.String)
+		if err != nil {
+			apiutil.WriteInternalError(w, r, err)
+			return
+		}
+		actor := actors[row.StateChangedBy.String]
+		state.Actor = &actor
+	}
+	apiutil.WriteJSON(w, http.StatusOK, state)
+}
+
+func (s *Service) setChatSessionState(w http.ResponseWriter, r *http.Request, access resourceAccess, agent string, session string, body gatewayapi.UpdateChatSessionRequest) {
+	if body.ExpectedVersion == nil || body.Shelf != nil || body.SnoozedUntil != nil {
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest, "invalid_request",
+			"Pin and lock updates require expected_version and cannot change shelves", nil,
+		))
+		return
+	}
+	auth, _ := requestAuthState(r.Context())
+	if auth.actorType != requestActorUser || auth.claims == nil || auth.claims.BrowserSessionID == "" {
+		apiutil.WriteError(w, r, resourceForbidden(errors.New("thread pins and locks can only be changed by a browser user")))
+		return
+	}
+	expiry, err := s.queries.GatewayGetBrowserSessionExpiry(r.Context(), gatewaydb.GatewayGetBrowserSessionExpiryParams{
+		ID: auth.claims.BrowserSessionID, UserID: access.userID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) || err == nil && !expiry.After(time.Now()) {
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusUnauthorized, "unauthorized", "browser session has expired", nil))
+		return
+	}
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding {
+		if body.Locked != nil {
+			apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "Coding threads do not support locking", nil))
+			return
+		}
+		if _, err := s.resolveCodingSession(r.Context(), access, agent, session); err != nil {
+			apiutil.WriteError(w, r, mapGatewayStoreError("update chat", err))
+			return
+		}
+	}
+	release, err := s.lockChatInputs(r.Context(), access.workspaceID, agent, session, "")
+	if err != nil {
+		apiutil.WriteError(w, r, mapGatewayStoreError("update chat", err))
+		return
+	}
+	defer release()
+	row, err := s.queries.GatewayGetChatSession(r.Context(), gatewaydb.GatewayGetChatSessionParams{
+		WorkspaceID: access.workspaceID,
+		AgentName:   agent,
+		SessionID:   session,
+	})
+	if err != nil || row.Deleting || row.ParentSessionID.Valid {
+		if err == nil {
+			err = pgx.ErrNoRows
+		}
+		apiutil.WriteError(w, r, mapGatewayStoreError("update chat", err))
+		return
+	}
+	if row.StateVersion != *body.ExpectedVersion {
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict, "thread_state_conflict",
+			"This chat changed. Review its current state and try again.", nil,
+		))
+		return
+	}
+	if row.Locked && body.Pinned != nil && !*body.Pinned {
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "thread_locked", "Unlock this chat before unpinning it", nil))
+		return
+	}
+	samePin := body.Pinned == nil || *body.Pinned == row.Pinned
+	sameLock := body.Locked == nil || *body.Locked == row.Locked
+	if samePin && sameLock {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	change := gatewaydb.GatewaySetChatSessionStateParams{
+		WorkspaceID:     access.workspaceID,
+		AgentName:       agent,
+		SessionID:       session,
+		ActorID:         pgtype.Text{String: access.userID, Valid: true},
+		ExpectedVersion: *body.ExpectedVersion,
+	}
+	if body.Pinned != nil {
+		change.Pinned = pgtype.Bool{Bool: *body.Pinned, Valid: true}
+	}
+	if body.Locked != nil {
+		change.Locked = pgtype.Bool{Bool: *body.Locked, Valid: true}
+	}
+	_, err = s.queries.GatewaySetChatSessionState(r.Context(), change)
+	if err != nil {
+		apiutil.WriteError(w, r, mapGatewayStoreError("update chat state", err))
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// guardThread protects a conversation's membership and deletion at admission.
+// Accepted inputs and internal notifications may finish after locking.
+func (s *Service) guardThread(ctx context.Context, access resourceAccess, agent string, session string, deleting bool) error {
+	root, err := s.queries.GatewayChatRoot(ctx, gatewaydb.GatewayChatRootParams{
+		WorkspaceID: access.workspaceID,
+		AgentName:   agent,
+		SessionID:   session,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !root.Locked {
+		return nil
+	}
+	if deleting {
+		return apiutil.NewError(http.StatusConflict, "thread_locked", "Unlock this chat before deleting it", nil)
+	}
+	auth, _ := requestAuthState(ctx)
+	if auth.actorType == requestActorSystem {
+		return nil
+	}
+	state, err := s.queries.GatewayGetChatSessionState(ctx, gatewaydb.GatewayGetChatSessionStateParams{
+		WorkspaceID: access.workspaceID,
+		AgentName:   agent,
+		SessionID:   root.SessionID,
+		ViewerID:    access.userID,
+	})
+	if err != nil {
+		return err
+	}
+	if !state.IsParticipant {
+		return apiutil.NewError(http.StatusForbidden, "thread_locked", "This chat is locked. Unlock it before joining the conversation.", nil)
+	}
+	return nil
 }

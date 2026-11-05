@@ -227,8 +227,8 @@ WITH RECURSIVE lineage AS (
   JOIN lineage c ON p.session_id = c.parent_session_id
   WHERE p.workspace_id = $1 AND p.agent_name = $2
 )
-SELECT s.workspace_id, s.agent_name, s.session_id, s.parent_session_id, s.title, s.archived_at, s.snoozed_until, s.resumed_at, s.woke_at, s.kind, s.status, s.source_created_at, s.source_updated_at, s.created_at, s.updated_at, s.deleting, s.cleanup_completed_at, s.generation FROM chat_sessions s JOIN lineage l ON l.session_id = s.session_id
-WHERE s.workspace_id = $1 AND s.agent_name = $2 AND s.kind = 'chat' AND s.parent_session_id IS NULL LIMIT 1
+SELECT s.pinned, s.locked, s.state_version, s.state_changed_by, s.state_changed_at, s.workspace_id, s.agent_name, s.session_id, s.parent_session_id, s.title, s.archived_at, s.snoozed_until, s.resumed_at, s.woke_at, s.kind, s.status, s.source_created_at, s.source_updated_at, s.created_at, s.updated_at, s.deleting, s.cleanup_completed_at, s.generation FROM chat_sessions s JOIN lineage l ON l.session_id = s.session_id
+WHERE s.workspace_id = $1 AND s.agent_name = $2 AND s.parent_session_id IS NULL LIMIT 1
 `
 
 type GatewayChatRootParams struct {
@@ -241,6 +241,11 @@ func (q *Queries) GatewayChatRoot(ctx context.Context, arg GatewayChatRootParams
 	row := q.db.QueryRow(ctx, gatewayChatRoot, arg.WorkspaceID, arg.AgentName, arg.SessionID)
 	var i ChatSession
 	err := row.Scan(
+		&i.Pinned,
+		&i.Locked,
+		&i.StateVersion,
+		&i.StateChangedBy,
+		&i.StateChangedAt,
 		&i.WorkspaceID,
 		&i.AgentName,
 		&i.SessionID,
@@ -668,40 +673,45 @@ SELECT
   count(*) FILTER (WHERE sessions.archived_at IS NOT NULL) AS archived,
   count(*) FILTER (WHERE sessions.snoozed_until > now()) AS snoozed
 FROM chat_sessions AS sessions
+LEFT JOIN chat_session_participants viewer ON viewer.workspace_id = sessions.workspace_id
+  AND viewer.agent_name = sessions.agent_name AND viewer.session_id = sessions.session_id
+  AND viewer.user_id = $1
 LEFT JOIN coding_threads AS coding ON coding.workspace_id = sessions.workspace_id
   AND coding.agent_name = sessions.agent_name AND coding.session_id = sessions.session_id
 LEFT JOIN coding_worktrees AS tree ON tree.id = coding.worktree_id
 LEFT JOIN coding_projects AS project ON project.id = tree.project_id
-WHERE sessions.workspace_id = $1
-  AND sessions.agent_name = ANY($2::text[])
+WHERE sessions.workspace_id = $2
+  AND sessions.agent_name = ANY($3::text[])
   AND sessions.parent_session_id IS NULL
+  AND NOT (sessions.pinned OR (sessions.locked AND viewer.user_id IS NOT NULL))
   AND NOT sessions.deleting
   AND (sessions.archived_at IS NOT NULL OR sessions.snoozed_until > now())
-  AND ($3::text IS NULL OR project.owner_id = $3)
+  AND ($4::text IS NULL OR project.owner_id = $4)
   AND (
-    $4::boolean
+    $5::boolean
     OR sessions.kind <> 'workflow_run'
   )
   AND (
-    NOT $5::boolean
+    NOT $6::boolean
     OR sessions.title ILIKE
-      '%' || REPLACE(REPLACE(REPLACE($6::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'
+      '%' || REPLACE(REPLACE(REPLACE($7::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'
       ESCAPE '\'
   )
   AND (
-    cardinality($7::text[]) = 0
+    cardinality($8::text[]) = 0
     OR (
       SELECT COUNT(DISTINCT participants.user_id)
       FROM chat_session_participants AS participants
       WHERE participants.workspace_id = sessions.workspace_id
         AND participants.agent_name = sessions.agent_name
         AND participants.session_id = sessions.session_id
-        AND participants.user_id = ANY($7::text[])
-    ) = cardinality($7::text[])
+        AND participants.user_id = ANY($8::text[])
+    ) = cardinality($8::text[])
   )
 `
 
 type GatewayCountChatSessionShelvesParams struct {
+	ViewerID            string      `json:"viewer_id"`
 	WorkspaceID         string      `json:"workspace_id"`
 	AgentNames          []string    `json:"agent_names"`
 	OwnerID             pgtype.Text `json:"owner_id"`
@@ -718,6 +728,7 @@ type GatewayCountChatSessionShelvesRow struct {
 
 func (q *Queries) GatewayCountChatSessionShelves(ctx context.Context, arg GatewayCountChatSessionShelvesParams) (GatewayCountChatSessionShelvesRow, error) {
 	row := q.db.QueryRow(ctx, gatewayCountChatSessionShelves,
+		arg.ViewerID,
 		arg.WorkspaceID,
 		arg.AgentNames,
 		arg.OwnerID,
@@ -2507,7 +2518,7 @@ func (q *Queries) GatewayGetChatInput(ctx context.Context, arg GatewayGetChatInp
 }
 
 const gatewayGetChatSession = `-- name: GatewayGetChatSession :one
-SELECT workspace_id, agent_name, session_id, parent_session_id, title, archived_at, snoozed_until, resumed_at, woke_at, kind, status, source_created_at, source_updated_at, created_at, updated_at, deleting, cleanup_completed_at, generation FROM chat_sessions
+SELECT pinned, locked, state_version, state_changed_by, state_changed_at, workspace_id, agent_name, session_id, parent_session_id, title, archived_at, snoozed_until, resumed_at, woke_at, kind, status, source_created_at, source_updated_at, created_at, updated_at, deleting, cleanup_completed_at, generation FROM chat_sessions
 WHERE workspace_id = $1 AND agent_name = $2 AND session_id = $3
 `
 
@@ -2521,6 +2532,11 @@ func (q *Queries) GatewayGetChatSession(ctx context.Context, arg GatewayGetChatS
 	row := q.db.QueryRow(ctx, gatewayGetChatSession, arg.WorkspaceID, arg.AgentName, arg.SessionID)
 	var i ChatSession
 	err := row.Scan(
+		&i.Pinned,
+		&i.Locked,
+		&i.StateVersion,
+		&i.StateChangedBy,
+		&i.StateChangedAt,
 		&i.WorkspaceID,
 		&i.AgentName,
 		&i.SessionID,
@@ -2580,6 +2596,52 @@ func (q *Queries) GatewayGetChatSessionGroup(ctx context.Context, arg GatewayGet
 	)
 	var i GatewayGetChatSessionGroupRow
 	err := row.Scan(&i.Status, &i.SourceUpdatedAt, &i.ProjectID)
+	return i, err
+}
+
+const gatewayGetChatSessionState = `-- name: GatewayGetChatSessionState :one
+SELECT sessions.pinned, sessions.locked, sessions.state_version,
+  sessions.state_changed_by, sessions.state_changed_at,
+  EXISTS (SELECT 1 FROM chat_session_participants member
+      WHERE member.workspace_id = sessions.workspace_id AND member.agent_name = sessions.agent_name
+        AND member.session_id = sessions.session_id AND member.user_id = $1) AS is_participant
+FROM chat_sessions sessions
+WHERE sessions.workspace_id = $2 AND sessions.agent_name = $3
+  AND sessions.session_id = $4 AND NOT sessions.deleting
+`
+
+type GatewayGetChatSessionStateParams struct {
+	ViewerID    string `json:"viewer_id"`
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	SessionID   string `json:"session_id"`
+}
+
+type GatewayGetChatSessionStateRow struct {
+	Pinned         bool               `json:"pinned"`
+	Locked         bool               `json:"locked"`
+	StateVersion   int64              `json:"state_version"`
+	StateChangedBy pgtype.Text        `json:"state_changed_by"`
+	StateChangedAt pgtype.Timestamptz `json:"state_changed_at"`
+	IsParticipant  bool               `json:"is_participant"`
+}
+
+func (q *Queries) GatewayGetChatSessionState(ctx context.Context, arg GatewayGetChatSessionStateParams) (GatewayGetChatSessionStateRow, error) {
+	row := q.db.QueryRow(ctx, gatewayGetChatSessionState,
+		arg.ViewerID,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.SessionID,
+	)
+	var i GatewayGetChatSessionStateRow
+	err := row.Scan(
+		&i.Pinned,
+		&i.Locked,
+		&i.StateVersion,
+		&i.StateChangedBy,
+		&i.StateChangedAt,
+		&i.IsParticipant,
+	)
 	return i, err
 }
 
@@ -4675,36 +4737,41 @@ SELECT CASE
   ELSE 'older'
 END::text AS group_value
 FROM chat_sessions AS sessions
+LEFT JOIN chat_session_participants viewer ON viewer.workspace_id = sessions.workspace_id
+  AND viewer.agent_name = sessions.agent_name AND viewer.session_id = sessions.session_id
+  AND viewer.user_id = $4
 LEFT JOIN coding_threads AS coding ON coding.workspace_id = sessions.workspace_id
   AND coding.agent_name = sessions.agent_name AND coding.session_id = sessions.session_id
 LEFT JOIN coding_worktrees AS tree ON tree.id = coding.worktree_id
 LEFT JOIN coding_projects AS project ON project.id = tree.project_id
-WHERE sessions.workspace_id = $4
-  AND sessions.agent_name = ANY($5::text[])
+WHERE sessions.workspace_id = $5
+  AND sessions.agent_name = ANY($6::text[])
   AND sessions.parent_session_id IS NULL
-  AND CASE $6::text
-    WHEN 'archived' THEN sessions.archived_at IS NOT NULL
-    WHEN 'snoozed' THEN sessions.snoozed_until > now()
-    ELSE sessions.archived_at IS NULL
-      AND (sessions.snoozed_until IS NULL OR sessions.snoozed_until <= now())
+  AND CASE WHEN $7::text = 'pinned' THEN (sessions.pinned OR (sessions.locked AND viewer.user_id IS NOT NULL))
+    ELSE NOT (sessions.pinned OR (sessions.locked AND viewer.user_id IS NOT NULL)) AND CASE $7::text
+      WHEN 'archived' THEN sessions.archived_at IS NOT NULL
+      WHEN 'snoozed' THEN sessions.snoozed_until > now()
+      ELSE sessions.archived_at IS NULL
+        AND (sessions.snoozed_until IS NULL OR sessions.snoozed_until <= now())
+    END
   END
-  AND ($7::text IS NULL OR project.owner_id = $7)
+  AND ($8::text IS NULL OR project.owner_id = $8)
   AND NOT sessions.deleting
 
   AND (
-    $8::boolean
+    $9::boolean
     OR sessions.kind <> 'workflow_run'
   )
   AND (
-    cardinality($9::text[]) = 0
+    cardinality($10::text[]) = 0
     OR (
       SELECT COUNT(DISTINCT participants.user_id)
       FROM chat_session_participants AS participants
       WHERE participants.workspace_id = sessions.workspace_id
         AND participants.agent_name = sessions.agent_name
         AND participants.session_id = sessions.session_id
-        AND participants.user_id = ANY($9::text[])
-    ) = cardinality($9::text[])
+        AND participants.user_id = ANY($10::text[])
+    ) = cardinality($10::text[])
   )
 GROUP BY group_value
 ORDER BY MAX(sessions.source_updated_at) DESC
@@ -4714,6 +4781,7 @@ type GatewayListChatSessionDateGroupsParams struct {
 	TodayStart          time.Time   `json:"today_start"`
 	YesterdayStart      time.Time   `json:"yesterday_start"`
 	PreviousWeekStart   time.Time   `json:"previous_week_start"`
+	ViewerID            string      `json:"viewer_id"`
 	WorkspaceID         string      `json:"workspace_id"`
 	AgentNames          []string    `json:"agent_names"`
 	Shelf               string      `json:"shelf"`
@@ -4727,6 +4795,7 @@ func (q *Queries) GatewayListChatSessionDateGroups(ctx context.Context, arg Gate
 		arg.TodayStart,
 		arg.YesterdayStart,
 		arg.PreviousWeekStart,
+		arg.ViewerID,
 		arg.WorkspaceID,
 		arg.AgentNames,
 		arg.Shelf,
@@ -4828,6 +4897,8 @@ SELECT
   sessions.agent_name,
   sessions.session_id,
   sessions.title,
+  sessions.pinned, sessions.locked, sessions.state_version,
+  (viewer.user_id IS NOT NULL)::boolean AS is_participant,
   sessions.archived_at,
   sessions.snoozed_until,
   sessions.woke_at,
@@ -4852,85 +4923,91 @@ SELECT
       AND participants.session_id = sessions.session_id
   ), '[]'::jsonb)::text AS participants_json
 FROM chat_sessions AS sessions
+LEFT JOIN chat_session_participants viewer ON viewer.workspace_id = sessions.workspace_id
+  AND viewer.agent_name = sessions.agent_name AND viewer.session_id = sessions.session_id
+  AND viewer.user_id = $1
 LEFT JOIN coding_threads AS coding ON coding.workspace_id = sessions.workspace_id
   AND coding.agent_name = sessions.agent_name AND coding.session_id = sessions.session_id
 LEFT JOIN coding_worktrees AS tree ON tree.id = coding.worktree_id
 LEFT JOIN coding_projects AS project ON project.id = tree.project_id
-WHERE ($1::text IS NULL OR project.id = $1)
-  AND sessions.workspace_id = $2
-  AND sessions.agent_name = ANY($3::text[])
+WHERE ($2::text IS NULL OR project.id = $2)
+  AND sessions.workspace_id = $3
+  AND sessions.agent_name = ANY($4::text[])
   AND sessions.parent_session_id IS NULL
-  AND CASE $4::text
-    WHEN 'archived' THEN sessions.archived_at IS NOT NULL
-    WHEN 'snoozed' THEN sessions.snoozed_until > now()
-    ELSE sessions.archived_at IS NULL
-      AND (sessions.snoozed_until IS NULL OR sessions.snoozed_until <= now())
+  AND CASE WHEN $5::text = 'pinned' THEN (sessions.pinned OR (sessions.locked AND viewer.user_id IS NOT NULL))
+    ELSE NOT (sessions.pinned OR (sessions.locked AND viewer.user_id IS NOT NULL)) AND CASE $5::text
+      WHEN 'archived' THEN sessions.archived_at IS NOT NULL
+      WHEN 'snoozed' THEN sessions.snoozed_until > now()
+      ELSE sessions.archived_at IS NULL
+        AND (sessions.snoozed_until IS NULL OR sessions.snoozed_until <= now())
+    END
   END
-  AND ($5::text IS NULL OR project.owner_id = $5)
+  AND ($6::text IS NULL OR project.owner_id = $6)
   AND NOT sessions.deleting
 
   AND (
-    $6::boolean
+    $7::boolean
     OR sessions.kind <> 'workflow_run'
   )
   AND (
-    $7::text IS NULL
-    OR sessions.agent_name = $7::text
+    $8::text IS NULL
+    OR sessions.agent_name = $8::text
   )
   AND (
-    NOT $8::boolean
+    NOT $9::boolean
     OR sessions.title ILIKE
-      '%' || REPLACE(REPLACE(REPLACE($9::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'
+      '%' || REPLACE(REPLACE(REPLACE($10::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'
       ESCAPE '\'
   )
   AND (
-    $10::text IS NULL
-    OR sessions.agent_name = $10::text
+    $11::text IS NULL
+    OR sessions.agent_name = $11::text
   )
   AND (
-    $11::chat_session_status IS NULL
-    OR sessions.status = $11::chat_session_status
-  )
-  AND (
-    $12::timestamptz IS NULL
-    OR sessions.source_updated_at >= $12::timestamptz
+    $12::chat_session_status IS NULL
+    OR sessions.status = $12::chat_session_status
   )
   AND (
     $13::timestamptz IS NULL
-    OR sessions.source_updated_at < $13::timestamptz
+    OR sessions.source_updated_at >= $13::timestamptz
   )
   AND (
-    cardinality($14::text[]) = 0
+    $14::timestamptz IS NULL
+    OR sessions.source_updated_at < $14::timestamptz
+  )
+  AND (
+    cardinality($15::text[]) = 0
     OR (
       SELECT COUNT(DISTINCT participants.user_id)
       FROM chat_session_participants AS participants
       WHERE participants.workspace_id = sessions.workspace_id
         AND participants.agent_name = sessions.agent_name
         AND participants.session_id = sessions.session_id
-        AND participants.user_id = ANY($14::text[])
-    ) = cardinality($14::text[])
+        AND participants.user_id = ANY($15::text[])
+    ) = cardinality($15::text[])
   )
   AND (
-    NOT $15::boolean
-    OR sessions.source_updated_at < $16
+    NOT $16::boolean
+    OR sessions.source_updated_at < $17
     OR (
-      sessions.source_updated_at = $16
-      AND sessions.agent_name > $17
+      sessions.source_updated_at = $17
+      AND sessions.agent_name > $18
     )
     OR (
-      sessions.source_updated_at = $16
-      AND sessions.agent_name = $17
-      AND sessions.session_id > $18
+      sessions.source_updated_at = $17
+      AND sessions.agent_name = $18
+      AND sessions.session_id > $19
     )
   )
 ORDER BY
   sessions.source_updated_at DESC NULLS LAST,
   sessions.agent_name ASC,
   sessions.session_id ASC
-LIMIT $19
+LIMIT $20
 `
 
 type GatewayListChatSessionsParams struct {
+	ViewerID            string                `json:"viewer_id"`
 	ProjectID           pgtype.Text           `json:"project_id"`
 	WorkspaceID         string                `json:"workspace_id"`
 	AgentNames          []string              `json:"agent_names"`
@@ -4958,6 +5035,10 @@ type GatewayListChatSessionsRow struct {
 	AgentName        string             `json:"agent_name"`
 	SessionID        string             `json:"session_id"`
 	Title            string             `json:"title"`
+	Pinned           bool               `json:"pinned"`
+	Locked           bool               `json:"locked"`
+	StateVersion     int64              `json:"state_version"`
+	IsParticipant    bool               `json:"is_participant"`
 	ArchivedAt       pgtype.Timestamptz `json:"archived_at"`
 	SnoozedUntil     pgtype.Timestamptz `json:"snoozed_until"`
 	WokeAt           pgtype.Timestamptz `json:"woke_at"`
@@ -4970,6 +5051,7 @@ type GatewayListChatSessionsRow struct {
 
 func (q *Queries) GatewayListChatSessions(ctx context.Context, arg GatewayListChatSessionsParams) ([]GatewayListChatSessionsRow, error) {
 	rows, err := q.db.Query(ctx, gatewayListChatSessions,
+		arg.ViewerID,
 		arg.ProjectID,
 		arg.WorkspaceID,
 		arg.AgentNames,
@@ -5003,6 +5085,10 @@ func (q *Queries) GatewayListChatSessions(ctx context.Context, arg GatewayListCh
 			&i.AgentName,
 			&i.SessionID,
 			&i.Title,
+			&i.Pinned,
+			&i.Locked,
+			&i.StateVersion,
+			&i.IsParticipant,
 			&i.ArchivedAt,
 			&i.SnoozedUntil,
 			&i.WokeAt,
@@ -7301,6 +7387,37 @@ func (q *Queries) GatewayLockActiveWorkspace(ctx context.Context, arg GatewayLoc
 	return id, err
 }
 
+const gatewayLockAgentChatSessions = `-- name: GatewayLockAgentChatSessions :many
+SELECT locked FROM chat_sessions
+WHERE workspace_id = $1 AND agent_name = $2
+FOR UPDATE
+`
+
+type GatewayLockAgentChatSessionsParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+}
+
+func (q *Queries) GatewayLockAgentChatSessions(ctx context.Context, arg GatewayLockAgentChatSessionsParams) ([]bool, error) {
+	rows, err := q.db.Query(ctx, gatewayLockAgentChatSessions, arg.WorkspaceID, arg.AgentName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []bool{}
+	for rows.Next() {
+		var locked bool
+		if err := rows.Scan(&locked); err != nil {
+			return nil, err
+		}
+		items = append(items, locked)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const gatewayLockAgentOwner = `-- name: GatewayLockAgentOwner :one
 SELECT
   organization_id,
@@ -7473,12 +7590,12 @@ WITH changed AS (
     generation = generation + 1, updated_at = now()
   WHERE s.workspace_id = $1 AND s.agent_name = $2 AND s.session_id = $3
     AND kind = 'chat' AND parent_session_id IS NULL AND NOT deleting
-  RETURNING s.workspace_id, s.agent_name, s.session_id, s.parent_session_id, s.title, s.archived_at, s.snoozed_until, s.resumed_at, s.woke_at, s.kind, s.status, s.source_created_at, s.source_updated_at, s.created_at, s.updated_at, s.deleting, s.cleanup_completed_at, s.generation
+  RETURNING s.pinned, s.locked, s.state_version, s.state_changed_by, s.state_changed_at, s.workspace_id, s.agent_name, s.session_id, s.parent_session_id, s.title, s.archived_at, s.snoozed_until, s.resumed_at, s.woke_at, s.kind, s.status, s.source_created_at, s.source_updated_at, s.created_at, s.updated_at, s.deleting, s.cleanup_completed_at, s.generation
 ), removed AS (
  DELETE FROM chat_inputs i USING changed c
  WHERE i.workspace_id=c.workspace_id AND i.agent_name=c.agent_name AND i.session_id=c.session_id
 )
-SELECT workspace_id, agent_name, session_id, parent_session_id, title, archived_at, snoozed_until, resumed_at, woke_at, kind, status, source_created_at, source_updated_at, created_at, updated_at, deleting, cleanup_completed_at, generation FROM changed
+SELECT pinned, locked, state_version, state_changed_by, state_changed_at, workspace_id, agent_name, session_id, parent_session_id, title, archived_at, snoozed_until, resumed_at, woke_at, kind, status, source_created_at, source_updated_at, created_at, updated_at, deleting, cleanup_completed_at, generation FROM changed
 `
 
 type GatewayMarkChatDeletingParams struct {
@@ -7488,6 +7605,11 @@ type GatewayMarkChatDeletingParams struct {
 }
 
 type GatewayMarkChatDeletingRow struct {
+	Pinned             bool               `json:"pinned"`
+	Locked             bool               `json:"locked"`
+	StateVersion       int64              `json:"state_version"`
+	StateChangedBy     pgtype.Text        `json:"state_changed_by"`
+	StateChangedAt     pgtype.Timestamptz `json:"state_changed_at"`
 	WorkspaceID        string             `json:"workspace_id"`
 	AgentName          string             `json:"agent_name"`
 	SessionID          string             `json:"session_id"`
@@ -7512,6 +7634,11 @@ func (q *Queries) GatewayMarkChatDeleting(ctx context.Context, arg GatewayMarkCh
 	row := q.db.QueryRow(ctx, gatewayMarkChatDeleting, arg.WorkspaceID, arg.AgentName, arg.SessionID)
 	var i GatewayMarkChatDeletingRow
 	err := row.Scan(
+		&i.Pinned,
+		&i.Locked,
+		&i.StateVersion,
+		&i.StateChangedBy,
+		&i.StateChangedAt,
 		&i.WorkspaceID,
 		&i.AgentName,
 		&i.SessionID,
@@ -7620,7 +7747,7 @@ func (q *Queries) GatewayOwnedCodingDirectory(ctx context.Context, arg GatewayOw
 }
 
 const gatewayPendingChatCleanup = `-- name: GatewayPendingChatCleanup :many
-SELECT s.workspace_id, s.agent_name, s.session_id, s.parent_session_id, s.title, s.archived_at, s.snoozed_until, s.resumed_at, s.woke_at, s.kind, s.status, s.source_created_at, s.source_updated_at, s.created_at, s.updated_at, s.deleting, s.cleanup_completed_at, s.generation, w.organization_id, w.namespace, COALESCE(o.owner_user_id, '')::text AS author_id
+SELECT s.pinned, s.locked, s.state_version, s.state_changed_by, s.state_changed_at, s.workspace_id, s.agent_name, s.session_id, s.parent_session_id, s.title, s.archived_at, s.snoozed_until, s.resumed_at, s.woke_at, s.kind, s.status, s.source_created_at, s.source_updated_at, s.created_at, s.updated_at, s.deleting, s.cleanup_completed_at, s.generation, w.organization_id, w.namespace, COALESCE(o.owner_user_id, '')::text AS author_id
 FROM chat_sessions s JOIN workspaces w ON w.id = s.workspace_id
 LEFT JOIN agent_owners o ON o.workspace_id = s.workspace_id AND o.agent_name = s.agent_name
 LEFT JOIN chat_input_sessions i ON i.workspace_id = s.workspace_id
@@ -7647,6 +7774,11 @@ func (q *Queries) GatewayPendingChatCleanup(ctx context.Context, afterKey string
 	for rows.Next() {
 		var i GatewayPendingChatCleanupRow
 		if err := rows.Scan(
+			&i.ChatSession.Pinned,
+			&i.ChatSession.Locked,
+			&i.ChatSession.StateVersion,
+			&i.ChatSession.StateChangedBy,
+			&i.ChatSession.StateChangedAt,
 			&i.ChatSession.WorkspaceID,
 			&i.ChatSession.AgentName,
 			&i.ChatSession.SessionID,
@@ -8401,6 +8533,8 @@ WITH filtered_sessions AS (
     sessions.session_id,
     sessions.parent_session_id,
     sessions.title,
+  sessions.pinned, sessions.locked, sessions.state_version,
+  (viewer.user_id IS NOT NULL)::boolean AS is_participant,
     sessions.archived_at,
     sessions.snoozed_until,
     sessions.woke_at,
@@ -8420,43 +8554,48 @@ WITH filtered_sessions AS (
       END
     END)::text AS group_value
   FROM chat_sessions AS sessions
+LEFT JOIN chat_session_participants viewer ON viewer.workspace_id = sessions.workspace_id
+  AND viewer.agent_name = sessions.agent_name AND viewer.session_id = sessions.session_id
+  AND viewer.user_id = $6
 LEFT JOIN coding_threads AS coding ON coding.workspace_id = sessions.workspace_id
   AND coding.agent_name = sessions.agent_name AND coding.session_id = sessions.session_id
 LEFT JOIN coding_worktrees AS tree ON tree.id = coding.worktree_id
 LEFT JOIN coding_projects AS project ON project.id = tree.project_id
-  WHERE sessions.workspace_id = $6
-    AND sessions.agent_name = ANY($7::text[])
+  WHERE sessions.workspace_id = $7
+    AND sessions.agent_name = ANY($8::text[])
     AND sessions.parent_session_id IS NULL
-  AND CASE $8::text
-    WHEN 'archived' THEN sessions.archived_at IS NOT NULL
-    WHEN 'snoozed' THEN sessions.snoozed_until > now()
-    ELSE sessions.archived_at IS NULL
-      AND (sessions.snoozed_until IS NULL OR sessions.snoozed_until <= now())
+  AND CASE WHEN $9::text = 'pinned' THEN (sessions.pinned OR (sessions.locked AND viewer.user_id IS NOT NULL))
+    ELSE NOT (sessions.pinned OR (sessions.locked AND viewer.user_id IS NOT NULL)) AND CASE $9::text
+      WHEN 'archived' THEN sessions.archived_at IS NOT NULL
+      WHEN 'snoozed' THEN sessions.snoozed_until > now()
+      ELSE sessions.archived_at IS NULL
+        AND (sessions.snoozed_until IS NULL OR sessions.snoozed_until <= now())
+    END
   END
-  AND ($9::text IS NULL OR project.owner_id = $9)
+  AND ($10::text IS NULL OR project.owner_id = $10)
   AND NOT sessions.deleting
 
     AND (
-      $10::boolean
+      $11::boolean
       OR sessions.kind <> 'workflow_run'
     )
     AND (
-      $11::text IS NULL
-      OR sessions.agent_name = $11::text
+      $12::text IS NULL
+      OR sessions.agent_name = $12::text
     )
     AND sessions.title ILIKE
-      '%' || REPLACE(REPLACE(REPLACE($12::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'
+      '%' || REPLACE(REPLACE(REPLACE($13::text, '\', '\\'), '%', '\%'), '_', '\_') || '%'
       ESCAPE '\'
     AND (
-      cardinality($13::text[]) = 0
+      cardinality($14::text[]) = 0
       OR (
         SELECT COUNT(DISTINCT participants.user_id)
         FROM chat_session_participants AS participants
         WHERE participants.workspace_id = sessions.workspace_id
           AND participants.agent_name = sessions.agent_name
           AND participants.session_id = sessions.session_id
-          AND participants.user_id = ANY($13::text[])
-      ) = cardinality($13::text[])
+          AND participants.user_id = ANY($14::text[])
+      ) = cardinality($14::text[])
     )
 ), group_values AS (
   SELECT DISTINCT group_value
@@ -8467,6 +8606,8 @@ SELECT
   sessions.agent_name,
   sessions.session_id,
   sessions.title,
+  sessions.pinned, sessions.locked, sessions.state_version,
+  sessions.is_participant,
   sessions.archived_at,
   sessions.snoozed_until,
   sessions.woke_at,
@@ -8493,7 +8634,7 @@ SELECT
   ), '[]'::jsonb)::text AS participants_json
 FROM group_values
 CROSS JOIN LATERAL (
-  SELECT filtered_sessions.workspace_id, filtered_sessions.agent_name, filtered_sessions.session_id, filtered_sessions.parent_session_id, filtered_sessions.title, filtered_sessions.archived_at, filtered_sessions.snoozed_until, filtered_sessions.woke_at, filtered_sessions.kind, filtered_sessions.status, filtered_sessions.source_created_at, filtered_sessions.source_updated_at, filtered_sessions.group_value
+  SELECT filtered_sessions.workspace_id, filtered_sessions.agent_name, filtered_sessions.session_id, filtered_sessions.parent_session_id, filtered_sessions.title, filtered_sessions.pinned, filtered_sessions.locked, filtered_sessions.state_version, filtered_sessions.is_participant, filtered_sessions.archived_at, filtered_sessions.snoozed_until, filtered_sessions.woke_at, filtered_sessions.kind, filtered_sessions.status, filtered_sessions.source_created_at, filtered_sessions.source_updated_at, filtered_sessions.group_value
   FROM filtered_sessions
   WHERE filtered_sessions.group_value = group_values.group_value
   ORDER BY
@@ -8529,6 +8670,7 @@ type GatewaySearchGroupedChatSessionsParams struct {
 	TodayStart          time.Time   `json:"today_start"`
 	YesterdayStart      time.Time   `json:"yesterday_start"`
 	PreviousWeekStart   time.Time   `json:"previous_week_start"`
+	ViewerID            string      `json:"viewer_id"`
 	WorkspaceID         string      `json:"workspace_id"`
 	AgentNames          []string    `json:"agent_names"`
 	Shelf               string      `json:"shelf"`
@@ -8544,6 +8686,10 @@ type GatewaySearchGroupedChatSessionsRow struct {
 	AgentName        string             `json:"agent_name"`
 	SessionID        string             `json:"session_id"`
 	Title            string             `json:"title"`
+	Pinned           bool               `json:"pinned"`
+	Locked           bool               `json:"locked"`
+	StateVersion     int64              `json:"state_version"`
+	IsParticipant    bool               `json:"is_participant"`
 	ArchivedAt       pgtype.Timestamptz `json:"archived_at"`
 	SnoozedUntil     pgtype.Timestamptz `json:"snoozed_until"`
 	WokeAt           pgtype.Timestamptz `json:"woke_at"`
@@ -8562,6 +8708,7 @@ func (q *Queries) GatewaySearchGroupedChatSessions(ctx context.Context, arg Gate
 		arg.TodayStart,
 		arg.YesterdayStart,
 		arg.PreviousWeekStart,
+		arg.ViewerID,
 		arg.WorkspaceID,
 		arg.AgentNames,
 		arg.Shelf,
@@ -8583,6 +8730,10 @@ func (q *Queries) GatewaySearchGroupedChatSessions(ctx context.Context, arg Gate
 			&i.AgentName,
 			&i.SessionID,
 			&i.Title,
+			&i.Pinned,
+			&i.Locked,
+			&i.StateVersion,
+			&i.IsParticipant,
 			&i.ArchivedAt,
 			&i.SnoozedUntil,
 			&i.WokeAt,
@@ -8614,6 +8765,47 @@ ON CONFLICT DO NOTHING
 func (q *Queries) GatewaySeedCodingSnapshots(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, gatewaySeedCodingSnapshots)
 	return err
+}
+
+const gatewaySetChatSessionState = `-- name: GatewaySetChatSessionState :one
+WITH changed AS (
+  UPDATE chat_sessions SET
+    pinned = COALESCE($1::boolean, pinned),
+    locked = COALESCE($2::boolean, locked),
+    state_version = state_version + 1,
+    state_changed_by = CASE WHEN $2::boolean IS NOT NULL THEN $3 ELSE state_changed_by END,
+    state_changed_at = CASE WHEN $2::boolean IS NOT NULL THEN now() ELSE state_changed_at END
+  WHERE workspace_id = $4 AND agent_name = $5 AND session_id = $6
+    AND state_version = $7 AND NOT deleting
+    AND (NOT locked OR $1::boolean IS DISTINCT FROM false)
+  RETURNING workspace_id
+)
+SELECT pg_notify('agentz_chat_sessions', workspace_id) FROM changed
+`
+
+type GatewaySetChatSessionStateParams struct {
+	Pinned          pgtype.Bool `json:"pinned"`
+	Locked          pgtype.Bool `json:"locked"`
+	ActorID         pgtype.Text `json:"actor_id"`
+	WorkspaceID     string      `json:"workspace_id"`
+	AgentName       string      `json:"agent_name"`
+	SessionID       string      `json:"session_id"`
+	ExpectedVersion int64       `json:"expected_version"`
+}
+
+func (q *Queries) GatewaySetChatSessionState(ctx context.Context, arg GatewaySetChatSessionStateParams) (interface{}, error) {
+	row := q.db.QueryRow(ctx, gatewaySetChatSessionState,
+		arg.Pinned,
+		arg.Locked,
+		arg.ActorID,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.SessionID,
+		arg.ExpectedVersion,
+	)
+	var pg_notify interface{}
+	err := row.Scan(&pg_notify)
+	return pg_notify, err
 }
 
 const gatewayStopChatInputs = `-- name: GatewayStopChatInputs :exec

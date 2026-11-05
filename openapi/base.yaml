@@ -681,6 +681,9 @@ paths:
       description: >
         Returns root sessions in descending update order. Participant filters
         use ALL semantics and are evaluated by the database before pagination.
+        The pinned shelf includes shared pins and the viewer's locked conversations,
+        regardless of archive or snooze state, and always returns an ungrouped list.
+        These conversations are excluded from the other shelves for that viewer.
       tags: [chat-sessions]
       parameters:
       - {name: shelf, in: query, schema: {$ref: '#/components/schemas/ChatSessionShelf'}}
@@ -733,13 +736,32 @@ paths:
         '500': {$ref: '#/components/responses/InternalError'}
 
   /api/chat-session/{agentName}/{sessionId}:
+    get:
+      operationId: getChatSessionState
+      summary: Read shared thread pin and lock state.
+      tags: [chat-sessions]
+      parameters:
+      - {name: agentName, in: path, required: true, schema: {type: string}}
+      - {name: sessionId, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: Authorized thread state.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ChatSessionState'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
     patch:
       operationId: updateChatSession
-      summary: Move a session between inbox shelves.
+      summary: Update a thread shelf, shared pin, or lock.
       description: >
         Active sessions can be snoozed or archived. Snoozed sessions can be woken
         or archived. Archived sessions must be unarchived before snoozing.
         Repeating an identical update succeeds without changing activity times.
+        Pin and lock updates require expected_version and cannot be combined with shelf changes.
+        Pins are shared across authorized users. Locked threads cannot be deleted or unpinned,
+        and only existing participants can submit new messages. Coding threads support pins only.
       tags: [chat-sessions]
       parameters:
       - {name: agentName, in: path, required: true, schema: {type: string}}
@@ -6524,15 +6546,29 @@ components:
 
     ChatSessionShelf:
       type: string
-      enum: [active, archived, snoozed]
-      x-enum-varnames: [ChatSessionShelfActive, ChatSessionShelfArchived, ChatSessionShelfSnoozed]
+      enum: [active, archived, snoozed, pinned]
+      x-enum-varnames: [ChatSessionShelfActive, ChatSessionShelfArchived, ChatSessionShelfSnoozed, ChatSessionShelfPinned]
     UpdateChatSessionRequest:
       type: object
       additionalProperties: false
-      required: [shelf]
       properties:
+        pinned: {type: boolean}
+        locked: {type: boolean}
+        expected_version: {type: integer, format: int64, minimum: 0}
         shelf: {$ref: '#/components/schemas/ChatSessionShelf'}
         snoozed_until: {type: string, format: date-time}
+
+    ChatSessionState:
+      type: object
+      additionalProperties: false
+      required: [pinned, locked, version, is_participant]
+      properties:
+        pinned: {type: boolean}
+        locked: {type: boolean}
+        version: {type: integer, format: int64}
+        is_participant: {type: boolean}
+        changed_at: {type: string, format: date-time}
+        actor: {$ref: '#/components/schemas/ResourceActor'}
 
     ChatSessionStatus:
       type: string
@@ -6594,6 +6630,7 @@ components:
       type: object
       additionalProperties: false
       properties:
+        state: {$ref: "#/components/schemas/ChatSessionState"}
         has_workflow_schedule_subscription:
           type: boolean
           description: Whether a workflow schedule delivers results to this thread, including paused schedules.
@@ -6626,6 +6663,7 @@ components:
           items:
             $ref: '#/components/schemas/ChatSessionParticipant'
       required:
+      - state
       - has_workflow_schedule_subscription
       - archived
       - agent_name

@@ -1727,6 +1727,8 @@ components:
         snoozed_until:
           format: date-time
           type: string
+        state:
+          $ref: '#/components/schemas/ChatSessionState'
         status:
           $ref: '#/components/schemas/ChatSessionStatus'
         title:
@@ -1739,6 +1741,7 @@ components:
           format: date-time
           type: string
       required:
+      - state
       - has_workflow_schedule_subscription
       - archived
       - agent_name
@@ -1873,11 +1876,36 @@ components:
       - active
       - archived
       - snoozed
+      - pinned
       type: string
       x-enum-varnames:
       - ChatSessionShelfActive
       - ChatSessionShelfArchived
       - ChatSessionShelfSnoozed
+      - ChatSessionShelfPinned
+    ChatSessionState:
+      additionalProperties: false
+      properties:
+        actor:
+          $ref: '#/components/schemas/ResourceActor'
+        changed_at:
+          format: date-time
+          type: string
+        is_participant:
+          type: boolean
+        locked:
+          type: boolean
+        pinned:
+          type: boolean
+        version:
+          format: int64
+          type: integer
+      required:
+      - pinned
+      - locked
+      - version
+      - is_participant
+      type: object
     ChatSessionStatus:
       enum:
       - idle
@@ -26701,13 +26729,19 @@ components:
     UpdateChatSessionRequest:
       additionalProperties: false
       properties:
+        expected_version:
+          format: int64
+          minimum: 0
+          type: integer
+        locked:
+          type: boolean
+        pinned:
+          type: boolean
         shelf:
           $ref: '#/components/schemas/ChatSessionShelf'
         snoozed_until:
           format: date-time
           type: string
-      required:
-      - shelf
       type: object
     UpdateInferencePoolRequest:
       additionalProperties: false
@@ -29129,7 +29163,7 @@ paths:
   /api/chat-session:
     get:
       description: |
-        Returns root sessions in descending update order. Participant filters use ALL semantics and are evaluated by the database before pagination.
+        Returns root sessions in descending update order. Participant filters use ALL semantics and are evaluated by the database before pagination. The pinned shelf includes shared pins and the viewer's locked conversations, regardless of archive or snooze state, and always returns an ungrouped list. These conversations are excluded from the other shelves for that viewer.
       operationId: listChatSessions
       parameters:
       - in: query
@@ -29229,9 +29263,41 @@ paths:
       tags:
       - chat-sessions
   /api/chat-session/{agentName}/{sessionId}:
+    get:
+      operationId: getChatSessionState
+      parameters:
+      - in: path
+        name: agentName
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: sessionId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatSessionState'
+          description: Authorized thread state.
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Read shared thread pin and lock state.
+      tags:
+      - chat-sessions
     patch:
       description: |
-        Active sessions can be snoozed or archived. Snoozed sessions can be woken or archived. Archived sessions must be unarchived before snoozing. Repeating an identical update succeeds without changing activity times.
+        Active sessions can be snoozed or archived. Snoozed sessions can be woken or archived. Archived sessions must be unarchived before snoozing. Repeating an identical update succeeds without changing activity times. Pin and lock updates require expected_version and cannot be combined with shelf changes. Pins are shared across authorized users. Locked threads cannot be deleted or unpinned, and only existing participants can submit new messages. Coding threads support pins only.
       operationId: updateChatSession
       parameters:
       - in: path
@@ -29266,7 +29332,7 @@ paths:
       security:
       - GatewayBearer:
         - agent.use_shared
-      summary: Move a session between inbox shelves.
+      summary: Update a thread shelf, shared pin, or lock.
       tags:
       - chat-sessions
   /api/chat-session/{agentName}/{sessionId}/background:

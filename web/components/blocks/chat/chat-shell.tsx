@@ -1,5 +1,7 @@
 "use client"
 
+import { ThreadControls } from "./thread"
+
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import type { ChatProps } from "./chat"
@@ -223,6 +225,15 @@ export function ChatShell({
             </span>
             <h1 className="min-w-0 truncate text-sm font-semibold">{chatTitle}</h1>
             <div className="ml-auto flex shrink-0 items-center gap-1">
+              {activeSessionId ? (
+                <ThreadControls
+                  key={`${agentName}:${activeSessionId}`}
+                  workspaceId={workspaceId}
+                  agentName={agentName}
+                  sessionId={activeSessionId}
+                  coding={coding}
+                />
+              ) : null}
               {headerActions}
               {codingThread ? (
                 <GitActions

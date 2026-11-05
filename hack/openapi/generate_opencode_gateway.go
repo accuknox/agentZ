@@ -56,6 +56,7 @@ var baseOperationCapabilities = map[string][]string{
 		"listChatBackground",
 		"listChatInputs",
 		"updateChatSession",
+		"getChatSessionState",
 		"submitChatInput",
 		"updateChatInput",
 		"listCodingProjects",

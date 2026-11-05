@@ -230,6 +230,10 @@ func (s *Service) SubmitChatInput(w http.ResponseWriter, r *http.Request, agent 
 		apiutil.WriteError(w, r, mapGatewayStoreError("submit message", err))
 		return
 	}
+	if err := s.guardThread(r.Context(), access, agent, session, false); err != nil {
+		apiutil.WriteError(w, r, mapGatewayStoreError("submit message", err))
+		return
+	}
 	raw, err := json.Marshal(input.Content)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)

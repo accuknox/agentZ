@@ -930,6 +930,11 @@ type ChatInput struct {
 }
 
 type ChatSession struct {
+	Pinned             bool               `json:"pinned"`
+	Locked             bool               `json:"locked"`
+	StateVersion       int64              `json:"state_version"`
+	StateChangedBy     pgtype.Text        `json:"state_changed_by"`
+	StateChangedAt     pgtype.Timestamptz `json:"state_changed_at"`
 	WorkspaceID        string             `json:"workspace_id"`
 	AgentName          string             `json:"agent_name"`
 	SessionID          string             `json:"session_id"`

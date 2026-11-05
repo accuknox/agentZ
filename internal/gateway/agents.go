@@ -846,6 +846,17 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 	}
 
 	q := gatewaydb.New(tx)
+	threads, err := q.GatewayLockAgentChatSessions(r.Context(), gatewaydb.GatewayLockAgentChatSessionsParams{
+		WorkspaceID: access.workspaceID, AgentName: agentName,
+	})
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+	if slices.Contains(threads, true) {
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "thread_locked", "Unlock this agent's chats before deleting it", nil))
+		return
+	}
 	row, err := q.GatewayGetAgent(
 		r.Context(),
 		gatewaydb.GatewayGetAgentParams{

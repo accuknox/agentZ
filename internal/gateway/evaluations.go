@@ -83,7 +83,13 @@ func (s *Service) CreateWorkflowEvaluation(w http.ResponseWriter, r *http.Reques
 		seen[key] = true
 	}
 	if len(fields) > 0 {
-		apiutil.WriteError(w, r, apiutil.NewError(400, "invalid_request", "Review the highlighted fields", nil, fields...))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			400,
+			"invalid_request",
+			"Review the highlighted fields",
+			nil,
+			fields...,
+		))
 		return
 	}
 	now := time.Now().UTC()
@@ -134,7 +140,12 @@ func (s *Service) CreateWorkflowEvaluation(w http.ResponseWriter, r *http.Reques
 			WorkflowName:    workflowName,
 		})
 		if getErr != nil {
-			apiutil.WriteError(w, r, apiutil.NewError(409, "conflict", "Evaluation ID is already in use", nil))
+			apiutil.WriteError(w, r, apiutil.NewError(
+				409,
+				"conflict",
+				"Evaluation ID is already in use",
+				nil,
+			))
 			return
 		}
 		var original gatewayapi.WorkflowEvaluationRequest
@@ -148,7 +159,12 @@ func (s *Service) CreateWorkflowEvaluation(w http.ResponseWriter, r *http.Reques
 			return
 		}
 		if !bytes.Equal(canonical, request) {
-			apiutil.WriteError(w, r, apiutil.NewError(409, "conflict", "Evaluation ID belongs to different settings", nil))
+			apiutil.WriteError(w, r, apiutil.NewError(
+				409,
+				"conflict",
+				"Evaluation ID belongs to different settings",
+				nil,
+			))
 			return
 		}
 		if err = json.Unmarshal(previous.Result, &result); err != nil {
@@ -358,7 +374,12 @@ func (s *Service) UpdateWorkflowEvaluation(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if input.Judge == nil || row.State != "completed" {
-		apiutil.WriteError(w, r, apiutil.NewError(409, "conflict", "Choose a judge after execution finishes", nil))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			409,
+			"conflict",
+			"Choose a judge after execution finishes",
+			nil,
+		))
 		return
 	}
 	fields, err := s.validateEvaluationModels(r.Context(), access.namespace, agentName, nil, *input.Judge)
@@ -367,7 +388,13 @@ func (s *Service) UpdateWorkflowEvaluation(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if len(fields) > 0 {
-		apiutil.WriteError(w, r, apiutil.NewError(400, "invalid_request", "Judge is unavailable", nil, fields...))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			400,
+			"invalid_request",
+			"Judge is unavailable",
+			nil,
+			fields...,
+		))
 		return
 	}
 	ready := false
@@ -384,7 +411,12 @@ func (s *Service) UpdateWorkflowEvaluation(w http.ResponseWriter, r *http.Reques
 		ready = true
 	}
 	if !ready {
-		apiutil.WriteError(w, r, apiutil.NewError(409, "no_evidence", "No complete transcripts are available to judge", nil))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			409,
+			"no_evidence",
+			"No complete transcripts are available to judge",
+			nil,
+		))
 		return
 	}
 	result.Request.Judge = *input.Judge
@@ -412,7 +444,12 @@ func (s *Service) UpdateWorkflowEvaluation(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if affected == 0 {
-		apiutil.WriteError(w, r, apiutil.NewError(409, "conflict", "Evaluation changed. Refresh and try again.", nil))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			409,
+			"conflict",
+			"Evaluation changed. Refresh and try again.",
+			nil,
+		))
 		return
 	}
 	for i := range result.Executions {
@@ -756,10 +793,7 @@ func (s *Service) advanceEvaluationRuns(ctx context.Context, job workflowdb.Work
 		if !run.Status.Phase.Terminal() {
 			continue
 		}
-		detail, err := workflow.GetRun(ctx, s.k8sClient, job.TenantNamespace, job.AgentName, job.WorkflowName, run.Name)
-		if err != nil {
-			return err
-		}
+		detail := workflow.RunDetail(&run)
 		execution.Run = &detail
 		execution.RunReason = new(detail.Reason)
 		if run.Status.SessionID == "" {

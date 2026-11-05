@@ -528,7 +528,7 @@ export function PoolSheet({
           </SheetFooter>
         </form>
         <Dialog open={Boolean(impact)} onOpenChange={(next) => !next && setImpact(undefined)}>
-          <DialogContent showCloseButton={false}>
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>Update a Pool used by Sandboxes?</DialogTitle>
               <DialogDescription>

@@ -1,3 +1,4 @@
+import { RequestError } from "@/components/request-error"
 import { Suspense } from "react"
 import { AdministrationLoadingState, AdministrationState } from "@/components/administration"
 import { activateOrganization, resolveOrganizationSlug } from "@/data/organizations"
@@ -24,7 +25,9 @@ async function UpdateOrganizationSandboxContent({
   const scope = await resolveOrganizationSlug(values.orgSlug)
   if (scope.kind !== "ready") return <AdministrationState kind="forbidden" />
   await activateOrganization(scope.organization.id)
-  const tenant = await ensureTenant({ client: getGatewayServerClient(), throwOnError: true })
+  const tenant = await ensureTenant({ client: getGatewayServerClient() })
+  if (tenant.error)
+    return <RequestError title="Could not load sandbox settings" error={tenant.error} />
   if (!tenant.data?.sandbox_capabilities.read) return <AdministrationState kind="forbidden" />
   return (
     <UpdateSandboxPage

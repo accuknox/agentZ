@@ -19,7 +19,6 @@ package workflowrun
 import (
 	"context"
 	_ "embed"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -54,8 +53,6 @@ const (
 	// days before opportunistic pruning deletes them.
 	DefaultOrphanRetention = 7 * 24 * time.Hour
 )
-
-const workflowRunFinalizer = "agentz.accuknox.com/workflowrun-session"
 
 //go:embed prompt.tmpl
 var promptTemplateText string
@@ -98,6 +95,55 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, nil
 	}
 
+	message := run.Annotations[agentzv1alpha1.WorkflowRunAnnotationTriggerFailure]
+	if message != "" && !run.Status.Phase.Terminal() {
+		return ctrl.Result{}, r.failRun(ctx, run, agentzv1alpha1.WorkflowRunReasonGatewayError, message)
+	}
+	if run.Spec.Delivery != nil {
+		if run.Status.Phase.Terminal() {
+			if err := r.syncTerminalStatus(ctx, run); err != nil {
+				return ctrl.Result{}, err
+			}
+			if run.Status.SessionID != "" {
+				idle, err := r.sessionIdle(ctx, run)
+				if err != nil {
+					return ctrl.Result{}, err
+				}
+				if !idle {
+					return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
+				}
+			}
+		}
+		response, deliveryErr := r.GatewayClient.DeliverWorkflowSessionWithResponse(
+			ctx, run.Spec.AgentName, run.Spec.WorkflowName, run.Name, gwreq.RequestEditor(r.TokenPath, run.Namespace),
+		)
+		if deliveryErr == nil {
+			switch response.StatusCode() {
+			case http.StatusNoContent:
+			case http.StatusNotFound, http.StatusForbidden:
+				if !run.Status.Phase.Terminal() {
+					return ctrl.Result{}, r.failRun(
+						ctx, run, agentzv1alpha1.WorkflowRunReasonGatewayError, "Conversation destination is no longer available",
+					)
+				}
+			default:
+				deliveryErr = fmt.Errorf("deliver workflow session: %s", response.Status())
+			}
+		}
+		if deliveryErr != nil {
+			expired := run.Status.StartedAt != nil && run.Spec.TimeoutSeconds > 0 && !run.Status.Phase.Terminal()
+			if expired && time.Since(run.Status.StartedAt.Time) > time.Duration(run.Spec.TimeoutSeconds)*time.Second {
+				failErr := r.failRun(ctx, run, agentzv1alpha1.WorkflowRunReasonTimedOut, "workflow run timed out")
+				return ctrl.Result{}, errors.Join(deliveryErr, failErr)
+			}
+			return ctrl.Result{}, deliveryErr
+		}
+		// Re-read status after delivery before deciding execution or cleanup.
+		if err := r.Get(ctx, req.NamespacedName, run); err != nil {
+			return ctrl.Result{}, client.IgnoreNotFound(err)
+		}
+	}
+
 	var workspace agentzv1alpha1.Workspace
 	err = r.Get(ctx, client.ObjectKey{Name: run.Namespace}, &workspace)
 	if err != nil {
@@ -108,7 +154,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, nil
 	}
 
-	if !ctrlutil.ContainsFinalizer(run, workflowRunFinalizer) {
+	if !ctrlutil.ContainsFinalizer(run, agentzv1alpha1.WorkflowRunSessionFinalizer) {
 		err = r.addFinalizer(ctx, run)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("add workflow run finalizer: %w", err)
@@ -228,17 +274,17 @@ func (r *Reconciler) addFinalizer(ctx context.Context, run *agentzv1alpha1.Workf
 			if err != nil {
 				return err
 			}
-			if ctrlutil.ContainsFinalizer(current, workflowRunFinalizer) {
+			if ctrlutil.ContainsFinalizer(current, agentzv1alpha1.WorkflowRunSessionFinalizer) {
 				return nil
 			}
-			ctrlutil.AddFinalizer(current, workflowRunFinalizer)
+			ctrlutil.AddFinalizer(current, agentzv1alpha1.WorkflowRunSessionFinalizer)
 			return r.Update(ctx, current)
 		},
 	)
 }
 
 func (r *Reconciler) finalizeRun(ctx context.Context, run *agentzv1alpha1.WorkflowRun) error {
-	if !ctrlutil.ContainsFinalizer(run, workflowRunFinalizer) {
+	if !ctrlutil.ContainsFinalizer(run, agentzv1alpha1.WorkflowRunSessionFinalizer) {
 		return nil
 	}
 	if run.Status.SessionID != "" {
@@ -246,21 +292,24 @@ func (r *Reconciler) finalizeRun(ctx context.Context, run *agentzv1alpha1.Workfl
 		if err != nil {
 			return err
 		}
-		resp, err := r.GatewayClient.SessionDeleteWithResponse(
-			ctx,
-			run.Spec.AgentName,
-			run.Status.SessionID,
-			nil,
-			gwreq.RequestEditor(r.TokenPath, run.Namespace),
-		)
-		if err != nil {
-			return fmt.Errorf("delete workflow session: %w", err)
-		}
-		if resp.StatusCode() != http.StatusOK && resp.StatusCode() != http.StatusNotFound {
-			return fmt.Errorf(
-				"delete workflow session returned status %d",
-				resp.StatusCode(),
+		// The conversation owns bound execution history; deleting its root removes descendants.
+		if run.Spec.Delivery == nil {
+			resp, err := r.GatewayClient.SessionDeleteWithResponse(
+				ctx,
+				run.Spec.AgentName,
+				run.Status.SessionID,
+				nil,
+				gwreq.RequestEditor(r.TokenPath, run.Namespace),
 			)
+			if err != nil {
+				return fmt.Errorf("delete workflow session: %w", err)
+			}
+			if resp.StatusCode() != http.StatusOK && resp.StatusCode() != http.StatusNotFound {
+				return fmt.Errorf(
+					"delete workflow session returned status %d",
+					resp.StatusCode(),
+				)
+			}
 		}
 	}
 
@@ -275,10 +324,10 @@ func (r *Reconciler) finalizeRun(ctx context.Context, run *agentzv1alpha1.Workfl
 				}
 				return err
 			}
-			if !ctrlutil.ContainsFinalizer(current, workflowRunFinalizer) {
+			if !ctrlutil.ContainsFinalizer(current, agentzv1alpha1.WorkflowRunSessionFinalizer) {
 				return nil
 			}
-			ctrlutil.RemoveFinalizer(current, workflowRunFinalizer)
+			ctrlutil.RemoveFinalizer(current, agentzv1alpha1.WorkflowRunSessionFinalizer)
 			err = r.Update(ctx, current)
 			if apierrors.IsNotFound(err) || errors.Is(err, context.Canceled) {
 				return nil
@@ -439,11 +488,21 @@ func (r *Reconciler) startRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 	if evaluation := run.Labels["agentz.accuknox.com/evaluation"]; evaluation != "" {
 		metadata = &map[string]any{"agentz.evaluation_id": evaluation}
 	}
+	var parentID *string
+	if run.Spec.Delivery != nil {
+		parentID = &run.Spec.Delivery.SessionID
+		if metadata == nil {
+			metadata = &map[string]any{}
+		}
+		(*metadata)["agentz.dev/workflow-run"] = run.Name
+		(*metadata)["agentz.dev/workflow-uid"] = string(run.UID)
+	}
 	createResp, err := r.GatewayClient.SessionCreateWithResponse(
 		ctx,
 		run.Spec.AgentName,
 		nil,
 		gatewayapi.SessionCreateJSONRequestBody{
+			ParentID:   parentID,
 			Title:      &title,
 			Permission: &permission,
 			Metadata:   metadata,
@@ -643,54 +702,26 @@ func (r *Reconciler) abortRun(ctx context.Context, run *agentzv1alpha1.WorkflowR
 	if resp.StatusCode() != http.StatusOK && resp.StatusCode() != http.StatusNotFound {
 		return fmt.Errorf("abort workflow session returned status %d", resp.StatusCode())
 	}
+	if resp.StatusCode() == http.StatusNotFound {
+		return nil
+	}
+	idle, err := r.sessionIdle(ctx, run)
+	if err != nil {
+		return err
+	}
+	if !idle {
+		return errors.New("workflow session cancellation is still pending")
+	}
 	return nil
 }
 
 func (r *Reconciler) markPending(ctx context.Context, run *agentzv1alpha1.WorkflowRun) error {
-	if r.GatewayClient == nil {
-		return fmt.Errorf("gateway client is not configured")
-	}
-
-	var definition gatewayapi.Workflow
-	switch {
-	case run.Spec.Definition != nil:
-		if err := json.Unmarshal(run.Spec.Definition.Raw, &definition); err != nil {
-			return fmt.Errorf("decode frozen workflow: %w", err)
-		}
-	default:
-		resp, err := r.GatewayClient.GetWorkflowWithResponse(
-			ctx,
-			run.Spec.AgentName,
-			run.Spec.WorkflowName,
-			gwreq.RequestEditor(r.TokenPath, run.Namespace),
-		)
-		if err != nil {
-			return fmt.Errorf("get workflow: %w", err)
-		}
-		if resp.JSON200 == nil {
-			return fmt.Errorf("get workflow returned status %d", resp.StatusCode())
-		}
-		definition = *resp.JSON200
-	}
-
-	nodes := make([]agentzv1alpha1.WorkflowRunNodeStatus, 0, len(definition.Nodes))
-	for _, node := range definition.Nodes {
-		nodes = append(
-			nodes,
-			agentzv1alpha1.WorkflowRunNodeStatus{
-				Name:  node.Name,
-				Phase: agentzv1alpha1.WorkflowRunNodePhaseDisabled,
-			},
-		)
-	}
-
 	return r.patchStatus(
 		ctx,
 		run,
 		func(status *agentzv1alpha1.WorkflowRunStatus) {
 			status.Phase = agentzv1alpha1.WorkflowRunPhasePending
 			status.ObservedGeneration = run.Generation
-			status.Nodes = nodes
 			r.setActiveConditions(
 				status,
 				run.Generation,

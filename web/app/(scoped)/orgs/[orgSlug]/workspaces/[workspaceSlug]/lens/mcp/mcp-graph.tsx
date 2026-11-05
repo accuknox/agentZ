@@ -1,5 +1,6 @@
 "use client"
 
+import { AgentIcon } from "@/components/agent-readiness"
 import * as React from "react"
 import dagre from "@dagrejs/dagre"
 import type { GraphLabel as DagreGraphLabel, NodeLabel as DagreNodeLabel } from "@dagrejs/dagre"
@@ -31,6 +32,7 @@ import type { LensSubject } from "@/data/types"
 type McpGraphData = Pick<McpGraphResponse, "connections" | "tools" | "edges">
 
 type McpGraphProps = {
+  workspaceId: string
   subject: LensSubject
   graph: McpGraphData
 }
@@ -46,7 +48,13 @@ type FlowHandles = {
 }
 
 type McpNodeData =
-  | { kind: "subject"; subject: LensSubject; label: string; handles: FlowHandles }
+  | {
+      kind: "subject"
+      subject: LensSubject
+      workspaceId: string
+      label: string
+      handles: FlowHandles
+    }
   | { kind: "connection"; label: string; handles: FlowHandles; serverURL?: string }
   | { kind: "tool"; label: string; handles: FlowHandles; metrics: ToolMetrics }
 
@@ -73,7 +81,7 @@ const mcpNodeTypes = {
 /**
  * McpGraph renders a subject, its selected connections and executed tools.
  */
-export function McpGraph({ graph, subject }: McpGraphProps) {
+export function McpGraph({ graph, subject, workspaceId }: McpGraphProps) {
   const rootID = subject.kind !== "agent" ? `app:${subject.clientID}` : `agent:${subject.name}`
   const { edges, sources, targets, toolMetrics } = React.useMemo(() => {
     const sources = new Set<string>()
@@ -104,6 +112,7 @@ export function McpGraph({ graph, subject }: McpGraphProps) {
       {
         data: {
           kind: "subject",
+          workspaceId,
           subject,
           label: subject.name,
           handles: {
@@ -159,7 +168,17 @@ export function McpGraph({ graph, subject }: McpGraphProps) {
           }) satisfies McpCanvasNode
       ),
     ])
-  }, [edges, graph.connections, graph.tools, rootID, sources, subject, targets, toolMetrics])
+  }, [
+    edges,
+    graph.connections,
+    graph.tools,
+    rootID,
+    sources,
+    subject,
+    targets,
+    toolMetrics,
+    workspaceId,
+  ])
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
 
   return (
@@ -289,14 +308,17 @@ function McpNodeCircle({ data }: FlowNodeProps<McpCanvasNode>) {
   let icon: React.ReactNode
   switch (data.kind) {
     case "subject":
-      icon = (
-        <LensSourceIcon
-          kind={
-            data.subject.kind === "external-agent" ? data.subject.providerKind : data.subject.kind
-          }
-          className="size-8"
-        />
-      )
+      icon =
+        data.subject.kind === "agent" ? (
+          <AgentIcon name={data.subject.name} workspaceId={data.workspaceId} size={32} />
+        ) : (
+          <LensSourceIcon
+            kind={
+              data.subject.kind === "external-agent" ? data.subject.providerKind : data.subject.kind
+            }
+            className="size-8"
+          />
+        )
       break
     case "connection":
       icon = renderMcpServerIcon(

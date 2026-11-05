@@ -19,7 +19,16 @@
           cli = pkgs.buildGo127Module {
             pname = "agentz";
             version = "0.1.0";
-            src = ./.;
+            src = pkgs.lib.fileset.toSource {
+              root = ./.;
+              fileset = pkgs.lib.fileset.unions [
+                ./go.mod
+                ./go.sum
+                ./cmd
+                ./internal
+                ./pkg
+              ];
+            };
             subPackages = [ "cmd/agentz" ];
             ldflags = [ "-s" "-w" ];
             vendorHash = "sha256-GIlqRsyQNf8rbHrvD4nDDslFLtR9TYPkKCDy+1XtRjg=";

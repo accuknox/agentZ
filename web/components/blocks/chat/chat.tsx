@@ -1,6 +1,8 @@
 "use client"
 
 import styles from "./composer.module.css"
+import { WorkGroup } from "./activity"
+import { ChatActivityContext, ChatFollowUpContext } from "./display"
 import { LegendList, type LegendListRef } from "@legendapp/list/react"
 import { getImageProps } from "next/image"
 import {
@@ -12,9 +14,11 @@ import {
   inferAttachmentMediaType,
 } from "@/components/ai-elements/attachments"
 import { ChatMessage, MessageResponse } from "@/components/ai-elements/message"
-import { AgentGettingReady, useAgentReadiness } from "@/components/agent-readiness"
+import { AgentGettingReady, AgentIcon, useAgentReadiness } from "@/components/agent-readiness"
 import { Separator } from "@/components/ui/separator"
-import { Reasoning, ReasoningContent, ReasoningTrigger } from "@/components/ai-elements/reasoning"
+import { AgentPresence } from "@/components/interior/agent-presence"
+import { ProviderIcons } from "@/app/(app)/inference/providers/provider-shared"
+import { Shimmer } from "@/components/ai-elements/shimmer"
 import type {
   PromptInputController,
   PromptInputFile,
@@ -25,6 +29,7 @@ import {
   PromptInputBody,
   PromptInputButton,
   PromptInputTextarea,
+  PromptInputAction,
   usePromptInputAttachments,
 } from "@/components/ai-elements/prompt-input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -42,13 +47,15 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { InputGroupAddon } from "@/components/ui/input-group"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Spinner } from "@/components/ui/spinner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useChatModelStorage } from "@/components/blocks/chat/use-chat-model-storage"
 import { useFileWorkspace } from "@/components/blocks/chat/file-workspace-store"
 import { NewSessionGreeting } from "@/components/blocks/chat/new-session-greeting"
-import { useOpencodeChat } from "@/components/blocks/chat/use-opencode-chat"
+import {
+  sessionInfoQueryOptions,
+  useOpencodeChat,
+} from "@/components/blocks/chat/use-opencode-chat"
 import { ChatQueue } from "./queue"
 import { useOpencodeSend, type CreateSession } from "@/components/blocks/chat/use-opencode-send"
 import {
@@ -60,28 +67,25 @@ import {
   TodoDock,
 } from "@/components/blocks/chat/docks"
 import { NewItemsPill } from "@/components/interior/new-items-pill"
-import { SkeletonSwap } from "@/components/interior/skeleton-swap"
-import { TypingIndicator } from "@/components/interior/typing-indicator"
 import { CopyButton } from "@/components/interior/copy-button"
-import {
-  type RenderEntry,
-  projectTimeline,
-  type TimelineRow,
-} from "@/components/blocks/chat/timeline"
+import { projectTimeline, type TimelineRow } from "@/components/blocks/chat/timeline"
 import { describeMessageError, opencodeErrorMessage } from "@/components/blocks/chat/errors"
-import { ToolEntries } from "@/components/blocks/chat/tool-parts"
 import {
   type ChatAttachment,
   chatAttachmentConfig,
   chatAttachmentErrorMessage,
   promptFileFromPart,
+  uploadChatAttachments,
 } from "@/components/blocks/chat/attachments"
 import type { ProviderModelItem } from "@/data/types"
 import type { ChatInput, ChatSessionPreference, CodingTextRequest } from "@/lib/gateway/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
-import { updateChatSessionPreference } from "@/lib/gateway/client"
+import { listChatBackground, updateChatSessionPreference } from "@/lib/gateway/client"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
-import { readAgentFileRawOptions } from "@/lib/gateway/client/@tanstack/react-query.gen"
+import {
+  listAgentModelCatalogOptions,
+  readAgentFileRawOptions,
+} from "@/lib/gateway/client/@tanstack/react-query.gen"
 import { formatByteSize } from "@/lib/format"
 import { RelativeDateTime } from "@/components/relative-date-time"
 import { useObjectURL } from "@/hooks/use-object-url"
@@ -96,15 +100,17 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import type { Message as OpencodeMessage, Part, QuestionAnswer, Session } from "@opencode-ai/sdk/v2"
-import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
-  ArrowUpIcon,
-  SquareIcon,
-  BrainIcon,
-  BotIcon,
+  queryOptions,
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryKey,
+} from "@tanstack/react-query"
+import {
   CheckIcon,
   ChevronDownIcon,
-  CpuIcon,
   DownloadIcon,
   GaugeIcon,
   HammerIcon,
@@ -115,17 +121,21 @@ import {
   CircleAlert,
   BookmarkIcon,
 } from "lucide-react"
-import { motion } from "motion/react"
 import {
   type ReactNode,
   type RefObject,
+  type ComponentProps,
   useCallback,
+  useContext,
   useEffect,
+  useEffectEvent,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react"
 import { toast } from "sonner"
+import { motion, useReducedMotion } from "motion/react"
 import { z } from "zod"
 import {
   Command,
@@ -135,13 +145,7 @@ import {
   CommandGroup,
   CommandItem,
 } from "@/components/ui/command"
-import {
-  Context,
-  ContextContent,
-  ContextContentHeader,
-  ContextTrigger,
-  ContextUsage,
-} from "@/components/ai-elements/context"
+import { Context } from "@/components/ai-elements/context"
 import {
   Select,
   SelectContent,
@@ -151,9 +155,163 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { LanguageModelUsage } from "ai"
+import { sessionDrafts, useSessionDraft, type SessionDraft } from "./drafts"
+
+type ChatScroll = {
+  offset: number
+  atEnd: boolean
+  estimatedItemSize?: number
+  anchor?: { key: string; viewOffset: number }
+}
+
+type ChatDraft = PromptInputMessage & { restore?: true }
+
+function ChatPromptInput({
+  draftKey,
+  initialMessage,
+  controllerRef,
+  savedDraft,
+  ...props
+}: Omit<ComponentProps<typeof PromptInput>, "onSubmitError"> & {
+  draftKey: QueryKey
+  savedDraft?: Pick<SessionDraft, "id" | "scope" | "agentName" | "sessionID">
+}) {
+  const queryClient = useQueryClient()
+  const draftID = savedDraft?.id
+  const draftScope = savedDraft?.scope
+  const draftAgent = savedDraft?.agentName
+  const storedDraft = useSessionDraft(draftScope ?? "", draftID ?? null)
+  const hydrated = useRef(false)
+  const edited = useRef(false)
+  const restoreDraft = useEffectEvent((stored: SessionDraft) => {
+    const current = controllerRef?.current?.getMessage()
+    if (edited.current && current) {
+      sessionDrafts.update(stored.scope, stored.id, { message: current })
+      return
+    }
+    controllerRef?.current?.setMessage(stored.message)
+    queryClient.setQueryData(draftKey, stored.message)
+  })
+  useEffect(() => {
+    hydrated.current = false
+    if (!draftID || !draftScope || !draftAgent) return
+    let mounted = true
+    let deactivate: (() => void) | undefined
+    void sessionDrafts.start(draftScope, "", draftAgent, draftID).then((draft) => {
+      if (!mounted) return
+      if (draft.id !== draftID) {
+        const url = new URL(window.location.href)
+        if (url.searchParams.get("draft") !== draftID) return
+        url.searchParams.set("draft", draft.id)
+        window.history.replaceState(null, "", `${url.pathname}${url.search}`)
+        return
+      }
+      deactivate = sessionDrafts.activate(draftScope, draftID)
+      hydrated.current = true
+      if (draft.agentName !== draftAgent)
+        sessionDrafts.update(draftScope, draftID, { agentName: draftAgent, sessionID: undefined })
+      restoreDraft(draft)
+    })
+    return () => {
+      mounted = false
+      hydrated.current = false
+      deactivate?.()
+    }
+  }, [draftID, draftScope, draftAgent])
+  useEffect(() => {
+    if (!hydrated.current || storedDraft || !draftID) return
+    const url = new URL(window.location.href)
+    // A remote discard must also retire its mounted composer. Promotion has
+    // already moved to the native session URL and must keep its live tree.
+    if (url.searchParams.get("draft") !== draftID) return
+    queryClient.removeQueries({ queryKey: draftKey, exact: true })
+    url.searchParams.set("draft", crypto.randomUUID())
+    window.history.replaceState(null, "", `${url.pathname}${url.search}`)
+  }, [draftID, draftKey, queryClient, storedDraft])
+  const recovery = useQuery(
+    queryOptions({
+      queryKey: draftKey,
+      queryFn: skipToken,
+      initialData: initialMessage ?? { text: "", files: [] },
+      // Keystrokes persist without rendering the chat. Only failed submissions
+      // notify this composer, including one mounted after the request started.
+      select: (draft: ChatDraft) => (draft.restore ? draft : undefined),
+    })
+  )
+  useLayoutEffect(() => {
+    if (recovery.data) controllerRef?.current?.setMessage(recovery.data)
+  }, [controllerRef, recovery.data])
+  return (
+    <PromptInput
+      {...props}
+      controllerRef={controllerRef}
+      onInput={(event) => {
+        edited.current = true
+        props.onInput?.(event)
+      }}
+      initialMessage={queryClient.getQueryData<ChatDraft>(draftKey)}
+      onMessageChange={(message) => {
+        queryClient.setQueryData(draftKey, message)
+        if (savedDraft && hydrated.current)
+          sessionDrafts.update(savedDraft.scope, savedDraft.id, { message })
+      }}
+      onSubmit={async (message, event, delivery) => {
+        if (!savedDraft || savedDraft.sessionID) return props.onSubmit(message, event, delivery)
+        // Hold the native browser lock through acknowledgement. Another tab
+        // must not create a second native session for the same local draft.
+        return navigator.locks.request(
+          `agentz-draft:${JSON.stringify([savedDraft.scope, savedDraft.id])}`,
+          { ifAvailable: true },
+          async (lock) => {
+            if (!lock) {
+              const error = new Error("This draft is being sent in another tab")
+              toast.error(error.message)
+              throw error
+            }
+            if (props.clearOnSubmit !== false)
+              sessionDrafts.update(savedDraft.scope, savedDraft.id, { submission: message })
+            await props.onSubmit(message, event, delivery)
+            sessionDrafts.update(savedDraft.scope, savedDraft.id, { submission: undefined })
+          }
+        )
+      }}
+      onSubmitError={(message) => {
+        if (savedDraft && !sessionDrafts.get(savedDraft.scope, savedDraft.id)) return
+        queryClient.setQueryData<ChatDraft>(draftKey, (current) => {
+          // Logout and deletion remove the draft; a late failure must not
+          // recreate private state after either boundary.
+          if (!current) return
+          const untouched = !current.text && !current.files.length
+          const restored: ChatDraft = {
+            requestID: untouched ? message.requestID : current.requestID,
+            text: [message.text, current.text].filter(Boolean).join("\n\n"),
+            files: [...message.files, ...current.files],
+            restore: true,
+          }
+          if (savedDraft)
+            sessionDrafts.update(savedDraft.scope, savedDraft.id, {
+              message: restored,
+              submission: undefined,
+            })
+          return restored
+        })
+      }}
+    />
+  )
+}
+
+type PendingTimelineRow = {
+  author?: typeof authClient.$Infer.Session.user | ChatInput["author"]
+  files: PromptInputMessage["files"] | ChatInput["content"]["attachments"]
+  key: string
+  progress?: string
+  text: PromptInputMessage["text"]
+  type: "pending"
+}
 
 export type ChatProps = {
   coding?: boolean
+  draftId?: string
   draftMode?: Session["agent"]
   onDraftModeChange?: (mode: string) => void
   draftModel?: CodingTextRequest["model"]
@@ -165,7 +323,6 @@ export type ChatProps = {
   agentNames: string[]
   chatPreferences?: ChatSessionPreference
   initialMessage?: PromptInputMessage
-  onDraftChange?: (message: PromptInputMessage) => void
   projectName?: string
   firstName?: string
   greetingIndex?: number
@@ -173,7 +330,6 @@ export type ChatProps = {
   navigationPending?: boolean
   sessionId?: string
   workspaceId: string
-  workspacePath: string
   onAgentChange: (agentName: string) => void
   onSessionCreated: (sessionId: string) => void
 }
@@ -190,13 +346,8 @@ const messageActorProfilesSchema = z
 type MessageActorProfile = z.infer<typeof messageActorProfilesSchema>["profiles"][number]
 
 const DEFAULT_REASONING_LEVEL = "__default__"
-const promptShiftTransition = { duration: 0.2, ease: [0.22, 1, 0.36, 1] } as const
 
 type AssistantUsage = {
-  modelId?: string
-  modelName?: string
-  providerID?: string
-  total: number
   usage: LanguageModelUsage
   usedTokens: number
   maxTokens?: number
@@ -208,8 +359,7 @@ function getAssistantUsage(
 ): AssistantUsage | undefined {
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i]
-    if (!message) continue
-    if (message.role !== "assistant") continue
+    if (message?.role !== "assistant") continue
 
     const total =
       message.tokens.input +
@@ -226,10 +376,6 @@ function getAssistantUsage(
 
     return {
       maxTokens: model?.contextLimit,
-      modelId: `${message.providerID}:${message.modelID}`,
-      modelName: model?.name ?? message.modelID,
-      providerID: message.providerID,
-      total,
       usedTokens: total,
       usage: {
         inputTokens: message.tokens.input,
@@ -443,63 +589,66 @@ function StoredAttachment({
   )
 }
 
-function StoredAttachments({
-  agentName,
-  attachments,
-  onOpen,
-  workspaceId,
-}: {
-  agentName: string
-  attachments: ChatAttachment[]
-  onOpen: (path: string, name: string) => void
-  workspaceId: string
-}) {
-  return (
-    <Attachments className="gap-[6px]" variant="composer">
-      {attachments.map((attachment) => (
-        <StoredAttachment
-          agentName={agentName}
-          attachment={attachment}
-          key={attachment.id}
-          onOpen={onOpen}
-          workspaceId={workspaceId}
-        />
-      ))}
-    </Attachments>
+const workingPhrases = [
+  "Turning the tiny gears",
+  "Following a little spark",
+  "Untangling a curious little knot",
+  "Fitting the pieces into place",
+  "Giving the idea a little wiggle",
+  "Connecting a few dots",
+  "Chasing a curious thought",
+  "Winding up the thinking cap",
+  "Sorting through the puzzle pieces",
+  "Taking a peek under the hood",
+  "Putting a thought on the workbench",
+  "Tracing a promising thread",
+  "Giving the gears a gentle nudge",
+  "Dusting off a useful idea",
+  "Finding the thread to pull",
+  "Lining up the little dominoes",
+  "Sketching a path through",
+  "Checking the hidden corners",
+  "Gathering a handful of clues",
+  "Making room for an aha",
+  "Stirring the thought pot",
+  "Trying a different puzzle piece",
+  "Following the breadcrumbs",
+  "Warming up the idea engine",
+  "Taking the scenic route through logic",
+  "Nudging a thought into focus",
+  "Tinkering with the possibilities",
+  "Measuring twice, thinking once",
+  "Rolling the idea around",
+  "Looking for the missing piece",
+  "Tugging gently at the loose ends",
+  "Giving a hunch a closer look",
+  "Turning the puzzle sideways",
+  "Rounding up a few thoughts",
+  "Finding a foothold in the details",
+  "Letting an idea stretch its legs",
+  "Peeking behind the question",
+  "Putting the clues in order",
+  "Testing the stepping stones",
+  "Smoothing out a wrinkle",
+  "Threading the little needle",
+  "Assembling a tiny aha machine",
+  "Tapping on a promising idea",
+  "Finding where the pieces click",
+  "Giving the details a second glance",
+  "Coaxing a thought into shape",
+  "Checking which way the clues point",
+  "Taking a pencil to the puzzle",
+  "Shaking the idea tree",
+  "Getting the little ducks in a row",
+] as const
+
+function WorkingShimmer({ text }: { text?: string }) {
+  // Streaming updates must not reshuffle the fallback while it is visible.
+  const [fallback] = useState(
+    () => workingPhrases[Math.floor(Math.random() * workingPhrases.length)] ?? workingPhrases[0]
   )
-}
 
-// Consecutive tool entries share one indentation block; text and reasoning
-// entries stay standalone.
-type EntryGroup =
-  | RenderEntry
-  | { entries: Extract<RenderEntry, { type: "tool" }>[]; key: string; type: "tool-group" }
-
-function groupEntries(entries: RenderEntry[]): EntryGroup[] {
-  const result: EntryGroup[] = []
-  let group: Extract<RenderEntry, { type: "tool" }>[] = []
-
-  const flush = () => {
-    if (group.length === 0) return
-    result.push({
-      entries: [...group],
-      key: group.map((entry) => entry.key).join(":"),
-      type: "tool-group",
-    })
-    group = []
-  }
-
-  for (const entry of entries) {
-    if (entry.type === "tool") {
-      group.push(entry)
-      continue
-    }
-    flush()
-    result.push(entry)
-  }
-
-  flush()
-  return result
+  return <Shimmer className="min-w-0 truncate text-sm">{text ?? fallback}</Shimmer>
 }
 
 export default function Chat({
@@ -510,12 +659,12 @@ export default function Chat({
   agentNames,
   chatPreferences,
   initialMessage,
+  draftId,
   draftModel,
   coding = false,
   draftMode,
   onDraftModeChange,
   onDraftModelChange,
-  onDraftChange,
   projectName,
   firstName,
   greetingIndex,
@@ -523,16 +672,97 @@ export default function Chat({
   navigationPending = false,
   sessionId,
   workspaceId,
-  workspacePath,
   onAgentChange,
   onSessionCreated,
 }: ChatProps) {
   const queryClient = useQueryClient()
+  const showWork = useContext(ChatActivityContext)
+  const followUpBehavior = useContext(ChatFollowUpContext)
+  const reducedMotion = useReducedMotion()
   const agentReadiness = useAgentReadiness(agentName, workspaceId)
   const composerRef = useRef<PromptInputController | null>(null)
   const { data: authSession } = authClient.useSession()
-  const draftKey = ["chatDraft", workspaceId, agentName, authSession?.user.id, sessionId]
-  const draftMessage = queryClient.getQueryData<PromptInputMessage>(draftKey) ?? initialMessage
+  const timelineRef = useRef<LegendListRef>(null)
+  const timelineLoaded = useRef(false)
+  const scrollQuery = useMemo(
+    () =>
+      queryOptions({
+        queryKey: ["chatScroll", workspaceId, agentName, authSession?.user.id, sessionId],
+      }),
+    [workspaceId, agentName, authSession?.user.id, sessionId]
+  )
+  const [initialScroll] = useState(() => queryClient.getQueryData<ChatScroll>(scrollQuery.queryKey))
+  const scroll = useRef(initialScroll)
+  const timelineHeaderHeight = useRef(0)
+  const timelineFooterHeight = useRef(0)
+  const following = useRef(initialScroll?.atEnd ?? true)
+  const [timelineFollowing, setTimelineFollowing] = useState(initialScroll?.atEnd ?? true)
+  const scrollFrame = useRef<number | undefined>(undefined)
+  const releaseFollow = () => {
+    following.current = false
+    setTimelineFollowing(false)
+    if (scrollFrame.current !== undefined) cancelAnimationFrame(scrollFrame.current)
+    const node = timelineRef.current?.getScrollableNode()
+    // Cancel a smooth follow before native wheel/key navigation takes over.
+    if (node) node.scrollTo({ top: node.scrollTop, behavior: "instant" })
+  }
+  const draftKey = [
+    "chatDraft",
+    workspaceId,
+    agentName,
+    authSession?.user.id,
+    sessionId ?? draftId ?? "new",
+  ]
+  const draftMessage = queryClient.getQueryData<ChatDraft>(draftKey) ?? initialMessage
+  const {
+    abortMessage,
+    resolvedSessionID,
+    creationStarted,
+    canStop,
+    canSubmit,
+    hasSession,
+    isStopping,
+    sendMessage,
+    sendState,
+    pending: pendingMessages,
+    queue,
+    queueError,
+    queueLoaded,
+    updateInput,
+  } = useOpencodeSend(
+    agentName,
+    workspaceId,
+    sessionId,
+    (id) => {
+      // Carry unsent input into the session draft scope on promotion.
+      const nextDraftKey = [...draftKey.slice(0, -1), id]
+      queryClient.setQueryData(nextDraftKey, composerRef.current?.getMessage())
+      if (draftId && authSession && !createSession) {
+        sessionDrafts.remove(`${authSession.user.id}:${workspaceId}`, draftId)
+      }
+      onSessionCreated?.(id)
+    },
+    createSession
+  )
+  const background = useQuery(
+    queryOptions({
+      queryKey: ["chatBackground", workspaceId, agentName, resolvedSessionID],
+      enabled: Boolean(resolvedSessionID) && !coding,
+      queryFn: async () => {
+        if (!resolvedSessionID) throw new Error("Chat has not been created")
+        const result = await listChatBackground({
+          baseUrl: await getGatewayBaseURL(),
+          headers: { "X-AgentZ-Workspace-ID": workspaceId },
+          path: { agentName, sessionId: resolvedSessionID },
+        })
+        if (result.error) throw new Error(result.error.message)
+        return result.data
+      },
+      refetchInterval: (query) =>
+        query.state.data?.some((item) => !item.completed) ? 1_000 : 60_000,
+    })
+  )
+
   const preferenceKey = ["chatSessionPreference", workspaceId, authSession?.user.id] as const
   const rememberAgent = useMutation({
     mutationFn: async ({
@@ -577,11 +807,12 @@ export default function Chat({
     reconnectStream,
     reload,
     session,
+    sessionUnavailable,
     sessionStatus,
     streamError,
     textByPart,
     todos,
-  } = useOpencodeChat(agentName, workspaceId, sessionId)
+  } = useOpencodeChat(agentName, workspaceId, resolvedSessionID, authSession?.user.id)
 
   const questionTool = questionRequest?.tool
   const planApproval =
@@ -597,7 +828,9 @@ export default function Chat({
   // session.agent. Raw user history owns the mode, including after reconnect.
   const lastUser = messages.findLast(
     (message) =>
-      message.role === "user" && (!session?.revert || message.id < session.revert.messageID)
+      message.role === "user" &&
+      !background.data?.some((input) => input.message_id === message.id) &&
+      (!session?.revert || message.id < session.revert.messageID)
   )
   // A revert can precede the loaded page. Fetch its preceding user turn
   // before choosing a mode rather than falling back to stale session metadata.
@@ -690,6 +923,20 @@ export default function Chat({
     recent,
     setVariant,
   } = useChatModelStorage(agentName)
+  const branding = useQuery({
+    ...listAgentModelCatalogOptions({
+      headers: { "X-AgentZ-Workspace-ID": workspaceId },
+      path: { agentName },
+    }),
+    staleTime: 60_000,
+  })
+  const modelBrands = useMemo(
+    () =>
+      new Map(
+        branding.data?.map((entry) => [`${entry.provider_id}:${entry.model_id}`, entry.providers])
+      ),
+    [branding.data]
+  )
 
   const modelCatalog = useQuery(
     queryOptions({
@@ -839,30 +1086,6 @@ export default function Chat({
     ? messages.filter((message) => message.id < revertMessageID)
     : messages
   const contextUsage = getAssistantUsage(contextMessages, models)
-  const {
-    abortMessage,
-    canStop,
-    canSubmit,
-    hasSession,
-    isStopping,
-    sendMessage,
-    sendState,
-    pending: pendingMessages,
-    queue,
-    queueError,
-    updateInput,
-  } = useOpencodeSend(
-    agentName,
-    workspaceId,
-    sessionId,
-    (id) => {
-      // The session route remounts the composer after checkout creation.
-      const nextDraftKey = [...draftKey.slice(0, -1), id]
-      queryClient.setQueryData(nextDraftKey, composerRef.current?.getMessage())
-      onSessionCreated?.(id)
-    },
-    createSession
-  )
 
   useEffect(() => {
     if (models.length === 0 || !modelStorageReady) return
@@ -895,7 +1118,7 @@ export default function Chat({
     },
     onError: (error) => {
       toast.error("Couldn't submit answers", {
-        description: error instanceof Error ? error.message : undefined,
+        description: error.message,
       })
     },
   })
@@ -917,7 +1140,7 @@ export default function Chat({
     },
     onError: (error) => {
       toast.error("Couldn't dismiss question", {
-        description: error instanceof Error ? error.message : undefined,
+        description: error.message,
       })
     },
   })
@@ -940,7 +1163,7 @@ export default function Chat({
     },
     onError: (error) => {
       toast.error("Couldn't reply to permission", {
-        description: error instanceof Error ? error.message : undefined,
+        description: error.message,
       })
     },
   })
@@ -986,7 +1209,7 @@ export default function Chat({
     mutationFn: applyRevert,
     onError: (error) => {
       toast.error("Couldn't revert message", {
-        description: error instanceof Error ? error.message : undefined,
+        description: error.message,
       })
     },
   })
@@ -1011,7 +1234,7 @@ export default function Chat({
     },
     onError: (error) => {
       toast.error("Couldn't restore message", {
-        description: error instanceof Error ? error.message : undefined,
+        description: error.message,
       })
     },
   })
@@ -1066,18 +1289,123 @@ export default function Chat({
     )
       restoreInput(recovered)
   }
+  const [storedQueueEdit, setQueueEdit] = useState<SessionDraft>()
+  const queueEditScope = `${authSession?.user.id}:${workspaceId}`
+  const editMetadata = useSessionDraft(queueEditScope, storedQueueEdit?.id ?? null)
+  const queueEdit = editMetadata ? storedQueueEdit : undefined
+  const editBusy = useRef(false)
+  const [editSaving, setEditSaving] = useState(false)
+  useEffect(() => {
+    if (!sessionId || !authSession) return
+    let mounted = true
+    void sessionDrafts
+      .load(queueEditScope)
+      .then((drafts) => {
+        if (!mounted) return
+        const edit = drafts.find(
+          (draft) => draft.agentName === agentName && draft.queueEdit?.sessionID === sessionId
+        )
+        if (!edit) return
+        // Preserve new typing if disk hydration finishes after the first input.
+        const current = composerRef.current?.getMessage()
+        const normal = queryClient.getQueryData<PromptInputMessage>(draftKey)
+        if (!normal?.text && !normal?.files.length)
+          queryClient.setQueryData(
+            draftKey,
+            current?.text || current?.files.length ? current : edit.queueEdit?.draft
+          )
+        setQueueEdit(edit)
+      })
+      .catch(() => toast.error("Could not recover queued-message edits"))
+    return () => {
+      mounted = false
+    }
+    // Route-scoped hydration runs once. Typing never subscribes the chat.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentName, queueEditScope, sessionId])
+  const beginQueueEdit = async (item: ChatInput) => {
+    if (!sessionId || queueEdit || editBusy.current || blocked) return
+    editBusy.current = true
+    try {
+      const draft = await sessionDrafts.start(queueEditScope, "", agentName, crypto.randomUUID())
+      const normal = composerRef.current?.getMessage() ?? { text: "", files: [] }
+      sessionDrafts.update(queueEditScope, draft.id, {
+        queueEdit: { item, sessionID: sessionId, draft: normal },
+        message: {
+          text: item.content.text,
+          files: item.content.attachments.map((file) => ({
+            ...file,
+            type: "file",
+            source: "workspace",
+          })),
+        },
+      })
+      const stored = sessionDrafts.get(queueEditScope, draft.id)
+      setQueueEdit(stored)
+    } finally {
+      editBusy.current = false
+    }
+  }
+  const closeQueueEdit = () => {
+    if (!queueEdit || editBusy.current) return
+    sessionDrafts.remove(queueEdit.scope, queueEdit.id)
+    const editKey = ["queueEdit", queueEdit.scope, queueEdit.id]
+    queryClient.removeQueries({
+      queryKey: editKey,
+      exact: true,
+    })
+    setQueueEdit(undefined)
+  }
+  const editStale =
+    queueEdit &&
+    queueLoaded &&
+    !queue.some(
+      (item) =>
+        item.id === queueEdit.queueEdit?.item.id &&
+        item.revision === queueEdit.queueEdit.item.revision &&
+        item.state !== "sending" &&
+        !item.message_id
+    )
+  const saveQueueEdit = async (message: PromptInputMessage) => {
+    const original = queueEdit?.queueEdit?.item
+    if (!original || !sessionId || editBusy.current) throw new Error("Edit is unavailable")
+    editBusy.current = true
+    setEditSaving(true)
+    try {
+      const attachments = await uploadChatAttachments(
+        agentName,
+        workspaceId,
+        sessionId,
+        message.files
+      )
+      await updateInput({
+        item: original,
+        action: "edit",
+        content: { ...original.content, text: message.text, attachments },
+      })
+      editBusy.current = false
+      closeQueueEdit()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save queued message")
+      throw error
+    } finally {
+      editBusy.current = false
+      setEditSaving(false)
+    }
+  }
   const handleSubmit = async (
     message: PromptInputMessage,
-    delivery: "steer" | "queue" = "steer"
+    delivery: ChatInput["delivery"] = "steer"
   ) => {
     if (
+      sessionUnavailable ||
       agentReadiness.isGettingReady ||
       isStopping ||
       revertPending ||
       (blocked && delivery === "steer")
     )
       throw new Error("Chat is not ready to send")
-    if (coding && (isPending || modeHistoryPending || !modeAvailable)) {
+    if (isPending || (coding && (modeHistoryPending || !modeAvailable))) {
       const error = new Error(
         isPending || modeHistoryPending
           ? "Chat is still loading"
@@ -1090,13 +1418,27 @@ export default function Chat({
       toast.error("Message cannot be empty")
       return
     }
+    if (delivery === "steer") {
+      following.current = true
+      setTimelineFollowing(true)
+      if (scrollFrame.current !== undefined) cancelAnimationFrame(scrollFrame.current)
+      scrollFrame.current = requestAnimationFrame(() => {
+        if (following.current) void timelineRef.current?.scrollToEnd({ animated: false })
+      })
+    }
+    const localDraft =
+      !sessionId && draftId && authSession
+        ? sessionDrafts.get(`${authSession.user.id}:${workspaceId}`, draftId)
+        : undefined
     await sendMessage({
+      draft: localDraft,
       requestID: message.requestID,
       delivery,
       agent: coding ? mode : undefined,
       files: message.files,
       model: selectedModel,
-      sessionID: sessionId,
+      sessionID:
+        sessionId ?? (localDraft?.agentName === agentName ? localDraft.sessionID : undefined),
       text: message.text,
       variant: selectedReasoningVariant,
     })
@@ -1136,24 +1478,51 @@ export default function Chat({
     [selectedModel, setVariant]
   )
 
-  const handlePermission = useCallback(
-    (reply: PermissionDecision) => {
-      void replyPermission(reply)
-    },
-    [replyPermission]
-  )
+  const firstUser = messages.find((message) => message.role === "user")
+  const firstParts = firstUser ? (partsByMessage[firstUser.id] ?? []) : []
+  // A page can begin at a compaction continuation. Load its original turn
+  // before classifying background output.
+  const backgroundHistoryPending =
+    !coding &&
+    hasEarlierMessages &&
+    !background.data?.some((item) => item.message_id === firstUser?.id) &&
+    firstParts.every((part) => part.type !== "text" || part.synthetic) &&
+    firstParts.some(
+      (part) =>
+        (part.type === "compaction" && part.auto) ||
+        (part.type === "text" &&
+          (part.metadata?.compaction_continue || part.metadata?.["agentz.dev/input-id"]))
+    )
+  useEffect(() => {
+    if (backgroundHistoryPending && background.isSuccess && !isLoadingEarlier && !loadError)
+      void loadEarlier()
+  }, [backgroundHistoryPending, background.isSuccess, isLoadingEarlier, loadError, loadEarlier])
 
-  const { guardrailMessageID, reverted, rows } = useMemo(
+  const { activity, guardrailMessageID, reverted, rows } = useMemo(
     () =>
       projectTimeline({
+        background: background.data,
+        classifyBackground: !coding,
+        showWork,
         isBusy,
         isRetrying: sessionStatus?.type === "retry",
-        messages,
+        messages: backgroundHistoryPending ? [] : messages,
         partsByMessage,
         revertMessageID: session?.revert?.messageID,
         textByPart,
       }),
-    [isBusy, messages, partsByMessage, session?.revert?.messageID, sessionStatus?.type, textByPart]
+    [
+      showWork,
+      background.data,
+      backgroundHistoryPending,
+      coding,
+      isBusy,
+      messages,
+      partsByMessage,
+      session?.revert?.messageID,
+      sessionStatus?.type,
+      textByPart,
+    ]
   )
   // The first loaded rejection may itself include an older blocked prompt.
   // Find its preceding turn so automatic recovery removes the original cause.
@@ -1222,24 +1591,18 @@ export default function Chat({
   // Reconcile against visible rows so a header arriving before its parts does
   // not remove the pending bubble before the server bubble can replace it.
   const renderedInputs = new Set<string>()
-  for (const { id } of [...pendingMessages, ...queue]) {
-    const messageID = queue.find((item) => item.id === id)?.message_id
-    if (
-      rows.some(
-        (row) =>
-          row.type === "user" &&
-          (row.messageID === messageID ||
-            partsByMessage[row.messageID]?.some(
-              (part) => part.type === "text" && part.metadata?.["agentz.dev/input-id"] === id
-            ))
-      )
-    ) {
-      renderedInputs.add(id)
-    }
+  const renderedMessages = new Set<string>()
+  for (const row of rows) {
+    if (row.type !== "user") continue
+    renderedInputs.add(row.key)
+    renderedMessages.add(row.messageID)
   }
-  const submissions = pendingMessages.filter((item) => !renderedInputs.has(item.id))
+  const submissions = pendingMessages.filter((item) => !renderedInputs.has(`input:${item.id}`))
   const inputs = queue.filter(
-    (item) => item.state === "failed" || item.state === "recovered" || !renderedInputs.has(item.id)
+    (item) =>
+      item.state === "failed" ||
+      item.state === "recovered" ||
+      (!renderedInputs.has(`input:${item.id}`) && !renderedMessages.has(item.message_id ?? ""))
   )
   const activeSteers = inputs.filter(
     (item) =>
@@ -1250,12 +1613,12 @@ export default function Chat({
   const pendingInputs = [
     ...submissions
       .filter(({ input }) => input.delivery === "steer")
-      .map(({ id, input, status }) => ({
+      .map(({ id, input, progress }) => ({
         id,
         text: input.text,
         files: input.files,
-        status,
-        author: authSession?.user.name,
+        progress,
+        author: authSession?.user,
       })),
     ...activeSteers
       .filter((item) => !submissions.some((pending) => pending.id === item.id))
@@ -1263,9 +1626,17 @@ export default function Chat({
         id: item.id,
         text: item.content.text,
         files: item.content.attachments,
-        status: isBusy ? "Waiting for the current step..." : "Starting agent...",
-        author: item.author.name,
+        progress: undefined,
+        author: item.author,
       })),
+  ]
+  const timelineRows = [
+    ...rows,
+    ...pendingInputs.map((input) => ({
+      ...input,
+      key: `input:${input.id}`,
+      type: "pending" as const,
+    })),
   ]
 
   const actorUserIDs = useMemo(
@@ -1295,15 +1666,40 @@ export default function Chat({
       staleTime: 60_000,
     })
   )
-  const actorProfiles = useMemo(
-    () => new Map(actorProfilesQuery.data?.profiles.map((profile) => [profile.id, profile]) ?? []),
-    [actorProfilesQuery.data]
-  )
+  const actorProfiles = useMemo(() => {
+    const profiles = new Map(
+      actorProfilesQuery.data?.profiles.map((profile) => [profile.id, profile]) ?? []
+    )
+    const user = authSession?.user
+    // Queue acknowledgements omit photos; keep our known profile during delivery.
+    if (user && !profiles.has(user.id))
+      profiles.set(user.id, { id: user.id, name: user.name, image: user.image ?? null })
+    return profiles
+  }, [actorProfilesQuery.data, authSession?.user])
   const inputDisabled =
-    agentReadiness.isGettingReady || navigationPending || (!sessionId && sendState === "submitted")
+    sessionUnavailable ||
+    agentReadiness.isGettingReady ||
+    navigationPending ||
+    (!sessionId && sendState === "submitted")
+  const running =
+    isBusy ||
+    activeSteers.length > 0 ||
+    pendingMessages.some(({ input }) => input.delivery === "steer")
+  const canSteer = !blocked && !session?.time.compacting
+  let defaultDelivery: ChatInput["delivery"] = "steer"
+  let alternateDelivery: ChatInput["delivery"] = "steer"
+  if (running) {
+    defaultDelivery = followUpBehavior
+    alternateDelivery = followUpBehavior === "steer" ? "queue" : "steer"
+  }
+  if (!canSteer) {
+    defaultDelivery = "queue"
+    alternateDelivery = "queue"
+  }
   const showStop = isBusy || isStopping || queue.some((item) => item.state !== "recovered")
   const submitDisabled =
     inputDisabled ||
+    isPending ||
     isStopping ||
     revertPending ||
     !selectedModel ||
@@ -1329,197 +1725,318 @@ export default function Chat({
     !hasSession && !isPending && rows.length === 0 && !sendState && pendingInputs.length === 0
   const showHistorySkeleton =
     isPending && rows.length === 0 && !showStarter && pendingInputs.length === 0
-  const timelineRef = useRef<LegendListRef>(null)
-  const [timelineAtEnd, setTimelineAtEnd] = useState(true)
   const composerDock = useRef<HTMLDivElement>(null)
-  const [composerHeight, setComposerHeight] = useState(224)
-  useEffect(() => {
+  useLayoutEffect(() => {
     const dock = composerDock.current
-    if (!dock) return
+    const root = dock?.parentElement
+    if (!dock || !root || showStarter) return
+    // Restore the list against its final footer inset before the first paint.
+    let height = Math.ceil(dock.getBoundingClientRect().height)
+    let publishedHeight = height
+    root.style.setProperty("--chat-composer-height", `${height}px`)
+    const publishHeight = () => {
+      // CSS owns intermediate geometry; publish the inset once it settles.
+      const transitioning = dock
+        .getAnimations({ subtree: true })
+        .some(
+          (animation) =>
+            animation instanceof CSSTransition &&
+            animation.playState === "running" &&
+            (animation.transitionProperty === "padding-bottom" ||
+              animation.transitionProperty === "grid-template-rows")
+        )
+      if (transitioning || height === publishedHeight) return
+      if (height < publishedHeight && !following.current) {
+        const node = timelineRef.current?.getScrollableNode()
+        // Keep the distance from the end when the footer shrinks, before
+        // the browser can clamp the user's small upward scroll to the end.
+        if (node) node.scrollTop -= publishedHeight - height
+      }
+      publishedHeight = height
+      root.style.setProperty("--chat-composer-height", `${height}px`)
+    }
     const observer = new ResizeObserver(([entry]) => {
-      if (entry)
-        setComposerHeight(Math.ceil(entry.borderBoxSize[0]?.blockSize ?? entry.contentRect.height))
+      const box = entry?.borderBoxSize[0]
+      if (!box) return
+      height = Math.ceil(box.blockSize)
+      publishHeight()
     })
     observer.observe(dock)
-    return () => observer.disconnect()
-  }, [])
+    dock.addEventListener("transitionend", publishHeight)
+    dock.addEventListener("transitioncancel", publishHeight)
+    return () => {
+      observer.disconnect()
+      dock.removeEventListener("transitionend", publishHeight)
+      dock.removeEventListener("transitioncancel", publishHeight)
+    }
+  }, [showStarter])
+  useLayoutEffect(
+    () => () => {
+      if (scrollFrame.current !== undefined) cancelAnimationFrame(scrollFrame.current)
+      if (!sessionId || !scroll.current) return
+      const info = sessionInfoQueryOptions(agentName, workspaceId, sessionId)
+      // Logout clears metadata first; cleanup must not recreate a cleared cache.
+      if (!queryClient.getQueryData(info.queryKey)) return
+      const state = timelineRef.current?.getState()
+      const [size] = Object.values(state?.getAverageItemSizes() ?? {})
+      const key =
+        state && [...state.sizes.keys()].find((key) => state.indexByKey(key) === state.start)
+      queryClient.setQueryData<ChatScroll>(scrollQuery.queryKey, {
+        ...scroll.current,
+        atEnd: following.current,
+        estimatedItemSize: size?.average,
+        // Pixel offsets depend on the list's estimates. Preserve the visible
+        // row and its position when measurements change between visits.
+        anchor:
+          state && key
+            ? {
+                key,
+                viewOffset:
+                  (state.positionByKey(key) ?? 0) +
+                  timelineHeaderHeight.current -
+                  scroll.current.offset,
+              }
+            : undefined,
+      })
+    },
+    [agentName, queryClient, scrollQuery.queryKey, sessionId, workspaceId]
+  )
 
+  const initialAnchorIndex = initialScroll?.anchor
+    ? timelineRows.findIndex((row) => row.key === initialScroll.anchor?.key)
+    : -1
+
+  const composerDraftID = sessionId ?? draftId
   return (
-    <div className="absolute inset-0 flex min-h-0 flex-1 flex-col overflow-hidden" data-agentz-chat>
-      {isBusy ? (
-        <div
-          aria-hidden="true"
-          className="absolute inset-x-0 top-0 h-0.5"
-          data-component="session-progress"
-          data-state="showing"
-        >
-          <div data-component="session-progress-bar" />
-        </div>
-      ) : null}
+    <div
+      className="absolute inset-0 flex min-h-0 flex-1 flex-col justify-end overflow-hidden"
+      data-agentz-chat={sessionId ?? "new"}
+    >
       <div
-        className={cn(
-          "relative min-h-0 flex-1 transition-opacity duration-200",
-          showStarter && "pointer-events-none opacity-0"
-        )}
+        className={cn("relative min-h-0 flex-1", showStarter && "pointer-events-none opacity-0")}
       >
         {!showStarter ? (
-          <SkeletonSwap
-            ready={!showHistorySkeleton}
-            className="h-full"
-            skeleton={
-              <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 pt-4">
+          <div className="relative h-full" aria-busy={showHistorySkeleton}>
+            {showHistorySkeleton ? (
+              <div
+                className={cn(
+                  styles.historyLoading,
+                  "absolute inset-0 mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 pt-4"
+                )}
+              >
                 <Skeleton className="h-16 w-full rounded-md" />
                 <Skeleton className="h-24 w-full rounded-md" />
                 <Skeleton className="h-16 w-2/3 rounded-md" />
               </div>
-            }
-          >
-            <LegendList<TimelineRow>
-              className="h-full min-h-0 overflow-x-hidden overscroll-y-contain [overflow-anchor:none]"
-              data={rows}
-              estimatedItemSize={96}
-              extraData={actorProfiles}
-              initialScrollAtEnd
-              keyExtractor={(row) => row.key}
-              recycleItems={false}
-              ListHeaderComponent={
-                hasEarlierMessages ? (
-                  <div className="mx-auto w-[calc(100%-2rem)] max-w-3xl pt-4 pb-2">
-                    <button
-                      className="w-full py-1.5 text-xs text-muted-foreground/70 hover:text-foreground disabled:cursor-default"
-                      disabled={isLoadingEarlier}
-                      onClick={() => void loadEarlier()}
-                      type="button"
-                    >
-                      {isLoadingEarlier ? "Loading earlier turns..." : "Load earlier turns"}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="h-4" />
-                )
-              }
-              ListFooterComponent={
-                <div
-                  className="mx-auto flex w-[calc(100%-2rem)] max-w-3xl flex-col gap-4 pt-2"
-                  style={{ paddingBottom: composerHeight + 16 }}
-                >
-                  {pendingInputs.map(({ id, text, files, status, author }) => (
-                    <div
-                      key={id}
-                      className="flex flex-col items-end gap-2"
-                      aria-label="Pending message"
-                    >
-                      <div className="max-w-[80%] rounded-2xl bg-message p-3 text-sm text-message-foreground">
-                        {!coding && author ? (
-                          <div className="mb-1 text-xs text-muted-foreground">{author}</div>
-                        ) : null}
-                        {files.map((file, index) => (
-                          <div
-                            key={index}
-                            className="flex items-center gap-1.5 text-xs text-muted-foreground"
-                          >
-                            <PaperclipIcon className="size-3.5" />
-                            {file.filename}
-                          </div>
-                        ))}
-                        {text ? <MessageResponse>{text}</MessageResponse> : null}
-                      </div>
-                      <div
-                        role="status"
-                        className="flex items-center gap-1.5 text-xs text-muted-foreground"
+            ) : null}
+            {!showHistorySkeleton ? (
+              <LegendList
+                aria-label="Chat transcript"
+                role="region"
+                tabIndex={0}
+                className={cn(
+                  styles.historyReady,
+                  "h-full min-h-0 overflow-x-hidden overscroll-y-contain [overflow-anchor:none]"
+                )}
+                data={timelineRows}
+                // Leave capacity for short rows when earlier turns are loaded.
+                estimatedItemSize={Math.min(initialScroll?.estimatedItemSize ?? 48, 48)}
+                extraData={actorProfiles}
+                initialScrollAtEnd={initialScroll?.atEnd ?? true}
+                initialScrollOffset={initialAnchorIndex < 0 ? initialScroll?.offset : undefined}
+                initialScrollIndex={
+                  initialAnchorIndex >= 0
+                    ? {
+                        index: initialAnchorIndex,
+                        viewOffset: initialScroll?.anchor?.viewOffset,
+                      }
+                    : undefined
+                }
+                keyExtractor={(row) => row.key}
+                recycleItems={false}
+                ListHeaderComponent={
+                  hasEarlierMessages ? (
+                    <div className="mx-auto w-[calc(100%-2rem)] max-w-3xl pt-4 pb-2">
+                      <button
+                        className="w-full py-1.5 text-xs text-muted-foreground/70 hover:text-foreground disabled:cursor-default"
+                        disabled={isLoadingEarlier}
+                        onClick={() => void loadEarlier()}
+                        type="button"
                       >
-                        <Spinner className="size-3" />
-                        {status}
-                      </div>
+                        {isLoadingEarlier ? "Loading earlier turns..." : "Load earlier turns"}
+                      </button>
                     </div>
-                  ))}
-                  <RevertDock
-                    items={reverted}
-                    onRestore={restoreMutation.mutate}
-                    pending={revertPending}
-                    restoringId={restoringId}
-                    summary={session?.summary}
-                  />
-                  {todos.length > 0 ? <TodoDock todos={todos} /> : null}
-                  {permissionRequest ? (
-                    <PermissionDock
-                      onDecide={handlePermission}
-                      pending={isPermissionPending}
-                      request={permissionRequest}
-                    />
-                  ) : null}
-                  {questionRequest && planApproval && session ? (
-                    <PlanDock
+                  ) : (
+                    <div className="h-4" />
+                  )
+                }
+                ListFooterComponent={
+                  <div
+                    className="mx-auto flex w-[calc(100%-2rem)] max-w-3xl flex-col gap-4 pt-2"
+                    style={{ paddingBottom: "calc(var(--chat-composer-height, 0px) + 16px)" }}
+                  >
+                    <ChatQueue
+                      items={inputs.filter((item) => !activeSteers.includes(item))}
+                      submissions={submissions.filter(({ input }) => input.delivery === "queue")}
+                      error={queueError}
+                      userID={authSession?.user.id}
+                      coding={coding}
                       agentName={agentName}
-                      key={questionRequest.id}
-                      onSubmit={submitQuestionAnswer}
-                      pending={isQuestionPending}
-                      request={questionRequest}
-                      session={session}
+                      workspaceId={workspaceId}
+                      onUpdate={updateInput}
+                      onRestore={restoreInput}
+                      editingID={queueEdit?.queueEdit?.item.id}
+                      editDisabled={blocked || Boolean(queueEdit)}
+                      sendDisabled={blocked || isStopping || !canSubmit}
+                      onEdit={beginQueueEdit}
+                    />
+                    <RevertDock
+                      items={reverted}
+                      onRestore={restoreMutation.mutate}
+                      pending={revertPending}
+                      restoringId={restoringId}
+                      summary={session?.summary}
+                    />
+                    {todos.length > 0 ? <TodoDock todos={todos} /> : null}
+                  </div>
+                }
+                maintainScrollAtEnd={
+                  timelineFollowing
+                    ? {
+                        animated: isBusy && !reducedMotion,
+                        on: { dataChange: true, itemLayout: true, layout: true },
+                      }
+                    : false
+                }
+                maintainScrollAtEndThreshold={1}
+                maintainVisibleContentPosition={{ data: true, size: true }}
+                onMetricsChange={({ headerSize, footerSize }) => {
+                  timelineHeaderHeight.current = headerSize
+                  const grew = footerSize > timelineFooterHeight.current
+                  timelineFooterHeight.current = footerSize
+                  if (!grew || !following.current || !timelineLoaded.current) return
+                  // The list must measure its new footer before following it.
+                  if (scrollFrame.current !== undefined) cancelAnimationFrame(scrollFrame.current)
+                  scrollFrame.current = requestAnimationFrame(() => {
+                    if (following.current)
+                      void timelineRef.current?.scrollToEnd({ animated: !reducedMotion })
+                  })
+                }}
+                onLoad={() => {
+                  timelineLoaded.current = true
+                  const node = timelineRef.current?.getScrollableNode()
+                  if (!node) return
+                  // Align with measured DOM geometry before the list is revealed.
+                  if (following.current) node.scrollTop = node.scrollHeight
+                  else if (initialScroll?.atEnd === false && initialAnchorIndex < 0)
+                    node.scrollTop = initialScroll.offset
+                  scroll.current = { offset: node.scrollTop, atEnd: following.current }
+                }}
+                onWheel={(event) => {
+                  if (event.ctrlKey || event.deltaY >= 0) return
+                  const node = timelineRef.current?.getScrollableNode()
+                  if (!node || node.scrollHeight <= node.clientHeight) return
+                  // A nested code block owns wheel input while it can scroll.
+                  let target = event.target instanceof Element ? event.target : null
+                  while (target && target !== node) {
+                    const css = getComputedStyle(target)
+                    if (
+                      (css.overflowY === "auto" || css.overflowY === "scroll") &&
+                      (target.scrollTop > 0 ||
+                        css.overscrollBehaviorY === "contain" ||
+                        css.overscrollBehaviorY === "none")
+                    )
+                      return
+                    target = target.parentElement
+                  }
+                  releaseFollow()
+                }}
+                onKeyDown={(event) => {
+                  const target = event.target
+                  if (
+                    target instanceof HTMLElement &&
+                    (target.isContentEditable || target.closest("input, textarea, select"))
+                  )
+                    return
+                  if (["ArrowUp", "PageUp", "Home"].includes(event.key)) releaseFollow()
+                }}
+                onTouchMove={releaseFollow}
+                onPointerDown={(event) => {
+                  const node = timelineRef.current?.getScrollableNode()
+                  if (node && event.clientX >= node.getBoundingClientRect().left + node.clientWidth)
+                    releaseFollow()
+                }}
+                onScroll={() => {
+                  // Ignore estimated offsets until measured layout is ready.
+                  if (!timelineLoaded.current) return
+                  const node = timelineRef.current?.getScrollableNode()
+                  if (!node) return
+                  const atEnd = Math.ceil(node.scrollTop + node.clientHeight) >= node.scrollHeight
+                  const scrolledDown = node.scrollTop > (scroll.current?.offset ?? node.scrollTop)
+                  if (!following.current && atEnd && scrolledDown) {
+                    following.current = true
+                    setTimelineFollowing(true)
+                  }
+                  scroll.current = { offset: node.scrollTop, atEnd: following.current }
+                }}
+                ref={timelineRef}
+                renderItem={({ item }) => (
+                  <div
+                    className={cn(
+                      "mx-auto w-[calc(100%-2rem)] max-w-3xl",
+                      item.type === "checkpoint" ? "pb-1.5" : "pb-4"
+                    )}
+                  >
+                    <TimelineRowView
+                      workActive={
+                        isBusy && !blocked && !streamError && sessionStatus?.type !== "retry"
+                      }
+                      agentName={agentName}
+                      actorProfiles={actorProfiles}
+                      onRevert={handleRevert}
+                      revertDisabled={revertDisabled || isBusy || isStopping || revertPending}
+                      row={item}
                       workspaceId={workspaceId}
                     />
-                  ) : null}
-                </div>
-              }
-              maintainScrollAtEnd={timelineAtEnd ? { animated: false } : false}
-              maintainVisibleContentPosition={{ data: true, size: true }}
-              onScroll={(event) => {
-                const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent
-                setTimelineAtEnd(
-                  contentOffset.y + layoutMeasurement.height >= contentSize.height - 24
-                )
-              }}
-              ref={timelineRef}
-              renderItem={({ item }) => (
-                <div
-                  className={cn(
-                    "mx-auto w-[calc(100%-2rem)] max-w-3xl",
-                    item.type === "assistant" && item.isStreaming
-                      ? "pb-2"
-                      : item.type === "checkpoint"
-                        ? "pb-1.5"
-                        : "pb-4"
-                  )}
-                >
-                  <TimelineRowView
-                    agentName={agentName}
-                    actorProfiles={actorProfiles}
-                    onRevert={handleRevert}
-                    revertDisabled={revertDisabled || isBusy || isStopping || revertPending}
-                    row={item}
-                    workspaceId={workspaceId}
-                    workspacePath={workspacePath}
-                  />
-                </div>
-              )}
-            />
-          </SkeletonSwap>
+                  </div>
+                )}
+              />
+            ) : null}
+          </div>
         ) : null}
         <NewItemsPill
-          visible={!timelineAtEnd && !showStarter}
+          visible={!timelineFollowing && !showStarter}
           latestId={rows.findLast((row) => row.type === "user" || row.type === "assistant")?.key}
           scope={sessionId ?? "new"}
           className="absolute left-1/2 z-20 -translate-x-1/2"
-          style={{ bottom: composerHeight + 8 }}
-          onClick={() => timelineRef.current?.scrollToEnd({ animated: true })}
+          style={{ bottom: "calc(var(--chat-composer-height, 0px) + 8px)" }}
+          onClick={() => {
+            following.current = true
+            setTimelineFollowing(true)
+            scrollFrame.current = requestAnimationFrame(() => {
+              void timelineRef.current?.scrollToEnd({
+                animated: !reducedMotion,
+              })
+            })
+          }}
           size="icon"
           variant="outline"
         />
-        {!showStarter ? <QuickTurnNav listRef={timelineRef} rows={rows} /> : null}
+        {!showStarter ? (
+          <QuickTurnNav listRef={timelineRef} rows={rows} onNavigate={releaseFollow} />
+        ) : null}
       </div>
-      <motion.div
+      <div
         ref={composerDock}
         className={cn(
-          "pointer-events-none absolute inset-x-0 z-30 grid gap-4 px-3 sm:px-5",
+          "pointer-events-none absolute inset-x-0 z-30 flex max-h-full min-h-0 flex-col gap-4 px-3 sm:px-5",
           showStarter ? "top-1/2 -translate-y-1/2" : "bottom-0 bg-background pb-4"
         )}
-        layout
-        transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
       >
         <div
           className={cn(
-            "pointer-events-auto mx-auto flex w-full max-w-3xl flex-col",
-            showStarter ? "gap-8" : "min-w-0"
+            "pointer-events-auto mx-auto flex min-h-0 w-full max-w-3xl flex-col",
+            showStarter ? "gap-8" : "min-w-0 bg-background"
           )}
         >
           {showStarter ? (
@@ -1529,24 +2046,44 @@ export default function Chat({
               greetingIndex={greetingIndex}
             />
           ) : null}
-          {questionRequest && !planApproval ? (
-            <QuestionDock
-              key={questionRequest.id}
-              onReject={rejectQuestion}
-              onSubmit={answerQuestion}
-              pending={isQuestionPending || isQuestionRejectPending}
-              request={questionRequest}
-            />
+          {permissionRequest || questionRequest ? (
+            <div className="flex min-h-0 flex-col">
+              {permissionRequest ? (
+                <PermissionDock
+                  onDecide={(reply) => {
+                    void replyPermission(reply)
+                  }}
+                  pending={isPermissionPending}
+                  request={permissionRequest}
+                />
+              ) : null}
+              {questionRequest && planApproval && session ? (
+                <PlanDock
+                  agentName={agentName}
+                  key={questionRequest.id}
+                  onSubmit={submitQuestionAnswer}
+                  pending={isQuestionPending}
+                  request={questionRequest}
+                  session={session}
+                  workspaceId={workspaceId}
+                />
+              ) : null}
+
+              {questionRequest && !planApproval && authSession ? (
+                <QuestionDock
+                  key={`${authSession.user.id}:${questionRequest.id}`}
+                  agentName={agentName}
+                  workspaceId={workspaceId}
+                  userID={authSession.user.id}
+                  onReject={rejectQuestion}
+                  onSubmit={answerQuestion}
+                  pending={isQuestionPending || isQuestionRejectPending}
+                  request={questionRequest}
+                />
+              ) : null}
+            </div>
           ) : null}
-          <ChatQueue
-            items={inputs.filter((item) => !activeSteers.includes(item))}
-            submissions={submissions.filter(({ input }) => input.delivery === "queue")}
-            error={queueError}
-            userID={authSession?.user.id}
-            coding={coding}
-            onUpdate={updateInput}
-            onRestore={restoreInput}
-          />
+
           {recoveredError ? (
             <Alert className="mb-3" variant="destructive">
               <CircleAlert aria-hidden="true" />
@@ -1556,17 +2093,123 @@ export default function Chat({
               ) : null}
             </Alert>
           ) : null}
-          {isBusy ? <TypingIndicator className="mb-2 self-start" /> : null}
-          <div className={cn(styles.shell, "relative w-full pb-9")}>
-            <PromptInput
-              initialMessage={draftMessage}
-              onMessageChange={(message) => {
-                if (sessionId) queryClient.setQueryData(draftKey, message)
-                else onDraftChange?.(message)
-              }}
-              className={cn(styles.host, "relative z-10 rounded-[22px]")}
+          {isBusy &&
+          !activity?.responding &&
+          (!showWork ||
+            blocked ||
+            streamError ||
+            sessionStatus?.type === "retry" ||
+            !rows.some(
+              (row) =>
+                row.type === "assistant" &&
+                row.isStreaming &&
+                row.entries.some((entry) => entry.type === "work")
+            )) ? (
+            <div
+              className={cn(styles.historyReady, "mb-3 flex min-h-12 items-center gap-2")}
+              role="status"
+              aria-live="polite"
+            >
+              <AgentPresence
+                state={
+                  streamError || blocked || sessionStatus?.type === "retry"
+                    ? "waiting"
+                    : activity?.thinking
+                      ? "thinking"
+                      : "working"
+                }
+                size={44}
+              />
+              {streamError || blocked || sessionStatus?.type === "retry" ? (
+                <span className="text-sm text-muted-foreground">
+                  {streamError
+                    ? "Reconnecting"
+                    : permissionRequest
+                      ? "Waiting for approval"
+                      : questionRequest
+                        ? "Waiting for your answer"
+                        : "Waiting to retry"}
+                </span>
+              ) : (
+                <WorkingShimmer
+                  text={showWork && activity?.thinking ? "Thinking" : activity?.text}
+                />
+              )}
+            </div>
+          ) : null}
+          <motion.div
+            layout={reducedMotion ? false : "position"}
+            layoutDependency={showStarter}
+            transition={{ layout: { duration: 0.18, ease: "easeOut" } }}
+            className={cn(styles.shell, "relative w-full shrink-0")}
+          >
+            {queueEdit ? (
+              <div
+                className="flex items-center justify-between gap-3 px-4 pt-3 text-xs text-muted-foreground"
+                role="status"
+              >
+                <span>
+                  {editStale
+                    ? "This message changed or started. Your edits are saved locally."
+                    : "Editing queued message"}
+                </span>
+                <div className="flex gap-2">
+                  {editStale ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={editSaving}
+                      onClick={async () => {
+                        const message = composerRef.current?.getMessage()
+                        const recovered = await sessionDrafts.start(
+                          queueEdit.scope,
+                          "",
+                          agentName,
+                          crypto.randomUUID()
+                        )
+                        sessionDrafts.update(recovered.scope, recovered.id, { message })
+                        closeQueueEdit()
+                        toast.info("Edits recovered as a draft")
+                      }}
+                    >
+                      Keep as draft
+                    </Button>
+                  ) : null}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={editSaving}
+                    onClick={closeQueueEdit}
+                  >
+                    Cancel edit
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+            <ChatPromptInput
+              key={queueEdit?.id ?? "composer"}
+              draftKey={queueEdit ? ["queueEdit", queueEdit.scope, queueEdit.id] : draftKey}
+              savedDraft={
+                queueEdit ??
+                ((!coding || !sessionId) && authSession && composerDraftID
+                  ? {
+                      id: composerDraftID,
+                      sessionID: sessionId,
+                      scope: sessionId
+                        ? `${authSession.user.id}:${workspaceId}:${agentName}:${sessionId}`
+                        : `${authSession.user.id}:${workspaceId}`,
+                      agentName,
+                    }
+                  : undefined)
+              }
+              initialMessage={queueEdit?.message ?? initialMessage}
+              className={cn(styles.host, "relative z-10 rounded-3xl")}
               controllerRef={composerRef}
-              disabled={inputDisabled}
+              disabled={inputDisabled || editSaving}
+              submitDisabled={submitDisabled || editSaving || Boolean(editStale)}
+              clearOnSubmit={!queueEdit}
               globalDrop
               maxFileSize={chatAttachmentConfig.maxFileSizeBytes}
               maxFiles={chatAttachmentConfig.maxFileCount}
@@ -1575,17 +2218,26 @@ export default function Chat({
               onError={(code) => {
                 toast.error(chatAttachmentErrorMessage(code))
               }}
-              onSubmit={(message) => handleSubmit(message)}
-              onQueue={(message) => handleSubmit(message, "queue")}
+              delivery={defaultDelivery}
+              alternateDelivery={alternateDelivery}
+              onSubmit={(message, _event, delivery) =>
+                queueEdit ? saveQueueEdit(message) : handleSubmit(message, delivery)
+              }
             >
               <PromptInputAttachmentsDisplay agentName={agentName} />
-              <PromptInputBody className="grid min-h-41 grid-cols-[auto_minmax(0,1fr)_auto] grid-rows-[minmax(5.5rem,auto)_auto] items-end gap-x-2 gap-y-2 px-3 pt-3.5 pb-3 sm:px-4 sm:pt-4 sm:pb-4">
-                <motion.div
-                  className="col-start-1 row-start-2 flex items-center gap-1"
-                  layout="position"
-                  transition={promptShiftTransition}
+              <PromptInputBody
+                className={cn(
+                  styles.body,
+                  "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 px-4 sm:px-5"
+                )}
+                data-reading={!timelineFollowing && !showStarter ? true : undefined}
+              >
+                <div
+                  className={cn(
+                    "col-start-2 row-start-2 flex items-center gap-1",
+                    coding && "border-l border-border/70 pl-2"
+                  )}
                 >
-                  <PromptInputAttachmentButton disabled={inputDisabled} />
                   {coding ? (
                     <PromptInputButton
                       aria-label="Chat mode"
@@ -1610,33 +2262,12 @@ export default function Chat({
                       {mode === "plan" ? "Plan" : mode === "build" ? "Build" : mode}
                     </PromptInputButton>
                   ) : null}
-                </motion.div>
+                </div>
                 <PromptInputTextarea
                   defaultValue={draftMessage?.text}
-                  className="col-span-full col-start-1 row-start-1 max-h-48 min-h-22 self-stretch px-1 py-0 text-[15px] leading-6 placeholder:text-muted-foreground/80"
+                  className="col-span-full col-start-1 row-start-1 self-stretch px-0 py-0 text-[15px] leading-6 placeholder:text-muted-foreground/80"
                   disabled={inputDisabled}
                   onKeyDown={(event) => {
-                    if (
-                      event.key === "Tab" &&
-                      !event.shiftKey &&
-                      !event.altKey &&
-                      !event.ctrlKey &&
-                      !event.metaKey &&
-                      !event.nativeEvent.isComposing
-                    ) {
-                      if (
-                        !event.currentTarget.value.trim() &&
-                        !composerRef.current?.getMessage().files.length
-                      )
-                        return
-                      if (event.repeat) {
-                        event.preventDefault()
-                        return
-                      }
-                      event.preventDefault()
-                      composerRef.current?.submit(true)
-                      return
-                    }
                     if (
                       !coding ||
                       modeDisabled ||
@@ -1653,30 +2284,26 @@ export default function Chat({
                   }}
                 />
                 <div className="contents">
-                  <motion.div
-                    className="col-start-2 row-start-2 min-w-0"
-                    layout="position"
-                    transition={promptShiftTransition}
-                  >
+                  <div className="col-start-1 row-start-2 min-w-0">
                     <Dialog
                       onOpenChange={setModelSelectorOpen}
                       open={agentReadiness.isGettingReady ? false : modelSelectorOpen}
                     >
                       <div
                         className={cn(
-                          "hidden min-w-0 items-center justify-end gap-1.5",
+                          "hidden min-w-0 items-center justify-start gap-2",
                           !promptMobile && "@xl/chat:flex"
                         )}
                       >
                         <DialogTrigger asChild>
                           <PromptInputButton
-                            className="h-8 max-w-72 justify-start px-2"
+                            className="h-8 max-w-56 justify-start px-1.5 text-muted-foreground"
                             disabled={inputDisabled}
                           >
                             {agentReadiness.isGettingReady ? (
                               <AgentGettingReady />
                             ) : (
-                              <BrainIcon className="size-4 text-muted-foreground" />
+                              <ProviderIcons providers={modelBrands.get(selectedModelID) ?? []} />
                             )}
                             {agentReadiness.isGettingReady ? null : selectedModel?.name ? (
                               <span className="flex-1 truncate text-left">
@@ -1690,21 +2317,6 @@ export default function Chat({
                             )}
                           </PromptInputButton>
                         </DialogTrigger>
-                        {!agentReadiness.isGettingReady &&
-                        contextUsage?.maxTokens &&
-                        contextUsage.maxTokens > 0 ? (
-                          <Context
-                            maxTokens={contextUsage.maxTokens}
-                            usage={contextUsage.usage}
-                            usedTokens={contextUsage.usedTokens}
-                          >
-                            <ContextTrigger className="gap-1 rounded-full px-2 hover:bg-foreground/6 aria-expanded:bg-foreground/8 data-[state=open]:bg-foreground/8 dark:hover:bg-foreground/10 dark:aria-expanded:bg-foreground/12 dark:data-[state=open]:bg-foreground/12" />
-                            <ContextContent>
-                              <ContextContentHeader />
-                              <ContextUsage />
-                            </ContextContent>
-                          </Context>
-                        ) : null}
                         {!agentReadiness.isGettingReady && reasoningVariants.length > 0 ? (
                           <Select
                             disabled={inputDisabled}
@@ -1713,21 +2325,18 @@ export default function Chat({
                           >
                             <ReasoningSelectTrigger
                               aria-label="Reasoning level"
-                              className="h-8 min-w-16 gap-1.5 px-2 data-[size=sm]:rounded-full data-[variant=ghost]:hover:bg-foreground/6 data-[variant=ghost]:aria-expanded:bg-foreground/8 data-[variant=ghost]:data-[state=open]:bg-foreground/8 dark:data-[variant=ghost]:hover:bg-foreground/10 dark:data-[variant=ghost]:aria-expanded:bg-foreground/12 dark:data-[variant=ghost]:data-[state=open]:bg-foreground/12"
+                              className="h-8 min-w-16 gap-1.5 px-2 text-muted-foreground hover:text-foreground data-[state=open]:text-foreground"
                               size="sm"
                               variant="ghost"
                             >
+                              <GaugeIcon />
                               <SelectValue placeholder="Reasoning" />
                             </ReasoningSelectTrigger>
                             <SelectContent align="end" position="popper" side="top" sideOffset={8}>
                               <SelectGroup>
-                                <SelectItem value={DEFAULT_REASONING_LEVEL}>
-                                  <GaugeIcon />
-                                  Default
-                                </SelectItem>
+                                <SelectItem value={DEFAULT_REASONING_LEVEL}>Default</SelectItem>
                                 {reasoningVariants.map((variant) => (
                                   <SelectItem key={variant} value={variant}>
-                                    <GaugeIcon />
                                     {variant.length
                                       ? variant[0]?.toUpperCase() + variant.slice(1)
                                       : variant}
@@ -1740,7 +2349,7 @@ export default function Chat({
                       </div>
                       <div
                         className={cn(
-                          "justify-end",
+                          "justify-start",
                           promptMobile ? "flex" : "flex @xl/chat:hidden"
                         )}
                       >
@@ -1768,7 +2377,7 @@ export default function Chat({
                                   setModelSelectorOpen(true)
                                 }}
                               >
-                                <BrainIcon />
+                                <ProviderIcons providers={modelBrands.get(selectedModelID) ?? []} />
                                 <span className="min-w-0 flex-1 truncate">
                                   {selectedModel?.name ?? "Model"}
                                 </span>
@@ -1787,7 +2396,6 @@ export default function Chat({
                                       disabled={inputDisabled}
                                       value={DEFAULT_REASONING_LEVEL}
                                     >
-                                      <GaugeIcon />
                                       Default
                                     </DropdownMenuRadioItem>
                                     {reasoningVariants.map((variant) => (
@@ -1797,29 +2405,10 @@ export default function Chat({
                                         key={variant}
                                         value={variant}
                                       >
-                                        <GaugeIcon />
                                         {variant}
                                       </DropdownMenuRadioItem>
                                     ))}
                                   </DropdownMenuRadioGroup>
-                                </DropdownMenuGroup>
-                              </>
-                            ) : null}
-                            {contextUsage?.maxTokens && contextUsage.maxTokens > 0 ? (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuGroup>
-                                  <DropdownMenuLabel>Context</DropdownMenuLabel>
-                                  <div className="px-1.5 py-1.5">
-                                    <Context
-                                      maxTokens={contextUsage.maxTokens}
-                                      usage={contextUsage.usage}
-                                      usedTokens={contextUsage.usedTokens}
-                                    >
-                                      <ContextContentHeader className="p-0" />
-                                      <ContextUsage className="px-0 pt-2 pb-0" />
-                                    </Context>
-                                  </div>
                                 </DropdownMenuGroup>
                               </>
                             ) : null}
@@ -1845,9 +2434,8 @@ export default function Chat({
                                       onSelect={handleModelSelect}
                                       value={item.id}
                                     >
-                                      <BrainIcon />
+                                      <ProviderIcons providers={modelBrands.get(item.id) ?? []} />
                                       <span className="flex-1 truncate text-left">{item.name}</span>
-                                      <CpuIcon />
                                       {selectedModelID === item.id ? (
                                         <CheckIcon className="ml-auto" />
                                       ) : (
@@ -1861,31 +2449,35 @@ export default function Chat({
                         </Command>
                       </DialogContent>
                     </Dialog>
-                  </motion.div>
-                  <motion.div
-                    className="col-start-3 row-start-2"
-                    layout="position"
-                    transition={promptShiftTransition}
+                  </div>
+                  <div
+                    className={cn(
+                      styles.actions,
+                      "col-start-3 row-start-2 flex items-center gap-2"
+                    )}
                   >
-                    <Button
-                      type={showStop ? "button" : "submit"}
-                      variant={showStop ? "destructive" : "default"}
-                      size="icon"
-                      className="size-9 rounded-full shadow-xs transition-all duration-150 hover:scale-105 active:shadow-none enabled:inset-shadow-[0_1px_rgb(255_255_255/0.16)] disabled:hover:scale-100"
-                      aria-label={showStop ? "Stop run" : "Send message"}
-                      disabled={showStop ? inputDisabled || !canStop : submitDisabled || blocked}
-                      onClick={showStop ? () => void handleStop() : undefined}
-                    >
-                      {showStop ? (
-                        <SquareIcon className="size-3.5 fill-current" />
-                      ) : (
-                        <ArrowUpIcon className="size-4" />
-                      )}
-                    </Button>
-                  </motion.div>
+                    <PromptInputAttachmentButton disabled={inputDisabled} />
+                    {!agentReadiness.isGettingReady &&
+                    contextUsage?.maxTokens &&
+                    contextUsage.maxTokens > 0 ? (
+                      <Context
+                        maxTokens={contextUsage.maxTokens}
+                        usage={contextUsage.usage}
+                        usedTokens={contextUsage.usedTokens}
+                      />
+                    ) : null}
+                    <PromptInputAction
+                      busy={showStop || running}
+                      stopping={isStopping}
+                      disabled={submitDisabled || editSaving || Boolean(editStale)}
+                      canStop={!inputDisabled && canStop}
+                      editing={Boolean(queueEdit)}
+                      onStop={() => void handleStop()}
+                    />
+                  </div>
                 </div>
               </PromptInputBody>
-            </PromptInput>
+            </ChatPromptInput>
             <div
               className={cn(
                 styles.context,
@@ -1893,7 +2485,12 @@ export default function Chat({
               )}
             >
               <Select
-                disabled={hasSession || sendState === "submitted" || agentNames.length < 2}
+                disabled={
+                  hasSession ||
+                  creationStarted ||
+                  sendState === "submitted" ||
+                  agentNames.length < 2
+                }
                 onValueChange={(name) => {
                   onAgentChange(name)
                   const previous =
@@ -1917,7 +2514,7 @@ export default function Chat({
                   <SelectGroup>
                     {agentNames.map((name) => (
                       <SelectItem key={name} value={name}>
-                        <BotIcon />
+                        <AgentIcon name={name} workspaceId={workspaceId} />
                         {name}
                       </SelectItem>
                     ))}
@@ -1926,9 +2523,9 @@ export default function Chat({
               </Select>
               {composerContext?.(inputDisabled || hasSession || sendState === "submitted")}
             </div>
-          </div>
+          </motion.div>
         </div>
-      </motion.div>
+      </div>
     </div>
   )
 }
@@ -1936,9 +2533,11 @@ export default function Chat({
 function QuickTurnNav({
   listRef,
   rows,
+  onNavigate,
 }: {
   listRef: RefObject<LegendListRef | null>
   rows: TimelineRow[]
+  onNavigate: () => void
 }) {
   const [active, setActive] = useState<number>()
   const [viewportWidth, setViewportWidth] = useState(0)
@@ -2014,6 +2613,7 @@ function QuickTurnNav({
           const turn = turns[turnIndexAt(event.clientY, event.currentTarget)]
           if (!turn) return
 
+          onNavigate()
           void listRef.current?.scrollToIndex({
             animated: true,
             index: turn.rowIndex,
@@ -2040,6 +2640,7 @@ function QuickTurnNav({
           }
           if ((event.key === "Enter" || event.key === " ") && selected) {
             event.preventDefault()
+            onNavigate()
             void listRef.current?.scrollToIndex({
               animated: true,
               index: selected.rowIndex,
@@ -2100,19 +2701,6 @@ function QuickTurnNav({
   )
 }
 
-function MessageActionBar({ className, children }: { className?: string; children: ReactNode }) {
-  return (
-    <div
-      className={cn(
-        "flex items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100",
-        className
-      )}
-    >
-      {children}
-    </div>
-  )
-}
-
 function UserMessageAvatar({
   image,
   name,
@@ -2148,21 +2736,21 @@ function UserMessageAvatar({
 }
 
 function TimelineRowView({
+  workActive,
   agentName,
   actorProfiles,
   onRevert,
   revertDisabled,
   row,
   workspaceId,
-  workspacePath,
 }: {
+  workActive: boolean
   agentName: string
   actorProfiles: Map<string, MessageActorProfile>
   onRevert: (messageID: string) => void
   revertDisabled: boolean
-  row: TimelineRow
+  row: TimelineRow | PendingTimelineRow
   workspaceId: string
-  workspacePath: string
 }) {
   const { previewFile } = useFileWorkspace()
   const openAgentFile = useCallback(
@@ -2173,34 +2761,39 @@ function TimelineRowView({
   )
 
   switch (row.type) {
+    case "pending":
     case "user": {
-      const profile = row.actor?.type === "user" ? actorProfiles.get(row.actor.id) : undefined
-      const name = profile?.name ?? row.actor?.name
-      const label = row.actor
-        ? `${name} · ${
-            row.actor.type === "user" ? "User" : row.actor.type === "api_key" ? "API key" : "System"
-          }`
-        : undefined
+      const actor = row.type === "pending" ? row.author : row.actor
+      const user = row.type === "pending" || row.actor?.type === "user"
+      const profile = user && actor ? actorProfiles.get(actor.id) : undefined
+      const name = profile?.name ?? actor?.name
+      const kind = user ? "User" : row.actor?.type === "api_key" ? "API key" : "System"
+      const label = actor ? `${name} · ${kind}` : undefined
+      let image = row.type === "pending" ? row.author?.image : undefined
+      if (profile) image = profile.image
 
       return (
         <ChatMessage
           from="user"
+          aria-label={row.type === "pending" ? "Pending message" : undefined}
           avatar={
-            name && label ? (
-              <UserMessageAvatar image={profile?.image} label={label} name={name} />
-            ) : null
+            name && label ? <UserMessageAvatar image={image} label={label} name={name} /> : null
           }
           footer={
             <>
-              {row.isWaiting ? (
+              {row.type === "pending" ? (
+                <div className="flex h-6 w-full max-w-[80%] items-center justify-end pe-11 text-xs text-muted-foreground">
+                  {row.progress ? <span role="status">{row.progress}</span> : null}
+                </div>
+              ) : row.isWaiting ? (
                 <div role="status" className="pe-11 text-xs text-muted-foreground">
                   Waiting for the current step...
                 </div>
               ) : null}
-              <div className="flex w-full max-w-[80%] items-center justify-end gap-2 pe-11 text-xs tabular-nums opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100">
-                <RelativeDateTime value={row.createdAt} />
-                <div className="flex items-center gap-0.5">
-                  <MessageActionBar>
+              {row.type === "user" ? (
+                <div className="flex w-full max-w-[80%] items-center justify-end gap-2 pe-11 text-xs tabular-nums opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100">
+                  <RelativeDateTime value={row.createdAt} />
+                  <div className="flex items-center gap-0.5">
                     <CopyButton content={row.text} />
                     <Button
                       aria-label="Revert to here"
@@ -2212,19 +2805,31 @@ function TimelineRowView({
                     >
                       <Undo2Icon />
                     </Button>
-                  </MessageActionBar>
+                  </div>
                 </div>
-              </div>
+              ) : null}
             </>
           }
         >
-          {row.attachments.length > 0 ? (
-            <StoredAttachments
-              agentName={agentName}
-              attachments={row.attachments}
-              onOpen={openAgentFile}
-              workspaceId={workspaceId}
-            />
+          {row.type === "pending" ? (
+            row.files.map((file, index) => (
+              <div key={index} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <PaperclipIcon className="size-3.5" />
+                {file.filename}
+              </div>
+            ))
+          ) : row.attachments.length > 0 ? (
+            <Attachments className="gap-[6px]" variant="composer">
+              {row.attachments.map((attachment) => (
+                <StoredAttachment
+                  agentName={agentName}
+                  attachment={attachment}
+                  key={attachment.id}
+                  onOpen={openAgentFile}
+                  workspaceId={workspaceId}
+                />
+              ))}
+            </Attachments>
           ) : null}
           {row.text.length > 0 ? <MessageResponse>{row.text}</MessageResponse> : null}
         </ChatMessage>
@@ -2232,8 +2837,6 @@ function TimelineRowView({
     }
 
     case "assistant": {
-      const groups = groupEntries(row.entries)
-      const lastGroupIndex = groups.length - 1
       const showMeta = !row.isStreaming
       const copyText = row.entries
         .filter((entry) => entry.type === "text")
@@ -2243,63 +2846,84 @@ function TimelineRowView({
         <ChatMessage
           from="assistant"
           footer={
-            showMeta ? (
-              <div className="mt-1.5 flex items-center gap-1 px-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100">
-                <RelativeDateTime className="text-xs" value={row.createdAt} />
-                {copyText.length > 0 ? (
-                  <MessageActionBar>
-                    <CopyButton content={copyText} />
-                  </MessageActionBar>
-                ) : null}
-              </div>
-            ) : null
+            <div className="mt-1.5 flex min-h-6 items-center gap-1 px-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100">
+              {showMeta ? (
+                <>
+                  <RelativeDateTime className="text-xs" value={row.createdAt} />
+                  {copyText.length > 0 ? <CopyButton content={copyText} /> : null}
+                </>
+              ) : null}
+            </div>
           }
         >
-          {groups.map((group, groupIndex) => {
-            const spacing = groupIndex === lastGroupIndex ? undefined : "pb-2"
-
-            switch (group.type) {
-              case "text":
-                return (
-                  <div className={spacing} key={group.key}>
-                    <MessageResponse onAgentFileOpen={openAgentFile}>
-                      {group.content}
-                    </MessageResponse>
-                  </div>
-                )
-              case "reasoning": {
-                const isStreaming = row.isStreaming && groupIndex === lastGroupIndex
-                return (
-                  <div className={spacing} key={group.key}>
-                    <Reasoning isStreaming={isStreaming}>
-                      <ReasoningTrigger />
-                      <ReasoningContent>{group.content}</ReasoningContent>
-                    </Reasoning>
-                  </div>
-                )
-              }
-              case "tool-group":
-                return (
-                  <div className={spacing} key={group.key}>
-                    <div className="max-w-full min-w-0 space-y-px overflow-hidden py-0.5">
-                      {group.entries.map((entry) => {
-                        const toolEntry = entry.toolEntries[0]
-                        if (!toolEntry) return null
-                        return (
-                          <ToolEntries
-                            agentName={agentName}
-                            entry={toolEntry}
-                            key={entry.key}
-                            workspacePath={workspacePath}
+          {row.entries.map((entry) => {
+            if (entry.type === "work")
+              return (
+                <WorkGroup
+                  key={entry.key}
+                  parts={entry.parts}
+                  active={workActive && row.isStreaming && row.entries.at(-1) === entry}
+                  scope={`${workspaceId}:${agentName}:${row.key}`}
+                  onAgentFileOpen={openAgentFile}
+                />
+              )
+            if (entry.type === "text")
+              return (
+                <MessageResponse key={entry.key} onAgentFileOpen={openAgentFile}>
+                  {entry.content}
+                </MessageResponse>
+              )
+            if (entry.type === "question")
+              return (
+                <div className="my-4 space-y-3 text-sm" key={entry.key}>
+                  {entry.questions.map(({ question }, index) => (
+                    <div className="space-y-1" key={index}>
+                      <p className="text-muted-foreground">{question}</p>
+                      <p className="flex items-start gap-2">
+                        {!entry.dismissed && entry.answers[index]?.length ? (
+                          <CheckIcon
+                            aria-hidden="true"
+                            className="mt-0.5 size-4 shrink-0 text-muted-foreground"
                           />
-                        )
-                      })}
+                        ) : null}
+                        <span>
+                          {entry.dismissed
+                            ? "Question dismissed"
+                            : entry.answers[index]?.length
+                              ? `User answered: ${entry.answers[index].join(", ")}`
+                              : "Question skipped"}
+                        </span>
+                      </p>
                     </div>
-                  </div>
-                )
-              default:
-                return null
-            }
+                  ))}
+                </div>
+              )
+            return (
+              <Attachments key={entry.key} variant="grid">
+                {entry.files.map((file) => (
+                  <Attachment
+                    key={file.id}
+                    data={{
+                      id: file.id,
+                      type: "file",
+                      filename: file.filename ?? "File",
+                      mediaType: file.mime,
+                      url: file.url,
+                    }}
+                    onOpen={() => {
+                      if (file.url.startsWith("file://"))
+                        openAgentFile(
+                          decodeURIComponent(new URL(file.url).pathname),
+                          file.filename ?? "File"
+                        )
+                      else window.open(file.url, "_blank", "noopener,noreferrer")
+                    }}
+                  >
+                    <AttachmentPreview />
+                  </Attachment>
+                ))}
+              </Attachments>
+            )
           })}
         </ChatMessage>
       )

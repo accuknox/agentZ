@@ -1,6 +1,7 @@
 "use client"
 
-import { BotIcon, WorkflowIcon, GitBranchIcon } from "lucide-react"
+import { AgentAvatar } from "@/components/interior/agent-presence"
+import { WorkflowIcon, GitBranchIcon } from "lucide-react"
 import type { Agent, WorkflowSummary, WorkflowRunSummary } from "@/lib/gateway/client"
 import { useSelectResource } from "@/components/page-selection"
 import {
@@ -47,7 +48,7 @@ export function WorkflowRunGraphFilters({
             <SelectGroup>
               {agents.map((agent) => (
                 <SelectItem key={agent.name} value={agent.name}>
-                  <BotIcon />
+                  <AgentAvatar appearance={agent.appearance} />
                   {agent.name}
                 </SelectItem>
               ))}

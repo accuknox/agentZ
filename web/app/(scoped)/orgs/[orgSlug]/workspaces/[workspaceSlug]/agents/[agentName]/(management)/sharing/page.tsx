@@ -1,3 +1,4 @@
+import { RequestError } from "@/components/request-error"
 import { RememberRoute, missingRoute } from "@/data/route-memory"
 import { searchParamStringSchema } from "@/lib/search-params"
 import { Suspense } from "react"
@@ -29,15 +30,20 @@ async function AgentSharingContent({
     searchParams,
   ])
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
+  if (scope.kind === "error")
+    return <RequestError title="Could not load this workspace" error={scope.error} />
   if (scope.kind !== "ready") {
     return missingRoute()
   }
 
-  const detail = await getWorkspaceAgentDetail(
+  const result = await getWorkspaceAgentDetail(
     scope.workspace.id,
     agentName,
     searchParamStringSchema.parse(page_token)
   )
+  if (result?.error)
+    return <RequestError title="Could not load agent details" error={result.error} />
+  const detail = result?.data
   if (!detail) {
     return missingRoute()
   }

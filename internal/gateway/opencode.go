@@ -83,29 +83,21 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 	route, methodAllowed := matchOpenCodeRoute(r.Method, r.URL.Path)
 	if route == nil {
 		if methodAllowed {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusMethodNotAllowed,
-					"method_not_allowed",
-					"method is not allowed for this route",
-					nil,
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusMethodNotAllowed,
+				"method_not_allowed",
+				"method is not allowed for this route",
+				nil,
+			))
 			return
 		}
 
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusNotFound,
-				"not_found",
-				"route not found",
-				nil,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusNotFound,
+			"not_found",
+			"route not found",
+			nil,
+		))
 		return
 	}
 	endpoint := strings.TrimPrefix(route.Path, opencodePrefix+"/{agentName}")
@@ -118,9 +110,54 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if route.ID == "event.subscribe" || route.ID == "global.event" {
+		ctx, cancel, apiErr := s.authorizeStream(r.Context())
+		if apiErr != nil {
+			apiutil.WriteError(w, r, apiErr)
+			return
+		}
+		defer cancel()
+		r = r.WithContext(ctx)
+	}
 	access, apiErr := s.resolveAgentAccess(r.Context(), agentName, route.Operation)
 	if apiErr != nil {
 		apiutil.WriteError(w, r, apiErr)
+		return
+	}
+	scopeAuth, _ := requestAuthState(r.Context())
+	scopeAuth.workspaceID = access.workspaceID
+	scopeAuth.tenantNamespace = access.namespace
+	r = r.WithContext(context.WithValue(r.Context(), authContextKey{}, scopeAuth))
+	switch r.Method {
+	case http.MethodPost, http.MethodPatch, http.MethodPut, http.MethodDelete:
+		if r.ContentLength > opencodeProxyBodyLimitBytes {
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusRequestEntityTooLarge,
+				"request_too_large",
+				"request body exceeds the maximum allowed size",
+				nil,
+			))
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, opencodeProxyBodyLimitBytes)
+	}
+	if route.ID == "session.create" {
+		ctx, release, err := gatewayLocks(r.Context(), s.controlDB)
+		if err != nil {
+			apiutil.WriteInternalError(w, r, err)
+			return
+		}
+		if release != nil {
+			defer release()
+		}
+		r = r.WithContext(ctx)
+	}
+	guardRelease, guardErr := s.guardChat(r, access, route, agentName)
+	if guardRelease != nil {
+		defer guardRelease()
+	}
+	if guardErr != nil {
+		apiutil.WriteError(w, r, mapGatewayStoreError("get conversation", guardErr))
 		return
 	}
 	auth, authenticated := requestAuthState(r.Context())
@@ -129,30 +166,16 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		s.stopOpenCodeSession(w, r, route, agentName)
 		return
 	}
-	switch r.Method {
-	case http.MethodPost, http.MethodPatch, http.MethodPut, http.MethodDelete:
-		if r.ContentLength > opencodeProxyBodyLimitBytes {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusRequestEntityTooLarge,
-					"request_too_large",
-					"request body exceeds the maximum allowed size",
-					nil,
-				),
-			)
-			return
-		}
-		r.Body = http.MaxBytesReader(w, r.Body, opencodeProxyBodyLimitBytes)
-	}
+
 	query := r.URL.Query()
 	if query.Get("directory") == "" && r.Header.Get("X-Opencode-Directory") != "" {
 		directory, err := url.PathUnescape(r.Header.Get("X-Opencode-Directory"))
 		if err != nil {
 			apiutil.WriteError(w, r, apiutil.NewError(
-				http.StatusBadRequest, "invalid_directory",
-				"Invalid checkout directory", err,
+				http.StatusBadRequest,
+				"invalid_directory",
+				"Invalid checkout directory",
+				err,
 			))
 			return
 		}
@@ -200,11 +223,50 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 	}
 	sessionID := route.Params["sessionID"]
 	if sessionID != "" && changesInput {
+		ctx, releaseLocks, err := gatewayLocks(r.Context(), s.controlDB)
+		if err != nil {
+			apiutil.WriteInternalError(w, r, err)
+			return
+		}
+		if releaseLocks != nil {
+			defer releaseLocks()
+		}
+		r = r.WithContext(ctx)
 		release, err := s.lockChatInputs(
 			r.Context(), access.workspaceID, agentName, sessionID, "",
 		)
 		if err != nil {
 			apiutil.WriteError(w, r, mapGatewayStoreError("submit input", err))
+			return
+		}
+		root, eligible, guardErr := s.authorizeChat(r.Context(), access, agentName, sessionID)
+		if guardErr != nil {
+			release()
+			apiutil.WriteError(w, r, mapGatewayStoreError("get conversation", guardErr))
+			return
+		}
+		if route.ID == "session.delete" && eligible && root.SessionID == sessionID {
+			_, err := s.queries.GatewayMarkChatDeleting(r.Context(), gatewaydb.GatewayMarkChatDeletingParams{
+				WorkspaceID: access.workspaceID,
+				AgentName:   agentName,
+				SessionID:   sessionID,
+			})
+			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+				release()
+				apiutil.WriteInternalError(w, r, err)
+				return
+			}
+			s.notifyChatInput(r.Context(), gatewaydb.ChatInput{
+				WorkspaceID: access.workspaceID,
+				AgentName:   agentName,
+				SessionID:   sessionID,
+			})
+			release()
+			if err := s.cleanChat(r.Context(), access, root); err != nil {
+				// The tombstone already accepted deletion; the cleanup worker retries it.
+				slog.ErrorContext(r.Context(), "defer conversation cleanup", "session", sessionID, "error", err)
+			}
+			apiutil.WriteJSON(w, http.StatusOK, true)
 			return
 		}
 		switch {
@@ -226,8 +288,10 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				apiutil.WriteError(w, r, apiutil.NewError(
-					http.StatusConflict, "session_stopping",
-					"The session is stopping; retry Stop before sending another input", nil,
+					http.StatusConflict,
+					"session_stopping",
+					"The session is stopping; retry Stop before sending another input",
+					nil,
 				))
 				return
 			}
@@ -254,16 +318,12 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 
 	resolved, err := s.resolver.resolveAgent(r.Context(), access.namespace, agentName)
 	if err != nil {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusNotFound,
-				"not_found",
-				"agent not found",
-				err,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusNotFound,
+			"not_found",
+			"agent not found",
+			err,
+		))
 		return
 	}
 
@@ -280,30 +340,22 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 
 	path, rawPath, err := openCodeUpstreamPath(r.URL, agentName)
 	if err != nil {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusNotFound,
-				"not_found",
-				"route not found",
-				err,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusNotFound,
+			"not_found",
+			"route not found",
+			err,
+		))
 		return
 	}
 
 	if err := attributeOpenCodePrompt(r, route, auth); err != nil {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"bad_request",
-				"invalid OpenCode prompt",
-				err,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"bad_request",
+			"invalid OpenCode prompt",
+			err,
+		))
 		return
 	}
 	proxy := &httputil.ReverseProxy{
@@ -335,16 +387,12 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 		FlushInterval: -1,
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, proxyErr error) {
 			if _, ok := errors.AsType[*http.MaxBytesError](proxyErr); ok {
-				apiutil.WriteError(
-					rw,
-					req,
-					apiutil.NewError(
-						http.StatusRequestEntityTooLarge,
-						"request_too_large",
-						"request body exceeds the maximum allowed size",
-						proxyErr,
-					),
-				)
+				apiutil.WriteError(rw, req, apiutil.NewError(
+					http.StatusRequestEntityTooLarge,
+					"request_too_large",
+					"request body exceeds the maximum allowed size",
+					proxyErr,
+				))
 				return
 			}
 
@@ -353,16 +401,12 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			apiutil.WriteError(
-				rw,
-				req,
-				apiutil.NewError(
-					http.StatusBadGateway,
-					"proxy_error",
-					"request failed",
-					proxyErr,
-				),
-			)
+			apiutil.WriteError(rw, req, apiutil.NewError(
+				http.StatusBadGateway,
+				"proxy_error",
+				"request failed",
+				proxyErr,
+			))
 		},
 	}
 
@@ -392,8 +436,10 @@ func (s *Service) streamOpenCodeEvents(w http.ResponseWriter, r *http.Request, r
 	resp, err := client.Do(req)
 	if err != nil {
 		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusBadGateway, "event_failed",
-			"Could not connect to agent events", err,
+			http.StatusBadGateway,
+			"event_failed",
+			"Could not connect to agent events",
+			err,
 		))
 		return
 	}
@@ -416,10 +462,17 @@ func (s *Service) streamOpenCodeEvents(w http.ResponseWriter, r *http.Request, r
 	upstream := *target
 	upstream.Path = ""
 	for frame, err := range sse.Read(resp.Body, &sse.ReadConfig{MaxEventSize: opencodeProxyBodyLimitBytes}) {
+		if r.Context().Err() != nil {
+			return
+		}
 		if err != nil {
 			if r.Context().Err() == nil {
 				slog.ErrorContext(r.Context(), "read agent events", "agent", agentName, "error", err)
 			}
+			return
+		}
+		_, apiErr := s.resolveAgentAccess(r.Context(), agentName, authorization.OperationUseSharedAgent)
+		if apiErr != nil {
 			return
 		}
 		data := []byte(frame.Data)
@@ -553,21 +606,55 @@ func replaceOpenCodeRequest(r *http.Request, body any) error {
 	return nil
 }
 
-// attributeOpenCodePrompt binds the authenticated gateway principal to
-// OpenCode prompts without changing unrecognized or synthetic ingress routes.
+// attributeOpenCodePrompt keeps actor and internal continuation metadata server-owned.
 func attributeOpenCodePrompt(r *http.Request, route *opencodeRouteMatch, auth requestAuth) error {
+	if route.ID == "part.update" {
+		var body gatewayapi.PartUpdateJSONRequestBody
+		if err := apiutil.DecodeJSONBody(r, &body, false); err != nil {
+			return err
+		}
+		kind, err := body.Discriminator()
+		if err != nil {
+			return err
+		}
+		if kind == "text" {
+			part, err := body.AsOpencodeTextPart()
+			if err != nil {
+				return err
+			}
+			metadata := make(map[string]any)
+			if part.Metadata != nil {
+				metadata = *part.Metadata
+			}
+			delete(metadata, "agentz.dev/input-id")
+			delete(metadata, "compaction_continue")
+			metadata[opencodeActorMetadataKey] = requestMessageActor(auth)
+			part.Metadata = &metadata
+			if err := body.FromOpencodeTextPart(part); err != nil {
+				return err
+			}
+		}
+		return replaceOpenCodeRequest(r, body)
+	}
 	if r.Method != http.MethodPost || auth.actorID == "" {
 		return nil
 	}
 	if route.ID != "session.prompt" && route.ID != "session.prompt_async" {
 		return nil
 	}
-
 	var body gatewayapi.SessionPromptJSONBody
 	if err := apiutil.DecodeJSONBody(r, &body, false); err != nil {
 		return err
 	}
+	parts, err := attributePrompt(body.Parts, auth, "")
+	if err != nil {
+		return err
+	}
+	body.Parts = parts
+	return replaceOpenCodeRequest(r, body)
+}
 
+func requestMessageActor(auth requestAuth) opencodeMessageActor {
 	name := auth.actorName
 	if name == "" {
 		name = auth.actorID
@@ -580,42 +667,49 @@ func attributeOpenCodePrompt(r *http.Request, route *opencodeRouteMatch, auth re
 	}
 	// API keys identify their creator to the agent and other participants.
 	// The request still retains the key actor for audit attribution.
-	if auth.userID != "" {
+	if auth.userID != "" && auth.actorType != requestActorSystem {
 		actor.Type = requestActorUser
 		actor.ID = auth.userID
 		actor.Name = auth.userName
 	}
+	return actor
+}
+
+// attributePrompt owns actor metadata and trusted queue identity for both ingress paths.
+func attributePrompt(parts []gatewayapi.OpencodePromptPartInput, auth requestAuth, inputID string) ([]gatewayapi.OpencodePromptPartInput, error) {
+	actor := requestMessageActor(auth)
 	var attached bool
-	for i := range body.Parts {
-		partType, err := body.Parts[i].Discriminator()
+	for i := range parts {
+		partType, err := parts[i].Discriminator()
 		if err != nil {
-			return fmt.Errorf("read prompt part type: %w", err)
+			return nil, fmt.Errorf("read prompt part type: %w", err)
 		}
 		if partType != string(gatewayapi.OpencodeTextPartInputTypeText) {
 			continue
 		}
 
-		part, err := body.Parts[i].AsOpencodeTextPartInput()
+		part, err := parts[i].AsOpencodeTextPartInput()
 		if err != nil {
-			return fmt.Errorf("decode text prompt part: %w", err)
+			return nil, fmt.Errorf("decode text prompt part: %w", err)
 		}
 		metadata := make(map[string]any)
 		if part.Metadata != nil {
 			metadata = *part.Metadata
 		}
-		if attached {
-			if _, exists := metadata[opencodeActorMetadataKey]; !exists {
-				continue
-			}
-			delete(metadata, opencodeActorMetadataKey)
+		delete(metadata, "agentz.dev/input-id")
+		delete(metadata, "compaction_continue")
+		if inputID != "" {
+			metadata["agentz.dev/input-id"] = inputID
 		}
+		delete(metadata, opencodeActorMetadataKey)
 		if !attached {
 			metadata[opencodeActorMetadataKey] = actor
 			attached = true
 		}
+
 		part.Metadata = &metadata
-		if err := body.Parts[i].FromOpencodeTextPartInput(part); err != nil {
-			return fmt.Errorf("encode text prompt part: %w", err)
+		if err := parts[i].FromOpencodeTextPartInput(part); err != nil {
+			return nil, fmt.Errorf("encode text prompt part: %w", err)
 		}
 	}
 	if !attached {
@@ -631,12 +725,12 @@ func attributeOpenCodePrompt(r *http.Request, route *opencodeRouteMatch, auth re
 		}
 		var input gatewayapi.OpencodePromptPartInput
 		if err := input.FromOpencodeTextPartInput(part); err != nil {
-			return fmt.Errorf("encode actor prompt part: %w", err)
+			return nil, fmt.Errorf("encode actor prompt part: %w", err)
 		}
-		body.Parts = append(body.Parts, input)
+		parts = append(parts, input)
 	}
 
-	return replaceOpenCodeRequest(r, body)
+	return parts, nil
 }
 
 // openCodeModifyResponse persists native mutations without changing their wire contracts.
@@ -653,6 +747,7 @@ func (s *Service) openCodeModifyResponse(ctx context.Context, route *opencodeRou
 		if contentType == "text/event-stream" || strings.HasPrefix(contentType, "text/event-stream;") {
 			return nil
 		}
+
 		// Upstream may already have committed when the client disconnects.
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 		defer cancel()
@@ -883,7 +978,7 @@ func (s *Service) storeOpenCodeSessionStatusResponse(ctx context.Context, resp *
 		}
 		switch kind {
 		case string(gatewayapi.Idle):
-		case string(gatewayapi.Retry):
+		case string(gatewayapi.OpencodeSessionStatus1TypeRetry):
 			retrySessionIDs = append(retrySessionIDs, sessionID)
 		case string(gatewayapi.Busy):
 			busySessionIDs = append(busySessionIDs, sessionID)
@@ -904,7 +999,7 @@ func (s *Service) storeOpenCodeSessionStatusResponse(ctx context.Context, resp *
 	if err != nil {
 		return fmt.Errorf("sync chat session statuses: %w", err)
 	}
-	return nil
+	return replaceOpenCodeResponse(resp, statuses)
 }
 
 func (s *Service) refreshOpenCodeSession(ctx context.Context, target *url.URL, workspaceID, agentName, sessionID string) error {
@@ -1046,7 +1141,7 @@ func replaceOpenCodeResponse(resp *http.Response, value any) error {
 }
 
 func decodeOpenCodeResponse[T any](resp *http.Response) (T, error) {
-	const responseLimit = 1024 * 1024
+	const responseLimit = opencodeProxyBodyLimitBytes
 
 	var value T
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, responseLimit+1))

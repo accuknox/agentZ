@@ -1,3 +1,4 @@
+import { RequestError } from "@/components/request-error"
 import { RememberRoute } from "@/data/route-memory"
 import { Suspense } from "react"
 import { AdministrationLoadingState, AdministrationState } from "@/components/administration"
@@ -22,6 +23,8 @@ async function WorkspaceMcp({
 }: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/mcps">) {
   const { orgSlug, workspaceSlug } = await params
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
+  if (scope.kind === "error")
+    return <RequestError title="Could not load this workspace" error={scope.error} />
   if (scope.kind !== "ready" || !scope.workspace.capabilities.mcp_connections.read)
     return <AdministrationState kind="forbidden" />
   const basePath = `/orgs/${orgSlug}/workspaces/${workspaceSlug}/mcps`

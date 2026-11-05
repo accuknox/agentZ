@@ -1,36 +1,33 @@
 import { dayjs } from "@/lib/format"
+import type { Error } from "@/lib/gateway/client"
 
 export type LensDateRange = {
-  after: string
-  before: string
   from: string
   to: string
+  error?: Error
 }
 
 export function lensDateRange(from?: string, to?: string): LensDateRange {
-  const parsedFrom = parseDateParam(from)
-  const parsedTo = parseDateParam(to)
-  if (parsedFrom && parsedTo) {
+  const now = dayjs()
+  const start = from === undefined ? now.subtract(24, "hour") : dayjs(from)
+  const end = to === undefined ? now : dayjs(to)
+  if (!start.isValid() || !end.isValid()) {
     return {
-      after: parsedFrom.startOf("day").toISOString(),
-      before: parsedTo.endOf("day").toISOString(),
-      from: parsedFrom.format("YYYY-MM-DD"),
-      to: parsedTo.format("YYYY-MM-DD"),
+      from: now.subtract(24, "hour").toISOString(),
+      to: now.toISOString(),
+      error: { code: "invalid_time_range", message: "Select a valid start and end date." },
     }
   }
 
-  const now = dayjs()
-  const defaultFrom = now.subtract(24, "hour").startOf("day")
-  const defaultTo = now.endOf("day")
+  const invalid = !end.isAfter(start) || end.diff(start) > 30 * 24 * 60 * 60 * 1000
   return {
-    after: defaultFrom.toISOString(),
-    before: defaultTo.toISOString(),
-    from: defaultFrom.format("YYYY-MM-DD"),
-    to: defaultTo.format("YYYY-MM-DD"),
+    from: start.toISOString(),
+    to: end.toISOString(),
+    error: invalid
+      ? {
+          code: "invalid_time_range",
+          message: "Select a time range of up to 30 days, with the start before the end.",
+        }
+      : undefined,
   }
-}
-
-function parseDateParam(value?: string) {
-  const date = dayjs(value, "YYYY-MM-DD", true)
-  return date.isValid() ? date : undefined
 }

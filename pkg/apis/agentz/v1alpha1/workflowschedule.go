@@ -38,6 +38,10 @@ const (
 
 // WorkflowScheduleSpec defines the desired state of WorkflowSchedule.
 type WorkflowScheduleSpec struct {
+	// Delivery selects the owner-authorized conversation receiving completed results.
+	// +optional
+	Delivery *WorkflowDelivery `json:"delivery,omitempty"`
+
 	// AgentName identifies the target AgentZ Agent.
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=32

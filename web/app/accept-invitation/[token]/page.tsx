@@ -2,7 +2,8 @@ import type { Metadata } from "next"
 import Image from "next/image"
 import { redirect } from "next/navigation"
 import { Suspense } from "react"
-import { ArrowRight, CircleAlert } from "lucide-react"
+import { ArrowRight, CircleAlert, MailOpen, MailX } from "lucide-react"
+import { StateIllustration } from "@/components/state-illustration"
 import { acceptInvitationAction } from "@/app/(scoped)/orgs/actions"
 import { Button } from "@/components/ui/button"
 import { getInvitationAcceptance } from "@/data/members"
@@ -29,14 +30,7 @@ export default async function AcceptInvitationPage({
         >
           <div className="flex w-full max-w-md animate-pulse flex-col items-center text-center">
             <div className="h-5 w-32 rounded-md bg-muted" />
-            <Image
-              src="/invitation.svg"
-              alt=""
-              width={176}
-              height={176}
-              className="mt-10 size-44 opacity-60"
-              priority
-            />
+            <StateIllustration icon={MailOpen} badge="+" className="mt-10 opacity-60" />
             <div className="mt-8 h-8 w-56 rounded-md bg-muted" />
             <div className="mt-4 h-5 w-72 max-w-full rounded-md bg-muted" />
             <div className="mt-8 h-10 w-full rounded-lg bg-muted" />
@@ -95,13 +89,10 @@ async function AcceptInvitationContent({
           <Image src="/agentz-logo.svg" alt="" width={32} height={28} className="h-7 w-8" />
           <span className="text-lg font-semibold tracking-tight">AgentZ</span>
         </div>
-        <Image
-          src="/invitation.svg"
-          alt=""
-          width={176}
-          height={176}
-          className={ready ? "mt-10 size-44" : "mt-10 size-44 opacity-75 grayscale-[20%]"}
-          priority
+        <StateIllustration
+          icon={ready ? MailOpen : MailX}
+          badge={ready ? "+" : "!"}
+          className="mt-10"
         />
         <p
           className={

@@ -127,7 +127,12 @@ func (s *Service) serveGuardrailEvents(w http.ResponseWriter, r *http.Request, p
 		limit = *params.Limit
 	}
 	if limit < 1 || limit > 100 {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "limit must be between 1 and 100", errBadRequest))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"limit must be between 1 and 100",
+			errBadRequest,
+		))
 		return
 	}
 	cursor, set, ok := decodeCursorPageToken[guardrailEventPageCursor](w, r, params.Cursor)
@@ -147,7 +152,10 @@ func (s *Service) serveGuardrailEvents(w http.ResponseWriter, r *http.Request, p
 	}
 	if !after.Before(before) || before.Sub(after) > 30*24*time.Hour {
 		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusBadRequest, "invalid_request", "Select a time range of up to 30 days", errBadRequest,
+			http.StatusBadRequest,
+			"invalid_request",
+			"Select a time range of up to 30 days",
+			errBadRequest,
 		))
 		return
 	}
@@ -161,7 +169,10 @@ func (s *Service) serveGuardrailEvents(w http.ResponseWriter, r *http.Request, p
 	if params.WorkspaceId != nil {
 		if access.workspaceID != "" && *params.WorkspaceId != access.workspaceID {
 			apiutil.WriteError(w, r, apiutil.NewError(
-				http.StatusBadRequest, "invalid_request", "Workspace filter must match the request scope", errBadRequest,
+				http.StatusBadRequest,
+				"invalid_request",
+				"Workspace filter must match the request scope",
+				errBadRequest,
 			))
 			return
 		}
@@ -175,13 +186,19 @@ func (s *Service) serveGuardrailEvents(w http.ResponseWriter, r *http.Request, p
 	}
 	if filters.AgentName != "" && filters.ClientID != "" {
 		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusBadRequest, "invalid_request", "Select an agent or an external source", errBadRequest,
+			http.StatusBadRequest,
+			"invalid_request",
+			"Select an agent or an external source",
+			errBadRequest,
 		))
 		return
 	}
 	if filters.AgentName != "" && filters.WorkspaceID == "" {
 		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusBadRequest, "invalid_request", "Select a workspace with the agent", errBadRequest,
+			http.StatusBadRequest,
+			"invalid_request",
+			"Select a workspace with the agent",
+			errBadRequest,
 		))
 		return
 	}
@@ -204,7 +221,12 @@ func (s *Service) serveGuardrailEvents(w http.ResponseWriter, r *http.Request, p
 	if filters.TraceID != "" {
 		trace, err := hex.DecodeString(filters.TraceID)
 		if err != nil || len(trace) != 16 {
-			apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "Trace ID must contain 32 hexadecimal characters", errBadRequest))
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"Trace ID must contain 32 hexadecimal characters",
+				errBadRequest,
+			))
 			return
 		}
 	}
@@ -253,7 +275,11 @@ func (s *Service) serveGuardrailEvents(w http.ResponseWriter, r *http.Request, p
 	if len(rows) > limit {
 		rows = rows[:limit]
 		last := rows[len(rows)-1]
-		nextCursor := guardrailEventPageCursor{Filters: filters, At: last.ObserverGuardrailEvent.OccurredAt, ID: last.ObserverGuardrailEvent.ID}
+		nextCursor := guardrailEventPageCursor{
+			Filters: filters,
+			At:      last.ObserverGuardrailEvent.OccurredAt,
+			ID:      last.ObserverGuardrailEvent.ID,
+		}
 		result.NextCursor = new(encodeCursorPageToken(nextCursor))
 	}
 	for _, row := range rows {

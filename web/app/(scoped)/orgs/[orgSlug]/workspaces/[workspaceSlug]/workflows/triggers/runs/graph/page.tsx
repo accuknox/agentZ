@@ -1,9 +1,9 @@
+import { RequestError } from "@/components/request-error"
 import { RememberRoute } from "@/data/route-memory"
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { Suspense } from "react"
 import { AdministrationPageHeader } from "@/components/administration"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import * as z from "zod"
 import { Skeleton } from "@/components/ui/skeleton"
 import { resolvePageSelection } from "@/data/page-selection"
@@ -12,7 +12,6 @@ import { getWorkspaceScope } from "@/data/workspaces"
 import { searchParamStringSchema } from "@/lib/search-params"
 import { WorkflowRunGraphFilters } from "./workflow-run-graph-filters"
 import { WorkflowRunGraph } from "./workflow-run-graph"
-import { CircleAlert } from "lucide-react"
 
 export const metadata: Metadata = {
   title: "Workflow Run Graph",
@@ -43,6 +42,8 @@ async function WorkflowRunGraphContent({
 }: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/workflows/triggers/runs/graph">) {
   const [route, search] = await Promise.all([params, searchParams])
   const workspace = await getWorkspaceScope(route.orgSlug, route.workspaceSlug)
+  if (workspace.kind === "error")
+    return <RequestError title="Could not load this workspace" error={workspace.error} />
   if (workspace.kind !== "ready" || workspace.workspace.type === "coding") {
     notFound()
   }
@@ -52,7 +53,7 @@ async function WorkflowRunGraphContent({
     return (
       <>
         <RememberPageSelection {...state} />
-        <ErrorPanel message={state.error.message} />
+        <RequestError title="Could not load run graph" error={state.error} />
       </>
     )
   const { selected, workflow, workflowRun } = state
@@ -105,15 +106,6 @@ function GraphSkeleton() {
         </div>
       </div>
     </>
-  )
-}
-
-function ErrorPanel({ message }: { message: string }) {
-  return (
-    <Alert className="px-6" variant="destructive">
-      <CircleAlert aria-hidden="true" />
-      <AlertDescription>{message}</AlertDescription>
-    </Alert>
   )
 }
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"go/format"
 	"io"
 	"maps"
 	"net/http"
@@ -52,7 +53,9 @@ var baseOperationCapabilities = map[string][]string{
 		"listSecrets", "watchSecrets",
 	},
 	"agent.use_shared": {
+		"listChatBackground",
 		"listChatInputs",
+		"updateChatSession",
 		"submitChatInput",
 		"updateChatInput",
 		"listCodingProjects",
@@ -268,7 +271,7 @@ var baseOperationCapabilities = map[string][]string{
 		"previewImmutableSkillImport",
 	},
 	"workflow_run.report": {
-		"patchWorkflowRunNodeStatus",
+		"patchWorkflowRunNodeStatus", "deliverWorkflowSession",
 		"patchWorkflowRunStatus",
 	},
 }
@@ -305,7 +308,7 @@ func run() error {
 
 	// Evaluation evidence shares the pinned native session contract with the SDK.
 	externalRefs := make(map[string]string)
-	sessionContracts := []string{"Session", "Message", "Part"}
+	sessionContracts := []string{"Session", "Message", "Part", "ModelRef"}
 	for _, name := range sessionContracts {
 		externalRefs[upstreamSpecURL+"#/components/schemas/"+name] = "#/components/schemas/Opencode" + name
 	}
@@ -992,6 +995,18 @@ func applyOAPICodegenFixups(doc map[string]any) error {
 	if !ok {
 		return fmt.Errorf("upstream spec has no paths")
 	}
+	responseNames := map[string]string{
+		"/api/permission/request": "PermissionRequestsResponse",
+		"/api/question/request":   "QuestionRequestsResponse",
+	}
+	for path, name := range responseNames {
+		operation := paths[path].(map[string]any)["get"].(map[string]any)
+		response := operation["responses"].(map[string]any)["200"].(map[string]any)
+		body := response["content"].(map[string]any)["application/json"].(map[string]any)
+		schemas[name] = body["schema"]
+		body["schema"] = map[string]any{"$ref": "#/components/schemas/" + name}
+	}
+
 	// The legacy session API repeats ModelRef inline. Reuse its schema so
 	// callers can pass the same generated model type to both session APIs.
 	session := schemas["Session"].(map[string]any)
@@ -1098,7 +1113,11 @@ func writeRoutesGo(path string, manifest routeManifest) error {
 	}
 	buf.WriteString("}\n")
 
-	if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
+	source, err := format.Source(buf.Bytes())
+	if err != nil {
+		return fmt.Errorf("format generated routes: %w", err)
+	}
+	if err := os.WriteFile(path, source, 0o644); err != nil {
 		return fmt.Errorf("write route source: %w", err)
 	}
 	return nil

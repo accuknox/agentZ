@@ -1,3 +1,4 @@
+import { RequestError } from "@/components/request-error"
 import { RememberRoute } from "@/data/route-memory"
 import { Suspense } from "react"
 import { AgentDialog } from "@/app/agent/agent-dialog"
@@ -39,11 +40,22 @@ async function WorkspaceAgents({
 }: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/agents">) {
   const { orgSlug, workspaceSlug } = await params
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
+  if (scope.kind === "error")
+    return <RequestError title="Could not load this workspace" error={scope.error} />
   if (scope.kind !== "ready") {
     return <AdministrationState kind="forbidden" />
   }
 
-  const search = searchSchema.parse(await searchParams)
+  const parsed = searchSchema.safeParse(await searchParams)
+  if (!parsed.success)
+    return (
+      <RequestError
+        resetFilters
+        title="Invalid agent sorting"
+        description="Choose a supported sort field and order."
+      />
+    )
+  const search = parsed.data
   const query = {
     limit: 50,
     page_token: search.page_token,

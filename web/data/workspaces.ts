@@ -53,7 +53,7 @@ export const getWorkspaceDirectory = cache(async (orgSlug: string) => {
       client,
       query: { limit: 200, page_token: pageToken },
     })
-    if (result.error) throw new Error(result.error.message)
+    if (result.error) return { scope, error: result.error }
     workspaces.push(...result.data.workspaces)
     canCreate = result.data.can_create
     canEnterOrganization = result.data.can_enter_organization
@@ -80,7 +80,7 @@ export async function getWorkspacePage(orgSlug: string, pageToken?: string) {
     client: getGatewayServerClient(),
     query: { limit: 50, page_token: pageToken },
   })
-  if (result.error) throw new Error(result.error.message)
+  if (result.error) return { scope, error: result.error }
   return { directory: result.data, scope }
 }
 
@@ -98,12 +98,13 @@ export const getWorkspaceScope = cache(async (orgSlug: string, workspaceSlug: st
       path: { workspaceSlug },
     }),
   ])
-  if (!directoryResult.directory) throw new Error("workspace directory is unavailable")
+  if (directoryResult.error) return { kind: "error" as const, scope, error: directoryResult.error }
+  if (!directoryResult.directory) return { scope: directoryResult.scope }
   if (workspace.response?.status === 404) {
     return { directory: directoryResult.directory, kind: "not-found" as const, scope }
   }
   if (workspace.error) {
-    throw new Error(workspace.error.message)
+    return { kind: "error" as const, scope, error: workspace.error }
   }
 
   return {
@@ -186,13 +187,13 @@ export async function getWorkspaceCreation(orgSlug: string) {
       listGuardrailConnectionsQuery(),
       listGuardrailPoliciesQuery(),
     ])
-  if (guardrailConnections.error) throw new Error(guardrailConnections.error.message)
-  if (guardrailPolicies.error) throw new Error(guardrailPolicies.error.message)
-  if (members.error) throw new Error(members.error.message)
-  if (skills.error) throw new Error(skills.error.message)
-  if (sandboxes.error) throw new Error(sandboxes.error.message)
-  if (mcps.error) throw new Error(mcps.error.message)
-  if (providers.error) throw new Error(providers.error.message)
+  if (guardrailConnections.error) return { scope, error: guardrailConnections.error }
+  if (guardrailPolicies.error) return { scope, error: guardrailPolicies.error }
+  if (members.error) return { scope, error: members.error }
+  if (skills.error) return { scope, error: skills.error }
+  if (sandboxes.error) return { scope, error: sandboxes.error }
+  if (mcps.error) return { scope, error: mcps.error }
+  if (providers.error) return { scope, error: providers.error }
 
   return {
     candidates: members.data.members,
@@ -241,7 +242,7 @@ export async function getWorkspaceInheritedResources(
     query: { sort_by: sortBy, sort_order: sortOrder },
   })
   if (result.error) {
-    throw new Error(result.error.message)
+    return { error: result.error }
   }
   return { ...scope, resources: result.data.resources }
 }

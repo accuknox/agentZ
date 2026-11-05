@@ -29,6 +29,7 @@ import { PolicyEditor } from "./policy-editor"
 import { GuardrailOrganizationSettings } from "./settings"
 import { GuardrailEvents } from "./events"
 import { GuardrailEventFilters } from "./event-filters"
+import { RequestError } from "@/components/request-error"
 
 type GuardrailsPageProps = {
   orgSlug: string
@@ -101,14 +102,6 @@ export async function GuardrailsPage(props: GuardrailsPageProps) {
       getWorkspaceDirectory(orgSlug),
       listGuardrailEventSourcesQuery(workspaceId ?? filters.workspace_id),
     ])
-    if (sources.error)
-      return (
-        <AdministrationState
-          kind="failed"
-          title="Could not load event sources"
-          description={sources.error.message}
-        />
-      )
     const workspaces =
       directory.directory?.workspaces.filter((item) => item.capabilities.guardrail_events.read) ??
       []
@@ -116,10 +109,18 @@ export async function GuardrailsPage(props: GuardrailsPageProps) {
       <div className="flex min-w-0 flex-col">
         <GuardrailEventFilters
           {...query}
-          sources={sources.data}
+          sources={sources.data ?? { agents: [], apps: [] }}
           workspaces={workspaces}
           scopedWorkspaceId={workspaceId}
         />
+        {sources.error ? (
+          <RequestError
+            compact
+            className="px-6 py-3"
+            title="Could not load event sources"
+            error={sources.error}
+          />
+        ) : null}
         <Suspense key={`chart:${JSON.stringify(query)}`} fallback={<EventsChartSkeleton />}>
           <GuardrailChart result={chart} />
         </Suspense>
@@ -129,7 +130,7 @@ export async function GuardrailsPage(props: GuardrailsPageProps) {
         >
           <GuardrailEventList
             result={page}
-            apps={sources.data.apps}
+            apps={sources.data?.apps ?? []}
             basePath={basePath}
             workspaceId={workspaceId}
           />

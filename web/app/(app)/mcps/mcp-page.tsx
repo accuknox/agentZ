@@ -1,7 +1,7 @@
+import { RequestError } from "@/components/request-error"
 import { Suspense } from "react"
 import * as z from "zod"
 import { AdministrationPageHeader, type AdministrationPageScope } from "@/components/administration"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { deleteScopedMcpFormAction, submitScopedMcpFormAction } from "@/data/mcp.actions"
 import { listMcpConnectionsCachedQuery } from "@/data/mcp.queries"
@@ -11,7 +11,6 @@ import { mcpOAuthCallbackURL } from "@/lib/mcp-oauth-callback-url"
 import { McpSheet } from "./mcp-sheet"
 import { NewMcpButton } from "./new-mcp-button"
 import { resourceLabels } from "@/lib/resource-labels"
-import { CircleAlert } from "lucide-react"
 
 const searchSchema = z.object({
   page_token: searchParamStringSchema,
@@ -84,7 +83,16 @@ async function Connections({
   searchParams: Promise<SearchParams>
   workspaceId?: string
 }) {
-  const params = searchSchema.parse(await searchParams)
+  const parsed = searchSchema.safeParse(await searchParams)
+  if (!parsed.success)
+    return (
+      <RequestError
+        resetFilters
+        title="Invalid connection sorting"
+        description="Choose a supported sort field and order."
+      />
+    )
+  const params = parsed.data
   const result = await listMcpConnectionsCachedQuery(
     {
       limit: 50,
@@ -95,12 +103,7 @@ async function Connections({
     workspaceId
   )
   if (result.error)
-    return (
-      <Alert className="px-4 md:px-6" variant="destructive">
-        <CircleAlert aria-hidden="true" />
-        <AlertDescription>{result.error.message}</AlertDescription>
-      </Alert>
-    )
+    return <RequestError title="Could not load MCP connections" error={result.error} />
   return (
     <McpTable
       canCreate={canCreate}

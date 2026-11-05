@@ -23,10 +23,8 @@ const args = {
 const description = `
 Delete a workflow schedule.
 
-Guidelines:
-- If the user explicitly asked to delete the workflow schedule, set confirmed to true.
-- If deletion is only inferred from cleanup, replacement, or reorganization intent, leave confirmed as false so the tool surfaces a confirmation prompt first.
-- Deletion is strict. If the named workflow schedule does not exist, the call fails.
+Call the workflow-scheduler skill before deleting a schedule.
+Deletion stops future runs and their conversation notifications.
 `.trim()
 
 type DeleteWorkflowScheduleToolInput = {

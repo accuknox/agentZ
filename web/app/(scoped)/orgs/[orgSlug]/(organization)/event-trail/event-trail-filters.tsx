@@ -29,14 +29,14 @@ type FilterField = { label: string } & (
 )
 
 export function EventTrailFilters({
-  actorImages,
+  actorImages = {},
   filters,
-  options,
+  options = { actors: [], categories: [], workspaces: [], target_types: [] },
   hideWorkspace,
 }: {
-  actorImages: Record<string, string>
+  actorImages?: Record<string, string>
   filters: EventTrailFilter[]
-  options: EventTrailFilterOptions
+  options?: EventTrailFilterOptions
   hideWorkspace?: boolean
 }) {
   const router = useRouter()

@@ -34,6 +34,7 @@ type SidebarWidthStyle = React.CSSProperties & {
 }
 
 type SidebarContextProps = {
+  hideScrollbar: boolean
   state: "expanded" | "collapsed"
   open: boolean
   setOpen: (open: boolean) => void
@@ -56,6 +57,7 @@ function useSidebar() {
 
 function SidebarProvider({
   defaultOpen = true,
+  hideScrollbar = false,
   open: openProp,
   onOpenChange: setOpenProp,
   className,
@@ -64,6 +66,7 @@ function SidebarProvider({
   ...props
 }: React.ComponentProps<"div"> & {
   defaultOpen?: boolean
+  hideScrollbar?: boolean
   open?: boolean
   onOpenChange?: (open: boolean) => void
 }) {
@@ -120,6 +123,7 @@ function SidebarProvider({
   const contextValue = React.useMemo<SidebarContextProps>(
     () => ({
       state,
+      hideScrollbar,
       open,
       setOpen,
       isMobile,
@@ -127,7 +131,7 @@ function SidebarProvider({
       setOpenMobile,
       toggleSidebar,
     }),
-    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
+    [state, hideScrollbar, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
   )
   const sidebarStyle: SidebarWrapperStyle = {
     "--sidebar-width": SIDEBAR_WIDTH,
@@ -165,12 +169,14 @@ function Sidebar({
   variant?: "sidebar" | "floating" | "inset"
   collapsible?: "offcanvas" | "icon" | "none"
 }) {
-  const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+  const { isMobile, state, openMobile, setOpenMobile, hideScrollbar } = useSidebar()
 
   if (collapsible === "none") {
     return (
       <div
+        data-sidebar="sidebar"
         data-slot="sidebar"
+        data-hide-scrollbar={hideScrollbar || undefined}
         className={cn(
           "flex h-full w-(--sidebar-width) flex-col bg-sidebar text-sidebar-muted-foreground",
           className
@@ -194,24 +200,15 @@ function Sidebar({
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
+          data-hide-scrollbar={hideScrollbar || undefined}
           className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-muted-foreground"
           style={mobileStyle}
           side={side}
-          showCloseButton={false}
         >
           <SheetHeader className="sr-only">
             <SheetTitle>Sidebar</SheetTitle>
             <SheetDescription>Use this panel to navigate on mobile.</SheetDescription>
           </SheetHeader>
-          <Button
-            aria-label="Close Sidebar"
-            className="absolute top-3 right-3 z-10 md:hidden"
-            onClick={() => setOpenMobile(false)}
-            size="icon-sm"
-            variant="ghost"
-          >
-            <PanelLeftCloseIcon data-icon="inline-start" />
-          </Button>
           <div className="flex h-full w-full flex-col [&_[data-sidebar=header]]:pr-12">
             {children}
           </div>
@@ -257,6 +254,7 @@ function Sidebar({
         <div
           data-sidebar="sidebar"
           data-slot="sidebar-inner"
+          data-hide-scrollbar={hideScrollbar || undefined}
           className="flex size-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:shadow-sm group-data-[variant=floating]:ring-1 group-data-[variant=floating]:ring-sidebar-border"
         >
           {children}
@@ -364,7 +362,7 @@ function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
       data-slot="sidebar-content"
       data-sidebar="content"
       className={cn(
-        "no-scrollbar flex min-h-0 flex-1 flex-col gap-0 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
+        "flex min-h-0 flex-1 flex-col gap-0 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
         className
       )}
       {...props}

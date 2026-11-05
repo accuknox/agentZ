@@ -1,18 +1,10 @@
 "use client"
 
+import { AgentAvatar } from "@/components/interior/agent-presence"
 import { LoadingButton } from "@/components/interior/loading-button"
 import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
-import {
-  Bot,
-  Check,
-  FileArchive,
-  Lock,
-  Pencil,
-  Replace,
-  TriangleAlert,
-  CircleAlert,
-} from "lucide-react"
+import { Check, FileArchive, Lock, Pencil, Replace, TriangleAlert, CircleAlert } from "lucide-react"
 import { Controller, useForm, useWatch, type Control, type FieldErrors } from "react-hook-form"
 import { toast } from "sonner"
 import * as z from "zod"
@@ -438,7 +430,7 @@ export function SkillImportDialog({
                           disabled={pending}
                           options={agents.map((agent) => ({
                             disabled: agent.status !== "IDLE",
-                            icon: Bot,
+                            iconElement: <AgentAvatar appearance={agent.appearance} />,
                             label: agent.name,
                             value: agent.name,
                           }))}

@@ -139,16 +139,12 @@ func (s *Service) StartCodingOperation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !bytes.Equal(canonical, request) {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusConflict,
-				"operation_conflict",
-				"Operation ID already belongs to another request",
-				nil,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict,
+			"operation_conflict",
+			"Operation ID already belongs to another request",
+			nil,
+		))
 		return
 	}
 	if err := json.Unmarshal(job.Result, &result); err != nil {

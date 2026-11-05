@@ -42,11 +42,12 @@ import {
 import { listAllAgentsCachedQuery } from "@/data/agent.queries"
 import type { OrganizationSummary } from "@/data/organizations"
 import type { ListAgentActionResponse, WorkspacePath } from "@/data/types"
-import type { ChatSessionPreference, ResourceCapabilities, Workspace } from "@/lib/gateway/client"
+import type { ResourceCapabilities, Workspace } from "@/lib/gateway/client"
 import { resourceLabels } from "@/lib/resource-labels"
 import { getChatSessionPreference, listChatSessions } from "@/lib/gateway/client"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { currentGatewayAuthContext } from "@/lib/gateway/auth"
+import { RequestError } from "@/components/request-error"
 
 type WorkspaceNavigationScope = {
   canCreateWorkspace: boolean
@@ -225,26 +226,14 @@ async function WorkspaceSidebar(props: WorkspaceSidebarProps) {
   const showWorkflows =
     workspace.type !== "coding" && (agents.agents?.some((agent) => agent.capabilities.use) ?? false)
   let chatSessions: React.JSX.Element | null = null
-  if (showAgents) {
-    const preference = await getChatSessionPreference({
-      client: getGatewayServerClient(workspace.id),
-    })
-    if (preference.error) {
-      throw new Error("Failed to load chat preferences")
-    }
+  if (showAgents || agents.error) {
     chatSessions = (
-      <SidebarGroup className="shrink-0 px-0 py-1 group-data-[collapsible=icon]:hidden">
+      <SidebarGroup className="min-h-0 flex-1 px-0 py-1 group-data-[collapsible=icon]:hidden">
         <Suspense
-          fallback={
-            <NavSessionsSkeleton
-              groupBy={preference.data.group_by}
-              coding={workspace.type === "coding"}
-            />
-          }
+          fallback={<NavSessionsSkeleton groupBy="none" coding={workspace.type === "coding"} />}
         >
           <WorkspaceChatSessions
             agents={agents}
-            preferences={preference.data}
             workspaceId={workspace.id}
             workspaceType={workspace.type}
             workspacePath={workspacePath}
@@ -271,14 +260,30 @@ async function WorkspaceSidebar(props: WorkspaceSidebarProps) {
 
 type WorkspaceChatSessionsProps = {
   agents: ListAgentActionResponse
-  preferences: ChatSessionPreference
   workspaceType: Workspace["type"]
   workspaceId: string
   workspacePath: WorkspacePath
 }
 
 async function WorkspaceChatSessions(props: WorkspaceChatSessionsProps) {
-  const { agents, preferences, workspaceId, workspaceType, workspacePath } = props
+  const { agents, workspaceId, workspaceType, workspacePath } = props
+  if (agents.error) {
+    return (
+      <RequestError compact className="p-3" title="Could not load agents" error={agents.error} />
+    )
+  }
+  const preference = await getChatSessionPreference({ client: getGatewayServerClient(workspaceId) })
+  if (preference.error) {
+    return (
+      <RequestError
+        compact
+        className="p-3"
+        title="Could not load chat preferences"
+        error={preference.error}
+      />
+    )
+  }
+  const preferences = preference.data
 
   const [sessions, actor] = await Promise.all([
     listChatSessions({
@@ -298,7 +303,14 @@ async function WorkspaceChatSessions(props: WorkspaceChatSessionsProps) {
     currentGatewayAuthContext(),
   ])
   if (sessions.error) {
-    throw new Error("Failed to load chat sessions")
+    return (
+      <RequestError
+        compact
+        className="p-3"
+        title="Could not load conversations"
+        error={sessions.error}
+      />
+    )
   }
 
   return (

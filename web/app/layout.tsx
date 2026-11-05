@@ -7,6 +7,7 @@ import { AgentZTransition } from "@/components/scope-transition"
 import { getEnv } from "@/lib/env"
 import "./globals.css"
 import Providers from "./providers"
+import { getCurrentUserPreferences } from "@/data/user-preferences"
 
 const archivo = Archivo({
   axes: ["wdth"],
@@ -75,10 +76,16 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
 }
 
 async function RequestProviders({ children }: { children: React.ReactNode }) {
-  const store = await cookies()
+  const [store, preferences] = await Promise.all([
+    cookies(),
+    getCurrentUserPreferences({ required: false }),
+  ])
 
   return (
-    <Providers sidebarDefaultOpen={store.get("sidebar_state")?.value !== "false"}>
+    <Providers
+      hideSidebarScrollbar={preferences.hideLeftNavScrollbar}
+      sidebarDefaultOpen={store.get("sidebar_state")?.value !== "false"}
+    >
       <Suspense fallback={<AgentZTransition />}>{children}</Suspense>
     </Providers>
   )

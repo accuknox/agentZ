@@ -20,6 +20,8 @@ import { getCurrentUserPreferences } from "@/data/user-preferences"
 import { getWorkspaceScope } from "@/data/workspaces"
 import { signInURL } from "@/lib/sign-in-redirect"
 import { WorkspaceState } from "./workspace-state"
+import { ChatActivityProvider } from "@/components/blocks/chat/display"
+import { RequestError } from "@/components/request-error"
 
 export async function generateMetadata({
   params,
@@ -62,6 +64,22 @@ async function WorkspaceContent({
   }
 
   const preferences = await getCurrentUserPreferences()
+  if (result.kind === "error") {
+    return (
+      <AppShell
+        sidebar={
+          <AppSidebar
+            scope={{ kind: "account" }}
+            user={result.scope.organizationSession.session.user}
+            organizations={result.scope.organizationSession.organizations}
+          />
+        }
+      >
+        <AdministrationPageHeader title="Workspace" />
+        <RequestError title="Could not load this workspace" error={result.error} />
+      </AppShell>
+    )
+  }
   if (
     result.scope.kind === "forbidden" ||
     result.scope.kind === "disabled" ||
@@ -176,20 +194,26 @@ async function WorkspaceContent({
         {result.workspace.type === "coding" && result.workspace.state === "ready" ? (
           <CodingActivity workspaceId={result.workspace.id} />
         ) : null}
-        <AdministrationLayout>
-          {result.workspace.state === "ready" ? (
-            children
-          ) : (
-            <>
-              <AdministrationPageHeader title={result.workspace.name} />
-              <WorkspaceState
-                canRetry={result.scope.organization.superadmin}
-                orgSlug={result.scope.organization.slug}
-                workspace={result.workspace}
-              />
-            </>
-          )}
-        </AdministrationLayout>
+        <ChatActivityProvider
+          workspaceType={result.workspace.type}
+          showReasoningAndTools={preferences.showReasoningAndTools}
+          followUpBehavior={preferences.followUpBehavior}
+        >
+          <AdministrationLayout>
+            {result.workspace.state === "ready" ? (
+              children
+            ) : (
+              <>
+                <AdministrationPageHeader title={result.workspace.name} />
+                <WorkspaceState
+                  canRetry={result.scope.organization.superadmin}
+                  orgSlug={result.scope.organization.slug}
+                  workspace={result.workspace}
+                />
+              </>
+            )}
+          </AdministrationLayout>
+        </ChatActivityProvider>
       </AppShell>
     </PageSelectionProvider>
   )

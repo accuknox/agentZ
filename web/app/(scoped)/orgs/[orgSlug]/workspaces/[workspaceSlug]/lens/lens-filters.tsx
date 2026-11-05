@@ -1,5 +1,6 @@
 "use client"
 
+import { AgentAvatar } from "@/components/interior/agent-presence"
 import * as React from "react"
 import { useSelectResource } from "@/components/page-selection"
 import { MessageSquareIcon } from "lucide-react"
@@ -18,7 +19,7 @@ import {
 } from "@/components/ui/select"
 import { listAppSessionsAction } from "@/data/lens.actions"
 import type { TraceSessionFilterItem } from "@/data/types"
-import { dayjs, formatDateParam } from "@/lib/format"
+import { dayjs } from "@/lib/format"
 import { selectionURL } from "@/lib/page-selection"
 import type { Agent, LensApp } from "@/lib/gateway/client"
 import {
@@ -131,7 +132,7 @@ export function LensFilters({
               ) : null}
               {agents.map((agent) => (
                 <SelectItem key={agent.name} value={`agent:${agent.name}`}>
-                  <LensSourceIcon kind="agent" />
+                  <AgentAvatar appearance={agent.appearance} />
                   {agent.name}
                 </SelectItem>
               ))}
@@ -182,7 +183,7 @@ export function LensFilters({
         <DateRangePicker
           className="w-full sm:w-auto"
           onSelect={(range) =>
-            updateDate({ from: formatDateParam(range.from), to: formatDateParam(range.to) })
+            updateDate({ from: range.from.toISOString(), to: range.to.toISOString() })
           }
           range={{ from: dayjs(from).toDate(), to: dayjs(to).toDate() }}
         />

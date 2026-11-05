@@ -445,7 +445,7 @@ function DeleteGuardrail(props: DeleteGuardrailProps) {
         if (!open && !pending) onClose()
       }}
     >
-      <DialogContent showCloseButton={false}>
+      <DialogContent>
         <DialogHeader className="min-w-0">
           <DialogTitle className="pr-6 leading-snug break-words">Delete {label}?</DialogTitle>
           <DialogDescription>

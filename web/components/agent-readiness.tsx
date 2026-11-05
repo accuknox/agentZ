@@ -1,6 +1,10 @@
 "use client"
 
 import { Spinner } from "@/components/ui/spinner"
+import { Bot } from "lucide-react"
+import { AgentAvatar } from "@/components/interior/agent-presence"
+import { defaultAgentAppearance } from "@/data/mascots"
+import { listAgentsOptions } from "@/lib/gateway/client/@tanstack/react-query.gen"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import {
   watchAgents,
@@ -51,14 +55,15 @@ export function watchAgentsQueryOptions(
         }
         return next
       },
-      streamFn: async ({ signal }) => {
+      streamFn: async function* ({ signal }) {
         const result = await watchAgents({
           baseUrl: await getGatewayBaseURL(),
           body: agentNames === undefined ? undefined : { agent_names: agentNames },
           headers: { "X-AgentZ-Workspace-ID": workspaceId },
           signal,
         })
-        return result.stream
+        yield* result.stream
+        if (!signal.aborted) throw new Error("Agent watch closed")
       },
     }),
     queryKey: ["watchAgents", workspaceId, agentNames] as const,
@@ -86,6 +91,42 @@ export function useAgentReadiness(
   return {
     isGettingReady: status ? agentIsGettingReady(status) : false,
   }
+}
+
+// Observe existing watches; organization views must not open a stream per workspace.
+export function AgentIcon({
+  name,
+  workspaceId,
+  size = 16,
+}: {
+  name: string
+  workspaceId: string
+  size?: number
+}) {
+  const watch = useQuery({
+    ...watchAgentsQueryOptions(workspaceId),
+    enabled: false,
+    select: (agents) => {
+      const agent = agents.find((agent) => agent.name === name)
+      return agent ? (agent.appearance ?? defaultAgentAppearance) : null
+    },
+  })
+  const snapshot = useQuery({
+    ...listAgentsOptions({
+      headers: { "X-AgentZ-Workspace-ID": workspaceId },
+      query: { agent_name: [name], limit: 1 },
+    }),
+    enabled: !watch.isFetching && !watch.data,
+    staleTime: 60_000,
+    select: ({ agents }) => {
+      const [agent] = agents
+      return agent ? (agent.appearance ?? defaultAgentAppearance) : null
+    },
+  })
+  const appearance = watch.data ?? snapshot.data
+  if (!appearance)
+    return <Bot aria-hidden="true" style={{ width: size, height: size }} className="shrink-0" />
+  return <AgentAvatar appearance={appearance} size={size} />
 }
 
 export function AgentGettingReady({ className }: { className?: string }): ReactElement {

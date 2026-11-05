@@ -379,7 +379,7 @@ function DeleteProviderDialog({
         setOpen(nextOpen)
       }}
     >
-      <DialogContent showCloseButton={false}>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Delete {provider.display_name}?</DialogTitle>
           <DialogDescription>

@@ -1,3 +1,4 @@
+import { RequestError } from "@/components/request-error"
 import { RememberRoute } from "@/data/route-memory"
 import { Suspense } from "react"
 import { AdministrationLoadingState, AdministrationState } from "@/components/administration"
@@ -24,8 +25,8 @@ async function OrganizationSandboxesContent({
   const scope = await resolveOrganizationSlug(orgSlug)
   if (scope.kind !== "ready") return <AdministrationState kind="forbidden" />
   await activateOrganization(scope.organization.id)
-  const tenant = await ensureTenant({ client: getGatewayServerClient(), throwOnError: true })
-  if (!tenant.data) throw new Error("gateway returned no tenant resource capabilities")
+  const tenant = await ensureTenant({ client: getGatewayServerClient() })
+  if (tenant.error) return <RequestError title="Could not load sandboxes" error={tenant.error} />
   if (!tenant.data.sandbox_capabilities.read) return <AdministrationState kind="forbidden" />
 
   return (

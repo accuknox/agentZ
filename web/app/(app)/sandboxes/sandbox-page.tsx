@@ -1,12 +1,12 @@
+import { RequestError } from "@/components/request-error"
 import { Suspense } from "react"
 import Link from "next/link"
 import * as z from "zod"
-import { Plus, CircleAlert } from "lucide-react"
+import { Plus } from "lucide-react"
 import type { Route } from "next"
 import { deleteSandboxFormAction } from "@/data/sandbox.actions"
 import { listSandboxesCachedQuery } from "@/data/sandbox.queries"
 import { AdministrationPageHeader, type AdministrationPageScope } from "@/components/administration"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { SandboxTable } from "./sandbox-table"
 import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
@@ -76,7 +76,16 @@ async function Sandboxes({
   searchParams?: Promise<SandboxesSearchParams>
   workspaceId?: string
 }) {
-  const params = searchParams ? sandboxesSearchParamsSchema.parse(await searchParams) : undefined
+  const parsed = sandboxesSearchParamsSchema.safeParse(searchParams ? await searchParams : {})
+  if (!parsed.success)
+    return (
+      <RequestError
+        resetFilters
+        title="Invalid sandbox filters"
+        description="Check the filters in this link and try again."
+      />
+    )
+  const params = parsed.data
   const result = await listSandboxesCachedQuery(
     {
       limit: 50,
@@ -88,12 +97,7 @@ async function Sandboxes({
   )
 
   if (result.error) {
-    return (
-      <Alert className="px-4 md:px-6" variant="destructive">
-        <CircleAlert aria-hidden="true" />
-        <AlertDescription>{result.error.message}</AlertDescription>
-      </Alert>
-    )
+    return <RequestError title="Could not load sandboxes" error={result.error} />
   }
 
   return (

@@ -76,6 +76,8 @@ type resolver struct {
 	agents         listersv1alpha1.AgentLister
 	secrets        listersv1alpha1.SecretLister
 	mcpConnections listersv1alpha1.MCPConnectionLister
+	schedules      listersv1alpha1.WorkflowScheduleLister
+	scheduleEvents chatSessionEvents
 	stopCh         chan struct{}
 	stopOnce       sync.Once
 	watchMu        sync.Mutex
@@ -99,6 +101,7 @@ func newResolver(ctx context.Context, targetOverride string) (*resolver, error) 
 	factory := informers.NewSharedInformerFactoryWithOptions(cs, 30*time.Second)
 	agentInformer := factory.Agentz().V1alpha1().Agents()
 	workflowRunInformer := factory.Agentz().V1alpha1().WorkflowRuns()
+	scheduleInformer := factory.Agentz().V1alpha1().WorkflowSchedules()
 	secretInformer := factory.Agentz().V1alpha1().Secrets()
 	mcpInformer := factory.Agentz().V1alpha1().MCPConnections()
 
@@ -108,6 +111,7 @@ func newResolver(ctx context.Context, targetOverride string) (*resolver, error) 
 		agents:         agentInformer.Lister(),
 		secrets:        secretInformer.Lister(),
 		mcpConnections: mcpInformer.Lister(),
+		schedules:      scheduleInformer.Lister(),
 		stopCh:         make(chan struct{}),
 		agentWatchers:  make(map[chan agentWatchEvent]struct{}),
 		runWatchers:    make(map[chan workflowRunWatchEvent]struct{}),
@@ -143,6 +147,36 @@ func newResolver(ctx context.Context, targetOverride string) (*resolver, error) 
 	if err != nil {
 		r.Close()
 		return nil, fmt.Errorf("register workflow run informer handler: %w", err)
+	}
+	// Coalesced invalidations follow the same cache that serves thread rows.
+	// Deletion handlers also receive tombstones after a missed watch event.
+	invalidateSchedule := func(obj any) {
+		key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
+		if err != nil {
+			return
+		}
+		namespace, _, err := cache.SplitMetaNamespaceKey(key)
+		if err != nil {
+			return
+		}
+		r.scheduleEvents.publish(namespace)
+	}
+	_, err = scheduleInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: invalidateSchedule,
+		UpdateFunc: func(oldObj, newObj any) {
+			old := oldObj.(*agentzv1alpha1.WorkflowSchedule)
+			next := newObj.(*agentzv1alpha1.WorkflowSchedule)
+			same := old.UID == next.UID && old.Generation == next.Generation
+			if same && old.DeletionTimestamp.Equal(next.DeletionTimestamp) {
+				return
+			}
+			invalidateSchedule(next)
+		},
+		DeleteFunc: invalidateSchedule,
+	})
+	if err != nil {
+		r.Close()
+		return nil, fmt.Errorf("register workflow schedule informer handler: %w", err)
 	}
 	_, err = secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj any) {
@@ -197,6 +231,7 @@ func newResolver(ctx context.Context, targetOverride string) (*resolver, error) 
 		r.stopCh,
 		agentInformer.Informer().HasSynced,
 		workflowRunInformer.Informer().HasSynced,
+		scheduleInformer.Informer().HasSynced,
 		secretInformer.Informer().HasSynced,
 		mcpInformer.Informer().HasSynced,
 	)

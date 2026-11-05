@@ -133,16 +133,12 @@ func (s *Service) ListWorkspaceMemberCandidates(w http.ResponseWriter, r *http.R
 		return
 	}
 	if !allowed {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusForbidden,
-				"forbidden",
-				"Superadmin authority is required",
-				errors.New("workspace member list requires Superadmin authority"),
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusForbidden,
+			"forbidden",
+			"Superadmin authority is required",
+			errors.New("workspace member list requires Superadmin authority"),
+		))
 		return
 	}
 
@@ -192,17 +188,13 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	}
 	req.Name = strings.TrimSpace(req.Name)
 	if req.Name == "" {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				gatewayapi.FieldError{Field: "name", Message: "must not be blank"},
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			gatewayapi.FieldError{Field: "name", Message: "must not be blank"},
+		))
 		return
 	}
 
@@ -270,16 +262,12 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 			apiutil.WriteInternalError(w, r, fmt.Errorf("commit denied workspace create: %w", err))
 			return
 		}
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusForbidden,
-				"forbidden",
-				"Superadmin authority is required",
-				errors.New("workspace creation requires Superadmin authority"),
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusForbidden,
+			"forbidden",
+			"Superadmin authority is required",
+			errors.New("workspace creation requires Superadmin authority"),
+		))
 		return
 	}
 	selected := agentzv1alpha1.SelectedOrganizationResources{
@@ -320,17 +308,13 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 			apiutil.WriteInternalError(w, r, fmt.Errorf("commit failed workspace create event trail: %w", err))
 			return
 		}
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"selected Organisation resources are invalid",
-				errBadRequest,
-				fields...,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"selected Organisation resources are invalid",
+			errBadRequest,
+			fields...,
+		))
 		return
 	}
 
@@ -399,20 +383,16 @@ func (s *Service) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusUnprocessableEntity,
-				"invalid_request",
-				"one or more Workspace Admins are not eligible",
-				errors.New("workspace admin selection changed"),
-				gatewayapi.FieldError{
-					Field:   "admin_member_ids",
-					Message: "contains an ineligible member",
-				},
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusUnprocessableEntity,
+			"invalid_request",
+			"one or more Workspace Admins are not eligible",
+			errors.New("workspace admin selection changed"),
+			gatewayapi.FieldError{
+				Field:   "admin_member_ids",
+				Message: "contains an ineligible member",
+			},
+		))
 		return
 	}
 	projected, err := q.GatewayProjectMemberRoleTransports(
@@ -703,31 +683,23 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 		}
 		switch {
 		case !allowed:
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusForbidden,
-					"forbidden",
-					"Superadmin authority is required",
-					errors.New("workspace retry requires Superadmin authority"),
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusForbidden,
+				"forbidden",
+				"Superadmin authority is required",
+				errors.New("workspace retry requires Superadmin authority"),
+			))
 		case errors.Is(getErr, pgx.ErrNoRows):
 			apiutil.WriteError(w, r, workspaceNotFound(workspaceID))
 		case getErr != nil:
 			apiutil.WriteInternalError(w, r, fmt.Errorf("get workspace for retry: %w", getErr))
 		default:
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusConflict,
-					"conflict",
-					"only failed Workspace provisioning can be retried",
-					errors.New("workspace is not failed"),
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusConflict,
+				"conflict",
+				"only failed Workspace provisioning can be retried",
+				errors.New("workspace is not failed"),
+			))
 		}
 		return
 	}
@@ -746,16 +718,12 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 		return
 	}
 	if changed != 1 {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusConflict,
-				"conflict",
-				"Workspace provisioning state changed",
-				errors.New("workspace retry compare-and-set failed"),
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict,
+			"conflict",
+			"Workspace provisioning state changed",
+			errors.New("workspace retry compare-and-set failed"),
+		))
 		return
 	}
 	err = createWorkspaceEventTrail(
@@ -847,16 +815,12 @@ func (s *Service) RetryWorkspace(w http.ResponseWriter, r *http.Request, workspa
 func (s *Service) UpdateWorkspaceLifecycle(w http.ResponseWriter, r *http.Request, workspaceID gatewayapi.WorkspaceIDPath) {
 	auth, ok := requestAuthState(r.Context())
 	if !ok || auth.claims != nil || auth.tenantNamespace == "" {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusForbidden,
-				"forbidden",
-				"Workspace lifecycle is restricted to internal controllers",
-				errors.New("external caller cannot update workspace lifecycle"),
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusForbidden,
+			"forbidden",
+			"Workspace lifecycle is restricted to internal controllers",
+			errors.New("external caller cannot update workspace lifecycle"),
+		))
 		return
 	}
 	tenant, err := tenantObject(r.Context())
@@ -873,20 +837,16 @@ func (s *Service) UpdateWorkspaceLifecycle(w http.ResponseWriter, r *http.Reques
 	reason := pgtype.Text{}
 	if req.State == gatewayapi.UpdateWorkspaceLifecycleRequestStateFailed {
 		if req.FailureReason == nil || strings.TrimSpace(*req.FailureReason) == "" {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusBadRequest,
-					"invalid_request",
-					"failure_reason is required for a failed Workspace",
-					errBadRequest,
-					gatewayapi.FieldError{
-						Field:   "failure_reason",
-						Message: "is required when state is failed",
-					},
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"failure_reason is required for a failed Workspace",
+				errBadRequest,
+				gatewayapi.FieldError{
+					Field:   "failure_reason",
+					Message: "is required when state is failed",
+				},
+			))
 			return
 		}
 		state = gatewaydb.WorkspaceStateFailed
@@ -977,16 +937,12 @@ func (s *Service) UpdateWorkspaceLifecycle(w http.ResponseWriter, r *http.Reques
 			apiutil.WriteInternalError(w, r, fmt.Errorf("commit denied workspace lifecycle: %w", err))
 			return
 		}
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusConflict,
-				"conflict",
-				"Workspace provisioning attempt is stale",
-				errors.New("workspace lifecycle compare-and-set failed"),
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict,
+			"conflict",
+			"Workspace provisioning attempt is stale",
+			errors.New("workspace lifecycle compare-and-set failed"),
+		))
 		return
 	}
 	if previousErr != nil {

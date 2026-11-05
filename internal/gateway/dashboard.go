@@ -193,17 +193,13 @@ func (s *Service) CreateDashboard(w http.ResponseWriter, r *http.Request, agentN
 	}
 	err := validateDashboard(req, quota.WidgetsPerDashboard)
 	if err != nil {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusUnprocessableEntity,
-				"invalid_dashboard",
-				"dashboard definition is invalid",
-				err,
-				gatewayapi.FieldError{Field: "dashboard", Message: err.Error()},
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusUnprocessableEntity,
+			"invalid_dashboard",
+			"dashboard definition is invalid",
+			err,
+			gatewayapi.FieldError{Field: "dashboard", Message: err.Error()},
+		))
 		return
 	}
 
@@ -233,23 +229,19 @@ func (s *Service) CreateDashboard(w http.ResponseWriter, r *http.Request, agentN
 		return
 	}
 	if count >= int64(quota.DashboardsPerAgent) {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusTooManyRequests,
-				"dashboard_quota_exceeded",
-				"agent dashboard limit reached; delete a dashboard before retrying",
-				errBadRequest,
-				gatewayapi.FieldError{
-					Field: "name",
-					Message: fmt.Sprintf(
-						"agent may own at most %d dashboards",
-						quota.DashboardsPerAgent,
-					),
-				},
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusTooManyRequests,
+			"dashboard_quota_exceeded",
+			"agent dashboard limit reached; delete a dashboard before retrying",
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field: "name",
+				Message: fmt.Sprintf(
+					"agent may own at most %d dashboards",
+					quota.DashboardsPerAgent,
+				),
+			},
+		))
 		return
 	}
 
@@ -398,23 +390,19 @@ func (s *Service) PublishDashboardData(w http.ResponseWriter, r *http.Request, a
 		return
 	}
 	if len(req.Records) == 0 || len(req.Records) > int(quota.Publish.RecordsPerRequest) {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusUnprocessableEntity,
-				"invalid_dashboard_data",
-				"dashboard data is invalid",
-				errBadRequest,
-				gatewayapi.FieldError{
-					Field: "records",
-					Message: fmt.Sprintf(
-						"must contain between 1 and %d records",
-						quota.Publish.RecordsPerRequest,
-					),
-				},
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusUnprocessableEntity,
+			"invalid_dashboard_data",
+			"dashboard data is invalid",
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field: "records",
+				Message: fmt.Sprintf(
+					"must contain between 1 and %d records",
+					quota.Publish.RecordsPerRequest,
+				),
+			},
+		))
 		return
 	}
 
@@ -446,20 +434,16 @@ func (s *Service) PublishDashboardData(w http.ResponseWriter, r *http.Request, a
 		return
 	}
 	if widget.Revision != req.DataRevision {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusConflict,
-				"stale_dashboard_revision",
-				"widget definition changed; get the dashboard and retry with its current data_revision",
-				errBadRequest,
-				gatewayapi.FieldError{
-					Field:   "data_revision",
-					Message: "does not match the current widget revision",
-				},
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict,
+			"stale_dashboard_revision",
+			"widget definition changed; get the dashboard and retry with its current data_revision",
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field:   "data_revision",
+				Message: "does not match the current widget revision",
+			},
+		))
 		return
 	}
 	var definition gatewayapi.DashboardWidgetDefinition
@@ -470,17 +454,13 @@ func (s *Service) PublishDashboardData(w http.ResponseWriter, r *http.Request, a
 	}
 	err = validateDashboardRecords(definition, req.Records, receivedAt)
 	if err != nil {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusUnprocessableEntity,
-				"invalid_dashboard_data",
-				"dashboard data does not match the widget definition",
-				err,
-				gatewayapi.FieldError{Field: "records", Message: err.Error()},
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusUnprocessableEntity,
+			"invalid_dashboard_data",
+			"dashboard data does not match the widget definition",
+			err,
+			gatewayapi.FieldError{Field: "records", Message: err.Error()},
+		))
 		return
 	}
 
@@ -494,20 +474,16 @@ func (s *Service) PublishDashboardData(w http.ResponseWriter, r *http.Request, a
 	)
 	if replayErr == nil {
 		if !bytes.Equal(replay.RequestHash, hash[:]) {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusConflict,
-					"idempotency_conflict",
-					"idempotency key was already used with different data",
-					errBadRequest,
-					gatewayapi.FieldError{
-						Field:   "Idempotency-Key",
-						Message: "must be unique for a different request body",
-					},
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusConflict,
+				"idempotency_conflict",
+				"idempotency key was already used with different data",
+				errBadRequest,
+				gatewayapi.FieldError{
+					Field:   "Idempotency-Key",
+					Message: "must be unique for a different request body",
+				},
+			))
 			return
 		}
 		apiutil.WriteJSON(w, http.StatusOK, gatewayapi.PublishDashboardDataResponse{
@@ -746,24 +722,20 @@ func writeDashboardQuotaError(w http.ResponseWriter, r *http.Request, limit *das
 		seconds := max(int64(limit.retryAfter.Round(time.Second)/time.Second), 1)
 		w.Header().Set("Retry-After", fmt.Sprintf("%d", seconds))
 	}
-	apiutil.WriteError(
-		w,
-		r,
-		apiutil.NewError(
-			http.StatusTooManyRequests,
-			"dashboard_quota_exceeded",
-			limit.message,
-			limit,
-			gatewayapi.FieldError{
-				Field: limit.field,
-				Message: fmt.Sprintf(
-					"this request adds %d; the configured maximum is %d",
-					limit.attempted,
-					limit.limit,
-				),
-			},
-		),
-	)
+	apiutil.WriteError(w, r, apiutil.NewError(
+		http.StatusTooManyRequests,
+		"dashboard_quota_exceeded",
+		limit.message,
+		limit,
+		gatewayapi.FieldError{
+			Field: limit.field,
+			Message: fmt.Sprintf(
+				"this request adds %d; the configured maximum is %d",
+				limit.attempted,
+				limit.limit,
+			),
+		},
+	))
 }
 
 func writeDashboardQueryReservationError(w http.ResponseWriter, r *http.Request, err error) {
@@ -871,20 +843,16 @@ func (s *Service) QueryDashboard(w http.ResponseWriter, r *http.Request, agentNa
 		return
 	}
 	if !req.To.After(req.From) || req.To.Sub(req.From) > dashboardRetention {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusUnprocessableEntity,
-				"invalid_time_range",
-				"dashboard time range is invalid",
-				errBadRequest,
-				gatewayapi.FieldError{
-					Field:   "to",
-					Message: "must be after from and no more than 30 days later",
-				},
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusUnprocessableEntity,
+			"invalid_time_range",
+			"dashboard time range is invalid",
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field:   "to",
+				Message: "must be after from and no more than 30 days later",
+			},
+		))
 		return
 	}
 	maxPoints := int32(240)
@@ -892,23 +860,19 @@ func (s *Service) QueryDashboard(w http.ResponseWriter, r *http.Request, agentNa
 		maxPoints = *req.MaxPoints
 	}
 	if maxPoints < 1 || maxPoints > quota.Query.PointsPerSeries {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusUnprocessableEntity,
-				"invalid_max_points",
-				"max_points is outside the configured limit",
-				errBadRequest,
-				gatewayapi.FieldError{
-					Field: "max_points",
-					Message: fmt.Sprintf(
-						"must be between 1 and %d",
-						quota.Query.PointsPerSeries,
-					),
-				},
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusUnprocessableEntity,
+			"invalid_max_points",
+			"max_points is outside the configured limit",
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field: "max_points",
+				Message: fmt.Sprintf(
+					"must be between 1 and %d",
+					quota.Query.PointsPerSeries,
+				),
+			},
+		))
 		return
 	}
 
@@ -941,20 +905,16 @@ func (s *Service) QueryDashboard(w http.ResponseWriter, r *http.Request, agentNa
 		})
 	}
 	if req.Widgets != nil && len(widgets) != len(*req.Widgets) {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusNotFound,
-				"widget_not_found",
-				"one or more requested widgets do not exist",
-				errBadRequest,
-				gatewayapi.FieldError{
-					Field:   "widgets",
-					Message: "must contain only widget names from this dashboard",
-				},
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusNotFound,
+			"widget_not_found",
+			"one or more requested widgets do not exist",
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field:   "widgets",
+				Message: "must contain only widget names from this dashboard",
+			},
+		))
 		return
 	}
 
@@ -1265,45 +1225,37 @@ func (s *Service) QueryDashboard(w http.ResponseWriter, r *http.Request, agentNa
 		return
 	}
 	if int64(len(raw)) > quota.Query.ResponseBytes.Value() {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusTooManyRequests,
-				"dashboard_response_limit_exceeded",
-				"query response exceeds the byte limit; request fewer widgets or points",
-				errBadRequest,
-				gatewayapi.FieldError{
-					Field: "spec.dashboardQuota.query.responseBytes",
-					Message: fmt.Sprintf(
-						"response is %d bytes; the configured maximum is %d",
-						len(raw),
-						quota.Query.ResponseBytes.Value(),
-					),
-				},
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusTooManyRequests,
+			"dashboard_response_limit_exceeded",
+			"query response exceeds the byte limit; request fewer widgets or points",
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field: "spec.dashboardQuota.query.responseBytes",
+				Message: fmt.Sprintf(
+					"response is %d bytes; the configured maximum is %d",
+					len(raw),
+					quota.Query.ResponseBytes.Value(),
+				),
+			},
+		))
 		return
 	}
 	if returnedCells > int64(quota.Query.CellsPerRequest) {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusTooManyRequests,
-				"dashboard_query_limit_exceeded",
-				"query returned too many cells; request fewer widgets or points",
-				errBadRequest,
-				gatewayapi.FieldError{
-					Field: "max_points",
-					Message: fmt.Sprintf(
-						"returned %d cells; the configured maximum is %d",
-						returnedCells,
-						quota.Query.CellsPerRequest,
-					),
-				},
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusTooManyRequests,
+			"dashboard_query_limit_exceeded",
+			"query returned too many cells; request fewer widgets or points",
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field: "max_points",
+				Message: fmt.Sprintf(
+					"returned %d cells; the configured maximum is %d",
+					returnedCells,
+					quota.Query.CellsPerRequest,
+				),
+			},
+		))
 		return
 	}
 	cellLimit := s.reserveDashboardCells(r.Context(), auth, quota, returnedCells)
@@ -1340,20 +1292,16 @@ func (s *Service) ListDashboardTableRows(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	if definition.Kind != gatewayapi.Table {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusUnprocessableEntity,
-				"invalid_widget_kind",
-				"row pagination is only available for table widgets",
-				errBadRequest,
-				gatewayapi.FieldError{
-					Field:   "widget_name",
-					Message: "must identify a table widget",
-				},
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusUnprocessableEntity,
+			"invalid_widget_kind",
+			"row pagination is only available for table widgets",
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field:   "widget_name",
+				Message: "must identify a table widget",
+			},
+		))
 		return
 	}
 
@@ -1366,20 +1314,16 @@ func (s *Service) ListDashboardTableRows(w http.ResponseWriter, r *http.Request,
 		to = *params.EventTimeBefore
 	}
 	if !to.After(from) || to.Sub(from) > dashboardRetention {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusUnprocessableEntity,
-				"invalid_time_range",
-				"dashboard table time range is invalid",
-				errBadRequest,
-				gatewayapi.FieldError{
-					Field:   "event_time_before",
-					Message: "must be after event_time_after and no more than 30 days later",
-				},
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusUnprocessableEntity,
+			"invalid_time_range",
+			"dashboard table time range is invalid",
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field:   "event_time_before",
+				Message: "must be after event_time_after and no more than 30 days later",
+			},
+		))
 		return
 	}
 	offset, valid := decodeOffsetPageToken(w, r, params.PageToken)
@@ -1395,39 +1339,31 @@ func (s *Service) ListDashboardTableRows(w http.ResponseWriter, r *http.Request,
 	var sortDatetime [3]bool
 	if params.Sort != nil {
 		if len(*params.Sort) > len(sortIndices) {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusUnprocessableEntity,
-					"invalid_sort",
-					"at most three sort columns are allowed",
-					errBadRequest,
-					gatewayapi.FieldError{
-						Field:   "sort",
-						Message: "must contain at most three entries",
-					},
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusUnprocessableEntity,
+				"invalid_sort",
+				"at most three sort columns are allowed",
+				errBadRequest,
+				gatewayapi.FieldError{
+					Field:   "sort",
+					Message: "must contain at most three entries",
+				},
+			))
 			return
 		}
 		for i, item := range *params.Sort {
 			name, direction, found := strings.Cut(item, ":")
 			if !found || (direction != "asc" && direction != "desc") {
-				apiutil.WriteError(
-					w,
-					r,
-					apiutil.NewError(
-						http.StatusUnprocessableEntity,
-						"invalid_sort",
-						"sort entry is invalid",
-						errBadRequest,
-						gatewayapi.FieldError{
-							Field:   fmt.Sprintf("sort[%d]", i),
-							Message: "must use column:asc or column:desc",
-						},
-					),
-				)
+				apiutil.WriteError(w, r, apiutil.NewError(
+					http.StatusUnprocessableEntity,
+					"invalid_sort",
+					"sort entry is invalid",
+					errBadRequest,
+					gatewayapi.FieldError{
+						Field:   fmt.Sprintf("sort[%d]", i),
+						Message: "must use column:asc or column:desc",
+					},
+				))
 				return
 			}
 			column := slices.IndexFunc(
@@ -1437,23 +1373,19 @@ func (s *Service) ListDashboardTableRows(w http.ResponseWriter, r *http.Request,
 				},
 			)
 			if column < 0 {
-				apiutil.WriteError(
-					w,
-					r,
-					apiutil.NewError(
-						http.StatusUnprocessableEntity,
-						"invalid_sort",
-						"sort column is not available",
-						errBadRequest,
-						gatewayapi.FieldError{
-							Field: fmt.Sprintf("sort[%d]", i),
-							Message: fmt.Sprintf(
-								"column %q does not exist or is not sortable",
-								name,
-							),
-						},
-					),
-				)
+				apiutil.WriteError(w, r, apiutil.NewError(
+					http.StatusUnprocessableEntity,
+					"invalid_sort",
+					"sort column is not available",
+					errBadRequest,
+					gatewayapi.FieldError{
+						Field: fmt.Sprintf("sort[%d]", i),
+						Message: fmt.Sprintf(
+							"column %q does not exist or is not sortable",
+							name,
+						),
+					},
+				))
 				return
 			}
 			sortIndices[i] = pgtype.Int4{Int32: int32(column), Valid: true}
@@ -1549,46 +1481,38 @@ func (s *Service) ListDashboardTableRows(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	if int64(len(raw)) > quota.Query.ResponseBytes.Value() {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusTooManyRequests,
-				"dashboard_response_limit_exceeded",
-				"table response exceeds the byte limit; narrow the selected time range",
-				errBadRequest,
-				gatewayapi.FieldError{
-					Field: "spec.dashboardQuota.query.responseBytes",
-					Message: fmt.Sprintf(
-						"response is %d bytes; the configured maximum is %d",
-						len(raw),
-						quota.Query.ResponseBytes.Value(),
-					),
-				},
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusTooManyRequests,
+			"dashboard_response_limit_exceeded",
+			"table response exceeds the byte limit; narrow the selected time range",
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field: "spec.dashboardQuota.query.responseBytes",
+				Message: fmt.Sprintf(
+					"response is %d bytes; the configured maximum is %d",
+					len(raw),
+					quota.Query.ResponseBytes.Value(),
+				),
+			},
+		))
 		return
 	}
 	returnedCells := int64(len(result) * len(definition.Columns))
 	if returnedCells > int64(quota.Query.CellsPerRequest) {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusTooManyRequests,
-				"dashboard_query_limit_exceeded",
-				"table page returned too many cells; narrow the selected time range",
-				errBadRequest,
-				gatewayapi.FieldError{
-					Field: "page_token",
-					Message: fmt.Sprintf(
-						"returned %d cells; the configured maximum is %d",
-						returnedCells,
-						quota.Query.CellsPerRequest,
-					),
-				},
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusTooManyRequests,
+			"dashboard_query_limit_exceeded",
+			"table page returned too many cells; narrow the selected time range",
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field: "page_token",
+				Message: fmt.Sprintf(
+					"returned %d cells; the configured maximum is %d",
+					returnedCells,
+					quota.Query.CellsPerRequest,
+				),
+			},
+		))
 		return
 	}
 	cellLimit := s.reserveDashboardCells(r.Context(), auth, quota, returnedCells)

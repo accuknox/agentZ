@@ -1,3 +1,4 @@
+import { RequestError } from "@/components/request-error"
 import { RememberRoute } from "@/data/route-memory"
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
@@ -42,6 +43,8 @@ async function DashboardContent({
 }: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/dashboards">) {
   const route = await params
   const scope = await getWorkspaceScope(route.orgSlug, route.workspaceSlug)
+  if (scope.kind === "error")
+    return <RequestError title="Could not load this workspace" error={scope.error} />
   if (scope.kind !== "ready" || scope.workspace.type === "coding") notFound()
   const parsed = searchSchema.safeParse(await searchParams)
   const search = parsed.success ? parsed.data : {}
@@ -103,7 +106,7 @@ async function DashboardContent({
 }
 
 async function DashboardData(
-  props: Omit<ComponentProps<typeof DashboardView>, "initialData" | "maxPoints">
+  props: Omit<ComponentProps<typeof DashboardView>, "initialData" | "initialError" | "maxPoints">
 ) {
   const scatterCount = props.dashboard.widgets.filter((widget) => widget.kind === "scatter").length
   const maxPoints = Math.min(240, Math.max(60, Math.floor(1440 / Math.max(scatterCount, 1))))
@@ -127,7 +130,8 @@ async function DashboardData(
           props.to,
         ])}
         {...props}
-        initialData={initialData}
+        initialData={initialData.data}
+        initialError={initialData.error}
         maxPoints={maxPoints}
       />
     </>

@@ -1,12 +1,12 @@
 "use client"
 
+import { AgentIcon } from "@/components/agent-readiness"
 import Link from "next/link"
 import { useParams, useSearchParams } from "next/navigation"
 import { queryOptions, useQuery } from "@tanstack/react-query"
 import {
   ArrowUpRight,
   Box,
-  Bot,
   ChevronRight,
   Layers3,
   Regex,
@@ -284,7 +284,14 @@ export function GuardrailEventDetail({
               {investigation.isPending ? (
                 <Skeleton className="size-4 shrink-0" />
               ) : agentName ? (
-                <Bot aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+                <AgentIcon
+                  name={agentName}
+                  workspaceId={
+                    captured?.source?.workspace_id ||
+                    event.trace_source?.workspace_id ||
+                    event.workspace_id
+                  }
+                />
               ) : null}
               {investigation.isPending ? (
                 <Skeleton className="h-4 w-24" />

@@ -22,6 +22,7 @@ type Querier interface {
 	RunEvaluationSave(ctx context.Context, arg RunEvaluationSaveParams) (int64, error)
 	RunEvaluationStopped(ctx context.Context, id uuid.UUID) (RunEvaluationStoppedRow, error)
 	RunEvaluationView(ctx context.Context, arg RunEvaluationViewParams) (RunEvaluationViewRow, error)
+	WorkflowClearNodes(ctx context.Context, arg WorkflowClearNodesParams) error
 	WorkflowCreate(ctx context.Context, arg WorkflowCreateParams) (Workflow, error)
 	WorkflowCreateEdges(ctx context.Context, arg WorkflowCreateEdgesParams) error
 	WorkflowCreateNodes(ctx context.Context, arg WorkflowCreateNodesParams) error

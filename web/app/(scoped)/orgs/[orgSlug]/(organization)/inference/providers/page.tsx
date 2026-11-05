@@ -1,3 +1,4 @@
+import { RequestError } from "@/components/request-error"
 import { RememberRoute } from "@/data/route-memory"
 import { searchParamStringSchema } from "@/lib/search-params"
 import { Suspense } from "react"
@@ -28,7 +29,9 @@ async function OrganizationInferenceProvidersContent({
   const scope = await resolveOrganizationSlug(orgSlug)
   if (scope.kind !== "ready") return <AdministrationState kind="forbidden" />
   await activateOrganization(scope.organization.id)
-  const tenant = await ensureTenant({ client: getGatewayServerClient(), throwOnError: true })
+  const tenant = await ensureTenant({ client: getGatewayServerClient() })
+  if (tenant.error)
+    return <RequestError title="Could not load model providers" error={tenant.error} />
   if (!tenant.data?.inference_provider_capabilities.read)
     return <AdministrationState kind="forbidden" />
   return (

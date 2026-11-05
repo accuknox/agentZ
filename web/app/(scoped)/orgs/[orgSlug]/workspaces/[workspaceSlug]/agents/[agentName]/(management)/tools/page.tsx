@@ -1,3 +1,4 @@
+import { RequestError } from "@/components/request-error"
 import { RememberRoute, missingRoute } from "@/data/route-memory"
 import { Suspense } from "react"
 import { AdministrationLoadingState, AdministrationState } from "@/components/administration"
@@ -25,6 +26,8 @@ async function AgentToolsContent({
 }: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/agents/[agentName]/tools">) {
   const { orgSlug, workspaceSlug, agentName } = await params
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
+  if (scope.kind === "error")
+    return <RequestError title="Could not load this workspace" error={scope.error} />
   if (scope.kind !== "ready") return missingRoute()
 
   const result = await listAgentTools({

@@ -121,6 +121,7 @@ function accessGraph(
       const agentNode = addNode(`agent:${source.workspaceId}:${source.agent}`, {
         detail: source.scope,
         kind: "agent",
+        workspaceId: source.workspaceId,
         label: source.agent,
         sourceIds: [source.id],
       })
@@ -145,6 +146,7 @@ function accessGraph(
     const agentNode = addNode(`agent:${source.workspaceId}:${source.agent}`, {
       detail: source.scope,
       kind: "agent",
+      workspaceId: source.workspaceId,
       label: source.agent,
       sourceIds: [source.id],
     })

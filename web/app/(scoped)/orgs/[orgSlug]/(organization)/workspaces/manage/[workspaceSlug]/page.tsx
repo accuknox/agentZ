@@ -1,3 +1,4 @@
+import { RequestError } from "@/components/request-error"
 import { RememberRoute, missingRoute } from "@/data/route-memory"
 import { Suspense } from "react"
 import { deleteWorkspaceAction } from "@/app/(scoped)/orgs/actions"
@@ -24,6 +25,8 @@ async function ManageWorkspaceContent({
 }: PageProps<"/orgs/[orgSlug]/workspaces/manage/[workspaceSlug]">) {
   const { orgSlug, workspaceSlug } = await params
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
+  if (scope.kind === "error")
+    return <RequestError title="Could not load this workspace" error={scope.error} />
   if (scope.scope.kind !== "ready" || !scope.scope.organization.superadmin) {
     return <AdministrationState kind="forbidden" />
   }

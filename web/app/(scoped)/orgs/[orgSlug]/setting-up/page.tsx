@@ -7,6 +7,7 @@ import { activateOrganization, resolveOrganizationSlug } from "@/data/organizati
 import { ensureTenant } from "@/lib/gateway/client"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { signInURL } from "@/lib/sign-in-redirect"
+import { RequestError } from "@/components/request-error"
 
 export const metadata: Metadata = {
   title: "Setting up",
@@ -42,11 +43,9 @@ async function OrganizationProvisioning({ params }: { params: Promise<{ orgSlug:
   await activateOrganization(scope.organization.id)
   const tenant = await ensureTenant({
     client: getGatewayServerClient(),
-    throwOnError: true,
   })
-  if (!tenant.data) {
-    throw new Error("gateway returned no organisation provisioning state")
-  }
+  if (tenant.error)
+    return <RequestError title="Could not check organization setup" error={tenant.error} />
   if (tenant.data.ready) {
     redirect(`/orgs/${scope.organization.slug}` as Route)
   }

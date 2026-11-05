@@ -26,7 +26,15 @@ type EventTrailOptions = Parameters<typeof listEventTrailEvents>[0]
 export const eventTrailQuerySchema = z.object({
   filters: z
     .string()
-    .transform((value) => z.array(zEventTrailFilter).parse(JSON.parse(value)))
+    .transform((value, ctx) => {
+      try {
+        return JSON.parse(value)
+      } catch {
+        ctx.issues.push({ code: "custom", input: value, message: "Invalid event filters" })
+        return z.NEVER
+      }
+    })
+    .pipe(z.array(zEventTrailFilter))
     .optional()
     .default(() => {
       const now = dayjs()
@@ -69,18 +77,17 @@ async function loadEventTrail(
     }),
   ])
   if (page.error) {
-    throw new Error(page.error.message)
-  }
-  if (chart.error) {
-    throw new Error(chart.error.message)
+    return { error: page.error }
   }
 
   return {
     actorImages: await getEventTrailActorImages(
       page.data.filter_options.actors.flatMap((actor) => (actor.id ? [actor.id] : []))
     ),
-    chart: eventTrailChart(chart.data.events),
+    chart: chart.data ? eventTrailChart(chart.data.events) : undefined,
+    chartError: chart.error,
     eventTrail: page.data,
+    error: undefined,
   }
 }
 

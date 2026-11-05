@@ -1,3 +1,4 @@
+import { RequestError } from "@/components/request-error"
 import { RememberRoute } from "@/data/route-memory"
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
@@ -32,6 +33,8 @@ async function Content({
 }: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/workflows/evaluations">) {
   const [route, search] = await Promise.all([params, searchParams])
   const scope = await getWorkspaceScope(route.orgSlug, route.workspaceSlug)
+  if (scope.kind === "error")
+    return <RequestError title="Could not load this workspace" error={scope.error} />
   if (scope.kind !== "ready" || scope.workspace.type === "coding") notFound()
   const state = await resolvePageSelection(
     scope,
@@ -43,7 +46,11 @@ async function Content({
     return (
       <>
         <RememberPageSelection {...state} />
-        <AdministrationState kind="failed" description={error.message} />
+        <AdministrationState
+          kind="failed"
+          title="Could not load evaluations"
+          description={error.message}
+        />
       </>
     )
   return (

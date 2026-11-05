@@ -15,6 +15,9 @@ VALUES (
   sqlc.arg(summary),
   sqlc.narg(input_schema)::jsonb
 )
+ON CONFLICT (tenant_namespace, agent_name, workflow_name) DO UPDATE SET
+ title=EXCLUDED.title, summary=EXCLUDED.summary, input_schema=EXCLUDED.input_schema, updated_at=now()
+WHERE @replace_existing::boolean
 RETURNING
   tenant_namespace,
   agent_name,
@@ -301,3 +304,6 @@ FROM workflow_run_evaluations WHERE id=$1;
 -- name: RunEvaluationRetryJudge :execrows
 UPDATE workflow_run_evaluations SET result=$5, state='queued', lease_until=now(), updated_at=now()
 WHERE id=$1 AND tenant_namespace=$2 AND agent_name=$3 AND workflow_name=$4 AND state='completed' AND updated_at=$6 AND NOT delete_requested;
+
+-- name: WorkflowClearNodes :exec
+DELETE FROM workflow_nodes WHERE tenant_namespace= @tenant_namespace AND agent_name= @agent_name AND workflow_name= @workflow_name;

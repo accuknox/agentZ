@@ -128,6 +128,9 @@ import type {
   DeleteWorkflowsData,
   DeleteWorkflowsErrors,
   DeleteWorkflowsResponses,
+  DeliverWorkflowSessionData,
+  DeliverWorkflowSessionErrors,
+  DeliverWorkflowSessionResponses,
   DiscoverGuardrailConnectionResourcesData,
   DiscoverGuardrailConnectionResourcesErrors,
   DiscoverGuardrailConnectionResourcesResponses,
@@ -278,6 +281,9 @@ import type {
   ListAppTracesData,
   ListAppTracesErrors,
   ListAppTracesResponses,
+  ListChatBackgroundData,
+  ListChatBackgroundErrors,
+  ListChatBackgroundResponses,
   ListChatInputsData,
   ListChatInputsErrors,
   ListChatInputsResponses,
@@ -482,9 +488,12 @@ import type {
   UpdateChatInputData,
   UpdateChatInputErrors,
   UpdateChatInputResponses,
+  UpdateChatSessionData,
+  UpdateChatSessionErrors,
   UpdateChatSessionPreferenceData,
   UpdateChatSessionPreferenceErrors,
   UpdateChatSessionPreferenceResponses,
+  UpdateChatSessionResponses,
   UpdateCodingProjectPreferenceData,
   UpdateCodingProjectPreferenceErrors,
   UpdateCodingProjectPreferenceResponses,
@@ -967,6 +976,45 @@ export const listChatSessions = <ThrowOnError extends boolean = false>(
   })
 
 /**
+ * Read conversation background activity.
+ */
+export const listChatBackground = <ThrowOnError extends boolean = false>(
+  options: Options<ListChatBackgroundData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListChatBackgroundResponses,
+    ListChatBackgroundErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/chat-session/{agentName}/{sessionId}/background",
+    ...options,
+  })
+
+/**
+ * Move a session between inbox shelves.
+ *
+ * Active sessions can be snoozed or archived. Snoozed sessions can be woken or archived. Archived sessions must be unarchived before snoozing. Repeating an identical update succeeds without changing activity times.
+ *
+ */
+export const updateChatSession = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateChatSessionData, ThrowOnError>
+) =>
+  (options.client ?? client).patch<
+    UpdateChatSessionResponses,
+    UpdateChatSessionErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/chat-session/{agentName}/{sessionId}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
  * Watch the current Workspace chat inbox.
  *
  * Emits a compact invalidation event when the Workspace inbox changes.
@@ -1013,7 +1061,7 @@ export const submitChatInput = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Remove or retry your queued message.
+ * Edit, steer, remove, or retry your queued message.
  */
 export const updateChatInput = <ThrowOnError extends boolean = false>(
   options: Options<UpdateChatInputData, ThrowOnError>
@@ -3099,6 +3147,22 @@ export const getWorkflowRun = <ThrowOnError extends boolean = false>(
   (options.client ?? client).get<GetWorkflowRunResponses, GetWorkflowRunErrors, ThrowOnError>({
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/workflow/{agentName}/{workflowName}/run/{runName}",
+    ...options,
+  })
+
+/**
+ * Deliver a completed workflow's OpenCode session reference.
+ */
+export const deliverWorkflowSession = <ThrowOnError extends boolean = false>(
+  options: Options<DeliverWorkflowSessionData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    DeliverWorkflowSessionResponses,
+    DeliverWorkflowSessionErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workflow/{agentName}/{workflowName}/run/{runName}/session/deliver",
     ...options,
   })
 

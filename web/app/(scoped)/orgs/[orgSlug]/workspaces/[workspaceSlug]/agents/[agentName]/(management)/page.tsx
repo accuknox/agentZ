@@ -1,3 +1,4 @@
+import { RequestError } from "@/components/request-error"
 import { RememberRoute, missingRoute } from "@/data/route-memory"
 import { AdministrationLoadingState } from "@/components/administration"
 import { Suspense } from "react"
@@ -31,11 +32,16 @@ async function WorkspaceAgentContent({
 }: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/agents/[agentName]">) {
   const { orgSlug, workspaceSlug, agentName } = await params
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
+  if (scope.kind === "error")
+    return <RequestError title="Could not load this workspace" error={scope.error} />
   if (scope.kind !== "ready") {
     return missingRoute()
   }
 
-  const detail = await getWorkspaceAgentDetail(scope.workspace.id, agentName)
+  const result = await getWorkspaceAgentDetail(scope.workspace.id, agentName)
+  if (result?.error)
+    return <RequestError title="Could not load agent details" error={result.error} />
+  const detail = result?.data
   if (!detail) {
     return missingRoute()
   }

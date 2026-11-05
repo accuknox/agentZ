@@ -142,8 +142,3 @@ export function formatDurationSeconds(durationSeconds: number) {
 
   return `${seconds}s`
 }
-
-/** formatDateParam keeps route date params aligned with the shared parser. */
-export function formatDateParam(date: Date) {
-  return dayjs(date).format("YYYY-MM-DD")
-}

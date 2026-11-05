@@ -16,7 +16,12 @@ import {
   unique,
   uniqueIndex,
 } from "drizzle-orm/pg-core"
-import type { DelegationCatalog, EventTrailField, ResourceReference } from "@/lib/gateway/client"
+import type {
+  ChatInputRequest,
+  DelegationCatalog,
+  EventTrailField,
+  ResourceReference,
+} from "@/lib/gateway/client"
 import { dayjs } from "@/lib/format"
 import {
   oauthClients,
@@ -197,6 +202,12 @@ export const userPreferences = pgTable("user_preferences", {
   theme: themePreference("theme").default("system").notNull(),
   updateSandbox: boolean("update_sandbox").default(false).notNull(),
   showTourButton: boolean("show_tour_button").default(true).notNull(),
+  hideLeftNavScrollbar: boolean("hide_left_nav_scrollbar").default(false).notNull(),
+  followUpBehavior: text("follow_up_behavior")
+    .$type<ChatInputRequest["delivery"]>()
+    .default("steer")
+    .notNull(),
+  showReasoningAndTools: boolean("show_reasoning_and_tools").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()

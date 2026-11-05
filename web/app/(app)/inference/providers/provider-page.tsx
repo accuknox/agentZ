@@ -1,7 +1,6 @@
+import { RequestError } from "@/components/request-error"
 import { Suspense } from "react"
-import { CircleAlert } from "lucide-react"
 import { AdministrationPageHeader, type AdministrationPageScope } from "@/components/administration"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { listInferenceProvidersPageCachedQuery } from "@/data/inference-provider.queries"
 import { NewInferenceProviderButton } from "./new-provider-button"
@@ -49,7 +48,7 @@ async function Providers({
     scope.workspaceId
   )
   if (result.error) {
-    return <ErrorPanel message={result.error.message} />
+    return <RequestError title="Could not load model providers" error={result.error} />
   }
   return (
     <InferenceProviderTable
@@ -86,15 +85,5 @@ function TableSkeleton() {
         ))}
       </div>
     </div>
-  )
-}
-
-function ErrorPanel({ message }: { message: string }) {
-  return (
-    <Alert className="px-4 md:px-6" variant="destructive">
-      <CircleAlert aria-hidden="true" />
-      <AlertTitle>Could not load inference providers</AlertTitle>
-      <AlertDescription>{message}</AlertDescription>
-    </Alert>
   )
 }

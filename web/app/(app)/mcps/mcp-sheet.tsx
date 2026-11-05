@@ -1156,7 +1156,6 @@ export function McpSheet({
           }
           event.preventDefault()
         }}
-        showCloseButton={oauthPopupFlowId === undefined}
       >
         <SheetHeader>
           <SheetTitle>{title}</SheetTitle>

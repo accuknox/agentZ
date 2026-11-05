@@ -613,7 +613,10 @@ func (s *Service) ReauthenticateMCPConnection(w http.ResponseWriter, r *http.Req
 	}
 	previous := conn.DeepCopy()
 	path := internalmcp.SecretPath(conn.Namespace, conn.Name) + "/" + uuid.NewString()
-	ref := &agentzv1alpha1.MCPConnectionSecretRef{Path: path, Key: internalmcp.SecretRecordKey}
+	ref := &agentzv1alpha1.MCPConnectionSecretRef{
+		Path: path,
+		Key:  internalmcp.SecretRecordKey,
+	}
 	if conn.Spec.Auth.Bearer != nil {
 		conn.Spec.Auth.Bearer.SecretRef = ref
 	}

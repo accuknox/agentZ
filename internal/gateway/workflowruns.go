@@ -876,7 +876,10 @@ func (s *Service) enqueueWorkflowSession(ctx context.Context, access resourceAcc
 	if err != nil {
 		return fmt.Errorf("render workflow result: %w", err)
 	}
-	content, err := json.Marshal(gatewayapi.ChatInputContent{Text: text.String(), Attachments: []gatewayapi.ChatAttachment{}})
+	content, err := json.Marshal(gatewayapi.ChatInputContent{
+		Text:        text.String(),
+		Attachments: []gatewayapi.ChatAttachment{},
+	})
 	if err != nil {
 		return err
 	}

@@ -1711,6 +1711,9 @@ components:
         created_at:
           format: date-time
           type: string
+        has_workflow_schedule_subscription:
+          description: Whether a workflow schedule delivers results to this thread, including paused schedules.
+          type: boolean
         kind:
           $ref: '#/components/schemas/ChatSessionKind'
         participants:
@@ -1736,6 +1739,7 @@ components:
           format: date-time
           type: string
       required:
+      - has_workflow_schedule_subscription
       - archived
       - agent_name
       - session_id

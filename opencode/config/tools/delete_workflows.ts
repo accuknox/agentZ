@@ -28,12 +28,15 @@ const description = `
 Delete one or more workflows.
 
 Guidelines:
+
 - If the user explicitly asked to delete the workflows, set confirmed to true.
 - If deletion is only inferred from cleanup, replacement, or reorganization intent, leave confirmed as false so the tool surfaces a confirmation prompt first.
 - Deletion is strict. If any named workflow does not exist, the entire call fails and nothing is deleted.
 
 Example:
+
 The user says "delete the repo-triage and incident-intake workflows". Call delete_workflows tool with:
+
 - workflow_names: ["repo-triage", "incident-intake"]
 - confirmed: true
 `.trim()

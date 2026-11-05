@@ -275,7 +275,11 @@ func (s *Service) serveGuardrailEvents(w http.ResponseWriter, r *http.Request, p
 	if len(rows) > limit {
 		rows = rows[:limit]
 		last := rows[len(rows)-1]
-		nextCursor := guardrailEventPageCursor{Filters: filters, At: last.ObserverGuardrailEvent.OccurredAt, ID: last.ObserverGuardrailEvent.ID}
+		nextCursor := guardrailEventPageCursor{
+			Filters: filters,
+			At:      last.ObserverGuardrailEvent.OccurredAt,
+			ID:      last.ObserverGuardrailEvent.ID,
+		}
 		result.NextCursor = new(encodeCursorPageToken(nextCursor))
 	}
 	for _, row := range rows {

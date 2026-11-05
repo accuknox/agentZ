@@ -213,6 +213,8 @@ func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]by
 	}
 	if !general {
 		agent.Permission["skill"]["workflow-creator"] = "deny"
+		agent.Permission["skill"]["workflow-scheduler"] = "deny"
+		agent.Permission["skill"]["workflow-results"] = "deny"
 		agent.Permission["skill"]["dashboard-creator"] = "deny"
 	}
 	cfg := opencodeConfigFile{

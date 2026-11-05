@@ -98,51 +98,52 @@ func (s *Service) guardChat(r *http.Request, access resourceAccess, route *openc
 		_, _, err := s.authorizeChat(r.Context(), access, agent, session)
 		return nil, err
 	}
-	if route.ID == "session.create" {
-		var body gatewayapi.SessionCreateJSONBody
-		if err := apiutil.DecodeJSONBody(r, &body, true); err != nil {
-			return release, err
-		}
-		if body.ParentID != nil {
-			release, err = s.lockChatInputs(r.Context(), access.workspaceID, agent, *body.ParentID, "")
-			if err != nil {
-				return release, err
-			}
-			root, eligible, err := s.authorizeChat(r.Context(), access, agent, *body.ParentID)
-			if err != nil {
-				return release, err
-			}
-			auth, _ := requestAuthState(r.Context())
-			if eligible && auth.actorType == requestActorSystem {
-				var binding workflowSessionBinding
-				raw, err := json.Marshal(body.Metadata)
-				if err != nil {
-					return release, err
-				}
-				if err := json.Unmarshal(raw, &binding); err != nil {
-					return release, err
-				}
-				run := &agentzv1alpha1.WorkflowRun{}
-				key := ctrlclient.ObjectKey{Namespace: access.namespace, Name: binding.Name}
-				err = s.k8sClient.Get(r.Context(), key, run)
-				if err != nil {
-					return release, err
-				}
-				bound := run.Spec.Delivery != nil && run.Spec.Delivery.SessionID == root.SessionID
-				current := !run.Status.Phase.Terminal() && run.DeletionTimestamp.IsZero()
-				if string(run.UID) != binding.UID || run.Spec.AgentName != agent || !bound || !current {
-					return release, pgx.ErrNoRows
-				}
-				err = s.authorizeWorkflowDelivery(r.Context(), access, agent, run.Spec.Delivery)
-				if err != nil {
-					return release, err
-				}
-			}
-		}
-
+	if route.ID != "session.create" {
+		return nil, nil
+	}
+	var body gatewayapi.SessionCreateJSONBody
+	if err := apiutil.DecodeJSONBody(r, &body, true); err != nil {
+		return nil, err
+	}
+	if body.ParentID == nil {
+		return nil, replaceOpenCodeRequest(r, body)
+	}
+	release, err = s.lockChatInputs(r.Context(), access.workspaceID, agent, *body.ParentID, "")
+	if err != nil {
+		return release, err
+	}
+	root, eligible, err := s.authorizeChat(r.Context(), access, agent, *body.ParentID)
+	if err != nil {
+		return release, err
+	}
+	auth, _ := requestAuthState(r.Context())
+	if !eligible || auth.actorType != requestActorSystem {
 		return release, replaceOpenCodeRequest(r, body)
 	}
-	return nil, nil
+	var binding workflowSessionBinding
+	raw, err := json.Marshal(body.Metadata)
+	if err != nil {
+		return release, err
+	}
+	if err := json.Unmarshal(raw, &binding); err != nil {
+		return release, err
+	}
+	run := &agentzv1alpha1.WorkflowRun{}
+	key := ctrlclient.ObjectKey{Namespace: access.namespace, Name: binding.Name}
+	err = s.k8sClient.Get(r.Context(), key, run)
+	if err != nil {
+		return release, err
+	}
+	bound := run.Spec.Delivery != nil && run.Spec.Delivery.SessionID == root.SessionID
+	current := !run.Status.Phase.Terminal() && run.DeletionTimestamp.IsZero()
+	if string(run.UID) != binding.UID || run.Spec.AgentName != agent || !bound || !current {
+		return release, pgx.ErrNoRows
+	}
+	err = s.authorizeWorkflowDelivery(r.Context(), access, agent, run.Spec.Delivery)
+	if err != nil {
+		return release, err
+	}
+	return release, replaceOpenCodeRequest(r, body)
 }
 
 //go:embed prompts/workflow-notification.md
@@ -385,52 +386,52 @@ func (s *Service) repairChats(ctx context.Context, cursor string) (string, error
 			organizationID: row.OrganizationID,
 			namespace:      row.Namespace,
 		}
-		if !root.Deleting {
-			access.userID = row.AuthorID
-			executionCtx := context.WithValue(ctx, authContextKey{}, requestAuth{
-				claims: &gatewayClaims{
-					UserID:         access.userID,
-					OrganizationID: access.organizationID,
-					WorkspaceID:    access.workspaceID,
-				},
-				userID:         access.userID,
-				actorID:        access.userID,
-				actorType:      requestActorUser,
-				organizationID: access.organizationID,
-				workspaceID:    access.workspaceID,
-			})
-			client, err := s.agentClient(executionCtx, access.namespace, root.AgentName, s.outboundHTTP)
+		if root.Deleting {
+			err = s.cleanChat(ctx, access, root)
 			if err != nil {
-				return cursor, err
-			}
-			native, err := client.SessionGetWithResponse(executionCtx, root.AgentName, root.SessionID, nil)
-			if err != nil {
-				return cursor, err
-			}
-			if native.JSON200 == nil {
-				continue
-			}
-			release, err := s.lockChatInputs(executionCtx, root.WorkspaceID, root.AgentName, root.SessionID, "")
-			if err != nil {
-				return cursor, err
-			}
-			stopping, err := s.queries.GatewayChatInputsStopping(executionCtx, gatewaydb.GatewayChatInputsStoppingParams{
-				WorkspaceID: root.WorkspaceID,
-				AgentName:   root.AgentName,
-				SessionID:   root.SessionID,
-			})
-			if err == nil && stopping {
-				err = s.settleChatStop(executionCtx, access, root.AgentName, root.SessionID, native.JSON200.Directory, false)
-			}
-			release()
-			if err != nil {
-				slog.ErrorContext(ctx, "recover conversation stop", "session", root.SessionID, "error", err)
+				slog.ErrorContext(ctx, "clean conversation", "session", root.SessionID, "error", err)
 			}
 			continue
 		}
-		err = s.cleanChat(ctx, access, root)
+		access.userID = row.AuthorID
+		executionCtx := context.WithValue(ctx, authContextKey{}, requestAuth{
+			claims: &gatewayClaims{
+				UserID:         access.userID,
+				OrganizationID: access.organizationID,
+				WorkspaceID:    access.workspaceID,
+			},
+			userID:         access.userID,
+			actorID:        access.userID,
+			actorType:      requestActorUser,
+			organizationID: access.organizationID,
+			workspaceID:    access.workspaceID,
+		})
+		client, err := s.agentClient(executionCtx, access.namespace, root.AgentName, s.outboundHTTP)
 		if err != nil {
-			slog.ErrorContext(ctx, "clean conversation", "session", root.SessionID, "error", err)
+			return cursor, err
+		}
+		native, err := client.SessionGetWithResponse(executionCtx, root.AgentName, root.SessionID, nil)
+		if err != nil {
+			return cursor, err
+		}
+		if native.JSON200 == nil {
+			continue
+		}
+		release, err := s.lockChatInputs(executionCtx, root.WorkspaceID, root.AgentName, root.SessionID, "")
+		if err != nil {
+			return cursor, err
+		}
+		stopping, err := s.queries.GatewayChatInputsStopping(executionCtx, gatewaydb.GatewayChatInputsStoppingParams{
+			WorkspaceID: root.WorkspaceID,
+			AgentName:   root.AgentName,
+			SessionID:   root.SessionID,
+		})
+		if err == nil && stopping {
+			err = s.settleChatStop(executionCtx, access, root.AgentName, root.SessionID, native.JSON200.Directory, false)
+		}
+		release()
+		if err != nil {
+			slog.ErrorContext(ctx, "recover conversation stop", "session", root.SessionID, "error", err)
 		}
 	}
 	return cursor, nil
@@ -457,7 +458,10 @@ func (s *Service) cleanChat(ctx context.Context, access resourceAccess, root gat
 		if schedule.Spec.AgentName != root.AgentName || !bound {
 			continue
 		}
-		preconditions := ctrlclient.Preconditions{UID: &schedule.UID, ResourceVersion: &schedule.ResourceVersion}
+		preconditions := ctrlclient.Preconditions{
+			UID:             &schedule.UID,
+			ResourceVersion: &schedule.ResourceVersion,
+		}
 		err := s.k8sClient.Delete(ctx, schedule, preconditions)
 		if err != nil && !apierrors.IsNotFound(err) {
 			return err

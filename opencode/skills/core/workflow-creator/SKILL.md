@@ -1,6 +1,6 @@
 ---
 name: workflow-creator
-description: Create or update reusable workflow DAGs. Use when authoring or revising saved workflows. Must be mandatorily used before calling the create_workflow tool.
+description: Use when creating or revising saved workflow definitions.
 license: Apache-2.0
 compatibility: opencode
 metadata:
@@ -18,65 +18,63 @@ Treat the workflow as a saved directed acyclic graph:
 
 ## Authoring Rules
 
-- Treat recurring automation, scheduled execution, and reusable procedures as workflow-authoring tasks, not graph-only tasks.
-- Before calling `create_workflow`, execute the requested task manually once with the concrete user inputs or the closest accessible substitute.
-- For non-trivial reusable logic, create or update a skill or script before saving the workflow so the repeated behavior lives in one deterministic place.
-- End-to-end verification is required before saving the workflow. Brief or shallow checks are not enough.
+- Treat recurring automation, scheduled execution, and reusable procedures as workflow-authoring
+  tasks, not graph-only tasks.
+- Before calling `create_workflow`, execute the requested task manually once with the concrete user
+  inputs or the closest accessible substitute.
+- For non-trivial reusable logic, create or update a skill or script before saving the workflow so
+  the repeated behavior lives in one deterministic place.
+- End-to-end verification is required before saving the workflow. Brief or shallow checks are not
+  enough.
 - Finalize the full graph before calling `create_workflow`.
 - Keep `workflow_name` to a DNS label up to 32 characters, for example `repo-triage`.
 - Keep each `node.name` unique and in the same DNS-label format.
 - Ensure the graph is connected and acyclic.
 - Ensure the graph has at least one start node and one terminal node.
-- Keep node instructions concrete. Each node must define `instructions`, `goal`, and `done_criteria`.
+- Keep node instructions concrete. Each node must define `instructions`, `goal`, and
+  `done_criteria`.
 - Add `preferred_skills` when a node should load specific OpenCode skills before execution.
 - Add `preferred_tools` only when it gives real execution guidance.
 
 ## Input Schema Rules
 
 - Omit `inputs` and `arbitrary_json` when the workflow takes no parameters.
-- Use exactly one input contract: either typed `inputs` or `arbitrary_json`,
-  never both.
-- Use `arbitrary_json` when the workflow should accept one free-form JSON
-  payload. Its allowed fields are `description` and `default_payload`.
+- Use exactly one input contract: either typed `inputs` or `arbitrary_json`, never both.
+- Use `arbitrary_json` when the workflow should accept one free-form JSON payload. Its allowed
+  fields are `description` and `default_payload`.
 - `arbitrary_json.default_payload` is a prefill example, not a runtime fallback.
 - When present, `inputs` must be a flat object keyed by input name.
 - Each input must be a schema object with at least `type` and `required`.
 - Supported input types are scalar only: `string`, `integer`, `number`, `boolean`.
-- Allowed input keys are:
-  `type`, `description`, `required`, `default`, `enum`, `minLength`,
-  `maxLength`, `pattern`, `format`, `minimum`, `maximum`,
-  `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`.
-- Put `required` inside each input schema object. Do not use top-level JSON Schema `required` arrays inside one input definition.
+- Allowed input keys are: `type`, `description`, `required`, `default`, `enum`, `minLength`,
+  `maxLength`, `pattern`, `format`, `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`,
+  `multipleOf`.
+- Put `required` inside each input schema object. Do not use top-level JSON Schema `required` arrays
+  inside one input definition.
 - Do not use nested object or array schemas.
-- Do not include extra JSON Schema metadata such as `$schema`, `title`,
-  `properties`, `items`, `additionalProperties`, `oneOf`, `anyOf`, or
-  `allOf`.
-- Workflow definition inputs declare the schema only. Runtime workflow inputs are separate JSON values validated against that schema later.
+- Do not include extra JSON Schema metadata such as `$schema`, `title`, `properties`, `items`,
+  `additionalProperties`, `oneOf`, `anyOf`, or `allOf`.
+- Workflow definition inputs declare the schema only. Runtime workflow inputs are separate JSON
+  values validated against that schema later.
 
 ## Branching Rules
 
 - Use multiple outgoing edges only when the next step depends on a decision or observed outcome.
 - For straight-line transitions, set `branch_label` and `condition_summary` to empty strings.
-- If a node has multiple outgoing edges, every outgoing edge must have a non-empty `branch_label` and `condition_summary`.
+- If a node has multiple outgoing edges, every outgoing edge must have a non-empty `branch_label`
+  and `condition_summary`.
 - Do not use an unlabeled default edge from a branching node.
 
 ## Conflict Handling
 
 - Read the existing definition before revising a workflow.
-- Use `create_workflow` with `replace: true` for an authorized revision. Replacement preserves schedules and updates the graph atomically.
-- Ordinary creation still rejects an existing name. Do not rename or delete a workflow to work around that conflict.
+- Use `create_workflow` with `replace: true` for an authorized revision. Replacement preserves
+  schedules and updates the graph atomically.
+- Ordinary creation still rejects an existing name. Do not rename or delete a workflow to work
+  around that conflict.
 
-## Recovering a failed workflow
-
-A handoff gives the failed OpenCode session ID. The transcript is the execution record; do not expect a second transcript in the gateway.
-
-```sh
-opencode export --pure SESSION_ID > /tmp/workflow-SESSION_ID.json
-```
-
-Read that JSON with the file tools or `jq`. Inspect the original request, `get_workflow` output, inputs, failed tool calls, completed actions, and artifact paths. If necessary, use `opencode db path` and read-only `opencode db` queries. Never write to OpenCode's database.
-
-Repair the script, skill, configuration, or saved graph within the participants' authorization. Check what already happened before retrying an interrupted action. Do not replay an entire workflow or transcript blindly. Verify the repaired procedure, preserve the historical failure, and report the repair or remaining blocker.
+Call the `workflow-scheduler` skill before scheduling a saved workflow. Call the `workflow-results`
+skill before investigating a failed run.
 
 ## Pre-Save Checklist
 
@@ -87,21 +85,23 @@ Before saving a workflow, confirm all of the following:
 - [ ] You exercised the full happy path end-to-end.
 - [ ] The workflow DAG reflects the verified procedure rather than a guess from the prose request.
 
-If any checklist item is blocked, keep working on the blocker or report it explicitly. Do not save the workflow as if the task had already been verified.
+If any checklist item is blocked, keep working on the blocker or report it explicitly. Do not save
+the workflow as if the task had already been verified.
 
 ## Example: Daily Tech News Aggregation Workflow
 
 User request:
 
-> Every morning, collect important tech news from a list of sources and
-> produce a short digest grouped by topic.
+> Every morning, collect important tech news from a list of sources and produce a short digest
+> grouped by topic.
 
 Expected authoring behavior:
 
 1. Manually fetch today's articles from the configured sources once.
 2. De-duplicate articles that cover the same story.
 3. Verify ranking logic for importance, freshness, and source credibility.
-4. Create or update a deterministic summarization skill with script(s) for clustering and formatting the digest, perhaps a python script.
+4. Create or update a deterministic summarization skill with script(s) for clustering and formatting
+   the digest, perhaps a python script.
 5. Save the workflow only after the manual aggregation succeeds end-to-end.
 
 Do not jump directly from this prose request to `create_workflow`.

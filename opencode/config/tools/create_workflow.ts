@@ -126,17 +126,8 @@ const createWorkflowArgs = {
 const description = `
 Create or replace a reusable workflow DAG.
 
-Load and follow the built-in "workflow-creator" skill before using this tool (VERY IMPORTANT).
-
-Use this tool when you/user wants to create a reusable workflow definition, not when you/user only want a prose plan.
-
-Call this tool only after you have manually executed the intended task end-to-end at least once and finalized the full workflow graph.
-
-For recurring automation or scheduled execution, create or update a skill or script first unless the repeated logic is truly trivial.
-
-If you have not yet exercised the task successfully, keep working instead of calling this tool.
-
-Use replace: true only to revise an existing workflow after reading its definition. Replacement preserves schedules. Ordinary creation still reports duplicate-name conflicts; do not rename or delete a workflow to bypass them.
+Call the workflow-creator skill before creating or revising a saved workflow definition.
+Use replace: true for an authorized revision; replacement preserves schedules.
 `.trim()
 
 export default tool({

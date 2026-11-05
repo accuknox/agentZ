@@ -32,6 +32,7 @@ import {
   Activity,
   Bot,
   CalendarDays,
+  CalendarClock,
   ChevronDown,
   ChevronRight,
   CirclePause,
@@ -62,6 +63,7 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type MouseEvent,
 } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
@@ -132,6 +134,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Spinner } from "@/components/ui/spinner"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -2270,6 +2273,36 @@ function SessionCardView({
     },
     onError: () => toast.error("Could not update chat. Try again."),
   })
+  const { setOpenMobile } = useSidebar()
+  const openSession = (event: MouseEvent<HTMLAnchorElement>) => {
+    setOpenMobile(false)
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+      return
+    if (
+      ![...document.querySelectorAll("[data-agentz-chat]")].some((chat) => chat.checkVisibility())
+    )
+      return
+    event.preventDefault()
+    // The chat shell follows the URL; session APIs still authorize
+    // every read. Switching chats need not round-trip through RSC.
+    window.history.pushState(null, "", href)
+  }
+  const subscription = session.has_workflow_schedule_subscription ? (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Link
+          href={href}
+          prefetch={false}
+          onClick={openSession}
+          aria-label="Subscribed to a workflow schedule"
+          className="pointer-events-auto relative inline-flex shrink-0 rounded-sm text-sidebar-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+        >
+          <CalendarClock className="size-3.5" aria-hidden="true" />
+        </Link>
+      </TooltipTrigger>
+      <TooltipContent side="right">Subscribed to a workflow schedule</TooltipContent>
+    </Tooltip>
+  ) : null
   const snoozed = session.snoozed_until !== undefined
   const sessionTitle = renaming ? (
     <Input
@@ -2304,12 +2337,13 @@ function SessionCardView({
       }}
     />
   ) : (
-    <span data-session-title className="session-title block truncate" title={session.title}>
-      {session.title}
+    <span className="min-w-0 overflow-hidden">
+      <span data-session-title className="session-title block truncate" title={session.title}>
+        {session.title}
+      </span>
     </span>
   )
 
-  const { setOpenMobile } = useSidebar()
   const status = (
     <SessionStatus
       key={session.woke_at}
@@ -2396,27 +2430,7 @@ function SessionCardView({
                   /* Opening the chat owns visible errors. */
                 })
             }}
-            onClick={(event) => {
-              setOpenMobile(false)
-              if (
-                event.button !== 0 ||
-                event.metaKey ||
-                event.ctrlKey ||
-                event.shiftKey ||
-                event.altKey
-              )
-                return
-              if (
-                ![...document.querySelectorAll("[data-agentz-chat]")].some((chat) =>
-                  chat.checkVisibility()
-                )
-              )
-                return
-              event.preventDefault()
-              // The chat shell follows the URL; session APIs still authorize
-              // every read. Switching chats need not round-trip through RSC.
-              window.history.pushState(null, "", href)
-            }}
+            onClick={openSession}
             title={session.title}
             aria-label={`Open ${session.title}`}
             aria-current={active ? "page" : undefined}
@@ -2428,11 +2442,12 @@ function SessionCardView({
               <AgentIcon name={session.agent_name} workspaceId={workspaceId} />
               <span
                 className={cn(
-                  "min-w-0 flex-1 overflow-hidden text-sm font-medium",
+                  "flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden text-sm font-medium",
                   !active && "text-sidebar-muted-foreground"
                 )}
               >
                 {sessionTitle}
+                {subscription}
               </span>
               <span className="shrink-0 text-xs text-sidebar-muted-foreground tabular-nums group-focus-within/session:hidden group-hover/session:hidden [@media(hover:none)]:hidden">
                 {status}
@@ -2469,12 +2484,13 @@ function SessionCardView({
               <div className={cn("mt-1 flex min-w-0 items-center gap-2", coding ? "h-5" : "h-6")}>
                 <h3
                   className={cn(
-                    "min-w-0 flex-1 overflow-hidden text-sm leading-5 font-semibold text-sidebar-foreground/80",
+                    "flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden text-sm leading-5 font-semibold text-sidebar-foreground/80",
                     active && "text-sidebar-foreground",
                     session.archived && !active && "font-normal text-sidebar-muted-foreground"
                   )}
                 >
                   {sessionTitle}
+                  {subscription}
                 </h3>
                 {avatars}
               </div>
@@ -2568,9 +2584,18 @@ function SessionCardView({
             <DialogTitle>Delete chat?</DialogTitle>
             <DialogDescription>
               Deleting <span className="font-medium">{session.title}</span> cannot be undone. Linked
-              workflow schedules and their runs will also be deleted.
+              workflow runs will also be deleted.
             </DialogDescription>
           </DialogHeader>
+          {session.has_workflow_schedule_subscription ? (
+            <Alert variant="warning">
+              <CalendarClock aria-hidden="true" />
+              <AlertDescription>
+                Deleting this chat will also delete its linked workflow schedules, stopping future
+                runs and notifications.
+              </AlertDescription>
+            </Alert>
+          ) : null}
           {pendingState.error ? (
             <Alert variant="destructive">
               <CircleAlert aria-hidden="true" />

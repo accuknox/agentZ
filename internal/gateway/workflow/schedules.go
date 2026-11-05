@@ -302,15 +302,6 @@ func DeleteSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 func UpdateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, name string, req gatewayapi.UpdateWorkflowScheduleRequest, delivery *agentzv1alpha1.WorkflowDelivery) (gatewayapi.WorkflowSchedule, error) {
 	current := &agentzv1alpha1.WorkflowSchedule{}
 	key := ctrlclient.ObjectKey{Name: name, Namespace: ns}
-	if err := k8sClient.Get(ctx, key, current); err != nil {
-		return gatewayapi.WorkflowSchedule{}, err
-	}
-	if current.Spec.AgentName != agtName {
-		return gatewayapi.WorkflowSchedule{}, ErrScheduleAgentMismatch
-	}
-	if current.Spec.WorkflowName != wfName {
-		return gatewayapi.WorkflowSchedule{}, ErrScheduleAgentMismatch
-	}
 
 	specInput := scheduleSpecInput{
 		schedule:                   req.Schedule,
@@ -327,12 +318,15 @@ func UpdateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 		return gatewayapi.WorkflowSchedule{}, err
 	}
 
-	updated := &agentzv1alpha1.WorkflowSchedule{}
 	err = retry.RetryOnConflict(
 		retry.DefaultRetry,
 		func() error {
 			if err := k8sClient.Get(ctx, key, current); err != nil {
 				return err
+			}
+
+			if current.Spec.AgentName != agtName || current.Spec.WorkflowName != wfName {
+				return ErrScheduleAgentMismatch
 			}
 
 			applyScheduleSpec(&current.Spec, agtName, wfName, specInput, inputsJSON)
@@ -343,18 +337,17 @@ func UpdateSchedule(ctx context.Context, k8sClient ctrlclient.Client, ns string,
 			if err := k8sClient.Update(ctx, current); err != nil {
 				return err
 			}
-			updated = current
 			return nil
 		},
 	)
 	if err != nil {
 		return gatewayapi.WorkflowSchedule{}, err
 	}
-	if err := k8sClient.Get(ctx, ctrlclient.ObjectKeyFromObject(updated), updated); err != nil {
+	if err := k8sClient.Get(ctx, key, current); err != nil {
 		return gatewayapi.WorkflowSchedule{}, err
 	}
 
-	return scheduleViewFromCRD(updated)
+	return scheduleViewFromCRD(current)
 }
 
 func scheduleViewFromCRD(schedule *agentzv1alpha1.WorkflowSchedule) (gatewayapi.WorkflowSchedule, error) {

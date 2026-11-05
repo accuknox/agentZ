@@ -7,6 +7,7 @@ const config = {
   tabWidth: 2,
   semi: false,
   printWidth: 100,
+  proseWrap: "always",
   tailwindStylesheet: "./app/globals.css",
   tailwindFunctions: ["cn", "cva"],
   plugins: ["prettier-plugin-tailwindcss"],

@@ -483,7 +483,10 @@ func (s *Service) workflowDelivery(ctx context.Context, agent string, input *gat
 		release()
 		return nil, nil, pgx.ErrNoRows
 	}
-	return &agentzv1alpha1.WorkflowDelivery{SessionID: root.SessionID, Generation: root.Generation}, release, nil
+	return &agentzv1alpha1.WorkflowDelivery{
+		SessionID:  root.SessionID,
+		Generation: root.Generation,
+	}, release, nil
 }
 
 func (s *Service) authorizeWorkflowSchedule(ctx context.Context, namespace, agent, workflowName, name string) error {

@@ -6550,6 +6550,9 @@ components:
       type: object
       additionalProperties: false
       properties:
+        has_workflow_schedule_subscription:
+          type: boolean
+          description: Whether a workflow schedule delivers results to this thread, including paused schedules.
         archived: {type: boolean}
         snoozed_until: {type: string, format: date-time}
         woke_at:
@@ -6579,6 +6582,7 @@ components:
           items:
             $ref: '#/components/schemas/ChatSessionParticipant'
       required:
+      - has_workflow_schedule_subscription
       - archived
       - agent_name
       - session_id

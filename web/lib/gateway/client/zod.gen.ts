@@ -677,6 +677,7 @@ export const zAgentName = z
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
 
 export const zChatSession = z.object({
+  has_workflow_schedule_subscription: z.boolean(),
   archived: z.boolean(),
   snoozed_until: z.iso.datetime({ offset: true }).optional(),
   woke_at: z.iso.datetime({ offset: true }).optional(),

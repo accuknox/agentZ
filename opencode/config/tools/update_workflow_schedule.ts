@@ -50,15 +50,8 @@ const args = {
 const description = `
 Update a workflow schedule.
 
-Use this tool when the user wants to change an existing saved schedule.
-
-Authoring rules:
-- name identifies the existing schedule to replace.
-- workflow_name, schedule, and timeout_seconds are full replacements and must all be provided together.
-- For a typed-input workflow, pass runtime values in inputs.
-- For an arbitrary_json workflow, pass one JSON-encoded value in arbitrary_json.
-- Never pass both inputs and arbitrary_json.
-- If the workflow has no inputs, omit inputs or pass {}.
+Call the workflow-scheduler skill before changing an existing schedule.
+Supply all replacement settings together. Conversation delivery is preserved.
 `.trim()
 
 export default tool({

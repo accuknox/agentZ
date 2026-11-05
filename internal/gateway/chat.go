@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	openapi_types "github.com/oapi-codegen/runtime/types"
+	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/accuknox/agentz/internal/authorization"
 	"github.com/accuknox/agentz/internal/gateway/apiutil"
@@ -508,6 +509,34 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		response.Groups = append(response.Groups, chatSessionGroup(groupBy, groupValue, activeGroup))
 	}
 
+	// Use the informer cache so a schedule event and its list response agree.
+	// Pausing execution keeps the delivery binding and deletion consequence.
+	if auth.workspaceType != agentzv1alpha1.WorkspaceTypeCoding {
+		schedules, err := s.resolver.schedules.WorkflowSchedules(access.namespace).List(labels.Everything())
+		if err != nil {
+			apiutil.WriteInternalError(w, r, fmt.Errorf("list thread subscriptions: %w", err))
+			return
+		}
+		bound := make(map[[2]string]bool)
+		for _, schedule := range schedules {
+			if schedule.Spec.Delivery == nil || !schedule.DeletionTimestamp.IsZero() {
+				continue
+			}
+			key := [2]string{schedule.Spec.AgentName, schedule.Spec.Delivery.SessionID}
+			bound[key] = true
+		}
+		lists := [][]gatewayapi.ChatSession{response.Sessions}
+		for _, group := range response.Groups {
+			lists = append(lists, group.Sessions)
+		}
+		for _, sessions := range lists {
+			for i := range sessions {
+				session := &sessions[i]
+				key := [2]string{session.AgentName, session.SessionId}
+				session.HasWorkflowScheduleSubscription = bound[key]
+			}
+		}
+	}
 	apiutil.WriteJSON(w, http.StatusOK, response)
 }
 
@@ -794,22 +823,15 @@ func (s *Service) WatchChatSessions(w http.ResponseWriter, r *http.Request) {
 	key := access.workspaceID + "/" + access.userID
 	events, cancel := s.chatSessionEvents.subscribe(key)
 	defer cancel()
+	schedules, stopSchedules := s.resolver.scheduleEvents.subscribe(access.namespace)
+	defer stopSchedules()
 	heartbeat := time.NewTicker(15 * time.Second)
 	defer heartbeat.Stop()
+	var revision uint64
 	for {
 		select {
-		case revision := <-events:
-			raw, err := json.Marshal(gatewayapi.WatchChatSessionsEvent{
-				Revision: strconv.FormatUint(revision, 10),
-			})
-			if err != nil {
-				apiutil.RecordRequestError(w, "internal_error", err)
-				return
-			}
-			if _, err := fmt.Fprintf(w, "data: %s\n\n", raw); err != nil {
-				return
-			}
-			flusher.Flush()
+		case <-events:
+		case <-schedules:
 		case <-r.Context().Done():
 			return
 		case <-heartbeat.C:
@@ -817,7 +839,20 @@ func (s *Service) WatchChatSessions(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			flusher.Flush()
+			continue
 		}
+		raw, err := json.Marshal(gatewayapi.WatchChatSessionsEvent{
+			Revision: strconv.FormatUint(revision, 10),
+		})
+		if err != nil {
+			apiutil.RecordRequestError(w, "internal_error", err)
+			return
+		}
+		if _, err := fmt.Fprintf(w, "data: %s\n\n", raw); err != nil {
+			return
+		}
+		flusher.Flush()
+		revision++
 	}
 }
 

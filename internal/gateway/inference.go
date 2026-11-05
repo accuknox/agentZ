@@ -1230,7 +1230,10 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 	}
 	if req.OauthTicket != nil {
 		if current.Spec.Kind != agentzv1alpha1.InferenceProviderKindOpenAICodex {
-			writeProviderInputError(w, r, &inference.InputError{Field: "oauth_ticket", Message: "only valid for subscription providers"})
+			writeProviderInputError(w, r, &inference.InputError{
+				Field:   "oauth_ticket",
+				Message: "only valid for subscription providers",
+			})
 			return
 		}
 		subscription, ticketPath, ticketErr := s.consumeInferenceOAuthTicket(r.Context(), ns, *req.OauthTicket, desired)

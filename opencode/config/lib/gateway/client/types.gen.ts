@@ -331,6 +331,10 @@ export type ChatBackground = {
 }
 
 export type ChatSession = {
+  /**
+   * Whether a workflow schedule delivers results to this thread, including paused schedules.
+   */
+  has_workflow_schedule_subscription: boolean
   archived: boolean
   snoozed_until?: string
   /**

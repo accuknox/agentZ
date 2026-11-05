@@ -80,8 +80,8 @@ Read more: <https://external-secrets.io/latest/introduction/getting-started/>
 
 ## Install AgentGateway
 
-Install the Gateway API CRDs first. On this fresh K3s cluster,
-`--force-conflicts` updates the CRDs bundled by Traefik.
+Install the Gateway API CRDs first. On this fresh K3s cluster, `--force-conflicts` updates the CRDs
+bundled by Traefik.
 
 ```bash
 kubectl apply --server-side --force-conflicts -f \
@@ -284,14 +284,14 @@ Read more: <https://openbao.org/docs/auth/kubernetes/>
 Assuming your domain is `example.com`, create these DNS records:
 
 | Type  | Name                    | Value                |
-|-------|-------------------------|----------------------|
+| ----- | ----------------------- | -------------------- |
 | A     | `agentz.example.com`    | Host's public IPv4   |
 | CNAME | `s3.agentz.example.com` | `agentz.example.com` |
 
 **NOTE**: Allow public TCP 80/443 for Traefik and ACME
 
-Replace the example domain names and email addresses below with your own.
-These environment variables are crucial and are used throughout this guide.
+Replace the example domain names and email addresses below with your own. These environment
+variables are crucial and are used throughout this guide.
 
 ```bash
 export AGENTZ_HOST=agentz.example.com
@@ -326,8 +326,8 @@ spec:
 YAML
 ```
 
-`selfsigned` ClusterIssuer issues tenant secret-injection CA certificates.
-`letsencrypt` issues the public web and S3 certificates.
+`selfsigned` ClusterIssuer issues tenant secret-injection CA certificates. `letsencrypt` issues the
+public web and S3 certificates.
 
 Finally, install RustFS:
 
@@ -357,9 +357,8 @@ helm repo add rustfs https://charts.rustfs.com
 helm upgrade --install rustfs rustfs/rustfs --namespace rustfs --version 0.12.0 -f rustfs-values.yaml --wait --timeout 5m
 ```
 
-Allow package jobs to reach the RustFS Service. AgentZ's generated FQDN rules
-do not admit traffic to Cilium-managed RustFS pods. This additional rule
-allows TCP 9000 for package jobs only.
+Allow package jobs to reach the RustFS Service. AgentZ's generated FQDN rules do not admit traffic
+to Cilium-managed RustFS pods. This additional rule allows TCP 9000 for package jobs only.
 
 ```bash
 kubectl apply -f - <<'YAML'
@@ -384,9 +383,8 @@ spec:
 YAML
 ```
 
-The web app returns presigned URLs to browsers, so an internal S3 endpoint
-would break organization image uploads. Therefore, we must expose the S3 API
-over HTTPS.
+The web app returns presigned URLs to browsers, so an internal S3 endpoint would break organization
+image uploads. Therefore, we must expose the S3 API over HTTPS.
 
 ```bash
 kubectl apply -f - <<YAML
@@ -419,8 +417,8 @@ kubectl wait certificate/rustfs-s3-tls -n rustfs --for=condition=Ready --timeout
 curl --retry 10 --retry-delay 2 --retry-all-errors -fsS "https://${S3_HOST}/health/ready"
 ```
 
-Use [AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
-to create `agentz` for private skills and `agentz-assets` for organization images.
+Use [AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) to
+create `agentz` for private skills and `agentz-assets` for organization images.
 
 ```bash
 set -a
@@ -509,9 +507,8 @@ EOF
 unset DB_URL RUSTFS_ACCESS_KEY RUSTFS_SECRET_KEY
 ```
 
-The values in the next section enable only email/password sign-in for
-`ADMIN_EMAIL`. For GitHub/Google sign in, please refer [this](./social-login.md)
-guide.
+The values in the next section enable only email/password sign-in for `ADMIN_EMAIL`. For
+GitHub/Google sign in, please refer [this](./social-login.md) guide.
 
 ## Install AgentZ
 

@@ -449,7 +449,7 @@ blockquote[data-streamdown="blockquote"] {
   .group\/session:hover .session-title[data-overflow="true"] {
     overflow: visible;
     text-overflow: clip;
-    animation: session-title-scroll var(--title-duration) linear alternate infinite;
+    animation: session-title-scroll var(--title-duration) linear forwards;
     animation-delay: 200ms;
   }
 }

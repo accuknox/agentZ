@@ -2,10 +2,12 @@
 
 import { useState, type ComponentProps } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
+import { cn } from "@/lib/utils"
 
 export function ValueFlash({
   value,
   children,
+  className,
   ...props
 }: ComponentProps<"span"> & { value: number }) {
   const reduced = useReducedMotion()
@@ -13,8 +15,9 @@ export function ValueFlash({
   if (previous.value !== value) {
     setPrevious({ value, direction: Math.sign(value - previous.value) })
   }
+  // Anchor popped exit values here, including inside table cells.
   return (
-    <span {...props}>
+    <span {...props} className={cn("relative inline-block", className)}>
       <AnimatePresence initial={false} mode="popLayout">
         <motion.span
           key={value}

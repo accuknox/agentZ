@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -17,6 +17,7 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	workflowdb "github.com/accuknox/agentz/internal/gateway/workflow/db"
 	inputworkflow "github.com/accuknox/agentz/internal/workflow"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
@@ -114,31 +115,34 @@ func ValidateAgentScheduleList(agtName string) []gatewayapi.FieldError {
 	return validateScheduleDNSLabel("agentName", strings.TrimSpace(agtName))
 }
 
-// ValidateScheduleInputs checks scheduled inputs against the stored workflow contract.
-func ValidateScheduleInputs(ctx context.Context, db *pgxpool.Pool, tenantNamespace string, agtName string, wfName string, inputs *gatewayapi.JSONValue) ([]gatewayapi.FieldError, error) {
+// ValidateScheduleInputs checks inputs while the caller holds the workflow mutation lock.
+func ValidateScheduleInputs(ctx context.Context, tx pgx.Tx, ns, agentName, workflowName string, inputs *gatewayapi.JSONValue) ([]gatewayapi.FieldError, error) {
 	raw, err := marshalInputsJSON(inputs)
 	if err != nil {
 		return nil, err
 	}
-
-	fields, err := ValidateRunInputs(ctx, db, tenantNamespace, agtName, wfName, raw)
-	if errors.Is(err, ErrWorkflowNotFound) {
-		return []gatewayapi.FieldError{{
-			Field:   "workflowName",
-			Message: "referenced workflow was not found",
-		}}, nil
-	}
-	return fields, err
+	return ValidateRunInputs(ctx, tx, ns, agentName, workflowName, raw)
 }
 
 // ValidateRunInputs validates runtime input values for one workflow.
-func ValidateRunInputs(ctx context.Context, db *pgxpool.Pool, tenantNamespace string, agtName string, wfName string, raw []byte) ([]gatewayapi.FieldError, error) {
-	def, err := Get(ctx, db, tenantNamespace, agtName, wfName)
+func ValidateRunInputs(ctx context.Context, db workflowdb.DBTX, tenantNamespace string, agtName string, wfName string, raw []byte) ([]gatewayapi.FieldError, error) {
+	row, err := workflowdb.New(db).WorkflowGet(ctx, workflowdb.WorkflowGetParams{
+		TenantNamespace: tenantNamespace,
+		AgentName:       agtName,
+		WorkflowName:    wfName,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrWorkflowNotFound
+	}
 	if err != nil {
 		return nil, err
 	}
 
-	issues, err := inputworkflow.ValidateValues(raw, def.Inputs, def.ArbitraryJson, "inputs")
+	inputs, arbitrary, err := decodeInputContract(row.InputSchema)
+	if err != nil {
+		return nil, err
+	}
+	issues, err := inputworkflow.ValidateValues(raw, inputs, arbitrary, "inputs")
 	if err != nil {
 		return nil, err
 	}

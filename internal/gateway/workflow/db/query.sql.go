@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	"github.com/google/uuid"
 )
 
@@ -392,15 +393,7 @@ VALUES (
 ON CONFLICT (tenant_namespace, agent_name, workflow_name) DO UPDATE SET
  title=EXCLUDED.title, summary=EXCLUDED.summary, input_schema=EXCLUDED.input_schema, updated_at=now()
 WHERE $7::boolean
-RETURNING
-  tenant_namespace,
-  agent_name,
-  workflow_name,
-  title,
-  summary,
-  input_schema,
-  created_at,
-  updated_at
+RETURNING tenant_namespace, agent_name, workflow_name, lock_state, title, summary, input_schema, created_at, updated_at
 `
 
 type WorkflowCreateParams struct {
@@ -428,6 +421,7 @@ func (q *Queries) WorkflowCreate(ctx context.Context, arg WorkflowCreateParams) 
 		&i.TenantNamespace,
 		&i.AgentName,
 		&i.WorkflowName,
+		&i.LockState,
 		&i.Title,
 		&i.Summary,
 		&i.InputSchema,
@@ -611,9 +605,7 @@ func (q *Queries) WorkflowCreatePreferredTools(ctx context.Context, arg Workflow
 
 const workflowDeleteMany = `-- name: WorkflowDeleteMany :execrows
 DELETE FROM workflows
-WHERE tenant_namespace = $1
-  AND agent_name = $2
-  AND workflow_name = ANY($3::text[])
+WHERE tenant_namespace = $1 AND agent_name = $2 AND workflow_name = ANY($3::text[])
 `
 
 type WorkflowDeleteManyParams struct {
@@ -631,19 +623,8 @@ func (q *Queries) WorkflowDeleteMany(ctx context.Context, arg WorkflowDeleteMany
 }
 
 const workflowGet = `-- name: WorkflowGet :one
-SELECT
-  tenant_namespace,
-  agent_name,
-  workflow_name,
-  title,
-  summary,
-  input_schema,
-  created_at,
-  updated_at
-FROM workflows
-WHERE tenant_namespace = $1
-  AND agent_name = $2
-  AND workflow_name = $3
+SELECT tenant_namespace, agent_name, workflow_name, lock_state, title, summary, input_schema, created_at, updated_at FROM workflows
+WHERE tenant_namespace = $1 AND agent_name = $2 AND workflow_name = $3
 `
 
 type WorkflowGetParams struct {
@@ -659,6 +640,7 @@ func (q *Queries) WorkflowGet(ctx context.Context, arg WorkflowGetParams) (Workf
 		&i.TenantNamespace,
 		&i.AgentName,
 		&i.WorkflowName,
+		&i.LockState,
 		&i.Title,
 		&i.Summary,
 		&i.InputSchema,
@@ -717,42 +699,6 @@ func (q *Queries) WorkflowListEdges(ctx context.Context, arg WorkflowListEdgesPa
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const workflowListExistingNames = `-- name: WorkflowListExistingNames :many
-SELECT workflow_name
-FROM workflows
-WHERE tenant_namespace = $1
-  AND agent_name = $2
-  AND workflow_name = ANY($3::text[])
-ORDER BY workflow_name ASC
-FOR UPDATE
-`
-
-type WorkflowListExistingNamesParams struct {
-	TenantNamespace string   `json:"tenant_namespace"`
-	AgentName       string   `json:"agent_name"`
-	WorkflowNames   []string `json:"workflow_names"`
-}
-
-func (q *Queries) WorkflowListExistingNames(ctx context.Context, arg WorkflowListExistingNamesParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, workflowListExistingNames, arg.TenantNamespace, arg.AgentName, arg.WorkflowNames)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []string{}
-	for rows.Next() {
-		var workflow_name string
-		if err := rows.Scan(&workflow_name); err != nil {
-			return nil, err
-		}
-		items = append(items, workflow_name)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -913,14 +859,8 @@ func (q *Queries) WorkflowListPreferredTools(ctx context.Context, arg WorkflowLi
 }
 
 const workflowListSummaries = `-- name: WorkflowListSummaries :many
-SELECT
-  workflow_name,
-  title,
-  summary,
-  updated_at
-FROM workflows
-WHERE tenant_namespace = $1
-  AND agent_name = $2
+SELECT workflow_name, title, summary, lock_state, updated_at FROM workflows
+WHERE tenant_namespace = $1 AND agent_name = $2
 ORDER BY updated_at DESC, workflow_name ASC
 `
 
@@ -930,10 +870,11 @@ type WorkflowListSummariesParams struct {
 }
 
 type WorkflowListSummariesRow struct {
-	WorkflowName string    `json:"workflow_name"`
-	Title        string    `json:"title"`
-	Summary      string    `json:"summary"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	WorkflowName string                  `json:"workflow_name"`
+	Title        string                  `json:"title"`
+	Summary      string                  `json:"summary"`
+	LockState    gatewayapi.WorkflowLock `json:"lock_state"`
+	UpdatedAt    time.Time               `json:"updated_at"`
 }
 
 func (q *Queries) WorkflowListSummaries(ctx context.Context, arg WorkflowListSummariesParams) ([]WorkflowListSummariesRow, error) {
@@ -949,6 +890,7 @@ func (q *Queries) WorkflowListSummaries(ctx context.Context, arg WorkflowListSum
 			&i.WorkflowName,
 			&i.Title,
 			&i.Summary,
+			&i.LockState,
 			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
@@ -959,4 +901,84 @@ func (q *Queries) WorkflowListSummaries(ctx context.Context, arg WorkflowListSum
 		return nil, err
 	}
 	return items, nil
+}
+
+const workflowLockAgent = `-- name: WorkflowLockAgent :one
+SELECT agent_name FROM agents
+WHERE tenant_namespace = $1 AND agent_name = $2
+FOR UPDATE
+`
+
+type WorkflowLockAgentParams struct {
+	TenantNamespace string `json:"tenant_namespace"`
+	AgentName       string `json:"agent_name"`
+}
+
+func (q *Queries) WorkflowLockAgent(ctx context.Context, arg WorkflowLockAgentParams) (string, error) {
+	row := q.db.QueryRow(ctx, workflowLockAgent, arg.TenantNamespace, arg.AgentName)
+	var agent_name string
+	err := row.Scan(&agent_name)
+	return agent_name, err
+}
+
+const workflowLockDefinitions = `-- name: WorkflowLockDefinitions :many
+SELECT agent_name, workflow_name, lock_state FROM workflows
+WHERE tenant_namespace = $1 AND agent_name = $2
+  AND (COALESCE(cardinality($3::text[]), 0) = 0 OR workflow_name = ANY($3::text[]))
+ORDER BY workflow_name
+FOR UPDATE
+`
+
+type WorkflowLockDefinitionsParams struct {
+	TenantNamespace string   `json:"tenant_namespace"`
+	AgentName       string   `json:"agent_name"`
+	WorkflowNames   []string `json:"workflow_names"`
+}
+
+type WorkflowLockDefinitionsRow struct {
+	AgentName    string                  `json:"agent_name"`
+	WorkflowName string                  `json:"workflow_name"`
+	LockState    gatewayapi.WorkflowLock `json:"lock_state"`
+}
+
+func (q *Queries) WorkflowLockDefinitions(ctx context.Context, arg WorkflowLockDefinitionsParams) ([]WorkflowLockDefinitionsRow, error) {
+	rows, err := q.db.Query(ctx, workflowLockDefinitions, arg.TenantNamespace, arg.AgentName, arg.WorkflowNames)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WorkflowLockDefinitionsRow{}
+	for rows.Next() {
+		var i WorkflowLockDefinitionsRow
+		if err := rows.Scan(&i.AgentName, &i.WorkflowName, &i.LockState); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const workflowSetLock = `-- name: WorkflowSetLock :exec
+UPDATE workflows SET lock_state = $1
+WHERE tenant_namespace = $2 AND agent_name = $3 AND workflow_name = $4
+`
+
+type WorkflowSetLockParams struct {
+	LockState       gatewayapi.WorkflowLock `json:"lock_state"`
+	TenantNamespace string                  `json:"tenant_namespace"`
+	AgentName       string                  `json:"agent_name"`
+	WorkflowName    string                  `json:"workflow_name"`
+}
+
+func (q *Queries) WorkflowSetLock(ctx context.Context, arg WorkflowSetLockParams) error {
+	_, err := q.db.Exec(ctx, workflowSetLock,
+		arg.LockState,
+		arg.TenantNamespace,
+		arg.AgentName,
+		arg.WorkflowName,
+	)
+	return err
 }

@@ -46,9 +46,21 @@ func (s *Service) CreateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
+	tx, err := s.workflowDB.Begin(r.Context())
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+	defer tx.Rollback(r.Context())
+	_, err = workflow.LockDefinitions(r.Context(), tx, ns, agentName, []string{workflowName})
+	if err != nil {
+		apiutil.WriteError(w, r, workflow.MapMutationError(err))
+		return
+	}
+
 	fields, err = workflow.ValidateScheduleInputs(
 		r.Context(),
-		s.db,
+		tx,
 		ns,
 		agentName,
 		workflowName,
@@ -270,6 +282,18 @@ func (s *Service) DeleteWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 	agentName := strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 	scheduleName = strings.TrimSpace(scheduleName)
+	tx, err := s.workflowDB.Begin(r.Context())
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+	defer tx.Rollback(r.Context())
+	_, err = workflow.LockDefinitions(r.Context(), tx, ns, agentName, []string{workflowName})
+	if err != nil {
+		apiutil.WriteError(w, r, workflow.MapMutationError(err))
+		return
+	}
+
 	err = s.authorizeWorkflowSchedule(r.Context(), ns, agentName, workflowName, scheduleName)
 	if err != nil {
 		apiutil.WriteError(w, r, mapKubeHTTPError("get workflow schedule", err))
@@ -352,9 +376,21 @@ func (s *Service) UpdateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
+	tx, err := s.workflowDB.Begin(r.Context())
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+	defer tx.Rollback(r.Context())
+	_, err = workflow.LockDefinitions(r.Context(), tx, ns, agentName, []string{workflowName})
+	if err != nil {
+		apiutil.WriteError(w, r, workflow.MapMutationError(err))
+		return
+	}
+
 	fields, err = workflow.ValidateScheduleInputs(
 		r.Context(),
-		s.db,
+		tx,
 		ns,
 		agentName,
 		workflowName,

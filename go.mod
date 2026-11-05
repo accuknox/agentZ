@@ -16,7 +16,7 @@ require (
 	github.com/bluekeyes/go-gitdiff v0.9.0
 	github.com/cedar-policy/cedar-go v1.8.0
 	github.com/cenkalti/backoff/v5 v5.0.3
-	github.com/cert-manager/cert-manager v1.20.2
+	github.com/cert-manager/cert-manager v1.20.3
 	github.com/cilium/cilium v1.19.5
 	github.com/cli/browser v1.3.0
 	github.com/envoyproxy/go-control-plane/envoy v1.39.1-0.20260829101913-1e3cf565f8ea

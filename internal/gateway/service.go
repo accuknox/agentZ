@@ -124,6 +124,7 @@ type Service struct {
 	db                  *pgxpool.Pool
 	lockDB              *pgxpool.Pool
 	controlDB           *pgxpool.Pool
+	workflowDB          *pgxpool.Pool
 	cfg                 Config
 	bao                 *baoapi.Client
 	baoKV               *baoapi.KVv2
@@ -358,6 +359,14 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 	defer controlDB.Close()
 
+	// Prompts hold execution connections while waiting for workflow tools.
+	// Mutation lock waiters must also leave query connections available.
+	workflowDB, err := pgxpool.NewWithConfig(ctx, lockCfg.Copy())
+	if err != nil {
+		return fmt.Errorf("create postgres workflow pool: %w", err)
+	}
+	defer workflowDB.Close()
+
 	baoClient, err := baoclient.NewClient(
 		ctx,
 		cfg.OpenBaoAddr,
@@ -390,6 +399,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		db:                 db,
 		lockDB:             lockDB,
 		controlDB:          controlDB,
+		workflowDB:         workflowDB,
 		cfg:                cfg,
 		delegationTarget:   delegationTarget,
 		bao:                baoClient,

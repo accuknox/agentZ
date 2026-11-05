@@ -6,6 +6,7 @@ CREATE TABLE workflows(
       length(workflow_name) <= 32 AND
       workflow_name ~ '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
     ),
+  lock_state JSONB NOT NULL DEFAULT '{"locked":false,"version":0}' CHECK (jsonb_typeof(lock_state) = 'object'),
   title TEXT NOT NULL,
   summary TEXT NOT NULL,
   input_schema JSONB

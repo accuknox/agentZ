@@ -36,7 +36,7 @@ const createWorkflowArgs = {
     .boolean()
     .optional()
     .describe(
-      "Replace an existing workflow atomically while preserving its schedules. Read its definition first."
+      "Replace the complete workflow definition while preserving its schedules, runs, threads, and webhook keys. Read its definition first."
     ),
   inputs: tool.schema
     .record(tool.schema.string().min(1), workflowInputSchema)
@@ -127,7 +127,7 @@ const description = `
 Create or replace a reusable workflow DAG.
 
 Call the workflow-creator skill before creating or revising a saved workflow definition.
-Use replace: true for an authorized revision; replacement preserves schedules.
+Use replace: true for an authorized revision; replacement preserves workflow identity, schedules, runs, threads, and webhook keys.
 `.trim()
 
 export default tool({
@@ -231,11 +231,10 @@ export default tool({
       },
     })
 
-    if (error.data.code === "already_exists") {
+    if (error.data.code === "conflict") {
       return (
         `Workflow ${args.workflow_name} already exists for agent ${agentName}. ` +
-        "Choose a new workflow_name or delete the existing workflow before " +
-        "recreating it."
+        "Read the saved definition and use replace: true with the complete revised definition."
       )
     }
 

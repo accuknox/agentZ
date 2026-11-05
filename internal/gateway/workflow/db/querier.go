@@ -31,11 +31,13 @@ type Querier interface {
 	WorkflowDeleteMany(ctx context.Context, arg WorkflowDeleteManyParams) (int64, error)
 	WorkflowGet(ctx context.Context, arg WorkflowGetParams) (Workflow, error)
 	WorkflowListEdges(ctx context.Context, arg WorkflowListEdgesParams) ([]WorkflowEdge, error)
-	WorkflowListExistingNames(ctx context.Context, arg WorkflowListExistingNamesParams) ([]string, error)
 	WorkflowListNodes(ctx context.Context, arg WorkflowListNodesParams) ([]WorkflowNode, error)
 	WorkflowListPreferredSkills(ctx context.Context, arg WorkflowListPreferredSkillsParams) ([]WorkflowNodePreferredSkill, error)
 	WorkflowListPreferredTools(ctx context.Context, arg WorkflowListPreferredToolsParams) ([]WorkflowNodePreferredTool, error)
 	WorkflowListSummaries(ctx context.Context, arg WorkflowListSummariesParams) ([]WorkflowListSummariesRow, error)
+	WorkflowLockAgent(ctx context.Context, arg WorkflowLockAgentParams) (string, error)
+	WorkflowLockDefinitions(ctx context.Context, arg WorkflowLockDefinitionsParams) ([]WorkflowLockDefinitionsRow, error)
+	WorkflowSetLock(ctx context.Context, arg WorkflowSetLockParams) error
 }
 
 var _ Querier = (*Queries)(nil)

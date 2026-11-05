@@ -84,6 +84,11 @@ sql:
         go_type:
           slice: true
           type: byte
+      - column: workflows.lock_state
+        go_type:
+          import: github.com/accuknox/agentz/internal/gateway/openapi
+          package: gatewayapi
+          type: WorkflowLock
 - engine: postgresql
   queries: internal/gateway/dashboard/db/query.sql
   schema:

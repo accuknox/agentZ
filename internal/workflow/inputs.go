@@ -381,7 +381,9 @@ func validateValue(schema *jsonschema.Schema, value any, fieldPrefix string) []I
 		if item.Error == nil {
 			continue
 		}
-		if isValidationNoise(item.Error.String()) {
+		message := item.Error.String()
+		switch message {
+		case "'allOf' failed", "'anyOf' failed", "'oneOf' failed", "'not' failed":
 			continue
 		}
 
@@ -389,7 +391,7 @@ func validateValue(schema *jsonschema.Schema, value any, fieldPrefix string) []I
 			issues,
 			Issue{
 				Field:   joinField(fieldPrefix, item.InstanceLocation),
-				Message: item.Error.String(),
+				Message: message,
 			},
 		)
 	}
@@ -415,41 +417,19 @@ func validateValue(schema *jsonschema.Schema, value any, fieldPrefix string) []I
 }
 
 func joinField(fieldPrefix string, instanceLocation string) string {
-	var field strings.Builder
-	if fieldPrefix != "" {
-		field.WriteString(fieldPrefix)
+	if instanceLocation == "" || instanceLocation == "/" {
+		return fieldPrefix
 	}
-	for _, part := range jsonPointerParts(instanceLocation) {
+
+	var field strings.Builder
+	field.WriteString(fieldPrefix)
+	parts := strings.Split(strings.TrimPrefix(instanceLocation, "/"), "/")
+	for _, part := range parts {
 		if field.Len() > 0 {
 			field.WriteString(".")
 		}
-		field.WriteString(part)
+		part = strings.ReplaceAll(part, "~1", "/")
+		field.WriteString(strings.ReplaceAll(part, "~0", "~"))
 	}
 	return field.String()
-}
-
-func jsonPointerParts(ptr string) []string {
-	if ptr == "" || ptr == "/" {
-		return nil
-	}
-
-	parts := strings.Split(strings.TrimPrefix(ptr, "/"), "/")
-	out := make([]string, 0, len(parts))
-
-	for _, part := range parts {
-		part = strings.ReplaceAll(part, "~1", "/")
-		part = strings.ReplaceAll(part, "~0", "~")
-		out = append(out, part)
-	}
-
-	return out
-}
-
-func isValidationNoise(message string) bool {
-	switch message {
-	case "'allOf' failed", "'anyOf' failed", "'oneOf' failed", "'not' failed":
-		return true
-	default:
-		return false
-	}
 }

@@ -1,0 +1,1 @@
+ALTER TYPE "public"."event_trail_target" ADD VALUE 'workflow';

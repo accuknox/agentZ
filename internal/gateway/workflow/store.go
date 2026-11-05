@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"slices"
 
 	"github.com/jackc/pgx/v5"
@@ -12,8 +13,10 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	workflowdb "github.com/accuknox/agentz/internal/gateway/workflow/db"
+	inputworkflow "github.com/accuknox/agentz/internal/workflow"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -71,6 +74,7 @@ func ListSummaries(ctx context.Context, pool *pgxpool.Pool, tenantNamespace stri
 		summaries = append(
 			summaries,
 			gatewayapi.WorkflowSummary{
+				Lock:         row.LockState,
 				WorkflowName: row.WorkflowName,
 				Title:        row.Title,
 				Summary:      row.Summary,
@@ -83,7 +87,7 @@ func ListSummaries(ctx context.Context, pool *pgxpool.Pool, tenantNamespace stri
 }
 
 // Create stores a workflow and its graph.
-func Create(ctx context.Context, pool *pgxpool.Pool, tenantNamespace string, agtName string, req gatewayapi.CreateWorkflowRequest) (workflowdb.Workflow, error) {
+func Create(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlclient.Client, tenantNamespace string, agtName string, req gatewayapi.CreateWorkflowRequest) (workflowdb.Workflow, error) {
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		return workflowdb.Workflow{}, fmt.Errorf("begin tx: %w", err)
@@ -91,12 +95,61 @@ func Create(ctx context.Context, pool *pgxpool.Pool, tenantNamespace string, agt
 	defer tx.Rollback(ctx)
 
 	queries := workflowdb.New(tx)
+	rows, err := LockDefinitions(ctx, tx, tenantNamespace, agtName, nil)
+	if err != nil {
+		return workflowdb.Workflow{}, err
+	}
+	replace := req.Replace != nil && *req.Replace
+	for _, existing := range rows {
+		if existing.WorkflowName != req.WorkflowName {
+			continue
+		}
+		if !replace {
+			return workflowdb.Workflow{}, apiutil.NewError(
+				http.StatusConflict,
+				"conflict",
+				"workflow already exists; read it and use replace: true to submit a complete replacement",
+				nil,
+			)
+		}
+		if err := RequireUnlocked([]workflowdb.WorkflowLockDefinitionsRow{existing}); err != nil {
+			return workflowdb.Workflow{}, err
+		}
+		schedules := &agentzv1alpha1.WorkflowScheduleList{}
+		if err := k8sClient.List(ctx, schedules, ctrlclient.InNamespace(tenantNamespace)); err != nil {
+			return workflowdb.Workflow{}, fmt.Errorf("list schedules before replacement: %w", err)
+		}
+		var fields []gatewayapi.FieldError
+		for _, schedule := range schedules.Items {
+			if schedule.Spec.AgentName != agtName || schedule.Spec.WorkflowName != req.WorkflowName {
+				continue
+			}
+			issues, err := inputworkflow.ValidateValues(schedule.Spec.Inputs.Raw, req.Inputs, req.ArbitraryJson, "inputs")
+			if err != nil {
+				return workflowdb.Workflow{}, fmt.Errorf("validate schedule %q: %w", schedule.Name, err)
+			}
+			for _, issue := range issues {
+				fields = append(fields, gatewayapi.FieldError{
+					Field:   "schedules." + schedule.Name + "." + issue.Field,
+					Message: issue.Message,
+				})
+			}
+		}
+		if len(fields) > 0 {
+			return workflowdb.Workflow{}, apiutil.NewError(
+				http.StatusConflict,
+				"workflow_schedule_inputs_incompatible",
+				"replacement would invalidate saved schedule inputs; adjust the definition or affected schedules before retrying",
+				nil,
+				fields...,
+			)
+		}
+	}
 	inputsJSON, err := inputContractJSON(req.Inputs, req.ArbitraryJson)
 	if err != nil {
 		return workflowdb.Workflow{}, err
 	}
 
-	replace := req.Replace != nil && *req.Replace
 	row, err := queries.WorkflowCreate(
 		ctx,
 		workflowdb.WorkflowCreateParams{
@@ -199,42 +252,23 @@ func Create(ctx context.Context, pool *pgxpool.Pool, tenantNamespace string, agt
 }
 
 // DeleteMany removes multiple workflows for one agent.
-func DeleteMany(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlclient.Client, tenantNamespace string, agtName string, wfNames []string) ([]string, error) {
-	names := uniqueNames(wfNames)
+func DeleteMany(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlclient.Client, tenantNamespace string, agtName string, wfNames []string) error {
+	names := slices.Clone(wfNames)
+	slices.Sort(names)
+	names = slices.Compact(names)
 	tx, err := pool.Begin(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("begin tx: %w", err)
+		return fmt.Errorf("begin tx: %w", err)
 	}
 	defer tx.Rollback(ctx)
-
-	queries := workflowdb.New(tx)
-	existing, err := queries.WorkflowListExistingNames(
-		ctx,
-		workflowdb.WorkflowListExistingNamesParams{
-			TenantNamespace: tenantNamespace,
-			AgentName:       agtName,
-			WorkflowNames:   names,
-		},
-	)
+	rows, err := LockDefinitions(ctx, tx, tenantNamespace, agtName, names)
 	if err != nil {
-		return nil, fmt.Errorf("list existing workflows: %w", err)
+		return err
 	}
-
-	if len(existing) != len(names) {
-		existingSet := make(map[string]struct{}, len(existing))
-		for _, name := range existing {
-			existingSet[name] = struct{}{}
-		}
-
-		missing := make([]string, 0, len(names)-len(existing))
-		for _, name := range names {
-			if _, ok := existingSet[name]; ok {
-				continue
-			}
-			missing = append(missing, name)
-		}
-		return missing, ErrWorkflowNotFound
+	if err := RequireUnlocked(rows); err != nil {
+		return err
 	}
+	queries := workflowdb.New(tx)
 
 	wfSet := make(map[string]struct{}, len(names))
 	for _, name := range names {
@@ -244,7 +278,7 @@ func DeleteMany(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlclient.Cl
 	runList := &agentzv1alpha1.WorkflowRunList{}
 	err = k8sClient.List(ctx, runList, ctrlclient.InNamespace(tenantNamespace))
 	if err != nil {
-		return nil, fmt.Errorf("list workflow runs: %w", err)
+		return fmt.Errorf("list workflow runs: %w", err)
 	}
 	for i := range runList.Items {
 		run := &runList.Items[i]
@@ -256,14 +290,14 @@ func DeleteMany(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlclient.Cl
 		}
 		err := k8sClient.Delete(ctx, run)
 		if err != nil && !apierrors.IsNotFound(err) {
-			return nil, fmt.Errorf("delete workflow run %q: %w", run.Name, err)
+			return fmt.Errorf("delete workflow run %q: %w", run.Name, err)
 		}
 	}
 
 	scheduleList := &agentzv1alpha1.WorkflowScheduleList{}
 	err = k8sClient.List(ctx, scheduleList, ctrlclient.InNamespace(tenantNamespace))
 	if err != nil {
-		return nil, fmt.Errorf("list workflow schedules: %w", err)
+		return fmt.Errorf("list workflow schedules: %w", err)
 	}
 	for i := range scheduleList.Items {
 		schedule := &scheduleList.Items[i]
@@ -275,7 +309,7 @@ func DeleteMany(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlclient.Cl
 		}
 		err := k8sClient.Delete(ctx, schedule)
 		if err != nil && !apierrors.IsNotFound(err) {
-			return nil, fmt.Errorf(
+			return fmt.Errorf(
 				"delete workflow schedule %q: %w",
 				schedule.Name,
 				err,
@@ -292,14 +326,14 @@ func DeleteMany(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlclient.Cl
 		},
 	)
 	if err != nil {
-		return nil, fmt.Errorf("delete workflows: %w", err)
+		return fmt.Errorf("delete workflows: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("commit tx: %w", err)
+		return fmt.Errorf("commit tx: %w", err)
 	}
 
-	return nil, nil
+	return nil
 }
 
 // Get reconstructs a stored workflow graph from its related workflow tables.
@@ -441,6 +475,7 @@ func Get(ctx context.Context, pool *pgxpool.Pool, tenantNamespace string, agtNam
 	}
 
 	return gatewayapi.Workflow{
+		Lock:          row.LockState,
 		AgentName:     row.AgentName,
 		WorkflowName:  row.WorkflowName,
 		Title:         row.Title,
@@ -556,6 +591,9 @@ func inputContractJSON(inputs *gatewayapi.WorkflowInputs, arbitraryJSON *gateway
 }
 
 func decodeInputContract(raw []byte) (*gatewayapi.WorkflowInputs, *gatewayapi.WorkflowArbitraryJSON, error) {
+	if len(raw) == 0 {
+		return nil, nil, nil
+	}
 	var decoded storedInputContract
 	err := json.Unmarshal(raw, &decoded)
 	if err != nil {
@@ -564,17 +602,77 @@ func decodeInputContract(raw []byte) (*gatewayapi.WorkflowInputs, *gatewayapi.Wo
 	return decoded.Inputs, decoded.ArbitraryJSON, nil
 }
 
-func uniqueNames(names []string) []string {
-	seen := map[string]struct{}{}
-	out := make([]string, 0, len(names))
-
+// LockDefinitions serializes workflow mutations against owning-agent deletion.
+// An empty names list selects all workflows; named lookups require every target.
+func LockDefinitions(ctx context.Context, tx pgx.Tx, ns, agentName string, names []string) ([]workflowdb.WorkflowLockDefinitionsRow, error) {
+	queries := workflowdb.New(tx)
+	_, err := queries.WorkflowLockAgent(ctx, workflowdb.WorkflowLockAgentParams{
+		TenantNamespace: ns,
+		AgentName:       agentName,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, apiutil.NewError(
+			http.StatusNotFound,
+			"not_found",
+			"agent not found",
+			err,
+		)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("lock workflow agent: %w", err)
+	}
+	rows, err := queries.WorkflowLockDefinitions(ctx, workflowdb.WorkflowLockDefinitionsParams{
+		TenantNamespace: ns,
+		AgentName:       agentName,
+		WorkflowNames:   names,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("lock workflows: %w", err)
+	}
+	var missing []gatewayapi.FieldError
 	for _, name := range names {
-		if _, ok := seen[name]; ok {
+		found := slices.ContainsFunc(rows, func(row workflowdb.WorkflowLockDefinitionsRow) bool { return row.WorkflowName == name })
+		if !found {
+			missing = append(missing, gatewayapi.FieldError{
+				Field:   "workflow_names." + name,
+				Message: "workflow not found",
+			})
+		}
+	}
+	if len(missing) > 0 {
+		return nil, apiutil.NewError(
+			http.StatusNotFound,
+			"not_found",
+			"one or more workflows were not found; nothing was changed",
+			nil,
+			missing...,
+		)
+	}
+	return rows, nil
+}
+
+// RequireUnlocked rejects destructive operations before any cleanup begins.
+func RequireUnlocked(rows []workflowdb.WorkflowLockDefinitionsRow) error {
+	var conflicts []gatewayapi.WorkflowLockConflict
+	for _, row := range rows {
+		if !row.LockState.Locked {
 			continue
 		}
-		seen[name] = struct{}{}
-		out = append(out, name)
+		conflicts = append(conflicts, gatewayapi.WorkflowLockConflict{
+			AgentName:    row.AgentName,
+			WorkflowName: row.WorkflowName,
+			Lock:         row.LockState,
+		})
 	}
-
-	return out
+	if len(conflicts) == 0 {
+		return nil
+	}
+	err := apiutil.NewError(
+		http.StatusLocked,
+		"workflow_locked",
+		"workflow is locked; ask a user with Use access to unlock it on the Workflows page before retrying; agents cannot unlock workflows",
+		nil,
+	)
+	err.LockedWorkflows = conflicts
+	return err
 }

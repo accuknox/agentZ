@@ -206,6 +206,7 @@ export const zEventTrailTargetType = z.enum([
   "inference_provider",
   "inference_pool",
   "agent",
+  "workflow",
   "guardrail_connection",
   "guardrail_policy",
   "guardrail_settings",
@@ -1215,6 +1216,24 @@ export const zAgentTools = z.object({
   message: z.string(),
 })
 
+export const zWorkflowLock = z.object({
+  locked: z.boolean(),
+  version: z.int().gte(0),
+  changed_at: z.iso.datetime({ offset: true }).optional(),
+  actor: zResourceActor.optional(),
+})
+
+export const zSetWorkflowLockRequest = z.object({
+  locked: z.boolean(),
+  expected_version: z.int().gte(0),
+})
+
+export const zWorkflowLockConflict = z.object({
+  agent_name: zAgentName,
+  workflow_name: zWorkflowName,
+  lock: zWorkflowLock,
+})
+
 export const zWorkflowDelivery = z.object({
   session_id: z.string().min(1),
 })
@@ -1313,6 +1332,7 @@ export const zListWorkflowWebhookTriggersResponse = z.object({
 })
 
 export const zWorkflowSummary = z.object({
+  lock: zWorkflowLock,
   workflow_name: zWorkflowName,
   title: z.string(),
   summary: z.string(),
@@ -1792,6 +1812,8 @@ export const zError = z.object({
   code: z.string().min(1),
   message: z.string().min(1),
   errors: z.array(zFieldError).optional(),
+  current_workflow_lock: zWorkflowLock.optional(),
+  locked_workflows: z.array(zWorkflowLockConflict).optional(),
   details: zJsonValue.optional(),
 })
 
@@ -1897,6 +1919,7 @@ export const zCreateWorkflowRequest = z.object({
 })
 
 export const zWorkflow = z.object({
+  lock: zWorkflowLock,
   agent_name: zAgentName,
   workflow_name: zWorkflowName,
   title: z.string(),
@@ -6102,6 +6125,18 @@ export const zCreateWorkflowPath = z.object({
  * Workflow created.
  */
 export const zCreateWorkflowResponse = zWorkflow
+
+export const zSetWorkflowLockBody = zSetWorkflowLockRequest
+
+export const zSetWorkflowLockPath = z.object({
+  agentName: zAgentName,
+  workflowName: zWorkflowName,
+})
+
+/**
+ * Current workflow lock state.
+ */
+export const zSetWorkflowLockResponse = zWorkflowLock
 
 export const zGetWorkflowPath = z.object({
   agentName: zAgentName,

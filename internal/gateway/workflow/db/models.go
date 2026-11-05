@@ -7,18 +7,20 @@ package workflowdb
 import (
 	"time"
 
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	"github.com/google/uuid"
 )
 
 type Workflow struct {
-	TenantNamespace string    `json:"tenant_namespace"`
-	AgentName       string    `json:"agent_name"`
-	WorkflowName    string    `json:"workflow_name"`
-	Title           string    `json:"title"`
-	Summary         string    `json:"summary"`
-	InputSchema     []byte    `json:"input_schema"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	TenantNamespace string                  `json:"tenant_namespace"`
+	AgentName       string                  `json:"agent_name"`
+	WorkflowName    string                  `json:"workflow_name"`
+	LockState       gatewayapi.WorkflowLock `json:"lock_state"`
+	Title           string                  `json:"title"`
+	Summary         string                  `json:"summary"`
+	InputSchema     []byte                  `json:"input_schema"`
+	CreatedAt       time.Time               `json:"created_at"`
+	UpdatedAt       time.Time               `json:"updated_at"`
 }
 
 type WorkflowEdge struct {

@@ -162,6 +162,7 @@ import {
   resolveWorkspaceSlug,
   retryWorkspace,
   runCodingGit,
+  setWorkflowLock,
   startCodingOperation,
   statAgentFile,
   submitChatInput,
@@ -643,6 +644,9 @@ import type {
   RunCodingGitData,
   RunCodingGitError,
   RunCodingGitResponse,
+  SetWorkflowLockData,
+  SetWorkflowLockError,
+  SetWorkflowLockResponse,
   StartCodingOperationData,
   StartCodingOperationError,
   StartCodingOperationResponse,
@@ -4196,7 +4200,7 @@ export const listWorkflowSummariesOptions = (options: Options<ListWorkflowSummar
   })
 
 /**
- * Create a workflow definition.
+ * Create or replace a complete workflow definition.
  *
  * Creates a normalized workflow DAG for a single agent. The workflow definition is stored as metadata, nodes, and edges, and later retrieval can derive a markdown execution playbook from the structured graph.
  *
@@ -4211,6 +4215,33 @@ export const createWorkflowMutation = (
   > = {
     mutationFn: async (fnOptions) => {
       const { data } = await createWorkflow({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Lock or unlock a workflow from an authenticated browser session.
+ */
+export const setWorkflowLockMutation = (
+  options?: Partial<Options<SetWorkflowLockData>>
+): UseMutationOptions<
+  SetWorkflowLockResponse,
+  SetWorkflowLockError,
+  Options<SetWorkflowLockData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    SetWorkflowLockResponse,
+    SetWorkflowLockError,
+    Options<SetWorkflowLockData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await setWorkflowLock({
         ...options,
         ...fnOptions,
         throwOnError: true,

@@ -3601,11 +3601,17 @@ components:
         code:
           minLength: 1
           type: string
+        current_workflow_lock:
+          $ref: '#/components/schemas/WorkflowLock'
         details:
           $ref: '#/components/schemas/JSONValue'
         errors:
           items:
             $ref: '#/components/schemas/FieldError'
+          type: array
+        locked_workflows:
+          items:
+            $ref: '#/components/schemas/WorkflowLockConflict'
           type: array
         message:
           minLength: 1
@@ -3986,6 +3992,7 @@ components:
       - inference_provider
       - inference_pool
       - agent
+      - workflow
       - guardrail_connection
       - guardrail_policy
       - guardrail_settings
@@ -4003,6 +4010,7 @@ components:
       - EventTrailTargetInferenceProvider
       - EventTrailTargetInferencePool
       - EventTrailTargetAgent
+      - EventTrailTargetWorkflow
       - EventTrailTargetGuardrailConnection
       - EventTrailTargetGuardrailPolicy
       - EventTrailTargetGuardrailSettings
@@ -26056,6 +26064,18 @@ components:
       - guardrail_connections
       - guardrail_policies
       type: object
+    SetWorkflowLockRequest:
+      additionalProperties: false
+      properties:
+        expected_version:
+          minimum: 0
+          type: integer
+        locked:
+          type: boolean
+      required:
+      - locked
+      - expected_version
+      type: object
     Skill:
       additionalProperties: false
       properties:
@@ -27043,6 +27063,8 @@ components:
           type: array
         inputs:
           $ref: '#/components/schemas/WorkflowInputs'
+        lock:
+          $ref: '#/components/schemas/WorkflowLock'
         nodes:
           items:
             $ref: '#/components/schemas/WorkflowNode'
@@ -27057,6 +27079,7 @@ components:
         workflow_name:
           $ref: '#/components/schemas/WorkflowName'
       required:
+      - lock
       - agent_name
       - workflow_name
       - title
@@ -27296,6 +27319,37 @@ components:
     WorkflowInputs:
       additionalProperties:
         $ref: '#/components/schemas/WorkflowInputSchema'
+      type: object
+    WorkflowLock:
+      additionalProperties: false
+      properties:
+        actor:
+          $ref: '#/components/schemas/ResourceActor'
+        changed_at:
+          format: date-time
+          type: string
+        locked:
+          type: boolean
+        version:
+          minimum: 0
+          type: integer
+      required:
+      - locked
+      - version
+      type: object
+    WorkflowLockConflict:
+      additionalProperties: false
+      properties:
+        agent_name:
+          $ref: '#/components/schemas/AgentName'
+        lock:
+          $ref: '#/components/schemas/WorkflowLock'
+        workflow_name:
+          $ref: '#/components/schemas/WorkflowName'
+      required:
+      - agent_name
+      - workflow_name
+      - lock
       type: object
     WorkflowName:
       description: Workflow name scoped to an agent.
@@ -27575,6 +27629,8 @@ components:
     WorkflowSummary:
       additionalProperties: false
       properties:
+        lock:
+          $ref: '#/components/schemas/WorkflowLock'
         summary:
           type: string
         title:
@@ -27585,6 +27641,7 @@ components:
         workflow_name:
           $ref: '#/components/schemas/WorkflowName'
       required:
+      - lock
       - workflow_name
       - title
       - summary
@@ -27880,6 +27937,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         "404":
           $ref: '#/components/responses/NotFound'
+        "423":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: A workflow is locked. A user must unlock it in Workflows before retrying.
         "500":
           $ref: '#/components/responses/InternalError'
       security:
@@ -45432,6 +45495,12 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         "422":
           $ref: '#/components/responses/UnprocessableContent'
+        "423":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: A workflow is locked. A user must unlock it in Workflows before retrying.
         "500":
           $ref: '#/components/responses/InternalError'
       security:
@@ -45498,12 +45567,18 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         "422":
           $ref: '#/components/responses/UnprocessableContent'
+        "423":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: A workflow is locked. A user must unlock it in Workflows before retrying.
         "500":
           $ref: '#/components/responses/InternalError'
       security:
       - GatewayBearer:
         - agent.use_shared
-      summary: Create a workflow definition.
+      summary: Create or replace a complete workflow definition.
       tags:
       - workflows
   /api/workflow/{agentName}/{workflowName}:
@@ -45671,6 +45746,47 @@ paths:
       security:
       - GatewayBearer:
         - agent.use_shared
+      tags:
+      - workflows
+  /api/workflow/{agentName}/{workflowName}/lock:
+    put:
+      operationId: setWorkflowLock
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - in: path
+        name: workflowName
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkflowName'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetWorkflowLockRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowLock'
+          description: Current workflow lock state.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - agent.use_shared
+      summary: Lock or unlock a workflow from an authenticated browser session.
       tags:
       - workflows
   /api/workflow/{agentName}/{workflowName}/run:

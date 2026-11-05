@@ -1337,6 +1337,11 @@ paths:
       parameters:
       - $ref: '#/components/parameters/AgentNamePath'
       responses:
+        '423':
+          description: A workflow is locked. A user must unlock it in Workflows before retrying.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
         '204':
           description: Agent was deleted.
         '400':
@@ -3833,7 +3838,7 @@ paths:
           $ref: '#/components/responses/InternalError'
     post:
       operationId: createWorkflow
-      summary: Create a workflow definition.
+      summary: Create or replace a complete workflow definition.
       description: >
         Creates a normalized workflow DAG for a single agent. The workflow
         definition is stored as metadata, nodes, and edges, and later retrieval
@@ -3848,6 +3853,11 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateWorkflowRequest'
       responses:
+        '423':
+          description: A workflow is locked. A user must unlock it in Workflows before retrying.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
         '403':
           $ref: '#/components/responses/Forbidden'
         '415':
@@ -3885,6 +3895,11 @@ paths:
             schema:
               $ref: '#/components/schemas/DeleteWorkflowsRequest'
       responses:
+        '423':
+          description: A workflow is locked. A user must unlock it in Workflows before retrying.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
         '403':
           $ref: '#/components/responses/Forbidden'
         '415':
@@ -3899,6 +3914,35 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalError'
+
+  /api/workflow/{agentName}/{workflowName}/lock:
+    put:
+      operationId: setWorkflowLock
+      summary: Lock or unlock a workflow from an authenticated browser session.
+      tags: [workflows]
+      parameters:
+      - $ref: '#/components/parameters/AgentNamePath'
+      - name: workflowName
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/WorkflowName'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SetWorkflowLockRequest'}
+      responses:
+        '200':
+          description: Current workflow lock state.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/WorkflowLock'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
 
   /api/workflow/{agentName}/{workflowName}:
     get:
@@ -6778,7 +6822,7 @@ components:
 
     EventTrailTargetType:
       type: string
-      enum: [organization, organization_membership, workspace, role, sandbox, skill, team, mcp_connection, inference_provider, inference_pool, agent, guardrail_connection, guardrail_policy, guardrail_settings, external_access_guardrails]
+      enum: [organization, organization_membership, workspace, role, sandbox, skill, team, mcp_connection, inference_provider, inference_pool, agent, workflow, guardrail_connection, guardrail_policy, guardrail_settings, external_access_guardrails]
       x-enum-varnames:
       - EventTrailTargetOrganization
       - EventTrailTargetOrganizationMembership
@@ -6791,6 +6835,7 @@ components:
       - EventTrailTargetInferenceProvider
       - EventTrailTargetInferencePool
       - EventTrailTargetAgent
+      - EventTrailTargetWorkflow
       - EventTrailTargetGuardrailConnection
       - EventTrailTargetGuardrailPolicy
       - EventTrailTargetGuardrailSettings
@@ -7645,6 +7690,11 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/FieldError'
+        current_workflow_lock:
+          $ref: '#/components/schemas/WorkflowLock'
+        locked_workflows:
+          type: array
+          items: {$ref: '#/components/schemas/WorkflowLockConflict'}
         details:
           $ref: '#/components/schemas/JSONValue'
       required: [code, message]
@@ -8504,6 +8554,8 @@ components:
       type: object
       additionalProperties: false
       properties:
+        lock:
+          $ref: '#/components/schemas/WorkflowLock'
         agent_name:
           $ref: '#/components/schemas/AgentName'
         workflow_name:
@@ -8531,6 +8583,7 @@ components:
           type: string
           format: date-time
       required:
+      - lock
       - agent_name
       - workflow_name
       - title
@@ -8539,6 +8592,33 @@ components:
       - edges
       - created_at
       - updated_at
+
+    WorkflowLock:
+      type: object
+      additionalProperties: false
+      properties:
+        locked: {type: boolean}
+        version: {type: integer, minimum: 0}
+        changed_at: {type: string, format: date-time}
+        actor: {$ref: '#/components/schemas/ResourceActor'}
+      required: [locked, version]
+
+    SetWorkflowLockRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        locked: {type: boolean}
+        expected_version: {type: integer, minimum: 0}
+      required: [locked, expected_version]
+
+    WorkflowLockConflict:
+      type: object
+      additionalProperties: false
+      properties:
+        agent_name: {$ref: '#/components/schemas/AgentName'}
+        workflow_name: {$ref: '#/components/schemas/WorkflowName'}
+        lock: {$ref: '#/components/schemas/WorkflowLock'}
+      required: [agent_name, workflow_name, lock]
 
     WorkflowDelivery:
       type: object
@@ -8969,6 +9049,8 @@ components:
       type: object
       additionalProperties: false
       properties:
+        lock:
+          $ref: '#/components/schemas/WorkflowLock'
         workflow_name:
           $ref: '#/components/schemas/WorkflowName'
         title:
@@ -8979,6 +9061,7 @@ components:
           type: string
           format: date-time
       required:
+      - lock
       - workflow_name
       - title
       - summary

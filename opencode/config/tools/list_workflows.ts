@@ -7,7 +7,7 @@ import { workflowAgentName, workflowErrorOutput } from "../lib/workflow"
 const description = `
 List all saved workflows.
 
-Use this tool when you need to discover which saved workflows already exist before choosing one to inspect, update, or delete. This returns the workflow name, title, and summary metadata for every saved workflow.
+Use this tool when you need to discover which saved workflows already exist before choosing one to inspect, replace, or delete. This returns the workflow name, title, and summary metadata for every saved workflow.
 
 Do NOT use this tool when you need the full workflow graph, nodes, edges, or execution playbook. Use get_workflow for that.
 
@@ -56,7 +56,7 @@ export default tool({
       return result.data
         .map(
           (workflow) =>
-            `- name: ${workflow.workflow_name}, title: ${workflow.title}, summary: ${workflow.summary}`
+            `- name: ${workflow.workflow_name}, title: ${workflow.title}, locked: ${workflow.lock.locked}, summary: ${workflow.summary}`
         )
         .join("\n")
     }

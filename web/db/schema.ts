@@ -172,6 +172,7 @@ export const eventTrailTarget = pgEnum("event_trail_target", [
   "guardrail_policy",
   "guardrail_settings",
   "external_access_guardrails",
+  "workflow",
 ])
 export const cleanupState = pgEnum("cleanup_state", [
   "pending",

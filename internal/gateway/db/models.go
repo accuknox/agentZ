@@ -558,6 +558,7 @@ const (
 	EventTrailTargetGuardrailPolicy          EventTrailTarget = "guardrail_policy"
 	EventTrailTargetGuardrailSettings        EventTrailTarget = "guardrail_settings"
 	EventTrailTargetExternalAccessGuardrails EventTrailTarget = "external_access_guardrails"
+	EventTrailTargetWorkflow                 EventTrailTarget = "workflow"
 )
 
 func (e *EventTrailTarget) Scan(src interface{}) error {

@@ -12,11 +12,13 @@ import (
 
 // APIError describes an HTTP API error response.
 type APIError struct {
-	Status  int
-	Code    string
-	Message string
-	Cause   error
-	Fields  []gatewayapi.FieldError
+	Status              int
+	Code                string
+	Message             string
+	Cause               error
+	Fields              []gatewayapi.FieldError
+	LockedWorkflows     []gatewayapi.WorkflowLockConflict
+	CurrentWorkflowLock *gatewayapi.WorkflowLock
 }
 
 // Error implements error.
@@ -75,8 +77,12 @@ func WriteError(w http.ResponseWriter, _ *http.Request, e *APIError) {
 	RecordRequestError(w, e.Code, e.Cause)
 
 	body := gatewayapi.Error{
-		Code:    e.Code,
-		Message: e.Message,
+		Code:                e.Code,
+		Message:             e.Message,
+		CurrentWorkflowLock: e.CurrentWorkflowLock,
+	}
+	if len(e.LockedWorkflows) > 0 {
+		body.LockedWorkflows = &e.LockedWorkflows
 	}
 	if len(e.Fields) > 0 {
 		body.Errors = &e.Fields

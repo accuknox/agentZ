@@ -69,7 +69,13 @@ Treat the workflow as a saved directed acyclic graph:
 
 - Read the existing definition before revising a workflow.
 - Use `create_workflow` with `replace: true` for an authorized revision. Replacement preserves
-  schedules and updates the graph atomically.
+  workflow identity, schedules, runs, threads, and webhook keys while replacing the graph
+  atomically.
+- If a workflow is locked, ask a user with Use access to unlock it on the Workflows page before
+  retrying. Agents cannot lock or unlock workflows. Do not delete or rename it to bypass protection.
+- Replacement rejects input contracts incompatible with saved schedules. Use the returned schedule
+  names and field errors to resolve the conflict. Adjust the definition or affected schedules as
+  appropriate; preserve configuration and delivery settings if a schedule must be recreated.
 - Ordinary creation still rejects an existing name. Do not rename or delete a workflow to work
   around that conflict.
 

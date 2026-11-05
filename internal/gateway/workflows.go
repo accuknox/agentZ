@@ -1,13 +1,22 @@
 package gateway
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/accuknox/agentz/internal/authorization"
 	"github.com/accuknox/agentz/internal/gateway/apiutil"
+	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	workflowstore "github.com/accuknox/agentz/internal/gateway/workflow"
+	workflowdb "github.com/accuknox/agentz/internal/gateway/workflow/db"
 )
 
 // GetWorkflow handles GET /api/workflow/{agentName}/{workflowName}.
@@ -131,9 +140,9 @@ func (s *Service) CreateWorkflow(w http.ResponseWriter, r *http.Request, agtName
 		return
 	}
 
-	row, err := workflowstore.Create(r.Context(), s.db, ns, agtName, req)
+	row, err := workflowstore.Create(r.Context(), s.lockDB, s.k8sClient, ns, agtName, req)
 	if err != nil {
-		apiutil.WriteError(w, r, workflowstore.MapCreateError(err))
+		apiutil.WriteError(w, r, workflowstore.MapMutationError(err))
 		return
 	}
 
@@ -141,6 +150,7 @@ func (s *Service) CreateWorkflow(w http.ResponseWriter, r *http.Request, agtName
 		w,
 		http.StatusCreated,
 		gatewayapi.Workflow{
+			Lock:          row.LockState,
 			AgentName:     agtName,
 			WorkflowName:  req.WorkflowName,
 			Title:         req.Title,
@@ -190,16 +200,16 @@ func (s *Service) DeleteWorkflows(w http.ResponseWriter, r *http.Request, agtNam
 		return
 	}
 
-	missing, err := workflowstore.DeleteMany(
+	err = workflowstore.DeleteMany(
 		r.Context(),
-		s.db,
+		s.lockDB,
 		s.k8sClient,
 		ns,
 		agtName,
 		req.WorkflowNames,
 	)
 	if err != nil {
-		apiutil.WriteError(w, r, workflowstore.MapDeleteError(err, missing))
+		apiutil.WriteError(w, r, workflowstore.MapMutationError(err))
 		return
 	}
 
@@ -242,4 +252,130 @@ func (s *Service) ListWorkflowSummaries(w http.ResponseWriter, r *http.Request, 
 	}
 
 	apiutil.WriteJSON(w, http.StatusOK, summaries)
+}
+
+// SetWorkflowLock changes workflow protection only for a live browser user with agent Use access.
+func (s *Service) SetWorkflowLock(w http.ResponseWriter, r *http.Request, agentName gatewayapi.AgentNamePath, workflowName gatewayapi.WorkflowName) {
+	auth, ok := requestAuthState(r.Context())
+	if !ok || auth.actorType != requestActorUser || auth.claims == nil || auth.claims.BrowserSessionID == "" {
+		apiutil.WriteError(w, r, resourceForbidden(errors.New("workflow locks can only be changed by a user in the Workflows page")))
+		return
+	}
+	expiry, err := s.queries.GatewayGetBrowserSessionExpiry(r.Context(), gatewaydb.GatewayGetBrowserSessionExpiryParams{
+		ID:     auth.claims.BrowserSessionID,
+		UserID: auth.claims.UserID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) || err == nil && !expiry.After(time.Now()) {
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusUnauthorized, "unauthorized", "browser session has expired", err))
+		return
+	}
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+	access, apiErr := s.resolveAgentAccess(r.Context(), agentName, authorization.OperationUseSharedAgent)
+	if apiErr != nil {
+		apiutil.WriteError(w, r, apiErr)
+		return
+	}
+	var req gatewayapi.SetWorkflowLockRequest
+	if !decodeJSONBody(w, r, &req, false) {
+		return
+	}
+	fields := workflowstore.ValidateLookupRequest(agentName, workflowName)
+	if len(fields) > 0 {
+		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", nil, fields...))
+		return
+	}
+	tx, err := s.lockDB.Begin(r.Context())
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+	defer tx.Rollback(r.Context())
+	rows, err := workflowstore.LockDefinitions(r.Context(), tx, access.namespace, agentName, []string{workflowName})
+	if err != nil {
+		apiutil.WriteError(w, r, workflowstore.MapMutationError(err))
+		return
+	}
+	state := rows[0].LockState
+	if state.Version != req.ExpectedVersion {
+		apiErr := apiutil.NewError(
+			http.StatusConflict, "workflow_lock_conflict", "workflow lock changed; review its current state and try again", nil,
+		)
+		apiErr.CurrentWorkflowLock = &state
+		apiutil.WriteError(w, r, apiErr)
+		return
+	}
+	if state.Locked == req.Locked {
+		apiutil.WriteJSON(w, http.StatusOK, state)
+		return
+	}
+	actors, err := s.resourceActors(r.Context(), access.userID)
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+	actor := actors[access.userID]
+	now := time.Now().UTC()
+	before := "unlocked"
+	after := "locked"
+	if !req.Locked {
+		before, after = after, before
+	}
+	state = gatewayapi.WorkflowLock{
+		Locked:    req.Locked,
+		Version:   state.Version + 1,
+		ChangedAt: &now,
+		Actor:     &actor,
+	}
+	err = workflowdb.New(tx).WorkflowSetLock(r.Context(), workflowdb.WorkflowSetLockParams{
+		TenantNamespace: access.namespace,
+		AgentName:       agentName,
+		WorkflowName:    workflowName,
+		LockState:       state,
+	})
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+	beforeJSON, err := json.Marshal([]gatewayapi.EventTrailField{{
+		Field: gatewayapi.EventTrailFieldState,
+		Value: before,
+	}})
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+	afterJSON, err := json.Marshal([]gatewayapi.EventTrailField{{
+		Field: gatewayapi.EventTrailFieldState,
+		Value: after,
+	}})
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+	_, err = gatewaydb.New(tx).GatewayCreateEventTrailEvent(r.Context(), gatewaydb.GatewayCreateEventTrailEventParams{
+		ID:             "event-trail-" + uuid.NewString(),
+		OrganizationID: access.organizationID,
+		WorkspaceID:    pgtype.Text{String: access.workspaceID, Valid: true},
+		ActorType:      gatewaydb.EventTrailActorUser,
+		ActorID:        pgtype.Text{String: access.userID, Valid: true},
+		TargetType:     gatewaydb.EventTrailTargetWorkflow,
+		TargetID:       agentName + "/" + workflowName,
+		Category:       "workflow",
+		Action:         "workflow." + after,
+		Result:         gatewaydb.EventTrailResultSucceeded,
+		Before:         beforeJSON,
+		After:          afterJSON,
+	})
+	if err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+	if err := tx.Commit(r.Context()); err != nil {
+		apiutil.WriteInternalError(w, r, err)
+		return
+	}
+	apiutil.WriteJSON(w, http.StatusOK, state)
 }

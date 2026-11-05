@@ -285,7 +285,7 @@ func compileEventTrailFilters(filters []gatewayapi.EventTrailFilter) (eventTrail
 			for _, value := range values {
 				targetType := gatewayapi.EventTrailTargetType(value)
 				switch targetType {
-				case gatewayapi.EventTrailTargetOrganization,
+				case gatewayapi.EventTrailTargetWorkflow, gatewayapi.EventTrailTargetOrganization,
 					gatewayapi.EventTrailTargetOrganizationMembership,
 					gatewayapi.EventTrailTargetTeam,
 					gatewayapi.EventTrailTargetMCPConnection,

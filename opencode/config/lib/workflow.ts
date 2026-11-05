@@ -23,6 +23,21 @@ export function workflowErrorOutput(error: GatewayError) {
       "Hint: use either inputs or arbitrary_json, never both. inputs must be a flat object keyed by input name with typed scalar schemas. arbitrary_json accepts optional description and default_payload."
     )
   }
+  for (const workflow of error.locked_workflows ?? []) {
+    const actor = workflow.lock.actor
+    lines.push(
+      `Workflow ${workflow.workflow_name} on agent ${workflow.agent_name} is locked` +
+        (actor ? ` by ${actor.name ?? actor.email ?? actor.id}` : "") +
+        (workflow.lock.changed_at ? ` since ${workflow.lock.changed_at}` : "") +
+        "."
+    )
+  }
+  if (error.code === "workflow_schedule_inputs_incompatible") {
+    lines.push(
+      "Resolve the affected schedules or adjust the replacement input contract before retrying. " +
+        "If a schedule must be removed and recreated, preserve its configuration and delivery settings first."
+    )
+  }
   for (const field of error.errors ?? []) {
     lines.push(`${field.field}: ${field.message}`)
   }

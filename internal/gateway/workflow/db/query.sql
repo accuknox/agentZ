@@ -18,15 +18,7 @@ VALUES (
 ON CONFLICT (tenant_namespace, agent_name, workflow_name) DO UPDATE SET
  title=EXCLUDED.title, summary=EXCLUDED.summary, input_schema=EXCLUDED.input_schema, updated_at=now()
 WHERE @replace_existing::boolean
-RETURNING
-  tenant_namespace,
-  agent_name,
-  workflow_name,
-  title,
-  summary,
-  input_schema,
-  created_at,
-  updated_at;
+RETURNING *;
 
 -- name: WorkflowCreateNodes :exec
 INSERT INTO workflow_nodes(
@@ -129,45 +121,33 @@ FROM jsonb_to_recordset(sqlc.arg(edges)::jsonb) AS e(
 );
 
 -- name: WorkflowGet :one
-SELECT
-  tenant_namespace,
-  agent_name,
-  workflow_name,
-  title,
-  summary,
-  input_schema,
-  created_at,
-  updated_at
-FROM workflows
-WHERE tenant_namespace = sqlc.arg(tenant_namespace)
-  AND agent_name = sqlc.arg(agent_name)
-  AND workflow_name = sqlc.arg(workflow_name);
+SELECT * FROM workflows
+WHERE tenant_namespace = @tenant_namespace AND agent_name = @agent_name AND workflow_name = @workflow_name;
 
 -- name: WorkflowListSummaries :many
-SELECT
-  workflow_name,
-  title,
-  summary,
-  updated_at
-FROM workflows
-WHERE tenant_namespace = sqlc.arg(tenant_namespace)
-  AND agent_name = sqlc.arg(agent_name)
+SELECT workflow_name, title, summary, lock_state, updated_at FROM workflows
+WHERE tenant_namespace = @tenant_namespace AND agent_name = @agent_name
 ORDER BY updated_at DESC, workflow_name ASC;
 
--- name: WorkflowListExistingNames :many
-SELECT workflow_name
-FROM workflows
-WHERE tenant_namespace = sqlc.arg(tenant_namespace)
-  AND agent_name = sqlc.arg(agent_name)
-  AND workflow_name = ANY(sqlc.arg(workflow_names)::text[])
-ORDER BY workflow_name ASC
+-- name: WorkflowLockAgent :one
+SELECT agent_name FROM agents
+WHERE tenant_namespace = @tenant_namespace AND agent_name = @agent_name
 FOR UPDATE;
+
+-- name: WorkflowLockDefinitions :many
+SELECT agent_name, workflow_name, lock_state FROM workflows
+WHERE tenant_namespace = @tenant_namespace AND agent_name = @agent_name
+  AND (COALESCE(cardinality(@workflow_names::text[]), 0) = 0 OR workflow_name = ANY(@workflow_names::text[]))
+ORDER BY workflow_name
+FOR UPDATE;
+
+-- name: WorkflowSetLock :exec
+UPDATE workflows SET lock_state = @lock_state
+WHERE tenant_namespace = @tenant_namespace AND agent_name = @agent_name AND workflow_name = @workflow_name;
 
 -- name: WorkflowDeleteMany :execrows
 DELETE FROM workflows
-WHERE tenant_namespace = sqlc.arg(tenant_namespace)
-  AND agent_name = sqlc.arg(agent_name)
-  AND workflow_name = ANY(sqlc.arg(workflow_names)::text[]);
+WHERE tenant_namespace = @tenant_namespace AND agent_name = @agent_name AND workflow_name = ANY(@workflow_names::text[]);
 
 -- name: WorkflowListNodes :many
 SELECT

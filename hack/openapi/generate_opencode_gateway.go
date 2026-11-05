@@ -80,6 +80,7 @@ var baseOperationCapabilities = map[string][]string{
 		"createAgentDirectory",
 		"createAgentFile",
 		"createWorkflow",
+		"setWorkflowLock",
 		"listAgentModelCatalog",
 		"createWorkflowEvaluation",
 		"listWorkflowEvaluations",

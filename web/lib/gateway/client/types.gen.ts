@@ -458,6 +458,7 @@ export type EventTrailTargetType =
   | "inference_provider"
   | "inference_pool"
   | "agent"
+  | "workflow"
   | "guardrail_connection"
   | "guardrail_policy"
   | "guardrail_settings"
@@ -839,6 +840,8 @@ export type Error = {
   code: string
   message: string
   errors?: Array<FieldError>
+  current_workflow_lock?: WorkflowLock
+  locked_workflows?: Array<WorkflowLockConflict>
   details?: JsonValue
 }
 
@@ -1172,6 +1175,7 @@ export type CreateWorkflowRequest = {
 }
 
 export type Workflow = {
+  lock: WorkflowLock
   agent_name: AgentName
   workflow_name: WorkflowName
   title: string
@@ -1182,6 +1186,24 @@ export type Workflow = {
   edges: Array<WorkflowEdge>
   created_at: string
   updated_at: string
+}
+
+export type WorkflowLock = {
+  locked: boolean
+  version: number
+  changed_at?: string
+  actor?: ResourceActor
+}
+
+export type SetWorkflowLockRequest = {
+  locked: boolean
+  expected_version: number
+}
+
+export type WorkflowLockConflict = {
+  agent_name: AgentName
+  workflow_name: WorkflowName
+  lock: WorkflowLock
 }
 
 export type WorkflowDelivery = {
@@ -1408,6 +1430,7 @@ export type UpdateWorkflowScheduleRequest = {
 }
 
 export type WorkflowSummary = {
+  lock: WorkflowLock
   workflow_name: WorkflowName
   title: string
   summary: string
@@ -6074,6 +6097,10 @@ export type DeleteAgentErrors = {
    */
   404: Error
   /**
+   * A workflow is locked. A user must unlock it in Workflows before retrying.
+   */
+  423: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -10445,6 +10472,10 @@ export type DeleteWorkflowsErrors = {
    */
   422: Error
   /**
+   * A workflow is locked. A user must unlock it in Workflows before retrying.
+   */
+  423: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -10541,6 +10572,10 @@ export type CreateWorkflowErrors = {
    */
   422: Error
   /**
+   * A workflow is locked. A user must unlock it in Workflows before retrying.
+   */
+  423: Error
+  /**
    * Unexpected server error.
    */
   500: Error
@@ -10556,6 +10591,59 @@ export type CreateWorkflowResponses = {
 }
 
 export type CreateWorkflowResponse = CreateWorkflowResponses[keyof CreateWorkflowResponses]
+
+export type SetWorkflowLockData = {
+  body: SetWorkflowLockRequest
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    workflowName: WorkflowName
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/lock"
+}
+
+export type SetWorkflowLockErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * Request authentication failed.
+   */
+  401: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type SetWorkflowLockError = SetWorkflowLockErrors[keyof SetWorkflowLockErrors]
+
+export type SetWorkflowLockResponses = {
+  /**
+   * Current workflow lock state.
+   */
+  200: WorkflowLock
+}
+
+export type SetWorkflowLockResponse = SetWorkflowLockResponses[keyof SetWorkflowLockResponses]
 
 export type GetWorkflowData = {
   body?: never

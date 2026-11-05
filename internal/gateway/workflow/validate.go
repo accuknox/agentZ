@@ -489,8 +489,11 @@ func validateBranchConditions(req gatewayapi.CreateWorkflowRequest, outDegree ma
 	return fields
 }
 
-// MapCreateError translates workflow persistence and validation setup errors to API errors.
-func MapCreateError(err error) *apiutil.APIError {
+// MapMutationError translates workflow mutation failures to API errors.
+func MapMutationError(err error) *apiutil.APIError {
+	if apiErr, ok := errors.AsType[*apiutil.APIError](err); ok {
+		return apiErr
+	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		return apiutil.NewError(409, "conflict", "workflow name is already in use", err,
 			gatewayapi.FieldError{Field: "workflow_name", Message: "already in-use"})
@@ -515,37 +518,6 @@ func MapCreateError(err error) *apiutil.APIError {
 	}
 
 	return apiutil.NewError(500, "internal_error", "request failed", err)
-}
-
-// MapDeleteError translates workflow delete errors to API errors.
-func MapDeleteError(err error, missing []string) *apiutil.APIError {
-	if errors.Is(err, ErrWorkflowNotFound) {
-		fields := make([]gatewayapi.FieldError, 0, len(missing))
-		for _, name := range missing {
-			fields = append(
-				fields,
-				gatewayapi.FieldError{
-					Field:   "workflow_names",
-					Message: fmt.Sprintf("workflow %q was not found", name),
-				},
-			)
-		}
-
-		return apiutil.NewError(
-			404,
-			"not_found",
-			"one or more workflows were not found",
-			err,
-			fields...,
-		)
-	}
-
-	return apiutil.NewError(
-		500,
-		"internal_error",
-		"request failed",
-		err,
-	)
 }
 
 // MapGetError translates workflow read failures to API errors.

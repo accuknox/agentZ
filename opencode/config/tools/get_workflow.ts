@@ -175,6 +175,10 @@ function workflowToMarkdown(workflow: Workflow) {
     `- Workflow name: \`${workflow.workflow_name}\``,
     `- Summary: ${workflow.summary}`,
     `- Inputs: ${inputSummary(workflow)}`,
+    `- Locked: ${workflow.lock.locked}`,
+    ...(workflow.lock.actor
+      ? [`- Lock last changed by: ${workflow.lock.actor.name ?? workflow.lock.actor.id}`]
+      : []),
     `- Created at: ${workflow.created_at}`,
     `- Updated at: ${workflow.updated_at}`,
     `- Node count: ${workflow.nodes.length}`,

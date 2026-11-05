@@ -464,6 +464,9 @@ import type {
   RunCodingGitData,
   RunCodingGitErrors,
   RunCodingGitResponses,
+  SetWorkflowLockData,
+  SetWorkflowLockErrors,
+  SetWorkflowLockResponses,
   StartCodingOperationData,
   StartCodingOperationErrors,
   StartCodingOperationResponses,
@@ -2792,7 +2795,7 @@ export const listWorkflowSummaries = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Create a workflow definition.
+ * Create or replace a complete workflow definition.
  *
  * Creates a normalized workflow DAG for a single agent. The workflow definition is stored as metadata, nodes, and edges, and later retrieval can derive a markdown execution playbook from the structured graph.
  *
@@ -2803,6 +2806,22 @@ export const createWorkflow = <ThrowOnError extends boolean = false>(
   (options.client ?? client).post<CreateWorkflowResponses, CreateWorkflowErrors, ThrowOnError>({
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/workflow/{agentName}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Lock or unlock a workflow from an authenticated browser session.
+ */
+export const setWorkflowLock = <ThrowOnError extends boolean = false>(
+  options: Options<SetWorkflowLockData, ThrowOnError>
+) =>
+  (options.client ?? client).put<SetWorkflowLockResponses, SetWorkflowLockErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/workflow/{agentName}/{workflowName}/lock",
     ...options,
     headers: {
       "Content-Type": "application/json",

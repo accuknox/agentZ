@@ -29,6 +29,7 @@ import (
 	"github.com/accuknox/agentz/internal/gateway/apiutil"
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	workflowstore "github.com/accuknox/agentz/internal/gateway/workflow"
 	"github.com/accuknox/agentz/internal/scope"
 	"github.com/accuknox/agentz/internal/tool"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
@@ -827,12 +828,22 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 	}
 	ns := access.namespace
 
-	tx, err := s.db.Begin(r.Context())
+	tx, err := s.lockDB.Begin(r.Context())
 	if err != nil {
 		apiutil.WriteInternalError(w, r, fmt.Errorf("begin Agent deletion: %w", err))
 		return
 	}
 	defer tx.Rollback(r.Context())
+
+	workflows, err := workflowstore.LockDefinitions(r.Context(), tx, ns, agentName, nil)
+	if err != nil {
+		apiutil.WriteError(w, r, workflowstore.MapMutationError(err))
+		return
+	}
+	if err := workflowstore.RequireUnlocked(workflows); err != nil {
+		apiutil.WriteError(w, r, workflowstore.MapMutationError(err))
+		return
+	}
 
 	q := gatewaydb.New(tx)
 	row, err := q.GatewayGetAgent(

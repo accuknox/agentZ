@@ -70,16 +70,12 @@ func (s *Service) PutSecret(w http.ResponseWriter, r *http.Request, agtName gate
 		return
 	}
 	if !exists {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusNotFound,
-				"not_found",
-				"agent not found",
-				errAgentNotFound,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusNotFound,
+			"not_found",
+			"agent not found",
+			errAgentNotFound,
+		))
 		return
 	}
 
@@ -278,16 +274,12 @@ func (s *Service) DeleteSecret(w http.ResponseWriter, r *http.Request, agentName
 		return
 	}
 	if !exists {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusNotFound,
-				"not_found",
-				"agent not found",
-				errAgentNotFound,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusNotFound,
+			"not_found",
+			"agent not found",
+			errAgentNotFound,
+		))
 		return
 	}
 
@@ -296,17 +288,13 @@ func (s *Service) DeleteSecret(w http.ResponseWriter, r *http.Request, agentName
 		return
 	}
 	if len(req.Keys) == 0 {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				gatewayapi.FieldError{Field: "keys", Message: "must contain at least one key"},
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			gatewayapi.FieldError{Field: "keys", Message: "must contain at least one key"},
+		))
 		return
 	}
 
@@ -325,20 +313,16 @@ func (s *Service) DeleteSecret(w http.ResponseWriter, r *http.Request, agentName
 	for i, rawKey := range req.Keys {
 		key := strings.TrimSpace(rawKey)
 		if key == "" {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusBadRequest,
-					"invalid_request",
-					"request validation failed",
-					errBadRequest,
-					gatewayapi.FieldError{
-						Field:   fmt.Sprintf("keys[%d]", i),
-						Message: "required",
-					},
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"request validation failed",
+				errBadRequest,
+				gatewayapi.FieldError{
+					Field:   fmt.Sprintf("keys[%d]", i),
+					Message: "required",
+				},
+			))
 			return
 		}
 
@@ -391,16 +375,12 @@ func (s *Service) ListSecrets(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 	if !exists {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusNotFound,
-				"not_found",
-				"agent not found",
-				errAgentNotFound,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusNotFound,
+			"not_found",
+			"agent not found",
+			errAgentNotFound,
+		))
 		return
 	}
 
@@ -489,16 +469,12 @@ func (s *Service) WatchSecrets(w http.ResponseWriter, r *http.Request, agentName
 		return
 	}
 	if !exists {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusNotFound,
-				"not_found",
-				"agent not found",
-				errAgentNotFound,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusNotFound,
+			"not_found",
+			"agent not found",
+			errAgentNotFound,
+		))
 		return
 	}
 
@@ -512,37 +488,29 @@ func (s *Service) WatchSecrets(w http.ResponseWriter, r *http.Request, agentName
 		for i, rawKey := range *req.Keys {
 			key := strings.TrimSpace(rawKey)
 			if key == "" {
-				apiutil.WriteError(
-					w,
-					r,
-					apiutil.NewError(
-						http.StatusBadRequest,
-						"invalid_request",
-						"request validation failed",
-						errBadRequest,
-						gatewayapi.FieldError{
-							Field:   fmt.Sprintf("keys[%d]", i),
-							Message: "required",
-						},
-					),
-				)
+				apiutil.WriteError(w, r, apiutil.NewError(
+					http.StatusBadRequest,
+					"invalid_request",
+					"request validation failed",
+					errBadRequest,
+					gatewayapi.FieldError{
+						Field:   fmt.Sprintf("keys[%d]", i),
+						Message: "required",
+					},
+				))
 				return
 			}
 			if !secretKeyPattern.MatchString(key) {
-				apiutil.WriteError(
-					w,
-					r,
-					apiutil.NewError(
-						http.StatusBadRequest,
-						"invalid_request",
-						"request validation failed",
-						errBadRequest,
-						gatewayapi.FieldError{
-							Field:   fmt.Sprintf("keys[%d]", i),
-							Message: "must be a valid environment variable name",
-						},
-					),
-				)
+				apiutil.WriteError(w, r, apiutil.NewError(
+					http.StatusBadRequest,
+					"invalid_request",
+					"request validation failed",
+					errBadRequest,
+					gatewayapi.FieldError{
+						Field:   fmt.Sprintf("keys[%d]", i),
+						Message: "must be a valid environment variable name",
+					},
+				))
 				return
 			}
 			keyFilter[strings.ToLower(key)] = struct{}{}

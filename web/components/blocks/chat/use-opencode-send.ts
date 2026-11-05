@@ -20,6 +20,7 @@ import {
 } from "@/lib/gateway/client"
 import { uploadChatAttachments } from "./attachments"
 import { opencodeErrorMessage } from "./errors"
+import { sessionDrafts, type SessionDraft } from "./drafts"
 import { updateSessionInfo } from "./use-opencode-chat"
 
 export type CreateSession = (input: {
@@ -29,12 +30,15 @@ export type CreateSession = (input: {
 }) => Promise<Session>
 
 type SendMessageInput = PromptInputMessage & {
+  draft?: Pick<SessionDraft, "scope" | "id">
   agent?: Session["agent"]
   model?: ProviderModelItem
   sessionID?: string
   variant?: string
   delivery: ChatInputRequest["delivery"]
 }
+
+type PreparedInput = { sessionID: string; body: ChatInputRequest }
 
 function chatInputsOptions(workspaceId: string, agentName: string, sessionID?: string) {
   return queryOptions({
@@ -50,8 +54,13 @@ function chatInputsOptions(workspaceId: string, agentName: string, sessionID?: s
       if (result.error) throw new Error(result.error.message)
       return result.data
     },
-    // Reconcile even when the browser misses a workspace invalidation.
-    refetchInterval: 2_000,
+    // Workspace events reconcile mutations immediately. Keep fast recovery
+    // while work is queued and a slower fallback for missed idle notifications.
+    refetchInterval: (query) =>
+      query.state.data?.stopping ||
+      query.state.data?.items.some((item) => item.state === "queued" || item.state === "sending")
+        ? 2_000
+        : 30_000,
     refetchIntervalInBackground: false,
   })
 }
@@ -67,15 +76,16 @@ export function useOpencodeSend(
   const [pendingSessionID, setPendingSessionID] = useState<string>()
   const resolvedSessionID = sessionID ?? pendingSessionID
   const createdSession = useRef(sessionID)
+  const [creationStarted, setCreationStarted] = useState(false)
   const promoted = useRef(Boolean(sessionID))
-  const prepared = useRef(new Map<string, { sessionID: string; body: ChatInputRequest }>())
   const submission = useRef<Promise<void>>(Promise.resolve())
-  const [pending, setPending] = useState<{ id: string; input: SendMessageInput; status: string }[]>(
-    []
-  )
+  const [pending, setPending] = useState<
+    { id: string; input: SendMessageInput; progress?: string }[]
+  >([])
   const options = chatInputsOptions(workspaceId, agentName, resolvedSessionID)
   const queueKey = options.queryKey
   const queue = useQuery(options)
+  const owner = queryClient.getQueryCache().find({ queryKey: queueKey, exact: true })
   const abort = useMutation({
     mutationKey: ["chatStop", workspaceId, agentName, resolvedSessionID],
     mutationFn: async () => {
@@ -84,7 +94,9 @@ export function useOpencodeSend(
       const result = await client.session.abort({ sessionID: resolvedSessionID })
       if (result.error)
         throw new Error(opencodeErrorMessage(result.error, "Could not stop the run"))
-      await queryClient.invalidateQueries({ queryKey: queueKey, refetchType: "none" })
+      if (queryClient.getQueryCache().find({ queryKey: queueKey, exact: true }) !== owner)
+        return { items: [], stopping: false }
+      void queryClient.invalidateQueries({ queryKey: queueKey, refetchType: "none" })
       return queryClient.fetchQuery(options)
     },
     onError: (error) => toast.error("Could not stop the run", { description: error.message }),
@@ -93,25 +105,34 @@ export function useOpencodeSend(
     mutationFn: async ({
       item,
       action,
+      content,
     }: {
       item: ChatInput
       action: ChatInputUpdate["action"]
+      content?: ChatInputUpdate["content"]
     }) => {
       if (!resolvedSessionID) throw new Error("Chat has not been created")
+      await queryClient.cancelQueries({ queryKey: queueKey, exact: true })
       const result = await updateChatInput({
         baseUrl: await getGatewayBaseURL(),
         headers: { "X-AgentZ-Workspace-ID": workspaceId },
         path: { agentName, sessionId: resolvedSessionID, inputId: item.id },
-        body: { revision: item.revision, action },
+        body: { revision: item.revision, action, content },
       })
       if (result.error) throw new Error(result.error.message)
+      if (queryClient.getQueryCache().find({ queryKey: queueKey, exact: true }) !== owner)
+        return result.data
       queryClient.setQueryData<ChatInputs>(
         queueKey,
         (current) =>
           current && {
             ...current,
             items: current.items.flatMap((entry) =>
-              entry.id !== item.id ? [entry] : result.data.state === "removed" ? [] : [result.data]
+              entry.id !== item.id || entry.revision > result.data.revision
+                ? [entry]
+                : result.data.state === "removed"
+                  ? []
+                  : [result.data]
             ),
           }
       )
@@ -122,24 +143,28 @@ export function useOpencodeSend(
   const send = useMutation({
     mutationFn: async (input: SendMessageInput) => {
       const requestID = input.requestID ?? uuidv4()
-      setPending((current) => [...current, { id: requestID, input, status: "Saving message..." }])
+      setPending((current) => [...current, { id: requestID, input }])
       const previous = submission.current
       const next = Promise.withResolvers<void>()
       submission.current = next.promise
       await previous
       try {
+        if (queryClient.getQueryCache().find({ queryKey: queueKey, exact: true }) !== owner) return
         if (!input.model) throw new Error("Select a model before sending")
         if (!input.text.trim() && !input.files.length) throw new Error("Message cannot be empty")
-        let id = input.sessionID ?? createdSession.current
+        const preparedKey = ["chatPreparedInput", workspaceId, agentName, requestID] as const
+        let request = queryClient.getQueriesData<PreparedInput>({ queryKey: preparedKey })[0]?.[1]
+        let id = request?.sessionID ?? input.sessionID ?? createdSession.current
         if (!id) {
           let session: Session
+          setCreationStarted(true)
           if (createSession) {
             session = await createSession({
               text: input.text,
               model: input.model,
-              onProgress: (status) =>
+              onProgress: (progress) =>
                 setPending((current) =>
-                  current.map((item) => (item.id === requestID ? { ...item, status } : item))
+                  current.map((item) => (item.id === requestID ? { ...item, progress } : item))
                 ),
             })
           } else {
@@ -156,18 +181,17 @@ export function useOpencodeSend(
             session = result.data
           }
           id = session.id
-          createdSession.current = id
-          setPendingSessionID(id)
+          if (queryClient.getQueryCache().find({ queryKey: queueKey, exact: true }) !== owner)
+            return
           await updateSessionInfo(queryClient, agentName, workspaceId, session)
         }
-        setPending((current) =>
-          current.map((item) =>
-            item.id === requestID ? { ...item, status: "Saving message..." } : item
-          )
-        )
-        let request = prepared.current.get(requestID)
+        createdSession.current = id
+        if (input.draft) sessionDrafts.update(input.draft.scope, input.draft.id, { sessionID: id })
+        if (!sessionID) setPendingSessionID(id)
         if (!request) {
           const attachments = await uploadChatAttachments(agentName, workspaceId, id, input.files)
+          if (queryClient.getQueryCache().find({ queryKey: queueKey, exact: true }) !== owner)
+            return
           request = {
             sessionID: id,
             body: {
@@ -182,8 +206,13 @@ export function useOpencodeSend(
               },
             },
           }
-          prepared.current.set(requestID, request)
+          // The exact body must survive navigation. Re-uploading an attachment
+          // changes its path and would conflict with an accepted request ID.
+          const prepared = queryOptions({ queryKey: [...preparedKey, id] })
+          queryClient.setQueryData(prepared.queryKey, request)
         }
+        const target = chatInputsOptions(workspaceId, agentName, id)
+        const before = queryClient.getQueryState(target.queryKey)?.dataUpdatedAt
         const result = await submitChatInput({
           baseUrl: await getGatewayBaseURL(),
           headers: { "X-AgentZ-Workspace-ID": workspaceId },
@@ -191,10 +220,23 @@ export function useOpencodeSend(
           body: request.body,
         })
         if (result.error) throw new Error(result.error.message)
-        prepared.current.delete(requestID)
-        queryClient.setQueryData<ChatInputs>(
-          chatInputsOptions(workspaceId, agentName, id).queryKey,
-          (current) => ({
+        queryClient.removeQueries({ queryKey: preparedKey })
+        // Navigation keeps the same cached query; logout or deletion removes
+        // it. A late acknowledgement must not recreate that private state.
+        if (queryClient.getQueryCache().find({ queryKey: queueKey, exact: true }) !== owner) return
+        const current = queryClient.getQueryState<ChatInputs>(target.queryKey)
+        const existing = current?.data?.items.find((item) => item.id === result.data.id)
+        // A poll or another tab can observe removal or a newer revision before
+        // this acknowledgement arrives. Re-read instead of resurrecting it.
+        if (
+          current?.dataUpdatedAt !== before &&
+          (!existing || existing.revision > result.data.revision)
+        ) {
+          // Admission has succeeded. Event-driven refreshes may cancel each
+          // other, but must not turn an accepted send into a failed draft.
+          await queryClient.invalidateQueries({ queryKey: target.queryKey, exact: true })
+        } else {
+          queryClient.setQueryData<ChatInputs>(target.queryKey, (current) => ({
             stopping: current?.stopping ?? false,
             items: [
               ...(current?.items ?? []).filter((item) => item.id !== result.data.id),
@@ -202,8 +244,8 @@ export function useOpencodeSend(
                 ? []
                 : [result.data]),
             ],
-          })
-        )
+          }))
+        }
         if (!promoted.current) {
           promoted.current = true
           onSessionCreated?.(id)
@@ -216,6 +258,8 @@ export function useOpencodeSend(
     onError: (error) => toast.error("Message was not saved", { description: error.message }),
   })
   return {
+    creationStarted,
+    resolvedSessionID,
     abortMessage: abort.mutateAsync,
     hasSession: Boolean(resolvedSessionID),
     // A persisted stop holds sending, but must still allow cancellation retries.
@@ -227,6 +271,7 @@ export function useOpencodeSend(
     sendState: pending.length ? ("submitted" as const) : undefined,
     queue: queue.data?.items ?? [],
     queueError: queue.error?.message,
+    queueLoaded: queue.isSuccess,
     updateInput: update.mutateAsync,
   }
 }

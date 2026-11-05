@@ -4,7 +4,7 @@ import { Suspense } from "react"
 import * as z from "zod"
 import { GitHubDark, GitHubLight, Google } from "@ridemountainpig/svgl-react"
 import { Mail } from "lucide-react"
-import { ErrorState } from "@/components/error-state"
+import { RequestError } from "@/components/request-error"
 import { RestoredRoute } from "@/components/scope-transition"
 import { AdministrationPageHeader } from "@/components/administration"
 import { headers } from "next/headers"
@@ -74,7 +74,12 @@ async function IdentityProviders() {
   }
 
   if (errorMessage || !providers?.length) {
-    return <ErrorPanel message={errorMessage ?? "No identity provider found"} />
+    return (
+      <RequestError
+        title="Could not load account settings"
+        description={errorMessage ?? "No identity provider found"}
+      />
+    )
   }
 
   return (
@@ -127,7 +132,7 @@ async function PasswordGate() {
   }
 
   if (errorMessage) {
-    return <ErrorPanel message={errorMessage} />
+    return <RequestError title="Could not load account settings" description={errorMessage} />
   }
 
   if (!accounts?.some((account) => account.providerId === "credential")) {
@@ -146,7 +151,16 @@ async function AccountSecurity({ searchParams }: { searchParams: Promise<Account
   let intent: z.infer<typeof accountManage2FASchema> | undefined
   let provider: "credential" | "github" | "google" = "credential"
   let routeError: AuthError | undefined
-  const params = accountSearchParamsSchema.parse(await searchParams)
+  const parsed = accountSearchParamsSchema.safeParse(await searchParams)
+  if (!parsed.success)
+    return (
+      <RequestError
+        resetFilters
+        title="Invalid account settings"
+        description="Check the settings in this link and try again."
+      />
+    )
+  const params = parsed.data
 
   try {
     const session = await auth.api.getSession({
@@ -176,7 +190,7 @@ async function AccountSecurity({ searchParams }: { searchParams: Promise<Account
   }
 
   if (errorMessage) {
-    return <ErrorPanel message={errorMessage} />
+    return <RequestError title="Could not load account settings" description={errorMessage} />
   }
 
   if (params.manage2fa) {
@@ -214,8 +228,4 @@ function TwoFactorSkeleton() {
       <div className="h-24 rounded-md bg-muted/20" />
     </div>
   )
-}
-
-function ErrorPanel({ message }: { message: string }) {
-  return <ErrorState description={message} />
 }

@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
@@ -24,6 +23,7 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
+	inputworkflow "github.com/accuknox/agentz/internal/workflow"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -341,43 +341,36 @@ func PatchRunNodeStatus(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlc
 				return nil
 			}
 
-			var workflow gatewayapi.Workflow
-			switch {
-			case current.Spec.Definition != nil:
-				if err := json.Unmarshal(current.Spec.Definition.Raw, &workflow); err != nil {
-					return fmt.Errorf("decode frozen workflow: %w", err)
+			nodes := current.Status.Nodes
+			known := slices.ContainsFunc(nodes, func(node agentzv1alpha1.WorkflowRunNodeStatus) bool {
+				return node.Name == nodeName
+			})
+			if !known {
+				var definition gatewayapi.Workflow
+				switch {
+				case current.Spec.Definition != nil:
+					if err := json.Unmarshal(current.Spec.Definition.Raw, &definition); err != nil {
+						return fmt.Errorf("decode frozen workflow: %w", err)
+					}
+				default:
+					var err error
+					definition, err = Get(ctx, pool, ns, agtName, wfName)
+					if err != nil {
+						return err
+					}
 				}
-			default:
-				var err error
-				workflow, err = Get(ctx, pool, ns, agtName, wfName)
-				if err != nil {
-					return err
+				defined := slices.ContainsFunc(definition.Nodes, func(node gatewayapi.WorkflowNode) bool {
+					return node.Name == nodeName
+				})
+				if !defined {
+					resultErr = ErrWorkflowRunNodeNotFound
+					return nil
 				}
+				nodes = append(nodes, agentzv1alpha1.WorkflowRunNodeStatus{
+					Name:  nodeName,
+					Phase: agentzv1alpha1.WorkflowRunNodePhaseDisabled,
+				})
 			}
-
-			nodes := make([]agentzv1alpha1.WorkflowRunNodeStatus, 0, len(workflow.Nodes))
-			existing := make(map[string]agentzv1alpha1.WorkflowRunNodeStatus, len(current.Status.Nodes))
-			for _, node := range current.Status.Nodes {
-				existing[node.Name] = node
-			}
-
-			var found bool
-			for _, node := range workflow.Nodes {
-				next := existing[node.Name]
-				if next.Name == "" {
-					next.Name = node.Name
-					next.Phase = agentzv1alpha1.WorkflowRunNodePhaseDisabled
-				}
-				if node.Name == nodeName {
-					found = true
-				}
-				nodes = append(nodes, next)
-			}
-			if !found {
-				resultErr = ErrWorkflowRunNodeNotFound
-				return nil
-			}
-
 			now := metav1.Now()
 			nodes, changed, err := applyNodeStatusPatch(
 				nodes,
@@ -509,36 +502,7 @@ func CreateScheduledRun(ctx context.Context, k8sClient ctrlclient.Client, ns str
 		return gatewayapi.WorkflowRunSummary{}, err
 	}
 
-	run := &agentzv1alpha1.WorkflowRun{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: agentzv1alpha1.SchemeGroupVersion.String(),
-			Kind:       "WorkflowRun",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: ns,
-			Labels: map[string]string{
-				"agentz.accuknox.com/workflow-schedule": schedule.Name,
-			},
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(
-					schedule,
-					agentzv1alpha1.SchemeGroupVersion.WithKind("WorkflowSchedule"),
-				),
-			},
-		},
-		Spec: agentzv1alpha1.WorkflowRunSpec{
-			AgentName:      schedule.Spec.AgentName,
-			WorkflowName:   schedule.Spec.WorkflowName,
-			Inputs:         apiextensionsv1.JSON{Raw: schedule.Spec.Inputs.Raw},
-			TimeoutSeconds: schedule.Spec.TimeoutSeconds,
-			ScheduleRef: &corev1.LocalObjectReference{
-				Name: schedule.Name,
-			},
-		},
-	}
-
-	return createRun(ctx, k8sClient, run)
+	return createRun(ctx, k8sClient, inputworkflow.ScheduledRun(schedule, name))
 }
 
 // CreateWebhookRun creates one direct workflow run from a webhook request.
@@ -650,7 +614,7 @@ func ListWebhookTriggers(ctx context.Context, k8sClient ctrlclient.Client, ns st
 }
 
 // ListRuns lists non-evaluation runs for a workflow's trigger history.
-func ListRuns(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, params gatewayapi.ListWorkflowRunsParams, limit int, offset int) ([]gatewayapi.WorkflowRunSummary, int, error) {
+func ListRuns(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, params gatewayapi.ListWorkflowRunsParams, limit int, offset int, destinations map[string]int64) ([]gatewayapi.WorkflowRunSummary, int, error) {
 	list := &agentzv1alpha1.WorkflowRunList{}
 	if err := k8sClient.List(ctx, list, ctrlclient.InNamespace(ns)); err != nil {
 		return nil, 0, err
@@ -669,6 +633,12 @@ func ListRuns(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtNa
 	items := make([]gatewayapi.WorkflowRunSummary, 0, len(list.Items))
 	for i := range list.Items {
 		run := &list.Items[i]
+		if delivery := run.Spec.Delivery; delivery != nil {
+			generation, visible := destinations[delivery.SessionID]
+			if !visible || generation != delivery.Generation {
+				continue
+			}
+		}
 		if run.Spec.AgentName != agtName {
 			continue
 		}
@@ -724,22 +694,6 @@ func ListRuns(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtNa
 		nextOffset = end
 	}
 	return items[start:end], nextOffset, nil
-}
-
-// GetRun returns one workflow run detail.
-func GetRun(ctx context.Context, k8sClient ctrlclient.Client, ns string, agtName string, wfName string, runName string) (gatewayapi.WorkflowRunDetail, error) {
-	run := &agentzv1alpha1.WorkflowRun{}
-	key := types.NamespacedName{Namespace: ns, Name: strings.TrimSpace(runName)}
-	if err := k8sClient.Get(ctx, key, run); err != nil {
-		return gatewayapi.WorkflowRunDetail{}, err
-	}
-	if run.Spec.AgentName != strings.TrimSpace(agtName) {
-		return gatewayapi.WorkflowRunDetail{}, ErrWorkflowRunScopeMismatch
-	}
-	if run.Spec.WorkflowName != strings.TrimSpace(wfName) {
-		return gatewayapi.WorkflowRunDetail{}, ErrWorkflowRunScopeMismatch
-	}
-	return runDetailFromCRD(run), nil
 }
 
 // DeleteRun deletes one workflow run.
@@ -817,7 +771,8 @@ func runSummaryFromCRD(run *agentzv1alpha1.WorkflowRun) gatewayapi.WorkflowRunSu
 	return summary
 }
 
-func runDetailFromCRD(run *agentzv1alpha1.WorkflowRun) gatewayapi.WorkflowRunDetail {
+// RunDetail projects an already authorized run without fetching a second snapshot.
+func RunDetail(run *agentzv1alpha1.WorkflowRun) gatewayapi.WorkflowRunDetail {
 	inputs := gatewayapi.JSONValue{}
 	raw := run.Spec.Inputs.Raw
 	if len(raw) == 0 {

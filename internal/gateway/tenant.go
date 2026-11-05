@@ -4,13 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v5"
 	jwtrequest "github.com/golang-jwt/jwt/v5/request"
+	"github.com/jackc/pgx/v5"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -61,16 +64,12 @@ type tenantRequest struct {
 func (s *Service) GetTenant(w http.ResponseWriter, r *http.Request) {
 	auth, ok := requestAuthState(r.Context())
 	if !ok || auth.claims == nil {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusUnauthorized,
-				"unauthorized",
-				"missing bearer claims",
-				errors.New("missing bearer claims"),
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusUnauthorized,
+			"unauthorized",
+			"missing bearer claims",
+			errors.New("missing bearer claims"),
+		))
 		return
 	}
 
@@ -92,16 +91,12 @@ func (s *Service) GetTenant(w http.ResponseWriter, r *http.Request) {
 func (s *Service) EnsureTenant(w http.ResponseWriter, r *http.Request) {
 	auth, ok := requestAuthState(r.Context())
 	if !ok || auth.claims == nil {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusUnauthorized,
-				"unauthorized",
-				"missing bearer claims",
-				errors.New("missing bearer claims"),
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusUnauthorized,
+			"unauthorized",
+			"missing bearer claims",
+			errors.New("missing bearer claims"),
+		))
 		return
 	}
 
@@ -154,16 +149,12 @@ func (s *Service) EnsureTenant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if created.Spec.OrganizationID != auth.claims.OrganizationID {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusConflict,
-				"conflict",
-				"tenant identity conflicts with current state",
-				errors.New("tenant identity conflict"),
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict,
+			"conflict",
+			"tenant identity conflicts with current state",
+			errors.New("tenant identity conflict"),
+		))
 		return
 	}
 
@@ -265,16 +256,12 @@ func requireExplicitCapability(next http.Handler) http.Handler {
 			return
 		}
 
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusForbidden,
-				"forbidden",
-				"operation has no unambiguous capability mapping",
-				fmt.Errorf("generated operation capability mapping is missing or ambiguous"),
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusForbidden,
+			"forbidden",
+			"operation has no unambiguous capability mapping",
+			fmt.Errorf("generated operation capability mapping is missing or ambiguous"),
+		))
 	})
 }
 
@@ -291,16 +278,12 @@ func loadTenant(s *Service) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			auth, ok := requestAuthState(r.Context())
 			if !ok {
-				apiutil.WriteError(
-					w,
-					r,
-					apiutil.NewError(
-						http.StatusUnauthorized,
-						"unauthorized",
-						"missing request auth",
-						fmt.Errorf("missing request auth"),
-					),
-				)
+				apiutil.WriteError(w, r, apiutil.NewError(
+					http.StatusUnauthorized,
+					"unauthorized",
+					"missing request auth",
+					fmt.Errorf("missing request auth"),
+				))
 				return
 			}
 
@@ -335,16 +318,12 @@ func loadTenant(s *Service) func(http.Handler) http.Handler {
 					next.ServeHTTP(w, r)
 					return
 				}
-				apiutil.WriteError(
-					w,
-					r,
-					apiutil.NewError(
-						http.StatusNotFound,
-						"tenant_not_found",
-						"tenant is not initialized",
-						err,
-					),
-				)
+				apiutil.WriteError(w, r, apiutil.NewError(
+					http.StatusNotFound,
+					"tenant_not_found",
+					"tenant is not initialized",
+					err,
+				))
 			default:
 				if apiErr, ok := errors.AsType[*apiutil.APIError](err); ok {
 					apiutil.WriteError(w, r, apiErr)
@@ -365,16 +344,12 @@ func requireTenantReady(s *Service, next http.Handler) http.Handler {
 
 		req, ok := tenantState(r.Context())
 		if !ok || req.tenant == nil {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusNotFound,
-					"tenant_not_found",
-					"tenant is not initialized",
-					fmt.Errorf("missing tenant context"),
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusNotFound,
+				"tenant_not_found",
+				"tenant is not initialized",
+				fmt.Errorf("missing tenant context"),
+			))
 			return
 		}
 
@@ -393,16 +368,12 @@ func requireTenantReady(s *Service, next http.Handler) http.Handler {
 			return
 		}
 
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusConflict,
-				"tenant_not_ready",
-				"tenant is not ready",
-				fmt.Errorf("tenant %q is not ready", req.tenant.Name),
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict,
+			"tenant_not_ready",
+			"tenant is not ready",
+			fmt.Errorf("tenant %q is not ready", req.tenant.Name),
+		))
 	})
 }
 
@@ -910,6 +881,88 @@ func workflowAgentAccessScheduleItem(agentName string, method string) (string, s
 func requestAuthState(ctx context.Context) (requestAuth, bool) {
 	auth, ok := ctx.Value(authContextKey{}).(requestAuth)
 	return auth, ok
+}
+
+// authorizeStream binds browser streams to their live login session. Legacy
+// bearers retain their expiry; authority changes reconnect all external streams.
+func (s *Service) authorizeStream(ctx context.Context) (context.Context, context.CancelFunc, *apiutil.APIError) {
+	auth, _ := requestAuthState(ctx)
+	if auth.actorType == requestActorSystem {
+		ctx, cancel := context.WithCancel(ctx)
+		return ctx, cancel, nil
+	}
+	events, unsubscribe := s.streamAuthEvents.subscribe("")
+	// The broker sends a subscription snapshot before subsequent changes.
+	// Authorization below reads current grants after this checkpoint.
+	<-events
+	if !s.streamsReady.Load() {
+		unsubscribe()
+		return nil, nil, apiutil.NewError(http.StatusServiceUnavailable,
+			"authorization_unavailable", "Stream authorization is unavailable", nil)
+	}
+	checkSession := func(ctx context.Context) (time.Time, error) {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		return s.queries.GatewayGetBrowserSessionExpiry(ctx, gatewaydb.GatewayGetBrowserSessionExpiryParams{
+			ID:     auth.claims.BrowserSessionID,
+			UserID: auth.claims.UserID,
+		})
+	}
+	var deadline time.Time
+	if auth.claims != nil && auth.claims.ExpiresAt != nil {
+		deadline = auth.claims.ExpiresAt.Time
+	}
+	browser := auth.claims != nil && auth.claims.BrowserSessionID != ""
+	if browser {
+		expiry, err := checkSession(ctx)
+		if err != nil {
+			unsubscribe()
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil, nil, apiutil.NewError(http.StatusUnauthorized,
+					"unauthorized", "Browser session has expired", err)
+			}
+			return nil, nil, apiutil.NewError(http.StatusServiceUnavailable,
+				"authorization_unavailable", "Stream authorization is unavailable", err)
+		}
+		deadline = expiry
+	}
+	var cancel context.CancelFunc
+	switch {
+	case deadline.IsZero():
+		ctx, cancel = context.WithCancel(ctx)
+	default:
+		ctx, cancel = context.WithDeadline(ctx, deadline)
+	}
+	go func() {
+		defer unsubscribe()
+		var ticks <-chan time.Time
+		if browser {
+			// Session deletion is not part of the authority notification feed.
+			// Check it even on idle streams, and fail closed on store errors.
+			ticker := time.NewTicker(15 * time.Second)
+			defer ticker.Stop()
+			ticks = ticker.C
+		}
+		for {
+			select {
+			case <-events:
+				cancel()
+				return
+			case <-ctx.Done():
+				return
+			case <-ticks:
+				_, err := checkSession(ctx)
+				if err != nil {
+					if !errors.Is(err, pgx.ErrNoRows) && ctx.Err() == nil {
+						slog.ErrorContext(ctx, "revalidate stream session", "error", err)
+					}
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+	return ctx, cancel, nil
 }
 
 func tenantState(ctx context.Context) (tenantRequest, bool) {

@@ -425,12 +425,17 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 			path := inference.SandboxPoolPath(sandbox.Name, pool.Name)
 			path = inference.AgentRoutePath(agt.Namespace, agt.Name, path)
 			contract := pool.Status.Contract
+			var options *opencodeModelOptionsFile
+			if contract.Capabilities.Reasoning && contract.API == agentzv1alpha1.InferenceModelAPIResponses {
+				options = &opencodeModelOptionsFile{ReasoningSummary: "auto"}
+			}
 
 			provider.Models[pool.Name] = opencodeModelFile{
 				ID:          pool.Name,
 				Name:        pool.Spec.DisplayName,
 				Attachment:  contract.Capabilities.Attachment,
 				Reasoning:   contract.Capabilities.Reasoning,
+				Options:     options,
 				Temperature: contract.Capabilities.Temperature,
 				ToolCall:    contract.Capabilities.ToolCall,
 				Limit: opencodeModelLimitFile{
@@ -550,11 +555,17 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 				modelRef.Model,
 			)
 		}
+		var options *opencodeModelOptionsFile
+		// Responses reasoning is opaque unless summaries are explicitly requested.
+		if selected.Capabilities.Reasoning && cfg.Providers[modelRef.Provider].NPM == "@ai-sdk/openai" {
+			options = &opencodeModelOptionsFile{ReasoningSummary: "auto"}
+		}
 		cfg.Providers[modelRef.Provider].Models[modelRef.Model] = opencodeModelFile{
 			ID:          modelRef.Model,
 			Name:        selected.DisplayName,
 			Attachment:  selected.Capabilities.Attachment,
 			Reasoning:   selected.Capabilities.Reasoning,
+			Options:     options,
 			Temperature: selected.Capabilities.Temperature,
 			ToolCall:    selected.Capabilities.ToolCall,
 			Limit: opencodeModelLimitFile{

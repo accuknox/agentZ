@@ -32,7 +32,7 @@ func mapGatewayStoreError(action string, err error) *apiutil.APIError {
 	if errors.As(err, &apiErr) {
 		return apiErr
 	}
-	if errors.Is(err, pgx.ErrNoRows) {
+	if errors.Is(err, pgx.ErrNoRows) || apierrors.IsNotFound(err) {
 		return apiutil.NewError(http.StatusNotFound, "not_found", "session not found", err)
 	}
 
@@ -54,6 +54,13 @@ func mapGatewayStoreError(action string, err error) *apiutil.APIError {
 }
 
 func mapKubeHTTPError(action string, err error) *apiutil.APIError {
+	var apiErr *apiutil.APIError
+	if errors.As(err, &apiErr) {
+		return apiErr
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return apiutil.NewError(http.StatusNotFound, "not_found", action+" not found", err)
+	}
 	if apierrors.IsConflict(err) {
 		return apiutil.NewError(http.StatusConflict, "conflict", err.Error(), err)
 	}

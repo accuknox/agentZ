@@ -7,6 +7,7 @@ import { listCodingProjects } from "@/lib/gateway/client"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { AdministrationLoadingState } from "@/components/administration"
 import { Projects } from "@/components/blocks/coding/projects"
+import { RequestError } from "@/components/request-error"
 
 export const metadata = { title: "Projects" }
 
@@ -26,6 +27,8 @@ export default function ProjectsPage(props: Props) {
 async function ProjectsContent({ params, searchParams }: Props) {
   const [{ orgSlug, workspaceSlug }, search] = await Promise.all([params, searchParams])
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
+  if (scope.kind === "error")
+    return <RequestError title="Could not load this workspace" error={scope.error} />
   if (scope.kind !== "ready" || scope.workspace.type !== "coding") return missingRoute()
   if (search.project)
     redirect(
@@ -36,7 +39,8 @@ async function ProjectsContent({ params, searchParams }: Props) {
     listCodingProjects({ client }),
     listAllAgentsCachedQuery(scope.workspace.id),
   ])
-  if (projects.error || agents.error) throw new Error("Could not load projects")
+  if (projects.error || agents.error)
+    return <RequestError title="Could not load projects" error={projects.error ?? agents.error} />
   const usableAgents = agents.agents.filter((agent) => agent.capabilities.use)
   return (
     <>

@@ -95,12 +95,12 @@ export default function AgentInstructions({
   const [source, setSource] = useState(false)
 
   return (
-    <div className="agent-instructions border-b border-transparent transition-colors group-data-[invalid=true]/field:border-destructive focus-within:border-border">
+    <div className="agent-instructions form-control overflow-hidden rounded-lg border group-data-[invalid=true]/field:border-destructive">
       {source ? (
         <Textarea
           ref={editorRef}
           aria-label="Custom instructions"
-          className="field-sizing-content max-h-70 min-h-18 resize-none rounded-none border-0 bg-transparent p-2 font-mono text-sm shadow-none focus-visible:ring-0 dark:bg-transparent"
+          className="field-sizing-content max-h-48 min-h-28 resize-none rounded-none border-0 bg-transparent p-2 font-mono text-sm shadow-none focus-visible:ring-0 dark:bg-transparent"
           value={markdown}
           readOnly={readOnly}
           onChange={(event) => onChangeAction(event.target.value)}
@@ -113,16 +113,7 @@ export default function AgentInstructions({
           trim={false}
           suppressHtmlProcessing
           readOnly={readOnly}
-          placeholder={
-            <span className="block space-y-3 text-muted-foreground">
-              For example:
-              <br />
-              You help our product team turn customer interviews into research notes. Group
-              recurring problems and cite the notes behind each finding. Separate evidence from
-              assumptions. Use short headings and bullet points. Ask when a detail is unclear. Leave
-              out personal information and never fill gaps with invented facts.
-            </span>
-          }
+          placeholder="Describe the agent's role, priorities, and how it should respond."
           contentEditableClassName="agent-instructions-content"
           onBlur={onBlurAction}
           onChange={(value, initial) => {

@@ -138,16 +138,12 @@ func (s *Service) WatchInferencePools(w http.ResponseWriter, r *http.Request, pa
 	}
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusInternalServerError,
-				"internal_error",
-				"streaming is unavailable",
-				nil,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusInternalServerError,
+			"internal_error",
+			"streaming is unavailable",
+			nil,
+		))
 		return
 	}
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -394,20 +390,16 @@ func (s *Service) UpdateInferencePool(w http.ResponseWriter, r *http.Request, po
 		return
 	}
 	if current.ResourceVersion != req.ResourceVersion {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusConflict,
-				"conflict",
-				"pool changed since it was loaded",
-				apierrors.NewConflict(
-					agentzv1alpha1.Resource("inferencepools"),
-					current.Name,
-					fmt.Errorf("resource version does not match"),
-				),
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict,
+			"conflict",
+			"pool changed since it was loaded",
+			apierrors.NewConflict(
+				agentzv1alpha1.Resource("inferencepools"),
+				current.Name,
+				fmt.Errorf("resource version does not match"),
 			),
-		)
+		))
 		return
 	}
 	desired := poolFromAPI(access.namespace, current.Name, req.Pool)
@@ -496,17 +488,13 @@ func (s *Service) DeleteInferencePool(w http.ResponseWriter, r *http.Request, po
 		for _, sandbox := range usage {
 			fields = append(fields, gatewayapi.FieldError{Field: "sandboxes", Message: sandbox})
 		}
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusConflict,
-				"pool_referenced",
-				"pool is referenced by one or more sandboxes",
-				errBadRequest,
-				fields...,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict,
+			"pool_referenced",
+			"pool is referenced by one or more sandboxes",
+			errBadRequest,
+			fields...,
+		))
 		return
 	}
 	if err := s.k8sClient.Delete(r.Context(), pool); err != nil {

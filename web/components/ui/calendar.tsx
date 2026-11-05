@@ -259,6 +259,8 @@ function DateRangePicker({
 }: DateRangePickerProps) {
   const [open, setOpen] = React.useState(false)
   const [draft, setDraft] = React.useState<DateRange | undefined>(range)
+  const now = new Date()
+  const earliest = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
 
   return (
     <Popover
@@ -291,8 +293,13 @@ function DateRangePicker({
         className="max-w-[calc(100vw-2rem)] gap-0 overflow-auto p-0 sm:w-fit"
       >
         <Calendar
-          defaultMonth={range?.from}
+          defaultMonth={range?.from && range.from >= earliest ? range.from : now}
+          disabled={[{ before: earliest }, { after: now }]}
+          startMonth={earliest}
+          endMonth={now}
           mode="range"
+          max={30}
+          excludeDisabled
           numberOfMonths={2}
           resetOnSelect
           selected={draft}
@@ -300,10 +307,13 @@ function DateRangePicker({
             setDraft(nextRange)
             if (!nextRange?.from || !nextRange.to) return
 
-            onSelect({
-              from: dayjs(nextRange.from).startOf("day").toDate(),
-              to: dayjs(nextRange.to).endOf("day").toDate(),
-            })
+            // The first retained day and today may only be partially available.
+            const from = new Date(
+              Math.max(dayjs(nextRange.from).startOf("day").valueOf(), earliest.getTime())
+            )
+            const to = new Date(Math.min(dayjs(nextRange.to).endOf("day").valueOf(), now.getTime()))
+            if (from >= to) return
+            onSelect({ from, to })
             setOpen(false)
             onOpenChange?.(false)
           }}
@@ -316,8 +326,14 @@ function DateRangePicker({
               key={preset.label}
               onClick={() => {
                 const nextRange = preset.getRange()
-                setDraft(nextRange)
-                onSelect(nextRange)
+                const selectedAt = Date.now()
+                const from = new Date(
+                  Math.max(nextRange.from.getTime(), selectedAt - 30 * 24 * 60 * 60 * 1000)
+                )
+                const to = new Date(Math.min(nextRange.to.getTime(), selectedAt))
+                if (from >= to) return
+                setDraft({ from, to })
+                onSelect({ from, to })
                 setOpen(false)
                 onOpenChange?.(false)
               }}

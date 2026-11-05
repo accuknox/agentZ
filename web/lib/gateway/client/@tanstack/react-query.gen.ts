@@ -49,6 +49,7 @@ import {
   deleteWorkflowRun,
   deleteWorkflows,
   deleteWorkflowSchedule,
+  deliverWorkflowSession,
   discoverGuardrailConnectionResources,
   ensureTenant,
   exportAgentMutableSkills,
@@ -99,6 +100,7 @@ import {
   listAppSessions,
   listAppSpans,
   listAppTraces,
+  listChatBackground,
   listChatInputs,
   listChatSessions,
   listCodingOperations,
@@ -168,6 +170,7 @@ import {
   updateAgent,
   updateAgentTool,
   updateChatInput,
+  updateChatSession,
   updateChatSessionPreference,
   updateCodingProjectPreference,
   updateGuardrailConnection,
@@ -304,6 +307,9 @@ import type {
   DeleteWorkflowsData,
   DeleteWorkflowsError,
   DeleteWorkflowsResponse,
+  DeliverWorkflowSessionData,
+  DeliverWorkflowSessionError,
+  DeliverWorkflowSessionResponse,
   DiscoverGuardrailConnectionResourcesData,
   DiscoverGuardrailConnectionResourcesError,
   DiscoverGuardrailConnectionResourcesResponse,
@@ -454,6 +460,9 @@ import type {
   ListAppTracesData,
   ListAppTracesError,
   ListAppTracesResponse2,
+  ListChatBackgroundData,
+  ListChatBackgroundError,
+  ListChatBackgroundResponse,
   ListChatInputsData,
   ListChatInputsError,
   ListChatInputsResponse,
@@ -658,9 +667,12 @@ import type {
   UpdateChatInputData,
   UpdateChatInputError,
   UpdateChatInputResponse,
+  UpdateChatSessionData,
+  UpdateChatSessionError,
   UpdateChatSessionPreferenceData,
   UpdateChatSessionPreferenceError,
   UpdateChatSessionPreferenceResponse,
+  UpdateChatSessionResponse,
   UpdateCodingProjectPreferenceData,
   UpdateCodingProjectPreferenceError,
   UpdateCodingProjectPreferenceResponse,
@@ -1486,6 +1498,61 @@ export const listChatSessionsOptions = (options?: Options<ListChatSessionsData>)
     queryKey: listChatSessionsQueryKey(options),
   })
 
+export const listChatBackgroundQueryKey = (options: Options<ListChatBackgroundData>) =>
+  createQueryKey("listChatBackground", options)
+
+/**
+ * Read conversation background activity.
+ */
+export const listChatBackgroundOptions = (options: Options<ListChatBackgroundData>) =>
+  queryOptions<
+    ListChatBackgroundResponse,
+    ListChatBackgroundError,
+    ListChatBackgroundResponse,
+    ReturnType<typeof listChatBackgroundQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listChatBackground({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listChatBackgroundQueryKey(options),
+  })
+
+/**
+ * Move a session between inbox shelves.
+ *
+ * Active sessions can be snoozed or archived. Snoozed sessions can be woken or archived. Archived sessions must be unarchived before snoozing. Repeating an identical update succeeds without changing activity times.
+ *
+ */
+export const updateChatSessionMutation = (
+  options?: Partial<Options<UpdateChatSessionData>>
+): UseMutationOptions<
+  UpdateChatSessionResponse,
+  UpdateChatSessionError,
+  Options<UpdateChatSessionData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UpdateChatSessionResponse,
+    UpdateChatSessionError,
+    Options<UpdateChatSessionData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await updateChatSession({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
 export const listChatInputsQueryKey = (options: Options<ListChatInputsData>) =>
   createQueryKey("listChatInputs", options)
 
@@ -1539,7 +1606,7 @@ export const submitChatInputMutation = (
 }
 
 /**
- * Remove or retry your queued message.
+ * Edit, steer, remove, or retry your queued message.
  */
 export const updateChatInputMutation = (
   options?: Partial<Options<UpdateChatInputData>>
@@ -4648,6 +4715,33 @@ export const getWorkflowRunOptions = (options: Options<GetWorkflowRunData>) =>
     },
     queryKey: getWorkflowRunQueryKey(options),
   })
+
+/**
+ * Deliver a completed workflow's OpenCode session reference.
+ */
+export const deliverWorkflowSessionMutation = (
+  options?: Partial<Options<DeliverWorkflowSessionData>>
+): UseMutationOptions<
+  DeliverWorkflowSessionResponse,
+  DeliverWorkflowSessionError,
+  Options<DeliverWorkflowSessionData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    DeliverWorkflowSessionResponse,
+    DeliverWorkflowSessionError,
+    Options<DeliverWorkflowSessionData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deliverWorkflowSession({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
 
 /**
  * Set a WorkflowRun terminal status.

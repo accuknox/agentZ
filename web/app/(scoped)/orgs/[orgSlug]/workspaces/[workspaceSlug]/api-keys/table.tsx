@@ -253,7 +253,7 @@ function DeleteAPIKeyButton({
         </DropdownMenu>
       </div>
       <Dialog open={shown} onOpenChange={setOpen}>
-        <DialogContent showCloseButton={false}>
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Revoke API key?</DialogTitle>
             <DialogDescription>

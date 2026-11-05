@@ -1,7 +1,7 @@
 import { RememberRoute } from "@/data/route-memory"
+import { RequestError } from "@/components/request-error"
 import { Suspense } from "react"
 import RuntimeTelemetryLoading from "./loading"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { EventsChart } from "@/components/events-chart"
 import { EventsChartSkeleton } from "@/components/events-chart-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -22,7 +22,6 @@ import {
 import { TelemetryTableSkeleton } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/lens/runtime-telemetry/telemetry-table-skeleton"
 import { searchParamStringSchema } from "@/lib/search-params"
 import { getWorkspaceScope } from "@/data/workspaces"
-import { CircleAlert } from "lucide-react"
 
 const telemetrySearchParamsSchema = z.object({
   agent_name: searchParamStringSchema,
@@ -77,11 +76,23 @@ async function WorkspaceTelemetry<TData extends TelemetryPageData>({
 }) {
   const { orgSlug, workspaceSlug } = await params
   const workspace = await getWorkspaceScope(orgSlug, workspaceSlug)
+  if (workspace.kind === "error")
+    return <RequestError title="Could not load this workspace" error={workspace.error} />
   if (workspace.kind !== "ready") {
-    return <ErrorPanel message="Workspace is unavailable" />
+    return (
+      <RequestError
+        title="Could not load runtime telemetry"
+        description="Workspace is unavailable"
+      />
+    )
   }
   if (!workspace.workspace.capabilities.observability.read) {
-    return <ErrorPanel message="You do not have Lens access in this Workspace" />
+    return (
+      <RequestError
+        title="Could not load runtime telemetry"
+        description="You do not have Lens access in this Workspace"
+      />
+    )
   }
 
   const search = telemetrySearchParamsSchema.parse(await searchParams)
@@ -136,8 +147,10 @@ async function TelemetryContent<TData extends TelemetryPageData>({
   const pageToken =
     selected.agent_name === requested.agent_name ? params.telemetry_page_token : undefined
   if (error) {
-    return <ErrorPanel message={error.message} />
+    return <RequestError title="Could not load runtime telemetry" error={error} />
   }
+  if (range.error)
+    return <RequestError resetFilters title="That date range is out of reach" error={range.error} />
 
   if (!agentName) {
     return <EmptyState message="No agents available" />
@@ -146,13 +159,13 @@ async function TelemetryContent<TData extends TelemetryPageData>({
   return (
     <>
       <Suspense
-        key={`chart-${config.value}-${agentName}-${range.after}-${range.before}`}
+        key={`chart-${config.value}-${agentName}-${range.from}-${range.to}`}
         fallback={<EventsChartSkeleton />}
       >
         <Chart config={config} agentName={agentName} range={range} workspaceId={workspaceId} />
       </Suspense>
       <Suspense
-        key={`table-${config.value}-${agentName}-${range.after}-${range.before}-${pageToken ?? ""}`}
+        key={`table-${config.value}-${agentName}-${range.from}-${range.to}-${pageToken ?? ""}`}
         fallback={<TelemetryTableSkeleton headers={config.headers} />}
       >
         <Table
@@ -180,13 +193,13 @@ async function Chart<TData extends TelemetryPageData>({
 }) {
   const result = await config.loadAction({
     agent_name: agentName,
-    event_time_after: range.after,
-    event_time_before: range.before,
+    event_time_after: range.from,
+    event_time_before: range.to,
     workspace_id: workspaceId,
   })
 
   if (result.error) {
-    return <ErrorPanel message={result.error.message} />
+    return <RequestError title="Could not load runtime telemetry" error={result.error} />
   }
 
   return <EventsChart data={result.data.chart} />
@@ -207,14 +220,14 @@ async function Table<TData extends TelemetryPageData>({
 }) {
   const result = await config.loadAction({
     agent_name: agentName,
-    event_time_after: range.after,
-    event_time_before: range.before,
+    event_time_after: range.from,
+    event_time_before: range.to,
     page_token: pageToken,
     workspace_id: workspaceId,
   })
 
   if (result.error) {
-    return <ErrorPanel message={result.error.message} />
+    return <RequestError title="Could not load runtime telemetry" error={result.error} />
   }
 
   return config.renderTable(result.data)
@@ -228,16 +241,9 @@ async function Filters({
   selection: Promise<ResolvedPageSelection>
 }) {
   const state = await selection
-  if (state.error)
-    return (
-      <>
-        <RememberPageSelection {...state} />
-        <ErrorPanel message={state.error.message} />
-      </>
-    )
   return (
     <>
-      <RememberRoute />
+      {!state.error ? <RememberRoute /> : null}
       <RememberPageSelection {...state} />
       <LensFilters
         workspaceId={state.workspaceId}
@@ -247,15 +253,6 @@ async function Filters({
         to={params.range.to}
       />
     </>
-  )
-}
-
-function ErrorPanel({ message }: { message: string }) {
-  return (
-    <Alert className="px-6" variant="destructive">
-      <CircleAlert aria-hidden="true" />
-      <AlertDescription>{message}</AlertDescription>
-    </Alert>
   )
 }
 

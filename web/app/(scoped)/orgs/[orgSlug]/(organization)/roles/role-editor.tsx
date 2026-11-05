@@ -709,7 +709,7 @@ export function RoleEditor({ data }: { data: RoleEditorData | WorkspaceRoleEdito
           }}
           open={impactOpen}
         >
-          <DialogContent className="sm:max-w-3xl" showCloseButton={false}>
+          <DialogContent className="sm:max-w-3xl">
             <DialogHeader>
               <DialogTitle>Confirm role update</DialogTitle>
               <DialogDescription>

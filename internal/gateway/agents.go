@@ -234,16 +234,12 @@ func (s *Service) ListAgents(w http.ResponseWriter, r *http.Request, params gate
 		limit = int(*params.Limit)
 	}
 	if limit < 1 || limit > 200 {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"limit must be between 1 and 200",
-				errBadRequest,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"limit must be between 1 and 200",
+			errBadRequest,
+		))
 		return
 	}
 
@@ -366,17 +362,13 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(fields) > 0 {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				fields...,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
 		return
 	}
 
@@ -560,11 +552,13 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		w,
 		http.StatusCreated,
 		gatewayapi.Agent{
-			Name:    row.AgentName,
-			Sandbox: req.Sandbox,
+			Appearance: agt.Spec.Appearance,
+			Name:       row.AgentName,
+			Sandbox:    req.Sandbox,
 			Opencode: &gatewayapi.AgentOpencodeConfig{
 				Instruction: &agt.Spec.Instruction,
 			},
+			AutoArchiveHours: agt.Spec.AutoArchiveHours,
 			Memory: gatewayapi.AgentMemoryConfig{
 				Enabled: agt.Spec.Memory.Enabled,
 			},
@@ -646,7 +640,10 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 			return
 		}
 	}
-	if !updateAgentRequestHasChanges(req) {
+	empty := req.Appearance == nil && req.Env == nil &&
+		req.Sandbox == nil && req.Opencode == nil &&
+		req.Memory == nil && req.Skills == nil && req.AutoArchiveHours == nil
+	if empty {
 		apiutil.WriteError(w, r, apiutil.NewError(
 			http.StatusBadRequest,
 			"invalid_request",
@@ -722,6 +719,15 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		apiutil.WriteError(w, r, mapGatewayStoreError("update agent", err))
 		return
 	}
+	if req.AutoArchiveHours != nil {
+		err = q.GatewayNotifyChatSessionPolicy(r.Context())
+		if err != nil {
+			s.rollbackAgentUpdate(r.Context(), ns, before)
+			apiutil.WriteInternalError(w, r, fmt.Errorf("notify session policy: %w", err))
+			return
+		}
+	}
+
 	err = createAgentEventTrail(
 		r.Context(),
 		q,
@@ -743,6 +749,8 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		apiutil.WriteInternalError(w, r, fmt.Errorf("commit Agent update: %w", err))
 		return
 	}
+	// SQL settings can commit after the Kubernetes informer event.
+	s.resolver.broadcastAgentEvent(agentWatchEventChanged, updated)
 
 	status := gatewayapi.PROGRESSING
 	if view := statusFromAgent(updated); view != nil {
@@ -761,11 +769,13 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 		w,
 		http.StatusOK,
 		gatewayapi.Agent{
-			Name:    row.AgentName,
-			Sandbox: resourceReferenceFromCRD(updated.Spec.SandboxRef),
+			Appearance: updated.Spec.Appearance,
+			Name:       row.AgentName,
+			Sandbox:    resourceReferenceFromCRD(updated.Spec.SandboxRef),
 			Opencode: &gatewayapi.AgentOpencodeConfig{
 				Instruction: &updated.Spec.Instruction,
 			},
+			AutoArchiveHours: updated.Spec.AutoArchiveHours,
 			Memory: gatewayapi.AgentMemoryConfig{
 				Enabled: updated.Spec.Memory.Enabled,
 			},
@@ -898,16 +908,12 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 	if rows == 0 {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusNotFound,
-				"not_found",
-				"agent not found",
-				errAgentNotFound,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusNotFound,
+			"not_found",
+			"agent not found",
+			errAgentNotFound,
+		))
 		return
 	}
 	err = q.GatewayDeleteAgentChatSessions(
@@ -1015,11 +1021,7 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 		return
 	}
 	if !owner && !access.effective.CanAdminister(scope) {
-		apiutil.WriteError(
-			w,
-			r,
-			resourceForbidden(errors.New("agent ownership transfer requires owner or administrator authority")),
-		)
+		apiutil.WriteError(w, r, resourceForbidden(errors.New("agent ownership transfer requires owner or administrator authority")))
 		return
 	}
 	tx, err := s.db.Begin(r.Context())
@@ -1038,11 +1040,7 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		apiutil.WriteError(
-			w,
-			r,
-			resourceForbidden(errors.New("agent ownership transfer requires an active Workspace")),
-		)
+		apiutil.WriteError(w, r, resourceForbidden(errors.New("agent ownership transfer requires an active Workspace")))
 		return
 	}
 	if err != nil {
@@ -1079,11 +1077,7 @@ func (s *Service) TransferAgentOwner(w http.ResponseWriter, r *http.Request, age
 	hasWorkspace := effective.HasAccess(scope)
 	canCreate := effective.Allows(scope, authorization.OperationCreateAgent)
 	if !hasWorkspace || !canCreate {
-		apiutil.WriteError(
-			w,
-			r,
-			resourceForbidden(errors.New("new owner requires independent Workspace access and Agent Author")),
-		)
+		apiutil.WriteError(w, r, resourceForbidden(errors.New("new owner requires independent Workspace access and Agent Author")))
 		return
 	}
 
@@ -1364,17 +1358,13 @@ func (s *Service) UpsertAgentShare(w http.ResponseWriter, r *http.Request, agent
 	caps, capFields := agentShareCapabilities(req.Capabilities)
 	fields = append(fields, capFields...)
 	if len(fields) > 0 {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				fields...,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
 		return
 	}
 
@@ -1400,11 +1390,7 @@ func (s *Service) UpsertAgentShare(w http.ResponseWriter, r *http.Request, agent
 			return
 		}
 		if !exists {
-			apiutil.WriteError(
-				w,
-				r,
-				resourceForbidden(errors.New("agent Share Team does not exist in this Organisation")),
-			)
+			apiutil.WriteError(w, r, resourceForbidden(errors.New("agent Share Team does not exist in this Organisation")))
 			return
 		}
 	}
@@ -1444,17 +1430,13 @@ func (s *Service) UpsertAgentShare(w http.ResponseWriter, r *http.Request, agent
 	)
 	if err != nil {
 		if errors.Is(err, errAgentShareOwnerTarget) {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusBadRequest,
-					"invalid_request",
-					err.Error(),
-					errBadRequest,
-					gatewayapi.FieldError{Field: "target_user_id", Message: err.Error()},
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				err.Error(),
+				errBadRequest,
+				gatewayapi.FieldError{Field: "target_user_id", Message: err.Error()},
+			))
 			return
 		}
 		issuedByOther := errors.Is(err, errAgentShareIssuedByOther)
@@ -1477,11 +1459,12 @@ func (s *Service) DeleteAgentShare(w http.ResponseWriter, r *http.Request, agent
 	}
 	shareID = strings.TrimSpace(shareID)
 	if shareID == "" {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(http.StatusBadRequest, "invalid_request", "shareId is required", errBadRequest),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"shareId is required",
+			errBadRequest,
+		))
 		return
 	}
 
@@ -1556,6 +1539,13 @@ func (s *Service) DeleteAgentShare(w http.ResponseWriter, r *http.Request, agent
 //
 //nolint:gocyclo
 func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
+	ctx, cancelStream, apiErr := s.authorizeStream(r.Context())
+	if apiErr != nil {
+		apiutil.WriteError(w, r, apiErr)
+		return
+	}
+	defer cancelStream()
+	r = r.WithContext(ctx)
 	access, apiErr := s.resolveAgentAccess(r.Context(), "", authorization.OperationWatchAgents)
 	if apiErr != nil {
 		apiutil.WriteError(w, r, apiErr)
@@ -1584,16 +1574,12 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusInternalServerError,
-				"internal_error",
-				"streaming is unavailable",
-				nil,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusInternalServerError,
+			"internal_error",
+			"streaming is unavailable",
+			nil,
+		))
 		return
 	}
 
@@ -1661,11 +1647,17 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 		changed := make([]gatewayapi.Agent, 0, len(items))
 		for _, item := range items {
 			prevItem, ok := prev[item.Name]
+			sameAppearance := prevItem.Appearance == item.Appearance
+			if prevItem.Appearance != nil && item.Appearance != nil {
+				sameAppearance = *prevItem.Appearance == *item.Appearance
+			}
 			// List projections always include the saved instruction, even when empty.
 			unchanged := ok &&
+				sameAppearance &&
 				prevItem.Name == item.Name &&
 				prevItem.Sandbox == item.Sandbox &&
 				prevItem.Memory == item.Memory &&
+				prevItem.AutoArchiveHours == item.AutoArchiveHours &&
 				*prevItem.Opencode.Instruction == *item.Opencode.Instruction &&
 				prevItem.LastActivity.Equal(item.LastActivity) &&
 				prevItem.CreatedAt.Equal(item.CreatedAt) &&
@@ -2460,12 +2452,14 @@ func (s *Service) listAgentItems(ctx context.Context, q gatewaydb.GatewayListAge
 		items = append(
 			items,
 			gatewayapi.Agent{
-				Name:    row.AgentName,
-				Sandbox: resourceReferenceFromCRD(agt.Spec.SandboxRef),
+				Appearance: agt.Spec.Appearance,
+				Name:       row.AgentName,
+				Sandbox:    resourceReferenceFromCRD(agt.Spec.SandboxRef),
 				Opencode: &gatewayapi.AgentOpencodeConfig{
 					Instruction: &agt.Spec.Instruction,
 				},
-				Capabilities: caps[row.AgentName],
+				Capabilities:     caps[row.AgentName],
+				AutoArchiveHours: agt.Spec.AutoArchiveHours,
 				Memory: gatewayapi.AgentMemoryConfig{
 					Enabled: agt.Spec.Memory.Enabled,
 				},
@@ -2611,8 +2605,9 @@ func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, name
 			},
 		},
 		Spec: agentzv1alpha1.AgentSpec{
-			Image: s.cfg.AgentImage,
-			Env:   env,
+			Appearance: req.Appearance,
+			Image:      s.cfg.AgentImage,
+			Env:        env,
 			Telemetry: agentzv1alpha1.TelemetryConfig{
 				Enabled:       true,
 				TraceEndpoint: s.cfg.AgentTraceEndpoint,
@@ -2622,6 +2617,9 @@ func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, name
 				Name:  req.Sandbox.Name,
 			},
 		},
+	}
+	if req.AutoArchiveHours != nil {
+		agt.Spec.AutoArchiveHours = *req.AutoArchiveHours
 	}
 	if req.Skills != nil {
 		agt.Spec.Skills = resourceReferencesToCRD(*req.Skills)
@@ -2633,26 +2631,10 @@ func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, name
 	return agt
 }
 
-func updateAgentRequestHasChanges(req gatewayapi.UpdateAgentRequest) bool {
-	if req.Env != nil {
-		return true
-	}
-	if req.Sandbox != nil {
-		return true
-	}
-	if req.Opencode != nil {
-		return true
-	}
-	if req.Memory != nil {
-		return true
-	}
-	if req.Skills != nil {
-		return true
-	}
-	return false
-}
-
 func applyUpdateAgentRequest(agt *agentzv1alpha1.Agent, req gatewayapi.UpdateAgentRequest) {
+	if req.Appearance != nil {
+		agt.Spec.Appearance = req.Appearance
+	}
 	if req.Env != nil {
 		agt.Spec.Env = envVarsFromMap(*req.Env)
 	}
@@ -2661,6 +2643,9 @@ func applyUpdateAgentRequest(agt *agentzv1alpha1.Agent, req gatewayapi.UpdateAge
 			Scope: agentzv1alpha1.ResourceScope(req.Sandbox.Scope),
 			Name:  req.Sandbox.Name,
 		}
+	}
+	if req.AutoArchiveHours != nil {
+		agt.Spec.AutoArchiveHours = *req.AutoArchiveHours
 	}
 	if req.Skills != nil {
 		agt.Spec.Skills = resourceReferencesToCRD(*req.Skills)
@@ -2882,7 +2867,10 @@ func (s *Service) agentTools(w http.ResponseWriter, r *http.Request, name, toolN
 	}
 	if !agt.DeletionTimestamp.IsZero() {
 		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusConflict, "conflict", "agent is being deleted", nil,
+			http.StatusConflict,
+			"conflict",
+			"agent is being deleted",
+			nil,
 		))
 		return
 	}
@@ -2891,7 +2879,10 @@ func (s *Service) agentTools(w http.ResponseWriter, r *http.Request, name, toolN
 	})
 	if r.Method != http.MethodPost && toolName != "" && idx < 0 {
 		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusNotFound, "not_found", "tool not found", nil,
+			http.StatusNotFound,
+			"not_found",
+			"tool not found",
+			nil,
 		))
 		return
 	}
@@ -2923,8 +2914,10 @@ func (s *Service) agentTools(w http.ResponseWriter, r *http.Request, name, toolN
 			})
 			if duplicate {
 				apiutil.WriteError(w, r, apiutil.NewError(
-					http.StatusConflict, "conflict",
-					"tool name is already in use", nil,
+					http.StatusConflict,
+					"conflict",
+					"tool name is already in use",
+					nil,
 				))
 				return
 			}
@@ -2933,8 +2926,10 @@ func (s *Service) agentTools(w http.ResponseWriter, r *http.Request, name, toolN
 		default:
 			if req.Tool.Name != toolName {
 				apiutil.WriteError(w, r, apiutil.NewError(
-					http.StatusBadRequest, "invalid_request",
-					"tool names cannot be changed", nil,
+					http.StatusBadRequest,
+					"invalid_request",
+					"tool names cannot be changed",
+					nil,
 				))
 				return
 			}
@@ -2951,16 +2946,21 @@ func (s *Service) agentTools(w http.ResponseWriter, r *http.Request, name, toolN
 				})
 			}
 			apiutil.WriteError(w, r, apiutil.NewError(
-				http.StatusBadRequest, "invalid_request",
-				"tool validation failed", nil, fields...,
+				http.StatusBadRequest,
+				"invalid_request",
+				"tool validation failed",
+				nil,
+				fields...,
 			))
 			return
 		}
 	}
 	if version == "" || version != agt.ResourceVersion {
 		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusConflict, "conflict",
-			"agent changed; refresh the tools before saving again", nil,
+			http.StatusConflict,
+			"conflict",
+			"agent changed; refresh the tools before saving again",
+			nil,
 		))
 		return
 	}

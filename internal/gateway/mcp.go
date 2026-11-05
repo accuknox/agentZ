@@ -226,17 +226,13 @@ func (s *Service) WatchMCPConnections(w http.ResponseWriter, r *http.Request, pa
 			name := strings.TrimSpace(ref.Name)
 			fields := validateMCPConnectionName(name, "names")
 			if len(fields) > 0 {
-				apiutil.WriteError(
-					w,
-					r,
-					apiutil.NewError(
-						http.StatusBadRequest,
-						"invalid_request",
-						"request validation failed",
-						errBadRequest,
-						fields...,
-					),
-				)
+				apiutil.WriteError(w, r, apiutil.NewError(
+					http.StatusBadRequest,
+					"invalid_request",
+					"request validation failed",
+					errBadRequest,
+					fields...,
+				))
 				return
 			}
 			names = append(names, name)
@@ -444,17 +440,13 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request, pa
 			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				fields...,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
 		return
 	}
 
@@ -477,17 +469,13 @@ func (s *Service) CreateMCPConnection(w http.ResponseWriter, r *http.Request, pa
 			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				fields...,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
 		return
 	}
 	conn.Spec = spec
@@ -596,21 +584,39 @@ func (s *Service) ReauthenticateMCPConnection(w http.ResponseWriter, r *http.Req
 		return
 	}
 	if req.ResourceVersion != fmt.Sprintf("%s:%d", conn.UID, conn.Generation) {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "conflict", "connection changed; reload before retrying", nil))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict,
+			"conflict",
+			"connection changed; reload before retrying",
+			nil,
+		))
 		return
 	}
 	if conn.Spec.Auth == nil {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "connection has no authentication", nil))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"connection has no authentication",
+			nil,
+		))
 		return
 	}
 	oauth := req.Credentials.Oauth
 	if oauth != nil && (oauth.AccessToken == nil || strings.TrimSpace(*oauth.AccessToken) == "") {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "OAuth replacement requires an access token", nil))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"OAuth replacement requires an access token",
+			nil,
+		))
 		return
 	}
 	previous := conn.DeepCopy()
 	path := internalmcp.SecretPath(conn.Namespace, conn.Name) + "/" + uuid.NewString()
-	ref := &agentzv1alpha1.MCPConnectionSecretRef{Path: path, Key: internalmcp.SecretRecordKey}
+	ref := &agentzv1alpha1.MCPConnectionSecretRef{
+		Path: path,
+		Key:  internalmcp.SecretRecordKey,
+	}
 	if conn.Spec.Auth.Bearer != nil {
 		conn.Spec.Auth.Bearer.SecretRef = ref
 	}
@@ -683,15 +689,11 @@ func (s *Service) GetMCPConnection(w http.ResponseWriter, r *http.Request, name 
 		},
 	)
 	if err != nil {
-		apiutil.WriteError(
-			w,
-			r,
-			&apiutil.APIError{
-				Status:  http.StatusNotFound,
-				Code:    "not_found",
-				Message: "mcp connection not found",
-			},
-		)
+		apiutil.WriteError(w, r, &apiutil.APIError{
+			Status:  http.StatusNotFound,
+			Code:    "not_found",
+			Message: "mcp connection not found",
+		})
 		return
 	}
 	conn, ok := s.getMCPConnection(w, r, ns, name)
@@ -767,20 +769,16 @@ func (s *Service) DeleteMCPConnection(w http.ResponseWriter, r *http.Request, na
 			apiutil.WriteInternalError(w, r, err)
 			return
 		}
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusConflict,
-				"conflict",
-				"mcp connection is referenced by sandboxes: "+strings.Join(referrers, ", "),
-				errBadRequest,
-				gatewayapi.FieldError{
-					Field:   "name",
-					Message: "referenced by sandboxes: " + strings.Join(referrers, ", "),
-				},
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict,
+			"conflict",
+			"mcp connection is referenced by sandboxes: "+strings.Join(referrers, ", "),
+			errBadRequest,
+			gatewayapi.FieldError{
+				Field:   "name",
+				Message: "referenced by sandboxes: " + strings.Join(referrers, ", "),
+			},
+		))
 		return
 	}
 
@@ -821,17 +819,13 @@ func (s *Service) getMCPConnection(w http.ResponseWriter, r *http.Request, names
 	name := strings.TrimSpace(rawName)
 	fields := validateMCPConnectionName(name, "name")
 	if len(fields) > 0 {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				fields...,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			fields...,
+		))
 		return nil, false
 	}
 
@@ -1095,16 +1089,12 @@ func (s *Service) waitForMCPConnectionDeletion(ctx context.Context, name string)
 }
 
 func writeMCPInternalError(w http.ResponseWriter, r *http.Request, err error) {
-	apiutil.WriteError(
-		w,
-		r,
-		apiutil.NewError(
-			http.StatusInternalServerError,
-			"internal_error",
-			mcpInternalErrorMessage,
-			err,
-		),
-	)
+	apiutil.WriteError(w, r, apiutil.NewError(
+		http.StatusInternalServerError,
+		"internal_error",
+		mcpInternalErrorMessage,
+		err,
+	))
 }
 
 func mcpConnectionSpecFromRequest(endpoint gatewayapi.MCPConnectionEndpoint, auth *gatewayapi.MCPConnectionAuth) (agentzv1alpha1.MCPConnectionSpec, []gatewayapi.FieldError) {

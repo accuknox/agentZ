@@ -8,6 +8,7 @@ import {
   type AgentAccessTarget,
   type AgentOwner,
   type AgentShare,
+  type Error,
   type ListAgentsData,
 } from "@/lib/gateway/client"
 import type { ListAgentActionResponse } from "@/data/types"
@@ -101,7 +102,9 @@ export async function getWorkspaceAgentDetail(
   workspaceId: string,
   agentName: string,
   sharePageToken?: string
-): Promise<WorkspaceAgentDetail | undefined> {
+): Promise<
+  { data: WorkspaceAgentDetail; error: undefined } | { data: undefined; error: Error } | undefined
+> {
   "use cache: private"
 
   cacheLife("minutes")
@@ -109,7 +112,7 @@ export async function getWorkspaceAgentDetail(
 
   const client = getGatewayServerClient(workspaceId)
   const agents = await listAgents({ query: { agent_name: [agentName], limit: 1 }, client })
-  if (agents.error) throw new Error("Could not load agent", { cause: agents.error })
+  if (agents.error) return { data: undefined, error: agents.error }
   const agent = agents.data?.agents.find((item) => item.name === agentName)
   if (!agent) return undefined
 
@@ -126,44 +129,47 @@ export async function getWorkspaceAgentDetail(
       : undefined,
   ])
   if (owner.error) {
-    if (owner.error.code === "not_found") return undefined
-    throw new Error("Could not load agent owner", { cause: owner.error })
+    return { data: undefined, error: owner.error }
   }
-  if (targets?.error) throw new Error("Could not load agent access", { cause: targets.error })
-  if (shares?.error) throw new Error("Could not load agent shares", { cause: shares.error })
+  if (targets?.error) return { data: undefined, error: targets.error }
+  if (shares?.error) return { data: undefined, error: shares.error }
 
   const accessTargets = targets?.data.targets ?? []
   const targetsByID = new Map(accessTargets.map((target) => [target.id, target]))
   const shareRows = shares?.data.shares ?? []
 
   return {
-    agent,
-    creatorTarget: targetsByID.get(owner.data.creator_user_id),
-    creatorLabel: targetsByID.get(owner.data.creator_user_id)?.label ?? owner.data.creator_user_id,
-    owner: owner.data,
-    ownerTarget: targetsByID.get(owner.data.owner_user_id),
-    ownerLabel: targetsByID.get(owner.data.owner_user_id)?.label ?? owner.data.owner_user_id,
-    ownerCandidates: accessTargets.filter((target) => target.kind === "user" && target.can_own),
-    shares: shareRows.map((share) => {
-      const targetID = share.target_user_id ?? share.target_team_id
-      const target = targetID ? targetsByID.get(targetID) : undefined
-      const creator = targetsByID.get(share.created_by)
-      return {
-        ...share,
-        created_by_email: creator?.email ?? undefined,
-        created_by_image: creator?.image ?? undefined,
-        created_by_label: creator?.label ?? share.created_by,
-        target_email: target?.email ?? undefined,
-        target_image: target?.image ?? undefined,
-        target_label: target?.label ?? targetID ?? "Unknown target",
-      }
-    }),
-    sharesNextPageToken: shares?.data.next_page_token ?? "",
-    teams: accessTargets.filter(
-      (target) => target.kind === "team" && target.capabilities.length > 0
-    ),
-    users: accessTargets.filter(
-      (target) => target.kind === "user" && target.capabilities.length > 0
-    ),
+    error: undefined,
+    data: {
+      agent,
+      creatorTarget: targetsByID.get(owner.data.creator_user_id),
+      creatorLabel:
+        targetsByID.get(owner.data.creator_user_id)?.label ?? owner.data.creator_user_id,
+      owner: owner.data,
+      ownerTarget: targetsByID.get(owner.data.owner_user_id),
+      ownerLabel: targetsByID.get(owner.data.owner_user_id)?.label ?? owner.data.owner_user_id,
+      ownerCandidates: accessTargets.filter((target) => target.kind === "user" && target.can_own),
+      shares: shareRows.map((share) => {
+        const targetID = share.target_user_id ?? share.target_team_id
+        const target = targetID ? targetsByID.get(targetID) : undefined
+        const creator = targetsByID.get(share.created_by)
+        return {
+          ...share,
+          created_by_email: creator?.email ?? undefined,
+          created_by_image: creator?.image ?? undefined,
+          created_by_label: creator?.label ?? share.created_by,
+          target_email: target?.email ?? undefined,
+          target_image: target?.image ?? undefined,
+          target_label: target?.label ?? targetID ?? "Unknown target",
+        }
+      }),
+      sharesNextPageToken: shares?.data.next_page_token ?? "",
+      teams: accessTargets.filter(
+        (target) => target.kind === "team" && target.capabilities.length > 0
+      ),
+      users: accessTargets.filter(
+        (target) => target.kind === "user" && target.capabilities.length > 0
+      ),
+    },
   }
 }

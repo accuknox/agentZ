@@ -1,0 +1,39 @@
+.bot {
+  display: inline-block;
+  vertical-align: middle;
+  line-height: 0;
+  flex-shrink: 0;
+  contain: layout paint;
+  color: var(--mascot-light);
+}
+:global(.dark) .bot {
+  color: var(--mascot-dark);
+}
+.swatch {
+  background-color: var(--mascot-light);
+}
+:global(.dark) .swatch {
+  background-color: var(--mascot-dark);
+}
+.bot svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.bot g,
+.bot ellipse {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.bot [data-part="body"] {
+  transform-origin: 50% 88%;
+}
+.bot[data-mascot="slinky"][data-state="working"] [data-part="body"] {
+  transform-origin: 50% 100%;
+}
+.bot[data-state="waiting"] [data-part="face"] {
+  transform: translate(-0.21px, -0.14px);
+}
+.bot[data-running="false"] + :global(.activity-shimmer) {
+  animation-play-state: paused;
+}

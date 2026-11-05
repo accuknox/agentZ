@@ -44,6 +44,11 @@ func (s *Service) authorizeObservability(w http.ResponseWriter, r *http.Request,
 	if sessionID == nil {
 		return access.namespace, true
 	}
+	_, _, err := s.authorizeChat(r.Context(), access, agentName, strings.TrimSpace(*sessionID))
+	if err != nil {
+		apiutil.WriteError(w, r, mapGatewayStoreError("get conversation", err))
+		return "", false
+	}
 	workspace, err := s.queries.GatewayGetWorkspace(r.Context(), gatewaydb.GatewayGetWorkspaceParams{
 		ID:             access.workspaceID,
 		OrganizationID: access.organizationID,
@@ -119,32 +124,24 @@ func (s *Service) ListTraceSessions(w http.ResponseWriter, r *http.Request, agen
 		startedBefore = (*params.StartedBefore).UTC()
 	}
 	if startedAfter.After(startedBefore) {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"started_after must be before or equal to started_before",
-				errBadRequest,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"started_after must be before or equal to started_before",
+			errBadRequest,
+		))
 		return
 	}
 
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				gatewayapi.FieldError{Field: "sessionID", Message: "required"},
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			gatewayapi.FieldError{Field: "sessionID", Message: "required"},
+		))
 		return
 	}
 
@@ -228,17 +225,13 @@ func (s *Service) ListSpans(w http.ResponseWriter, r *http.Request, agentName ga
 	}
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				gatewayapi.FieldError{Field: "sessionID", Message: "required"},
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			gatewayapi.FieldError{Field: "sessionID", Message: "required"},
+		))
 		return
 	}
 	traceIDBytes, ok := validTraceID(w, r, traceID)
@@ -353,17 +346,13 @@ func (s *Service) GetSpanDetail(w http.ResponseWriter, r *http.Request, agentNam
 	}
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"request validation failed",
-				errBadRequest,
-				gatewayapi.FieldError{Field: "sessionID", Message: "required"},
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			errBadRequest,
+			gatewayapi.FieldError{Field: "sessionID", Message: "required"},
+		))
 		return
 	}
 	traceIDBytes, ok := validTraceID(w, r, traceID)
@@ -387,16 +376,12 @@ func (s *Service) GetSpanDetail(w http.ResponseWriter, r *http.Request, agentNam
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusNotFound,
-					"not_found",
-					"span not found",
-					err,
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusNotFound,
+				"not_found",
+				"span not found",
+				err,
+			))
 			return
 		}
 		apiutil.WriteInternalError(w, r, err)
@@ -446,32 +431,24 @@ func (s *Service) GetMCPGraph(w http.ResponseWriter, r *http.Request, agentName 
 		return
 	}
 	if !exists {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusNotFound,
-				"not_found",
-				"agent not found",
-				errAgentNotFound,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusNotFound,
+			"not_found",
+			"agent not found",
+			errAgentNotFound,
+		))
 		return
 	}
 
 	startTime := params.From.UTC()
 	endTime := params.To.Time.UTC().Add(24 * time.Hour)
 	if !startTime.Before(endTime) {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"from must be before or equal to to",
-				errBadRequest,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"from must be before or equal to to",
+			errBadRequest,
+		))
 		return
 	}
 

@@ -19,7 +19,7 @@ import {
 } from "@/lib/gateway/client"
 import { runWorkspaceGit, startWorkspaceOperation } from "@/lib/coding/review"
 import { CheckoutPicker } from "./projects"
-import { codingDrafts, useCodingDrafts, type CodingDraft } from "./drafts"
+import { sessionDrafts, useSessionDraft, type DraftMetadata } from "../chat/drafts"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Info } from "lucide-react"
 
@@ -40,20 +40,19 @@ export function CodingChat({
 }) {
   const { data: actor } = authClient.useSession()
   const scope = actor ? `${actor.user.id}:${workspaceId}` : ""
-  const drafts = useCodingDrafts(scope)
   const pathname = usePathname()
   const search = useSearchParams()
   const router = useRouter()
   const queryClient = useQueryClient()
   const id = search.get("draft")
-  const [promoted, setPromoted] = useState<CodingDraft>()
+  const savedDraft = useSessionDraft(scope, id)
+  const [promoted, setPromoted] = useState<DraftMetadata>()
   const promotedPath = promoted?.sessionID
     ? `${workspacePath}/agents/${encodeURIComponent(promoted.agentName)}/sessions/${encodeURIComponent(promoted.sessionID)}`
     : undefined
   // Keep the live session during promotion, without disabling saves in later drafts.
   const promotedDraft = id === promoted?.id || pathname === promotedPath ? promoted : undefined
-  const draft =
-    drafts.find((item) => item.id === id && item.projectId === project.id) ?? promotedDraft
+  const draft = savedDraft?.projectId === project.id ? savedDraft : promotedDraft
   const [ready, setReady] = useState(false)
   const selected =
     [
@@ -65,15 +64,23 @@ export function CodingChat({
   useEffect(() => {
     if (!scope || !selected || promotedDraft) return
     let active = true
-    void codingDrafts
+    void sessionDrafts
       .load(scope)
       .catch(() => [])
       .then(async (saved) => {
         if (!active) return
-        setReady(true)
-        if (saved.some((item) => item.id === id && item.projectId === project.id)) return
-        const created = await codingDrafts.start(scope, project.id, selected)
+        if (saved.some((item) => item.id === id && item.projectId === project.id)) {
+          setReady(true)
+          return
+        }
+        const created = await sessionDrafts.start(
+          scope,
+          project.id,
+          selected,
+          ready ? undefined : (id ?? undefined)
+        )
         if (!active) return
+        setReady(true)
         router.replace(
           `${workspacePath}/sessions/new?${new URLSearchParams({ project: project.id, draft: created.id })}`
         )
@@ -81,7 +88,7 @@ export function CodingChat({
     return () => {
       active = false
     }
-  }, [scope, selected, id, promotedDraft, project.id, router, workspacePath])
+  }, [scope, selected, id, promotedDraft, project.id, ready, router, savedDraft, workspacePath])
   const rememberAgent = async (name: string) => {
     const result = await updateCodingProjectPreference({
       baseUrl: await getGatewayBaseURL(),
@@ -130,20 +137,25 @@ export function CodingChat({
       draftPath={`${workspacePath}/sessions/new`}
       workspaceId={workspaceId}
       workspacePath={workspacePath}
-      initialMessage={draft.message}
+      initialMessage={sessionDrafts.get(scope, draft.id)?.message}
       draftModel={draft.model}
       draftMode={draft.mode}
-      onDraftModeChange={(mode) => codingDrafts.save({ ...draft, mode })}
-      onDraftModelChange={(model) => codingDrafts.save({ ...draft, model })}
-      onDraftChange={
-        promotedDraft ? undefined : (message) => codingDrafts.save({ ...draft, message })
-      }
+      onDraftModeChange={(mode) => sessionDrafts.update(scope, draft.id, { mode })}
+      onDraftModelChange={(model) => sessionDrafts.update(scope, draft.id, { model })}
       onDraftPromoted={(sessionID) => {
-        setPromoted({ ...draft, sessionID })
-        codingDrafts.remove(scope, draft.id)
+        const current = sessionDrafts.get(scope, draft.id)
+        if (!current) return
+        const { message: _message, submission: _submission, ...metadata } = current
+        setPromoted({ ...metadata, sessionID })
+        sessionDrafts.remove(scope, draft.id)
       }}
       onDraftAgentChange={(name) => {
-        codingDrafts.save({ ...draft, agentName: name, checkout: "new", baseRef: undefined })
+        sessionDrafts.update(scope, draft.id, {
+          agentName: name,
+          sessionID: undefined,
+          checkout: "new",
+          baseRef: undefined,
+        })
         void rememberAgent(name)
       }}
       headerContext={<span title={project.repository}>{project.name}</span>}
@@ -157,7 +169,7 @@ export function CodingChat({
           baseRef={draft.baseRef}
           disabled={disabled}
           onChange={(value, ref) => {
-            codingDrafts.save({ ...draft, checkout: value, baseRef: ref })
+            sessionDrafts.update(scope, draft.id, { checkout: value, baseRef: ref })
           }}
         />
       )}
@@ -186,7 +198,7 @@ export function CodingChat({
           : await client.session.create({ directory: worktree.directory })
         if (session.error)
           throw new Error(opencodeErrorMessage(session.error, "Could not start the conversation"))
-        codingDrafts.save({ ...draft, sessionID: session.data.id })
+        sessionDrafts.update(scope, draft.id, { sessionID: session.data.id })
         if (draft.checkout === "new" && text && worktree.branch === `chore/${worktree.id}`) {
           try {
             const status = await runWorkspaceGit(workspaceId, worktree.id, {

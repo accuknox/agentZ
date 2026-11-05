@@ -154,7 +154,12 @@ func (s *Service) CreateCodingProject(w http.ResponseWriter, r *http.Request) {
 	}
 	identity, err := s.codingIdentity(r.Context(), access.userID)
 	if err != nil {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadGateway, "github_failed", err.Error(), err))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadGateway,
+			"github_failed",
+			err.Error(),
+			err,
+		))
 		return
 	}
 	repo, err := identity.repository(r.Context(), req.RepositoryId)
@@ -303,7 +308,12 @@ func (s *Service) RenameCodingProject(w http.ResponseWriter, r *http.Request, pr
 		return
 	}
 	if count == 0 {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusNotFound, "not_found", "project not found", nil))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusNotFound,
+			"not_found",
+			"project not found",
+			nil,
+		))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -357,7 +367,12 @@ func (s *Service) DeleteCodingProject(w http.ResponseWriter, r *http.Request, pr
 		return
 	}
 	if err := s.deleteCodingProject(r.Context(), access, project); err != nil {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "cleanup_failed", err.Error(), err))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict,
+			"cleanup_failed",
+			err.Error(),
+			err,
+		))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -640,7 +655,10 @@ func (s *Service) PrepareCodingCheckout(w http.ResponseWriter, r *http.Request) 
 	}
 	if project.Deleting {
 		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusConflict, "deleting", "Project deletion has started", nil,
+			http.StatusConflict,
+			"deleting",
+			"Project deletion has started",
+			nil,
 		))
 		return
 	}
@@ -718,11 +736,12 @@ func (s *Service) PrepareCodingCheckout(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 	if tree.Deleting {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(http.StatusConflict, "deleting", "Checkout removal is in progress", nil),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict,
+			"deleting",
+			"Checkout removal is in progress",
+			nil,
+		))
 		return
 	}
 	var bundle []byte
@@ -737,7 +756,12 @@ func (s *Service) PrepareCodingCheckout(w http.ResponseWriter, r *http.Request) 
 		if !ready {
 			identity, err := s.codingIdentity(r.Context(), access.userID)
 			if err != nil {
-				apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadGateway, "github_failed", err.Error(), err))
+				apiutil.WriteError(w, r, apiutil.NewError(
+					http.StatusBadGateway,
+					"github_failed",
+					err.Error(),
+					err,
+				))
 				return
 			}
 			repo, err := newCodingRepository(r.Context(), project.Repository, identity.token)
@@ -748,7 +772,12 @@ func (s *Service) PrepareCodingCheckout(w http.ResponseWriter, r *http.Request) 
 			defer os.RemoveAll(repo.dir)
 			bundle, err = repo.fetchBundle(r.Context())
 			if err != nil {
-				apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadGateway, "fetch_failed", err.Error(), err))
+				apiutil.WriteError(w, r, apiutil.NewError(
+					http.StatusBadGateway,
+					"fetch_failed",
+					err.Error(),
+					err,
+				))
 				return
 			}
 		}
@@ -765,7 +794,12 @@ func (s *Service) PrepareCodingCheckout(w http.ResponseWriter, r *http.Request) 
 			},
 		)
 		if err != nil {
-			apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "checkout_failed", err.Error(), err))
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusConflict,
+				"checkout_failed",
+				err.Error(),
+				err,
+			))
 			return
 		}
 		tree.Branch = result.Branch
@@ -859,7 +893,12 @@ func (s *Service) SuggestCodingText(w http.ResponseWriter, r *http.Request, agen
 		r.Context(), access, row.CodingWorktree, row.CodingProject, sessionId, input,
 	)
 	if err != nil {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadGateway, "generation_failed", err.Error(), err))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadGateway,
+			"generation_failed",
+			err.Error(),
+			err,
+		))
 		return
 	}
 	apiutil.WriteJSON(w, http.StatusOK, result)
@@ -1193,11 +1232,12 @@ func (s *Service) RunCodingGit(w http.ResponseWriter, r *http.Request, worktreeI
 	switch req.Operation {
 	case gatewayapi.CodingGitStatus, gatewayapi.CodingGitDiff, gatewayapi.CodingGitStashes:
 		if row.CodingWorktree.Deleting {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(http.StatusConflict, "deleting", "Checkout removal is in progress", nil),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusConflict,
+				"deleting",
+				"Checkout removal is in progress",
+				nil,
+			))
 			return
 		}
 		if req.Operation == gatewayapi.CodingGitStatus && req.ExpectedHead == nil {
@@ -1243,7 +1283,12 @@ func (s *Service) RunCodingGit(w http.ResponseWriter, r *http.Request, worktreeI
 			req,
 		)
 		if err != nil {
-			apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "git_conflict", err.Error(), err))
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusConflict,
+				"git_conflict",
+				err.Error(),
+				err,
+			))
 			return
 		}
 		apiutil.WriteJSON(w, http.StatusOK, result)
@@ -1274,32 +1319,34 @@ func (s *Service) RunCodingGit(w http.ResponseWriter, r *http.Request, worktreeI
 			return
 		}
 		if bound {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusConflict,
-					"conversation_started",
-					"Branch selection is fixed once a conversation starts",
-					nil,
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusConflict,
+				"conversation_started",
+				"Branch selection is fixed once a conversation starts",
+				nil,
+			))
 			return
 		}
 	}
 	unavailable := row.CodingWorktree.Deleting && req.Operation != gatewayapi.CodingGitRemove
 	if row.CodingProject.Deleting || unavailable {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(http.StatusConflict, "deleting", "Checkout removal is in progress", nil),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict,
+			"deleting",
+			"Checkout removal is in progress",
+			nil,
+		))
 		return
 	}
 	if req.Operation == gatewayapi.CodingGitRemove {
 		err = s.checkCodingAgentIdle(r.Context(), access, row.CodingWorktree)
 		if err != nil {
-			apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "cleanup_blocked", err.Error(), err))
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusConflict,
+				"cleanup_blocked",
+				err.Error(),
+				err,
+			))
 			return
 		}
 		err = q.GatewayDeletingCodingWorktree(
@@ -1327,7 +1374,12 @@ func (s *Service) RunCodingGit(w http.ResponseWriter, r *http.Request, worktreeI
 				return
 			}
 		}
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "git_conflict", err.Error(), err))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict,
+			"git_conflict",
+			err.Error(),
+			err,
+		))
 		return
 	}
 	if req.Operation == gatewayapi.CodingGitRemove {

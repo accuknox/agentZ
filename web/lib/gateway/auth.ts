@@ -8,7 +8,7 @@ import { getAuth } from "@/lib/auth"
 import { dayjs } from "@/lib/format"
 import { GatewayUnauthorizedError } from "@/lib/gateway/errors"
 
-export type GatewayAuthContext = {
+type GatewayAuthContext = {
   organizationId: string
   sessionId: string
   userId: string
@@ -50,7 +50,13 @@ export async function currentGatewayAuthContext(): Promise<GatewayAuthContext> {
  */
 export async function currentGatewayAuthToken(workspaceId?: string): Promise<string> {
   const state = await currentGatewayAuthContext()
-  return getGatewayAuthToken(state.organizationId, state.userId, state.userName, workspaceId)
+  return getGatewayAuthToken(
+    state.organizationId,
+    state.userId,
+    state.userName,
+    workspaceId,
+    state.sessionId
+  )
 }
 
 /** getGatewayAuthToken signs server-selected scope without changing browser context. */
@@ -60,7 +66,8 @@ async function signGatewayAuthToken(
   organizationId: string,
   userId: string,
   userName: string,
-  workspaceId?: string
+  workspaceId?: string,
+  browserSessionId?: string
 ): Promise<string> {
   const db = getDB()
   const scopeType = workspaceId ? "workspace" : "organization"
@@ -221,6 +228,9 @@ async function signGatewayAuthToken(
   const data = await auth.api.signJWT({
     body: {
       payload: {
+        // Streams revalidate this server-side session instead of disconnecting
+        // whenever the short-lived request credential expires.
+        ...(browserSessionId ? { browser_session_id: browserSessionId } : {}),
         administrative_bypass: administrativeBypass,
         agent_acl: [...agentACL.values()].sort((left, right) =>
           left.agent_name.localeCompare(right.agent_name)

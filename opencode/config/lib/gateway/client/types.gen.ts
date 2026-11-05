@@ -300,6 +300,13 @@ export type DelegationCatalog = {
 
 export type ChatSessionKind = "chat" | "workflow_run"
 
+export type ChatSessionShelf = "active" | "archived" | "snoozed"
+
+export type UpdateChatSessionRequest = {
+  shelf: ChatSessionShelf
+  snoozed_until?: string
+}
+
 export type ChatSessionStatus = "idle" | "busy" | "retry"
 
 export type ChatSessionGroupBy = "none" | "agent" | "status" | "date" | "project"
@@ -313,7 +320,27 @@ export type ChatSessionParticipant = {
   image: string | null
 }
 
+export type ChatBackgroundList = Array<ChatBackground>
+
+export type ChatBackground = {
+  message_id: string
+  part_id: string
+  completed: boolean
+  outcome?: "quiet" | "update" | "failed" | "canceled"
+  error: string
+}
+
 export type ChatSession = {
+  /**
+   * Whether a workflow schedule delivers results to this thread, including paused schedules.
+   */
+  has_workflow_schedule_subscription: boolean
+  archived: boolean
+  snoozed_until?: string
+  /**
+   * Last automatic snooze wake. Cleared by subsequent shelf changes.
+   */
+  woke_at?: string
   project_id?: string
   agent_name: AgentName
   session_id: string
@@ -326,6 +353,8 @@ export type ChatSession = {
 }
 
 export type ListChatSessionsResponse = {
+  archived_count: number
+  snoozed_count: number
   sessions: Array<ChatSession>
   groups: Array<ChatSessionGroup>
   participant_filters: Array<ChatSessionParticipant>
@@ -393,7 +422,8 @@ export type ChatInputs = {
 
 export type ChatInputUpdate = {
   revision: number
-  action: "remove" | "retry"
+  action: "remove" | "retry" | "edit" | "steer"
+  content?: ChatInputContent
 }
 
 export type ChatSessionPreference = {
@@ -689,6 +719,16 @@ export type ResourceReference = {
   name: string
 }
 
+export type MascotBreed = "mochi" | "ziglet" | "slinky" | "mallow" | "pip" | "pi"
+
+export type MascotColor =
+  "cream" | "lilac" | "peach" | "rose" | "coral" | "amber" | "lime" | "mint" | "sky" | "slate"
+
+export type AgentAppearance = {
+  breed: MascotBreed
+  color: MascotColor
+}
+
 export type AgentMemoryConfig = {
   enabled: boolean
 }
@@ -851,6 +891,11 @@ export type ListWorkflowWebhookTriggersResponse = {
 }
 
 export type Agent = {
+  /**
+   * Idle hours before archival; zero disables automatic archival.
+   */
+  auto_archive_hours: number
+  appearance?: AgentAppearance
   name: AgentName
   sandbox: ResourceReference
   created_by: ResourceActor
@@ -1082,6 +1127,11 @@ export type UpdateSkillRequest = {
 export type AgentStatus = "UNSPECIFIED" | "PROGRESSING" | "DEGRADED" | "DELETED" | "IDLE"
 
 export type CreateAgentRequest = {
+  /**
+   * Idle hours before archival; zero disables automatic archival.
+   */
+  auto_archive_hours?: number
+  appearance?: AgentAppearance
   name: AgentName
   memory?: AgentMemoryConfig
   env?: {
@@ -1093,6 +1143,10 @@ export type CreateAgentRequest = {
 }
 
 export type CreateWorkflowRequest = {
+  /**
+   * Atomically replace an existing workflow graph while preserving its identity and schedules.
+   */
+  replace?: boolean
   workflow_name: WorkflowName
   title: string
   summary: string
@@ -1115,7 +1169,12 @@ export type Workflow = {
   updated_at: string
 }
 
+export type WorkflowDelivery = {
+  session_id: string
+}
+
 export type WorkflowSchedule = {
+  delivery?: WorkflowDelivery
   name: WorkflowScheduleName
   agent_name: AgentName
   workflow_name: WorkflowName
@@ -1303,6 +1362,11 @@ export type WorkflowWebhookTrigger = {
 }
 
 export type CreateWorkflowScheduleRequest = {
+  /**
+   * Authenticated agent tool context used to subscribe this thread.
+   */
+  context_session_id?: string
+  delivery?: WorkflowDelivery
   name: WorkflowScheduleName
   schedule: string
   time_zone?: string
@@ -1314,6 +1378,7 @@ export type CreateWorkflowScheduleRequest = {
 }
 
 export type UpdateWorkflowScheduleRequest = {
+  delivery?: WorkflowDelivery
   schedule: string
   time_zone?: string
   inputs?: JsonValue
@@ -1394,6 +1459,11 @@ export type DeleteWorkflowsRequest = {
 }
 
 export type UpdateAgentRequest = {
+  /**
+   * Idle hours before archival; zero disables automatic archival.
+   */
+  auto_archive_hours?: number
+  appearance?: AgentAppearance
   env?: {
     [key: string]: string
   }
@@ -4888,6 +4958,7 @@ export type ListChatSessionsData = {
   body?: never
   path?: never
   query?: {
+    shelf?: ChatSessionShelf
     project_id?: string
     /**
      * Maximum number of sessions to return.
@@ -4970,6 +5041,94 @@ export type ListChatSessionsResponses = {
 }
 
 export type ListChatSessionsResponse2 = ListChatSessionsResponses[keyof ListChatSessionsResponses]
+
+export type ListChatBackgroundData = {
+  body?: never
+  path: {
+    agentName: string
+    sessionId: string
+  }
+  query?: never
+  url: "/api/chat-session/{agentName}/{sessionId}/background"
+}
+
+export type ListChatBackgroundErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type ListChatBackgroundError = ListChatBackgroundErrors[keyof ListChatBackgroundErrors]
+
+export type ListChatBackgroundResponses = {
+  /**
+   * Authorized conversation state.
+   */
+  200: ChatBackgroundList
+}
+
+export type ListChatBackgroundResponse =
+  ListChatBackgroundResponses[keyof ListChatBackgroundResponses]
+
+export type UpdateChatSessionData = {
+  body: UpdateChatSessionRequest
+  path: {
+    agentName: string
+    sessionId: string
+  }
+  query?: never
+  url: "/api/chat-session/{agentName}/{sessionId}"
+}
+
+export type UpdateChatSessionErrors = {
+  /**
+   * Request validation failed.
+   */
+  400: Error
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type UpdateChatSessionError = UpdateChatSessionErrors[keyof UpdateChatSessionErrors]
+
+export type UpdateChatSessionResponses = {
+  /**
+   * Session updated.
+   */
+  204: void
+}
+
+export type UpdateChatSessionResponse = UpdateChatSessionResponses[keyof UpdateChatSessionResponses]
 
 export type WatchChatSessionsData = {
   body?: never
@@ -5118,7 +5277,7 @@ export type UpdateChatInputError = UpdateChatInputErrors[keyof UpdateChatInputEr
 
 export type UpdateChatInputResponses = {
   /**
-   * Remove or retry your queued message.
+   * Edit, steer, remove, or retry your queued message.
    */
   200: ChatInput
 }
@@ -11332,6 +11491,51 @@ export type GetWorkflowRunResponses = {
 }
 
 export type GetWorkflowRunResponse = GetWorkflowRunResponses[keyof GetWorkflowRunResponses]
+
+export type DeliverWorkflowSessionData = {
+  body?: never
+  path: {
+    agentName: string
+    workflowName: string
+    runName: string
+  }
+  query?: never
+  url: "/api/workflow/{agentName}/{workflowName}/run/{runName}/session/deliver"
+}
+
+export type DeliverWorkflowSessionErrors = {
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type DeliverWorkflowSessionError =
+  DeliverWorkflowSessionErrors[keyof DeliverWorkflowSessionErrors]
+
+export type DeliverWorkflowSessionResponses = {
+  /**
+   * The delivery binding or completion receipt is reconciled.
+   */
+  204: void
+}
+
+export type DeliverWorkflowSessionResponse =
+  DeliverWorkflowSessionResponses[keyof DeliverWorkflowSessionResponses]
 
 export type PatchWorkflowRunStatusData = {
   body: PatchWorkflowRunStatusRequest

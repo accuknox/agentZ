@@ -52,30 +52,22 @@ func (s *Service) ListEventTrailEvents(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 	if req.Limit < 1 || req.Limit > 100 {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"limit must be between 1 and 100",
-				errors.New("invalid event trail page size"),
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"limit must be between 1 and 100",
+			errors.New("invalid event trail page size"),
+		))
 		return
 	}
 	clause, err := compileEventTrailFilters(req.Filters)
 	if err != nil {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				err.Error(),
-				err,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			err.Error(),
+			err,
+		))
 		return
 	}
 
@@ -89,16 +81,12 @@ func (s *Service) ListEventTrailEvents(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 	if access.workspaceID.Valid && len(clause.workspaceIDs) > 0 {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"workspace_id cannot filter a Workspace-scoped request",
-				errors.New("workspace filter duplicates the authorized scope"),
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"workspace_id cannot filter a Workspace-scoped request",
+			errors.New("workspace filter duplicates the authorized scope"),
+		))
 		return
 	}
 
@@ -210,16 +198,12 @@ func (s *Service) GetEventTrailEvent(w http.ResponseWriter, r *http.Request, eve
 		return
 	}
 	if len(rows) == 0 {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusNotFound,
-				"event_trail_event_not_found",
-				"event trail event was not found",
-				fmt.Errorf("event trail event %q was not found", eventID),
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusNotFound,
+			"event_trail_event_not_found",
+			"event trail event was not found",
+			fmt.Errorf("event trail event %q was not found", eventID),
+		))
 		return
 	}
 

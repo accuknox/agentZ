@@ -1,7 +1,7 @@
+import { RequestError } from "@/components/request-error"
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import { AdministrationPageHeader } from "@/components/administration"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { headers } from "next/headers"
 import { and, asc, desc, eq, gt } from "drizzle-orm"
 import * as z from "zod"
@@ -10,7 +10,6 @@ import { getDB, schema } from "@/db"
 import { deleteSessionFormAction } from "@/data/session.actions"
 import { SessionsTable } from "./sessions-table"
 import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
-import { CircleAlert } from "lucide-react"
 
 export const metadata: Metadata = {
   title: "Sessions",
@@ -39,7 +38,16 @@ export default function SessionsPage({ searchParams }: { searchParams: Promise<S
 
 async function Sessions({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [requestHeaders, search] = await Promise.all([headers(), searchParams])
-  const sorting = searchSchema.parse(search)
+  const parsed = searchSchema.safeParse(search)
+  if (!parsed.success)
+    return (
+      <RequestError
+        resetFilters
+        title="Invalid session sorting"
+        description="Choose a supported sort field and order."
+      />
+    )
+  const sorting = parsed.data
   const auth = getAuth()
   let currentToken: string | undefined
   let sessions: (typeof schema.sessions.$inferSelect)[] | undefined
@@ -71,7 +79,12 @@ async function Sessions({ searchParams }: { searchParams: Promise<SearchParams> 
   }
 
   if (errorMessage || !currentToken || !sessions) {
-    return <ErrorPanel message={errorMessage ?? "Failed to load sessions"} />
+    return (
+      <RequestError
+        title="Could not load active sessions"
+        description={errorMessage ?? "Failed to load sessions"}
+      />
+    )
   }
 
   return (
@@ -92,14 +105,5 @@ function TableSkeleton() {
       <div className="h-10 rounded-md bg-muted/20" />
       <div className="h-10 rounded-md bg-muted/20" />
     </div>
-  )
-}
-
-function ErrorPanel({ message }: { message: string }) {
-  return (
-    <Alert className="px-4 md:px-6" variant="destructive">
-      <CircleAlert aria-hidden="true" />
-      <AlertDescription>{message}</AlertDescription>
-    </Alert>
   )
 }

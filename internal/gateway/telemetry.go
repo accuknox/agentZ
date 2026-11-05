@@ -222,8 +222,10 @@ func (s *Service) ListAppTraces(w http.ResponseWriter, r *http.Request, clientID
 	}
 	if after.After(before) {
 		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusBadRequest, "invalid_request",
-			"started_after must not exceed started_before", errBadRequest,
+			http.StatusBadRequest,
+			"invalid_request",
+			"started_after must not exceed started_before",
+			errBadRequest,
 		))
 		return
 	}
@@ -316,8 +318,10 @@ func (s *Service) GetAppTraceChart(w http.ResponseWriter, r *http.Request, clien
 	}
 	if after.After(before) {
 		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusBadRequest, "invalid_request",
-			"started_after must not exceed started_before", errBadRequest,
+			http.StatusBadRequest,
+			"invalid_request",
+			"started_after must not exceed started_before",
+			errBadRequest,
 		))
 		return
 	}
@@ -564,7 +568,12 @@ func (s *Service) GetAppMCPGraph(w http.ResponseWriter, r *http.Request, clientI
 	}
 	after, before := params.From.UTC(), params.To.Time.UTC().Add(24*time.Hour)
 	if !after.Before(before) {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "from must not exceed to", errBadRequest))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"from must not exceed to",
+			errBadRequest,
+		))
 		return
 	}
 	sessionID := ""

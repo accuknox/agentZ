@@ -1531,7 +1531,7 @@ export function GitChanges({
           if (!open && !busy) setStashAction(undefined)
         }}
       >
-        <DialogContent showCloseButton={false}>
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>
               {stashAction === "stash_create"

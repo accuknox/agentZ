@@ -79,7 +79,12 @@ func (s *Service) DiscoverGuardrailConnectionResources(w http.ResponseWriter, r 
 		return
 	}
 	if input.Scope != gatewayapi.ResourceScopeOrganisation && input.Scope != gatewayapi.ResourceScopeWorkspace {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "Select the provider scope.", errBadRequest))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"Select the provider scope.",
+			errBadRequest,
+		))
 		return
 	}
 	pageSize := 50
@@ -87,11 +92,12 @@ func (s *Service) DiscoverGuardrailConnectionResources(w http.ResponseWriter, r 
 		pageSize = *input.PageSize
 	}
 	if pageSize < 1 || pageSize > 100 || (input.PageToken != nil && len(*input.PageToken) > 8192) {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(http.StatusBadRequest, "invalid_request", "Invalid resource page size or continuation token.", errBadRequest),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"Invalid resource page size or continuation token.",
+			errBadRequest,
+		))
 		return
 	}
 	namespace, err := scope.SelectedNamespace(ctx, s.k8sClient, access.namespace, scope.Selection{
@@ -111,8 +117,10 @@ func (s *Service) DiscoverGuardrailConnectionResources(w http.ResponseWriter, r 
 	}
 	if !connection.DeletionTimestamp.IsZero() {
 		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusServiceUnavailable, "connection_unavailable",
-			"The provider is being deleted.", nil,
+			http.StatusServiceUnavailable,
+			"connection_unavailable",
+			"The provider is being deleted.",
+			nil,
 		))
 		return
 	}
@@ -131,11 +139,12 @@ func (s *Service) DiscoverGuardrailConnectionResources(w http.ResponseWriter, r 
 			(input.Kind == gatewayapi.GuardrailResourceDiscoveryInputKindLocations && guardrailGoogleProject.MatchString(parent)) ||
 			(input.Kind == gatewayapi.GuardrailResourceDiscoveryInputKindTemplates && guardrailGoogleLocation.MatchString(parent))
 	default:
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(http.StatusBadRequest, "discovery_not_supported", "This service has no selectable cloud guardrail resources.", nil),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"discovery_not_supported",
+			"This service has no selectable cloud guardrail resources.",
+			nil,
+		))
 		return
 	}
 	if !valid || len(parent) > 2048 {
@@ -148,23 +157,22 @@ func (s *Service) DiscoverGuardrailConnectionResources(w http.ResponseWriter, r 
 		return
 	}
 	if s.baoKV == nil || connection.Spec.SecretName == "" {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusServiceUnavailable, "credentials_unavailable",
-				"Save provider credentials before browsing resources.", nil,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusServiceUnavailable,
+			"credentials_unavailable",
+			"Save provider credentials before browsing resources.",
+			nil,
+		))
 		return
 	}
 	secret, err := s.baoKV.Get(ctx, connection.CredentialPath())
 	if err != nil {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(http.StatusServiceUnavailable, "credentials_unavailable", "Saved provider credentials could not be read.", nil),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusServiceUnavailable,
+			"credentials_unavailable",
+			"Saved provider credentials could not be read.",
+			nil,
+		))
 		return
 	}
 	client := *s.outboundHTTP
@@ -201,7 +209,12 @@ func (s *Service) DiscoverGuardrailConnectionResources(w http.ResponseWriter, r 
 		tokenClient := client
 		credentials, err := guardrailGoogleCredentials(ctx, payload, &tokenClient)
 		if err != nil {
-			apiutil.WriteError(w, r, apiutil.NewError(http.StatusServiceUnavailable, "unsupported_credentials", err.Error(), nil))
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusServiceUnavailable,
+				"unsupported_credentials",
+				err.Error(),
+				nil,
+			))
 			return
 		}
 		client.Transport = &oauth2.Transport{Source: credentials.TokenSource, Base: client.Transport}

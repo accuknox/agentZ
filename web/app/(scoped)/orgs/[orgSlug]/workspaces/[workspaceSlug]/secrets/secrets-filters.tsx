@@ -1,5 +1,6 @@
 "use client"
 
+import { AgentAvatar } from "@/components/interior/agent-presence"
 import type { Agent } from "@/lib/gateway/client"
 import { useSelectResource } from "@/components/page-selection"
 import {
@@ -10,7 +11,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { BotIcon } from "lucide-react"
 
 export function SecretsFilters({
   agents,
@@ -42,7 +42,7 @@ export function SecretsFilters({
             <SelectGroup>
               {agents.map((agent) => (
                 <SelectItem key={agent.name} value={agent.name}>
-                  <BotIcon className="inline-block" />
+                  <AgentAvatar appearance={agent.appearance} />
                   {agent.name}
                 </SelectItem>
               ))}

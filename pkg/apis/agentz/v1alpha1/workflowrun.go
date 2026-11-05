@@ -23,6 +23,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// WorkflowRunSessionFinalizer retains execution until its session handoff and cleanup are complete.
+const WorkflowRunSessionFinalizer = "agentz.accuknox.com/workflowrun-session"
+
 const (
 	// WorkflowRunPhaseUnknown is the zero value for WorkflowRun phase.
 	WorkflowRunPhaseUnknown WorkflowRunPhase = ""
@@ -71,6 +74,8 @@ const (
 	WorkflowRunReasonUnacked = "Unacked"
 	// WorkflowRunReasonSucceeded indicates the workflow finished successfully.
 	WorkflowRunReasonSucceeded = "Succeeded"
+	// WorkflowRunReasonCanceled indicates explicitly canceled work, which must not be restarted by recovery.
+	WorkflowRunReasonCanceled = "Canceled"
 	// WorkflowRunReasonFailed indicates the workflow finished unsuccessfully.
 	WorkflowRunReasonFailed = "Failed"
 	// WorkflowRunReasonTimedOut indicates the run exceeded its timeout.
@@ -78,6 +83,9 @@ const (
 	// WorkflowRunReasonGatewayError indicates the gateway call failed.
 	WorkflowRunReasonGatewayError = "GatewayError"
 )
+
+// WorkflowRunAnnotationTriggerFailure records a failed trigger before run execution is admitted.
+const WorkflowRunAnnotationTriggerFailure = "agentz.accuknox.com/trigger-failure"
 
 // WorkflowRunAnnotationWebhookAPIKeyID stores the Better Auth API key ID that
 // created one webhook-triggered run.
@@ -110,8 +118,20 @@ type WorkflowRunModel struct {
 	Variant string `json:"variant,omitempty"`
 }
 
+// WorkflowDelivery binds scheduled execution to a subscribed conversation generation.
+type WorkflowDelivery struct {
+	// SessionID is the subscribed conversation root.
+	SessionID string `json:"sessionID"`
+	// Generation prevents delivery after conversation deletion.
+	Generation int64 `json:"generation"`
+}
+
 // WorkflowRunSpec defines the desired state of WorkflowRun.
 type WorkflowRunSpec struct {
+	// Delivery keeps this run bound to its original conversation.
+	// +optional
+	Delivery *WorkflowDelivery `json:"delivery,omitempty"`
+
 	// Model overrides the model for this execution only.
 	// +optional
 	Model *WorkflowRunModel `json:"model,omitempty"`

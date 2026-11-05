@@ -5,10 +5,10 @@ import "./globals.css"
 
 export default function GlobalError({
   error,
-  unstable_retry,
+  retry,
 }: {
   error: Error & { digest?: string }
-  unstable_retry: () => void
+  retry: () => void
 }) {
   return (
     <html lang="en">
@@ -17,7 +17,7 @@ export default function GlobalError({
       </head>
       <body>
         <main className="flex min-h-svh items-center justify-center p-6">
-          <ErrorState error={error} onRetry={unstable_retry} />
+          <ErrorState error={error} onRetry={retry} />
         </main>
       </body>
     </html>

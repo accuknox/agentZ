@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"k8s.io/apimachinery/pkg/util/validation"
 
@@ -490,6 +491,10 @@ func validateBranchConditions(req gatewayapi.CreateWorkflowRequest, outDegree ma
 
 // MapCreateError translates workflow persistence and validation setup errors to API errors.
 func MapCreateError(err error) *apiutil.APIError {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return apiutil.NewError(409, "conflict", "workflow name is already in use", err,
+			gatewayapi.FieldError{Field: "workflow_name", Message: "already in-use"})
+	}
 	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
 		switch pgErr.Code {
 		case "23503":

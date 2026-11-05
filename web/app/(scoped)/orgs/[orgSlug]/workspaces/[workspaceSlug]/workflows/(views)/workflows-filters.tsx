@@ -1,12 +1,13 @@
 "use client"
 
+import { AgentAvatar } from "@/components/interior/agent-presence"
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
 import { listWorkflowSummariesOptions } from "@/lib/gateway/client/@tanstack/react-query.gen"
 import { useParams, usePathname, useSearchParams } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { BotIcon, WorkflowIcon, FlaskConical } from "lucide-react"
+import { WorkflowIcon, FlaskConical } from "lucide-react"
 import type { Agent, WorkflowSummary } from "@/lib/gateway/client"
 import { useSelectResource } from "@/components/page-selection"
 import {
@@ -72,7 +73,7 @@ export function WorkflowsFilters({
             <SelectGroup>
               {agents.map((agent) => (
                 <SelectItem key={agent.name} value={agent.name}>
-                  <BotIcon />
+                  <AgentAvatar appearance={agent.appearance} />
                   {agent.name}
                 </SelectItem>
               ))}

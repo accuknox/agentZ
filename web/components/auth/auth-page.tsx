@@ -21,7 +21,13 @@ export function AuthPage({ children }: { children: ReactNode }) {
           aria-label="AgentZ home"
           className="flex w-fit items-center gap-2.5"
         >
-          <Image src="/agentz-logo.svg" alt="" width={35} height={30} />
+          <Image
+            src="/agentz-logo.svg"
+            alt=""
+            width={500}
+            height={438}
+            className="h-auto w-[35px]"
+          />
           <span className="text-2xl font-semibold tracking-tight">AgentZ</span>
         </Link>
         <div className="flex flex-1 items-center justify-center pb-6">

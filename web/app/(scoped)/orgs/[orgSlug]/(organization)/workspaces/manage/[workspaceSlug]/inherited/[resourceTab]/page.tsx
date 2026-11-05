@@ -9,6 +9,7 @@ import { getWorkspaceInheritedResources } from "@/data/workspaces"
 import type { InheritedResourceType } from "@/lib/gateway/client"
 import * as z from "zod"
 import { searchParamStringSchema } from "@/lib/search-params"
+import { RequestError } from "@/components/request-error"
 
 export const metadata = { title: "Inherited resources" }
 
@@ -36,7 +37,16 @@ async function InheritedResourceContent(
     params,
     searchParams,
   ])
-  const sorting = searchSchema.parse(search)
+  const parsed = searchSchema.safeParse(search)
+  if (!parsed.success)
+    return (
+      <RequestError
+        resetFilters
+        title="Invalid resource sorting"
+        description="Choose a supported sort field and order."
+      />
+    )
+  const sorting = parsed.data
   const resources: Record<string, { label: string; type: InheritedResourceType }> = {
     "guardrail-providers": { label: "Guardrail providers", type: "guardrail_connection" },
     "guardrail-policies": { label: "Optional guardrail policies", type: "guardrail_policy" },
@@ -55,6 +65,10 @@ async function InheritedResourceContent(
     sorting.sort_order
   )
   if (!result) return <AdministrationState kind="forbidden" />
+  if (result.error)
+    return (
+      <RequestError title={`Could not load ${resource.label.toLowerCase()}`} error={result.error} />
+    )
 
   let displayNames: Record<string, string> | undefined
   const iconSources: Record<string, string> = {}
@@ -63,14 +77,21 @@ async function InheritedResourceContent(
       resource.type === "guardrail_policy"
         ? await listGuardrailPoliciesQuery()
         : await listGuardrailConnectionsQuery()
-    if (result.error) throw new Error(result.error.message)
+    if (result.error)
+      return (
+        <RequestError
+          title={`Could not load ${resource.label.toLowerCase()}`}
+          error={result.error}
+        />
+      )
     displayNames = Object.fromEntries(
       result.data.items.map((item) => [item.name, item.displayName])
     )
   }
   if (resource.type === "inference_provider") {
     const providers = await listInferenceProvidersCachedQuery()
-    if (providers.error) throw new Error(providers.error.message)
+    if (providers.error)
+      return <RequestError title="Could not load model providers" error={providers.error} />
     displayNames = {}
     for (const provider of providers.providers) {
       displayNames[provider.id] = provider.display_name
@@ -81,7 +102,8 @@ async function InheritedResourceContent(
     let pageToken: string | undefined
     do {
       const page = await listMcpConnectionsCachedQuery({ limit: 200, page_token: pageToken })
-      if (page.error) throw new Error(page.error.message)
+      if (page.error)
+        return <RequestError title="Could not load MCP connections" error={page.error} />
       for (const connection of page.mcpConnections) {
         iconSources[connection.name] = connection.endpoint_url
       }

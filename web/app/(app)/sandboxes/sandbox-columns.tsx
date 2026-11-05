@@ -208,7 +208,7 @@ function DeleteSandboxDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent showCloseButton={false}>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Delete {sandbox.name}?</DialogTitle>
           <DialogDescription>

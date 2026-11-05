@@ -1,0 +1,6 @@
+{{- if .Run.Status.SessionID -}}
+Workflow {{.Run.Spec.WorkflowName}} run {{.Run.Name}} finished with status {{.Run.Status.Phase}}. OpenCode session: {{.Run.Status.SessionID}}.
+{{- else -}}
+Workflow {{.Run.Spec.WorkflowName}} run {{.Run.Name}} never started an execution session. {{.Run.Status.Message}}
+{{- end -}}
+{{- if .Canceled}} Cancellation was requested. Do not resume or repair this canceled work.{{end -}}

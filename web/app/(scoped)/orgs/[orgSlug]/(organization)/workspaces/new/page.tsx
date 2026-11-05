@@ -1,3 +1,4 @@
+import { RequestError } from "@/components/request-error"
 import { RememberRoute } from "@/data/route-memory"
 import { Suspense } from "react"
 import { AdministrationLoadingState, AdministrationState } from "@/components/administration"
@@ -17,6 +18,8 @@ export default function NewWorkspacePage(props: PageProps<"/orgs/[orgSlug]/works
 async function NewWorkspaceContent({ params }: PageProps<"/orgs/[orgSlug]/workspaces/new">) {
   const { orgSlug } = await params
   const result = await getWorkspaceCreation(orgSlug)
+  if (result.error)
+    return <RequestError title="Could not load workspace configuration" error={result.error} />
   if (result.scope.kind !== "ready") {
     return null
   }

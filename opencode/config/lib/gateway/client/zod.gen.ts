@@ -110,6 +110,13 @@ export const zDelegationMcp = z.object({
 
 export const zChatSessionKind = z.enum(["chat", "workflow_run"])
 
+export const zChatSessionShelf = z.enum(["active", "archived", "snoozed"])
+
+export const zUpdateChatSessionRequest = z.object({
+  shelf: zChatSessionShelf,
+  snoozed_until: z.iso.datetime({ offset: true }).optional(),
+})
+
 export const zChatSessionStatus = z.enum(["idle", "busy", "retry"])
 
 export const zChatSessionGroupBy = z.enum(["none", "agent", "status", "date", "project"])
@@ -122,6 +129,16 @@ export const zChatSessionParticipant = z.object({
   email: z.email(),
   image: z.string().nullable(),
 })
+
+export const zChatBackground = z.object({
+  message_id: z.string(),
+  part_id: z.string(),
+  completed: z.boolean(),
+  outcome: z.enum(["quiet", "update", "failed", "canceled"]).optional(),
+  error: z.string(),
+})
+
+export const zChatBackgroundList = z.array(zChatBackground)
 
 export const zChatAttachment = z.object({
   id: z.string().min(1),
@@ -161,7 +178,8 @@ export const zChatInputUpdate = z.object({
   revision: z.coerce.bigint().gte(BigInt(1)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),
-  action: z.enum(["remove", "retry"]),
+  action: z.enum(["remove", "retry", "edit", "steer"]),
+  content: zChatInputContent.optional(),
 })
 
 export const zWatchExternalAgentsEvent = z.object({
@@ -659,6 +677,10 @@ export const zAgentName = z
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
 
 export const zChatSession = z.object({
+  has_workflow_schedule_subscription: z.boolean(),
+  archived: z.boolean(),
+  snoozed_until: z.iso.datetime({ offset: true }).optional(),
+  woke_at: z.iso.datetime({ offset: true }).optional(),
   project_id: z.string().optional(),
   agent_name: zAgentName,
   session_id: z.string(),
@@ -769,6 +791,26 @@ export const zGuardrailEffectiveCheck = z.object({
 export const zGuardrailEffective = z.object({
   revision: z.string(),
   checks: z.array(zGuardrailEffectiveCheck),
+})
+
+export const zMascotBreed = z.enum(["mochi", "ziglet", "slinky", "mallow", "pip", "pi"])
+
+export const zMascotColor = z.enum([
+  "cream",
+  "lilac",
+  "peach",
+  "rose",
+  "coral",
+  "amber",
+  "lime",
+  "mint",
+  "sky",
+  "slate",
+])
+
+export const zAgentAppearance = z.object({
+  breed: zMascotBreed,
+  color: zMascotColor,
 })
 
 export const zAgentMemoryConfig = z.object({
@@ -1173,6 +1215,10 @@ export const zAgentTools = z.object({
   message: z.string(),
 })
 
+export const zWorkflowDelivery = z.object({
+  session_id: z.string().min(1),
+})
+
 /**
  * Better Auth API key identifier.
  */
@@ -1353,6 +1399,8 @@ export const zAgentOpencodeConfig = z.object({
 })
 
 export const zAgent = z.object({
+  auto_archive_hours: z.int().gte(0).lte(8760),
+  appearance: zAgentAppearance.optional(),
   name: zAgentName,
   sandbox: zResourceReference,
   created_by: zResourceActor,
@@ -1373,6 +1421,8 @@ export const zListAgentsResponse = z.object({
 })
 
 export const zCreateAgentRequest = z.object({
+  auto_archive_hours: z.int().gte(0).lte(8760).optional(),
+  appearance: zAgentAppearance.optional(),
   name: zAgentName,
   memory: zAgentMemoryConfig.optional(),
   env: z.record(z.string(), z.string()).optional(),
@@ -1382,6 +1432,8 @@ export const zCreateAgentRequest = z.object({
 })
 
 export const zUpdateAgentRequest = z.object({
+  auto_archive_hours: z.int().gte(0).lte(8760).optional(),
+  appearance: zAgentAppearance.optional(),
   env: z.record(z.string(), z.string()).optional(),
   memory: zAgentMemoryConfig.optional(),
   sandbox: zResourceReference.optional(),
@@ -1744,6 +1796,7 @@ export const zError = z.object({
 })
 
 export const zWorkflowSchedule = z.object({
+  delivery: zWorkflowDelivery.optional(),
   name: zWorkflowScheduleName,
   agent_name: zAgentName,
   workflow_name: zWorkflowName,
@@ -1800,6 +1853,8 @@ export const zWorkflowRunDetail = z.object({
 })
 
 export const zCreateWorkflowScheduleRequest = z.object({
+  context_session_id: z.string().optional(),
+  delivery: zWorkflowDelivery.optional(),
   name: zWorkflowScheduleName,
   schedule: z.string().min(1),
   time_zone: z.string().optional(),
@@ -1811,6 +1866,7 @@ export const zCreateWorkflowScheduleRequest = z.object({
 })
 
 export const zUpdateWorkflowScheduleRequest = z.object({
+  delivery: zWorkflowDelivery.optional(),
   schedule: z.string().min(1),
   time_zone: z.string().optional(),
   inputs: zJsonValue.optional(),
@@ -1830,6 +1886,7 @@ export const zWorkflowArbitraryJson = z.object({
 })
 
 export const zCreateWorkflowRequest = z.object({
+  replace: z.boolean().optional(),
   workflow_name: zWorkflowName,
   title: z.string().min(1).max(256),
   summary: z.string().min(1).max(4096),
@@ -2973,6 +3030,22 @@ export const zChatSessionGroup = z.object({
 })
 
 export const zListChatSessionsResponse = z.object({
+  archived_count: z.coerce
+    .bigint()
+    .min(BigInt("-9223372036854775808"), {
+      error: "Invalid value: Expected int64 to be >= -9223372036854775808",
+    })
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+  snoozed_count: z.coerce
+    .bigint()
+    .min(BigInt("-9223372036854775808"), {
+      error: "Invalid value: Expected int64 to be >= -9223372036854775808",
+    })
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
   sessions: z.array(zChatSession),
   groups: z.array(zChatSessionGroup),
   participant_filters: z.array(zChatSessionParticipant),
@@ -4638,6 +4711,7 @@ export const zGetCodingOperationResponse = zCodingOperation
 export const zWatchCodingResponse = zWatchChatSessionsEvent
 
 export const zListChatSessionsQuery = z.object({
+  shelf: zChatSessionShelf.optional(),
   project_id: z.string().optional(),
   limit: z.int().gte(1).lte(50).optional().default(10),
   page_token: z.string().min(1).optional(),
@@ -4657,6 +4731,28 @@ export const zListChatSessionsQuery = z.object({
  * Paginated chat sessions and available participant filters.
  */
 export const zListChatSessionsResponse2 = zListChatSessionsResponse
+
+export const zListChatBackgroundPath = z.object({
+  agentName: z.string(),
+  sessionId: z.string(),
+})
+
+/**
+ * Authorized conversation state.
+ */
+export const zListChatBackgroundResponse = zChatBackgroundList
+
+export const zUpdateChatSessionBody = zUpdateChatSessionRequest
+
+export const zUpdateChatSessionPath = z.object({
+  agentName: z.string(),
+  sessionId: z.string(),
+})
+
+/**
+ * Session updated.
+ */
+export const zUpdateChatSessionResponse = z.void()
 
 /**
  * Stream of chat inbox invalidations.
@@ -4694,7 +4790,7 @@ export const zUpdateChatInputPath = z.object({
 })
 
 /**
- * Remove or retry your queued message.
+ * Edit, steer, remove, or retry your queued message.
  */
 export const zUpdateChatInputResponse = zChatInput
 
@@ -6248,6 +6344,17 @@ export const zGetWorkflowRunPath = z.object({
  * Workflow run details.
  */
 export const zGetWorkflowRunResponse = zWorkflowRunDetail
+
+export const zDeliverWorkflowSessionPath = z.object({
+  agentName: z.string(),
+  workflowName: z.string(),
+  runName: z.string(),
+})
+
+/**
+ * The delivery binding or completion receipt is reconciled.
+ */
+export const zDeliverWorkflowSessionResponse = z.void()
 
 export const zPatchWorkflowRunStatusBody = zPatchWorkflowRunStatusRequest
 

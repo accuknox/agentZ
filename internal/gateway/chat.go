@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	openapi_types "github.com/oapi-codegen/runtime/types"
+	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/accuknox/agentz/internal/authorization"
 	"github.com/accuknox/agentz/internal/gateway/apiutil"
@@ -82,6 +83,10 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 	var ownerID pgtype.Text
 	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding {
 		ownerID = pgtype.Text{String: access.claims.UserID, Valid: true}
+	}
+	shelf := gatewayapi.ChatSessionShelfActive
+	if params.Shelf != nil {
+		shelf = *params.Shelf
 	}
 	groupBy := gatewayapi.ChatSessionGroupByNone
 	if params.GroupBy != nil {
@@ -295,6 +300,24 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 	}
 
 	includeFilterOptions := params.IncludeFilterOptions == nil || *params.IncludeFilterOptions
+	if includeFilterOptions && shelf == gatewayapi.ChatSessionShelfActive && len(agentNames) > 0 {
+		query := gatewaydb.GatewayCountChatSessionShelvesParams{
+			WorkspaceID:         access.workspaceID,
+			AgentNames:          agentNames,
+			OwnerID:             ownerID,
+			IncludeWorkflowRuns: includeWorkflowRuns,
+			SearchSet:           search != "",
+			Search:              search,
+			ParticipantUserIds:  participantIDs,
+		}
+		counts, countErr := s.queries.GatewayCountChatSessionShelves(r.Context(), query)
+		if countErr != nil {
+			apiutil.WriteInternalError(w, r, fmt.Errorf("count chat session shelves: %w", countErr))
+			return
+		}
+		response.ArchivedCount = counts.Archived
+		response.SnoozedCount = counts.Snoozed
+	}
 	if includeFilterOptions && len(agentNames) > 0 {
 		filterRows, filterErr := s.queries.GatewayListChatSessionFilterUsers(
 			r.Context(),
@@ -326,16 +349,12 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 
 	if groupBy == gatewayapi.ChatSessionGroupByProject {
 		if !ownerID.Valid {
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusBadRequest,
-					"invalid_request",
-					"Project groups require a coding workspace",
-					errBadRequest,
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"Project groups require a coding workspace",
+				errBadRequest,
+			))
 			return
 		}
 		projects, err := s.queries.GatewayListCodingProjects(
@@ -385,6 +404,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		groups, searchErr := s.searchChatSessionGroups(
 			r.Context(),
 			gatewaydb.GatewaySearchGroupedChatSessionsParams{
+				Shelf:               string(shelf),
 				OwnerID:             ownerID,
 				PageSize:            limit + 1,
 				GroupBy:             string(groupBy),
@@ -417,6 +437,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 			values, err = s.queries.GatewayListChatSessionDateGroups(
 				r.Context(),
 				gatewaydb.GatewayListChatSessionDateGroupsParams{
+					Shelf:               string(shelf),
 					OwnerID:             ownerID,
 					TodayStart:          today,
 					YesterdayStart:      yesterday,
@@ -439,6 +460,7 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		sessions, next, listErr := s.listChatSessionPage(
 			r.Context(),
 			gatewaydb.GatewayListChatSessionsParams{
+				Shelf:               string(shelf),
 				ProjectID:           projectID,
 				OwnerID:             ownerID,
 				AgentNames:          agentNames,
@@ -487,6 +509,34 @@ func (s *Service) ListChatSessions(w http.ResponseWriter, r *http.Request, param
 		response.Groups = append(response.Groups, chatSessionGroup(groupBy, groupValue, activeGroup))
 	}
 
+	// Use the informer cache so a schedule event and its list response agree.
+	// Pausing execution keeps the delivery binding and deletion consequence.
+	if auth.workspaceType != agentzv1alpha1.WorkspaceTypeCoding {
+		schedules, err := s.resolver.schedules.WorkflowSchedules(access.namespace).List(labels.Everything())
+		if err != nil {
+			apiutil.WriteInternalError(w, r, fmt.Errorf("list thread subscriptions: %w", err))
+			return
+		}
+		bound := make(map[[2]string]bool)
+		for _, schedule := range schedules {
+			if schedule.Spec.Delivery == nil || !schedule.DeletionTimestamp.IsZero() {
+				continue
+			}
+			key := [2]string{schedule.Spec.AgentName, schedule.Spec.Delivery.SessionID}
+			bound[key] = true
+		}
+		lists := [][]gatewayapi.ChatSession{response.Sessions}
+		for _, group := range response.Groups {
+			lists = append(lists, group.Sessions)
+		}
+		for _, sessions := range lists {
+			for i := range sessions {
+				session := &sessions[i]
+				key := [2]string{session.AgentName, session.SessionId}
+				session.HasWorkflowScheduleSubscription = bound[key]
+			}
+		}
+	}
 	apiutil.WriteJSON(w, http.StatusOK, response)
 }
 
@@ -511,11 +561,22 @@ func (s *Service) listChatSessionPage(ctx context.Context, q gatewaydb.GatewayLi
 		if row.ProjectID.Valid {
 			projectID = &row.ProjectID.String
 		}
+		var wokeAt *time.Time
+		if row.WokeAt.Valid {
+			wokeAt = &row.WokeAt.Time
+		}
+		var snoozedUntil *time.Time
+		if row.SnoozedUntil.Valid {
+			snoozedUntil = &row.SnoozedUntil.Time
+		}
 		sessions = append(sessions, gatewayapi.ChatSession{
 			ProjectId:    projectID,
 			AgentName:    row.AgentName,
 			SessionId:    row.SessionID,
 			Title:        row.Title,
+			Archived:     row.ArchivedAt.Valid,
+			SnoozedUntil: snoozedUntil,
+			WokeAt:       wokeAt,
 			Kind:         gatewayapi.ChatSessionKind(row.Kind),
 			Status:       gatewayapi.ChatSessionStatus(row.Status),
 			CreatedAt:    row.SourceCreatedAt.Time,
@@ -562,10 +623,21 @@ func (s *Service) searchChatSessionGroups(ctx context.Context, q gatewaydb.Gatew
 		if decodeErr != nil {
 			return nil, fmt.Errorf("decode chat session participants: %w", decodeErr)
 		}
+		var wokeAt *time.Time
+		if row.WokeAt.Valid {
+			wokeAt = &row.WokeAt.Time
+		}
+		var snoozedUntil *time.Time
+		if row.SnoozedUntil.Valid {
+			snoozedUntil = &row.SnoozedUntil.Time
+		}
 		group.Sessions = append(group.Sessions, gatewayapi.ChatSession{
 			AgentName:    row.AgentName,
 			SessionId:    row.SessionID,
 			Title:        row.Title,
+			Archived:     row.ArchivedAt.Valid,
+			SnoozedUntil: snoozedUntil,
+			WokeAt:       wokeAt,
 			Kind:         gatewayapi.ChatSessionKind(row.Kind),
 			Status:       gatewayapi.ChatSessionStatus(row.Status),
 			CreatedAt:    row.SourceCreatedAt.Time,
@@ -696,16 +768,12 @@ func (s *Service) UpdateChatSessionPreference(w http.ResponseWriter, r *http.Req
 
 	projectGroup := body.GroupBy == gatewayapi.ChatSessionGroupByProject
 	if projectGroup && auth.workspaceType != agentzv1alpha1.WorkspaceTypeCoding {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"Project groups require a coding workspace",
-				errBadRequest,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"Project groups require a coding workspace",
+			errBadRequest,
+		))
 		return
 	}
 	row, err := s.queries.GatewayUpsertWorkspaceChatPreference(
@@ -729,6 +797,13 @@ func (s *Service) UpdateChatSessionPreference(w http.ResponseWriter, r *http.Req
 
 // WatchChatSessions handles GET /api/chat-session/watch.
 func (s *Service) WatchChatSessions(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel, apiErr := s.authorizeStream(r.Context())
+	if apiErr != nil {
+		apiutil.WriteError(w, r, apiErr)
+		return
+	}
+	defer cancel()
+	r = r.WithContext(ctx)
 	access, apiErr := s.resolveAgentAccess(r.Context(), "", authorization.OperationListAgents)
 	if apiErr != nil {
 		apiutil.WriteError(w, r, apiErr)
@@ -745,29 +820,18 @@ func (s *Service) WatchChatSessions(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(http.StatusOK)
 
-	key := access.workspaceID
-	auth, _ := requestAuthState(r.Context())
-	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding {
-		key += "/" + access.claims.UserID
-	}
+	key := access.workspaceID + "/" + access.userID
 	events, cancel := s.chatSessionEvents.subscribe(key)
 	defer cancel()
+	schedules, stopSchedules := s.resolver.scheduleEvents.subscribe(access.namespace)
+	defer stopSchedules()
 	heartbeat := time.NewTicker(15 * time.Second)
 	defer heartbeat.Stop()
+	var revision uint64
 	for {
 		select {
-		case revision := <-events:
-			raw, err := json.Marshal(gatewayapi.WatchChatSessionsEvent{
-				Revision: strconv.FormatUint(revision, 10),
-			})
-			if err != nil {
-				apiutil.RecordRequestError(w, "internal_error", err)
-				return
-			}
-			if _, err := fmt.Fprintf(w, "data: %s\n\n", raw); err != nil {
-				return
-			}
-			flusher.Flush()
+		case <-events:
+		case <-schedules:
 		case <-r.Context().Done():
 			return
 		case <-heartbeat.C:
@@ -775,7 +839,20 @@ func (s *Service) WatchChatSessions(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			flusher.Flush()
+			continue
 		}
+		raw, err := json.Marshal(gatewayapi.WatchChatSessionsEvent{
+			Revision: strconv.FormatUint(revision, 10),
+		})
+		if err != nil {
+			apiutil.RecordRequestError(w, "internal_error", err)
+			return
+		}
+		if _, err := fmt.Fprintf(w, "data: %s\n\n", raw); err != nil {
+			return
+		}
+		flusher.Flush()
+		revision++
 	}
 }
 
@@ -925,15 +1002,22 @@ func (e *chatSessionEvents) subscribe(workspaceID string) (<-chan uint64, func()
 	return ch, cancel
 }
 
-func (e *chatSessionEvents) publish(workspaceID string) {
+func (e *chatSessionEvents) publish(scope string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	for ch, revision := range e.watchers[workspaceID] {
-		revision++
-		e.watchers[workspaceID][ch] = revision
-		select {
-		case ch <- revision:
-		default:
+	broadcast := !strings.Contains(scope, "/")
+	for key, watchers := range e.watchers {
+		matches := key == scope || broadcast && strings.HasPrefix(key, scope+"/")
+		if !matches {
+			continue
+		}
+		for ch, revision := range watchers {
+			revision++
+			watchers[ch] = revision
+			select {
+			case ch <- revision:
+			default:
+			}
 		}
 	}
 }
@@ -964,11 +1048,155 @@ func (s *Service) listenForChatSessionNotifications(ctx context.Context) error {
 	if err := queries.GatewayListenChatSessions(ctx); err != nil {
 		return fmt.Errorf("listen for postgres chat session notifications: %w", err)
 	}
+	if err := queries.GatewayListenStreamAuthorization(ctx); err != nil {
+		return fmt.Errorf("listen for stream authorization changes: %w", err)
+	}
+	s.streamsReady.Store(true)
+	defer func() {
+		// A disconnected listener cannot vouch for any open stream's access.
+		s.streamsReady.Store(false)
+		s.streamAuthEvents.publish("")
+	}()
 	for {
 		notification, err := conn.Conn().WaitForNotification(ctx)
 		if err != nil {
 			return fmt.Errorf("wait for postgres chat session notification: %w", err)
 		}
+		if notification.Channel == "agentz_stream_authorization" {
+			s.streamAuthEvents.publish("")
+			continue
+		}
+		if notification.Payload == "" {
+			s.chatPoliciesDirty.Store(true)
+		}
+		select {
+		case s.chatExpiryWake <- struct{}{}:
+		default:
+		}
 		s.chatSessionEvents.publish(notification.Payload)
+	}
+}
+
+// UpdateChatSession persists shelf changes without changing provider history.
+func (s *Service) UpdateChatSession(w http.ResponseWriter, r *http.Request, agent string, session string) {
+	access, apiErr := s.resolveAgentAccess(r.Context(), agent, authorization.OperationUseSharedAgent)
+	if apiErr != nil {
+		apiutil.WriteError(w, r, apiErr)
+		return
+	}
+	var body gatewayapi.UpdateChatSessionRequest
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"Invalid session update",
+			err,
+		))
+		return
+	}
+	var until pgtype.Timestamptz
+	switch body.Shelf {
+	case gatewayapi.ChatSessionShelfActive, gatewayapi.ChatSessionShelfArchived:
+		if body.SnoozedUntil != nil {
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"Only snoozed sessions can have a wake time",
+				errBadRequest,
+			))
+			return
+		}
+	case gatewayapi.ChatSessionShelfSnoozed:
+		now := time.Now()
+		valid := body.SnoozedUntil != nil &&
+			body.SnoozedUntil.After(now) &&
+			!body.SnoozedUntil.After(now.AddDate(1, 0, 0))
+		if !valid {
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusBadRequest,
+				"invalid_request",
+				"Choose a future wake time within one year",
+				errBadRequest,
+			))
+			return
+		}
+		until = pgtype.Timestamptz{Time: *body.SnoozedUntil, Valid: true}
+	default:
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"Invalid shelf",
+			errBadRequest,
+		))
+		return
+	}
+	var owner pgtype.Text
+	auth, _ := requestAuthState(r.Context())
+	if auth.workspaceType == agentzv1alpha1.WorkspaceTypeCoding {
+		owner = pgtype.Text{String: access.userID, Valid: true}
+	}
+	result, err := s.queries.GatewayUpdateChatSession(r.Context(), gatewaydb.GatewayUpdateChatSessionParams{
+		WorkspaceID:  access.workspaceID,
+		AgentName:    agent,
+		SessionID:    session,
+		OwnerID:      owner,
+		Shelf:        string(body.Shelf),
+		SnoozedUntil: until,
+	})
+	if err != nil {
+		apiutil.WriteError(w, r, mapGatewayStoreError("update chat", err))
+		return
+	}
+	if !result.Allowed {
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict,
+			"invalid_transition",
+			"Wake or unarchive this chat before snoozing it",
+			nil,
+		))
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// runChatSessionExpiry applies agent policies even when no browser is connected.
+func (s *Service) runChatSessionExpiry(ctx context.Context) {
+	timer := time.NewTimer(0)
+	defer timer.Stop()
+	var policies gatewaydb.GatewayExpireChatSessionsParams
+	var refreshed time.Time
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+		case <-s.chatExpiryWake:
+		}
+		if s.chatPoliciesDirty.Swap(false) || time.Since(refreshed) >= time.Minute {
+			var agents agentzv1alpha1.AgentList
+			err := s.k8sClient.List(ctx, &agents)
+			if err != nil {
+				slog.ErrorContext(ctx, "list session expiry policies", "error", err)
+				s.chatPoliciesDirty.Store(true)
+				timer.Reset(30 * time.Second)
+				continue
+			}
+			policies = gatewaydb.GatewayExpireChatSessionsParams{}
+			for _, agent := range agents.Items {
+				policies.Namespaces = append(policies.Namespaces, agent.Namespace)
+				policies.AgentNames = append(policies.AgentNames, agent.Name)
+				policies.Hours = append(policies.Hours, agent.Spec.AutoArchiveHours)
+			}
+			refreshed = time.Now()
+		}
+		next, err := s.queries.GatewayExpireChatSessions(ctx, policies)
+		delay := 30 * time.Second
+		if err != nil {
+			slog.ErrorContext(ctx, "expire chat sessions", "error", err)
+		}
+		if err == nil {
+			delay = min(delay, time.Until(next.NextWake))
+		}
+		timer.Reset(max(time.Millisecond, delay))
 	}
 }

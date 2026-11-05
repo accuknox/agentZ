@@ -20,6 +20,11 @@ var workflowRunScheduleCmd = &cli.Command{
 	Usage: "Create a WorkflowRun from a schedule tick and observe completion",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
+			Name:    "job-name",
+			Usage:   "Stable schedule trigger identity for retry reconciliation",
+			Sources: cli.EnvVars("AGENTZ_WORKFLOW_JOB_NAME"),
+		},
+		&cli.StringFlag{
 			Name:     "namespace",
 			Usage:    "Namespace for the WorkflowSchedule and WorkflowRun",
 			Required: true,
@@ -70,6 +75,7 @@ var workflowRunScheduleCmd = &cli.Command{
 			ctx,
 			workflow.Config{
 				Namespace:      c.String("namespace"),
+				JobName:        c.String("job-name"),
 				ScheduleName:   c.String("schedule-name"),
 				AgentName:      c.String("agent-name"),
 				WorkflowName:   c.String("workflow-name"),

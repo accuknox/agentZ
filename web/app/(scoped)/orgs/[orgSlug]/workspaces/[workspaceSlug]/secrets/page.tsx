@@ -1,3 +1,4 @@
+import { RequestError } from "@/components/request-error"
 import { RememberRoute } from "@/data/route-memory"
 import { Suspense } from "react"
 import type { Metadata } from "next"
@@ -49,6 +50,8 @@ async function WorkspaceSecrets({
 }: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/secrets">) {
   const [{ orgSlug, workspaceSlug }, search] = await Promise.all([params, searchParams])
   const workspace = await getWorkspaceScope(orgSlug, workspaceSlug)
+  if (workspace.kind === "error")
+    return <RequestError title="Could not load this workspace" error={workspace.error} />
   if (workspace.kind !== "ready") {
     notFound()
   }

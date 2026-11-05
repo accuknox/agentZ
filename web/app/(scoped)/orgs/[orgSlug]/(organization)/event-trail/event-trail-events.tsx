@@ -16,10 +16,12 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { UserIdentity } from "@/components/ui/avatar"
 import { RelativeDateTime } from "@/components/ui/table"
 import type {
+  Error as GatewayError,
   EventTrailEvent,
   EventTrailFilter,
   ListEventTrailEventsResponse,
 } from "@/lib/gateway/client"
+import { RequestError } from "@/components/request-error"
 import type { EventsChartData } from "@/data/types"
 import { ResultBadge, targetLabels } from "./event-trail-event"
 import { EventTrailFilters } from "./event-trail-filters"
@@ -36,12 +38,14 @@ const layout: Record<string, AdminColumnLayout> = {
 export function EventTrailEvents({
   actorImages,
   chart,
+  chartError,
   eventTrail,
   filters,
   workspace,
 }: {
   actorImages: Record<string, string>
-  chart: EventsChartData
+  chart?: EventsChartData
+  chartError?: GatewayError
   eventTrail: ListEventTrailEventsResponse
   filters: EventTrailFilter[]
   workspace?: { name: string }
@@ -143,7 +147,15 @@ export function EventTrailEvents({
           hideWorkspace={Boolean(workspace)}
           options={eventTrail.filter_options}
         />
-        <EventsChart data={chart} />
+        {chartError ? (
+          <RequestError
+            compact
+            className="p-4 md:p-6"
+            title="Could not load event activity"
+            error={chartError}
+          />
+        ) : null}
+        {chart ? <EventsChart data={chart} /> : null}
         <AdminDataGrid
           ariaLabel={
             workspace ? `${workspace.name} event trail events` : "Organization event trail events"

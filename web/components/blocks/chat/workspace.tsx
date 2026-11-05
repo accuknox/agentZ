@@ -10,7 +10,17 @@ import { cn } from "@/lib/utils"
 
 const FilesWorkspace = dynamic(
   () => import("./files-workspace").then((module) => module.FilesWorkspace),
-  { ssr: false }
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        role="status"
+        className="flex flex-1 items-center justify-center text-sm text-muted-foreground"
+      >
+        Loading files...
+      </div>
+    ),
+  }
 )
 
 type WorkspaceTool = {

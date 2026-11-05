@@ -3,7 +3,6 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 import * as z from "zod"
 import { AdministrationPageHeader } from "@/components/administration"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { EventsChart } from "@/components/events-chart"
 import { EventsChartSkeleton } from "@/components/events-chart-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -20,8 +19,9 @@ import { TracesTable } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspace
 import { searchParamStringSchema, type SearchParamStringInput } from "@/lib/search-params"
 import type { TraceSubject } from "@/data/types"
 import { getWorkspaceScope } from "@/data/workspaces"
-import { CircleAlert } from "lucide-react"
 import { zTraceId, zSpanId } from "@/lib/gateway/client/zod.gen"
+import { AgentUnavailable, RequestError } from "@/components/request-error"
+import type { Error as GatewayError } from "@/lib/gateway/client"
 
 export const metadata: Metadata = {
   title: "Traces",
@@ -70,11 +70,18 @@ export default async function TracesPage({
 }) {
   const { orgSlug, workspaceSlug } = await params
   const workspace = await getWorkspaceScope(orgSlug, workspaceSlug)
+  if (workspace.kind === "error")
+    return <RequestError title="Could not load this workspace" error={workspace.error} />
   if (workspace.kind !== "ready") {
-    return <ErrorPanel message="Workspace is unavailable" />
+    return <RequestError title="Could not load traces" description="Workspace is unavailable" />
   }
   if (!workspace.workspace.capabilities.observability.read) {
-    return <ErrorPanel message="You do not have Lens access in this Workspace" />
+    return (
+      <RequestError
+        title="Could not load traces"
+        description="You do not have Lens access in this Workspace"
+      />
+    )
   }
 
   const resolved = resolveTracesSearchParams(searchParams)
@@ -127,7 +134,16 @@ async function Filters({
     return (
       <>
         <RememberPageSelection {...scope} />
-        <ErrorPanel message={scope.error.message} />
+        <LensFilters
+          workspaceId={scope.workspaceId}
+          agents={scope.agents}
+          apps={scope.apps}
+          selectedAgentName={scope.selected.agent_name}
+          selectedAppClientID={scope.selected.app_client_id}
+          sessions={scope.sessions}
+          from={params.range.from}
+          to={params.range.to}
+        />
       </>
     )
   }
@@ -167,6 +183,7 @@ async function Chart({
   if (scope.error) {
     return null
   }
+  if (params.error || params.range.error) return null
 
   const subject = selectedTraceSubject(scope)
   if (!subject) return null
@@ -174,13 +191,13 @@ async function Chart({
   const result = await getTraceChartAction(
     subject,
     {
-      started_after: params.range.after,
-      started_before: params.range.before,
+      started_after: params.range.from,
+      started_before: params.range.to,
     },
     workspaceId
   )
   if (result.error) {
-    return <ErrorPanel message={result.error.message} />
+    return <RequestError title="Could not load traces" error={result.error} />
   }
 
   return <EventsChart data={result.data} label="Traces" />
@@ -197,9 +214,24 @@ async function Traces({
 }) {
   const params = await searchParams
   const scope = await scopePromise
+  if (params.error)
+    return <RequestError resetFilters title="Invalid trace filters" error={params.error} />
   if (scope.error) {
-    return <ErrorPanel message={scope.error.message} />
+    const agent = scope.agents.find((agent) => agent.name === scope.selected.agent_name)
+    return agent && scope.error.code === "agent_unavailable" ? (
+      <AgentUnavailable agent={agent} />
+    ) : (
+      <RequestError title="Could not load trace sessions" error={scope.error} />
+    )
   }
+  if (params.range.error)
+    return (
+      <RequestError
+        resetFilters
+        title="That date range is out of reach"
+        error={params.range.error}
+      />
+    )
 
   const subject = selectedTraceSubject(scope)
   if (!subject) {
@@ -236,8 +268,8 @@ async function Traces({
         scope.selected.session_id === scope.requested.session_id
           ? params.pageToken
           : undefined,
-      started_after: params.range.after,
-      started_before: params.range.before,
+      started_after: params.range.from,
+      started_before: params.range.to,
     },
     workspaceId
   )
@@ -257,6 +289,7 @@ async function Traces({
 }
 
 type ResolvedTracesSearchParams = {
+  error?: GatewayError
   agentName?: string
   appClientID?: string
   limit: number
@@ -267,9 +300,16 @@ type ResolvedTracesSearchParams = {
 }
 
 async function resolveTracesSearchParams(searchParams: Promise<TracesSearchParams>) {
-  const params = tracesSearchParamsSchema.parse(await searchParams)
+  const parsed = tracesSearchParamsSchema.safeParse(await searchParams)
+  const params = parsed.success ? parsed.data : tracesSearchParamsSchema.parse({})
 
   return {
+    error: parsed.success
+      ? undefined
+      : {
+          code: "invalid_request",
+          message: "Check the trace, span, and operation IDs in this link.",
+        },
     agentName: params.agent_name,
     appClientID: params.app_client_id,
     limit: parseLimitParam(params.limit),
@@ -283,15 +323,6 @@ async function resolveTracesSearchParams(searchParams: Promise<TracesSearchParam
 function parseLimitParam(value?: string) {
   const limit = Number(value)
   return Number.isInteger(limit) && limit >= 1 && limit <= 100 ? limit : defaultTraceLimit
-}
-
-function ErrorPanel({ message }: { message: string }) {
-  return (
-    <Alert variant="destructive">
-      <CircleAlert aria-hidden="true" />
-      <AlertDescription>{message}</AlertDescription>
-    </Alert>
-  )
 }
 
 function EmptyState({ message }: { message: string }) {

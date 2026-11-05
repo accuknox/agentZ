@@ -1,9 +1,9 @@
+import { RequestError } from "@/components/request-error"
 import { RememberRoute } from "@/data/route-memory"
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { Suspense } from "react"
 import { AdministrationLoadingState, AdministrationPageHeader } from "@/components/administration"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import * as z from "zod"
 import { Skeleton } from "@/components/ui/skeleton"
 import { listWebhookAPIKeyDisplaysCachedQuery } from "@/data/api-key.queries"
@@ -26,7 +26,6 @@ import { TriggersFilters } from "./triggers-filters"
 import { ScheduleTriggersTable } from "./triggers-table"
 import { WebhookTriggersTable, type WebhookTriggerRow } from "./webhook-triggers-table"
 import { searchParamStringSchema } from "@/lib/search-params"
-import { CircleAlert } from "lucide-react"
 
 export const metadata: Metadata = {
   title: "Workflow Triggers",
@@ -60,6 +59,8 @@ async function WorkspaceTriggers({
 }: PageProps<"/orgs/[orgSlug]/workspaces/[workspaceSlug]/workflows/triggers">) {
   const [route, search] = await Promise.all([params, searchParams])
   const workspace = await getWorkspaceScope(route.orgSlug, route.workspaceSlug)
+  if (workspace.kind === "error")
+    return <RequestError title="Could not load this workspace" error={workspace.error} />
   if (workspace.kind !== "ready" || workspace.workspace.type === "coding") {
     notFound()
   }
@@ -96,7 +97,7 @@ async function Filters({ selection }: { selection: Promise<ResolvedPageSelection
     return (
       <>
         <RememberPageSelection {...state} />
-        <ErrorPanel message={state.error.message} />
+        <RequestError title="Could not load workflow triggers" error={state.error} />
       </>
     )
   return (
@@ -122,7 +123,7 @@ async function Triggers({
   selection: Promise<ResolvedPageSelection>
 }) {
   const { selected, requested, error } = await selection
-  if (error) return <ErrorPanel message={error.message} />
+  if (error) return <RequestError title="Could not load workflow triggers" error={error} />
   if (!selected.agent_name) return <EmptyState message="No agents available" />
   const selectedType = selected.type
   const pageToken =
@@ -137,7 +138,7 @@ async function Triggers({
       { limit: 50, page_token: pageToken }
     )
     if (triggersResult.error) {
-      return <ErrorPanel message={triggersResult.error.message} />
+      return <RequestError title="Could not load workflow triggers" error={triggersResult.error} />
     }
 
     const webhookKeyDisplaysByID = await listWebhookAPIKeyDisplaysCachedQuery(
@@ -178,7 +179,7 @@ async function Triggers({
     }
   )
   if (schedulesResult.error) {
-    return <ErrorPanel message={schedulesResult.error.message} />
+    return <RequestError title="Could not load workflow triggers" error={schedulesResult.error} />
   }
 
   const workflowsResult = await listWorkflowSummariesCachedQuery(
@@ -253,15 +254,6 @@ function TableSkeleton() {
       <Skeleton className="h-8 w-full rounded-md" />
       <Skeleton className="h-8 w-full rounded-md" />
     </div>
-  )
-}
-
-function ErrorPanel({ message }: { message: string }) {
-  return (
-    <Alert className="px-6" variant="destructive">
-      <CircleAlert aria-hidden="true" />
-      <AlertDescription>{message}</AlertDescription>
-    </Alert>
   )
 }
 

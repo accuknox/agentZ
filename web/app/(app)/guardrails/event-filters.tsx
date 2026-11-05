@@ -1,5 +1,6 @@
 "use client"
 
+import { AgentIcon } from "@/components/agent-readiness"
 import { useEffect, useOptimistic, useState, useTransition } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 import { useRouter } from "@bprogress/next/app"
@@ -41,11 +42,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  ExternalAgentOptions,
-  ExternalAppOptions,
-  LensSourceIcon,
-} from "@/components/lens-source-options"
+import { ExternalAgentOptions, ExternalAppOptions } from "@/components/lens-source-options"
 import type {
   GetGuardrailEventChartData,
   GuardrailEventSources,
@@ -224,7 +221,7 @@ export function GuardrailEventFilters({
                   key={`${agent.workspace_id}/${agent.name}`}
                   value={`agent:${agent.workspace_id}/${agent.name}`}
                 >
-                  <LensSourceIcon kind="agent" />
+                  <AgentIcon name={agent.name} workspaceId={agent.workspace_id} />
                   {agent.name}
                   {!current.workspace_id && !scopedWorkspaceId ? (
                     <span className="text-xs text-muted-foreground">
@@ -254,12 +251,12 @@ export function GuardrailEventFilters({
         }))}
         range={{
           from: dayjs(current.from).toDate(),
-          to: dayjs(current.to).subtract(1, "millisecond").toDate(),
+          to: dayjs(current.to).toDate(),
         }}
         onSelect={(range) =>
           update({
-            from: dayjs(range.from).startOf("day").toISOString(),
-            to: dayjs(range.to).add(1, "day").startOf("day").toISOString(),
+            from: range.from.toISOString(),
+            to: range.to.toISOString(),
           })
         }
       />

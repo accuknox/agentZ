@@ -13,6 +13,8 @@ import {
   User2,
 } from "lucide-react"
 import { useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
+import { chatCache } from "@/components/blocks/chat/cache"
 import { resolveOrganizationDestinationAction } from "@/app/(scoped)/orgs/actions"
 import { useScopeTransition } from "@/components/scope-transition"
 import { authClient } from "@/lib/auth-client"
@@ -51,6 +53,7 @@ export function NavUser({
   }
 }) {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const { isMobile, setOpenMobile } = useSidebar()
   const { isPending: isSwitching, navigate } = useScopeTransition()
   const [isSigningOut, setIsSigningOut] = useState(false)
@@ -67,7 +70,10 @@ export function NavUser({
     setIsSigningOut(true)
     const { error } = await authClient.signOut({
       fetchOptions: {
-        onSuccess: () => {
+        onSuccess: async () => {
+          await queryClient.cancelQueries()
+          queryClient.clear()
+          void chatCache.clear()
           router.push("/signin")
           router.refresh()
         },

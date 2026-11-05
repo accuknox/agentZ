@@ -21,6 +21,7 @@ import { getGuardrailEventOptions } from "@/lib/gateway/client/@tanstack/react-q
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import { AdminDataGrid } from "@/components/admin-data-grid"
 import { LensSourceIcon } from "@/components/lens-source-options"
+import { AgentIcon } from "@/components/agent-readiness"
 import { AdministrationState } from "@/components/administration"
 import { TokenTablePagination } from "@/components/table-pagination"
 import { Badge } from "@/components/ui/badge"
@@ -168,7 +169,11 @@ export function GuardrailEvents({ data, apps, basePath, workspaceId }: Guardrail
             : (apps.find((app) => app.client_id === event.client_id)?.agent_kind ?? "app")
           return (
             <div className="flex min-w-0 items-center gap-2">
-              <LensSourceIcon kind={kind} />
+              {event.agent_name ? (
+                <AgentIcon name={event.agent_name} workspaceId={event.workspace_id} />
+              ) : (
+                <LensSourceIcon kind={kind} />
+              )}
               <span className="truncate">
                 {event.agent_name || event.subject_name || event.client_id || "Unknown source"}
               </span>

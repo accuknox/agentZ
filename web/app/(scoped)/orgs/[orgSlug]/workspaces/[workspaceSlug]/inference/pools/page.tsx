@@ -1,3 +1,4 @@
+import { RequestError } from "@/components/request-error"
 import { RememberRoute } from "@/data/route-memory"
 import { Suspense } from "react"
 import { AdministrationLoadingState, AdministrationState } from "@/components/administration"
@@ -24,6 +25,8 @@ async function WorkspaceInferencePools({
   const { orgSlug, workspaceSlug } = await params
   const { page_token } = await searchParams
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
+  if (scope.kind === "error")
+    return <RequestError title="Could not load this workspace" error={scope.error} />
   if (scope.kind !== "ready" || !scope.workspace.capabilities.inference_pools.read)
     return <AdministrationState kind="forbidden" />
   const basePath = `/orgs/${scope.scope.organization.slug}/workspaces/${scope.workspace.slug}`

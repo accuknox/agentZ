@@ -77,6 +77,15 @@ fmt:
 	yamlfmt .
 	cd web && bun run format
 	cd opencode/config && bun run format
+	$(MAKE) fmt-markdown
+
+.PHONY: fmt-markdown lint-markdown
+fmt-markdown lint-markdown:
+	git ls-files -z --cached --others --exclude-standard -- '*.md' \
+		':!:internal/launcher/codex_prompt.gen.md' | \
+		xargs -0 bun opencode/config/node_modules/prettier/bin/prettier.cjs \
+		--config opencode/config/prettier.config.mjs \
+		$(if $(filter fmt-markdown,$@),--write,--check)
 
 .PHONY: test
 test:
@@ -89,6 +98,7 @@ lint:
 	yamllint .
 	cd web && bun run lint && bun run typecheck
 	cd opencode/config && bun run lint && bun run typecheck
+	$(MAKE) lint-markdown
 
 .PHONY: build
 build:

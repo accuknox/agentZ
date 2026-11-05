@@ -71,6 +71,9 @@ jobs:
       run: bun install --frozen-lockfile
     - name: Lint
       run: bun run lint
+    - name: Check Markdown formatting
+      if: matrix.directory == 'opencode/config'
+      run: make -C ../.. lint-markdown
     - name: Generate route types
       if: matrix.directory == 'web'
       run: bun run next typegen

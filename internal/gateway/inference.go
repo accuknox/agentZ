@@ -139,16 +139,12 @@ func (s *Service) ListInferenceProviders(w http.ResponseWriter, r *http.Request,
 		limit = int(*params.Limit)
 	}
 	if limit < 1 || limit > 200 {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"limit must be between 1 and 200",
-				errBadRequest,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"limit must be between 1 and 200",
+			errBadRequest,
+		))
 		return
 	}
 	offset, ok := decodeOffsetPageToken(w, r, params.PageToken)
@@ -253,16 +249,12 @@ func (s *Service) WatchInferenceProviders(w http.ResponseWriter, r *http.Request
 	}
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusInternalServerError,
-				"internal_error",
-				"streaming is unavailable",
-				nil,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusInternalServerError,
+			"internal_error",
+			"streaming is unavailable",
+			nil,
+		))
 		return
 	}
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -503,16 +495,12 @@ func (s *Service) createInferenceOAuthTicket(w http.ResponseWriter, r *http.Requ
 	ns := access.namespace
 	auth, ok := requestAuthState(r.Context())
 	if !ok || auth.claims == nil {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusUnauthorized,
-				"unauthorized",
-				"oauth tickets require user authentication",
-				errors.New("missing bearer claims"),
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusUnauthorized,
+			"unauthorized",
+			"oauth tickets require user authentication",
+			errors.New("missing bearer claims"),
+		))
 		return
 	}
 	var req gatewayapi.CreateInferenceProviderOAuthTicketRequest
@@ -529,7 +517,12 @@ func (s *Service) createInferenceOAuthTicket(w http.ResponseWriter, r *http.Requ
 			return
 		}
 		if req.ResourceVersion == nil || *req.ResourceVersion != provider.ResourceVersion {
-			apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "conflict", "provider changed; reload before retrying", nil))
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusConflict,
+				"conflict",
+				"provider changed; reload before retrying",
+				nil,
+			))
 			return
 		}
 		if provider.Spec.Kind != agentzv1alpha1.InferenceProviderKind(req.Kind) {
@@ -624,16 +617,12 @@ func (s *Service) createInferenceOAuthTicket(w http.ResponseWriter, r *http.Requ
 		record,
 	)
 	if len(models) == 0 {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadGateway,
-				"model_discovery_failed",
-				"subscription model discovery failed",
-				discoveryErr,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadGateway,
+			"model_discovery_failed",
+			"subscription model discovery failed",
+			discoveryErr,
+		))
 		return
 	}
 	if discoveryErr != nil {
@@ -870,16 +859,12 @@ func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request
 	if ticketPath != "" {
 		if err := s.baoKV.DeleteMetadata(r.Context(), ticketPath); err != nil {
 			cleanupErr := s.baoKV.DeleteMetadata(r.Context(), path)
-			apiutil.WriteError(
-				w,
-				r,
-				apiutil.NewError(
-					http.StatusInternalServerError,
-					"oauth_ticket_cleanup_failed",
-					"oauth ticket cleanup failed",
-					errors.Join(err, cleanupErr),
-				),
-			)
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusInternalServerError,
+				"oauth_ticket_cleanup_failed",
+				"oauth ticket cleanup failed",
+				errors.Join(err, cleanupErr),
+			))
 			return
 		}
 	}
@@ -889,16 +874,12 @@ func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request
 		if record != nil {
 			cleanupErr := s.baoKV.DeleteMetadata(r.Context(), path)
 			if cleanupErr != nil && !errors.Is(cleanupErr, baoapi.ErrSecretNotFound) {
-				apiutil.WriteError(
-					w,
-					r,
-					apiutil.NewError(
-						http.StatusInternalServerError,
-						"compensation_failed",
-						"provider creation failed and credential cleanup also failed",
-						errors.Join(err, cleanupErr),
-					),
-				)
+				apiutil.WriteError(w, r, apiutil.NewError(
+					http.StatusInternalServerError,
+					"compensation_failed",
+					"provider creation failed and credential cleanup also failed",
+					errors.Join(err, cleanupErr),
+				))
 				return
 			}
 		}
@@ -1027,16 +1008,12 @@ func (s *Service) RefreshInferenceProviderModels(w http.ResponseWriter, r *http.
 		record, err = inference.DecodeSubscriptionRecord(secretRecord.Data)
 	}
 	if err != nil || record.Kind != provider.Spec.Kind {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusServiceUnavailable,
-				"credentials_unavailable",
-				"Subscription credentials are unavailable. Re-authenticate and save this provider.",
-				err,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusServiceUnavailable,
+			"credentials_unavailable",
+			"Subscription credentials are unavailable. Re-authenticate and save this provider.",
+			err,
+		))
 		return
 	}
 	record, changed, err := inference.RefreshSubscription(
@@ -1045,16 +1022,12 @@ func (s *Service) RefreshInferenceProviderModels(w http.ResponseWriter, r *http.
 		record,
 	)
 	if err != nil {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadGateway,
-				"oauth_refresh_failed",
-				"subscription credentials could not be refreshed",
-				err,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadGateway,
+			"oauth_refresh_failed",
+			"subscription credentials could not be refreshed",
+			err,
+		))
 		return
 	}
 	if changed {
@@ -1096,16 +1069,12 @@ func (s *Service) RefreshInferenceProviderModels(w http.ResponseWriter, r *http.
 		record,
 	)
 	if len(models) == 0 {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadGateway,
-				"model_discovery_failed",
-				"subscription model discovery failed",
-				discoveryErr,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadGateway,
+			"model_discovery_failed",
+			"subscription model discovery failed",
+			discoveryErr,
+		))
 		return
 	}
 	if discoveryErr != nil {
@@ -1192,20 +1161,16 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if current.ResourceVersion != req.ResourceVersion {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusConflict,
-				"conflict",
-				"provider changed since it was loaded",
-				apierrors.NewConflict(
-					agentzv1alpha1.Resource("inferenceproviders"),
-					current.Name,
-					fmt.Errorf("resource version does not match"),
-				),
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict,
+			"conflict",
+			"provider changed since it was loaded",
+			apierrors.NewConflict(
+				agentzv1alpha1.Resource("inferenceproviders"),
+				current.Name,
+				fmt.Errorf("resource version does not match"),
 			),
-		)
+		))
 		return
 	}
 	desired := providerFromInput(ns, current.Name, input)
@@ -1265,7 +1230,10 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 	}
 	if req.OauthTicket != nil {
 		if current.Spec.Kind != agentzv1alpha1.InferenceProviderKindOpenAICodex {
-			writeProviderInputError(w, r, &inference.InputError{Field: "oauth_ticket", Message: "only valid for subscription providers"})
+			writeProviderInputError(w, r, &inference.InputError{
+				Field:   "oauth_ticket",
+				Message: "only valid for subscription providers",
+			})
 			return
 		}
 		subscription, ticketPath, ticketErr := s.consumeInferenceOAuthTicket(r.Context(), ns, *req.OauthTicket, desired)
@@ -1477,17 +1445,13 @@ func (s *Service) DeleteInferenceProvider(w http.ResponseWriter, r *http.Request
 				},
 			)
 		}
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusConflict,
-				"provider_referenced",
-				"provider is referenced by one or more pools or sandboxes",
-				errBadRequest,
-				fields...,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusConflict,
+			"provider_referenced",
+			"provider is referenced by one or more pools or sandboxes",
+			errBadRequest,
+			fields...,
+		))
 		return
 	}
 	persistenceEventTrailed = true
@@ -1631,16 +1595,12 @@ func (s *Service) ListInferenceModelSuggestions(w http.ResponseWriter, r *http.R
 		)
 	}
 	if models == nil {
-		apiutil.WriteError(
-			w,
-			r,
-			apiutil.NewError(
-				http.StatusBadRequest,
-				"invalid_request",
-				"unsupported catalog provider and provider kind",
-				errBadRequest,
-			),
-		)
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"unsupported catalog provider and provider kind",
+			errBadRequest,
+		))
 		return
 	}
 	apiutil.WriteJSON(
@@ -2455,17 +2415,13 @@ func writeInferenceIssues(w http.ResponseWriter, r *http.Request, issues []infer
 	for _, issue := range issues {
 		fields = append(fields, gatewayapi.FieldError{Field: issue.Field, Message: issue.Message})
 	}
-	apiutil.WriteError(
-		w,
-		r,
-		apiutil.NewError(
-			http.StatusBadRequest,
-			"invalid_request",
-			"request validation failed",
-			errBadRequest,
-			fields...,
-		),
-	)
+	apiutil.WriteError(w, r, apiutil.NewError(
+		http.StatusBadRequest,
+		"invalid_request",
+		"request validation failed",
+		errBadRequest,
+		fields...,
+	))
 }
 
 func writeProviderInputError(w http.ResponseWriter, r *http.Request, err error) {

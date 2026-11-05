@@ -6,8 +6,6 @@ import { apiKeysTag } from "@/data/cache"
 import { getDB, schema } from "@/db"
 import { agentAPIKeyConfigID, webhookAPIKeyConfigID } from "@/lib/api-key-config"
 import { currentGatewayAuthContext } from "@/lib/gateway/auth"
-import { getWorkspace, type ResourceCapabilities } from "@/lib/gateway/client"
-import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { dayjs } from "@/lib/format"
 
 type APIKeySummaryByID = Record<
@@ -44,28 +42,6 @@ export type UserAPIKey = WorkspaceAPIKey & {
   workspaceId: string
   workspaceName: string
   workspaceSlug: string
-}
-
-export type WorkspaceAPIKeyAccess = {
-  canAdminister: boolean
-  capabilities: ResourceCapabilities
-}
-
-export async function getWorkspaceAPIKeyAccess(
-  workspaceId: string
-): Promise<WorkspaceAPIKeyAccess | undefined> {
-  const result = await getWorkspace({
-    client: getGatewayServerClient(),
-    path: { workspaceId },
-  })
-  if (result.error) {
-    throw new Error(result.error.message)
-  }
-
-  return {
-    canAdminister: result.data.capabilities.administer,
-    capabilities: result.data.capabilities.api_keys,
-  }
 }
 
 export async function listUserAPIKeysCachedQuery() {

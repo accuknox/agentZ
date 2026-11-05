@@ -339,7 +339,6 @@ export function TwoFactorSettings({
               ? "flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden p-0 sm:max-w-xl"
               : undefined
           }
-          showCloseButton={mode === "loading" || (mode === "reauth" && provider !== "credential")}
         >
           {mode === "setup" && setup ? (
             <SetupDialog error={error} pending={verifying} setup={setup} onVerifyAction={verify} />

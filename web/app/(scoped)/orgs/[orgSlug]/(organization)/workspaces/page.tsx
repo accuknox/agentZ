@@ -1,3 +1,4 @@
+import { RequestError } from "@/components/request-error"
 import { RememberRoute } from "@/data/route-memory"
 import { searchParamStringSchema } from "@/lib/search-params"
 import { Suspense } from "react"
@@ -29,6 +30,7 @@ async function WorkspacesContent({
 }: PageProps<"/orgs/[orgSlug]/workspaces">) {
   const [{ orgSlug }, { page_token }] = await Promise.all([params, searchParams])
   const result = await getWorkspacePage(orgSlug, searchParamStringSchema.parse(page_token))
+  if (result.error) return <RequestError title="Could not load workspaces" error={result.error} />
   if (result.scope.kind !== "ready" || !result.directory) {
     return null
   }

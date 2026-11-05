@@ -14,6 +14,7 @@ import (
 	"os/signal"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -134,7 +135,11 @@ type Service struct {
 	skillStore          *skill.Client
 	skillImports        chan struct{}
 	chatSessionEvents   chatSessionEvents
+	streamAuthEvents    chatSessionEvents
+	streamsReady        atomic.Bool
 	chatInputWake       chan struct{}
+	chatExpiryWake      chan struct{}
+	chatPoliciesDirty   atomic.Bool
 	codingEvents        chatSessionEvents
 	externalAgentEvents chatSessionEvents
 	catalog             *inference.Catalog
@@ -397,6 +402,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		skillStore:         skillStore,
 		skillImports:       make(chan struct{}, 4),
 		chatInputWake:      make(chan struct{}, 1),
+		chatExpiryWake:     make(chan struct{}, 1),
 		catalog:            inference.NewCatalog(nil),
 		openAPI:            openAPISpec,
 		outboundHTTP:       &http.Client{Timeout: 10 * time.Second},
@@ -409,10 +415,12 @@ func Serve(ctx context.Context, cfg Config) error {
 		svc.runEventTrailRetention,
 		svc.runDashboardRetention,
 		svc.runChatInputs,
+		svc.runChatCleanup,
 		svc.runCoding,
 		svc.listenCoding,
 		svc.runCleanupJobs,
 		svc.runChatSessionNotifications,
+		svc.runChatSessionExpiry,
 	}
 	for _, job := range backgroundJobs {
 		workers.Go(func() { job(runCtx) })
@@ -874,17 +882,13 @@ func (s *Service) routes() http.Handler {
 					status = statusErr.StatusCode()
 				}
 				fields := openAPIRequestFields(err)
-				apiutil.WriteError(
-					w,
-					r,
-					apiutil.NewError(
-						status,
-						"invalid_request",
-						"request does not match the API contract; correct the listed fields and retry",
-						err,
-						fields...,
-					),
-				)
+				apiutil.WriteError(w, r, apiutil.NewError(
+					status,
+					"invalid_request",
+					"request does not match the API contract; correct the listed fields and retry",
+					err,
+					fields...,
+				))
 			},
 			DoNotValidateServers: true,
 		},
@@ -894,16 +898,12 @@ func (s *Service) routes() http.Handler {
 		gatewayapi.ChiServerOptions{
 			BaseRouter: apiRouter,
 			ErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
-				apiutil.WriteError(
-					w,
-					r,
-					apiutil.NewError(
-						http.StatusBadRequest,
-						"invalid_request",
-						"request is invalid",
-						err,
-					),
-				)
+				apiutil.WriteError(w, r, apiutil.NewError(
+					http.StatusBadRequest,
+					"invalid_request",
+					"request is invalid",
+					err,
+				))
 			},
 			Middlewares: []gatewayapi.MiddlewareFunc{
 				requireExplicitCapability,
@@ -1032,6 +1032,7 @@ type gatewayClaims struct {
 	ScopeID              string                `json:"scope_id"`
 	UserID               string                `json:"user_id"`
 	UserName             string                `json:"user_name"`
+	BrowserSessionID     string                `json:"browser_session_id,omitempty"`
 	Capabilities         *[]string             `json:"capabilities"`
 	AdministrativeBypass *bool                 `json:"administrative_bypass"`
 	AgentACL             *[]gatewayAgentAccess `json:"agent_acl"`

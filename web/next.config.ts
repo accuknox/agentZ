@@ -5,6 +5,7 @@ const authURL = process.env.BETTER_AUTH_URL
 const nextConfig: NextConfig = {
   ...(authURL ? { allowedDevOrigins: [new URL(authURL).hostname] } : {}),
   cacheComponents: true,
+  partialPrefetching: true,
   images: {
     maximumDiskCacheSize: 50_000_000,
     maximumRedirects: 0,

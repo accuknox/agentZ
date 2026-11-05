@@ -1,3 +1,4 @@
+import { RequestError } from "@/components/request-error"
 import { Suspense } from "react"
 import { connection } from "next/server"
 import { AdministrationLoadingState, AdministrationState } from "@/components/administration"
@@ -26,7 +27,9 @@ async function OrganizationGuardrails(props: LayoutProps<"/orgs/[orgSlug]/guardr
   const result = await resolveOrganizationSlug(orgSlug)
   if (result.kind !== "ready") return <AdministrationState kind="forbidden" />
   await activateOrganization(result.organization.id)
-  const tenant = await ensureTenant({ client: getGatewayServerClient(), throwOnError: true })
+  const tenant = await ensureTenant({ client: getGatewayServerClient() })
+  if (tenant.error)
+    return <RequestError title="Could not load guardrail settings" error={tenant.error} />
   return (
     <GuardrailsLayout
       basePath={`/orgs/${orgSlug}/guardrails`}

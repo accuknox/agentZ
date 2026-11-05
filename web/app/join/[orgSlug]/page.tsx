@@ -3,7 +3,8 @@ import Image from "next/image"
 import Link from "next/link"
 import { GitHubDark, GitHubLight, Google } from "@ridemountainpig/svgl-react"
 import { eq } from "drizzle-orm"
-import { ArrowLeft, CircleAlert, LoaderCircle, ShieldCheck } from "lucide-react"
+import { ArrowLeft, CircleAlert, LoaderCircle, MailOpen, ShieldCheck } from "lucide-react"
+import { StateIllustration } from "@/components/state-illustration"
 import { headers } from "next/headers"
 import { notFound, redirect } from "next/navigation"
 import { Suspense } from "react"
@@ -211,14 +212,7 @@ async function JoinOrganizationContent({
           <span className="text-lg font-semibold tracking-tight">AgentZ</span>
         </div>
 
-        <Image
-          src="/invitation.svg"
-          alt=""
-          width={176}
-          height={176}
-          className="mt-6 size-40 drop-shadow-sm"
-          priority
-        />
+        <StateIllustration icon={MailOpen} badge="+" className="mt-6" />
 
         <OrganizationAvatar
           className="-mt-2 size-14 bg-background shadow-md ring-4 ring-background"

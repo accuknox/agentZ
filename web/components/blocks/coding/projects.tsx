@@ -62,7 +62,7 @@ import {
   type AdministrationPageScope,
 } from "@/components/administration"
 import { ProjectTable } from "./project-table"
-import { codingDrafts, useCodingDrafts } from "./drafts"
+import { sessionDrafts } from "../chat/drafts"
 import type { CodingProject, CodingRepositoryItem } from "@/lib/gateway/client"
 import {
   deleteCodingProject,
@@ -168,7 +168,6 @@ export function Projects({
 }) {
   const { data: actor } = authClient.useSession()
   const draftScope = actor ? `${actor.user.id}:${workspaceId}` : ""
-  const drafts = useCodingDrafts(draftScope)
   const router = useRouter()
   const queryClient = useQueryClient()
   const search = useSearchParams()
@@ -304,12 +303,12 @@ export function Projects({
           predicate: (query) => query.queryKey[0] === "coding",
         })
         const removedThreads = dialog === "delete" ? (detail?.threads ?? []) : []
-        for (const draft of drafts) {
+        for (const draft of await sessionDrafts.load(draftScope).catch(() => [])) {
           if (
             (dialog === "delete" && draft.projectId === targetProject.id) ||
             removedThreads.some((thread) => thread.session_id === draft.sessionID)
           ) {
-            codingDrafts.remove(draftScope, draft.id)
+            sessionDrafts.remove(draftScope, draft.id)
           }
         }
         const removedRoute = removedThreads.some((thread) => {
@@ -391,7 +390,7 @@ export function Projects({
           if (!open && search.get("new") === "true") router.replace(`${workspacePath}/projects`)
         }}
       >
-        <DialogContent showCloseButton={false}>
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Add a GitHub project</DialogTitle>
             <DialogDescription>Projects and their chats are private to you.</DialogDescription>
@@ -586,7 +585,7 @@ export function Projects({
           }
         }}
       >
-        <DialogContent showCloseButton={false}>
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>{dialog === "rename" ? "Rename project" : "Delete project"}</DialogTitle>
             <DialogDescription>

@@ -94,7 +94,7 @@ export function DestructiveConfirmationDialog({
           </Button>
         </DialogTrigger>
       ) : null}
-      <DialogContent className="sm:max-w-lg" showCloseButton={false}>
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>

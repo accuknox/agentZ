@@ -357,6 +357,21 @@ func (q *Queries) RunEvaluationView(ctx context.Context, arg RunEvaluationViewPa
 	return i, err
 }
 
+const workflowClearNodes = `-- name: WorkflowClearNodes :exec
+DELETE FROM workflow_nodes WHERE tenant_namespace= $1 AND agent_name= $2 AND workflow_name= $3
+`
+
+type WorkflowClearNodesParams struct {
+	TenantNamespace string `json:"tenant_namespace"`
+	AgentName       string `json:"agent_name"`
+	WorkflowName    string `json:"workflow_name"`
+}
+
+func (q *Queries) WorkflowClearNodes(ctx context.Context, arg WorkflowClearNodesParams) error {
+	_, err := q.db.Exec(ctx, workflowClearNodes, arg.TenantNamespace, arg.AgentName, arg.WorkflowName)
+	return err
+}
+
 const workflowCreate = `-- name: WorkflowCreate :one
 INSERT INTO workflows(
   tenant_namespace,
@@ -374,6 +389,9 @@ VALUES (
   $5,
   $6::jsonb
 )
+ON CONFLICT (tenant_namespace, agent_name, workflow_name) DO UPDATE SET
+ title=EXCLUDED.title, summary=EXCLUDED.summary, input_schema=EXCLUDED.input_schema, updated_at=now()
+WHERE $7::boolean
 RETURNING
   tenant_namespace,
   agent_name,
@@ -392,6 +410,7 @@ type WorkflowCreateParams struct {
 	Title           string `json:"title"`
 	Summary         string `json:"summary"`
 	InputSchema     []byte `json:"input_schema"`
+	ReplaceExisting bool   `json:"replace_existing"`
 }
 
 func (q *Queries) WorkflowCreate(ctx context.Context, arg WorkflowCreateParams) (Workflow, error) {
@@ -402,6 +421,7 @@ func (q *Queries) WorkflowCreate(ctx context.Context, arg WorkflowCreateParams) 
 		arg.Title,
 		arg.Summary,
 		arg.InputSchema,
+		arg.ReplaceExisting,
 	)
 	var i Workflow
 	err := row.Scan(

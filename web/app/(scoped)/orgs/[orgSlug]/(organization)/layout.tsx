@@ -15,6 +15,7 @@ import { ThemeSync } from "@/components/theme-sync"
 import { activateOrganization, resolveOrganizationSlug } from "@/data/organizations"
 import { getCurrentUserPreferences } from "@/data/user-preferences"
 import { getWorkspaceDirectory } from "@/data/workspaces"
+import { RequestError } from "@/components/request-error"
 import { ensureTenant } from "@/lib/gateway/client/sdk.gen"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { signInURL } from "@/lib/sign-in-redirect"
@@ -128,19 +129,44 @@ async function OrganizationContent({ children, params }: LayoutProps<"/orgs/[org
 
   const tenant = await ensureTenant({
     client: getGatewayServerClient(),
-    throwOnError: true,
   })
-  if (!tenant.data) {
-    throw new Error("gateway returned no tenant bootstrap state")
+  if (tenant.error) {
+    return (
+      <AppShell
+        sidebar={
+          <AppSidebar
+            scope={{ kind: "account" }}
+            user={result.organizationSession.session.user}
+            organizations={result.organizationSession.organizations}
+          />
+        }
+      >
+        <AdministrationPageHeader title={result.organization.name} />
+        <RequestError title="Could not load organization services" error={tenant.error} />
+      </AppShell>
+    )
   }
   if (!tenant.data.ready) {
     redirect(`/orgs/${result.organization.slug}/setting-up` as Route)
   }
 
   const workspaceResult = await getWorkspaceDirectory(result.organization.slug)
-  if (!workspaceResult.directory) {
-    throw new Error("workspace directory unavailable after organisation resolution")
-  }
+  if (workspaceResult.error)
+    return (
+      <AppShell
+        sidebar={
+          <AppSidebar
+            scope={{ kind: "account" }}
+            user={result.organizationSession.session.user}
+            organizations={result.organizationSession.organizations}
+          />
+        }
+      >
+        <AdministrationPageHeader title={result.organization.name} />
+        <RequestError title="Could not load workspaces" error={workspaceResult.error} />
+      </AppShell>
+    )
+  if (!workspaceResult.directory) return null
 
   return (
     <>

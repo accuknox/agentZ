@@ -46,7 +46,7 @@ func (s *Service) CreateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	tx, err := s.lockDB.Begin(r.Context())
+	tx, err := s.workflowDB.Begin(r.Context())
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
@@ -282,7 +282,7 @@ func (s *Service) DeleteWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 	agentName := strings.TrimSpace(agtName)
 	workflowName = strings.TrimSpace(workflowName)
 	scheduleName = strings.TrimSpace(scheduleName)
-	tx, err := s.lockDB.Begin(r.Context())
+	tx, err := s.workflowDB.Begin(r.Context())
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
@@ -376,7 +376,7 @@ func (s *Service) UpdateWorkflowSchedule(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	tx, err := s.lockDB.Begin(r.Context())
+	tx, err := s.workflowDB.Begin(r.Context())
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return

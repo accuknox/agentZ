@@ -140,7 +140,7 @@ func (s *Service) CreateWorkflow(w http.ResponseWriter, r *http.Request, agtName
 		return
 	}
 
-	row, err := workflowstore.Create(r.Context(), s.lockDB, s.k8sClient, ns, agtName, req)
+	row, err := workflowstore.Create(r.Context(), s.workflowDB, s.k8sClient, ns, agtName, req)
 	if err != nil {
 		apiutil.WriteError(w, r, workflowstore.MapMutationError(err))
 		return
@@ -202,7 +202,7 @@ func (s *Service) DeleteWorkflows(w http.ResponseWriter, r *http.Request, agtNam
 
 	err = workflowstore.DeleteMany(
 		r.Context(),
-		s.lockDB,
+		s.workflowDB,
 		s.k8sClient,
 		ns,
 		agtName,
@@ -298,7 +298,7 @@ func (s *Service) SetWorkflowLock(w http.ResponseWriter, r *http.Request, agentN
 		))
 		return
 	}
-	tx, err := s.lockDB.Begin(r.Context())
+	tx, err := s.workflowDB.Begin(r.Context())
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return

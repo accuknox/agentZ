@@ -828,7 +828,7 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 	}
 	ns := access.namespace
 
-	tx, err := s.lockDB.Begin(r.Context())
+	tx, err := s.workflowDB.Begin(r.Context())
 	if err != nil {
 		apiutil.WriteInternalError(w, r, fmt.Errorf("begin Agent deletion: %w", err))
 		return

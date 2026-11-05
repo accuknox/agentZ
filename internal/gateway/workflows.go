@@ -266,7 +266,12 @@ func (s *Service) SetWorkflowLock(w http.ResponseWriter, r *http.Request, agentN
 		UserID: auth.claims.UserID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) || err == nil && !expiry.After(time.Now()) {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusUnauthorized, "unauthorized", "browser session has expired", err))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusUnauthorized,
+			"unauthorized",
+			"browser session has expired",
+			err,
+		))
 		return
 	}
 	if err != nil {
@@ -284,7 +289,13 @@ func (s *Service) SetWorkflowLock(w http.ResponseWriter, r *http.Request, agentN
 	}
 	fields := workflowstore.ValidateLookupRequest(agentName, workflowName)
 	if len(fields) > 0 {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadRequest, "invalid_request", "request validation failed", nil, fields...))
+		apiutil.WriteError(w, r, apiutil.NewError(
+			http.StatusBadRequest,
+			"invalid_request",
+			"request validation failed",
+			nil,
+			fields...,
+		))
 		return
 	}
 	tx, err := s.lockDB.Begin(r.Context())
@@ -301,7 +312,10 @@ func (s *Service) SetWorkflowLock(w http.ResponseWriter, r *http.Request, agentN
 	state := rows[0].LockState
 	if state.Version != req.ExpectedVersion {
 		apiErr := apiutil.NewError(
-			http.StatusConflict, "workflow_lock_conflict", "workflow lock changed; review its current state and try again", nil,
+			http.StatusConflict,
+			"workflow_lock_conflict",
+			"workflow lock changed; review its current state and try again",
+			nil,
 		)
 		apiErr.CurrentWorkflowLock = &state
 		apiutil.WriteError(w, r, apiErr)

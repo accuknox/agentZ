@@ -495,13 +495,23 @@ func MapMutationError(err error) *apiutil.APIError {
 		return apiErr
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
-		return apiutil.NewError(409, "conflict", "workflow name is already in use", err,
-			gatewayapi.FieldError{Field: "workflow_name", Message: "already in-use"})
+		return apiutil.NewError(
+			409,
+			"conflict",
+			"workflow name is already in use",
+			err,
+			gatewayapi.FieldError{Field: "workflow_name", Message: "already in-use"},
+		)
 	}
 	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
 		switch pgErr.Code {
 		case "23503":
-			return apiutil.NewError(404, "not_found", "agent not found", err)
+			return apiutil.NewError(
+				404,
+				"not_found",
+				"agent not found",
+				err,
+			)
 		case "23505":
 			field := "workflow_name"
 			if strings.Contains(pgErr.ConstraintName, "workflow_nodes_pkey") {
@@ -517,14 +527,29 @@ func MapMutationError(err error) *apiutil.APIError {
 		}
 	}
 
-	return apiutil.NewError(500, "internal_error", "request failed", err)
+	return apiutil.NewError(
+		500,
+		"internal_error",
+		"request failed",
+		err,
+	)
 }
 
 // MapGetError translates workflow read failures to API errors.
 func MapGetError(err error) *apiutil.APIError {
 	if errors.Is(err, ErrWorkflowNotFound) {
-		return apiutil.NewError(404, "not_found", "workflow not found", err)
+		return apiutil.NewError(
+			404,
+			"not_found",
+			"workflow not found",
+			err,
+		)
 	}
 
-	return apiutil.NewError(500, "internal_error", "request failed", err)
+	return apiutil.NewError(
+		500,
+		"internal_error",
+		"request failed",
+		err,
+	)
 }

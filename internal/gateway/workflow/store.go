@@ -106,8 +106,10 @@ func Create(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlclient.Client
 		}
 		if !replace {
 			return workflowdb.Workflow{}, apiutil.NewError(
-				http.StatusConflict, "conflict",
-				"workflow already exists; read it and use replace: true to submit a complete replacement", nil,
+				http.StatusConflict,
+				"conflict",
+				"workflow already exists; read it and use replace: true to submit a complete replacement",
+				nil,
 			)
 		}
 		if err := RequireUnlocked([]workflowdb.WorkflowLockDefinitionsRow{existing}); err != nil {
@@ -134,8 +136,13 @@ func Create(ctx context.Context, pool *pgxpool.Pool, k8sClient ctrlclient.Client
 			}
 		}
 		if len(fields) > 0 {
-			return workflowdb.Workflow{}, apiutil.NewError(http.StatusConflict, "workflow_schedule_inputs_incompatible",
-				"replacement would invalidate saved schedule inputs; adjust the definition or affected schedules before retrying", nil, fields...)
+			return workflowdb.Workflow{}, apiutil.NewError(
+				http.StatusConflict,
+				"workflow_schedule_inputs_incompatible",
+				"replacement would invalidate saved schedule inputs; adjust the definition or affected schedules before retrying",
+				nil,
+				fields...,
+			)
 		}
 	}
 	inputsJSON, err := inputContractJSON(req.Inputs, req.ArbitraryJson)
@@ -604,7 +611,12 @@ func LockDefinitions(ctx context.Context, tx pgx.Tx, ns, agentName string, names
 		AgentName:       agentName,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, apiutil.NewError(http.StatusNotFound, "not_found", "agent not found", err)
+		return nil, apiutil.NewError(
+			http.StatusNotFound,
+			"not_found",
+			"agent not found",
+			err,
+		)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("lock workflow agent: %w", err)
@@ -629,7 +641,11 @@ func LockDefinitions(ctx context.Context, tx pgx.Tx, ns, agentName string, names
 	}
 	if len(missing) > 0 {
 		return nil, apiutil.NewError(
-			http.StatusNotFound, "not_found", "one or more workflows were not found; nothing was changed", nil, missing...,
+			http.StatusNotFound,
+			"not_found",
+			"one or more workflows were not found; nothing was changed",
+			nil,
+			missing...,
 		)
 	}
 	return rows, nil
@@ -651,7 +667,9 @@ func RequireUnlocked(rows []workflowdb.WorkflowLockDefinitionsRow) error {
 	if len(conflicts) == 0 {
 		return nil
 	}
-	err := apiutil.NewError(http.StatusLocked, "workflow_locked",
+	err := apiutil.NewError(
+		http.StatusLocked,
+		"workflow_locked",
 		"workflow is locked; ask a user with Use access to unlock it on the Workflows page before retrying; agents cannot unlock workflows",
 		nil,
 	)

@@ -1,0 +1,68 @@
+?   	github.com/accuknox/agentz/cmd	[no test files]
+?   	github.com/accuknox/agentz/cmd/agentz	[no test files]
+?   	github.com/accuknox/agentz/cmd/agentz/subcommands	[no test files]
+?   	github.com/accuknox/agentz/cmd/agentz-client	[no test files]
+ok  	github.com/accuknox/agentz/internal/agentquota	0.024s
+ok  	github.com/accuknox/agentz/internal/authorization	0.015s
+ok  	github.com/accuknox/agentz/internal/controller/agent	0.047s
+?   	github.com/accuknox/agentz/internal/controller/gatewayrbac	[no test files]
+?   	github.com/accuknox/agentz/internal/controller/guardrail	[no test files]
+?   	github.com/accuknox/agentz/internal/controller/inferencepool	[no test files]
+?   	github.com/accuknox/agentz/internal/controller/inferenceprovider	[no test files]
+ok  	github.com/accuknox/agentz/internal/controller/mcpconn	0.242s
+ok  	github.com/accuknox/agentz/internal/controller/sandbox	0.201s
+?   	github.com/accuknox/agentz/internal/controller/secret	[no test files]
+?   	github.com/accuknox/agentz/internal/controller/sinjectorca	[no test files]
+?   	github.com/accuknox/agentz/internal/controller/skill	[no test files]
+ok  	github.com/accuknox/agentz/internal/controller/tenant	0.174s
+?   	github.com/accuknox/agentz/internal/controller/workflowrun	[no test files]
+?   	github.com/accuknox/agentz/internal/controller/workflowschedule	[no test files]
+?   	github.com/accuknox/agentz/internal/controller/workspace	[no test files]
+ok  	github.com/accuknox/agentz/internal/extauth	0.207s
+ok  	github.com/accuknox/agentz/internal/gateway	(cached)
+?   	github.com/accuknox/agentz/internal/gateway/apiutil	[no test files]
+?   	github.com/accuknox/agentz/internal/gateway/dashboard/db	[no test files]
+?   	github.com/accuknox/agentz/internal/gateway/db	[no test files]
+?   	github.com/accuknox/agentz/internal/gateway/filesystem	[no test files]
+?   	github.com/accuknox/agentz/internal/gateway/openapi	[no test files]
+?   	github.com/accuknox/agentz/internal/gateway/workflow	[no test files]
+?   	github.com/accuknox/agentz/internal/gateway/workflow/db	[no test files]
+ok  	github.com/accuknox/agentz/internal/guardrails	0.187s
+?   	github.com/accuknox/agentz/internal/gwreq	[no test files]
+ok  	github.com/accuknox/agentz/internal/inference	0.197s
+ok  	github.com/accuknox/agentz/internal/launcher	0.459s
+?   	github.com/accuknox/agentz/internal/mcp	[no test files]
+?   	github.com/accuknox/agentz/internal/networkpolicy	[no test files]
+?   	github.com/accuknox/agentz/internal/oauth	[no test files]
+ok  	github.com/accuknox/agentz/internal/observer	(cached)
+?   	github.com/accuknox/agentz/internal/observer/db	[no test files]
+?   	github.com/accuknox/agentz/internal/openbao	[no test files]
+?   	github.com/accuknox/agentz/internal/sandboxutil	[no test files]
+?   	github.com/accuknox/agentz/internal/scope	[no test files]
+?   	github.com/accuknox/agentz/internal/secret	[no test files]
+ok  	github.com/accuknox/agentz/internal/sinjector	0.032s
+ok  	github.com/accuknox/agentz/internal/skill	0.045s
+ok  	github.com/accuknox/agentz/internal/tool	0.012s
+ok  	github.com/accuknox/agentz/internal/webhook/v1alpha1/agent	0.040s
+?   	github.com/accuknox/agentz/internal/webhook/v1alpha1/inferencepool	[no test files]
+?   	github.com/accuknox/agentz/internal/webhook/v1alpha1/inferenceprovider	[no test files]
+?   	github.com/accuknox/agentz/internal/webhook/v1alpha1/mcpconn	[no test files]
+ok  	github.com/accuknox/agentz/internal/webhook/v1alpha1/sandbox	0.204s
+?   	github.com/accuknox/agentz/internal/webhook/v1alpha1/secret	[no test files]
+?   	github.com/accuknox/agentz/internal/webhook/v1alpha1/skill	[no test files]
+ok  	github.com/accuknox/agentz/internal/webhook/v1alpha1/tenant	0.134s
+?   	github.com/accuknox/agentz/internal/webhook/v1alpha1/workflowrun	[no test files]
+?   	github.com/accuknox/agentz/internal/webhook/v1alpha1/workflowschedule	[no test files]
+ok  	github.com/accuknox/agentz/internal/webhook/v1alpha1/workspace	0.035s
+ok  	github.com/accuknox/agentz/internal/workflow	0.055s
+?   	github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1	[no test files]
+?   	github.com/accuknox/agentz/pkg/controller/clientset/versioned	[no test files]
+?   	github.com/accuknox/agentz/pkg/controller/clientset/versioned/fake	[no test files]
+?   	github.com/accuknox/agentz/pkg/controller/clientset/versioned/scheme	[no test files]
+?   	github.com/accuknox/agentz/pkg/controller/clientset/versioned/typed/agentz/v1alpha1	[no test files]
+?   	github.com/accuknox/agentz/pkg/controller/clientset/versioned/typed/agentz/v1alpha1/fake	[no test files]
+?   	github.com/accuknox/agentz/pkg/controller/informers/externalversions	[no test files]
+?   	github.com/accuknox/agentz/pkg/controller/informers/externalversions/agentz	[no test files]
+?   	github.com/accuknox/agentz/pkg/controller/informers/externalversions/agentz/v1alpha1	[no test files]
+?   	github.com/accuknox/agentz/pkg/controller/informers/externalversions/internalinterfaces	[no test files]
+?   	github.com/accuknox/agentz/pkg/controller/listers/agentz/v1alpha1	[no test files]

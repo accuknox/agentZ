@@ -155,6 +155,8 @@ func (installed *installation) serve(ctx context.Context) error {
 	mux.HandleFunc("POST /oauth/revoke", oauth)
 	mux.Handle("POST /v1/messages", proxy)
 	mux.Handle("POST /v1/messages/count_tokens", proxy)
+	mux.Handle("POST /v1/chat/completions", proxy)
+	mux.Handle("POST /v1/responses", proxy)
 	mux.Handle("/mcp", proxy)
 	catalog := func(w http.ResponseWriter, r *http.Request) {
 		installed.serveCatalog(w, r, api)
@@ -171,6 +173,36 @@ func (installed *installation) serve(ctx context.Context) error {
 		if r.Host != address.Host || r.Header.Get("Origin") != "" {
 			http.Error(w, "This relay accepts local native-client requests only.", http.StatusForbidden)
 			return
+		}
+		if installed.adapter() && !strings.HasPrefix(r.URL.Path, "/relay/") &&
+			!strings.HasPrefix(r.URL.Path, "/oauth/") && !strings.HasPrefix(r.URL.Path, "/.well-known/") {
+			credential := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+			if r.Header.Get("Authorization") == "" {
+				credential = r.Header.Get("X-Api-Key")
+				if credential == "" {
+					credential = r.Header.Get("Api-Key")
+				}
+			}
+			if !hmac.Equal([]byte(credential), []byte(installed.clientKey())) {
+				http.Error(w, "Local AgentZ credential required.", http.StatusUnauthorized)
+				return
+			}
+			resource := "inference"
+			if r.URL.Path == "/mcp" {
+				resource = "mcp"
+			}
+			token, err := installed.accessToken(r.Context(), resource)
+			if err != nil {
+				w.Header().Set("x-should-retry", "false")
+				http.Error(w, "AgentZ authorization unavailable. Run agentz login for this profile and resource.", http.StatusUnauthorized)
+				return
+			}
+			r.Header.Set("Authorization", "Bearer "+token)
+			r.Header.Del("X-AgentZ-Authorization")
+			if r.URL.Path == "/v1/models" && installed.Provider != "claude-desktop" {
+				proxy.ServeHTTP(w, r)
+				return
+			}
 		}
 		mux.ServeHTTP(w, r)
 	})
@@ -290,7 +322,7 @@ func (installed *installation) serveCatalog(w http.ResponseWriter, r *http.Reque
 			duplicates := slices.ContainsFunc(catalog.JSON200.Models, func(other gatewayapi.DelegationModel) bool {
 				return other.Id != model.Id && other.Model == model.Model
 			})
-			if !duplicates {
+			if !duplicates && installed.Provider == "claude" {
 				option.Model = model.Model
 				settings.ModelOverrides[model.Model] = model.Id
 			}

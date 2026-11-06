@@ -1,0 +1,35 @@
+{
+  "results": [
+    {
+      "kind": "claude",
+      "created": true,
+      "setupIncludesProvider": true
+    },
+    {
+      "kind": "codex",
+      "created": true,
+      "setupIncludesProvider": true
+    },
+    {
+      "kind": "chatgpt-desktop",
+      "created": true,
+      "setupIncludesProvider": true
+    },
+    {
+      "kind": "claude-desktop",
+      "created": true,
+      "setupIncludesProvider": true
+    },
+    {
+      "kind": "github-copilot-cli",
+      "created": true,
+      "setupIncludesProvider": true
+    },
+    {
+      "kind": "github-copilot-desktop",
+      "created": true,
+      "setupIncludesProvider": true
+    }
+  ],
+  "errors": []
+}

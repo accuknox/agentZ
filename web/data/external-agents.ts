@@ -183,9 +183,9 @@ export async function createExternalAgent(
           : ["http://127.0.0.1:8766/callback", "http://127.0.0.1:8767/callback"],
       scope: delegationScopes.join(" "),
       grant_types:
-        data.kind === "claude"
-          ? ["authorization_code", "refresh_token", DEVICE_CODE_GRANT_TYPE]
-          : ["authorization_code", "refresh_token"],
+        data.kind === "codex" || data.kind === "chatgpt-desktop"
+          ? ["authorization_code", "refresh_token"]
+          : ["authorization_code", "refresh_token", DEVICE_CODE_GRANT_TYPE],
       response_types: ["code"],
       require_pkce: true,
       skip_consent: false,

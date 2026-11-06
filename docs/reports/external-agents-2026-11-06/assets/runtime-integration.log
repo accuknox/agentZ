@@ -1,0 +1,4 @@
+=== RUN   TestLiveDelegationRuntime
+--- PASS: TestLiveDelegationRuntime (0.14s)
+PASS
+ok  	github.com/accuknox/agentz/internal/controller/mcpconn	0.226s

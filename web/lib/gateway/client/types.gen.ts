@@ -141,7 +141,13 @@ export type LensApp = {
   client_id: string
   name: string
   user?: ResourceActor
-  agent_kind?: "claude" | "codex"
+  agent_kind?:
+    | "claude"
+    | "codex"
+    | "chatgpt-desktop"
+    | "claude-desktop"
+    | "github-copilot-cli"
+    | "github-copilot-desktop"
 }
 
 export type ListLensAppsResponse = {

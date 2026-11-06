@@ -1,0 +1,152 @@
+{
+  "boundary": "installed AgentZ client and Copilot CLI; OAuth/catalog/MCP fixture; live provider inference",
+  "results": [
+    {
+      "name": "inference-login",
+      "passed": true,
+      "exit_code": 0,
+      "duration_seconds": 1.29
+    },
+    {
+      "name": "mcp-login",
+      "passed": true,
+      "exit_code": 0,
+      "duration_seconds": 1.22
+    },
+    {
+      "name": "installed-copilot-stream",
+      "passed": true,
+      "exit_code": 0,
+      "duration_seconds": 51.4
+    },
+    {
+      "name": "refresh-and-relaunch",
+      "passed": true,
+      "exit_code": 0,
+      "duration_seconds": 49.72
+    },
+    {
+      "name": "live-mcp-tool-call",
+      "passed": true,
+      "exit_code": 0,
+      "duration_seconds": 52.53
+    },
+    {
+      "name": "revoked-refresh-rejected",
+      "passed": true,
+      "exit_code": 1,
+      "duration_seconds": 0.25
+    },
+    {
+      "name": "relay-status",
+      "passed": true,
+      "exit_code": 0,
+      "duration_seconds": 0.04
+    }
+  ],
+  "events": [
+    {
+      "event": "device_authorization",
+      "resource": "inference"
+    },
+    {
+      "event": "device_authorization",
+      "resource": "mcp"
+    },
+    {
+      "event": "mcp",
+      "method": "server/discover"
+    },
+    {
+      "event": "mcp",
+      "method": "initialize"
+    },
+    {
+      "event": "mcp",
+      "method": "notifications/initialized"
+    },
+    {
+      "event": "mcp",
+      "method": "tools/list"
+    },
+    {
+      "event": "inference",
+      "api": "responses",
+      "stream": true,
+      "tool_count": 22,
+      "store": false,
+      "has_previous_response": false,
+      "has_conversation": false
+    },
+    {
+      "event": "mcp",
+      "method": "server/discover"
+    },
+    {
+      "event": "mcp",
+      "method": "initialize"
+    },
+    {
+      "event": "mcp",
+      "method": "notifications/initialized"
+    },
+    {
+      "event": "mcp",
+      "method": "tools/list"
+    },
+    {
+      "event": "inference",
+      "api": "responses",
+      "stream": true,
+      "tool_count": 22,
+      "store": false,
+      "has_previous_response": false,
+      "has_conversation": false
+    },
+    {
+      "event": "mcp",
+      "method": "server/discover"
+    },
+    {
+      "event": "mcp",
+      "method": "initialize"
+    },
+    {
+      "event": "mcp",
+      "method": "notifications/initialized"
+    },
+    {
+      "event": "mcp",
+      "method": "tools/list"
+    },
+    {
+      "event": "inference",
+      "api": "responses",
+      "stream": true,
+      "tool_count": 22,
+      "store": false,
+      "has_previous_response": false,
+      "has_conversation": false
+    },
+    {
+      "event": "mcp",
+      "method": "tools/list"
+    },
+    {
+      "event": "mcp",
+      "method": "tools/call"
+    },
+    {
+      "event": "inference",
+      "api": "responses",
+      "stream": true,
+      "tool_count": 22,
+      "store": false,
+      "has_previous_response": false,
+      "has_conversation": false
+    }
+  ],
+  "refreshes": 1,
+  "inference_calls": 4,
+  "tool_calls": 1
+}

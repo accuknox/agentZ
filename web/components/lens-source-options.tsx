@@ -18,10 +18,15 @@ export function LensSourceIcon({
   switch (kind) {
     case "agent":
       return <BotIcon aria-hidden="true" className={className} />
+    case "claude-desktop":
     case "claude":
       return <ClaudeAI aria-hidden="true" className={className} />
+    case "chatgpt-desktop":
     case "codex":
       return <CodexLight aria-hidden="true" fill="currentColor" className={className} />
+    case "github-copilot-cli":
+    case "github-copilot-desktop":
+      return <BotIcon aria-hidden="true" className={className} />
     case "app":
       return <AppWindowIcon aria-hidden="true" className={className} />
   }

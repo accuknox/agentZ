@@ -242,7 +242,7 @@ func appOperationFromOTLPSpan(sp *tracepb.Span) (observerdb.InsertAppOperationPa
 		ToolName:          attrs[attrGenAIToolName].GetStringValue(),
 	}
 	switch kind := attrs["agentz.agent_kind"].GetStringValue(); kind {
-	case "claude", "codex":
+	case "claude", "codex", "chatgpt-desktop", "claude-desktop", "github-copilot-cli", "github-copilot-desktop":
 		operation.AgentKind = kind
 		// Composite B-tree keys include session, turn and call IDs together.
 		// Bound each to 512 bytes, as for payload IDs in InsertAppOperation,

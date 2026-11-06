@@ -1,0 +1,23 @@
+{
+  "boundary": "Native Claude Desktop 4.16336.0; real Anthropic inference; fixture OAuth/catalog/MCP. Permission actions were performed in the native UI.",
+  "results": [
+    {
+      "name": "native-permission-allow-and-tool-execution",
+      "passed": true,
+      "observed_response": "agentz-tool-ok"
+    },
+    {
+      "name": "native-permission-denial-withholds-call",
+      "passed": true,
+      "tool_calls_before": 1,
+      "tool_calls_after": 1
+    },
+    {
+      "name": "expired-inference-and-mcp-refresh-then-native-tool-call",
+      "passed": true,
+      "refreshes": 2,
+      "total_tool_calls": 2,
+      "observed_response": "agentz-tool-ok"
+    }
+  ]
+}

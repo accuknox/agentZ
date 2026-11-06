@@ -1,0 +1,19 @@
+bun test v1.4.2 (744846f84)
+
+lib/external-agent-kinds.test.ts:
+(pass) claude: missing compatibility metadata fails closed [2.52ms]
+(pass) codex: missing compatibility metadata fails closed [0.05ms]
+(pass) chatgpt-desktop: missing compatibility metadata fails closed [0.03ms]
+(pass) claude-desktop: missing compatibility metadata fails closed [0.01ms]
+(pass) github-copilot-cli: missing compatibility metadata fails closed [0.02ms]
+(pass) github-copilot-desktop: missing compatibility metadata fails closed
+(pass) codex: requires native Responses and tools [0.16ms]
+(pass) chatgpt-desktop: requires native Responses and tools [0.02ms]
+(pass) github-copilot-cli: custom tools need a native Responses or Messages route [0.12ms]
+(pass) github-copilot-desktop: custom tools need a native Responses or Messages route [0.02ms]
+(pass) Claude desktop requires a recognized Claude model and tools [0.04ms]
+(pass) Claude Code retains translated Messages support [0.13ms]
+
+ 12 pass
+ 0 fail
+Ran 12 tests across 1 file. [75.00ms]

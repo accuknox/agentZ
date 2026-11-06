@@ -1,0 +1,42 @@
+{
+  "origin": "http://localhost:8765",
+  "boundary": "Browser playback verification over Python HTTP server, after replacing JavaScript-only loading with standard video src and metadata preload",
+  "results": [
+    {
+      "file": "production-live-demo.mp4",
+      "duration_seconds": 75,
+      "video_width": 1440,
+      "video_height": 900,
+      "playback_advanced": true,
+      "media_ready_state": 4,
+      "media_error": null
+    },
+    {
+      "file": "native-conversation-demo.mp4",
+      "duration_seconds": 90,
+      "video_width": 1440,
+      "video_height": 1000,
+      "playback_advanced": true,
+      "media_ready_state": 4,
+      "media_error": null
+    },
+    {
+      "file": "registration.webm",
+      "duration_seconds": 57.04,
+      "video_width": 800,
+      "video_height": 554,
+      "playback_advanced": true,
+      "media_ready_state": 4,
+      "media_error": null
+    },
+    {
+      "file": "claude-native-mcp-demo.mp4",
+      "duration_seconds": 163.1,
+      "video_width": 1440,
+      "video_height": 1000,
+      "playback_advanced": true,
+      "media_ready_state": 4,
+      "media_error": null
+    }
+  ]
+}

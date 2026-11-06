@@ -1,0 +1,249 @@
+{
+  "events": [
+    {
+      "event": "device_authorization",
+      "resource": "inference"
+    },
+    {
+      "event": "device_authorization",
+      "resource": "mcp"
+    },
+    {
+      "event": "inference",
+      "api": "messages",
+      "stream": null,
+      "tool_count": 0,
+      "store": null,
+      "has_previous_response": false,
+      "has_conversation": false
+    },
+    {
+      "event": "inference",
+      "api": "messages",
+      "stream": true,
+      "tool_count": 120,
+      "store": null,
+      "has_previous_response": false,
+      "has_conversation": false
+    },
+    {
+      "event": "mcp",
+      "method": "tools/call"
+    },
+    {
+      "event": "inference",
+      "api": "messages",
+      "stream": true,
+      "tool_count": 120,
+      "store": null,
+      "has_previous_response": false,
+      "has_conversation": false
+    },
+    {
+      "event": "inference",
+      "api": "messages/count_tokens",
+      "stream": null,
+      "tool_count": 0,
+      "store": null,
+      "has_previous_response": false,
+      "has_conversation": false
+    },
+    {
+      "event": "inference",
+      "api": "messages/count_tokens",
+      "stream": null,
+      "tool_count": 0,
+      "store": null,
+      "has_previous_response": false,
+      "has_conversation": false
+    },
+    {
+      "event": "inference",
+      "api": "messages/count_tokens",
+      "stream": null,
+      "tool_count": 0,
+      "store": null,
+      "has_previous_response": false,
+      "has_conversation": false
+    },
+    {
+      "event": "inference",
+      "api": "messages/count_tokens",
+      "stream": null,
+      "tool_count": 0,
+      "store": null,
+      "has_previous_response": false,
+      "has_conversation": false
+    },
+    {
+      "event": "inference",
+      "api": "messages/count_tokens",
+      "stream": null,
+      "tool_count": 0,
+      "store": null,
+      "has_previous_response": false,
+      "has_conversation": false
+    },
+    {
+      "event": "inference",
+      "api": "messages/count_tokens",
+      "stream": null,
+      "tool_count": 90,
+      "store": null,
+      "has_previous_response": false,
+      "has_conversation": false
+    },
+    {
+      "event": "inference",
+      "api": "messages/count_tokens",
+      "stream": null,
+      "tool_count": 0,
+      "store": null,
+      "has_previous_response": false,
+      "has_conversation": false
+    },
+    {
+      "event": "inference",
+      "api": "messages/count_tokens",
+      "stream": null,
+      "tool_count": 12,
+      "store": null,
+      "has_previous_response": false,
+      "has_conversation": false
+    },
+    {
+      "event": "inference",
+      "api": "messages/count_tokens",
+      "stream": null,
+      "tool_count": 0,
+      "store": null,
+      "has_previous_response": false,
+      "has_conversation": false
+    },
+    {
+      "event": "inference",
+      "api": "messages/count_tokens",
+      "stream": null,
+      "tool_count": 1,
+      "store": null,
+      "has_previous_response": false,
+      "has_conversation": false
+    },
+    {
+      "event": "inference",
+      "api": "messages/count_tokens",
+      "stream": null,
+      "tool_count": 0,
+      "store": null,
+      "has_previous_response": false,
+      "has_conversation": false
+    },
+    {
+      "event": "inference",
+      "api": "messages/count_tokens",
+      "stream": null,
+      "tool_count": 0,
+      "store": null,
+      "has_previous_response": false,
+      "has_conversation": false
+    },
+    {
+      "event": "inference",
+      "api": "messages/count_tokens",
+      "stream": null,
+      "tool_count": 0,
+      "store": null,
+      "has_previous_response": false,
+      "has_conversation": false
+    },
+    {
+      "event": "inference",
+      "api": "messages/count_tokens",
+      "stream": null,
+      "tool_count": 0,
+      "store": null,
+      "has_previous_response": false,
+      "has_conversation": false
+    },
+    {
+      "event": "inference",
+      "api": "messages/count_tokens",
+      "stream": null,
+      "tool_count": 0,
+      "store": null,
+      "has_previous_response": false,
+      "has_conversation": false
+    },
+    {
+      "event": "inference",
+      "api": "messages/count_tokens",
+      "stream": null,
+      "tool_count": 0,
+      "store": null,
+      "has_previous_response": false,
+      "has_conversation": false
+    },
+    {
+      "event": "inference",
+      "api": "messages/count_tokens",
+      "stream": null,
+      "tool_count": 0,
+      "store": null,
+      "has_previous_response": false,
+      "has_conversation": false
+    },
+    {
+      "event": "inference",
+      "api": "messages/count_tokens",
+      "stream": null,
+      "tool_count": 0,
+      "store": null,
+      "has_previous_response": false,
+      "has_conversation": false
+    },
+    {
+      "event": "inference",
+      "api": "messages/count_tokens",
+      "stream": null,
+      "tool_count": 18,
+      "store": null,
+      "has_previous_response": false,
+      "has_conversation": false
+    },
+    {
+      "event": "inference",
+      "api": "messages",
+      "stream": true,
+      "tool_count": 120,
+      "store": null,
+      "has_previous_response": false,
+      "has_conversation": false
+    },
+    {
+      "event": "inference",
+      "api": "messages",
+      "stream": true,
+      "tool_count": 120,
+      "store": null,
+      "has_previous_response": false,
+      "has_conversation": false
+    },
+    {
+      "event": "mcp",
+      "method": "tools/call"
+    },
+    {
+      "event": "inference",
+      "api": "messages",
+      "stream": true,
+      "tool_count": 120,
+      "store": null,
+      "has_previous_response": false,
+      "has_conversation": false
+    }
+  ],
+  "denied": false,
+  "refreshes": 2,
+  "calls": 25,
+  "tools": 2
+}

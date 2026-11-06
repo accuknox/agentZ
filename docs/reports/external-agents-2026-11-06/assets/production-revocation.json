@@ -1,0 +1,7 @@
+{
+  "boundary": "real web UI disconnect and production gateway",
+  "catalog_after_disconnect": 401,
+  "passed": true,
+  "refresh_after_disconnect_exit": 1,
+  "refresh_rejected": true
+}

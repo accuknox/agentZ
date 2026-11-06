@@ -1,3 +1,4 @@
+import { externalAgentKinds } from "@/lib/external-agent-kinds"
 import { sql } from "drizzle-orm"
 import {
   boolean,
@@ -250,7 +251,7 @@ export const workspaces = pgTable(
   ]
 )
 
-export const externalAgentKind = pgEnum("external_agent_kind", ["claude", "codex"])
+export const externalAgentKind = pgEnum("external_agent_kind", externalAgentKinds)
 
 export const externalAgents = pgTable(
   "external_agents",

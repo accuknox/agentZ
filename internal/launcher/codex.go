@@ -70,6 +70,9 @@ type codexModel struct {
 }
 
 func (installed *installation) codex(ctx context.Context, command *cli.Command, args []string) error {
+	if installed.Provider == "chatgpt-desktop" && command.Name == "login" && slices.Equal(args, []string{"--mcp"}) {
+		args = []string{"mcp", "login", "agentz"}
+	}
 	profile := filepath.Join(installed.profile, "codex")
 	if err := os.MkdirAll(profile, 0o700); err != nil {
 		return err
@@ -105,8 +108,8 @@ func (installed *installation) codex(ctx context.Context, command *cli.Command, 
 			resource=%s,
 			scopes=["openid","profile","email","offline_access","inference:use"],
 			redirect_port=8766,
-			delivery={kind="header",name="X-AgentZ-Authorization",scheme="Bearer"},
-		},
+			delivery={kind="header",name="X-AgentZ-Authorization",scheme="Bearer"}
+		}
 	}`, resource, authorize, token, client, resource)
 	mcp := fmt.Sprintf(`mcp_servers.agentz={
 		url=%s,
@@ -114,8 +117,8 @@ func (installed *installation) codex(ctx context.Context, command *cli.Command, 
 		oauth={
 			client_id=%s,
 			callback_port=8767,
-			callback_url="http://127.0.0.1:8767/callback",
-		},
+			callback_url="http://127.0.0.1:8767/callback"
+		}
 	}`, mcpURL, client)
 	flags := []string{
 		"-c", `model_provider="agentz"`,
@@ -159,8 +162,26 @@ func (installed *installation) codex(ctx context.Context, command *cli.Command, 
 		fileJSON, _ := json.Marshal(modelFile)
 		flags = append(flags, "-c", "model="+string(modelJSON), "-c", "model_catalog_json="+string(fileJSON))
 	}
-	flags = append(flags, args...)
-	child := exec.CommandContext(ctx, "codex", flags...)
+	var child *exec.Cmd
+	if installed.Provider == "chatgpt-desktop" && !mcpCommand {
+		// Desktop reads the same native provider configuration as Codex CLI.
+		// Keep its user data and model credentials separate from other profiles.
+		values := []string{}
+		for i := 0; i < len(flags); i += 2 {
+			values = append(values, flags[i+1])
+		}
+		if err := saveDesktopCodexConfig(filepath.Join(profile, "config.toml"), values); err != nil {
+			return err
+		}
+		binary, err := installed.chatGPTExecutable()
+		if err != nil {
+			return err
+		}
+		child = exec.CommandContext(ctx, binary, append([]string{"--user-data-dir=" + filepath.Join(installed.profile, "chatgpt")}, args...)...)
+	} else {
+		flags = append(flags, args...)
+		child = exec.CommandContext(ctx, "codex", flags...)
+	}
 	child.Env = environment
 	child.Stdin, child.Stdout, child.Stderr = os.Stdin, command.Writer, command.ErrWriter
 	if err := child.Run(); err != nil {

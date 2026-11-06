@@ -1,0 +1,16 @@
+{
+  "chatgpt": {
+    "platform": "Ubuntu 26.04.1 x86_64",
+    "model": "gpt-5.4-mini",
+    "control_plane": "real AgentZ OAuth/gateway/Kubernetes/external provider",
+    "expected_response": "agentz-chatgpt-desktop-ok",
+    "observed": true
+  },
+  "claude": {
+    "platform": "Ubuntu 26.04.1 x86_64",
+    "model": "claude-sonnet-4-6",
+    "control_plane": "explicit OAuth/catalog/MCP fixture; real AgentZ launcher/relay and live Anthropic",
+    "expected_response": "agentz-claude-desktop-ok",
+    "observed": true
+  }
+}

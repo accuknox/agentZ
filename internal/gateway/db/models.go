@@ -599,8 +599,12 @@ func (ns NullEventTrailTarget) Value() (driver.Value, error) {
 type ExternalAgentKind string
 
 const (
-	ExternalAgentKindClaude ExternalAgentKind = "claude"
-	ExternalAgentKindCodex  ExternalAgentKind = "codex"
+	ExternalAgentKindClaude               ExternalAgentKind = "claude"
+	ExternalAgentKindCodex                ExternalAgentKind = "codex"
+	ExternalAgentKindChatgptDesktop       ExternalAgentKind = "chatgpt-desktop"
+	ExternalAgentKindClaudeDesktop        ExternalAgentKind = "claude-desktop"
+	ExternalAgentKindGithubCopilotCli     ExternalAgentKind = "github-copilot-cli"
+	ExternalAgentKindGithubCopilotDesktop ExternalAgentKind = "github-copilot-desktop"
 )
 
 func (e *ExternalAgentKind) Scan(src interface{}) error {

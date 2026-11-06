@@ -1,0 +1,16 @@
+{
+  "copilotCLI": "1.0.105 initially; native automatic update to 1.0.106 observed in final checks",
+  "claudeDesktop": "4.16336.0",
+  "chatGPTBundledCodex": "0.166.0-alpha.6",
+  "host": "Ubuntu 26.04.1 x86_64",
+  "kubernetes": "1.36.1",
+  "postgresql": "18.6",
+  "openbao": "2.7.2",
+  "chatGPTDesktopBuild": "24614; startup commit dc12db959b02ea9ad3c33337cba7fc2dfd931159",
+  "copilotCLIFinal": "1.0.106 (automatic updates disabled in final fixture suite)",
+  "artifactSHA256": {
+    "chatgpt": "e2f3574c75bed8496b25191143833cb19fbf67ecc0b0086719801954328628e9",
+    "claude": "ac20c2f43a7ad4cc49320575d6904a3c176e76d5bd4afa5a2a8863fdbd5b3e40",
+    "github-desktop-appimage": "89ffae20f2387c0a218c1e9e01b5eb4a63c37e69aa644b482901553668f4ccc5"
+  }
+}

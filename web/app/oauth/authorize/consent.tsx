@@ -1,5 +1,11 @@
 "use client"
 
+import {
+  externalAgentAPI,
+  externalAgentSupportsModel,
+  type ExternalAgentKind,
+} from "@/lib/external-agent-kinds"
+
 import { useEffect, useState, useTransition } from "react"
 import Image from "next/image"
 import { createAuthClient } from "better-auth/react"
@@ -59,7 +65,7 @@ const mcpKinds = ["tools", "prompts", "resources"] as const
 
 type ConsentProps = {
   request: DelegationRequest
-  client: { name: string; owner: string | null; callback: string; agent?: "claude" | "codex" }
+  client: { name: string; owner: string | null; callback: string; agent?: ExternalAgentKind }
   user: { name: string; email: string; image?: string | null }
   scopes: string[]
   organizations: { id: string; name: string }[]
@@ -352,16 +358,14 @@ export function Consent({
                           searchPlaceholder="Search models or providers…"
                           emptyMessage="No matching models."
                           options={catalog.models.map((model) => {
-                            const api = client.agent === "claude" ? "Messages" : "Responses"
                             const compatibility = client.agent
-                              ? model.api_compatibility?.find((item) => item.api === api)
+                              ? model.api_compatibility?.find(
+                                  (item) => item.api === externalAgentAPI(client.agent!, model)
+                                )
                               : undefined
-                            const codexUnsupported =
-                              client.agent === "codex" &&
-                              (compatibility?.support !== "native" ||
-                                !model.model_info?.capabilities.tool_call)
-                            const unsupported =
-                              compatibility?.support === "unsupported" || codexUnsupported
+                            const unsupported = client.agent
+                              ? !externalAgentSupportsModel(client.agent, model)
+                              : false
                             let badge = model.provider_display_name || model.provider
                             if (compatibility?.support === "native") badge = "Native"
                             if (compatibility?.support === "translated") badge = "Supported"

@@ -26,7 +26,7 @@ func main() {
 	command := &cli.Command{
 		Name:    "agentz",
 		Version: version,
-		Usage:   "Launch Claude or Codex through AgentZ",
+		Usage:   "Connect external agents through AgentZ",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:      "config",
@@ -42,15 +42,15 @@ func main() {
 		Commands: []*cli.Command{
 			{
 				Name:            "launch",
-				Usage:           "Launch Claude or Codex with native flags",
-				ArgsUsage:       "[claude|codex] [--profile NAME] [-- native flags]",
+				Usage:           "Launch a CLI or ChatGPT desktop, or export a desktop connection",
+				ArgsUsage:       "[claude|codex|chatgpt-desktop|claude-desktop|github-copilot-cli|github-copilot-desktop] [--profile NAME] [-- native flags]",
 				SkipFlagParsing: true,
 				Action:          launcher.Run,
 			},
 			{
 				Name:            "login",
-				Usage:           "Sign in to Codex through AgentZ",
-				ArgsUsage:       "[codex] [--profile NAME]",
+				Usage:           "Sign in to an external agent through AgentZ",
+				ArgsUsage:       "PROVIDER [--profile NAME] [-- --mcp]",
 				SkipFlagParsing: true,
 				Action:          launcher.Run,
 			},
@@ -59,6 +59,9 @@ func main() {
 				Usage: "Manage the local AgentZ relay",
 				Commands: []*cli.Command{
 					{Name: "serve", Hidden: true, Action: launcher.Run},
+					{Name: "headers", Hidden: true, Flags: []cli.Flag{
+						&cli.StringFlag{Name: "profile-directory", Required: true, TakesFile: true},
+					}, Action: launcher.Run},
 					{Name: "status", Action: launcher.Run},
 					{Name: "stop", Action: launcher.Run},
 				},

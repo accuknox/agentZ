@@ -5655,6 +5655,10 @@ components:
           enum:
           - claude
           - codex
+          - chatgpt-desktop
+          - claude-desktop
+          - github-copilot-cli
+          - github-copilot-desktop
           type: string
         client_id:
           type: string

@@ -13,10 +13,12 @@ import {
   queryOptions,
   useQuery,
 } from "@tanstack/react-query"
+import { externalAgentLabels } from "@/lib/external-agent-kinds"
 import { ClaudeAI, CodexLight } from "@ridemountainpig/svgl-react"
 import {
   ArrowUpRight,
   Brain,
+  BotIcon,
   Cable,
   CircleCheck,
   MoreHorizontal,
@@ -85,7 +87,11 @@ import {
 
 const agentKinds = {
   claude: { label: "Claude Code", icon: ClaudeAI },
-  codex: { label: "Codex", icon: CodexLight },
+  codex: { label: externalAgentLabels.codex, icon: CodexLight },
+  "chatgpt-desktop": { label: externalAgentLabels["chatgpt-desktop"], icon: CodexLight },
+  "claude-desktop": { label: externalAgentLabels["claude-desktop"], icon: ClaudeAI },
+  "github-copilot-cli": { label: externalAgentLabels["github-copilot-cli"], icon: BotIcon },
+  "github-copilot-desktop": { label: externalAgentLabels["github-copilot-desktop"], icon: BotIcon },
 } as const
 
 const layout = {
@@ -628,6 +634,8 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
 `
   const profile = `'${agent.name.replaceAll("'", os === "windows" ? "''" : "'\\''")}'`
   const launch = `agentz launch ${agent.kind} --profile ${profile} --`
+  const adapter = agent.kind === "claude-desktop" || agent.kind.startsWith("github-copilot-")
+  const desktop = agent.kind.endsWith("-desktop")
   const reconnect = agent.previouslyConnected && !agent.connected
   return (
     <FieldGroup className="p-4 pt-0">
@@ -641,7 +649,15 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
       <Field>
         <FieldLabel>1. Install the CLI</FieldLabel>
         <FieldDescription>
-          Requires {agent.kind === "claude" ? "Claude Code 2.1.299+" : "Codex 0.162.1+"}
+          Requires{" "}
+          {agent.kind === "claude"
+            ? "Claude Code 2.1.299+"
+            : agent.kind === "codex" || agent.kind === "chatgpt-desktop"
+              ? "Codex CLI 0.162.1+"
+              : agent.kind === "github-copilot-cli"
+                ? "GitHub Copilot CLI 1.0.105+"
+                : agentKinds[agent.kind].label}
+          {agent.kind === "chatgpt-desktop" ? " and ChatGPT desktop with gateway support" : ""}
         </FieldDescription>
         <Button variant="outline" asChild className="w-fit">
           <a
@@ -691,12 +707,14 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
         ) : null}
         <SetupCommand
           command={
-            reconnect && agent.kind === "codex" ? `agentz login codex --profile ${profile}` : launch
+            adapter || (reconnect && (agent.kind === "codex" || agent.kind === "chatgpt-desktop"))
+              ? `agentz login ${agent.kind} --profile ${profile}`
+              : launch
           }
           label="Copy launch command"
         />
         <FieldDescription>
-          Sign in and choose models. Skip this step if you only need MCP.
+          Sign in and choose the models this client may use.
         </FieldDescription>
       </Field>
       <Field>
@@ -707,9 +725,29 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
             label="Copy MCP registration command"
           />
         ) : null}
-        <SetupCommand command={`${launch} mcp login agentz`} label="Copy MCP login command" />
-        <FieldDescription>Choose tools, prompts and resources in the browser</FieldDescription>
+        <SetupCommand
+          command={
+            adapter
+              ? `agentz login ${agent.kind} --profile ${profile} -- --mcp`
+              : agent.kind === "chatgpt-desktop"
+                ? `agentz login chatgpt-desktop --profile ${profile} -- --mcp`
+                : `${launch} mcp login agentz`
+          }
+          label="Copy MCP login command"
+        />
+        <FieldDescription>Choose tools, prompts and resources in the browser.</FieldDescription>
       </Field>
+      {adapter ? (
+        <Field>
+          <FieldLabel>5. {desktop ? "Configure your desktop app" : "Launch Copilot"}</FieldLabel>
+          <SetupCommand command={launch} label="Copy setup command" />
+          <FieldDescription>
+            {desktop
+              ? "Exports native connection settings and starts the relay. Follow the printed import instructions in your app. Treat the exported local API key as a credential."
+              : "Launches Copilot with your approved model and AgentZ MCP connection in a separate profile."}
+          </FieldDescription>
+        </Field>
+      ) : null}
     </FieldGroup>
   )
 }

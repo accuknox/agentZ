@@ -1,3 +1,4 @@
+import { externalAgentKinds } from "@/lib/external-agent-kinds"
 import * as z from "zod"
 import ipaddr from "ipaddr.js"
 import {
@@ -26,7 +27,7 @@ export const delegationScopes = [
 
 export const externalAgentInput = z.object({
   name: z.string().trim().min(1, "Enter an agent name.").max(100, "Use 100 characters or fewer."),
-  kind: z.enum(["claude", "codex"]),
+  kind: z.enum(externalAgentKinds),
 })
 
 export const oauthApplicationInput = z

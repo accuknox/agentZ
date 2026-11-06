@@ -108,7 +108,7 @@ WITH operation AS (
     start_time, end_time, duration_ns, 'Agent turn', 'session', 'invoke_agent', status_code,
     session_id, turn_id, agent_kind
   FROM operation
-  WHERE agent_kind IN ('claude', 'codex') AND session_id <> '' AND turn_id <> ''
+  WHERE agent_kind <> '' AND session_id <> '' AND turn_id <> ''
   ON CONFLICT (organization_id, workspace_id, client_id, user_id, session_id, turn_id) WHERE resource_kind = 'turn'
   DO UPDATE SET
     start_time = LEAST(observer_app_operations.start_time, EXCLUDED.start_time),

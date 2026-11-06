@@ -613,8 +613,12 @@ const (
 
 // Defines values for LensAppAgentKind.
 const (
-	Claude LensAppAgentKind = "claude"
-	Codex  LensAppAgentKind = "codex"
+	Claude               LensAppAgentKind = "claude"
+	Codex                LensAppAgentKind = "codex"
+	ChatgptDesktop       LensAppAgentKind = "chatgpt-desktop"
+	ClaudeDesktop        LensAppAgentKind = "claude-desktop"
+	GithubCopilotCli     LensAppAgentKind = "github-copilot-cli"
+	GithubCopilotDesktop LensAppAgentKind = "github-copilot-desktop"
 )
 
 // Defines values for MCPConnectionLifecycle.

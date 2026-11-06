@@ -1,0 +1,5 @@
+ok  	github.com/accuknox/agentz/internal/launcher	1.483s
+ok  	github.com/accuknox/agentz/internal/gateway	3.107s
+ok  	github.com/accuknox/agentz/internal/observer	1.872s
+ok  	github.com/accuknox/agentz/internal/inference	2.191s
+ok  	github.com/accuknox/agentz/internal/authorization	1.047s

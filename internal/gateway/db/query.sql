@@ -3120,7 +3120,7 @@ WITH sessions AS (
  SELECT session_id, MAX(end_time)::timestamptz AS last_seen
  FROM observer_app_operations
  WHERE organization_id = sqlc.arg(organization_id) AND workspace_id = sqlc.arg(workspace_id)
-   AND client_id = sqlc.arg(client_id) AND agent_kind IN ('claude', 'codex')
+   AND client_id = sqlc.arg(client_id) AND agent_kind <> ''
    AND session_id <> '' AND run_id IS NULL AND resource_kind <> 'tool'
    AND (sqlc.arg(session_id)::text = '' OR session_id = sqlc.arg(session_id))
  GROUP BY session_id

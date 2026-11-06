@@ -1,0 +1,94 @@
+{
+  "boundary": "real AgentZ web/gateway, OAuth grant, Kubernetes data plane, live provider",
+  "results": [
+    {
+      "name": "approved-catalog",
+      "status": 200,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "name": "live-stream",
+      "status": 200,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "name": "unknown-model",
+      "status": 404,
+      "expected": [
+        404
+      ],
+      "passed": true
+    },
+    {
+      "name": "stored-response",
+      "status": 400,
+      "expected": [
+        400
+      ],
+      "passed": true
+    },
+    {
+      "name": "background",
+      "status": 400,
+      "expected": [
+        400
+      ],
+      "passed": true
+    },
+    {
+      "name": "stored-conversation",
+      "status": 400,
+      "expected": [
+        400
+      ],
+      "passed": true
+    },
+    {
+      "name": "previous-response",
+      "status": 400,
+      "expected": [
+        400
+      ],
+      "passed": true
+    },
+    {
+      "name": "provider-hosted-tool",
+      "status": 400,
+      "expected": [
+        400
+      ],
+      "passed": true
+    },
+    {
+      "name": "stored-file",
+      "status": 400,
+      "expected": [
+        400
+      ],
+      "passed": true
+    },
+    {
+      "name": "missing-authorization",
+      "status": 401,
+      "expected": [
+        401
+      ],
+      "passed": true
+    },
+    {
+      "name": "inference-token-cannot-use-mcp",
+      "status": 401,
+      "expected": [
+        401,
+        403
+      ],
+      "passed": true
+    }
+  ]
+}

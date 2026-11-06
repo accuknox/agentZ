@@ -498,7 +498,16 @@ export const zLensApp = z.object({
   client_id: z.string(),
   name: z.string(),
   user: zResourceActor.optional(),
-  agent_kind: z.enum(["claude", "codex"]).optional(),
+  agent_kind: z
+    .enum([
+      "claude",
+      "codex",
+      "chatgpt-desktop",
+      "claude-desktop",
+      "github-copilot-cli",
+      "github-copilot-desktop",
+    ])
+    .optional(),
 })
 
 export const zListLensAppsResponse = z.object({

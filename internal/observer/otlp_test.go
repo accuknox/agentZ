@@ -213,7 +213,7 @@ func BenchmarkAppOperationCapture(b *testing.B) {
 }
 
 func TestAppNativeIdentityRequiresRegistration(t *testing.T) {
-	for _, kind := range []string{"", "ordinary-app", "claude", "codex"} {
+	for _, kind := range []string{"", "ordinary-app", "claude", "codex", "chatgpt-desktop", "claude-desktop", "github-copilot-cli", "github-copilot-desktop"} {
 		t.Run(kind, func(t *testing.T) {
 			span := appSpanFixture(0)
 			labels := map[string]string{
@@ -233,7 +233,7 @@ func TestAppNativeIdentityRequiresRegistration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			registered := kind == "claude" || kind == "codex"
+			registered := kind != "" && kind != "ordinary-app"
 			if !registered {
 				if op.AgentKind != "" || op.SessionID != "" || op.TurnID != "" || op.ToolCallID != "" {
 					t.Fatal("unregistered metadata established native identity")

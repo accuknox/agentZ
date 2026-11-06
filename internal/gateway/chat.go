@@ -1175,10 +1175,14 @@ func (s *Service) UpdateChatSession(w http.ResponseWriter, r *http.Request, agen
 		return
 	}
 	if !result.Allowed {
+		message := "Wake or unarchive this chat before snoozing it"
+		if result.Protected {
+			message = "Pinned or locked chats cannot be archived or snoozed"
+		}
 		apiutil.WriteError(w, r, apiutil.NewError(
 			http.StatusConflict,
 			"invalid_transition",
-			"Wake or unarchive this chat before snoozing it",
+			message,
 			nil,
 		))
 		return

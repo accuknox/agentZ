@@ -3387,8 +3387,9 @@ LIMIT 2;
 -- name: GatewayUpdateChatSession :one
 WITH target AS MATERIALIZED (
   SELECT sessions.workspace_id, sessions.agent_name, sessions.session_id,
-    sessions.archived_at, sessions.snoozed_until,
-    (@shelf::text <> 'snoozed' OR (sessions.archived_at IS NULL AND (
+    sessions.archived_at, sessions.snoozed_until, sessions.pinned, sessions.locked,
+    (@shelf::text = 'active' OR NOT (sessions.pinned OR sessions.locked))
+    AND (@shelf::text <> 'snoozed' OR (sessions.archived_at IS NULL AND (
       sessions.snoozed_until IS NULL OR sessions.snoozed_until <= now()
       OR sessions.snoozed_until IS NOT DISTINCT FROM sqlc.narg(snoozed_until)::timestamptz
     ))) AS allowed
@@ -3425,6 +3426,7 @@ WITH target AS MATERIALIZED (
   LEFT JOIN coding_projects project ON project.id = tree.project_id
 )
 SELECT COALESCE(target.allowed::boolean, false)::boolean AS allowed,
+  (target.pinned OR target.locked)::boolean AS protected,
   (SELECT COUNT(*) FROM notified) AS notifications FROM target;
 
 -- name: GatewayExpireChatSessions :one
@@ -3443,6 +3445,7 @@ WITH RECURSIVE policies AS (
   JOIN chat_sessions sessions ON sessions.workspace_id = w.id
     AND sessions.agent_name = policies.agent_name
   WHERE policies.hours > 0 AND sessions.archived_at IS NULL
+    AND NOT sessions.pinned AND NOT sessions.locked
     AND sessions.parent_session_id IS NULL AND sessions.snoozed_until IS NULL
     AND sessions.status = 'idle'
     AND GREATEST(sessions.source_updated_at, sessions.resumed_at) < now() - make_interval(hours => policies.hours)
@@ -3475,6 +3478,7 @@ WITH RECURSIVE policies AS (
     AND (
       sessions.snoozed_until <= now()
       OR (sessions.snoozed_until IS NULL AND sessions.status = 'idle' AND candidates.hours > 0
+        AND NOT sessions.pinned AND NOT sessions.locked
         AND GREATEST(sessions.source_updated_at, sessions.resumed_at) < now() - make_interval(hours => candidates.hours)
         AND NOT EXISTS (SELECT 1 FROM active
           WHERE active.workspace_id = sessions.workspace_id

@@ -367,17 +367,23 @@ export async function getMcpGraphAction(
   workspaceId: string
 ): Promise<McpGraphActionResponse> {
   const client = getGatewayServerClient(workspaceId)
+  // MCP endpoints aggregate inclusive UTC dates; other Lens APIs use timestamps.
+  const dates = {
+    ...query,
+    from: dayjs.utc(query.from).format("YYYY-MM-DD"),
+    to: dayjs.utc(query.to).format("YYYY-MM-DD"),
+  }
   const result =
     subject.kind !== "agent"
       ? await getAppMcpGraph({
           path: { clientID: subject.clientID },
           query: {
-            ...query,
+            ...dates,
             session_id: subject.kind === "external-agent" ? subject.sessionId : undefined,
           },
           client,
         })
-      : await getMcpGraph({ path: { agentName: subject.name }, query, client })
+      : await getMcpGraph({ path: { agentName: subject.name }, query: dates, client })
   if (result.error) return { data: undefined, error: result.error }
   return { data: result.data, error: undefined }
 }

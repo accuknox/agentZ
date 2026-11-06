@@ -1,5 +1,7 @@
 "use client"
 
+import { chatSessionWatchOptions, threadStateOptions } from "./thread"
+
 import styles from "./composer.module.css"
 import { WorkGroup } from "./activity"
 import { ChatActivityContext, ChatFollowUpContext } from "./display"
@@ -109,6 +111,7 @@ import {
   type QueryKey,
 } from "@tanstack/react-query"
 import {
+  LockKeyhole,
   CheckIcon,
   ChevronDownIcon,
   DownloadIcon,
@@ -1676,7 +1679,16 @@ export default function Chat({
       profiles.set(user.id, { id: user.id, name: user.name, image: user.image ?? null })
     return profiles
   }, [actorProfilesQuery.data, authSession?.user])
+  const threadUserId = authSession?.user.id ?? ""
+  const thread = useQuery(threadStateOptions(workspaceId, agentName, sessionId ?? "", threadUserId))
+  useQuery({
+    ...chatSessionWatchOptions(workspaceId, threadUserId),
+    enabled: Boolean(sessionId && threadUserId),
+    notifyOnChangeProps: [],
+  })
+  const lockedOut = !coding && thread.data?.locked && !thread.data.is_participant
   const inputDisabled =
+    lockedOut ||
     sessionUnavailable ||
     agentReadiness.isGettingReady ||
     navigationPending ||
@@ -2187,6 +2199,14 @@ export default function Chat({
                   </Button>
                 </div>
               </div>
+            ) : null}
+            {lockedOut ? (
+              <Alert className="mb-3">
+                <LockKeyhole aria-hidden />
+                <AlertDescription>
+                  This chat is locked. You can read it, but not participate.
+                </AlertDescription>
+              </Alert>
             ) : null}
             <ChatPromptInput
               key={queueEdit?.id ?? "composer"}

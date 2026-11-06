@@ -226,7 +226,12 @@ func (s *Service) SubmitChatInput(w http.ResponseWriter, r *http.Request, agent 
 	}
 	defer release()
 	// Deletion can commit while admission waits for the lock.
-	if _, _, err := s.authorizeChat(r.Context(), access, agent, session); err != nil {
+	root, _, err := s.authorizeChat(r.Context(), access, agent, session)
+	if err != nil {
+		apiutil.WriteError(w, r, mapGatewayStoreError("submit message", err))
+		return
+	}
+	if err := s.guardThread(r.Context(), access, root, false); err != nil {
 		apiutil.WriteError(w, r, mapGatewayStoreError("submit message", err))
 		return
 	}

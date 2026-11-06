@@ -188,7 +188,7 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 	input := false
 	switch route.ID {
 	case "session.prompt", "session.prompt_async", "session.command",
-		"session.shell", "v2.session.prompt":
+		"session.shell", "session.init", "v2.session.prompt":
 		input = true
 		ctx, release, err := gatewayLocks(r.Context(), s.lockDB)
 		if err != nil {
@@ -244,6 +244,14 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 			release()
 			apiutil.WriteError(w, r, mapGatewayStoreError("get conversation", guardErr))
 			return
+		}
+		if input || route.ID == "session.delete" {
+			guardErr := s.guardThread(r.Context(), access, root, route.ID == "session.delete")
+			if guardErr != nil {
+				release()
+				apiutil.WriteError(w, r, mapGatewayStoreError("update chat", guardErr))
+				return
+			}
 		}
 		if route.ID == "session.delete" && eligible && root.SessionID == sessionID {
 			_, err := s.queries.GatewayMarkChatDeleting(r.Context(), gatewaydb.GatewayMarkChatDeletingParams{

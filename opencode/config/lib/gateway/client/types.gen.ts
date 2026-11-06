@@ -300,11 +300,23 @@ export type DelegationCatalog = {
 
 export type ChatSessionKind = "chat" | "workflow_run"
 
-export type ChatSessionShelf = "active" | "archived" | "snoozed"
+export type ChatSessionShelf = "active" | "archived" | "snoozed" | "pinned"
 
 export type UpdateChatSessionRequest = {
-  shelf: ChatSessionShelf
+  pinned?: boolean
+  locked?: boolean
+  expected_version?: number
+  shelf?: ChatSessionShelf
   snoozed_until?: string
+}
+
+export type ChatSessionState = {
+  pinned: boolean
+  locked: boolean
+  version: number
+  is_participant: boolean
+  changed_at?: string
+  actor?: ResourceActor
 }
 
 export type ChatSessionStatus = "idle" | "busy" | "retry"
@@ -331,6 +343,7 @@ export type ChatBackground = {
 }
 
 export type ChatSession = {
+  state: ChatSessionState
   /**
    * Whether a workflow schedule delivers results to this thread, including paused schedules.
    */
@@ -5106,6 +5119,44 @@ export type ListChatBackgroundResponses = {
 
 export type ListChatBackgroundResponse =
   ListChatBackgroundResponses[keyof ListChatBackgroundResponses]
+
+export type GetChatSessionStateData = {
+  body?: never
+  path: {
+    agentName: string
+    sessionId: string
+  }
+  query?: never
+  url: "/api/chat-session/{agentName}/{sessionId}"
+}
+
+export type GetChatSessionStateErrors = {
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Requested resource was not found. For tenant-gated APIs this can also mean the current tenant is not initialized and the error code is `tenant_not_found`.
+   *
+   */
+  404: Error
+  /**
+   * Unexpected server error.
+   */
+  500: Error
+}
+
+export type GetChatSessionStateError = GetChatSessionStateErrors[keyof GetChatSessionStateErrors]
+
+export type GetChatSessionStateResponses = {
+  /**
+   * Authorized thread state.
+   */
+  200: ChatSessionState
+}
+
+export type GetChatSessionStateResponse =
+  GetChatSessionStateResponses[keyof GetChatSessionStateResponses]
 
 export type UpdateChatSessionData = {
   body: UpdateChatSessionRequest

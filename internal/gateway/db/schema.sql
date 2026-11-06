@@ -21,6 +21,11 @@ CREATE TYPE chat_session_status AS ENUM('idle', 'busy', 'retry');
 CREATE TYPE chat_session_group_by AS ENUM('none', 'agent', 'status', 'date', 'project');
 
 CREATE TABLE chat_sessions (
+  pinned boolean NOT NULL DEFAULT false,
+  locked boolean NOT NULL DEFAULT false,
+  state_version bigint NOT NULL DEFAULT 0,
+  state_changed_by text REFERENCES users(id) ON DELETE SET NULL,
+  state_changed_at timestamptz,
   workspace_id TEXT NOT NULL,
   agent_name TEXT NOT NULL,
   session_id TEXT NOT NULL,

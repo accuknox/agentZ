@@ -161,6 +161,9 @@ import type {
   GetChatSessionPreferenceData,
   GetChatSessionPreferenceErrors,
   GetChatSessionPreferenceResponses,
+  GetChatSessionStateData,
+  GetChatSessionStateErrors,
+  GetChatSessionStateResponses,
   GetCodingOperationData,
   GetCodingOperationErrors,
   GetCodingOperationResponses,
@@ -966,7 +969,7 @@ export const watchCoding = <ThrowOnError extends boolean = false>(
 /**
  * List the current Workspace chat inbox.
  *
- * Returns root sessions in descending update order. Participant filters use ALL semantics and are evaluated by the database before pagination.
+ * Returns root sessions in descending update order. Participant filters use ALL semantics and are evaluated by the database before pagination. The pinned shelf includes shared pins and the viewer's locked conversations, regardless of archive or snooze state, and always returns an ungrouped list. These conversations are excluded from the other shelves for that viewer.
  *
  */
 export const listChatSessions = <ThrowOnError extends boolean = false>(
@@ -995,9 +998,25 @@ export const listChatBackground = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Move a session between inbox shelves.
+ * Read shared thread pin and lock state.
+ */
+export const getChatSessionState = <ThrowOnError extends boolean = false>(
+  options: Options<GetChatSessionStateData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    GetChatSessionStateResponses,
+    GetChatSessionStateErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/chat-session/{agentName}/{sessionId}",
+    ...options,
+  })
+
+/**
+ * Update a thread shelf, shared pin, or lock.
  *
- * Active sessions can be snoozed or archived. Snoozed sessions can be woken or archived. Archived sessions must be unarchived before snoozing. Repeating an identical update succeeds without changing activity times.
+ * Active sessions can be snoozed or archived. Snoozed sessions can be woken or archived. Archived sessions must be unarchived before snoozing. Pinned or locked threads cannot be archived or snoozed and are excluded from automatic archival. Existing archived or snoozed threads can still be restored. Repeating an identical permitted update succeeds without changing activity times. Pin and lock updates require expected_version and cannot be combined with shelf changes. Pins are shared across authorized users. Locking independently pins a thread for its participants. Removing a shared pin while locked unpins the thread only for non-participants. Locked threads cannot be deleted, and only existing participants can submit new messages or unlock them. Coding threads support shared pins only.
  *
  */
 export const updateChatSession = <ThrowOnError extends boolean = false>(

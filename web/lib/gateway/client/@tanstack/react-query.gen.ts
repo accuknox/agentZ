@@ -60,6 +60,7 @@ import {
   getAppOperation,
   getAppTraceChart,
   getChatSessionPreference,
+  getChatSessionState,
   getCodingOperation,
   getCodingProject,
   getCodingThread,
@@ -341,6 +342,9 @@ import type {
   GetChatSessionPreferenceData,
   GetChatSessionPreferenceError,
   GetChatSessionPreferenceResponse,
+  GetChatSessionStateData,
+  GetChatSessionStateError,
+  GetChatSessionStateResponse,
   GetCodingOperationData,
   GetCodingOperationError,
   GetCodingOperationResponse,
@@ -1480,7 +1484,7 @@ export const listChatSessionsQueryKey = (options?: Options<ListChatSessionsData>
 /**
  * List the current Workspace chat inbox.
  *
- * Returns root sessions in descending update order. Participant filters use ALL semantics and are evaluated by the database before pagination.
+ * Returns root sessions in descending update order. Participant filters use ALL semantics and are evaluated by the database before pagination. The pinned shelf includes shared pins and the viewer's locked conversations, regardless of archive or snooze state, and always returns an ungrouped list. These conversations are excluded from the other shelves for that viewer.
  *
  */
 export const listChatSessionsOptions = (options?: Options<ListChatSessionsData>) =>
@@ -1527,10 +1531,35 @@ export const listChatBackgroundOptions = (options: Options<ListChatBackgroundDat
     queryKey: listChatBackgroundQueryKey(options),
   })
 
+export const getChatSessionStateQueryKey = (options: Options<GetChatSessionStateData>) =>
+  createQueryKey("getChatSessionState", options)
+
 /**
- * Move a session between inbox shelves.
+ * Read shared thread pin and lock state.
+ */
+export const getChatSessionStateOptions = (options: Options<GetChatSessionStateData>) =>
+  queryOptions<
+    GetChatSessionStateResponse,
+    GetChatSessionStateError,
+    GetChatSessionStateResponse,
+    ReturnType<typeof getChatSessionStateQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getChatSessionState({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getChatSessionStateQueryKey(options),
+  })
+
+/**
+ * Update a thread shelf, shared pin, or lock.
  *
- * Active sessions can be snoozed or archived. Snoozed sessions can be woken or archived. Archived sessions must be unarchived before snoozing. Repeating an identical update succeeds without changing activity times.
+ * Active sessions can be snoozed or archived. Snoozed sessions can be woken or archived. Archived sessions must be unarchived before snoozing. Pinned or locked threads cannot be archived or snoozed and are excluded from automatic archival. Existing archived or snoozed threads can still be restored. Repeating an identical permitted update succeeds without changing activity times. Pin and lock updates require expected_version and cannot be combined with shelf changes. Pins are shared across authorized users. Locking independently pins a thread for its participants. Removing a shared pin while locked unpins the thread only for non-participants. Locked threads cannot be deleted, and only existing participants can submit new messages or unlock them. Coding threads support shared pins only.
  *
  */
 export const updateChatSessionMutation = (

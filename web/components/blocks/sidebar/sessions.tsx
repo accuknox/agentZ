@@ -11,7 +11,6 @@ import Link from "next/link"
 import { useRouter } from "@bprogress/next/app"
 import { GitHubDark, GitHubLight } from "@ridemountainpig/svgl-react"
 import {
-  experimental_streamedQuery as streamedQuery,
   infiniteQueryOptions,
   hashKey,
   queryOptions,
@@ -48,6 +47,10 @@ import {
   Settings2,
   SquarePen,
   Trash2,
+  Pin,
+  PinOff,
+  LockKeyhole,
+  LockKeyholeOpen,
   Users,
   X,
   CircleAlert,
@@ -72,6 +75,8 @@ import { authClient } from "@/lib/auth-client"
 import { codingGitOptions, codingThreadOptions } from "@/lib/coding/review"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { sessionDrafts, useSessionDrafts, type SessionDraft } from "@/components/blocks/chat/drafts"
+
+import { chatSessionWatchOptions, threadStateOptions } from "@/components/blocks/chat/thread"
 
 import { deleteAgentSessionAction } from "@/data/opencode.actions"
 import type { DeleteSessionFormState, ListAgentActionResponse, WorkspacePath } from "@/data/types"
@@ -151,7 +156,6 @@ import {
   getCodingThread,
   listCodingProjects,
   updateChatSessionPreference,
-  watchChatSessions,
   type CodingProject,
   type ChatSession,
   type ChatSessionGroup,
@@ -160,7 +164,6 @@ import {
   type AgentStatus,
   type Workspace,
   type ListChatSessionsResponse,
-  type WatchChatSessionsEvent,
 } from "@/lib/gateway/client"
 
 type PreferenceMutation = {
@@ -176,6 +179,7 @@ type NavSessionsProps = {
   agents: ListAgentActionResponse
   initialPreferences: ChatSessionPreference
   initialSessions: ListChatSessionsResponse
+  initialPinnedSessions?: ListChatSessionsResponse
   workspaceId: string
   workspacePath: WorkspacePath
 }
@@ -338,6 +342,7 @@ export function NavSessions({
   agents,
   initialPreferences,
   initialSessions,
+  initialPinnedSessions,
   workspaceId,
   workspaceType,
   workspacePath,
@@ -359,6 +364,7 @@ export function NavSessions({
             agents={agents}
             initialPreferences={initialPreferences}
             initialSessions={initialSessions}
+            initialPinnedSessions={initialPinnedSessions}
             workspaceId={workspaceId}
             workspacePath={workspacePath}
             projectActions={actions}
@@ -374,6 +380,7 @@ export function NavSessions({
       agents={agents}
       initialPreferences={initialPreferences}
       initialSessions={initialSessions}
+      initialPinnedSessions={initialPinnedSessions}
       workspaceId={workspaceId}
       workspacePath={workspacePath}
     />
@@ -417,6 +424,7 @@ function NavSessionsContent({
   agents,
   initialPreferences,
   initialSessions,
+  initialPinnedSessions,
   workspaceId,
   workspaceType,
   workspacePath,
@@ -590,6 +598,36 @@ function NavSessionsContent({
         ? { pages: [{ ...initialSessions, search: "" }], pageParams: [undefined] }
         : undefined,
   })
+  const pinned = useInfiniteQuery({
+    ...chatSessionsOptions(
+      workspaceId,
+      { ...preferences, group_by: "none" },
+      querySearch,
+      timeZone,
+      undefined,
+      undefined,
+      userId,
+      "pinned"
+    ),
+    enabled:
+      trimmedSearch === querySearch &&
+      (searchLength === 0 || (searchLength >= 3 && searchLength <= 200)),
+    initialData:
+      !watch.data &&
+      path === initialPath &&
+      matchesInitialPreferences &&
+      querySearch === "" &&
+      initialPinnedSessions
+        ? { pages: [{ ...initialPinnedSessions, search: "" }], pageParams: [undefined] }
+        : undefined,
+  })
+  const pinnedSessions = pinned.data?.pages.flatMap((page) => page.sessions) ?? []
+  const activePinned = pinnedSessions.some(
+    (session) => session.agent_name === activeAgentName && session.session_id === activeSessionId
+  )
+  const pinnedList = useSessionListMotion(
+    pinnedSessions.map((session) => `${session.agent_name}:${session.session_id}`).join("\0")
+  )
   const mutation = useMutation({
     scope: { id: `chat-preferences:${userId}:${workspaceId}` },
     mutationFn: async ({ next, key }: PreferenceMutation) => {
@@ -696,6 +734,9 @@ function NavSessionsContent({
   const searchTooLong = searchLength > 200
   const searchInvalid = searchTooShort || searchTooLong
   const searchSettling = searchLength >= 3 && searchLength <= 200 && trimmedSearch !== querySearch
+  let emptyMessage = "No active chats"
+  if (querySearch !== "" || activeFilterCount > 0) emptyMessage = "No matching chats"
+  if (searchSettling || sessions.isPlaceholderData) emptyMessage = "Searching chats..."
   const list = useSessionListMotion(
     rows.map((session) => `${session.agent_name}:${session.session_id}`).join("\0"),
     preferences.group_by === "none" && !sessions.isPending && !searchInvalid
@@ -1007,6 +1048,46 @@ function NavSessionsContent({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+        <AnimatePresence initial={false}>
+          {searchOpen ? (
+            <ExpandingSearch className="relative px-(--sidebar-content-inset) pb-1">
+              <Search
+                aria-hidden="true"
+                className="absolute top-2 left-[calc(var(--sidebar-content-inset)+0.625rem)] size-4 text-sidebar-muted-foreground"
+              />
+              <Input
+                aria-controls="chat-session-results"
+                aria-label="Search chat titles"
+                className="h-8 border-sidebar-border bg-sidebar-control-surface pr-8 pl-8"
+                onChange={(event) => setSearchText(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Escape") return
+                  setSearchOpen(false)
+                  setSearchText("")
+                  setSearch("")
+                  searchTrigger.current?.focus({ preventScroll: true })
+                }}
+                placeholder="Search chats"
+                ref={searchInput}
+                value={searchText}
+              />
+              <Button
+                aria-label="Clear search"
+                className="absolute top-0 right-(--sidebar-content-inset) size-8 text-sidebar-muted-foreground hover:text-sidebar-accent-foreground"
+                onClick={() => {
+                  setSearchOpen(false)
+                  setSearchText("")
+                  setSearch("")
+                  searchTrigger.current?.focus({ preventScroll: true })
+                }}
+                size="icon-sm"
+                variant="ghost"
+              >
+                <X aria-hidden="true" />
+              </Button>
+            </ExpandingSearch>
+          ) : null}
+        </AnimatePresence>
         {drafts.length > 0 ? (
           <ul
             aria-label="Unsent drafts"
@@ -1091,46 +1172,51 @@ function NavSessionsContent({
             ))}
           </ul>
         ) : null}
-        <AnimatePresence initial={false}>
-          {searchOpen ? (
-            <ExpandingSearch className="relative px-(--sidebar-content-inset) pb-1">
-              <Search
-                aria-hidden="true"
-                className="absolute top-2 left-[calc(var(--sidebar-content-inset)+0.625rem)] size-4 text-sidebar-muted-foreground"
-              />
-              <Input
-                aria-controls="chat-session-results"
-                aria-label="Search chat titles"
-                className="h-8 border-sidebar-border bg-sidebar-control-surface pr-8 pl-8"
-                onChange={(event) => setSearchText(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key !== "Escape") return
-                  setSearchOpen(false)
-                  setSearchText("")
-                  setSearch("")
-                  searchTrigger.current?.focus({ preventScroll: true })
-                }}
-                placeholder="Search chats"
-                ref={searchInput}
-                value={searchText}
-              />
-              <Button
-                aria-label="Clear search"
-                className="absolute top-0 right-(--sidebar-content-inset) size-8 text-sidebar-muted-foreground hover:text-sidebar-accent-foreground"
-                onClick={() => {
-                  setSearchOpen(false)
-                  setSearchText("")
-                  setSearch("")
-                  searchTrigger.current?.focus({ preventScroll: true })
-                }}
-                size="icon-sm"
+        {pinnedSessions.length > 0 || pinned.isError ? (
+          <section
+            aria-label="Pinned chats"
+            className="mx-(--sidebar-content-inset) mb-2 shrink-0 border-b border-sidebar-border pb-2"
+          >
+            <div className="flex h-8 items-center gap-2 px-(--sidebar-row-content-inset) text-xs font-medium text-sidebar-muted-foreground">
+              <Pin aria-hidden className="size-3.5" />
+              Pinned
+            </div>
+            {pinned.isError ? (
+              <p className="px-2 py-2 text-xs text-destructive">
+                Could not load pinned chats.{" "}
+                <button type="button" className="underline" onClick={() => void pinned.refetch()}>
+                  Retry
+                </button>
+              </p>
+            ) : null}
+            <ul ref={pinnedList} className="relative flex min-w-0 flex-col gap-0.5">
+              {pinnedSessions.map((session) => (
+                <SessionCard
+                  key={`${session.agent_name}:${session.session_id}`}
+                  userId={userId}
+                  session={session}
+                  active={
+                    activeAgentName === session.agent_name && activeSessionId === session.session_id
+                  }
+                  workspaceId={workspaceId}
+                  workspaceType={workspaceType}
+                  workspacePath={workspacePath}
+                />
+              ))}
+            </ul>
+            {pinned.hasNextPage ? (
+              <LoadingButton
                 variant="ghost"
+                size="sm"
+                className="w-full"
+                pending={pinned.isFetchingNextPage}
+                onClick={() => void pinned.fetchNextPage()}
               >
-                <X aria-hidden="true" />
-              </Button>
-            </ExpandingSearch>
-          ) : null}
-        </AnimatePresence>
+                Load more pinned chats
+              </LoadingButton>
+            ) : null}
+          </section>
+        ) : null}
 
         <div
           aria-busy={
@@ -1169,18 +1255,6 @@ function NavSessionsContent({
               <CircleAlert aria-hidden="true" />
               <AlertDescription>Could not load chats</AlertDescription>
             </Alert>
-          ) : null}
-          {!searchInvalid &&
-          !sessions.isPending &&
-          preferences.group_by === "none" &&
-          rows.length === 0 &&
-          drafts.length === 0 ? (
-            <div className="px-2 py-8 text-center text-sm text-sidebar-muted-foreground">
-              <Users className="mx-auto mb-2 size-5 opacity-60" aria-hidden="true" />
-              {searchSettling || sessions.isPlaceholderData
-                ? "Searching chats..."
-                : "No chats found"}
-            </div>
           ) : null}
           <ul ref={list} className="relative flex min-w-0 flex-col gap-0.5">
             {preferences.group_by === "none" && !searchInvalid
@@ -1252,9 +1326,10 @@ function NavSessionsContent({
                   open={
                     group.project
                       ? (projectExpansion[group.project.id] ??
-                        (group.contains_active || query.get("project") === group.project.id))
+                        ((group.contains_active && !activePinned) ||
+                          query.get("project") === group.project.id))
                       : (groupExpansion.get(`${group.group_by}:${group.key}`) ??
-                        group.contains_active)
+                        (group.contains_active && !activePinned))
                   }
                   path={path}
                   preferences={preferences}
@@ -1266,16 +1341,17 @@ function NavSessionsContent({
                 />
               ))
             : null}
-          {!sessions.isPending &&
-          !searchInvalid &&
-          preferences.group_by !== "none" &&
-          groups.length === 0 &&
-          drafts.length === 0 ? (
+          {!searchInvalid &&
+          !sessions.isPending &&
+          !sessions.isError &&
+          !pinned.isPending &&
+          !pinned.isError &&
+          pinnedSessions.length === 0 &&
+          drafts.length === 0 &&
+          (preferences.group_by === "none" ? rows.length === 0 : groups.length === 0) ? (
             <div className="px-2 py-8 text-center text-sm text-sidebar-muted-foreground">
               <Users className="mx-auto mb-2 size-5 opacity-60" aria-hidden="true" />
-              {searchSettling || sessions.isPlaceholderData
-                ? "Searching chats..."
-                : "No chats found"}
+              {emptyMessage}
             </div>
           ) : null}
           {preferences.group_by === "none" &&
@@ -1340,7 +1416,7 @@ function SessionShelf({
   workspacePath,
   path,
 }: Pick<NavSessionsProps, "userId" | "workspaceId" | "workspaceType" | "workspacePath"> & {
-  shelf: Exclude<ChatSessionShelf, "active">
+  shelf: "snoozed" | "archived"
   count: number
   preferences: ChatSessionPreference
   search: string
@@ -1676,7 +1752,7 @@ function SessionGroup({
           {!pages.isPending && !pages.isError && sessions.length === 0 ? (
             <SidebarMenuSubItem>
               <p className="px-2 py-3 text-sm text-sidebar-muted-foreground">
-                {search ? "No matching chats" : "No chats yet"}
+                {search ? "No matching chats" : "No other chats"}
               </p>
             </SidebarMenuSubItem>
           ) : null}
@@ -2203,6 +2279,12 @@ function SessionCardView({
   workspaceType: Workspace["type"]
   workspacePath: WorkspacePath
 }) {
+  const pinned = session.state.pinned || (session.state.locked && session.state.is_participant)
+  const shelvingDisabled = session.state.pinned || session.state.locked
+  const shelvingHint = session.state.locked ? "Unlock first" : "Unpin first"
+  let pinAction = "Pin for everyone"
+  if (session.state.pinned) pinAction = "Unpin for everyone"
+  if (session.state.pinned && session.state.locked) pinAction = "Unpin for non-participants"
   const coding = workspaceType === "coding"
   const href =
     `${workspacePath}/agents/${encodeURIComponent(session.agent_name)}/sessions/${encodeURIComponent(session.session_id)}` as Route
@@ -2210,6 +2292,8 @@ function SessionCardView({
   const queryClient = useQueryClient()
   const [pendingState, action, isPending] = useActionState<DeleteSessionFormState, FormData>(
     async (state, formData) => {
+      if (session.state.locked)
+        return { error: { code: "thread_locked", message: "Unlock this chat before deleting it" } }
       const result = await deleteAgentSessionAction(
         session.agent_name,
         workspaceId,
@@ -2249,29 +2333,55 @@ function SessionCardView({
           sessionID: session.session_id,
           title: change.title,
         })
-        if (result.error) throw result.error
+        if (result.error) throw new Error("Could not rename chat. Try again.")
         return
       }
       const result = await updateChatSession({
         baseUrl: await getGatewayBaseURL(),
         headers: { "X-AgentZ-Workspace-ID": workspaceId },
         path: { agentName: session.agent_name, sessionId: session.session_id },
-        body: change,
+        body:
+          "pinned" in change || "locked" in change
+            ? { ...change, expected_version: session.state.version }
+            : change,
       })
-      if (result.error) throw result.error
+      if (result.error) throw new Error(result.error.message)
     },
     onSuccess: async (_, change) => {
       setRenaming(false)
       // SSE may already have populated the destination before this acknowledgement.
-      if ("shelf" in change)
+      if ("shelf" in change && !pinned)
         await removeChatSessionFromCache(queryClient, workspaceId, session, change.shelf)
-      void queryClient.invalidateQueries({ queryKey: chatSessionKeys.workspace(workspaceId) })
-      void queryClient.invalidateQueries({
-        queryKey: sessionInfoQueryOptions(session.agent_name, workspaceId, session.session_id)
-          .queryKey,
-      })
+      if ("title" in change)
+        void queryClient.invalidateQueries({
+          queryKey: sessionInfoQueryOptions(session.agent_name, workspaceId, session.session_id)
+            .queryKey,
+        })
     },
-    onError: () => toast.error("Could not update chat. Try again."),
+    onError: (error) => toast.error(error.message),
+    onSettled: (_, _error, change) => {
+      const stateChange = "pinned" in change || "locked" in change
+      const refresh = Promise.all([
+        queryClient.invalidateQueries(
+          { queryKey: chatSessionKeys.workspace(workspaceId) },
+          { cancelRefetch: !stateChange }
+        ),
+        stateChange
+          ? queryClient.invalidateQueries(
+              {
+                queryKey: threadStateOptions(
+                  workspaceId,
+                  session.agent_name,
+                  session.session_id,
+                  userId
+                ).queryKey,
+              },
+              { cancelRefetch: false }
+            )
+          : undefined,
+      ])
+      return stateChange ? refresh : undefined
+    },
   })
   const { setOpenMobile } = useSidebar()
   const openSession = (event: MouseEvent<HTMLAnchorElement>) => {
@@ -2344,6 +2454,33 @@ function SessionCardView({
     </span>
   )
 
+  const indicators = (
+    <>
+      {pinned ? (
+        <span
+          className="pointer-events-auto relative shrink-0"
+          title={
+            session.state.pinned
+              ? "Pinned for everyone with access"
+              : "Automatically pinned for participants"
+          }
+        >
+          <Pin aria-label="Pinned chat" className="size-3 shrink-0 text-primary" />
+        </span>
+      ) : null}
+      {session.state.locked ? (
+        <span
+          className="pointer-events-auto relative shrink-0"
+          title="Locked. Only participants can unlock this chat. Unlock before deleting or adding participants."
+        >
+          <LockKeyhole
+            aria-label="Locked chat"
+            className="size-3 shrink-0 text-sidebar-muted-foreground"
+          />
+        </span>
+      ) : null}
+    </>
+  )
   const status = (
     <SessionStatus
       key={session.woke_at}
@@ -2448,6 +2585,7 @@ function SessionCardView({
               >
                 {sessionTitle}
                 {subscription}
+                {indicators}
               </span>
               <span className="shrink-0 text-xs text-sidebar-muted-foreground tabular-nums group-focus-within/session:hidden group-hover/session:hidden [@media(hover:none)]:hidden">
                 {status}
@@ -2477,6 +2615,9 @@ function SessionCardView({
                 <span className="min-w-0 flex-1 truncate font-semibold">
                   {showAgent ? session.agent_name : null}
                 </span>
+                {session.archived && pinned ? (
+                  <Archive aria-label="Archived chat" className="size-3 shrink-0" />
+                ) : null}
                 <span className="flex min-w-18 shrink-0 items-center justify-end tabular-nums">
                   {status}
                 </span>
@@ -2491,6 +2632,7 @@ function SessionCardView({
                 >
                   {sessionTitle}
                   {subscription}
+                  {indicators}
                 </h3>
                 {avatars}
               </div>
@@ -2521,6 +2663,25 @@ function SessionCardView({
           </ContextMenuItem>
           <ContextMenuItem
             disabled={edit.isPending}
+            onSelect={() => edit.mutate({ pinned: !session.state.pinned })}
+          >
+            {session.state.pinned ? <PinOff /> : <Pin />}
+            {pinAction}
+          </ContextMenuItem>
+          {!coding ? (
+            <ContextMenuItem
+              disabled={edit.isPending || (session.state.locked && !session.state.is_participant)}
+              onSelect={() => edit.mutate({ locked: !session.state.locked })}
+            >
+              {session.state.locked ? <LockKeyholeOpen /> : <LockKeyhole />}
+              {session.state.locked ? "Unlock" : "Lock"}
+              {session.state.locked && !session.state.is_participant ? (
+                <span className="ml-auto text-xs text-muted-foreground">Participants only</span>
+              ) : null}
+            </ContextMenuItem>
+          ) : null}
+          <ContextMenuItem
+            disabled={edit.isPending}
             onSelect={() => {
               renameCancelled.current = false
               renameRequested.current = true
@@ -2531,11 +2692,14 @@ function SessionCardView({
             Rename
           </ContextMenuItem>
           <ContextMenuItem
-            disabled={edit.isPending}
+            disabled={edit.isPending || (!session.archived && shelvingDisabled)}
             onSelect={() => edit.mutate({ shelf: session.archived ? "active" : "archived" })}
           >
             {session.archived ? <ArchiveRestore /> : <Archive />}
             {session.archived ? "Unarchive" : "Archive"}
+            {!session.archived && shelvingDisabled ? (
+              <span className="ml-auto text-xs text-muted-foreground">{shelvingHint}</span>
+            ) : null}
           </ContextMenuItem>
           {snoozed ? (
             <ContextMenuItem
@@ -2547,9 +2711,12 @@ function SessionCardView({
             </ContextMenuItem>
           ) : !session.archived ? (
             <ContextMenuSub>
-              <ContextMenuSubTrigger disabled={edit.isPending}>
+              <ContextMenuSubTrigger disabled={edit.isPending || shelvingDisabled}>
                 <AlarmClock />
                 Snooze
+                {shelvingDisabled ? (
+                  <span className="ml-auto text-xs text-muted-foreground">{shelvingHint}</span>
+                ) : null}
               </ContextMenuSubTrigger>
               <ContextMenuSubContent>
                 <ContextMenuGroup>
@@ -2572,7 +2739,12 @@ function SessionCardView({
               </ContextMenuSubContent>
             </ContextMenuSub>
           ) : null}
-          <ContextMenuItem variant="destructive" onSelect={() => setConfirmingDelete(true)}>
+          <ContextMenuItem
+            variant="destructive"
+            disabled={session.state.locked}
+            title={session.state.locked ? "Unlock this chat before deleting it" : undefined}
+            onSelect={() => setConfirmingDelete(true)}
+          >
             <Trash2 />
             Delete chat
           </ContextMenuItem>
@@ -2612,6 +2784,7 @@ function SessionCardView({
               <input name="sessionID" type="hidden" value={session.session_id} />
               <LoadingButton
                 pending={isPending}
+                disabled={session.state.locked}
                 pendingLabel="Deleting..."
                 type="submit"
                 variant="destructive"
@@ -2632,36 +2805,3 @@ const SessionCard = memo(
   SessionCardView,
   (previous, next) => replaceEqualDeep(previous, next) === previous
 )
-
-function chatSessionWatchOptions(workspaceId: string, userId: string) {
-  return queryOptions({
-    queryKey: ["watchChatSessions", workspaceId, userId],
-    queryFn: streamedQuery<WatchChatSessionsEvent, number, ["watchChatSessions", string, string]>({
-      initialValue: 0,
-      refetchMode: "append",
-      reducer: (revision) => revision + 1,
-      streamFn: async function* ({ signal, client }) {
-        const result = await watchChatSessions({
-          baseUrl: await getGatewayBaseURL(),
-          headers: { "X-AgentZ-Workspace-ID": workspaceId },
-          signal,
-        })
-        for await (const event of result.stream) {
-          if (event.revision === "0") {
-            void client.invalidateQueries({
-              queryKey: watchAgentsQueryOptions(workspaceId).queryKey,
-            })
-          }
-          yield event
-        }
-        if (!signal.aborted) throw new Error("Chat session watch closed")
-      },
-    }),
-    refetchOnMount: "always",
-    refetchOnReconnect: "always",
-    refetchOnWindowFocus: false,
-    retry: true,
-    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
-    staleTime: Infinity,
-  })
-}

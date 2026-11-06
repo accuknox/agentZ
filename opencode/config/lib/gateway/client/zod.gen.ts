@@ -110,10 +110,19 @@ export const zDelegationMcp = z.object({
 
 export const zChatSessionKind = z.enum(["chat", "workflow_run"])
 
-export const zChatSessionShelf = z.enum(["active", "archived", "snoozed"])
+export const zChatSessionShelf = z.enum(["active", "archived", "snoozed", "pinned"])
 
 export const zUpdateChatSessionRequest = z.object({
-  shelf: zChatSessionShelf,
+  pinned: z.boolean().optional(),
+  locked: z.boolean().optional(),
+  expected_version: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    })
+    .optional(),
+  shelf: zChatSessionShelf.optional(),
   snoozed_until: z.iso.datetime({ offset: true }).optional(),
 })
 
@@ -505,6 +514,22 @@ export const zListLensAppsResponse = z.object({
   apps: z.array(zLensApp),
 })
 
+export const zChatSessionState = z.object({
+  pinned: z.boolean(),
+  locked: z.boolean(),
+  version: z.coerce
+    .bigint()
+    .min(BigInt("-9223372036854775808"), {
+      error: "Invalid value: Expected int64 to be >= -9223372036854775808",
+    })
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    }),
+  is_participant: z.boolean(),
+  changed_at: z.iso.datetime({ offset: true }).optional(),
+  actor: zResourceActor.optional(),
+})
+
 export const zChatInput = z.object({
   id: z.uuid(),
   author: zResourceActor,
@@ -678,6 +703,7 @@ export const zAgentName = z
   .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
 
 export const zChatSession = z.object({
+  state: zChatSessionState,
   has_workflow_schedule_subscription: z.boolean(),
   archived: z.boolean(),
   snoozed_until: z.iso.datetime({ offset: true }).optional(),
@@ -4764,6 +4790,16 @@ export const zListChatBackgroundPath = z.object({
  * Authorized conversation state.
  */
 export const zListChatBackgroundResponse = zChatBackgroundList
+
+export const zGetChatSessionStatePath = z.object({
+  agentName: z.string(),
+  sessionId: z.string(),
+})
+
+/**
+ * Authorized thread state.
+ */
+export const zGetChatSessionStateResponse = zChatSessionState
 
 export const zUpdateChatSessionBody = zUpdateChatSessionRequest
 

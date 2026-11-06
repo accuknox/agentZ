@@ -417,6 +417,8 @@ SELECT
   sessions.agent_name,
   sessions.session_id,
   sessions.title,
+  sessions.pinned, sessions.locked, sessions.state_version,
+  (viewer.user_id IS NOT NULL)::boolean AS is_participant,
   sessions.archived_at,
   sessions.snoozed_until,
   sessions.woke_at,
@@ -441,6 +443,9 @@ SELECT
       AND participants.session_id = sessions.session_id
   ), '[]'::jsonb)::text AS participants_json
 FROM chat_sessions AS sessions
+LEFT JOIN chat_session_participants viewer ON viewer.workspace_id = sessions.workspace_id
+  AND viewer.agent_name = sessions.agent_name AND viewer.session_id = sessions.session_id
+  AND viewer.user_id = @viewer_id
 LEFT JOIN coding_threads AS coding ON coding.workspace_id = sessions.workspace_id
   AND coding.agent_name = sessions.agent_name AND coding.session_id = sessions.session_id
 LEFT JOIN coding_worktrees AS tree ON tree.id = coding.worktree_id
@@ -449,11 +454,13 @@ WHERE (sqlc.narg(project_id)::text IS NULL OR project.id = sqlc.narg(project_id)
   AND sessions.workspace_id = sqlc.arg(workspace_id)
   AND sessions.agent_name = ANY(sqlc.arg(agent_names)::text[])
   AND sessions.parent_session_id IS NULL
-  AND CASE sqlc.arg(shelf)::text
-    WHEN 'archived' THEN sessions.archived_at IS NOT NULL
-    WHEN 'snoozed' THEN sessions.snoozed_until > now()
-    ELSE sessions.archived_at IS NULL
-      AND (sessions.snoozed_until IS NULL OR sessions.snoozed_until <= now())
+  AND CASE WHEN sqlc.arg(shelf)::text = 'pinned' THEN (sessions.pinned OR (sessions.locked AND viewer.user_id IS NOT NULL))
+    ELSE NOT (sessions.pinned OR (sessions.locked AND viewer.user_id IS NOT NULL)) AND CASE sqlc.arg(shelf)::text
+      WHEN 'archived' THEN sessions.archived_at IS NOT NULL
+      WHEN 'snoozed' THEN sessions.snoozed_until > now()
+      ELSE sessions.archived_at IS NULL
+        AND (sessions.snoozed_until IS NULL OR sessions.snoozed_until <= now())
+    END
   END
   AND (sqlc.narg(owner_id)::text IS NULL OR project.owner_id = sqlc.narg(owner_id))
   AND NOT sessions.deleting
@@ -527,6 +534,9 @@ SELECT CASE
   ELSE 'older'
 END::text AS group_value
 FROM chat_sessions AS sessions
+LEFT JOIN chat_session_participants viewer ON viewer.workspace_id = sessions.workspace_id
+  AND viewer.agent_name = sessions.agent_name AND viewer.session_id = sessions.session_id
+  AND viewer.user_id = @viewer_id
 LEFT JOIN coding_threads AS coding ON coding.workspace_id = sessions.workspace_id
   AND coding.agent_name = sessions.agent_name AND coding.session_id = sessions.session_id
 LEFT JOIN coding_worktrees AS tree ON tree.id = coding.worktree_id
@@ -534,11 +544,13 @@ LEFT JOIN coding_projects AS project ON project.id = tree.project_id
 WHERE sessions.workspace_id = sqlc.arg(workspace_id)
   AND sessions.agent_name = ANY(sqlc.arg(agent_names)::text[])
   AND sessions.parent_session_id IS NULL
-  AND CASE sqlc.arg(shelf)::text
-    WHEN 'archived' THEN sessions.archived_at IS NOT NULL
-    WHEN 'snoozed' THEN sessions.snoozed_until > now()
-    ELSE sessions.archived_at IS NULL
-      AND (sessions.snoozed_until IS NULL OR sessions.snoozed_until <= now())
+  AND CASE WHEN sqlc.arg(shelf)::text = 'pinned' THEN (sessions.pinned OR (sessions.locked AND viewer.user_id IS NOT NULL))
+    ELSE NOT (sessions.pinned OR (sessions.locked AND viewer.user_id IS NOT NULL)) AND CASE sqlc.arg(shelf)::text
+      WHEN 'archived' THEN sessions.archived_at IS NOT NULL
+      WHEN 'snoozed' THEN sessions.snoozed_until > now()
+      ELSE sessions.archived_at IS NULL
+        AND (sessions.snoozed_until IS NULL OR sessions.snoozed_until <= now())
+    END
   END
   AND (sqlc.narg(owner_id)::text IS NULL OR project.owner_id = sqlc.narg(owner_id))
   AND NOT sessions.deleting
@@ -569,6 +581,8 @@ WITH filtered_sessions AS (
     sessions.session_id,
     sessions.parent_session_id,
     sessions.title,
+  sessions.pinned, sessions.locked, sessions.state_version,
+  (viewer.user_id IS NOT NULL)::boolean AS is_participant,
     sessions.archived_at,
     sessions.snoozed_until,
     sessions.woke_at,
@@ -588,6 +602,9 @@ WITH filtered_sessions AS (
       END
     END)::text AS group_value
   FROM chat_sessions AS sessions
+LEFT JOIN chat_session_participants viewer ON viewer.workspace_id = sessions.workspace_id
+  AND viewer.agent_name = sessions.agent_name AND viewer.session_id = sessions.session_id
+  AND viewer.user_id = @viewer_id
 LEFT JOIN coding_threads AS coding ON coding.workspace_id = sessions.workspace_id
   AND coding.agent_name = sessions.agent_name AND coding.session_id = sessions.session_id
 LEFT JOIN coding_worktrees AS tree ON tree.id = coding.worktree_id
@@ -595,11 +612,13 @@ LEFT JOIN coding_projects AS project ON project.id = tree.project_id
   WHERE sessions.workspace_id = sqlc.arg(workspace_id)
     AND sessions.agent_name = ANY(sqlc.arg(agent_names)::text[])
     AND sessions.parent_session_id IS NULL
-  AND CASE sqlc.arg(shelf)::text
-    WHEN 'archived' THEN sessions.archived_at IS NOT NULL
-    WHEN 'snoozed' THEN sessions.snoozed_until > now()
-    ELSE sessions.archived_at IS NULL
-      AND (sessions.snoozed_until IS NULL OR sessions.snoozed_until <= now())
+  AND CASE WHEN sqlc.arg(shelf)::text = 'pinned' THEN (sessions.pinned OR (sessions.locked AND viewer.user_id IS NOT NULL))
+    ELSE NOT (sessions.pinned OR (sessions.locked AND viewer.user_id IS NOT NULL)) AND CASE sqlc.arg(shelf)::text
+      WHEN 'archived' THEN sessions.archived_at IS NOT NULL
+      WHEN 'snoozed' THEN sessions.snoozed_until > now()
+      ELSE sessions.archived_at IS NULL
+        AND (sessions.snoozed_until IS NULL OR sessions.snoozed_until <= now())
+    END
   END
   AND (sqlc.narg(owner_id)::text IS NULL OR project.owner_id = sqlc.narg(owner_id))
   AND NOT sessions.deleting
@@ -635,6 +654,8 @@ SELECT
   sessions.agent_name,
   sessions.session_id,
   sessions.title,
+  sessions.pinned, sessions.locked, sessions.state_version,
+  sessions.is_participant,
   sessions.archived_at,
   sessions.snoozed_until,
   sessions.woke_at,
@@ -710,6 +731,9 @@ SELECT
   count(*) FILTER (WHERE sessions.archived_at IS NOT NULL) AS archived,
   count(*) FILTER (WHERE sessions.snoozed_until > now()) AS snoozed
 FROM chat_sessions AS sessions
+LEFT JOIN chat_session_participants viewer ON viewer.workspace_id = sessions.workspace_id
+  AND viewer.agent_name = sessions.agent_name AND viewer.session_id = sessions.session_id
+  AND viewer.user_id = @viewer_id
 LEFT JOIN coding_threads AS coding ON coding.workspace_id = sessions.workspace_id
   AND coding.agent_name = sessions.agent_name AND coding.session_id = sessions.session_id
 LEFT JOIN coding_worktrees AS tree ON tree.id = coding.worktree_id
@@ -717,6 +741,7 @@ LEFT JOIN coding_projects AS project ON project.id = tree.project_id
 WHERE sessions.workspace_id = sqlc.arg(workspace_id)
   AND sessions.agent_name = ANY(sqlc.arg(agent_names)::text[])
   AND sessions.parent_session_id IS NULL
+  AND NOT (sessions.pinned OR (sessions.locked AND viewer.user_id IS NOT NULL))
   AND NOT sessions.deleting
   AND (sessions.archived_at IS NOT NULL OR sessions.snoozed_until > now())
   AND (sqlc.narg(owner_id)::text IS NULL OR project.owner_id = sqlc.narg(owner_id))
@@ -3362,8 +3387,9 @@ LIMIT 2;
 -- name: GatewayUpdateChatSession :one
 WITH target AS MATERIALIZED (
   SELECT sessions.workspace_id, sessions.agent_name, sessions.session_id,
-    sessions.archived_at, sessions.snoozed_until,
-    (@shelf::text <> 'snoozed' OR (sessions.archived_at IS NULL AND (
+    sessions.archived_at, sessions.snoozed_until, sessions.pinned, sessions.locked,
+    (@shelf::text = 'active' OR NOT (sessions.pinned OR sessions.locked))
+    AND (@shelf::text <> 'snoozed' OR (sessions.archived_at IS NULL AND (
       sessions.snoozed_until IS NULL OR sessions.snoozed_until <= now()
       OR sessions.snoozed_until IS NOT DISTINCT FROM sqlc.narg(snoozed_until)::timestamptz
     ))) AS allowed
@@ -3400,6 +3426,7 @@ WITH target AS MATERIALIZED (
   LEFT JOIN coding_projects project ON project.id = tree.project_id
 )
 SELECT COALESCE(target.allowed::boolean, false)::boolean AS allowed,
+  (target.pinned OR target.locked)::boolean AS protected,
   (SELECT COUNT(*) FROM notified) AS notifications FROM target;
 
 -- name: GatewayExpireChatSessions :one
@@ -3418,6 +3445,7 @@ WITH RECURSIVE policies AS (
   JOIN chat_sessions sessions ON sessions.workspace_id = w.id
     AND sessions.agent_name = policies.agent_name
   WHERE policies.hours > 0 AND sessions.archived_at IS NULL
+    AND NOT sessions.pinned AND NOT sessions.locked
     AND sessions.parent_session_id IS NULL AND sessions.snoozed_until IS NULL
     AND sessions.status = 'idle'
     AND GREATEST(sessions.source_updated_at, sessions.resumed_at) < now() - make_interval(hours => policies.hours)
@@ -3450,6 +3478,7 @@ WITH RECURSIVE policies AS (
     AND (
       sessions.snoozed_until <= now()
       OR (sessions.snoozed_until IS NULL AND sessions.status = 'idle' AND candidates.hours > 0
+        AND NOT sessions.pinned AND NOT sessions.locked
         AND GREATEST(sessions.source_updated_at, sessions.resumed_at) < now() - make_interval(hours => candidates.hours)
         AND NOT EXISTS (SELECT 1 FROM active
           WHERE active.workspace_id = sessions.workspace_id
@@ -3484,7 +3513,7 @@ WITH RECURSIVE lineage AS (
   WHERE p.workspace_id = @workspace_id AND p.agent_name = @agent_name
 )
 SELECT s.* FROM chat_sessions s JOIN lineage l ON l.session_id = s.session_id
-WHERE s.workspace_id = @workspace_id AND s.agent_name = @agent_name AND s.kind = 'chat' AND s.parent_session_id IS NULL LIMIT 1;
+WHERE s.workspace_id = @workspace_id AND s.agent_name = @agent_name AND s.parent_session_id IS NULL LIMIT 1;
 
 -- name: GatewayCompleteBackgroundInput :one
 UPDATE chat_inputs SET completed_at = now(), outcome = @outcome, content = '{}'::jsonb,
@@ -3546,3 +3575,32 @@ WHERE workspace_id = @workspace_id AND agent_name = @agent_name AND session_id =
 SELECT session_id, generation FROM chat_sessions
 WHERE workspace_id = @workspace_id AND agent_name = @agent_name
  AND kind = 'chat' AND parent_session_id IS NULL AND NOT deleting;
+
+-- name: GatewayGetChatSessionState :one
+SELECT sessions.pinned, sessions.locked, sessions.state_version,
+  sessions.state_changed_by, sessions.state_changed_at,
+  EXISTS (SELECT 1 FROM chat_session_participants member
+      WHERE member.workspace_id = sessions.workspace_id AND member.agent_name = sessions.agent_name
+        AND member.session_id = sessions.session_id AND member.user_id = @viewer_id) AS is_participant
+FROM chat_sessions sessions
+WHERE sessions.workspace_id = @workspace_id AND sessions.agent_name = @agent_name
+  AND sessions.session_id = @session_id AND NOT sessions.deleting;
+
+-- name: GatewaySetChatSessionState :one
+WITH changed AS (
+  UPDATE chat_sessions SET
+    pinned = COALESCE(sqlc.narg(pinned)::boolean, pinned),
+    locked = COALESCE(sqlc.narg(locked)::boolean, locked),
+    state_version = state_version + 1,
+    state_changed_by = CASE WHEN sqlc.narg(locked)::boolean IS NOT NULL THEN @actor_id ELSE state_changed_by END,
+    state_changed_at = CASE WHEN sqlc.narg(locked)::boolean IS NOT NULL THEN now() ELSE state_changed_at END
+  WHERE workspace_id = @workspace_id AND agent_name = @agent_name AND session_id = @session_id
+    AND state_version = @expected_version AND NOT deleting
+  RETURNING workspace_id
+)
+SELECT pg_notify('agentz_chat_sessions', workspace_id) FROM changed;
+
+-- name: GatewayLockAgentChatSessions :many
+SELECT locked FROM chat_sessions
+WHERE workspace_id = @workspace_id AND agent_name = @agent_name
+FOR UPDATE;

@@ -83,6 +83,7 @@ type Querier interface {
 	GatewayGetChatInput(ctx context.Context, arg GatewayGetChatInputParams) (ChatInput, error)
 	GatewayGetChatSession(ctx context.Context, arg GatewayGetChatSessionParams) (ChatSession, error)
 	GatewayGetChatSessionGroup(ctx context.Context, arg GatewayGetChatSessionGroupParams) (GatewayGetChatSessionGroupRow, error)
+	GatewayGetChatSessionState(ctx context.Context, arg GatewayGetChatSessionStateParams) (GatewayGetChatSessionStateRow, error)
 	GatewayGetCodingOperation(ctx context.Context, arg GatewayGetCodingOperationParams) (CodingOperation, error)
 	GatewayGetCodingProject(ctx context.Context, arg GatewayGetCodingProjectParams) (CodingProject, error)
 	GatewayGetCodingThread(ctx context.Context, arg GatewayGetCodingThreadParams) (GatewayGetCodingThreadRow, error)
@@ -159,6 +160,7 @@ type Querier interface {
 	GatewayListenStreamAuthorization(ctx context.Context) error
 	GatewayLockActiveOrganizationMember(ctx context.Context, arg GatewayLockActiveOrganizationMemberParams) (string, error)
 	GatewayLockActiveWorkspace(ctx context.Context, arg GatewayLockActiveWorkspaceParams) (string, error)
+	GatewayLockAgentChatSessions(ctx context.Context, arg GatewayLockAgentChatSessionsParams) ([]bool, error)
 	GatewayLockAgentOwner(ctx context.Context, arg GatewayLockAgentOwnerParams) (AgentOwner, error)
 	GatewayLockAgentShares(ctx context.Context, arg GatewayLockAgentSharesParams) ([]AgentShare, error)
 	GatewayLockCodingIdentity(ctx context.Context, id string) (string, error)
@@ -193,6 +195,7 @@ type Querier interface {
 	GatewaySaveDelegationMCPSession(ctx context.Context, arg GatewaySaveDelegationMCPSessionParams) (int64, error)
 	GatewaySearchGroupedChatSessions(ctx context.Context, arg GatewaySearchGroupedChatSessionsParams) ([]GatewaySearchGroupedChatSessionsRow, error)
 	GatewaySeedCodingSnapshots(ctx context.Context) error
+	GatewaySetChatSessionState(ctx context.Context, arg GatewaySetChatSessionStateParams) (interface{}, error)
 	GatewayStopChatInputs(ctx context.Context, arg GatewayStopChatInputsParams) error
 	GatewaySyncAgentChatSessionStatuses(ctx context.Context, arg GatewaySyncAgentChatSessionStatusesParams) error
 	GatewayTeamExists(ctx context.Context, arg GatewayTeamExistsParams) (bool, error)

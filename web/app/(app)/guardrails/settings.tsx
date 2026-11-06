@@ -1,8 +1,27 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useId, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowDown, ArrowUp, BrickWallShield, CircleAlert, Save } from "lucide-react"
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core"
+import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers"
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import { BrickWallShield, CircleAlert, GripVertical, Save, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import type { GuardrailPolicy, GuardrailSettings } from "@/lib/gateway/client"
 import { saveGuardrailSettingsAction } from "@/data/guardrail.actions"
@@ -20,11 +39,30 @@ type GuardrailOrganizationSettingsProps = {
 export function GuardrailOrganizationSettings(props: GuardrailOrganizationSettingsProps) {
   const { initial, policies } = props
 
+  const id = useId()
   const router = useRouter()
   const [settings, setSettings] = useState(initial)
   const [error, setError] = useState("")
   const [pending, startTransition] = useTransition()
   const organizationPolicies = policies.filter((policy) => policy.scope === "Organisation")
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+
+  function reorder({ active, over }: DragEndEvent) {
+    if (pending || !over || active.id === over.id) return
+    setSettings((current) => {
+      const from = current.mandatoryPolicies.findIndex((name) => name === active.id)
+      const to = current.mandatoryPolicies.findIndex((name) => name === over.id)
+      if (from < 0 || to < 0) return current
+      return {
+        ...current,
+        mandatoryPolicies: arrayMove(current.mandatoryPolicies, from, to),
+      }
+    })
+  }
 
   return (
     <form
@@ -79,46 +117,41 @@ export function GuardrailOrganizationSettings(props: GuardrailOrganizationSettin
             Create an organization policy before adding it to the required baseline.
           </FieldDescription>
         ) : null}
-      </FieldSet>
-      {settings.mandatoryPolicies.length > 1 ? (
-        <FieldSet>
-          <FieldLegend variant="label">Baseline execution order</FieldLegend>
-          {settings.mandatoryPolicies.map((name, index) => (
-            <div className="flex items-center justify-between gap-2" key={name}>
-              <span className="text-sm">
-                {index + 1}. {policies.find((policy) => policy.name === name)?.displayName ?? name}
-              </span>
-              <div className="flex gap-1">
-                {([-1, 1] as const).map((direction) => (
-                  <Button
-                    aria-label={`Move ${name} ${direction === -1 ? "up" : "down"}`}
-                    disabled={
-                      pending ||
-                      (direction === -1
-                        ? index === 0
-                        : index === settings.mandatoryPolicies.length - 1)
-                    }
-                    key={direction}
-                    onClick={() => {
-                      const values = [...settings.mandatoryPolicies]
-                      const target = values[index + direction]
-                      if (!target) return
-                      values[index] = target
-                      values[index + direction] = name
-                      setSettings({ ...settings, mandatoryPolicies: values })
+        {settings.mandatoryPolicies.length > 0 ? (
+          <DndContext
+            id={id}
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+            onDragEnd={reorder}
+          >
+            <SortableContext
+              items={settings.mandatoryPolicies}
+              strategy={verticalListSortingStrategy}
+            >
+              <ol aria-label="Baseline policy order" className="flex min-w-0 flex-col gap-1">
+                {settings.mandatoryPolicies.map((name) => (
+                  <SortablePolicy
+                    key={name}
+                    name={name}
+                    policy={organizationPolicies.find((policy) => policy.name === name)}
+                    disabled={pending}
+                    reorderable={settings.mandatoryPolicies.length > 1}
+                    onRemove={() => {
+                      setSettings((current) => ({
+                        ...current,
+                        mandatoryPolicies: current.mandatoryPolicies.filter(
+                          (policy) => policy !== name
+                        ),
+                      }))
                     }}
-                    size="icon-sm"
-                    type="button"
-                    variant="ghost"
-                  >
-                    {direction === -1 ? <ArrowUp /> : <ArrowDown />}
-                  </Button>
+                  />
                 ))}
-              </div>
-            </div>
-          ))}
-        </FieldSet>
-      ) : null}
+              </ol>
+            </SortableContext>
+          </DndContext>
+        ) : null}
+      </FieldSet>
       {error ? (
         <Alert variant="destructive">
           <CircleAlert aria-hidden />
@@ -133,5 +166,72 @@ export function GuardrailOrganizationSettings(props: GuardrailOrganizationSettin
         </LoadingButton>
       </div>
     </form>
+  )
+}
+
+function SortablePolicy({
+  name,
+  policy,
+  disabled,
+  reorderable,
+  onRemove,
+}: {
+  name: string
+  policy: GuardrailPolicy | undefined
+  disabled: boolean
+  reorderable: boolean
+  onRemove: () => void
+}) {
+  const { setNodeRef, setActivatorNodeRef, transform, transition, attributes, listeners } =
+    useSortable({ id: name, disabled: disabled || !reorderable })
+  const label = policy?.displayName ?? name
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
+      className="flex min-w-0 items-center gap-1 rounded-md px-2 py-1.5 hover:bg-muted/50"
+    >
+      <Button
+        ref={setActivatorNodeRef}
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        className="cursor-grab touch-none active:cursor-grabbing"
+        disabled={disabled || !reorderable}
+        aria-label={`Reorder ${label}`}
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical aria-hidden />
+      </Button>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-medium">{label}</div>
+        <div className="truncate text-xs text-muted-foreground">
+          <span className="font-mono">{name}</span>
+          {policy ? (
+            <>
+              <span aria-hidden> · </span>
+              <span className="tabular-nums">
+                {policy.checks.length} {policy.checks.length === 1 ? "check" : "checks"}
+              </span>
+            </>
+          ) : null}
+        </div>
+      </div>
+      <Button
+        type="button"
+        variant="destructive"
+        size="icon-sm"
+        disabled={disabled}
+        aria-label={`Remove ${label}`}
+        onClick={onRemove}
+      >
+        <Trash2 aria-hidden />
+      </Button>
+    </li>
   )
 }

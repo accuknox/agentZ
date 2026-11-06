@@ -64,11 +64,14 @@ export function useThreadMutation(
     onError: (error) => toast.error(error.message),
     onSettled: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: options.queryKey }),
-        queryClient.invalidateQueries({
-          predicate: (query) =>
-            query.queryKey[0] === "chatSessions" && query.queryKey[1] === workspaceId,
-        }),
+        queryClient.invalidateQueries({ queryKey: options.queryKey }, { cancelRefetch: false }),
+        queryClient.invalidateQueries(
+          {
+            predicate: (query) =>
+              query.queryKey[0] === "chatSessions" && query.queryKey[1] === workspaceId,
+          },
+          { cancelRefetch: false }
+        ),
       ])
     },
   })
@@ -88,6 +91,8 @@ export function chatSessionWatchOptions(workspaceId: string, userId: string) {
           signal,
         })
         for await (const event of result.stream) {
+          const queryKey = ["chatSessionState", workspaceId]
+          void client.cancelQueries({ queryKey }).then(() => client.invalidateQueries({ queryKey }))
           if (event.revision === "0") {
             void client.invalidateQueries({
               queryKey: watchAgentsQueryOptions(workspaceId).queryKey,

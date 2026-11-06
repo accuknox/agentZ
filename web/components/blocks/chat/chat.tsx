@@ -1681,17 +1681,11 @@ export default function Chat({
   }, [actorProfilesQuery.data, authSession?.user])
   const threadUserId = authSession?.user.id ?? ""
   const thread = useQuery(threadStateOptions(workspaceId, agentName, sessionId ?? "", threadUserId))
-  const threadWatch = useQuery({
+  useQuery({
     ...chatSessionWatchOptions(workspaceId, threadUserId),
     enabled: Boolean(sessionId && threadUserId),
+    notifyOnChangeProps: [],
   })
-  useEffect(() => {
-    if (!threadWatch.data || !sessionId) return
-    const queryKey = threadStateOptions(workspaceId, agentName, sessionId, threadUserId).queryKey
-    void queryClient
-      .cancelQueries({ queryKey })
-      .then(() => queryClient.invalidateQueries({ queryKey }))
-  }, [queryClient, workspaceId, agentName, sessionId, threadUserId, threadWatch.data])
   const lockedOut = !coding && thread.data?.locked && !thread.data.is_participant
   const inputDisabled =
     lockedOut ||

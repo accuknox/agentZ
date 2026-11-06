@@ -536,13 +536,7 @@ export type EventTrailFilters = {
 }
 
 export type EventTrailFilterField =
-  | "actor_type"
-  | "actor_id"
-  | "category"
-  | "workspace_id"
-  | "target_type"
-  | "result"
-  | "created_at"
+  "actor_type" | "actor_id" | "category" | "workspace_id" | "target_type" | "result" | "created_at"
 
 export type EventTrailFilter = {
   field: EventTrailFilterField
@@ -742,16 +736,7 @@ export type ResourceReference = {
 export type MascotBreed = "mochi" | "ziglet" | "slinky" | "mallow" | "pip" | "pi"
 
 export type MascotColor =
-  | "cream"
-  | "lilac"
-  | "peach"
-  | "rose"
-  | "coral"
-  | "amber"
-  | "lime"
-  | "mint"
-  | "sky"
-  | "slate"
+  "cream" | "lilac" | "peach" | "rose" | "coral" | "amber" | "lime" | "mint" | "sky" | "slate"
 
 export type AgentAppearance = {
   breed: MascotBreed
@@ -1276,11 +1261,7 @@ export type WorkflowEvaluationRequest = {
 }
 
 export type WorkflowEvaluationState =
-  | "queued"
-  | "running"
-  | "cancelling"
-  | "completed"
-  | "cancelled"
+  "queued" | "running" | "cancelling" | "completed" | "cancelled"
 
 export type WorkflowEvaluation = {
   id: string
@@ -2781,11 +2762,7 @@ export type DashboardWidgetError = {
 }
 
 export type DashboardWidgetQueryStatus =
-  | "ok"
-  | "empty"
-  | "invalid_data"
-  | "limit_exceeded"
-  | "query_failed"
+  "ok" | "empty" | "invalid_data" | "limit_exceeded" | "query_failed"
 
 export type DashboardWidgetQueryResult = {
   widget_name: DashboardWidgetName
@@ -3975,11 +3952,7 @@ export type ImmutableSkillSortByQuery = "name" | "version"
  * Skill summary field used to order results before pagination.
  */
 export type SkillSummarySortByQuery =
-  | "name"
-  | "version"
-  | "file_count"
-  | "size_bytes"
-  | "modified_at"
+  "name" | "version" | "file_count" | "size_bytes" | "modified_at"
 
 /**
  * Secret field used to order results before pagination.

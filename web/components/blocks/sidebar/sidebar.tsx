@@ -285,20 +285,25 @@ async function WorkspaceChatSessions(props: WorkspaceChatSessionsProps) {
   }
   const preferences = preference.data
 
-  const [sessions, actor] = await Promise.all([
+  const query = {
+    agent_name: preferences.agent_name ?? undefined,
+    include_workflow_runs: preferences.include_workflow_runs,
+    limit: 10,
+    participant_user_id:
+      preferences.participant_user_ids.length > 0 ? preferences.participant_user_ids : undefined,
+  }
+  const [sessions, pinned, actor] = await Promise.all([
     listChatSessions({
       client: getGatewayServerClient(workspaceId),
       query: {
-        agent_name: preferences.agent_name ?? undefined,
+        ...query,
         group_by: preferences.group_by,
-        include_workflow_runs: preferences.include_workflow_runs,
-        limit: 10,
-        participant_user_id:
-          preferences.participant_user_ids.length > 0
-            ? preferences.participant_user_ids
-            : undefined,
         time_zone: preferences.group_by === "date" ? "UTC" : undefined,
       },
+    }),
+    listChatSessions({
+      client: getGatewayServerClient(workspaceId),
+      query: { ...query, shelf: "pinned", group_by: "none", include_filter_options: false },
     }),
     currentGatewayAuthContext(),
   ])
@@ -319,6 +324,7 @@ async function WorkspaceChatSessions(props: WorkspaceChatSessionsProps) {
       agents={agents}
       initialPreferences={preferences}
       initialSessions={sessions.data}
+      initialPinnedSessions={pinned.data}
       workspaceType={workspaceType}
       workspaceId={workspaceId}
       workspacePath={workspacePath}

@@ -179,6 +179,7 @@ type NavSessionsProps = {
   agents: ListAgentActionResponse
   initialPreferences: ChatSessionPreference
   initialSessions: ListChatSessionsResponse
+  initialPinnedSessions?: ListChatSessionsResponse
   workspaceId: string
   workspacePath: WorkspacePath
 }
@@ -341,6 +342,7 @@ export function NavSessions({
   agents,
   initialPreferences,
   initialSessions,
+  initialPinnedSessions,
   workspaceId,
   workspaceType,
   workspacePath,
@@ -362,6 +364,7 @@ export function NavSessions({
             agents={agents}
             initialPreferences={initialPreferences}
             initialSessions={initialSessions}
+            initialPinnedSessions={initialPinnedSessions}
             workspaceId={workspaceId}
             workspacePath={workspacePath}
             projectActions={actions}
@@ -377,6 +380,7 @@ export function NavSessions({
       agents={agents}
       initialPreferences={initialPreferences}
       initialSessions={initialSessions}
+      initialPinnedSessions={initialPinnedSessions}
       workspaceId={workspaceId}
       workspacePath={workspacePath}
     />
@@ -420,6 +424,7 @@ function NavSessionsContent({
   agents,
   initialPreferences,
   initialSessions,
+  initialPinnedSessions,
   workspaceId,
   workspaceType,
   workspacePath,
@@ -607,6 +612,14 @@ function NavSessionsContent({
     enabled:
       trimmedSearch === querySearch &&
       (searchLength === 0 || (searchLength >= 3 && searchLength <= 200)),
+    initialData:
+      !watch.data &&
+      path === initialPath &&
+      matchesInitialPreferences &&
+      querySearch === "" &&
+      initialPinnedSessions
+        ? { pages: [{ ...initialPinnedSessions, search: "" }], pageParams: [undefined] }
+        : undefined,
   })
   const pinnedSessions = pinned.data?.pages.flatMap((page) => page.sessions) ?? []
   const pinnedList = useSessionListMotion(

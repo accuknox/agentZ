@@ -1,6 +1,6 @@
 "use client"
 
-import { threadStateOptions } from "./thread"
+import { chatSessionWatchOptions, threadStateOptions } from "./thread"
 
 import styles from "./composer.module.css"
 import { WorkGroup } from "./activity"
@@ -1679,9 +1679,19 @@ export default function Chat({
       profiles.set(user.id, { id: user.id, name: user.name, image: user.image ?? null })
     return profiles
   }, [actorProfilesQuery.data, authSession?.user])
-  const thread = useQuery(
-    threadStateOptions(workspaceId, agentName, sessionId ?? "", authSession?.user.id ?? "")
-  )
+  const threadUserId = authSession?.user.id ?? ""
+  const thread = useQuery(threadStateOptions(workspaceId, agentName, sessionId ?? "", threadUserId))
+  const threadWatch = useQuery({
+    ...chatSessionWatchOptions(workspaceId, threadUserId),
+    enabled: Boolean(sessionId && threadUserId),
+  })
+  useEffect(() => {
+    if (!threadWatch.data || !sessionId) return
+    const queryKey = threadStateOptions(workspaceId, agentName, sessionId, threadUserId).queryKey
+    void queryClient
+      .cancelQueries({ queryKey })
+      .then(() => queryClient.invalidateQueries({ queryKey }))
+  }, [queryClient, workspaceId, agentName, sessionId, threadUserId, threadWatch.data])
   const lockedOut = !coding && thread.data?.locked && !thread.data.is_participant
   const inputDisabled =
     lockedOut ||

@@ -29297,7 +29297,7 @@ paths:
       - chat-sessions
     patch:
       description: |
-        Active sessions can be snoozed or archived. Snoozed sessions can be woken or archived. Archived sessions must be unarchived before snoozing. Pinned or locked threads cannot be archived or snoozed and are excluded from automatic archival. Existing archived or snoozed threads can still be restored. Repeating an identical permitted update succeeds without changing activity times. Pin and lock updates require expected_version and cannot be combined with shelf changes. Pins are shared across authorized users. Locked threads cannot be deleted or unpinned, and only existing participants can submit new messages. Coding threads support pins only.
+        Active sessions can be snoozed or archived. Snoozed sessions can be woken or archived. Archived sessions must be unarchived before snoozing. Pinned or locked threads cannot be archived or snoozed and are excluded from automatic archival. Existing archived or snoozed threads can still be restored. Repeating an identical permitted update succeeds without changing activity times. Pin and lock updates require expected_version and cannot be combined with shelf changes. Pins are shared across authorized users. Locked threads cannot be deleted or unpinned, and only existing participants can submit new messages. Only conversation participants can unlock a thread. Coding threads support pins only.
       operationId: updateChatSession
       parameters:
       - in: path

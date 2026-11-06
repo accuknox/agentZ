@@ -1329,6 +1329,25 @@ func (s *Service) setChatSessionState(w http.ResponseWriter, r *http.Request, ac
 		apiutil.WriteError(w, r, mapGatewayStoreError("update chat", err))
 		return
 	}
+	if body.Locked != nil && !*body.Locked {
+		state, err := s.queries.GatewayGetChatSessionState(r.Context(), gatewaydb.GatewayGetChatSessionStateParams{
+			WorkspaceID: access.workspaceID,
+			AgentName:   agent,
+			SessionID:   session,
+			ViewerID:    access.userID,
+		})
+		if err != nil {
+			apiutil.WriteError(w, r, mapGatewayStoreError("get chat state", err))
+			return
+		}
+		if !state.IsParticipant {
+			apiutil.WriteError(w, r, apiutil.NewError(
+				http.StatusForbidden, "thread_participant_required",
+				"Only participants can unlock this chat", nil,
+			))
+			return
+		}
+	}
 	if row.StateVersion != *body.ExpectedVersion {
 		apiutil.WriteError(w, r, apiutil.NewError(
 			http.StatusConflict, "thread_state_conflict",
@@ -1401,7 +1420,7 @@ func (s *Service) guardThread(ctx context.Context, access resourceAccess, agent 
 		return err
 	}
 	if !state.IsParticipant {
-		return apiutil.NewError(http.StatusForbidden, "thread_locked", "This chat is locked. Unlock it before joining the conversation.", nil)
+		return apiutil.NewError(http.StatusForbidden, "thread_locked", "This chat is locked. Only existing participants can send messages.", nil)
 	}
 	return nil
 }

@@ -2658,11 +2658,18 @@ function SessionCardView({
           </ContextMenuItem>
           {!coding ? (
             <ContextMenuItem
-              disabled={thread.isPending || edit.isPending}
+              disabled={
+                thread.isPending ||
+                edit.isPending ||
+                (session.state.locked && !session.state.is_participant)
+              }
               onSelect={() => thread.mutate({ locked: !session.state.locked })}
             >
               {session.state.locked ? <LockKeyholeOpen /> : <LockKeyhole />}
               {session.state.locked ? "Unlock chat" : "Lock chat"}
+              {session.state.locked && !session.state.is_participant ? (
+                <span className="ml-auto text-xs text-muted-foreground">Participants only</span>
+              ) : null}
             </ContextMenuItem>
           ) : null}
           <ContextMenuItem

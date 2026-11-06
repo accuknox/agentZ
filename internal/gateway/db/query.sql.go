@@ -8779,7 +8779,6 @@ WITH changed AS (
     state_changed_at = CASE WHEN $2::boolean IS NOT NULL THEN now() ELSE state_changed_at END
   WHERE workspace_id = $4 AND agent_name = $5 AND session_id = $6
     AND state_version = $7 AND NOT deleting
-    AND (NOT locked OR $1::boolean IS DISTINCT FROM false)
   RETURNING workspace_id
 )
 SELECT pg_notify('agentz_chat_sessions', workspace_id) FROM changed

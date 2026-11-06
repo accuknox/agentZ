@@ -1,21 +1,12 @@
 "use client"
 
-import {
-  experimental_streamedQuery as streamedQuery,
-  queryOptions,
-  useMutation,
-  useQueryClient,
-} from "@tanstack/react-query"
+import { experimental_streamedQuery as streamedQuery, queryOptions } from "@tanstack/react-query"
 import { watchAgentsQueryOptions } from "@/components/agent-readiness"
-import { toast } from "sonner"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import {
   getChatSessionState,
   watchChatSessions,
   type WatchChatSessionsEvent,
-  updateChatSession,
-  type ChatSessionState,
-  type UpdateChatSessionRequest,
 } from "@/lib/gateway/client"
 
 export function threadStateOptions(
@@ -38,42 +29,6 @@ export function threadStateOptions(
     },
     enabled: Boolean(sessionId && userId),
     staleTime: Infinity,
-  })
-}
-
-export function useThreadMutation(
-  workspaceId: string,
-  agentName: string,
-  sessionId: string,
-  userId: string,
-  state: ChatSessionState | undefined
-) {
-  const queryClient = useQueryClient()
-  const options = threadStateOptions(workspaceId, agentName, sessionId, userId)
-  return useMutation({
-    mutationFn: async (change: Pick<UpdateChatSessionRequest, "pinned" | "locked">) => {
-      if (!state) throw new Error("Wait for this chat to load")
-      const result = await updateChatSession({
-        baseUrl: await getGatewayBaseURL(),
-        headers: { "X-AgentZ-Workspace-ID": workspaceId },
-        path: { agentName, sessionId },
-        body: { ...change, expected_version: state.version },
-      })
-      if (result.error) throw new Error(result.error.message)
-    },
-    onError: (error) => toast.error(error.message),
-    onSettled: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: options.queryKey }, { cancelRefetch: false }),
-        queryClient.invalidateQueries(
-          {
-            predicate: (query) =>
-              query.queryKey[0] === "chatSessions" && query.queryKey[1] === workspaceId,
-          },
-          { cancelRefetch: false }
-        ),
-      ])
-    },
   })
 }
 

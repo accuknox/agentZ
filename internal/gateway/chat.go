@@ -1355,10 +1355,6 @@ func (s *Service) setChatSessionState(w http.ResponseWriter, r *http.Request, ac
 		))
 		return
 	}
-	if row.Locked && body.Pinned != nil && !*body.Pinned {
-		apiutil.WriteError(w, r, apiutil.NewError(http.StatusConflict, "thread_locked", "Unlock this chat before unpinning it", nil))
-		return
-	}
 	samePin := body.Pinned == nil || *body.Pinned == row.Pinned
 	sameLock := body.Locked == nil || *body.Locked == row.Locked
 	if samePin && sameLock {
@@ -1387,18 +1383,22 @@ func (s *Service) setChatSessionState(w http.ResponseWriter, r *http.Request, ac
 }
 
 // guardThread protects a conversation's membership and deletion at admission.
+// The caller supplies the conversation authorized under its admission lock.
 // Accepted inputs and internal notifications may finish after locking.
-func (s *Service) guardThread(ctx context.Context, access resourceAccess, agent string, session string, deleting bool) error {
-	root, err := s.queries.GatewayChatRoot(ctx, gatewaydb.GatewayChatRootParams{
-		WorkspaceID: access.workspaceID,
-		AgentName:   agent,
-		SessionID:   session,
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil
-	}
-	if err != nil {
-		return err
+func (s *Service) guardThread(ctx context.Context, access resourceAccess, root gatewaydb.ChatSession, deleting bool) error {
+	if root.ParentSessionID.Valid {
+		var err error
+		root, err = s.queries.GatewayChatRoot(ctx, gatewaydb.GatewayChatRootParams{
+			WorkspaceID: root.WorkspaceID,
+			AgentName:   root.AgentName,
+			SessionID:   root.SessionID,
+		})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
 	}
 	if !root.Locked {
 		return nil
@@ -1412,7 +1412,7 @@ func (s *Service) guardThread(ctx context.Context, access resourceAccess, agent 
 	}
 	state, err := s.queries.GatewayGetChatSessionState(ctx, gatewaydb.GatewayGetChatSessionStateParams{
 		WorkspaceID: access.workspaceID,
-		AgentName:   agent,
+		AgentName:   root.AgentName,
 		SessionID:   root.SessionID,
 		ViewerID:    access.userID,
 	})

@@ -1559,7 +1559,7 @@ export const getChatSessionStateOptions = (options: Options<GetChatSessionStateD
 /**
  * Update a thread shelf, shared pin, or lock.
  *
- * Active sessions can be snoozed or archived. Snoozed sessions can be woken or archived. Archived sessions must be unarchived before snoozing. Repeating an identical update succeeds without changing activity times. Pin and lock updates require expected_version and cannot be combined with shelf changes. Pins are shared across authorized users. Locked threads cannot be deleted or unpinned, and only existing participants can submit new messages. Coding threads support pins only.
+ * Active sessions can be snoozed or archived. Snoozed sessions can be woken or archived. Archived sessions must be unarchived before snoozing. Pinned or locked threads cannot be archived or snoozed and are excluded from automatic archival. Existing archived or snoozed threads can still be restored. Repeating an identical permitted update succeeds without changing activity times. Pin and lock updates require expected_version and cannot be combined with shelf changes. Pins are shared across authorized users. Locking independently pins a thread for its participants. Removing a shared pin while locked unpins the thread only for non-participants. Locked threads cannot be deleted, and only existing participants can submit new messages or unlock them. Coding threads support shared pins only.
  *
  */
 export const updateChatSessionMutation = (

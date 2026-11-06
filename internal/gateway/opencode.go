@@ -246,7 +246,7 @@ func (s *Service) handleOpenCodeProxy(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if input || route.ID == "session.delete" {
-			guardErr := s.guardThread(r.Context(), access, agentName, sessionID, route.ID == "session.delete")
+			guardErr := s.guardThread(r.Context(), access, root, route.ID == "session.delete")
 			if guardErr != nil {
 				release()
 				apiutil.WriteError(w, r, mapGatewayStoreError("update chat", guardErr))

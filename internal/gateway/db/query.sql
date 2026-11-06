@@ -3596,7 +3596,6 @@ WITH changed AS (
     state_changed_at = CASE WHEN sqlc.narg(locked)::boolean IS NOT NULL THEN now() ELSE state_changed_at END
   WHERE workspace_id = @workspace_id AND agent_name = @agent_name AND session_id = @session_id
     AND state_version = @expected_version AND NOT deleting
-    AND (NOT locked OR sqlc.narg(pinned)::boolean IS DISTINCT FROM false)
   RETURNING workspace_id
 )
 SELECT pg_notify('agentz_chat_sessions', workspace_id) FROM changed;

@@ -76,7 +76,7 @@ import { codingGitOptions, codingThreadOptions } from "@/lib/coding/review"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { sessionDrafts, useSessionDrafts, type SessionDraft } from "@/components/blocks/chat/drafts"
 
-import { chatSessionWatchOptions, useThreadMutation } from "@/components/blocks/chat/thread"
+import { chatSessionWatchOptions, threadStateOptions } from "@/components/blocks/chat/thread"
 
 import { deleteAgentSessionAction } from "@/data/opencode.actions"
 import type { DeleteSessionFormState, ListAgentActionResponse, WorkspacePath } from "@/data/types"
@@ -2279,16 +2279,12 @@ function SessionCardView({
   workspaceType: Workspace["type"]
   workspacePath: WorkspacePath
 }) {
-  const thread = useThreadMutation(
-    workspaceId,
-    session.agent_name,
-    session.session_id,
-    userId,
-    session.state
-  )
   const pinned = session.state.pinned || (session.state.locked && session.state.is_participant)
   const shelvingDisabled = session.state.pinned || session.state.locked
   const shelvingHint = session.state.locked ? "Unlock first" : "Unpin first"
+  let pinAction = "Pin for everyone"
+  if (session.state.pinned) pinAction = "Unpin for everyone"
+  if (session.state.pinned && session.state.locked) pinAction = "Unpin for non-participants"
   const coding = workspaceType === "coding"
   const href =
     `${workspacePath}/agents/${encodeURIComponent(session.agent_name)}/sessions/${encodeURIComponent(session.session_id)}` as Route
@@ -2344,7 +2340,10 @@ function SessionCardView({
         baseUrl: await getGatewayBaseURL(),
         headers: { "X-AgentZ-Workspace-ID": workspaceId },
         path: { agentName: session.agent_name, sessionId: session.session_id },
-        body: change,
+        body:
+          "pinned" in change || "locked" in change
+            ? { ...change, expected_version: session.state.version }
+            : change,
       })
       if (result.error) throw new Error(result.error.message)
     },
@@ -2353,15 +2352,35 @@ function SessionCardView({
       // SSE may already have populated the destination before this acknowledgement.
       if ("shelf" in change && !pinned)
         await removeChatSessionFromCache(queryClient, workspaceId, session, change.shelf)
-      void queryClient.invalidateQueries({ queryKey: chatSessionKeys.workspace(workspaceId) })
-      void queryClient.invalidateQueries({
-        queryKey: sessionInfoQueryOptions(session.agent_name, workspaceId, session.session_id)
-          .queryKey,
-      })
+      if ("title" in change)
+        void queryClient.invalidateQueries({
+          queryKey: sessionInfoQueryOptions(session.agent_name, workspaceId, session.session_id)
+            .queryKey,
+        })
     },
-    onError: (error) => {
-      toast.error(error.message)
-      void queryClient.invalidateQueries({ queryKey: chatSessionKeys.workspace(workspaceId) })
+    onError: (error) => toast.error(error.message),
+    onSettled: (_, _error, change) => {
+      const stateChange = "pinned" in change || "locked" in change
+      const refresh = Promise.all([
+        queryClient.invalidateQueries(
+          { queryKey: chatSessionKeys.workspace(workspaceId) },
+          { cancelRefetch: !stateChange }
+        ),
+        stateChange
+          ? queryClient.invalidateQueries(
+              {
+                queryKey: threadStateOptions(
+                  workspaceId,
+                  session.agent_name,
+                  session.session_id,
+                  userId
+                ).queryKey,
+              },
+              { cancelRefetch: false }
+            )
+          : undefined,
+      ])
+      return stateChange ? refresh : undefined
     },
   })
   const { setOpenMobile } = useSidebar()
@@ -2452,7 +2471,7 @@ function SessionCardView({
       {session.state.locked ? (
         <span
           className="pointer-events-auto relative shrink-0"
-          title="Locked. Unlock before deleting or adding participants."
+          title="Locked. Only participants can unlock this chat. Unlock before deleting or adding participants."
         >
           <LockKeyhole
             aria-label="Locked chat"
@@ -2643,27 +2662,16 @@ function SessionCardView({
             Copy session ID
           </ContextMenuItem>
           <ContextMenuItem
-            disabled={
-              thread.isPending || edit.isPending || (session.state.locked && session.state.pinned)
-            }
-            title={
-              session.state.locked && session.state.pinned
-                ? "Unlock this chat before unpinning it"
-                : undefined
-            }
-            onSelect={() => thread.mutate({ pinned: !session.state.pinned })}
+            disabled={edit.isPending}
+            onSelect={() => edit.mutate({ pinned: !session.state.pinned })}
           >
             {session.state.pinned ? <PinOff /> : <Pin />}
-            {session.state.pinned ? "Unpin for everyone" : "Pin for everyone"}
+            {pinAction}
           </ContextMenuItem>
           {!coding ? (
             <ContextMenuItem
-              disabled={
-                thread.isPending ||
-                edit.isPending ||
-                (session.state.locked && !session.state.is_participant)
-              }
-              onSelect={() => thread.mutate({ locked: !session.state.locked })}
+              disabled={edit.isPending || (session.state.locked && !session.state.is_participant)}
+              onSelect={() => edit.mutate({ locked: !session.state.locked })}
             >
               {session.state.locked ? <LockKeyholeOpen /> : <LockKeyhole />}
               {session.state.locked ? "Unlock chat" : "Lock chat"}
@@ -2684,7 +2692,7 @@ function SessionCardView({
             Rename
           </ContextMenuItem>
           <ContextMenuItem
-            disabled={edit.isPending || thread.isPending || (!session.archived && shelvingDisabled)}
+            disabled={edit.isPending || (!session.archived && shelvingDisabled)}
             onSelect={() => edit.mutate({ shelf: session.archived ? "active" : "archived" })}
           >
             {session.archived ? <ArchiveRestore /> : <Archive />}
@@ -2703,9 +2711,7 @@ function SessionCardView({
             </ContextMenuItem>
           ) : !session.archived ? (
             <ContextMenuSub>
-              <ContextMenuSubTrigger
-                disabled={edit.isPending || thread.isPending || shelvingDisabled}
-              >
+              <ContextMenuSubTrigger disabled={edit.isPending || shelvingDisabled}>
                 <AlarmClock />
                 Snooze
                 {shelvingDisabled ? (

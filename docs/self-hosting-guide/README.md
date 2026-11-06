@@ -92,7 +92,7 @@ kubectl apply --server-side --force-conflicts -f \
 ```
 
 ```bash
-export AGENTZ_VERSION=v0.30.0
+export AGENTZ_VERSION=v0.35.0
 
 helm upgrade -i --create-namespace \
   --namespace agentgateway-system \

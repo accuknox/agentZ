@@ -2674,7 +2674,7 @@ function SessionCardView({
               onSelect={() => edit.mutate({ locked: !session.state.locked })}
             >
               {session.state.locked ? <LockKeyholeOpen /> : <LockKeyhole />}
-              {session.state.locked ? "Unlock chat" : "Lock chat"}
+              {session.state.locked ? "Unlock" : "Lock"}
               {session.state.locked && !session.state.is_participant ? (
                 <span className="ml-auto text-xs text-muted-foreground">Participants only</span>
               ) : null}

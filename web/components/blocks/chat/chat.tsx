@@ -2204,7 +2204,7 @@ export default function Chat({
               <Alert className="mb-3">
                 <LockKeyhole aria-hidden />
                 <AlertDescription>
-                  This chat is locked. You can read it, but only a participant can unlock it.
+                  This chat is locked. You can read it, but not participate.
                 </AlertDescription>
               </Alert>
             ) : null}

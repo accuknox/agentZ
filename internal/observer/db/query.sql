@@ -652,3 +652,99 @@ FROM (
   FROM observer_app_operations op WHERE op.run_id IN (SELECT id FROM runs) GROUP BY op.run_id
 ) summary
 WHERE root.id = summary.run_id AND root.resource_kind = 'turn';
+
+-- name: InsertNativeAppOperation :batchone
+WITH operation AS (
+  INSERT INTO observer_app_operations (
+    organization_id,
+    workspace_id,
+    client_id,
+    app_name,
+    grant_id,
+    user_id,
+    resource_kind,
+    resource_namespace,
+    resource_name,
+    resource_uid,
+    target_id,
+    trace_id,
+    span_id,
+    parent_span_id,
+    start_time,
+    end_time,
+    duration_ns,
+    name,
+    span_class,
+    operation_name,
+    status_code,
+    error_type,
+    error_message,
+    model,
+    tool_name,
+    session_id,
+    turn_id,
+    agent_kind,
+    tool_call_id,
+    input_tokens,
+    output_tokens,
+    reasoning_tokens,
+    cached_input_tokens,
+    cached_write_tokens,
+    cost_usd, native
+  ) VALUES (
+    sqlc.arg(organization_id),
+    sqlc.arg(workspace_id),
+    sqlc.arg(client_id),
+    sqlc.arg(app_name),
+    sqlc.arg(grant_id),
+    sqlc.arg(user_id),
+    sqlc.arg(resource_kind),
+    sqlc.arg(resource_namespace),
+    sqlc.arg(resource_name),
+    sqlc.arg(resource_uid),
+    sqlc.arg(target_id),
+    sqlc.arg(trace_id),
+    sqlc.arg(span_id),
+    sqlc.arg(parent_span_id),
+    sqlc.arg(start_time),
+    sqlc.arg(end_time),
+    sqlc.arg(duration_ns),
+    sqlc.arg(name),
+    sqlc.arg(span_class),
+    sqlc.arg(operation_name),
+    sqlc.arg(status_code),
+    sqlc.arg(error_type),
+    sqlc.arg(error_message),
+    sqlc.arg(model),
+    sqlc.arg(tool_name),
+    sqlc.arg(session_id),
+    sqlc.arg(turn_id),
+    sqlc.arg(agent_kind),
+    sqlc.arg(tool_call_id),
+    sqlc.narg(input_tokens),
+    sqlc.narg(output_tokens),
+    sqlc.narg(reasoning_tokens),
+    sqlc.narg(cached_input_tokens),
+    sqlc.narg(cached_write_tokens),
+    sqlc.narg(cost_usd), true
+  )
+  ON CONFLICT DO NOTHING
+  RETURNING *
+), payload AS (
+  INSERT INTO observer_app_operation_payloads (operation_id, input_messages, output_messages, tool_arguments, tool_result, tool_error)
+  SELECT id, sqlc.arg(input_messages), sqlc.arg(output_messages), sqlc.arg(tool_arguments), sqlc.arg(tool_result), sqlc.arg(tool_error)
+  FROM operation
+)
+SELECT COALESCE((SELECT id FROM operation), 0)::bigint AS id;
+
+-- name: AssignNativeRuns :exec
+UPDATE observer_app_operations op
+SET run_id = root.id, turn_id = root.turn_id
+FROM observer_app_operations root
+WHERE root.organization_id = sqlc.arg(organization_id) AND root.workspace_id = sqlc.arg(workspace_id)
+  AND root.client_id = sqlc.arg(client_id) AND root.trace_id = ANY(sqlc.arg(trace_ids)::bytea[])
+  AND root.native AND root.resource_kind = 'turn'
+  AND op.organization_id = root.organization_id AND op.workspace_id = root.workspace_id
+  AND op.client_id = root.client_id AND op.user_id = root.user_id
+  AND op.trace_id = root.trace_id AND op.session_id = root.session_id
+  AND op.native AND op.id <> root.id AND op.run_id IS DISTINCT FROM root.id;

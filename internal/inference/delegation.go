@@ -162,8 +162,8 @@ func ValidateDelegatedRequest(body []byte, responses bool) (*DelegatedRequest, e
 					content = append(content, output...)
 				}
 			case "tool_search_output":
-				if item.Execution != "client" {
-					return nil, errors.New("use client-side tool discovery; provider account tools are unavailable")
+				if item.Execution != "client" && item.Execution != "server" {
+					return nil, errors.New("tool search output requires client or server execution")
 				}
 				input.nativeTools = true
 				tools = append(tools, item.Tools...)
@@ -189,7 +189,10 @@ func ValidateDelegatedRequest(body []byte, responses bool) (*DelegatedRequest, e
 		case "function":
 			continue
 		case "tool_search":
-			if responses && tool.Execution == "client" {
+			valid := tool.Execution == "" || tool.Execution == "server" || tool.Execution == "client"
+			if responses && valid {
+				// Server search loads only the inline tools validated here.
+				// It does not grant access to stored provider resources.
 				input.nativeTools = true
 				continue
 			}

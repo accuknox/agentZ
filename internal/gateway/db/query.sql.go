@@ -2169,24 +2169,24 @@ func (q *Queries) GatewayGetAgentShare(ctx context.Context, arg GatewayGetAgentS
 
 const gatewayGetAppMCPGraph = `-- name: GatewayGetAppMCPGraph :many
 WITH selected AS (
- SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name, op.duration_ns, op.status_code, op.start_time FROM observer_app_operations op
+ SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name, op.duration_ns, op.status_code, op.start_time FROM observer_app_spans op
  WHERE op.organization_id = $1 AND op.workspace_id = $2
-   AND op.client_id = $3 AND op.resource_kind = 'mcp'
+   AND op.visible AND op.client_id = $3 AND op.resource_kind = 'mcp'
    AND op.start_time >= $4 AND op.start_time < $5
    AND $6::text = ''
  UNION ALL
- SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name, op.duration_ns, op.status_code, op.start_time FROM observer_app_operations op
+ SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name, op.duration_ns, op.status_code, op.start_time FROM observer_app_spans op
  WHERE op.organization_id = $1 AND op.workspace_id = $2
-   AND op.client_id = $3 AND op.resource_kind = 'mcp'
+   AND op.visible AND op.client_id = $3 AND op.resource_kind = 'mcp'
    AND op.start_time >= $4 AND op.start_time < $5
    AND $6::text <> '' AND op.session_id = $6
  UNION ALL
- SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name, op.duration_ns, op.status_code, op.start_time FROM observer_app_operations run JOIN observer_app_operations op ON op.run_id = run.id
+ SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name, op.duration_ns, op.status_code, op.start_time FROM observer_app_operations run JOIN observer_app_spans op ON op.run_id = run.id
  WHERE run.organization_id = $1 AND run.workspace_id = $2
    AND run.client_id = $3 AND run.resource_kind = 'turn'
    AND run.session_id = $6 AND $6::text <> ''
    AND op.organization_id = $1 AND op.workspace_id = $2
-   AND op.client_id = $3 AND op.resource_kind = 'mcp' AND op.session_id = ''
+   AND op.visible AND op.client_id = $3 AND op.resource_kind = 'mcp' AND op.session_id = ''
    AND op.start_time >= $4 AND op.start_time < $5
 )
 SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name,
@@ -2256,15 +2256,15 @@ func (q *Queries) GatewayGetAppMCPGraph(ctx context.Context, arg GatewayGetAppMC
 }
 
 const gatewayGetAppOperations = `-- name: GatewayGetAppOperations :many
-SELECT span.id, span.organization_id, span.workspace_id, span.client_id, span.app_name, span.grant_id, span.user_id, span.resource_kind, span.resource_namespace, span.resource_name, span.resource_uid, span.target_id, span.trace_id, span.span_id, span.parent_span_id, span.start_time, span.end_time, span.duration_ns, span.name, span.span_class, span.operation_name, span.status_code, span.error_type, span.error_message, span.model, span.tool_name, span.session_id, span.input_tokens, span.output_tokens, span.reasoning_tokens, span.cached_input_tokens, span.cached_write_tokens, span.cost_usd, span.ingested_at, span.agent_kind, span.turn_id, span.tool_call_id, span.run_id, span.source_operation_id, span.result_id, span.visible,
+SELECT span.id, span.organization_id, span.workspace_id, span.client_id, span.app_name, span.grant_id, span.user_id, span.resource_kind, span.resource_namespace, span.resource_name, span.resource_uid, span.target_id, span.trace_id, span.span_id, span.parent_span_id, span.start_time, span.end_time, span.duration_ns, span.name, span.span_class, span.operation_name, span.status_code, span.error_type, span.error_message, span.model, span.tool_name, span.session_id, span.input_tokens, span.output_tokens, span.reasoning_tokens, span.cached_input_tokens, span.cached_write_tokens, span.cost_usd, span.ingested_at, span.agent_kind, span.turn_id, span.tool_call_id, span.run_id, span.source_operation_id, span.result_id, span.visible, span.native,
  CASE WHEN NOT $1::boolean OR span.id = $2::bigint
    THEN COALESCE(payload.input_messages, 'null'::jsonb) ELSE 'null'::jsonb END::jsonb AS input_messages,
- CASE WHEN $1::boolean AND span.resource_kind = 'inference'
+ CASE WHEN $1::boolean AND span.resource_kind = 'inference' AND NOT span.native
    AND payload.output_messages <> 'null'::jsonb
    THEN jsonb_build_object('completion', payload.output_messages->'completion')
    ELSE COALESCE(payload.output_messages, 'null'::jsonb) END::jsonb AS output_messages,
  COALESCE(payload.tool_arguments, 'null'::jsonb)::jsonb AS tool_arguments,
- CASE WHEN span.resource_kind = 'tool' THEN COALESCE(
+ CASE WHEN span.resource_kind = 'tool' AND NOT span.native THEN COALESCE(
    CASE result.protocol
      WHEN 'messages' THEN (jsonb_path_query_array(result_payload.input_messages,
        '$.messages[*] ? (@.role == "user").content[*] ? (@.type == "tool_result")') -> (result.source_ordinal - 1)::int) -> 'content'
@@ -2360,6 +2360,7 @@ func (q *Queries) GatewayGetAppOperations(ctx context.Context, arg GatewayGetApp
 			&i.ObserverAppSpan.SourceOperationID,
 			&i.ObserverAppSpan.ResultID,
 			&i.ObserverAppSpan.Visible,
+			&i.ObserverAppSpan.Native,
 			&i.InputMessages,
 			&i.OutputMessages,
 			&i.ToolArguments,
@@ -2389,6 +2390,7 @@ WITH identities AS (
  FROM observer_app_operations op
  WHERE op.organization_id = $1 AND op.workspace_id = $2
    AND op.client_id = $3 AND op.run_id IS NULL AND op.resource_kind IN ('inference', 'mcp')
+   AND (op.agent_kind <> 'github-copilot-cli' OR op.native)
    AND op.start_time >= $5::timestamptz AND op.start_time <= $6::timestamptz
  GROUP BY op.trace_id
  -- Limit aggregation to the selected range without moving a trace's true start.
@@ -2397,12 +2399,14 @@ WITH identities AS (
    WHERE earlier.organization_id = $1 AND earlier.workspace_id = $2
      AND earlier.client_id = $3 AND earlier.trace_id = op.trace_id
      AND earlier.run_id IS NULL AND earlier.resource_kind IN ('inference', 'mcp')
+     AND (earlier.agent_kind <> 'github-copilot-cli' OR earlier.native)
      AND earlier.start_time < $5::timestamptz
  ) AND ($4::text = '' OR EXISTS (
    SELECT 1 FROM observer_app_operations session
    WHERE session.organization_id = $1 AND session.workspace_id = $2
      AND session.client_id = $3 AND session.trace_id = op.trace_id
      AND session.run_id IS NULL AND session.resource_kind IN ('inference', 'mcp')
+     AND (session.agent_kind <> 'github-copilot-cli' OR session.native)
      AND session.session_id = $4
  ))
 )
@@ -4280,7 +4284,7 @@ WITH sessions AS (
  SELECT session_id, MAX(end_time)::timestamptz AS last_seen
  FROM observer_app_operations
  WHERE organization_id = $5 AND workspace_id = $6
-   AND client_id = $7 AND agent_kind IN ('claude', 'codex')
+   AND client_id = $7 AND agent_kind IN ('claude', 'codex', 'github-copilot-cli')
    AND session_id <> '' AND run_id IS NULL AND resource_kind <> 'tool'
    AND ($8::text = '' OR session_id = $8)
  GROUP BY session_id
@@ -4350,7 +4354,7 @@ WITH roots AS MATERIALIZED (
  WHERE op.organization_id = $6 AND op.workspace_id = $7
    AND op.client_id = $8
 )
-SELECT span.id, span.organization_id, span.workspace_id, span.client_id, span.app_name, span.grant_id, span.user_id, span.resource_kind, span.resource_namespace, span.resource_name, span.resource_uid, span.target_id, span.trace_id, span.span_id, span.parent_span_id, span.start_time, span.end_time, span.duration_ns, span.name, span.span_class, span.operation_name, span.status_code, span.error_type, span.error_message, span.model, span.tool_name, span.session_id, span.input_tokens, span.output_tokens, span.reasoning_tokens, span.cached_input_tokens, span.cached_write_tokens, span.cost_usd, span.ingested_at, span.agent_kind, span.turn_id, span.tool_call_id, span.run_id, span.source_operation_id, span.result_id, span.visible FROM candidates JOIN observer_app_spans span ON span.id = candidates.id
+SELECT span.id, span.organization_id, span.workspace_id, span.client_id, span.app_name, span.grant_id, span.user_id, span.resource_kind, span.resource_namespace, span.resource_name, span.resource_uid, span.target_id, span.trace_id, span.span_id, span.parent_span_id, span.start_time, span.end_time, span.duration_ns, span.name, span.span_class, span.operation_name, span.status_code, span.error_type, span.error_message, span.model, span.tool_name, span.session_id, span.input_tokens, span.output_tokens, span.reasoning_tokens, span.cached_input_tokens, span.cached_write_tokens, span.cost_usd, span.ingested_at, span.agent_kind, span.turn_id, span.tool_call_id, span.run_id, span.source_operation_id, span.result_id, span.visible, span.native FROM candidates JOIN observer_app_spans span ON span.id = candidates.id
 WHERE span.visible AND (NOT $1::boolean
   OR (span.resource_kind <> 'turn', span.start_time, span.id)
     > ($2::boolean, $3::timestamptz, $4::bigint))
@@ -4434,6 +4438,7 @@ func (q *Queries) GatewayListAppSpans(ctx context.Context, arg GatewayListAppSpa
 			&i.ObserverAppSpan.SourceOperationID,
 			&i.ObserverAppSpan.ResultID,
 			&i.ObserverAppSpan.Visible,
+			&i.ObserverAppSpan.Native,
 		); err != nil {
 			return nil, err
 		}
@@ -4458,6 +4463,7 @@ WITH identities AS (
  FROM observer_app_operations op
  WHERE op.organization_id = $1 AND op.workspace_id = $2
    AND op.client_id = $3 AND op.run_id IS NULL AND op.resource_kind IN ('inference', 'mcp')
+   AND (op.agent_kind <> 'github-copilot-cli' OR op.native)
    AND op.start_time >= $5::timestamptz AND op.start_time <= $6::timestamptz
  GROUP BY op.trace_id
  -- Limit aggregation to the selected range without moving a trace's true start.
@@ -4466,12 +4472,14 @@ WITH identities AS (
    WHERE earlier.organization_id = $1 AND earlier.workspace_id = $2
      AND earlier.client_id = $3 AND earlier.trace_id = op.trace_id
      AND earlier.run_id IS NULL AND earlier.resource_kind IN ('inference', 'mcp')
+     AND (earlier.agent_kind <> 'github-copilot-cli' OR earlier.native)
      AND earlier.start_time < $5::timestamptz
  ) AND ($4::text = '' OR EXISTS (
    SELECT 1 FROM observer_app_operations session
    WHERE session.organization_id = $1 AND session.workspace_id = $2
      AND session.client_id = $3 AND session.trace_id = op.trace_id
      AND session.run_id IS NULL AND session.resource_kind IN ('inference', 'mcp')
+     AND (session.agent_kind <> 'github-copilot-cli' OR session.native)
      AND session.session_id = $4
  ))
 ), candidates AS MATERIALIZED (
@@ -5832,6 +5840,40 @@ func (q *Queries) GatewayListExternalAgentGuardrails(ctx context.Context, arg Ga
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListExternalAgentMCP = `-- name: GatewayListExternalAgentMCP :many
+SELECT selection FROM delegation_grants
+WHERE client_id = $1 AND user_id = $2
+  AND organization_id = $3
+  AND approved_at IS NOT NULL AND revoked_at IS NULL
+  AND scopes @> ARRAY['mcp:use']::text[] AND selection->'mcp' <> '[]'::jsonb
+`
+
+type GatewayListExternalAgentMCPParams struct {
+	ClientID       string      `json:"client_id"`
+	UserID         string      `json:"user_id"`
+	OrganizationID pgtype.Text `json:"organization_id"`
+}
+
+func (q *Queries) GatewayListExternalAgentMCP(ctx context.Context, arg GatewayListExternalAgentMCPParams) ([][]byte, error) {
+	rows, err := q.db.Query(ctx, gatewayListExternalAgentMCP, arg.ClientID, arg.UserID, arg.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := [][]byte{}
+	for rows.Next() {
+		var selection []byte
+		if err := rows.Scan(&selection); err != nil {
+			return nil, err
+		}
+		items = append(items, selection)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

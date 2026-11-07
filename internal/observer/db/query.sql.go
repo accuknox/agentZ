@@ -37,6 +37,36 @@ func (q *Queries) AssignAppToolRuns(ctx context.Context, operationIds []int64) e
 	return err
 }
 
+const assignNativeRuns = `-- name: AssignNativeRuns :exec
+UPDATE observer_app_operations op
+SET run_id = root.id, turn_id = root.turn_id
+FROM observer_app_operations root
+WHERE root.organization_id = $1 AND root.workspace_id = $2
+  AND root.client_id = $3 AND root.trace_id = ANY($4::bytea[])
+  AND root.native AND root.resource_kind = 'turn'
+  AND op.organization_id = root.organization_id AND op.workspace_id = root.workspace_id
+  AND op.client_id = root.client_id AND op.user_id = root.user_id
+  AND op.trace_id = root.trace_id AND op.session_id = root.session_id
+  AND op.native AND op.id <> root.id AND op.run_id IS DISTINCT FROM root.id
+`
+
+type AssignNativeRunsParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	ClientID       string   `json:"client_id"`
+	TraceIds       [][]byte `json:"trace_ids"`
+}
+
+func (q *Queries) AssignNativeRuns(ctx context.Context, arg AssignNativeRunsParams) error {
+	_, err := q.db.Exec(ctx, assignNativeRuns,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.ClientID,
+		arg.TraceIds,
+	)
+	return err
+}
+
 const deleteExpiredGuardrailEvents = `-- name: DeleteExpiredGuardrailEvents :execrows
 WITH expired_requests AS (
   DELETE FROM observer_guardrail_requests WHERE expires_at <= now()

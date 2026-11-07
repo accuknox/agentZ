@@ -13,7 +13,7 @@ import {
   queryOptions,
   useQuery,
 } from "@tanstack/react-query"
-import { ClaudeAI, CodexLight } from "@ridemountainpig/svgl-react"
+import { ClaudeAI, CodexLight, GitHubCopilotLight } from "@ridemountainpig/svgl-react"
 import {
   ArrowUpRight,
   Brain,
@@ -22,6 +22,7 @@ import {
   MoreHorizontal,
   Pencil,
   Plus,
+  TriangleAlert,
   Trash2,
   Unplug,
 } from "lucide-react"
@@ -86,6 +87,7 @@ import {
 const agentKinds = {
   claude: { label: "Claude Code", icon: ClaudeAI },
   codex: { label: "Codex", icon: CodexLight },
+  "github-copilot-cli": { label: "GitHub Copilot CLI", icon: GitHubCopilotLight },
 } as const
 
 const layout = {
@@ -168,7 +170,7 @@ export function ExternalAgents({
               <Icon
                 aria-hidden="true"
                 className="size-6 shrink-0"
-                fill={agent.kind === "codex" ? "currentColor" : undefined}
+                fill={agent.kind !== "claude" ? "currentColor" : undefined}
               />
               <div className="flex min-w-0 flex-col gap-0.5">
                 <span className="truncate font-medium" title={agent.name}>
@@ -325,7 +327,8 @@ export function ExternalAgents({
       />
       {!delegationEnabled ? (
         <div className="px-4 md:px-6">
-          <Alert>
+          <Alert variant="warning">
+            <TriangleAlert aria-hidden="true" />
             <AlertDescription>
               Your organization has disabled external model and MCP access. An organization admin
               must enable resource delegation before you can grant access.
@@ -568,7 +571,7 @@ function ExternalAgentEditor({
                             <SelectItem key={value} value={value}>
                               <Icon
                                 aria-hidden="true"
-                                fill={value === "codex" ? "currentColor" : undefined}
+                                fill={value !== "claude" ? "currentColor" : undefined}
                               />
                               {label}
                             </SelectItem>
@@ -627,7 +630,14 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
       clientID: ${agent.clientId}
 `
   const profile = `'${agent.name.replaceAll("'", os === "windows" ? "''" : "'\\''")}'`
-  const launch = `agentz launch ${agent.kind} --profile ${profile} --`
+  const provider = agent.kind === "github-copilot-cli" ? "copilot" : agent.kind
+  const launch = `agentz launch ${provider} --profile ${profile} --`
+  const login = `agentz login ${provider} --profile ${profile}`
+  const version = {
+    claude: "Claude Code 2.1.299+",
+    codex: "Codex 0.162.1+",
+    "github-copilot-cli": "GitHub Copilot CLI 1.0.106+",
+  }[agent.kind]
   const reconnect = agent.previouslyConnected && !agent.connected
   return (
     <FieldGroup className="p-4 pt-0">
@@ -640,16 +650,14 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
       ) : null}
       <Field>
         <FieldLabel>1. Install the CLI</FieldLabel>
-        <FieldDescription>
-          Requires {agent.kind === "claude" ? "Claude Code 2.1.299+" : "Codex 0.162.1+"}
-        </FieldDescription>
+        <FieldDescription>Requires {version}</FieldDescription>
         <Button variant="outline" asChild className="w-fit">
           <a
             href="https://github.com/accuknox/agentz/releases/latest"
             target="_blank"
             rel="noreferrer"
           >
-            Download CLI
+            Download AgentZ CLI
             <ArrowUpRight aria-hidden="true" data-icon="inline-end" />
           </a>
         </Button>
@@ -691,12 +699,16 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
         ) : null}
         <SetupCommand
           command={
-            reconnect && agent.kind === "codex" ? `agentz login codex --profile ${profile}` : launch
+            agent.kind === "github-copilot-cli" || (reconnect && agent.kind === "codex")
+              ? login
+              : launch
           }
-          label="Copy launch command"
+          label="Copy model connection command"
         />
         <FieldDescription>
-          Sign in and choose models. Skip this step if you only need MCP.
+          {agent.kind === "github-copilot-cli"
+            ? "Copilot conversations require a model grant. MCP access is separate."
+            : "Sign in and choose models. Skip this step if you only need MCP."}
         </FieldDescription>
       </Field>
       <Field>
@@ -707,7 +719,12 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
             label="Copy MCP registration command"
           />
         ) : null}
-        <SetupCommand command={`${launch} mcp login agentz`} label="Copy MCP login command" />
+        <SetupCommand
+          command={
+            agent.kind === "github-copilot-cli" ? `${login} --mcp` : `${launch} mcp login agentz`
+          }
+          label="Copy MCP login command"
+        />
         <FieldDescription>Choose tools, prompts and resources in the browser</FieldDescription>
       </Field>
     </FieldGroup>

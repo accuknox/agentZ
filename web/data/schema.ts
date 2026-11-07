@@ -13,7 +13,9 @@ import {
   zSandboxInference,
   zSecretKey,
   zSkillName,
+  zLensApp,
 } from "@/lib/gateway/client/zod.gen"
+import type { DelegationModel, LensApp } from "@/lib/gateway/client"
 
 export const delegationScopes = [
   "openid",
@@ -26,8 +28,33 @@ export const delegationScopes = [
 
 export const externalAgentInput = z.object({
   name: z.string().trim().min(1, "Enter an agent name.").max(100, "Use 100 characters or fewer."),
-  kind: z.enum(["claude", "codex"]),
+  kind: zLensApp.shape.agent_kind.unwrap(),
 })
+
+/** externalAgentCompatibility selects the protocol the coding agent can use without losing native tools. */
+export function externalAgentCompatibility(
+  kind: NonNullable<LensApp["agent_kind"]>,
+  model: DelegationModel
+) {
+  const compatibility = model.api_compatibility ?? []
+  if (kind === "claude")
+    return compatibility.find((item) => item.api === "Messages" && item.support !== "unsupported")
+  if (!model.model_info?.capabilities.tool_call) return
+  if (kind === "codex")
+    return compatibility.find((item) => item.api === "Responses" && item.support === "native")
+  const native = ["Responses", "Messages", "ChatCompletions"] as const
+  for (const api of native) {
+    const supported = compatibility.find((item) => item.api === api && item.support === "native")
+    if (supported) return supported
+  }
+  for (const api of ["ChatCompletions", "Messages"] as const) {
+    const supported = compatibility.find(
+      (item) => item.api === api && item.support === "translated"
+    )
+    if (supported) return supported
+  }
+  return undefined
+}
 
 export const oauthApplicationInput = z
   .object({

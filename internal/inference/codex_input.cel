@@ -1,0 +1,17 @@
+// Codex accepts developer messages for instructions, including mid-turn
+// instructions. Explicit cache breakpoints are a Copilot Responses extension;
+// Codex manages its own prompt cache and rejects that field.
+request.path.endsWith('/responses') ? coalesce(
+  json(request.body).with(body, body.merge({
+    'input': body.input.map(item, coalesce(
+      item.merge(default(item.role, '') == 'system'
+        ? {'role': 'developer'} : {}).merge({
+        'content': coalesce(item.content.map(part,
+          part.filterKeys(key, key != 'prompt_cache_breakpoint')
+        ), item.content)
+      }),
+      item
+    ))
+  })),
+  request.body
+) : request.body

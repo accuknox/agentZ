@@ -57,6 +57,13 @@
       "when": 1793876849704,
       "tag": "0007_workflow-locks",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793959985427,
+      "tag": "0008_github_copilot_cli",
+      "breakpoints": true
     }
   ]
 }

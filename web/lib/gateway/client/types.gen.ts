@@ -141,7 +141,7 @@ export type LensApp = {
   client_id: string
   name: string
   user?: ResourceActor
-  agent_kind?: "claude" | "codex"
+  agent_kind?: "claude" | "codex" | "github-copilot-cli"
 }
 
 export type ListLensAppsResponse = {
@@ -9711,6 +9711,33 @@ export type GetDelegatedCatalogResponses = {
 
 export type GetDelegatedCatalogResponse =
   GetDelegatedCatalogResponses[keyof GetDelegatedCatalogResponses]
+
+export type ExportExternalAgentTracesData = {
+  body: Blob | File
+  path?: never
+  query?: never
+  url: "/api/inference/v1/traces"
+}
+
+export type ExportExternalAgentTracesErrors = {
+  /**
+   * Request validation failed.
+   */
+  default: Error
+}
+
+export type ExportExternalAgentTracesError =
+  ExportExternalAgentTracesErrors[keyof ExportExternalAgentTracesErrors]
+
+export type ExportExternalAgentTracesResponses = {
+  /**
+   * OTLP ExportTraceServiceResponse, including rejected span counts.
+   */
+  200: Blob | File
+}
+
+export type ExportExternalAgentTracesResponse =
+  ExportExternalAgentTracesResponses[keyof ExportExternalAgentTracesResponses]
 
 export type ListInferencePoolsData = {
   body?: never

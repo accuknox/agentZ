@@ -26,7 +26,7 @@ func main() {
 	command := &cli.Command{
 		Name:    "agentz",
 		Version: version,
-		Usage:   "Launch Claude or Codex through AgentZ",
+		Usage:   "Launch coding agents through AgentZ",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:      "config",
@@ -42,15 +42,15 @@ func main() {
 		Commands: []*cli.Command{
 			{
 				Name:            "launch",
-				Usage:           "Launch Claude or Codex with native flags",
-				ArgsUsage:       "[claude|codex] [--profile NAME] [-- native flags]",
+				Usage:           "Launch Claude, Codex or GitHub Copilot with native flags",
+				ArgsUsage:       "[claude|codex|copilot] [--profile NAME] [-- native flags]",
 				SkipFlagParsing: true,
 				Action:          launcher.Run,
 			},
 			{
 				Name:            "login",
-				Usage:           "Sign in to Codex through AgentZ",
-				ArgsUsage:       "[codex] [--profile NAME]",
+				Usage:           "Sign in to Codex or GitHub Copilot through AgentZ",
+				ArgsUsage:       "[codex|copilot] [--profile NAME] [--mcp]",
 				SkipFlagParsing: true,
 				Action:          launcher.Run,
 			},

@@ -94,7 +94,7 @@ WITH operation AS (
     $35
   )
   ON CONFLICT (organization_id, workspace_id, client_id, trace_id, span_id, start_time) DO NOTHING
-  RETURNING id, organization_id, workspace_id, client_id, app_name, grant_id, user_id, resource_kind, resource_namespace, resource_name, resource_uid, target_id, trace_id, span_id, parent_span_id, start_time, end_time, duration_ns, name, span_class, operation_name, status_code, error_type, error_message, model, tool_name, session_id, agent_kind, turn_id, tool_call_id, run_id, source_operation_id, result_id, input_tokens, output_tokens, reasoning_tokens, cached_input_tokens, cached_write_tokens, cost_usd, ingested_at
+  RETURNING id, organization_id, workspace_id, client_id, app_name, grant_id, user_id, resource_kind, resource_namespace, resource_name, resource_uid, target_id, trace_id, span_id, parent_span_id, start_time, end_time, duration_ns, name, span_class, operation_name, status_code, error_type, error_message, model, tool_name, session_id, agent_kind, turn_id, tool_call_id, run_id, source_operation_id, result_id, input_tokens, output_tokens, reasoning_tokens, cached_input_tokens, cached_write_tokens, cost_usd, ingested_at, native
 ), run AS (
   INSERT INTO observer_app_operations (
     organization_id, workspace_id, client_id, app_name, grant_id, user_id,
@@ -389,6 +389,214 @@ func (b *InsertMCPToolInvocationBatchResults) Exec(f func(int, error)) {
 }
 
 func (b *InsertMCPToolInvocationBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
+const insertNativeAppOperation = `-- name: InsertNativeAppOperation :batchone
+WITH operation AS (
+  INSERT INTO observer_app_operations (
+    organization_id,
+    workspace_id,
+    client_id,
+    app_name,
+    grant_id,
+    user_id,
+    resource_kind,
+    resource_namespace,
+    resource_name,
+    resource_uid,
+    target_id,
+    trace_id,
+    span_id,
+    parent_span_id,
+    start_time,
+    end_time,
+    duration_ns,
+    name,
+    span_class,
+    operation_name,
+    status_code,
+    error_type,
+    error_message,
+    model,
+    tool_name,
+    session_id,
+    turn_id,
+    agent_kind,
+    tool_call_id,
+    input_tokens,
+    output_tokens,
+    reasoning_tokens,
+    cached_input_tokens,
+    cached_write_tokens,
+    cost_usd, native
+  ) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8,
+    $9,
+    $10,
+    $11,
+    $12,
+    $13,
+    $14,
+    $15,
+    $16,
+    $17,
+    $18,
+    $19,
+    $20,
+    $21,
+    $22,
+    $23,
+    $24,
+    $25,
+    $26,
+    $27,
+    $28,
+    $29,
+    $30,
+    $31,
+    $32,
+    $33,
+    $34,
+    $35, true
+  )
+  ON CONFLICT DO NOTHING
+  RETURNING id, organization_id, workspace_id, client_id, app_name, grant_id, user_id, resource_kind, resource_namespace, resource_name, resource_uid, target_id, trace_id, span_id, parent_span_id, start_time, end_time, duration_ns, name, span_class, operation_name, status_code, error_type, error_message, model, tool_name, session_id, agent_kind, turn_id, tool_call_id, run_id, source_operation_id, result_id, input_tokens, output_tokens, reasoning_tokens, cached_input_tokens, cached_write_tokens, cost_usd, ingested_at, native
+), payload AS (
+  INSERT INTO observer_app_operation_payloads (operation_id, input_messages, output_messages, tool_arguments, tool_result, tool_error)
+  SELECT id, $36, $37, $38, $39, $40
+  FROM operation
+)
+SELECT COALESCE((SELECT id FROM operation), 0)::bigint AS id
+`
+
+type InsertNativeAppOperationBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type InsertNativeAppOperationParams struct {
+	OrganizationID    string        `json:"organization_id"`
+	WorkspaceID       string        `json:"workspace_id"`
+	ClientID          string        `json:"client_id"`
+	AppName           string        `json:"app_name"`
+	GrantID           string        `json:"grant_id"`
+	UserID            string        `json:"user_id"`
+	ResourceKind      string        `json:"resource_kind"`
+	ResourceNamespace string        `json:"resource_namespace"`
+	ResourceName      string        `json:"resource_name"`
+	ResourceUid       string        `json:"resource_uid"`
+	TargetID          string        `json:"target_id"`
+	TraceID           []byte        `json:"trace_id"`
+	SpanID            []byte        `json:"span_id"`
+	ParentSpanID      []byte        `json:"parent_span_id"`
+	StartTime         time.Time     `json:"start_time"`
+	EndTime           time.Time     `json:"end_time"`
+	DurationNs        int64         `json:"duration_ns"`
+	Name              string        `json:"name"`
+	SpanClass         string        `json:"span_class"`
+	OperationName     string        `json:"operation_name"`
+	StatusCode        string        `json:"status_code"`
+	ErrorType         string        `json:"error_type"`
+	ErrorMessage      string        `json:"error_message"`
+	Model             string        `json:"model"`
+	ToolName          string        `json:"tool_name"`
+	SessionID         string        `json:"session_id"`
+	TurnID            string        `json:"turn_id"`
+	AgentKind         string        `json:"agent_kind"`
+	ToolCallID        string        `json:"tool_call_id"`
+	InputTokens       pgtype.Int8   `json:"input_tokens"`
+	OutputTokens      pgtype.Int8   `json:"output_tokens"`
+	ReasoningTokens   pgtype.Int8   `json:"reasoning_tokens"`
+	CachedInputTokens pgtype.Int8   `json:"cached_input_tokens"`
+	CachedWriteTokens pgtype.Int8   `json:"cached_write_tokens"`
+	CostUsd           pgtype.Float8 `json:"cost_usd"`
+	InputMessages     []byte        `json:"input_messages"`
+	OutputMessages    []byte        `json:"output_messages"`
+	ToolArguments     []byte        `json:"tool_arguments"`
+	ToolResult        []byte        `json:"tool_result"`
+	ToolError         []byte        `json:"tool_error"`
+}
+
+func (q *Queries) InsertNativeAppOperation(ctx context.Context, arg []InsertNativeAppOperationParams) *InsertNativeAppOperationBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.OrganizationID,
+			a.WorkspaceID,
+			a.ClientID,
+			a.AppName,
+			a.GrantID,
+			a.UserID,
+			a.ResourceKind,
+			a.ResourceNamespace,
+			a.ResourceName,
+			a.ResourceUid,
+			a.TargetID,
+			a.TraceID,
+			a.SpanID,
+			a.ParentSpanID,
+			a.StartTime,
+			a.EndTime,
+			a.DurationNs,
+			a.Name,
+			a.SpanClass,
+			a.OperationName,
+			a.StatusCode,
+			a.ErrorType,
+			a.ErrorMessage,
+			a.Model,
+			a.ToolName,
+			a.SessionID,
+			a.TurnID,
+			a.AgentKind,
+			a.ToolCallID,
+			a.InputTokens,
+			a.OutputTokens,
+			a.ReasoningTokens,
+			a.CachedInputTokens,
+			a.CachedWriteTokens,
+			a.CostUsd,
+			a.InputMessages,
+			a.OutputMessages,
+			a.ToolArguments,
+			a.ToolResult,
+			a.ToolError,
+		}
+		batch.Queue(insertNativeAppOperation, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &InsertNativeAppOperationBatchResults{br, len(arg), false}
+}
+
+func (b *InsertNativeAppOperationBatchResults) QueryRow(f func(int, int64, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		var id int64
+		if b.closed {
+			if f != nil {
+				f(t, id, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		row := b.br.QueryRow()
+		err := row.Scan(&id)
+		if f != nil {
+			f(t, id, err)
+		}
+	}
+}
+
+func (b *InsertNativeAppOperationBatchResults) Close() error {
 	b.closed = true
 	return b.br.Close()
 }

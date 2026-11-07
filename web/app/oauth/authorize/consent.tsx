@@ -1,5 +1,8 @@
 "use client"
 
+import { externalAgentCompatibility } from "@/data/schema"
+import type { LensApp } from "@/lib/gateway/client"
+
 import { useEffect, useState, useTransition } from "react"
 import Image from "next/image"
 import { createAuthClient } from "better-auth/react"
@@ -59,7 +62,7 @@ const mcpKinds = ["tools", "prompts", "resources"] as const
 
 type ConsentProps = {
   request: DelegationRequest
-  client: { name: string; owner: string | null; callback: string; agent?: "claude" | "codex" }
+  client: { name: string; owner: string | null; callback: string; agent?: LensApp["agent_kind"] }
   user: { name: string; email: string; image?: string | null }
   scopes: string[]
   organizations: { id: string; name: string }[]
@@ -87,15 +90,10 @@ export function Consent({
   const [catalogs, setCatalogs] = useState<Record<string, DelegationCatalog>>(
     initialWorkspace ? { [initialWorkspace.id]: initialWorkspace.catalog } : {}
   )
-  const [selection, setSelection] = useState<DelegationCatalog>(() => ({
+  const [selection, setSelection] = useState<DelegationCatalog>({
     models: [],
-    mcp:
-      mcp && initialWorkspace
-        ? initialWorkspace.catalog.mcp.filter((connection) =>
-            mcpKinds.some((kind) => connection[kind].length)
-          )
-        : [],
-  }))
+    mcp: [],
+  })
   const [error, setError] = useState<string>()
   const [pending, startTransition] = useTransition()
   const [loadError, setLoadError] = useState<string>()
@@ -130,16 +128,6 @@ export function Consent({
       try {
         const catalog = await delegationWorkspaceAction(request, organizationId, id)
         setCatalogs((current) => ({ ...current, [id]: catalog }))
-        if (mcp)
-          setSelection((current) => ({
-            ...current,
-            mcp: [
-              ...current.mcp,
-              ...catalog.mcp.filter((connection) =>
-                mcpKinds.some((kind) => connection[kind].length)
-              ),
-            ],
-          }))
       } catch (error) {
         setLoadError(
           error instanceof Error ? error.message : "Could not load resources from this workspace."
@@ -178,15 +166,6 @@ export function Consent({
           </p>
         </div>
       </header>
-      {request.type === "device_code" ? (
-        <Alert>
-          <AlertDescription>
-            Confirm this code matches your terminal:{" "}
-            <strong className="font-mono">{request.userCode}</strong>. Only authorize a connection
-            you started.
-          </AlertDescription>
-        </Alert>
-      ) : null}
       <div className="rounded-xl border-2 border-dashed border-muted-foreground/50 bg-card/40 p-5 text-sm">
         <UserIdentity name={user.name} email={user.email} image={user.image} size="default" />
       </div>
@@ -352,16 +331,10 @@ export function Consent({
                           searchPlaceholder="Search models or providers…"
                           emptyMessage="No matching models."
                           options={catalog.models.map((model) => {
-                            const api = client.agent === "claude" ? "Messages" : "Responses"
                             const compatibility = client.agent
-                              ? model.api_compatibility?.find((item) => item.api === api)
+                              ? externalAgentCompatibility(client.agent, model)
                               : undefined
-                            const codexUnsupported =
-                              client.agent === "codex" &&
-                              (compatibility?.support !== "native" ||
-                                !model.model_info?.capabilities.tool_call)
-                            const unsupported =
-                              compatibility?.support === "unsupported" || codexUnsupported
+                            const unsupported = !!client.agent && !compatibility
                             let badge = model.provider_display_name || model.provider
                             if (compatibility?.support === "native") badge = "Native"
                             if (compatibility?.support === "translated") badge = "Supported"

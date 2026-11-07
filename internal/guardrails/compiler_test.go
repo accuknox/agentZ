@@ -413,7 +413,10 @@ func TestStreamingRegexNeedsBoundedContext(t *testing.T) {
 				Action:      "deny",
 				Regex:       &api.GuardrailRegex{Patterns: []string{pattern}},
 			}
-			policy := api.GuardrailPolicySpec{DisplayName: "Output policy", Checks: []api.GuardrailCheck{check}}
+			policy := api.GuardrailPolicySpec{
+				DisplayName: "Output policy",
+				Checks:      []api.GuardrailCheck{check},
+			}
 			wantError := pattern != "SECRET" && pattern != "[0-9]{3}"
 			if err := validatePolicy(policy); (err != nil) != wantError {
 				t.Fatalf("stream validation = %v, want error %v", err, wantError)

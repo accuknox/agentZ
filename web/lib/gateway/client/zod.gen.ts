@@ -507,7 +507,7 @@ export const zLensApp = z.object({
   client_id: z.string(),
   name: z.string(),
   user: zResourceActor.optional(),
-  agent_kind: z.enum(["claude", "codex"]).optional(),
+  agent_kind: z.enum(["claude", "codex", "github-copilot-cli"]).optional(),
 })
 
 export const zListLensAppsResponse = z.object({
@@ -5072,6 +5072,11 @@ export const zListInferenceModelSuggestionsResponse = zInferenceModelSuggestions
  * Approved models in the immutable grant's order, with current API compatibility.
  */
 export const zGetDelegatedCatalogResponse = zDelegationCatalog
+
+/**
+ * OTLP ExportTraceServiceResponse, including rejected span counts.
+ */
+export const zExportExternalAgentTracesResponse = z.string()
 
 /**
  * Paginated inference Pools.

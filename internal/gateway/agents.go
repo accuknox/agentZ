@@ -847,7 +847,8 @@ func (s *Service) DeleteAgent(w http.ResponseWriter, r *http.Request, agentName 
 
 	q := gatewaydb.New(tx)
 	threads, err := q.GatewayLockAgentChatSessions(r.Context(), gatewaydb.GatewayLockAgentChatSessionsParams{
-		WorkspaceID: access.workspaceID, AgentName: agentName,
+		WorkspaceID: access.workspaceID,
+		AgentName:   agentName,
 	})
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)

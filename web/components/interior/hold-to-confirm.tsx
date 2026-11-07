@@ -79,7 +79,7 @@ function useHoldToConfirm({
           reset()
           return
         }
-        const dt = Math.min(64, now - last.current)
+        const dt = now - last.current
         last.current = now
         elapsed.current += down.current ? dt : -dt * releaseRate
 

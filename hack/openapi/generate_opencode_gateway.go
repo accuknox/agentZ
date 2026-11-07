@@ -42,7 +42,7 @@ type operationCapability struct {
 }
 
 var baseOperationCapabilities = map[string][]string{
-	"inference:use": {"getDelegatedCatalog"},
+	"inference:use": {"getDelegatedCatalog", "exportExternalAgentTraces"},
 	"agent.author": {
 		"createAgent",
 	},

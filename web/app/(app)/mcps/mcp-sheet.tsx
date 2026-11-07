@@ -108,12 +108,7 @@ const initialServerResults = 8
 const discoveryDebounceMs = 500
 const discoveryErrorMessage =
   "If the MCP server supports OAuth, enter its endpoints under Advanced."
-const discoveryURLSchema = z
-  .url({ protocol: /^https?$/, error: "MCP server URL must be a valid HTTP(S) URL" })
-  .refine(
-    (value) => !/^https?:\/\/[^/?#]*@/.test(value),
-    "MCP server URL must not include credentials"
-  )
+const discoveryURLSchema = mcpFormSchema.shape.endpoint_url
 const oauthAdvancedFields = [
   {
     name: "oauth_issuer",
@@ -1114,7 +1109,7 @@ export function McpSheet({
       : !trimmedEndpointURL
         ? "Enter the MCP endpoint URL."
         : !validEndpointURL
-          ? "Enter a valid HTTP(S) endpoint URL."
+          ? "Enter a valid HTTPS endpoint URL."
           : authenticationIncomplete
             ? "Complete the required authentication fields."
             : authMode === "oauth" &&

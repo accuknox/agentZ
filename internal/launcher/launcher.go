@@ -50,6 +50,7 @@ type installation struct {
 	profile    string
 	address    string
 	ownerKey   string
+	clientKey  string
 	upstream   *url.URL
 }
 
@@ -76,8 +77,11 @@ func Run(ctx context.Context, command *cli.Command) error {
 				args = args[1:]
 				break
 			}
-			if provider == "" && (arg == "claude" || arg == "codex") {
+			if provider == "" && (arg == "claude" || arg == "codex" || arg == "copilot" || arg == "github-copilot-cli") {
 				provider, args = arg, args[1:]
+				if provider == "copilot" {
+					provider = "github-copilot-cli"
+				}
 				continue
 			}
 			if arg != "--profile" && !strings.HasPrefix(arg, "--profile=") {
@@ -99,7 +103,7 @@ func Run(ctx context.Context, command *cli.Command) error {
 			}
 		}
 		if provider == "" && profileName == "" && len(args) > 0 {
-			return errors.New("usage: agentz launch [claude|codex] [--profile NAME] [-- native flags]")
+			return errors.New("usage: agentz launch [claude|codex|copilot] [--profile NAME] [-- native flags]")
 		}
 	}
 	installed, err := loadInstallation(ctx, command.String("config"), profileName, provider)
@@ -108,6 +112,9 @@ func Run(ctx context.Context, command *cli.Command) error {
 	}
 	if launch {
 		provider = installed.Provider
+		if provider == "github-copilot-cli" {
+			provider = "copilot"
+		}
 		if _, err := exec.LookPath(provider); err != nil {
 			return fmt.Errorf("install %s before launching it: %w", provider, err)
 		}
@@ -115,8 +122,13 @@ func Run(ctx context.Context, command *cli.Command) error {
 		if err != nil {
 			return fmt.Errorf("read %s version: %w", provider, err)
 		}
-		versionText := strings.TrimPrefix(string(version), "codex-cli ")
+		versionText, _, _ := strings.Cut(string(version), "\n")
+		versionText = strings.TrimPrefix(versionText, "codex-cli ")
+		if provider == "copilot" {
+			versionText = strings.TrimPrefix(versionText, "GitHub Copilot CLI ")
+		}
 		versionText, _, _ = strings.Cut(strings.TrimSpace(versionText), " ")
+		versionText = strings.TrimSuffix(versionText, ".")
 		current, err := semver.Parse(versionText)
 		if err != nil {
 			return fmt.Errorf("read %s version: %w", provider, err)
@@ -124,6 +136,9 @@ func Run(ctx context.Context, command *cli.Command) error {
 		minimum := semver.Version{Major: 2, Minor: 1, Patch: 299}
 		if provider == "codex" {
 			minimum = semver.Version{Minor: 162, Patch: 1}
+		}
+		if provider == "copilot" {
+			minimum = semver.Version{Major: 1, Patch: 106}
 		}
 		if current.LT(minimum) {
 			return fmt.Errorf("AgentZ requires %s %s or later", provider, minimum)
@@ -147,6 +162,9 @@ func Run(ctx context.Context, command *cli.Command) error {
 		}
 		if installed.Provider == "codex" {
 			return installed.codex(ctx, command, args)
+		}
+		if installed.Provider == "github-copilot-cli" {
+			return installed.copilot(ctx, command, args)
 		}
 		if command.Name == "login" {
 			return errors.New("run agentz launch claude and complete its gateway sign-in")
@@ -292,8 +310,11 @@ func loadInstallation(ctx context.Context, configPath, profileName, provider str
 				return nil, fmt.Errorf("duplicate external agent profile %q", name)
 			}
 			names[name] = true
-			if agent.Provider != "claude" && agent.Provider != "codex" {
-				return nil, fmt.Errorf("profile %q: provider must be claude or codex", name)
+			if agent.Provider == "copilot" {
+				agent.Provider = "github-copilot-cli"
+			}
+			if agent.Provider != "claude" && agent.Provider != "codex" && agent.Provider != "github-copilot-cli" {
+				return nil, fmt.Errorf("profile %q: provider must be claude, codex or github-copilot-cli", name)
 			}
 			if profileName != "" && profileName != name {
 				continue
@@ -371,6 +392,7 @@ func loadInstallation(ctx context.Context, configPath, profileName, provider str
 		return nil, err
 	}
 	port := 20000 + (int(digest[0])<<8|int(digest[1]))%30000
+	capability := sha256.Sum256(append([]byte("agentz-local-client\x00"), ownerKey...))
 	return &installation{
 		externalAgent: selected,
 		name:          selectedName,
@@ -378,6 +400,7 @@ func loadInstallation(ctx context.Context, configPath, profileName, provider str
 		profile:       profile,
 		address:       "http://127.0.0.1:" + strconv.Itoa(port),
 		ownerKey:      string(ownerKey),
+		clientKey:     hex.EncodeToString(capability[:]),
 		upstream:      upstream,
 	}, nil
 }

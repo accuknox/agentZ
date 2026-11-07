@@ -3372,6 +3372,30 @@ paths:
           $ref: '#/components/responses/BadRequest'
       security:
       - GatewayBearer: ['inference:use']
+  /api/inference/v1/traces:
+    post:
+      operationId: exportExternalAgentTraces
+      summary: Export native Copilot traces with current delegated inference authorization.
+      tags: [inference]
+      security:
+      - GatewayBearer: ['inference:use']
+      requestBody:
+        required: true
+        content:
+          application/x-protobuf:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: OTLP ExportTraceServiceResponse, including rejected span counts.
+          content:
+            application/x-protobuf:
+              schema:
+                type: string
+                format: binary
+        default:
+          $ref: '#/components/responses/BadRequest'
   /api/inference/pool:
     get:
       operationId: listInferencePools
@@ -6118,7 +6142,7 @@ components:
           $ref: '#/components/schemas/ResourceActor'
         agent_kind:
           type: string
-          enum: [claude, codex]
+          enum: [claude, codex, github-copilot-cli]
       required:
       - client_id
       - name

@@ -136,6 +136,7 @@ type Querier interface {
 	GatewayListEventTrailTargetTypes(ctx context.Context, arg GatewayListEventTrailTargetTypesParams) ([]EventTrailTarget, error)
 	GatewayListEventTrailWorkspaces(ctx context.Context, arg GatewayListEventTrailWorkspacesParams) ([]GatewayListEventTrailWorkspacesRow, error)
 	GatewayListExternalAgentGuardrails(ctx context.Context, arg GatewayListExternalAgentGuardrailsParams) ([]GatewayListExternalAgentGuardrailsRow, error)
+	GatewayListExternalAgentMCP(ctx context.Context, arg GatewayListExternalAgentMCPParams) ([][]byte, error)
 	GatewayListFileEvents(ctx context.Context, arg GatewayListFileEventsParams) ([]GatewayListFileEventsRow, error)
 	GatewayListFileEventsAggregated(ctx context.Context, arg GatewayListFileEventsAggregatedParams) ([]GatewayListFileEventsAggregatedRow, error)
 	GatewayListGuardrailEventSources(ctx context.Context, arg GatewayListGuardrailEventSourcesParams) ([]GatewayListGuardrailEventSourcesRow, error)

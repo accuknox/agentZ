@@ -396,9 +396,13 @@ func TestGuardrailCallerScope(t *testing.T) {
 	for _, attr := range span.Attributes {
 		switch attr.Key {
 		case attrAgentZTenantNamespace:
-			attr.Value = &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: "caller-workspace"}}
+			attr.Value = &commonpb.AnyValue{
+				Value: &commonpb.AnyValue_StringValue{StringValue: "caller-workspace"},
+			}
 		case "agentz.resource_namespace":
-			attr.Value = &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: "sandbox-organization"}}
+			attr.Value = &commonpb.AnyValue{
+				Value: &commonpb.AnyValue_StringValue{StringValue: "sandbox-organization"},
+			}
 		case "agentz.client_id", "agentz.organization_id", "agentz.workspace_id":
 			attr.Value = nil
 		}

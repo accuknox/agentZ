@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -19,6 +20,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/tmaxmax/go-sse"
 
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 )
@@ -106,6 +109,23 @@ func (installed *installation) serve(ctx context.Context) error {
 	proxy := &httputil.ReverseProxy{
 		Transport:     transport,
 		FlushInterval: -1,
+		ModifyResponse: func(response *http.Response) error {
+			copilot := installed.Provider == "github-copilot-cli"
+			responses := strings.HasSuffix(response.Request.URL.Path, "/responses")
+			streaming := strings.HasPrefix(response.Header.Get("Content-Type"), "text/event-stream")
+			if copilot && responses && streaming && response.StatusCode == http.StatusOK {
+				next, stop := iter.Pull2(sse.Read(response.Body, &sse.ReadConfig{MaxEventSize: 32 << 20}))
+				response.Body = &copilotStream{
+					ReadCloser: response.Body,
+					next:       next,
+					stop:       stop,
+					items:      make(map[int]json.RawMessage),
+				}
+				response.ContentLength = -1
+				response.Header.Del("Content-Length")
+			}
+			return nil
+		},
 		Rewrite: func(request *httputil.ProxyRequest) {
 			request.SetURL(installed.upstream)
 			request.Out.URL.Path = "/api/inference" + request.In.URL.Path
@@ -155,15 +175,22 @@ func (installed *installation) serve(ctx context.Context) error {
 	mux.HandleFunc("POST /oauth/revoke", oauth)
 	mux.Handle("POST /v1/messages", proxy)
 	mux.Handle("POST /v1/messages/count_tokens", proxy)
+	mux.Handle("POST /v1/chat/completions", proxy)
+	mux.Handle("POST /v1/responses", proxy)
 	mux.Handle("/mcp", proxy)
 	catalog := func(w http.ResponseWriter, r *http.Request) {
 		installed.serveCatalog(w, r, api)
 	}
 	mux.HandleFunc("GET /managed/settings", catalog)
-	mux.HandleFunc("GET /v1/models", catalog)
+	if installed.Provider == "github-copilot-cli" {
+		mux.Handle("POST /v1/traces", proxy)
+	}
+	if installed.Provider != "github-copilot-cli" {
+		mux.HandleFunc("GET /v1/models", catalog)
+		mux.HandleFunc("POST /v1/traces", catalog)
+	}
 	mux.HandleFunc("POST /v1/metrics", catalog)
 	mux.HandleFunc("POST /v1/logs", catalog)
-	mux.HandleFunc("POST /v1/traces", catalog)
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store, no-transform")
 		// Reject browser origins and hostile Host values before routing, even
@@ -171,6 +198,54 @@ func (installed *installation) serve(ctx context.Context) error {
 		if r.Host != address.Host || r.Header.Get("Origin") != "" {
 			http.Error(w, "This relay accepts local native-client requests only.", http.StatusForbidden)
 			return
+		}
+		catalog := r.Method == http.MethodGet && (r.URL.Path == "/v1/meta" || r.URL.Path == "/v1/models")
+		if installed.Provider == "github-copilot-cli" && catalog {
+			// Copilot's service catalog has no hosted models or Fusion routing.
+			// Approved models live in providers.json with their native protocols.
+			// This public metadata contains no grant or account information;
+			// Copilot may authenticate it with its separate GitHub credentials.
+			data := `{"data":[],"object":"list"}`
+			if r.URL.Path == "/v1/meta" {
+				data = `{"models":{"data":[],"object":"list"},"object":"meta","service_messages":[]}`
+			}
+			w.Header().Set("Content-Type", "application/json")
+			io.WriteString(w, data)
+			return
+		}
+		if installed.Provider == "github-copilot-cli" && !strings.HasPrefix(r.URL.Path, "/relay/") {
+			credential := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+			if credential == "" {
+				credential = r.Header.Get("X-Api-Key")
+			}
+			if !hmac.Equal([]byte(credential), []byte(installed.clientKey)) {
+				http.Error(w, "Local AgentZ credential required.", http.StatusUnauthorized)
+				return
+			}
+			resource := "inference"
+			if r.URL.Path == "/mcp" {
+				resource = "mcp"
+			}
+			token, err := installed.copilotToken(r.Context(), resource)
+			if err != nil {
+				w.Header().Set("Content-Type", "application/json")
+				w.Header().Set("x-should-retry", "false")
+				w.WriteHeader(http.StatusUnauthorized)
+				json.NewEncoder(w).Encode(relayError{
+					Type:  "error",
+					Error: relayErrorDetail{Type: "authentication_error", Message: err.Error()},
+				})
+				return
+			}
+			r.Header.Set("Authorization", "Bearer "+token)
+			r.Header.Del("X-AgentZ-Authorization")
+			// Return upstream rejections before a native client finishes its
+			// upload. HTTP/1 otherwise drains the body before writing headers.
+			err = http.NewResponseController(w).EnableFullDuplex()
+			if err != nil && !errors.Is(err, http.ErrNotSupported) {
+				http.Error(w, "The AgentZ relay is unavailable.", http.StatusServiceUnavailable)
+				return
+			}
 		}
 		mux.ServeHTTP(w, r)
 	})

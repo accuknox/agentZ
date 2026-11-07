@@ -861,6 +861,7 @@ func (s *Service) routes() http.Handler {
 			r.Post("/responses", s.handleDelegatedRequest)
 			r.Post("/messages", s.handleDelegatedRequest)
 			r.Post("/messages/count_tokens", s.handleDelegatedRequest)
+			r.Post("/traces", s.handleDelegatedRequest)
 			paths := []string{"/models", "/catalog", "/chat/completions", "/responses", "/messages", "/messages/count_tokens"}
 			for _, path := range paths {
 				r.Options(path, func(w http.ResponseWriter, _ *http.Request) {

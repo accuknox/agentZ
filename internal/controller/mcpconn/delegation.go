@@ -400,7 +400,10 @@ func (r *ExtAuthRuntimeReconciler) reconcileDelegationTracing(ctx context.Contex
 					Filter:           &filter,
 					Attributes:       &agw.LogTracingAttributes{Add: attrs},
 					Resources: []agw.ResourceAdd{
-						{Name: "service.name", Expression: agw.CELExpression(strconv.Quote("agentz-oauth-gateway"))},
+						{
+							Name:       "service.name",
+							Expression: agw.CELExpression(strconv.Quote("agentz-oauth-gateway")),
+						},
 						{
 							Name:       "service.namespace",
 							Expression: agw.CELExpression(strconv.Quote(namespace)),

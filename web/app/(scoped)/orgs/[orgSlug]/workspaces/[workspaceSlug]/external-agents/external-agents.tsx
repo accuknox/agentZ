@@ -13,7 +13,7 @@ import {
   queryOptions,
   useQuery,
 } from "@tanstack/react-query"
-import { ClaudeAI, CodexLight, GitHubCopilotLight } from "@ridemountainpig/svgl-react"
+import { ClaudeAI, CodexLight, GitHubCopilotLight, OpenAILight } from "@ridemountainpig/svgl-react"
 import {
   ArrowUpRight,
   Brain,
@@ -87,6 +87,8 @@ import {
 const agentKinds = {
   claude: { label: "Claude Code", icon: ClaudeAI },
   codex: { label: "Codex", icon: CodexLight },
+  "chatgpt-desktop": { label: "ChatGPT Desktop", icon: OpenAILight },
+  "claude-desktop": { label: "Claude Desktop", icon: ClaudeAI },
   "github-copilot-cli": { label: "GitHub Copilot CLI", icon: GitHubCopilotLight },
 } as const
 
@@ -637,8 +639,17 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
     claude: "Claude Code 2.1.299+",
     codex: "Codex 0.162.1+",
     "github-copilot-cli": "GitHub Copilot CLI 1.0.106+",
+    "chatgpt-desktop": "ChatGPT Desktop with Codex mode, plus Codex CLI 0.162.1+",
+    "claude-desktop": "Claude Desktop with third-party inference configuration",
   }[agent.kind]
+  const desktop = agent.kind === "chatgpt-desktop" || agent.kind === "claude-desktop"
   const reconnect = agent.previouslyConnected && !agent.connected
+  let modelInstructions = "Sign in and choose models. Skip this step if you only need MCP."
+  if (agent.kind === "github-copilot-cli")
+    modelInstructions = "Copilot conversations require a model grant. MCP access is separate."
+  if (desktop)
+    modelInstructions =
+      "Sign in and choose models for desktop conversations. MCP access is separate."
   return (
     <FieldGroup className="p-4 pt-0">
       {!agent.own ? (
@@ -699,17 +710,13 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
         ) : null}
         <SetupCommand
           command={
-            agent.kind === "github-copilot-cli" || (reconnect && agent.kind === "codex")
+            desktop || agent.kind === "github-copilot-cli" || (reconnect && agent.kind === "codex")
               ? login
               : launch
           }
           label="Copy model connection command"
         />
-        <FieldDescription>
-          {agent.kind === "github-copilot-cli"
-            ? "Copilot conversations require a model grant. MCP access is separate."
-            : "Sign in and choose models. Skip this step if you only need MCP."}
-        </FieldDescription>
+        <FieldDescription>{modelInstructions}</FieldDescription>
       </Field>
       <Field>
         <FieldLabel>4. Connect MCP tools</FieldLabel>
@@ -721,12 +728,37 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
         ) : null}
         <SetupCommand
           command={
-            agent.kind === "github-copilot-cli" ? `${login} --mcp` : `${launch} mcp login agentz`
+            desktop || agent.kind === "github-copilot-cli"
+              ? `${login} --mcp`
+              : `${launch} mcp login agentz`
           }
           label="Copy MCP login command"
         />
         <FieldDescription>Choose tools, prompts and resources in the browser</FieldDescription>
       </Field>
+      {desktop ? (
+        <Field>
+          <FieldLabel>
+            5.{" "}
+            {agent.kind === "claude-desktop"
+              ? "Export your desktop connection"
+              : "Open ChatGPT Desktop"}
+          </FieldLabel>
+          <SetupCommand
+            command={`agentz launch ${provider} --profile ${profile}`}
+            label="Copy desktop setup command"
+          />
+          <FieldDescription>
+            {agent.kind === "claude-desktop"
+              ? "In Claude Desktop, enable Developer Mode under Help > Troubleshooting. Open Developer > Configure Third-Party Inference, import the exported desktop-connection.json, and Apply Changes. Export and import again after changing your grants."
+              : "Use Codex mode in the app. AgentZ keeps this profile separate from your other desktop sessions. If the app is not found, add desktopExecutable with its full executable path to your configuration."}
+          </FieldDescription>
+          <FieldDescription>
+            Keep the local relay running. Manage it with agentz relay status or stop using the same
+            profile.
+          </FieldDescription>
+        </Field>
+      ) : null}
     </FieldGroup>
   )
 }

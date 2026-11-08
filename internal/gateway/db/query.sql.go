@@ -4284,7 +4284,7 @@ WITH sessions AS (
  SELECT session_id, MAX(end_time)::timestamptz AS last_seen
  FROM observer_app_operations
  WHERE organization_id = $5 AND workspace_id = $6
-   AND client_id = $7 AND agent_kind IN ('claude', 'codex', 'github-copilot-cli')
+   AND client_id = $7 AND agent_kind IN ('claude', 'codex', 'github-copilot-cli', 'chatgpt-desktop', 'claude-desktop')
    AND session_id <> '' AND run_id IS NULL AND resource_kind <> 'tool'
    AND ($8::text = '' OR session_id = $8)
  GROUP BY session_id

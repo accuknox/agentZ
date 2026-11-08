@@ -476,7 +476,7 @@ WITH operation AS (
     start_time, end_time, duration_ns, 'Agent turn', 'session', 'invoke_agent', status_code,
     session_id, turn_id, agent_kind
   FROM operation
-  WHERE agent_kind IN ('claude', 'codex') AND session_id <> '' AND turn_id <> ''
+  WHERE agent_kind IN ('claude', 'codex', 'chatgpt-desktop', 'claude-desktop') AND session_id <> '' AND turn_id <> ''
   ON CONFLICT (organization_id, workspace_id, client_id, user_id, session_id, turn_id) WHERE resource_kind = 'turn'
   DO UPDATE SET
     start_time = LEAST(observer_app_operations.start_time, EXCLUDED.start_time),
@@ -552,7 +552,7 @@ FROM (SELECT DISTINCT unnest(sqlc.arg(keys)::text[]) AS key ORDER BY key) ordere
 -- name: AssignAppRuns :exec
 UPDATE observer_app_operations op SET run_id = run.id
 FROM observer_app_operations run
-WHERE op.id = ANY(sqlc.arg(operation_ids)::bigint[]) AND op.agent_kind IN ('claude', 'codex')
+WHERE op.id = ANY(sqlc.arg(operation_ids)::bigint[]) AND op.agent_kind IN ('claude', 'codex', 'chatgpt-desktop', 'claude-desktop')
   AND op.resource_kind <> 'turn' AND run.resource_kind = 'turn'
   AND run.organization_id = op.organization_id AND run.workspace_id = op.workspace_id
   AND run.client_id = op.client_id AND run.user_id = op.user_id
@@ -576,7 +576,7 @@ WITH affected AS MATERIALIZED (
     AND mcp.client_id = key.client_id AND mcp.user_id = key.user_id AND mcp.tool_call_id = key.call_id
     -- Explicit nonempty IDs keep correlation probes on the partial call index.
     AND mcp.tool_call_id <> ''
-    AND mcp.resource_kind = 'mcp' AND mcp.agent_kind IN ('claude', 'codex')
+    AND mcp.resource_kind = 'mcp' AND mcp.agent_kind IN ('claude', 'codex', 'chatgpt-desktop', 'claude-desktop')
     AND (mcp.session_id = '' OR mcp.turn_id = '')
   LEFT JOIN observer_app_operations tool ON tool.organization_id = mcp.organization_id AND tool.workspace_id = mcp.workspace_id
     AND tool.client_id = mcp.client_id AND tool.user_id = mcp.user_id AND tool.tool_call_id = mcp.tool_call_id

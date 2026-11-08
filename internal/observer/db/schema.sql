@@ -427,7 +427,7 @@ CREATE TABLE observer_app_operations (
   model TEXT NOT NULL DEFAULT '',
   tool_name TEXT NOT NULL DEFAULT '',
   session_id TEXT NOT NULL DEFAULT '',
-  agent_kind TEXT NOT NULL DEFAULT '' CHECK (agent_kind IN ('', 'claude', 'codex', 'github-copilot-cli')),
+  agent_kind TEXT NOT NULL DEFAULT '' CHECK (agent_kind IN ('', 'claude', 'codex', 'github-copilot-cli', 'chatgpt-desktop', 'claude-desktop')),
   turn_id TEXT NOT NULL DEFAULT '',
   tool_call_id TEXT NOT NULL DEFAULT '',
   run_id BIGINT REFERENCES observer_app_operations(id) ON DELETE SET NULL,

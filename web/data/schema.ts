@@ -40,7 +40,11 @@ export function externalAgentCompatibility(
   if (kind === "claude")
     return compatibility.find((item) => item.api === "Messages" && item.support !== "unsupported")
   if (!model.model_info?.capabilities.tool_call) return
-  if (kind === "codex")
+  if (kind === "claude-desktop") {
+    if (!model.model.startsWith("claude-")) return
+    return compatibility.find((item) => item.api === "Messages" && item.support !== "unsupported")
+  }
+  if (kind === "codex" || kind === "chatgpt-desktop")
     return compatibility.find((item) => item.api === "Responses" && item.support === "native")
   const native = ["Responses", "Messages", "ChatCompletions"] as const
   for (const api of native) {

@@ -254,6 +254,8 @@ export const externalAgentKind = pgEnum("external_agent_kind", [
   "claude",
   "codex",
   "github-copilot-cli",
+  "chatgpt-desktop",
+  "claude-desktop",
 ])
 
 export const externalAgents = pgTable(

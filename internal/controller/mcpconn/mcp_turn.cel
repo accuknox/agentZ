@@ -1,4 +1,4 @@
-default(metadata.agentz_observability.agent_kind, "") == "codex"
+default(metadata.agentz_observability.agent_kind, "") in ["codex", "chatgpt-desktop"]
   ? default(
       json(request.body).params._meta["x-codex-turn-metadata"].turn_id,
       ""

@@ -602,6 +602,8 @@ const (
 	ExternalAgentKindClaude           ExternalAgentKind = "claude"
 	ExternalAgentKindCodex            ExternalAgentKind = "codex"
 	ExternalAgentKindGithubCopilotCli ExternalAgentKind = "github-copilot-cli"
+	ExternalAgentKindChatgptDesktop   ExternalAgentKind = "chatgpt-desktop"
+	ExternalAgentKindClaudeDesktop    ExternalAgentKind = "claude-desktop"
 )
 
 func (e *ExternalAgentKind) Scan(src interface{}) error {

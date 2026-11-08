@@ -6142,7 +6142,7 @@ components:
           $ref: '#/components/schemas/ResourceActor'
         agent_kind:
           type: string
-          enum: [claude, codex, github-copilot-cli]
+          enum: [claude, codex, github-copilot-cli, chatgpt-desktop, claude-desktop]
       required:
       - client_id
       - name

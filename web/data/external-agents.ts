@@ -175,11 +175,15 @@ export async function createExternalAgent(
     claude: ["http://localhost:8765/callback"],
     codex: ["http://127.0.0.1:8766/callback", "http://127.0.0.1:8767/callback"],
     "github-copilot-cli": undefined,
+    "chatgpt-desktop": ["http://127.0.0.1:8766/callback", "http://127.0.0.1:8767/callback"],
+    "claude-desktop": undefined,
   }[data.kind]
   const grants = {
     claude: ["authorization_code", "refresh_token", DEVICE_CODE_GRANT_TYPE],
     codex: ["authorization_code", "refresh_token"],
     "github-copilot-cli": [DEVICE_CODE_GRANT_TYPE, "refresh_token"],
+    "chatgpt-desktop": ["authorization_code", "refresh_token"],
+    "claude-desktop": [DEVICE_CODE_GRANT_TYPE, "refresh_token"],
   }[data.kind]
   const client = await getAuth().api.adminCreateOAuthClient({
     headers,

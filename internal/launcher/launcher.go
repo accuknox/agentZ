@@ -38,9 +38,10 @@ type configuration struct {
 }
 
 type externalAgent struct {
-	Provider  string `yaml:"provider"`
-	ServerURL string `yaml:"serverUrl,omitempty"`
-	ClientID  string `yaml:"clientID"`
+	Provider          string `yaml:"provider"`
+	ServerURL         string `yaml:"serverUrl,omitempty"`
+	ClientID          string `yaml:"clientID"`
+	DesktopExecutable string `yaml:"desktopExecutable,omitempty"`
 }
 
 type installation struct {
@@ -56,6 +57,9 @@ type installation struct {
 
 // Run launches coding agents and manages their local relay.
 func Run(ctx context.Context, command *cli.Command) error {
+	if command.Name == "headers" {
+		return writeDesktopHeaders(command.Writer, command.String("profile-directory"))
+	}
 	if command.Name != "launch" {
 		var cancel context.CancelFunc
 		ctx, cancel = signal.NotifyContext(ctx, os.Interrupt)
@@ -77,7 +81,8 @@ func Run(ctx context.Context, command *cli.Command) error {
 				args = args[1:]
 				break
 			}
-			if provider == "" && (arg == "claude" || arg == "codex" || arg == "copilot" || arg == "github-copilot-cli") {
+			native := slices.Contains([]string{"claude", "codex", "copilot", "github-copilot-cli", "chatgpt-desktop", "claude-desktop"}, arg)
+			if provider == "" && native {
 				provider, args = arg, args[1:]
 				if provider == "copilot" {
 					provider = "github-copilot-cli"
@@ -103,15 +108,18 @@ func Run(ctx context.Context, command *cli.Command) error {
 			}
 		}
 		if provider == "" && profileName == "" && len(args) > 0 {
-			return errors.New("usage: agentz launch [claude|codex|copilot] [--profile NAME] [-- native flags]")
+			return errors.New("usage: agentz launch [claude|codex|copilot|chatgpt-desktop|claude-desktop] [--profile NAME] [-- native flags]")
 		}
 	}
 	installed, err := loadInstallation(ctx, command.String("config"), profileName, provider)
 	if err != nil {
 		return err
 	}
-	if launch {
+	if launch && installed.Provider != "claude-desktop" {
 		provider = installed.Provider
+		if provider == "chatgpt-desktop" {
+			provider = "codex"
+		}
 		if provider == "github-copilot-cli" {
 			provider = "copilot"
 		}
@@ -157,10 +165,13 @@ func Run(ctx context.Context, command *cli.Command) error {
 		_, err = io.Copy(command.Writer, response.Body)
 		return err
 	case "launch", "login":
+		if installed.Provider == "claude-desktop" {
+			return installed.claudeDesktop(ctx, command, args)
+		}
 		if err := installed.ensureRelay(ctx); err != nil {
 			return err
 		}
-		if installed.Provider == "codex" {
+		if installed.Provider == "codex" || installed.Provider == "chatgpt-desktop" {
 			return installed.codex(ctx, command, args)
 		}
 		if installed.Provider == "github-copilot-cli" {
@@ -313,8 +324,10 @@ func loadInstallation(ctx context.Context, configPath, profileName, provider str
 			if agent.Provider == "copilot" {
 				agent.Provider = "github-copilot-cli"
 			}
-			if agent.Provider != "claude" && agent.Provider != "codex" && agent.Provider != "github-copilot-cli" {
-				return nil, fmt.Errorf("profile %q: provider must be claude, codex or github-copilot-cli", name)
+			switch agent.Provider {
+			case "claude", "codex", "github-copilot-cli", "chatgpt-desktop", "claude-desktop":
+			default:
+				return nil, fmt.Errorf("profile %q: unsupported external agent provider %q", name, agent.Provider)
 			}
 			if profileName != "" && profileName != name {
 				continue

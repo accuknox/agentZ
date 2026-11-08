@@ -213,7 +213,8 @@ func (installed *installation) serve(ctx context.Context) error {
 			io.WriteString(w, data)
 			return
 		}
-		if installed.Provider == "github-copilot-cli" && !strings.HasPrefix(r.URL.Path, "/relay/") {
+		adapter := installed.Provider == "github-copilot-cli" || installed.Provider == "claude-desktop"
+		if adapter && !strings.HasPrefix(r.URL.Path, "/relay/") {
 			credential := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 			if credential == "" {
 				credential = r.Header.Get("X-Api-Key")
@@ -226,7 +227,7 @@ func (installed *installation) serve(ctx context.Context) error {
 			if r.URL.Path == "/mcp" {
 				resource = "mcp"
 			}
-			token, err := installed.copilotToken(r.Context(), resource)
+			token, err := installed.accessToken(r.Context(), resource)
 			if err != nil {
 				w.Header().Set("Content-Type", "application/json")
 				w.Header().Set("x-should-retry", "false")
@@ -365,7 +366,7 @@ func (installed *installation) serveCatalog(w http.ResponseWriter, r *http.Reque
 			duplicates := slices.ContainsFunc(catalog.JSON200.Models, func(other gatewayapi.DelegationModel) bool {
 				return other.Id != model.Id && other.Model == model.Model
 			})
-			if !duplicates {
+			if !duplicates && installed.Provider == "claude" {
 				option.Model = model.Model
 				settings.ModelOverrides[model.Model] = model.Id
 			}

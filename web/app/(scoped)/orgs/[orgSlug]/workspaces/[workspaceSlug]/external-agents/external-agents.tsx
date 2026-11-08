@@ -741,7 +741,7 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
           <FieldLabel>
             5.{" "}
             {agent.kind === "claude-desktop"
-              ? "Export your desktop connection"
+              ? "Open Claude Desktop"
               : "Open ChatGPT Desktop"}
           </FieldLabel>
           <SetupCommand
@@ -750,7 +750,7 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
           />
           <FieldDescription>
             {agent.kind === "claude-desktop"
-              ? "In Claude Desktop, enable Developer Mode under Help > Troubleshooting. Open Developer > Configure Third-Party Inference, import the exported desktop-connection.json, and Apply Changes. Export and import again after changing your grants."
+              ? "Quit Claude Desktop before running this command. AgentZ opens the app with native turn tracking enabled. Enable Developer Mode under Help > Troubleshooting, open Developer > Configure Third-Party Inference, import desktop-connection.json, and Apply Changes. Run this command whenever you open Claude Desktop. Export and import again after changing your grants. If the app is not found, set desktopExecutable to its full executable path."
               : "Use Codex mode in the app. AgentZ keeps this profile separate from your other desktop sessions. If the app is not found, add desktopExecutable with its full executable path to your configuration."}
           </FieldDescription>
           <FieldDescription>

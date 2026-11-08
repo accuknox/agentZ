@@ -10,7 +10,9 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"time"
@@ -78,9 +80,6 @@ func (installed *installation) claudeDesktop(ctx context.Context, command *cli.C
 			return errors.New("desktop login accepts only --mcp")
 		}
 		return installed.loginDevice(ctx, command, resource)
-	}
-	if len(args) != 0 {
-		return errors.New("desktop setup takes no native flags; import the exported connection in the app")
 	}
 	token, err := installed.accessToken(ctx, "inference")
 	if err != nil {
@@ -172,11 +171,36 @@ func (installed *installation) claudeDesktop(ctx context.Context, command *cli.C
 		return err
 	}
 	fmt.Fprintf(command.Writer, "Connection saved to %s\n", path)
+	fmt.Fprintln(command.Writer, "Quit any running Claude Desktop instance first. Use this command whenever you open the app so native turn tracking stays enabled.")
 	fmt.Fprintln(command.Writer, "In Claude Desktop: Help > Troubleshooting > Enable Developer Mode, then Developer > Configure Third-Party Inference. Import the connection, confirm its name, and Apply Changes.")
 	if config.MCP == nil {
 		fmt.Fprintln(command.Writer, "For MCP, run agentz login claude-desktop --profile NAME --mcp, then export and import again.")
 	}
 	fmt.Fprintln(command.Writer, "Keep the relay running. Use agentz relay status/stop with the same profile. The exported file contains a local credential.")
+	binary := installed.DesktopExecutable
+	if binary == "" {
+		binary = "claude-desktop"
+		switch runtime.GOOS {
+		case "darwin":
+			binary = "/Applications/Claude.app/Contents/MacOS/Claude"
+		case "windows":
+			binary = "Claude.exe"
+		}
+	}
+	executable, err := exec.LookPath(binary)
+	if err != nil {
+		return fmt.Errorf("install Claude Desktop or set desktopExecutable in this profile: %w", err)
+	}
+	child := exec.CommandContext(ctx, executable, args...)
+	// Native prompt IDs correlate every model/tool cycle of a user turn.
+	child.Env = append(os.Environ(), "CLAUDE_CODE_GATEWAY_HINT_HEADERS=1")
+	child.Stdin, child.Stdout, child.Stderr = os.Stdin, command.Writer, command.ErrWriter
+	if err := child.Run(); err != nil {
+		if exit, ok := errors.AsType[*exec.ExitError](err); ok {
+			return cli.Exit("Claude Desktop exited.", exit.ExitCode())
+		}
+		return err
+	}
 	return nil
 }
 

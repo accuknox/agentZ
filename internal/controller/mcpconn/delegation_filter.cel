@@ -1,4 +1,7 @@
-metadata.agentz_observability.resource_kind == "inference" || (
+(
+  metadata.agentz_observability.resource_kind == "inference" &&
+  !request.path.endsWith("/messages/count_tokens")
+) || (
   metadata.agentz_observability.resource_kind == "mcp" &&
   default(mcp.methodName, json(request.body).method) == "tools/call"
 )

@@ -90,10 +90,15 @@ export function Consent({
   const [catalogs, setCatalogs] = useState<Record<string, DelegationCatalog>>(
     initialWorkspace ? { [initialWorkspace.id]: initialWorkspace.catalog } : {}
   )
-  const [selection, setSelection] = useState<DelegationCatalog>({
+  const [selection, setSelection] = useState<DelegationCatalog>(() => ({
     models: [],
-    mcp: [],
-  })
+    mcp:
+      mcp && initialWorkspace
+        ? initialWorkspace.catalog.mcp.filter((connection) =>
+            mcpKinds.some((kind) => connection[kind].length)
+          )
+        : [],
+  }))
   const [error, setError] = useState<string>()
   const [pending, startTransition] = useTransition()
   const [loadError, setLoadError] = useState<string>()
@@ -128,6 +133,18 @@ export function Consent({
       try {
         const catalog = await delegationWorkspaceAction(request, organizationId, id)
         setCatalogs((current) => ({ ...current, [id]: catalog }))
+        if (mcp)
+          setSelection((current) => ({
+            ...current,
+            mcp: [
+              ...current.mcp,
+              ...catalog.mcp.filter(
+                (connection) =>
+                  mcpKinds.some((kind) => connection[kind].length) &&
+                  !current.mcp.some((selected) => selected.id === connection.id)
+              ),
+            ],
+          }))
       } catch (error) {
         setLoadError(
           error instanceof Error ? error.message : "Could not load resources from this workspace."

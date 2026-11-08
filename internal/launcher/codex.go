@@ -236,7 +236,7 @@ func (installed *installation) codex(ctx context.Context, command *cli.Command, 
 	}
 	child.Env = environment
 	child.Stdin, child.Stdout, child.Stderr = os.Stdin, command.Writer, command.ErrWriter
-	if err := child.Run(); err != nil {
+	if err := installed.runAgent(ctx, child); err != nil {
 		if exit, ok := errors.AsType[*exec.ExitError](err); ok {
 			message := "Codex exited."
 			if installed.Provider == "chatgpt-desktop" && !mcpCommand {

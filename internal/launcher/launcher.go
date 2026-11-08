@@ -26,6 +26,8 @@ import (
 
 	"github.com/blang/semver/v4"
 	"github.com/cenkalti/backoff/v5"
+	"github.com/gofrs/flock"
+	"github.com/shirou/gopsutil/v4/process"
 	"github.com/urfave/cli/v3"
 	"go.yaml.in/yaml/v3"
 )
@@ -114,6 +116,21 @@ func Run(ctx context.Context, command *cli.Command) error {
 	installed, err := loadInstallation(ctx, command.String("config"), profileName, provider)
 	if err != nil {
 		return err
+	}
+	if installed.Provider == "claude-desktop" || installed.Provider == "chatgpt-desktop" {
+		for _, arg := range args {
+			if arg == "--user-data-dir" || strings.HasPrefix(arg, "--user-data-dir=") {
+				return errors.New("AgentZ manages the desktop user-data directory; use --profile to select an agent")
+			}
+		}
+	}
+	if launch {
+		// The OS releases this shared lock even if the launcher is killed.
+		owner := flock.New(filepath.Join(installed.profile, "relay.lock"))
+		defer owner.Close()
+		if _, err := owner.TryRLockContext(ctx, 50*time.Millisecond); err != nil {
+			return fmt.Errorf("acquire relay ownership: %w", err)
+		}
 	}
 	if launch && installed.Provider != "claude-desktop" {
 		provider = installed.Provider
@@ -251,7 +268,7 @@ func (installed *installation) claude(ctx context.Context, command *cli.Command,
 		"CLAUDE_CONFIG_DIR="+profile,
 		"CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1", "CLAUDE_CODE_GATEWAY_HINT_HEADERS=1",
 	)
-	if err := child.Run(); err != nil {
+	if err := installed.runAgent(ctx, child); err != nil {
 		if exit, ok := errors.AsType[*exec.ExitError](err); ok {
 			return cli.Exit("Claude exited", exit.ExitCode())
 		}
@@ -424,6 +441,9 @@ func (installed *installation) ensureRelay(ctx context.Context) error {
 	response, err := installed.controlRelay(startupCtx, "status")
 	if err == nil {
 		response.Body.Close()
+		if response.Header.Get("X-AgentZ-Relay-Lifetime") != "app" {
+			return fmt.Errorf("stop the old persistent relay with agentz relay stop --profile %q, then launch again", installed.name)
+		}
 		return nil
 	}
 	if errors.Is(err, errRelayOwnership) {
@@ -453,7 +473,7 @@ func (installed *installation) ensureRelay(ctx context.Context) error {
 	}
 	exited := make(chan struct{})
 	var childErr error
-	// Reap the persistent relay when it exits, even after readiness returns.
+	// Reap the relay when it exits, even after readiness returns.
 	go func() {
 		childErr = child.Wait()
 		close(exited)
@@ -479,6 +499,10 @@ func (installed *installation) ensureRelay(ctx context.Context) error {
 			response, err := installed.controlRelay(startupCtx, "status")
 			if err == nil {
 				response.Body.Close()
+				if response.Header.Get("X-AgentZ-Relay-Lifetime") != "app" {
+					err := fmt.Errorf("stop the old persistent relay with agentz relay stop --profile %q, then launch again", installed.name)
+					return false, backoff.Permanent(err)
+				}
 				// Another launcher may have started the relay first. Stop our
 				// unused child in that case.
 				ready = response.Header.Get("X-AgentZ-Relay-Pid") == strconv.Itoa(child.Process.Pid)
@@ -539,4 +563,112 @@ func (installed *installation) controlRelay(ctx context.Context, operation strin
 		return nil, fmt.Errorf("relay at %s: %w", installed.address, errRelayOwnership)
 	}
 	return response, nil
+}
+
+// App identity remains available to the relay if this launcher is killed.
+type appLifetime struct {
+	PID     int32 `json:"pid"`
+	Started int64 `json:"started"`
+}
+
+func (installed *installation) runAgent(ctx context.Context, child *exec.Cmd) error {
+	directory := filepath.Join(installed.profile, "apps")
+	if err := os.MkdirAll(directory, 0o700); err != nil {
+		return err
+	}
+	path := filepath.Join(directory, rand.Text()+".app")
+	// Publish ownership before starting the app. Its inherited marker covers
+	// launcher death between Start and recording the native process identity.
+	if err := writeProfileFile(path, []byte(`{}`)); err != nil {
+		return err
+	}
+	defer os.Remove(path)
+	child.Env = append(child.Environ(), "AGENTZ_APP_LIFETIME="+path)
+	if err := child.Start(); err != nil {
+		return err
+	}
+	app, err := process.NewProcessWithContext(ctx, int32(child.Process.Pid))
+	if errors.Is(err, process.ErrorProcessNotRunning) || errors.Is(err, os.ErrNotExist) {
+		return child.Wait()
+	}
+	var started int64
+	if err == nil {
+		started, err = app.CreateTimeWithContext(ctx)
+	}
+	if err == nil {
+		data, marshalErr := json.Marshal(appLifetime{PID: app.Pid, Started: started})
+		err = marshalErr
+		if err == nil {
+			err = writeProfileFile(path, data)
+		}
+	}
+	if err != nil {
+		child.Process.Kill()
+		child.Wait()
+		return fmt.Errorf("record app lifetime: %w", err)
+	}
+	return child.Wait()
+}
+
+func (installed *installation) appsRunning(ctx context.Context) (bool, error) {
+	directory := filepath.Join(installed.profile, "apps")
+	entries, err := os.ReadDir(directory)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return false, err
+	}
+	for _, entry := range entries {
+		if !strings.HasSuffix(entry.Name(), ".app") {
+			continue
+		}
+		path := filepath.Join(directory, entry.Name())
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return false, err
+		}
+		var lifetime appLifetime
+		if err := json.Unmarshal(data, &lifetime); err != nil {
+			return false, fmt.Errorf("read app lifetime: %w", err)
+		}
+		running, err := lifetime.running(ctx, path)
+		if err != nil || running {
+			return running, err
+		}
+		if err := os.Remove(path); err != nil {
+			return false, err
+		}
+	}
+	return installed.desktopRunning(ctx)
+}
+
+func (lifetime appLifetime) running(ctx context.Context, path string) (bool, error) {
+	if lifetime.PID == 0 {
+		apps, err := process.ProcessesWithContext(ctx)
+		if err != nil {
+			return false, err
+		}
+		for _, app := range apps {
+			env, err := app.EnvironWithContext(ctx)
+			if err == nil && slices.Contains(env, "AGENTZ_APP_LIFETIME="+path) {
+				return true, nil
+			}
+		}
+		return false, nil
+	}
+	app, err := process.NewProcessWithContext(ctx, lifetime.PID)
+	if errors.Is(err, process.ErrorProcessNotRunning) || errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	created, err := app.CreateTimeWithContext(ctx)
+	if err != nil || created != lifetime.Started {
+		return false, err
+	}
+	// Windows process existence excludes exited processes; it has no zombie status.
+	if runtime.GOOS == "windows" {
+		return true, nil
+	}
+	status, err := app.StatusWithContext(ctx)
+	return !slices.Contains(status, process.Zombie), err
 }

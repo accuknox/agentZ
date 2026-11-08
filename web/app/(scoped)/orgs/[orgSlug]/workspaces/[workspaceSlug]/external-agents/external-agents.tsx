@@ -754,8 +754,8 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
               : "Use Codex mode in the app. AgentZ keeps this profile separate from your other desktop sessions. If the app is not found, add desktopExecutable with its full executable path to your configuration."}
           </FieldDescription>
           <FieldDescription>
-            Keep the local relay running. Manage it with agentz relay status or stop using the same
-            profile.
+            AgentZ starts the relay with the app and stops it after the last app using this profile
+            closes. Desktop relaunches have a short shutdown grace period.
           </FieldDescription>
         </Field>
       ) : null}

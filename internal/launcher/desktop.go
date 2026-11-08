@@ -12,11 +12,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"slices"
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/shirou/gopsutil/v4/process"
 
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	"github.com/urfave/cli/v3"
@@ -176,7 +179,7 @@ func (installed *installation) claudeDesktop(ctx context.Context, command *cli.C
 	if config.MCP == nil {
 		fmt.Fprintln(command.Writer, "For MCP, run agentz login claude-desktop --profile NAME --mcp, then export and import again.")
 	}
-	fmt.Fprintln(command.Writer, "Keep the relay running. Use agentz relay status/stop with the same profile. The exported file contains a local credential.")
+	fmt.Fprintln(command.Writer, "The relay stops when the app closes. The exported file contains a local credential.")
 	binary := installed.DesktopExecutable
 	if binary == "" {
 		binary = "claude-desktop"
@@ -191,11 +194,12 @@ func (installed *installation) claudeDesktop(ctx context.Context, command *cli.C
 	if err != nil {
 		return fmt.Errorf("install Claude Desktop or set desktopExecutable in this profile: %w", err)
 	}
-	child := exec.CommandContext(ctx, executable, args...)
+	desktopArgs := append([]string{"--user-data-dir=" + filepath.Join(installed.profile, "claude")}, args...)
+	child := exec.CommandContext(ctx, executable, desktopArgs...)
 	// Native prompt IDs correlate every model/tool cycle of a user turn.
 	child.Env = append(os.Environ(), "CLAUDE_CODE_GATEWAY_HINT_HEADERS=1")
 	child.Stdin, child.Stdout, child.Stderr = os.Stdin, command.Writer, command.ErrWriter
-	if err := child.Run(); err != nil {
+	if err := installed.runAgent(ctx, child); err != nil {
 		if exit, ok := errors.AsType[*exec.ExitError](err); ok {
 			return cli.Exit("Claude Desktop exited.", exit.ExitCode())
 		}
@@ -217,4 +221,29 @@ func writeDesktopHeaders(writer io.Writer, profile string) error {
 	}
 	capability := sha256.Sum256(append([]byte("agentz-local-client\x00"), key...))
 	return json.NewEncoder(writer).Encode(map[string]string{"Authorization": "Bearer " + hex.EncodeToString(capability[:])})
+}
+
+// A profile survives Electron's main-process replacement during Apply Changes.
+func (installed *installation) desktopRunning(ctx context.Context) (bool, error) {
+	if installed.Provider != "claude-desktop" && installed.Provider != "chatgpt-desktop" {
+		return false, nil
+	}
+	processes, err := process.ProcessesWithContext(ctx)
+	if err != nil {
+		return false, err
+	}
+	profile := filepath.Join(installed.profile, strings.TrimSuffix(installed.Provider, "-desktop"))
+	// Electron rewrites argv into its process title, so argv boundaries may
+	// disappear. Match the complete native flag, including quoted paths.
+	marker := regexp.MustCompile(`(?:^|\s|")--user-data-dir="?` + regexp.QuoteMeta(profile) + `"?(?:\s|$)`)
+	for _, app := range processes {
+		command, err := app.CmdlineWithContext(ctx)
+		if err != nil || !marker.MatchString(command) {
+			continue
+		}
+		if !strings.Contains(command, " --type=") {
+			return true, nil
+		}
+	}
+	return false, nil
 }

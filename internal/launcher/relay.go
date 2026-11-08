@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"iter"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -21,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gofrs/flock"
 	"github.com/tmaxmax/go-sse"
 
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
@@ -260,7 +262,49 @@ func (installed *installation) serve(ctx context.Context) error {
 	stopped := make(chan struct{})
 	go func() {
 		defer close(stopped)
-		<-ctx.Done()
+		owners := flock.New(filepath.Join(installed.profile, "relay.lock"))
+		defer owners.Close()
+		var absent time.Time
+		ticker := time.NewTicker(250 * time.Millisecond)
+		defer ticker.Stop()
+		for ctx.Err() == nil {
+			locked, err := owners.TryLock()
+			if err != nil {
+				slog.ErrorContext(ctx, "check relay ownership", slog.Any("error", err))
+				cancel()
+				break
+			}
+			if !locked {
+				absent = time.Time{}
+			}
+			if locked {
+				desktop := installed.Provider == "claude-desktop" || installed.Provider == "chatgpt-desktop"
+				running, err := installed.appsRunning(ctx)
+				if err != nil {
+					slog.ErrorContext(ctx, "check app lifetime", slog.Any("error", err))
+					running = true
+				}
+				if running {
+					absent = time.Time{}
+				}
+				if !running && absent.IsZero() {
+					absent = time.Now()
+				}
+				if !running && (!desktop || time.Since(absent) >= 5*time.Second) {
+					cancel()
+					break
+				}
+				if err := owners.Unlock(); err != nil {
+					slog.ErrorContext(ctx, "release relay ownership", slog.Any("error", err))
+					cancel()
+					break
+				}
+			}
+			select {
+			case <-ctx.Done():
+			case <-ticker.C:
+			}
+		}
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer shutdownCancel()
 		if err := server.Shutdown(shutdownCtx); err != nil {
@@ -297,6 +341,7 @@ func (installed *installation) serveControl(w http.ResponseWriter, r *http.Reque
 	signature.Write([]byte("response:" + message))
 	w.Header().Set("X-AgentZ-Relay-Proof", hex.EncodeToString(signature.Sum(nil)))
 	w.Header().Set("X-AgentZ-Relay-Pid", strconv.Itoa(os.Getpid()))
+	w.Header().Set("X-AgentZ-Relay-Lifetime", "app")
 	fmt.Fprintln(w, "AgentZ relay running at "+installed.address)
 	if r.Method == http.MethodPost {
 		cancel()

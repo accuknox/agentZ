@@ -428,7 +428,7 @@ func (installed *installation) copilot(ctx context.Context, command *cli.Command
 	child := exec.CommandContext(ctx, "copilot", flags...)
 	child.Env = environment
 	child.Stdin, child.Stdout, child.Stderr = os.Stdin, command.Writer, command.ErrWriter
-	if err := child.Run(); err != nil {
+	if err := installed.runAgent(ctx, child); err != nil {
 		if exit, ok := errors.AsType[*exec.ExitError](err); ok {
 			return cli.Exit("Copilot exited.", exit.ExitCode())
 		}

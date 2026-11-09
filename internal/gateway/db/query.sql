@@ -3152,7 +3152,7 @@ WITH sessions AS (
  SELECT session_id, MAX(end_time)::timestamptz AS last_seen
  FROM observer_app_operations
  WHERE organization_id = sqlc.arg(organization_id) AND workspace_id = sqlc.arg(workspace_id)
-   AND client_id = sqlc.arg(client_id) AND agent_kind IN ('claude', 'codex', 'github-copilot-cli', 'chatgpt-desktop', 'claude-desktop')
+   AND client_id = sqlc.arg(client_id) AND agent_kind IN ('claude', 'codex', 'github-copilot-cli', 'github-copilot-desktop', 'chatgpt-desktop', 'claude-desktop')
    AND session_id <> '' AND run_id IS NULL AND resource_kind <> 'tool'
    AND (sqlc.arg(session_id)::text = '' OR session_id = sqlc.arg(session_id))
  GROUP BY session_id
@@ -3175,7 +3175,7 @@ WITH identities AS (
  FROM observer_app_operations op
  WHERE op.organization_id = sqlc.arg(organization_id) AND op.workspace_id = sqlc.arg(workspace_id)
    AND op.client_id = sqlc.arg(client_id) AND op.run_id IS NULL AND op.resource_kind IN ('inference', 'mcp')
-   AND (op.agent_kind <> 'github-copilot-cli' OR op.native)
+   AND (op.agent_kind NOT IN ('github-copilot-cli', 'github-copilot-desktop') OR op.native)
    AND op.start_time >= sqlc.arg(started_after)::timestamptz AND op.start_time <= sqlc.arg(started_before)::timestamptz
  GROUP BY op.trace_id
  -- Limit aggregation to the selected range without moving a trace's true start.
@@ -3184,14 +3184,14 @@ WITH identities AS (
    WHERE earlier.organization_id = sqlc.arg(organization_id) AND earlier.workspace_id = sqlc.arg(workspace_id)
      AND earlier.client_id = sqlc.arg(client_id) AND earlier.trace_id = op.trace_id
      AND earlier.run_id IS NULL AND earlier.resource_kind IN ('inference', 'mcp')
-     AND (earlier.agent_kind <> 'github-copilot-cli' OR earlier.native)
+     AND (earlier.agent_kind NOT IN ('github-copilot-cli', 'github-copilot-desktop') OR earlier.native)
      AND earlier.start_time < sqlc.arg(started_after)::timestamptz
  ) AND (sqlc.arg(session_id)::text = '' OR EXISTS (
    SELECT 1 FROM observer_app_operations session
    WHERE session.organization_id = sqlc.arg(organization_id) AND session.workspace_id = sqlc.arg(workspace_id)
      AND session.client_id = sqlc.arg(client_id) AND session.trace_id = op.trace_id
      AND session.run_id IS NULL AND session.resource_kind IN ('inference', 'mcp')
-     AND (session.agent_kind <> 'github-copilot-cli' OR session.native)
+     AND (session.agent_kind NOT IN ('github-copilot-cli', 'github-copilot-desktop') OR session.native)
      AND session.session_id = sqlc.arg(session_id)
  ))
 ), candidates AS MATERIALIZED (
@@ -3250,7 +3250,7 @@ WITH identities AS (
  FROM observer_app_operations op
  WHERE op.organization_id = sqlc.arg(organization_id) AND op.workspace_id = sqlc.arg(workspace_id)
    AND op.client_id = sqlc.arg(client_id) AND op.run_id IS NULL AND op.resource_kind IN ('inference', 'mcp')
-   AND (op.agent_kind <> 'github-copilot-cli' OR op.native)
+   AND (op.agent_kind NOT IN ('github-copilot-cli', 'github-copilot-desktop') OR op.native)
    AND op.start_time >= sqlc.arg(started_after)::timestamptz AND op.start_time <= sqlc.arg(started_before)::timestamptz
  GROUP BY op.trace_id
  -- Limit aggregation to the selected range without moving a trace's true start.
@@ -3259,14 +3259,14 @@ WITH identities AS (
    WHERE earlier.organization_id = sqlc.arg(organization_id) AND earlier.workspace_id = sqlc.arg(workspace_id)
      AND earlier.client_id = sqlc.arg(client_id) AND earlier.trace_id = op.trace_id
      AND earlier.run_id IS NULL AND earlier.resource_kind IN ('inference', 'mcp')
-     AND (earlier.agent_kind <> 'github-copilot-cli' OR earlier.native)
+     AND (earlier.agent_kind NOT IN ('github-copilot-cli', 'github-copilot-desktop') OR earlier.native)
      AND earlier.start_time < sqlc.arg(started_after)::timestamptz
  ) AND (sqlc.arg(session_id)::text = '' OR EXISTS (
    SELECT 1 FROM observer_app_operations session
    WHERE session.organization_id = sqlc.arg(organization_id) AND session.workspace_id = sqlc.arg(workspace_id)
      AND session.client_id = sqlc.arg(client_id) AND session.trace_id = op.trace_id
      AND session.run_id IS NULL AND session.resource_kind IN ('inference', 'mcp')
-     AND (session.agent_kind <> 'github-copilot-cli' OR session.native)
+     AND (session.agent_kind NOT IN ('github-copilot-cli', 'github-copilot-desktop') OR session.native)
      AND session.session_id = sqlc.arg(session_id)
  ))
 )

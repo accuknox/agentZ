@@ -71,6 +71,13 @@
       "when": 1794063254019,
       "tag": "0009_desktop-agents",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794164421023,
+      "tag": "0010_copilot-desktop",
+      "breakpoints": true
     }
   ]
 }

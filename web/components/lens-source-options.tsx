@@ -26,6 +26,7 @@ export function LensSourceIcon({
     case "codex":
       return <CodexLight aria-hidden="true" fill="currentColor" className={className} />
     case "github-copilot-cli":
+    case "github-copilot-desktop":
       return <GitHubCopilotLight aria-hidden="true" fill="currentColor" className={className} />
     case "app":
       return <AppWindowIcon aria-hidden="true" className={className} />

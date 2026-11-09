@@ -254,6 +254,7 @@ export const externalAgentKind = pgEnum("external_agent_kind", [
   "claude",
   "codex",
   "github-copilot-cli",
+  "github-copilot-desktop",
   "chatgpt-desktop",
   "claude-desktop",
 ])

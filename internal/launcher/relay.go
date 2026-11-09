@@ -88,6 +88,7 @@ type oauthCatalog struct {
 }
 
 func (installed *installation) serve(ctx context.Context) error {
+	copilot := installed.Provider == "github-copilot-cli" || installed.Provider == "github-copilot-desktop"
 	address, err := url.Parse(installed.address)
 	if err != nil {
 		return err
@@ -112,7 +113,6 @@ func (installed *installation) serve(ctx context.Context) error {
 		Transport:     transport,
 		FlushInterval: -1,
 		ModifyResponse: func(response *http.Response) error {
-			copilot := installed.Provider == "github-copilot-cli"
 			responses := strings.HasSuffix(response.Request.URL.Path, "/responses")
 			streaming := strings.HasPrefix(response.Header.Get("Content-Type"), "text/event-stream")
 			if copilot && responses && streaming && response.StatusCode == http.StatusOK {
@@ -184,10 +184,10 @@ func (installed *installation) serve(ctx context.Context) error {
 		installed.serveCatalog(w, r, api)
 	}
 	mux.HandleFunc("GET /managed/settings", catalog)
-	if installed.Provider == "github-copilot-cli" {
+	if copilot {
 		mux.Handle("POST /v1/traces", proxy)
 	}
-	if installed.Provider != "github-copilot-cli" {
+	if !copilot {
 		mux.HandleFunc("GET /v1/models", catalog)
 		mux.HandleFunc("POST /v1/traces", catalog)
 	}
@@ -202,9 +202,9 @@ func (installed *installation) serve(ctx context.Context) error {
 			return
 		}
 		catalog := r.Method == http.MethodGet && (r.URL.Path == "/v1/meta" || r.URL.Path == "/v1/models")
-		if installed.Provider == "github-copilot-cli" && catalog {
+		if copilot && catalog {
 			// Copilot's service catalog has no hosted models or Fusion routing.
-			// Approved models live in providers.json with their native protocols.
+			// Approved models use explicit BYOK providers with native protocols.
 			// This public metadata contains no grant or account information;
 			// Copilot may authenticate it with its separate GitHub credentials.
 			data := `{"data":[],"object":"list"}`
@@ -215,7 +215,7 @@ func (installed *installation) serve(ctx context.Context) error {
 			io.WriteString(w, data)
 			return
 		}
-		adapter := installed.Provider == "github-copilot-cli" || installed.Provider == "claude-desktop"
+		adapter := copilot || installed.Provider == "claude-desktop"
 		if adapter && !strings.HasPrefix(r.URL.Path, "/relay/") {
 			credential := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 			if credential == "" {
@@ -278,7 +278,7 @@ func (installed *installation) serve(ctx context.Context) error {
 				absent = time.Time{}
 			}
 			if locked {
-				desktop := installed.Provider == "claude-desktop" || installed.Provider == "chatgpt-desktop"
+				desktop := installed.Provider == "claude-desktop" || installed.Provider == "chatgpt-desktop" || installed.Provider == "github-copilot-desktop"
 				running, err := installed.appsRunning(ctx)
 				if err != nil {
 					slog.ErrorContext(ctx, "check app lifetime", slog.Any("error", err))

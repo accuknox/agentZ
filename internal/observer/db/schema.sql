@@ -427,7 +427,7 @@ CREATE TABLE observer_app_operations (
   model TEXT NOT NULL DEFAULT '',
   tool_name TEXT NOT NULL DEFAULT '',
   session_id TEXT NOT NULL DEFAULT '',
-  agent_kind TEXT NOT NULL DEFAULT '' CHECK (agent_kind IN ('', 'claude', 'codex', 'github-copilot-cli', 'chatgpt-desktop', 'claude-desktop')),
+  agent_kind TEXT NOT NULL DEFAULT '' CHECK (agent_kind IN ('', 'claude', 'codex', 'github-copilot-cli', 'github-copilot-desktop', 'chatgpt-desktop', 'claude-desktop')),
   turn_id TEXT NOT NULL DEFAULT '',
   tool_call_id TEXT NOT NULL DEFAULT '',
   run_id BIGINT REFERENCES observer_app_operations(id) ON DELETE SET NULL,
@@ -522,7 +522,7 @@ SELECT op.id, op.organization_id, op.workspace_id, op.client_id, op.app_name, op
   op.input_tokens, op.output_tokens, op.reasoning_tokens, op.cached_input_tokens, op.cached_write_tokens, op.cost_usd,
   op.ingested_at, op.agent_kind, COALESCE(NULLIF(op.turn_id, ''), run.turn_id, '')::text AS turn_id,
   op.tool_call_id, op.run_id, op.source_operation_id, op.result_id,
-  ((op.agent_kind <> 'github-copilot-cli' OR op.native) AND (op.resource_kind <> 'tool' OR NOT EXISTS (
+  ((op.agent_kind NOT IN ('github-copilot-cli', 'github-copilot-desktop') OR op.native) AND (op.resource_kind <> 'tool' OR NOT EXISTS (
     SELECT 1 FROM observer_app_operations mcp
     WHERE mcp.organization_id = op.organization_id AND mcp.workspace_id = op.workspace_id
       AND mcp.client_id = op.client_id AND mcp.user_id = op.user_id

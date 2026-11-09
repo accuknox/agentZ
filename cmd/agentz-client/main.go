@@ -43,14 +43,14 @@ func main() {
 			{
 				Name:            "launch",
 				Usage:           "Connect CLI and desktop agents through AgentZ",
-				ArgsUsage:       "[claude|codex|copilot|chatgpt-desktop|claude-desktop] [--profile NAME] [-- native flags]",
+				ArgsUsage:       "[claude|codex|copilot|chatgpt-desktop|claude-desktop|github-copilot-desktop] [--profile NAME] [-- native flags]",
 				SkipFlagParsing: true,
 				Action:          launcher.Run,
 			},
 			{
 				Name:            "login",
 				Usage:           "Sign in to external agents through AgentZ",
-				ArgsUsage:       "[codex|copilot|chatgpt-desktop|claude-desktop] [--profile NAME] [--mcp]",
+				ArgsUsage:       "[codex|copilot|chatgpt-desktop|claude-desktop|github-copilot-desktop] [--profile NAME] [--mcp]",
 				SkipFlagParsing: true,
 				Action:          launcher.Run,
 			},

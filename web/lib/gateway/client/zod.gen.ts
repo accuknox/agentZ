@@ -508,7 +508,14 @@ export const zLensApp = z.object({
   name: z.string(),
   user: zResourceActor.optional(),
   agent_kind: z
-    .enum(["claude", "codex", "github-copilot-cli", "chatgpt-desktop", "claude-desktop"])
+    .enum([
+      "claude",
+      "codex",
+      "github-copilot-cli",
+      "github-copilot-desktop",
+      "chatgpt-desktop",
+      "claude-desktop",
+    ])
     .optional(),
 })
 

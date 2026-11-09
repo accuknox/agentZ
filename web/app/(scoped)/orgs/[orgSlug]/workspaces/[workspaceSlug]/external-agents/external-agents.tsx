@@ -89,6 +89,7 @@ const agentKinds = {
   codex: { label: "Codex", icon: CodexLight },
   "chatgpt-desktop": { label: "ChatGPT Desktop", icon: OpenAILight },
   "claude-desktop": { label: "Claude Desktop", icon: ClaudeAI },
+  "github-copilot-desktop": { label: "GitHub Copilot Desktop", icon: GitHubCopilotLight },
   "github-copilot-cli": { label: "GitHub Copilot CLI", icon: GitHubCopilotLight },
 } as const
 
@@ -639,10 +640,14 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
     claude: "Claude Code 2.1.299+",
     codex: "Codex 0.162.1+",
     "github-copilot-cli": "GitHub Copilot CLI 1.0.106+",
+    "github-copilot-desktop": "GitHub Copilot Desktop 1.1.35+ and a GitHub account",
     "chatgpt-desktop": "ChatGPT Desktop with Codex mode, plus Codex CLI 0.162.1+",
     "claude-desktop": "Claude Desktop with third-party inference configuration",
   }[agent.kind]
-  const desktop = agent.kind === "chatgpt-desktop" || agent.kind === "claude-desktop"
+  const desktop =
+    agent.kind === "chatgpt-desktop" ||
+    agent.kind === "claude-desktop" ||
+    agent.kind === "github-copilot-desktop"
   const reconnect = agent.previouslyConnected && !agent.connected
   let modelInstructions = "Sign in and choose models. Skip this step if you only need MCP."
   if (agent.kind === "github-copilot-cli")
@@ -650,6 +655,14 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
   if (desktop)
     modelInstructions =
       "Sign in and choose models for desktop conversations. MCP access is separate."
+  let desktopInstructions =
+    "Use Codex mode in the app. AgentZ keeps this profile separate from your other desktop sessions. If the app is not found, add desktopExecutable with its full executable path to your configuration."
+  if (agent.kind === "claude-desktop")
+    desktopInstructions =
+      "Quit Claude Desktop before running this command. AgentZ opens the app with native turn tracking enabled. Enable Developer Mode under Help > Troubleshooting, open Developer > Configure Third-Party Inference, import desktop-connection.json, and Apply Changes. Run this command whenever you open Claude Desktop. Export and import again after changing your grants. If the app is not found, set desktopExecutable to its full executable path."
+  if (agent.kind === "github-copilot-desktop")
+    desktopInstructions =
+      "Quit any running instance of this profile before launching. Sign in to GitHub in the app. Open Settings > Model providers and add the providers and models from desktop-connection.json. This file is a connection guide, not an import. Choose Custom endpoint for type openai or Anthropic for type anthropic. Copy baseUrl and apiKey, and select wireApi for Custom endpoint. For each model, use id as Model ID and name as Display name. Select an AgentZ model for local sessions. MCP is configured after separate MCP login. Disable built-in MCP servers if you only want approved AgentZ tools. Cloud sessions do not use the local relay. Run this launch command each time to retain native traces. Refresh the guide after changing model grants. Set desktopExecutable to the app executable path if it is not found."
   return (
     <FieldGroup className="p-4 pt-0">
       {!agent.own ? (
@@ -738,24 +751,21 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
       </Field>
       {desktop ? (
         <Field>
-          <FieldLabel>
-            5.{" "}
-            {agent.kind === "claude-desktop"
-              ? "Open Claude Desktop"
-              : "Open ChatGPT Desktop"}
-          </FieldLabel>
+          <FieldLabel>5. Open {agentKinds[agent.kind].label}</FieldLabel>
           <SetupCommand
             command={`agentz launch ${provider} --profile ${profile}`}
             label="Copy desktop setup command"
           />
-          <FieldDescription>
-            {agent.kind === "claude-desktop"
-              ? "Quit Claude Desktop before running this command. AgentZ opens the app with native turn tracking enabled. Enable Developer Mode under Help > Troubleshooting, open Developer > Configure Third-Party Inference, import desktop-connection.json, and Apply Changes. Run this command whenever you open Claude Desktop. Export and import again after changing your grants. If the app is not found, set desktopExecutable to its full executable path."
-              : "Use Codex mode in the app. AgentZ keeps this profile separate from your other desktop sessions. If the app is not found, add desktopExecutable with its full executable path to your configuration."}
-          </FieldDescription>
+          <FieldDescription>{desktopInstructions}</FieldDescription>
+          {agent.kind === "github-copilot-desktop" ? (
+            <FieldDescription>
+              Copilot 1.1.35 can omit native traces after reopening a session. Start a new
+              session for complete Lens traces.
+            </FieldDescription>
+          ) : null}
           <FieldDescription>
             AgentZ starts the relay with the app and stops it after the last app using this profile
-            closes. Desktop relaunches have a short shutdown grace period.
+            quits. Desktop relaunches have a short shutdown grace period.
           </FieldDescription>
         </Field>
       ) : null}

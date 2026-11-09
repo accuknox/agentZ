@@ -223,9 +223,9 @@ func writeDesktopHeaders(writer io.Writer, profile string) error {
 	return json.NewEncoder(writer).Encode(map[string]string{"Authorization": "Bearer " + hex.EncodeToString(capability[:])})
 }
 
-// A profile survives Electron's main-process replacement during Apply Changes.
+// Track the profile across native process replacement and launcher exits.
 func (installed *installation) desktopRunning(ctx context.Context) (bool, error) {
-	if installed.Provider != "claude-desktop" && installed.Provider != "chatgpt-desktop" {
+	if installed.Provider != "claude-desktop" && installed.Provider != "chatgpt-desktop" && installed.Provider != "github-copilot-desktop" {
 		return false, nil
 	}
 	processes, err := process.ProcessesWithContext(ctx)
@@ -233,12 +233,21 @@ func (installed *installation) desktopRunning(ctx context.Context) (bool, error)
 		return false, err
 	}
 	profile := filepath.Join(installed.profile, strings.TrimSuffix(installed.Provider, "-desktop"))
+	flag := `--user-data-dir=`
+	if installed.Provider == "github-copilot-desktop" {
+		profile = filepath.Join(installed.profile, "copilot")
+		flag = `--config-dir(?:=|\s+)`
+	}
 	// Electron rewrites argv into its process title, so argv boundaries may
 	// disappear. Match the complete native flag, including quoted paths.
-	marker := regexp.MustCompile(`(?:^|\s|")--user-data-dir="?` + regexp.QuoteMeta(profile) + `"?(?:\s|$)`)
+	marker := regexp.MustCompile(`(?:^|\s|")` + flag + `"?` + regexp.QuoteMeta(profile) + `"?(?:\s|$)`)
 	for _, app := range processes {
 		command, err := app.CmdlineWithContext(ctx)
 		if err != nil || !marker.MatchString(command) {
+			continue
+		}
+		// Copilot's SDK worker shares the directory flag but does not own the app.
+		if installed.Provider == "github-copilot-desktop" && strings.Contains(command, " --server ") {
 			continue
 		}
 		if !strings.Contains(command, " --type=") {

@@ -33,7 +33,8 @@ func (s *Service) ingestCopilot(w http.ResponseWriter, r *http.Request, grant ga
 		return
 	}
 	agent, err := s.queries.GatewayGetExternalAgent(r.Context(), grant.ClientID)
-	if err != nil || agent.Kind != gatewaydb.ExternalAgentKindGithubCopilotCli || agent.UserID != grant.UserID {
+	copilot := agent.Kind == gatewaydb.ExternalAgentKindGithubCopilotCli || agent.Kind == gatewaydb.ExternalAgentKindGithubCopilotDesktop
+	if err != nil || !copilot || agent.UserID != grant.UserID {
 		s.delegationError(w, r, http.StatusForbidden, "access_denied", "A registered Copilot client is required.")
 		return
 	}
@@ -190,12 +191,11 @@ func (s *Service) ingestCopilot(w http.ResponseWriter, r *http.Request, grant ga
 					}
 				case "execute_tool":
 					row.ResourceKind, row.SpanClass = "tool", "tool"
-					// gen_ai.tool.name is the CLI's shortened display alias.
+					// gen_ai.tool.name is Copilot's display alias.
 					// The MCP parameters preserve the full exported identity.
 					server := attrs["github.copilot.tool.parameters.mcp_server_name"].GetStringValue()
 					tool := attrs["github.copilot.tool.parameters.mcp_tool_name"].GetStringValue()
-					mcpCall := attrs["mcp.method.name"].GetStringValue() == "tools/call"
-					if server != "agentz" || !mcpCall {
+					if server != "agentz" {
 						break
 					}
 					tools, err := mcpTools()

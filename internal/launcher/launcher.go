@@ -75,6 +75,10 @@ func Run(ctx context.Context, command *cli.Command) error {
 	provider := ""
 	launch := command.Name == "launch" || command.Name == "login"
 	if launch {
+		providers := []string{
+			"claude", "codex", "copilot", "github-copilot-cli",
+			"chatgpt-desktop", "claude-desktop", "github-copilot-desktop",
+		}
 		// Parse only the launcher prefix. Everything after -- or the first
 		// native argument belongs to the coding agent, including --profile.
 		for len(args) > 0 {
@@ -83,7 +87,7 @@ func Run(ctx context.Context, command *cli.Command) error {
 				args = args[1:]
 				break
 			}
-			native := slices.Contains([]string{"claude", "codex", "copilot", "github-copilot-cli", "chatgpt-desktop", "claude-desktop"}, arg)
+			native := slices.Contains(providers, arg)
 			if provider == "" && native {
 				provider, args = arg, args[1:]
 				if provider == "copilot" {
@@ -110,17 +114,26 @@ func Run(ctx context.Context, command *cli.Command) error {
 			}
 		}
 		if provider == "" && profileName == "" && len(args) > 0 {
-			return errors.New("usage: agentz launch [claude|codex|copilot|chatgpt-desktop|claude-desktop] [--profile NAME] [-- native flags]")
+			return errors.New(
+				"usage: agentz launch [claude|codex|copilot|chatgpt-desktop|claude-desktop|github-copilot-desktop] [--profile NAME] [-- native flags]",
+			)
 		}
 	}
 	installed, err := loadInstallation(ctx, command.String("config"), profileName, provider)
 	if err != nil {
 		return err
 	}
-	if installed.Provider == "claude-desktop" || installed.Provider == "chatgpt-desktop" {
+	var directoryFlag string
+	switch installed.Provider {
+	case "claude-desktop", "chatgpt-desktop":
+		directoryFlag = "--user-data-dir"
+	case "github-copilot-desktop":
+		directoryFlag = "--config-dir"
+	}
+	if directoryFlag != "" {
 		for _, arg := range args {
-			if arg == "--user-data-dir" || strings.HasPrefix(arg, "--user-data-dir=") {
-				return errors.New("AgentZ manages the desktop user-data directory; use --profile to select an agent")
+			if arg == directoryFlag || strings.HasPrefix(arg, directoryFlag+"=") {
+				return errors.New("AgentZ manages the desktop data directory; use --profile to select an agent")
 			}
 		}
 	}
@@ -132,7 +145,7 @@ func Run(ctx context.Context, command *cli.Command) error {
 			return fmt.Errorf("acquire relay ownership: %w", err)
 		}
 	}
-	if launch && installed.Provider != "claude-desktop" {
+	if launch && installed.Provider != "claude-desktop" && installed.Provider != "github-copilot-desktop" {
 		provider = installed.Provider
 		if provider == "chatgpt-desktop" {
 			provider = "codex"
@@ -191,7 +204,7 @@ func Run(ctx context.Context, command *cli.Command) error {
 		if installed.Provider == "codex" || installed.Provider == "chatgpt-desktop" {
 			return installed.codex(ctx, command, args)
 		}
-		if installed.Provider == "github-copilot-cli" {
+		if installed.Provider == "github-copilot-cli" || installed.Provider == "github-copilot-desktop" {
 			return installed.copilot(ctx, command, args)
 		}
 		if command.Name == "login" {
@@ -342,7 +355,7 @@ func loadInstallation(ctx context.Context, configPath, profileName, provider str
 				agent.Provider = "github-copilot-cli"
 			}
 			switch agent.Provider {
-			case "claude", "codex", "github-copilot-cli", "chatgpt-desktop", "claude-desktop":
+			case "claude", "codex", "github-copilot-cli", "chatgpt-desktop", "claude-desktop", "github-copilot-desktop":
 			default:
 				return nil, fmt.Errorf("profile %q: unsupported external agent provider %q", name, agent.Provider)
 			}

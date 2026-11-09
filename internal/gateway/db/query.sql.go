@@ -2390,7 +2390,7 @@ WITH identities AS (
  FROM observer_app_operations op
  WHERE op.organization_id = $1 AND op.workspace_id = $2
    AND op.client_id = $3 AND op.run_id IS NULL AND op.resource_kind IN ('inference', 'mcp')
-   AND (op.agent_kind <> 'github-copilot-cli' OR op.native)
+   AND (op.agent_kind NOT IN ('github-copilot-cli', 'github-copilot-desktop') OR op.native)
    AND op.start_time >= $5::timestamptz AND op.start_time <= $6::timestamptz
  GROUP BY op.trace_id
  -- Limit aggregation to the selected range without moving a trace's true start.
@@ -2399,14 +2399,14 @@ WITH identities AS (
    WHERE earlier.organization_id = $1 AND earlier.workspace_id = $2
      AND earlier.client_id = $3 AND earlier.trace_id = op.trace_id
      AND earlier.run_id IS NULL AND earlier.resource_kind IN ('inference', 'mcp')
-     AND (earlier.agent_kind <> 'github-copilot-cli' OR earlier.native)
+     AND (earlier.agent_kind NOT IN ('github-copilot-cli', 'github-copilot-desktop') OR earlier.native)
      AND earlier.start_time < $5::timestamptz
  ) AND ($4::text = '' OR EXISTS (
    SELECT 1 FROM observer_app_operations session
    WHERE session.organization_id = $1 AND session.workspace_id = $2
      AND session.client_id = $3 AND session.trace_id = op.trace_id
      AND session.run_id IS NULL AND session.resource_kind IN ('inference', 'mcp')
-     AND (session.agent_kind <> 'github-copilot-cli' OR session.native)
+     AND (session.agent_kind NOT IN ('github-copilot-cli', 'github-copilot-desktop') OR session.native)
      AND session.session_id = $4
  ))
 )
@@ -4284,7 +4284,7 @@ WITH sessions AS (
  SELECT session_id, MAX(end_time)::timestamptz AS last_seen
  FROM observer_app_operations
  WHERE organization_id = $5 AND workspace_id = $6
-   AND client_id = $7 AND agent_kind IN ('claude', 'codex', 'github-copilot-cli', 'chatgpt-desktop', 'claude-desktop')
+   AND client_id = $7 AND agent_kind IN ('claude', 'codex', 'github-copilot-cli', 'github-copilot-desktop', 'chatgpt-desktop', 'claude-desktop')
    AND session_id <> '' AND run_id IS NULL AND resource_kind <> 'tool'
    AND ($8::text = '' OR session_id = $8)
  GROUP BY session_id
@@ -4463,7 +4463,7 @@ WITH identities AS (
  FROM observer_app_operations op
  WHERE op.organization_id = $1 AND op.workspace_id = $2
    AND op.client_id = $3 AND op.run_id IS NULL AND op.resource_kind IN ('inference', 'mcp')
-   AND (op.agent_kind <> 'github-copilot-cli' OR op.native)
+   AND (op.agent_kind NOT IN ('github-copilot-cli', 'github-copilot-desktop') OR op.native)
    AND op.start_time >= $5::timestamptz AND op.start_time <= $6::timestamptz
  GROUP BY op.trace_id
  -- Limit aggregation to the selected range without moving a trace's true start.
@@ -4472,14 +4472,14 @@ WITH identities AS (
    WHERE earlier.organization_id = $1 AND earlier.workspace_id = $2
      AND earlier.client_id = $3 AND earlier.trace_id = op.trace_id
      AND earlier.run_id IS NULL AND earlier.resource_kind IN ('inference', 'mcp')
-     AND (earlier.agent_kind <> 'github-copilot-cli' OR earlier.native)
+     AND (earlier.agent_kind NOT IN ('github-copilot-cli', 'github-copilot-desktop') OR earlier.native)
      AND earlier.start_time < $5::timestamptz
  ) AND ($4::text = '' OR EXISTS (
    SELECT 1 FROM observer_app_operations session
    WHERE session.organization_id = $1 AND session.workspace_id = $2
      AND session.client_id = $3 AND session.trace_id = op.trace_id
      AND session.run_id IS NULL AND session.resource_kind IN ('inference', 'mcp')
-     AND (session.agent_kind <> 'github-copilot-cli' OR session.native)
+     AND (session.agent_kind NOT IN ('github-copilot-cli', 'github-copilot-desktop') OR session.native)
      AND session.session_id = $4
  ))
 ), candidates AS MATERIALIZED (

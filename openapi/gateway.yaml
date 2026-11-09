@@ -5684,6 +5684,7 @@ components:
           - claude
           - codex
           - github-copilot-cli
+          - github-copilot-desktop
           - chatgpt-desktop
           - claude-desktop
           type: string

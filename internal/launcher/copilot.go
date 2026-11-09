@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gofrs/flock"
 	"github.com/tailscale/hujson"
 	"github.com/tmaxmax/go-sse"
 	"github.com/urfave/cli/v3"
@@ -188,14 +189,48 @@ func (installed *installation) copilot(ctx context.Context, command *cli.Command
 			args = nil
 		}
 		if len(args) != 0 {
-			return errors.New("usage: agentz login copilot [--profile NAME] [--mcp]")
+			return fmt.Errorf("usage: agentz login %s [--profile NAME] [--mcp]", installed.Provider)
 		}
 		return installed.loginDevice(ctx, command, resource)
+	}
+	desktop := installed.Provider == "github-copilot-desktop"
+	binary := "copilot"
+	if desktop {
+		binary = installed.DesktopExecutable
+		if binary == "" {
+			binary = "github"
+			switch runtime.GOOS {
+			case "darwin":
+				binary = "/Applications/GitHub Copilot.app/Contents/MacOS/github"
+			case "windows":
+				binary = "github.exe"
+			}
+		}
+		if _, err := exec.LookPath(binary); err != nil {
+			return fmt.Errorf("install GitHub Copilot Desktop or set desktopExecutable in this profile: %w", err)
+		}
+		// Serialize cold launches; neither process may be visible to the other yet.
+		launch := flock.New(filepath.Join(installed.profile, "desktop.lock"))
+		defer launch.Close()
+		locked, err := launch.TryLock()
+		if err != nil {
+			return fmt.Errorf("lock Copilot Desktop launch: %w", err)
+		}
+		if !locked {
+			return errors.New("GitHub Copilot Desktop is already starting or running for this profile. Quit the app before launching again")
+		}
+		running, err := installed.desktopRunning(ctx)
+		if err != nil {
+			return err
+		}
+		if running {
+			return errors.New("GitHub Copilot Desktop is already running for this profile. Quit the app before launching again")
+		}
 	}
 	// Native management commands must work before model consent, including an
 	// MCP-only setup. Inference authentication is needed only for conversations.
 	management := false
-	if len(args) > 0 {
+	if !desktop && len(args) > 0 {
 		switch args[0] {
 		case "login", "mcp", "help", "config", "completion", "version", "update", "sessions", "memories", "plugin", "skill", "instruction", "lsp", "sandbox", "--help", "-h", "--version":
 			management = true
@@ -234,7 +269,7 @@ func (installed *installation) copilot(ctx context.Context, command *cli.Command
 		}
 		if catalog.JSON200 == nil {
 			if catalog.StatusCode() == http.StatusUnauthorized || catalog.StatusCode() == http.StatusForbidden {
-				return errors.New("AgentZ model access was revoked. Reconnect with agentz login copilot using the same --profile")
+				return fmt.Errorf("AgentZ model access was revoked. Reconnect with agentz login %s using the same --profile", installed.Provider)
 			}
 			return fmt.Errorf("AgentZ model discovery is unavailable (HTTP %d). Try launching again", catalog.StatusCode())
 		}
@@ -320,13 +355,17 @@ func (installed *installation) copilot(ctx context.Context, command *cli.Command
 			})
 		}
 		if len(registry.Models) == 0 {
-			return errors.New("no approved model supports Copilot tool calls. Run agentz login copilot and select a compatible model")
+			return fmt.Errorf("no approved model supports Copilot tool calls. Run agentz login %s and select a compatible model", installed.Provider)
 		}
 		data, err := json.MarshalIndent(registry, "", "  ")
 		if err != nil {
 			return err
 		}
-		if err := writeProfileFile(filepath.Join(profile, "providers.json"), data); err != nil {
+		path := filepath.Join(profile, "providers.json")
+		if desktop {
+			path = filepath.Join(installed.profile, "desktop-connection.json")
+		}
+		if err := writeProfileFile(path, data); err != nil {
 			return err
 		}
 	}
@@ -376,6 +415,16 @@ func (installed *installation) copilot(ctx context.Context, command *cli.Command
 		}
 	}
 	flags := append([]string{"--disable-builtin-mcps"}, args...)
+	if desktop {
+		flags = append([]string{"--config-dir", profile}, args...)
+		fmt.Fprintf(command.Writer, `Provider connection guide saved to %s
+Sign in to GitHub in the app. In Settings > Model providers, add the providers and models from this guide. It is not a native import file.
+Choose Custom endpoint for type openai or Anthropic for type anthropic. Copy baseUrl and apiKey, and select wireApi for Custom endpoint. Use each model's id as Model ID and name as Display name. Select an AgentZ model for local sessions.
+AgentZ MCP is configured after separate MCP login. Disable built-in MCP servers in the app if you only want approved AgentZ tools. Cloud sessions do not use this local relay.
+Open the app with this command each time to retain native traces. The relay stops when the app quits. Refresh the connection guide after changing model grants. The guide contains a local credential.
+Copilot 1.1.35 can omit native traces after reopening a session. Start a new session for complete Lens traces.
+`, filepath.Join(installed.profile, "desktop-connection.json"))
+	}
 	environment := slices.DeleteFunc(os.Environ(), func(entry string) bool {
 		name, _, _ := strings.Cut(entry, "=")
 		if runtime.GOOS == "windows" {
@@ -391,7 +440,6 @@ func (installed *installation) copilot(ctx context.Context, command *cli.Command
 	})
 	environment = append(environment,
 		"COPILOT_HOME="+profile,
-		"COPILOT_PROVIDERS_CONFIG="+filepath.Join(profile, "providers.json"),
 		// Keep GitHub authentication available for repository features while
 		// routing Copilot's own inference and discovery through this relay too.
 		"COPILOT_API_URL="+installed.address+"/v1",
@@ -404,7 +452,10 @@ func (installed *installation) copilot(ctx context.Context, command *cli.Command
 		"OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer "+installed.clientKey,
 		"OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true",
 	)
-	if len(registry.Models) > 0 {
+	if !desktop {
+		environment = append(environment, "COPILOT_PROVIDERS_CONFIG="+filepath.Join(profile, "providers.json"))
+	}
+	if !desktop && len(registry.Models) > 0 {
 		// Use the native settings command so JSONC and future settings changes
 		// stay Copilot's responsibility. Preserve an approved saved selection.
 		settings := exec.CommandContext(ctx, "copilot", "config", "model")
@@ -425,7 +476,7 @@ func (installed *installation) copilot(ctx context.Context, command *cli.Command
 			environment = append(environment, "COPILOT_MODEL="+model.Provider+"/"+model.ID)
 		}
 	}
-	child := exec.CommandContext(ctx, "copilot", flags...)
+	child := exec.CommandContext(ctx, binary, flags...)
 	child.Env = environment
 	child.Stdin, child.Stdout, child.Stderr = os.Stdin, command.Writer, command.ErrWriter
 	if err := installed.runAgent(ctx, child); err != nil {

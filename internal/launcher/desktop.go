@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,7 +17,6 @@ import (
 	"slices"
 	"strings"
 	"text/template"
-	"time"
 	"unicode"
 
 	"github.com/shirou/gopsutil/v4/process"
@@ -96,27 +94,9 @@ func (installed *installation) claudeDesktop(ctx context.Context, command *cli.C
 		}
 		return installed.loginDevice(ctx, command, resource)
 	}
-	token, err := installed.accessToken(ctx, "inference")
+	catalog, err := installed.modelCatalog(ctx)
 	if err != nil {
 		return err
-	}
-	client := &http.Client{
-		Timeout:       20 * time.Second,
-		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-	}
-	api, err := gatewayapi.NewClientWithResponses(installed.upstream.String(), gatewayapi.WithHTTPClient(client))
-	if err != nil {
-		return err
-	}
-	catalog, err := api.GetDelegatedCatalogWithResponse(ctx, func(_ context.Context, r *http.Request) error {
-		r.Header.Set("Authorization", "Bearer "+token)
-		return nil
-	})
-	if err != nil {
-		return errors.New("AgentZ model catalog is unavailable")
-	}
-	if catalog.JSON200 == nil {
-		return errors.New("reconnect this profile to approve models")
 	}
 	config := desktopConnection{
 		SchemaVersion: 2,
@@ -131,7 +111,7 @@ func (installed *installation) claudeDesktop(ctx context.Context, command *cli.C
 		},
 		Models: desktopModels{List: []desktopModel{}},
 	}
-	for _, model := range catalog.JSON200.Models {
+	for _, model := range catalog.Models {
 		if model.ModelInfo == nil || model.ApiCompatibility == nil {
 			continue
 		}

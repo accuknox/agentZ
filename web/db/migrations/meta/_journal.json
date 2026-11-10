@@ -61,22 +61,8 @@
     {
       "idx": 8,
       "version": "7",
-      "when": 1793959985427,
-      "tag": "0008_github_copilot_cli",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1794063254019,
-      "tag": "0009_desktop-agents",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "7",
-      "when": 1794164421023,
-      "tag": "0010_copilot-desktop",
+      "when": 1794311929775,
+      "tag": "0008_external_agents",
       "breakpoints": true
     }
   ]

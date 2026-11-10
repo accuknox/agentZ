@@ -1,1 +1,0 @@
-ALTER TYPE "public"."external_agent_kind" ADD VALUE 'github-copilot-desktop' BEFORE 'chatgpt-desktop';

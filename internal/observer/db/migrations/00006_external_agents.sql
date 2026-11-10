@@ -2,7 +2,7 @@
 ALTER TABLE observer_app_operations ADD COLUMN native BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE observer_app_operations DROP CONSTRAINT observer_app_operations_agent_kind_check;
 ALTER TABLE observer_app_operations ADD CONSTRAINT observer_app_operations_agent_kind_check
-  CHECK (agent_kind IN ('', 'claude', 'codex', 'github-copilot-cli'));
+  CHECK (agent_kind IN ('', 'claude', 'codex', 'github-copilot-cli', 'github-copilot-desktop', 'chatgpt-desktop', 'claude-desktop'));
 DROP TRIGGER observer_guard_external_agent ON observer_app_operations;
 CREATE TRIGGER observer_guard_external_agent
 BEFORE INSERT ON observer_app_operations
@@ -24,7 +24,7 @@ SELECT op.id, op.organization_id, op.workspace_id, op.client_id, op.app_name, op
   op.input_tokens, op.output_tokens, op.reasoning_tokens, op.cached_input_tokens, op.cached_write_tokens, op.cost_usd,
   op.ingested_at, op.agent_kind, COALESCE(NULLIF(op.turn_id, ''), run.turn_id, '')::text AS turn_id,
   op.tool_call_id, op.run_id, op.source_operation_id, op.result_id,
-  ((op.agent_kind <> 'github-copilot-cli' OR op.native) AND (op.resource_kind <> 'tool' OR NOT EXISTS (
+  ((op.agent_kind NOT IN ('github-copilot-cli', 'github-copilot-desktop') OR op.native) AND (op.resource_kind <> 'tool' OR NOT EXISTS (
     SELECT 1 FROM observer_app_operations mcp
     WHERE mcp.organization_id = op.organization_id AND mcp.workspace_id = op.workspace_id
       AND mcp.client_id = op.client_id AND mcp.user_id = op.user_id
@@ -35,8 +35,9 @@ FROM observer_app_operations op
 LEFT JOIN observer_app_operations run ON run.id = op.run_id
 LEFT JOIN observer_app_tool_results result ON result.id = op.result_id;
 
+
 -- +goose Down
--- Refuse rollback while Copilot audit records exist.
+-- Refuse rollback while external-agent audit records exist.
 ALTER TABLE observer_app_operations DROP CONSTRAINT observer_app_operations_agent_kind_check;
 ALTER TABLE observer_app_operations ADD CONSTRAINT observer_app_operations_agent_kind_check
   CHECK (agent_kind IN ('', 'claude', 'codex'));
@@ -66,3 +67,10 @@ FROM observer_app_operations op
 LEFT JOIN observer_app_operations run ON run.id = op.run_id
 LEFT JOIN observer_app_tool_results result ON result.id = op.result_id;
 ALTER TABLE observer_app_operations DROP COLUMN native;
+
+DROP TRIGGER observer_guard_external_agent ON observer_app_operations;
+CREATE TRIGGER observer_guard_external_agent
+BEFORE INSERT ON observer_app_operations
+FOR EACH ROW WHEN (NEW.agent_kind IN ('claude', 'codex'))
+EXECUTE FUNCTION observer_guard_external_agent();
+

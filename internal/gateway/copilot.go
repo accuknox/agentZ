@@ -230,6 +230,8 @@ func copilotOperation(span *tracepb.Span, agent gatewaydb.ExternalAgent, grantID
 			row.ResourceKind = "turn"
 			row.TurnID = hex.EncodeToString(row.SpanID)
 		}
+	case "plan":
+		row.ResourceKind, row.SpanClass = "agent", "session"
 	case "chat":
 		row.ResourceKind, row.SpanClass = "inference", "llm"
 		selected := false
@@ -246,10 +248,10 @@ func copilotOperation(span *tracepb.Span, agent gatewaydb.ExternalAgent, grantID
 			return nil, nil
 		}
 		usage := map[string]*pgtype.Int8{
-			"gen_ai.usage.input_tokens":                &row.InputTokens,
-			"gen_ai.usage.output_tokens":               &row.OutputTokens,
-			"gen_ai.usage.cache_read.input_tokens":     &row.CachedInputTokens,
-			"gen_ai.usage.cache_creation.input_tokens": &row.CachedWriteTokens,
+			"gen_ai.usage.input_tokens":             &row.InputTokens,
+			"gen_ai.usage.output_tokens":            &row.OutputTokens,
+			"gen_ai.usage.cache_read.input_tokens":  &row.CachedInputTokens,
+			"gen_ai.usage.cache_write.input_tokens": &row.CachedWriteTokens,
 		}
 		for name, target := range usage {
 			value, ok := attrs[name].GetValue().(*commonpb.AnyValue_IntValue)

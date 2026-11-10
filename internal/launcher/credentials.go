@@ -15,6 +15,8 @@ import (
 	"github.com/gofrs/flock"
 	"github.com/urfave/cli/v3"
 	"golang.org/x/oauth2"
+
+	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 )
 
 func (installed *installation) loginDevice(ctx context.Context, command *cli.Command, resource string) error {
@@ -133,4 +135,34 @@ func (installed *installation) accessToken(ctx context.Context, resource string)
 		}
 	}
 	return token.AccessToken, nil
+}
+
+// modelCatalog loads the current grant so launchers never reuse revoked models.
+func (installed *installation) modelCatalog(ctx context.Context) (*gatewayapi.DelegationCatalog, error) {
+	token, err := installed.accessToken(ctx, "inference")
+	if err != nil {
+		return nil, err
+	}
+	httpClient := &http.Client{
+		Timeout:       20 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
+	client, err := gatewayapi.NewClientWithResponses(installed.upstream.String(), gatewayapi.WithHTTPClient(httpClient))
+	if err != nil {
+		return nil, err
+	}
+	catalog, err := client.GetDelegatedCatalogWithResponse(ctx, func(_ context.Context, r *http.Request) error {
+		r.Header.Set("Authorization", "Bearer "+token)
+		return nil
+	})
+	if err != nil {
+		return nil, errors.New("AgentZ model catalog is unavailable")
+	}
+	if catalog.JSON200 == nil {
+		if catalog.StatusCode() == http.StatusUnauthorized || catalog.StatusCode() == http.StatusForbidden {
+			return nil, fmt.Errorf("AgentZ model access was revoked. Reconnect with agentz login %s using the same --profile", installed.Provider)
+		}
+		return nil, fmt.Errorf("AgentZ model discovery is unavailable (HTTP %d). Try launching again", catalog.StatusCode())
+	}
+	return catalog.JSON200, nil
 }

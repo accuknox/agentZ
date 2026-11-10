@@ -1,5 +1,5 @@
 {
-  "id": "2e8ae417-95c6-4242-b7cf-06739021082e",
+  "id": "ae074223-d259-418d-b626-1cb354a65d93",
   "prevId": "348456de-4e57-4715-bb85-5d6bee728aa5",
   "version": "7",
   "dialect": "postgresql",
@@ -6005,7 +6005,14 @@
     "public.external_agent_kind": {
       "name": "external_agent_kind",
       "schema": "public",
-      "values": ["claude", "codex", "github-copilot-cli"]
+      "values": [
+        "claude",
+        "codex",
+        "github-copilot-cli",
+        "github-copilot-desktop",
+        "chatgpt-desktop",
+        "claude-desktop"
+      ]
     },
     "public.permission_action": {
       "name": "permission_action",

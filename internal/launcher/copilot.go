@@ -7,14 +7,12 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/gofrs/flock"
 	"github.com/tailscale/hujson"
@@ -386,32 +384,11 @@ func (installed *installation) copilot(ctx context.Context, command *cli.Command
 // copilotModels projects approved models into native providers and protocols.
 func (installed *installation) copilotModels(ctx context.Context) (copilotRegistry, error) {
 	var registry copilotRegistry
-	token, err := installed.accessToken(ctx, "inference")
+	catalog, err := installed.modelCatalog(ctx)
 	if err != nil {
 		return copilotRegistry{}, err
 	}
-	httpClient := &http.Client{
-		Timeout:       20 * time.Second,
-		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-	}
-	client, err := gatewayapi.NewClientWithResponses(installed.upstream.String(), gatewayapi.WithHTTPClient(httpClient))
-	if err != nil {
-		return copilotRegistry{}, err
-	}
-	catalog, err := client.GetDelegatedCatalogWithResponse(ctx, func(_ context.Context, r *http.Request) error {
-		r.Header.Set("Authorization", "Bearer "+token)
-		return nil
-	})
-	if err != nil {
-		return copilotRegistry{}, errors.New("AgentZ model catalog is unavailable")
-	}
-	if catalog.JSON200 == nil {
-		if catalog.StatusCode() == http.StatusUnauthorized || catalog.StatusCode() == http.StatusForbidden {
-			return copilotRegistry{}, fmt.Errorf("AgentZ model access was revoked. Reconnect with agentz login %s using the same --profile", installed.Provider)
-		}
-		return copilotRegistry{}, fmt.Errorf("AgentZ model discovery is unavailable (HTTP %d). Try launching again", catalog.StatusCode())
-	}
-	for _, model := range catalog.JSON200.Models {
+	for _, model := range catalog.Models {
 		if model.ModelInfo == nil || !model.ModelInfo.Capabilities.ToolCall || model.ApiCompatibility == nil {
 			continue
 		}

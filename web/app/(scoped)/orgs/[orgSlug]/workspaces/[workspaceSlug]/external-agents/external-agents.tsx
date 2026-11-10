@@ -84,12 +84,12 @@ import {
 } from "./actions"
 
 const agentKinds = {
-  claude: { label: "Claude Code", icon: ClaudeAI },
-  codex: { label: "Codex", icon: CodexLight },
-  "chatgpt-desktop": { label: "ChatGPT Desktop", icon: OpenAILight },
-  "claude-desktop": { label: "Claude Desktop", icon: ClaudeAI },
-  "github-copilot-desktop": { label: "GitHub Copilot Desktop", icon: GitHubCopilotLight },
-  "github-copilot-cli": { label: "GitHub Copilot CLI", icon: GitHubCopilotLight },
+  codex: { label: "Codex CLI", icon: CodexLight },
+  "chatgpt-desktop": { label: "ChatGPT desktop", icon: OpenAILight },
+  claude: { label: "Claude code CLI", icon: ClaudeAI },
+  "claude-desktop": { label: "Claude desktop", icon: ClaudeAI },
+  "github-copilot-desktop": { label: "GitHub copilot desktop", icon: GitHubCopilotLight },
+  "github-copilot-cli": { label: "GitHub copilot CLI", icon: GitHubCopilotLight },
 } as const
 
 const layout = {
@@ -172,7 +172,11 @@ export function ExternalAgents({
               <Icon
                 aria-hidden="true"
                 className="size-6 shrink-0"
-                fill={agent.kind !== "claude" ? "currentColor" : undefined}
+                fill={
+                  agent.kind !== "claude" && agent.kind !== "claude-desktop"
+                    ? "currentColor"
+                    : undefined
+                }
               />
               <div className="flex min-w-0 flex-col gap-0.5">
                 <span className="truncate font-medium" title={agent.name}>
@@ -506,7 +510,7 @@ function ExternalAgentEditor({
 }) {
   const form = useForm<z.infer<typeof externalAgentInput>>({
     resolver: zodResolver(externalAgentInput),
-    defaultValues: { name: agent?.name ?? "", kind: agent?.kind ?? "claude" },
+    defaultValues: { name: agent?.name ?? "", kind: agent?.kind ?? "codex" },
   })
   const [pending, startTransition] = useTransition()
   return (
@@ -573,7 +577,11 @@ function ExternalAgentEditor({
                             <SelectItem key={value} value={value}>
                               <Icon
                                 aria-hidden="true"
-                                fill={value !== "claude" ? "currentColor" : undefined}
+                                fill={
+                                  value !== "claude" && value !== "claude-desktop"
+                                    ? "currentColor"
+                                    : undefined
+                                }
                               />
                               {label}
                             </SelectItem>

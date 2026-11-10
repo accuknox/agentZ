@@ -655,14 +655,6 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
   if (desktop)
     modelInstructions =
       "Sign in and choose models for desktop conversations. MCP access is separate."
-  let desktopInstructions =
-    "Use Codex mode in the app. AgentZ keeps this profile separate from your other desktop sessions. If the app is not found, add desktopExecutable with its full executable path to your configuration."
-  if (agent.kind === "claude-desktop")
-    desktopInstructions =
-      "Quit Claude Desktop before running this command. AgentZ opens the app with native turn tracking enabled. Enable Developer Mode under Help > Troubleshooting, open Developer > Configure Third-Party Inference, import desktop-connection.json, and Apply Changes. Run this command whenever you open Claude Desktop. Export and import again after changing your grants. If the app is not found, set desktopExecutable to its full executable path."
-  if (agent.kind === "github-copilot-desktop")
-    desktopInstructions =
-      "Quit any running instance of this profile before launching. Sign in to GitHub in the app. Open Settings > Model providers and add the providers and models from desktop-connection.json. This file is a connection guide, not an import. Choose Custom endpoint for type openai or Anthropic for type anthropic. Copy baseUrl and apiKey, and select wireApi for Custom endpoint. For each model, use id as Model ID and name as Display name. Select an AgentZ model for local sessions. MCP is configured after separate MCP login. Disable built-in MCP servers if you only want approved AgentZ tools. Cloud sessions do not use the local relay. Run this launch command each time to retain native traces. Refresh the guide after changing model grants. Set desktopExecutable to the app executable path if it is not found."
   return (
     <FieldGroup className="p-4 pt-0">
       {!agent.own ? (
@@ -741,26 +733,55 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
         />
         <FieldDescription>Choose tools, prompts and resources in the browser</FieldDescription>
       </Field>
-      {desktop ? (
-        <Field>
-          <FieldLabel>5. Open {agentKinds[agent.kind].label}</FieldLabel>
-          <SetupCommand
-            command={`agentz launch ${provider} --profile ${profile}`}
-            label="Copy desktop setup command"
-          />
-          <FieldDescription>{desktopInstructions}</FieldDescription>
-          {agent.kind === "github-copilot-desktop" ? (
+      <Field>
+        <FieldLabel>5. Launch {agentKinds[agent.kind].label}</FieldLabel>
+        <SetupCommand
+          command={`agentz launch ${provider} --profile ${profile}`}
+          label="Copy launch command"
+        />
+        {agent.kind === "claude-desktop" ? (
+          <>
+            <FieldDescription>Quit Claude Desktop before running this command.</FieldDescription>
             <FieldDescription>
-              Copilot 1.1.35 can omit native traces after reopening a session. Start a new session
-              for complete Lens traces.
+              Use <code>desktop-connection.json</code> at the path printed in the terminal.
             </FieldDescription>
-          ) : null}
-          <FieldDescription>
-            AgentZ starts the relay with the app and stops it after the last app using this profile
-            quits. Desktop relaunches have a short shutdown grace period.
-          </FieldDescription>
-        </Field>
-      ) : null}
+            <ol className="flex list-decimal flex-col gap-2 pl-5 text-sm text-muted-foreground">
+              <li>Open Help &gt; Troubleshooting &gt; Enable Developer Mode.</li>
+              <li>Open Developer &gt; Configure Third-Party Inference.</li>
+              <li>Import the setup file and confirm its name.</li>
+              <li>Click Apply Changes.</li>
+            </ol>
+          </>
+        ) : null}
+        {agent.kind === "github-copilot-desktop" ? (
+          <>
+            <FieldDescription>
+              Quit GitHub Copilot Desktop before running this command.
+            </FieldDescription>
+            <FieldDescription>
+              Open <code>desktop-connection.json</code> at the path printed in the terminal. Add its
+              settings manually in the app.
+            </FieldDescription>
+            <ol className="flex list-decimal flex-col gap-2 pl-5 text-sm text-muted-foreground">
+              <li>Sign in to GitHub.</li>
+              <li>Open Settings &gt; Model providers.</li>
+              <li>
+                Add each provider in the file. Choose Custom endpoint for <code>openai</code> or
+                Anthropic for <code>anthropic</code>.
+              </li>
+              <li>
+                Copy <code>baseUrl</code> and <code>apiKey</code> into the matching fields. For
+                Custom endpoint, choose the API format shown in <code>wireApi</code>.
+              </li>
+              <li>
+                Add each model. Copy <code>id</code> into Model ID and <code>name</code> into
+                Display name.
+              </li>
+              <li>Select an AgentZ model and start a local chat.</li>
+            </ol>
+          </>
+        ) : null}
+      </Field>
     </FieldGroup>
   )
 }

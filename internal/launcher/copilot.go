@@ -198,7 +198,7 @@ func (installed *installation) copilot(ctx context.Context, command *cli.Command
 	if desktop {
 		binary = installed.DesktopExecutable
 		if binary == "" {
-			binary = "github"
+			binary = "copilot-desktop"
 			switch runtime.GOOS {
 			case "darwin":
 				binary = "/Applications/GitHub Copilot.app/Contents/MacOS/github"
@@ -312,13 +312,13 @@ func (installed *installation) copilot(ctx context.Context, command *cli.Command
 	flags := append([]string{"--disable-builtin-mcps"}, args...)
 	if desktop {
 		flags = append([]string{"--config-dir", profile}, args...)
-		fmt.Fprintf(command.Writer, `Provider connection guide saved to %s
-Sign in to GitHub in the app. In Settings > Model providers, add the providers and models from this guide. It is not a native import file.
-Choose Custom endpoint for type openai or Anthropic for type anthropic. Copy baseUrl and apiKey, and select wireApi for Custom endpoint. Use each model's id as Model ID and name as Display name. Select an AgentZ model for local sessions.
-AgentZ MCP is configured after separate MCP login. Disable built-in MCP servers in the app if you only want approved AgentZ tools. Cloud sessions do not use this local relay.
-Open the app with this command each time to retain native traces. The relay stops when the app quits. Refresh the connection guide after changing model grants. The guide contains a local credential.
-Copilot 1.1.35 can omit native traces after reopening a session. Start a new session for complete Lens traces.
-`, filepath.Join(installed.profile, "desktop-connection.json"))
+		instructions := desktopInstructionData{
+			Path: filepath.Join(installed.profile, "desktop-connection.json"),
+		}
+		err := desktopInstructions.ExecuteTemplate(command.Writer, "copilot_desktop.tmpl", instructions)
+		if err != nil {
+			return err
+		}
 	}
 	environment := slices.DeleteFunc(os.Environ(), func(entry string) bool {
 		name, _, _ := strings.Cut(entry, "=")

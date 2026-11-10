@@ -3,6 +3,7 @@ package launcher
 import (
 	"context"
 	"crypto/sha256"
+	"embed"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -16,6 +17,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"text/template"
 	"time"
 	"unicode"
 
@@ -24,6 +26,16 @@ import (
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	"github.com/urfave/cli/v3"
 )
+
+//go:embed instructions/*.tmpl
+var desktopInstructionFiles embed.FS
+
+var desktopInstructions = template.Must(template.ParseFS(desktopInstructionFiles, "instructions/*.tmpl"))
+
+type desktopInstructionData struct {
+	Path string
+	MCP  bool
+}
 
 type desktopConnection struct {
 	SchemaVersion int              `json:"$schemaVersion"`
@@ -180,17 +192,11 @@ func (installed *installation) claudeDesktop(ctx context.Context, command *cli.C
 	if err := writeProfileFile(path, data); err != nil {
 		return err
 	}
-	fmt.Fprintf(command.Writer, "Connection saved to %s\n", path)
-	fmt.Fprintln(command.Writer,
-		"Quit any running Claude Desktop instance first. Use this command whenever you open the app so native turn tracking stays enabled.",
-	)
-	fmt.Fprintln(command.Writer,
-		"In Claude Desktop: Help > Troubleshooting > Enable Developer Mode, then Developer > Configure Third-Party Inference. Import the connection, confirm its name, and Apply Changes.",
-	)
-	if config.MCP == nil {
-		fmt.Fprintln(command.Writer, "For MCP, run agentz login claude-desktop --profile NAME --mcp, then export and import again.")
+	instructions := desktopInstructionData{Path: path, MCP: config.MCP != nil}
+	err = desktopInstructions.ExecuteTemplate(command.Writer, "claude_desktop.tmpl", instructions)
+	if err != nil {
+		return err
 	}
-	fmt.Fprintln(command.Writer, "The relay stops when the app closes. The exported file contains a local credential.")
 	binary := installed.DesktopExecutable
 	if binary == "" {
 		binary = "claude-desktop"

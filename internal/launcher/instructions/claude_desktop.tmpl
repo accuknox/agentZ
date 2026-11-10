@@ -1,0 +1,16 @@
+Setup file: {{.Path}}
+
+Quit Claude Desktop before continuing.
+
+In Claude Desktop:
+  1. Open Help > Troubleshooting > Enable Developer Mode.
+  2. Open Developer > Configure Third-Party Inference.
+  3. Import the setup file above and confirm its name.
+  4. Click Apply Changes.
+
+Use this launch command each time you open Claude Desktop.
+{{if not .MCP}}
+To add MCP tools:
+  agentz login claude-desktop --profile NAME --mcp
+Then launch again and re-import the setup file.
+{{end -}}

@@ -1,8 +1,5 @@
 "use client"
 
-import { HoldToConfirm } from "@/components/interior/hold-to-confirm"
-
-import { LoadingButton } from "@/components/interior/loading-button"
 import { useMemo, useState, useTransition } from "react"
 import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -13,7 +10,7 @@ import {
   queryOptions,
   useQuery,
 } from "@tanstack/react-query"
-import { ClaudeAI, CodexLight } from "@ridemountainpig/svgl-react"
+import { ClaudeAI, CodexLight, GitHubCopilotLight, OpenAILight } from "@ridemountainpig/svgl-react"
 import {
   ArrowUpRight,
   Brain,
@@ -22,6 +19,7 @@ import {
   MoreHorizontal,
   Pencil,
   Plus,
+  TriangleAlert,
   Trash2,
   Unplug,
 } from "lucide-react"
@@ -33,6 +31,8 @@ import { TruncatedText } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CopyButton } from "@/components/interior/copy-button"
+import { HoldToConfirm } from "@/components/interior/hold-to-confirm"
+import { LoadingButton } from "@/components/interior/loading-button"
 import {
   Dialog,
   DialogContent,
@@ -84,8 +84,12 @@ import {
 } from "./actions"
 
 const agentKinds = {
-  claude: { label: "Claude Code", icon: ClaudeAI },
-  codex: { label: "Codex", icon: CodexLight },
+  codex: { label: "Codex CLI", icon: CodexLight },
+  "chatgpt-desktop": { label: "ChatGPT desktop", icon: OpenAILight },
+  claude: { label: "Claude code CLI", icon: ClaudeAI },
+  "claude-desktop": { label: "Claude desktop", icon: ClaudeAI },
+  "github-copilot-desktop": { label: "GitHub copilot desktop", icon: GitHubCopilotLight },
+  "github-copilot-cli": { label: "GitHub copilot CLI", icon: GitHubCopilotLight },
 } as const
 
 const layout = {
@@ -168,7 +172,11 @@ export function ExternalAgents({
               <Icon
                 aria-hidden="true"
                 className="size-6 shrink-0"
-                fill={agent.kind === "codex" ? "currentColor" : undefined}
+                fill={
+                  agent.kind !== "claude" && agent.kind !== "claude-desktop"
+                    ? "currentColor"
+                    : undefined
+                }
               />
               <div className="flex min-w-0 flex-col gap-0.5">
                 <span className="truncate font-medium" title={agent.name}>
@@ -325,7 +333,8 @@ export function ExternalAgents({
       />
       {!delegationEnabled ? (
         <div className="px-4 md:px-6">
-          <Alert>
+          <Alert variant="warning">
+            <TriangleAlert aria-hidden="true" />
             <AlertDescription>
               Your organization has disabled external model and MCP access. An organization admin
               must enable resource delegation before you can grant access.
@@ -501,7 +510,7 @@ function ExternalAgentEditor({
 }) {
   const form = useForm<z.infer<typeof externalAgentInput>>({
     resolver: zodResolver(externalAgentInput),
-    defaultValues: { name: agent?.name ?? "", kind: agent?.kind ?? "claude" },
+    defaultValues: { name: agent?.name ?? "", kind: agent?.kind ?? "codex" },
   })
   const [pending, startTransition] = useTransition()
   return (
@@ -568,7 +577,11 @@ function ExternalAgentEditor({
                             <SelectItem key={value} value={value}>
                               <Icon
                                 aria-hidden="true"
-                                fill={value === "codex" ? "currentColor" : undefined}
+                                fill={
+                                  value !== "claude" && value !== "claude-desktop"
+                                    ? "currentColor"
+                                    : undefined
+                                }
                               />
                               {label}
                             </SelectItem>
@@ -627,8 +640,29 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
       clientID: ${agent.clientId}
 `
   const profile = `'${agent.name.replaceAll("'", os === "windows" ? "''" : "'\\''")}'`
-  const launch = `agentz launch ${agent.kind} --profile ${profile} --`
+  const provider = agent.kind === "github-copilot-cli" ? "copilot" : agent.kind
+  const launch = `agentz launch ${provider} --profile ${profile} --`
+  const login = `agentz login ${provider} --profile ${profile}`
+  const version = {
+    claude: "Claude Code 2.1.299+",
+    codex: "Codex 0.162.1+",
+    "github-copilot-cli": "GitHub Copilot CLI 1.0.106+",
+    "github-copilot-desktop": "GitHub Copilot Desktop 1.1.35+ and a GitHub account",
+    "chatgpt-desktop": "ChatGPT Desktop with Codex mode, plus Codex CLI 0.162.1+",
+    "claude-desktop": "Claude Desktop with third-party inference configuration",
+  }[agent.kind]
+  const desktop =
+    agent.kind === "chatgpt-desktop" ||
+    agent.kind === "claude-desktop" ||
+    agent.kind === "github-copilot-desktop"
+  const separateLogin = desktop || agent.kind === "github-copilot-cli"
   const reconnect = agent.previouslyConnected && !agent.connected
+  let modelInstructions = "Sign in and choose models. Skip this step if you only need MCP."
+  if (agent.kind === "github-copilot-cli")
+    modelInstructions = "Copilot conversations require a model grant. MCP access is separate."
+  if (desktop)
+    modelInstructions =
+      "Sign in and choose models for desktop conversations. MCP access is separate."
   return (
     <FieldGroup className="p-4 pt-0">
       {!agent.own ? (
@@ -640,16 +674,14 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
       ) : null}
       <Field>
         <FieldLabel>1. Install the CLI</FieldLabel>
-        <FieldDescription>
-          Requires {agent.kind === "claude" ? "Claude Code 2.1.299+" : "Codex 0.162.1+"}
-        </FieldDescription>
+        <FieldDescription>Requires {version}</FieldDescription>
         <Button variant="outline" asChild className="w-fit">
           <a
             href="https://github.com/accuknox/agentz/releases/latest"
             target="_blank"
             rel="noreferrer"
           >
-            Download CLI
+            Download AgentZ CLI
             <ArrowUpRight aria-hidden="true" data-icon="inline-end" />
           </a>
         </Button>
@@ -690,14 +722,10 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
           <SetupCommand command={`${launch} auth logout`} label="Copy logout command" />
         ) : null}
         <SetupCommand
-          command={
-            reconnect && agent.kind === "codex" ? `agentz login codex --profile ${profile}` : launch
-          }
-          label="Copy launch command"
+          command={separateLogin || (reconnect && agent.kind === "codex") ? login : launch}
+          label="Copy model connection command"
         />
-        <FieldDescription>
-          Sign in and choose models. Skip this step if you only need MCP.
-        </FieldDescription>
+        <FieldDescription>{modelInstructions}</FieldDescription>
       </Field>
       <Field>
         <FieldLabel>4. Connect MCP tools</FieldLabel>
@@ -707,8 +735,60 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
             label="Copy MCP registration command"
           />
         ) : null}
-        <SetupCommand command={`${launch} mcp login agentz`} label="Copy MCP login command" />
+        <SetupCommand
+          command={separateLogin ? `${login} --mcp` : `${launch} mcp login agentz`}
+          label="Copy MCP login command"
+        />
         <FieldDescription>Choose tools, prompts and resources in the browser</FieldDescription>
+      </Field>
+      <Field>
+        <FieldLabel>5. Launch {agentKinds[agent.kind].label}</FieldLabel>
+        <SetupCommand
+          command={`agentz launch ${provider} --profile ${profile}`}
+          label="Copy launch command"
+        />
+        {agent.kind === "claude-desktop" ? (
+          <>
+            <FieldDescription>Quit Claude Desktop before running this command.</FieldDescription>
+            <FieldDescription>
+              Use <code>desktop-connection.json</code> at the path printed in the terminal.
+            </FieldDescription>
+            <ol className="flex list-decimal flex-col gap-2 pl-5 text-sm text-muted-foreground">
+              <li>Open Help &gt; Troubleshooting &gt; Enable Developer Mode.</li>
+              <li>Open Developer &gt; Configure Third-Party Inference.</li>
+              <li>Import the setup file and confirm its name.</li>
+              <li>Click Apply Changes.</li>
+            </ol>
+          </>
+        ) : null}
+        {agent.kind === "github-copilot-desktop" ? (
+          <>
+            <FieldDescription>
+              Quit GitHub Copilot Desktop before running this command.
+            </FieldDescription>
+            <FieldDescription>
+              Open <code>desktop-connection.json</code> at the path printed in the terminal. Add its
+              settings manually in the app.
+            </FieldDescription>
+            <ol className="flex list-decimal flex-col gap-2 pl-5 text-sm text-muted-foreground">
+              <li>Sign in to GitHub.</li>
+              <li>Open Settings &gt; Model providers.</li>
+              <li>
+                Add each provider in the file. Choose Custom endpoint for <code>openai</code> or
+                Anthropic for <code>anthropic</code>.
+              </li>
+              <li>
+                Copy <code>baseUrl</code> and <code>apiKey</code> into the matching fields. For
+                Custom endpoint, choose the API format shown in <code>wireApi</code>.
+              </li>
+              <li>
+                Add each model. Copy <code>id</code> into Model ID and <code>name</code> into
+                Display name.
+              </li>
+              <li>Select an AgentZ model and start a local chat.</li>
+            </ol>
+          </>
+        ) : null}
       </Field>
     </FieldGroup>
   )

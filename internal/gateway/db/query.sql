@@ -2986,6 +2986,13 @@ WHERE g.id = sqlc.arg(id) AND g.client_id = sqlc.arg(client_id)
 -- name: GatewayGetExternalAgent :one
 SELECT * FROM external_agents WHERE client_id = sqlc.arg(client_id);
 
+-- name: GatewayListExternalAgentMCP :many
+SELECT selection FROM delegation_grants
+WHERE client_id = sqlc.arg(client_id) AND user_id = sqlc.arg(user_id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND approved_at IS NOT NULL AND revoked_at IS NULL
+  AND scopes @> ARRAY['mcp:use']::text[] AND selection->'mcp' <> '[]'::jsonb;
+
 -- name: GatewayListDelegationGrants :many
 SELECT sqlc.embed(g), COALESCE(c.name, c.client_id)::text AS app_name,
  COALESCE(e.kind::text, '')::text AS agent_kind
@@ -3145,7 +3152,7 @@ WITH sessions AS (
  SELECT session_id, MAX(end_time)::timestamptz AS last_seen
  FROM observer_app_operations
  WHERE organization_id = sqlc.arg(organization_id) AND workspace_id = sqlc.arg(workspace_id)
-   AND client_id = sqlc.arg(client_id) AND agent_kind IN ('claude', 'codex')
+   AND client_id = sqlc.arg(client_id) AND agent_kind IN ('claude', 'codex', 'github-copilot-cli', 'github-copilot-desktop', 'chatgpt-desktop', 'claude-desktop')
    AND session_id <> '' AND run_id IS NULL AND resource_kind <> 'tool'
    AND (sqlc.arg(session_id)::text = '' OR session_id = sqlc.arg(session_id))
  GROUP BY session_id
@@ -3168,6 +3175,7 @@ WITH identities AS (
  FROM observer_app_operations op
  WHERE op.organization_id = sqlc.arg(organization_id) AND op.workspace_id = sqlc.arg(workspace_id)
    AND op.client_id = sqlc.arg(client_id) AND op.run_id IS NULL AND op.resource_kind IN ('inference', 'mcp')
+   AND (op.agent_kind NOT IN ('github-copilot-cli', 'github-copilot-desktop') OR op.native)
    AND op.start_time >= sqlc.arg(started_after)::timestamptz AND op.start_time <= sqlc.arg(started_before)::timestamptz
  GROUP BY op.trace_id
  -- Limit aggregation to the selected range without moving a trace's true start.
@@ -3176,12 +3184,14 @@ WITH identities AS (
    WHERE earlier.organization_id = sqlc.arg(organization_id) AND earlier.workspace_id = sqlc.arg(workspace_id)
      AND earlier.client_id = sqlc.arg(client_id) AND earlier.trace_id = op.trace_id
      AND earlier.run_id IS NULL AND earlier.resource_kind IN ('inference', 'mcp')
+     AND (earlier.agent_kind NOT IN ('github-copilot-cli', 'github-copilot-desktop') OR earlier.native)
      AND earlier.start_time < sqlc.arg(started_after)::timestamptz
  ) AND (sqlc.arg(session_id)::text = '' OR EXISTS (
    SELECT 1 FROM observer_app_operations session
    WHERE session.organization_id = sqlc.arg(organization_id) AND session.workspace_id = sqlc.arg(workspace_id)
      AND session.client_id = sqlc.arg(client_id) AND session.trace_id = op.trace_id
      AND session.run_id IS NULL AND session.resource_kind IN ('inference', 'mcp')
+     AND (session.agent_kind NOT IN ('github-copilot-cli', 'github-copilot-desktop') OR session.native)
      AND session.session_id = sqlc.arg(session_id)
  ))
 ), candidates AS MATERIALIZED (
@@ -3240,6 +3250,7 @@ WITH identities AS (
  FROM observer_app_operations op
  WHERE op.organization_id = sqlc.arg(organization_id) AND op.workspace_id = sqlc.arg(workspace_id)
    AND op.client_id = sqlc.arg(client_id) AND op.run_id IS NULL AND op.resource_kind IN ('inference', 'mcp')
+   AND (op.agent_kind NOT IN ('github-copilot-cli', 'github-copilot-desktop') OR op.native)
    AND op.start_time >= sqlc.arg(started_after)::timestamptz AND op.start_time <= sqlc.arg(started_before)::timestamptz
  GROUP BY op.trace_id
  -- Limit aggregation to the selected range without moving a trace's true start.
@@ -3248,12 +3259,14 @@ WITH identities AS (
    WHERE earlier.organization_id = sqlc.arg(organization_id) AND earlier.workspace_id = sqlc.arg(workspace_id)
      AND earlier.client_id = sqlc.arg(client_id) AND earlier.trace_id = op.trace_id
      AND earlier.run_id IS NULL AND earlier.resource_kind IN ('inference', 'mcp')
+     AND (earlier.agent_kind NOT IN ('github-copilot-cli', 'github-copilot-desktop') OR earlier.native)
      AND earlier.start_time < sqlc.arg(started_after)::timestamptz
  ) AND (sqlc.arg(session_id)::text = '' OR EXISTS (
    SELECT 1 FROM observer_app_operations session
    WHERE session.organization_id = sqlc.arg(organization_id) AND session.workspace_id = sqlc.arg(workspace_id)
      AND session.client_id = sqlc.arg(client_id) AND session.trace_id = op.trace_id
      AND session.run_id IS NULL AND session.resource_kind IN ('inference', 'mcp')
+     AND (session.agent_kind NOT IN ('github-copilot-cli', 'github-copilot-desktop') OR session.native)
      AND session.session_id = sqlc.arg(session_id)
  ))
 )
@@ -3284,12 +3297,12 @@ ORDER BY span.resource_kind <> 'turn', span.start_time, span.id LIMIT sqlc.arg(p
 SELECT sqlc.embed(span),
  CASE WHEN NOT sqlc.arg(recording)::boolean OR span.id = sqlc.arg(prompt_operation_id)::bigint
    THEN COALESCE(payload.input_messages, 'null'::jsonb) ELSE 'null'::jsonb END::jsonb AS input_messages,
- CASE WHEN sqlc.arg(recording)::boolean AND span.resource_kind = 'inference'
+ CASE WHEN sqlc.arg(recording)::boolean AND span.resource_kind = 'inference' AND NOT span.native
    AND payload.output_messages <> 'null'::jsonb
    THEN jsonb_build_object('completion', payload.output_messages->'completion')
    ELSE COALESCE(payload.output_messages, 'null'::jsonb) END::jsonb AS output_messages,
  COALESCE(payload.tool_arguments, 'null'::jsonb)::jsonb AS tool_arguments,
- CASE WHEN span.resource_kind = 'tool' THEN COALESCE(
+ CASE WHEN span.resource_kind = 'tool' AND NOT span.native THEN COALESCE(
    CASE result.protocol
      WHEN 'messages' THEN (jsonb_path_query_array(result_payload.input_messages,
        '$.messages[*] ? (@.role == "user").content[*] ? (@.type == "tool_result")') -> (result.source_ordinal - 1)::int) -> 'content'
@@ -3310,24 +3323,24 @@ ORDER BY array_position(sqlc.arg(operation_ids)::bigint[], span.id);
 
 -- name: GatewayGetAppMCPGraph :many
 WITH selected AS (
- SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name, op.duration_ns, op.status_code, op.start_time FROM observer_app_operations op
+ SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name, op.duration_ns, op.status_code, op.start_time FROM observer_app_spans op
  WHERE op.organization_id = sqlc.arg(organization_id) AND op.workspace_id = sqlc.arg(workspace_id)
-   AND op.client_id = sqlc.arg(client_id) AND op.resource_kind = 'mcp'
+   AND op.visible AND op.client_id = sqlc.arg(client_id) AND op.resource_kind = 'mcp'
    AND op.start_time >= sqlc.arg(start_time_after) AND op.start_time < sqlc.arg(start_time_before)
    AND sqlc.arg(session_id)::text = ''
  UNION ALL
- SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name, op.duration_ns, op.status_code, op.start_time FROM observer_app_operations op
+ SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name, op.duration_ns, op.status_code, op.start_time FROM observer_app_spans op
  WHERE op.organization_id = sqlc.arg(organization_id) AND op.workspace_id = sqlc.arg(workspace_id)
-   AND op.client_id = sqlc.arg(client_id) AND op.resource_kind = 'mcp'
+   AND op.visible AND op.client_id = sqlc.arg(client_id) AND op.resource_kind = 'mcp'
    AND op.start_time >= sqlc.arg(start_time_after) AND op.start_time < sqlc.arg(start_time_before)
    AND sqlc.arg(session_id)::text <> '' AND op.session_id = sqlc.arg(session_id)
  UNION ALL
- SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name, op.duration_ns, op.status_code, op.start_time FROM observer_app_operations run JOIN observer_app_operations op ON op.run_id = run.id
+ SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name, op.duration_ns, op.status_code, op.start_time FROM observer_app_operations run JOIN observer_app_spans op ON op.run_id = run.id
  WHERE run.organization_id = sqlc.arg(organization_id) AND run.workspace_id = sqlc.arg(workspace_id)
    AND run.client_id = sqlc.arg(client_id) AND run.resource_kind = 'turn'
    AND run.session_id = sqlc.arg(session_id) AND sqlc.arg(session_id)::text <> ''
    AND op.organization_id = sqlc.arg(organization_id) AND op.workspace_id = sqlc.arg(workspace_id)
-   AND op.client_id = sqlc.arg(client_id) AND op.resource_kind = 'mcp' AND op.session_id = ''
+   AND op.visible AND op.client_id = sqlc.arg(client_id) AND op.resource_kind = 'mcp' AND op.session_id = ''
    AND op.start_time >= sqlc.arg(start_time_after) AND op.start_time < sqlc.arg(start_time_before)
 )
 SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name,

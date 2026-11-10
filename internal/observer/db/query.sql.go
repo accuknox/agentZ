@@ -13,7 +13,7 @@ import (
 const assignAppRuns = `-- name: AssignAppRuns :exec
 UPDATE observer_app_operations op SET run_id = run.id
 FROM observer_app_operations run
-WHERE op.id = ANY($1::bigint[]) AND op.agent_kind IN ('claude', 'codex')
+WHERE op.id = ANY($1::bigint[]) AND op.agent_kind IN ('claude', 'codex', 'chatgpt-desktop', 'claude-desktop')
   AND op.resource_kind <> 'turn' AND run.resource_kind = 'turn'
   AND run.organization_id = op.organization_id AND run.workspace_id = op.workspace_id
   AND run.client_id = op.client_id AND run.user_id = op.user_id
@@ -34,6 +34,36 @@ WHERE source.id = ANY($1::bigint[]) AND tool.source_operation_id = source.id
 
 func (q *Queries) AssignAppToolRuns(ctx context.Context, operationIds []int64) error {
 	_, err := q.db.Exec(ctx, assignAppToolRuns, operationIds)
+	return err
+}
+
+const assignNativeRuns = `-- name: AssignNativeRuns :exec
+UPDATE observer_app_operations op
+SET run_id = root.id, turn_id = root.turn_id
+FROM observer_app_operations root
+WHERE root.organization_id = $1 AND root.workspace_id = $2
+  AND root.client_id = $3 AND root.trace_id = ANY($4::bytea[])
+  AND root.native AND root.resource_kind = 'turn'
+  AND op.organization_id = root.organization_id AND op.workspace_id = root.workspace_id
+  AND op.client_id = root.client_id AND op.user_id = root.user_id
+  AND op.trace_id = root.trace_id AND op.session_id = root.session_id
+  AND op.native AND op.id <> root.id AND op.run_id IS DISTINCT FROM root.id
+`
+
+type AssignNativeRunsParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	ClientID       string   `json:"client_id"`
+	TraceIds       [][]byte `json:"trace_ids"`
+}
+
+func (q *Queries) AssignNativeRuns(ctx context.Context, arg AssignNativeRunsParams) error {
+	_, err := q.db.Exec(ctx, assignNativeRuns,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.ClientID,
+		arg.TraceIds,
+	)
 	return err
 }
 
@@ -236,7 +266,7 @@ WITH affected AS MATERIALIZED (
     AND mcp.client_id = key.client_id AND mcp.user_id = key.user_id AND mcp.tool_call_id = key.call_id
     -- Explicit nonempty IDs keep correlation probes on the partial call index.
     AND mcp.tool_call_id <> ''
-    AND mcp.resource_kind = 'mcp' AND mcp.agent_kind IN ('claude', 'codex')
+    AND mcp.resource_kind = 'mcp' AND mcp.agent_kind IN ('claude', 'codex', 'chatgpt-desktop', 'claude-desktop')
     AND (mcp.session_id = '' OR mcp.turn_id = '')
   LEFT JOIN observer_app_operations tool ON tool.organization_id = mcp.organization_id AND tool.workspace_id = mcp.workspace_id
     AND tool.client_id = mcp.client_id AND tool.user_id = mcp.user_id AND tool.tool_call_id = mcp.tool_call_id

@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -19,6 +21,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gofrs/flock"
+	"github.com/tmaxmax/go-sse"
 
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 )
@@ -83,6 +88,7 @@ type oauthCatalog struct {
 }
 
 func (installed *installation) serve(ctx context.Context) error {
+	copilot := installed.Provider == "github-copilot-cli" || installed.Provider == "github-copilot-desktop"
 	address, err := url.Parse(installed.address)
 	if err != nil {
 		return err
@@ -106,6 +112,22 @@ func (installed *installation) serve(ctx context.Context) error {
 	proxy := &httputil.ReverseProxy{
 		Transport:     transport,
 		FlushInterval: -1,
+		ModifyResponse: func(response *http.Response) error {
+			responses := strings.HasSuffix(response.Request.URL.Path, "/responses")
+			streaming := strings.HasPrefix(response.Header.Get("Content-Type"), "text/event-stream")
+			if copilot && responses && streaming && response.StatusCode == http.StatusOK {
+				next, stop := iter.Pull2(sse.Read(response.Body, &sse.ReadConfig{MaxEventSize: 32 << 20}))
+				response.Body = &copilotStream{
+					ReadCloser: response.Body,
+					next:       next,
+					stop:       stop,
+					items:      make(map[int]json.RawMessage),
+				}
+				response.ContentLength = -1
+				response.Header.Del("Content-Length")
+			}
+			return nil
+		},
 		Rewrite: func(request *httputil.ProxyRequest) {
 			request.SetURL(installed.upstream)
 			request.Out.URL.Path = "/api/inference" + request.In.URL.Path
@@ -155,15 +177,22 @@ func (installed *installation) serve(ctx context.Context) error {
 	mux.HandleFunc("POST /oauth/revoke", oauth)
 	mux.Handle("POST /v1/messages", proxy)
 	mux.Handle("POST /v1/messages/count_tokens", proxy)
+	mux.Handle("POST /v1/chat/completions", proxy)
+	mux.Handle("POST /v1/responses", proxy)
 	mux.Handle("/mcp", proxy)
 	catalog := func(w http.ResponseWriter, r *http.Request) {
 		installed.serveCatalog(w, r, api)
 	}
 	mux.HandleFunc("GET /managed/settings", catalog)
-	mux.HandleFunc("GET /v1/models", catalog)
+	if copilot {
+		mux.Handle("POST /v1/traces", proxy)
+	}
+	if !copilot {
+		mux.HandleFunc("GET /v1/models", catalog)
+		mux.HandleFunc("POST /v1/traces", catalog)
+	}
 	mux.HandleFunc("POST /v1/metrics", catalog)
 	mux.HandleFunc("POST /v1/logs", catalog)
-	mux.HandleFunc("POST /v1/traces", catalog)
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store, no-transform")
 		// Reject browser origins and hostile Host values before routing, even
@@ -171,6 +200,55 @@ func (installed *installation) serve(ctx context.Context) error {
 		if r.Host != address.Host || r.Header.Get("Origin") != "" {
 			http.Error(w, "This relay accepts local native-client requests only.", http.StatusForbidden)
 			return
+		}
+		catalog := r.Method == http.MethodGet && (r.URL.Path == "/v1/meta" || r.URL.Path == "/v1/models")
+		if copilot && catalog {
+			// Copilot's service catalog has no hosted models or Fusion routing.
+			// Approved models use explicit BYOK providers with native protocols.
+			// This public metadata contains no grant or account information;
+			// Copilot may authenticate it with its separate GitHub credentials.
+			data := `{"data":[],"object":"list"}`
+			if r.URL.Path == "/v1/meta" {
+				data = `{"models":{"data":[],"object":"list"},"object":"meta","service_messages":[]}`
+			}
+			w.Header().Set("Content-Type", "application/json")
+			io.WriteString(w, data)
+			return
+		}
+		adapter := copilot || installed.Provider == "claude-desktop"
+		if adapter && !strings.HasPrefix(r.URL.Path, "/relay/") {
+			credential := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+			if credential == "" {
+				credential = r.Header.Get("X-Api-Key")
+			}
+			if !hmac.Equal([]byte(credential), []byte(installed.clientKey)) {
+				http.Error(w, "Local AgentZ credential required.", http.StatusUnauthorized)
+				return
+			}
+			resource := "inference"
+			if r.URL.Path == "/mcp" {
+				resource = "mcp"
+			}
+			token, err := installed.accessToken(r.Context(), resource)
+			if err != nil {
+				w.Header().Set("Content-Type", "application/json")
+				w.Header().Set("x-should-retry", "false")
+				w.WriteHeader(http.StatusUnauthorized)
+				json.NewEncoder(w).Encode(relayError{
+					Type:  "error",
+					Error: relayErrorDetail{Type: "authentication_error", Message: err.Error()},
+				})
+				return
+			}
+			r.Header.Set("Authorization", "Bearer "+token)
+			r.Header.Del("X-AgentZ-Authorization")
+			// Return upstream rejections before a native client finishes its
+			// upload. HTTP/1 otherwise drains the body before writing headers.
+			err = http.NewResponseController(w).EnableFullDuplex()
+			if err != nil && !errors.Is(err, http.ErrNotSupported) {
+				http.Error(w, "The AgentZ relay is unavailable.", http.StatusServiceUnavailable)
+				return
+			}
 		}
 		mux.ServeHTTP(w, r)
 	})
@@ -184,7 +262,49 @@ func (installed *installation) serve(ctx context.Context) error {
 	stopped := make(chan struct{})
 	go func() {
 		defer close(stopped)
-		<-ctx.Done()
+		owners := flock.New(filepath.Join(installed.profile, "relay.lock"))
+		defer owners.Close()
+		var absent time.Time
+		ticker := time.NewTicker(250 * time.Millisecond)
+		defer ticker.Stop()
+		for ctx.Err() == nil {
+			locked, err := owners.TryLock()
+			if err != nil {
+				slog.ErrorContext(ctx, "check relay ownership", slog.Any("error", err))
+				cancel()
+				break
+			}
+			if !locked {
+				absent = time.Time{}
+			}
+			if locked {
+				desktop := strings.HasSuffix(installed.Provider, "-desktop")
+				running, err := installed.appsRunning(ctx)
+				if err != nil {
+					slog.ErrorContext(ctx, "check app lifetime", slog.Any("error", err))
+					running = true
+				}
+				if running {
+					absent = time.Time{}
+				}
+				if !running && absent.IsZero() {
+					absent = time.Now()
+				}
+				if !running && (!desktop || time.Since(absent) >= 5*time.Second) {
+					cancel()
+					break
+				}
+				if err := owners.Unlock(); err != nil {
+					slog.ErrorContext(ctx, "release relay ownership", slog.Any("error", err))
+					cancel()
+					break
+				}
+			}
+			select {
+			case <-ctx.Done():
+			case <-ticker.C:
+			}
+		}
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer shutdownCancel()
 		if err := server.Shutdown(shutdownCtx); err != nil {
@@ -221,6 +341,7 @@ func (installed *installation) serveControl(w http.ResponseWriter, r *http.Reque
 	signature.Write([]byte("response:" + message))
 	w.Header().Set("X-AgentZ-Relay-Proof", hex.EncodeToString(signature.Sum(nil)))
 	w.Header().Set("X-AgentZ-Relay-Pid", strconv.Itoa(os.Getpid()))
+	w.Header().Set("X-AgentZ-Relay-Lifetime", "app")
 	fmt.Fprintln(w, "AgentZ relay running at "+installed.address)
 	if r.Method == http.MethodPost {
 		cancel()
@@ -290,7 +411,7 @@ func (installed *installation) serveCatalog(w http.ResponseWriter, r *http.Reque
 			duplicates := slices.ContainsFunc(catalog.JSON200.Models, func(other gatewayapi.DelegationModel) bool {
 				return other.Id != model.Id && other.Model == model.Model
 			})
-			if !duplicates {
+			if !duplicates && installed.Provider == "claude" {
 				option.Model = model.Model
 				settings.ModelOverrides[model.Model] = model.Id
 			}

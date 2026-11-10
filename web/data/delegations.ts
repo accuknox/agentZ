@@ -14,7 +14,7 @@ import {
   type DelegationRequest,
 } from "@/lib/delegation"
 import { DEVICE_CODE_GRANT_TYPE } from "@better-auth/oauth-provider"
-import { oauthApplicationInput } from "@/data/schema"
+import { externalAgentCompatibility, oauthApplicationInput } from "@/data/schema"
 import type { DelegationCatalog } from "@/lib/gateway/client"
 
 /** saveOAuthApplication delegates protocol metadata and secret generation to Better Auth. */
@@ -316,16 +316,7 @@ export async function approveDelegation(
     throw new Error("Select an organization.")
   if (organizationId)
     selection = await checkDelegationSelection(organizationId, selection, user, "consent")
-  if (
-    agent &&
-    selection.models.some((model) => {
-      const api = agent.kind === "claude" ? "Messages" : "Responses"
-      const compatibility = model.api_compatibility?.find((item) => item.api === api)
-      if (agent.kind === "codex")
-        return compatibility?.support !== "native" || !model.model_info?.capabilities.tool_call
-      return !compatibility || compatibility.support === "unsupported"
-    })
-  )
+  if (agent && selection.models.some((model) => !externalAgentCompatibility(agent.kind, model)))
     throw new Error("A selected model does not support this coding agent.")
   // Display names and click order do not change authority. Preserve the stored
   // order when reusing a grant because it identifies the projected routes.

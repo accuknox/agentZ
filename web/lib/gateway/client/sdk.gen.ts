@@ -140,6 +140,9 @@ import type {
   ExportAgentMutableSkillsData,
   ExportAgentMutableSkillsErrors,
   ExportAgentMutableSkillsResponses,
+  ExportExternalAgentTracesData,
+  ExportExternalAgentTracesErrors,
+  ExportExternalAgentTracesResponses,
   ExportImmutableSkillsData,
   ExportImmutableSkillsErrors,
   ExportImmutableSkillsResponses,
@@ -2512,6 +2515,27 @@ export const getDelegatedCatalog = <ThrowOnError extends boolean = false>(
     security: [{ scheme: "bearer", type: "http" }],
     url: "/api/inference/v1/catalog",
     ...options,
+  })
+
+/**
+ * Export native Copilot traces with current delegated inference authorization.
+ */
+export const exportExternalAgentTraces = <ThrowOnError extends boolean = false>(
+  options: Options<ExportExternalAgentTracesData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    ExportExternalAgentTracesResponses,
+    ExportExternalAgentTracesErrors,
+    ThrowOnError
+  >({
+    bodySerializer: null,
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/inference/v1/traces",
+    ...options,
+    headers: {
+      "Content-Type": "application/x-protobuf",
+      ...options.headers,
+    },
   })
 
 /**

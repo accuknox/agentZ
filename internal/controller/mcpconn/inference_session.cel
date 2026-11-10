@@ -1,5 +1,5 @@
-default(metadata.agentz_observability.agent_kind, "") == "codex"
+default(metadata.agentz_observability.agent_kind, "") in ["codex", "chatgpt-desktop"]
   ? default(request.headers["thread-id"], "")
-  : (default(metadata.agentz_observability.agent_kind, "") == "claude"
+  : (default(metadata.agentz_observability.agent_kind, "") in ["claude", "claude-desktop"]
       ? default(request.headers["x-claude-code-session-id"], "")
       : "")

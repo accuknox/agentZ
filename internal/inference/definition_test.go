@@ -696,24 +696,34 @@ func TestDelegatedResponsesClientTools(t *testing.T) {
 		t.Fatal("accepted Responses tools in Chat Completions")
 	}
 
-	search := []byte(
-		`{"model":"selected","store":false,"tools":[{"type":"tool_search","execution":"client"}],"input":[{"type":"tool_search_output","execution":"client","tools":[{"type":"function","name":"read"}]}]}`,
-	)
-	input, err = ValidateDelegatedRequest(search, true)
-	if err != nil {
-		t.Fatal(err)
+	searches := map[string]string{
+		"client search":                  `{"model":"selected","store":false,"tools":[{"type":"tool_search","execution":"client"}],"input":[{"type":"tool_search_output","execution":"client","tools":[{"type":"function","name":"read"}]}]}`,
+		"Copilot deferred MCP namespace": `{"model":"selected","store":false,"tools":[{"type":"namespace","name":"agentz","tools":[{"type":"function","name":"read","defer_loading":true}]},{"type":"tool_search"}]}`,
+		"server search history":          `{"model":"selected","store":false,"tools":[{"type":"tool_search","execution":"server"}],"input":[{"type":"tool_search_output","execution":"server","tools":[{"type":"namespace","name":"agentz","tools":[{"type":"function","name":"read"}]}]}]}`,
 	}
-	if err := input.ValidateProvider(agentzv1alpha1.InferenceProviderKindOpenAI); err != nil {
-		t.Fatal(err)
+	for name, body := range searches {
+		t.Run(name, func(t *testing.T) {
+			input, err := ValidateDelegatedRequest([]byte(body), true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := input.ValidateProvider(agentzv1alpha1.InferenceProviderKindOpenAI); err != nil {
+				t.Fatal(err)
+			}
+			if err := input.ValidateProvider(agentzv1alpha1.InferenceProviderKindOpenAICompatible); err == nil {
+				t.Fatal("accepted tool search for Responses to Chat conversion")
+			}
+		})
 	}
 	forbidden := []string{
-		`{"model":"selected","store":false,"tools":[{"type":"tool_search"}]}`,
-		`{"model":"selected","store":false,"tools":[{"type":"tool_search","execution":"server"}]}`,
+		`{"model":"selected","store":false,"tools":[{"type":"tool_search","execution":"unknown"}]}`,
 		`{"model":"selected","store":false,"input":[{"type":"tool_search_output","execution":"client","tools":[{"type":"file_search"}]}]}`,
+		`{"model":"selected","store":false,"input":[{"type":"tool_search_output","execution":"server","tools":[{"type":"namespace","name":"agentz","tools":[{"type":"file_search"}]}]}]}`,
+		`{"model":"selected","store":false,"tools":[{"type":"tool_search"},{"type":"namespace","name":"agentz","tools":[{"type":"mcp","server_url":"https://example.com"}]}]}`,
 	}
 	for _, body := range forbidden {
 		if _, err := ValidateDelegatedRequest([]byte(body), true); err == nil {
-			t.Fatal("accepted provider-hosted tool discovery")
+			t.Fatal("accepted invalid discovery or provider account tools")
 		}
 	}
 	hosted := []byte(`{"model":"selected","store":false,"tools":[{"type":"namespace","name":"local","tools":[{"type":"file_search"}]}]}`)

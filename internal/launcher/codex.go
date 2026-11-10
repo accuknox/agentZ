@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -17,6 +18,7 @@ import (
 	"time"
 
 	"github.com/cli/browser"
+	"github.com/pelletier/go-toml/v2"
 	"github.com/sourcegraph/jsonrpc2"
 	"github.com/urfave/cli/v3"
 
@@ -33,6 +35,11 @@ var codexInstructions string
 type codexTransport struct {
 	io.Reader
 	io.WriteCloser
+}
+
+type codexTables struct {
+	Providers map[string]any `toml:"model_providers"`
+	Servers   map[string]any `toml:"mcp_servers"`
 }
 
 type codexCatalog struct {
@@ -70,6 +77,10 @@ type codexModel struct {
 }
 
 func (installed *installation) codex(ctx context.Context, command *cli.Command, args []string) error {
+	mcpLogin := command.Name == "login" && slices.Equal(args, []string{"--mcp"})
+	if installed.Provider == "chatgpt-desktop" && mcpLogin {
+		args = []string{"mcp", "login", "agentz"}
+	}
 	profile := filepath.Join(installed.profile, "codex")
 	if err := os.MkdirAll(profile, 0o700); err != nil {
 		return err
@@ -105,8 +116,8 @@ func (installed *installation) codex(ctx context.Context, command *cli.Command, 
 			resource=%s,
 			scopes=["openid","profile","email","offline_access","inference:use"],
 			redirect_port=8766,
-			delivery={kind="header",name="X-AgentZ-Authorization",scheme="Bearer"},
-		},
+			delivery={kind="header",name="X-AgentZ-Authorization",scheme="Bearer"}
+		}
 	}`, resource, authorize, token, client, resource)
 	mcp := fmt.Sprintf(`mcp_servers.agentz={
 		url=%s,
@@ -114,8 +125,8 @@ func (installed *installation) codex(ctx context.Context, command *cli.Command, 
 		oauth={
 			client_id=%s,
 			callback_port=8767,
-			callback_url="http://127.0.0.1:8767/callback",
-		},
+			callback_url="http://127.0.0.1:8767/callback"
+		}
 	}`, mcpURL, client)
 	flags := []string{
 		"-c", `model_provider="agentz"`,
@@ -140,7 +151,7 @@ func (installed *installation) codex(ctx context.Context, command *cli.Command, 
 			data, err = os.ReadFile(cache)
 		}
 		if err != nil {
-			return fmt.Errorf("read approved models: %w\nRun 'agentz login codex' with the same --profile", err)
+			return fmt.Errorf("read approved models: %w\nRun 'agentz login %s' with the same --profile", err, installed.Provider)
 		}
 		var approved gatewayapi.DelegationCatalog
 		if err := json.Unmarshal(data, &approved); err != nil {
@@ -152,20 +163,86 @@ func (installed *installation) codex(ctx context.Context, command *cli.Command, 
 			return err
 		}
 		if command.Name == "login" {
-			fmt.Fprintln(command.Writer, "Codex is connected.")
+			message := "Codex is connected."
+			if installed.Provider == "chatgpt-desktop" {
+				message = "ChatGPT Desktop is connected."
+			}
+			fmt.Fprintln(command.Writer, message)
 			return nil
 		}
 		modelJSON, _ := json.Marshal(model)
 		fileJSON, _ := json.Marshal(modelFile)
 		flags = append(flags, "-c", "model="+string(modelJSON), "-c", "model_catalog_json="+string(fileJSON))
 	}
-	flags = append(flags, args...)
-	child := exec.CommandContext(ctx, "codex", flags...)
+	var child *exec.Cmd
+	if installed.Provider == "chatgpt-desktop" && !mcpCommand {
+		path := filepath.Join(profile, "config.toml")
+		existing, err := os.ReadFile(path)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		config := make(map[string]any)
+		tables := codexTables{
+			Providers: make(map[string]any),
+			Servers:   make(map[string]any),
+		}
+		if len(existing) != 0 {
+			if err := toml.Unmarshal(existing, &config); err != nil {
+				return fmt.Errorf("read desktop configuration: %w", err)
+			}
+			if err := toml.Unmarshal(existing, &tables); err != nil {
+				return err
+			}
+		}
+		for i := 0; i < len(flags); i += 2 {
+			value := strings.NewReplacer("\n", " ", "\t", " ").Replace(flags[i+1])
+			update := make(map[string]any)
+			if err := toml.Unmarshal([]byte(value), &update); err != nil {
+				return err
+			}
+			managed := codexTables{}
+			if err := toml.Unmarshal([]byte(value), &managed); err != nil {
+				return err
+			}
+			maps.Copy(tables.Providers, managed.Providers)
+			maps.Copy(tables.Servers, managed.Servers)
+			maps.Copy(config, update)
+		}
+		config["model_providers"], config["mcp_servers"] = tables.Providers, tables.Servers
+		data, err := toml.Marshal(config)
+		if err != nil {
+			return err
+		}
+		if err := writeProfileFile(path, data); err != nil {
+			return err
+		}
+		binary := installed.DesktopExecutable
+		if binary == "" {
+			binary = "chatgpt"
+			if runtime.GOOS == "darwin" {
+				binary = "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT"
+			}
+		}
+		executable, err := exec.LookPath(binary)
+		if err != nil {
+			return fmt.Errorf("install ChatGPT Desktop or set desktopExecutable in this profile: %w", err)
+		}
+		desktopArgs := append([]string{"--user-data-dir=" + filepath.Join(installed.profile, "chatgpt")}, args...)
+		child = exec.CommandContext(ctx, executable, desktopArgs...)
+	}
+	if child == nil {
+		flags = append(flags, args...)
+		child = exec.CommandContext(ctx, "codex", flags...)
+	}
 	child.Env = environment
 	child.Stdin, child.Stdout, child.Stderr = os.Stdin, command.Writer, command.ErrWriter
-	if err := child.Run(); err != nil {
+	if err := installed.runAgent(ctx, child); err != nil {
 		if exit, ok := errors.AsType[*exec.ExitError](err); ok {
-			return cli.Exit("Codex exited.", exit.ExitCode())
+			message := "Codex exited."
+			if installed.Provider == "chatgpt-desktop" && !mcpCommand {
+				message = "ChatGPT Desktop exited."
+			}
+			return cli.Exit(message, exit.ExitCode())
 		}
 		return err
 	}
@@ -209,7 +286,7 @@ func (installed *installation) codexLogin(ctx context.Context, command *cli.Comm
 			return nil, err
 		}
 		if changed.AuthUrl != nil {
-			fmt.Fprintln(command.Writer, "Sign in to Codex in your browser:", *changed.AuthUrl)
+			fmt.Fprintln(command.Writer, "Sign in to AgentZ in your browser:", *changed.AuthUrl)
 			// SSH users can open the printed URL on their own machine.
 			if runtime.GOOS != "linux" || os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != "" {
 				go func() { browser.OpenURL(*changed.AuthUrl) }()
@@ -316,8 +393,9 @@ func (installed *installation) codexModels(ctx context.Context, approved gateway
 		catalog.Models = append(catalog.Models, entry)
 	}
 	if first == "" {
-		return "", errors.New(
-			"no approved model can run Codex tools. Run 'agentz login codex' and select a model with native Responses support",
+		return "", fmt.Errorf(
+			"no approved model supports native Responses and tools. Run 'agentz login %s' with the same --profile and select a compatible model",
+			installed.Provider,
 		)
 	}
 	data, err = json.Marshal(catalog)

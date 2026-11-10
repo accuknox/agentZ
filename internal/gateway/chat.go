@@ -1291,7 +1291,8 @@ func (s *Service) setChatSessionState(w http.ResponseWriter, r *http.Request, ac
 		return
 	}
 	expiry, err := s.queries.GatewayGetBrowserSessionExpiry(r.Context(), gatewaydb.GatewayGetBrowserSessionExpiryParams{
-		ID: auth.claims.BrowserSessionID, UserID: access.userID,
+		ID:     auth.claims.BrowserSessionID,
+		UserID: access.userID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) || err == nil && !expiry.After(time.Now()) {
 		apiutil.WriteError(w, r, apiutil.NewError(http.StatusUnauthorized, "unauthorized", "browser session has expired", nil))

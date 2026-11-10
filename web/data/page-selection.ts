@@ -57,7 +57,7 @@ export type ResolvedPageSelection = {
   workflowRun?: WorkflowRunDetail
   defaultAppClientID?: string
   sessionNextPageToken?: string
-  sessions: TraceSessionFilterItem[]
+  sessions?: TraceSessionFilterItem[]
   error?: Error
 }
 
@@ -283,6 +283,12 @@ async function resolveSelection(
       clientID: app.client_id,
       name: app.name,
       providerKind: app.agent_kind,
+    }
+    if (page === "lens/mcp" && app.agent_kind === "claude-desktop") {
+      // Managed MCP calls omit the desktop session and tool-call IDs.
+      delete state.requested.session_id
+      state.sessions = undefined
+      return state
     }
     const rememberedSession =
       requested.app_client_id === app.client_id ? requested.session_id : undefined

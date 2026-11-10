@@ -5683,6 +5683,10 @@ components:
           enum:
           - claude
           - codex
+          - github-copilot-cli
+          - github-copilot-desktop
+          - chatgpt-desktop
+          - claude-desktop
           type: string
         client_id:
           type: string
@@ -31290,6 +31294,32 @@ paths:
       - GatewayBearer:
         - inference:use
       summary: Read the approved model catalog using a delegated inference credential.
+      tags:
+      - inference
+  /api/inference/v1/traces:
+    post:
+      operationId: exportExternalAgentTraces
+      requestBody:
+        content:
+          application/x-protobuf:
+            schema:
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/x-protobuf:
+              schema:
+                format: binary
+                type: string
+          description: OTLP ExportTraceServiceResponse, including rejected span counts.
+        default:
+          $ref: '#/components/responses/BadRequest'
+      security:
+      - GatewayBearer:
+        - inference:use
+      summary: Export native Copilot traces with current delegated inference authorization.
       tags:
       - inference
   /api/lens/{agentName}/{sessionID}/trace:

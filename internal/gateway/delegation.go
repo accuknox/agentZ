@@ -603,6 +603,15 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 		s.delegationError(w, r, http.StatusForbidden, "access_denied", "The gateway resource was not granted.")
 		return
 	}
+	if r.URL.Path == "/api/inference/v1/traces" {
+		_, err := s.resolveDelegation(r.Context(), grant, gatewayapi.DelegationCatalog{Models: selection.Models})
+		if err != nil {
+			deny(err, false)
+			return
+		}
+		s.ingestCopilot(w, r, grant, selection)
+		return
+	}
 	if r.URL.Path == "/api/inference/v1/models" || r.URL.Path == "/api/inference/v1/catalog" {
 		resources, err := s.resolveDelegation(r.Context(), grant, gatewayapi.DelegationCatalog{Models: selection.Models})
 		if err != nil {

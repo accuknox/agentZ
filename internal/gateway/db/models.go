@@ -599,8 +599,12 @@ func (ns NullEventTrailTarget) Value() (driver.Value, error) {
 type ExternalAgentKind string
 
 const (
-	ExternalAgentKindClaude ExternalAgentKind = "claude"
-	ExternalAgentKindCodex  ExternalAgentKind = "codex"
+	ExternalAgentKindClaude               ExternalAgentKind = "claude"
+	ExternalAgentKindCodex                ExternalAgentKind = "codex"
+	ExternalAgentKindGithubCopilotCli     ExternalAgentKind = "github-copilot-cli"
+	ExternalAgentKindGithubCopilotDesktop ExternalAgentKind = "github-copilot-desktop"
+	ExternalAgentKindChatgptDesktop       ExternalAgentKind = "chatgpt-desktop"
+	ExternalAgentKindClaudeDesktop        ExternalAgentKind = "claude-desktop"
 )
 
 func (e *ExternalAgentKind) Scan(src interface{}) error {
@@ -1129,6 +1133,7 @@ type ObserverAppSpan struct {
 	SourceOperationID pgtype.Int8   `json:"source_operation_id"`
 	ResultID          pgtype.Int8   `json:"result_id"`
 	Visible           pgtype.Bool   `json:"visible"`
+	Native            bool          `json:"native"`
 }
 
 type ObserverGuardrailEvent struct {

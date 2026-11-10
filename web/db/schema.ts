@@ -250,7 +250,14 @@ export const workspaces = pgTable(
   ]
 )
 
-export const externalAgentKind = pgEnum("external_agent_kind", ["claude", "codex"])
+export const externalAgentKind = pgEnum("external_agent_kind", [
+  "claude",
+  "codex",
+  "github-copilot-cli",
+  "github-copilot-desktop",
+  "chatgpt-desktop",
+  "claude-desktop",
+])
 
 export const externalAgents = pgTable(
   "external_agents",

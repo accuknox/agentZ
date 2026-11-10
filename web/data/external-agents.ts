@@ -171,22 +171,29 @@ export async function createExternalAgent(
     throw new Error("You do not have permission to onboard agents in this workspace.")
   const headers = new Headers(session.requestHeaders)
   headers.set("X-AgentZ-Workspace-ID", scope.workspace.id)
+  let callbacks: string[] | undefined
+  let grants = [DEVICE_CODE_GRANT_TYPE, "refresh_token"]
+  switch (data.kind) {
+    case "claude":
+      callbacks = ["http://localhost:8765/callback"]
+      grants = ["authorization_code", "refresh_token", DEVICE_CODE_GRANT_TYPE]
+      break
+    case "codex":
+    case "chatgpt-desktop":
+      callbacks = ["http://127.0.0.1:8766/callback", "http://127.0.0.1:8767/callback"]
+      grants = ["authorization_code", "refresh_token"]
+      break
+  }
   const client = await getAuth().api.adminCreateOAuthClient({
     headers,
     body: {
       client_name: data.name,
       application_type: "native",
       token_endpoint_auth_method: "none",
-      redirect_uris:
-        data.kind === "claude"
-          ? ["http://localhost:8765/callback"]
-          : ["http://127.0.0.1:8766/callback", "http://127.0.0.1:8767/callback"],
+      redirect_uris: callbacks,
       scope: delegationScopes.join(" "),
-      grant_types:
-        data.kind === "claude"
-          ? ["authorization_code", "refresh_token", DEVICE_CODE_GRANT_TYPE]
-          : ["authorization_code", "refresh_token"],
-      response_types: ["code"],
+      grant_types: grants,
+      response_types: callbacks ? ["code"] : undefined,
       require_pkce: true,
       skip_consent: false,
     },

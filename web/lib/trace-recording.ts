@@ -9,12 +9,25 @@ const messageContent = z.union([
   z
     .array(textBlock)
     .transform((blocks) =>
-      blocks
-        .filter((block) => ["text", "input_text", "output_text"].includes(block.type))
-        .flatMap((block) => (block.text ? [block.text] : []))
+      blocks.flatMap((block) =>
+        ["text", "input_text", "output_text"].includes(block.type) && block.text ? [block.text] : []
+      )
     ),
 ])
-const message = z.object({ role: z.string().optional(), content: messageContent.nullish() })
+const message = z.union([
+  z
+    .object({
+      role: z.string(),
+      parts: z.array(z.object({ type: z.string(), content: z.string().optional() })),
+    })
+    .transform((message) => ({
+      role: message.role,
+      content: message.parts.flatMap((part) =>
+        part.type === "text" && part.content ? [part.content] : []
+      ),
+    })),
+  z.object({ role: z.string().optional(), content: messageContent.nullish() }),
+])
 const messages = z.array(message)
 const request = z.union([
   messages,
@@ -25,9 +38,7 @@ const request = z.union([
 const response = z.union([
   z.object({ completion: z.array(z.string()) }).transform((output) => output.completion),
   messages.transform((output) =>
-    output
-      .filter((message) => message.role === "assistant")
-      .flatMap((message) => message.content ?? [])
+    output.flatMap((message) => (message.role === "assistant" ? (message.content ?? []) : []))
   ),
 ])
 const toolContent = z.union([

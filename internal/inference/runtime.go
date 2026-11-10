@@ -50,6 +50,11 @@ const (
 //go:embed chat_text_content.cel
 var chatTextContent agentgatewayv1alpha1.CELExpression
 
+// codexInput preserves Responses instructions in the Codex subscription format.
+//
+//go:embed codex_input.cel
+var codexInput agentgatewayv1alpha1.CELExpression
+
 // retryableResponse excludes content denials from retries and Pool eviction.
 //
 //go:embed retryable_response.cel
@@ -346,6 +351,9 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 
 	switch provider.Spec.Kind {
 	case agentzv1alpha1.InferenceProviderKindOpenAICodex:
+		target.Policies.Transformation = &agentgatewayv1alpha1.Transformation{
+			Request: &agentgatewayv1alpha1.Transform{Body: &codexInput},
+		}
 		target.LLM.Custom = &agentgatewayv1alpha1.CustomProvider{
 			CustomProviderSettings: agentgatewayv1alpha1.CustomProviderSettings{
 				Formats: []agentgatewayv1alpha1.ProviderFormatConfig{{

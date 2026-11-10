@@ -36,7 +36,8 @@ import {
   SelectItem,
   SelectGroup,
 } from "@/components/ui/select"
-import type { DelegationCatalog } from "@/lib/gateway/client"
+import { externalAgentCompatibility } from "@/data/schema"
+import type { DelegationCatalog, LensApp } from "@/lib/gateway/client"
 import type { DelegationRequest } from "@/lib/delegation"
 import { approveConsentAction, delegationWorkspaceAction, denyDeviceConsentAction } from "./actions"
 import { AuthorizationState } from "./authorization-state"
@@ -59,7 +60,7 @@ const mcpKinds = ["tools", "prompts", "resources"] as const
 
 type ConsentProps = {
   request: DelegationRequest
-  client: { name: string; owner: string | null; callback: string; agent?: "claude" | "codex" }
+  client: { name: string; owner: string | null; callback: string; agent?: LensApp["agent_kind"] }
   user: { name: string; email: string; image?: string | null }
   scopes: string[]
   organizations: { id: string; name: string }[]
@@ -135,8 +136,10 @@ export function Consent({
             ...current,
             mcp: [
               ...current.mcp,
-              ...catalog.mcp.filter((connection) =>
-                mcpKinds.some((kind) => connection[kind].length)
+              ...catalog.mcp.filter(
+                (connection) =>
+                  mcpKinds.some((kind) => connection[kind].length) &&
+                  !current.mcp.some((selected) => selected.id === connection.id)
               ),
             ],
           }))
@@ -352,16 +355,10 @@ export function Consent({
                           searchPlaceholder="Search models or providers…"
                           emptyMessage="No matching models."
                           options={catalog.models.map((model) => {
-                            const api = client.agent === "claude" ? "Messages" : "Responses"
                             const compatibility = client.agent
-                              ? model.api_compatibility?.find((item) => item.api === api)
+                              ? externalAgentCompatibility(client.agent, model)
                               : undefined
-                            const codexUnsupported =
-                              client.agent === "codex" &&
-                              (compatibility?.support !== "native" ||
-                                !model.model_info?.capabilities.tool_call)
-                            const unsupported =
-                              compatibility?.support === "unsupported" || codexUnsupported
+                            const unsupported = !!client.agent && !compatibility
                             let badge = model.provider_display_name || model.provider
                             if (compatibility?.support === "native") badge = "Native"
                             if (compatibility?.support === "translated") badge = "Supported"

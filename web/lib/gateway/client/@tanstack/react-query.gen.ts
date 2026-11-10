@@ -53,6 +53,7 @@ import {
   discoverGuardrailConnectionResources,
   ensureTenant,
   exportAgentMutableSkills,
+  exportExternalAgentTraces,
   exportImmutableSkills,
   getAgentOwner,
   getAgentTool,
@@ -321,6 +322,9 @@ import type {
   ExportAgentMutableSkillsData,
   ExportAgentMutableSkillsError,
   ExportAgentMutableSkillsResponse,
+  ExportExternalAgentTracesData,
+  ExportExternalAgentTracesError,
+  ExportExternalAgentTracesResponse,
   ExportImmutableSkillsData,
   ExportImmutableSkillsError,
   ExportImmutableSkillsResponse,
@@ -3833,6 +3837,33 @@ export const getDelegatedCatalogOptions = (options?: Options<GetDelegatedCatalog
     },
     queryKey: getDelegatedCatalogQueryKey(options),
   })
+
+/**
+ * Export native Copilot traces with current delegated inference authorization.
+ */
+export const exportExternalAgentTracesMutation = (
+  options?: Partial<Options<ExportExternalAgentTracesData>>
+): UseMutationOptions<
+  ExportExternalAgentTracesResponse,
+  ExportExternalAgentTracesError,
+  Options<ExportExternalAgentTracesData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    ExportExternalAgentTracesResponse,
+    ExportExternalAgentTracesError,
+    Options<ExportExternalAgentTracesData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await exportExternalAgentTraces({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
 
 export const listInferencePoolsQueryKey = (options: Options<ListInferencePoolsData>) =>
   createQueryKey("listInferencePools", options)

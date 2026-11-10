@@ -57,6 +57,13 @@
       "when": 1793876849704,
       "tag": "0007_workflow-locks",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794311929775,
+      "tag": "0008_external_agents",
+      "breakpoints": true
     }
   ]
 }

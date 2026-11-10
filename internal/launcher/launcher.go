@@ -26,6 +26,8 @@ import (
 
 	"github.com/blang/semver/v4"
 	"github.com/cenkalti/backoff/v5"
+	"github.com/gofrs/flock"
+	"github.com/shirou/gopsutil/v4/process"
 	"github.com/urfave/cli/v3"
 	"go.yaml.in/yaml/v3"
 )
@@ -38,9 +40,10 @@ type configuration struct {
 }
 
 type externalAgent struct {
-	Provider  string `yaml:"provider"`
-	ServerURL string `yaml:"serverUrl,omitempty"`
-	ClientID  string `yaml:"clientID"`
+	Provider          string `yaml:"provider"`
+	ServerURL         string `yaml:"serverUrl,omitempty"`
+	ClientID          string `yaml:"clientID"`
+	DesktopExecutable string `yaml:"desktopExecutable,omitempty"`
 }
 
 type installation struct {
@@ -50,11 +53,15 @@ type installation struct {
 	profile    string
 	address    string
 	ownerKey   string
+	clientKey  string
 	upstream   *url.URL
 }
 
 // Run launches coding agents and manages their local relay.
 func Run(ctx context.Context, command *cli.Command) error {
+	if command.Name == "headers" {
+		return writeDesktopHeaders(command.Writer, command.String("profile-directory"))
+	}
 	if command.Name != "launch" {
 		var cancel context.CancelFunc
 		ctx, cancel = signal.NotifyContext(ctx, os.Interrupt)
@@ -68,6 +75,10 @@ func Run(ctx context.Context, command *cli.Command) error {
 	provider := ""
 	launch := command.Name == "launch" || command.Name == "login"
 	if launch {
+		providers := []string{
+			"claude", "codex", "copilot", "github-copilot-cli",
+			"chatgpt-desktop", "claude-desktop", "github-copilot-desktop",
+		}
 		// Parse only the launcher prefix. Everything after -- or the first
 		// native argument belongs to the coding agent, including --profile.
 		for len(args) > 0 {
@@ -76,8 +87,12 @@ func Run(ctx context.Context, command *cli.Command) error {
 				args = args[1:]
 				break
 			}
-			if provider == "" && (arg == "claude" || arg == "codex") {
+			native := slices.Contains(providers, arg)
+			if provider == "" && native {
 				provider, args = arg, args[1:]
+				if provider == "copilot" {
+					provider = "github-copilot-cli"
+				}
 				continue
 			}
 			if arg != "--profile" && !strings.HasPrefix(arg, "--profile=") {
@@ -99,15 +114,45 @@ func Run(ctx context.Context, command *cli.Command) error {
 			}
 		}
 		if provider == "" && profileName == "" && len(args) > 0 {
-			return errors.New("usage: agentz launch [claude|codex] [--profile NAME] [-- native flags]")
+			return errors.New(
+				"usage: agentz launch [claude|codex|copilot|chatgpt-desktop|claude-desktop|github-copilot-desktop] [--profile NAME] [-- native flags]",
+			)
 		}
 	}
 	installed, err := loadInstallation(ctx, command.String("config"), profileName, provider)
 	if err != nil {
 		return err
 	}
+	var directoryFlag string
+	switch installed.Provider {
+	case "claude-desktop", "chatgpt-desktop":
+		directoryFlag = "--user-data-dir"
+	case "github-copilot-desktop":
+		directoryFlag = "--config-dir"
+	}
+	if directoryFlag != "" {
+		for _, arg := range args {
+			if arg == directoryFlag || strings.HasPrefix(arg, directoryFlag+"=") {
+				return errors.New("AgentZ manages the desktop data directory; use --profile to select an agent")
+			}
+		}
+	}
 	if launch {
+		// The OS releases this shared lock even if the launcher is killed.
+		owner := flock.New(filepath.Join(installed.profile, "relay.lock"))
+		defer owner.Close()
+		if _, err := owner.TryRLockContext(ctx, 50*time.Millisecond); err != nil {
+			return fmt.Errorf("acquire relay ownership: %w", err)
+		}
+	}
+	if launch && installed.Provider != "claude-desktop" && installed.Provider != "github-copilot-desktop" {
 		provider = installed.Provider
+		if provider == "chatgpt-desktop" {
+			provider = "codex"
+		}
+		if provider == "github-copilot-cli" {
+			provider = "copilot"
+		}
 		if _, err := exec.LookPath(provider); err != nil {
 			return fmt.Errorf("install %s before launching it: %w", provider, err)
 		}
@@ -115,8 +160,13 @@ func Run(ctx context.Context, command *cli.Command) error {
 		if err != nil {
 			return fmt.Errorf("read %s version: %w", provider, err)
 		}
-		versionText := strings.TrimPrefix(string(version), "codex-cli ")
+		versionText, _, _ := strings.Cut(string(version), "\n")
+		versionText = strings.TrimPrefix(versionText, "codex-cli ")
+		if provider == "copilot" {
+			versionText = strings.TrimPrefix(versionText, "GitHub Copilot CLI ")
+		}
 		versionText, _, _ = strings.Cut(strings.TrimSpace(versionText), " ")
+		versionText = strings.TrimSuffix(versionText, ".")
 		current, err := semver.Parse(versionText)
 		if err != nil {
 			return fmt.Errorf("read %s version: %w", provider, err)
@@ -124,6 +174,9 @@ func Run(ctx context.Context, command *cli.Command) error {
 		minimum := semver.Version{Major: 2, Minor: 1, Patch: 299}
 		if provider == "codex" {
 			minimum = semver.Version{Minor: 162, Patch: 1}
+		}
+		if provider == "copilot" {
+			minimum = semver.Version{Major: 1, Patch: 106}
 		}
 		if current.LT(minimum) {
 			return fmt.Errorf("AgentZ requires %s %s or later", provider, minimum)
@@ -142,11 +195,17 @@ func Run(ctx context.Context, command *cli.Command) error {
 		_, err = io.Copy(command.Writer, response.Body)
 		return err
 	case "launch", "login":
+		if installed.Provider == "claude-desktop" {
+			return installed.claudeDesktop(ctx, command, args)
+		}
 		if err := installed.ensureRelay(ctx); err != nil {
 			return err
 		}
-		if installed.Provider == "codex" {
+		if installed.Provider == "codex" || installed.Provider == "chatgpt-desktop" {
 			return installed.codex(ctx, command, args)
+		}
+		if installed.Provider == "github-copilot-cli" || installed.Provider == "github-copilot-desktop" {
+			return installed.copilot(ctx, command, args)
 		}
 		if command.Name == "login" {
 			return errors.New("run agentz launch claude and complete its gateway sign-in")
@@ -222,7 +281,7 @@ func (installed *installation) claude(ctx context.Context, command *cli.Command,
 		"CLAUDE_CONFIG_DIR="+profile,
 		"CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1", "CLAUDE_CODE_GATEWAY_HINT_HEADERS=1",
 	)
-	if err := child.Run(); err != nil {
+	if err := installed.runAgent(ctx, child); err != nil {
 		if exit, ok := errors.AsType[*exec.ExitError](err); ok {
 			return cli.Exit("Claude exited", exit.ExitCode())
 		}
@@ -292,8 +351,13 @@ func loadInstallation(ctx context.Context, configPath, profileName, provider str
 				return nil, fmt.Errorf("duplicate external agent profile %q", name)
 			}
 			names[name] = true
-			if agent.Provider != "claude" && agent.Provider != "codex" {
-				return nil, fmt.Errorf("profile %q: provider must be claude or codex", name)
+			if agent.Provider == "copilot" {
+				agent.Provider = "github-copilot-cli"
+			}
+			switch agent.Provider {
+			case "claude", "codex", "github-copilot-cli", "chatgpt-desktop", "claude-desktop", "github-copilot-desktop":
+			default:
+				return nil, fmt.Errorf("profile %q: unsupported external agent provider %q", name, agent.Provider)
 			}
 			if profileName != "" && profileName != name {
 				continue
@@ -371,6 +435,7 @@ func loadInstallation(ctx context.Context, configPath, profileName, provider str
 		return nil, err
 	}
 	port := 20000 + (int(digest[0])<<8|int(digest[1]))%30000
+	capability := sha256.Sum256(append([]byte("agentz-local-client\x00"), ownerKey...))
 	return &installation{
 		externalAgent: selected,
 		name:          selectedName,
@@ -378,6 +443,7 @@ func loadInstallation(ctx context.Context, configPath, profileName, provider str
 		profile:       profile,
 		address:       "http://127.0.0.1:" + strconv.Itoa(port),
 		ownerKey:      string(ownerKey),
+		clientKey:     hex.EncodeToString(capability[:]),
 		upstream:      upstream,
 	}, nil
 }
@@ -388,6 +454,9 @@ func (installed *installation) ensureRelay(ctx context.Context) error {
 	response, err := installed.controlRelay(startupCtx, "status")
 	if err == nil {
 		response.Body.Close()
+		if response.Header.Get("X-AgentZ-Relay-Lifetime") != "app" {
+			return fmt.Errorf("stop the old persistent relay with agentz relay stop --profile %q, then launch again", installed.name)
+		}
 		return nil
 	}
 	if errors.Is(err, errRelayOwnership) {
@@ -417,7 +486,7 @@ func (installed *installation) ensureRelay(ctx context.Context) error {
 	}
 	exited := make(chan struct{})
 	var childErr error
-	// Reap the persistent relay when it exits, even after readiness returns.
+	// Reap the relay when it exits, even after readiness returns.
 	go func() {
 		childErr = child.Wait()
 		close(exited)
@@ -443,6 +512,10 @@ func (installed *installation) ensureRelay(ctx context.Context) error {
 			response, err := installed.controlRelay(startupCtx, "status")
 			if err == nil {
 				response.Body.Close()
+				if response.Header.Get("X-AgentZ-Relay-Lifetime") != "app" {
+					err := fmt.Errorf("stop the old persistent relay with agentz relay stop --profile %q, then launch again", installed.name)
+					return false, backoff.Permanent(err)
+				}
 				// Another launcher may have started the relay first. Stop our
 				// unused child in that case.
 				ready = response.Header.Get("X-AgentZ-Relay-Pid") == strconv.Itoa(child.Process.Pid)
@@ -503,4 +576,112 @@ func (installed *installation) controlRelay(ctx context.Context, operation strin
 		return nil, fmt.Errorf("relay at %s: %w", installed.address, errRelayOwnership)
 	}
 	return response, nil
+}
+
+// App identity remains available to the relay if this launcher is killed.
+type appLifetime struct {
+	PID     int32 `json:"pid"`
+	Started int64 `json:"started"`
+}
+
+func (installed *installation) runAgent(ctx context.Context, child *exec.Cmd) error {
+	directory := filepath.Join(installed.profile, "apps")
+	if err := os.MkdirAll(directory, 0o700); err != nil {
+		return err
+	}
+	path := filepath.Join(directory, rand.Text()+".app")
+	// Publish ownership before starting the app. Its inherited marker covers
+	// launcher death between Start and recording the native process identity.
+	if err := writeProfileFile(path, []byte(`{}`)); err != nil {
+		return err
+	}
+	defer os.Remove(path)
+	child.Env = append(child.Environ(), "AGENTZ_APP_LIFETIME="+path)
+	if err := child.Start(); err != nil {
+		return err
+	}
+	app, err := process.NewProcessWithContext(ctx, int32(child.Process.Pid))
+	if errors.Is(err, process.ErrorProcessNotRunning) || errors.Is(err, os.ErrNotExist) {
+		return child.Wait()
+	}
+	var started int64
+	if err == nil {
+		started, err = app.CreateTimeWithContext(ctx)
+	}
+	if err == nil {
+		data, marshalErr := json.Marshal(appLifetime{PID: app.Pid, Started: started})
+		err = marshalErr
+		if err == nil {
+			err = writeProfileFile(path, data)
+		}
+	}
+	if err != nil {
+		child.Process.Kill()
+		child.Wait()
+		return fmt.Errorf("record app lifetime: %w", err)
+	}
+	return child.Wait()
+}
+
+func (installed *installation) appsRunning(ctx context.Context) (bool, error) {
+	directory := filepath.Join(installed.profile, "apps")
+	entries, err := os.ReadDir(directory)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return false, err
+	}
+	for _, entry := range entries {
+		if !strings.HasSuffix(entry.Name(), ".app") {
+			continue
+		}
+		path := filepath.Join(directory, entry.Name())
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return false, err
+		}
+		var lifetime appLifetime
+		if err := json.Unmarshal(data, &lifetime); err != nil {
+			return false, fmt.Errorf("read app lifetime: %w", err)
+		}
+		running, err := lifetime.running(ctx, path)
+		if err != nil || running {
+			return running, err
+		}
+		if err := os.Remove(path); err != nil {
+			return false, err
+		}
+	}
+	return installed.desktopRunning(ctx)
+}
+
+func (lifetime appLifetime) running(ctx context.Context, path string) (bool, error) {
+	if lifetime.PID == 0 {
+		apps, err := process.ProcessesWithContext(ctx)
+		if err != nil {
+			return false, err
+		}
+		for _, app := range apps {
+			env, err := app.EnvironWithContext(ctx)
+			if err == nil && slices.Contains(env, "AGENTZ_APP_LIFETIME="+path) {
+				return true, nil
+			}
+		}
+		return false, nil
+	}
+	app, err := process.NewProcessWithContext(ctx, lifetime.PID)
+	if errors.Is(err, process.ErrorProcessNotRunning) || errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	created, err := app.CreateTimeWithContext(ctx)
+	if err != nil || created != lifetime.Started {
+		return false, err
+	}
+	// Windows process existence excludes exited processes; it has no zombie status.
+	if runtime.GOOS == "windows" {
+		return true, nil
+	}
+	status, err := app.StatusWithContext(ctx)
+	return !slices.Contains(status, process.Zombie), err
 }

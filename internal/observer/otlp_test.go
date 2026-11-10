@@ -213,7 +213,7 @@ func BenchmarkAppOperationCapture(b *testing.B) {
 }
 
 func TestAppNativeIdentityRequiresRegistration(t *testing.T) {
-	for _, kind := range []string{"", "ordinary-app", "claude", "codex"} {
+	for _, kind := range []string{"", "ordinary-app", "claude", "codex", "chatgpt-desktop", "claude-desktop"} {
 		t.Run(kind, func(t *testing.T) {
 			span := appSpanFixture(0)
 			labels := map[string]string{
@@ -233,7 +233,7 @@ func TestAppNativeIdentityRequiresRegistration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			registered := kind == "claude" || kind == "codex"
+			registered := kind != "" && kind != "ordinary-app"
 			if !registered {
 				if op.AgentKind != "" || op.SessionID != "" || op.TurnID != "" || op.ToolCallID != "" {
 					t.Fatal("unregistered metadata established native identity")
@@ -396,9 +396,13 @@ func TestGuardrailCallerScope(t *testing.T) {
 	for _, attr := range span.Attributes {
 		switch attr.Key {
 		case attrAgentZTenantNamespace:
-			attr.Value = &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: "caller-workspace"}}
+			attr.Value = &commonpb.AnyValue{
+				Value: &commonpb.AnyValue_StringValue{StringValue: "caller-workspace"},
+			}
 		case "agentz.resource_namespace":
-			attr.Value = &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: "sandbox-organization"}}
+			attr.Value = &commonpb.AnyValue{
+				Value: &commonpb.AnyValue_StringValue{StringValue: "sandbox-organization"},
+			}
 		case "agentz.client_id", "agentz.organization_id", "agentz.workspace_id":
 			attr.Value = nil
 		}

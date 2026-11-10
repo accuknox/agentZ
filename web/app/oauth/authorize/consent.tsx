@@ -1,8 +1,5 @@
 "use client"
 
-import { externalAgentCompatibility } from "@/data/schema"
-import type { LensApp } from "@/lib/gateway/client"
-
 import { useEffect, useState, useTransition } from "react"
 import Image from "next/image"
 import { createAuthClient } from "better-auth/react"
@@ -39,7 +36,8 @@ import {
   SelectItem,
   SelectGroup,
 } from "@/components/ui/select"
-import type { DelegationCatalog } from "@/lib/gateway/client"
+import { externalAgentCompatibility } from "@/data/schema"
+import type { DelegationCatalog, LensApp } from "@/lib/gateway/client"
 import type { DelegationRequest } from "@/lib/delegation"
 import { approveConsentAction, delegationWorkspaceAction, denyDeviceConsentAction } from "./actions"
 import { AuthorizationState } from "./authorization-state"
@@ -183,6 +181,15 @@ export function Consent({
           </p>
         </div>
       </header>
+      {request.type === "device_code" ? (
+        <Alert>
+          <AlertDescription>
+            Confirm this code matches your terminal:{" "}
+            <strong className="font-mono">{request.userCode}</strong>. Only authorize a connection
+            you started.
+          </AlertDescription>
+        </Alert>
+      ) : null}
       <div className="rounded-xl border-2 border-dashed border-muted-foreground/50 bg-card/40 p-5 text-sm">
         <UserIdentity name={user.name} email={user.email} image={user.image} size="default" />
       </div>

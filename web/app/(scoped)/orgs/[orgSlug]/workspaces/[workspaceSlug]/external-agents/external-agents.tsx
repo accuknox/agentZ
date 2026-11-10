@@ -1,8 +1,5 @@
 "use client"
 
-import { HoldToConfirm } from "@/components/interior/hold-to-confirm"
-
-import { LoadingButton } from "@/components/interior/loading-button"
 import { useMemo, useState, useTransition } from "react"
 import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -34,6 +31,8 @@ import { TruncatedText } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CopyButton } from "@/components/interior/copy-button"
+import { HoldToConfirm } from "@/components/interior/hold-to-confirm"
+import { LoadingButton } from "@/components/interior/loading-button"
 import {
   Dialog,
   DialogContent,
@@ -648,6 +647,7 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
     agent.kind === "chatgpt-desktop" ||
     agent.kind === "claude-desktop" ||
     agent.kind === "github-copilot-desktop"
+  const separateLogin = desktop || agent.kind === "github-copilot-cli"
   const reconnect = agent.previouslyConnected && !agent.connected
   let modelInstructions = "Sign in and choose models. Skip this step if you only need MCP."
   if (agent.kind === "github-copilot-cli")
@@ -722,11 +722,7 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
           <SetupCommand command={`${launch} auth logout`} label="Copy logout command" />
         ) : null}
         <SetupCommand
-          command={
-            desktop || agent.kind === "github-copilot-cli" || (reconnect && agent.kind === "codex")
-              ? login
-              : launch
-          }
+          command={separateLogin || (reconnect && agent.kind === "codex") ? login : launch}
           label="Copy model connection command"
         />
         <FieldDescription>{modelInstructions}</FieldDescription>
@@ -740,11 +736,7 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
           />
         ) : null}
         <SetupCommand
-          command={
-            desktop || agent.kind === "github-copilot-cli"
-              ? `${login} --mcp`
-              : `${launch} mcp login agentz`
-          }
+          command={separateLogin ? `${login} --mcp` : `${launch} mcp login agentz`}
           label="Copy MCP login command"
         />
         <FieldDescription>Choose tools, prompts and resources in the browser</FieldDescription>
@@ -759,8 +751,8 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
           <FieldDescription>{desktopInstructions}</FieldDescription>
           {agent.kind === "github-copilot-desktop" ? (
             <FieldDescription>
-              Copilot 1.1.35 can omit native traces after reopening a session. Start a new
-              session for complete Lens traces.
+              Copilot 1.1.35 can omit native traces after reopening a session. Start a new session
+              for complete Lens traces.
             </FieldDescription>
           ) : null}
           <FieldDescription>

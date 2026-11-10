@@ -37,11 +37,9 @@ export function externalAgentCompatibility(
   model: DelegationModel
 ) {
   const compatibility = model.api_compatibility ?? []
-  if (kind === "claude")
-    return compatibility.find((item) => item.api === "Messages" && item.support !== "unsupported")
-  if (!model.model_info?.capabilities.tool_call) return
-  if (kind === "claude-desktop") {
-    if (!model.model.startsWith("claude-")) return
+  if (kind !== "claude" && !model.model_info?.capabilities.tool_call) return
+  if (kind === "claude-desktop" && !model.model.startsWith("claude-")) return
+  if (kind === "claude" || kind === "claude-desktop") {
     return compatibility.find((item) => item.api === "Messages" && item.support !== "unsupported")
   }
   if (kind === "codex" || kind === "chatgpt-desktop")

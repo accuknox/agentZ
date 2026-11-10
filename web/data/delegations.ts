@@ -1,5 +1,4 @@
 import "server-only"
-import { externalAgentCompatibility } from "@/data/schema"
 
 import { randomUUID } from "node:crypto"
 import { isDeepStrictEqual } from "node:util"
@@ -15,7 +14,7 @@ import {
   type DelegationRequest,
 } from "@/lib/delegation"
 import { DEVICE_CODE_GRANT_TYPE } from "@better-auth/oauth-provider"
-import { oauthApplicationInput } from "@/data/schema"
+import { externalAgentCompatibility, oauthApplicationInput } from "@/data/schema"
 import type { DelegationCatalog } from "@/lib/gateway/client"
 
 /** saveOAuthApplication delegates protocol metadata and secret generation to Better Auth. */

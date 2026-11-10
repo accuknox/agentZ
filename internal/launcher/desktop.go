@@ -109,9 +109,12 @@ func (installed *installation) claudeDesktop(ctx context.Context, command *cli.C
 	config := desktopConnection{
 		SchemaVersion: 2,
 		Inference: desktopInference{
-			Provider: "gateway", BaseURL: installed.address,
+			Provider: "gateway",
+			BaseURL:  installed.address,
 			Credential: desktopCredential{
-				Kind: "static", APIKey: installed.clientKey, AuthScheme: "bearer",
+				Kind:       "static",
+				APIKey:     installed.clientKey,
+				AuthScheme: "bearer",
 			},
 		},
 		Models: desktopModels{List: []desktopModel{}},
@@ -128,7 +131,9 @@ func (installed *installation) claudeDesktop(ctx context.Context, command *cli.C
 				continue
 			}
 			config.Models.List = append(config.Models.List, desktopModel{
-				Name: model.Id, LabelOverride: model.ModelDisplayName, BehavesAs: model.Model,
+				Name:          model.Id,
+				LabelOverride: model.ModelDisplayName,
+				BehavesAs:     model.Model,
 			})
 			break
 		}
@@ -157,7 +162,9 @@ func (installed *installation) claudeDesktop(ctx context.Context, command *cli.C
 			return errors.New("profile paths for Claude Desktop cannot contain quotes, percent signs or control characters")
 		}
 		config.MCP = &desktopMCP{ManagedServers: []desktopServer{{
-			Name: "AgentZ", Transport: "http", URL: installed.address + "/mcp",
+			Name:              "AgentZ",
+			Transport:         "http",
+			URL:               installed.address + "/mcp",
 			HeadersHelper:     executable,
 			HeadersHelperArgs: []string{"relay", "headers", "--profile-directory", profile},
 		}}}
@@ -174,8 +181,12 @@ func (installed *installation) claudeDesktop(ctx context.Context, command *cli.C
 		return err
 	}
 	fmt.Fprintf(command.Writer, "Connection saved to %s\n", path)
-	fmt.Fprintln(command.Writer, "Quit any running Claude Desktop instance first. Use this command whenever you open the app so native turn tracking stays enabled.")
-	fmt.Fprintln(command.Writer, "In Claude Desktop: Help > Troubleshooting > Enable Developer Mode, then Developer > Configure Third-Party Inference. Import the connection, confirm its name, and Apply Changes.")
+	fmt.Fprintln(command.Writer,
+		"Quit any running Claude Desktop instance first. Use this command whenever you open the app so native turn tracking stays enabled.",
+	)
+	fmt.Fprintln(command.Writer,
+		"In Claude Desktop: Help > Troubleshooting > Enable Developer Mode, then Developer > Configure Third-Party Inference. Import the connection, confirm its name, and Apply Changes.",
+	)
 	if config.MCP == nil {
 		fmt.Fprintln(command.Writer, "For MCP, run agentz login claude-desktop --profile NAME --mcp, then export and import again.")
 	}
@@ -225,7 +236,7 @@ func writeDesktopHeaders(writer io.Writer, profile string) error {
 
 // Track the profile across native process replacement and launcher exits.
 func (installed *installation) desktopRunning(ctx context.Context) (bool, error) {
-	if installed.Provider != "claude-desktop" && installed.Provider != "chatgpt-desktop" && installed.Provider != "github-copilot-desktop" {
+	if !strings.HasSuffix(installed.Provider, "-desktop") {
 		return false, nil
 	}
 	processes, err := process.ProcessesWithContext(ctx)

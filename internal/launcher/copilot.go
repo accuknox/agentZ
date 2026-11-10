@@ -248,114 +248,9 @@ func (installed *installation) copilot(ctx context.Context, command *cli.Command
 				return err
 			}
 		}
-		token, err := installed.accessToken(ctx, "inference")
+		registry, err = installed.copilotModels(ctx)
 		if err != nil {
 			return err
-		}
-		httpClient := &http.Client{
-			Timeout:       20 * time.Second,
-			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-		}
-		client, err := gatewayapi.NewClientWithResponses(installed.upstream.String(), gatewayapi.WithHTTPClient(httpClient))
-		if err != nil {
-			return err
-		}
-		catalog, err := client.GetDelegatedCatalogWithResponse(ctx, func(_ context.Context, r *http.Request) error {
-			r.Header.Set("Authorization", "Bearer "+token)
-			return nil
-		})
-		if err != nil {
-			return errors.New("AgentZ model catalog is unavailable")
-		}
-		if catalog.JSON200 == nil {
-			if catalog.StatusCode() == http.StatusUnauthorized || catalog.StatusCode() == http.StatusForbidden {
-				return fmt.Errorf("AgentZ model access was revoked. Reconnect with agentz login %s using the same --profile", installed.Provider)
-			}
-			return fmt.Errorf("AgentZ model discovery is unavailable (HTTP %d). Try launching again", catalog.StatusCode())
-		}
-		for _, model := range catalog.JSON200.Models {
-			if model.ModelInfo == nil || !model.ModelInfo.Capabilities.ToolCall || model.ApiCompatibility == nil {
-				continue
-			}
-			provider, rank := "", 6
-			// Native protocols preserve provider-specific tools and reasoning.
-			// Responses conversion is deliberately excluded for that reason.
-			for _, compatibility := range *model.ApiCompatibility {
-				if compatibility.Support == gatewayapi.DelegationAPICompatibilitySupportUnsupported {
-					continue
-				}
-				candidate, score := "", 6
-				switch compatibility.Api {
-				case gatewayapi.Responses:
-					if compatibility.Support != gatewayapi.DelegationAPICompatibilitySupportNative {
-						continue
-					}
-					candidate, score = "agentz-responses", 0
-				case gatewayapi.Messages:
-					candidate, score = "agentz-messages", 1
-					if compatibility.Support == gatewayapi.DelegationAPICompatibilitySupportTranslated {
-						score = 4
-					}
-				case gatewayapi.ChatCompletions:
-					candidate, score = "agentz-chat", 2
-					if compatibility.Support == gatewayapi.DelegationAPICompatibilitySupportTranslated {
-						score = 3
-					}
-				}
-				if score < rank {
-					provider, rank = candidate, score
-				}
-			}
-			if provider == "" {
-				continue
-			}
-			configured := slices.ContainsFunc(registry.Providers, func(connection copilotProvider) bool {
-				return connection.Name == provider
-			})
-			if !configured {
-				connection := copilotProvider{
-					Name:      provider,
-					Type:      "openai",
-					BaseURL:   installed.address + "/v1",
-					APIKey:    installed.clientKey,
-					Transport: "http",
-				}
-				switch provider {
-				case "agentz-responses":
-					connection.WireAPI = "responses"
-				case "agentz-messages":
-					connection.Type = "anthropic"
-					connection.BaseURL = installed.address
-				case "agentz-chat":
-					connection.WireAPI = "completions"
-				}
-				registry.Providers = append(registry.Providers, connection)
-			}
-			registry.Models = append(registry.Models, copilotModel{
-				ID:                     model.Id,
-				Provider:               provider,
-				Name:                   model.ModelDisplayName,
-				WireModel:              model.Id,
-				ModelID:                model.Model,
-				MaxPromptTokens:        model.ModelInfo.Limits.Input,
-				MaxContextWindowTokens: model.ModelInfo.Limits.Context,
-				MaxOutputTokens:        model.ModelInfo.Limits.Output,
-				Capabilities: copilotCapabilities{
-					Limits: copilotLimits{
-						Prompt:  model.ModelInfo.Limits.Input,
-						Context: model.ModelInfo.Limits.Context,
-						Output:  model.ModelInfo.Limits.Output,
-					},
-					Supports: copilotSupport{
-						Vision:    slices.Contains(model.ModelInfo.Modalities.Input, gatewayapi.InferenceModelModalityImage),
-						ToolCalls: true,
-						Streaming: true,
-					},
-				},
-			})
-		}
-		if len(registry.Models) == 0 {
-			return fmt.Errorf("no approved model supports Copilot tool calls. Run agentz login %s and select a compatible model", installed.Provider)
 		}
 		data, err := json.MarshalIndent(registry, "", "  ")
 		if err != nil {
@@ -486,4 +381,119 @@ Copilot 1.1.35 can omit native traces after reopening a session. Start a new ses
 		return err
 	}
 	return nil
+}
+
+// copilotModels projects approved models into native providers and protocols.
+func (installed *installation) copilotModels(ctx context.Context) (copilotRegistry, error) {
+	var registry copilotRegistry
+	token, err := installed.accessToken(ctx, "inference")
+	if err != nil {
+		return copilotRegistry{}, err
+	}
+	httpClient := &http.Client{
+		Timeout:       20 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
+	client, err := gatewayapi.NewClientWithResponses(installed.upstream.String(), gatewayapi.WithHTTPClient(httpClient))
+	if err != nil {
+		return copilotRegistry{}, err
+	}
+	catalog, err := client.GetDelegatedCatalogWithResponse(ctx, func(_ context.Context, r *http.Request) error {
+		r.Header.Set("Authorization", "Bearer "+token)
+		return nil
+	})
+	if err != nil {
+		return copilotRegistry{}, errors.New("AgentZ model catalog is unavailable")
+	}
+	if catalog.JSON200 == nil {
+		if catalog.StatusCode() == http.StatusUnauthorized || catalog.StatusCode() == http.StatusForbidden {
+			return copilotRegistry{}, fmt.Errorf("AgentZ model access was revoked. Reconnect with agentz login %s using the same --profile", installed.Provider)
+		}
+		return copilotRegistry{}, fmt.Errorf("AgentZ model discovery is unavailable (HTTP %d). Try launching again", catalog.StatusCode())
+	}
+	for _, model := range catalog.JSON200.Models {
+		if model.ModelInfo == nil || !model.ModelInfo.Capabilities.ToolCall || model.ApiCompatibility == nil {
+			continue
+		}
+		provider, rank := "", 6
+		// Native protocols preserve provider-specific tools and reasoning.
+		// Responses conversion is deliberately excluded for that reason.
+		for _, compatibility := range *model.ApiCompatibility {
+			if compatibility.Support == gatewayapi.DelegationAPICompatibilitySupportUnsupported {
+				continue
+			}
+			candidate, score := "", 6
+			switch compatibility.Api {
+			case gatewayapi.Responses:
+				if compatibility.Support != gatewayapi.DelegationAPICompatibilitySupportNative {
+					continue
+				}
+				candidate, score = "agentz-responses", 0
+			case gatewayapi.Messages:
+				candidate, score = "agentz-messages", 1
+				if compatibility.Support == gatewayapi.DelegationAPICompatibilitySupportTranslated {
+					score = 4
+				}
+			case gatewayapi.ChatCompletions:
+				candidate, score = "agentz-chat", 2
+				if compatibility.Support == gatewayapi.DelegationAPICompatibilitySupportTranslated {
+					score = 3
+				}
+			}
+			if score < rank {
+				provider, rank = candidate, score
+			}
+		}
+		if provider == "" {
+			continue
+		}
+		configured := slices.ContainsFunc(registry.Providers, func(connection copilotProvider) bool {
+			return connection.Name == provider
+		})
+		if !configured {
+			connection := copilotProvider{
+				Name:      provider,
+				Type:      "openai",
+				BaseURL:   installed.address + "/v1",
+				APIKey:    installed.clientKey,
+				Transport: "http",
+			}
+			switch provider {
+			case "agentz-responses":
+				connection.WireAPI = "responses"
+			case "agentz-messages":
+				connection.Type = "anthropic"
+				connection.BaseURL = installed.address
+			case "agentz-chat":
+				connection.WireAPI = "completions"
+			}
+			registry.Providers = append(registry.Providers, connection)
+		}
+		registry.Models = append(registry.Models, copilotModel{
+			ID:                     model.Id,
+			Provider:               provider,
+			Name:                   model.ModelDisplayName,
+			WireModel:              model.Id,
+			ModelID:                model.Model,
+			MaxPromptTokens:        model.ModelInfo.Limits.Input,
+			MaxContextWindowTokens: model.ModelInfo.Limits.Context,
+			MaxOutputTokens:        model.ModelInfo.Limits.Output,
+			Capabilities: copilotCapabilities{
+				Limits: copilotLimits{
+					Prompt:  model.ModelInfo.Limits.Input,
+					Context: model.ModelInfo.Limits.Context,
+					Output:  model.ModelInfo.Limits.Output,
+				},
+				Supports: copilotSupport{
+					Vision:    slices.Contains(model.ModelInfo.Modalities.Input, gatewayapi.InferenceModelModalityImage),
+					ToolCalls: true,
+					Streaming: true,
+				},
+			},
+		})
+	}
+	if len(registry.Models) == 0 {
+		return copilotRegistry{}, fmt.Errorf("no approved model supports Copilot tool calls. Run agentz login %s and select a compatible model", installed.Provider)
+	}
+	return registry, nil
 }

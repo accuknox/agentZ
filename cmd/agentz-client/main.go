@@ -59,7 +59,15 @@ func main() {
 				Usage: "Manage the local AgentZ relay",
 				Commands: []*cli.Command{
 					{Name: "serve", Hidden: true, Action: launcher.Run},
-					{Name: "headers", Hidden: true, Flags: []cli.Flag{&cli.StringFlag{Name: "profile-directory", Required: true}}, Action: launcher.Run},
+					{
+						Name:   "headers",
+						Hidden: true,
+						Flags: []cli.Flag{&cli.StringFlag{
+							Name:     "profile-directory",
+							Required: true,
+						}},
+						Action: launcher.Run,
+					},
 					{Name: "status", Action: launcher.Run},
 					{Name: "stop", Action: launcher.Run},
 				},

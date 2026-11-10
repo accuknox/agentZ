@@ -278,7 +278,7 @@ func (installed *installation) serve(ctx context.Context) error {
 				absent = time.Time{}
 			}
 			if locked {
-				desktop := installed.Provider == "claude-desktop" || installed.Provider == "chatgpt-desktop" || installed.Provider == "github-copilot-desktop"
+				desktop := strings.HasSuffix(installed.Provider, "-desktop")
 				running, err := installed.appsRunning(ctx)
 				if err != nil {
 					slog.ErrorContext(ctx, "check app lifetime", slog.Any("error", err))
